@@ -73,6 +73,8 @@ import { get100Command } from './commands/get100Command'
 import { handleTechSupport } from './commands/handleTechSupport'
 import { handleBuy } from './handlers/handleBuy'
 import { isRussian } from '@/helpers/language'
+// ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { registerPaymentActions } from './handlers/paymentActions'
 // handleTextMessage и setupHearsHandlers теперь импортируются в bot.ts
 // Убираем импорт handleMenu, так как он не используется здесь напрямую
@@ -326,7 +328,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       return sendGroupCommandReply(ctx)
     }
 
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     logger.info('TEST COMMAND: test_payment_message', {
       telegramId: ctx.from?.id,
     })
@@ -420,7 +423,8 @@ If not, continue on your own and click the "I myself" button`
       return sendGroupCommandReply(ctx)
     }
 
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     logger.info('TEST COMMAND: test_upscale', {
       telegramId: ctx.from?.id,
     })
@@ -497,7 +501,8 @@ If not, continue on your own and click the "I myself" button`
           stack: error instanceof Error ? error.stack : undefined,
           telegramId: ctx.from?.id,
         })
-        const isRu = ctx.from?.language_code === 'ru'
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRu = isRussianFromState(ctx)
         try {
           await ctx.reply(
             isRu
@@ -517,7 +522,8 @@ If not, continue on your own and click the "I myself" button`
       telegramId: ctx.from?.id,
     })
     try {
-      const is_ru = ctx.from?.language_code === 'ru'
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
       // Переходим в сцену нейрофото
       await ctx.scene.leave()
@@ -534,8 +540,10 @@ If not, continue on your own and click the "I myself" button`
         error,
         telegramId: ctx.from?.id,
       })
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError = isRussianFromState(ctx)
       await ctx.reply(
-        ctx.from?.language_code === 'ru'
+        isRuError
           ? '❌ Произошла ошибка при создании нового промпта.'
           : '❌ An error occurred while creating a new prompt.'
       )
@@ -567,7 +575,8 @@ If not, continue on your own and click the "I myself" button`
 
   // Обработчик кнопки "Ещё одно фото" для upscaler'а
   bot.action('upscale_another_photo', async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     logger.info('GLOBAL ACTION: upscale_another_photo', {
       telegramId: ctx.from?.id,
     })
@@ -635,7 +644,8 @@ If not, continue on your own and click the "I myself" button`
 
   // Добавляем обработчик для кнопки "Я сам"
   bot.action('continue_solo', async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     logger.info('GLOBAL ACTION: continue_solo', {
       telegramId: ctx.from?.id,
     })
@@ -668,10 +678,10 @@ If not, continue on your own and click the "I myself" button`
 
     // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
     if (ctx.session?.awaitingFluxKontextImage) {
-      const { handleFluxKontextImageUpload } = await import(
+      const { handleFluxKontextImage } = await import(
         './commands/fluxKontextCommand'
       )
-      await handleFluxKontextImageUpload(ctx)
+      await handleFluxKontextImage(ctx)
       return
     }
 
@@ -696,7 +706,8 @@ If not, continue on your own and click the "I myself" button`
 
       const telegram_id = ctx.from?.id?.toString()
       const username = ctx.from?.username || ''
-      const is_ru = ctx.from?.language_code === 'ru'
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
       if (!telegram_id) {
         await ctx.reply(
@@ -732,8 +743,10 @@ If not, continue on your own and click the "I myself" button`
         error,
         telegramId: ctx.from?.id,
       })
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError = isRussianFromState(ctx)
       await ctx.reply(
-        ctx.from?.language_code === 'ru'
+        isRuError
           ? '❌ Произошла ошибка при увеличении качества изображения.'
           : '❌ An error occurred while upscaling the image.'
       )
@@ -750,7 +763,8 @@ If not, continue on your own and click the "I myself" button`
 
       const telegram_id = ctx.from?.id?.toString()
       const username = ctx.from?.username || ''
-      const is_ru = ctx.from?.language_code === 'ru'
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
       if (!telegram_id) {
         await ctx.reply(
@@ -792,8 +806,10 @@ If not, continue on your own and click the "I myself" button`
         error,
         telegramId: ctx.from?.id,
       })
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError2 = isRussianFromState(ctx)
       await ctx.reply(
-        ctx.from?.language_code === 'ru'
+        isRuError2
           ? '❌ Произошла ошибка при увеличении качества нейрофото.'
           : '❌ An error occurred while upscaling the neurophoto.'
       )
@@ -806,8 +822,10 @@ If not, continue on your own and click the "I myself" button`
     })
     try {
       await ctx.answerCbQuery()
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuMore = isRussianFromState(ctx)
       await ctx.reply(
-        ctx.from?.language_code === 'ru'
+        isRuMore
           ? '📷 Отправьте новое изображение для редактирования:'
           : '📷 Send a new image for editing:'
       )
@@ -847,7 +865,8 @@ If not, continue on your own and click the "I myself" button`
     })
     try {
       await ctx.answerCbQuery()
-      const is_ru = ctx.from?.language_code === 'ru'
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
       // Переходим в сцену нейрофото
       await ctx.scene.leave()
@@ -864,8 +883,10 @@ If not, continue on your own and click the "I myself" button`
         error,
         telegramId: ctx.from?.id,
       })
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError3 = isRussianFromState(ctx)
       await ctx.reply(
-        ctx.from?.language_code === 'ru'
+        isRuError3
           ? '❌ Произошла ошибка при создании нового промпта.'
           : '❌ An error occurred while creating a new prompt.'
       )
@@ -878,7 +899,8 @@ If not, continue on your own and click the "I myself" button`
     })
     try {
       await ctx.answerCbQuery()
-      const is_ru = ctx.from?.language_code === 'ru'
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
       // Переходим в сцену изменения размера
       await ctx.scene.leave()
@@ -888,8 +910,10 @@ If not, continue on your own and click the "I myself" button`
         error,
         telegramId: ctx.from?.id,
       })
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError4 = isRussianFromState(ctx)
       await ctx.reply(
-        ctx.from?.language_code === 'ru'
+        isRuError4
           ? '❌ Произошла ошибка при изменении размера.'
           : '❌ An error occurred while changing size.'
       )
@@ -902,7 +926,8 @@ If not, continue on your own and click the "I myself" button`
     })
     try {
       await ctx.answerCbQuery()
-      const is_ru = ctx.from?.language_code === 'ru'
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
       // Переходим в сцену улучшения промпта
       await ctx.scene.leave()
@@ -912,8 +937,10 @@ If not, continue on your own and click the "I myself" button`
         error,
         telegramId: ctx.from?.id,
       })
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError5 = isRussianFromState(ctx)
       await ctx.reply(
-        ctx.from?.language_code === 'ru'
+        isRuError5
           ? '❌ Произошла ошибка при улучшении промпта.'
           : '❌ An error occurred while improving prompt.'
       )
@@ -949,7 +976,8 @@ If not, continue on your own and click the "I myself" button`
         telegramId: ctx.from?.id,
         subscriptionType: subscriptionType,
       })
-      const isRu = ctx.from?.language_code === 'ru'
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRu = isRussianFromState(ctx)
       try {
         await ctx.reply(
           isRu

@@ -2,6 +2,7 @@ import { getReferalsCountAndUserData } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
 import { mainMenu } from '../menu'
 import { logger } from '@/utils/logger'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export async function sendGenerationCancelledMessage(
   ctx: MyContext,
@@ -14,7 +15,7 @@ export async function sendGenerationCancelledMessage(
   const telegram_id = ctx.from.id.toString()
   const { count, subscriptionType, level } =
     await getReferalsCountAndUserData(telegram_id)
-  const isRu = ctx.from?.language_code === 'ru'
+  const isRu = isRussianFromState(ctx)
   const message = isRu
     ? `Генерация отменена по причине: ${reason}`
     : `Generation cancelled due to: ${reason}`

@@ -24,7 +24,7 @@ export const getReferalsCountAndUserData = async (
       .from('users')
       .select('*')
       .eq('telegram_id', telegram_id.toString())
-      .single()
+      .maybeSingle() // ✅ ИСПРАВЛЕНО: используем maybeSingle() чтобы избежать ошибки multiple rows
 
     if (userError || !userData) {
       console.error(

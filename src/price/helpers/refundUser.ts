@@ -3,6 +3,7 @@ import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { mainMenu } from '@/menu'
 import { PaymentType } from '@/interfaces'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export async function refundUser(ctx: MyContext, paymentAmount: number) {
   if (!ctx.from) {
@@ -38,7 +39,7 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
       `refundUser: Failed to update balance for ${telegramIdStr}. Update function returned false.`
     )
     await ctx.reply(
-      ctx.from.language_code === 'ru'
+      isRussianFromState(ctx)
         ? 'Не удалось вернуть средства. Обратитесь в поддержку.'
         : 'Failed to refund. Please contact support.'
     )
@@ -56,7 +57,7 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
   const { count, subscriptionType, level } =
     await getReferalsCountAndUserData(telegramIdStr)
 
-  const isRu = ctx.from.language_code === 'ru'
+  const isRu = isRussianFromState(ctx)
 
   const displayBalance =
     newBalance !== null ? newBalance : initialBalance + amountToRefund

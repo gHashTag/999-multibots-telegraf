@@ -2,7 +2,7 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { Markup } from 'telegraf'
 import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
-import { priceCommand } from '@/commands/priceCommand'
+import { handlePriceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { handleTechSupport } from '@/commands/handleTechSupport'
@@ -549,7 +549,7 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: 'priceScene',
         })
         console.log('CASE: 💰 Цены')
-        await priceCommand(ctx)
+        await handlePriceCommand(ctx)
       },
 
       '/balance': async () => {

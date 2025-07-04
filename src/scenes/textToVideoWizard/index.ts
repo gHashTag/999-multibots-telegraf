@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext, VideoModelKey } from '@/interfaces'
 import { calculateFinalPrice } from '@/price/helpers'
 import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
@@ -204,7 +204,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   // Шаг 0: Вход и выбор модели
   async ctx => {
     logger.info(`[TextToVideoWizard Step 0] Entered for user ${ctx.from?.id}`)
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     await ctx.reply(isRu ? 'Выберите модель:' : 'Select a model:', {
       reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
     })
@@ -214,7 +214,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   // Шаг 1: Обработка выбора модели, проверка баланса и запрос промпта
   async ctx => {
     logger.info(`[TextToVideoWizard Step 1] Entered for user ${ctx.from?.id}`)
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
       return ctx.scene.leave()
@@ -305,7 +305,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   // Шаг 2: Получение промпта и запуск генерации
   async ctx => {
     logger.info(`[TextToVideoWizard Step 2] Entered for user ${ctx.from?.id}`)
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
       return ctx.scene.leave()

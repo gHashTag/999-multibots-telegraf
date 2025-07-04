@@ -1,9 +1,9 @@
 import { sendGenericErrorMessage } from '@/menu'
-import { isRussian } from '../../helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '../../interfaces'
 
 export async function handleCallback(ctx: MyContext) {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   try {
     console.log('CASE: callback_query:data')
 

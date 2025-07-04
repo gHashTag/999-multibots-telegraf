@@ -1,7 +1,7 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '../../core/supabase'
-import { isRussian } from '../../helpers/language'
+import { isRussianFromState } from '../../helpers/centralizedLanguage'
 import { handleHelpCancel } from '../../handlers/handleHelpCancel'
 import { createHelpCancelKeyboard } from '../../menu'
 import {
@@ -19,7 +19,7 @@ interface WizardSessionData extends Scenes.WizardSessionData {
 export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.Avatar,
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     await ctx.reply(
       isRu
         ? '👋 Привет, как называется ваша компания?'
@@ -30,7 +30,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
   },
 
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     if (ctx.message && 'text' in ctx.message) {
       const isCancel = await handleHelpCancel(ctx)
       if (!isCancel) {
@@ -45,7 +45,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
     return ctx.scene.leave()
   },
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     if (ctx.message && 'text' in ctx.message) {
       const isCancel = await handleHelpCancel(ctx)
       if (!isCancel) {
@@ -63,7 +63,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
     if (ctx.message && 'text' in ctx.message) {
       const isCancel = await handleHelpCancel(ctx)
       if (!isCancel) {
-        const isRu = isRussian(ctx)
+        const isRu = isRussianFromState(ctx)
         const skills = ctx.message.text
         const { company, position } = ctx.wizard.state as WizardSessionData
         const userId = ctx.from?.id
@@ -94,7 +94,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
         `[avatarBrainWizard] User not found by getUserByTelegramId for telegramId: ${telegram_id}`
       )
       await ctx.reply(
-        isRussian(ctx)
+        isRussianFromState(ctx)
           ? 'Не удалось найти ваши данные. Попробуйте позже.'
           : 'Could not find your data. Please try again later.'
       )

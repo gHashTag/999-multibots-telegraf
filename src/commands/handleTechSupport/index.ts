@@ -1,10 +1,10 @@
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
 import { avatarService } from '@/services/plan_b/avatar.service'
 
 export const handleTechSupport = async (ctx: MyContext) => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id?.toString()
   let support = 'neuro_sage'
 

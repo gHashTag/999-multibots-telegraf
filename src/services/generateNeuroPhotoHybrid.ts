@@ -5,7 +5,7 @@ import {
   API_SERVER_URL,
   LOCAL_SERVER_URL,
 } from '@/config'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
@@ -82,7 +82,7 @@ export async function generateNeuroPhotoHybrid(
       num_images: numImages,
       telegram_id,
       username: ctx.from?.username,
-      is_ru: isRussian(ctx),
+      is_ru: isRussianFromState(ctx),
       bot_name: botName,
       // КРИТИЧНО: Передаем точную стоимость на сервер
       exact_cost_per_image: exactCostPerImage, // 7.5⭐
@@ -149,7 +149,7 @@ export async function generateNeuroPhotoHybrid(
       // Специальная обработка NSFW
       if (error.response?.data?.error?.includes('NSFW')) {
         await ctx.reply(
-          isRussian(ctx)
+          isRussianFromState(ctx)
             ? 'Извините, генерация изображения не удалась из-за обнаружения неподходящего контента.'
             : 'Sorry, image generation failed due to inappropriate content detection.'
         )
@@ -208,7 +208,7 @@ export async function generateNeuroPhotoHybrid(
 
       // Отправляем сообщение об ошибке пользователю
       await ctx.reply(
-        isRussian(ctx)
+        isRussianFromState(ctx)
           ? 'Произошла ошибка при генерации изображения. Пожалуйста, попробуйте позже.'
           : 'An error occurred during image generation. Please try again later.'
       )

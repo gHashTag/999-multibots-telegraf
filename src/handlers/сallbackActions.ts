@@ -13,6 +13,6 @@ export function registerCallbackActions(bot: any) {
     const model = ctx.match.input.replace('select_model_', '')
     ctx.session.selectedModel = model
     console.log('Selected model:', model)
-    await handleModelCallback(ctx, model)
+    await handleModelCallback(ctx)
   })
 }

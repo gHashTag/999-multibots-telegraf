@@ -22,14 +22,17 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         ? '👤 Укажите пол вашего аватара:'
         : '👤 Specify the gender of your avatar:',
       Markup.inlineKeyboard([
-        Markup.button.callback(
-          isRu ? 'Мужской ♂️' : 'Male ♂️',
-          `set_gender:${GENDER_MALE}`
-        ),
-        Markup.button.callback(
-          isRu ? 'Женский ♀️' : 'Female ♀️',
-          `set_gender:${GENDER_FEMALE}`
-        ),
+        [
+          Markup.button.callback(
+            isRu ? 'Мужской ♂️' : 'Male ♂️',
+            `set_gender:${GENDER_MALE}`
+          ),
+          Markup.button.callback(
+            isRu ? 'Женский ♀️' : 'Female ♀️',
+            `set_gender:${GENDER_FEMALE}`
+          ),
+        ],
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel_training')],
       ])
     )
     return ctx.wizard.next()
@@ -83,6 +86,10 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       if (data.startsWith('set_gender:')) {
         gender = data.split(':')[1]
         await ctx.answerCbQuery()
+      } else if (data === 'cancel_training') {
+        await ctx.answerCbQuery()
+        await ctx.reply(isRu ? 'Отменено' : 'Cancelled')
+        return ctx.scene.leave()
       } else {
         await ctx.answerCbQuery(
           isRu ? 'Неизвестное действие' : 'Unknown action'

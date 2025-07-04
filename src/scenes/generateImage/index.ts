@@ -6,6 +6,7 @@ import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'
 import { createGenerateImageKeyboard } from '@/menu'
 
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 const PROMPT_MAX_LENGTH = 1000
 
@@ -19,7 +20,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
   'generate_image',
   async ctx => {
     console.log('CASE 0: generate_image')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     console.log('CASE: generateImageCommand')
 
     const isCancel = await handleHelpCancel(ctx)
@@ -40,7 +41,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     console.log('CASE 1: generate_image')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
@@ -99,7 +100,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     console.log('CASE 2: generate_image - выбор размера')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
 
     // Обработка кнопки отмены
     if (
