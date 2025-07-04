@@ -9,8 +9,6 @@ import { cancelMenu } from '@/menu/cancelMenu'
 import { cancelHelpArray } from '@/menu/cancelHelpArray'
 import { ModeEnum } from '@/interfaces'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { FLUX_KONTEXT_CONFIG } from './config'
-import { generateFluxKontextImage } from '@/services/generateFluxKontextImage'
 import { sendGenericErrorMessage } from '@/menu'
 import { handleMenu } from '@/handlers/handleMenu'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -341,6 +339,6 @@ export const processFluxKontextGeneration = async (ctx: MyContext) => {
 export const cleanupFluxKontextSession = (ctx: MyContext) => {
   delete ctx.session.awaitingFluxKontextImage
   delete ctx.session.awaitingFluxKontextPrompt
-  delete ctx.session.fluxKontextImageUrl
-  delete ctx.session.fluxKontextPrompt
+  delete ctx.session.kontextImageUrl
+  delete ctx.session.kontextModelType
 }
