@@ -4,7 +4,6 @@ import { logger } from '@/utils/logger'
 import { PaymentMethod } from '@/interfaces/payments.interface'
 import { generateUuidV4 } from '@/utils'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { createRobokassaPaymentUrl } from '@/core/robokassa'
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
@@ -119,7 +118,6 @@ export const handleTopUpWithAmount = async (
       }
 
       const paymentUrl = data.result.pay_url
-      const isRu = isRussianFromState(ctx)
 
       await ctx.reply(
         isRu
