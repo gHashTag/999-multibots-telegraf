@@ -25,8 +25,9 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     if ('text' in ctx.message) {
-      // Передаем текстовое сообщение в обработчик
-      await handleTextMessage(ctx, async () => {}) // Передаем пустую async функцию как next
+      // Входим в сцену обработчика текста
+      await ctx.scene.enter('handleTextMessage')
+      return
     } else {
       // Обработка других типов сообщений, если нужно
       return ctx.scene.leave()

@@ -28,7 +28,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
 
-    const { telegramId } = getUserInfo(ctx)
+    const { telegramId } = await getUserInfo(ctx)
     const userModel = await getLatestUserModel(Number(telegramId), 'bfl')
     console.log('userModel', userModel)
 
@@ -115,7 +115,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
         await generateNeuroPhotoHybrid(
           fullPrompt,
-          ctx.session.userModel.model_url,
+          ctx.session.userModel.model_url as any,
           1,
           userId.toString(),
           ctx,
@@ -208,7 +208,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const generate = async (num: number) => {
       await generateNeuroPhotoHybrid(
         fullPrompt,
-        ctx.session.userModel.model_url,
+        ctx.session.userModel.model_url as any,
         num,
         userId.toString(),
         ctx,
