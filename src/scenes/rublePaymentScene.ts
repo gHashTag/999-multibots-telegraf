@@ -1,7 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { isRussian } from '@/helpers'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleSelectRubAmount } from '@/handlers'
 import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
@@ -25,7 +25,7 @@ export const rublePaymentScene = new Scenes.BaseScene<MyContext>(
 rublePaymentScene.enter(async ctx => {
   const sceneState = ctx.scene.state as { paymentInfo?: SelectedPayment }
   const paymentInfo = sceneState?.paymentInfo
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const userId = ctx.from?.id
 
   logger.info('### rublePaymentScene ENTERED ###', {
@@ -216,7 +216,7 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
     return
   }
 
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   try {
     await ctx.answerCbQuery()
     const amountRub = parseInt(ctx.match[1], 10)
@@ -373,7 +373,7 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
 
 // Обработка админской тестовой кнопки "1 рубль" для подписок
 rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const userId = ctx.from?.id
 
   if (!userId) {
@@ -511,7 +511,7 @@ rublePaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], asyn
 
 // Обработка любых других сообщений
 rublePaymentScene.on('message', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   logger.warn(`[${ModeEnum.RublePaymentScene}] Received unexpected message`, {
     telegram_id: ctx.from?.id,
     // @ts-ignore

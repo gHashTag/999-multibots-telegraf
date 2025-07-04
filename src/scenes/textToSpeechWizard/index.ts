@@ -14,7 +14,7 @@ import {
   getVoiceAvatarErrorMessage,
   getCreateVoiceAvatarMessage,
 } from '@/helpers/voiceValidation'
-import { isRussian } from '@/helpers'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import fs from 'fs'
@@ -26,7 +26,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'text_to_speech',
   async ctx => {
     console.log('CASE: text_to_speech')
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     await ctx.reply(
       isRu
         ? '🎙️ Отправьте текст, для преобразования его в голос'
@@ -38,7 +38,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     console.log('CASE: text_to_speech.next', ctx.message)
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let audioPath: string | null = null
 

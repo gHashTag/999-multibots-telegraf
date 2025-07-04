@@ -6,6 +6,7 @@ import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { kickUnpaidUser } from '@/middlewares/checkSubscription'
 import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 /**
  * Проверяет, имеет ли пользователь активную подписку.
@@ -51,7 +52,7 @@ export async function checkSubscriptionGuard(
       try {
         const channelId = await getSubScribeChannel(ctx)
         if (channelId) {
-          const isRu = ctx.from?.language_code === 'ru'
+          const isRu = isRussianFromState(ctx)
           const kickReason = isRu
             ? 'Отсутствие оплаченной подписки'
             : 'No paid subscription'

@@ -4,11 +4,14 @@ import { getReferalsCountAndUserData } from '@/core/supabase'
 import { getSubScribeChannel } from '@/handlers'
 import { levels, mainMenu } from '@/menu'
 import { isRussian } from '@/helpers/language'
+// ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const SUBSCRIBE_CHANNEL_ID = getSubScribeChannel(ctx)
     const message = isRu
       ? `🎓 <b>🌟 Добро пожаловать в наше обучение по боту "Нейроблоггер"</b>\n\n
@@ -47,14 +50,16 @@ In this bot, you will discover the world of neural networks and learn how to use
       ]).resize().reply_markup,
     })
   } catch (error) {
-    errorMessage(ctx, error as Error, isRussian(ctx))
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel1(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🧑‍🎨 <b>Команда: Цифровое тело аватара (Digital Avatar Body)</b> 🌟\n\n
 Эта команда поможет вам создать визуальный облик вашего аватара, который будет использоваться для генерации изображений и видео. Это "цифровое тело" вашего аватара, которое позволяет ему принимать уникальные формы и образы, отражая вашу индивидуальность. 🎭\n\n
@@ -111,14 +116,16 @@ Creating a digital avatar body is an important step in personalizing your digita
     })
   } catch (error) {
     console.error('Error in handleLevel1:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel2(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `📸 <b>Команда: Нейрофото (NeuroPhoto)</b> 🌟\n\n
 После создания цифрового тела аватара вы можете использовать его для создания <b>нейрофото</b>. Нейрофото — это изображения, созданные с использованием нейронных сетей, которые могут преобразовать текстовые описания в уникальные визуальные образы с вашим лицом. Это инновационный способ визуализировать ваши идеи и вдохновляться новыми концепциями. 💡\n\n
@@ -161,14 +168,16 @@ After the process is complete, you will receive your <b>neurophoto</b>. This ima
     })
   } catch (error) {
     console.error('Error in handleLevel2:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel3(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🖼️ <b>Команда: ПРОМПТ ИЗ ФОТО (Image to Prompt)</b> 🌟\n\n
 "ПРОМПТ ИЗ ФОТО" позволяет вам преобразовать визуальные данные в текст, создавая промпт для нейрофото. Это может быть полезно для различных целей, таких как создание описаний для изображений, анализ контента или просто для развлечения. Особенно важно использовать эту функцию для улучшения качества нейрофото, так как детализированный промпт может значительно повысить точность и выразительность создаваемых изображений для вашего аватара. 💡\n\n
@@ -217,14 +226,15 @@ Using the "Image to Prompt" function opens up new possibilities for creativity a
     })
   } catch (error) {
     console.error('Error in handleLevel3:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel4(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🧠 <b>Команда: Мозг аватара (Avatar Brain)</b> 🌟\n\n
 Эта команда поможет вам создать интеллектуальное ядро вашего аватара. Это "мозг" вашего аватара, который формирует его личность и профессиональные навыки. 🤖\n\n
@@ -269,14 +279,14 @@ Once you provide all the necessary information, our bot will process the data an
     })
   } catch (error) {
     console.error('Error in handleLevel0:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel5(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `💭 <b>Команда: ЧАТ С АВАТАРОМ (Chat with Your Avatar)</b> 🌟\n\n
 Вы можете начать общение с вашим аватаром, что открывает перед вами новые горизонты для взаимодействия и персонализации. Эта функция позволяет вам вести диалог с аватаром, который способен отвечать на ваши вопросы, давать советы или просто поддерживать дружескую беседу. 🤖\n\n
@@ -303,14 +313,14 @@ We are proud to offer you such an innovative tool and hope it becomes an indispe
     })
   } catch (error) {
     console.error('Error in handleLevel8:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel6(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🤖 <b>Команда: ВЫБОР МОДЕЛИ ИИ (Select AI Model)</b> 🌟\n\n
 Предоставляет вам возможность выбрать наиболее подходящую модель для выполнения различных задач. Правильный выбор модели может значительно повысить качество и точность результатов, которые вы получаете от бота. 🎯\n\n
@@ -355,14 +365,14 @@ The "Select AI Model" function opens up the possibility of more flexible and eff
     })
   } catch (error) {
     console.error('Error in handleLevel7:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel7(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🎤 <b>Команда: ГОЛОС ДЛЯ АВАТАРА (Voice for Avatar)</b> 🌟\n\n
 Открывает перед вами множество возможностей, делая ваш аватар более живым и выразительным. Это может быть полезно в презентациях, видео или просто для развлечения в коротких видеороликах, добавляя уникальность и индивидуальность вашему контенту. 🎬\n\n
@@ -430,7 +440,7 @@ The "Voice for Avatar" function allows you to personalize your digital image, ma
 
 export async function handleLevel8(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🗣️ <b>Команда: ТЕКСТ В ГОЛОС (Text to Voice)</b> 🌟\n\n
 Используйте ее для озвучивания текстовых сообщений. Это открывает новые возможности для создания аудиоконтента, который можно использовать в презентациях, видео или просто для развлечения. 🎧\n\n
@@ -475,14 +485,14 @@ The "Text to Voice" function makes your digital content more lively and expressi
     })
   } catch (error) {
     console.error('Error in handleLevel6:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel9(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🎥 <b>Команда: ФОТО В ВИДЕО (Image to Video)</b> 🌟\n\n
 Функция "Изображение в видео" позволяет вам оживить статические изображения с вашим аватаром, добавляя к ним движение и динамику. Это открывает новые горизонты для творчества и самовыражения, превращая ваши идеи в захватывающие видеоролики. 🎬\n\n
@@ -523,14 +533,14 @@ The "Image to Video" function allows you to bring your ideas to life in dynamic 
     })
   } catch (error) {
     console.error('Error in handleLevel9:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel10(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🖼️ <b>Команда: Текст в изображение (Text to image)</b> 🌟\n\n
 Эта функция позволяет вам воплотить ваши идеи в визуальную форму, используя всего лишь текстовое описание. Это невероятно мощный инструмент, который открывает множество возможностей для творчества и самовыражения. 🎨✨\n\n
@@ -603,14 +613,14 @@ But this is just the beginning. You can experiment with different descriptions t
     })
   } catch (error) {
     console.error('Error in handleLevel10:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel11(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🎥 <b>Команда: Видео из текста (Text to Video)</b> 🌟\n\n
 Эта функция позволяет вам воплотить ваши идеи в динамичные видеоролики, используя всего лишь текстовое описание. Это мощный инструмент, который открывает множество возможностей для творчества и самовыражения. 🎨✨\n\n
@@ -667,14 +677,14 @@ After selecting a model, the next step is to create a text description or prompt
     })
   } catch (error) {
     console.error('Error in handleLevel11:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel12(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `📏 <b>Команда: ИЗМЕНЕНИЕ РАЗМЕРА (Change Size)</b> 🌟\n\n
 Позволяет вам легко адаптировать изображения с аватаром для различных платформ и нужд, будь то социальные сети, презентации или личные проекты. Это особенно важно в современном цифровом мире, где каждая платформа предъявляет свои уникальные требования к размерам изображений. 📱💻\n\n
@@ -713,14 +723,14 @@ Using the "Change Size" function allows you to easily adapt your avatar images t
     })
   } catch (error) {
     console.error('Error in handleLevel4:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleLevel13(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🎉 Пригласите друга и получите бонусы! 🎉
 
@@ -772,7 +782,7 @@ Expand the user community and open new horizons together!`
     return
   } catch (error) {
     console.error('Error in handleLevel13:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
@@ -800,7 +810,7 @@ export async function handleQuestComplete(ctx: MyContext) {
 
 export async function handleImageUpscalerHelp(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `⬆️ <b>Команда: Увеличение качества изображений</b> 🌟\n\n
 Улучшите качество любого изображения с помощью передовой технологии Clarity Upscaler! Увеличьте разрешение в 2 раза с сохранением всех деталей и без искажений. 🚀\n\n
@@ -879,14 +889,14 @@ Turn any image into high-quality in minutes! 📸✨`
     })
   } catch (error) {
     console.error('Error in handleImageUpscalerHelp:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleVideoTranscriptionHelp(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `📺 <b>Команда: Транскрибация Reels</b> 🌟\n\n
 Превратите любое видео в текст с помощью передовой технологии OpenAI Whisper! Идеально подходит для создания субтитров, анализа контента и извлечения информации из видео. 🚀\n\n
@@ -967,14 +977,14 @@ Turn any video into useful text in minutes! 🎬✨`
     })
   } catch (error) {
     console.error('Error in handleVideoTranscriptionHelp:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }
 
 export async function handleFluxKontextHelp(ctx: MyContext) {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = isRu
       ? `🎨 <b>Команда: FLUX Kontext - ИИ Редактирование изображений</b> 🌟\n\n
 FLUX Kontext от Black Forest Labs — это революционная семья моделей ИИ для редактирования изображений с помощью естественного языка. Вместо описания всего изображения, просто скажите что нужно изменить! 🚀\n\n
@@ -1065,7 +1075,7 @@ FLUX Kontext is the future of image editing, available today! 🌈✨`
     })
   } catch (error) {
     console.error('Error in handleFluxKontextHelp:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
 }

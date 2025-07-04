@@ -18,6 +18,7 @@ import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscr
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
 import { isRussianWithUserChoice } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -363,7 +364,7 @@ export const menuScene = new Scenes.WizardScene(
 
 // Обработчик для inline кнопки "Оформить подписку"
 menuScene.action('go_to_subscription_scene', async ctx => {
-  const isRu = ctx.from?.language_code === 'ru'
+  const isRu = isRussianFromState(ctx)
   logger.info('MENU SCENE ACTION: go_to_subscription_scene', {
     telegramId: ctx.from?.id,
   })
