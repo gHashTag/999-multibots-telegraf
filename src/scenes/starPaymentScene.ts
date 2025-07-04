@@ -1,6 +1,6 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleSelectStars, handleBuySubscription } from '@/handlers'
 import { starAmounts } from '@/price/helpers/starAmounts' // Предполагаем, что существует
 import { setPayments } from '@/core/supabase'
@@ -20,7 +20,7 @@ starPaymentScene.enter(async ctx => {
     step: 'enter',
     telegram_id: ctx.from?.id,
   })
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
 
   // Проверяем, пришли ли мы сюда для покупки КОНКРЕТНОЙ подписки
   if (ctx.session.selectedPayment && ctx.session.selectedPayment.subscription) {

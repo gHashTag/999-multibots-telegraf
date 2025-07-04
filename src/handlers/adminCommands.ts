@@ -3,7 +3,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 // Список админов (можно вынести в конфиг)
 const ADMIN_IDS = [144022504, 1254048880, 352374518, 1852726961] // Ваши админ ID
@@ -24,7 +24,7 @@ function isAdmin(telegramId: number): boolean {
  * Использование: /addbalance <user_id> <amount> [причина]
  */
 export async function handleAddBalanceCommand(ctx: MyContext) {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
 
   // Проверяем права админа
   if (!ctx.from?.id || !isAdmin(ctx.from.id)) {
@@ -239,7 +239,7 @@ ${isDeduction ? '➖ Deducted' : '➕ Added'}: ${absoluteAmount} ⭐
  * Использование: /checkbalance <user_id>
  */
 export async function handleCheckBalanceCommand(ctx: MyContext) {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
 
   // Проверяем права админа
   if (!ctx.from?.id || !isAdmin(ctx.from.id)) {

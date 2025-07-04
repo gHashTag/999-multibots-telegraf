@@ -18,9 +18,10 @@ export const navigationMenu = (isRussian: boolean) => {
 // Example usage within a scene (adjust context/imports as needed):
 /*
 import { navigationMenu } from '@/menu/navigationMenu';
+import { isRussianFromState } from '@/helpers/centralizedLanguage';
 
 // ... inside an async function with ctx: MyContext ...
-const isRussian = ctx.from?.language_code === 'ru';
+const isRussian = isRussianFromState(ctx);
 await ctx.reply('Your message text...', {
   reply_markup: navigationMenu(isRussian).reply_markup,
   parse_mode: 'HTML',

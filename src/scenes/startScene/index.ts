@@ -11,7 +11,7 @@ import { logger } from '@/utils/logger'
 import { levels } from '@/menu/mainMenu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { defaultSession } from '@/store'
 import { handleMenu } from '@/handlers/handleMenu'
@@ -34,7 +34,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.StartScene,
   async ctx => {
     const telegramId = ctx.from?.id?.toString() || 'unknown'
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const currentBotName = ctx.botInfo.username
 
     // ✅ ИСПРАВЛЕНИЕ: Проверяем, является ли это ПРОМО-командой (не всеми командами с параметрами!)
@@ -230,7 +230,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
               try {
                 await ctx.telegram.sendMessage(
                   invite_code,
-                  isRussian(ctx)
+                  isRussianFromState(ctx)
                     ? `🔗 Новый пользователь @${final_username_create} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${refCount}`
                     : `🔗 New user @${final_username_create} registered via your link.\n🆔 Level: ${refCount}`
                 )
@@ -324,7 +324,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             const [wasCreated] = await createUser(userDataToCreate)
             if (wasCreated) {
               await ctx.reply(
-                isRussian(ctx)
+                isRussianFromState(ctx)
                   ? '✅ Аватар успешно создан! Добро пожаловать!'
                   : '✅ Avatar created successfully! Welcome!'
               )
@@ -335,7 +335,7 @@ export const startScene = new Scenes.WizardScene<MyContext>(
               telegramId,
             })
             await ctx.reply(
-              isRussian(ctx)
+              isRussianFromState(ctx)
                 ? 'Произошла ошибка при создании вашего профиля.'
                 : 'Error creating your profile.'
             )
@@ -522,7 +522,7 @@ Click "Training" and dive with us.
   // Второй шаг WizardScene для обработки текстовых сообщений
   async ctx => {
     const telegramId = ctx.from?.id?.toString() || 'unknown'
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
 
     if ('message' in ctx.update && 'text' in ctx.update.message) {
       const text = ctx.update.message.text
@@ -613,7 +613,7 @@ Click "Training" and dive with us.
 )
 
 startScene.action('go_to_subscription_scene', async ctx => {
-  const isRu = ctx.from?.language_code === 'ru'
+  const isRu = isRussianFromState(ctx)
   try {
     await ctx.answerCbQuery()
     logger.info({

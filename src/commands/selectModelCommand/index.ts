@@ -3,10 +3,11 @@ import { MyContext } from '../../interfaces'
 
 import { getAvailableModels, SelectableModel } from './getAvailableModels'
 import { sendGenericErrorMessage } from '@/menu'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 // Функция для получения доступных моделей
 export async function selectModelCommand(ctx: MyContext) {
-  const isRu = ctx.from?.language_code === 'ru'
+  const isRu = isRussianFromState(ctx)
 
   try {
     const models: SelectableModel[] = await getAvailableModels()

@@ -6,6 +6,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { BASE_COSTS } from '@/scenes/checkBalanceScene'
 import { ModeEnum } from '@/interfaces/modes'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
 
@@ -19,7 +20,7 @@ const LIPSYNC_COST =
 export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
   'lip_sync',
   async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     await ctx.reply(
       isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
       {
@@ -29,7 +30,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let videoUrl: string | undefined
 
@@ -64,7 +65,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = ctx.message
 
     let audioUrl: string | undefined

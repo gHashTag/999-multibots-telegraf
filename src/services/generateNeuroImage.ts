@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
@@ -50,7 +50,7 @@ export async function generateNeuroImage(
         num_images: numImages || 1,
         telegram_id,
         username: ctx.from?.username,
-        is_ru: isRussian(ctx),
+        is_ru: isRussianFromState(ctx),
         bot_name: botName,
       },
       {
@@ -74,7 +74,7 @@ export async function generateNeuroImage(
 
     if (ctx.reply) {
       await ctx.reply(
-        isRussian(ctx)
+        isRussianFromState(ctx)
           ? 'Произошла ошибка при генерации изображения. Пожалуйста, попробуйте позже.'
           : 'An error occurred during image generation. Please try again later.'
       )

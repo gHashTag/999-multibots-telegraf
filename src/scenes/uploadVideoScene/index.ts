@@ -3,6 +3,7 @@ import { MyContext } from '../../interfaces'
 import { uploadVideoToServer } from '../../services/uploadVideoToServer'
 import { randomUUID } from 'node:crypto'
 import { Markup } from 'telegraf'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB, пример ограничения
 
@@ -10,7 +11,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
   'video_in_url',
   async ctx => {
     console.log('CASE 1: uploadVideoScene')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     await ctx.reply(
       isRu
         ? '📹 Пожалуйста, отправьте видеофайл'
@@ -22,7 +23,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     console.log('CASE 2: uploadVideoScene')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = ctx.message
 
     if (message && 'video' in message) {
@@ -53,7 +54,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     console.log('CASE 3: uploadVideoScene')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
 
     try {
       await uploadVideoToServer({

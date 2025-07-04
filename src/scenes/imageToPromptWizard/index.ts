@@ -9,6 +9,7 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import { getBotNameByToken } from '@/core/bot'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 // Используем заглушку для HUGGINGFACE_TOKEN
 process.env.HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN || 'dummy-token'
 
@@ -16,7 +17,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToPrompt,
   async ctx => {
     console.log('CASE 0: image_to_prompt')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     console.log('CASE: imageToPromptCommand')
 
     const isCancel = await handleHelpCancel(ctx)
@@ -26,14 +27,17 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '🖼️ Отправьте изображение для распознавания промпта'
-        : '🖼️ Send an image to recognize the prompt'
+        : '🖼️ Send an image to recognize the prompt',
+      {
+        reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+      }
     )
     ctx.scene.session.state = { step: 0 }
     return ctx.wizard.next()
   },
   async ctx => {
     console.log('CASE 1: image_to_prompt')
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
@@ -75,7 +79,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
           imageUrl,
           String(ctx.from?.id),
           ctx.from?.username || 'unknown_user',
-          ctx.from?.language_code === 'ru',
+          isRussianFromState(ctx),
           ctx,
           botName
         )

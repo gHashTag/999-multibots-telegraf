@@ -11,12 +11,13 @@ import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger, logSessionSafely } from '@/utils/logger'
 import { getUserBalance, getUserData } from '@/core/supabase'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImprovePromptWizard,
   async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     logSessionSafely(ctx.session, 'ctx.session')
 
     // Проверяем, был ли промпт передан через state
@@ -110,7 +111,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const message = ctx.message
 
     if (message && 'text' in message) {
