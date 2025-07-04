@@ -23,12 +23,15 @@ import { mainMenu } from '@/menu'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
+// ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
 
 helpScene.enter(async ctx => {
   const mode = ctx.session.mode
-  const isRu = ctx.from?.language_code === 'ru'
+  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  const isRu = isRussianFromState(ctx)
   const telegram_id = ctx.from.id.toString()
   const { count, subscriptionType, level } =
     await getReferalsCountAndUserData(telegram_id)

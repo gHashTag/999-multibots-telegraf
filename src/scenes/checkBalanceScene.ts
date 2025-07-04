@@ -319,7 +319,7 @@ checkBalanceScene.enter(async ctx => {
 
   console.log('💵 CASE: checkBalanceScene')
   // Шаг 1: Получаем ID и режим
-  const { telegramId: userId } = getUserInfo(ctx)
+  const { telegramId: userId } = await getUserInfo(ctx)
   const mode = ctx.session.mode as ModeEnum
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)

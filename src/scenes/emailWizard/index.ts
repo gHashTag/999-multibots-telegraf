@@ -1,7 +1,10 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { saveUserEmail, setPayments } from '../../core/supabase'
-import { isRussian } from '@/helpers'
+import {
+  isRussianFromState,
+  getUserLanguageFromState,
+} from '@/helpers/centralizedLanguage'
 
 import md5 from 'md5'
 import { MERCHANT_LOGIN, RESULT_URL2, ROBOKASSA_PASSWORD_1 } from '@/config'
@@ -98,7 +101,7 @@ async function getInvoiceId(
 export const emailWizard = new Scenes.BaseScene<MyContext>('emailWizard')
 
 emailWizard.enter(async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   await ctx.reply(
     isRu
       ? '👉 Для формирования счета напишите ваш E-mail.'
@@ -108,7 +111,7 @@ emailWizard.enter(async ctx => {
 })
 
 emailWizard.hears(/@/, async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const email = ctx.message.text
 
   try {
@@ -148,7 +151,7 @@ emailWizard.hears(/@/, async ctx => {
 })
 
 emailWizard.on('text', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const msg = ctx.message
 
   if (msg && 'text' in msg) {
@@ -212,7 +215,7 @@ emailWizard.on('text', async ctx => {
           payment_method: 'Robokassa',
           subscription_type: SubscriptionType.STARS,
           bot_name,
-          language: ctx.from?.language_code || 'ru',
+          language: getUserLanguageFromState(ctx) || 'ru',
           type: PaymentType.MONEY_INCOME,
         })
 

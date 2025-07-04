@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { getAvailableModels } from '../../commands/selectModelCommand/getAvailableModels'
 import { sendGenericErrorMessage } from '@/menu'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { updateUserModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
@@ -10,7 +10,7 @@ import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   'select_model',
   async ctx => {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
 
     try {
       const models = await getAvailableModels()
@@ -59,7 +59,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
     }
   },
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const message = ctx.message
 
     if (message && 'text' in message) {

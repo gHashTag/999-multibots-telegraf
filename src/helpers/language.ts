@@ -5,8 +5,20 @@ import { getUserLanguageFromDB } from '@/core/supabase/getUserLanguage'
 import { logger } from '@/utils/logger'
 import { defaultSession } from '@/store'
 
-// Оригинальная функция - используется как fallback
-export const isRussian = (ctx: Context) => ctx.from?.language_code === 'ru'
+// Оригинальная функция была простым телеграм-чекером. Теперь расширяем её:
+// 1) Если middleware уже положил язык в ctx.state.userLanguage — используем его.
+// 2) Фолбэк – Telegram language_code (старое поведение).
+
+export const isRussian = (ctx: Context): boolean => {
+  // @ts-ignore – у стандартного Context нет типизации state, но в MyContext она есть
+  const stateLanguage: string | undefined = ctx.state?.userLanguage
+
+  if (stateLanguage) {
+    return stateLanguage === 'ru'
+  }
+
+  return ctx.from?.language_code === 'ru'
+}
 
 // ✅ НОВАЯ СИСТЕМА ЯЗЫКОВ: БД → Сессия → Telegram
 

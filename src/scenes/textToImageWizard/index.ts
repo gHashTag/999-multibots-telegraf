@@ -5,7 +5,7 @@ import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { getUserBalance } from '@/core/supabase'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,
@@ -21,7 +21,7 @@ import { sizeWizard } from '../sizeWizard'
 export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     console.log('CASE: text_to_image STEP 1', ctx.from?.id)
 
     if (!ctx.from?.id) {
@@ -71,7 +71,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     return
   },
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const message = ctx.message
     console.log('CASE: text_to_image STEP 2', message)
 
@@ -164,7 +164,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
   },
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const message = ctx.message
 
     if (!message || !('text' in message)) {

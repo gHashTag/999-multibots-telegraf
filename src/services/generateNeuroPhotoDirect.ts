@@ -1,5 +1,5 @@
 import { ModeEnum } from '@/interfaces/modes'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
@@ -172,7 +172,7 @@ export async function generateNeuroPhotoDirect(
     //   }
     // );
     // --- END DEBUG LOG ---
-    const is_ru = isRussian(ctx)
+    const is_ru = isRussianFromState(ctx)
     const username = ctx.from?.username || 'unknown'
 
     // Получаем экземпляр бота
@@ -595,7 +595,7 @@ export async function generateNeuroPhotoDirect(
             mediaSource: imageUrl, // Используем оригинальный URL для отправки
             telegramId: telegram_id,
             username: username || 'unknown',
-            language: isRussian(ctx) ? 'ru' : 'en',
+            language: isRussianFromState(ctx) ? 'ru' : 'en',
             serviceType: ModeEnum.NeuroPhoto,
             prompt: prompt, // Передаем ПОЛНЫЙ промпт, без обрезки
             botName: botName,
@@ -961,7 +961,9 @@ export async function generateNeuroPhotoDirect(
         const errorMessageEn =
           'Sorry, an error occurred while generating the image. We are already working on fixing it.'
 
-        await ctx.reply(isRussian(ctx) ? errorMessageRu : errorMessageEn)
+        await ctx.reply(
+          isRussianFromState(ctx) ? errorMessageRu : errorMessageEn
+        )
       } else if (options?.disable_telegram_sending) {
         logger.info({
           message:

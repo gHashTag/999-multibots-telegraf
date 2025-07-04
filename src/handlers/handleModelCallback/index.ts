@@ -1,22 +1,22 @@
 // src/handlers/modelHandler.ts
-import { MyContext } from '../../interfaces'
+import { MyContext } from '@/interfaces'
+import { UserModel } from '@/interfaces/models.interface'
+import { sendPhotoDescriptionRequest } from '@/menu/sendPhotoDescriptionRequest'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { updateUserModel } from '../../core/supabase'
 
-export async function handleModelCallback(ctx: MyContext, model: string) {
-  try {
-    if (!ctx.from) {
-      console.log('ctx.from is undefined')
-      return
-    }
-    const isRu = ctx.from?.language_code === 'ru'
+export const handleModelCallback = async (ctx: MyContext) => {
+  if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+    const data = ctx.callbackQuery.data
+    const isRu = isRussianFromState(ctx)
 
     try {
-      await updateUserModel(ctx.from.id.toString(), model)
+      await updateUserModel(ctx.from.id.toString(), data)
 
       await ctx.reply(
         isRu
-          ? `✅ Модель успешно изменена на ${model}`
-          : `✅ Model successfully changed to ${model}`
+          ? `✅ Модель успешно изменена на ${data}`
+          : `✅ Model successfully changed to ${data}`
       )
     } catch (error) {
       console.error('Error setting model:', error)
@@ -24,8 +24,5 @@ export async function handleModelCallback(ctx: MyContext, model: string) {
         isRu ? '❌ Ошибка при изменении модели' : '❌ Error changing model'
       )
     }
-  } catch (error) {
-    console.error('Error in handleModelCallback:', error)
-    throw error
   }
 }

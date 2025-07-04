@@ -12,6 +12,7 @@ export const sizeWizard = new Scenes.WizardScene<MyContext>(
       ['4:3', '5:4', '1:1'],
       ['4:5', '3:4', '2:3'],
       ['9:16', '9:21'],
+      [isRu ? 'Отмена' : 'Cancel'],
     ]).resize()
 
     // Отправляем сообщение с клавиатурой
@@ -34,6 +35,14 @@ export const sizeWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const size = ctx.message.text
+    const isRu = isRussian(ctx)
+
+    // Проверяем на отмену
+    if (size === (isRu ? 'Отмена' : 'Cancel')) {
+      await ctx.reply(isRu ? 'Отменено' : 'Cancelled')
+      return ctx.scene.leave()
+    }
+
     const validSizes = [
       '21:9',
       '16:9',

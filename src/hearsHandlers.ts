@@ -2,6 +2,8 @@ import { imageModelMenu } from './menu/imageModelMenu'
 import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
+// ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
+import { isRussianFromState } from './helpers/centralizedLanguage'
 import { MyContext } from './interfaces/'
 import { Telegraf, Markup } from 'telegraf'
 
@@ -16,7 +18,7 @@ import { getUserProfileAndSettings } from '@/db/userSettings'
 import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
 // Импортируем обработчики FLUX Kontext
 import {
-  handleFluxKontextImageUpload,
+  handleFluxKontextImage,
   handleFluxKontextModelSelection,
   handleFluxKontextPrompt,
 } from './commands/fluxKontextCommand'
@@ -57,7 +59,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     try {
       const telegram_id = ctx.from?.id?.toString()
       const username = ctx.from?.username || ''
-      const is_ru = isRussian(ctx)
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
       if (!telegram_id) {
         await ctx.reply(
@@ -99,8 +102,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         error,
         telegramId: ctx.from?.id,
       })
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError = isRussianFromState(ctx)
       await ctx.reply(
-        isRussian(ctx)
+        isRuError
           ? '❌ Произошла ошибка при увеличении качества нейрофото.'
           : '❌ An error occurred while upscaling the neurophoto.'
       )
@@ -143,8 +148,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       telegramId: ctx.from?.id,
     })
     try {
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuCancel = isRussianFromState(ctx)
       await ctx.reply(
-        isRussian(ctx) ? '❌ Процесс отменён.' : '❌ Process cancelled.',
+        isRuCancel ? '❌ Процесс отменён.' : '❌ Process cancelled.',
         Markup.removeKeyboard()
       )
       await ctx.scene.leave()
@@ -485,7 +492,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
             telegramId: ctx.from?.id,
           }
         )
-        const isRu = isRussian(ctx)
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRu = isRussianFromState(ctx)
         await ctx.reply(
           isRu
             ? 'Произошла ошибка при попытке начать новую генерацию. Попробуйте вернуться в главное меню.'
@@ -517,7 +525,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
             telegramId: ctx.from?.id,
           }
         )
-        const isRu = isRussian(ctx)
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRu = isRussianFromState(ctx)
         await ctx.reply(
           isRu
             ? 'Произошла ошибка при попытке выбора другой модели. Попробуйте вернуться в главное меню.'
@@ -534,7 +543,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
     const text = ctx.message.text
     logger.debug(`Получен hears для кнопки ${text} от ${ctx.from?.id}`)
-    const isRu = isRussian(ctx)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const prompt = ctx.session.prompt
     const telegramId = ctx.from.id
     const numImages = parseInt(text[0])
@@ -697,7 +707,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
   bot.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async (ctx: MyContext) => {
     logger.debug(`Получен hears для Отмена от ${ctx.from?.id}`)
-    const isRu = isRussian(ctx)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const telegram_id = ctx.from?.id?.toString() || ''
     const { subscriptionType } = await getReferalsCountAndUserData(telegram_id)
 
@@ -869,8 +880,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       telegramId: ctx.from?.id,
     })
 
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRuEdit = isRussianFromState(ctx)
     await ctx.reply(
-      isRussian(ctx)
+      isRuEdit
         ? '📷 Отправьте новое изображение для редактирования:'
         : '📷 Send a new image for editing:',
       {
