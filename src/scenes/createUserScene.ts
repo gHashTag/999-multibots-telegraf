@@ -73,6 +73,8 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     startNumber = parts.length > 1 ? parts[1] : ''
   }
 
+  ctx.session.botName = botName
+
   // Use extracted invite code if available, otherwise use legacy extraction
   // Only set referral code if it's not a promo link AND it's a numeric code
   if (!ctx.session.inviteCode && startNumber && !promoInfo?.isPromo) {
