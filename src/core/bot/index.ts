@@ -29,6 +29,7 @@ if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
 if (!process.env.BOT_TOKEN_7) throw new Error('BOT_TOKEN_7 is not set')
 if (!process.env.BOT_TOKEN_8) throw new Error('BOT_TOKEN_8 is not set')
 if (!process.env.BOT_TOKEN_9) throw new Error('BOT_TOKEN_9 is not set')
+if (!process.env.BOT_TOKEN_10) throw new Error('BOT_TOKEN_10 is not set')
 
 if (!process.env.BOT_TOKEN_TEST_1)
   throw new Error('BOT_TOKEN_TEST_1 is not set')
@@ -45,6 +46,7 @@ const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_7,
   process.env.BOT_TOKEN_8,
   process.env.BOT_TOKEN_9,
+  process.env.BOT_TOKEN_10,
 ]
 
 const BOT_TOKENS_TEST: string[] = [
@@ -217,11 +219,3 @@ export const supportRequest = async (title: string, data: any) => {
 }
 
 const groupId = process.env.GROUP_ID || ''
-
-export const initializeBot = async (
-  botName: string,
-  token: string,
-  groupId: string
-) => {
-  // ... existing code ...
-}
