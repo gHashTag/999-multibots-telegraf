@@ -188,6 +188,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   inviteCode?: string
   inviter?: string
   paymentAmount?: number
+  botName?: string
   selectedImageModel?: string
   promoProcessed?: boolean
   subscriptionStep?:
