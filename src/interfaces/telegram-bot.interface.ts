@@ -168,6 +168,7 @@ export type BotName =
   | 'Kaya_easy_art_bot'
   | 'AI_STARS_bot'
   | 'TestNeurocoder_bot'
+  | 'HaimGroupMedia_bot'
 
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cursor: number
