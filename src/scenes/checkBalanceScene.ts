@@ -431,7 +431,7 @@ checkBalanceScene.enter(async ctx => {
         currentBalance,
         costValue,
         isRu,
-        ctx.botInfo.username
+        ctx.session.botName
       )
     }
 
