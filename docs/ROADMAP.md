@@ -2,6 +2,27 @@
 
 ## 🎯 Текущие задачи
 
+### ДОБАВЛЕНИЕ БАЛАНСА И ПОДПИСКИ ПОЛЬЗОВАТЕЛЮ (ЗАВЕРШЕНО - 2025-01-18) ✅
+- **Задача:** Добавить пользователю artemfisenko (ID: 164609458) подписку "нейротестер" и 100 тысяч звезд на баланс
+- **Статус:** ✅ Завершено успешно
+- **Выполнено:**
+    - ✅ Создан скрипт `src/scripts/addUserBalanceAndSubscription.ts` для админского начисления баланса и подписки
+    - ✅ Создан скрипт `src/scripts/checkUserStatus.ts` для проверки статуса пользователя
+    - ✅ Исправлен импорт `SubscriptionType` в `src/store/index.ts`
+    - ✅ Добавлено 100,000 звезд пользователю artemfisenko (ID: 164609458)
+    - ✅ Активирована подписка NEUROTESTER (полный доступ)
+    - ✅ Операция зафиксирована в базе данных с ID: 12781
+- **Результат:**
+    - 👤 Пользователь: artemfisenko (164609458)
+    - 💰 Баланс: 100,000 ⭐
+    - 💎 Подписка: NEUROTESTER
+    - ✅ Статус: Активна
+    - 📅 Дата активации: 2025-01-18T15:11:55+00:00
+- **Инструменты:**
+    - `directPaymentProcessor` для добавления баланса и активации подписки
+    - `getUserBalance` и `getUserDetailsSubscription` для проверки статуса
+    - Полная интеграция с системой логирования
+
 ### СИСТЕМА КОМПЕНСАЦИИ ЗА ДВОЙНОЕ СПИСАНИЕ СРЕДСТВ (ЗАВЕРШЕНО - 2025-01-27) ✅
 - **Задача:** Создать систему компенсации пострадавших от двойного списания средств за генерацию видео
 - **Статус:** ✅ Завершено успешно
@@ -242,31 +263,4 @@
 - ✅ {current_date}: Добавлена проверка флага `is_morphing` в шагах `imageToVideoWizard` для предотвращения ошибок состояния.
 - ✅ {current_date}: Локализованы тексты (Ru/En) и добавлены эмодзи ✨ в `imageToVideoWizard`.
 - ✅ {current_date}: Удалены ошибочные вызовы `ctx.scene.saveSession()` и вызовы `getTranslation` из `imageToVideoWizard`.
-- ✅ {current_date}: Исправлена логика цены морфинга и проверка состояния (`is_morphing`) в `imageToVideoWizard`.
-- ✅ {current_date}: Исправлен переход между шагами и удалена лишняя клавиатура в `imageToVideoWizard` (морфинг).
-- ✅ {current_date}: Исправлены ошибки типов в `src/services/generateImageToVideo.ts` после возврата логики в бота (и улучшено логирование ошибок).
-- ✅ {current_date}: Исправлены вызовы `generateImageToVideo` в `imageToVideoWizard`.
-- ✅ {current_date}: Добавлен запрос промпта для морфинга в `imageToVideoWizard`.
-- ✅ {current_date}: Восстановлена логика выбора режима (Стандарт/Морфинг) для Kling в `imageToVideoWizard`.
-- ✅ {current_date}: Сделана попытка исправить вызов API Replicate для морфинга Kling.
-
-### Правила и Консистентность 📜 (НОВЫЙ РАЗДЕЛ)
-- **Статус:** ✅ Задачи выполнены.
-- ✅ {current_date}: Создано правило Cursor `price-calculation-consistency.mdc` для обеспечения единообразия расчета и отображения цен.
-- ✅ {current_date}: Исправлено значение `interestRate` в `constants/index.ts` с 50 на 0.5.
-- ✅ {current_date}: Создано правило Cursor `backend-delegation.mdc` о делегировании вызовов внешних API бэкенду.
-- ✅ {current_date}: Дополнено правило Cursor `backend-delegation.mdc` информацией об определении URL API сервера.
-- ✅ {current_date}: Создано правило Cursor `follow-existing-patterns.mdc` о необходимости следовать существующим паттернам.
-- ✅ {current_date}: Создано правило Cursor `local-type-check.mdc` об обязательной локальной проверке типов перед деплоем.
-- ✅ 2025-04-23: Удален лишний обработчик `action(/top_up_(\d+)/)` из `starPaymentScene.ts`, чтобы позволить глобальному обработчику в `registerCommands.ts`
-- ✅ {current_date}: Исправлены ошибки типов в `src/core/supabase/getUserDetailsSubscription.ts` (удален импорт `UserRole`).
-- ✅ {current_date}: Исправлены ошибки типов в `src/scenes/imageToVideoWizard/index.ts` (исправлен импорт `updateUserModel`, добавлены `await` для `getTranslation`).
-- ✅ {current_date}: Исправлена логика цены морфинга в `imageToVideoWizard` (используется цена выбранной Kling-модели).
-- ✅ {current_date}: Добавлена проверка флага `is_morphing` в шагах `imageToVideoWizard` для предотвращения ошибок состояния.
-- ✅ {current_date}: Удалены вызовы `getTranslation` из `imageToVideoWizard`, тексты локализованы (Ru/En) и добавлены эмодзи ✨ непосредственно в код.
-- ✅ {current_date}: Удалены ошибочные вызовы `ctx.scene.saveSession()` из `imageToVideoWizard`.
-- ✅ {current_date}: Исправлена логика цены морфинга в `imageToVideoWizard` (используется цена выбранной Kling-модели).
-- ✅ {current_date}: Добавлена проверка флага `is_morphing` в шагах `imageToVideoWizard` для предотвращения ошибок состояния.
-- ✅ {current_date}: Локализованы тексты (Ru/En) и добавлены эмодзи ✨ в `imageToVideoWizard`.
-- ✅ {current_date}: Удалены ошибочные вызовы `ctx.scene.saveSession()` и вызовы `getTranslation` из `imageToVideoWizard`.
-- ✅ {current_date}: Исправлена логика цены морфинга и проверка состояния (`is_morphing`) в `
+- ✅ {current_date}: Исправлена логика цены морфинга и проверка состояния (`
