@@ -23,6 +23,8 @@ import {
 import { setBotCommands } from './setCommands'
 // ✅ ДОБАВЛЯЕМ IMPORT LANGUAGE MIDDLEWARE
 import { languageMiddleware } from './middlewares/languageMiddleware'
+// ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА ОШИБОК
+import { setupErrorHandler } from './helpers/error/errorHandler'
 
 // Импорт новой команды
 import { setupStatsCommand } from './commands/statsCommand'
@@ -153,6 +155,10 @@ async function initializeBots() {
     bot.use(session()) // 1. Сессия (из bot.ts)
     bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
     bot.use(Telegraf.log(console.log)) // 3. Log all Telegraf updates and middleware flow
+
+    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
+    setupErrorHandler(bot)
+
     registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
@@ -212,6 +218,10 @@ async function initializeBots() {
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
         bot.use(session()) // 1. Сессия (из bot.ts)
         bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+
+        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
+        setupErrorHandler(bot)
+
         registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
         // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
         setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
