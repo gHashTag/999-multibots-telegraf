@@ -26,6 +26,9 @@ import { languageMiddleware } from './middlewares/languageMiddleware'
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА ОШИБОК
 import { setupErrorHandler } from './helpers/error/errorHandler'
 
+// ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА УВЕДОМЛЕНИЙ
+import { setupNotificationProcessor } from './handlers/notificationHandler'
+
 // Импорт новой команды
 import { setupStatsCommand } from './commands/statsCommand'
 
@@ -159,6 +162,9 @@ async function initializeBots() {
     // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
     setupErrorHandler(bot)
 
+    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
+    setupNotificationProcessor(bot)
+
     registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
@@ -221,6 +227,9 @@ async function initializeBots() {
 
         // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
         setupErrorHandler(bot)
+
+        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
+        setupNotificationProcessor(bot)
 
         registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
         // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
