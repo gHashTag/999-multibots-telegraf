@@ -15,9 +15,14 @@ interface TelegramError {
   message?: string
   on?: {
     method?: string
+    payload?: any
   }
   code?: number
-  response?: any
+  response?: {
+    ok?: boolean
+    error_code?: number
+    description?: string
+  }
   description?: string
 }
 
@@ -30,11 +35,35 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
     // Типизируем ошибку
     const error = err as TelegramError
 
-    // Проверяем, является ли ошибка ошибкой авторизации
+    // Проверяем различные типы ошибок
     const isAuthError = error.message?.includes('401: Unauthorized')
+    const isBlockedError = error.message?.includes(
+      '403: Forbidden: bot was blocked by the user'
+    )
+    const isForbiddenError =
+      error.message?.includes('403: Forbidden') && !isBlockedError
+    const error_code = error.response?.error_code
 
-    // Логируем ошибку с разным уровнем в зависимости от типа
-    if (isAuthError) {
+    // Получаем информацию о пользователе для логирования
+    const userId = ctx?.from?.id
+    const username = ctx?.from?.username
+    const chatId = ctx?.chat?.id
+
+    if (isBlockedError) {
+      // Обрабатываем случай заблокированного пользователя
+      logger.warn('🚫 Пользователь заблокировал бота:', {
+        description: 'User blocked the bot',
+        bot_name: ctx?.botInfo?.username || 'unknown',
+        user_id: userId,
+        username: username,
+        chat_id: chatId,
+        error: error.message,
+        method: error.on?.method || 'unknown',
+        update_id: ctx?.update?.update_id,
+      })
+      // Для заблокированных пользователей не отправляем уведомление в поддержку
+      // так как это нормальная ситуация
+    } else if (isAuthError) {
       logger.error('🔐 Ошибка авторизации Telegram API:', {
         description: 'Telegram API Authorization Error',
         bot_name: ctx?.botInfo?.username || 'unknown',
@@ -56,12 +85,27 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
         method: error.on?.method || 'unknown',
         time: new Date().toISOString(),
       })
+    } else if (isForbiddenError) {
+      logger.warn('🔒 Ошибка доступа Telegram API:', {
+        description: 'Telegram API Forbidden Error',
+        bot_name: ctx?.botInfo?.username || 'unknown',
+        user_id: userId,
+        username: username,
+        chat_id: chatId,
+        error: error.message,
+        method: error.on?.method || 'unknown',
+        update_id: ctx?.update?.update_id,
+      })
     } else {
       logger.error('❌ Ошибка Telegram API:', {
         description: 'Telegram API Error',
         bot_name: ctx?.botInfo?.username || 'unknown',
+        error_code: error_code,
         error: error.message,
         method: error.on?.method || 'unknown',
+        user_id: userId,
+        username: username,
+        chat_id: chatId,
         update_id: ctx?.update?.update_id,
       })
     }
