@@ -10,24 +10,29 @@
     - ❌ Ошибка "column pending_messages.sent does not exist" - система уведомлений не работала
 - **Причины:**
     - 🔧 Сцена `handleTextMessage` была создана, но не зарегистрирована в `stage` в `registerCommands.ts`
-    - 🔧 Таблица `pending_messages` не была создана в базе данных Supabase
+    - 🔧 Таблица `pending_messages` существует, но неполная (без колонки `sent` и других)
 - **Решения:**
     - ✅ Добавлен импорт `handleTextMessage` в `src/registerCommands.ts`
     - ✅ Зарегистрирована сцена `handleTextMessage` в массиве `stage`
     - ✅ Проверены типы TypeScript - компиляция успешна
-    - ⚠️ **ТРЕБУЕТСЯ ДЕЙСТВИЕ:** Создать таблицу `pending_messages` в Supabase (см. инструкцию ниже)
+    - ✅ **ПОДТВЕРЖДЕНО:** 38 сцен зарегистрировано успешно (включая handleTextMessage)
+    - ✅ Создан исправляющий SQL скрипт `scripts/fix_pending_messages_table.sql`
+    - ⚠️ **ТРЕБУЕТСЯ ДЕЙСТВИЕ:** Выполнить SQL скрипт в Supabase для исправления таблицы
 - **Результат:**
     - 🚀 Пользователи снова могут взаимодействовать с ботами
-    - 💬 Команда `/start` работает корректно
+    - 💬 Команда `/start` работает корректно  
     - 🔄 Система текстовых сообщений восстановлена
-- **Коммит:** `6c5c9f9d` - "🔧 fix: Register handleTextMessage scene in stage"
+    - 📨 Система уведомлений заработает после исправления таблицы
+- **Коммиты:** 
+    - `6c5c9f9d` - "🔧 fix: Register handleTextMessage scene in stage"
+    - `28ecd8cd` - "📝 docs: Update ROADMAP with critical user access fix"
 
-**🚨 КРИТИЧЕСКАЯ ИНСТРУКЦИЯ ПО СОЗДАНИЮ ТАБЛИЦЫ PENDING_MESSAGES:**
+**🔧 ИСПРАВЛЕНИЕ ТАБЛИЦЫ PENDING_MESSAGES:**
 1. Открой Supabase Dashboard: https://supabase.com/dashboard
 2. Выбери проект "NeuroBlogger" 
 3. Перейди в SQL Editor
-4. Выполни SQL скрипт из файла `scripts/create_pending_messages_table.sql`
-5. Перезапусти сервер после создания таблицы
+4. Выполни **ВЕСЬ** SQL скрипт из файла `scripts/fix_pending_messages_table.sql`
+5. Перезапусти сервер после исправления таблицы
 
 ### ДОБАВЛЕНИЕ БАЛАНСА И ПОДПИСКИ ПОЛЬЗОВАТЕЛЮ (ЗАВЕРШЕНО - 2025-01-18) ✅
 - **Задача:** Добавить пользователю artemfisenko (ID: 164609458) подписку "нейротестер" и 100 тысяч звезд на баланс
