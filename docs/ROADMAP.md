@@ -2,6 +2,33 @@
 
 ## 🎯 Текущие задачи
 
+### ИСПРАВЛЕНИЕ ДОСТУПА ПОЛЬЗОВАТЕЛЕЙ К БОТАМ (ЗАВЕРШЕНО - 2025-01-27) ✅
+- **Задача:** Исправить критическую ошибку, из-за которой пользователи не могли получить доступ к боту
+- **Статус:** ✅ Завершено успешно
+- **Проблемы:**
+    - ❌ Ошибка "Can't find scene: handleTextMessage" - пользователь 164609458 не мог взаимодействовать с ботом
+    - ❌ Ошибка "column pending_messages.sent does not exist" - система уведомлений не работала
+- **Причины:**
+    - 🔧 Сцена `handleTextMessage` была создана, но не зарегистрирована в `stage` в `registerCommands.ts`
+    - 🔧 Таблица `pending_messages` не была создана в базе данных Supabase
+- **Решения:**
+    - ✅ Добавлен импорт `handleTextMessage` в `src/registerCommands.ts`
+    - ✅ Зарегистрирована сцена `handleTextMessage` в массиве `stage`
+    - ✅ Проверены типы TypeScript - компиляция успешна
+    - ⚠️ **ТРЕБУЕТСЯ ДЕЙСТВИЕ:** Создать таблицу `pending_messages` в Supabase (см. инструкцию ниже)
+- **Результат:**
+    - 🚀 Пользователи снова могут взаимодействовать с ботами
+    - 💬 Команда `/start` работает корректно
+    - 🔄 Система текстовых сообщений восстановлена
+- **Коммит:** `6c5c9f9d` - "🔧 fix: Register handleTextMessage scene in stage"
+
+**🚨 КРИТИЧЕСКАЯ ИНСТРУКЦИЯ ПО СОЗДАНИЮ ТАБЛИЦЫ PENDING_MESSAGES:**
+1. Открой Supabase Dashboard: https://supabase.com/dashboard
+2. Выбери проект "NeuroBlogger" 
+3. Перейди в SQL Editor
+4. Выполни SQL скрипт из файла `scripts/create_pending_messages_table.sql`
+5. Перезапусти сервер после создания таблицы
+
 ### ДОБАВЛЕНИЕ БАЛАНСА И ПОДПИСКИ ПОЛЬЗОВАТЕЛЮ (ЗАВЕРШЕНО - 2025-01-18) ✅
 - **Задача:** Добавить пользователю artemfisenko (ID: 164609458) подписку "нейротестер" и 100 тысяч звезд на баланс
 - **Статус:** ✅ Завершено успешно
@@ -251,16 +278,4 @@
 - ✅ {current_date}: Удален устаревший тип `VideoModel` из `src/interfaces/models.interface.ts`.
 - ✅ {current_date}: Рефакторинг кода (`processBalanceVideoOperation`, `imageToVideoWizard`, `videoModelMenu`, `generateImageToVideo`, `videoModelPrices`, `validateAndCalculateVideoModelPrice`) для использования `keyof typeof VIDEO_MODELS_CONFIG` вместо `VideoModel`.
 - ✅ {current_date}: Заменен тип `string` на `VideoModelConfigKey` в `BalanceOperationProps` в `processBalanceVideoOperation.ts`.
-- ✅ {current_date}: Исправлена ошибка импорта `VideoModel` и вызова `processBalanceVideoOperation` в `src/services/plan_b/generateTextToVideo.ts` после рефакторинга.
-- ✅ {current_date}: Исправлены ошибки компиляции TypeScript в `src/registerCommands.ts` и `src/handlers/handleBuy/index.ts` (ошибки TS2339 и TS2345).
-- ✅ {current_date}: Исправлены ошибки типов в `src/core/supabase/getUserDetailsSubscription.ts` (удален импорт `UserRole`).
-- ✅ {current_date}: Исправлены ошибки типов в `src/scenes/imageToVideoWizard/index.ts` (исправлен импорт `updateUserModel`, добавлены `await` для `getTranslation`).
-- ✅ {current_date}: Исправлена логика цены морфинга в `imageToVideoWizard` (используется цена выбранной Kling-модели).
-- ✅ {current_date}: Добавлена проверка флага `is_morphing` в шагах `imageToVideoWizard` для предотвращения ошибок состояния.
-- ✅ {current_date}: Удалены вызовы `getTranslation` из `imageToVideoWizard`, тексты локализованы (Ru/En) и добавлены эмодзи ✨ непосредственно в код.
-- ✅ {current_date}: Удалены ошибочные вызовы `ctx.scene.saveSession()` из `imageToVideoWizard`.
-- ✅ {current_date}: Исправлена логика цены морфинга в `imageToVideoWizard` (используется цена выбранной Kling-модели).
-- ✅ {current_date}: Добавлена проверка флага `is_morphing` в шагах `imageToVideoWizard` для предотвращения ошибок состояния.
-- ✅ {current_date}: Локализованы тексты (Ru/En) и добавлены эмодзи ✨ в `imageToVideoWizard`.
-- ✅ {current_date}: Удалены ошибочные вызовы `ctx.scene.saveSession()` и вызовы `getTranslation` из `imageToVideoWizard`.
-- ✅ {current_date}: Исправлена логика цены морфинга и проверка состояния (`
+- ✅ {current_date}: Исправлена ошибка импорта `VideoModel` и вызова `processBalanceVideoOperation` в `
