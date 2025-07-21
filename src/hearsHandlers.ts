@@ -780,7 +780,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.Invite
-      await ctx.scene.enter(ModeEnum.InviteScene)
+      await ctx.scene.enter('inviteScene')
     }
   )
 
