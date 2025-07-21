@@ -24,6 +24,8 @@ import {
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 // Импортируем FLUX Kontext команду
 import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
+// Импортируем сцену handleTextMessage
+import { handleTextMessage } from './handlers/handleTextMessage'
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -124,6 +126,7 @@ export const stage = new Scenes.Stage<MyContext>([
   levelQuestWizard,
   createUserScene,
   neuroCoderScene,
+  handleTextMessage,
 ])
 
 // Function to send the promotional message
