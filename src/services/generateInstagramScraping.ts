@@ -46,6 +46,7 @@ export async function generateInstagramScraping(
   await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
   try {
+    const debugSessionId = `debug-${Date.now()}`
     const eventData = {
       username_or_id,
       project_id,
@@ -58,7 +59,16 @@ export async function generateInstagramScraping(
       bot_name: botName,
       language: isRu ? 'ru' : 'en',
       timestamp: new Date().toISOString(),
+
+      // 🔥 ДЕБАГ ДАННЫЕ - помогут найти событие в логах ai-server
+      debug_source: 'telegram-bot',
+      debug_session_id: debugSessionId,
     }
+
+    console.log(
+      '🔥 [DEBUG] SENDING EVENT DATA:',
+      JSON.stringify(eventData, null, 2)
+    )
 
     // 🚀 Отправляем событие в Inngest через SDK (работает и в dev, и в production!)
     console.log(
@@ -66,7 +76,7 @@ export async function generateInstagramScraping(
     )
 
     await inngest.send({
-      name: 'test/hello.world', // 🔥 ВРЕМЕННО ТЕСТИРУЕМ С test/hello.world
+      name: 'instagram/scraper-v2',
       data: eventData,
       user: {
         external_id: telegram_id, // Для отслеживания пользователя (шифруется)
@@ -81,6 +91,10 @@ export async function generateInstagramScraping(
         ? 'localhost:8288'
         : 'ai-server-u14194.vm.elestio.app/api/inngest'
     )
+    console.log(
+      `🔥 [DEBUG] Event sent with debug_session_id: ${debugSessionId}`
+    )
+    console.log(`🔥 [DEBUG] Check ai-server logs for this session_id!`)
 
     logger.info({
       message: '✅ [Instagram Scraper] Событие успешно отправлено в Inngest',
