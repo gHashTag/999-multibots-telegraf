@@ -370,6 +370,43 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
             : 'Unknown subscription type. Please select another option.'
         )
       }
+    } else if ('message' in ctx.update && 'text' in ctx.update.message) {
+      const messageText = ctx.update.message.text
+
+      // ✅ СПЕЦИАЛЬНАЯ ОБРАБОТКА КОМАНДЫ /instagram
+      if (messageText === '/instagram') {
+        console.log(
+          '🔍 [DEBUG] /instagram command in subscriptionScene - showing subscription required message'
+        )
+        logger.info('🔍 [DEBUG] /instagram command in subscriptionScene', {
+          telegramId: ctx.from?.id,
+          currentScene: 'subscription_scene',
+        })
+
+        const isRu = isRussian(ctx)
+        const instagramMessage = isRu
+          ? '📊 *Instagram анализ конкурентов*\n\n' +
+            '❌ Для использования функции анализа конкурентов Instagram необходима активная подписка.\n\n' +
+            '🎯 Выберите подходящий план подписки выше, чтобы получить доступ к:\n' +
+            '• Анализу профилей конкурентов\n' +
+            '• Изучению их контент-стратегий\n' +
+            '• Анализу популярных Reels\n' +
+            '• Детальной аналитике аудитории'
+          : '📊 *Instagram Competitor Analysis*\n\n' +
+            '❌ An active subscription is required to use Instagram competitor analysis.\n\n' +
+            '🎯 Choose a suitable subscription plan above to get access to:\n' +
+            '• Competitor profile analysis\n' +
+            '• Content strategy insights\n' +
+            '• Popular Reels analysis\n' +
+            '• Detailed audience analytics'
+
+        await ctx.reply(instagramMessage, { parse_mode: 'Markdown' })
+        return // Остаемся в сцене подписки
+      }
+
+      // ✅ ОБРАБОТКА ДРУГИХ ТЕКСТОВЫХ КОМАНД через handleMenu
+      handleMenu(ctx)
+      return ctx.scene.leave()
     } else {
       handleMenu(ctx)
       return ctx.scene.leave()
