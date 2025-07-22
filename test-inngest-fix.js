@@ -1,0 +1,1 @@
+const { inngest } = require("./src/inngest_app/client.ts"); async function test() { console.log("🧪 Testing Inngest send..."); try { await inngest.send({ name: "test/debug", data: { test: true } }); console.log("✅ Inngest send works!"); } catch (e) { console.log("❌ Inngest error:", e.message); } } test();
