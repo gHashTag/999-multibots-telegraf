@@ -29,9 +29,105 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
   // ШАГ 0: ВЫБОР ПРОЕКТА
   // ==========================================
   async ctx => {
-    console.log('🚨 [DEBUG] INSTAGRAM WIZARD SCENE ENTERED - STEP 0!')
     const isRu = isRussianFromState(ctx)
     const sessionData = ctx.wizard.state as InstagramScrapingSessionData
+
+    // Если это callback от выбора проекта
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+      console.log('🚨 [DEBUG] STEP 0 - CALLBACK QUERY DETECTED:', {
+        data: ctx.callbackQuery.data,
+      })
+
+      const callbackData = ctx.callbackQuery.data
+
+      if (callbackData === 'cancel') {
+        console.log('🚨 [DEBUG] CANCEL selected - leaving scene')
+        await ctx.answerCbQuery()
+        await ctx.reply(isRu ? '❌ Анализ отменен.' : '❌ Analysis cancelled.')
+        await ctx.scene.leave()
+        return
+      }
+
+      if (callbackData.startsWith('project_')) {
+        console.log('🚨 [DEBUG] PROJECT callback detected in Step 0!')
+
+        const projectId = parseInt(callbackData.replace('project_', ''))
+        console.log('🚨 [DEBUG] Parsed project ID:', projectId)
+
+        // Получаем проекты еще раз и находим выбранный
+        console.log('🚨 [DEBUG] Getting projects to find selected one...')
+        const projects = await getUserProjects(ctx.from!.id.toString())
+        const selectedProject = projects.find(p => p.id === projectId)
+
+        console.log('🚨 [DEBUG] Selected project search result:', {
+          foundProject: !!selectedProject,
+          selectedProject: selectedProject
+            ? { id: selectedProject.id, name: selectedProject.name }
+            : null,
+        })
+
+        if (!selectedProject) {
+          console.log('🚨 [DEBUG] ERROR: Project not found!')
+          await ctx.answerCbQuery('Проект не найден')
+          return
+        }
+
+        console.log('🚨 [DEBUG] Saving project to session...')
+        sessionData.selectedProject = selectedProject
+
+        console.log('🚨 [DEBUG] Answering callback and editing message...')
+        try {
+          await ctx.answerCbQuery()
+          await ctx.editMessageText(
+            isRu
+              ? `✅ Выбран проект: ${selectedProject.name}`
+              : `✅ Selected project: ${selectedProject.name}`
+          )
+          console.log('🚨 [DEBUG] Message edited successfully!')
+        } catch (error) {
+          console.error('🚨 [ERROR] Failed to edit message:', error)
+
+          // Fallback - отправляем новое сообщение
+          await ctx.reply(
+            isRu
+              ? `✅ Выбран проект: ${selectedProject.name}`
+              : `✅ Selected project: ${selectedProject.name}`
+          )
+        }
+
+        // Переходим к запросу username
+        console.log('🚨 [DEBUG] Sending username request message...')
+        try {
+          await ctx.reply(
+            isRu
+              ? '👤 Введите Instagram username для анализа конкурентов:\n\n💡 Введите без символа @ (например: neuro_sage)'
+              : '👤 Enter Instagram username for competitor analysis:\n\n💡 Enter without @ symbol (example: neuro_sage)',
+            createHelpCancelKeyboard(isRu)
+          )
+          console.log('🚨 [DEBUG] Username request message sent successfully!')
+        } catch (error) {
+          console.error('🚨 [ERROR] Failed to send username request:', error)
+
+          // Fallback
+          await ctx.reply(
+            isRu
+              ? '👤 Введите Instagram username:'
+              : '👤 Enter Instagram username:'
+          )
+        }
+
+        console.log('🚨 [DEBUG] Moving to next step (username input)...')
+        return ctx.wizard.next()
+      }
+
+      // Неизвестный callback
+      console.log('🚨 [DEBUG] Unknown callback received:', callbackData)
+      await ctx.answerCbQuery()
+      return
+    }
+
+    // Если это не callback, значит это первый вход в сцену - показываем проекты
+    console.log('🚨 [DEBUG] INSTAGRAM WIZARD SCENE ENTERED - STEP 0!')
 
     console.log(
       'Instagram Scraping Wizard: Step 0 - Project selection started',
@@ -138,127 +234,17 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       )
     }
 
-    console.log('🚨 [DEBUG] Moving to next wizard step...')
+    console.log('🚨 [DEBUG] Waiting for user to select project...')
 
-    return ctx.wizard.next()
+    // ❌ УБИРАЕМ ЭТУ СТРОКУ - она заставляла бота перейти дальше сразу!
+    // return ctx.wizard.next()
   },
 
   // ==========================================
-  // ШАГ 1: ОБРАБОТКА ВЫБОРА ПРОЕКТА + ВВОД USERNAME
+  // ШАГ 1: ОБРАБОТКА ВВОДА USERNAME
   // ==========================================
   async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const sessionData = ctx.wizard.state as InstagramScrapingSessionData
-
-    console.log('🚨 [DEBUG] STEP 1 ENTERED - Processing callback or text')
-
-    // Обрабатываем callback от выбора проекта
-    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      console.log('🚨 [DEBUG] CALLBACK QUERY DETECTED:', {
-        data: ctx.callbackQuery.data,
-      })
-
-      const callbackData = ctx.callbackQuery.data
-
-      if (callbackData === 'cancel') {
-        console.log('🚨 [DEBUG] CANCEL selected - leaving scene')
-        await ctx.answerCbQuery()
-        await ctx.reply(isRu ? '❌ Анализ отменен.' : '❌ Analysis cancelled.')
-        await ctx.scene.leave()
-        return
-      }
-
-      if (callbackData.startsWith('project_')) {
-        console.log('🚨 [DEBUG] PROJECT callback detected!')
-
-        const projectId = parseInt(callbackData.replace('project_', ''))
-        console.log('🚨 [DEBUG] Parsed project ID:', projectId)
-
-        // Получаем проекты еще раз и находим выбранный
-        console.log('🚨 [DEBUG] Getting projects to find selected one...')
-        const projects = await getUserProjects(ctx.from!.id.toString())
-        const selectedProject = projects.find(p => p.id === projectId)
-
-        console.log('🚨 [DEBUG] Selected project search result:', {
-          foundProject: !!selectedProject,
-          selectedProject: selectedProject
-            ? { id: selectedProject.id, name: selectedProject.name }
-            : null,
-        })
-
-        if (!selectedProject) {
-          console.log('🚨 [DEBUG] ERROR: Project not found!')
-          await ctx.answerCbQuery('Проект не найден')
-          return
-        }
-
-        console.log('🚨 [DEBUG] Saving project to session...')
-        sessionData.selectedProject = selectedProject
-        sessionData.projectId = projectId
-
-        console.log('🚨 [DEBUG] Answering callback and editing message...')
-        try {
-          await ctx.answerCbQuery()
-          await ctx.editMessageText(
-            isRu
-              ? `✅ Выбран проект: ${selectedProject.name}`
-              : `✅ Selected project: ${selectedProject.name}`
-          )
-          console.log('🚨 [DEBUG] Message edited successfully!')
-        } catch (error) {
-          console.error('🚨 [ERROR] Failed to edit message:', error)
-
-          // Fallback - отправляем новое сообщение
-          await ctx.reply(
-            isRu
-              ? `✅ Выбран проект: ${selectedProject.name}`
-              : `✅ Selected project: ${selectedProject.name}`
-          )
-        }
-
-        // Переходим к запросу username
-        console.log('🚨 [DEBUG] Sending username request message...')
-        try {
-          await ctx.reply(
-            isRu
-              ? '👤 Введите Instagram username для анализа конкурентов:\n\n💡 Введите без символа @ (например: neuro_sage)'
-              : '👤 Enter Instagram username for competitor analysis:\n\n💡 Enter without @ symbol (example: neuro_sage)',
-            createHelpCancelKeyboard(isRu)
-          )
-          console.log('🚨 [DEBUG] Username request message sent successfully!')
-        } catch (error) {
-          console.error('🚨 [ERROR] Failed to send username request:', error)
-
-          // Fallback
-          await ctx.reply(
-            isRu
-              ? '👤 Введите Instagram username:'
-              : '👤 Enter Instagram username:'
-          )
-        }
-
-        console.log('🚨 [DEBUG] Moving to next step (username input)...')
-        return ctx.wizard.next()
-      }
-    }
-
-    // Если попали сюда без callback - что-то пошло не так
-    console.log(
-      '🚨 [DEBUG] ERROR: No callback query detected - user sent text instead of clicking button'
-    )
-    await ctx.reply(
-      isRu
-        ? '⚠️ Пожалуйста, выберите проект из предложенных вариантов.'
-        : '⚠️ Please select a project from the provided options.'
-    )
-    return
-  },
-
-  // ==========================================
-  // ШАГ 2: ОБРАБОТКА USERNAME + ВЫБОР КОЛИЧЕСТВА КОНКУРЕНТОВ
-  // ==========================================
-  async ctx => {
-    console.log('🚨 [DEBUG] STEP 2 ENTERED - Processing username input')
+    console.log('🚨 [DEBUG] STEP 1 ENTERED - Processing username input')
 
     const isRu = isRussianFromState(ctx)
     const sessionData = ctx.wizard.state as InstagramScrapingSessionData
@@ -269,7 +255,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
     })
 
     // Обрабатываем ввод username
-    if ('text' in ctx.message!) {
+    if (ctx.message && 'text' in ctx.message) {
       console.log('🚨 [DEBUG] Processing text message for username...')
 
       const username = ctx.message.text.trim().replace('@', '')
@@ -291,7 +277,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
           await ctx.reply(
             isRu
               ? '❌ Некорректный Instagram username!\n\n✅ Должен содержать только буквы, цифры, точки и подчеркивания (1-30 символов)\n💡 Попробуйте еще раз:'
-              : '❌ Invalid Instagram username!\n\n✅ Should contain only letters, numbers, dots and underscores (1-30 characters)\n💡 Please try again:',
+              : '❌ Invalid Instagram username!\n\n✅ Must contain only letters, numbers, dots and underscores (1-30 characters)\n💡 Try again:',
             createHelpCancelKeyboard(isRu)
           )
           console.log('🚨 [DEBUG] Validation error message sent successfully')
@@ -356,8 +342,8 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         // Fallback
         await ctx.reply(
           isRu
-            ? `✅ Username: @${username}\n📊 Сколько конкурентов анализировать?\n(10/25/50/100/250/500/1000/2500 или введите свое число)`
-            : `✅ Username: @${username}\n📊 How many competitors to analyze?\n(10/25/50/100/250/500/1000/2500 or enter custom number)`
+            ? '👤 Введите Instagram username:'
+            : '👤 Enter Instagram username:'
         )
       }
 
@@ -383,17 +369,17 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // ==========================================
-  // ШАГ 3: ОБРАБОТКА КОЛИЧЕСТВА КОНКУРЕНТОВ + ВЫБОР РИЛСОВ
+  // ШАГ 2: ОБРАБОТКА КОЛИЧЕСТВА КОНКУРЕНТОВ + ВЫБОР РИЛСОВ
   // ==========================================
   async ctx => {
     console.log(
-      '🚨 [DEBUG] STEP 3 ENTERED - Processing competitors count selection'
+      '🚨 [DEBUG] STEP 2 ENTERED - Processing competitors count selection'
     )
     const isRu = isRussianFromState(ctx)
     const sessionData = ctx.wizard.state as InstagramScrapingSessionData
 
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      console.log('🚨 [DEBUG] CALLBACK QUERY in Step 3:', {
+      console.log('🚨 [DEBUG] CALLBACK QUERY in Step 2:', {
         data: ctx.callbackQuery.data,
       })
 
@@ -460,8 +446,11 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                   'reels_no'
                 ),
               ],
-              [Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'back')],
               [
+                Markup.button.callback(
+                  isRu ? '🔙 Назад' : '🔙 Back',
+                  'back_to_competitors'
+                ),
                 Markup.button.callback(
                   isRu ? '❌ Отмена' : '❌ Cancel',
                   'cancel'
@@ -471,73 +460,111 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
           }
         )
 
+        console.log('🚨 [DEBUG] Moving to next step (reels selection)...')
         return ctx.wizard.next()
       }
     }
 
-    // Обработка пользовательского ввода количества конкурентов
-    if (sessionData.waitingForCustomCount && 'text' in ctx.message!) {
+    // Handle custom count input (text message)
+    if (
+      sessionData.waitingForCustomCount &&
+      ctx.message &&
+      'text' in ctx.message
+    ) {
       console.log('🚨 [DEBUG] Processing custom competitors count input...')
 
-      const customCountText = ctx.message.text.trim()
-      console.log('🚨 [DEBUG] Custom count text:', customCountText)
-
-      const customCount = parseInt(customCountText)
+      const customCountStr = ctx.message.text.trim()
+      const customCount = parseInt(customCountStr)
+      console.log('🚨 [DEBUG] Parsed custom count:', {
+        original: customCountStr,
+        parsed: customCount,
+      })
 
       if (isNaN(customCount) || customCount < 1 || customCount > 10000) {
-        console.log('🚨 [DEBUG] Invalid custom count:', {
-          customCountText,
-          customCount,
-        })
+        console.log('🚨 [DEBUG] Invalid custom count')
         await ctx.reply(
           isRu
-            ? '❌ Некорректное число! Введите число от 1 до 10000:'
-            : '❌ Invalid number! Enter a number from 1 to 10000:'
+            ? '❌ Некорректное число!\n\n💡 Введите число от 1 до 10000:'
+            : '❌ Invalid number!\n\n💡 Enter a number from 1 to 10000:'
         )
         return
       }
 
-      console.log('🚨 [DEBUG] Valid custom count received:', customCount)
       sessionData.maxCompetitors = customCount
       sessionData.waitingForCustomCount = false
+      console.log('🚨 [DEBUG] Custom competitors count saved:', customCount)
 
-      await ctx.reply(
-        isRu
-          ? `✅ Количество конкурентов: ${customCount}\n\n🎬 Анализировать рилсы конкурентов?\n\n💡 Анализ рилсов поможет понять контент-стратегию конкурентов`
-          : `✅ Competitors count: ${customCount}\n\n🎬 Analyze competitor reels?\n\n💡 Reels analysis will help understand competitors' content strategy`,
-        Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              isRu ? '✅ Да, с рилсами' : '✅ Yes, with reels',
-              'reels_yes'
-            ),
-            Markup.button.callback(
-              isRu ? '❌ Нет, без рилсов' : '❌ No, without reels',
-              'reels_no'
-            ),
-          ],
-          [Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'back')],
-          [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
-        ])
-      )
+      try {
+        await ctx.reply(
+          isRu
+            ? `✅ Количество конкурентов: **${customCount}**\n\n🎬 *Анализировать рилсы конкурентов?*\n\n💡 _Анализ рилсов поможет понять контент-стратегию конкурентов_`
+            : `✅ Competitors count: **${customCount}**\n\n🎬 *Analyze competitor reels?*\n\n💡 _Reels analysis will help understand competitors' content strategy_`,
+          {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  isRu ? '✅ Да, с рилсами' : '✅ Yes, with reels',
+                  'reels_yes'
+                ),
+                Markup.button.callback(
+                  isRu ? '❌ Нет, без рилсов' : '❌ No, without reels',
+                  'reels_no'
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  isRu ? '🔙 Назад' : '🔙 Back',
+                  'back_to_competitors'
+                ),
+                Markup.button.callback(
+                  isRu ? '❌ Отмена' : '❌ Cancel',
+                  'cancel'
+                ),
+              ],
+            ]),
+          }
+        )
+        console.log('🚨 [DEBUG] Custom count reels selection message sent!')
+      } catch (error) {
+        console.error(
+          '🚨 [ERROR] Failed to send reels selection message:',
+          error
+        )
 
-      console.log('🚨 [DEBUG] Moving to reels selection step...')
+        // Fallback
+        await ctx.reply(
+          isRu
+            ? `✅ Количество: ${customCount}\n🎬 Анализировать рилсы? (да/нет)`
+            : `✅ Count: ${customCount}\n🎬 Analyze reels? (yes/no)`
+        )
+      }
+
+      console.log('🚨 [DEBUG] Moving to next step (reels selection)...')
       return ctx.wizard.next()
     }
 
+    // Handle cancel from help/cancel buttons
+    console.log('🚨 [DEBUG] Checking for help/cancel buttons in Step 2...')
+    if (await handleHelpCancel(ctx)) {
+      console.log('🚨 [DEBUG] Help/Cancel handled - exiting step')
+      return
+    }
+
+    console.log('🚨 [DEBUG] Invalid input in Step 2')
     await ctx.reply(
       isRu
-        ? '⚠️ Пожалуйста, выберите количество конкурентов.'
-        : '⚠️ Please select the number of competitors.'
+        ? '⚠️ Пожалуйста, выберите количество конкурентов или введите число.'
+        : '⚠️ Please select competitors count or enter a number.'
     )
   },
 
   // ==========================================
-  // ШАГ 4: ФИНАЛЬНАЯ ОБРАБОТКА - ЗАПУСК SCRAPING
+  // ШАГ 3: ОБРАБОТКА РИЛСОВ + ЗАПУСК АНАЛИЗА
   // ==========================================
   async ctx => {
     console.log(
-      '🚨 [DEBUG] STEP 4 ENTERED - Final processing and scraping launch'
+      '🚨 [DEBUG] STEP 3 ENTERED - Final processing and scraping launch'
     )
 
     const isRu = isRussianFromState(ctx)
@@ -551,7 +578,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
     })
 
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      console.log('🚨 [DEBUG] CALLBACK QUERY in Step 4:', {
+      console.log('🚨 [DEBUG] CALLBACK QUERY in Step 3:', {
         data: ctx.callbackQuery.data,
       })
 
