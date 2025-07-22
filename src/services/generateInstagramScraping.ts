@@ -60,50 +60,27 @@ export async function generateInstagramScraping(
       timestamp: new Date().toISOString(),
     }
 
-    // Отправляем событие в Inngest - разный подход для dev/production
-    if (process.env.NODE_ENV === 'production') {
-      // Продакшн: прямой HTTP вызов к нашему серверу
-      console.log('📤 [PRODUCTION] Отправляем событие через HTTP API...')
-      const response = await fetch(
-        'https://ai-server-u14194.vm.elestio.app/api/inngest/e/dummy-key',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: 'instagram/scraper-v2',
-            data: eventData,
-          }),
-        }
-      )
+    // 🚀 Отправляем событие в Inngest через SDK (работает и в dev, и в production!)
+    console.log(
+      `📤 [${process.env.NODE_ENV?.toUpperCase()}] Отправляем событие через Inngest SDK...`
+    )
 
-      console.log('📊 [PRODUCTION] HTTP Status:', response.status)
+    await inngest.send({
+      name: 'instagram/scraper-v2',
+      data: eventData,
+      user: {
+        external_id: telegram_id, // Для отслеживания пользователя (шифруется)
+      },
+      // ID для дедупликации - избегаем повторных запусков
+      id: `instagram-scraper-${telegram_id}-${username_or_id}-${Date.now()}`,
+    })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ [PRODUCTION] HTTP Error:', errorText)
-        throw new Error(
-          `HTTP error! status: ${response.status}, details: ${errorText}`
-        )
-      }
-
-      const result = await response.json()
-      console.log('✅ [PRODUCTION] Event sent successfully:', result)
-    } else {
-      // Development: используем SDK
-      console.log('📤 [DEVELOPMENT] Отправляем событие через SDK...')
-      await inngest.send({
-        name: 'instagram/scraper-v2',
-        data: eventData,
-        user: {
-          external_id: telegram_id, // Для отслеживания пользователя (шифруется)
-        },
-        // ID для дедупликации - избегаем повторных запусков
-        id: `instagram-scraper-${telegram_id}-${username_or_id}-${Date.now()}`,
-      })
-      console.log('✅ [DEVELOPMENT] Event sent via SDK')
-    }
+    console.log(
+      `✅ [${process.env.NODE_ENV?.toUpperCase()}] Event sent via SDK to:`,
+      process.env.NODE_ENV === 'development'
+        ? 'localhost:8288'
+        : 'ai-server-u14194.vm.elestio.app/api/inngest'
+    )
 
     logger.info({
       message: '✅ [Instagram Scraper] Событие успешно отправлено в Inngest',
