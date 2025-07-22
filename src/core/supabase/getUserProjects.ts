@@ -9,6 +9,39 @@ export interface UserProject {
   industry: string
 }
 
+// 💾 CACHE МЕХАНИЗМ - Кэш проектов на 5 минут
+interface CacheEntry {
+  data: UserProject[]
+  timestamp: number
+  telegramId: string
+}
+
+const projectsCache = new Map<string, CacheEntry>()
+const CACHE_TTL = 5 * 60 * 1000 // 5 минут
+
+function getCachedProjects(telegramId: string): UserProject[] | null {
+  const entry = projectsCache.get(telegramId)
+  if (!entry) return null
+
+  const now = Date.now()
+  if (now - entry.timestamp > CACHE_TTL) {
+    projectsCache.delete(telegramId)
+    return null
+  }
+
+  console.log('🚀 [getUserProjects] CACHE HIT! Returning cached projects')
+  return entry.data
+}
+
+function setCachedProjects(telegramId: string, data: UserProject[]): void {
+  projectsCache.set(telegramId, {
+    data,
+    timestamp: Date.now(),
+    telegramId,
+  })
+  console.log('💾 [getUserProjects] CACHED projects for future use')
+}
+
 export const getUserProjects = async (
   telegram_id: string | number
 ): Promise<UserProject[]> => {
@@ -20,6 +53,14 @@ export const getUserProjects = async (
     )
     logger.error('[getUserProjects] Missing telegram_id')
     return []
+  }
+
+  const telegramIdStr = telegram_id.toString()
+
+  // 🚀 ПРОВЕРКА КЭША - Возвращаем закэшированные данные если есть
+  const cachedProjects = getCachedProjects(telegramIdStr)
+  if (cachedProjects) {
+    return cachedProjects
   }
 
   const numericTelegramId =
@@ -101,7 +142,12 @@ export const getUserProjects = async (
         projectsLength: projects?.length || 0,
         projectNames: projects?.map(p => p.name) || [],
       })
-      return projects || []
+
+      // 💾 КЭШИРУЕМ РЕЗУЛЬТАТ ДЛЯ АДМИНА
+      const resultProjects = projects || []
+      setCachedProjects(telegramIdStr, resultProjects)
+
+      return resultProjects
     } else {
       console.log(
         '🚨 [getUserProjects] REGULAR USER BRANCH - fetching user projects from NEON'
@@ -145,7 +191,11 @@ export const getUserProjects = async (
         }
       )
 
-      return projectsResult.rows || []
+      // 💾 КЭШИРУЕМ РЕЗУЛЬТАТ ДЛЯ ОБЫЧНОГО ПОЛЬЗОВАТЕЛЯ
+      const userProjects = projectsResult.rows || []
+      setCachedProjects(telegramIdStr, userProjects)
+
+      return userProjects
     }
   } catch (error) {
     console.log('🚨 [getUserProjects] CAUGHT ERROR:', {
