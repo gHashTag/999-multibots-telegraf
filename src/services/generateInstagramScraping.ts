@@ -66,7 +66,7 @@ export async function generateInstagramScraping(
     )
 
     await inngest.send({
-      name: 'instagram/scraper-v2',
+      name: 'test/hello.world', // 🔥 ВРЕМЕННО ТЕСТИРУЕМ С test/hello.world
       data: eventData,
       user: {
         external_id: telegram_id, // Для отслеживания пользователя (шифруется)
