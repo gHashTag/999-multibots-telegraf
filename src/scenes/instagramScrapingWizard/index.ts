@@ -14,11 +14,11 @@ import { getUserProjects, UserProject } from '@/core/supabase/getUserProjects'
 // Интерфейс для сессии Instagram Scraping
 interface InstagramScrapingSessionData {
   selectedProject?: UserProject
+  projectId?: number
   targetUsername?: string
   maxCompetitors?: number
   includeReels?: boolean
   maxReelsPerUser?: number
-  projectId?: number
   waitingForCustomCount?: boolean
 }
 
@@ -74,6 +74,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
 
         console.log('🚨 [DEBUG] Saving project to session...')
         sessionData.selectedProject = selectedProject
+        sessionData.projectId = selectedProject.id
 
         console.log('🚨 [DEBUG] Answering callback and editing message...')
         try {
