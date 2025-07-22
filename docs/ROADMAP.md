@@ -1,28 +1,58 @@
 # 🗺 ROADMAP: NeuroBlogger Project 🚀
 
+## 🎉 ПОСЛЕДНИЕ ДОСТИЖЕНИЯ (2025-01-27)
+
+### ✅ ЗАВЕРШЕНО: INSTAGRAM SCRAPER V2 С INNGEST INTEGRATION
+- **Pull Request:** [#193](https://github.com/gHashTag/999-multibots-telegraf/pull/193) - готов к merge
+- **Архитектура:** Event-driven через Inngest (Bot → Events → ai-training-server)
+- **Функциональность:** Полный цикл от Telegram мастера до обработки на бэкенде
+- **Статус:** 🚀 Готово к продакшн деплою
+
+### 🎯 СЛЕДУЮЩИЕ ПРИОРИТЕТЫ:
+1. **Merge PR #193** в main ветку
+2. **Продакшн деплой** Instagram Scraper интеграции  
+3. **Мониторинг событий** в Inngest dashboard
+4. **Получение результатов** из базы данных и уведомления пользователей
+
+---
+
 ## 🎯 Текущие задачи
 
-### ИНТЕГРАЦИЯ INSTAGRAM SCRAPER V2 (ЗАВЕРШЕНО - 2025-01-27) ✅
-- **Задача:** Интегрировать Instagram Scraper V2 функцию в Telegram Bot для анализа конкурентов Instagram
-- **Статус:** ✅ Завершено успешно
+### ИНТЕГРАЦИЯ INSTAGRAM SCRAPER V2 С INNGEST (ОБНОВЛЕНО - 2025-01-27) ✅
+- **Задача:** Полная интеграция Instagram Scraper V2 функции с Inngest событиями для анализа конкурентов Instagram
+- **Статус:** ✅ Завершено успешно - PR #193 создан
+- **Архитектура:** Bot (Frontend) → Inngest Events → ai-training-server (Backend Processing)
 - **Реализовано:**
-    - ✅ Создан сервис `src/services/generateInstagramScraping.ts` для API вызовов к серверу
-    - ✅ Создана сцена `src/scenes/instagramScrapingWizard/index.ts` для сбора данных от пользователя
-    - ✅ Добавлен режим `InstagramScrapingWizard` в `src/interfaces/modes.ts`
-    - ✅ Зарегистрирована сцена в `stage` массиве в `src/registerCommands.ts`
-    - ✅ Добавлена команда `/instagram` с проверкой подписки
-    - ✅ Реализована валидация Instagram username (regex `^[a-zA-Z0-9._]{1,30}$`)
-    - ✅ Поддержка русского/английского языка через `isRussianFromState`
+    - ✅ **Inngest Integration:** 
+        - Настроен клиент `src/inngest_app/client.ts` с поддержкой dev/production режимов
+        - Development: подключение к localhost:8288 через SDK
+        - Production: HTTP API к https://ai-server-u14194.vm.elestio.app/api/inngest
+    - ✅ **Database Integration:**
+        - Создан клиент Neon PostgreSQL `src/core/neon/client.ts`
+        - Функция `src/core/supabase/getUserProjects.ts` с админ-доступом ко всем проектам
+        - Динамическая загрузка проектов из базы данных
+    - ✅ **Telegram Bot Wizard:**
+        - Обновлена сцена `src/scenes/instagramScrapingWizard/index.ts` с 4 шагами
+        - Шаг 1: Выбор проекта (админы видят все проекты)
+        - Шаг 2: Ввод Instagram username с валидацией regex
+        - Шаг 3: Выбор количества конкурентов (10-2500 + custom input 1-10000)
+        - Шаг 4: Анализ рилсов (да/нет) и запуск Inngest события
+    - ✅ **Event Service:**
+        - Обновлен сервис `src/services/generateInstagramScraping.ts` для Inngest
+        - Автоматический выбор метода отправки по NODE_ENV
+        - Событие: `instagram/scraper-v2` с полными данными пользователя
 - **Функциональность:**
-    - 🎯 Пошаговый сбор данных: Instagram username → количество конкурентов (1-50) → анализ рилсов (да/нет)
-    - 🔍 Валидация входных данных и защита от некорректных форматов
-    - 🚀 Интеграция с существующей Inngest функцией на сервере
-    - 📊 API endpoint: `${API_URL}/api/instagram/scrape` с заголовком `x-secret-key`
-    - ⏳ Таймаут 30 секунд для API запроса
-- **Следующие шаги:**
-    - 🔄 Реализовать получение результатов из базы данных
-    - 📤 Уведомление пользователя о готовых результатах
-    - 📋 Экспорт данных в различных форматах
+    - 🎯 Многошаговый мастер с интуитивной навигацией
+    - 🔍 Валидация всех входных данных с feedback пользователю
+    - 🚀 Event-driven архитектура через Inngest
+    - 🛡️ Админ-права для доступа ко всем проектам в базе
+    - 📊 Обширное логирование для debugging и мониторинга
+    - 🔧 Поддержка custom количества конкурентов
+- **Тестирование:**
+    - ✅ Тестовые скрипты для проверки Inngest интеграции
+    - ✅ HTTP API тесты для продакшн сервера
+    - ✅ Проверка подключения к Neon PostgreSQL
+- **Pull Request:** #193 - готов к merge в main
 - **Документация:** `docs/INSTAGRAM_SCRAPER_INTEGRATION.md`
 
 ### ИСПРАВЛЕНИЕ ДОСТУПА ПОЛЬЗОВАТЕЛЕЙ К БОТАМ (ЗАВЕРШЕНО - 2025-01-27) ✅
