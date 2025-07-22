@@ -62,6 +62,7 @@ export enum ModeEnum {
   GetRuBillWizard = 'get_ru_bill_wizard',
   SubscriptionScene = 'subscription_scene',
   CreateUserScene = 'create_user_scene',
+  InstagramScrapingWizard = 'instagram_scraping_wizard',
 
   // ⚠️ УСТАРЕВШИЕ/НЕИСПОЛЬЗУЕМЫЕ (оставляем для совместимости)
   /** @deprecated Не используется */
