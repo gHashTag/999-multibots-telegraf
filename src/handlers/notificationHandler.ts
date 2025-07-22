@@ -206,10 +206,22 @@ export function createNotificationHandler(
   return new NotificationHandler(bot)
 }
 
+// Глобальная переменная для предотвращения дублирования
+let notificationProcessorStarted = false
+
 /**
  * Настраивает автоматическую обработку уведомлений
  */
 export function setupNotificationProcessor(bot: Telegraf<MyContext>): void {
+  // ✅ ПРЕДОТВРАЩАЕМ ДУБЛИРОВАНИЕ - запускаем только один раз
+  if (notificationProcessorStarted) {
+    logger.info('⏩ Система уведомлений уже запущена, пропускаем инициализацию')
+    return
+  }
+
+  notificationProcessorStarted = true
+  logger.info('🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...')
+
   const handler = createNotificationHandler(bot)
 
   // Обрабатываем уведомления каждую минуту
@@ -222,5 +234,7 @@ export function setupNotificationProcessor(bot: Telegraf<MyContext>): void {
     await handler.cleanupOldMessages()
   }, 3600000) // 1 час
 
-  logger.info('🔄 Автоматическая обработка уведомлений настроена')
+  logger.info(
+    '✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)'
+  )
 }
