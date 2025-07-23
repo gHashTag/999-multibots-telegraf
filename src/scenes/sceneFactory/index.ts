@@ -1,4 +1,4 @@
-import { WizardScene } from 'telegraf/scenes'
+import { WizardScene } from 'telegraf/typings/scenes'
 import { MyContext } from '@/interfaces'
 
 const unwrapCallback = async (

@@ -14,7 +14,7 @@ import {
   sendPhotoDescriptionRequest,
 } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { WizardScene, WizardSessionData } from 'telegraf/scenes'
+import { WizardScene, WizardSessionData } from 'telegraf/typings/scenes'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
