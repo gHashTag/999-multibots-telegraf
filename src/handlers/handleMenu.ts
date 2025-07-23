@@ -576,22 +576,7 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
         )
       },
-      '/start': async () => {
-        logger.info({
-          message: '🚀 [handleMenu] Команда /start - начало работы с ботом',
-          telegramId,
-          function: 'handleMenu',
-          action: 'start_command',
-          nextScene: ModeEnum.StartScene,
-        })
-        console.log('CASE: 🚀 Начать обучение')
-        ctx.session.mode = ModeEnum.StartScene
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.StartScene}`)
-        await ctx.scene.enter(ModeEnum.StartScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.StartScene}`
-        )
-      },
+      // УБРАН КОНФЛИКТУЮЩИЙ ОБРАБОТЧИК /start - команды обрабатываются только в registerCommands.ts
       Отмена: async () => {
         // Исправленный обработчик для 'Отмена'
         logger.info('[handleMenu] Обработка Отмены')

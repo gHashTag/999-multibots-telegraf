@@ -65,6 +65,7 @@ import {
   uploadVideoScene,
   videoTranscriptionWizard,
   fluxKontextScene,
+  avatarTransformScene,
 } from './scenes'
 
 import { defaultSession } from './store'
@@ -110,6 +111,7 @@ export const stage = new Scenes.Stage<MyContext>([
   ),
   videoTranscriptionWizard,
   lipSyncWizard,
+  avatarTransformScene,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
   new Scenes.WizardScene(
     ModeEnum.ChatWithAvatar,
@@ -175,11 +177,35 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     if (ctx.chat.type !== 'private') {
       return sendGroupCommandReply(ctx)
     }
-    console.log('CASE bot.command: start')
-    // При старте всегда сбрасываем сессию и входим в createUserScene
-    ctx.session = { ...defaultSession }
-    await ctx.scene.leave() // Явно выходим из любой сцены
-    await ctx.scene.enter(ModeEnum.CreateUserScene)
+
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+    logger.info('[START] Starting avatar transformation flow', {
+      telegramId: ctx.from?.id,
+      step: 'command_start',
+      chatType: ctx.chat.type,
+      username: ctx.from?.username,
+    })
+
+    console.log('🚀 [START COMMAND] Executing /start command', {
+      telegramId,
+      chatType: ctx.chat.type,
+    })
+
+    try {
+      // При старте всегда сбрасываем сессию и переходим к трансформации аватара
+      ctx.session = { ...defaultSession }
+      console.log('✅ [START COMMAND] Session reset')
+
+      await ctx.scene.leave() // Явно выходим из любой сцены
+      console.log('✅ [START COMMAND] Left previous scene')
+
+      await ctx.scene.enter(ModeEnum.AvatarTransform) // Переходим к трансформации аватара
+      console.log('✅ [START COMMAND] Entered AvatarTransform scene')
+    } catch (error) {
+      console.error('❌ [START COMMAND] Error:', error)
+      logger.error('[START] Error in start command', { error, telegramId })
+    }
   })
 
   bot.command('get100', async ctx => {
