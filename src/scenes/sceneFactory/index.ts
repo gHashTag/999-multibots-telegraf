@@ -1,4 +1,4 @@
-import { WizardScene } from 'telegraf/typings/scenes'
+import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
 const unwrapCallback = async (
@@ -26,7 +26,7 @@ export const composeWizardScene = (
     sceneType: string,
     nextScene: (ctx: MyContext) => Promise<string | undefined>
   ) {
-    return new WizardScene(
+    return new Scenes.WizardScene(
       sceneType,
       ...advancedSteps.map(
         stepFn => async (ctx: MyContext, next: () => void) => {
