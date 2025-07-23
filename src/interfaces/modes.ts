@@ -21,6 +21,7 @@ export enum ModeEnum {
   DigitalAvatarBodyV2 = PaidServiceEnum.DigitalAvatarBodyV2,
 
   // 🔧 СИСТЕМНЫЕ ОПЕРАЦИИ
+  AvatarTransform = 'avatar_transform',
   Subscribe = 'subscribe',
   TopUpBalance = 'top_up_balance',
   Avatar = 'avatar',

@@ -268,6 +268,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // Neurophoto upscaling fields
   lastNeuroPhotoImageUrl?: string // URL последнего нейрофото
   lastNeuroPhotoPrompt?: string // Промпт последнего нейрофото
+
+  // Avatar transformation fields
+  selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
 }
 
 export interface MyContext extends Context {
