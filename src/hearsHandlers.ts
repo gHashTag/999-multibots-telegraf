@@ -25,6 +25,7 @@ import {
 
 // Импортируем функцию upscaling
 import { upscaleFluxKontextImage } from './services/generateFluxKontext'
+import { getParsingAccess } from './menu/mainMenu'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
@@ -909,60 +910,58 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.enter('flux_kontext_scene')
   })
 
-  // === ПАРСИНГ INSTAGRAM ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT ===
+  // === ПАРСИНГ INSTAGRAM ДЛЯ СОТРУДНИКОВ С ПЕРСОНАЛИЗИРОВАННЫМ ДОСТУПОМ ===
   bot.hears(['🔍 Парсинг', '🔍 Parsing'], async ctx => {
     const userId = ctx.from?.id?.toString()
-
-    // Массив сотрудников бота @HaimGroupMedia_bot с доступом к парсингу
+    const botToken = ctx.telegram.token
 
     logger.info('GLOBAL HEARS: Парсинг Instagram button pressed', {
       telegramId: ctx.from?.id,
       userId,
-      hasAccess: userId ? HAIM_GROUP_STAFF_IDS.includes(userId) : false,
+      botToken: botToken?.substring(0, 10) + '...',
     })
 
-    // Проверяем доступ по Telegram ID
-    if (!userId || !HAIM_GROUP_STAFF_IDS.includes(userId)) {
-      logger.warn('Instagram parsing access denied', {
+    if (!userId) {
+      logger.warn('Instagram parsing access denied - no user ID', {
         telegramId: ctx.from?.id,
-        userId,
-        reason: 'Not in HaimGroupMedia staff list',
       })
-
-      const isRu = isRussianFromState(ctx)
-      await ctx.reply(
-        isRu
-          ? '❌ У вас нет доступа к функции парсинга Instagram.'
-          : '❌ You do not have access to Instagram parsing feature.'
-      )
+      await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
       return
     }
 
-    try {
-      logger.info('Instagram parsing access granted - entering wizard', {
+    // 🔍 Проверяем доступ к парсингу для текущего бота
+    const parsingAccess = getParsingAccess(userId, botToken)
+
+    if (!parsingAccess.hasAccess) {
+      logger.warn('Instagram parsing access denied', {
         telegramId: ctx.from?.id,
         userId,
+        reason: 'Not in bot staff list',
+        botName: require('./core/bot').getBotNameByToken(botToken).bot_name,
       })
 
-      await ctx.scene.leave() // Выходим из текущей сцены
-      ctx.session.mode = ModeEnum.InstagramScrapingWizard
-      await ctx.scene.enter(ModeEnum.InstagramScrapingWizard)
+      await ctx.reply('❌ У вас нет доступа к функции парсинга Instagram.')
+      return
+    }
 
-      logger.info('Successfully entered Instagram scraping wizard via button', {
-        telegramId: ctx.from?.id,
-      })
+    logger.info('Instagram parsing access granted', {
+      telegramId: ctx.from?.id,
+      userId,
+      botName: require('./core/bot').getBotNameByToken(botToken).bot_name,
+      allowedProjects: parsingAccess.allowedProjects,
+    })
+
+    // ✅ Доступ разрешен - запускаем мастер парсинга
+    try {
+      await ctx.scene.leave()
+      await ctx.scene.enter('instagram_scraping_wizard')
     } catch (error) {
-      logger.error('Error entering Instagram scraping wizard via button:', {
-        error,
+      logger.error('Error entering Instagram scraping wizard', {
         telegramId: ctx.from?.id,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
       })
-
-      const isRu = isRussianFromState(ctx)
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка при запуске парсинга Instagram. Попробуйте позже.'
-          : '❌ Error starting Instagram parsing. Please try again later.'
-      )
+      await ctx.reply('❌ Произошла ошибка при запуске мастера парсинга.')
     }
   })
 }

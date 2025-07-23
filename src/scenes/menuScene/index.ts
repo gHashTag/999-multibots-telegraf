@@ -19,7 +19,8 @@ import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
 import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
+import { getParsingAccess } from '@/menu/mainMenu'
+import { getBotNameByToken } from '@/core/bot'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -319,22 +320,36 @@ const menuNextStep = async (ctx: MyContext) => {
       }
     }
 
-    // 🔍 ОБРАБОТКА КНОПКИ ПАРСИНГ ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT
+    // 🔍 ПЕРСОНАЛИЗИРОВАННАЯ ОБРАБОТКА КНОПКИ ПАРСИНГ ПО БОТАМ
     if (text === '🔍 Парсинг' || text === '🔍 Parsing') {
       const userId = ctx.from?.id?.toString()
+      const botToken = ctx.telegram.token
 
       logger.info(`[menuNextStep] PARSING BUTTON HANDLING: ${text}`, {
         telegramId: ctx.from?.id,
         userId,
-        hasAccess: userId ? HAIM_GROUP_STAFF_IDS.includes(userId) : false,
+        botName: getBotNameByToken(botToken).bot_name,
       })
 
-      // Проверяем доступ по Telegram ID
-      if (!userId || !HAIM_GROUP_STAFF_IDS.includes(userId)) {
+      if (!userId) {
+        logger.warn('Instagram parsing access denied - no user ID', {
+          telegramId: ctx.from?.id,
+        })
+        await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+        return
+      }
+
+      // 🔍 Проверяем доступ к парсингу для текущего бота
+      const parsingAccess = getParsingAccess(userId, botToken)
+
+      if (!parsingAccess.hasAccess) {
+        const { bot_name } = getBotNameByToken(botToken)
+
         logger.warn('Instagram parsing access denied in menuScene', {
           telegramId: ctx.from?.id,
           userId,
-          reason: 'Not in HaimGroupMedia staff list',
+          botName: bot_name,
+          reason: 'Not in bot staff list',
         })
 
         const isRu = isRussianFromState(ctx)
@@ -347,11 +362,15 @@ const menuNextStep = async (ctx: MyContext) => {
       }
 
       try {
+        const { bot_name } = getBotNameByToken(botToken)
+
         logger.info(
           'Instagram parsing access granted - entering wizard from menuScene',
           {
             telegramId: ctx.from?.id,
             userId,
+            botName: bot_name,
+            allowedProjects: parsingAccess.allowedProjects,
           }
         )
 
@@ -363,6 +382,7 @@ const menuNextStep = async (ctx: MyContext) => {
           'Successfully entered Instagram scraping wizard from menuScene',
           {
             telegramId: ctx.from?.id,
+            botName: bot_name,
           }
         )
         return // Explicitly handled
