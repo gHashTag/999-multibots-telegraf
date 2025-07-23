@@ -7,7 +7,10 @@ import { BroadcastContentType } from './broadcast.interface'
 import { SubscriptionType } from './subscription.interface'
 import type { TranslationButton } from './supabase.interface'
 import type { SessionPayment } from './payments.interface'
-import type { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
+import type {
+  SceneContextScene,
+  WizardContextWizard,
+} from 'telegraf/typings/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
 

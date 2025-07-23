@@ -393,7 +393,7 @@ export const broadcastService = {
                 messageText,
                 {
                   parse_mode: 'HTML',
-                  link_preview_options: { is_disabled: false },
+                  disable_web_page_preview: false,
                   reply_markup: {
                     inline_keyboard: [
                       [
