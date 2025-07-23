@@ -123,9 +123,25 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
+  109: {
+    title_ru: '🔍 Парсинг',
+    title_en: '🔍 Parsing',
+  },
 }
 
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
+
+// 🔍 Массив сотрудников бота @HaimGroupMedia_bot с доступом к парсингу Instagram
+export const HAIM_GROUP_STAFF_IDS = [
+  '144022504', // Основной админ
+  '1474143172', // Сотрудник 1
+  '7669741878', // Сотрудник 2
+  '164609458', // Сотрудник 3
+  '289259562', // Сотрудник 4
+  '752224685', // Сотрудник 5
+  '1064902106', // Сотрудник 6
+  '352374518', // Сотрудник 7
+]
 
 export async function mainMenu({
   isRu,
@@ -219,12 +235,22 @@ export async function mainMenu({
 
   const userId = ctx.from?.id?.toString()
   const adminSpecificButtons = []
+
+  // Админские кнопки для основных админов
   if (userId && adminIds.includes(userId)) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
       Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
     )
     console.log('[mainMenu LOG] Added admin buttons.')
+  }
+
+  // 🔍 Кнопка парсинга для сотрудников HaimGroupMedia_bot
+  if (userId && HAIM_GROUP_STAFF_IDS.includes(userId)) {
+    adminSpecificButtons.push(
+      Markup.button.text(isRu ? levels[109].title_ru : levels[109].title_en)
+    )
+    console.log('[mainMenu LOG] Added parsing button for HaimGroupMedia staff.')
   }
 
   // --- Создаем кнопки, которые нужны почти всегда ---
