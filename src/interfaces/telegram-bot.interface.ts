@@ -1,6 +1,7 @@
 import { Context, NarrowedContext, Scenes } from 'telegraf'
 import type { ModelUrl, UserModel } from './index'
 import type { Update, Message } from 'telegraf/types'
+import type { User } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
 
 import { BroadcastContentType } from './broadcast.interface'
@@ -278,8 +279,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
 export interface MyContext extends Context {
   session: MySession
-  scene: SceneContextScene<MyContext, MyWizardSession>
-  wizard: WizardContextWizard<MyContext>
+  scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
+  wizard: Scenes.WizardContextWizard<MyContext>
   update: Update
   botInfo: any
   reply: (text: string, extra?: any) => Promise<any>

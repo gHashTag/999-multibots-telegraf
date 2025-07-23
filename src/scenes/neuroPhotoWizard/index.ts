@@ -14,14 +14,14 @@ import {
   sendPhotoDescriptionRequest,
 } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { WizardScene, WizardSessionData } from 'telegraf/typings/scenes'
+import { Scenes } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
-interface NeuroPhotoWizardSession extends WizardSessionData {
+interface NeuroPhotoWizardSession extends Scenes.WizardSessionData {
   userModels?: ModelTraining[]
 }
 
@@ -287,7 +287,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
   }
 }
 
-export const neuroPhotoWizard = new WizardScene<MyContext>(
+export const neuroPhotoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.NeuroPhoto,
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
