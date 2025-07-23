@@ -6,6 +6,7 @@ import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
 import { logger } from '@/utils/logger'
+import { getBotNameByToken } from '../core/bot'
 
 interface Level {
   title_ru: string
@@ -131,17 +132,60 @@ export const levels: Record<number, Level> = {
 
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
 
-// 🔍 Массив сотрудников бота @HaimGroupMedia_bot с доступом к парсингу Instagram
-export const HAIM_GROUP_STAFF_IDS = [
-  '144022504', // Основной админ
-  '1474143172', // Сотрудник 1
-  '7669741878', // Сотрудник 2
-  '164609458', // Сотрудник 3
-  '289259562', // Сотрудник 4
-  '752224685', // Сотрудник 5
-  '1064902106', // Сотрудник 6
-  '352374518', // Сотрудник 7
+// 🔍 ПЕРСОНАЛИЗИРОВАННЫЕ МАССИВЫ СОТРУДНИКОВ ПО БОТАМ
+
+// 🤖 Массив сотрудников HaimGroupMedia_bot (ограниченный доступ к парсингу)
+const HAIM_GROUP_STAFF_IDS = [
+  '289259562', // @Vyacheslav_Neklyudov - Админ
+  '752224685', // @voskresenskaya13 - Админ
+  '7669741878', // @Arhustel - Админ
+  '164609458', // @artemfisenko - Админ
 ]
+
+// 🤖 Массив сотрудников MetaMuse_Manifest_bot (полный доступ к парсингу)
+const METAMUSE_STAFF_IDS = [
+  '144022504', // @neuro_coder - Админ
+  '352374518', // Админ
+  '1064902106', // Админ
+  '7669741878', // @Arhustel - Админ (общий)
+  '737300586', // Админ
+  '447979523', // Админ
+]
+
+// 🔍 Функция определения доступа к парсингу
+function getParsingAccess(
+  userId: string,
+  botToken: string
+): {
+  hasAccess: boolean
+  allowedProjects?: string[]
+} {
+  const { bot_name } = getBotNameByToken(botToken)
+
+  if (bot_name === 'HaimGroupMedia_bot') {
+    const hasAccess = HAIM_GROUP_STAFF_IDS.includes(userId)
+    return {
+      hasAccess,
+      allowedProjects: hasAccess
+        ? ['Coco Age', 'vyacheslav_nekludov']
+        : undefined,
+    }
+  }
+
+  if (bot_name === 'MetaMuse_Manifest_bot') {
+    const hasAccess = METAMUSE_STAFF_IDS.includes(userId)
+    return {
+      hasAccess,
+      allowedProjects: hasAccess ? ['all'] : undefined, // Все проекты
+    }
+  }
+
+  // Для других ботов парсинга нет
+  return { hasAccess: false }
+}
+
+// Экспортируем функцию и массивы для использования в других модулях
+export { HAIM_GROUP_STAFF_IDS, METAMUSE_STAFF_IDS, getParsingAccess }
 
 export async function mainMenu({
   isRu,
@@ -245,12 +289,24 @@ export async function mainMenu({
     console.log('[mainMenu LOG] Added admin buttons.')
   }
 
-  // 🔍 Кнопка парсинга для сотрудников HaimGroupMedia_bot
-  if (userId && HAIM_GROUP_STAFF_IDS.includes(userId)) {
-    adminSpecificButtons.push(
-      Markup.button.text(isRu ? levels[109].title_ru : levels[109].title_en)
-    )
-    console.log('[mainMenu LOG] Added parsing button for HaimGroupMedia staff.')
+  // 🔍 Проверка доступа к кнопке парсинга
+  const botToken = ctx.telegram.token
+
+  if (userId) {
+    const parsingAccess = getParsingAccess(userId, botToken)
+
+    if (parsingAccess.hasAccess) {
+      adminSpecificButtons.push(
+        Markup.button.text(isRu ? levels[109].title_ru : levels[109].title_en)
+      )
+
+      const { bot_name } = getBotNameByToken(botToken)
+      logger.info(`[mainMenu] Added parsing button for ${bot_name} staff`, {
+        userId,
+        botName: bot_name,
+        allowedProjects: parsingAccess.allowedProjects,
+      })
+    }
   }
 
   // --- Создаем кнопки, которые нужны почти всегда ---
