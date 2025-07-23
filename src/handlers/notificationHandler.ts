@@ -90,7 +90,7 @@ export class NotificationHandler {
         message.message,
         {
           parse_mode: 'HTML',
-          link_preview_options: { is_disabled: true },
+          disable_web_page_preview: true,
         }
       )
 
