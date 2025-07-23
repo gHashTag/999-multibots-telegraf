@@ -43,21 +43,19 @@ export async function getLatestUserModelForHaim(
         `🎯 Ищем общую модель для сотрудника HaimGroupMedia: ${telegram_id}`
       )
 
-      // Получаем модель "Метамуза Наташа" от пользователя 352374518
+      // Получаем КОНКРЕТНУЮ модель "Метамуза Наташа" от пользователя 352374518
+      // ✅ КОНКРЕТНЫЙ ID МОДЕЛИ, КОТОРУЮ ВЫДЕЛИЛ ПОЛЬЗОВАТЕЛЬ (22.07.2025)
       const { data: sharedModel, error: sharedError } = await supabase
         .from('model_trainings')
         .select('*')
-        .eq('telegram_id', 352374518) // ID пользователя с моделью "muse_nataly"
+        .eq('id', 'ed2c6365-e782-4816-a1ef-1e26b79f6da0') // ← КОНКРЕТНАЯ МОДЕЛЬ!
         .eq('status', 'SUCCESS')
-        .eq('api', 'replicate') // Общая модель использует replicate API
-        .order('created_at', { ascending: false })
-        .limit(1)
         .single()
 
       if (!sharedError && sharedModel) {
-        // Модифицируем название модели, чтобы показать что это общая модель
         const modifiedSharedModel = {
           ...sharedModel,
+          // Добавляем префикс для визуального отображения
           model_name: `👥 ${sharedModel.model_name} (Общая модель команды)`,
           // Помечаем как общую модель для последующей обработки
           id: `shared_${sharedModel.id}`,
