@@ -23,7 +23,7 @@ interface InstagramScrapingSessionData {
   waitingForCustomCount?: boolean
 }
 
-// 🔍 Функция фильтрации проектов по боту и правам доступа
+// Функция фильтрации проектов по доступу для конкретного бота
 function filterProjectsByBotAccess(
   projects: UserProject[],
   userId: string,
@@ -32,11 +32,15 @@ function filterProjectsByBotAccess(
   const { bot_name } = getBotNameByToken(botToken)
   const parsingAccess = getParsingAccess(userId, botToken)
 
-  if (!parsingAccess.hasAccess) {
-    return []
+  // 👑 Если полный доступ ко всем проектам - возвращаем все
+  if (
+    parsingAccess.allowedProjects &&
+    parsingAccess.allowedProjects.includes('all')
+  ) {
+    return projects
   }
 
-  // Для HaimGroupMedia_bot показываем только определенные проекты
+  // 🤖 Для HaimGroupMedia_bot показываем только определенные проекты
   if (bot_name === 'HaimGroupMedia_bot') {
     const allowedProjectNames = [
       'coco age',
@@ -56,13 +60,8 @@ function filterProjectsByBotAccess(
     )
   }
 
-  // Для MetaMuse_Manifest_bot показываем все проекты
-  if (bot_name === 'MetaMuse_Manifest_bot') {
-    return projects
-  }
-
-  // Для других ботов - пустой список
-  return []
+  // 🌐 Для всех остальных ботов показываем все проекты (если есть доступ)
+  return projects
 }
 
 export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
@@ -196,127 +195,163 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       }
     )
 
-    // Получаем все проекты пользователя
-    console.log('Instagram Scraping Wizard: Calling getUserProjects', {
-      telegramId: ctx.from!.id,
-    })
-
-    console.log('🚨 [DEBUG] About to call getUserProjects...')
-    const allProjects = await getUserProjects(ctx.from!.id.toString())
-
-    // 🔍 Фильтруем проекты по доступу для текущего бота
-    const projects = filterProjectsByBotAccess(allProjects, userId!, botToken)
-    const { bot_name } = getBotNameByToken(botToken)
-
-    console.log('🚨 [DEBUG] getUserProjects and filtering completed!', {
-      botName: bot_name,
-      allProjectsLength: allProjects.length,
-      filteredProjectsLength: projects.length,
-      projects: projects.map(p => ({ id: p.id, name: p.name })),
-    })
-
-    logger.info('Instagram Scraping Wizard: Projects filtered by bot access', {
-      telegramId: ctx.from!.id,
-      botName: bot_name,
-      allProjectsCount: allProjects.length,
-      filteredProjectsCount: projects.length,
-      projects: projects.map(p => ({ id: p.id, name: p.name })),
-    })
-
-    console.log(
-      '🚨 [DEBUG] Checking filtered projects.length:',
-      projects.length
-    )
-
-    if (projects.length === 0) {
-      console.log(
-        '🚨 [DEBUG] NO ACCESSIBLE PROJECTS - sending error message to user'
-      )
-      logger.warn(
-        'Instagram Scraping Wizard: No accessible projects for user',
-        {
-          telegramId: ctx.from!.id,
-          botName: bot_name,
-        }
-      )
-
-      const noAccessMessage =
-        bot_name === 'HaimGroupMedia_bot'
-          ? isRu
-            ? '❌ У вас нет доступных проектов для анализа.\n\n🔍 Доступные проекты для @HaimGroupMedia_bot:\n• Coco Age\n• Вячеслав Неклюдов\n• NeuroCoder Analysis'
-            : '❌ You have no available projects for analysis.\n\n🔍 Available projects for @HaimGroupMedia_bot:\n• Coco Age\n• Vyacheslav Nekludov\n• NeuroCoder Analysis'
-          : isRu
-            ? '❌ У вас нет доступных проектов для анализа Instagram.'
-            : '❌ You have no available projects for Instagram analysis.'
-
-      await ctx.reply(noAccessMessage, createHelpCancelKeyboard(isRu))
-      return
-    }
-
-    console.log(
-      '🚨 [DEBUG] ACCESSIBLE PROJECTS FOUND - proceeding with project selection'
-    )
-
-    // Создаем inline кнопки для выбора проекта
-    console.log('🚨 [DEBUG] Creating project buttons...')
-    const projectButtons = projects.map(project => [
-      Markup.button.callback(
-        `📁 ${project.name} | ${project.industry}`,
-        `project_${project.id}`
-      ),
-    ])
-
-    console.log('🚨 [DEBUG] Sending project selection message to user...')
-
-    const botSpecificTitle =
-      bot_name === 'HaimGroupMedia_bot'
-        ? isRu
-          ? '📁 Выберите проект для анализа конкурентов (только Cocoáge и Вячеслав Неклюдов):'
-          : '📁 Select project for competitor analysis (Cocoáge and Vyacheslav Nekludov only):'
-        : isRu
-          ? '📁 Выберите проект для анализа конкурентов Instagram:'
-          : '📁 Select project for Instagram competitor analysis:'
-
     try {
-      await ctx.reply(
-        botSpecificTitle +
-          '\n\n' +
-          projects
-            .map((p, index) => `${index + 1}. ${p.name} - ${p.industry}`)
-            .join('\n'),
-        {
-          ...Markup.inlineKeyboard([
-            ...projectButtons,
-            [
-              Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
-                'cancel'
-              ),
-            ],
-          ]),
-        }
-      )
+      const userId = ctx.from!.id.toString()
+      const botToken = ctx.telegram.token
+      const { bot_name } = getBotNameByToken(botToken)
 
-      console.log('🚨 [DEBUG] Project selection message sent successfully!')
-    } catch (error) {
-      console.error('🚨 [ERROR] Failed to send project selection message:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        projectsCount: projects.length,
+      logger.info('Instagram Scraping Wizard: Starting step 0', {
+        telegramId: ctx.from!.id,
+        botName: bot_name,
       })
 
-      // Отправляем простое сообщение как fallback
-      await ctx.reply(
-        isRu
-          ? `❌ Ошибка отображения проектов. Найдено проектов: ${projects.length}`
-          : `❌ Error displaying projects. Found projects: ${projects.length}`
+      // 🔍 Проверяем доступ к парсингу для текущего бота
+      const parsingAccess = getParsingAccess(userId, botToken)
+
+      if (!parsingAccess.hasAccess) {
+        logger.warn('Instagram Scraping Wizard: No parsing access for user', {
+          telegramId: ctx.from!.id,
+          botName: bot_name,
+          reason: 'No parsing access',
+        })
+
+        const noAccessMessage = isRu
+          ? '❌ У вас нет доступа к функции парсинга Instagram.'
+          : '❌ You have no access to Instagram parsing function.'
+
+        await ctx.reply(noAccessMessage, createHelpCancelKeyboard(isRu))
+        return
+      }
+
+      // Получаем все проекты пользователя
+      const allProjects = await getUserProjects(userId)
+
+      if (allProjects.length === 0) {
+        const noProjectsMessage = isRu
+          ? '❌ У вас нет проектов для анализа.\n\n💡 Сначала создайте проект в системе.'
+          : '❌ You have no projects for analysis.\n\n💡 Please create a project in the system first.'
+
+        await ctx.reply(noProjectsMessage, createHelpCancelKeyboard(isRu))
+        return
+      }
+
+      // 🔍 Фильтруем проекты по доступу для бота
+      const filteredProjects = filterProjectsByBotAccess(
+        allProjects,
+        userId!,
+        botToken
       )
+
+      if (filteredProjects.length === 0) {
+        console.log(
+          '🚨 [DEBUG] NO ACCESSIBLE PROJECTS - sending error message to user'
+        )
+        logger.warn(
+          'Instagram Scraping Wizard: No accessible projects for user',
+          {
+            telegramId: ctx.from!.id,
+            botName: bot_name,
+          }
+        )
+
+        const noAccessMessage =
+          bot_name === 'HaimGroupMedia_bot'
+            ? isRu
+              ? '❌ У вас нет доступных проектов для анализа.\n\n🔍 Доступные проекты для @HaimGroupMedia_bot:\n• Coco Age\n• Вячеслав Неклюдов\n'
+              : '❌ You have no available projects for analysis.\n\n🔍 Available projects for @HaimGroupMedia_bot:\n• Coco Age\n• Vyacheslav Nekludov\n'
+            : isRu
+              ? '❌ У вас нет доступных проектов для анализа Instagram.'
+              : '❌ You have no available projects for Instagram analysis.'
+
+        await ctx.reply(noAccessMessage, createHelpCancelKeyboard(isRu))
+        return
+      }
+
+      console.log(
+        '🚨 [DEBUG] ACCESSIBLE PROJECTS FOUND - proceeding with project selection'
+      )
+
+      // Создаем inline кнопки для выбора проекта
+      console.log('🚨 [DEBUG] Creating project buttons...')
+      const projectButtons = filteredProjects.map(project => [
+        Markup.button.callback(
+          `📁 ${project.name} | ${project.industry}`,
+          `project_${project.id}`
+        ),
+      ])
+
+      console.log('🚨 [DEBUG] Sending project selection message to user...')
+
+      const botSpecificTitle =
+        bot_name === 'HaimGroupMedia_bot'
+          ? isRu
+            ? '📁 Выберите проект для анализа конкурентов (только Cocoáge и Вячеслав Неклюдов):'
+            : '📁 Select project for competitor analysis (Cocoáge and Vyacheslav Nekludov only):'
+          : isRu
+            ? '📁 Выберите проект для анализа конкурентов Instagram:'
+            : '📁 Select project for Instagram competitor analysis:'
+
+      try {
+        await ctx.reply(
+          botSpecificTitle +
+            '\n\n' +
+            filteredProjects
+              .map((p, index) => `${index + 1}. ${p.name} - ${p.industry}`)
+              .join('\n'),
+          {
+            ...Markup.inlineKeyboard([
+              ...projectButtons,
+              [
+                Markup.button.callback(
+                  isRu ? '❌ Отмена' : '❌ Cancel',
+                  'cancel'
+                ),
+              ],
+            ]),
+          }
+        )
+
+        console.log('🚨 [DEBUG] Project selection message sent successfully!')
+      } catch (error) {
+        console.error('🚨 [ERROR] Failed to send project selection message:', {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          projectsCount: filteredProjects.length,
+        })
+
+        // Отправляем простое сообщение как fallback
+        await ctx.reply(
+          isRu
+            ? `❌ Ошибка отображения проектов. Найдено проектов: ${filteredProjects.length}`
+            : `❌ Error displaying projects. Found projects: ${filteredProjects.length}`
+        )
+      }
+
+      console.log('🚨 [DEBUG] Waiting for user to select project...')
+
+      // ❌ УБИРАЕМ ЭТУ СТРОКУ - она заставляла бота перейти дальше сразу!
+      // return ctx.wizard.next()
+    } catch (error) {
+      console.error('🚨 [ERROR] Exception in step 0:', error)
+      logger.error('Instagram Scraping Wizard: Step 0 failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: ctx.from?.id,
+      })
+
+      try {
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при загрузке проектов.\n\nПожалуйста, попробуйте позже или обратитесь в поддержку.'
+            : '❌ An error occurred while loading projects.\n\nPlease try again later or contact support.'
+        )
+        console.log('🚨 [DEBUG] Exception error message sent successfully!')
+      } catch (replyError) {
+        console.error(
+          '🚨 [ERROR] Failed to send exception error message:',
+          replyError
+        )
+      }
     }
-
-    console.log('🚨 [DEBUG] Waiting for user to select project...')
-
-    // ❌ УБИРАЕМ ЭТУ СТРОКУ - она заставляла бота перейти дальше сразу!
-    // return ctx.wizard.next()
   },
 
   // ==========================================
