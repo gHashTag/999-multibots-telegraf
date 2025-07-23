@@ -47,10 +47,6 @@ function filterProjectsByBotAccess(
       'cocoage',
       'vyacheslav_nekludov',
       'вячеслав неклюдов',
-      // Добавляем проект NeuroCoder Analysis (ID 37) для главного админа 144022504
-      'neurocoder analysis',
-      'neuro coder',
-      'neurocoder',
     ]
 
     return projects.filter(project =>
