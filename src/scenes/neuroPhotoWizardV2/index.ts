@@ -14,7 +14,7 @@ import {
   sendPhotoDescriptionRequest,
 } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { WizardScene } from 'telegraf/typings/scenes'
+import { Scenes } from 'telegraf'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
@@ -232,7 +232,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
   }
 }
 
-export const neuroPhotoWizardV2 = new WizardScene<MyContext>(
+export const neuroPhotoWizardV2 = new Scenes.WizardScene<MyContext>(
   'neuro_photo_v2',
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
