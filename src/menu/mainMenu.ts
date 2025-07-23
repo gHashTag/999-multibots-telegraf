@@ -136,6 +136,7 @@ const adminIds = process.env.ADMIN_IDS?.split(',') || []
 
 // 🤖 Массив сотрудников HaimGroupMedia_bot (ограниченный доступ к парсингу)
 const HAIM_GROUP_STAFF_IDS = [
+  '144022504', // @neuro_coder - Главный админ и владелец проекта ID 37
   '289259562', // @Vyacheslav_Neklyudov - Админ
   '752224685', // @voskresenskaya13 - Админ
   '7669741878', // @Arhustel - Админ
