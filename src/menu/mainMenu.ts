@@ -168,7 +168,7 @@ function getParsingAccess(
     return {
       hasAccess,
       allowedProjects: hasAccess
-        ? ['Coco Age', 'vyacheslav_nekludov']
+        ? ['Coco Age', 'vyacheslav_nekludov', 'NeuroCoder Analysis']
         : undefined,
     }
   }

@@ -43,11 +43,15 @@ function filterProjectsByBotAccess(
       'cocoage',
       'vyacheslav_nekludov',
       'вячеслав неклюдов',
+      // Добавляем проект NeuroCoder Analysis (ID 37) для главного админа 144022504
+      'neurocoder analysis',
+      'neuro coder',
+      'neurocoder',
     ]
 
     return projects.filter(project =>
-      allowedProjectNames.some(allowedName =>
-        project.name.toLowerCase().includes(allowedName.toLowerCase())
+      allowedProjectNames.some(allowed =>
+        project.name.toLowerCase().includes(allowed)
       )
     )
   }
@@ -239,8 +243,8 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       const noAccessMessage =
         bot_name === 'HaimGroupMedia_bot'
           ? isRu
-            ? '❌ У вас нет доступных проектов для анализа.\n\n🔍 Доступные проекты для @HaimGroupMedia_bot:\n• Coco Age\n• Вячеслав Неклюдов'
-            : '❌ You have no available projects for analysis.\n\n🔍 Available projects for @HaimGroupMedia_bot:\n• Coco Age\n• Vyacheslav Nekludov'
+            ? '❌ У вас нет доступных проектов для анализа.\n\n🔍 Доступные проекты для @HaimGroupMedia_bot:\n• Coco Age\n• Вячеслав Неклюдов\n• NeuroCoder Analysis'
+            : '❌ You have no available projects for analysis.\n\n🔍 Available projects for @HaimGroupMedia_bot:\n• Coco Age\n• Vyacheslav Nekludov\n• NeuroCoder Analysis'
           : isRu
             ? '❌ У вас нет доступных проектов для анализа Instagram.'
             : '❌ You have no available projects for Instagram analysis.'
