@@ -7,6 +7,8 @@ import {
   getReferalsCountAndUserData,
   getUserData,
 } from '@/core/supabase'
+// ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
+import { getActiveUserModelsByTypeForHaim } from '@/core/supabase/getActiveUserModelsByTypeForHaim'
 import {
   levels,
   mainMenu,
@@ -20,6 +22,8 @@ import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+// ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
+import { getBotNameByToken } from '@/core/bot'
 
 interface NeuroPhotoWizardSession extends Scenes.WizardSessionData {
   userModels?: ModelTraining[]
@@ -32,10 +36,29 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     console.log('CASE 1: neuroPhotoConversation')
 
     const { telegramId } = await getUserInfo(ctx)
-    const userModels = await getActiveUserModelsByType(
-      Number(telegramId),
-      'replicate'
-    )
+
+    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
+    const botToken = ctx.telegram.token
+    const { bot_name } = getBotNameByToken(botToken)
+    console.log(`🤖 Определен бот: ${bot_name} для пользователя ${telegramId}`)
+
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
+    let userModels: ModelTraining[] | null = null
+
+    if (bot_name === 'HaimGroupMedia_bot') {
+      console.log('🎯 Используем расширенную функцию для HaimGroupMedia_bot')
+      userModels = await getActiveUserModelsByTypeForHaim(
+        Number(telegramId),
+        'replicate',
+        bot_name
+      )
+    } else {
+      console.log('🔧 Используем стандартную функцию для обычного бота')
+      userModels = await getActiveUserModelsByType(
+        Number(telegramId),
+        'replicate'
+      )
+    }
 
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
@@ -75,15 +98,31 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
           isRu ? 'ru-RU' : 'en-US'
         )
 
+        // ✅ ПРОВЕРЯЕМ, ЯВЛЯЕТСЯ ЛИ МОДЕЛЬ ОБЩЕЙ (ИМЕЕТ ПРЕФИКС shared_)
+        const isSharedModel = model.id.toString().startsWith('shared_')
+
         if (isRu) {
-          buttonText += `Модель ${dateString}`
-          if (model.steps && model.steps > 0) {
-            buttonText += `, ${model.steps} шагов`
+          if (isSharedModel) {
+            // Для общих моделей используем уже модифицированное название
+            buttonText += model.model_name
+          } else {
+            buttonText += `Модель ${dateString}`
+            if (model.steps && model.steps > 0) {
+              buttonText += `, ${model.steps} шагов`
+            }
           }
         } else {
-          buttonText += `Model ${dateString}`
-          if (model.steps && model.steps > 0) {
-            buttonText += `, ${model.steps} steps`
+          if (isSharedModel) {
+            // Для общих моделей используем уже модифицированное название
+            buttonText += model.model_name.replace(
+              '(Общая модель команды)',
+              '(Team Shared Model)'
+            )
+          } else {
+            buttonText += `Model ${dateString}`
+            if (model.steps && model.steps > 0) {
+              buttonText += `, ${model.steps} steps`
+            }
           }
         }
 
@@ -313,7 +352,14 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
     await ctx.reply(isRu ? 'Отменено' : 'Cancelled')
     return ctx.scene.leave()
   } else if (callbackData.startsWith('select_neuro_model_')) {
-    const modelId = callbackData.replace('select_neuro_model_', '')
+    let modelId = callbackData.replace('select_neuro_model_', '')
+
+    // ✅ ОБРАБАТЫВАЕМ ОБЩИЕ МОДЕЛИ (УБИРАЕМ ПРЕФИКС shared_)
+    const isSharedModel = modelId.startsWith('shared_')
+    if (isSharedModel) {
+      modelId = modelId.replace('shared_', '')
+      console.log(`🎯 Обрабатываем общую модель с ID: ${modelId}`)
+    }
 
     try {
       await ctx
@@ -334,12 +380,26 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
         return ctx.scene.leave()
       }
 
-      const selectedModel = userModelsFromState?.find(
-        m => String(m.id) === String(modelId)
-      )
+      // ✅ ПОИСК МОДЕЛИ С УЧЕТОМ ОБЩИХ МОДЕЛЕЙ
+      const selectedModel = userModelsFromState?.find(m => {
+        const currentModelId = m.id.toString().startsWith('shared_')
+          ? m.id.toString().replace('shared_', '')
+          : m.id.toString()
+        return currentModelId === String(modelId)
+      })
 
       if (selectedModel) {
-        ctx.session.userModel = selectedModel as UserModel
+        // ✅ ДЛЯ ОБЩИХ МОДЕЛЕЙ СОЗДАЕМ КОПИЮ БЕЗ ПРЕФИКСА В ID
+        let modelToUse = selectedModel
+        if (isSharedModel) {
+          modelToUse = {
+            ...selectedModel,
+            id: modelId, // Убираем префикс shared_ для использования
+          }
+          console.log(`✅ Используем общую модель: ${selectedModel.model_name}`)
+        }
+
+        ctx.session.userModel = modelToUse as UserModel
 
         await sendPhotoDescriptionRequest(ctx, isRu, 'neuro_photo')
         ctx.wizard.selectStep(1)
