@@ -6,7 +6,7 @@ import { isRussian } from './helpers/language'
 import { isRussianFromState } from './helpers/centralizedLanguage'
 import { MyContext } from './interfaces/'
 import { Telegraf, Markup } from 'telegraf'
-
+import { HAIM_GROUP_STAFF_IDS } from './menu/mainMenu'
 import { generateNeuroPhotoHybrid } from './services/generateNeuroPhotoHybrid'
 import { handleSizeSelection } from './handlers'
 import { levels, mainMenu } from './menu'
@@ -907,6 +907,63 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     // Возвращаемся к продвинутой сцене FLUX Kontext
     await ctx.scene.leave()
     await ctx.scene.enter('flux_kontext_scene')
+  })
+
+  // === ПАРСИНГ INSTAGRAM ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT ===
+  bot.hears(['🔍 Парсинг', '🔍 Parsing'], async ctx => {
+    const userId = ctx.from?.id?.toString()
+
+    // Массив сотрудников бота @HaimGroupMedia_bot с доступом к парсингу
+
+    logger.info('GLOBAL HEARS: Парсинг Instagram button pressed', {
+      telegramId: ctx.from?.id,
+      userId,
+      hasAccess: userId ? HAIM_GROUP_STAFF_IDS.includes(userId) : false,
+    })
+
+    // Проверяем доступ по Telegram ID
+    if (!userId || !HAIM_GROUP_STAFF_IDS.includes(userId)) {
+      logger.warn('Instagram parsing access denied', {
+        telegramId: ctx.from?.id,
+        userId,
+        reason: 'Not in HaimGroupMedia staff list',
+      })
+
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ У вас нет доступа к функции парсинга Instagram.'
+          : '❌ You do not have access to Instagram parsing feature.'
+      )
+      return
+    }
+
+    try {
+      logger.info('Instagram parsing access granted - entering wizard', {
+        telegramId: ctx.from?.id,
+        userId,
+      })
+
+      await ctx.scene.leave() // Выходим из текущей сцены
+      ctx.session.mode = ModeEnum.InstagramScrapingWizard
+      await ctx.scene.enter(ModeEnum.InstagramScrapingWizard)
+
+      logger.info('Successfully entered Instagram scraping wizard via button', {
+        telegramId: ctx.from?.id,
+      })
+    } catch (error) {
+      logger.error('Error entering Instagram scraping wizard via button:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при запуске парсинга Instagram. Попробуйте позже.'
+          : '❌ Error starting Instagram parsing. Please try again later.'
+      )
+    }
   })
 }
 //

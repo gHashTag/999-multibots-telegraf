@@ -19,6 +19,7 @@ import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
 import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -318,6 +319,71 @@ const menuNextStep = async (ctx: MyContext) => {
       }
     }
 
+    // 🔍 ОБРАБОТКА КНОПКИ ПАРСИНГ ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT
+    if (text === '🔍 Парсинг' || text === '🔍 Parsing') {
+      const userId = ctx.from?.id?.toString()
+
+      logger.info(`[menuNextStep] PARSING BUTTON HANDLING: ${text}`, {
+        telegramId: ctx.from?.id,
+        userId,
+        hasAccess: userId ? HAIM_GROUP_STAFF_IDS.includes(userId) : false,
+      })
+
+      // Проверяем доступ по Telegram ID
+      if (!userId || !HAIM_GROUP_STAFF_IDS.includes(userId)) {
+        logger.warn('Instagram parsing access denied in menuScene', {
+          telegramId: ctx.from?.id,
+          userId,
+          reason: 'Not in HaimGroupMedia staff list',
+        })
+
+        const isRu = isRussianFromState(ctx)
+        await ctx.reply(
+          isRu
+            ? '❌ У вас нет доступа к функции парсинга Instagram.'
+            : '❌ You do not have access to Instagram parsing feature.'
+        )
+        return // Останавливаем обработку
+      }
+
+      try {
+        logger.info(
+          'Instagram parsing access granted - entering wizard from menuScene',
+          {
+            telegramId: ctx.from?.id,
+            userId,
+          }
+        )
+
+        await ctx.scene.leave() // Выходим из menuScene
+        ctx.session.mode = ModeEnum.InstagramScrapingWizard
+        await ctx.scene.enter(ModeEnum.InstagramScrapingWizard)
+
+        logger.info(
+          'Successfully entered Instagram scraping wizard from menuScene',
+          {
+            telegramId: ctx.from?.id,
+          }
+        )
+        return // Explicitly handled
+      } catch (error) {
+        logger.error(
+          'Error entering Instagram scraping wizard from menuScene:',
+          {
+            error,
+            telegramId: ctx.from?.id,
+          }
+        )
+
+        const isRu = isRussianFromState(ctx)
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка при запуске парсинга Instagram. Попробуйте позже.'
+            : '❌ Error starting Instagram parsing. Please try again later.'
+        )
+      }
+    }
+
     // Specific text button handling (example: "Generate new video?")
     if (
       text === '🎥 Сгенерировать новое видео?' ||
@@ -334,7 +400,6 @@ const menuNextStep = async (ctx: MyContext) => {
     // and not a command (which should be handled globally),
     // we can consider it an unhandled text message within the menu scene.
     // For now, we can log it and do nothing, or re-send the menu.
-    // Let's re-send the menu if it's an unexpected text.
     // However, handleMenu is designed to map button texts to actions.
     // If the text matches a known menu button text, handleMenu will process it.
     // This means regular menu button presses (not commands, not callbacks) will still work.
