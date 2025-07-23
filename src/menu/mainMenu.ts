@@ -163,26 +163,50 @@ function getParsingAccess(
 } {
   const { bot_name } = getBotNameByToken(botToken)
 
+  // 👑 ГЛАВНЫЙ АДМИН ИМЕЕТ ДОСТУП КО ВСЕМ БОТАМ И ВСЕМ ПРОЕКТАМ
+  if (userId === '144022504') {
+    return {
+      hasAccess: true,
+      allowedProjects: ['all'], // Полный доступ ко всем проектам
+    }
+  }
+
+  // 🤖 Персонализированные правила для конкретных ботов
   if (bot_name === 'HaimGroupMedia_bot') {
     const hasAccess = HAIM_GROUP_STAFF_IDS.includes(userId)
+
     return {
       hasAccess,
       allowedProjects: hasAccess
-        ? ['Coco Age', 'vyacheslav_nekludov', 'NeuroCoder Analysis']
+        ? ['Coco Age', 'vyacheslav_nekludov']
         : undefined,
     }
   }
 
   if (bot_name === 'MetaMuse_Manifest_bot') {
     const hasAccess = METAMUSE_STAFF_IDS.includes(userId)
+
     return {
       hasAccess,
       allowedProjects: hasAccess ? ['all'] : undefined, // Все проекты
     }
   }
 
-  // Для других ботов парсинга нет
-  return { hasAccess: false }
+  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ
+  // Главные админы из ADMIN_IDS тоже получают доступ
+  const adminIds = process.env.ADMIN_IDS?.split(',') || []
+  if (adminIds.includes(userId)) {
+    return {
+      hasAccess: true,
+      allowedProjects: ['all'], // Полный доступ для админов
+    }
+  }
+
+  // По умолчанию нет доступа
+  return {
+    hasAccess: false,
+    allowedProjects: undefined,
+  }
 }
 
 // Экспортируем функцию и массивы для использования в других модулях
