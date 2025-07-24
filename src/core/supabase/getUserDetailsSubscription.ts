@@ -130,115 +130,116 @@ export const getUserDetailsSubscription = async (
       })
     }
 
-    // --- ШАГ 3: ПОДПИСКА - НОВАЯ ПРОСТАЯ ЛОГИКА ---
+    // --- ШАГ 3: ПОДПИСКА - ИСПРАВЛЕННАЯ ЛОГИКА ДЛЯ ПОИСКА АКТИВНЫХ ПОДПИСОК ---
     let isActive = false
     let finalSubscriptionType: SubscriptionType | null = null
     let startDateDb: string | null = null
 
     try {
-      // Ищем ПОСЛЕДНЮЮ завершенную запись с НЕПУСТЫМ subscription_type
-      const { data: subData, error: subError } = await supabase
-        .from('payments_v2')
-        .select('subscription_type, payment_date') // Берем только нужное
-        .eq('telegram_id', telegramIdStr)
-        .eq('status', PaymentStatus.COMPLETED)
-        .not('subscription_type', 'is', null) // ГЛАВНОЕ УСЛОВИЕ
-        .order('payment_date', { ascending: false }) // Самая свежая запись
-        .limit(1)
-        .maybeSingle() // Ожидаем одну или ноль записей
+      // Ищем активные подписки по приоритету: NEUROTESTER > NEUROVIDEO > NEUROPHOTO
+      const subscriptionPriority = [
+        SubscriptionType.NEUROTESTER,
+        SubscriptionType.NEUROVIDEO,
+        SubscriptionType.NEUROPHOTO,
+      ]
 
-      if (subError) {
-        logger.error(
-          `[getUserDetailsSubscription v4.0 SIMPLE Step 3 FAIL] Ошибка DB при поиске подписки User: ${telegramIdStr}`,
-          { error: subError.message, telegramId: telegramIdStr }
-        )
-      } else if (subData && subData.subscription_type && subData.payment_date) {
-        // Запись найдена! Проверяем ее
+      for (const subscriptionType of subscriptionPriority) {
+        // Ищем последнюю подписку этого типа
+        const { data: subData, error: subError } = await supabase
+          .from('payments_v2')
+          .select('subscription_type, payment_date')
+          .eq('telegram_id', telegramIdStr)
+          .eq('status', PaymentStatus.COMPLETED)
+          .eq('subscription_type', subscriptionType)
+          .order('payment_date', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (subError) {
+          logger.error(
+            `[getUserDetailsSubscription v4.0 FIXED Step 3] Ошибка поиска ${subscriptionType}`,
+            {
+              error: subError.message,
+              telegramId: telegramIdStr,
+              subscriptionType,
+            }
+          )
+          continue
+        }
+
+        if (!subData || !subData.subscription_type || !subData.payment_date) {
+          continue // Нет подписки этого типа
+        }
+
         const rawSubscriptionType = subData.subscription_type as string
-        startDateDb = subData.payment_date
-
-        // Преобразуем строку из БД в Enum (регистронезависимо)
-        let foundSubType: SubscriptionType | null = null
         const upperCaseSubType = rawSubscriptionType.toUpperCase()
 
-        if (upperCaseSubType === SubscriptionType.NEUROPHOTO.toString()) {
-          foundSubType = SubscriptionType.NEUROPHOTO
-        } else if (
-          upperCaseSubType === SubscriptionType.NEUROVIDEO.toString()
-        ) {
-          foundSubType = SubscriptionType.NEUROVIDEO
-        } else if (
-          upperCaseSubType === SubscriptionType.NEUROTESTER.toString()
-        ) {
-          foundSubType = SubscriptionType.NEUROTESTER
+        // Проверяем что тип подписки корректный
+        if (upperCaseSubType !== subscriptionType.toString()) {
+          continue
         }
-        // STARS не обрабатываем как активную подписку - это только маркер оплаты
 
-        if (!foundSubType) {
-          logger.warn(
-            `[getUserDetailsSubscription v4.0 SIMPLE Step 3 WARN] Неизвестный subscription_type из БД: ${rawSubscriptionType}`,
-            { telegramId: telegramIdStr }
-          )
+        // Проверяем активность
+        let isThisTypeActive = false
+        let expirationDate: Date | null = null
+
+        if (subscriptionType === SubscriptionType.NEUROTESTER) {
+          // NEUROTESTER всегда активна
+          isThisTypeActive = true
         } else {
-          // Тип подписки распознан, теперь проверяем активность
-          // Проверяем дату для всех типов подписок
-          try {
-            let expirationDate: Date | null = null // Declare expirationDate variable
-
-            if (foundSubType === SubscriptionType.NEUROTESTER) {
-              isActive = true
-              finalSubscriptionType = foundSubType
-            } else {
-              // NEUROPHOTO, NEUROVIDEO - временные подписки (30 дней)
-              const paymentDate = new Date(startDateDb)
-              const now = new Date()
-              expirationDate = new Date(paymentDate)
-              expirationDate.setDate(
-                paymentDate.getDate() + SUBSCRIPTION_DURATION_DAYS
-              )
-              isActive = now < expirationDate // Активна, если не истекла
-              if (isActive) {
-                finalSubscriptionType = foundSubType
-              }
-            }
-            logger.info(
-              `[getUserDetailsSubscription v4.0 SIMPLE Step 3 OK] Проверка подписки`,
-              {
-                telegramId: telegramIdStr,
-                type: foundSubType,
-                date: startDateDb,
-                expiration: expirationDate
-                  ? expirationDate.toISOString()
-                  : 'Не ограничена (NEUROTESTER)',
-                isActive,
-              }
-            )
-          } catch (dateError) {
-            logger.error(
-              `[getUserDetailsSubscription v4.0 SIMPLE Step 3 FAIL] Ошибка дат`,
-              {
-                telegramId: telegramIdStr,
-                error: dateError,
-                date: startDateDb,
-              }
-            )
-            isActive = false // Считаем неактивной при ошибке даты
-          }
+          // NEUROPHOTO, NEUROVIDEO - временные подписки (30 дней)
+          const paymentDate = new Date(subData.payment_date)
+          const now = new Date()
+          expirationDate = new Date(paymentDate)
+          expirationDate.setDate(
+            paymentDate.getDate() + SUBSCRIPTION_DURATION_DAYS
+          )
+          isThisTypeActive = now < expirationDate
         }
-      } else {
-        // Записей с непустым subscription_type не найдено
+
+        if (isThisTypeActive) {
+          // Найдена активная подписка!
+          isActive = true
+          finalSubscriptionType = subscriptionType
+          startDateDb = subData.payment_date
+
+          logger.info(
+            `[getUserDetailsSubscription v4.0 FIXED Step 3 SUCCESS] Найдена активная подписка`,
+            {
+              telegramId: telegramIdStr,
+              type: subscriptionType,
+              date: startDateDb,
+              expiration: expirationDate
+                ? expirationDate.toISOString()
+                : 'Не ограничена (NEUROTESTER)',
+              priority: subscriptionPriority.indexOf(subscriptionType) + 1,
+            }
+          )
+          break // Прерываем поиск - нашли активную подписку с наивысшим приоритетом
+        } else {
+          logger.info(
+            `[getUserDetailsSubscription v4.0 FIXED Step 3 INFO] Подписка ${subscriptionType} истекла`,
+            {
+              telegramId: telegramIdStr,
+              type: subscriptionType,
+              date: subData.payment_date,
+              expiration: expirationDate ? expirationDate.toISOString() : 'N/A',
+              expired: true,
+            }
+          )
+        }
+      }
+
+      if (!isActive) {
         logger.info(
-          `[getUserDetailsSubscription v4.0 SIMPLE Step 3 INFO] Активная подписка (по subscription_type) не найдена`,
+          `[getUserDetailsSubscription v4.0 FIXED Step 3 INFO] Активных подписок не найдено`,
           { telegramId: telegramIdStr }
         )
-        isActive = false
-        finalSubscriptionType = null
-        startDateDb = null
       }
     } catch (subCheckError) {
       logger.error(
-        `[getUserDetailsSubscription v4.0 SIMPLE Step 3 FAIL] Непредвиденная ошибка при проверке подписки User: ${telegramIdStr}`,
-        { error: subCheckError }
+        `[getUserDetailsSubscription v4.0 FIXED Step 3 FAIL] Непредвиденная ошибка при проверке подписки User: ${telegramIdStr}`,
+        { error: subCheckError, telegramId: telegramIdStr }
       )
       isActive = false
       finalSubscriptionType = null
@@ -256,7 +257,7 @@ export const getUserDetailsSubscription = async (
       subscriptionStartDate: isActive ? startDateDb : null,
     }
 
-    logger.info(`[getUserDetailsSubscription v4.0 SIMPLE Finish] Результат`, {
+    logger.info(`[getUserDetailsSubscription v4.0 FIXED Finish] Результат`, {
       telegramId: telegramIdStr,
       details: result,
     })

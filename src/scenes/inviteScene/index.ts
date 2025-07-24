@@ -2,11 +2,12 @@ import { Scenes } from 'telegraf'
 import { getReferalsCountAndUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export const inviteScene = new Scenes.BaseScene<MyContext>('inviteScene')
 
 inviteScene.enter(async ctx => {
-  const isRu = ctx.from?.language_code === 'ru'
+  const isRu = isRussianFromState(ctx)
 
   const botUsername = ctx.botInfo.username
   const telegram_id = ctx.from?.id?.toString() || ''

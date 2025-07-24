@@ -1,11 +1,12 @@
 import { MyContext } from '@/interfaces'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { simulateSubscriptionForDev } from '@/scenes/menuScene/helpers/simulateSubscription'
-import { isDev } from '@/config'
+import { isDev, ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { kickUnpaidUser } from '@/middlewares/checkSubscription'
 import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 /**
  * Проверяет, имеет ли пользователь активную подписку.
@@ -20,6 +21,18 @@ export async function checkSubscriptionGuard(
   commandName: string
 ): Promise<boolean> {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
+  const numericTelegramId = ctx.from?.id || 0
+
+  // 👑 ПРИВИЛЕГИЯ АДМИНОВ: Обходят проверку подписки
+  if (ADMIN_IDS_ARRAY.includes(numericTelegramId)) {
+    logger.info(`[SubscriptionGuard] ${commandName}: ADMIN ACCESS GRANTED`, {
+      telegramId,
+      command: commandName,
+      adminId: numericTelegramId,
+      bypass: 'subscription_check',
+    })
+    return true
+  }
 
   try {
     const userDetails = await getUserDetailsSubscription(telegramId)
@@ -51,7 +64,7 @@ export async function checkSubscriptionGuard(
       try {
         const channelId = await getSubScribeChannel(ctx)
         if (channelId) {
-          const isRu = ctx.from?.language_code === 'ru'
+          const isRu = isRussianFromState(ctx)
           const kickReason = isRu
             ? 'Отсутствие оплаченной подписки'
             : 'No paid subscription'

@@ -1,10 +1,9 @@
-import { MyContext } from '@/interfaces'
+import { MyContext } from '../interfaces'
+import { getUserDetailsSubscription } from '../core/supabase'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
-export function getUserInfo(ctx: MyContext): {
-  userId: number
-  telegramId: string
-} {
-  const isRu = ctx.from?.language_code === 'ru'
+export const getUserInfo = async (ctx: MyContext) => {
+  const isRu = isRussianFromState(ctx)
   const userId = ctx.from?.id
   const telegramId = ctx.from?.id?.toString()
 

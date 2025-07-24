@@ -1,14 +1,14 @@
 import { Context } from 'telegraf'
 import { starAmounts } from '@/price/helpers'
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 
 export async function handleBuy(ctx: MyContext) {
   const callbackData = (ctx.callbackQuery as any)?.data
   const callerId = ctx.from?.id
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id?.toString() || 'unknown'
 
   if (!callbackData) {

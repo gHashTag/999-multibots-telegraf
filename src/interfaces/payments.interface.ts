@@ -22,12 +22,14 @@ export interface BalanceOperationResult {
 /**
  * Платежные системы
  */
-export type PaymentMethod =
-  | 'Telegram'
-  | 'Robokassa'
-  | 'System'
-  | 'Unknown'
-  | 'Manual'
+export enum PaymentMethod {
+  TELEGRAM = 'Telegram',
+  ROBOKASSA = 'Robokassa',
+  SYSTEM = 'System',
+  UNKNOWN = 'Unknown',
+  MANUAL = 'Manual',
+  CRYPTOBOT = 'CryptoBot',
+}
 
 /**
  * Статусы платежей

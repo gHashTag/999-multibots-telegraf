@@ -6,7 +6,7 @@ import {
   API_SERVER_URL,
   LOCAL_SERVER_URL,
 } from '@/config'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
@@ -47,7 +47,7 @@ export async function generateNeuroImageV2(
         prompt,
         num_images: numImages || 1,
         telegram_id,
-        is_ru: isRussian(ctx),
+        is_ru: isRussianFromState(ctx),
         bot_name: botName,
       },
       {

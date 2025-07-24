@@ -9,7 +9,8 @@ import {
   sendGenericErrorMessage,
   videoModelKeyboard,
 } from '@/menu'
-import { isRussian } from '@/helpers/language'
+// ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
@@ -30,7 +31,8 @@ const MORPHING_MODEL_KEY = 'kling-v1.6-pro' // Constant for the morphing model
 // Step 0: Ask for Model (Entry Point)
 const askModelStep = new Composer<MyContext>()
 askModelStep.on('message', async ctx => {
-  const isRu = isRussian(ctx) // Determine language once
+  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  const isRu = isRussianFromState(ctx) // Determine language once
   // Check if we entered specifically for morphing via menu button
   if (ctx.session.current_action === 'morphing') {
     logger.info('[I2V Wizard] Morphing mode entered directly', {
@@ -81,7 +83,8 @@ askModelStep.on('message', async ctx => {
 // Step 1: Handle Model Selection (Standard Flow)
 const handleModelSelection = new Composer<MyContext>()
 handleModelSelection.on('text', async ctx => {
-  const isRu = isRussian(ctx)
+  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  const isRu = isRussianFromState(ctx)
   const selectedButtonText = ctx.message?.text
 
   if (!selectedButtonText) {
@@ -257,7 +260,7 @@ handleModelSelection.on('text', async ctx => {
 })
 // Fallback for non-text messages in this step
 handleModelSelection.use(async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   // HARDCODED TEXT
   const text = isRu
     ? '👇 Пожалуйста, выберите модель кнопкой.'
@@ -268,7 +271,7 @@ handleModelSelection.use(async ctx => {
 // Step 2: Handle Kling Mode Selection (Callback Query)
 const handleKlingModeSelection = new Composer<MyContext>()
 handleKlingModeSelection.action('kling_standard', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   await ctx.answerCbQuery()
   await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
 
@@ -332,7 +335,7 @@ handleKlingModeSelection.action('kling_standard', async ctx => {
 })
 
 handleKlingModeSelection.action('kling_morphing', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   await ctx.answerCbQuery()
   await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
 
@@ -393,7 +396,7 @@ handleKlingModeSelection.action('kling_morphing', async ctx => {
 
 // Error handler for unhandled callback queries
 handleKlingModeSelection.use(async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   logger.warn(
     '[I2V Wizard] Unexpected action in handleKlingModeSelection:',
     ctx.callbackQuery
@@ -406,7 +409,7 @@ handleKlingModeSelection.use(async ctx => {
 // Step 2.5: Handle Seedance Resolution Selection (Callback Query)
 const handleSeedanceResolutionSelection = new Composer<MyContext>()
 handleSeedanceResolutionSelection.action('seedance_480p', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   await ctx.answerCbQuery()
   await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
 
@@ -466,7 +469,7 @@ handleSeedanceResolutionSelection.action('seedance_480p', async ctx => {
 })
 
 handleSeedanceResolutionSelection.action('seedance_1080p', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   await ctx.answerCbQuery()
   await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
 
@@ -527,7 +530,7 @@ handleSeedanceResolutionSelection.action('seedance_1080p', async ctx => {
 
 // Error handler for unhandled callback queries in Seedance resolution selection
 handleSeedanceResolutionSelection.use(async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   logger.warn(
     '[I2V Wizard] Unexpected action in handleSeedanceResolutionSelection:',
     ctx.callbackQuery
@@ -540,7 +543,7 @@ handleSeedanceResolutionSelection.use(async ctx => {
 // Step 3: Handle Morph Image A
 const handleMorphImageA = new Composer<MyContext>()
 handleMorphImageA.on('photo', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
 
   // Check if it's actually a photo message FIRST
   if (!ctx.message || !ctx.message.photo) {
@@ -588,7 +591,7 @@ handleMorphImageA.on('photo', async ctx => {
 })
 // Fallback for non-photo messages in this step
 handleMorphImageA.use(async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   // Handle Help/Cancel first
   const isCancel = await handleHelpCancel(ctx)
   if (isCancel) {
@@ -604,7 +607,7 @@ handleMorphImageA.use(async ctx => {
 // Step 4: Handle Morph Image B OR Standard Image
 const handleMorphImageBOrStandardImage = new Composer<MyContext>()
 handleMorphImageBOrStandardImage.on('photo', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
 
   // Check if it's actually a photo message FIRST
   if (!ctx.message || !ctx.message.photo) {
@@ -675,7 +678,7 @@ handleMorphImageBOrStandardImage.on('photo', async ctx => {
 })
 // Fallback for non-photo messages in this step
 handleMorphImageBOrStandardImage.use(async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   // Handle Help/Cancel first
   const isCancel = await handleHelpCancel(ctx)
   if (isCancel) {
@@ -695,7 +698,7 @@ handleMorphImageBOrStandardImage.use(async ctx => {
 // Step 5: Handle Prompt
 const handlePrompt = new Composer<MyContext>()
 handlePrompt.on('text', async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const prompt = ctx.message?.text
 
   // Handle Help/Cancel first
@@ -749,7 +752,7 @@ handlePrompt.on('text', async ctx => {
 })
 // Fallback for non-text messages
 handlePrompt.use(async ctx => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   // HARDCODED TEXT
   const text = isRu
     ? '✍️ Пожалуйста, введите промпт текстом.'
@@ -759,7 +762,7 @@ handlePrompt.use(async ctx => {
 
 // --- New Function to Start Generation in Background ---
 async function startGenerateImageToVideoInBackground(ctx: MyContext) {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const { videoModel, is_morphing, imageAUrl, imageBUrl, imageUrl, prompt } =
     ctx.session
   const telegram_id = ctx.from?.id.toString()

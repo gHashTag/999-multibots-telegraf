@@ -1,4 +1,4 @@
-import { isRussian } from '@/helpers'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { setPayments } from '@/core/supabase/setPayments'
 
 import { logger } from '@/utils/logger'
@@ -49,7 +49,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
     return
   }
 
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const telegramPaymentChargeId = successfulPayment.telegram_payment_charge_id
   const providerPaymentChargeId = successfulPayment.provider_payment_charge_id
   const payload = successfulPayment.invoice_payload

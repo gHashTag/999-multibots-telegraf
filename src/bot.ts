@@ -21,6 +21,13 @@ import {
   handlePreCheckoutQuery,
 } from './handlers/paymentHandlers'
 import { setBotCommands } from './setCommands'
+// ✅ ДОБАВЛЯЕМ IMPORT LANGUAGE MIDDLEWARE
+import { languageMiddleware } from './middlewares/languageMiddleware'
+// ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА ОШИБОК
+import { setupErrorHandler } from './helpers/error/errorHandler'
+
+// ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА УВЕДОМЛЕНИЙ
+import { setupNotificationProcessor } from './handlers/notificationHandler'
 
 // Импорт новой команды
 import { setupStatsCommand } from './commands/statsCommand'
@@ -97,6 +104,7 @@ async function initializeBots() {
   }
 
   if (isDev) {
+    console.log('🔍 [DEBUG BOT.TS] ENTERING DEV BRANCH - looking for test bot')
     // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
     const targetBotUsername = process.env.TEST_BOT_NAME
     if (!targetBotUsername) {
@@ -142,6 +150,10 @@ async function initializeBots() {
       )
     }
 
+    console.log(
+      '🔍 [DEBUG BOT.TS] DEV BRANCH: Bot found, setting up middleware and commands...'
+    )
+
     // Добавляем логи перед регистрацией команд
     console.log(
       '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
@@ -149,8 +161,18 @@ async function initializeBots() {
     //
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(session()) // 1. Сессия (из bot.ts)
-    bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
-    registerCommands({ bot }) // 2. Сцены и команды (включая stage.middleware() и hears обработчики)
+    bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+    bot.use(Telegraf.log(console.log)) // 3. Log all Telegraf updates and middleware flow
+
+    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
+    setupErrorHandler(bot)
+
+    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
+    setupNotificationProcessor(bot)
+
+    console.log('🔍 [DEBUG BOT.TS] DEV BRANCH: About to call registerCommands!')
+    registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
+    console.log('🔍 [DEBUG BOT.TS] DEV BRANCH: registerCommands completed!')
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
@@ -183,6 +205,7 @@ async function initializeBots() {
       `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
     )
   } else {
+    console.log('🔍 [DEBUG BOT.TS] ENTERING PROD BRANCH - using all bots')
     // В продакшене используем все активные боты
     const botTokens = [
       process.env.BOT_TOKEN_1,
@@ -194,6 +217,7 @@ async function initializeBots() {
       process.env.BOT_TOKEN_7,
       process.env.BOT_TOKEN_8,
       process.env.BOT_TOKEN_9,
+      process.env.BOT_TOKEN_10,
     ].filter((token): token is string => Boolean(token))
 
     let currentPort = 3001
@@ -207,7 +231,21 @@ async function initializeBots() {
 
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
         bot.use(session()) // 1. Сессия (из bot.ts)
-        registerCommands({ bot }) // 2. Сцены и команды (включая stage.middleware() и hears обработчики)
+        bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+
+        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
+        setupErrorHandler(bot)
+
+        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
+        setupNotificationProcessor(bot)
+
+        console.log(
+          '🔍 [DEBUG BOT.TS] PROD BRANCH: About to call registerCommands!'
+        )
+        registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
+        console.log(
+          '🔍 [DEBUG BOT.TS] PROD BRANCH: registerCommands completed!'
+        )
         // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
         setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
@@ -297,6 +335,7 @@ process.once('SIGINT', () => gracefulShutdown('SIGINT'))
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 console.log('🏁 Запуск приложения')
+console.log(`🔍 [DEBUG BOT.TS] Starting application, isDev: ${isDev}`)
 
 // Запускаем API сервер
 // Это будет выполнено при старте src/bot.ts

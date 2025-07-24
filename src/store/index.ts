@@ -1,8 +1,16 @@
 import { MySession, PaymentType } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
-import { SubscriptionType } from '@/interfaces'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 export const defaultSession: MySession = {
+  __scenes: {
+    data: '',
+    cursor: 0,
+    severity: 0,
+    __scenes: {},
+    subscription: null,
+    step: 0,
+  },
   mode: ModeEnum.TextToImage,
   prompt: '',
   selectedModel: '',

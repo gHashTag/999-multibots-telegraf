@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export async function checkSubscription(
   ctx: MyContext,
@@ -99,7 +100,7 @@ export async function kickUnpaidUser(
 
     // Отправляем уведомление пользователю
     try {
-      const isRu = ctx.from?.language_code === 'ru'
+      const isRu = isRussianFromState(ctx)
       const kickMessage = isRu
         ? `🚫 Вы были исключены из группы @${telegram_channel_id}
 
