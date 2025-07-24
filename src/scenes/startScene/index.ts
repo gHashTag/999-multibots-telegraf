@@ -165,16 +165,6 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             return get100Command(ctx)
           }
           case '/price': {
-            // ✅ ЗАЩИТА: Проверяем подписку перед показом цен
-            const { checkSubscriptionGuard } = await import(
-              '@/helpers/subscriptionGuard'
-            )
-            const hasSubscription = await checkSubscriptionGuard(ctx, '/price')
-            if (!hasSubscription) {
-              return // Пользователь перенаправлен в subscriptionScene
-            }
-
-            await ctx.scene.leave()
             // Импортируем и вызываем priceCommand напрямую
             const { priceCommand } = await import('@/commands/priceCommand')
             return priceCommand(ctx)

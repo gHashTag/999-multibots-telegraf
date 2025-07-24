@@ -158,21 +158,21 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   logger.info('🔧 [DEBUG] Registering commands - INSTAGRAM INCLUDED!')
 
   try {
-    // 1. Логгер для ВСЕХ входящих обновлений
-    bot.use((ctx, next) => {
+  // 1. Логгер для ВСЕХ входящих обновлений
+  bot.use((ctx, next) => {
       const messageText =
         ctx.message && 'text' in ctx.message ? ctx.message.text : undefined
 
-      logger.info('>>> RAW UPDATE RECEIVED', {
-        updateId: ctx.update.update_id,
-        updateType: ctx.updateType,
+    logger.info('>>> RAW UPDATE RECEIVED', {
+      updateId: ctx.update.update_id,
+      updateType: ctx.updateType,
         messageText,
-        callbackData:
-          ctx.callbackQuery && 'data' in ctx.callbackQuery
-            ? ctx.callbackQuery.data
-            : undefined,
-        sceneInfo: ctx.scene?.current?.id,
-      })
+      callbackData:
+        ctx.callbackQuery && 'data' in ctx.callbackQuery
+          ? ctx.callbackQuery.data
+          : undefined,
+      sceneInfo: ctx.scene?.current?.id,
+    })
 
       // СПЕЦИАЛЬНЫЙ ЛОГ ДЛЯ /instagram
       if (messageText === '/instagram') {
@@ -180,27 +180,27 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         console.log('🚨 [DEBUG] About to pass to next middleware...')
       }
 
-      return next()
-    })
+    return next()
+  })
 
-    // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
-    bot.use(stage.middleware())
+  // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
+  bot.use(stage.middleware())
 
-    // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ
-    registerPaymentActions(bot)
+  // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ
+  registerPaymentActions(bot)
 
-    // 6. --- РЕГИСТРАЦИЯ ГЛОБАЛЬНЫХ КОМАНД ---
-    // Команды должны быть зарегистрированы здесь, до hears и общего on('text')
+  // 6. --- РЕГИСТРАЦИЯ ГЛОБАЛЬНЫХ КОМАНД ---
+  // Команды должны быть зарегистрированы здесь, до hears и общего on('text')
 
-    bot.command('start', async ctx => {
-      if (ctx.chat.type !== 'private') {
-        return sendGroupCommandReply(ctx)
-      }
+  bot.command('start', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
 
       const telegramId = ctx.from?.id?.toString() || 'unknown'
 
-      logger.info('[START] Starting avatar transformation flow', {
-        telegramId: ctx.from?.id,
+    logger.info('[START] Starting avatar transformation flow', {
+      telegramId: ctx.from?.id,
         step: 'command_start',
         chatType: ctx.chat.type,
         username: ctx.from?.username,
@@ -209,151 +209,151 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       console.log('🚀 [START COMMAND] Executing /start command', {
         telegramId,
         chatType: ctx.chat.type,
-      })
-
+    })
+    
       try {
-        // При старте всегда сбрасываем сессию и переходим к трансформации аватара
-        ctx.session = { ...defaultSession }
+    // При старте всегда сбрасываем сессию и переходим к трансформации аватара
+    ctx.session = { ...defaultSession }
         console.log('✅ [START COMMAND] Session reset')
 
-        await ctx.scene.leave() // Явно выходим из любой сцены
+    await ctx.scene.leave() // Явно выходим из любой сцены
         console.log('✅ [START COMMAND] Left previous scene')
 
-        await ctx.scene.enter(ModeEnum.AvatarTransform) // Переходим к трансформации аватара
+    await ctx.scene.enter(ModeEnum.AvatarTransform) // Переходим к трансформации аватара
         console.log('✅ [START COMMAND] Entered AvatarTransform scene')
       } catch (error) {
         console.error('❌ [START COMMAND] Error:', error)
         logger.error('[START] Error in start command', { error, telegramId })
       }
+  })
+
+  bot.command('get100', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед выдачей бонуса
+    const hasSubscription = await checkSubscriptionGuard(ctx, '/get100')
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    // Первый экземпляр get100
+    if (!ctx.session.userModel) {
+      ctx.session.userModel = {
+        model_name: 'default',
+        trigger_word: '',
+        model_url: 'placeholder/placeholder:placeholder',
+        finetune_id: '',
+      }
+    }
+    await get100Command(ctx)
+  })
+
+  bot.command('support', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+    console.log('CASE bot.command: support')
+    await ctx.scene.leave() // Выходим из сцены перед показом контактов
+    await handleTechSupport(ctx as MyContext)
+  })
+
+  bot.command('menu', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      // В группах команда /menu не должна работать так же, как /start
+      // Можно либо ничего не делать, либо отправить другое сообщение
+      return // Просто игнорируем в группе
+    }
+    logger.info('COMMAND /menu: Переход к главному меню', {
+      telegramId: ctx.from?.id,
     })
+    try {
+      await ctx.scene.leave() // Выходим из текущей, если есть
 
-    bot.command('get100', async ctx => {
-      if (ctx.chat.type !== 'private') {
-        return sendGroupCommandReply(ctx)
+      // ✅ ИСПРАВЛЕНИЕ: Проверяем подписку перед входом в меню
+      const telegramId = ctx.from?.id?.toString() || 'unknown'
+      const { getUserDetailsSubscription } = await import('@/core/supabase')
+      const { simulateSubscriptionForDev } = await import(
+        '@/scenes/menuScene/helpers/simulateSubscription'
+      )
+      const { isDev } = await import('@/config')
+
+      const userDetails = await getUserDetailsSubscription(telegramId)
+      const effectiveSubscription = simulateSubscriptionForDev(
+        userDetails?.subscriptionType || null,
+        isDev
+      )
+
+      logger.info('COMMAND /menu: Checking subscription', {
+        telegramId,
+        originalSubscription: userDetails?.subscriptionType,
+        effectiveSubscription,
+        isDev,
+      })
+
+      // Если нет подписки (включая симуляцию), направляем в subscriptionScene
+      if (!effectiveSubscription || effectiveSubscription === 'STARS') {
+        logger.info(
+          'COMMAND /menu: No subscription, redirecting to subscription scene',
+          {
+            telegramId,
+            effectiveSubscription,
+          }
+        )
+        ctx.session.mode = ModeEnum.SubscriptionScene
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        return
       }
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед выдачей бонуса
-      const hasSubscription = await checkSubscriptionGuard(ctx, '/get100')
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
-      // Первый экземпляр get100
-      if (!ctx.session.userModel) {
-        ctx.session.userModel = {
-          model_name: 'default',
-          trigger_word: '',
-          model_url: 'placeholder/placeholder:placeholder',
-          finetune_id: '',
-        }
-      }
-      await get100Command(ctx)
-    })
-
-    bot.command('support', async ctx => {
-      if (ctx.chat.type !== 'private') {
-        return sendGroupCommandReply(ctx)
-      }
-      console.log('CASE bot.command: support')
-      await ctx.scene.leave() // Выходим из сцены перед показом контактов
-      await handleTechSupport(ctx as MyContext)
-    })
-
-    bot.command('menu', async ctx => {
-      if (ctx.chat.type !== 'private') {
-        // В группах команда /menu не должна работать так же, как /start
-        // Можно либо ничего не делать, либо отправить другое сообщение
-        return // Просто игнорируем в группе
-      }
-      logger.info('COMMAND /menu: Переход к главному меню', {
+      // Если подписка есть, входим в меню
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    } catch (error) {
+      logger.error('Error in /menu command:', {
+        error,
         telegramId: ctx.from?.id,
       })
       try {
-        await ctx.scene.leave() // Выходим из текущей, если есть
-
-        // ✅ ИСПРАВЛЕНИЕ: Проверяем подписку перед входом в меню
-        const telegramId = ctx.from?.id?.toString() || 'unknown'
-        const { getUserDetailsSubscription } = await import('@/core/supabase')
-        const { simulateSubscriptionForDev } = await import(
-          '@/scenes/menuScene/helpers/simulateSubscription'
-        )
-        const { isDev } = await import('@/config')
-
-        const userDetails = await getUserDetailsSubscription(telegramId)
-        const effectiveSubscription = simulateSubscriptionForDev(
-          userDetails?.subscriptionType || null,
-          isDev
-        )
-
-        logger.info('COMMAND /menu: Checking subscription', {
-          telegramId,
-          originalSubscription: userDetails?.subscriptionType,
-          effectiveSubscription,
-          isDev,
-        })
-
-        // Если нет подписки (включая симуляцию), направляем в subscriptionScene
-        if (!effectiveSubscription || effectiveSubscription === 'STARS') {
-          logger.info(
-            'COMMAND /menu: No subscription, redirecting to subscription scene',
-            {
-              telegramId,
-              effectiveSubscription,
-            }
-          )
-          ctx.session.mode = ModeEnum.SubscriptionScene
-          await ctx.scene.enter(ModeEnum.SubscriptionScene)
-          return
-        }
-
-        // Если подписка есть, входим в меню
-        ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter(ModeEnum.MainMenu)
-      } catch (error) {
-        logger.error('Error in /menu command:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        try {
-          await ctx.reply('Ошибка при переходе в меню.')
-        } catch {
-          /* ignore */
-        }
+        await ctx.reply('Ошибка при переходе в меню.')
+      } catch {
+        /* ignore */
       }
+    }
+  })
+
+  bot.command('price', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед показом цен
+    const hasSubscription = await checkSubscriptionGuard(ctx, '/price')
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    return priceCommand(ctx)
+  })
+
+  bot.command('kontext', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед использованием FLUX Kontext
+    const hasSubscription = await checkSubscriptionGuard(ctx, '/kontext')
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    logger.info('COMMAND /kontext: FLUX Kontext image editing started', {
+      telegramId: ctx.from?.id,
     })
 
-    bot.command('price', async ctx => {
-      if (ctx.chat.type !== 'private') {
-        return sendGroupCommandReply(ctx)
-      }
-
-      // ✅ ЗАЩИТА: Проверяем подписку перед показом цен
-      const hasSubscription = await checkSubscriptionGuard(ctx, '/price')
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
-      return priceCommand(ctx)
-    })
-
-    bot.command('kontext', async ctx => {
-      if (ctx.chat.type !== 'private') {
-        return sendGroupCommandReply(ctx)
-      }
-
-      // ✅ ЗАЩИТА: Проверяем подписку перед использованием FLUX Kontext
-      const hasSubscription = await checkSubscriptionGuard(ctx, '/kontext')
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
-      logger.info('COMMAND /kontext: FLUX Kontext image editing started', {
-        telegramId: ctx.from?.id,
-      })
-
-      await ctx.scene.leave() // Выходим из текущей сцены
-      await handleFluxKontextCommand(ctx)
-    })
+    await ctx.scene.leave() // Выходим из текущей сцены
+    await handleFluxKontextCommand(ctx)
+  })
 
     console.log('🔧 [DEBUG] REGISTERING /instagram command handler NOW!')
     logger.info('🔧 [DEBUG] REGISTERING /instagram command handler NOW!')
@@ -439,45 +439,45 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       }
     })
 
-    // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
-    setupInteractiveStats(bot)
+  // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
+  setupInteractiveStats(bot)
 
-    // 👑 АДМИНСКИЕ КОМАНДЫ
-    bot.command('addbalance', handleAddBalanceCommand)
-    bot.command('checkbalance', handleCheckBalanceCommand)
+  // 👑 АДМИНСКИЕ КОМАНДЫ
+  bot.command('addbalance', handleAddBalanceCommand)
+  bot.command('checkbalance', handleCheckBalanceCommand)
 
-    // 📊 КОМАНДА АНАЛИЗА РАСХОДОВ
-    bot.use(expenseAnalysisCommand)
+  // 📊 КОМАНДА АНАЛИЗА РАСХОДОВ
+  bot.use(expenseAnalysisCommand)
 
-    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ
-    bot.command('test_payment_message', async ctx => {
-      if (ctx.chat.type !== 'private') {
-        return sendGroupCommandReply(ctx)
-      }
+  // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ
+  bot.command('test_payment_message', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
 
       // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
       const isRu = isRussianFromState(ctx)
-      logger.info('TEST COMMAND: test_payment_message', {
-        telegramId: ctx.from?.id,
-      })
+    logger.info('TEST COMMAND: test_payment_message', {
+      telegramId: ctx.from?.id,
+    })
 
-      try {
-        // Сначала отправляем сообщение об активации подписки
-        await ctx.reply(
-          isRu
-            ? `🎉 Ваша подписка "NEUROVIDEO" успешно оформлена и активна! Пользуйтесь ботом.`
-            : `🎉 Your subscription "NEUROVIDEO" has been successfully activated! Enjoy the bot.`
-        )
+    try {
+      // Сначала отправляем сообщение об активации подписки
+      await ctx.reply(
+        isRu
+          ? `🎉 Ваша подписка "NEUROVIDEO" успешно оформлена и активна! Пользуйтесь ботом.`
+          : `🎉 Your subscription "NEUROVIDEO" has been successfully activated! Enjoy the bot.`
+      )
 
-        // Получаем канал для вступления
-        const { getSubScribeChannel } = await import(
-          '@/handlers/getSubScribeChannel'
-        )
-        const channelId = await getSubScribeChannel(ctx)
+      // Получаем канал для вступления
+      const { getSubScribeChannel } = await import(
+        '@/handlers/getSubScribeChannel'
+      )
+      const channelId = await getSubScribeChannel(ctx)
 
-        if (channelId) {
-          const chatInviteMessage = isRu
-            ? `Нейро путник, твоя подписка активирована ✨
+      if (channelId) {
+        const chatInviteMessage = isRu
+          ? `Нейро путник, твоя подписка активирована ✨
 
 Хочешь вступить в чат для общения и стать частью креативного сообщества?
 
@@ -489,7 +489,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 Если да, нажимай на кнопку «Я с вами» и добро пожаловать 🤗 
 
 А если нет, продолжай самостоятельно и нажми кнопку «Я сам»`
-            : `Neuro traveler, your subscription is activated ✨
+          : `Neuro traveler, your subscription is activated ✨
 
 Want to join the chat for communication and become part of the creative community?
 
@@ -502,614 +502,134 @@ If yes, click the "I'm with you" button and welcome 🤗
 
 If not, continue on your own and click the "I myself" button`
 
-          await ctx.reply(chatInviteMessage, {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: isRu ? '👋 ☺️ Я с вами' : "👋 ☺️ I'm with you",
-                    url: channelId.startsWith('@')
-                      ? `https://t.me/${channelId.slice(1)}`
-                      : channelId.startsWith('http')
-                        ? channelId
-                        : `https://t.me/${channelId}`,
-                  },
-                ],
-                [
-                  {
-                    text: isRu ? '🙅🙅‍♀️ Я сам' : '🙅🙅‍♀️ I myself',
-                    callback_data: 'continue_solo',
-                  },
-                ],
+        await ctx.reply(chatInviteMessage, {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? '👋 ☺️ Я с вами' : "👋 ☺️ I'm with you",
+                  url: channelId.startsWith('@')
+                    ? `https://t.me/${channelId.slice(1)}`
+                    : channelId.startsWith('http')
+                      ? channelId
+                      : `https://t.me/${channelId}`,
+                },
               ],
-            },
-          })
-        } else {
-          await ctx.reply(
-            isRu
-              ? '⚠️ Канал для вступления не настроен'
-              : '⚠️ Channel for joining is not configured'
-          )
-        }
-      } catch (error) {
-        logger.error('Error in test_payment_message command:', {
-          error,
-          telegramId: ctx.from?.id,
+              [
+                {
+                  text: isRu ? '🙅🙅‍♀️ Я сам' : '🙅🙅‍♀️ I myself',
+                  callback_data: 'continue_solo',
+                },
+              ],
+            ],
+          },
         })
+      } else {
         await ctx.reply(
           isRu
-            ? '❌ Ошибка при тестировании сообщения'
-            : '❌ Error testing message'
+            ? '⚠️ Канал для вступления не настроен'
+            : '⚠️ Channel for joining is not configured'
         )
       }
-    })
-
-    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ АПСКЕЙЛЕРА
-    bot.command('test_upscale', async ctx => {
-      if (ctx.chat.type !== 'private') {
-        return sendGroupCommandReply(ctx)
-      }
-
-      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-      const isRu = isRussianFromState(ctx)
-      logger.info('TEST COMMAND: test_upscale', {
+    } catch (error) {
+      logger.error('Error in test_payment_message command:', {
+        error,
         telegramId: ctx.from?.id,
       })
-
-      try {
-        // Используем тестовое изображение
-        const testImageUrl =
-          'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/280px-PNG_transparency_demonstration_1.png'
-
-        const { upscaleFluxKontextImage } = await import(
-          '@/services/generateFluxKontext'
-        )
-
-        await upscaleFluxKontextImage({
-          imageUrl: testImageUrl,
-          telegram_id: ctx.from?.id?.toString() || '',
-          username: ctx.from?.username || 'test_user',
-          is_ru: isRu,
-          ctx: ctx,
-          originalPrompt: 'Test upscale',
-        })
-      } catch (error) {
-        logger.error('Error in test_upscale command:', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          telegramId: ctx.from?.id,
-        })
-
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка при тестировании апскейлера.'
-            : '❌ Error testing upscaler.'
-        )
-      }
-    })
-
-    // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
-    bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
-      console.log('CASE bot.hears: 💬 Техподдержка / Support')
-      await ctx.scene.leave() // Теперь ctx.scene должен быть доступен
-      await handleTechSupport(ctx)
-    })
-
-    // ПРОСТОЙ GLOBAL HEARS для кнопки подписки - ВСЕГДА работает!
-    // Ловим все варианты кнопок подписки (и старые с 💳, и новые с 💫)
-    bot.hears(
-      [
-        levels[105].title_ru,
-        levels[105].title_en,
-        '💳 Оформить подписку',
-        '💳 Subscribe',
-      ],
-      async ctx => {
-        console.log('🎯 URGENT DEBUG: GLOBAL SUBSCRIPTION HEARS TRIGGERED!')
-        logger.info('🚀 GLOBAL HEARS: Оформить подписку / Subscribe', {
-          telegramId: ctx.from?.id,
-          messageText: ctx.message?.text,
-          currentScene: ctx.scene?.current?.id,
-        })
-        console.log('🚀 GLOBAL HEARS: Оформить подписку triggered!')
-
-        try {
-          logger.info(
-            'Attempting to leave current scene and enter subscription scene'
-          )
-          await ctx.scene.leave() // Выходим из любой текущей сцены
-          ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
-          logger.info('About to enter subscription scene')
-          await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
-          logger.info('Successfully entered subscription scene')
-        } catch (error) {
-          console.error('❌ Error in subscription hears handler:', error)
-          logger.error('Error in Оформить подписку hears:', {
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-            telegramId: ctx.from?.id,
-          })
-          // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-          const isRu = isRussianFromState(ctx)
-          try {
-            await ctx.reply(
-              isRu
-                ? '❌ Ошибка при переходе к оформлению подписки.'
-                : '❌ Error entering subscription.'
-            )
-          } catch (replyError) {
-            console.error('❌ Failed to send error message:', replyError)
-          }
-        }
-      }
-    )
-
-    // Обработчик для текстовой кнопки "🆕 Новый промпт"
-    bot.hears(['🆕 Новый промпт', '🆕 New prompt'], async ctx => {
-      logger.info('HEARS: new_neurophoto_prompt', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const is_ru = isRussianFromState(ctx)
-
-        // Переходим в сцену нейрофото
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.NeuroPhoto
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-
-        await ctx.reply(
-          is_ru
-            ? '🆕 Начинаем создание нового нейрофото! Опишите, какую фотографию вы хотите сгенерировать.'
-            : '🆕 Starting creation of a new neurophoto! Describe what kind of photo you want to generate.'
-        )
-      } catch (error) {
-        logger.error('Error in new_neurophoto_prompt hears:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRuError = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError
-            ? '❌ Произошла ошибка при создании нового промпта.'
-            : '❌ An error occurred while creating a new prompt.'
-        )
-      }
-    })
-
-    // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
-
-    // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
-    bot.action('go_main_menu', async ctx => {
-      logger.info('GLOBAL ACTION: go_main_menu', { telegramId: ctx.from?.id })
-      try {
-        await ctx.answerCbQuery()
-        await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.MainMenu)
-      } catch (error) {
-        logger.error('Error in go_main_menu action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // Попытка уведомить пользователя об ошибке
-        try {
-          await ctx.reply('Ошибка при переходе в меню.')
-        } catch {
-          /* ignore */
-        }
-      }
-    })
-
-    // Обработчик кнопки "Ещё одно фото" для upscaler'а
-    bot.action('upscale_another_photo', async ctx => {
-      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-      const isRu = isRussianFromState(ctx)
-      logger.info('GLOBAL ACTION: upscale_another_photo', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.answerCbQuery()
-        await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.ImageUpscaler)
-      } catch (error) {
-        logger.error('Error in upscale_another_photo action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // Попытка уведомить пользователя об ошибке
-        try {
-          await ctx.reply(
-            isRu
-              ? 'Ошибка при переходе к upscaler.'
-              : 'Error switching to upscaler.'
-          )
-        } catch {
-          /* ignore */
-        }
-      }
-    })
-
-    bot.action('go_help', async ctx => {
-      logger.info('GLOBAL ACTION: go_help', { telegramId: ctx.from?.id })
-      try {
-        await ctx.answerCbQuery()
-        // Вход в helpScene. Контекст (ctx.session.mode) должен быть установлен ВЫЗЫВАЮЩЕЙ стороной/сценой.
-        // Если ctx.session.mode не установлен, helpScene покажет общую справку.
-        await ctx.scene.enter('helpScene')
-      } catch (error) {
-        logger.error('Error in go_help action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        try {
-          await ctx.reply('Ошибка при открытии справки.')
-        } catch {
-          /* ignore */
-        }
-      }
-    })
-
-    bot.action('go_back', async ctx => {
-      logger.info('GLOBAL ACTION: go_back', { telegramId: ctx.from?.id })
-      try {
-        await ctx.answerCbQuery()
-        // Просто выходим из текущей сцены. Если это helpScene, она сама удалит сообщение.
-        // Если другая сцена, пользователь вернется к предыдущему шагу или выйдет.
-        await ctx.scene.leave()
-        // Опционально: можно удалять сообщение, к которому была привязана кнопка
-        // try { await ctx.deleteMessage(); } catch { /* ignore */ }
-      } catch (error) {
-        logger.error('Error in go_back action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-      }
-    })
-
-    // Обработчик для кнопки "Оформить подписку" перенесен в StartScene для лучшей организации кода
-    // (удален дублирующийся GLOBAL обработчик)
-
-    // Добавляем обработчик для кнопки "Я сам"
-    bot.action('continue_solo', async ctx => {
-      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-      const isRu = isRussianFromState(ctx)
-      logger.info('GLOBAL ACTION: continue_solo', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.answerCbQuery()
-        await ctx.reply(
-          isRu
-            ? '👍 Отлично! Продолжайте пользоваться ботом самостоятельно. Если понадобится помощь - обращайтесь!'
-            : '👍 Great! Continue using the bot on your own. If you need help - feel free to ask!'
-        )
-      } catch (error) {
-        logger.error('Error in continue_solo action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-      }
-    })
-
-    // Обработчик фото для FLUX Kontext
-    bot.on(message('photo'), async ctx => {
-      logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
-        telegramId: ctx.from?.id,
-        currentScene: ctx.scene?.current?.id,
-        awaitingFluxKontextImage: ctx.session?.awaitingFluxKontextImage,
-        awaitingFluxKontextImageA: ctx.session?.awaitingFluxKontextImageA,
-        awaitingFluxKontextImageB: ctx.session?.awaitingFluxKontextImageB,
-        sessionExists: !!ctx.session,
-        sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
-      })
-
-      // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
-      if (ctx.session?.awaitingFluxKontextImage) {
-        const { handleFluxKontextImage } = await import(
-          './commands/fluxKontextCommand'
-        )
-        await handleFluxKontextImage(ctx)
-        return
-      }
-
-      // Если не ожидаем FLUX Kontext изображение, передаем дальше
-      logger.info(
-        '🎯 GLOBAL PHOTO HANDLER: Photo not for FLUX Kontext, skipping',
-        {
-          telegramId: ctx.from?.id,
-          currentScene: ctx.scene?.current?.id,
-          reason: 'not_awaiting_flux_image',
-        }
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при тестировании сообщения'
+          : '❌ Error testing message'
       )
+    }
+  })
+
+  // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ АПСКЕЙЛЕРА
+  bot.command('test_upscale', async ctx => {
+    if (ctx.chat.type !== 'private') {
+      return sendGroupCommandReply(ctx)
+    }
+
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRu = isRussianFromState(ctx)
+    logger.info('TEST COMMAND: test_upscale', {
+      telegramId: ctx.from?.id,
     })
 
-    // НОВЫЕ ОБРАБОТЧИКИ ДЛЯ INLINE КНОПОК FLUX KONTEXT
-    bot.action('upscale_image', async ctx => {
-      logger.info('GLOBAL ACTION: upscale_image', {
+    try {
+      // Используем тестовое изображение
+      const testImageUrl =
+        'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/280px-PNG_transparency_demonstration_1.png'
+
+      const { upscaleFluxKontextImage } = await import(
+        '@/services/generateFluxKontext'
+      )
+
+      await upscaleFluxKontextImage({
+        imageUrl: testImageUrl,
+        telegram_id: ctx.from?.id?.toString() || '',
+        username: ctx.from?.username || 'test_user',
+        is_ru: isRu,
+        ctx: ctx,
+        originalPrompt: 'Test upscale',
+      })
+    } catch (error) {
+      logger.error('Error in test_upscale command:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
         telegramId: ctx.from?.id,
       })
-      try {
-        await ctx.answerCbQuery()
 
-        const telegram_id = ctx.from?.id?.toString()
-        const username = ctx.from?.username || ''
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const is_ru = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при тестировании апскейлера.'
+          : '❌ Error testing upscaler.'
+      )
+    }
+  })
 
-        if (!telegram_id) {
-          await ctx.reply(
-            is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
-          )
-          return
-        }
+  // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
+  bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
+    console.log('CASE bot.hears: 💬 Техподдержка / Support')
+    await ctx.scene.leave() // Теперь ctx.scene должен быть доступен
+    await handleTechSupport(ctx)
+  })
 
-        // Проверяем, есть ли сохраненное изображение для upscaling
-        if (!ctx.session?.lastGeneratedImageUrl) {
-          await ctx.reply(
-            is_ru
-              ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте изображение с помощью FLUX Kontext.'
-              : '❌ No image to upscale. Please generate an image with FLUX Kontext first.'
-          )
-          return
-        }
-
-        // Импортируем и запускаем upscaling
-        const { upscaleFluxKontextImage } = await import(
-          './services/generateFluxKontext'
-        )
-        await upscaleFluxKontextImage({
-          imageUrl: ctx.session.lastGeneratedImageUrl,
-          telegram_id,
-          username,
-          is_ru,
-          ctx,
-          originalPrompt: ctx.session.lastGeneratedPrompt,
-        })
-      } catch (error) {
-        logger.error('Error in upscale_image action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRuError = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError
-            ? '❌ Произошла ошибка при увеличении качества изображения.'
-            : '❌ An error occurred while upscaling the image.'
-        )
-      }
-    })
-
-    // ОБРАБОТЧИК ДЛЯ УВЕЛИЧЕНИЯ КАЧЕСТВА НЕЙРОФОТО
-    bot.action('upscale_neurophoto_image', async ctx => {
-      logger.info('GLOBAL ACTION: upscale_neurophoto_image', {
+  // ПРОСТОЙ GLOBAL HEARS для кнопки подписки - ВСЕГДА работает!
+  // Ловим все варианты кнопок подписки (и старые с 💳, и новые с 💫)
+  bot.hears(
+    [
+      levels[105].title_ru,
+      levels[105].title_en,
+      '💳 Оформить подписку',
+      '💳 Subscribe',
+    ],
+    async ctx => {
+      console.log('🎯 URGENT DEBUG: GLOBAL SUBSCRIPTION HEARS TRIGGERED!')
+      logger.info('🚀 GLOBAL HEARS: Оформить подписку / Subscribe', {
         telegramId: ctx.from?.id,
+        messageText: ctx.message?.text,
+        currentScene: ctx.scene?.current?.id,
       })
-      try {
-        await ctx.answerCbQuery()
-
-        const telegram_id = ctx.from?.id?.toString()
-        const username = ctx.from?.username || ''
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const is_ru = isRussianFromState(ctx)
-
-        if (!telegram_id) {
-          await ctx.reply(
-            is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
-          )
-          return
-        }
-
-        // Проверяем, есть ли сохраненное изображение для upscaling
-        if (!ctx.session?.lastNeuroPhotoImageUrl) {
-          await ctx.reply(
-            is_ru
-              ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте нейрофото.'
-              : '❌ No image to upscale. Please generate a neurophoto first.'
-          )
-          return
-        }
-
-        // Отправляем сообщение о начале обработки
-        await ctx.reply(
-          is_ru
-            ? '⌛ Увеличиваем качество нейрофото... Пожалуйста, подождите'
-            : '⌛ Upscaling neurophoto quality... Please wait'
-        )
-
-        // Импортируем и запускаем локальный upscaler (тот же что и для отдельного upscaler'а)
-        const { upscaleImage } = await import('./services/imageUpscaler')
-        await upscaleImage({
-          imageUrl: ctx.session.lastNeuroPhotoImageUrl,
-          telegram_id,
-          username,
-          is_ru,
-          ctx,
-          originalPrompt:
-            ctx.session.lastNeuroPhotoPrompt || 'Neurophoto upscale',
-        })
-      } catch (error) {
-        logger.error('Error in upscale_neurophoto_image action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRuError2 = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError2
-            ? '❌ Произошла ошибка при увеличении качества нейрофото.'
-            : '❌ An error occurred while upscaling the neurophoto.'
-        )
-      }
-    })
-
-    bot.action('more_editing', async ctx => {
-      logger.info('GLOBAL ACTION: more_editing', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.answerCbQuery()
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRuMore = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuMore
-            ? '📷 Отправьте новое изображение для редактирования:'
-            : '📷 Send a new image for editing:'
-        )
-
-        if (ctx.session) {
-          ctx.session.awaitingFluxKontextImage = true
-        }
-      } catch (error) {
-        logger.error('Error in more_editing action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-      }
-    })
-
-    bot.action('different_mode', async ctx => {
-      logger.info('GLOBAL ACTION: different_mode', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.answerCbQuery()
-        // Возвращаемся к продвинутой сцене FLUX Kontext
-        await ctx.scene.leave()
-        await ctx.scene.enter('flux_kontext_scene')
-      } catch (error) {
-        logger.error('Error in different_mode action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-      }
-    })
-
-    // НОВЫЕ ОБРАБОТЧИКИ ДЛЯ INLINE КНОПОК НЕЙРОФОТО
-    bot.action('new_neurophoto_prompt', async ctx => {
-      logger.info('GLOBAL ACTION: new_neurophoto_prompt', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.answerCbQuery()
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const is_ru = isRussianFromState(ctx)
-
-        // Переходим в сцену нейрофото
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.NeuroPhoto
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-
-        await ctx.reply(
-          is_ru
-            ? '🆕 Начинаем создание нового нейрофото! Опишите, какую фотографию вы хотите сгенерировать.'
-            : '🆕 Starting creation of a new neurophoto! Describe what kind of photo you want to generate.'
-        )
-      } catch (error) {
-        logger.error('Error in new_neurophoto_prompt action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRuError3 = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError3
-            ? '❌ Произошла ошибка при создании нового промпта.'
-            : '❌ An error occurred while creating a new prompt.'
-        )
-      }
-    })
-
-    bot.action('change_size', async ctx => {
-      logger.info('GLOBAL ACTION: change_size', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.answerCbQuery()
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const is_ru = isRussianFromState(ctx)
-
-        // Переходим в сцену изменения размера
-        await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.SizeWizard)
-      } catch (error) {
-        logger.error('Error in change_size action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRuError4 = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError4
-            ? '❌ Произошла ошибка при изменении размера.'
-            : '❌ An error occurred while changing size.'
-        )
-      }
-    })
-
-    bot.action('improve_prompt', async ctx => {
-      logger.info('GLOBAL ACTION: improve_prompt', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        await ctx.answerCbQuery()
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const is_ru = isRussianFromState(ctx)
-
-        // Переходим в сцену улучшения промпта
-        await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
-      } catch (error) {
-        logger.error('Error in improve_prompt action:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRuError5 = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError5
-            ? '❌ Произошла ошибка при улучшении промпта.'
-            : '❌ An error occurred while improving prompt.'
-        )
-      }
-    })
-
-    console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
-    console.log(
-      '📊 [SCENE_DEBUG] Количество обработчиков сцен:',
-      stage.scenes.size
-    )
-
-    // INLINE CALLBACK ОБРАБОТЧИКИ ДЛЯ КНОПОК ПОДПИСКИ
-    bot.action(/^subscribe_(.+)$/, async ctx => {
-      const subscriptionType = ctx.match[1] // neurophoto или neurovideo
-      logger.info('🚀 INLINE CALLBACK: Subscribe button pressed', {
-        telegramId: ctx.from?.id,
-        subscriptionType: subscriptionType,
-      })
+      console.log('🚀 GLOBAL HEARS: Оформить подписку triggered!')
 
       try {
-        await ctx.answerCbQuery()
+        logger.info(
+          'Attempting to leave current scene and enter subscription scene'
+        )
         await ctx.scene.leave() // Выходим из любой текущей сцены
         ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
-        logger.info('About to enter subscription scene via inline callback')
+        logger.info('About to enter subscription scene')
         await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
-        logger.info(
-          'Successfully entered subscription scene via inline callback'
-        )
+        logger.info('Successfully entered subscription scene')
       } catch (error) {
-        console.error(
-          '❌ Error in subscription inline callback handler:',
-          error
-        )
-        logger.error('Error in subscribe inline callback:', {
+        console.error('❌ Error in subscription hears handler:', error)
+        logger.error('Error in Оформить подписку hears:', {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           telegramId: ctx.from?.id,
-          subscriptionType: subscriptionType,
         })
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRu = isRussianFromState(ctx)
+          // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+          const isRu = isRussianFromState(ctx)
         try {
           await ctx.reply(
             isRu
@@ -1120,10 +640,490 @@ If not, continue on your own and click the "I myself" button`
           console.error('❌ Failed to send error message:', replyError)
         }
       }
+    }
+  )
+
+  // Обработчик для текстовой кнопки "🆕 Новый промпт"
+  bot.hears(['🆕 Новый промпт', '🆕 New prompt'], async ctx => {
+    logger.info('HEARS: new_neurophoto_prompt', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const is_ru = isRussianFromState(ctx)
+
+      // Переходим в сцену нейрофото
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.NeuroPhoto
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+
+      await ctx.reply(
+        is_ru
+          ? '🆕 Начинаем создание нового нейрофото! Опишите, какую фотографию вы хотите сгенерировать.'
+          : '🆕 Starting creation of a new neurophoto! Describe what kind of photo you want to generate.'
+      )
+    } catch (error) {
+      logger.error('Error in new_neurophoto_prompt hears:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRuError = isRussianFromState(ctx)
+      await ctx.reply(
+          isRuError
+          ? '❌ Произошла ошибка при создании нового промпта.'
+          : '❌ An error occurred while creating a new prompt.'
+      )
+    }
+  })
+
+  // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
+
+  // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
+  bot.action('go_main_menu', async ctx => {
+    logger.info('GLOBAL ACTION: go_main_menu', { telegramId: ctx.from?.id })
+    try {
+      await ctx.answerCbQuery()
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    } catch (error) {
+      logger.error('Error in go_main_menu action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      // Попытка уведомить пользователя об ошибке
+      try {
+        await ctx.reply('Ошибка при переходе в меню.')
+      } catch {
+        /* ignore */
+      }
+    }
+  })
+
+  // Обработчик кнопки "Ещё одно фото" для upscaler'а
+  bot.action('upscale_another_photo', async ctx => {
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRu = isRussianFromState(ctx)
+    logger.info('GLOBAL ACTION: upscale_another_photo', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.ImageUpscaler)
+    } catch (error) {
+      logger.error('Error in upscale_another_photo action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      // Попытка уведомить пользователя об ошибке
+      try {
+        await ctx.reply(
+          isRu
+            ? 'Ошибка при переходе к upscaler.'
+            : 'Error switching to upscaler.'
+        )
+      } catch {
+        /* ignore */
+      }
+    }
+  })
+
+  bot.action('go_help', async ctx => {
+    logger.info('GLOBAL ACTION: go_help', { telegramId: ctx.from?.id })
+    try {
+      await ctx.answerCbQuery()
+      // Вход в helpScene. Контекст (ctx.session.mode) должен быть установлен ВЫЗЫВАЮЩЕЙ стороной/сценой.
+      // Если ctx.session.mode не установлен, helpScene покажет общую справку.
+      await ctx.scene.enter('helpScene')
+    } catch (error) {
+      logger.error('Error in go_help action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      try {
+        await ctx.reply('Ошибка при открытии справки.')
+      } catch {
+        /* ignore */
+      }
+    }
+  })
+
+  bot.action('go_back', async ctx => {
+    logger.info('GLOBAL ACTION: go_back', { telegramId: ctx.from?.id })
+    try {
+      await ctx.answerCbQuery()
+      // Просто выходим из текущей сцены. Если это helpScene, она сама удалит сообщение.
+      // Если другая сцена, пользователь вернется к предыдущему шагу или выйдет.
+      await ctx.scene.leave()
+      // Опционально: можно удалять сообщение, к которому была привязана кнопка
+      // try { await ctx.deleteMessage(); } catch { /* ignore */ }
+    } catch (error) {
+      logger.error('Error in go_back action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
+  // Обработчик для кнопки "Оформить подписку" перенесен в StartScene для лучшей организации кода
+  // (удален дублирующийся GLOBAL обработчик)
+
+  // Добавляем обработчик для кнопки "Я сам"
+  bot.action('continue_solo', async ctx => {
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRu = isRussianFromState(ctx)
+    logger.info('GLOBAL ACTION: continue_solo', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      await ctx.reply(
+        isRu
+          ? '👍 Отлично! Продолжайте пользоваться ботом самостоятельно. Если понадобится помощь - обращайтесь!'
+          : '👍 Great! Continue using the bot on your own. If you need help - feel free to ask!'
+      )
+    } catch (error) {
+      logger.error('Error in continue_solo action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
+  // Обработчик фото для FLUX Kontext
+  bot.on(message('photo'), async ctx => {
+    logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
+      telegramId: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+      awaitingFluxKontextImage: ctx.session?.awaitingFluxKontextImage,
+      awaitingFluxKontextImageA: ctx.session?.awaitingFluxKontextImageA,
+      awaitingFluxKontextImageB: ctx.session?.awaitingFluxKontextImageB,
+      sessionExists: !!ctx.session,
+      sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
     })
 
-    // ВАЖНО: setupHearsHandlers и handleTextMessage теперь регистрируются в bot.ts
-    // чтобы hears обработчики срабатывали до общего текстового обработчика
+    // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
+    if (ctx.session?.awaitingFluxKontextImage) {
+        const { handleFluxKontextImage } = await import(
+        './commands/fluxKontextCommand'
+      )
+        await handleFluxKontextImage(ctx)
+      return
+    }
+
+    // Если не ожидаем FLUX Kontext изображение, передаем дальше
+    logger.info(
+      '🎯 GLOBAL PHOTO HANDLER: Photo not for FLUX Kontext, skipping',
+      {
+        telegramId: ctx.from?.id,
+        currentScene: ctx.scene?.current?.id,
+        reason: 'not_awaiting_flux_image',
+      }
+    )
+  })
+
+  // НОВЫЕ ОБРАБОТЧИКИ ДЛЯ INLINE КНОПОК FLUX KONTEXT
+  bot.action('upscale_image', async ctx => {
+    logger.info('GLOBAL ACTION: upscale_image', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+
+      const telegram_id = ctx.from?.id?.toString()
+      const username = ctx.from?.username || ''
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const is_ru = isRussianFromState(ctx)
+
+      if (!telegram_id) {
+        await ctx.reply(
+          is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
+        )
+        return
+      }
+
+      // Проверяем, есть ли сохраненное изображение для upscaling
+      if (!ctx.session?.lastGeneratedImageUrl) {
+        await ctx.reply(
+          is_ru
+            ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте изображение с помощью FLUX Kontext.'
+            : '❌ No image to upscale. Please generate an image with FLUX Kontext first.'
+        )
+        return
+      }
+
+      // Импортируем и запускаем upscaling
+      const { upscaleFluxKontextImage } = await import(
+        './services/generateFluxKontext'
+      )
+      await upscaleFluxKontextImage({
+        imageUrl: ctx.session.lastGeneratedImageUrl,
+        telegram_id,
+        username,
+        is_ru,
+        ctx,
+        originalPrompt: ctx.session.lastGeneratedPrompt,
+      })
+    } catch (error) {
+      logger.error('Error in upscale_image action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRuError = isRussianFromState(ctx)
+      await ctx.reply(
+          isRuError
+          ? '❌ Произошла ошибка при увеличении качества изображения.'
+          : '❌ An error occurred while upscaling the image.'
+      )
+    }
+  })
+
+  // ОБРАБОТЧИК ДЛЯ УВЕЛИЧЕНИЯ КАЧЕСТВА НЕЙРОФОТО
+  bot.action('upscale_neurophoto_image', async ctx => {
+    logger.info('GLOBAL ACTION: upscale_neurophoto_image', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+
+      const telegram_id = ctx.from?.id?.toString()
+      const username = ctx.from?.username || ''
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const is_ru = isRussianFromState(ctx)
+
+      if (!telegram_id) {
+        await ctx.reply(
+          is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
+        )
+        return
+      }
+
+      // Проверяем, есть ли сохраненное изображение для upscaling
+      if (!ctx.session?.lastNeuroPhotoImageUrl) {
+        await ctx.reply(
+          is_ru
+            ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте нейрофото.'
+            : '❌ No image to upscale. Please generate a neurophoto first.'
+        )
+        return
+      }
+
+      // Отправляем сообщение о начале обработки
+      await ctx.reply(
+        is_ru
+          ? '⌛ Увеличиваем качество нейрофото... Пожалуйста, подождите'
+          : '⌛ Upscaling neurophoto quality... Please wait'
+      )
+
+      // Импортируем и запускаем локальный upscaler (тот же что и для отдельного upscaler'а)
+      const { upscaleImage } = await import('./services/imageUpscaler')
+      await upscaleImage({
+        imageUrl: ctx.session.lastNeuroPhotoImageUrl,
+        telegram_id,
+        username,
+        is_ru,
+        ctx,
+        originalPrompt:
+          ctx.session.lastNeuroPhotoPrompt || 'Neurophoto upscale',
+      })
+    } catch (error) {
+      logger.error('Error in upscale_neurophoto_image action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRuError2 = isRussianFromState(ctx)
+      await ctx.reply(
+          isRuError2
+          ? '❌ Произошла ошибка при увеличении качества нейрофото.'
+          : '❌ An error occurred while upscaling the neurophoto.'
+      )
+    }
+  })
+
+  bot.action('more_editing', async ctx => {
+    logger.info('GLOBAL ACTION: more_editing', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRuMore = isRussianFromState(ctx)
+      await ctx.reply(
+          isRuMore
+          ? '📷 Отправьте новое изображение для редактирования:'
+          : '📷 Send a new image for editing:'
+      )
+
+      if (ctx.session) {
+        ctx.session.awaitingFluxKontextImage = true
+      }
+    } catch (error) {
+      logger.error('Error in more_editing action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
+  bot.action('different_mode', async ctx => {
+    logger.info('GLOBAL ACTION: different_mode', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+      // Возвращаемся к продвинутой сцене FLUX Kontext
+      await ctx.scene.leave()
+      await ctx.scene.enter('flux_kontext_scene')
+    } catch (error) {
+      logger.error('Error in different_mode action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
+  // НОВЫЕ ОБРАБОТЧИКИ ДЛЯ INLINE КНОПОК НЕЙРОФОТО
+  bot.action('new_neurophoto_prompt', async ctx => {
+    logger.info('GLOBAL ACTION: new_neurophoto_prompt', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const is_ru = isRussianFromState(ctx)
+
+      // Переходим в сцену нейрофото
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.NeuroPhoto
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+
+      await ctx.reply(
+        is_ru
+          ? '🆕 Начинаем создание нового нейрофото! Опишите, какую фотографию вы хотите сгенерировать.'
+          : '🆕 Starting creation of a new neurophoto! Describe what kind of photo you want to generate.'
+      )
+    } catch (error) {
+      logger.error('Error in new_neurophoto_prompt action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRuError3 = isRussianFromState(ctx)
+      await ctx.reply(
+          isRuError3
+          ? '❌ Произошла ошибка при создании нового промпта.'
+          : '❌ An error occurred while creating a new prompt.'
+      )
+    }
+  })
+
+  bot.action('change_size', async ctx => {
+    logger.info('GLOBAL ACTION: change_size', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const is_ru = isRussianFromState(ctx)
+
+      // Переходим в сцену изменения размера
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.SizeWizard)
+    } catch (error) {
+      logger.error('Error in change_size action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRuError4 = isRussianFromState(ctx)
+      await ctx.reply(
+          isRuError4
+          ? '❌ Произошла ошибка при изменении размера.'
+          : '❌ An error occurred while changing size.'
+      )
+    }
+  })
+
+  bot.action('improve_prompt', async ctx => {
+    logger.info('GLOBAL ACTION: improve_prompt', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      await ctx.answerCbQuery()
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const is_ru = isRussianFromState(ctx)
+
+      // Переходим в сцену улучшения промпта
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
+    } catch (error) {
+      logger.error('Error in improve_prompt action:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRuError5 = isRussianFromState(ctx)
+      await ctx.reply(
+          isRuError5
+          ? '❌ Произошла ошибка при улучшении промпта.'
+          : '❌ An error occurred while improving prompt.'
+      )
+    }
+  })
+
+  console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
+  console.log(
+    '📊 [SCENE_DEBUG] Количество обработчиков сцен:',
+    stage.scenes.size
+  )
+
+  // INLINE CALLBACK ОБРАБОТЧИКИ ДЛЯ КНОПОК ПОДПИСКИ
+  bot.action(/^subscribe_(.+)$/, async ctx => {
+    const subscriptionType = ctx.match[1] // neurophoto или neurovideo
+    logger.info('🚀 INLINE CALLBACK: Subscribe button pressed', {
+      telegramId: ctx.from?.id,
+      subscriptionType: subscriptionType,
+    })
+
+    try {
+      await ctx.answerCbQuery()
+      await ctx.scene.leave() // Выходим из любой текущей сцены
+      ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
+      logger.info('About to enter subscription scene via inline callback')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
+        logger.info(
+          'Successfully entered subscription scene via inline callback'
+        )
+    } catch (error) {
+        console.error(
+          '❌ Error in subscription inline callback handler:',
+          error
+        )
+      logger.error('Error in subscribe inline callback:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        telegramId: ctx.from?.id,
+        subscriptionType: subscriptionType,
+      })
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRu = isRussianFromState(ctx)
+      try {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка при переходе к оформлению подписки.'
+            : '❌ Error entering subscription.'
+        )
+      } catch (replyError) {
+        console.error('❌ Failed to send error message:', replyError)
+      }
+    }
+  })
+
+  // ВАЖНО: setupHearsHandlers и handleTextMessage теперь регистрируются в bot.ts
+  // чтобы hears обработчики срабатывали до общего текстового обработчика
 
     console.log('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
     logger.info('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')

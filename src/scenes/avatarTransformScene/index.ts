@@ -171,9 +171,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         telegramId,
         step: 'getting_photo',
       })
-
+      
       const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
-
+      
       logger.info('[AvatarTransformScene] Got user photo URL', {
         telegramId,
         photoUrl: userPhotoUrl ? 'obtained' : 'failed',
