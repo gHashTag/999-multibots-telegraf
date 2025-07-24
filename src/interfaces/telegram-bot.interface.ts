@@ -271,6 +271,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   // Avatar transformation fields
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
+  selectedHero?: string // Выбранный герой Marvel для трансформации
 }
 
 export interface MyContext extends Context {
