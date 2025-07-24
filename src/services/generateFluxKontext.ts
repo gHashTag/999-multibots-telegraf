@@ -21,29 +21,8 @@ import path from 'path'
 import fs from 'fs'
 import { Markup } from 'telegraf'
 
-// Создание клавиатуры для результатов редактирования
-const createEditResultKeyboard = (is_ru: boolean) => {
-  return Markup.inlineKeyboard([
-    [
-      Markup.button.callback(
-        is_ru ? '✨ Ещё редактирование' : '✨ More editing',
-        'more_editing'
-      ),
-    ],
-    [
-      Markup.button.callback(
-        is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
-        'upscale_image'
-      ),
-    ],
-    [
-      Markup.button.callback(
-        is_ru ? '🏠 Главное меню' : '🏠 Main menu',
-        'go_main_menu'
-      ),
-    ],
-  ])
-}
+// Больше не нужна функция createEditResultKeyboard для лид-магнета
+// Убрана чтобы упростить интерфейс
 
 export interface FluxKontextParams {
   prompt: string
@@ -77,6 +56,15 @@ export interface AdvancedFluxKontextParams {
 export const generateFluxKontext = async (
   params: FluxKontextParams
 ): Promise<GenerationResult> => {
+  console.log('🔥 [CRITICAL] generateFluxKontext CALLED with params:', {
+    telegram_id: params.telegram_id,
+    modelType: params.modelType,
+    promptLength: params.prompt?.length,
+    inputImageUrl: params.inputImageUrl ? 'present' : 'missing',
+    username: params.username,
+    is_ru: params.is_ru,
+  })
+
   try {
     const {
       prompt,
@@ -88,10 +76,21 @@ export const generateFluxKontext = async (
       ctx,
     } = params
 
+    console.log(
+      '🔥 [CRITICAL] generateFluxKontext params destructured successfully'
+    )
+
     const modelKey = `black-forest-labs/flux-kontext-${modelType}`
     const modelConfig = FLUX_KONTEXT_MODELS[modelKey]
 
+    console.log('🔥 [CRITICAL] Model config:', {
+      modelKey,
+      configExists: !!modelConfig,
+      costPerImage: modelConfig?.costPerImage,
+    })
+
     if (!modelConfig) {
+      console.error('🚨 [CRITICAL] Model config not found for:', modelKey)
       throw new Error(`Неподдерживаемый тип модели: ${modelKey}`)
     }
 
@@ -114,26 +113,83 @@ export const generateFluxKontext = async (
       is_ru,
     })
 
+    console.log('🔥 [CRITICAL] Balance check completed:', {
+      success: balanceCheck.success,
+      telegram_id,
+    })
+
     if (!balanceCheck.success) {
+      console.error('🚨 [CRITICAL] Balance check failed:', {
+        telegram_id,
+        balanceCheck,
+      })
       throw new Error('Not enough stars')
     }
 
-    // Отправка сообщения о начале редактирования
-    ctx.telegram.sendMessage(
-      telegram_id,
-      is_ru
-        ? '✨ Редактирую изображение с помощью FLUX Kontext...'
-        : '✨ Editing image with FLUX Kontext...',
+    logger.info(
+      '[generateFluxKontext] Balance check passed, sending status message',
       {
-        reply_markup: { remove_keyboard: true },
+        telegram_id,
+        balanceSuccess: balanceCheck.success,
       }
     )
+
+    console.log(
+      '🔥 [CRITICAL] About to send status message to telegram_id:',
+      telegram_id
+    )
+
+    // Отправка сообщения о начале редактирования с обработкой ошибок
+    try {
+      console.log('🔥 [CRITICAL] Calling ctx.telegram.sendMessage...')
+
+      await ctx.telegram.sendMessage(
+        telegram_id,
+        is_ru
+          ? '✨ Редактирую изображение с помощью FLUX Kontext...'
+          : '✨ Editing image with FLUX Kontext...',
+        {
+          reply_markup: { remove_keyboard: true },
+        }
+      )
+
+      console.log('🔥 [CRITICAL] Status message sent successfully!')
+
+      logger.info('[generateFluxKontext] Status message sent successfully', {
+        telegram_id,
+      })
+    } catch (messageError) {
+      console.error('🚨 [CRITICAL] Status message failed:', {
+        telegram_id,
+        error: messageError,
+        errorMessage:
+          messageError instanceof Error
+            ? messageError.message
+            : 'Unknown error',
+      })
+
+      logger.error('[generateFluxKontext] Failed to send status message:', {
+        telegram_id,
+        error: messageError,
+      })
+      // Продолжаем выполнение даже если сообщение не отправилось
+    }
 
     // Подготовка параметров для API
     const inputParams = {
       prompt,
       input_image: inputImageUrl,
+      aspect_ratio: '9:16', // Формат для Instagram Stories
     }
+
+    console.log('🔥 [CRITICAL] About to call Replicate API:', {
+      modelKey,
+      inputParams: {
+        prompt: prompt.substring(0, 100) + '...',
+        input_image: inputImageUrl ? 'present' : 'missing',
+      },
+      telegram_id,
+    })
 
     logger.info(`FLUX Kontext editing started`, {
       modelKey,
@@ -142,12 +198,64 @@ export const generateFluxKontext = async (
       inputParams,
     })
 
-    // Генерация отредактированного изображения
-    const output: ApiResponse = (await replicate.run(modelKey as any, {
-      input: inputParams,
-    })) as ApiResponse
+    console.log('🔥 [CRITICAL] Calling replicate.run...')
+
+    let output: ApiResponse
+    try {
+      // Первая попытка с оригинальным промптом
+      output = (await replicate.run(modelKey as any, {
+        input: inputParams,
+      })) as ApiResponse
+    } catch (error: any) {
+      console.log('🚨 [CRITICAL] First attempt failed, checking error type:', {
+        errorMessage: error?.message,
+        isSensitiveContent: error?.message?.includes('E005'),
+      })
+
+      // Если ошибка связана с чувствительным контентом, пробуем упрощенный промпт
+      if (
+        error?.message?.includes('E005') ||
+        error?.message?.includes('sensitive')
+      ) {
+        console.log('🔄 [CRITICAL] Retrying with safer prompt...')
+
+        // Создаем безопасный fallback промпт
+        const safePrompt = `[Portrait. Aspect ratio 9:16] Professional headshot of a person in stylish modern clothing. Clean studio lighting, neutral background, fashionable appearance.`
+
+        const safeInputParams = {
+          ...inputParams,
+          prompt: safePrompt,
+        }
+
+        try {
+          output = (await replicate.run(modelKey as any, {
+            input: safeInputParams,
+          })) as ApiResponse
+
+          console.log('✅ [CRITICAL] Fallback prompt succeeded!')
+        } catch (fallbackError: any) {
+          console.error('🚨 [CRITICAL] Even fallback failed:', fallbackError)
+          throw error // Бросаем оригинальную ошибку
+        }
+      } else {
+        throw error // Бросаем оригинальную ошибку для других типов ошибок
+      }
+    }
+
+    console.log('🔥 [CRITICAL] Replicate API completed!')
+
+    logger.info('[generateFluxKontext] API generation completed', {
+      telegram_id,
+      outputReceived: !!output,
+      modelKey,
+    })
 
     const editedImageUrl = await processApiResponse(output)
+
+    logger.info('[generateFluxKontext] Image URL processed', {
+      telegram_id,
+      editedImageUrl: editedImageUrl ? 'received' : 'failed',
+    })
 
     // Сохранение локально
     const imageLocalPath = await saveFileLocally(
@@ -157,9 +265,20 @@ export const generateFluxKontext = async (
       '.jpeg'
     )
 
+    console.log('🔥 [CRITICAL] File saved locally:', {
+      imageLocalPath,
+      telegram_id,
+      fileExists: fs.existsSync(imageLocalPath),
+    })
+
     const imageLocalUrl = `/uploads/${telegram_id}/flux-kontext-edit/${path.basename(
       imageLocalPath
     )}`
+
+    console.log('🔥 [CRITICAL] Local URL created:', {
+      imageLocalUrl,
+      telegram_id,
+    })
 
     // Сохранение промпта
     const prompt_id = await savePrompt(
@@ -169,15 +288,63 @@ export const generateFluxKontext = async (
       Number(telegram_id)
     )
 
+    console.log('🔥 [CRITICAL] Prompt saved:', {
+      prompt_id,
+      telegram_id,
+    })
+
     if (prompt_id === null) {
+      console.error('🚨 [CRITICAL] prompt_id is null!', { telegram_id })
       throw new Error('prompt_id is null')
     }
+
+    console.log('🔥 [CRITICAL] About to download file for sending:', {
+      editedImageUrl,
+      telegram_id,
+    })
 
     // Скачивание для отправки
     const image = await downloadFile(editedImageUrl)
 
+    console.log('🔥 [CRITICAL] File downloaded for sending:', {
+      imageSize: image?.length || 'unknown',
+      telegram_id,
+    })
+
+    logger.info('[generateFluxKontext] About to send photo to user', {
+      telegram_id,
+      imageLocalPath,
+      fileExists: fs.existsSync(imageLocalPath),
+      mode: 'edit',
+      modelType,
+    })
+
+    console.log('🔥 [CRITICAL] About to call ctx.telegram.sendPhoto:', {
+      telegram_id,
+      imageLocalPath,
+      fileExists: fs.existsSync(imageLocalPath),
+      mode: 'edit',
+    })
+
     // Отправка отредактированного изображения с обработкой ошибок
     try {
+      console.log('🔥 [CRITICAL] Calling ctx.telegram.sendPhoto now...')
+
+      // Укорачиваем промпт для подписи (Telegram лимит: 1024 символа)
+      const maxPromptLength = 600 // Оставляем больше места для рекламы бота
+      const shortPrompt =
+        prompt.length > maxPromptLength
+          ? prompt.substring(0, maxPromptLength) + '...'
+          : prompt
+
+      // Получаем имя бота для рекламы
+      const botUsername = ctx.botInfo?.username || 'neuroblogger_bot'
+
+      // Лид-магнет: призыв к покупке полной версии
+      const leadMagnetPromo = is_ru
+        ? `\n\n🎯 <b>Вам понравилось?</b>\n\n💡 Это лишь ДЕМО наших AI-возможностей!\n🔥 В полной версии доступны:\n• ЛЮБЫЕ стили и образы\n• Неограниченные трансформации\n• Эксклюзивные AI-модели\n• Приоритетная обработка\n\n💰 Оформите подписку и получите доступ ко ВСЕМ функциям бота!\n📱 Нажмите /start для покупки\n\n🤖 Создано в @${botUsername}`
+        : `\n\n🎯 <b>Did you like it?</b>\n\n💡 This is just a DEMO of our AI capabilities!\n🔥 In full version available:\n• ANY styles and looks\n• Unlimited transformations\n• Exclusive AI models\n• Priority processing\n\n💰 Get subscription and access ALL bot features!\n📱 Press /start to purchase\n\n🤖 Created by @${botUsername}`
+
       await ctx.telegram.sendPhoto(
         telegram_id,
         {
@@ -185,10 +352,15 @@ export const generateFluxKontext = async (
         },
         {
           caption: is_ru
-            ? `✨ Изображение отредактировано!\n\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}`
-            : `✨ Image edited!\n\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}`,
-          reply_markup: createEditResultKeyboard(is_ru).reply_markup,
+            ? `🎨 <b>Демо-трансформация завершена!</b>\n\n✨ Пример стиля применён успешно\n🚀 Технология: FLUX Kontext ${modelType.toUpperCase()}${leadMagnetPromo}`
+            : `🎨 <b>Demo transformation completed!</b>\n\n✨ Example style applied successfully\n🚀 Technology: FLUX Kontext ${modelType.toUpperCase()}${leadMagnetPromo}`,
+          parse_mode: 'HTML',
+          // Убираем reply_markup - больше никаких кнопок!
         }
+      )
+
+      console.log(
+        '🔥 [CRITICAL] ctx.telegram.sendPhoto completed successfully!'
       )
 
       logger.info('[generateFluxKontext] Photo sent successfully', {
@@ -197,6 +369,14 @@ export const generateFluxKontext = async (
         modelType,
       })
     } catch (photoError) {
+      console.error('🚨 [CRITICAL] ctx.telegram.sendPhoto FAILED:', {
+        telegram_id,
+        error: photoError,
+        errorMessage:
+          photoError instanceof Error ? photoError.message : 'Unknown error',
+        errorStack: photoError instanceof Error ? photoError.stack : undefined,
+      })
+
       logger.error('[generateFluxKontext] Failed to send photo:', {
         telegram_id,
         error: photoError,
@@ -204,15 +384,18 @@ export const generateFluxKontext = async (
         mode: 'edit',
       })
 
-      // Отправляем текстовое сообщение как fallback
+      console.log('🔥 [CRITICAL] Sending fallback error message...')
+
       await ctx.reply(
         is_ru
-          ? `❌ *Ошибка при отправке изображения*\n\n✨ Ваш магнетический образ был создан успешно!\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}\n\n💡 Попробуйте запросить изображение еще раз`
-          : `❌ *Error sending image*\n\n✨ Your magnetic look was created successfully!\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}\n\n💡 Try requesting the image again`,
+          ? `❌ *Ошибка при отправке изображения*\n\n🔄 Изображение было создано, но произошла ошибка при отправке\n💡 Попробуйте позже или обратитесь в поддержку\n\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}`
+          : `❌ *Error sending image*\n\n🔄 Image was created but failed to send\n💡 Try later or contact support\n\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}`,
         { parse_mode: 'Markdown' }
       )
 
-      // Не выбрасываем ошибку, чтобы не сломать весь процесс
+      console.log('🔥 [CRITICAL] Fallback message sent')
+
+      // НЕ выбрасываем ошибку - позволяем процессу завершиться нормально
     }
 
     // Сохраняем информацию о последнем изображении для upscaling
@@ -348,7 +531,16 @@ export const generateAdvancedFluxKontext = async (
       is_ru,
     })
 
+    console.log('🔥 [CRITICAL] Balance check completed:', {
+      success: balanceCheck.success,
+      telegram_id,
+    })
+
     if (!balanceCheck.success) {
+      console.error('🚨 [CRITICAL] Balance check failed:', {
+        telegram_id,
+        balanceCheck,
+      })
       throw new Error('Not enough stars')
     }
 
@@ -635,7 +827,16 @@ export const upscaleFluxKontextImage = async (params: {
       is_ru,
     })
 
+    console.log('🔥 [CRITICAL] Balance check completed:', {
+      success: balanceCheck.success,
+      telegram_id,
+    })
+
     if (!balanceCheck.success) {
+      console.error('🚨 [CRITICAL] Balance check failed:', {
+        telegram_id,
+        balanceCheck,
+      })
       throw new Error('Not enough stars')
     }
 
@@ -707,7 +908,26 @@ export const upscaleFluxKontextImage = async (params: {
         caption: is_ru
           ? `⬆️ Качество изображения увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n🎯 Режим: Сохранение оригинала\n✨ Качество: Высокое без искажений\n💎 Стоимость: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Исходный запрос: ${originalPrompt}` : ''}`
           : `⬆️ Image quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n🎯 Mode: Original preservation\n✨ Quality: High without distortion\n💎 Cost: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Original prompt: ${originalPrompt}` : ''}`,
-        reply_markup: createEditResultKeyboard(is_ru).reply_markup,
+        reply_markup: Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              is_ru ? '✨ Ещё редактирование' : '✨ More editing',
+              'more_editing'
+            ),
+          ],
+          [
+            Markup.button.callback(
+              is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
+              'upscale_image'
+            ),
+          ],
+          [
+            Markup.button.callback(
+              is_ru ? '🏠 Главное меню' : '🏠 Main menu',
+              'go_main_menu'
+            ),
+          ],
+        ]).reply_markup,
       }
     )
 

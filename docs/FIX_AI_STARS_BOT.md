@@ -36,7 +36,7 @@ INSERT INTO avatars (
 Убедитесь, что в `docker-compose.yml` или `.env` есть:
 
 ```env
-BOT_TOKEN_9=8064644741:AAFKPIVlAbdn0EeI5MJIM0gxpJ-J_55D7UQ
+BOT_TOKEN_9=YOUR_AI_STARS_BOT_TOKEN_HERE
 ```
 
 ### 3. Пересобрать и перезапустить контейнер
