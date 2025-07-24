@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { isDev } from '@/config'
 /**
@@ -54,7 +54,7 @@ export async function handleRestartVideoGeneration(
     }
 
     await ctx.reply(
-      isRussian(ctx)
+      isRussianFromState(ctx)
         ? 'Не удалось определить предыдущий режим генерации видео. Пожалуйста, вернитесь в /menu.'
         : 'Could not determine the previous video generation mode. Please return to /menu.'
     )

@@ -10,7 +10,7 @@ import {
   subscriptionTitles,
 } from './helper'
 import { setPayments } from '@/core/supabase'
-import { WizardScene } from 'telegraf/scenes'
+import { Scenes } from 'telegraf'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import {
@@ -185,7 +185,7 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
   }
 }
 
-export const getRuBillWizard = new WizardScene(
+export const getRuBillWizard = new Scenes.WizardScene(
   'getRuBillWizard',
   generateInvoiceStep
 )

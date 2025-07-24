@@ -21,7 +21,7 @@ export function simulateSubscriptionForDev(
 
   // --- !!! РЕЖИМ РАЗРАБОТКИ: СИМУЛЯЦИЯ ПОДПИСКИ !!! ---
   // Проверяем переменную окружения для конкретной симуляции
-  const devSimulateSubscription = process.env.DEV_SIMULATE_SUBSCRIPTION
+  const devSimulateSubscription = process.env.DEV_SIMULATE_SUBSCRIPTION || ''
 
   logger.info('[DEV SIMULATION] Debug env variable', {
     DEV_SIMULATE_SUBSCRIPTION: devSimulateSubscription,

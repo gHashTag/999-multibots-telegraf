@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { setAspectRatio } from '@/core/supabase'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 
 export async function handleSizeSelection(ctx: MyContext, size: string) {
@@ -11,7 +11,7 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
     return
   }
   const success = await setAspectRatio(ctx.from.id, size)
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
 
   if (success) {
     await ctx.reply(

@@ -17,10 +17,34 @@ import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
+import { isRussianWithUserChoice } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { getParsingAccess } from '@/menu/mainMenu'
+import { getBotNameByToken } from '@/core/bot'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
-  const isRu = isRussian(ctx)
+
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MENUSCENE
+  const telegramId = ctx.from?.id?.toString()
+  logger.info(`[menuCommandStep] 🎭 SCENE STARTED:`, {
+    telegramId,
+    sessionLanguage: ctx.session?.userLanguage,
+    telegramLanguage: ctx.from?.language_code,
+    sessionExists: !!ctx.session,
+  })
+
+  // ✅ ИСПОЛЬЗУЕМ АСИНХРОННУЮ ФУНКЦИЮ (БД ONLY)
+  const isRu = await isRussianWithUserChoice(ctx)
+
+  logger.info(`[menuCommandStep] Language determination:`, {
+    telegramId,
+    isRu,
+    sessionLanguage: ctx.session?.userLanguage,
+    telegramLanguage: ctx.from?.language_code,
+    functionUsed: 'isRussianWithUserChoice',
+  })
+
   try {
     const telegram_id = ctx.from?.id?.toString() || ''
 
@@ -296,6 +320,90 @@ const menuNextStep = async (ctx: MyContext) => {
       }
     }
 
+    // 🔍 ПЕРСОНАЛИЗИРОВАННАЯ ОБРАБОТКА КНОПКИ ПАРСИНГ ПО БОТАМ
+    if (text === '🔍 Парсинг' || text === '🔍 Parsing') {
+      const userId = ctx.from?.id?.toString()
+      const botToken = ctx.telegram.token
+
+      logger.info(`[menuNextStep] PARSING BUTTON HANDLING: ${text}`, {
+        telegramId: ctx.from?.id,
+        userId,
+        botName: getBotNameByToken(botToken).bot_name,
+      })
+
+      if (!userId) {
+        logger.warn('Instagram parsing access denied - no user ID', {
+          telegramId: ctx.from?.id,
+        })
+        await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+        return
+      }
+
+      // 🔍 Проверяем доступ к парсингу для текущего бота
+      const parsingAccess = getParsingAccess(userId, botToken)
+
+      if (!parsingAccess.hasAccess) {
+        const { bot_name } = getBotNameByToken(botToken)
+
+        logger.warn('Instagram parsing access denied in menuScene', {
+          telegramId: ctx.from?.id,
+          userId,
+          botName: bot_name,
+          reason: 'Not in bot staff list',
+        })
+
+        const isRu = isRussianFromState(ctx)
+        await ctx.reply(
+          isRu
+            ? '❌ У вас нет доступа к функции парсинга Instagram.'
+            : '❌ You do not have access to Instagram parsing feature.'
+        )
+        return // Останавливаем обработку
+      }
+
+      try {
+        const { bot_name } = getBotNameByToken(botToken)
+
+        logger.info(
+          'Instagram parsing access granted - entering wizard from menuScene',
+          {
+            telegramId: ctx.from?.id,
+            userId,
+            botName: bot_name,
+            allowedProjects: parsingAccess.allowedProjects,
+          }
+        )
+
+        await ctx.scene.leave() // Выходим из menuScene
+        ctx.session.mode = ModeEnum.InstagramScrapingWizard
+        await ctx.scene.enter(ModeEnum.InstagramScrapingWizard)
+
+        logger.info(
+          'Successfully entered Instagram scraping wizard from menuScene',
+          {
+            telegramId: ctx.from?.id,
+            botName: bot_name,
+          }
+        )
+        return // Explicitly handled
+      } catch (error) {
+        logger.error(
+          'Error entering Instagram scraping wizard from menuScene:',
+          {
+            error,
+            telegramId: ctx.from?.id,
+          }
+        )
+
+        const isRu = isRussianFromState(ctx)
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка при запуске парсинга Instagram. Попробуйте позже.'
+            : '❌ Error starting Instagram parsing. Please try again later.'
+        )
+      }
+    }
+
     // Specific text button handling (example: "Generate new video?")
     if (
       text === '🎥 Сгенерировать новое видео?' ||
@@ -312,7 +420,6 @@ const menuNextStep = async (ctx: MyContext) => {
     // and not a command (which should be handled globally),
     // we can consider it an unhandled text message within the menu scene.
     // For now, we can log it and do nothing, or re-send the menu.
-    // Let's re-send the menu if it's an unexpected text.
     // However, handleMenu is designed to map button texts to actions.
     // If the text matches a known menu button text, handleMenu will process it.
     // This means regular menu button presses (not commands, not callbacks) will still work.
@@ -355,7 +462,7 @@ export const menuScene = new Scenes.WizardScene(
 
 // Обработчик для inline кнопки "Оформить подписку"
 menuScene.action('go_to_subscription_scene', async ctx => {
-  const isRu = ctx.from?.language_code === 'ru'
+  const isRu = isRussianFromState(ctx)
   logger.info('MENU SCENE ACTION: go_to_subscription_scene', {
     telegramId: ctx.from?.id,
   })

@@ -1,7 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleTrainingCost } from '@/price/helpers'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import {
@@ -15,7 +15,7 @@ import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body_2',
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const showRubles = shouldShowRubles(ctx)
     const costMessage = generateCostMessage(
       stepOptions.v2,
@@ -28,7 +28,7 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     console.log('Entering step 2 of the wizard')
     if (ctx.message && 'text' in ctx.message) {
       const messageText = ctx.message.text

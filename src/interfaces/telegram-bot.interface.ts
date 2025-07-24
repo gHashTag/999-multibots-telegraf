@@ -1,13 +1,17 @@
 import { Context, NarrowedContext, Scenes } from 'telegraf'
 import type { ModelUrl, UserModel } from './index'
 import type { Update, Message } from 'telegraf/types'
+import type { User } from 'telegraf/typings/core/types/typegram'
 import { Buffer } from 'buffer'
 
 import { BroadcastContentType } from './broadcast.interface'
 import { SubscriptionType } from './subscription.interface'
 import type { TranslationButton } from './supabase.interface'
 import type { SessionPayment } from './payments.interface'
-import type { SceneContextScene, WizardContextWizard } from 'telegraf/scenes'
+import type {
+  SceneContextScene,
+  WizardContextWizard,
+} from 'telegraf/typings/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
 
@@ -168,6 +172,7 @@ export type BotName =
   | 'Kaya_easy_art_bot'
   | 'AI_STARS_bot'
   | 'TestNeurocoder_bot'
+  | 'HaimGroupMedia_bot'
 
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cursor: number
@@ -188,6 +193,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   inviteCode?: string
   inviter?: string
   paymentAmount?: number
+  botName?: string
   selectedImageModel?: string
   promoProcessed?: boolean
   subscriptionStep?:
@@ -233,6 +239,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   isAdminTest?: boolean
   isSizeFresh?: boolean
   selectedResolution?: string // Добавлено для выбора разрешения Seedance (480p/1080p)
+  userLanguage?: 'ru' | 'en'
 
   // FLUX Kontext fields
   awaitingFluxKontextImage?: boolean
@@ -276,13 +283,17 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
 export interface MyContext extends Context {
   session: MySession
-  scene: SceneContextScene<MyContext, MyWizardSession>
-  wizard: WizardContextWizard<MyContext>
+  scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
+  wizard: Scenes.WizardContextWizard<MyContext>
   update: Update
   botInfo: any
   reply: (text: string, extra?: any) => Promise<any>
   chat: any
   from: any
+  state: {
+    userLanguage?: 'ru' | 'en'
+    [key: string]: any
+  }
 }
 
 export type MyWizardContext = MyContext & Scenes.WizardContext<MyWizardSession>

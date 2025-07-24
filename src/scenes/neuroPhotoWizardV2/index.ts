@@ -7,6 +7,8 @@ import {
   getReferalsCountAndUserData,
   getUserData,
 } from '@/core/supabase'
+// ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
+import { getLatestUserModelForHaim } from '@/core/supabase/getLatestUserModelForHaim'
 import {
   levels,
   mainMenu,
@@ -14,23 +16,63 @@ import {
   sendPhotoDescriptionRequest,
 } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { WizardScene } from 'telegraf/scenes'
+import { Scenes } from 'telegraf'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
+// ✅ ЗАМЕНЯЕМ НА НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
+// ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
+import { getBotNameByToken } from '@/core/bot'
+
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
-  const isRu = ctx.from?.language_code === 'ru'
+  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  const isRu = isRussianFromState(ctx)
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
 
-    const { telegramId } = getUserInfo(ctx)
-    const userModel = await getLatestUserModel(Number(telegramId), 'bfl')
-    console.log('userModel', userModel)
+    const { telegramId } = await getUserInfo(ctx)
+
+    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
+    const botToken = ctx.telegram.token
+    const { bot_name } = getBotNameByToken(botToken)
+    console.log(
+      `🤖 Определен бот V2: ${bot_name} для пользователя ${telegramId}`
+    )
+
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
+    let userModel = null
+
+    if (bot_name === 'HaimGroupMedia_bot') {
+      console.log('🎯 Используем расширенную функцию V2 для HaimGroupMedia_bot')
+      userModel = await getLatestUserModelForHaim(
+        Number(telegramId),
+        'bfl',
+        bot_name
+      )
+
+      // Если нет BFL модели, пробуем replicate
+      if (!userModel) {
+        console.log(
+          '🔄 BFL модель не найдена, пробуем replicate для HaimGroupMedia_bot'
+        )
+        userModel = await getLatestUserModelForHaim(
+          Number(telegramId),
+          'replicate',
+          bot_name
+        )
+      }
+    } else {
+      console.log('🔧 Используем стандартную функцию V2 для обычного бота')
+      userModel = await getLatestUserModel(Number(telegramId), 'bfl')
+    }
+
+    console.log('userModel V2', userModel)
 
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
-    if (!userModel || !userModel.finetune_id) {
+    if (!userModel) {
       await ctx.reply(
         isRu
           ? '❌ У вас нет обученных моделей.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото в вашим лицом. '
@@ -51,7 +93,18 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       return ctx.scene.leave()
     }
 
-    ctx.session.userModel = userModel as UserModel
+    // ✅ ОБРАБАТЫВАЕМ ОБЩИЕ МОДЕЛИ (УБИРАЕМ ПРЕФИКС shared_ ДЛЯ ИСПОЛЬЗОВАНИЯ)
+    let modelToUse = userModel
+    const isSharedModel = userModel.id.toString().startsWith('shared_')
+    if (isSharedModel) {
+      modelToUse = {
+        ...userModel,
+        id: userModel.id.toString().replace('shared_', ''), // Убираем префикс для использования
+      }
+      console.log(`✅ Используем общую модель V2: ${userModel.model_name}`)
+    }
+
+    ctx.session.userModel = modelToUse as UserModel
 
     await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
     const isCancel = await handleHelpCancel(ctx)
@@ -59,11 +112,11 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     if (isCancel) {
       return ctx.scene.leave()
     }
-    console.log('CASE: neuroPhotoConversation next')
+    console.log('CASE: neuroPhotoConversation V2 next')
 
     return ctx.wizard.next()
   } catch (error) {
-    console.error('Error in neuroPhotoConversationStep:', error)
+    console.error('Error in neuroPhotoConversationStep V2:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
     throw error
   }
@@ -71,7 +124,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
 const neuroPhotoPromptStep = async (ctx: MyContext) => {
   console.log('CASE 2: neuroPhotoPromptStep')
-  const isRu = ctx.from?.language_code === 'ru'
+  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  const isRu = isRussianFromState(ctx)
   const promptMsg = ctx.message
   console.log(promptMsg, 'promptMsg')
 
@@ -110,7 +164,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
         await generateNeuroPhotoHybrid(
           fullPrompt,
-          ctx.session.userModel.model_url,
+          ctx.session.userModel.model_url as any,
           1,
           userId.toString(),
           ctx,
@@ -133,7 +187,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
     console.log(`CASE: Нажата кнопка ${text}`)
-    const isRu = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
 
     // НОВАЯ ОБРАБОТКА: кнопка "🆕 Новый промпт"
     if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {
@@ -202,7 +257,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const generate = async (num: number) => {
       await generateNeuroPhotoHybrid(
         fullPrompt,
-        ctx.session.userModel.model_url,
+        ctx.session.userModel.model_url as any,
         num,
         userId.toString(),
         ctx,
@@ -226,7 +281,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
   }
 }
 
-export const neuroPhotoWizardV2 = new WizardScene<MyContext>(
+export const neuroPhotoWizardV2 = new Scenes.WizardScene<MyContext>(
   'neuro_photo_v2',
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
