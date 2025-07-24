@@ -686,21 +686,32 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         telegramId,
       })
 
-      // 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: generateFluxKontext уже отправляет изображение и финальное сообщение
-      // Убираем дублирующие сообщения и переходы в меню!
+      // 🚀 ПОКАЗЫВАЕМ ПРЕДЛОЖЕНИЕ ПОДПИСКИ ПОСЛЕ ДЕМОНСТРАЦИИ
+      await ctx.reply(
+        isRu
+          ? `🎉 <b>Демо-трансформация завершена!</b>\n\n😊 Вам понравилось? Это лишь ОДНА из сотен возможностей нашего бота!\n\n💎 <b>С подпиской вы получите:</b>\n✨ Безлимитные трансформации\n🎨 Сотни стилей и образов\n🖼️ Все возможности бота\n🚀 Новые функции каждую неделю\n\n💰 Оформите подписку прямо сейчас:`
+          : `🎉 <b>Demo transformation completed!</b>\n\n😊 Did you like it? This is just ONE of hundreds of our bot's capabilities!\n\n💎 <b>With subscription you get:</b>\n✨ Unlimited transformations\n🎨 Hundreds of styles and looks\n🖼️ All bot capabilities\n🚀 New features every week\n\n💰 Get your subscription right now:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: Markup.keyboard([
+            [isRu ? '💫 Оформить подписку' : '💫 Subscribe'],
+            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+          ]).resize().reply_markup,
+        }
+      )
 
       // ВАЖНО: Полностью выходим из сцены, чтобы команда /start снова работала
       await ctx.scene.leave()
 
       logger.info(
-        '[AvatarTransformScene] Successfully completed transformation and fully exited scene',
+        '[AvatarTransformScene] Successfully completed transformation, showed subscription offer, and fully exited scene',
         {
           telegramId,
-          step: 'completed_and_exited',
+          step: 'completed_with_subscription_offer',
         }
       )
 
-      // НЕ переходим в меню - пользователь может сам использовать /start или кнопки
+      // НЕ переходим в меню - пользователь может сам использовать кнопки
       return // Завершаем выполнение
     } catch (error) {
       logger.error('[AvatarTransformScene] Generation error', {
