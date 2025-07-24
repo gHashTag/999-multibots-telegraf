@@ -9,6 +9,9 @@ import { cancelMenu } from '@/menu/cancelMenu'
 import { cancelHelpArray } from '@/menu/cancelHelpArray'
 import { ModeEnum } from '@/interfaces'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { sendGenericErrorMessage } from '@/menu'
+import { handleMenu } from '@/handlers/handleMenu'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 // Создание клавиатуры выбора модели
 const createModelSelectionKeyboard = (is_ru: boolean) => {
@@ -74,13 +77,12 @@ const getInstructions = (is_ru: boolean) => {
 
 export const handleFluxKontextCommand = async (ctx: MyContext) => {
   try {
-    const telegram_id = ctx.from?.id?.toString()
-    if (!telegram_id) {
-      return
-    }
+    logger.info('🎨 [FLUX Kontext] Starting image editing workflow', {
+      userId: ctx.from?.id,
+    })
 
-    // Используем стандартный способ определения языка
-    const is_ru = ctx.from?.language_code === 'ru'
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
 
     const instructions = getInstructions(is_ru)
 
@@ -93,41 +95,38 @@ export const handleFluxKontextCommand = async (ctx: MyContext) => {
 
     await ctx.reply(
       is_ru
-        ? '📷 Отправьте изображение, которое хотите отредактировать:'
-        : '📷 Send an image you want to edit:',
-      {
-        reply_markup: cancelMenu(is_ru).reply_markup,
-      }
+        ? '🎨 Добро пожаловать в FLUX Kontext!\n\n📷 Пожалуйста, отправьте изображение, которое вы хотите отредактировать:'
+        : '🎨 Welcome to FLUX Kontext!\n\n📷 Please send an image you want to edit:',
+      Markup.keyboard([
+        [is_ru ? 'Отмена' : 'Cancel'],
+        [is_ru ? 'Справка по команде' : 'Help for the command'],
+      ]).resize()
     )
 
-    // Устанавливаем сессию для ожидания изображения
-    if (ctx.session) {
-      ctx.session.awaitingFluxKontextImage = true
-      ctx.session.mode = ModeEnum.FluxKontext // Устанавливаем режим для справки
-    }
+    // Устанавливаем флаг ожидания изображения
+    ctx.session.awaitingFluxKontextImage = true
+    delete ctx.session.awaitingFluxKontextPrompt
   } catch (error) {
-    logger.error('Error in FLUX Kontext command', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegram_id: ctx.from?.id,
-    })
-
-    const is_ru = ctx.from?.language_code === 'ru'
-    await ctx.reply(
-      is_ru
-        ? '❌ Произошла ошибка. Попробуйте ещё раз.'
-        : '❌ An error occurred. Please try again.'
-    )
+    logger.error('❌ [FLUX Kontext] Error in handleFluxKontextCommand:', error)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+    await sendGenericErrorMessage(ctx, is_ru, error)
   }
 }
 
-export const handleFluxKontextImageUpload = async (ctx: MyContext) => {
+export const handleFluxKontextImage = async (ctx: MyContext) => {
   try {
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+
+    logger.info('📷 [FLUX Kontext] Processing uploaded image', {
+      userId: ctx.from?.id,
+    })
+
     const telegram_id = ctx.from?.id?.toString()
     if (!telegram_id) {
       return
     }
-
-    const is_ru = ctx.from?.language_code === 'ru'
 
     // Проверяем, что пользователь в процессе Kontext редактирования
     if (!ctx.session?.awaitingFluxKontextImage) {
@@ -193,17 +192,10 @@ export const handleFluxKontextImageUpload = async (ctx: MyContext) => {
       }
     }
   } catch (error) {
-    logger.error('Error handling FLUX Kontext image upload', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegram_id: ctx.from?.id,
-    })
-
-    const is_ru = ctx.from?.language_code === 'ru'
-    await ctx.reply(
-      is_ru
-        ? '❌ Произошла ошибка при обработке изображения.'
-        : '❌ Error processing image.'
-    )
+    logger.error('❌ [FLUX Kontext] Error in handleFluxKontextImage:', error)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+    await sendGenericErrorMessage(ctx, is_ru, error)
   }
 }
 
@@ -217,7 +209,7 @@ export const handleFluxKontextModelSelection = async (
       return
     }
 
-    const is_ru = ctx.from?.language_code === 'ru'
+    const is_ru = isRussianFromState(ctx)
 
     // Проверяем, что пользователь выбирает модель для Kontext
     if (
@@ -253,12 +245,8 @@ export const handleFluxKontextModelSelection = async (
       modelType,
     })
 
-    const is_ru = ctx.from?.language_code === 'ru'
-    await ctx.reply(
-      is_ru
-        ? '❌ Произошла ошибка при выборе модели.'
-        : '❌ Error selecting model.'
-    )
+    const is_ru = isRussianFromState(ctx)
+    await sendGenericErrorMessage(ctx, is_ru, error)
   }
 }
 
@@ -267,12 +255,13 @@ export const handleFluxKontextPrompt = async (
   prompt: string
 ) => {
   try {
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+
     const telegram_id = ctx.from?.id?.toString()
     if (!telegram_id) {
       return
     }
-
-    const is_ru = ctx.from?.language_code === 'ru'
 
     // Проверяем, что пользователь вводит промпт для Kontext
     if (
@@ -309,17 +298,47 @@ export const handleFluxKontextPrompt = async (
     // Запускаем редактирование
     await generateFluxKontext(params)
   } catch (error) {
-    logger.error('Error handling FLUX Kontext prompt', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegram_id: ctx.from?.id,
-      prompt,
-    })
-
-    const is_ru = ctx.from?.language_code === 'ru'
-    await ctx.reply(
-      is_ru
-        ? '❌ Произошла ошибка при редактировании изображения.'
-        : '❌ Error editing image.'
-    )
+    logger.error('❌ [FLUX Kontext] Error in handleFluxKontextPrompt:', error)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+    await sendGenericErrorMessage(ctx, is_ru, error)
   }
+}
+
+export const handleFluxKontextCallback = async (ctx: MyContext) => {
+  try {
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+
+    // ... existing code ...
+  } catch (error) {
+    logger.error('❌ [FLUX Kontext] Error in handleFluxKontextCallback:', error)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+    await sendGenericErrorMessage(ctx, is_ru, error)
+  }
+}
+
+export const processFluxKontextGeneration = async (ctx: MyContext) => {
+  try {
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+
+    // ... existing code ...
+  } catch (error) {
+    logger.error(
+      '❌ [FLUX Kontext] Error in processFluxKontextGeneration:',
+      error
+    )
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const is_ru = isRussianFromState(ctx)
+    await sendGenericErrorMessage(ctx, is_ru, error)
+  }
+}
+
+export const cleanupFluxKontextSession = (ctx: MyContext) => {
+  delete ctx.session.awaitingFluxKontextImage
+  delete ctx.session.awaitingFluxKontextPrompt
+  delete ctx.session.kontextImageUrl
+  delete ctx.session.kontextModelType
 }

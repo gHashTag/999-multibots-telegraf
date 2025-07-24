@@ -1,7 +1,8 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { FLUX_KONTEXT_MODELS } from '../../price/models/FLUX_KONTEXT_MODELS'
-import { isRussian } from '../../helpers/language'
+// ✅ ЗАМЕНИЛИ НА НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ!
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserBalance } from '../../core/supabase'
 import { logger } from '../../utils/logger'
 import { handleFluxKontextCommand } from '@/commands/fluxKontextCommand'
@@ -122,7 +123,8 @@ const createModelSelectionKeyboard = (isRu: boolean) => {
 // Вход в сцену
 fluxKontextScene.enter(async ctx => {
   try {
-    const isRu = isRussian(ctx)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
 
     if (!ctx.from?.id) {
       await ctx.reply(
@@ -189,7 +191,7 @@ Object.keys(FLUX_MODES).forEach(modeKey => {
   fluxKontextScene.action(`flux_mode_${modeKey}`, async ctx => {
     try {
       await ctx.answerCbQuery()
-      const isRu = isRussian(ctx)
+      const isRu = isRussianFromState(ctx)
 
       if (ctx.session) {
         ctx.session.fluxKontextMode = modeKey as any
@@ -274,7 +276,7 @@ const handleModelSelection = async (
   ctx: MyContext,
   modelType: 'pro' | 'max'
 ) => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const model =
     FLUX_KONTEXT_MODELS[`black-forest-labs/flux-kontext-${modelType}`]
 
@@ -299,7 +301,7 @@ const handleModelSelection = async (
 // Обработка изображений
 fluxKontextScene.on('photo', async ctx => {
   try {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
 
     logger.info('🎯 FLUX Kontext: Photo received', {
       telegramId: ctx.from?.id,
@@ -397,7 +399,7 @@ fluxKontextScene.on('photo', async ctx => {
 
 // Функция запроса промпта
 const requestPrompt = async (ctx: MyContext) => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
   const mode =
     FLUX_MODES[ctx.session?.fluxKontextMode as keyof typeof FLUX_MODES]
 
@@ -462,7 +464,7 @@ const requestPrompt = async (ctx: MyContext) => {
 // Обработка текстовых сообщений (промптов)
 fluxKontextScene.on('text', async ctx => {
   try {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const messageText = ctx.message.text
 
     // 🚨 ВАЖНО: Проверяем, не является ли это командой
@@ -538,7 +540,7 @@ fluxKontextScene.on('text', async ctx => {
 
 // Функция обработки запроса (теперь с реальной интеграцией)
 const processFluxKontextRequest = async (ctx: MyContext, prompt: string) => {
-  const isRu = isRussian(ctx)
+  const isRu = isRussianFromState(ctx)
 
   // Получаем данные из сессии
   const {
@@ -649,7 +651,7 @@ const processFluxKontextRequest = async (ctx: MyContext, prompt: string) => {
 fluxKontextScene.action('flux_kontext_retry', async ctx => {
   try {
     await ctx.answerCbQuery()
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
 
     await ctx.reply(
       isRu
@@ -703,7 +705,7 @@ fluxKontextScene.action('flux_more_editing', async ctx => {
 fluxKontextScene.action('flux_kontext_cancel', async ctx => {
   try {
     await ctx.answerCbQuery()
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
 
     await ctx.reply(
       isRu

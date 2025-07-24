@@ -5,7 +5,7 @@ import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
 
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import {
@@ -73,6 +73,8 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     startNumber = parts.length > 1 ? parts[1] : ''
   }
 
+  ctx.session.botName = botName
+
   // Use extracted invite code if available, otherwise use legacy extraction
   // Only set referral code if it's not a promo link AND it's a numeric code
   if (!ctx.session.inviteCode && startNumber && !promoInfo?.isPromo) {
@@ -107,7 +109,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   if (wasCreated) {
     // Если да, сообщаем об успешном создании
     await ctx.reply(
-      isRussian(ctx)
+      isRussianFromState(ctx)
         ? '✅ Аватар успешно создан! Добро пожаловать!'
         : '✅ Avatar created successfully! Welcome!'
     )
@@ -136,7 +138,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           // Устанавливаем флаг, что промо обработано
           ctx.session.promoProcessed = true
 
-          const isRu = isRussian(ctx)
+          const isRu = isRussianFromState(ctx)
           let message = ''
 
           if (promoType === 'neurovideo') {
@@ -194,7 +196,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         })
 
         await ctx.reply(
-          isRussian(ctx)
+          isRussianFromState(ctx)
             ? '❌ Произошла ошибка при обработке промо-ссылки.'
             : '❌ An error occurred while processing the promo link.'
         )
@@ -214,7 +216,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         try {
           await ctx.telegram.sendMessage(
             ctx.session.inviteCode,
-            isRussian(ctx)
+            isRussianFromState(ctx)
               ? `🔗 Новый пользователь @${finalUsername} зарегистрировался по вашей ссылке!`
               : `🔗 New user @${finalUsername} registered using your link!`
           )
@@ -343,7 +345,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           // Устанавливаем флаг, что промо обработано
           ctx.session.promoProcessed = true
 
-          const isRu = isRussian(ctx)
+          const isRu = isRussianFromState(ctx)
           let message = ''
 
           if (promoType === 'neurovideo') {
@@ -385,7 +387,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         )
 
         await ctx.reply(
-          isRussian(ctx)
+          isRussianFromState(ctx)
             ? '❌ Произошла ошибка при обработке промо-ссылки.'
             : '❌ An error occurred while processing the promo link.'
         )

@@ -369,79 +369,9 @@ export const updateUserBalance = async (
         amount: safeAmount,
         type,
       })
-    } else {
-      // Если inv_id не передан, создаем новую запись
-      // Более надежный способ генерации ID
-      const invId = `${Date.now()}-${Math.floor(
-        Math.random() * 1000000
-      )}-${telegram_id.substring(0, 5)}`
-
-      // Получаем реальную сумму транзакции и звезд
-      const transactionAmount = Math.abs(safeAmount)
-
-      logger.info('💼 Создание новой записи о транзакции:', {
-        description: 'Creating new transaction record',
-        telegram_id,
-        inv_id: invId,
-        transaction_amount: transactionAmount,
-        type,
-      })
-
-      // Проверим структуру таблицы, чтобы убедиться в правильности типов
-      try {
-        // Создаем запись о транзакции с корректным типом данных
-        // Все числовые поля преобразуем в целые числа для безопасности
-        // ТОЧНОЕ преобразование без округления для сохранения 7.5⭐
-        const safeRoundedAmount =
-          transactionAmount != null ? Number(transactionAmount.toFixed(2)) : 0
-
-        const { error: paymentError } = await supabase
-          .from('payments_v2')
-          .insert({
-            telegram_id,
-            inv_id: invId,
-            currency: metadata?.currency || Currency.XTR,
-            amount: safeRoundedAmount,
-            status: PaymentStatus.COMPLETED,
-            stars: safeRoundedAmount,
-            type,
-            description: description || `Balance ${type}`,
-            payment_method: metadata?.service_type,
-            bot_name: metadata?.bot_name || 'neuro_blogger_bot',
-            language: metadata?.language || 'ru',
-          })
-
-        if (paymentError) {
-          logger.error('❌ Ошибка при создании записи о транзакции:', {
-            description: 'Error creating transaction record',
-            telegram_id,
-            error: paymentError.message,
-            amount: transactionAmount,
-          })
-          return false
-        }
-
-        logger.info('✅ Транзакция успешно создана:', {
-          description: 'Transaction successfully created',
-          telegram_id,
-          amount: transactionAmount,
-          type,
-        })
-      } catch (insertError) {
-        logger.error('❌ Исключение при создании записи о транзакции:', {
-          description: 'Exception during transaction record creation',
-          telegram_id,
-          error:
-            insertError instanceof Error
-              ? insertError.message
-              : 'Unknown error',
-          amount: transactionAmount,
-        })
-        return false
-      }
     }
 
-    // Обновление баланса в таблице Users больше не требуется
+    // Обновление баланса в таблице Users больше не требуется - используем динамическое вычисление
 
     // --- НОВАЯ ЛОГИКА СОХРАНЕНИЯ ТРАНЗАКЦИИ В payments_v2 ---
     const paymentRecordToValidate: any = {

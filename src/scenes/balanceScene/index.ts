@@ -9,6 +9,7 @@ import {
   getServiceDisplayName,
 } from '@/utils/serviceMapping'
 import { generateUserExcelReport } from '@/utils/excelReportGenerator'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 /**
  * Функция для получения детализации трат пользователя
@@ -120,7 +121,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
   async (ctx: MyContext) => {
     try {
       console.log('CASE: balanceScene')
-      const isRu = ctx.from?.language_code === 'ru'
+      const isRu = isRussianFromState(ctx)
       const userId = ctx.from?.id.toString() || ''
 
       // Получаем баланс и детализацию
@@ -334,7 +335,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       // Не переходим в меню автоматически, ждем действий пользователя
     } catch (error) {
       console.error('Error in balanceScene:', error)
-      const isRu = ctx.from?.language_code === 'ru'
+      const isRu = isRussianFromState(ctx)
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при получении информации о балансе'
@@ -348,7 +349,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 // Обработчик для кнопки скачивания Excel отчета
 balanceScene.action('download_excel_report', async (ctx: MyContext) => {
   try {
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
     const userId = ctx.from?.id.toString() || ''
 
     await ctx.answerCbQuery(
@@ -415,7 +416,7 @@ balanceScene.action('download_excel_report', async (ctx: MyContext) => {
     )
   } catch (error) {
     console.error('Error generating Excel report:', error)
-    const isRu = ctx.from?.language_code === 'ru'
+    const isRu = isRussianFromState(ctx)
 
     await ctx.editMessageText(
       isRu

@@ -1,9 +1,10 @@
 import { Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { imageModelPrices } from '@/price/models'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export async function imageModelMenu(ctx: MyContext) {
-  const isRu = ctx.from?.language_code === 'ru'
+  const isRu = isRussianFromState(ctx)
 
   // Фильтруем модели, исключая те, у которых есть 'dev' в inputType
   // и оставляем только те, у которых есть 'text' или 'text' и 'image'

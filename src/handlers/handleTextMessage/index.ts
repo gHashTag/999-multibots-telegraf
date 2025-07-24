@@ -4,90 +4,115 @@ import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleFluxKontextPrompt } from '../../commands/fluxKontextCommand'
 import { handleHelpCancel } from '../handleHelpCancel'
+import { Scenes } from 'telegraf'
+import { sendGenericErrorMessage } from '../../menu'
+import { handleMenu } from '../handleMenu'
 
-export async function handleTextMessage(
-  ctx: MyContext,
-  next: () => Promise<void>
-) {
-  if (
-    ctx.message &&
-    'text' in ctx.message &&
-    ctx.message.text?.startsWith('/')
-  ) {
-    console.log('[handleTextMessage] Skipping command', {
-      telegramId: ctx.from?.id,
-    })
-    return await next()
-  }
+import { logger } from '@/utils/logger'
+import {
+  getUserLanguageFromState,
+  isRussianFromState,
+} from '@/helpers/centralizedLanguage'
 
-  if (!ctx.message || !('text' in ctx.message) || !ctx.from || !ctx.chat) {
-    console.warn('[handleTextMessage] Missing essential context properties', {
-      ctx,
-    })
-    return
-  }
+const scene = new Scenes.BaseScene<MyContext>('handleTextMessage')
 
-  // === FLUX KONTEXT ОБРАБОТКА ОЖИДАНИЯ ИЗОБРАЖЕНИЯ ===
-  // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
-  if (
-    ctx.session?.awaitingFluxKontextImage &&
-    ctx.message &&
-    'text' in ctx.message
-  ) {
-    // Проверяем на кнопки отмены и справки
-    if (await handleHelpCancel(ctx)) {
-      return
-    }
-
-    // Если это не кнопка справки/отмены, игнорируем текст и ждем изображение
-    const isRu = ctx.from?.language_code === 'ru'
-    await ctx.reply(
-      isRu
-        ? '📷 Пожалуйста, отправьте изображение для редактирования.'
-        : '📷 Please send an image for editing.'
-    )
-    return
-  }
-
-  // === FLUX KONTEXT ОБРАБОТКА ===
-  // Проверяем, ожидает ли пользователь ввод промпта для FLUX Kontext
-  if (
-    ctx.session?.awaitingFluxKontextPrompt &&
-    ctx.message &&
-    'text' in ctx.message
-  ) {
-    // Сначала проверяем на кнопки отмены и справки
-    if (await handleHelpCancel(ctx)) {
-      return
-    }
-
-    console.log('[handleTextMessage] Processing FLUX Kontext prompt', {
-      telegramId: ctx.from?.id,
-      prompt: ctx.message.text.substring(0, 50) + '...',
-    })
-    await handleFluxKontextPrompt(ctx, ctx.message.text)
-    return
-  }
-
-  const userId = ctx.from.id.toString()
-  const chatId = ctx.chat.id
-  const chatType = ctx.chat.type
-  const messageText = ctx.message.text
-  const userLanguage = ctx.from.language_code || 'ru'
-  const botUsername = ctx.botInfo.username
-  console.log(`[handleTextMessage] Bot username: ${botUsername}`)
-
-  console.log(
-    `[handleTextMessage] Received message in chat ${chatId} (type: ${chatType}) from user ${userId}`,
-    {
-      chatId,
-      chatType,
-      userId,
-      botUsername,
-    }
-  )
-
+scene.enter(async ctx => {
   try {
+    logger.info('[handleTextMessage] Received text message from user', {
+      telegramId: ctx.from?.id,
+      messageText:
+        ctx.message && 'text' in ctx.message ? ctx.message.text : 'No text',
+    })
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      logger.warn('[handleTextMessage] Received non-text message')
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: получено нетекстовое сообщение'
+          : '❌ Error: received non-text message'
+      )
+      return
+    }
+
+    if (
+      ctx.message &&
+      'text' in ctx.message &&
+      ctx.message.text?.startsWith('/')
+    ) {
+      console.log('[handleTextMessage] Skipping command', {
+        telegramId: ctx.from?.id,
+      })
+      return
+    }
+
+    if (!ctx.message || !('text' in ctx.message) || !ctx.from || !ctx.chat) {
+      console.warn('[handleTextMessage] Missing essential context properties', {
+        ctx,
+      })
+      return
+    }
+
+    // === FLUX KONTEXT ОБРАБОТКА ОЖИДАНИЯ ИЗОБРАЖЕНИЯ ===
+    // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
+    if (
+      ctx.session?.awaitingFluxKontextImage &&
+      ctx.message &&
+      'text' in ctx.message
+    ) {
+      // Проверяем на кнопки отмены и справки
+      if (await handleHelpCancel(ctx)) {
+        return
+      }
+
+      // Если это не кнопка справки/отмены, игнорируем текст и ждем изображение
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '📷 Пожалуйста, отправьте изображение для редактирования.'
+          : '📷 Please send an image for editing.'
+      )
+      return
+    }
+
+    // === FLUX KONTEXT ОБРАБОТКА ===
+    // Проверяем, ожидает ли пользователь ввод промпта для FLUX Kontext
+    if (
+      ctx.session?.awaitingFluxKontextPrompt &&
+      ctx.message &&
+      'text' in ctx.message
+    ) {
+      // Сначала проверяем на кнопки отмены и справки
+      if (await handleHelpCancel(ctx)) {
+        return
+      }
+
+      console.log('[handleTextMessage] Processing FLUX Kontext prompt', {
+        telegramId: ctx.from?.id,
+        prompt: ctx.message.text.substring(0, 50) + '...',
+      })
+      await handleFluxKontextPrompt(ctx, ctx.message.text)
+      return
+    }
+
+    const userId = ctx.from.id.toString()
+    const chatId = ctx.chat.id
+    const chatType = ctx.chat.type
+    const messageText = ctx.message.text
+    const userLanguage = getUserLanguageFromState(ctx)
+    const botUsername = ctx.botInfo.username
+    console.log(`[handleTextMessage] Bot username: ${botUsername}`)
+
+    console.log(
+      `[handleTextMessage] Received message in chat ${chatId} (type: ${chatType}) from user ${userId}`,
+      {
+        chatId,
+        chatType,
+        userId,
+        botUsername,
+      }
+    )
+
     let shouldProcessByThisHandler = false
 
     if (chatType === 'private') {
@@ -102,7 +127,7 @@ export async function handleTextMessage(
           '[handleTextMessage] Skipping private chat text (not in chatWithAvatar scene)',
           { userId, scene: ctx.scene.current?.id }
         )
-        return await next()
+        return
       }
     } else if (chatType === 'group' || chatType === 'supergroup') {
       if (messageText.includes(`@${botUsername}`)) {
@@ -116,13 +141,13 @@ export async function handleTextMessage(
           `[handleTextMessage] Ignoring message in group chat ${chatId} (no mention)`,
           { chatId, userId }
         )
-        return await next()
+        return
       }
     } else {
       console.log(
         `[handleTextMessage] Unknown chat type: ${chatType}. Skipping.`
       )
-      return await next()
+      return
     }
 
     if (shouldProcessByThisHandler) {
@@ -243,33 +268,10 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
       )
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorStack = error instanceof Error ? error.stack : undefined
-    console.error('[handleTextMessage] CRITICAL ERROR processing message:', {
-      error: errorMessage,
-      stack: errorStack,
-      userId,
-      chatId,
-    })
-    try {
-      const friendlyMessage =
-        userLanguage === 'ru'
-          ? '✨ Упс! Кажется, возникла небольшая техническая заминка. Не волнуйтесь, такое бывает!\n\nЕсли проблема повторится, пожалуйста, скопируйте и отправьте разработчику информацию ниже, чтобы мы могли быстрее все исправить 🙏:'
-          : "✨ Oops! Looks like there was a small technical hiccup. Don't worry, it happens!\n\nIf the problem persists, please copy and share the information below with the developer so we can fix it quickly 🙏:"
-
-      const errorDetails = `\`\`\`\nError: ${errorMessage}\n\`\`\``
-
-      await ctx.reply(`${friendlyMessage}\n\n${errorDetails}`, {
-        parse_mode: 'MarkdownV2',
-      })
-    } catch (replyError) {
-      const replyErrorMessage =
-        replyError instanceof Error ? replyError.message : String(replyError)
-      console.error('[handleTextMessage] Error sending CRITICAL error reply:', {
-        replyError: replyErrorMessage,
-        userId,
-        chatId,
-      })
-    }
+    logger.error('[handleTextMessage] Error processing text message:', error)
+    const isRu = isRussianFromState(ctx)
+    await sendGenericErrorMessage(ctx, isRu, error)
   }
-}
+})
+
+export const handleTextMessage = scene

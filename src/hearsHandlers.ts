@@ -2,9 +2,11 @@ import { imageModelMenu } from './menu/imageModelMenu'
 import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
+// ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
+import { isRussianFromState } from './helpers/centralizedLanguage'
 import { MyContext } from './interfaces/'
 import { Telegraf, Markup } from 'telegraf'
-
+import { HAIM_GROUP_STAFF_IDS } from './menu/mainMenu'
 import { generateNeuroPhotoHybrid } from './services/generateNeuroPhotoHybrid'
 import { handleSizeSelection } from './handlers'
 import { levels, mainMenu } from './menu'
@@ -16,13 +18,14 @@ import { getUserProfileAndSettings } from '@/db/userSettings'
 import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
 // Импортируем обработчики FLUX Kontext
 import {
-  handleFluxKontextImageUpload,
+  handleFluxKontextImage,
   handleFluxKontextModelSelection,
   handleFluxKontextPrompt,
 } from './commands/fluxKontextCommand'
 
 // Импортируем функцию upscaling
 import { upscaleFluxKontextImage } from './services/generateFluxKontext'
+import { getParsingAccess } from './menu/mainMenu'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
@@ -57,7 +60,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     try {
       const telegram_id = ctx.from?.id?.toString()
       const username = ctx.from?.username || ''
-      const is_ru = isRussian(ctx)
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
       if (!telegram_id) {
         await ctx.reply(
@@ -99,8 +103,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         error,
         telegramId: ctx.from?.id,
       })
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError = isRussianFromState(ctx)
       await ctx.reply(
-        isRussian(ctx)
+        isRuError
           ? '❌ Произошла ошибка при увеличении качества нейрофото.'
           : '❌ An error occurred while upscaling the neurophoto.'
       )
@@ -143,8 +149,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       telegramId: ctx.from?.id,
     })
     try {
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuCancel = isRussianFromState(ctx)
       await ctx.reply(
-        isRussian(ctx) ? '❌ Процесс отменён.' : '❌ Process cancelled.',
+        isRuCancel ? '❌ Процесс отменён.' : '❌ Process cancelled.',
         Markup.removeKeyboard()
       )
       await ctx.scene.leave()
@@ -485,7 +493,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
             telegramId: ctx.from?.id,
           }
         )
-        const isRu = isRussian(ctx)
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRu = isRussianFromState(ctx)
         await ctx.reply(
           isRu
             ? 'Произошла ошибка при попытке начать новую генерацию. Попробуйте вернуться в главное меню.'
@@ -517,7 +526,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
             telegramId: ctx.from?.id,
           }
         )
-        const isRu = isRussian(ctx)
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRu = isRussianFromState(ctx)
         await ctx.reply(
           isRu
             ? 'Произошла ошибка при попытке выбора другой модели. Попробуйте вернуться в главное меню.'
@@ -534,7 +544,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
     const text = ctx.message.text
     logger.debug(`Получен hears для кнопки ${text} от ${ctx.from?.id}`)
-    const isRu = isRussian(ctx)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const prompt = ctx.session.prompt
     const telegramId = ctx.from.id
     const numImages = parseInt(text[0])
@@ -697,7 +708,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
   bot.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async (ctx: MyContext) => {
     logger.debug(`Получен hears для Отмена от ${ctx.from?.id}`)
-    const isRu = isRussian(ctx)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
     const telegram_id = ctx.from?.id?.toString() || ''
     const { subscriptionType } = await getReferalsCountAndUserData(telegram_id)
 
@@ -769,7 +781,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.Invite
-      await ctx.scene.enter(ModeEnum.InviteScene)
+      await ctx.scene.enter('inviteScene')
     }
   )
 
@@ -869,8 +881,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       telegramId: ctx.from?.id,
     })
 
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRuEdit = isRussianFromState(ctx)
     await ctx.reply(
-      isRussian(ctx)
+      isRuEdit
         ? '📷 Отправьте новое изображение для редактирования:'
         : '📷 Send a new image for editing:',
       {
@@ -894,6 +908,61 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     // Возвращаемся к продвинутой сцене FLUX Kontext
     await ctx.scene.leave()
     await ctx.scene.enter('flux_kontext_scene')
+  })
+
+  // === ПАРСИНГ INSTAGRAM ДЛЯ СОТРУДНИКОВ С ПЕРСОНАЛИЗИРОВАННЫМ ДОСТУПОМ ===
+  bot.hears(['🔍 Парсинг', '🔍 Parsing'], async ctx => {
+    const userId = ctx.from?.id?.toString()
+    const botToken = ctx.telegram.token
+
+    logger.info('GLOBAL HEARS: Парсинг Instagram button pressed', {
+      telegramId: ctx.from?.id,
+      userId,
+      botToken: botToken?.substring(0, 10) + '...',
+    })
+
+    if (!userId) {
+      logger.warn('Instagram parsing access denied - no user ID', {
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+      return
+    }
+
+    // 🔍 Проверяем доступ к парсингу для текущего бота
+    const parsingAccess = getParsingAccess(userId, botToken)
+
+    if (!parsingAccess.hasAccess) {
+      logger.warn('Instagram parsing access denied', {
+        telegramId: ctx.from?.id,
+        userId,
+        reason: 'Not in bot staff list',
+        botName: require('./core/bot').getBotNameByToken(botToken).bot_name,
+      })
+
+      await ctx.reply('❌ У вас нет доступа к функции парсинга Instagram.')
+      return
+    }
+
+    logger.info('Instagram parsing access granted', {
+      telegramId: ctx.from?.id,
+      userId,
+      botName: require('./core/bot').getBotNameByToken(botToken).bot_name,
+      allowedProjects: parsingAccess.allowedProjects,
+    })
+
+    // ✅ Доступ разрешен - запускаем мастер парсинга
+    try {
+      await ctx.scene.leave()
+      await ctx.scene.enter('instagram_scraping_wizard')
+    } catch (error) {
+      logger.error('Error entering Instagram scraping wizard', {
+        telegramId: ctx.from?.id,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await ctx.reply('❌ Произошла ошибка при запуске мастера парсинга.')
+    }
   })
 }
 //

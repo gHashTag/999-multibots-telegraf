@@ -4,6 +4,9 @@ import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
+import { logger } from '@/utils/logger'
+import { getBotNameByToken } from '../core/bot'
 
 interface Level {
   title_ru: string
@@ -109,6 +112,10 @@ export const levels: Record<number, Level> = {
     title_ru: '💫 Оформить подписку',
     title_en: '💫 Subscribe',
   },
+  106: {
+    title_ru: '🌐 EN',
+    title_en: '🌐 RU',
+  },
   107: {
     title_ru: '⬆️ Увеличить качество фото',
     title_en: '⬆️ Upscale Photo Quality',
@@ -117,9 +124,93 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
+  109: {
+    title_ru: '🔍 Парсинг',
+    title_en: '🔍 Parsing',
+  },
 }
 
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
+
+// 🔍 ПЕРСОНАЛИЗИРОВАННЫЕ МАССИВЫ СОТРУДНИКОВ ПО БОТАМ
+
+// 🤖 Массив сотрудников HaimGroupMedia_bot (ограниченный доступ к парсингу)
+const HAIM_GROUP_STAFF_IDS = [
+  '144022504', // @neuro_coder - Главный админ и владелец проекта ID 37
+  '289259562', // @Vyacheslav_Neklyudov - Админ
+  '752224685', // @voskresenskaya13 - Админ
+  '7669741878', // @Arhustel - Админ
+  '164609458', // @artemfisenko - Админ
+]
+
+// 🤖 Массив сотрудников MetaMuse_Manifest_bot (полный доступ к парсингу)
+const METAMUSE_STAFF_IDS = [
+  '144022504', // @neuro_coder - Админ
+  '352374518', // Админ
+  '1064902106', // Админ
+  '7669741878', // @Arhustel - Админ (общий)
+  '737300586', // Админ
+  '447979523', // Админ
+]
+
+// 🔍 Функция определения доступа к парсингу
+function getParsingAccess(
+  userId: string,
+  botToken: string
+): {
+  hasAccess: boolean
+  allowedProjects?: string[]
+} {
+  const { bot_name } = getBotNameByToken(botToken)
+
+  // 👑 ГЛАВНЫЙ АДМИН ИМЕЕТ ДОСТУП КО ВСЕМ БОТАМ И ВСЕМ ПРОЕКТАМ
+  if (userId === '144022504') {
+    return {
+      hasAccess: true,
+      allowedProjects: ['all'], // Полный доступ ко всем проектам
+    }
+  }
+
+  // 🤖 Персонализированные правила для конкретных ботов
+  if (bot_name === 'HaimGroupMedia_bot') {
+    const hasAccess = HAIM_GROUP_STAFF_IDS.includes(userId)
+
+    return {
+      hasAccess,
+      allowedProjects: hasAccess
+        ? ['Coco Age', 'vyacheslav_nekludov']
+        : undefined,
+    }
+  }
+
+  if (bot_name === 'MetaMuse_Manifest_bot') {
+    const hasAccess = METAMUSE_STAFF_IDS.includes(userId)
+
+    return {
+      hasAccess,
+      allowedProjects: hasAccess ? ['all'] : undefined, // Все проекты
+    }
+  }
+
+  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ
+  // Главные админы из ADMIN_IDS тоже получают доступ
+  const adminIds = process.env.ADMIN_IDS?.split(',') || []
+  if (adminIds.includes(userId)) {
+    return {
+      hasAccess: true,
+      allowedProjects: ['all'], // Полный доступ для админов
+    }
+  }
+
+  // По умолчанию нет доступа
+  return {
+    hasAccess: false,
+    allowedProjects: undefined,
+  }
+}
+
+// Экспортируем функцию и массивы для использования в других модулях
+export { HAIM_GROUP_STAFF_IDS, METAMUSE_STAFF_IDS, getParsingAccess }
 
 export async function mainMenu({
   isRu,
@@ -132,11 +223,34 @@ export async function mainMenu({
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
   console.log('💻 CASE: mainMenu - Entering function')
 
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MAINMENU
+  const telegramId = ctx.from?.id?.toString()
+  logger.info(`[mainMenu] 🎹 MENU CREATION STARTED:`, {
+    telegramId,
+    inputIsRu: isRu,
+    subscription,
+    sessionLanguage: ctx.session?.userLanguage,
+    telegramLanguage: ctx.from?.language_code,
+  })
+
   const currentSubscription =
     subscription === null ? SubscriptionType.STARS : subscription
   console.log(
     `[mainMenu LOG] Input subscription: ${subscription}, Effective subscription: ${currentSubscription}`
   )
+
+  // ✅ ПРОВЕРЯЕМ АСИНХРОННУЮ ФУНКЦИЮ ЯЗЫКА (БД ONLY!)
+  const dbLanguage = await getUserLanguage(ctx)
+  const isRussianFromDB = await isRussianWithUserChoice(ctx)
+
+  logger.info(`[mainMenu] Language consistency check:`, {
+    telegramId,
+    inputIsRu: isRu,
+    dbLanguage,
+    isRussianFromDB,
+    areConsistent: isRu === isRussianFromDB,
+    sessionExists: !!ctx.session,
+  })
 
   let hasFullAccess = checkFullAccess(currentSubscription)
   console.log(`[mainMenu LOG] hasFullAccess: ${hasFullAccess}`)
@@ -163,7 +277,8 @@ export async function mainMenu({
     lvl !== levels[102] &&
     lvl !== levels[103] &&
     lvl !== levels[104] &&
-    lvl !== levels[105]
+    lvl !== levels[105] &&
+    lvl !== levels[106] // ✅ ИСКЛЮЧАЕМ кнопку языка из основных кнопок
 
   if (
     currentSubscription === SubscriptionType.NEUROVIDEO ||
@@ -189,6 +304,8 @@ export async function mainMenu({
 
   const userId = ctx.from?.id?.toString()
   const adminSpecificButtons = []
+
+  // Админские кнопки для основных админов
   if (userId && adminIds.includes(userId)) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
@@ -197,12 +314,36 @@ export async function mainMenu({
     console.log('[mainMenu LOG] Added admin buttons.')
   }
 
+  // 🔍 Проверка доступа к кнопке парсинга
+  const botToken = ctx.telegram.token
+
+  if (userId) {
+    const parsingAccess = getParsingAccess(userId, botToken)
+
+    if (parsingAccess.hasAccess) {
+      adminSpecificButtons.push(
+        Markup.button.text(isRu ? levels[109].title_ru : levels[109].title_en)
+      )
+
+      const { bot_name } = getBotNameByToken(botToken)
+      logger.info(`[mainMenu] Added parsing button for ${bot_name} staff`, {
+        userId,
+        botName: bot_name,
+        allowedProjects: parsingAccess.allowedProjects,
+      })
+    }
+  }
+
   // --- Создаем кнопки, которые нужны почти всегда ---
   const supportButton = Markup.button.text(
     isRu ? levels[103].title_ru : levels[103].title_en // "💬 Техподдержка"
   )
   const subscribeButton = Markup.button.text(
     isRu ? levels[105].title_ru : levels[105].title_en // "💫 Оформить подписку"
+  )
+  // ✅ Добавляем кнопку смены языка
+  const languageButton = Markup.button.text(
+    isRu ? levels[106].title_ru : levels[106].title_en // "🌐 EN" или "🌐 RU"
   )
   // --- ---
 
@@ -216,7 +357,7 @@ export async function mainMenu({
 
   if (currentSubscription === SubscriptionType.STARS) {
     console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
-    // Для STARS только поддержка (Подписка будет ниже)
+    // Для STARS только поддержка (язык будет добавлен ниже отдельно)
     bottomRowButtons.push([supportButton])
   } else {
     console.log(
@@ -236,6 +377,9 @@ export async function mainMenu({
     // Пригласить и Поддержка идут в предпоследний ряд
     bottomRowButtons.push([inviteButton, supportButton])
   }
+
+  // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
+  bottomRowButtons.push([languageButton])
   console.log(
     `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
   )
