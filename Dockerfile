@@ -70,7 +70,7 @@ COPY .env.* ./
 RUN touch .env
 
 # Копируем entrypoint скрипт
-COPY docker-entrypoint.sh ./
+COPY scripts/docker-entrypoint.sh ./
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Экспортируем порт для API и боты
