@@ -507,7 +507,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Проверяем кнопку "Назад"
     if (receivedText === (isRu ? '🔙 Назад' : '🔙 Back')) {
-      ctx.wizard.selectStep(3) // 🛠️ ИСПРАВЛЕНИЕ: Возвращаемся к выбору пола (шаг 3)
+      ctx.wizard.selectStep(2) // 🛠️ ИСПРАВЛЕНИЕ: Возвращаемся к выбору пола (индекс 2 = шаг 3)
       return
     }
 
