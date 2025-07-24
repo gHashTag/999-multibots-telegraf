@@ -171,9 +171,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         telegramId,
         step: 'getting_photo',
       })
-      
+
       const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
-      
+
       logger.info('[AvatarTransformScene] Got user photo URL', {
         telegramId,
         photoUrl: userPhotoUrl ? 'obtained' : 'failed',
@@ -515,7 +515,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Проверяем кнопку "Назад"
     if (receivedText === (isRu ? '🔙 Назад' : '🔙 Back')) {
-      ctx.wizard.selectStep(2) // Возвращаемся к выбору пола
+      ctx.wizard.selectStep(3) // 🛠️ ИСПРАВЛЕНИЕ: Возвращаемся к выбору пола (шаг 3)
       return
     }
 
@@ -766,7 +766,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
 
       // Переходим к шагу выбора пола
-      return ctx.wizard.selectStep(2)
+      return ctx.wizard.selectStep(3)
     } catch (error) {
       logger.error(
         '[AvatarTransformScene] Error processing uploaded photo:',
