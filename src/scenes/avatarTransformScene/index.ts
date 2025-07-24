@@ -184,8 +184,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         // 🎨 ПОКАЗЫВАЕМ ПРЕВЬЮ АВАТАРКИ ПОЛЬЗОВАТЕЛЯ
         const photoSent = await sendPhotoWithFallback(ctx, userPhotoUrl, {
           caption: isRu
-            ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Это ваше текущее фото профиля</b>\n🎨 Сейчас я продемонстрирую как наш бот может трансформировать любого человека в любой образ\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-            : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>This is your current profile photo</b>\n🎨 Now I'll demonstrate how our bot can transform any person into any style\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
+            ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото (из профиля или загруженное) и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+            : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo (from profile or uploaded) and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [
@@ -204,8 +204,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
           await ctx.reply(
             isRu
-              ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Это ваше текущее фото профиля</b>\n🎨 Сейчас я продемонстрирую как наш бот может трансформировать любого человека в любой образ\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-              : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>This is your current profile photo</b>\n🎨 Now I'll demonstrate how our bot can transform any person into any style\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
+              ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото (из профиля или загруженное) и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+              : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo (from profile or uploaded) and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
             {
               parse_mode: 'HTML',
               reply_markup: Markup.keyboard([
@@ -230,8 +230,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         // Fallback: если не удалось отправить фото, показываем текстовое сообщение
         await ctx.reply(
           isRu
-            ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Это ваше текущее фото профиля</b>\n🎨 Сейчас я продемонстрирую как наш бот может трансформировать любого человека в любой образ\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-            : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>This is your current profile photo</b>\n🎨 Now I'll demonstrate how our bot can transform any person into any style\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
+            ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото (из профиля или загруженное) и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+            : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo (from profile or uploaded) and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
           {
             parse_mode: 'Markdown',
             reply_markup: Markup.keyboard([
@@ -308,7 +308,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [
-              isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
+              isRu ? '👨‍�� Мужской образ' : '👨‍💼 Male look',
               isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
             ],
             [isRu ? '🔙 Назад' : '🔙 Back'],
@@ -383,13 +383,20 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Сохраняем выбор пола в сессии
     ctx.session.selectedGender = gender
 
-    // Создаем кнопки для выбора героев
+    // Helper function to create rows with 2 buttons each
+    const createTwoButtonRows = (buttons: string[]): string[][] => {
+      const rows: string[][] = []
+      for (let i = 0; i < buttons.length; i += 2) {
+        rows.push(buttons.slice(i, i + 2))
+      }
+      return rows
+    }
+
+    // Создаем кнопки для выбора героев ТОЛЬКО для выбранного пола
     const primaryHeroes = MARVEL_HEROES[gender]
-    const alternativeHeroes =
-      MARVEL_HEROES[gender === 'male' ? 'female' : 'male']
 
     // 🌍 ЛОКАЛИЗАЦИЯ КНОПОК ДЛЯ ГЕРОЕВ
-    const getHeroButtonText = (heroName: string, isPrimary: boolean) => {
+    const getHeroButtonText = (heroName: string) => {
       const heroTranslations: Record<string, { ru: string; en: string }> = {
         'Человек-паук': { ru: '🎨 Человек-паук', en: '🎨 Spider-Man' },
         'Железный человек': { ru: '🎨 Железный человек', en: '🎨 Iron Man' },
@@ -401,7 +408,6 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         'Доктор Стрэндж': { ru: '🎨 Доктор Стрэндж', en: '🎨 Doctor Strange' },
         'Соколиный глаз': { ru: '🎨 Соколиный глаз', en: '🎨 Hawkeye' },
         'Звёздный лорд': { ru: '🎨 Звёздный лорд', en: '🎨 Star Lord' },
-        // ЖЕНСКИЕ ГЕРОИ - БЕЗОПАСНЫЕ, НО УЗНАВАЕМЫЕ ПРОМПТЫ
         'Капитан Марвел': { ru: '✨ Капитан Марвел', en: '✨ Captain Marvel' },
         'Скарлет Витч': { ru: '✨ Скарлет Витч', en: '✨ Scarlet Witch' },
         'Алая ведьма': { ru: '✨ Алая ведьма', en: '✨ Wanda Maximoff' },
@@ -416,29 +422,15 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       }
 
       // Фолбэк для неизвестных героев
-      const icon = isPrimary ? '🎨' : '✨'
+      const icon = gender === 'male' ? '🎨' : '✨'
       return `${icon} ${heroName}`
     }
 
-    // Helper function to create rows with 2 buttons each
-    const createTwoButtonRows = (buttons: string[]): string[][] => {
-      const rows: string[][] = []
-      for (let i = 0; i < buttons.length; i += 2) {
-        rows.push(buttons.slice(i, i + 2))
-      }
-      return rows
-    }
-
-    const primaryHeroButtons = primaryHeroes.map(hero =>
-      getHeroButtonText(hero, true)
-    )
-    const alternativeHeroButtons = alternativeHeroes
-      .slice(0, 4) // Показываем 4 альтернативных героя
-      .map(hero => getHeroButtonText(hero, false))
+    const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
 
     const heroButtons = [
-      ...createTwoButtonRows(primaryHeroButtons),
-      ...createTwoButtonRows(alternativeHeroButtons),
+      ...createTwoButtonRows(heroButtonsList),
+      // Последний ряд - служебные кнопки
       [
         isRu ? '🎲 Случайный стиль' : '🎲 Random style',
         isRu ? '🔙 Назад' : '🔙 Back',
@@ -448,7 +440,6 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     logger.info('[AvatarTransformScene] Creating hero selection keyboard:', {
       gender,
       primaryHeroesCount: primaryHeroes.length,
-      alternativeHeroesCount: alternativeHeroes.length,
       buttonsStructure: heroButtons,
     })
 
@@ -456,23 +447,11 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? `🤖 <b>Демонстрация AI-возможностей</b>\n\n🎯 Сейчас я покажу вам как наш бот трансформирует людей!\n\n💡 <b>Выберите пример для демонстрации:</b>\nЭто лишь небольшая часть того, что умеет наш бот\n\n🌟 <b>Популярные примеры для ${gender === 'male' ? 'мужчин' : 'женщин'}:</b>\n${primaryHeroes
-              .slice(0, 5)
-              .map((hero, i) => `${i + 1}. Стиль "${hero}"`)
-              .join(
-                '\n'
-              )}\n\n⚡ <b>Дополнительные примеры:</b>\n${alternativeHeroes
-              .slice(0, 2)
               .map(hero => `• Стиль "${hero}"`)
               .join(
                 '\n'
               )}\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: FLUX Kontext Max</b>`
           : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\nThis is just a small part of what our bot can do\n\n🌟 <b>Popular examples for ${gender === 'male' ? 'men' : 'women'}:</b>\n${primaryHeroes
-              .slice(0, 5)
-              .map((hero, i) => `${i + 1}. "${hero}" style`)
-              .join(
-                '\n'
-              )}\n\n⚡ <b>Additional examples:</b>\n${alternativeHeroes
-              .slice(0, 2)
               .map(hero => `• "${hero}" style`)
               .join(
                 '\n'
@@ -528,7 +507,33 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Проверяем кнопку "Назад"
     if (receivedText === (isRu ? '🔙 Назад' : '🔙 Back')) {
-      ctx.wizard.selectStep(3) // 🛠️ ИСПРАВЛЕНИЕ: Возвращаемся к выбору пола (шаг 3)
+      logger.info(
+        '[AvatarTransformScene] Back button pressed, returning to gender selection',
+        {
+          telegramId,
+          currentStep: ctx.wizard.cursor,
+        }
+      )
+
+      // Показываем сообщение выбора пола заново
+      await ctx.reply(
+        isRu
+          ? `👤 <b>Выбор стиля для вашего образа</b>\n\n🧬 Для создания идеального образа мне нужно знать ваш пол, чтобы адаптировать стиль трансформации\n\n👇 Выберите подходящий вариант:`
+          : `👤 <b>Style selection for your look</b>\n\n🧬 To create the perfect look, I need to know your gender to adapt the transformation style\n\n👇 Choose the appropriate option:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: Markup.keyboard([
+            [
+              isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
+              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
+            ],
+            [isRu ? '🔙 Назад' : '🔙 Back'],
+          ]).resize().reply_markup,
+        }
+      )
+
+      // Возвращаемся к выбору пола (индекс 2 = шаг 3)
+      ctx.wizard.selectStep(2)
       return
     }
 
@@ -707,21 +712,31 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         telegramId,
       })
 
-      // 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: generateFluxKontext уже отправляет изображение и финальное сообщение
-      // Убираем дублирующие сообщения и переходы в меню!
+      // 🚀 ПЕРЕХОДИМ К ПРИВЕТСТВИЮ И ОБУЧАЮЩЕМУ ВИДЕО ПОСЛЕ ДЕМОНСТРАЦИИ
+      await ctx.reply(
+        isRu
+          ? `🎉 <b>Демо-трансформация завершена!</b>\n\n😊 Вам понравилось? Это лишь ОДНА из сотен возможностей нашего бота!\n\n🎓 Теперь посмотрите обучающее видео и узнайте больше о возможностях бота!`
+          : `🎉 <b>Demo transformation completed!</b>\n\n😊 Did you like it? This is just ONE of hundreds of our bot's capabilities!\n\n🎓 Now watch the educational video and learn more about the bot's features!`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: { remove_keyboard: true },
+        }
+      )
 
       // ВАЖНО: Полностью выходим из сцены, чтобы команда /start снова работала
       await ctx.scene.leave()
 
+      // ПЕРЕХОДИМ К STARTSCENE (приветствие + обучающее видео)
+      await ctx.scene.enter(ModeEnum.StartScene)
+
       logger.info(
-        '[AvatarTransformScene] Successfully completed transformation and fully exited scene',
+        '[AvatarTransformScene] Successfully completed transformation and transitioned to StartScene',
         {
           telegramId,
-          step: 'completed_and_exited',
+          step: 'completed_transition_to_startscene',
         }
       )
 
-      // НЕ переходим в меню - пользователь может сам использовать /start или кнопки
       return // Завершаем выполнение
     } catch (error) {
       logger.error('[AvatarTransformScene] Generation error', {
