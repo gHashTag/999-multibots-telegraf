@@ -171,9 +171,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         telegramId,
         step: 'getting_photo',
       })
-      
+
       const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
-      
+
       logger.info('[AvatarTransformScene] Got user photo URL', {
         telegramId,
         photoUrl: userPhotoUrl ? 'obtained' : 'failed',
@@ -188,11 +188,11 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>This is your current profile photo</b>\n🎨 Now I'll demonstrate how our bot can transform any person into any style\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
-            [isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar'],
             [
+              isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
               isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
-              isRu ? '⏩ Пропустить' : '⏩ Skip',
             ],
+            [isRu ? '⏩ Пропустить' : '⏩ Skip'],
           ]).resize().reply_markup,
         })
 
@@ -209,11 +209,11 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             {
               parse_mode: 'HTML',
               reply_markup: Markup.keyboard([
-                [isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar'],
                 [
+                  isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
                   isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
-                  isRu ? '⏩ Пропустить' : '⏩ Skip',
                 ],
+                [isRu ? '⏩ Пропустить' : '⏩ Skip'],
               ]).resize().reply_markup,
             }
           )
@@ -276,7 +276,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? '👋 Хорошо, возвращаемся в главное меню\n\n💡 Вы всегда можете вернуться к трансформации через /start'
-          : '👋 Okay, returning to main menu\n\n💡 You can always return to transformation via /start'
+          : '👋 Okay, returning to main menu\n\n💡 You can always return to transformation via /start',
+        { reply_markup: { remove_keyboard: true } }
       )
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
@@ -328,9 +329,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         isRu
           ? `📸 <b>Загрузка нового фото</b>\n\n💡 Отправьте мне фотографию, которую хотите преобразовать\n\n✨ <b>Рекомендации:</b>\n• Четкое фото лица\n• Хорошее освещение\n• Минимум 512x512 пикселей`
           : `📸 <b>Upload New Photo</b>\n\n💡 Send me the photo you would like to transform\n\n✨ <b>Recommendations:</b>\n• Clear face photo\n• Good lighting\n• Minimum 512x512 pixels`,
-        { parse_mode: 'HTML' }
+        { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
       )
-      return ctx.wizard.selectStep(3) // Переходим к шагу загрузки фото
+      return ctx.wizard.selectStep(4) // 🛠️ ИСПРАВЛЕНИЕ: Переходим к шагу загрузки фото (индекс 4)
     }
   },
   // Шаг 3: Обработка выбора пола и показ кнопок героев
@@ -419,17 +420,29 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return `${icon} ${heroName}`
     }
 
+    // Helper function to create rows with 2 buttons each
+    const createTwoButtonRows = (buttons: string[]): string[][] => {
+      const rows: string[][] = []
+      for (let i = 0; i < buttons.length; i += 2) {
+        rows.push(buttons.slice(i, i + 2))
+      }
+      return rows
+    }
+
+    const primaryHeroButtons = primaryHeroes.map(hero =>
+      getHeroButtonText(hero, true)
+    )
+    const alternativeHeroButtons = alternativeHeroes
+      .slice(0, 4) // Показываем 4 альтернативных героя
+      .map(hero => getHeroButtonText(hero, false))
+
     const heroButtons = [
-      // Первый ряд - основные герои для выбранного пола
-      primaryHeroes.slice(0, 3).map(hero => getHeroButtonText(hero, true)),
-      // Второй ряд - оставшиеся основные герои
-      primaryHeroes.slice(3, 5).map(hero => getHeroButtonText(hero, true)),
-      // Третий ряд - альтернативные герои (противоположного пола)
-      alternativeHeroes.slice(0, 2).map(hero => getHeroButtonText(hero, false)),
-      // Четвертый ряд - случайный выбор
-      [isRu ? '🎲 Случайный стиль' : '🎲 Random style'],
-      // Пятый ряд - назад
-      [isRu ? '🔙 Назад' : '🔙 Back'],
+      ...createTwoButtonRows(primaryHeroButtons),
+      ...createTwoButtonRows(alternativeHeroButtons),
+      [
+        isRu ? '🎲 Случайный стиль' : '🎲 Random style',
+        isRu ? '🔙 Назад' : '🔙 Back',
+      ],
     ]
 
     logger.info('[AvatarTransformScene] Creating hero selection keyboard:', {
@@ -515,7 +528,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Проверяем кнопку "Назад"
     if (receivedText === (isRu ? '🔙 Назад' : '🔙 Back')) {
-      ctx.wizard.selectStep(2) // Возвращаемся к выбору пола
+      ctx.wizard.selectStep(3) // 🛠️ ИСПРАВЛЕНИЕ: Возвращаемся к выбору пола (шаг 3)
       return
     }
 
@@ -650,7 +663,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       isRu
         ? `🎬 <b>Запускаю AI Transformation Demo</b>\n\n🎭 <b>Выбранный стиль:</b> ${heroDisplayName}\n\n⚡ <b>Демонстрация возможностей бота</b>\nЭто лишь ОДНА из сотен возможностей бота!\n\n🚀 <b>Хотите больше? Получите подписку после демо!</b>\n\n⏳ <b>Генерирую ваше превращение...</b>`
         : `🎬 <b>Starting AI Transformation Demo</b>\n\n🎭 <b>Selected style:</b> ${heroDisplayName}\n\n⚡ <b>Bot capabilities demonstration</b>\nThis is just ONE of hundreds of bot possibilities!\n\n🚀 <b>Want more? Get subscription after demo!</b>\n\n⏳ <b>Generating your transformation...</b>`,
-      { parse_mode: 'HTML' }
+      { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
     )
 
     try {
