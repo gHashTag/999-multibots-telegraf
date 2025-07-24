@@ -199,3 +199,6 @@ src/uploads/144022504/flux-kontext-multi/
 src/uploads/144022504/flux-kontext-portrait_series/
 
 src/uploads/144022504/image-upscaler/
+
+# Ignore all user uploads
+src/uploads/

@@ -1,7 +1,7 @@
 const {
   VIDEO_MODELS_CONFIG,
-} = require('./dist/modules/videoGenerator/config/models.config.js')
-const { calculateFinalPrice } = require('./dist/price/helpers/index.js')
+} = require('../../dist/modules/videoGenerator/config/models.config.js')
+const { calculateFinalPrice } = require('../../dist/price/helpers/index.js')
 
 console.log('🔍 ДИАГНОСТИКА GOOGLE VEO 3\n')
 
