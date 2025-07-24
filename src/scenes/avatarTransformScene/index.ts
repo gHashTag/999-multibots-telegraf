@@ -686,32 +686,31 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         telegramId,
       })
 
-      // 🚀 ПОКАЗЫВАЕМ ПРЕДЛОЖЕНИЕ ПОДПИСКИ ПОСЛЕ ДЕМОНСТРАЦИИ
+      // 🚀 ПЕРЕХОДИМ К ПРИВЕТСТВИЮ И ОБУЧАЮЩЕМУ ВИДЕО ПОСЛЕ ДЕМОНСТРАЦИИ
       await ctx.reply(
         isRu
-          ? `🎉 <b>Демо-трансформация завершена!</b>\n\n😊 Вам понравилось? Это лишь ОДНА из сотен возможностей нашего бота!\n\n💎 <b>С подпиской вы получите:</b>\n✨ Безлимитные трансформации\n🎨 Сотни стилей и образов\n🖼️ Все возможности бота\n🚀 Новые функции каждую неделю\n\n💰 Оформите подписку прямо сейчас:`
-          : `🎉 <b>Demo transformation completed!</b>\n\n😊 Did you like it? This is just ONE of hundreds of our bot's capabilities!\n\n💎 <b>With subscription you get:</b>\n✨ Unlimited transformations\n🎨 Hundreds of styles and looks\n🖼️ All bot capabilities\n🚀 New features every week\n\n💰 Get your subscription right now:`,
+          ? `🎉 <b>Демо-трансформация завершена!</b>\n\n😊 Вам понравилось? Это лишь ОДНА из сотен возможностей нашего бота!\n\n🎓 Теперь посмотрите обучающее видео и узнайте больше о возможностях бота!`
+          : `🎉 <b>Demo transformation completed!</b>\n\n😊 Did you like it? This is just ONE of hundreds of our bot's capabilities!\n\n🎓 Now watch the educational video and learn more about the bot's features!`,
         {
           parse_mode: 'HTML',
-          reply_markup: Markup.keyboard([
-            [isRu ? '💫 Оформить подписку' : '💫 Subscribe'],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
-          ]).resize().reply_markup,
+          reply_markup: { remove_keyboard: true },
         }
       )
 
       // ВАЖНО: Полностью выходим из сцены, чтобы команда /start снова работала
       await ctx.scene.leave()
 
+      // ПЕРЕХОДИМ К STARTSCENE (приветствие + обучающее видео)
+      await ctx.scene.enter(ModeEnum.StartScene)
+
       logger.info(
-        '[AvatarTransformScene] Successfully completed transformation, showed subscription offer, and fully exited scene',
+        '[AvatarTransformScene] Successfully completed transformation and transitioned to StartScene',
         {
           telegramId,
-          step: 'completed_with_subscription_offer',
+          step: 'completed_transition_to_startscene',
         }
       )
 
-      // НЕ переходим в меню - пользователь может сам использовать кнопки
       return // Завершаем выполнение
     } catch (error) {
       logger.error('[AvatarTransformScene] Generation error', {
