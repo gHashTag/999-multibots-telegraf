@@ -428,10 +428,44 @@ const menuNextStep = async (ctx: MyContext) => {
     // Команды должны обрабатываться ГЛОБАЛЬНО в registerCommands.ts
     if (text.startsWith('/')) {
       logger.info(
-        `[menuNextStep] Detected command '${text}' - allowing global command handlers to process it`
+        `[menuNextStep] Detected command '${text}' - checking for direct handling`
       )
       console.log(
-        `🎯 COMMAND DETECTION: Skipping handleMenu for command: ${text}`
+        `🎯 COMMAND DETECTION: Processing command in menuScene: ${text}`
+      )
+
+      // 🚀 ПРЯМАЯ ОБРАБОТКА КОМАНДЫ /START В MENUSCENE
+      if (text === '/start') {
+        logger.info(
+          '[menuNextStep] Handling /start command directly in menuScene'
+        )
+        try {
+          // Выходим из текущей сцены
+          await ctx.scene.leave()
+
+          // Сбрасываем сессию как в глобальном обработчике
+          const { defaultSession } = await import('@/store')
+          ctx.session = { ...defaultSession }
+
+          // Переходим в avatarTransformScene
+          await ctx.scene.enter(ModeEnum.AvatarTransform)
+
+          logger.info(
+            '[menuNextStep] Successfully handled /start command in menuScene'
+          )
+          return // Команда обработана
+        } catch (error) {
+          logger.error(
+            '[menuNextStep] Error handling /start command in menuScene:',
+            error
+          )
+          // Fallback - позволяем глобальному обработчику попробовать
+        }
+      }
+
+      // Для всех остальных команд позволяем глобальным обработчикам обработать
+      console.log(
+        `🎯 COMMAND DETECTION: Allowing global handlers for command: ${text}`
       )
       return // Позволяем глобальным обработчикам команд обработать это
     }
