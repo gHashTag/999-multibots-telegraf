@@ -466,14 +466,6 @@ Click "Training" and dive with us.
             ],
             [
               Markup.button.callback(
-                isRu
-                  ? '🎨 AI Transformation Demo'
-                  : '🎨 AI Transformation Demo',
-                'start_ai_demo'
-              ),
-            ],
-            [
-              Markup.button.callback(
                 isRu ? '💫 Оформить подписку' : '💫 Subscribe',
                 'go_to_subscription_scene'
               ),
@@ -624,29 +616,6 @@ startScene.action('go_to_subscription_scene', async ctx => {
     return ctx.scene.enter(ModeEnum.SubscriptionScene)
   } catch (error) {
     logger.error('Error in go_to_subscription_scene action:', error)
-    await ctx.reply(
-      isRu
-        ? 'Произошла ошибка. Попробуйте позже.'
-        : 'An error occurred. Please try again later.'
-    )
-    delete (ctx.wizard.state as StartSceneState).initialDisplayDone // Очищаем состояние и при ошибке
-    return ctx.scene.leave() // В случае ошибки выходим из сцены
-  }
-})
-
-startScene.action('start_ai_demo', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  try {
-    await ctx.answerCbQuery()
-    logger.info({
-      message: `🎨 [StartScene] Пользователь нажал "AI Transformation Demo". Переход в AvatarTransformScene.`,
-      telegramId: ctx.from?.id?.toString() || 'unknown',
-      function: 'startScene.action.start_ai_demo',
-    })
-    delete (ctx.wizard.state as StartSceneState).initialDisplayDone // Очищаем состояние при переходе в другую сцену
-    return ctx.scene.enter(ModeEnum.AvatarTransform)
-  } catch (error) {
-    logger.error('Error in start_ai_demo action:', error)
     await ctx.reply(
       isRu
         ? 'Произошла ошибка. Попробуйте позже.'
