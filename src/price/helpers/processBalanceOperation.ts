@@ -25,6 +25,26 @@ export const processBalanceOperation = async ({
     bot_name,
   })
   console.log('Context available:', !!ctx)
+
+  // 🎁 ЛИДMАГНЕТ: Проверяем флаг обхода платежа
+  if (ctx?.session?.bypass_payment_check) {
+    console.log('🎁 [LEAD MAGNET] Bypassing payment check - FREE usage!', {
+      telegram_id,
+      bypassFlag: ctx.session.bypass_payment_check,
+    })
+
+    // Получаем текущий баланс для отображения (но не списываем)
+    const currentBalance = await getUserBalance(telegram_id.toString())
+
+    return {
+      newBalance: currentBalance, // Баланс НЕ изменился
+      success: true, // Операция успешна
+      modePrice: paymentAmount, // Обычная цена (для статистики)
+      paymentAmount: 0, // РЕАЛЬНО списано 0
+      currentBalance,
+    }
+  }
+
   try {
     // Получаем текущий баланс
     console.log('Fetching current balance for:', telegram_id)

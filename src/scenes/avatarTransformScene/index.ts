@@ -4,6 +4,7 @@ import { isRussian } from '@/helpers/language'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
+import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 
 // Промпты для мужчин и женщин на основе предоставленного шаблона
 const createPromptByGender = (gender: 'male' | 'female'): string => {
@@ -47,10 +48,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       ctx.session.bypass_payment_check = true
 
       logger.info(
-        '[AvatarTransformScene] Set bypass_payment_check for lead magnet',
+        '[AvatarTransformScene] Lead magnet enabled - FREE transformation',
         {
           telegramId,
-          bypassPayment: ctx.session.bypass_payment_check,
+          step: 'lead_magnet_enabled',
         }
       )
 
@@ -70,7 +71,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       try {
         // 🎨 ПОКАЗЫВАЕМ ПРЕВЬЮ АВАТАРКИ ПОЛЬЗОВАТЕЛЯ
-        await ctx.replyWithPhoto(userPhotoUrl, {
+        const photoSent = await sendPhotoWithFallback(ctx, userPhotoUrl, {
           caption: isRu
             ? `✨ *Добро пожаловать в VIBE CODING Transformation!*\n\n👋 Привет! Я создам для вас потрясающий магнетический образ!\n\n📸 *Это ваше текущее фото профиля*\n🎨 Я превращу его в стильный портрет с книгой "VIBE CODING"\n\n🌟 *Что вас ждет:*\n• Кинематографический стиль\n• Элегантный пиджак Tiffany цвета\n• Книга "VIBE CODING" в руках\n• Святой ореол за головой\n• Пастельная mint палитра\n\n🎁 *Это БЕСПЛАТНО - наш подарок вам!*\n\n🎯 Выберите действие:`
             : `✨ *Welcome to VIBE CODING Transformation!*\n\n👋 Hello! I'll create an amazing magnetic look for you!\n\n📸 *This is your current profile photo*\n🎨 I'll transform it into a stylish portrait with "VIBE CODING" book\n\n🌟 *What awaits you:*\n• Cinematic style\n• Elegant Tiffany blazer\n• "VIBE CODING" book in hands\n• Saint halo behind head\n• Pastel mint palette\n\n🎁 *This is FREE - our gift to you!*\n\n🎯 Choose action:`,
@@ -80,11 +81,42 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               isRu
                 ? '🎨 Создать магнетический образ'
                 : '🎨 Create magnetic look',
-              isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo',
             ],
-            [isRu ? '⏩ Пропустить' : '⏩ Skip'],
+            [
+              isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo',
+              isRu ? '⏩ Пропустить' : '⏩ Skip',
+            ],
           ]).resize().reply_markup,
         })
+
+        // Если фото не удалось отправить, отправляем текстовое сообщение
+        if (!photoSent) {
+          logger.warn(
+            '[AvatarTransformScene] Photo fallback failed, sending text message'
+          )
+
+          await ctx.reply(
+            isRu
+              ? `✨ *Добро пожаловать в VIBE CODING Transformation!*\n\n👋 Привет! Я создам для вас потрясающий магнетический образ!\n\n🎨 Я превращу ваше фото профиля в стильный портрет с книгой "VIBE CODING"\n\n🌟 *Что вас ждет:*\n• Кинематографический стиль\n• Элегантный пиджак Tiffany цвета\n• Книга "VIBE CODING" в руках\n• Святой ореол за головой\n• Пастельная mint палитра\n\n🎁 *Это БЕСПЛАТНО - наш подарок вам!*\n\n🎯 Выберите действие:`
+              : `✨ *Welcome to VIBE CODING Transformation!*\n\n👋 Hello! I'll create an amazing magnetic look for you!\n\n🎨 I'll transform your profile photo into a stylish portrait with "VIBE CODING" book\n\n🌟 *What awaits you:*\n• Cinematic style\n• Elegant Tiffany blazer\n• "VIBE CODING" book in hands\n• Saint halo behind head\n• Pastel mint palette\n\n🎁 *This is FREE - our gift to you!*\n\n🎯 Choose action:`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: Markup.keyboard([
+                [
+                  isRu
+                    ? '🎨 Создать магнетический образ'
+                    : '🎨 Create magnetic look',
+                ],
+                [
+                  isRu
+                    ? '📸 Загрузить другое фото'
+                    : '📸 Upload different photo',
+                  isRu ? '⏩ Пропустить' : '⏩ Skip',
+                ],
+              ]).resize().reply_markup,
+            }
+          )
+        }
       } catch (photoError) {
         logger.warn(
           '[AvatarTransformScene] Failed to send photo, falling back to text',
@@ -267,24 +299,45 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         '@/services/generateFluxKontext'
       )
 
-      await generateFluxKontext({
-        prompt,
-        inputImageUrl: ctx.session.kontextImageUrl!,
-        modelType: 'max', // Используем max модель
-        telegram_id: telegramId,
-        username: ctx.from?.username || 'unknown',
-        is_ru: isRu,
-        ctx,
-      })
+      try {
+        await generateFluxKontext({
+          prompt,
+          inputImageUrl: ctx.session.kontextImageUrl!,
+          modelType: 'max', // Используем max модель
+          telegram_id: telegramId,
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+        })
 
-      await ctx.reply(
-        isRu
-          ? '🎉 *Трансформация завершена!*\n\n✨ Ваш магнетический образ готов\n📚 Теперь вы — истинный VIBE CODER\n\n💡 Хотите создать еще один образ? Используйте /start'
-          : '🎉 *Transformation Complete!*\n\n✨ Your magnetic look is ready\n📚 Now you are a true VIBE CODER\n\n💡 Want to create another look? Use /start',
-        { parse_mode: 'Markdown' }
-      )
+        logger.info(
+          '[AvatarTransformScene] Flux generation completed successfully',
+          {
+            telegramId,
+            step: 'generation_success',
+          }
+        )
 
-      return ctx.scene.enter(ModeEnum.StartScene)
+        // generateFluxKontext сам отправляет результат, поэтому не дублируем сообщение
+        // Завершаем сцену и переходим в главное меню
+        return ctx.scene.enter(ModeEnum.MainMenu)
+      } catch (generationError) {
+        logger.error('[AvatarTransformScene] Flux generation failed:', {
+          telegramId,
+          error: generationError,
+          step: 'generation_error',
+        })
+
+        await ctx.reply(
+          isRu
+            ? '❌ *Ошибка при создании образа*\n\n🔄 Произошла ошибка во время генерации\n💡 Попробуйте позже или обратитесь в поддержку\n\n/start - попробовать снова'
+            : '❌ *Error creating look*\n\n🔄 Generation error occurred\n💡 Try later or contact support\n\n/start - try again',
+          { parse_mode: 'Markdown' }
+        )
+
+        // Переходим в главное меню даже при ошибке
+        return ctx.scene.enter(ModeEnum.MainMenu)
+      }
     } catch (error) {
       logger.error('[AvatarTransformScene] Error generating image:', error)
       await ctx.reply(
@@ -293,7 +346,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           : '❌ *Transformation Error*\n\n🔄 An error occurred while creating the look\n💡 Please try again later or contact support',
         { parse_mode: 'Markdown' }
       )
-      return ctx.scene.enter(ModeEnum.StartScene)
+      // При ошибке тоже переходим в главное меню
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
   },
   // Шаг 4: Обработка загруженной фотографии (для случая когда пользователь загружает новое фото)
