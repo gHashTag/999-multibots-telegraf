@@ -697,9 +697,6 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: generateFluxKontext уже отправляет изображение и финальное сообщение
       // Убираем дублирующие сообщения и переходы в меню!
 
-      // Полностью очищаем wizard состояние
-      delete ctx.wizard.state
-
       // ВАЖНО: Полностью выходим из сцены, чтобы команда /start снова работала
       await ctx.scene.leave()
 
