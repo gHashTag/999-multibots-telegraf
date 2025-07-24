@@ -383,13 +383,20 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Сохраняем выбор пола в сессии
     ctx.session.selectedGender = gender
 
-    // Создаем кнопки для выбора героев
+    // Helper function to create rows with 2 buttons each
+    const createTwoButtonRows = (buttons: string[]): string[][] => {
+      const rows: string[][] = []
+      for (let i = 0; i < buttons.length; i += 2) {
+        rows.push(buttons.slice(i, i + 2))
+      }
+      return rows
+    }
+
+    // Создаем кнопки для выбора героев ТОЛЬКО для выбранного пола
     const primaryHeroes = MARVEL_HEROES[gender]
-    const alternativeHeroes =
-      MARVEL_HEROES[gender === 'male' ? 'female' : 'male']
 
     // 🌍 ЛОКАЛИЗАЦИЯ КНОПОК ДЛЯ ГЕРОЕВ
-    const getHeroButtonText = (heroName: string, isPrimary: boolean) => {
+    const getHeroButtonText = (heroName: string) => {
       const heroTranslations: Record<string, { ru: string; en: string }> = {
         'Человек-паук': { ru: '🎨 Человек-паук', en: '🎨 Spider-Man' },
         'Железный человек': { ru: '🎨 Железный человек', en: '🎨 Iron Man' },
@@ -401,7 +408,6 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         'Доктор Стрэндж': { ru: '🎨 Доктор Стрэндж', en: '🎨 Doctor Strange' },
         'Соколиный глаз': { ru: '🎨 Соколиный глаз', en: '🎨 Hawkeye' },
         'Звёздный лорд': { ru: '🎨 Звёздный лорд', en: '🎨 Star Lord' },
-        // ЖЕНСКИЕ ГЕРОИ - БЕЗОПАСНЫЕ, НО УЗНАВАЕМЫЕ ПРОМПТЫ
         'Капитан Марвел': { ru: '✨ Капитан Марвел', en: '✨ Captain Marvel' },
         'Скарлет Витч': { ru: '✨ Скарлет Витч', en: '✨ Scarlet Witch' },
         'Алая ведьма': { ru: '✨ Алая ведьма', en: '✨ Wanda Maximoff' },
@@ -416,29 +422,15 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       }
 
       // Фолбэк для неизвестных героев
-      const icon = isPrimary ? '🎨' : '✨'
+      const icon = gender === 'male' ? '🎨' : '✨'
       return `${icon} ${heroName}`
     }
 
-    // Helper function to create rows with 2 buttons each
-    const createTwoButtonRows = (buttons: string[]): string[][] => {
-      const rows: string[][] = []
-      for (let i = 0; i < buttons.length; i += 2) {
-        rows.push(buttons.slice(i, i + 2))
-      }
-      return rows
-    }
-
-    const primaryHeroButtons = primaryHeroes.map(hero =>
-      getHeroButtonText(hero, true)
-    )
-    const alternativeHeroButtons = alternativeHeroes
-      .slice(0, 4) // Показываем 4 альтернативных героя
-      .map(hero => getHeroButtonText(hero, false))
+    const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
 
     const heroButtons = [
-      ...createTwoButtonRows(primaryHeroButtons),
-      ...createTwoButtonRows(alternativeHeroButtons),
+      ...createTwoButtonRows(heroButtonsList),
+      // Последний ряд - служебные кнопки
       [
         isRu ? '🎲 Случайный стиль' : '🎲 Random style',
         isRu ? '🔙 Назад' : '🔙 Back',
@@ -448,7 +440,6 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     logger.info('[AvatarTransformScene] Creating hero selection keyboard:', {
       gender,
       primaryHeroesCount: primaryHeroes.length,
-      alternativeHeroesCount: alternativeHeroes.length,
       buttonsStructure: heroButtons,
     })
 
@@ -456,23 +447,11 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? `🤖 <b>Демонстрация AI-возможностей</b>\n\n🎯 Сейчас я покажу вам как наш бот трансформирует людей!\n\n💡 <b>Выберите пример для демонстрации:</b>\nЭто лишь небольшая часть того, что умеет наш бот\n\n🌟 <b>Популярные примеры для ${gender === 'male' ? 'мужчин' : 'женщин'}:</b>\n${primaryHeroes
-              .slice(0, 5)
-              .map((hero, i) => `${i + 1}. Стиль "${hero}"`)
-              .join(
-                '\n'
-              )}\n\n⚡ <b>Дополнительные примеры:</b>\n${alternativeHeroes
-              .slice(0, 2)
               .map(hero => `• Стиль "${hero}"`)
               .join(
                 '\n'
               )}\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: FLUX Kontext Max</b>`
           : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\nThis is just a small part of what our bot can do\n\n🌟 <b>Popular examples for ${gender === 'male' ? 'men' : 'women'}:</b>\n${primaryHeroes
-              .slice(0, 5)
-              .map((hero, i) => `${i + 1}. "${hero}" style`)
-              .join(
-                '\n'
-              )}\n\n⚡ <b>Additional examples:</b>\n${alternativeHeroes
-              .slice(0, 2)
               .map(hero => `• "${hero}" style`)
               .join(
                 '\n'
