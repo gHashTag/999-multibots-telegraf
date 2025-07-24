@@ -507,7 +507,33 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Проверяем кнопку "Назад"
     if (receivedText === (isRu ? '🔙 Назад' : '🔙 Back')) {
-      ctx.wizard.selectStep(2) // 🛠️ ИСПРАВЛЕНИЕ: Возвращаемся к выбору пола (индекс 2 = шаг 3)
+      logger.info(
+        '[AvatarTransformScene] Back button pressed, returning to gender selection',
+        {
+          telegramId,
+          currentStep: ctx.wizard.cursor,
+        }
+      )
+
+      // Показываем сообщение выбора пола заново
+      await ctx.reply(
+        isRu
+          ? `👤 <b>Выбор стиля для вашего образа</b>\n\n🧬 Для создания идеального образа мне нужно знать ваш пол, чтобы адаптировать стиль трансформации\n\n👇 Выберите подходящий вариант:`
+          : `👤 <b>Style selection for your look</b>\n\n🧬 To create the perfect look, I need to know your gender to adapt the transformation style\n\n👇 Choose the appropriate option:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: Markup.keyboard([
+            [
+              isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
+              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
+            ],
+            [isRu ? '🔙 Назад' : '🔙 Back'],
+          ]).resize().reply_markup,
+        }
+      )
+
+      // Возвращаемся к выбору пола (индекс 2 = шаг 3)
+      ctx.wizard.selectStep(2)
       return
     }
 
