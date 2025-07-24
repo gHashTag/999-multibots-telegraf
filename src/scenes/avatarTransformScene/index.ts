@@ -10,15 +10,19 @@ const createPromptByGender = (gender: 'male' | 'female'): string => {
   const basePrompt = `[Digital cinematic still. Medium close-up] An vary fashionable, magnetic 40-year-old person with sharp features stands against a serene, pastel mint background. They wear clear glasses of pastel mint color. They wear a tailored, Italian-style Tiffany pastel mint blazer directly on their BARE chest, accentuating their confident and sophisticated look. Their hands hold a book titled "VIBE CODING" its cover with a gentle pastel Tiffany white light. The book is the clear focal point of the frame— their fingers delicately presenting it to the viewer. Behind their head, a large, soft orange halo creates a saint-like aura, blending harmoniously with the pastel mint background. The lighting is soft and diffuse, enhancing the tranquil, refined atmosphere. Their expression is calm and composed, inviting attention to the book as the centerpiece of the scene. The entire color palette is unified by soothing Tiffany blue and soft orange hues, mirroring the atmosphere and mood of the reference image.`
 
   if (gender === 'male') {
-    return basePrompt.replace(
-      'An vary fashionable, magnetic 40-year-old person with sharp features',
-      'An vary fashionable, magnetic 40-year-old bald man with sharp features and a flawlessly sculpted beard'
-    ).replace(/their|they/g, (match) => match === 'they' ? 'he' : 'his')
+    return basePrompt
+      .replace(
+        'An vary fashionable, magnetic 40-year-old person with sharp features',
+        'An vary fashionable, magnetic 40-year-old bald man with sharp features and a flawlessly sculpted beard'
+      )
+      .replace(/their|they/g, match => (match === 'they' ? 'he' : 'his'))
   } else {
-    return basePrompt.replace(
-      'An vary fashionable, magnetic 40-year-old person with sharp features',
-      'An vary fashionable, magnetic 40-year-old elegant woman with refined features and perfect makeup'
-    ).replace(/their|they/g, (match) => match === 'they' ? 'she' : 'her')
+    return basePrompt
+      .replace(
+        'An vary fashionable, magnetic 40-year-old person with sharp features',
+        'An vary fashionable, magnetic 40-year-old elegant woman with refined features and perfect makeup'
+      )
+      .replace(/their|they/g, match => (match === 'they' ? 'she' : 'her'))
   }
 }
 
@@ -30,80 +34,82 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     logger.info('[AvatarTransformScene] Starting avatar transformation', {
       telegramId,
-      step: 'initial'
+      step: 'initial',
     })
 
     try {
       logger.info('[AvatarTransformScene] Getting user photo', {
         telegramId,
-        step: 'fetching_photo'
+        step: 'fetching_photo',
       })
+
+      // 🎯 ЛИДMАГНЕТ: Делаем первое использование БЕСПЛАТНЫМ
+      ctx.session.bypass_payment_check = true
+
+      logger.info(
+        '[AvatarTransformScene] Set bypass_payment_check for lead magnet',
+        {
+          telegramId,
+          bypassPayment: ctx.session.bypass_payment_check,
+        }
+      )
 
       // Получаем URL фотографии пользователя
+      logger.info('[AvatarTransformScene] Getting user photo...', {
+        telegramId,
+        step: 'getting_photo',
+      })
+
       const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
-      
+
       logger.info('[AvatarTransformScene] Got user photo URL', {
         telegramId,
-        hasPhotoUrl: !!userPhotoUrl,
-        step: 'got_photo_url'
-      })
-      
-      if (!userPhotoUrl) {
-        // Если у пользователя нет фото профиля
-        await ctx.reply(
-          isRu
-            ? '❌ У вас нет фотографии профиля\n\n🎭 Для создания магнетического образа мне нужно ваше фото\n\n💡 Что делать:'
-            : '❌ You don\'t have a profile photo\n\n🎭 I need your photo to create a magnetic look\n\n💡 What to do:',
-          Markup.keyboard([
-            [
-              isRu ? '📸 Загрузить фото' : '📸 Upload photo',
-              isRu ? '⏩ Пропустить' : '⏩ Skip'
-            ]
-          ]).resize()
-        )
-        return ctx.wizard.next()
-      }
-
-      // ✨ Показываем превью фото пользователя с улучшенным текстом
-      logger.info('[AvatarTransformScene] Sending user photo preview', {
-        telegramId,
-        step: 'sending_preview'
+        photoUrl: userPhotoUrl ? 'obtained' : 'failed',
+        step: 'photo_obtained',
       })
 
       try {
+        // 🎨 ПОКАЗЫВАЕМ ПРЕВЬЮ АВАТАРКИ ПОЛЬЗОВАТЕЛЯ
         await ctx.replyWithPhoto(userPhotoUrl, {
           caption: isRu
-            ? '✨ *Магнетическая трансформация VIBE CODING*\n\n📸 Это ваше текущее фото\n🎨 Превратим его в стильный образ с книгой "VIBE CODING"\n\n💫 *Особенности трансформации:*\n• Профессиональный кинематографический стиль\n• Элегантный образ с книгой в руках\n• Стильный пиджак Tiffany цвета\n• Святой ореол за головой\n• Пастельная mint палитра\n\n🎯 Выберите действие:'
-            : '✨ *Magnetic VIBE CODING Transformation*\n\n📸 This is your current photo\n🎨 Let\'s transform it into a stylish look with "VIBE CODING" book\n\n💫 *Transformation features:*\n• Professional cinematic style\n• Elegant look with book in hands\n• Stylish Tiffany blazer\n• Saint halo behind head\n• Pastel mint palette\n\n🎯 Choose action:',
+            ? `✨ *Добро пожаловать в VIBE CODING Transformation!*\n\n👋 Привет! Я создам для вас потрясающий магнетический образ!\n\n📸 *Это ваше текущее фото профиля*\n🎨 Я превращу его в стильный портрет с книгой "VIBE CODING"\n\n🌟 *Что вас ждет:*\n• Кинематографический стиль\n• Элегантный пиджак Tiffany цвета\n• Книга "VIBE CODING" в руках\n• Святой ореол за головой\n• Пастельная mint палитра\n\n🎁 *Это БЕСПЛАТНО - наш подарок вам!*\n\n🎯 Выберите действие:`
+            : `✨ *Welcome to VIBE CODING Transformation!*\n\n👋 Hello! I'll create an amazing magnetic look for you!\n\n📸 *This is your current profile photo*\n🎨 I'll transform it into a stylish portrait with "VIBE CODING" book\n\n🌟 *What awaits you:*\n• Cinematic style\n• Elegant Tiffany blazer\n• "VIBE CODING" book in hands\n• Saint halo behind head\n• Pastel mint palette\n\n🎁 *This is FREE - our gift to you!*\n\n🎯 Choose action:`,
           parse_mode: 'Markdown',
           reply_markup: Markup.keyboard([
             [
-              isRu ? '🎨 Создать магнетический образ' : '🎨 Create magnetic look',
-              isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo'
+              isRu
+                ? '🎨 Создать магнетический образ'
+                : '🎨 Create magnetic look',
+              isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo',
             ],
-            [isRu ? '⏩ Пропустить' : '⏩ Skip']
-          ]).resize().reply_markup
+            [isRu ? '⏩ Пропустить' : '⏩ Skip'],
+          ]).resize().reply_markup,
         })
       } catch (photoError) {
-        logger.warn('[AvatarTransformScene] Failed to send photo, falling back to text', {
-          telegramId,
-          error: photoError
-        })
-        
+        logger.warn(
+          '[AvatarTransformScene] Failed to send photo, falling back to text',
+          {
+            telegramId,
+            error: photoError,
+          }
+        )
+
         // Fallback: если не удалось отправить фото, показываем текстовое сообщение
         await ctx.reply(
           isRu
-            ? '✨ *Магнетическая трансформация VIBE CODING*\n\n📸 Я вижу у вас есть фото профиля\n🎨 Превратим его в стильный образ с книгой\n\n🎯 Выберите действие:'
-            : '✨ *Magnetic VIBE CODING Transformation*\n\n📸 I see you have a profile photo\n🎨 Let\'s transform it into a stylish look with book\n\n🎯 Choose action:',
+            ? `✨ *Добро пожаловать в VIBE CODING Transformation!*\n\n👋 Привет! Я создам для вас потрясающий магнетический образ!\n\n📸 Я вижу у вас есть фото профиля\n🎨 Превращу его в стильный портрет с книгой "VIBE CODING"\n\n🌟 *Что вас ждет:*\n• Кинематографический стиль  \n• Элегантный пиджак Tiffany цвета\n• Книга "VIBE CODING" в руках\n• Святой ореол за головой\n• Пастельная mint палитра\n\n🎁 *Это БЕСПЛАТНО - наш подарок вам!*\n\n🎯 Выберите действие:`
+            : `✨ *Welcome to VIBE CODING Transformation!*\n\n👋 Hello! I'll create an amazing magnetic look for you!\n\n📸 I see you have a profile photo\n🎨 I'll transform it into a stylish portrait with "VIBE CODING" book\n\n🌟 *What awaits you:*\n• Cinematic style\n• Elegant Tiffany blazer  \n• "VIBE CODING" book in hands\n• Saint halo behind head\n• Pastel mint palette\n\n🎁 *This is FREE - our gift to you!*\n\n🎯 Choose action:`,
           {
             parse_mode: 'Markdown',
             reply_markup: Markup.keyboard([
               [
-                isRu ? '🎨 Создать магнетический образ' : '🎨 Create magnetic look',
-                isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo'
+                isRu
+                  ? '🎨 Создать магнетический образ'
+                  : '🎨 Create magnetic look',
+                isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo',
               ],
-              [isRu ? '⏩ Пропустить' : '⏩ Skip']
-            ]).resize().reply_markup
+              [isRu ? '⏩ Пропустить' : '⏩ Skip'],
+            ]).resize().reply_markup,
           }
         )
       }
@@ -135,15 +141,19 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Пользователь решил пропустить
     if (text === (isRu ? '⏩ Пропустить' : '⏩ Skip')) {
       await ctx.reply(
-        isRu 
-          ? '👋 Хорошо, возвращаемся в главное меню\n\n💡 Вы всегда можете вернуться к трансформации через /start' 
+        isRu
+          ? '👋 Хорошо, возвращаемся в главное меню\n\n💡 Вы всегда можете вернуться к трансформации через /start'
           : '👋 Okay, returning to main menu\n\n💡 You can always return to transformation via /start'
       )
       return ctx.scene.enter(ModeEnum.StartScene)
     }
 
     // Пользователь хочет создать магнетический образ
-    if (text === (isRu ? '🎨 Создать магнетический образ' : '🎨 Create magnetic look') || text === (isRu ? '🎨 Преобразовать текущее' : '🎨 Transform current')) {
+    if (
+      text ===
+        (isRu ? '🎨 Создать магнетический образ' : '🎨 Create magnetic look') ||
+      text === (isRu ? '🎨 Преобразовать текущее' : '🎨 Transform current')
+    ) {
       if (!ctx.session.kontextImageUrl) {
         await ctx.reply(
           isRu
@@ -163,10 +173,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           reply_markup: Markup.keyboard([
             [
               isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
-              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look'
+              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
             ],
-            [isRu ? '🔙 Назад' : '🔙 Back']
-          ]).resize().reply_markup
+            [isRu ? '🔙 Назад' : '🔙 Back'],
+          ]).resize().reply_markup,
         }
       )
       return ctx.wizard.next() // Переходим к шагу выбора пола
@@ -222,32 +232,41 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Сохраняем выбор пола в сессии
     ctx.session.selectedGender = gender
 
-    const genderText = isRu 
-      ? (gender === 'male' ? 'мужской' : 'женский')
-      : (gender === 'male' ? 'male' : 'female')
+    const genderText = isRu
+      ? gender === 'male'
+        ? 'мужской'
+        : 'женский'
+      : gender === 'male'
+        ? 'male'
+        : 'female'
 
     await ctx.reply(
       isRu
-        ? `✨ *Начинаю магнетическую трансформацию*\n\n👤 Выбранный стиль: ${genderText} образ\n🎨 Модель: FLUX Kontext Max\n💎 Стоимость: ~6⭐\n\n🚀 Создаю ваш стильный образ с книгой "VIBE CODING"...`
-        : `✨ *Starting Magnetic Transformation*\n\n👤 Selected style: ${genderText} look\n🎨 Model: FLUX Kontext Max\n💎 Cost: ~6⭐\n\n🚀 Creating your stylish look with "VIBE CODING" book...`,
-      { 
+        ? `✨ *Начинаю магнетическую трансформацию*\n\n👤 Выбранный стиль: ${genderText} образ\n🎨 Модель: FLUX Kontext Max\n\n🚀 Создаю ваш стильный образ с книгой "VIBE CODING"...\n\n⏳ Это займет около минуты`
+        : `✨ *Starting Magnetic Transformation*\n\n👤 Selected style: ${genderText} look\n🎨 Model: FLUX Kontext Max\n\n🚀 Creating your stylish look with "VIBE CODING" book...\n\n⏳ This will take about a minute`,
+      {
         parse_mode: 'Markdown',
-        reply_markup: { remove_keyboard: true }
+        reply_markup: { remove_keyboard: true },
       }
     )
 
     try {
       const prompt = createPromptByGender(gender)
-      
-      logger.info('[AvatarTransformScene] Starting generation with gender-specific prompt', {
-        telegramId,
-        gender,
-        promptLength: prompt.length
-      })
-      
+
+      logger.info(
+        '[AvatarTransformScene] Starting generation with gender-specific prompt',
+        {
+          telegramId,
+          gender,
+          promptLength: prompt.length,
+        }
+      )
+
       // Используем Flux Context Max для генерации изображения
-      const { generateFluxKontext } = await import('@/services/generateFluxKontext')
-      
+      const { generateFluxKontext } = await import(
+        '@/services/generateFluxKontext'
+      )
+
       await generateFluxKontext({
         prompt,
         inputImageUrl: ctx.session.kontextImageUrl!,
@@ -255,7 +274,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         telegram_id: telegramId,
         username: ctx.from?.username || 'unknown',
         is_ru: isRu,
-        ctx
+        ctx,
       })
 
       await ctx.reply(
@@ -264,7 +283,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           : '🎉 *Transformation Complete!*\n\n✨ Your magnetic look is ready\n📚 Now you are a true VIBE CODER\n\n💡 Want to create another look? Use /start',
         { parse_mode: 'Markdown' }
       )
-      
+
       return ctx.scene.enter(ModeEnum.StartScene)
     } catch (error) {
       logger.error('[AvatarTransformScene] Error generating image:', error)
@@ -308,17 +327,20 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           reply_markup: Markup.keyboard([
             [
               isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
-              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look'
+              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
             ],
-            [isRu ? '🔙 Назад' : '🔙 Back']
-          ]).resize().reply_markup
+            [isRu ? '🔙 Назад' : '🔙 Back'],
+          ]).resize().reply_markup,
         }
       )
 
       // Переходим к шагу выбора пола
       return ctx.wizard.selectStep(2)
     } catch (error) {
-      logger.error('[AvatarTransformScene] Error processing uploaded photo:', error)
+      logger.error(
+        '[AvatarTransformScene] Error processing uploaded photo:',
+        error
+      )
       await ctx.reply(
         isRu
           ? '❌ *Ошибка обработки фото*\n\n🔄 Произошла ошибка при обработке фотографии\n💡 Попробуйте загрузить другое фото или используйте /start'
