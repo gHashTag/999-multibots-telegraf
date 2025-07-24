@@ -423,6 +423,19 @@ const menuNextStep = async (ctx: MyContext) => {
     // However, handleMenu is designed to map button texts to actions.
     // If the text matches a known menu button text, handleMenu will process it.
     // This means regular menu button presses (not commands, not callbacks) will still work.
+
+    // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ перехватываем команды (начинающиеся с /)
+    // Команды должны обрабатываться ГЛОБАЛЬНО в registerCommands.ts
+    if (text.startsWith('/')) {
+      logger.info(
+        `[menuNextStep] Detected command '${text}' - allowing global command handlers to process it`
+      )
+      console.log(
+        `🎯 COMMAND DETECTION: Skipping handleMenu for command: ${text}`
+      )
+      return // Позволяем глобальным обработчикам команд обработать это
+    }
+
     logger.info(
       `[menuNextStep] Forwarding text message to handleMenu for potential button match: ${text}`
     )

@@ -138,21 +138,6 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             ctx.session.mode = ModeEnum.MainMenu
             return ctx.scene.enter(ModeEnum.MainMenu)
           }
-          case '/price': {
-            // ✅ ЗАЩИТА: Проверяем подписку перед показом цен
-            const { checkSubscriptionGuard } = await import(
-              '@/helpers/subscriptionGuard'
-            )
-            const hasSubscription = await checkSubscriptionGuard(ctx, '/price')
-            if (!hasSubscription) {
-              return // Пользователь перенаправлен в subscriptionScene
-            }
-
-            await ctx.scene.leave()
-            // Импортируем и вызываем priceCommand напрямую
-            const { priceCommand } = await import('@/commands/priceCommand')
-            return priceCommand(ctx)
-          }
           case '/start': {
             ctx.session = { ...defaultSession }
             await ctx.scene.leave()
@@ -178,6 +163,12 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             await ctx.scene.leave()
             const { get100Command } = await import('@/commands/get100Command')
             return get100Command(ctx)
+          }
+          case '/price': {
+            await ctx.scene.leave()
+            // Импортируем и вызываем priceCommand напрямую
+            const { priceCommand } = await import('@/commands/priceCommand')
+            return priceCommand(ctx)
           }
           default: {
             // Если команда не распознана, просто выходим из сцены
