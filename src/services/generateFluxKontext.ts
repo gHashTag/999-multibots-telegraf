@@ -176,19 +176,44 @@ export const generateFluxKontext = async (
     // Скачивание для отправки
     const image = await downloadFile(editedImageUrl)
 
-    // Отправка отредактированного изображения
-    await ctx.telegram.sendPhoto(
-      telegram_id,
-      {
-        source: fs.createReadStream(imageLocalPath),
-      },
-      {
-        caption: is_ru
-          ? `✨ Изображение отредактировано!\n\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}`
-          : `✨ Image edited!\n\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}`,
-        reply_markup: createEditResultKeyboard(is_ru).reply_markup,
-      }
-    )
+    // Отправка отредактированного изображения с обработкой ошибок
+    try {
+      await ctx.telegram.sendPhoto(
+        telegram_id,
+        {
+          source: fs.createReadStream(imageLocalPath),
+        },
+        {
+          caption: is_ru
+            ? `✨ Изображение отредактировано!\n\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}`
+            : `✨ Image edited!\n\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}`,
+          reply_markup: createEditResultKeyboard(is_ru).reply_markup,
+        }
+      )
+
+      logger.info('[generateFluxKontext] Photo sent successfully', {
+        telegram_id,
+        mode: 'edit',
+        modelType,
+      })
+    } catch (photoError) {
+      logger.error('[generateFluxKontext] Failed to send photo:', {
+        telegram_id,
+        error: photoError,
+        imageLocalPath,
+        mode: 'edit',
+      })
+
+      // Отправляем текстовое сообщение как fallback
+      await ctx.reply(
+        is_ru
+          ? `❌ *Ошибка при отправке изображения*\n\n✨ Ваш магнетический образ был создан успешно!\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}\n\n💡 Попробуйте запросить изображение еще раз`
+          : `❌ *Error sending image*\n\n✨ Your magnetic look was created successfully!\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}\n\n💡 Try requesting the image again`,
+        { parse_mode: 'Markdown' }
+      )
+
+      // Не выбрасываем ошибку, чтобы не сломать весь процесс
+    }
 
     // Сохраняем информацию о последнем изображении для upscaling
     if (ctx.session) {
