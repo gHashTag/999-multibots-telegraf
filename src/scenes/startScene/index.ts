@@ -151,6 +151,15 @@ export const startScene = new Scenes.WizardScene<MyContext>(
             return handleTechSupport(ctx)
           }
           case '/get100': {
+            // ✅ ЗАЩИТА: Проверяем подписку перед выдачей бонуса
+            const { checkSubscriptionGuard } = await import(
+              '@/helpers/subscriptionGuard'
+            )
+            const hasSubscription = await checkSubscriptionGuard(ctx, '/get100')
+            if (!hasSubscription) {
+              return // Пользователь перенаправлен в subscriptionScene
+            }
+
             await ctx.scene.leave()
             const { get100Command } = await import('@/commands/get100Command')
             return get100Command(ctx)
