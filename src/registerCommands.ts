@@ -271,51 +271,72 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       try {
         await ctx.scene.leave() // Выходим из текущей, если есть
 
-        // ✅ ИСПРАВЛЕНИЕ: Проверяем подписку перед входом в меню
+        // 🚀 УПРОЩЕННАЯ ЛОГИКА: Всегда показываем меню, но тип зависит от подписки
         const telegramId = ctx.from?.id?.toString() || 'unknown'
-        const { getUserDetailsSubscription } = await import('@/core/supabase')
-        const { simulateSubscriptionForDev } = await import(
-          '@/scenes/menuScene/helpers/simulateSubscription'
-        )
-        const { isDev } = await import('@/config')
 
-        const userDetails = await getUserDetailsSubscription(telegramId)
-        const effectiveSubscription = simulateSubscriptionForDev(
-          userDetails?.subscriptionType || null,
-          isDev
-        )
+        try {
+          const { getUserDetailsSubscription } = await import('@/core/supabase')
+          const { simulateSubscriptionForDev } = await import(
+            '@/scenes/menuScene/helpers/simulateSubscription'
+          )
+          const { isDev } = await import('@/config')
 
-        logger.info('COMMAND /menu: Checking subscription', {
-          telegramId,
-          originalSubscription: userDetails?.subscriptionType,
-          effectiveSubscription,
-          isDev,
-        })
+          const userDetails = await getUserDetailsSubscription(telegramId)
+          const effectiveSubscription = simulateSubscriptionForDev(
+            userDetails?.subscriptionType || null,
+            isDev
+          )
 
-        // Если нет подписки (включая симуляцию), направляем в subscriptionScene
-        if (!effectiveSubscription || effectiveSubscription === 'STARS') {
-          logger.info(
-            'COMMAND /menu: No subscription, redirecting to subscription scene',
+          logger.info('COMMAND /menu: Checking subscription', {
+            telegramId,
+            originalSubscription: userDetails?.subscriptionType,
+            effectiveSubscription,
+            isDev,
+          })
+
+          // Если нет подписки, показываем subscription scene, но не блокируем /menu
+          if (!effectiveSubscription || effectiveSubscription === 'STARS') {
+            logger.info(
+              'COMMAND /menu: No subscription, showing subscription options',
+              {
+                telegramId,
+                effectiveSubscription,
+              }
+            )
+            ctx.session.mode = ModeEnum.SubscriptionScene
+            await ctx.scene.enter(ModeEnum.SubscriptionScene)
+            return
+          }
+
+          // Если подписка есть, входим в главное меню
+          ctx.session.mode = ModeEnum.MainMenu
+          await ctx.scene.enter(ModeEnum.MainMenu)
+        } catch (subscriptionError) {
+          // Если ошибка с проверкой подписки, всё равно показываем меню
+          logger.warn(
+            'COMMAND /menu: Subscription check failed, showing menu anyway',
             {
               telegramId,
-              effectiveSubscription,
+              error:
+                subscriptionError instanceof Error
+                  ? subscriptionError.message
+                  : String(subscriptionError),
             }
           )
-          ctx.session.mode = ModeEnum.SubscriptionScene
-          await ctx.scene.enter(ModeEnum.SubscriptionScene)
-          return
-        }
 
-        // Если подписка есть, входим в меню
-        ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter(ModeEnum.MainMenu)
+          ctx.session.mode = ModeEnum.MainMenu
+          await ctx.scene.enter(ModeEnum.MainMenu)
+        }
       } catch (error) {
         logger.error('Error in /menu command:', {
           error,
           telegramId: ctx.from?.id,
         })
         try {
-          await ctx.reply('Ошибка при переходе в меню.')
+          // В случае критической ошибки, всё равно пытаемся показать что-то полезное
+          await ctx.reply(
+            '🏠 Главное меню временно недоступно. Попробуйте /start'
+          )
         } catch {
           /* ignore */
         }
@@ -376,32 +397,35 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           return sendGroupCommandReply(ctx)
         }
 
-        console.log('🔍 [DEBUG] Starting subscription check...')
-        logger.info('🔍 [DEBUG] Starting subscription check...')
-        // ✅ ЗАЩИТА: Проверяем подписку перед использованием Instagram анализа
-        const hasSubscription = await checkSubscriptionGuard(ctx, '/instagram')
+        console.log('🔍 [DEBUG] Starting Instagram parsing...')
+        logger.info('🔍 [DEBUG] Starting Instagram parsing...')
 
-        console.log('🔍 [DEBUG] Subscription check result:', {
-          hasSubscription,
-          telegramId: ctx.from?.id,
-        })
-        logger.info('🔍 [DEBUG] Subscription check result:', {
-          hasSubscription,
-          telegramId: ctx.from?.id,
-        })
+        // Проверяем доступ к парсингу
+        const userId = ctx.from?.id?.toString()
+        const botToken = ctx.telegram.token
 
-        if (!hasSubscription) {
-          console.log(
-            '🔍 [DEBUG] No subscription - user redirected to subscriptionScene'
+        if (!userId) {
+          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+          return
+        }
+
+        const { getParsingAccess } = await import('@/menu/mainMenu')
+        const parsingAccess = getParsingAccess(userId, botToken)
+
+        if (!parsingAccess.hasAccess) {
+          logger.warn(
+            'Instagram parsing access denied via /instagram command',
+            {
+              telegramId: ctx.from?.id,
+              userId,
+            }
           )
-          logger.info(
-            '🔍 [DEBUG] No subscription - user redirected to subscriptionScene'
-          )
-          return // Пользователь перенаправлен в subscriptionScene
+          await ctx.reply('❌ У вас нет доступа к функции парсинга Instagram.')
+          return
         }
 
         console.log(
-          '🔍 [DEBUG] Subscription check PASSED! Proceeding with Instagram wizard...'
+          '🔍 [DEBUG] Parsing access check PASSED! Proceeding with Instagram wizard...'
         )
         logger.info(
           'COMMAND /instagram: Instagram competitor analysis started',
@@ -673,6 +697,211 @@ If not, continue on your own and click the "I myself" button`
           isRuError
             ? '❌ Произошла ошибка при создании нового промпта.'
             : '❌ An error occurred while creating a new prompt.'
+        )
+      }
+    })
+
+    // Обработчики для кнопок "Создать еще" - Text-to-Video
+    bot.hears(
+      ['✨ Создать еще (Текст в Видео)', '✨ Create More (Text to Video)'],
+      async ctx => {
+        logger.info('HEARS: create_more_text_to_video', {
+          telegramId: ctx.from?.id,
+        })
+        try {
+          const isRu = isRussianFromState(ctx)
+
+          // ✅ ЗАЩИТА: Проверяем подписку перед использованием Text-to-Video
+          const hasSubscription = await checkSubscriptionGuard(
+            ctx,
+            'Text-to-Video'
+          )
+          if (!hasSubscription) {
+            return // Пользователь перенаправлен в subscriptionScene
+          }
+
+          await ctx.scene.leave()
+          ctx.session.mode = ModeEnum.TextToVideo
+          await ctx.scene.enter(ModeEnum.TextToVideo)
+
+          await ctx.reply(
+            isRu
+              ? '🎬 Создаем новое видео из текста! Выберите модель:'
+              : '🎬 Creating a new video from text! Select a model:'
+          )
+        } catch (error) {
+          logger.error('Error in create_more_text_to_video hears:', {
+            error,
+            telegramId: ctx.from?.id,
+          })
+          const isRuError = isRussianFromState(ctx)
+          await ctx.reply(
+            isRuError
+              ? '❌ Произошла ошибка при создании нового видео.'
+              : '❌ An error occurred while creating a new video.'
+          )
+        }
+      }
+    )
+
+    // Обработчики для кнопок "Создать еще" - Image-to-Video
+    bot.hears(
+      [
+        '✨ Создать еще (Изображение в Видео)',
+        '✨ Create More (Image to Video)',
+      ],
+      async ctx => {
+        logger.info('HEARS: create_more_image_to_video', {
+          telegramId: ctx.from?.id,
+        })
+        try {
+          const isRu = isRussianFromState(ctx)
+
+          // ✅ ЗАЩИТА: Проверяем подписку перед использованием Image-to-Video
+          const hasSubscription = await checkSubscriptionGuard(
+            ctx,
+            'Image-to-Video'
+          )
+          if (!hasSubscription) {
+            return // Пользователь перенаправлен в subscriptionScene
+          }
+
+          await ctx.scene.leave()
+          ctx.session.mode = ModeEnum.ImageToVideo
+          await ctx.scene.enter(ModeEnum.ImageToVideo)
+
+          await ctx.reply(
+            isRu
+              ? '🖼️ Создаем новое видео из изображения! Выберите модель:'
+              : '🖼️ Creating a new video from image! Select a model:'
+          )
+        } catch (error) {
+          logger.error('Error in create_more_image_to_video hears:', {
+            error,
+            telegramId: ctx.from?.id,
+          })
+          const isRuError = isRussianFromState(ctx)
+          await ctx.reply(
+            isRuError
+              ? '❌ Произошла ошибка при создании нового видео.'
+              : '❌ An error occurred while creating a new video.'
+          )
+        }
+      }
+    )
+
+    // Обработчик для кнопки "Выбрать другую модель (Видео)" - универсальный
+    bot.hears(
+      ['🖼 Выбрать другую модель (Видео)', '🖼 Select Another Model (Video)'],
+      async ctx => {
+        logger.info('HEARS: select_another_video_model', {
+          telegramId: ctx.from?.id,
+        })
+        try {
+          const isRu = isRussianFromState(ctx)
+
+          // ✅ ЗАЩИТА: Проверяем подписку перед выбором модели
+          const hasSubscription = await checkSubscriptionGuard(
+            ctx,
+            'Video Generation'
+          )
+          if (!hasSubscription) {
+            return // Пользователь перенаправлен в subscriptionScene
+          }
+
+          // Показываем пользователю выбор типа видео-генерации
+          await ctx.scene.leave()
+
+          await ctx.reply(
+            isRu
+              ? '🎬 Выберите тип генерации видео:'
+              : '🎬 Choose video generation type:',
+            Markup.keyboard([
+              [
+                isRu ? '📝 Текст в Видео' : '📝 Text to Video',
+                isRu ? '🖼️ Изображение в Видео' : '🖼️ Image to Video',
+              ],
+              [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+            ]).resize()
+          )
+        } catch (error) {
+          logger.error('Error in select_another_video_model hears:', {
+            error,
+            telegramId: ctx.from?.id,
+          })
+          const isRuError = isRussianFromState(ctx)
+          await ctx.reply(
+            isRuError
+              ? '❌ Произошла ошибка при выборе модели.'
+              : '❌ An error occurred while selecting a model.'
+          )
+        }
+      }
+    )
+
+    // Обработчики для кнопок выбора типа видео-генерации
+    bot.hears(['📝 Текст в Видео', '📝 Text to Video'], async ctx => {
+      logger.info('HEARS: text_to_video_selection', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        const isRu = isRussianFromState(ctx)
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед использованием Text-to-Video
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          'Text-to-Video'
+        )
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.TextToVideo
+        await ctx.scene.enter(ModeEnum.TextToVideo)
+      } catch (error) {
+        logger.error('Error in text_to_video_selection hears:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        const isRuError = isRussianFromState(ctx)
+        await ctx.reply(
+          isRuError
+            ? '❌ Произошла ошибка при переходе к Text-to-Video.'
+            : '❌ An error occurred while switching to Text-to-Video.'
+        )
+      }
+    })
+
+    bot.hears(['🖼️ Изображение в Видео', '🖼️ Image to Video'], async ctx => {
+      logger.info('HEARS: image_to_video_selection', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        const isRu = isRussianFromState(ctx)
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед использованием Image-to-Video
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          'Image-to-Video'
+        )
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.ImageToVideo
+        await ctx.scene.enter(ModeEnum.ImageToVideo)
+      } catch (error) {
+        logger.error('Error in image_to_video_selection hears:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        const isRuError = isRussianFromState(ctx)
+        await ctx.reply(
+          isRuError
+            ? '❌ Произошла ошибка при переходе к Image-to-Video.'
+            : '❌ An error occurred while switching to Image-to-Video.'
         )
       }
     })
@@ -1016,6 +1245,88 @@ If not, continue on your own and click the "I myself" button`
           isRuError3
             ? '❌ Произошла ошибка при создании нового промпта.'
             : '❌ An error occurred while creating a new prompt.'
+        )
+      }
+    })
+
+    // INLINE КНОПКИ ДЛЯ TEXT-TO-VIDEO
+    bot.action('create_more_text_to_video', async ctx => {
+      logger.info('GLOBAL ACTION: create_more_text_to_video', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        await ctx.answerCbQuery()
+        const isRu = isRussianFromState(ctx)
+
+        // ✅ ЗАЩИТА: Проверяем подписку
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          'Text-to-Video'
+        )
+        if (!hasSubscription) {
+          return
+        }
+
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.TextToVideo
+        await ctx.scene.enter(ModeEnum.TextToVideo)
+
+        await ctx.reply(
+          isRu
+            ? '🎬 Создаем новое видео из текста! Выберите модель:'
+            : '🎬 Creating a new video from text! Select a model:'
+        )
+      } catch (error) {
+        logger.error('Error in create_more_text_to_video action:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        const isRuError = isRussianFromState(ctx)
+        await ctx.reply(
+          isRuError
+            ? '❌ Произошла ошибка при создании нового видео.'
+            : '❌ An error occurred while creating a new video.'
+        )
+      }
+    })
+
+    // INLINE КНОПКИ ДЛЯ IMAGE-TO-VIDEO
+    bot.action('create_more_image_to_video', async ctx => {
+      logger.info('GLOBAL ACTION: create_more_image_to_video', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        await ctx.answerCbQuery()
+        const isRu = isRussianFromState(ctx)
+
+        // ✅ ЗАЩИТА: Проверяем подписку
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          'Image-to-Video'
+        )
+        if (!hasSubscription) {
+          return
+        }
+
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.ImageToVideo
+        await ctx.scene.enter(ModeEnum.ImageToVideo)
+
+        await ctx.reply(
+          isRu
+            ? '🖼️ Создаем новое видео из изображения! Выберите модель:'
+            : '🖼️ Creating a new video from image! Select a model:'
+        )
+      } catch (error) {
+        logger.error('Error in create_more_image_to_video action:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        const isRuError = isRussianFromState(ctx)
+        await ctx.reply(
+          isRuError
+            ? '❌ Произошла ошибка при создании нового видео.'
+            : '❌ An error occurred while creating a new video.'
         )
       }
     })
