@@ -18,6 +18,7 @@ import {
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { Markup } from 'telegraf'
 
 export const generateImageToVideo = async (
   telegramId: string,
@@ -298,6 +299,31 @@ export const generateImageToVideo = async (
       chatId,
       { source: localVideoPath },
       { caption }
+    )
+
+    // Добавляем финальные кнопки после успешной генерации видео
+    logger.info('[I2V BG] Sending final buttons to user', { telegramId })
+
+    const keyboard = Markup.keyboard([
+      [
+        isRu
+          ? '✨ Создать еще (Изображение в Видео)'
+          : '✨ Create More (Image to Video)',
+      ],
+      [
+        isRu
+          ? '🖼 Выбрать другую модель (Видео)'
+          : '🖼 Select Another Model (Video)',
+      ],
+      [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+    ]).resize()
+
+    await telegramInstance.sendMessage(
+      chatId,
+      isRu
+        ? 'Ваше видео готово! Что дальше?'
+        : 'Your video is ready! What next?',
+      keyboard
     )
   } catch (error: any) {
     logger.error('[I2V BG] General error in generateImageToVideo', {
