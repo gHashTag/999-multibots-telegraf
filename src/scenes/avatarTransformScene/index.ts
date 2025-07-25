@@ -308,7 +308,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [
-              isRu ? '👨‍ Мужской образ' : '👨‍💼 Male look',
+              isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
               isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
             ],
             [isRu ? '🔙 Назад' : '🔙 Back'],
