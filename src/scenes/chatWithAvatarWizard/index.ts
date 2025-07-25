@@ -24,18 +24,52 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    if ('text' in ctx.message) {
-      // Входим в сцену обработчика текста
-      await ctx.scene.enter('handleTextMessage')
-      return
-    } else {
-      // Обработка других типов сообщений, если нужно
-      return ctx.scene.leave()
-    }
-
     const isCancel = await handleHelpCancel(ctx)
 
     if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    if ('text' in ctx.message) {
+      // ✅ ИСПРАВЛЕНО: Обрабатываем текст для чата с аватаром напрямую
+      try {
+        const telegramId = ctx.from?.id?.toString()
+        if (!telegramId) {
+          return ctx.scene.leave()
+        }
+
+        const { answerAi } = await import('../../core/openai/requests')
+        const { getUserData, getUserModel } = await import(
+          '../../core/supabase'
+        )
+        const { getUserLanguageFromState } = await import(
+          '@/helpers/centralizedLanguage'
+        )
+
+        const userData = await getUserData(telegramId)
+        const userModel = await getUserModel(telegramId)
+        const languageCode = getUserLanguageFromState(ctx)
+
+        const prompt = ctx.message.text
+        const model = userModel || 'deepseek-chat'
+
+        const response = await answerAi(model, userData, prompt, languageCode)
+        await ctx.reply(response)
+
+        // Остаемся на том же шаге для продолжения чата
+        return ctx.wizard.selectStep(1)
+      } catch (error) {
+        console.error('[chatWithAvatarWizard] Error processing text:', error)
+        const isRu = isRussian(ctx)
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при обработке сообщения.'
+            : '❌ An error occurred while processing the message.'
+        )
+        return ctx.scene.leave()
+      }
+    } else {
+      // Обработка других типов сообщений, если нужно
       return ctx.scene.leave()
     }
 

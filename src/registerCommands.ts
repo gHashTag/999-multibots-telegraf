@@ -25,7 +25,7 @@ import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 // Импортируем FLUX Kontext команду
 import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
 // Импортируем сцену handleTextMessage
-import { handleTextMessage } from './handlers/handleTextMessage'
+// import { handleTextMessage } from './handlers/handleTextMessage' // ❌ ИСПРАВЛЕНО: не используется как сцена
 
 // Возвращаем импорт всех сцен через index
 import {
@@ -130,7 +130,7 @@ export const stage = new Scenes.Stage<MyContext>([
   createUserScene,
   neuroCoderScene,
   instagramScrapingWizard,
-  handleTextMessage,
+  // handleTextMessage, // ❌ ИСПРАВЛЕНО: убираем из stage сцен - это должен быть middleware, не сцена!
 ])
 
 // Function to send the promotional message
