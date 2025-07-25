@@ -35,7 +35,13 @@ export async function validateImageUrl(
     )
 
     // Проверяем, что это изображение
-    if (!contentType || !contentType.startsWith('image/')) {
+    // Telegram API может возвращать application/octet-stream для изображений,
+    // поэтому полагаемся на проверку магических байтов дальше в коде
+    if (
+      !contentType ||
+      (!contentType.startsWith('image/') &&
+        contentType !== 'application/octet-stream')
+    ) {
       return {
         isValid: false,
         reason: `Invalid content type: ${contentType}`,
