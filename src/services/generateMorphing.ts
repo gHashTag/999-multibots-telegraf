@@ -69,6 +69,19 @@ export async function generateMorphing(
       formDataKeys: Object.keys(formData.getBuffer ? formData : {}),
     })
 
+    // ✅ ДЕТАЛЬНЫЕ ЛОГИ ПЕРЕД ОТПРАВКОЙ
+    console.log('🚨 [MORPHING SERVICE] ABOUT TO SEND REQUEST:', {
+      url,
+      telegram_id: requestData.telegram_id,
+      imageCount: requestData.imageCount,
+      morphingType: requestData.morphingType,
+      model: 'kling-v1.6-pro',
+      fileExists: fs.existsSync(requestData.filePath),
+      fileSize: fs.statSync(requestData.filePath).size,
+      hasSecretKey: !!SECRET_API_KEY,
+      secretKeyLength: SECRET_API_KEY?.length || 0,
+    })
+
     // Отправляем запрос на сервер
     const response: AxiosResponse<MorphingResponse> = await axios.post(
       url,
@@ -112,6 +125,19 @@ export async function generateMorphing(
     })
 
     if (axios.isAxiosError(error)) {
+      // ✅ ДЕТАЛЬНЫЕ ЛОГИ ОШИБКИ AXIOS
+      console.error('🚨 [MORPHING SERVICE] AXIOS ERROR DETAILS:', {
+        telegramId: requestData.telegram_id,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        headers: error.response?.headers,
+        url: error.config?.url,
+        method: error.config?.method,
+        message: error.message,
+        code: error.code,
+      })
+
       logger.error('[Morphing Service] API Error details', {
         telegramId: requestData.telegram_id,
         status: error.response?.status,
@@ -125,6 +151,14 @@ export async function generateMorphing(
           : 'Server error occurred while creating morphing'
       )
     }
+
+    // ✅ ЛОГИ ДЛЯ НЕ-AXIOS ОШИБОК
+    console.error('🚨 [MORPHING SERVICE] NON-AXIOS ERROR:', {
+      telegramId: requestData.telegram_id,
+      error: error instanceof Error ? error.message : String(error),
+      type: typeof error,
+      name: error instanceof Error ? error.name : 'Unknown',
+    })
 
     throw error
   }
