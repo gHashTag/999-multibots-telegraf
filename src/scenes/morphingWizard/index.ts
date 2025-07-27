@@ -123,7 +123,8 @@ Ready to start? Send your first photo! 📷`
           ctx.wizard.cursor
         )
         console.log('🧬 [MORPHING DEBUG] Step 2 - Moving to Step 3 (preview)')
-        return result
+        // НЕ возвращаем result - это блокирует автоматический переход к следующему шагу!
+        return // Пустой return для автоматического вызова Step 3
       } catch (error) {
         console.error(
           '🧬 [MORPHING DEBUG] Step 2 - ERROR in ctx.wizard.next():',
