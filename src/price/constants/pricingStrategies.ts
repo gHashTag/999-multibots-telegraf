@@ -27,6 +27,7 @@ export const MODE_PRICING_STRATEGY: Partial<Record<ModeEnum, PricingStrategy>> =
     [ModeEnum.VoiceToText]: PricingStrategy.FIXED,
     [ModeEnum.DigitalAvatarBody]: PricingStrategy.STEP_BASED, // Нужно указать steps
     [ModeEnum.DigitalAvatarBodyV2]: PricingStrategy.STEP_BASED, // Нужно указать steps
+    [ModeEnum.MorphingWizard]: PricingStrategy.FIXED, // Фиксированная цена для морфинга
 
     // Служебные операции - бесплатно
     [ModeEnum.StartScene]: PricingStrategy.FREE,
