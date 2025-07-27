@@ -52,6 +52,8 @@ export async function createModelTraining(
     formData.append('is_ru', requestData.is_ru.toString())
     formData.append('bot_name', requestData.botName)
     formData.append('gender', requestData.gender)
+    // Добавляем hardware параметр для исправления ошибки с устаревшим gpu-t4
+    formData.append('hardware', 'gpu-a100-large')
 
     const response: AxiosResponse<ModelTrainingResponse> = await axios.post(
       url,
