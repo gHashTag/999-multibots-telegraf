@@ -11,11 +11,14 @@ import { ModeEnum } from '@/interfaces'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { logger } from '@/utils/logger'
 
+console.log('🏗️ [MORPHING DEBUG] Creating morphingWizard scene with 4 steps')
+
 export const morphingWizard = new Scenes.WizardScene<MyContext>(
   'morphing_wizard',
 
   // Step 1: Приветствие и инструкции
   async ctx => {
+    console.log('🧬 [MORPHING DEBUG] Step 1 STARTED - Welcome step')
     const isRu = isRussianFromState(ctx)
 
     const welcomeMessage = isRu
@@ -257,6 +260,7 @@ Ready to start? Send your first photo! 📷`
 
   // Step 3: Предпросмотр последовательности и подтверждение стоимости
   async ctx => {
+    console.log('🚨🚨🚨 [MORPHING DEBUG] Step 3 FUNCTION CALLED! 🚨🚨🚨')
     console.log('🧬 [MORPHING DEBUG] Step 3 STARTED')
     console.log(
       '🧬 [MORPHING DEBUG] Step 3 - Has callbackQuery:',
