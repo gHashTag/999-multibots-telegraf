@@ -51,6 +51,7 @@ export interface AdvancedFluxKontextParams {
   username: string
   is_ru: boolean
   ctx: MyContext
+  cameraSettings?: string // Настройки камеры для FLUX Kontext
 }
 
 export const generateFluxKontext = async (

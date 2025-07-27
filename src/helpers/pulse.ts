@@ -307,7 +307,7 @@ export const sendMediaToPulse = async (
           try {
             await pulseBot.telegram.sendMessage(chatId, textMessage, {
               parse_mode: 'HTML', // <--- МЕНЯЕМ НА HTML
-              disable_web_page_preview: true,
+              link_preview_options: { is_disabled: true },
             })
             logger.info({
               message: '✅ [pulse] Текст с промптом успешно отправлен (HTML)',
@@ -338,7 +338,7 @@ export const sendMediaToPulse = async (
               })
               await pulseBot.telegram.sendMessage(chatId, textMessage, {
                 // Отправляем тот же текст, но без parse_mode
-                disable_web_page_preview: true,
+                link_preview_options: { is_disabled: true },
               })
               logger.info({
                 message:
@@ -378,7 +378,7 @@ export const sendMediaToPulse = async (
           try {
             await pulseBot.telegram.sendMessage(chatId, textMessage, {
               parse_mode: 'HTML',
-              disable_web_page_preview: true,
+              link_preview_options: { is_disabled: true },
             })
             logger.info({
               message: '✅ [pulse] Текст без промпта успешно отправлен',
