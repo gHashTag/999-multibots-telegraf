@@ -183,6 +183,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   bypass_payment_check?: boolean
   images: BufferType
   morphingImages?: Uint8Array[] // Массив изображений для морфинга (Buffer -> Uint8Array)
+  morphingButtonsMessageId?: number // ✅ ID сообщения с кнопками морфинга для обновления
   modelName?: string
   targetUserId: number
   username?: string
