@@ -71,12 +71,9 @@ Ready to start? Send your first photo! 📷`
   // Step 2: Сбор изображений
   async ctx => {
     console.log('🧬 [MORPHING DEBUG] Step 2 STARTED')
-
     const isRu = isRussianFromState(ctx)
 
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      console.log('🧬 [MORPHING DEBUG] Step 2 - CANCELLED by handleHelpCancel')
+    if (await handleHelpCancel(ctx)) {
       return ctx.scene.leave()
     }
 
@@ -86,9 +83,18 @@ Ready to start? Send your first photo! 📷`
       message ? Object.keys(message) : 'no message'
     )
 
-    // ОБРАБОТКА КОМАНДЫ /done - ПЕРЕХОД К ПРЕДПРОСМОТРУ
+    // ✅ ЗАЩИТА ОТ МНОЖЕСТВЕННЫХ ПЕРЕХОДОВ
+    if (ctx.session.morphingProcessing) {
+      console.log('🧬 [MORPHING DEBUG] Step 2 - ALREADY PROCESSING - SKIP')
+      return
+    }
+
+    // Обработка команды /done
     if (message && 'text' in message && message.text === '/done') {
       console.log('🧬 [MORPHING DEBUG] Step 2 - /done command received!')
+
+      // ✅ БЛОКИРУЕМ ПАРАЛЛЕЛЬНУЮ ОБРАБОТКУ
+      ctx.session.morphingProcessing = true
 
       if (
         !ctx.session.morphingImages ||
@@ -103,6 +109,7 @@ Ready to start? Send your first photo! 📷`
             ? '⚠️ Минимум 2 изображения нужно для морфинга. Добавьте еще!'
             : '⚠️ Minimum 2 images required for morphing. Add more!'
         )
+        ctx.session.morphingProcessing = false // ✅ РАЗБЛОКИРУЕМ
         return
       }
 
@@ -123,8 +130,7 @@ Ready to start? Send your first photo! 📷`
           ctx.wizard.cursor
         )
         console.log('🧬 [MORPHING DEBUG] Step 2 - Moving to Step 3 (preview)')
-        // НЕ возвращаем result - это блокирует автоматический переход к следующему шагу!
-        return // Пустой return для автоматического вызова Step 3
+        return result // ✅ ВСЕ РАБОЧИЕ WIZARD'Ы ВОЗВРАЩАЮТ РЕЗУЛЬТАТ!
       } catch (error) {
         console.error(
           '🧬 [MORPHING DEBUG] Step 2 - ERROR in ctx.wizard.next():',
@@ -132,6 +138,7 @@ Ready to start? Send your first photo! 📷`
         )
         // Принудительно вызываем Step 3
         console.log('🧬 [MORPHING DEBUG] Step 2 - FORCING Step 3 manually...')
+        ctx.session.morphingProcessing = false // ✅ РАЗБЛОКИРУЕМ
         return ctx.scene.reenter()
       }
     }
@@ -259,24 +266,16 @@ Ready to start? Send your first photo! 📷`
     return // Остаемся на том же шаге для сбора изображений
   },
 
-  // Step 3: Предпросмотр последовательности и подтверждение стоимости
+  // Step 3: Предпросмотр и подтверждение
   async ctx => {
     console.log('🚨🚨🚨 [MORPHING DEBUG] Step 3 FUNCTION CALLED! 🚨🚨🚨')
     console.log('🧬 [MORPHING DEBUG] Step 3 STARTED')
-    console.log(
-      '🧬 [MORPHING DEBUG] Step 3 - Has callbackQuery:',
-      !!ctx.callbackQuery
-    )
-    console.log('🧬 [MORPHING DEBUG] Step 3 - Has message:', !!ctx.message)
+
+    // ✅ ОЧИЩАЕМ ФЛАГ ОБРАБОТКИ
+    ctx.session.morphingProcessing = false
 
     const isRu = isRussianFromState(ctx)
     const showRubles = shouldShowRubles(ctx)
-
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      console.log('🧬 [MORPHING DEBUG] Step 3 - CANCELLED by handleHelpCancel')
-      return ctx.scene.leave()
-    }
 
     const message = ctx.message
     console.log(
