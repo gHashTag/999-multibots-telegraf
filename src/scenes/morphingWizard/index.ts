@@ -122,17 +122,38 @@ async function executeStep4Logic(ctx: MyContext) {
     console.log(
       '🧬 [MORPHING DEBUG] Step 4 - Sending to generateMorphing server'
     )
-    const morphingResult = await generateMorphing(
-      {
-        filePath: zipPath,
-        telegram_id: ctx.from?.id?.toString() || '',
-        is_ru: isRu,
-        botName: ctx.botInfo?.username || '',
-        imageCount: ctx.session.morphingImages.length,
-        morphingType: 'seamless', // Бесшовная склейка
-      },
-      ctx
-    )
+
+    // ✅ ДЕТАЛЬНЫЕ ЛОГИ ПЕРЕД ОТПРАВКОЙ
+    const requestData = {
+      filePath: zipPath,
+      telegram_id: ctx.from?.id?.toString() || '',
+      is_ru: isRu,
+      botName: ctx.botInfo?.username || '',
+      imageCount: ctx.session.morphingImages.length,
+      morphingType: 'seamless' as const,
+    }
+
+    console.log('🧬 [MORPHING DEBUG] Step 4 - Request data:', {
+      filePath: requestData.filePath,
+      telegram_id: requestData.telegram_id,
+      botName: requestData.botName,
+      imageCount: requestData.imageCount,
+      morphingType: requestData.morphingType,
+      fileExists: fs.existsSync(requestData.filePath),
+    })
+
+    let morphingResult
+    try {
+      console.log('🧬 [MORPHING DEBUG] Step 4 - CALLING generateMorphing NOW!')
+      morphingResult = await generateMorphing(requestData, ctx)
+      console.log('🧬 [MORPHING DEBUG] Step 4 - generateMorphing SUCCESS!')
+    } catch (morphingError) {
+      console.error(
+        '🧬 [MORPHING DEBUG] Step 4 - generateMorphing ERROR:',
+        morphingError
+      )
+      throw morphingError // Пробрасываем ошибку дальше
+    }
 
     console.log('🧬 [MORPHING DEBUG] Step 4 - Morphing result:', morphingResult)
     logger.info('[Morphing Wizard] Morphing request sent', {
@@ -670,7 +691,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
 Спасибо за использование Морфинг Студии! ✨`
         : `✅ Morphing sent for processing!
 
-🎬 Your morphing will be ready in 5-10 minutes
+🎬 Your morphing will be ready in 5-10 minutes  
 📱 We'll send a notification when processing is complete
 🧬 Model used: Kling-v1.6
 
