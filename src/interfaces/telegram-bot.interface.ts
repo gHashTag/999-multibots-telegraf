@@ -248,6 +248,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   kontextImageUrl?: string
   kontextModelType?: 'pro' | 'max'
   kontextSelectedModel?: 'pro' | 'max' // Для предварительного выбора модели в сцене
+  fluxKontextCameraAngle?: string // Выбранный угол камеры для профессиональной съёмки
+  fluxKontextCameraSettings?: string // Расширенные настройки камеры для FLUX Kontext
 
   // Advanced FLUX Kontext fields
   fluxKontextMode?:
