@@ -2,6 +2,7 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { getBotToken } from '@/handlers/getBotToken' // ✅ Добавляю импорт
 import { generateMorphing } from '../../services/generateMorphing'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { logger } from '@/utils/logger'
@@ -116,19 +117,55 @@ Ready to start? Send your first photo! 📷`
         const photoInfo = await ctx.telegram.getFile(
           photos[photos.length - 1].file_id
         )
-        const photoUrl = `https://api.telegram.org/file/bot${ctx.botInfo.token}/${photoInfo.file_path}`
+
+        if (!photoInfo.file_path) {
+          console.log(
+            '🧬 [MORPHING DEBUG] Step 2 - ERROR: No file path in photoInfo'
+          )
+          const errorMessage = isRu
+            ? '❌ Ошибка получения информации о файле.'
+            : '❌ Error getting file information.'
+          await ctx.reply(errorMessage)
+          return
+        }
+
+        const botToken = getBotToken(ctx) // ✅ Правильный способ получения токена
+        const photoUrl = `https://api.telegram.org/file/bot${botToken}/${photoInfo.file_path}`
         console.log(
-          '🧬 [MORPHING DEBUG] Step 2 - Downloading image, file_path:',
-          photoInfo.file_path
+          '🧬 [MORPHING DEBUG] Step 2 - Downloading image, photoUrl:',
+          photoUrl
+        )
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - Bot token length:',
+          botToken.length
         )
 
         const response = await fetch(photoUrl)
+
+        if (!response.ok) {
+          console.log(
+            '🧬 [MORPHING DEBUG] Step 2 - ERROR: HTTP',
+            response.status,
+            response.statusText
+          )
+          const errorMessage = isRu
+            ? `❌ Ошибка скачивания изображения: ${response.status}`
+            : `❌ Error downloading image: ${response.status}`
+          await ctx.reply(errorMessage)
+          return
+        }
+
         const imageBuffer = await response.arrayBuffer()
         const imageBufferUint8 = new Uint8Array(imageBuffer)
         console.log(
           '🧬 [MORPHING DEBUG] Step 2 - Image downloaded, size:',
           imageBufferUint8.length
         )
+        console.log('🧬 [MORPHING DEBUG] Step 2 - Response headers:', {
+          'content-type': response.headers.get('content-type'),
+          'content-length': response.headers.get('content-length'),
+          status: response.status,
+        })
 
         console.log('🧬 [MORPHING DEBUG] Step 2 - Validating image...')
         const isValidImage = imageBufferUint8.length > 100
@@ -166,13 +203,12 @@ Ready to start? Send your first photo! 📷`
         // ✅ ПОКАЗЫВАЕМ ПРОГРЕСС И КНОПКИ КОГДА >= 2 ФОТО
         if (ctx.session.morphingImages.length >= 2) {
           const currentCount = ctx.session.morphingImages.length
-          const maxCount = 5
 
           const progressMessage = isRu
-            ? `🧬 <b>Морфинг</b>\n\n📸 Загружено: ${currentCount}/${maxCount} изображений\n\n` +
-              `ℹ️ Вы можете добавить еще фото или подтвердить текущие.`
-            : `🧬 <b>Morphing</b>\n\n📸 Uploaded: ${currentCount}/${maxCount} images\n\n` +
-              `ℹ️ You can add more photos or confirm the current ones.`
+            ? `🧬 <b>Морфинг</b>\n\n📸 Загружено: ${currentCount} изображений\n\n` +
+              `ℹ️ Вы можете добавить еще фото или подтвердить текущие для создания ${currentCount} видео переходов.`
+            : `🧬 <b>Morphing</b>\n\n📸 Uploaded: ${currentCount} images\n\n` +
+              `ℹ️ You can add more photos or confirm current ones to create ${currentCount} transition videos.`
 
           const buttons = [
             Markup.button.callback(
@@ -187,18 +223,55 @@ Ready to start? Send your first photo! 📷`
 
           const keyboard = Markup.inlineKeyboard(buttons)
 
-          await ctx.replyWithHTML(progressMessage, keyboard)
-          console.log(
-            '🧬 [MORPHING DEBUG] Step 2 - ПОКАЗАНЫ КНОПКИ! Ждем callback от пользователя'
-          )
+          // ✅ ПРОВЕРЯЕМ - есть ли уже сообщение с кнопками?
+          if (ctx.session.morphingButtonsMessageId) {
+            // Обновляем существующее сообщение
+            try {
+              await ctx.telegram.editMessageText(
+                ctx.chat!.id,
+                ctx.session.morphingButtonsMessageId,
+                undefined,
+                progressMessage,
+                {
+                  parse_mode: 'HTML',
+                  reply_markup: keyboard.reply_markup,
+                }
+              )
+              console.log(
+                '🧬 [MORPHING DEBUG] Step 2 - ОБНОВЛЕНО существующее сообщение с кнопками'
+              )
+            } catch (error) {
+              console.log(
+                '🧬 [MORPHING DEBUG] Step 2 - Ошибка обновления, создаем новое:',
+                error
+              )
+              // Если не удалось обновить - создаем новое
+              const newMessage = await ctx.replyWithHTML(
+                progressMessage,
+                keyboard
+              )
+              ctx.session.morphingButtonsMessageId = newMessage.message_id
+            }
+          } else {
+            // Создаем первое сообщение с кнопками
+            const newMessage = await ctx.replyWithHTML(
+              progressMessage,
+              keyboard
+            )
+            ctx.session.morphingButtonsMessageId = newMessage.message_id
+            console.log(
+              '🧬 [MORPHING DEBUG] Step 2 - СОЗДАНО первое сообщение с кнопками, ID:',
+              newMessage.message_id
+            )
+          }
 
           // ✅ НЕ ПЕРЕХОДИМ К STEP 3 СРАЗУ - ждем нажатия кнопки!
           return
         } else {
           // Меньше 2 фото - просим еще
           const needMoreMessage = isRu
-            ? `🧬 Загружено: ${ctx.session.morphingImages.length}/5 фото\n\n📸 Загрузите еще минимум ${2 - ctx.session.morphingImages.length} изображение(я)`
-            : `🧬 Uploaded: ${ctx.session.morphingImages.length}/5 photos\n\n📸 Upload at least ${2 - ctx.session.morphingImages.length} more image(s)`
+            ? `🧬 Загружено: ${ctx.session.morphingImages.length} фото\n\n📸 Загрузите еще минимум ${2 - ctx.session.morphingImages.length} изображение(я) для создания морфинга`
+            : `🧬 Uploaded: ${ctx.session.morphingImages.length} photos\n\n📸 Upload at least ${2 - ctx.session.morphingImages.length} more image(s) to create morphing`
 
           await ctx.reply(needMoreMessage)
           return
@@ -218,8 +291,8 @@ Ready to start? Send your first photo! 📷`
       // Не фото - просим загрузить фото
       const currentCount = ctx.session.morphingImages?.length || 0
       const messageText = isRu
-        ? `🧬 Загружено: ${currentCount}/5 фото\n\n📸 Загрузите изображение`
-        : `🧬 Uploaded: ${currentCount}/5 photos\n\n📸 Please upload an image`
+        ? `🧬 Загружено: ${currentCount} фото\n\n📸 Загрузите изображение для создания морфинга`
+        : `🧬 Uploaded: ${currentCount} photos\n\n📸 Please upload an image to create morphing`
 
       await ctx.reply(messageText)
       return
@@ -318,8 +391,9 @@ Ready to start? Send your first photo! 📷`
       await ctx.answerCbQuery()
       await ctx.editMessageReplyMarkup(undefined)
 
-      // Очищаем данные сессии
+      // ✅ Очищаем данные сессии ВСЕ
       ctx.session.morphingImages = []
+      ctx.session.morphingButtonsMessageId = undefined // ✅ Сбрасываем ID кнопок
 
       const restartMessage = isRu
         ? '🔄 Начинаем заново. Загрузите изображения для морфинга:'
@@ -335,6 +409,9 @@ Ready to start? Send your first photo! 📷`
       const isRu = isRussianFromState(ctx)
       await ctx.answerCbQuery()
       await ctx.editMessageReplyMarkup(undefined)
+
+      // ✅ Сбрасываем ID кнопок для создания новых
+      ctx.session.morphingButtonsMessageId = undefined
 
       const backMessage = isRu
         ? '📝 Вы можете добавить еще изображения или изменить существующие:'
