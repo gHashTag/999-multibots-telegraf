@@ -91,6 +91,104 @@ async function executeStep3Logic(ctx: MyContext) {
   )
 }
 
+// ✅ ВЫНЕСЕННАЯ ФУНКЦИЯ STEP 4 ДЛЯ ПРИНУДИТЕЛЬНОГО ВЫЗОВА
+async function executeStep4Logic(ctx: MyContext) {
+  console.log(
+    '🧬 [MORPHING DEBUG] Step 4 STARTED - Processing and sending to server'
+  )
+  const isRu = isRussianFromState(ctx)
+
+  await ctx.reply(
+    isRu
+      ? '🧬 Начинаю создание морфинга...\n⏳ Это может занять несколько минут.'
+      : '🧬 Starting morphing creation...\n⏳ This may take several minutes.'
+  )
+
+  let zipPath: string | undefined
+  try {
+    console.log('🧬 [MORPHING DEBUG] Step 4 - Creating ZIP archive')
+    // Создаем архив изображений
+    zipPath = createMorphingImagesZip(ctx.session.morphingImages)
+    console.log('🧬 [MORPHING DEBUG] Step 4 - ZIP created at:', zipPath)
+    logger.info('[Morphing Wizard] ZIP created', {
+      telegramId: ctx.from?.id,
+      zipPath,
+      imageCount: ctx.session.morphingImages.length,
+    })
+
+    // 🧬 Отправляем на сервер для морфинга
+    console.log(
+      '🧬 [MORPHING DEBUG] Step 4 - Sending to generateMorphing server'
+    )
+    const morphingResult = await generateMorphing(
+      {
+        filePath: zipPath,
+        telegram_id: ctx.from?.id?.toString() || '',
+        is_ru: isRu,
+        botName: ctx.botInfo?.username || '',
+        imageCount: ctx.session.morphingImages.length,
+        morphingType: 'seamless', // Бесшовная склейка
+      },
+      ctx
+    )
+
+    console.log('🧬 [MORPHING DEBUG] Step 4 - Morphing result:', morphingResult)
+    logger.info('[Morphing Wizard] Morphing request sent', {
+      telegramId: ctx.from?.id,
+      result: morphingResult,
+    })
+
+    const successMessage = isRu
+      ? `✅ Морфинг отправлен на обработку!
+
+🎬 Ваш морфинг будет готов через 5-10 минут
+📱 Мы пришлем уведомление, когда обработка завершится
+🧬 Используемая модель: Kling-v1.6
+
+Спасибо за использование Морфинг Студии! ✨`
+      : `✅ Morphing sent for processing!
+
+🎬 Your morphing will be ready in 5-10 minutes
+📱 We'll send a notification when processing is complete
+🧬 Model used: Kling-v1.6
+
+Thank you for using Morphing Studio! ✨`
+
+    await ctx.reply(successMessage)
+  } catch (error) {
+    logger.error('[Morphing Wizard] Error during processing', {
+      telegramId: ctx.from?.id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+
+    const errorMessage = isRu
+      ? '❌ Произошла ошибка при обработке морфинга. Попробуйте позже или обратитесь в поддержку.'
+      : '❌ Error occurred during morphing processing. Please try again later or contact support.'
+
+    await ctx.reply(errorMessage)
+  } finally {
+    // ✅ Очищаем временный ZIP файл если он был создан
+    if (typeof zipPath === 'string' && fs.existsSync(zipPath)) {
+      try {
+        fs.unlinkSync(zipPath)
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 4 - Temporary ZIP file cleaned:',
+          zipPath
+        )
+      } catch (cleanupError) {
+        console.error(
+          '🧬 [MORPHING DEBUG] Step 4 - Failed to cleanup ZIP:',
+          cleanupError
+        )
+      }
+    }
+
+    // Очищаем данные сессии
+    ctx.session.morphingImages = []
+    await ctx.scene.leave()
+  }
+}
+
 console.log('🏗️ [MORPHING DEBUG] Creating morphingWizard scene with 4 steps')
 
 export const morphingWizard = new Scenes.WizardScene<MyContext>(
@@ -186,11 +284,11 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
           return ctx.wizard.selectStep(0) // ✅ Возвращаем к Step 1 (индекс 0)
         }
 
-        // ✅ ПЕРЕХОДИМ К STEP 4 (обработка) - ИСПОЛЬЗУЕМ NEXT!
+        // ✅ ПРИНУДИТЕЛЬНО ВЫЗЫВАЕМ STEP 4 ЛОГИКУ!
         console.log(
-          '🧬 [MORPHING DEBUG] Step 2 - TRANSITIONING TO STEP 4 (processing)'
+          '🧬 [MORPHING DEBUG] Step 2 - MANUALLY CALLING STEP 4 LOGIC'
         )
-        return ctx.wizard.next() // ✅ Переходим к Step 4 (Step 3 пропускаем)
+        return await executeStep4Logic(ctx) // ✅ Принудительный вызов Step 4
       }
 
       // ✅ ОБРАБОТКА morphing_back В STEP 2
