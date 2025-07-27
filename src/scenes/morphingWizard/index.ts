@@ -67,35 +67,46 @@ Ready to start? Send your first photo! 📷`
 
   // Step 2: Сбор изображений
   async ctx => {
+    console.log('🧬 [MORPHING DEBUG] Step 2 STARTED')
+
     const isRu = isRussianFromState(ctx)
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
+      console.log('🧬 [MORPHING DEBUG] Step 2 - CANCELLED by handleHelpCancel')
       return ctx.scene.leave()
     }
 
     const message = ctx.message
+    console.log(
+      '🧬 [MORPHING DEBUG] Step 2 - Message type:',
+      message ? Object.keys(message) : 'no message'
+    )
 
-    // Проверяем команду завершения сбора
+    // ОБРАБОТКА КОМАНДЫ /done - ПЕРЕХОД К ПРЕДПРОСМОТРУ
     if (message && 'text' in message && message.text === '/done') {
+      console.log('🧬 [MORPHING DEBUG] Step 2 - /done command received!')
+
       if (
         !ctx.session.morphingImages ||
         ctx.session.morphingImages.length < 2
       ) {
+        console.log('🧬 [MORPHING DEBUG] Step 2 - Not enough images for /done')
         await ctx.reply(
           isRu
-            ? `📸 Необходимо минимум 2 изображения для морфинга. Сейчас: ${ctx.session.morphingImages?.length || 0}`
-            : `📸 Minimum 2 images required for morphing. Current: ${ctx.session.morphingImages?.length || 0}`
+            ? '❌ Необходимо минимум 2 изображения для морфинга.'
+            : '❌ Minimum 2 images required for morphing.'
         )
         return
       }
 
-      logger.info('[Morphing Wizard] Images collection completed', {
+      console.log('🧬 [MORPHING DEBUG] Step 2 - Moving to Step 3 (preview)')
+      logger.info('[Morphing Wizard] Moving to preview step', {
         telegramId: ctx.from?.id,
         imageCount: ctx.session.morphingImages.length,
       })
 
-      return ctx.wizard.next() // Переходим к предпросмотру
+      return ctx.wizard.next() // Переходим к Step 3
     }
 
     // Обработка фотографий
@@ -183,22 +194,41 @@ Ready to start? Send your first photo! 📷`
 
   // Step 3: Предпросмотр последовательности и подтверждение стоимости
   async ctx => {
+    console.log('🧬 [MORPHING DEBUG] Step 3 STARTED')
+    console.log(
+      '🧬 [MORPHING DEBUG] Step 3 - Has callbackQuery:',
+      !!ctx.callbackQuery
+    )
+    console.log('🧬 [MORPHING DEBUG] Step 3 - Has message:', !!ctx.message)
+
     const isRu = isRussianFromState(ctx)
     const showRubles = shouldShowRubles(ctx)
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
+      console.log('🧬 [MORPHING DEBUG] Step 3 - CANCELLED by handleHelpCancel')
       return ctx.scene.leave()
     }
 
     const message = ctx.message
+    console.log(
+      '🧬 [MORPHING DEBUG] Step 3 - Message type:',
+      message ? Object.keys(message) : 'no message'
+    )
 
     // Обработка кнопок подтверждения
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 3 - Processing callback:',
+        ctx.callbackQuery.data
+      )
       const data = ctx.callbackQuery.data
       await ctx.answerCbQuery()
 
       if (data === 'confirm_morphing') {
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 3 - CONFIRMED morphing, moving to Step 4'
+        )
         logger.info('[Morphing Wizard] User confirmed morphing', {
           telegramId: ctx.from?.id,
           imageCount: ctx.session.morphingImages?.length,
@@ -220,7 +250,11 @@ Ready to start? Send your first photo! 📷`
     // Показываем предпросмотр последовательности
     // (при первом входе в шаг или когда нет callback query)
     if (!ctx.callbackQuery) {
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 3 - SHOWING PREVIEW (no callbackQuery)'
+      )
       const imageCount = ctx.session.morphingImages?.length || 0
+      console.log('🧬 [MORPHING DEBUG] Step 3 - Image count:', imageCount)
 
       // Рассчитываем стоимость
       const costResult = calculateModeCost({
@@ -302,6 +336,9 @@ ${costMessage}
 
   // Step 4: Обработка и отправка на сервер
   async ctx => {
+    console.log(
+      '🧬 [MORPHING DEBUG] Step 4 STARTED - Processing and sending to server'
+    )
     const isRu = isRussianFromState(ctx)
 
     await ctx.reply(
@@ -311,8 +348,10 @@ ${costMessage}
     )
 
     try {
+      console.log('🧬 [MORPHING DEBUG] Step 4 - Creating ZIP archive')
       // Создаем архив изображений
       const zipPath = await createImagesZip(ctx.session.morphingImages)
+      console.log('🧬 [MORPHING DEBUG] Step 4 - ZIP created at:', zipPath)
       logger.info('[Morphing Wizard] ZIP created', {
         telegramId: ctx.from?.id,
         zipPath,
@@ -320,6 +359,9 @@ ${costMessage}
       })
 
       // 🧬 Отправляем на сервер для морфинга
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 4 - Sending to generateMorphing server'
+      )
       const morphingResult = await generateMorphing(
         {
           filePath: zipPath,
@@ -332,6 +374,10 @@ ${costMessage}
         ctx
       )
 
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 4 - Morphing result:',
+        morphingResult
+      )
       logger.info('[Morphing Wizard] Morphing request sent', {
         telegramId: ctx.from?.id,
         result: morphingResult,
