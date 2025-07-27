@@ -134,6 +134,14 @@ export function calculateServiceCost(
     }
   }
 
+  // ✅ СПЕЦИАЛЬНАЯ ЛОГИКА ДЛЯ МОРФИНГА (как для нейрофото)
+  if (serviceType === 'morphing_seamless' && metadata?.num_images) {
+    const numImages = parseInt(metadata.num_images.toString())
+    if (!isNaN(numImages) && numImages > 0) {
+      cost = numImages * config.baseCost // 126⭐ за изображение/переход
+    }
+  }
+
   // Применяем ограничения
   if (config.minCost !== undefined) {
     cost = Math.max(cost, config.minCost)
