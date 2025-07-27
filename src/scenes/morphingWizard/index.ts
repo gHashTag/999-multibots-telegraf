@@ -91,22 +91,45 @@ Ready to start? Send your first photo! 📷`
         !ctx.session.morphingImages ||
         ctx.session.morphingImages.length < 2
       ) {
-        console.log('🧬 [MORPHING DEBUG] Step 2 - Not enough images for /done')
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - Not enough images:',
+          ctx.session.morphingImages?.length
+        )
         await ctx.reply(
           isRu
-            ? '❌ Необходимо минимум 2 изображения для морфинга.'
-            : '❌ Minimum 2 images required for morphing.'
+            ? '⚠️ Минимум 2 изображения нужно для морфинга. Добавьте еще!'
+            : '⚠️ Minimum 2 images required for morphing. Add more!'
         )
         return
       }
 
-      console.log('🧬 [MORPHING DEBUG] Step 2 - Moving to Step 3 (preview)')
-      logger.info('[Morphing Wizard] Moving to preview step', {
-        telegramId: ctx.from?.id,
-        imageCount: ctx.session.morphingImages.length,
-      })
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 2 - Current wizard cursor BEFORE next:',
+        ctx.wizard.cursor
+      )
+      console.log('🧬 [MORPHING DEBUG] Step 2 - Calling ctx.wizard.next()...')
 
-      return ctx.wizard.next() // Переходим к Step 3
+      try {
+        const result = ctx.wizard.next()
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - ctx.wizard.next() result:',
+          result
+        )
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - Current wizard cursor AFTER next:',
+          ctx.wizard.cursor
+        )
+        console.log('🧬 [MORPHING DEBUG] Step 2 - Moving to Step 3 (preview)')
+        return result
+      } catch (error) {
+        console.error(
+          '🧬 [MORPHING DEBUG] Step 2 - ERROR in ctx.wizard.next():',
+          error
+        )
+        // Принудительно вызываем Step 3
+        console.log('🧬 [MORPHING DEBUG] Step 2 - FORCING Step 3 manually...')
+        return ctx.scene.reenter()
+      }
     }
 
     // Обработка фотографий
