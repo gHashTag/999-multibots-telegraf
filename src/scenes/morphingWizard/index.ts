@@ -217,8 +217,9 @@ Ready to start? Send your first photo! 📷`
       }
     }
 
-    // Показываем предпросмотр последовательности (только при входе в шаг)
-    if (!message || ('text' in message && message.text !== '/done')) {
+    // Показываем предпросмотр последовательности
+    // (при первом входе в шаг или когда нет callback query)
+    if (!ctx.callbackQuery) {
       const imageCount = ctx.session.morphingImages?.length || 0
 
       // Рассчитываем стоимость
