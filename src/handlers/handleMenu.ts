@@ -357,6 +357,28 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
+      [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
+        logger.info({
+          message: '🧬 [handleMenu] Переход к морфингу',
+          telegramId,
+          function: 'handleMenu',
+          action: 'morphing',
+          nextScene: 'morphing_wizard',
+        })
+        console.log('CASE: 🧬 Морфинг')
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед входом в морфинг
+        const hasSubscription = await checkSubscriptionGuard(ctx, '🧬 Морфинг')
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        // Устанавливаем режим морфинга и переходим напрямую в morphing_wizard
+        ctx.session.mode = 'morphing' as any
+        console.log(`🔄 [handleMenu] Вход в сцену morphing_wizard`)
+        await ctx.scene.enter('morphing_wizard')
+        console.log(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
+      },
       [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
         logger.info({
           message: '⬆️ [handleMenu] Переход к увеличению качества фото',
