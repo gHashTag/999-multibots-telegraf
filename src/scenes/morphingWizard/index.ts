@@ -6,67 +6,62 @@ import { isValidImage } from '../../helpers/images'
 import { getBotToken } from '@/handlers'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { generateMorphing } from '../../services/generateMorphing'
-import { calculateModeCost } from '@/price/helpers/modelsCost'
-import { ModeEnum } from '@/interfaces'
-import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { logger } from '@/utils/logger'
 
 export const morphingWizard = new Scenes.WizardScene<MyContext>(
   'morphing_wizard',
 
-  // Step 1: Приветствие и инструкции
+  // Step 1: Приветствие
   async ctx => {
+    logger.info('🧬 [Morphing Wizard] Step 1 ENTERED - Welcome step', {
+      telegramId: ctx.from?.id,
+    })
+
     const isRu = isRussianFromState(ctx)
 
     const welcomeMessage = isRu
       ? `🧬 <b>Добро пожаловать в Морфинг Студию!</b>
 
-🎭 Здесь вы можете создать удивительную бесшовную склейку из ваших фотографий. 
+🎭 Здесь вы можете создать удивительную бесшовную склейку из ваших фотографий.
 
 <b>Как это работает:</b>
 • 📸 Отправьте от 2 до 100 фотографий
-• 🔄 Мы создадим плавные переходы между кадрами
-• 🎬 На выходе получите видео с морфингом
+• 🧬 Мы создадим плавные переходы между кадрами  
+• 📹 На выходе получите видео с морфингом
 • ⚡ Используем модель Kling-v1.6 для качественного результата
 
-<b>Рекомендации для лучшего результата:</b>
-• Используйте схожие по композиции изображения
-• Желательно одинаковое разрешение фотографий
-• Избегайте слишком контрастных переходов
-
-Готовы начать? Отправьте первую фотографию! 📷`
+Готовы начать? Отправьте фотографии и напишите /done когда закончите!`
       : `🧬 <b>Welcome to Morphing Studio!</b>
 
-🎭 Here you can create amazing seamless transitions from your photos.
+🎭 Here you can create amazing seamless blending from your photos.
 
 <b>How it works:</b>
-• 📸 Send 2 to 100 photos
-• 🔄 We'll create smooth transitions between frames
-• 🎬 Get a morphing video as output
+• 📸 Send from 2 to 100 photos
+• 🧬 We'll create smooth transitions between frames
+• 📹 Get a video with morphing as result
 • ⚡ Using Kling-v1.6 model for quality results
 
-<b>Tips for best results:</b>
-• Use images with similar composition
-• Preferably same resolution photos
-• Avoid too contrasting transitions
-
-Ready to start? Send your first photo! 📷`
+Ready to start? Send your photos and write /done when finished!`
 
     await ctx.reply(welcomeMessage, {
       parse_mode: 'HTML',
-      ...Markup.keyboard([
-        [Markup.button.text(isRu ? '❌ Отмена' : '❌ Cancel')],
-      ]).resize(),
+      ...Markup.keyboard([[isRu ? '❌ Отмена' : '❌ Cancel']]).resize(),
     })
 
-    // Инициализируем массив изображений
-    ctx.session.morphingImages = []
+    // Инициализируем массив для изображений морфинга
+    if (!ctx.session.morphingImages) {
+      ctx.session.morphingImages = []
+    }
 
     return ctx.wizard.next()
   },
 
-  // Step 2: Сбор изображений
+  // Step 2: Сбор изображений и обработка
   async ctx => {
+    logger.info('🧬 [Morphing Wizard] Step 2 ENTERED - Collection step', {
+      telegramId: ctx.from?.id,
+    })
+
     const isRu = isRussianFromState(ctx)
 
     const isCancel = await handleHelpCancel(ctx)
@@ -90,12 +85,64 @@ Ready to start? Send your first photo! 📷`
         return
       }
 
-      logger.info('[Morphing Wizard] Images collection completed', {
-        telegramId: ctx.from?.id,
-        imageCount: ctx.session.morphingImages.length,
-      })
+      // Начинаем обработку
+      await ctx.reply(
+        isRu
+          ? '🧬 Начинаю создание морфинга...\n⏳ Это может занять несколько минут.'
+          : '🧬 Starting morphing creation...\n⏳ This may take several minutes.'
+      )
 
-      return ctx.wizard.next() // Переходим к предпросмотру
+      try {
+        // Создаем архив изображений
+        const zipPath = await createImagesZip(ctx.session.morphingImages)
+        logger.info('[Morphing Wizard] ZIP created', {
+          telegramId: ctx.from?.id,
+          zipPath,
+          imageCount: ctx.session.morphingImages.length,
+        })
+
+        // 🧬 Отправляем на сервер для морфинга
+        const morphingResult = await generateMorphing(
+          {
+            filePath: zipPath,
+            telegram_id: ctx.from?.id?.toString() || '',
+            is_ru: isRu,
+            botName: ctx.botInfo?.username || '',
+            imageCount: ctx.session.morphingImages.length,
+            morphingType: 'seamless',
+          },
+          ctx
+        )
+
+        const successMessage = isRu
+          ? `✅ Морфинг отправлен на обработку!
+
+🎬 Ваш морфинг будет готов через 5-10 минут
+📱 Мы пришлем уведомление, когда обработка завершится
+
+Спасибо за использование Морфинг Студии! ✨`
+          : `✅ Morphing sent for processing!
+
+🎬 Your morphing will be ready in 5-10 minutes  
+📱 We'll send a notification when processing is complete
+
+Thank you for using Morphing Studio! ✨`
+
+        await ctx.reply(successMessage, Markup.removeKeyboard())
+      } catch (error) {
+        console.error('Ошибка при обработке команды /done:', error)
+
+        const errorMessage = isRu
+          ? '❌ Произошла ошибка при обработке морфинга. Попробуйте позже.'
+          : '❌ Error occurred during morphing processing. Please try again later.'
+
+        await ctx.reply(errorMessage)
+      } finally {
+        // Очищаем данные сессии
+        ctx.session.morphingImages = []
+      }
+
+      return ctx.scene.leave()
     }
 
     // Обработка фотографий
@@ -160,16 +207,12 @@ Ready to start? Send your first photo! 📷`
       })
 
       const currentCount = ctx.session.morphingImages.length
+
       await ctx.reply(
         isRu
           ? `✅ Изображение ${currentCount} добавлено! ${currentCount >= 2 ? 'Можете отправить еще или использовать /done для завершения.' : 'Отправьте еще минимум 1 изображение.'}`
           : `✅ Image ${currentCount} added! ${currentCount >= 2 ? 'You can send more or use /done to finish.' : 'Send at least 1 more image.'}`
       )
-
-      logger.info(`[Morphing Wizard] Image ${currentCount} added`, {
-        telegramId: ctx.from?.id,
-        imageCount: currentCount,
-      })
     } else {
       await ctx.reply(
         isRu
@@ -179,195 +222,5 @@ Ready to start? Send your first photo! 📷`
     }
 
     return // Остаемся на том же шаге для сбора изображений
-  },
-
-  // Step 3: Предпросмотр последовательности и подтверждение стоимости
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const showRubles = shouldShowRubles(ctx)
-
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
-
-    const message = ctx.message
-
-    // Обработка кнопок подтверждения
-    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      const data = ctx.callbackQuery.data
-      await ctx.answerCbQuery()
-
-      if (data === 'confirm_morphing') {
-        logger.info('[Morphing Wizard] User confirmed morphing', {
-          telegramId: ctx.from?.id,
-          imageCount: ctx.session.morphingImages?.length,
-        })
-        return ctx.wizard.next() // Переходим к обработке
-      } else if (data === 'change_order') {
-        await ctx.reply(
-          isRu
-            ? '🔄 Функция изменения порядка будет добавлена в следующих версиях. Пока пересоберите изображения в нужном порядке.'
-            : '🔄 Order change feature will be added in future versions. Please recollect images in desired order for now.'
-        )
-        return ctx.wizard.selectStep(1) // Возвращаемся к сбору изображений
-      } else if (data === 'cancel_morphing') {
-        await ctx.reply(isRu ? '❌ Морфинг отменен' : '❌ Morphing cancelled')
-        return ctx.scene.leave()
-      }
-    }
-
-    // Показываем предпросмотр последовательности (только при входе в шаг)
-    if (!message || ('text' in message && message.text !== '/done')) {
-      const imageCount = ctx.session.morphingImages?.length || 0
-
-      // Рассчитываем стоимость
-      const costResult = calculateModeCost({
-        mode: ModeEnum.MorphingWizard,
-        numImages: 1, // Фиксированная цена за морфинг
-      })
-
-      const costMessage = isRu
-        ? `💰 <b>Стоимость морфинга:</b>
-⭐ ${costResult.stars} звезд${showRubles ? ` (${costResult.rubles} ₽)` : ` ($${costResult.dollars})`}`
-        : `💰 <b>Morphing cost:</b>
-⭐ ${costResult.stars} stars${showRubles ? ` (${costResult.rubles} ₽)` : ` ($${costResult.dollars})`}`
-
-      const sequenceMessage = isRu
-        ? `🧬 <b>Предпросмотр последовательности морфинга</b>
-
-📋 <b>Ваши изображения (${imageCount} шт.):</b>
-${
-  ctx.session.morphingImages
-    ?.map(
-      (_, index) =>
-        `${index + 1}. Кадр ${index + 1} → ${index + 2 < imageCount ? `Кадр ${index + 2}` : 'Финал'}`
-    )
-    .join('\n') || ''
-}
-
-🎬 <b>Результат:</b> Плавная анимация переходов между кадрами
-⏱️ <b>Время обработки:</b> ~5-10 минут
-🤖 <b>Модель:</b> Kling-v1.6 (высокое качество)
-
-${costMessage}
-
-❓ Всё верно? Подтверждаете создание морфинга?`
-        : `🧬 <b>Morphing Sequence Preview</b>
-
-📋 <b>Your images (${imageCount} pcs):</b>
-${
-  ctx.session.morphingImages
-    ?.map(
-      (_, index) =>
-        `${index + 1}. Frame ${index + 1} → ${index + 2 < imageCount ? `Frame ${index + 2}` : 'Final'}`
-    )
-    .join('\n') || ''
-}
-
-🎬 <b>Result:</b> Smooth transition animation between frames
-⏱️ <b>Processing time:</b> ~5-10 minutes
-🤖 <b>Model:</b> Kling-v1.6 (high quality)
-
-${costMessage}
-
-❓ Everything correct? Confirm morphing creation?`
-
-      await ctx.reply(sequenceMessage, {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              isRu ? '✅ Подтвердить' : '✅ Confirm',
-              'confirm_morphing'
-            ),
-            Markup.button.callback(
-              isRu ? '🔄 Изменить порядок' : '🔄 Change order',
-              'change_order'
-            ),
-          ],
-          [
-            Markup.button.callback(
-              isRu ? '❌ Отмена' : '❌ Cancel',
-              'cancel_morphing'
-            ),
-          ],
-        ]),
-      })
-    }
-
-    return // Ждем подтверждения пользователя
-  },
-
-  // Step 4: Обработка и отправка на сервер
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-
-    await ctx.reply(
-      isRu
-        ? '🧬 Начинаю создание морфинга...\n⏳ Это может занять несколько минут.'
-        : '🧬 Starting morphing creation...\n⏳ This may take several minutes.'
-    )
-
-    try {
-      // Создаем архив изображений
-      const zipPath = await createImagesZip(ctx.session.morphingImages)
-      logger.info('[Morphing Wizard] ZIP created', {
-        telegramId: ctx.from?.id,
-        zipPath,
-        imageCount: ctx.session.morphingImages.length,
-      })
-
-      // 🧬 Отправляем на сервер для морфинга
-      const morphingResult = await generateMorphing(
-        {
-          filePath: zipPath,
-          telegram_id: ctx.from?.id?.toString() || '',
-          is_ru: isRu,
-          botName: ctx.botInfo?.username || '',
-          imageCount: ctx.session.morphingImages.length,
-          morphingType: 'seamless', // Бесшовная склейка
-        },
-        ctx
-      )
-
-      logger.info('[Morphing Wizard] Morphing request sent', {
-        telegramId: ctx.from?.id,
-        result: morphingResult,
-      })
-
-      const successMessage = isRu
-        ? `✅ Морфинг отправлен на обработку!
-
-🎬 Ваш морфинг будет готов через 5-10 минут
-📱 Мы пришлем уведомление, когда обработка завершится
-🧬 Используемая модель: Kling-v1.6
-
-Спасибо за использование Морфинг Студии! ✨`
-        : `✅ Morphing sent for processing!
-
-🎬 Your morphing will be ready in 5-10 minutes
-📱 We'll send a notification when processing is complete
-🧬 Model used: Kling-v1.6
-
-Thank you for using Morphing Studio! ✨`
-
-      await ctx.reply(successMessage)
-    } catch (error) {
-      logger.error('[Morphing Wizard] Error during processing', {
-        telegramId: ctx.from?.id,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-
-      const errorMessage = isRu
-        ? '❌ Произошла ошибка при обработке морфинга. Попробуйте позже или обратитесь в поддержку.'
-        : '❌ Error occurred during morphing processing. Please try again later or contact support.'
-
-      await ctx.reply(errorMessage)
-    } finally {
-      // Очищаем данные сессии
-      ctx.session.morphingImages = []
-      await ctx.scene.leave()
-    }
   }
 )
