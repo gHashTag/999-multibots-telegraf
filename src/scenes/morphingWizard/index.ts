@@ -6,7 +6,6 @@ import { getBotToken } from '@/handlers/getBotToken' // ✅ Добавляю и�
 import { generateMorphing } from '../../services/generateMorphing'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { logger } from '@/utils/logger'
-import { Composer } from 'telegraf'
 import { calculateModeCost } from '@/price/helpers/modelsCost' // ✅ Используем старую функцию
 import { ModeEnum } from '@/interfaces' // ✅ Правильный enum
 import fs from 'fs'
@@ -98,6 +97,55 @@ Ready to start? Send your first photo! 📷`
 
     if (await handleHelpCancel(ctx)) {
       return ctx.scene.leave()
+    }
+
+    // ✅ ОБРАБОТКА CALLBACK КНОПОК ПРЯМО В STEP 2
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 2 - CALLBACK RECEIVED:',
+        ctx.callbackQuery.data
+      )
+
+      await ctx.answerCbQuery() // ✅ ОБЯЗАТЕЛЬНО отвечаем на callback
+      await ctx.editMessageReplyMarkup(undefined) // ✅ Убираем кнопки
+
+      if (ctx.callbackQuery.data === 'morphing_confirm') {
+        console.log('🚨🚨🚨 [MORPHING DEBUG] CONFIRM BUTTON PRESSED! 🚨🚨🚨')
+
+        if (
+          !ctx.session.morphingImages ||
+          ctx.session.morphingImages.length < 2
+        ) {
+          const errorMessage = isRu
+            ? '❌ Недостаточно изображений для морфинга. Минимум: 2'
+            : '❌ Not enough images for morphing. Minimum: 2'
+          await ctx.reply(errorMessage)
+          return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
+        }
+
+        // ✅ ПЕРЕХОДИМ К STEP 3 (предпросмотр)
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - TRANSITIONING TO STEP 3 (preview)'
+        )
+        return ctx.wizard.selectStep(2) // Step 3 (индекс 2)
+      }
+
+      if (ctx.callbackQuery.data === 'morphing_cancel') {
+        console.log('🧬 [MORPHING DEBUG] Step 2 - CANCEL PRESSED')
+
+        // ✅ Очищаем данные сессии ВСЕ
+        ctx.session.morphingImages = []
+        ctx.session.morphingButtonsMessageId = undefined
+
+        const restartMessage = isRu
+          ? '🔄 Начинаем заново. Загрузите изображения для морфинга:'
+          : '🔄 Starting over. Upload images for morphing:'
+
+        await ctx.reply(restartMessage)
+        return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
+      }
+
+      return // Неизвестный callback - игнорируем
     }
 
     const message = ctx.message
@@ -299,156 +347,121 @@ Ready to start? Send your first photo! 📷`
     }
   },
 
-  // Step 3: Предпросмотр и подтверждение (Composer для обработки callback кнопок)
-  (() => {
-    const handleMorphingCallback = new Composer<MyContext>()
+  // Step 3: Предпросмотр и подтверждение
+  async ctx => {
+    console.log('🚨🚨🚨 [MORPHING DEBUG] Step 3 FUNCTION CALLED! 🚨🚨🚨')
+    console.log('🧬 [MORPHING DEBUG] Step 3 STARTED - PREVIEW DISPLAY')
 
-    // Обработка кнопки "✅ Подтвердить"
-    handleMorphingCallback.action('morphing_confirm', async ctx => {
-      console.log('🚨🚨🚨 [MORPHING DEBUG] Step 3 FUNCTION CALLED! 🚨🚨🚨')
-      console.log('🧬 [MORPHING DEBUG] Step 3 STARTED - CONFIRM PRESSED')
+    const isRu = isRussianFromState(ctx)
 
-      const isRu = isRussianFromState(ctx)
+    // ✅ ОБРАБОТКА CALLBACK КНОПОК В STEP 3
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 3 - CALLBACK RECEIVED:',
+        ctx.callbackQuery.data
+      )
+
       await ctx.answerCbQuery() // ✅ ОБЯЗАТЕЛЬНО отвечаем на callback
       await ctx.editMessageReplyMarkup(undefined) // ✅ Убираем кнопки
 
-      if (
-        !ctx.session.morphingImages ||
-        ctx.session.morphingImages.length < 2
-      ) {
-        const errorMessage = isRu
-          ? '❌ Недостаточно изображений для морфинга. Минимум: 2'
-          : '❌ Not enough images for morphing. Minimum: 2'
-        await ctx.reply(errorMessage)
+      if (ctx.callbackQuery.data === 'morphing_process') {
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 3 - PROCESS PRESSED - переход к Step 4'
+        )
+
+        const processingMessage = isRu
+          ? '🚀 Начинаем обработку морфинга...'
+          : '🚀 Starting morphing processing...'
+
+        await ctx.reply(processingMessage)
+        return ctx.wizard.next() // Переходим к Step 4 (обработка)
+      }
+
+      if (ctx.callbackQuery.data === 'morphing_back') {
+        console.log('🧬 [MORPHING DEBUG] Step 3 - BACK PRESSED')
+
+        // ✅ Сбрасываем ID кнопок для создания новых
+        ctx.session.morphingButtonsMessageId = undefined
+
+        const backMessage = isRu
+          ? '📝 Вы можете добавить еще изображения или изменить существующие:'
+          : '📝 You can add more images or modify existing ones:'
+
+        await ctx.reply(backMessage)
         return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
       }
 
-      const imageCount = ctx.session.morphingImages.length
-      const showRubles = shouldShowRubles(ctx)
+      return // Неизвестный callback - игнорируем
+    }
 
-      // Рассчитываем стоимость
-      const costResult = calculateModeCost({
-        mode: ModeEnum.MorphingWizard,
-        numImages: imageCount, // Передаем количество изображений
-      })
-
-      const costMessage = showRubles
-        ? `💰 <b>Стоимость:</b> ${costResult.rubles} рублей`
-        : `💰 <b>Стоимость:</b> ${costResult.stars} ⭐`
-
-      const sequenceMessage = isRu
-        ? `🧬 <b>Предпросмотр последовательности морфинга</b>\n\n📋 <b>Ваши изображения (${imageCount} шт.):</b>\n${
-            ctx.session.morphingImages
-              ?.map((_, index) => {
-                if (index === imageCount - 1) {
-                  // Последний кадр → Первый кадр (замыкаем цикл)
-                  return `${index + 1}. Видео ${index + 1}: Кадр ${index + 1} → Кадр 1`
-                } else {
-                  // Обычный переход к следующему кадру
-                  return `${index + 1}. Видео ${index + 1}: Кадр ${index + 1} → Кадр ${index + 2}`
-                }
-              })
-              .join('\n') || ''
-          }\n\n🎬 <b>Результат:</b> ${imageCount} отдельных видео с плавными переходами\n⏱️ <b>Время обработки:</b> ~5-10 минут за видео\n🤖 <b>Модель:</b> Kling-v1.6 (высокое качество)\n\n${costMessage}\n\n❓ Всё верно?`
-        : `🧬 <b>Morphing Sequence Preview</b>\n\n📋 <b>Your images (${imageCount} pcs):</b>\n${
-            ctx.session.morphingImages
-              ?.map((_, index) => {
-                if (index === imageCount - 1) {
-                  // Last frame → First frame (loop)
-                  return `${index + 1}. Video ${index + 1}: Frame ${index + 1} → Frame 1`
-                } else {
-                  // Regular transition to next frame
-                  return `${index + 1}. Video ${index + 1}: Frame ${index + 1} → Frame ${index + 2}`
-                }
-              })
-              .join('\n') || ''
-          }\n\n🎬 <b>Result:</b> ${imageCount} separate videos with smooth transitions\n⏱️ <b>Processing time:</b> ~5-10 minutes per video\n🤖 <b>Model:</b> Kling-v1.6 (high quality)\n\n${costMessage}\n\n❓ Everything correct?`
-
-      const confirmButtons = [
-        Markup.button.callback(
-          isRu ? '🚀 Начать обработку' : '🚀 Start Processing',
-          'morphing_process'
-        ),
-        Markup.button.callback(
-          isRu ? '📝 Изменить' : '📝 Modify',
-          'morphing_back'
-        ),
-      ]
-
-      const confirmKeyboard = Markup.inlineKeyboard(confirmButtons)
-      await ctx.replyWithHTML(sequenceMessage, confirmKeyboard)
-
-      console.log(
-        '🧬 [MORPHING DEBUG] Step 3 - PREVIEW SHOWN, waiting for final confirmation'
-      )
-      return // Остаемся в Step 3 для обработки следующих кнопок
-    })
-
-    // Обработка кнопки "❌ Начать заново"
-    handleMorphingCallback.action('morphing_cancel', async ctx => {
-      console.log('🧬 [MORPHING DEBUG] Step 3 - CANCEL PRESSED')
-      const isRu = isRussianFromState(ctx)
-      await ctx.answerCbQuery()
-      await ctx.editMessageReplyMarkup(undefined)
-
-      // ✅ Очищаем данные сессии ВСЕ
-      ctx.session.morphingImages = []
-      ctx.session.morphingButtonsMessageId = undefined // ✅ Сбрасываем ID кнопок
-
-      const restartMessage = isRu
-        ? '🔄 Начинаем заново. Загрузите изображения для морфинга:'
-        : '🔄 Starting over. Upload images for morphing:'
-
-      await ctx.reply(restartMessage)
+    if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 2) {
+      const errorMessage = isRu
+        ? '❌ Недостаточно изображений для морфинга. Минимум: 2'
+        : '❌ Not enough images for morphing. Minimum: 2'
+      await ctx.reply(errorMessage)
       return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
+    }
+
+    const imageCount = ctx.session.morphingImages.length
+    const showRubles = shouldShowRubles(ctx)
+
+    // Рассчитываем стоимость
+    const costResult = calculateModeCost({
+      mode: ModeEnum.MorphingWizard,
+      numImages: imageCount, // Передаем количество изображений
     })
 
-    // Обработка кнопки "📝 Изменить"
-    handleMorphingCallback.action('morphing_back', async ctx => {
-      console.log('🧬 [MORPHING DEBUG] Step 3 - BACK PRESSED')
-      const isRu = isRussianFromState(ctx)
-      await ctx.answerCbQuery()
-      await ctx.editMessageReplyMarkup(undefined)
+    const costMessage = showRubles
+      ? `💰 <b>Стоимость:</b> ${costResult.rubles} рублей`
+      : `💰 <b>Стоимость:</b> ${costResult.stars} ⭐`
 
-      // ✅ Сбрасываем ID кнопок для создания новых
-      ctx.session.morphingButtonsMessageId = undefined
+    const sequenceMessage = isRu
+      ? `🧬 <b>Предпросмотр последовательности морфинга</b>\n\n📋 <b>Ваши изображения (${imageCount} шт.):</b>\n${
+          ctx.session.morphingImages
+            ?.map((_, index) => {
+              if (index === imageCount - 1) {
+                // Последний кадр → Первый кадр (замыкаем цикл)
+                return `${index + 1}. Видео ${index + 1}: Кадр ${index + 1} → Кадр 1`
+              } else {
+                // Обычный переход к следующему кадру
+                return `${index + 1}. Видео ${index + 1}: Кадр ${index + 1} → Кадр ${index + 2}`
+              }
+            })
+            .join('\n') || ''
+        }\n\n🎬 <b>Результат:</b> ${imageCount} отдельных видео с плавными переходами\n⏱️ <b>Время обработки:</b> ~5-10 минут за видео\n🤖 <b>Модель:</b> Kling-v1.6 (высокое качество)\n\n${costMessage}\n\n❓ Всё верно?`
+      : `🧬 <b>Morphing Sequence Preview</b>\n\n📋 <b>Your images (${imageCount} pcs):</b>\n${
+          ctx.session.morphingImages
+            ?.map((_, index) => {
+              if (index === imageCount - 1) {
+                // Last frame → First frame (loop)
+                return `${index + 1}. Video ${index + 1}: Frame ${index + 1} → Frame 1`
+              } else {
+                // Regular transition to next frame
+                return `${index + 1}. Video ${index + 1}: Frame ${index + 1} → Frame ${index + 2}`
+              }
+            })
+            .join('\n') || ''
+        }\n\n🎬 <b>Result:</b> ${imageCount} separate videos with smooth transitions\n⏱️ <b>Processing time:</b> ~5-10 minutes per video\n🤖 <b>Model:</b> Kling-v1.6 (high quality)\n\n${costMessage}\n\n❓ Everything correct?`
 
-      const backMessage = isRu
-        ? '📝 Вы можете добавить еще изображения или изменить существующие:'
-        : '📝 You can add more images or modify existing ones:'
+    const confirmButtons = [
+      Markup.button.callback(
+        isRu ? '🚀 Начать обработку' : '🚀 Start Processing',
+        'morphing_process'
+      ),
+      Markup.button.callback(
+        isRu ? '📝 Изменить' : '📝 Modify',
+        'morphing_back'
+      ),
+    ]
 
-      await ctx.reply(backMessage)
-      return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
-    })
+    const confirmKeyboard = Markup.inlineKeyboard(confirmButtons)
+    await ctx.replyWithHTML(sequenceMessage, confirmKeyboard)
 
-    // Обработка кнопки "🚀 Начать обработку"
-    handleMorphingCallback.action('morphing_process', async ctx => {
-      console.log(
-        '🧬 [MORPHING DEBUG] Step 3 - PROCESS PRESSED - переход к Step 4'
-      )
-      const isRu = isRussianFromState(ctx)
-      await ctx.answerCbQuery()
-      await ctx.editMessageReplyMarkup(undefined)
+    console.log('🧬 [MORPHING DEBUG] Step 3 - PREVIEW DISPLAYED with buttons')
 
-      const processingMessage = isRu
-        ? '🚀 Начинаем обработку морфинга...'
-        : '🚀 Starting morphing processing...'
-
-      await ctx.reply(processingMessage)
-      return ctx.wizard.next() // Переходим к Step 4 (обработка)
-    })
-
-    // Fallback для неожиданных callback'ов
-    handleMorphingCallback.use(async ctx => {
-      console.log(
-        '🧬 [MORPHING DEBUG] Step 3 - UNEXPECTED callback:',
-        ctx.callbackQuery
-      )
-      await ctx.answerCbQuery('Неизвестная команда')
-    })
-
-    return handleMorphingCallback
-  })(),
+    // ✅ Остаемся в Step 3 и ждем callback
+    return
+  },
 
   // Step 4: Обработка и отправка на сервер
   async ctx => {
