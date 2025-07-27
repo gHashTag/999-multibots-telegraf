@@ -111,11 +111,18 @@ Ready to start? Send your first photo! 📷`
 
     // Обработка фотографий
     if (message && 'photo' in message) {
+      console.log('🧬 [MORPHING DEBUG] Step 2 - PHOTO PROCESSING STARTED')
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 2 - Photo sizes:',
+        message.photo.length
+      )
+
       // Проверяем лимит изображений
       if (
         ctx.session.morphingImages &&
         ctx.session.morphingImages.length >= 100
       ) {
+        console.log('🧬 [MORPHING DEBUG] Step 2 - MAX IMAGES REACHED')
         await ctx.reply(
           isRu
             ? '📸 Достигнут максимум в 100 изображений. Используйте /done для завершения.'
@@ -124,24 +131,38 @@ Ready to start? Send your first photo! 📷`
         return
       }
 
+      console.log('🧬 [MORPHING DEBUG] Step 2 - Getting photo file info')
       const photo = message.photo[message.photo.length - 1]
       const file = await ctx.telegram.getFile(photo.file_id)
 
       if (!file.file_path) {
+        console.log('🧬 [MORPHING DEBUG] Step 2 - ERROR: No file path')
         await ctx.reply(
           isRu ? '❌ Ошибка получения файла' : '❌ Error getting file'
         )
         return
       }
 
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 2 - Downloading image, file_path:',
+        file.file_path
+      )
       const botToken = getBotToken(ctx)
       const response = await fetch(
         `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
       )
       const buffer = Buffer.from(await response.arrayBuffer())
 
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 2 - Image downloaded, size:',
+        buffer.length
+      )
+      console.log('🧬 [MORPHING DEBUG] Step 2 - Validating image...')
       const isValid = await isValidImage(buffer)
       if (!isValid) {
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - ERROR: Image validation failed'
+        )
         await ctx.reply(
           isRu
             ? '❌ Файл не является корректным изображением.'
@@ -150,8 +171,15 @@ Ready to start? Send your first photo! 📷`
         return
       }
 
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 2 - Image is valid, checking size limit'
+      )
       const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10 MB
       if (buffer.length > MAX_IMAGE_SIZE) {
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - ERROR: Image too large:',
+          buffer.length
+        )
         await ctx.reply(
           isRu
             ? '❌ Изображение слишком большое (max 10MB).'
@@ -160,9 +188,13 @@ Ready to start? Send your first photo! 📷`
         return
       }
 
+      console.log('🧬 [MORPHING DEBUG] Step 2 - Adding image to session')
       // Добавляем изображение
       if (!ctx.session.morphingImages) {
         ctx.session.morphingImages = []
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - Initialized morphingImages array'
+        )
       }
 
       ctx.session.morphingImages.push({
@@ -171,6 +203,11 @@ Ready to start? Send your first photo! 📷`
       })
 
       const currentCount = ctx.session.morphingImages.length
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 2 - Image added successfully! Count:',
+        currentCount
+      )
+
       await ctx.reply(
         isRu
           ? `✅ Изображение ${currentCount} добавлено! ${currentCount >= 2 ? 'Можете отправить еще или использовать /done для завершения.' : 'Отправьте еще минимум 1 изображение.'}`
@@ -182,6 +219,9 @@ Ready to start? Send your first photo! 📷`
         imageCount: currentCount,
       })
     } else {
+      console.log(
+        '🧬 [MORPHING DEBUG] Step 2 - No photo message, showing instruction'
+      )
       await ctx.reply(
         isRu
           ? 'Пожалуйста, отправьте фото или /done для завершения сбора.'
