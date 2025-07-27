@@ -49,7 +49,7 @@ async function executeStep3Logic(ctx: MyContext) {
   }
 
   const imageCount = ctx.session.morphingImages.length
-  const showRubles = shouldShowRubles(ctx)
+  const showRubles = false // ✅ ПРИНУДИТЕЛЬНО ИСПОЛЬЗУЕМ ЗВЕЗДЫ вместо shouldShowRubles(ctx)
 
   // Рассчитываем стоимость
   const costResult = calculateModeCost({
@@ -100,8 +100,8 @@ async function executeStep4Logic(ctx: MyContext) {
 
   await ctx.reply(
     isRu
-      ? '🧬 Начинаю создание морфинга...\n⏳ Это может занять несколько минут.'
-      : '🧬 Starting morphing creation...\n⏳ This may take several minutes.'
+      ? '🧬 Начинаю создание морфинга... ✨'
+      : '🧬 Starting morphing creation... ✨'
   )
 
   let zipPath: string | undefined
@@ -567,7 +567,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const imageCount = ctx.session.morphingImages.length
-    const showRubles = shouldShowRubles(ctx)
+    const showRubles = false // ✅ ПРИНУДИТЕЛЬНО ИСПОЛЬЗУЕМ ЗВЕЗДЫ вместо shouldShowRubles(ctx)
 
     // Рассчитываем стоимость
     const costResult = calculateModeCost({
@@ -618,8 +618,8 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '🧬 Начинаю создание морфинга...\n⏳ Это может занять несколько минут.'
-        : '🧬 Starting morphing creation...\n⏳ This may take several minutes.'
+        ? '🧬 Начинаю создание морфинга... ✨'
+        : '🧬 Starting morphing creation... ✨'
     )
 
     let zipPath: string | undefined
