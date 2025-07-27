@@ -194,22 +194,24 @@ console.log('🏗️ [MORPHING DEBUG] Creating morphingWizard scene with 4 steps
 
 export const morphingWizard = new Scenes.WizardScene<MyContext>(
   'morphing_wizard',
-  // Step 1: Приветствие
+  // Step 1: Вход в сцену и инициализация
   async ctx => {
-    console.log('🧬 [MORPHING DEBUG] Step 1 STARTED - Welcome step')
-
+    console.log('🧬 [MORPHING DEBUG] Step 1 STARTED')
     const isRu = isRussianFromState(ctx)
 
-    // Инициализируем сессию
+    // ✅ СКРЫВАЕМ КЛАВИАТУРУ В НАЧАЛЕ СЦЕНЫ
+    await ctx.reply(
+      isRu
+        ? '🧬 Морфинг\n\nЗагрузите изображения для создания видео переходов между ними.\n\n📸 Отправьте фотографии (минимум 2):'
+        : '🧬 Morphing\n\nUpload images to create video transitions between them.\n\n📸 Send photos (minimum 2):',
+      Markup.removeKeyboard() // ✅ УБИРАЕМ МЕНЮ ВНИЗУ
+    )
+
+    // Инициализируем массив изображений
     if (!ctx.session.morphingImages) {
       ctx.session.morphingImages = []
     }
 
-    const welcomeMessage = isRu
-      ? '🧬 Морфинг\n\nЗагрузите изображения для создания видео переходов между ними.\n\n📸 Отправьте фотографии (минимум 2):'
-      : '🧬 Morphing\n\nUpload images to create transition videos between them.\n\n📸 Send photos (minimum 2):'
-
-    await ctx.reply(welcomeMessage)
     return ctx.wizard.next()
   },
 
