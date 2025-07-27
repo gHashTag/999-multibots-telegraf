@@ -169,6 +169,45 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
         return ctx.wizard.selectStep(0) // ✅ Возвращаем к Step 1 (индекс 0)
       }
 
+      // ✅ ОБРАБОТКА morphing_process В STEP 2 (так как callback попадает сюда!)
+      if (ctx.callbackQuery.data === 'morphing_process') {
+        console.log(
+          '🚨🚨🚨 [MORPHING DEBUG] Step 2 - PROCESS BUTTON PRESSED! 🚨🚨🚨'
+        )
+
+        if (
+          !ctx.session.morphingImages ||
+          ctx.session.morphingImages.length < 2
+        ) {
+          const errorMessage = isRu
+            ? '❌ Недостаточно изображений для морфинга. Минимум: 2'
+            : '❌ Not enough images for morphing. Minimum: 2'
+          await ctx.reply(errorMessage)
+          return ctx.wizard.selectStep(0) // ✅ Возвращаем к Step 1 (индекс 0)
+        }
+
+        // ✅ ПЕРЕХОДИМ К STEP 4 (обработка) - ИСПОЛЬЗУЕМ NEXT!
+        console.log(
+          '🧬 [MORPHING DEBUG] Step 2 - TRANSITIONING TO STEP 4 (processing)'
+        )
+        return ctx.wizard.next() // ✅ Переходим к Step 4 (Step 3 пропускаем)
+      }
+
+      // ✅ ОБРАБОТКА morphing_back В STEP 2
+      if (ctx.callbackQuery.data === 'morphing_back') {
+        console.log('🧬 [MORPHING DEBUG] Step 2 - BACK PRESSED')
+
+        // ✅ Сбрасываем ID кнопок для создания новых
+        ctx.session.morphingButtonsMessageId = undefined
+
+        const backMessage = isRu
+          ? '📝 Вы можете добавить еще изображения или изменить существующие:'
+          : '📝 You can add more images or modify existing ones:'
+
+        await ctx.reply(backMessage)
+        return ctx.wizard.selectStep(0) // ✅ Возвращаем к Step 1 (индекс 0)
+      }
+
       return // ✅ Завершаем обработку callback
     }
 
