@@ -341,15 +341,20 @@ Ready to start? Send your first photo! 📷`
 📋 <b>Ваши изображения (${imageCount} шт.):</b>
 ${
   ctx.session.morphingImages
-    ?.map(
-      (_, index) =>
-        `${index + 1}. Кадр ${index + 1} → ${index + 2 < imageCount ? `Кадр ${index + 2}` : 'Финал'}`
-    )
+    ?.map((_, index) => {
+      if (index === imageCount - 1) {
+        // Последний кадр → Первый кадр (замыкаем цикл)
+        return `${index + 1}. Видео ${index + 1}: Кадр ${index + 1} → Кадр 1`
+      } else {
+        // Обычный переход к следующему кадру
+        return `${index + 1}. Видео ${index + 1}: Кадр ${index + 1} → Кадр ${index + 2}`
+      }
+    })
     .join('\n') || ''
 }
 
-🎬 <b>Результат:</b> Плавная анимация переходов между кадрами
-⏱️ <b>Время обработки:</b> ~5-10 минут
+🎬 <b>Результат:</b> ${imageCount} отдельных видео с плавными переходами
+⏱️ <b>Время обработки:</b> ~5-10 минут за видео
 🤖 <b>Модель:</b> Kling-v1.6 (высокое качество)
 
 ${costMessage}
@@ -360,15 +365,20 @@ ${costMessage}
 📋 <b>Your images (${imageCount} pcs):</b>
 ${
   ctx.session.morphingImages
-    ?.map(
-      (_, index) =>
-        `${index + 1}. Frame ${index + 1} → ${index + 2 < imageCount ? `Frame ${index + 2}` : 'Final'}`
-    )
+    ?.map((_, index) => {
+      if (index === imageCount - 1) {
+        // Last frame → First frame (closing the loop)
+        return `${index + 1}. Video ${index + 1}: Frame ${index + 1} → Frame 1`
+      } else {
+        // Regular transition to next frame
+        return `${index + 1}. Video ${index + 1}: Frame ${index + 1} → Frame ${index + 2}`
+      }
+    })
     .join('\n') || ''
 }
 
-🎬 <b>Result:</b> Smooth transition animation between frames
-⏱️ <b>Processing time:</b> ~5-10 minutes
+🎬 <b>Result:</b> ${imageCount} separate videos with smooth transitions
+⏱️ <b>Processing time:</b> ~5-10 minutes per video
 🤖 <b>Model:</b> Kling-v1.6 (high quality)
 
 ${costMessage}
