@@ -52,14 +52,12 @@ async function executeStep3Logic(ctx: MyContext) {
   const imageCount = ctx.session.morphingImages.length
   const showRubles = false // ✅ ПРИНУДИТЕЛЬНО ИСПОЛЬЗУЕМ ЗВЕЗДЫ вместо shouldShowRubles(ctx)
 
-  // Рассчитываем стоимость
-  const costResult = calculateModeCost({
-    mode: ModeEnum.MorphingWizard,
-    numImages: imageCount,
+  // ✅ ИСПОЛЬЗУЕМ СЕБЕСТОИМОСТЬ ИЗ SERVICE_COST_CONFIG (как в проекте!)
+  const costInStars = calculateServiceCost('morphing_seamless', {
+    num_images: imageCount,
   })
-
-  const cost = showRubles ? costResult.rubles : costResult.stars
-  const currency = showRubles ? 'руб' : '⭐'
+  const cost = costInStars // Показываем себестоимость напрямую
+  const currency = '⭐' // Всегда звезды для себестоимости
 
   // Формируем последовательность переходов
   const sequenceMessage = []
