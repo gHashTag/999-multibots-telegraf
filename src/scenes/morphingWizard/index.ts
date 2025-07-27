@@ -9,9 +9,13 @@ import { logger } from '@/utils/logger'
 import { calculateModeCost } from '@/price/helpers/modelsCost' // ✅ Используем старую функцию
 import { ModeEnum } from '@/interfaces' // ✅ Правильный enum
 import { calculateServiceCost } from '@/price/helpers/calculateServiceCost' // ✅ Добавляю импорт себестоимости
+import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice' // ✅ Импорт правильного расчета
 import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
+
+// ✅ КОНСТАНТА ДЛЯ МОДЕЛИ МОРФИНГА (как в imageToVideoWizard)
+const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
 
 // ✅ Функция для создания ZIP из Uint8Array[]
 const createMorphingImagesZip = (images: Uint8Array[]): string => {
@@ -52,12 +56,11 @@ async function executeStep3Logic(ctx: MyContext) {
   const imageCount = ctx.session.morphingImages.length
   const showRubles = false // ✅ ПРИНУДИТЕЛЬНО ИСПОЛЬЗУЕМ ЗВЕЗДЫ вместо shouldShowRubles(ctx)
 
-  // ✅ ИСПОЛЬЗУЕМ СЕБЕСТОИМОСТЬ ИЗ SERVICE_COST_CONFIG (как в проекте!)
-  const costInStars = calculateServiceCost('morphing_seamless', {
-    num_images: imageCount,
-  })
-  const cost = costInStars // Показываем себестоимость напрямую
-  const currency = '⭐' // Всегда звезды для себестоимости
+  // ✅ ПРАВИЛЬНЫЙ РАСЧЕТ СТОИМОСТИ КАК В IMAGETOVIDEOIWZARD!
+  const singleMorphingCost = calculateFinalPrice(MORPHING_MODEL_KEY) // Стоимость одного перехода
+  const totalCost = singleMorphingCost * imageCount // Умножаем на количество переходов
+  const cost = totalCost // Показываем общую стоимость
+  const currency = '⭐' // Всегда звезды
 
   // Формируем последовательность переходов
   const sequenceMessage = []
@@ -570,12 +573,11 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     const imageCount = ctx.session.morphingImages.length
     const showRubles = false // ✅ ПРИНУДИТЕЛЬНО ИСПОЛЬЗУЕМ ЗВЕЗДЫ вместо shouldShowRubles(ctx)
 
-    // ✅ ИСПОЛЬЗУЕМ СЕБЕСТОИМОСТЬ ИЗ SERVICE_COST_CONFIG (как в проекте!)
-    const costInStars = calculateServiceCost('morphing_seamless', {
-      num_images: imageCount,
-    })
-    const cost = costInStars // Показываем себестоимость напрямую
-    const currency = '⭐' // Всегда звезды для себестоимости
+    // ✅ ПРАВИЛЬНЫЙ РАСЧЕТ СТОИМОСТИ КАК В IMAGETOVIDEOIWZARD!
+    const singleMorphingCost = calculateFinalPrice(MORPHING_MODEL_KEY) // Стоимость одного перехода
+    const totalCost = singleMorphingCost * imageCount // Умножаем на количество переходов
+    const cost = totalCost // Показываем общую стоимость
+    const currency = '⭐' // Всегда звезды
 
     // Формируем последовательность переходов
     const sequenceMessage = []
