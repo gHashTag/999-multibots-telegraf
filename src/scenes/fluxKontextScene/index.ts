@@ -1069,7 +1069,7 @@ fluxKontextScene.action('flux_camera_control', async ctx => {
         ru: '🇺🇸 Американский план',
         en: '🇺🇸 American Shot',
       },
-      { key: 'cowboy_shot', ru: '🤠 Ковбойский план', en: '🤠 Cowboy Shot' },
+      { key: 'cowboy_shot', ru: '📏 Поясной план', en: '📏 Waist Shot' },
       { key: 'profile_shot', ru: '👤 Профиль', en: '👤 Profile' },
       {
         key: 'three_quarter',
@@ -1256,7 +1256,7 @@ const handleCameraSetting = async (
       ru: '🇺🇸 Американский план',
       en: '🇺🇸 American Shot',
     },
-    'angle:cowboy_shot': { ru: '🤠 Ковбойский план', en: '🤠 Cowboy Shot' },
+    'angle:cowboy_shot': { ru: '📏 Поясной план', en: '📏 Waist Shot' },
     'angle:profile_shot': { ru: '👤 Профиль', en: '👤 Profile' },
     'angle:three_quarter': { ru: '📐 3/4 ракурс', en: '📐 Three-Quarter View' },
     'angle:back_shot': { ru: '🔄 Съемка сзади', en: '🔄 Back Shot' },
