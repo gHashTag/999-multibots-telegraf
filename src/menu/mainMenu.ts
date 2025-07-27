@@ -74,12 +74,17 @@ export const levels: Record<number, Level> = {
     title_ru: '🎨 FLUX Kontext',
     title_en: '🎨 FLUX Kontext',
   },
+  // morphing
+  13: {
+    title_ru: '🧬 Морфинг',
+    title_en: '🧬 Morphing',
+  },
   // lip_sync
-  // 13: {
+  // 14: {
   //   title_ru: '🎤 Синхронизация губ',
   //   title_en: '🎤 Lip Sync',
   // },
-  // 14: {
+  // 15: {
   //   title_ru: '🎥 Видео в URL',
   //   title_en: '🎥 Video in URL',
   // },
