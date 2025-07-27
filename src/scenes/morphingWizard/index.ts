@@ -123,11 +123,11 @@ Ready to start? Send your first photo! 📷`
           return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
         }
 
-        // ✅ ПЕРЕХОДИМ К STEP 3 (предпросмотр)
+        // ✅ ПЕРЕХОДИМ К STEP 3 (предпросмотр) - ИСПОЛЬЗУЕМ NEXT!
         console.log(
           '🧬 [MORPHING DEBUG] Step 2 - TRANSITIONING TO STEP 3 (preview)'
         )
-        return ctx.wizard.selectStep(2) // Step 3 (индекс 2)
+        return ctx.wizard.next() // ✅ Используем next() вместо selectStep(2)
       }
 
       if (ctx.callbackQuery.data === 'morphing_cancel') {
@@ -142,7 +142,7 @@ Ready to start? Send your first photo! 📷`
           : '🔄 Starting over. Upload images for morphing:'
 
         await ctx.reply(restartMessage)
-        return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
+        return ctx.wizard.selectStep(0) // ✅ Возвращаем к Step 1 (индекс 0)
       }
 
       return // Неизвестный callback - игнорируем
@@ -388,7 +388,7 @@ Ready to start? Send your first photo! 📷`
           : '📝 You can add more images or modify existing ones:'
 
         await ctx.reply(backMessage)
-        return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
+        return ctx.wizard.selectStep(0) // ✅ Возвращаем к Step 1 (индекс 0)
       }
 
       return // Неизвестный callback - игнорируем
@@ -399,7 +399,7 @@ Ready to start? Send your first photo! 📷`
         ? '❌ Недостаточно изображений для морфинга. Минимум: 2'
         : '❌ Not enough images for morphing. Minimum: 2'
       await ctx.reply(errorMessage)
-      return ctx.wizard.selectStep(1) // Возвращаем к сбору фото
+      return ctx.wizard.selectStep(0) // ✅ Возвращаем к Step 1 (индекс 0)
     }
 
     const imageCount = ctx.session.morphingImages.length
