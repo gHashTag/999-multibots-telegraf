@@ -202,3 +202,26 @@ src/uploads/144022504/image-upscaler/
 
 # Ignore all user uploads
 src/uploads/
+
+# Ignore heavy media assets
+assets/bible_vibecoder/
+assets/bible_vibecoder_upscaled/
+assets/clip_templates_storyboard/
+assets/lipsync_storyboard/
+assets/music_video_frames/
+assets/temp_reels_images/
+
+# Ignore video and audio files in assets
+assets/**/*.mp4
+assets/**/*.mp3
+assets/**/*.mov
+assets/**/*.avi
+assets/**/*.mkv
+assets/**/*.wav
+assets/**/*.aac
+
+# Ignore temp folder with test files
+temp/
+
+# Ignore testing scripts folder
+scripts/testing/
