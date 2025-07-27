@@ -183,6 +183,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   bypass_payment_check?: boolean
   images: BufferType
   morphingImages?: BufferType // Массив изображений для морфинга
+  morphingProcessing?: boolean // ✅ Флаг для защиты от множественных переходов Step 2->3
   modelName?: string
   targetUserId: number
   username?: string
