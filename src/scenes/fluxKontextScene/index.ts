@@ -10,50 +10,202 @@ import { levels } from '@/menu/mainMenu'
 import { sendBalanceMessage } from '@/price/helpers'
 import { ModeEnum } from '@/interfaces'
 
-// Конфигурация режимов FLUX Kontext
+// 🎬 PROFESSIONAL CAMERA ANGLES (Enhanced with Reels functionality)
+export const FLUX_CAMERA_ANGLES = {
+  medium_shot:
+    '[camera: medium shot, balanced composition, natural perspective]',
+  close_up: '[camera: close-up shot, intimate detail, emotional connection]',
+  extreme_close_up:
+    '[camera: extreme close-up, fine detail focus, artistic impact]',
+  wide_shot: '[camera: wide shot, environmental context, spacious composition]',
+  high_angle: '[camera: high angle shot, looking down, vulnerable perspective]',
+  low_angle: '[camera: low angle shot, looking up, empowering perspective]',
+  dutch_angle: '[camera: dutch angle, dynamic tilt, creative composition]',
+  over_shoulder: '[camera: over-the-shoulder shot, intimate perspective]',
+  profile_shot: '[camera: profile shot, sculptural beauty, classic elegance]',
+  three_quarter:
+    '[camera: three-quarter view, dimensional depth, natural pose]',
+  bird_eye: "[camera: bird's eye view, top-down perspective, unique angle]",
+  macro_beauty:
+    '[camera: macro beauty shot, skin texture perfection, luxury detail]',
+}
+
+// 🖼️ FRAME COMPOSITION (Professional Photography)
+export const FLUX_FRAME_COMPOSITION = {
+  center_weighted:
+    '[composition: center-weighted balance, professional stability]',
+  rule_thirds:
+    '[composition: rule of thirds, dynamic balance, photographic standard]',
+  golden_ratio:
+    '[composition: golden ratio portrait, mathematical beauty, perfect proportion]',
+  symmetrical:
+    '[composition: symmetrical perfection, luxury brand precision, flawless geometry]',
+  negative_space:
+    '[composition: negative space elegant, minimalist sophistication]',
+  leading_lines:
+    '[composition: leading lines flow, premium visual journey, luxury storytelling]',
+}
+
+// ✨ PROFESSIONAL LIGHTING SETUPS
+export const FLUX_LIGHTING_SETUPS = {
+  soft_natural:
+    '[lighting: soft natural light, gentle illumination, flattering glow]',
+  dramatic: '[lighting: dramatic lighting, high contrast, artistic shadows]',
+  golden_hour:
+    '[lighting: golden hour warmth, magical illumination, perfect timing]',
+  studio:
+    '[lighting: professional studio setup, perfect illumination, commercial quality]',
+  rembrandt:
+    '[lighting: rembrandt lighting, classic portrait technique, artistic shadows]',
+  butterfly:
+    '[lighting: butterfly lighting, glamour technique, facial contouring]',
+  split: '[lighting: split lighting, dramatic contrast, artistic division]',
+  rim: '[lighting: rim lighting, edge illumination, subject separation]',
+  candlelight:
+    '[lighting: warm candlelight, intimate atmosphere, cozy ambiance]',
+  neon_noir: '[lighting: neon noir, urban atmosphere, cyberpunk aesthetic]',
+  morning:
+    '[lighting: fresh morning light, clean illumination, new day energy]',
+  sunset:
+    "[lighting: warm sunset glow, romantic illumination, day's end beauty]",
+}
+
+// Конфигурация режимов FLUX Kontext с добавленными настройками камеры
 const FLUX_MODES = {
   single: {
     title_ru: '🖼️ Одиночное редактирование',
     title_en: '🖼️ Single Image Edit',
-    description_ru: 'Редактирование одного изображения',
-    description_en: 'Edit a single image',
+    description_ru:
+      'Редактирование одного изображения с профессиональными настройками камеры',
+    description_en: 'Edit a single image with professional camera settings',
     images_required: 1,
+    camera_angles: ['medium_shot', 'close_up', 'wide_shot', 'profile_shot'],
+    default_lighting: 'soft_natural',
   },
   multi: {
     title_ru: '🔗 Объединение изображений',
     title_en: '🔗 Multi-Image Combine',
-    description_ru: 'Объединение двух изображений в одно',
-    description_en: 'Combine two images into one',
+    description_ru:
+      'Объединение двух изображений с кинематографическими эффектами',
+    description_en: 'Combine two images with cinematic effects',
     images_required: 2,
+    camera_angles: ['medium_shot', 'wide_shot', 'three_quarter'],
+    default_lighting: 'golden_hour',
   },
   portrait_series: {
     title_ru: '👤 Серия портретов',
     title_en: '👤 Portrait Series',
-    description_ru: 'Создание серии портретов из одного изображения',
-    description_en: 'Generate a series of portraits from one image',
+    description_ru: 'Создание серии портретов с разными углами камеры',
+    description_en:
+      'Generate a series of portraits with different camera angles',
     images_required: 1,
+    camera_angles: [
+      'close_up',
+      'three_quarter',
+      'profile_shot',
+      'high_angle',
+      'low_angle',
+    ],
+    default_lighting: 'rembrandt',
   },
   haircut: {
     title_ru: '💇 Изменить стрижку',
     title_en: '💇 Change Haircut',
-    description_ru: 'Изменить прическу и цвет волос',
-    description_en: 'Change hairstyle and hair color',
+    description_ru: 'Изменить прическу с профессиональными ракурсами',
+    description_en: 'Change hairstyle with professional angles',
     images_required: 1,
+    camera_angles: ['close_up', 'three_quarter', 'profile_shot'],
+    default_lighting: 'studio',
   },
   landmarks: {
     title_ru: '🏛️ Знаменитые места',
     title_en: '🏛️ Iconic Locations',
-    description_ru: 'Поместить себя на фоне известных достопримечательностей',
-    description_en: 'Put yourself in front of famous landmarks',
+    description_ru:
+      'Поместить себя на фоне известных достопримечательностей с кинематографическими ракурсами',
+    description_en:
+      'Put yourself in front of famous landmarks with cinematic angles',
     images_required: 1,
+    camera_angles: ['wide_shot', 'medium_shot', 'low_angle', 'dutch_angle'],
+    default_lighting: 'golden_hour',
   },
   headshot: {
     title_ru: '📸 Профессиональный портрет',
     title_en: '📸 Professional Headshot',
-    description_ru: 'Создать профессиональный портрет из любого изображения',
-    description_en: 'Generate a professional headshot from any image',
+    description_ru: 'Создать профессиональный портрет с выбором ракурса камеры',
+    description_en:
+      'Generate a professional headshot with camera angle selection',
     images_required: 1,
+    camera_angles: [
+      'close_up',
+      'three_quarter',
+      'macro_beauty',
+      'profile_shot',
+    ],
+    default_lighting: 'butterfly',
   },
+}
+
+// Функция для создания клавиатуры выбора угла камеры
+const createCameraAngleKeyboard = (mode: string, isRu: boolean) => {
+  const modeConfig = FLUX_MODES[mode as keyof typeof FLUX_MODES]
+  if (!modeConfig || !modeConfig.camera_angles) {
+    return null
+  }
+
+  const keyboard = []
+  const angles = modeConfig.camera_angles
+
+  // Добавляем углы камеры по 2 в ряд
+  for (let i = 0; i < angles.length; i += 2) {
+    const row = []
+
+    const angle1 = angles[i]
+    const angle1Label = getCameraAngleLabel(angle1, isRu)
+    row.push(
+      Markup.button.callback(angle1Label, `flux_camera_${mode}_${angle1}`)
+    )
+
+    if (i + 1 < angles.length) {
+      const angle2 = angles[i + 1]
+      const angle2Label = getCameraAngleLabel(angle2, isRu)
+      row.push(
+        Markup.button.callback(angle2Label, `flux_camera_${mode}_${angle2}`)
+      )
+    }
+
+    keyboard.push(row)
+  }
+
+  // Добавляем кнопки управления
+  keyboard.push([
+    Markup.button.callback(
+      isRu ? '🎬 Автовыбор' : '🎬 Auto Select',
+      `flux_camera_${mode}_auto`
+    ),
+    Markup.button.callback(isRu ? 'Назад' : 'Back', 'flux_kontext_modes'),
+  ])
+
+  return Markup.inlineKeyboard(keyboard)
+}
+
+// Функция для получения названия угла камеры на нужном языке
+const getCameraAngleLabel = (angle: string, isRu: boolean): string => {
+  const labels: Record<string, { ru: string; en: string }> = {
+    medium_shot: { ru: '🎥 Средний план', en: '🎥 Medium Shot' },
+    close_up: { ru: '🔍 Крупный план', en: '🔍 Close-up' },
+    extreme_close_up: { ru: '🔎 Сверхкрупный план', en: '🔎 Extreme Close-up' },
+    wide_shot: { ru: '🌐 Общий план', en: '🌐 Wide Shot' },
+    high_angle: { ru: '📐 Верхний ракурс', en: '📐 High Angle' },
+    low_angle: { ru: '📐 Нижний ракурс', en: '📐 Low Angle' },
+    dutch_angle: { ru: '🎭 Голландский угол', en: '🎭 Dutch Angle' },
+    over_shoulder: { ru: '👤 Через плечо', en: '👤 Over Shoulder' },
+    profile_shot: { ru: '👤 Профиль', en: '👤 Profile' },
+    three_quarter: { ru: '📐 Три четверти', en: '📐 Three Quarter' },
+    bird_eye: { ru: '🦅 Птичий взгляд', en: "🦅 Bird's Eye" },
+    macro_beauty: { ru: '💎 Макро красота', en: '💎 Macro Beauty' },
+  }
+
+  return labels[angle] ? (isRu ? labels[angle].ru : labels[angle].en) : angle
 }
 
 // Создание сцены
@@ -90,6 +242,14 @@ const createModeSelectionKeyboard = (isRu: boolean) => {
     keyboard.push(row)
   }
 
+  // Добавляем кнопку управления камерой
+  keyboard.push([
+    Markup.button.callback(
+      isRu ? '🎬 Управление камерой' : '🎬 Camera Control',
+      'flux_camera_control'
+    ),
+  ])
+
   // Добавляем кнопку отмены
   keyboard.push([
     Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'flux_kontext_cancel'),
@@ -100,19 +260,12 @@ const createModeSelectionKeyboard = (isRu: boolean) => {
 
 // Функция для создания клавиатуры выбора модели
 const createModelSelectionKeyboard = (isRu: boolean) => {
-  const proModel = FLUX_KONTEXT_MODELS['black-forest-labs/flux-kontext-pro']
   const maxModel = FLUX_KONTEXT_MODELS['black-forest-labs/flux-kontext-max']
 
   return Markup.inlineKeyboard([
     [
       Markup.button.callback(
-        `💼 Pro (${proModel.costPerImage}⭐)`,
-        'flux_model_pro'
-      ),
-    ],
-    [
-      Markup.button.callback(
-        `🚀 Max (${maxModel.costPerImage}⭐)`,
+        `🚀 Max - Лучшая модель (${maxModel.costPerImage}⭐)`,
         'flux_model_max'
       ),
     ],
@@ -195,27 +348,26 @@ Object.keys(FLUX_MODES).forEach(modeKey => {
 
       if (ctx.session) {
         ctx.session.fluxKontextMode = modeKey as any
-        ctx.session.fluxKontextStep = 'image_a'
       }
 
       const mode = FLUX_MODES[modeKey as keyof typeof FLUX_MODES]
       const modeTitle = isRu ? mode.title_ru : mode.title_en
       const modeDescription = isRu ? mode.description_ru : mode.description_en
 
+      // Показываем выбор угла камеры
+      const cameraKeyboard = createCameraAngleKeyboard(modeKey, isRu)
+
       await ctx.editMessageText(
         isRu
-          ? `✅ *Выбран режим:* ${modeTitle}\n\n${modeDescription}\n\n📷 Отправьте ${mode.images_required === 1 ? 'изображение' : 'первое изображение'}:`
-          : `✅ *Selected mode:* ${modeTitle}\n\n${modeDescription}\n\n📷 Send ${mode.images_required === 1 ? 'an image' : 'the first image'}:`,
+          ? `✅ *Выбран режим:* ${modeTitle}\n\n${modeDescription}\n\n🎬 *Выберите ракурс камеры для профессиональной съёмки:*`
+          : `✅ *Selected mode:* ${modeTitle}\n\n${modeDescription}\n\n🎬 *Choose camera angle for professional shooting:*`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
+          reply_markup:
+            cameraKeyboard?.reply_markup ||
+            createModelSelectionKeyboard(isRu).reply_markup,
         }
       )
-
-      // Устанавливаем ожидание первого изображения
-      if (ctx.session) {
-        ctx.session.awaitingFluxKontextImageA = true
-      }
     } catch (error) {
       logger.error('Error handling FLUX Kontext mode selection', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -226,29 +378,119 @@ Object.keys(FLUX_MODES).forEach(modeKey => {
   })
 })
 
-// Обработка выбора модели
-fluxKontextScene.action('flux_model_pro', async ctx => {
+// Обработка выбора угла камеры
+Object.keys(FLUX_MODES).forEach(modeKey => {
+  const mode = FLUX_MODES[modeKey as keyof typeof FLUX_MODES]
+  if (mode.camera_angles) {
+    // Обработка конкретных углов камеры
+    mode.camera_angles.forEach(angle => {
+      fluxKontextScene.action(`flux_camera_${modeKey}_${angle}`, async ctx => {
+        try {
+          await ctx.answerCbQuery()
+          const isRu = isRussianFromState(ctx)
+
+          if (ctx.session) {
+            ctx.session.fluxKontextCameraAngle = angle
+            ctx.session.fluxKontextStep = 'image_a'
+          }
+
+          const modeTitle = isRu ? mode.title_ru : mode.title_en
+          const angleLabel = getCameraAngleLabel(angle, isRu)
+
+          await ctx.editMessageText(
+            isRu
+              ? `✅ *Режим:* ${modeTitle}\n🎬 *Ракурс:* ${angleLabel}\n\n📷 Отправьте ${mode.images_required === 1 ? 'изображение' : 'первое изображение'}:`
+              : `✅ *Mode:* ${modeTitle}\n🎬 *Angle:* ${angleLabel}\n\n📷 Send ${mode.images_required === 1 ? 'an image' : 'the first image'}:`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
+            }
+          )
+
+          // Устанавливаем ожидание первого изображения
+          if (ctx.session) {
+            ctx.session.awaitingFluxKontextImageA = true
+          }
+        } catch (error) {
+          logger.error('Error handling camera angle selection', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            telegramId: ctx.from?.id,
+            mode: modeKey,
+            angle: angle,
+          })
+        }
+      })
+    })
+
+    // Обработка автовыбора ракурса
+    fluxKontextScene.action(`flux_camera_${modeKey}_auto`, async ctx => {
+      try {
+        await ctx.answerCbQuery()
+        const isRu = isRussianFromState(ctx)
+
+        if (ctx.session) {
+          // Выбираем первый доступный угол как автовыбор
+          ctx.session.fluxKontextCameraAngle = mode.camera_angles[0]
+          ctx.session.fluxKontextStep = 'image_a'
+        }
+
+        const modeTitle = isRu ? mode.title_ru : mode.title_en
+
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Режим:* ${modeTitle}\n🎬 *Ракурс:* Автовыбор (адаптивный)\n\n📷 Отправьте ${mode.images_required === 1 ? 'изображение' : 'первое изображение'}:`
+            : `✅ *Mode:* ${modeTitle}\n🎬 *Angle:* Auto Select (adaptive)\n\n📷 Send ${mode.images_required === 1 ? 'an image' : 'the first image'}:`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
+          }
+        )
+
+        // Устанавливаем ожидание первого изображения
+        if (ctx.session) {
+          ctx.session.awaitingFluxKontextImageA = true
+        }
+      } catch (error) {
+        logger.error('Error handling auto camera angle selection', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          telegramId: ctx.from?.id,
+          mode: modeKey,
+        })
+      }
+    })
+  }
+})
+
+// Кнопка возврата к выбору режимов
+fluxKontextScene.action('flux_kontext_modes', async ctx => {
   try {
     await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.editMessageText(
+      isRu
+        ? '🎨 *FLUX Kontext* - профессиональное редактирование изображений\n\nВыберите режим работы:'
+        : '🎨 *FLUX Kontext* - professional image editing\n\nChoose your mode:',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createModeSelectionKeyboard(isRu).reply_markup,
+      }
+    )
+
+    // Сбрасываем выбранные настройки
     if (ctx.session) {
-      ctx.session.kontextModelType = 'pro'
-      logger.info('FLUX Kontext Pro model selected - session updated', {
-        telegramId: ctx.from?.id,
-        modelType: ctx.session.kontextModelType,
-        mode: ctx.session.fluxKontextMode,
-        hasImageA: !!ctx.session.fluxKontextImageA,
-        sessionExists: !!ctx.session,
-      })
+      ctx.session.fluxKontextMode = undefined
+      ctx.session.fluxKontextCameraAngle = undefined
     }
-    await handleModelSelection(ctx, 'pro')
   } catch (error) {
-    logger.error('Error selecting FLUX Kontext Pro', {
+    logger.error('Error returning to modes selection', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
   }
 })
 
+// Обработка выбора модели
 fluxKontextScene.action('flux_model_max', async ctx => {
   try {
     await ctx.answerCbQuery()
@@ -403,6 +645,72 @@ const requestPrompt = async (ctx: MyContext) => {
   const mode =
     FLUX_MODES[ctx.session?.fluxKontextMode as keyof typeof FLUX_MODES]
 
+  // 🎯 ПРОВЕРЯЕМ: Если пользователь уже выбрал настройки камеры - сразу генерируем!
+  if (
+    ctx.session?.fluxKontextCameraSettings &&
+    ctx.session.fluxKontextCameraSettings !== 'auto'
+  ) {
+    const [settingType, settingValue] =
+      ctx.session.fluxKontextCameraSettings.split(':')
+
+    // Создаем автоматический промпт на основе выбранных настроек камеры
+    let autoPrompt = ''
+
+    if (settingType === 'angle') {
+      const angleDescriptions: Record<string, string> = {
+        medium_shot: 'professional medium shot photography',
+        close_up: 'close-up shot with detailed focus',
+        extreme_closeup:
+          'extreme close-up with ultra detailed macro perspective',
+        wide_shot: 'wide angle shot showing full scene',
+        american_shot:
+          'american shot 3/4 length framing, classic cinematography',
+        cowboy_shot: 'cowboy shot hip level framing, western cinema style',
+        profile_shot: 'profile view portrait photography',
+        three_quarter: 'three-quarter view with dimensional depth',
+        back_shot: 'mysterious back view, over shoulder perspective',
+        over_shoulder: 'over-the-shoulder shot, classic conversation angle',
+        eye_level: 'natural eye level shot, neutral human perspective',
+        dutch_angle: 'dynamic dutch angle with tilted composition',
+        high_angle: 'dramatic high angle shot looking down',
+        low_angle: 'powerful low angle shot looking up',
+        birds_eye: "bird's eye view, overhead aerial perspective",
+        worms_eye: "worm's eye view, extreme low angle from ground looking up",
+        macro_beauty: 'macro beauty shot with perfect details',
+      }
+      autoPrompt = angleDescriptions[settingValue] || 'professional photography'
+    }
+
+    logger.info(
+      '🎬 [CAMERA AUTO-GENERATION] Camera settings detected, generating automatically',
+      {
+        telegramId: ctx.from?.id,
+        cameraSettings: ctx.session.fluxKontextCameraSettings,
+        settingType,
+        settingValue,
+        autoPrompt,
+        skipPromptRequest: true,
+      }
+    )
+
+    // Показываем сообщение о начале обработки
+    await ctx.reply(
+      isRu
+        ? `🎬 Применяю выбранные настройки камеры!\n\n✨ Начинаю обработку изображения...`
+        : `🎬 Applying selected camera settings!\n\n✨ Starting image processing...`,
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
+    )
+
+    // Сразу вызываем обработку с автоматическим промптом
+    await processFluxKontextRequest(ctx, autoPrompt)
+    return
+  }
+
+  // Если настроек камеры нет - показываем обычный запрос промпта
   if (ctx.session) {
     ctx.session.fluxKontextStep = 'prompt'
     ctx.session.awaitingFluxKontextPrompt = true
@@ -475,6 +783,19 @@ fluxKontextScene.on('text', async ctx => {
         scene: 'flux_kontext_scene',
       })
       // Не обрабатываем команды в этой сцене - пропускаем дальше
+      return
+    }
+
+    // 🔧 ИСПРАВЛЕНИЕ: Обработка кнопки меню "🎨 FLUX Kontext"
+    if (messageText === '🎨 FLUX Kontext') {
+      logger.info('🎯 FLUX Kontext: Menu button clicked, restarting scene', {
+        telegramId: ctx.from?.id,
+        messageText,
+        currentStep: ctx.session?.fluxKontextStep,
+      })
+
+      // Перезапускаем сцену с самого начала
+      await ctx.scene.reenter()
       return
     }
 
@@ -586,13 +907,29 @@ const processFluxKontextRequest = async (ctx: MyContext, prompt: string) => {
   })
 
   try {
+    // Применяем настройки камеры к промпту
+    const cameraAngle = ctx.session?.fluxKontextCameraAngle || 'medium_shot'
+    const modeConfig = FLUX_MODES[fluxKontextMode as keyof typeof FLUX_MODES]
+    const defaultLighting = modeConfig?.default_lighting || 'soft_natural'
+
+    // Используем промпт как есть, настройки камеры будут применены в сервисе generateFluxKontext
+    const enhancedPrompt = prompt
+
+    logger.info('FLUX Kontext enhanced prompt generated', {
+      telegramId: ctx.from.id,
+      originalPrompt: prompt.substring(0, 50) + '...',
+      cameraAngle,
+      lighting: defaultLighting,
+      enhancedPrompt: enhancedPrompt.substring(0, 100) + '...',
+    })
+
     // Импортируем и используем продвинутый сервис
     const { generateAdvancedFluxKontext } = await import(
       '../../services/generateFluxKontext'
     )
 
     const result = await generateAdvancedFluxKontext({
-      prompt,
+      prompt: enhancedPrompt, // используем улучшенный промпт
       mode: fluxKontextMode,
       imageA: fluxKontextImageA,
       imageB: fluxKontextImageB,
@@ -601,6 +938,7 @@ const processFluxKontextRequest = async (ctx: MyContext, prompt: string) => {
       username: ctx.from.username || 'unknown',
       is_ru: isRu,
       ctx,
+      cameraSettings: ctx.session?.fluxKontextCameraSettings, // Передаем настройки камеры из сессии
     })
 
     logger.info('FLUX Kontext processing completed successfully', {
@@ -701,6 +1039,148 @@ fluxKontextScene.action('flux_more_editing', async ctx => {
   }
 })
 
+// Обработка управления камерой
+fluxKontextScene.action('flux_camera_control', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // 🎯 ИСПРАВЛЯЕМ: Устанавливаем режим single по умолчанию для управления камерой
+    if (ctx.session) {
+      ctx.session.fluxKontextMode = 'single' // Используем режим одиночного редактирования
+    }
+
+    const cameraControlMenu = isRu
+      ? `🎥 *Углы камеры*\n\nВыберите подходящий ракурс для вашего изображения:`
+      : `🎥 *Camera Angles*\n\nChoose the right angle for your image:`
+
+    // Создаем клавиатуру сразу со всеми углами камеры
+    const angles = [
+      { key: 'medium_shot', ru: '📷 Средний план', en: '📷 Medium Shot' },
+      { key: 'close_up', ru: '🔍 Крупный план', en: '🔍 Close Up' },
+      {
+        key: 'extreme_closeup',
+        ru: '🔬 Экстра крупный',
+        en: '🔬 Extreme Close-Up',
+      },
+      { key: 'wide_shot', ru: '🌐 Общий план', en: '🌐 Wide Shot' },
+      {
+        key: 'american_shot',
+        ru: '🇺🇸 Американский план',
+        en: '🇺🇸 American Shot',
+      },
+      { key: 'cowboy_shot', ru: '🤠 Ковбойский план', en: '🤠 Cowboy Shot' },
+      { key: 'profile_shot', ru: '👤 Профиль', en: '👤 Profile' },
+      {
+        key: 'three_quarter',
+        ru: '📐 3/4 ракурс',
+        en: '📐 Three-Quarter View',
+      },
+      { key: 'back_shot', ru: '🔄 Сзади', en: '🔄 Back Shot' },
+      {
+        key: 'over_shoulder',
+        ru: '🏔️ Через плечо',
+        en: '🏔️ Over-the-Shoulder',
+      },
+      { key: 'eye_level', ru: '👁️ На уровне глаз', en: '👁️ Eye Level' },
+      { key: 'dutch_angle', ru: '🎭 Голландский угол', en: '🎭 Dutch Angle' },
+      { key: 'high_angle', ru: '📐 Верхний ракурс', en: '📐 High Angle' },
+      { key: 'low_angle', ru: '📐 Нижний ракурс', en: '📐 Low Angle' },
+      { key: 'birds_eye', ru: '🦅 Вид с высоты', en: "🦅 Bird's Eye View" },
+      { key: 'worms_eye', ru: '🐛 Вид снизу вверх', en: "🐛 Worm's Eye View" },
+      { key: 'macro_beauty', ru: '💎 Макро красота', en: '💎 Macro Beauty' },
+    ]
+
+    const keyboard = []
+
+    // Добавляем углы камеры по два в ряд
+    for (let i = 0; i < angles.length; i += 2) {
+      const row = []
+      row.push(
+        Markup.button.callback(
+          isRu ? angles[i].ru : angles[i].en,
+          `flux_select_angle_${angles[i].key}`
+        )
+      )
+      if (i + 1 < angles.length) {
+        row.push(
+          Markup.button.callback(
+            isRu ? angles[i + 1].ru : angles[i + 1].en,
+            `flux_select_angle_${angles[i + 1].key}`
+          )
+        )
+      }
+      keyboard.push(row)
+    }
+
+    // Кнопки навигации
+    keyboard.push([
+      Markup.button.callback(
+        isRu ? '⬅️ Назад к режимам' : '⬅️ Back to Modes',
+        'flux_back_to_modes'
+      ),
+    ])
+
+    keyboard.push([
+      Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'flux_kontext_cancel'),
+    ])
+
+    await ctx.editMessageText(cameraControlMenu, {
+      parse_mode: 'Markdown',
+      reply_markup: Markup.inlineKeyboard(keyboard).reply_markup,
+    })
+  } catch (error) {
+    logger.error('Error in camera control handler', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Обработка возврата к режимам
+fluxKontextScene.action('flux_back_to_modes', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    const title = isRu
+      ? '🎨 *FLUX Kontext* - Продвинутое ИИ редактирование изображений'
+      : '🎨 *FLUX Kontext* - Advanced AI Image Editing'
+
+    const description = isRu
+      ? `Выберите режим редактирования:
+
+🖼️ *Одиночное редактирование* - классическое редактирование одного изображения
+🔗 *Объединение изображений* - объединение двух изображений в одно
+👤 *Серия портретов* - создание серии портретов из одного изображения  
+💇 *Изменить стрижку* - изменение прически и цвета волос
+🏛️ *Знаменитые места* - помещение себя на фоне достопримечательностей
+📸 *Профессиональный портрет* - создание профессионального портрета
+
+💡 *Для лучших результатов пишите промпты на английском языке*`
+      : `Choose editing mode:
+
+🖼️ *Single Image Edit* - classic editing of one image
+🔗 *Multi-Image Combine* - combine two images into one
+👤 *Portrait Series* - generate a series of portraits from one image
+💇 *Change Haircut* - change hairstyle and hair color  
+🏛️ *Iconic Locations* - put yourself in front of famous landmarks
+📸 *Professional Headshot* - generate a professional headshot
+
+💡 *For best results, write prompts in English*`
+
+    await ctx.editMessageText(title + '\n\n' + description, {
+      parse_mode: 'Markdown',
+      reply_markup: createModeSelectionKeyboard(isRu).reply_markup,
+    })
+  } catch (error) {
+    logger.error('Error returning to modes', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
 // Обработка отмены
 fluxKontextScene.action('flux_kontext_cancel', async ctx => {
   try {
@@ -726,4 +1206,132 @@ fluxKontextScene.action('flux_kontext_cancel', async ctx => {
       telegramId: ctx.from?.id,
     })
   }
+})
+
+// Обработчики конкретных выборов настроек камеры
+
+// Создаем функцию для обработки выбора настройки камеры
+const handleCameraSetting = async (
+  ctx: MyContext,
+  settingType: 'angle',
+  settingValue: string
+) => {
+  const isRu = isRussianFromState(ctx)
+
+  // Создаём настройку в формате "type:value"
+  const cameraSettings = `${settingType}:${settingValue}`
+
+  // Сохраняем настройки камеры в сессии
+  if (ctx.session) {
+    ctx.session.fluxKontextCameraSettings = cameraSettings
+    ctx.session.kontextModelType = 'max' // 🔧 ТЕСТИРУЕМ: Модель FLUX Kontext Max для всех 17 ракурсов!
+    ctx.session.fluxKontextStep = 'image_a'
+    ctx.session.awaitingFluxKontextImageA = true
+
+    // 🎬 TRIPLE MODEL BENCHMARK MODE: Uncomment one of these lines for testing
+    // ctx.session.kontextModelType = 'max'   // For MAX model tests
+    // ctx.session.kontextModelType = 'pro'   // For PRO model tests
+    // ctx.session.kontextModelType = 'ultra' // For ULTRA model tests
+
+    logger.info('🎬 Camera setting applied', {
+      telegramId: ctx.from?.id,
+      settingType,
+      settingValue,
+      cameraSettings,
+      modelType: ctx.session.kontextModelType,
+    })
+  }
+
+  // Создаем описание выбранной настройки
+  const settingDescriptions: Record<string, { ru: string; en: string }> = {
+    // Углы камеры
+    'angle:medium_shot': { ru: '📷 Средний план', en: '📷 Medium Shot' },
+    'angle:close_up': { ru: '🔍 Крупный план', en: '🔍 Close Up' },
+    'angle:extreme_closeup': {
+      ru: '🔬 Экстра крупный план',
+      en: '🔬 Extreme Close-Up',
+    },
+    'angle:wide_shot': { ru: '🌐 Общий план', en: '🌐 Wide Shot' },
+    'angle:american_shot': {
+      ru: '🇺🇸 Американский план',
+      en: '🇺🇸 American Shot',
+    },
+    'angle:cowboy_shot': { ru: '🤠 Ковбойский план', en: '🤠 Cowboy Shot' },
+    'angle:profile_shot': { ru: '👤 Профиль', en: '👤 Profile' },
+    'angle:three_quarter': { ru: '📐 3/4 ракурс', en: '📐 Three-Quarter View' },
+    'angle:back_shot': { ru: '🔄 Съемка сзади', en: '🔄 Back Shot' },
+    'angle:over_shoulder': { ru: '🏔️ Через плечо', en: '🏔️ Over-the-Shoulder' },
+    'angle:eye_level': { ru: '👁️ На уровне глаз', en: '👁️ Eye Level' },
+    'angle:dutch_angle': { ru: '🎭 Голландский угол', en: '🎭 Dutch Angle' },
+    'angle:high_angle': { ru: '📐 Верхний ракурс', en: '📐 High Angle' },
+    'angle:low_angle': { ru: '📐 Нижний ракурс', en: '📐 Low Angle' },
+    'angle:birds_eye': {
+      ru: '🦅 Вид с высоты птичьего полета',
+      en: "🦅 Bird's Eye View",
+    },
+    'angle:worms_eye': { ru: '🐛 Вид снизу вверх', en: "🐛 Worm's Eye View" },
+    'angle:macro_beauty': { ru: '💎 Макро красота', en: '💎 Macro Beauty' },
+  }
+
+  const settingKey = `${settingType}:${settingValue}`
+  const settingDescription = settingDescriptions[settingKey]
+
+  await ctx.editMessageText(
+    isRu
+      ? `✅ *Выбрана настройка камеры:* ${settingDescription?.ru || settingValue}
+
+🎬 Отличный выбор! Эта настройка будет применена к вашему изображению.
+
+📷 Теперь отправьте изображение для обработки:`
+      : `✅ *Camera setting selected:* ${settingDescription?.en || settingValue}
+
+🎬 Excellent choice! This setting will be applied to your image.
+
+📷 Now send an image for processing:`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? 'Отмена' : 'Cancel',
+            'flux_kontext_cancel'
+          ),
+        ],
+      ]).reply_markup,
+    }
+  )
+}
+
+// Обработчики для углов камеры
+const angles = [
+  'medium_shot',
+  'close_up',
+  'extreme_closeup',
+  'wide_shot',
+  'american_shot',
+  'cowboy_shot',
+  'profile_shot',
+  'three_quarter',
+  'back_shot',
+  'over_shoulder',
+  'eye_level',
+  'dutch_angle',
+  'high_angle',
+  'low_angle',
+  'birds_eye',
+  'worms_eye',
+  'macro_beauty',
+]
+angles.forEach(angle => {
+  fluxKontextScene.action(`flux_select_angle_${angle}`, async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      await handleCameraSetting(ctx, 'angle', angle)
+    } catch (error) {
+      logger.error(`Error selecting camera angle ${angle}`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
 })
