@@ -1,0 +1,145 @@
+{
+  "timestamp": "2025-07-28T10:09:44.048Z",
+  "totalAnomalies": 4,
+  "totalDamage": 107752.33,
+  "anomalies": [
+    {
+      "telegramId": "7007992081",
+      "userName": "Ludmila K",
+      "chargeAmount": 220,
+      "refundAmount": 1453.19,
+      "multiplier": 6.605409090909091,
+      "chargeDate": "2025-07-27T10:15:41.07042+00:00",
+      "refundDate": "2025-07-27T10:20:25.890312+00:00",
+      "chargeDescription": "Оплата тренировки модели user7007992081 (шагов: 1000)",
+      "refundDescription": "Возврат средств за неудавшуюся тренировку модели user7007992081"
+    },
+    {
+      "telegramId": "7007992081",
+      "userName": "Ludmila K",
+      "chargeAmount": 220,
+      "refundAmount": 2686.38,
+      "multiplier": 12.210818181818182,
+      "chargeDate": "2025-07-27T11:42:03.244519+00:00",
+      "refundDate": "2025-07-27T11:46:36.524993+00:00",
+      "chargeDescription": "Оплата тренировки модели user7007992081 (шагов: 1000)",
+      "refundDescription": "Возврат средств за неудавшуюся тренировку модели user7007992081"
+    },
+    {
+      "telegramId": "7007992081",
+      "userName": "Ludmila K",
+      "chargeAmount": 220,
+      "refundAmount": 5152.76,
+      "multiplier": 23.421636363636363,
+      "chargeDate": "2025-07-27T12:10:29.876132+00:00",
+      "refundDate": "2025-07-27T12:15:34.194988+00:00",
+      "chargeDescription": "Оплата тренировки модели user7007992081 (шагов: 1000)",
+      "refundDescription": "Возврат средств за неудавшуюся тренировку модели user7007992081"
+    },
+    {
+      "telegramId": "289259562",
+      "userName": "Vyacheslav",
+      "chargeAmount": 880,
+      "refundAmount": 100000,
+      "multiplier": 113.63636363636364,
+      "chargeDate": "2025-07-26T18:50:01.030519+00:00",
+      "refundDate": "2025-07-26T18:54:42.368844+00:00",
+      "chargeDescription": "Оплата тренировки модели vyacheslav_neklyudov (шагов: 4000)",
+      "refundDescription": "Возврат средств за неудавшуюся тренировку модели vyacheslav_neklyudov"
+    }
+  ],
+  "fixTransactions": [
+    {
+      "telegram_id": 7007992081,
+      "amount": 1233.19,
+      "stars": -1233.19,
+      "type": "MONEY_OUTCOME",
+      "description": "🔧 Коррекция переплаты за возврат тренировки модели (было: 1453.19⭐, должно: 220⭐)",
+      "service_type": "system_correction",
+      "operation_id": "correction_7007992081_1753697384048",
+      "bot_name": "system",
+      "language": "ru",
+      "payment_method": "system_correction",
+      "is_system_payment": true,
+      "status": "COMPLETED",
+      "category": "correction",
+      "metadata": {
+        "correction_type": "model_training_refund_overpayment",
+        "original_charge": 220,
+        "original_refund": 1453.19,
+        "overpayment": 1233.19,
+        "charge_date": "2025-07-27T10:15:41.07042+00:00",
+        "refund_date": "2025-07-27T10:20:25.890312+00:00"
+      }
+    },
+    {
+      "telegram_id": 7007992081,
+      "amount": 2466.38,
+      "stars": -2466.38,
+      "type": "MONEY_OUTCOME",
+      "description": "🔧 Коррекция переплаты за возврат тренировки модели (было: 2686.38⭐, должно: 220⭐)",
+      "service_type": "system_correction",
+      "operation_id": "correction_7007992081_1753697384048",
+      "bot_name": "system",
+      "language": "ru",
+      "payment_method": "system_correction",
+      "is_system_payment": true,
+      "status": "COMPLETED",
+      "category": "correction",
+      "metadata": {
+        "correction_type": "model_training_refund_overpayment",
+        "original_charge": 220,
+        "original_refund": 2686.38,
+        "overpayment": 2466.38,
+        "charge_date": "2025-07-27T11:42:03.244519+00:00",
+        "refund_date": "2025-07-27T11:46:36.524993+00:00"
+      }
+    },
+    {
+      "telegram_id": 7007992081,
+      "amount": 4932.76,
+      "stars": -4932.76,
+      "type": "MONEY_OUTCOME",
+      "description": "🔧 Коррекция переплаты за возврат тренировки модели (было: 5152.76⭐, должно: 220⭐)",
+      "service_type": "system_correction",
+      "operation_id": "correction_7007992081_1753697384048",
+      "bot_name": "system",
+      "language": "ru",
+      "payment_method": "system_correction",
+      "is_system_payment": true,
+      "status": "COMPLETED",
+      "category": "correction",
+      "metadata": {
+        "correction_type": "model_training_refund_overpayment",
+        "original_charge": 220,
+        "original_refund": 5152.76,
+        "overpayment": 4932.76,
+        "charge_date": "2025-07-27T12:10:29.876132+00:00",
+        "refund_date": "2025-07-27T12:15:34.194988+00:00"
+      }
+    },
+    {
+      "telegram_id": 289259562,
+      "amount": 99120,
+      "stars": -99120,
+      "type": "MONEY_OUTCOME",
+      "description": "🔧 Коррекция переплаты за возврат тренировки модели (было: 100000⭐, должно: 880⭐)",
+      "service_type": "system_correction",
+      "operation_id": "correction_289259562_1753697384048",
+      "bot_name": "system",
+      "language": "ru",
+      "payment_method": "system_correction",
+      "is_system_payment": true,
+      "status": "COMPLETED",
+      "category": "correction",
+      "metadata": {
+        "correction_type": "model_training_refund_overpayment",
+        "original_charge": 880,
+        "original_refund": 100000,
+        "overpayment": 99120,
+        "charge_date": "2025-07-26T18:50:01.030519+00:00",
+        "refund_date": "2025-07-26T18:54:42.368844+00:00"
+      }
+    }
+  ]
+}
