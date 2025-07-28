@@ -69,6 +69,7 @@ import {
   fluxKontextScene,
   avatarTransformScene,
   instagramScrapingWizard,
+  morphingWizard,
 } from './scenes'
 
 import { defaultSession } from './store'
@@ -109,6 +110,7 @@ export const stage = new Scenes.Stage<MyContext>([
   uploadVideoScene,
   sizeWizard,
   fluxKontextScene,
+  morphingWizard,
   new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
   new Scenes.WizardScene(
     ModeEnum.TextToSpeech,

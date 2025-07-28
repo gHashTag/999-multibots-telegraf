@@ -1,7 +1,8 @@
 import { Inngest } from 'inngest'
+import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
 
-// Экспортируем все функции для использования в index.ts
-export const functions: any[] = []
+// ✅ Экспортируем функцию морфинга для регистрации в Inngest
+export const functions = [generateAdvancedLoopingVideoFunction]
 
 // Создаем клиент Inngest для подключения к нашему dev server
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
