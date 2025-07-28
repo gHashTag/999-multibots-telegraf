@@ -145,7 +145,7 @@ async function executeStep4Logic(ctx: MyContext) {
     let morphingResult
     try {
       console.log('🧬 [MORPHING DEBUG] Step 4 - CALLING generateMorphing NOW!')
-      morphingResult = await generateMorphing(requestData, ctx)
+      morphingResult = await generateMorphing(requestData)
       console.log('🧬 [MORPHING DEBUG] Step 4 - generateMorphing SUCCESS!')
     } catch (morphingError) {
       console.error(
@@ -660,17 +660,14 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
       console.log(
         '🧬 [MORPHING DEBUG] Step 4 - Sending to generateMorphing server'
       )
-      const morphingResult = await generateMorphing(
-        {
-          filePath: zipPath,
-          telegram_id: ctx.from?.id?.toString() || '',
-          is_ru: isRu,
-          botName: ctx.botInfo?.username || '',
-          imageCount: ctx.session.morphingImages.length,
-          morphingType: 'seamless', // Бесшовная склейка
-        },
-        ctx
-      )
+      const morphingResult = await generateMorphing({
+        filePath: zipPath,
+        telegram_id: ctx.from?.id?.toString() || '',
+        is_ru: isRu,
+        botName: ctx.botInfo?.username || '',
+        imageCount: ctx.session.morphingImages.length,
+        morphingType: 'seamless', // Бесшовная склейка
+      })
 
       console.log(
         '🧬 [MORPHING DEBUG] Step 4 - Morphing result:',

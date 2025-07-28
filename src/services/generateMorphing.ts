@@ -1,8 +1,7 @@
-import axios, { AxiosResponse } from 'axios'
-import FormData from 'form-data'
 import fs from 'fs'
-import { SECRET_API_KEY, API_URL } from '@/config'
-import { MyContext } from '@/interfaces'
+import AdmZip from 'adm-zip'
+import axios from 'axios'
+import { API_URL, SECRET_API_KEY } from '@/config'
 import { logger } from '@/utils/logger'
 
 interface MorphingRequest {
@@ -11,7 +10,7 @@ interface MorphingRequest {
   is_ru: boolean
   botName: string
   imageCount: number
-  morphingType: 'seamless' | 'loop' // seamless - плавные переходы, loop - замкнутый цикл
+  morphingType: 'seamless' | 'loop'
 }
 
 interface MorphingResponse {
@@ -22,55 +21,41 @@ interface MorphingResponse {
 }
 
 /**
- * Сервис для создания морфинга из архива изображений
- * Отправляет ZIP архив на бэкенд для обработки с помощью Kling-v1.6
+ * Сервис для создания морфинга - отправляет ZIP архив на отдельный API сервер
  */
 export async function generateMorphing(
-  requestData: MorphingRequest,
-  ctx: MyContext
+  requestData: MorphingRequest
 ): Promise<MorphingResponse> {
-  try {
-    logger.info('[Morphing Service] Starting morphing generation', {
-      telegramId: requestData.telegram_id,
-      imageCount: requestData.imageCount,
-      morphingType: requestData.morphingType,
-    })
+  console.log('🚨 [MORPHING SERVICE] ABOUT TO PROCESS ZIP:', {
+    telegram_id: requestData.telegram_id,
+    imageCount: requestData.imageCount,
+    morphingType: requestData.morphingType,
+    fileExists: fs.existsSync(requestData.filePath),
+    fileSize: fs.statSync(requestData.filePath).size,
+  })
 
-    // Определяем endpoint для морфинга
+  try {
+    // URL для отправки запроса на отдельный API сервер
     const url = `${API_URL}/generate/morph-images`
 
-    // Проверяем, что файл существует
-    if (!fs.existsSync(requestData.filePath)) {
-      throw new Error('ZIP файл не найден: ' + requestData.filePath)
-    }
-
-    // Получаем размер файла для логирования
-    const stats = fs.statSync(requestData.filePath)
-    logger.info('[Morphing Service] ZIP file stats', {
-      telegramId: requestData.telegram_id,
-      filePath: requestData.filePath,
-      fileSize: stats.size,
-    })
-
-    // Создаем FormData для передачи файла
+    // Создаем FormData для отправки файла
+    const FormData = require('form-data')
     const formData = new FormData()
+
+    // Добавляем файл архива
+    formData.append('images_zip', fs.createReadStream(requestData.filePath))
+
+    // Добавляем остальные параметры
     formData.append('type', 'morphing')
     formData.append('telegram_id', requestData.telegram_id)
-    formData.append('images_zip', fs.createReadStream(requestData.filePath))
     formData.append('image_count', requestData.imageCount.toString())
     formData.append('morphing_type', requestData.morphingType)
-    formData.append('model', 'kling-v1.6-pro') // Используем Kling-v1.6 для морфинга
-    formData.append('is_ru', requestData.is_ru.toString())
+    formData.append('model', 'kling-v1.6-pro')
+    formData.append('is_ru', requestData.is_ru ? 'true' : 'false')
     formData.append('bot_name', requestData.botName)
+    formData.append('username', 'telegram_bot')
 
-    logger.info('[Morphing Service] Sending request to server', {
-      telegramId: requestData.telegram_id,
-      url,
-      formDataKeys: Object.keys(formData.getBuffer ? formData : {}),
-    })
-
-    // ✅ ДЕТАЛЬНЫЕ ЛОГИ ПЕРЕД ОТПРАВКОЙ
-    console.log('🚨 [MORPHING SERVICE] ABOUT TO SEND REQUEST:', {
+    console.log('🚨 [MORPHING SERVICE] ABOUT TO SEND HTTP REQUEST:', {
       url,
       telegram_id: requestData.telegram_id,
       imageCount: requestData.imageCount,
@@ -82,50 +67,35 @@ export async function generateMorphing(
       secretKeyLength: SECRET_API_KEY?.length || 0,
     })
 
-    // Отправляем запрос на сервер
-    const response: AxiosResponse<MorphingResponse> = await axios.post(
-      url,
-      formData,
-      {
-        headers: {
-          'x-secret-key': SECRET_API_KEY,
-          ...formData.getHeaders(),
-        },
-        timeout: 60000, // 60 секунд таймаут для загрузки
-      }
-    )
-
-    logger.info('[Morphing Service] Server response received', {
-      telegramId: requestData.telegram_id,
-      status: response.status,
-      responseData: response.data,
+    // Отправляем запрос
+    const response = await axios.post(url, formData, {
+      headers: {
+        ...formData.getHeaders(),
+        'x-secret-key': SECRET_API_KEY,
+      },
+      timeout: 30000, // 30 секунд таймаут
     })
 
-    // Удаляем временный ZIP файл после успешной отправки
-    try {
-      await fs.promises.unlink(requestData.filePath)
-      logger.info('[Morphing Service] Temporary ZIP file deleted', {
-        telegramId: requestData.telegram_id,
-        filePath: requestData.filePath,
-      })
-    } catch (unlinkError) {
-      logger.warn('[Morphing Service] Failed to delete temporary ZIP file', {
-        telegramId: requestData.telegram_id,
-        filePath: requestData.filePath,
-        error: unlinkError,
-      })
-    }
-
-    return response.data
-  } catch (error) {
-    logger.error('[Morphing Service] Error during morphing generation', {
+    logger.info('[MORPHING SERVICE] Response received', {
       telegramId: requestData.telegram_id,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+      status: response.status,
+      data: response.data,
+    })
+
+    return {
+      message: 'Морфинг поставлен в очередь для обработки',
+      status: 'processing',
+      job_id:
+        response.data.job_id ||
+        `morphing-${requestData.telegram_id}-${Date.now()}`,
+    }
+  } catch (error) {
+    logger.error('[MORPHING SERVICE] Request failed', {
+      telegramId: requestData.telegram_id,
+      error: error instanceof Error ? error.message : 'Unknown error',
     })
 
     if (axios.isAxiosError(error)) {
-      // ✅ ДЕТАЛЬНЫЕ ЛОГИ ОШИБКИ AXIOS
       console.error('🚨 [MORPHING SERVICE] AXIOS ERROR DETAILS:', {
         telegramId: requestData.telegram_id,
         status: error.response?.status,
@@ -138,28 +108,9 @@ export async function generateMorphing(
         code: error.code,
       })
 
-      logger.error('[Morphing Service] API Error details', {
-        telegramId: requestData.telegram_id,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-      })
-
-      throw new Error(
-        requestData.is_ru
-          ? 'Произошла ошибка при создании морфинга на сервере'
-          : 'Server error occurred while creating morphing'
-      )
+      throw new Error(`Произошла ошибка при создании морфинга на сервере`)
     }
 
-    // ✅ ЛОГИ ДЛЯ НЕ-AXIOS ОШИБОК
-    console.error('🚨 [MORPHING SERVICE] NON-AXIOS ERROR:', {
-      telegramId: requestData.telegram_id,
-      error: error instanceof Error ? error.message : String(error),
-      type: typeof error,
-      name: error instanceof Error ? error.name : 'Unknown',
-    })
-
-    throw error
+    throw new Error('Произошла ошибка при создании морфинга')
   }
 }

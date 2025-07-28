@@ -1,6 +1,6 @@
 import express from 'express'
-import healthRouter from './routes/health.routes' // Предполагаем, что этот файл будет создан
-import robokassaRouter from './routes/robokassa.routes' // Добавляем маршрут для Robokassa
+import healthRouter from './routes/health.routes'
+import robokassaRouter from './routes/robokassa.routes'
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
@@ -30,53 +30,7 @@ export function startApiServer(): void {
   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
   app.use('/api/inngest', inngestHandler)
 
-  // Маршрут hello world для тестирования
-  app.get('/api/hello', (req: any, res: any) => {
-    res.status(200).json({
-      message: 'Hello from API Server!',
-      timestamp: new Date().toISOString(),
-    })
-  })
-
-  // Маршрут для тестирования Inngest функции hello world
-  app.post('/api/test-inngest', async (req: any, res: any) => {
-    try {
-      // Отправляем тестовое событие в Inngest
-      const result = await inngest.send({
-        name: 'test/hello.world', // Имя события, на которое слушает наша функция
-        data: {
-          test: true,
-          message: 'Test event from API',
-          timestamp: new Date().toISOString(),
-        },
-      })
-
-      res.status(200).json({
-        status: 'success',
-        message: 'Inngest test event sent successfully',
-        timestamp: new Date().toISOString(),
-      })
-    } catch (error) {
-      console.error('Error sending Inngest event:', error)
-      res.status(500).json({
-        status: 'error',
-        message: 'Failed to send Inngest test event',
-        error: String(error),
-        timestamp: new Date().toISOString(),
-      })
-    }
-  })
-
-  // Обработка 404
-  app.use((req: any, res: any) => {
-    res.status(404).json({
-      status: 'error',
-      message: 'Route not found',
-      path: req.url,
-    })
-  })
-
-  // Запускаем сервер на указанном порту
+  // Запуск сервера
   app.listen(PORT, () => {
     console.log(`[API] Server started on port ${PORT}`)
   })
