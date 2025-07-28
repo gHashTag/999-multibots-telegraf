@@ -90,7 +90,7 @@ importers:
         specifier: ^0.25.2
         version: 0.25.2
       telegraf:
-        specifier: ^4.16.3
+        specifier: 4.16.3
         version: 4.16.3
       tsc-alias:
         specifier: ^1.8.8
@@ -7802,7 +7802,7 @@ snapshots:
     dependencies:
       '@telegraf/types': 7.1.0
       abort-controller: 3.0.0
-      debug: 4.4.0
+      debug: 4.4.1
       mri: 1.2.0
       node-fetch: 2.7.0
       p-timeout: 4.1.0
