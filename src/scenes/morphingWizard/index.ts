@@ -7,248 +7,268 @@ import { generateMorphing } from '../../services/generateMorphing'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
+import { isValidImage } from '../../helpers/images'
 import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
+import { ModeEnum } from '@/interfaces/modes'
 
 // ✅ КОНСТАНТА ДЛЯ МОДЕЛИ МОРФИНГА
 const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
 
-// ✅ Функция для создания ZIP из Uint8Array[]
-const createMorphingImagesZip = (images: Uint8Array[]): string => {
-  const zip = new AdmZip()
+// ✅ Функция для создания ZIP из buffer массива
+const createMorphingImagesZip = (
+  images: { buffer: Buffer; filename: string }[]
+): string => {
+  try {
+    const zip = new AdmZip()
 
-  images.forEach((imageBuffer, index) => {
-    const filename = `morphing_frame_${index + 1}.jpg`
-    zip.addFile(filename, Buffer.from(imageBuffer))
-  })
+    images.forEach((image, index) => {
+      const filename = `morphing_image_${index + 1}.jpg`
+      zip.addFile(filename, image.buffer)
+      logger.info(`Added image ${index + 1} to ZIP`, {
+        filename,
+        size: image.buffer.length,
+      })
+    })
 
-  // Создаем временный файл
-  const tempDir = path.join(process.cwd(), 'temp')
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true })
+    const tempDir = path.join(process.cwd(), 'temp')
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true })
+    }
+
+    const zipPath = path.join(tempDir, `morphing_images_${Date.now()}.zip`)
+    zip.writeZip(zipPath)
+
+    logger.info('Created morphing images ZIP', {
+      zipPath,
+      imagesCount: images.length,
+      zipSize: fs.statSync(zipPath).size,
+    })
+
+    return zipPath
+  } catch (error) {
+    logger.error('Error creating morphing images ZIP', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      imagesCount: images.length,
+    })
+    throw error
   }
-
-  const zipPath = path.join(tempDir, `morphing_${Date.now()}.zip`)
-  fs.writeFileSync(zipPath, zip.toBuffer())
-
-  return zipPath
 }
 
-// ✅ Функция для создания клавиатуры с прогрессом
-const createProgressKeyboard = (currentCount: number, isRu: boolean) => {
-  const buttons = []
-
-  if (currentCount >= 2) {
-    // Достаточно изображений - показываем кнопки действий
-    buttons.push([
-      Markup.button.callback(
-        isRu ? '✅ Создать морфинг' : '✅ Create Morphing',
-        'morphing_create'
-      ),
-    ])
-    buttons.push([
-      Markup.button.callback(
-        isRu ? '🔄 Начать заново' : '🔄 Start Over',
-        'morphing_restart'
-      ),
-    ])
-  } else {
-    // Нужно больше изображений
-    buttons.push([
-      Markup.button.callback(
-        isRu ? '🔄 Начать заново' : '🔄 Start Over',
-        'morphing_restart'
-      ),
-    ])
-  }
-
-  return Markup.inlineKeyboard(buttons)
+// ✅ Функция для создания прогресс бара
+const createProgressBar = (
+  current: number,
+  total: number = 10,
+  length: number = 10
+): string => {
+  const filled = Math.floor((current / total) * length)
+  const empty = length - filled
+  return `[${'▓'.repeat(filled) + '░'.repeat(empty)}] ${current}/${total >= 99 ? '∞' : total}`
 }
 
-// ✅ Функция для создания сообщения с прогрессом
-const createProgressMessage = (currentCount: number, isRu: boolean): string => {
-  const progressBar =
-    '▓'.repeat(Math.min(currentCount, 10)) +
-    '░'.repeat(Math.max(0, 10 - currentCount))
+// ✅ Функция для создания сообщения о прогрессе
+const createProgressMessage = (images: any[], isRu: boolean): string => {
+  const count = images.length
+  const progressBar = createProgressBar(count, 10, 10)
 
-  const baseMessage = isRu
+  const statusIcon = count >= 2 ? '✅' : '⏳'
+  const statusText =
+    count >= 2
+      ? isRu
+        ? 'Достаточно изображений для создания морфинга!'
+        : 'Enough images to create morphing!'
+      : isRu
+        ? 'Загрузите еще изображения'
+        : 'Upload more images'
+
+  return isRu
     ? `🧬 <b>Морфинг - Загрузка изображений</b>
 
-📸 <b>Загружено:</b> ${currentCount} из минимум 2 изображений
-📊 <b>Прогресс:</b> [${progressBar}] ${currentCount}/∞
+📸 <b>Загружено:</b> ${count} из минимум 2 изображений  
+📊 <b>Прогресс:</b> ${progressBar}
 
-${
-  currentCount < 2
-    ? '⚠️ <i>Загрузите еще минимум ' +
-      (2 - currentCount) +
-      ' изображение(я)</i>'
-    : '✅ <i>Достаточно изображений для создания морфинга!</i>'
-}
+${statusIcon} <b>${statusText}</b>
 
-🎥 <b>Будет создано:</b> ${Math.max(currentCount, 2)} видео переходов
+🎬 <b>Будет создано:</b> ${Math.max(0, count - 1)} видео переходов
 💡 <b>Совет:</b> Больше изображений = больше переходов`
     : `🧬 <b>Morphing - Image Upload</b>
 
-📸 <b>Uploaded:</b> ${currentCount} of minimum 2 images  
-📊 <b>Progress:</b> [${progressBar}] ${currentCount}/∞
+📸 <b>Uploaded:</b> ${count} of minimum 2 images  
+📊 <b>Progress:</b> ${progressBar}
 
-${
-  currentCount < 2
-    ? '⚠️ <i>Upload at least ' + (2 - currentCount) + ' more image(s)</i>'
-    : '✅ <i>Enough images to create morphing!</i>'
-}
+${statusIcon} <b>${statusText}</b>
 
-🎥 <b>Will create:</b> ${Math.max(currentCount, 2)} transition videos
+🎬 <b>Will create:</b> ${Math.max(0, count - 1)} video transitions
 💡 <b>Tip:</b> More images = more transitions`
-
-  return baseMessage
 }
 
+// ✅ Функция для создания клавиатуры прогресса
+const createProgressKeyboard = (images: any[], isRu: boolean) => {
+  const canGenerate = images.length >= 2
+
+  const keyboard = []
+
+  if (canGenerate) {
+    keyboard.push([
+      Markup.button.callback(
+        isRu ? '✅ Создать морфинг' : '✅ Create morphing',
+        'morphing_start_generation'
+      ),
+    ])
+  }
+
+  keyboard.push([
+    Markup.button.callback(
+      isRu ? '🔄 Начать заново' : '🔄 Start over',
+      'morphing_restart'
+    ),
+  ])
+
+  return Markup.inlineKeyboard(keyboard)
+}
+
+// Создание Wizard Scene
 export const morphingWizard = new Scenes.WizardScene<MyContext>(
   'morphing_wizard',
 
-  // Step 1: Вход в сцену и инициализация
+  // ✅ ШАГ 1: Приветствие и инструкции
   async ctx => {
-    console.log('🧬 [MORPHING WIZARD] Step 1 - Scene Entry')
     const isRu = isRussianFromState(ctx)
 
-    // Инициализируем массив изображений
-    ctx.session.morphingImages = []
-    ctx.session.morphingProgressMessageId = undefined
+    logger.info('🧬 [MORPHING WIZARD] Step 1 - Scene Entry', {
+      telegramId: ctx.from?.id,
+      username: ctx.from?.username,
+    })
+
+    // Очищаем предыдущие данные
+    if (ctx.session) {
+      ctx.session.morphingImages = []
+      ctx.session.morphingProgressMessageId = undefined
+    }
 
     const welcomeMessage = isRu
       ? `🧬 <b>Добро пожаловать в Морфинг Студию!</b>
 
-🎬 Создавайте потрясающие видео переходы между изображениями
+✨ Создавайте потрясающие видео переходы между изображениями
 📸 Загрузите минимум 2 изображения для начала
-✨ Система создаст плавные переходы между всеми кадрами
+🎯 Система создаст плавные переходы между всеми кадрами
 
-<i>📱 Отправьте первое изображение:</i>`
+<i>📤 Отправьте первое изображение:</i>`
       : `🧬 <b>Welcome to Morphing Studio!</b>
 
-🎬 Create amazing video transitions between images
+✨ Create stunning video transitions between images
 📸 Upload minimum 2 images to start
-✨ System will create smooth transitions between all frames
+🎯 System will create smooth transitions between all frames
 
-<i>📱 Send your first image:</i>`
+<i>📤 Send your first image:</i>`
 
-    await ctx.replyWithHTML(welcomeMessage, Markup.removeKeyboard())
+    await ctx.reply(welcomeMessage, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'morphing_cancel')],
+      ]).reply_markup,
+    })
+
     return ctx.wizard.next()
   },
 
-  // Step 2: Сбор изображений
+  // ✅ ШАГ 2: Пакетная загрузка изображений
   async ctx => {
-    console.log('🧬 [MORPHING WIZARD] Step 2 - Image Collection')
     const isRu = isRussianFromState(ctx)
+    const message = ctx.message
 
-    // Проверяем отмену
-    if (await handleHelpCancel(ctx)) {
+    logger.info('🧬 [MORPHING WIZARD] Step 2 - Image Collection', {
+      telegramId: ctx.from?.id,
+      hasMessage: !!message,
+      messageType: message ? Object.keys(message) : [],
+      currentImagesCount: ctx.session?.morphingImages?.length || 0,
+    })
+
+    // Обработка отмены
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
       return ctx.scene.leave()
     }
 
-    // ✅ ОБРАБОТКА CALLBACK КНОПОК
-    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      await ctx.answerCbQuery()
+    // Обработка фотографий
+    if (message && 'photo' in message) {
+      logger.info('🧬 [MORPHING WIZARD] Step 2 - Processing photo')
 
-      const callbackData = ctx.callbackQuery.data
-      console.log('🧬 [MORPHING WIZARD] Step 2 - Callback:', callbackData)
-
-      if (callbackData === 'morphing_create') {
-        // Переходим к предпросмотру
-        if (
-          !ctx.session.morphingImages ||
-          ctx.session.morphingImages.length < 2
-        ) {
-          const errorMessage = isRu
-            ? '❌ Недостаточно изображений для морфинга. Минимум: 2'
-            : '❌ Not enough images for morphing. Minimum: 2'
-          await ctx.reply(errorMessage)
-          return
-        }
-
-        console.log('🧬 [MORPHING WIZARD] Moving to Step 3 - Preview')
-        return ctx.wizard.next()
-      }
-
-      if (callbackData === 'morphing_restart') {
-        // Перезапускаем процесс
+      if (!ctx.session.morphingImages) {
         ctx.session.morphingImages = []
-        ctx.session.morphingProgressMessageId = undefined
-
-        const restartMessage = isRu
-          ? '🔄 Начинаем заново. Отправьте первое изображение:'
-          : '🔄 Starting over. Send your first image:'
-
-        await ctx.reply(restartMessage)
-        return ctx.wizard.selectStep(0) // Возврат к Step 1
       }
 
-      return
-    }
+      const photo = message.photo[message.photo.length - 1]
+      const file = await ctx.telegram.getFile(photo.file_id)
 
-    // ✅ ОБРАБОТКА ФОТОГРАФИЙ
-    if (ctx.message && 'photo' in ctx.message) {
-      console.log('🧬 [MORPHING WIZARD] Step 2 - Processing photo')
+      if (!file.file_path) {
+        await ctx.reply(
+          isRu ? '❌ Ошибка получения файла' : '❌ Error getting file'
+        )
+        return
+      }
 
       try {
-        const photos = ctx.message.photo
-        const photoInfo = await ctx.telegram.getFile(
-          photos[photos.length - 1].file_id
-        )
-
-        if (!photoInfo.file_path) {
-          const errorMessage = isRu
-            ? '❌ Ошибка получения информации о файле.'
-            : '❌ Error getting file information.'
-          await ctx.reply(errorMessage)
-          return
-        }
-
         const botToken = getBotToken(ctx)
-        const photoUrl = `https://api.telegram.org/file/bot${botToken}/${photoInfo.file_path}`
+        const response = await fetch(
+          `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
+        )
+        const buffer = Buffer.from(await response.arrayBuffer())
 
-        const response = await fetch(photoUrl)
-        if (!response.ok) {
-          const errorMessage = isRu
-            ? `❌ Ошибка скачивания изображения: ${response.status}`
-            : `❌ Error downloading image: ${response.status}`
-          await ctx.reply(errorMessage)
+        // Валидация изображения
+        const isValid = await isValidImage(buffer)
+        if (!isValid) {
+          await ctx.reply(
+            isRu
+              ? '❌ Файл не является корректным изображением.'
+              : '❌ File is not a valid image.'
+          )
           return
         }
 
-        const imageBuffer = await response.arrayBuffer()
-        const imageBufferUint8 = new Uint8Array(imageBuffer)
-
-        // Валидация размера
-        if (imageBufferUint8.length > 10 * 1024 * 1024) {
-          const errorMessage = isRu
-            ? '❌ Размер изображения слишком большой (максимум 10MB).'
-            : '❌ Image size too large (maximum 10MB).'
-          await ctx.reply(errorMessage)
+        // Проверка размера файла (максимум 10MB)
+        const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+        if (buffer.length > MAX_IMAGE_SIZE) {
+          await ctx.reply(
+            isRu
+              ? '❌ Изображение слишком большое (максимум 10MB).'
+              : '❌ Image too large (maximum 10MB).'
+          )
           return
         }
 
         // Добавляем изображение в сессию
-        if (!ctx.session.morphingImages) {
-          ctx.session.morphingImages = []
-        }
-        ctx.session.morphingImages.push(imageBufferUint8)
+        const imageIndex = ctx.session.morphingImages.length + 1
+        ctx.session.morphingImages.push({
+          buffer: Buffer.from(buffer),
+          filename: `morphing_image_${imageIndex}.jpg`,
+        })
 
-        const currentCount = ctx.session.morphingImages.length
-        console.log(
-          `🧬 [MORPHING WIZARD] Image ${currentCount} added successfully`
+        logger.info(
+          `🧬 [MORPHING WIZARD] Image ${imageIndex} added successfully`,
+          {
+            telegramId: ctx.from?.id,
+            totalImages: ctx.session.morphingImages.length,
+            imageSize: buffer.length,
+          }
         )
 
-        // ✅ ПОКАЗЫВАЕМ ОБНОВЛЕННЫЙ ПРОГРЕСС
-        const progressMessage = createProgressMessage(currentCount, isRu)
-        const keyboard = createProgressKeyboard(currentCount, isRu)
+        // Создаем сообщение с прогрессом
+        const progressMessage = createProgressMessage(
+          ctx.session.morphingImages,
+          isRu
+        )
+        const keyboard = createProgressKeyboard(
+          ctx.session.morphingImages,
+          isRu
+        )
 
-        // Обновляем или создаем сообщение с прогрессом
+        // Обновляем сообщение о прогрессе или создаем новое
         if (ctx.session.morphingProgressMessageId) {
           try {
             await ctx.telegram.editMessageText(
-              ctx.chat!.id,
+              ctx.chat?.id,
               ctx.session.morphingProgressMessageId,
               undefined,
               progressMessage,
@@ -258,217 +278,212 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
               }
             )
           } catch (error) {
-            // Если не удалось обновить - создаем новое
-            const newMessage = await ctx.replyWithHTML(
-              progressMessage,
-              keyboard
-            )
-            ctx.session.morphingProgressMessageId = newMessage.message_id
+            // Если не удалось обновить, создаем новое сообщение
+            const sentMessage = await ctx.reply(progressMessage, {
+              parse_mode: 'HTML',
+              reply_markup: keyboard.reply_markup,
+            })
+            if ('message_id' in sentMessage) {
+              ctx.session.morphingProgressMessageId = sentMessage.message_id
+            }
           }
         } else {
-          // Создаем первое сообщение с прогрессом
-          const newMessage = await ctx.replyWithHTML(progressMessage, keyboard)
-          ctx.session.morphingProgressMessageId = newMessage.message_id
+          const sentMessage = await ctx.reply(progressMessage, {
+            parse_mode: 'HTML',
+            reply_markup: keyboard.reply_markup,
+          })
+          if ('message_id' in sentMessage) {
+            ctx.session.morphingProgressMessageId = sentMessage.message_id
+          }
         }
 
-        // Дополнительное сообщение для мотивации
-        if (currentCount === 1) {
-          await ctx.reply(
-            isRu
-              ? '🎉 Отлично! Отправьте еще минимум 1 изображение для создания морфинга.'
-              : '🎉 Great! Send at least 1 more image to create morphing.'
-          )
-        } else if (currentCount >= 2) {
-          await ctx.reply(
-            isRu
-              ? `✨ Превосходно! У вас ${currentCount} изображений. Можете добавить еще или создать морфинг.`
-              : `✨ Excellent! You have ${currentCount} images. Add more or create morphing.`
-          )
+        // Мотивационные сообщения на ключевых этапах
+        if (imageIndex === 2) {
+          setTimeout(async () => {
+            await ctx.reply(
+              isRu
+                ? '🎉 Отлично! Уже можно создать морфинг. Добавьте еще изображения для большего количества переходов!'
+                : '🎉 Great! You can now create morphing. Add more images for more transitions!'
+            )
+          }, 1000)
+        } else if (imageIndex === 5) {
+          setTimeout(async () => {
+            await ctx.reply(
+              isRu
+                ? '⭐ Превосходно! 5 изображений дадут потрясающий результат!'
+                : '⭐ Excellent! 5 images will give amazing results!'
+            )
+          }, 1000)
         }
       } catch (error) {
-        console.error('🧬 [MORPHING WIZARD] Error processing photo:', error)
-        const errorMessage = isRu
-          ? '❌ Ошибка при загрузке изображения. Попробуйте еще раз.'
-          : '❌ Error uploading image. Please try again.'
-        await ctx.reply(errorMessage)
+        logger.error('Error processing morphing image', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          telegramId: ctx.from?.id,
+        })
+
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка при обработке изображения. Попробуйте еще раз.'
+            : '❌ Error processing image. Please try again.'
+        )
       }
 
-      return
+      return // Остаемся на том же шаге для загрузки еще изображений
     }
 
-    // Не фото - показываем подсказку
-    const currentCount = ctx.session.morphingImages?.length || 0
-    const hintMessage = isRu
-      ? `📸 Пожалуйста, отправьте изображение.\n\nТекущий прогресс: ${currentCount} из минимум 2`
-      : `📸 Please send an image.\n\nCurrent progress: ${currentCount} of minimum 2`
-
-    await ctx.reply(hintMessage)
-  },
-
-  // Step 3: Предпросмотр и подтверждение
-  async ctx => {
-    console.log('🧬 [MORPHING WIZARD] Step 3 - Preview & Confirmation')
-    const isRu = isRussianFromState(ctx)
-
-    // ✅ ОБРАБОТКА CALLBACK КНОПОК
-    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      await ctx.answerCbQuery()
-
-      const callbackData = ctx.callbackQuery.data
-
-      if (callbackData === 'morphing_confirm_create') {
-        console.log('🧬 [MORPHING WIZARD] Moving to Step 4 - Processing')
-        return ctx.wizard.next()
-      }
-
-      if (callbackData === 'morphing_back_to_upload') {
-        return ctx.wizard.selectStep(1) // Возврат к Step 2
-      }
-
-      return
+    // Если это не фото и не отмена - просим отправить фото
+    if (message && 'text' in message && !message.text.startsWith('/')) {
+      await ctx.reply(
+        isRu
+          ? '📸 Пожалуйста, отправьте изображение (не текст).'
+          : '📸 Please send an image (not text).'
+      )
     }
 
-    // Проверяем достаточность изображений
-    if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 2) {
-      const errorMessage = isRu
-        ? '❌ Недостаточно изображений для морфинга. Минимум: 2'
-        : '❌ Not enough images for morphing. Minimum: 2'
-      await ctx.reply(errorMessage)
-      return ctx.wizard.selectStep(1) // Возврат к Step 2
-    }
-
-    const imageCount = ctx.session.morphingImages.length
-
-    // ✅ РАСЧЕТ СТОИМОСТИ
-    const singleMorphingCost = calculateFinalPrice(MORPHING_MODEL_KEY)
-    const totalCost = singleMorphingCost * imageCount
-    const currency = '⭐'
-
-    // Формируем последовательность переходов
-    const sequenceLines = []
-    for (let i = 0; i < imageCount; i++) {
-      const nextIndex = (i + 1) % imageCount
-      sequenceLines.push(`   ${i + 1}. Кадр ${i + 1} → Кадр ${nextIndex + 1}`)
-    }
-
-    const previewMessage = isRu
-      ? `🧬 <b>Предпросмотр Морфинга</b>
-
-📸 <b>Загружено изображений:</b> ${imageCount}
-🎥 <b>Будет создано видео:</b> ${imageCount} переходов
-💰 <b>Стоимость:</b> ${totalCost} ${currency}
-
-📋 <b>Последовательность переходов:</b>
-${sequenceLines.join('\n')}
-
-<i>🎬 Все готово для создания морфинга!</i>`
-      : `🧬 <b>Morphing Preview</b>
-
-📸 <b>Images uploaded:</b> ${imageCount}
-🎥 <b>Videos to create:</b> ${imageCount} transitions  
-💰 <b>Cost:</b> ${totalCost} ${currency}
-
-📋 <b>Transition sequence:</b>
-${sequenceLines.join('\n')}
-
-<i>🎬 Ready to create morphing!</i>`
-
-    const keyboard = Markup.inlineKeyboard([
-      [
-        Markup.button.callback(
-          isRu ? '🚀 Создать морфинг' : '🚀 Create Morphing',
-          'morphing_confirm_create'
-        ),
-      ],
-      [
-        Markup.button.callback(
-          isRu ? '📝 Изменить изображения' : '📝 Edit Images',
-          'morphing_back_to_upload'
-        ),
-      ],
-    ])
-
-    await ctx.replyWithHTML(previewMessage, keyboard)
-  },
-
-  // Step 4: Обработка и отправка на сервер
-  async ctx => {
-    console.log('🧬 [MORPHING WIZARD] Step 4 - Processing & Server Upload')
-    const isRu = isRussianFromState(ctx)
-
-    const processingMessage = isRu
-      ? '🧬 Начинаю создание морфинга... ✨\n\nЭто может занять несколько секунд.'
-      : '🧬 Starting morphing creation... ✨\n\nThis may take a few seconds.'
-
-    await ctx.reply(processingMessage)
-
-    let zipPath: string | undefined
-
-    try {
-      // Создаем ZIP архив
-      zipPath = createMorphingImagesZip(ctx.session.morphingImages)
-      console.log('🧬 [MORPHING WIZARD] ZIP created at:', zipPath)
-
-      // Отправляем на сервер
-      const morphingResult = await generateMorphing({
-        filePath: zipPath,
-        telegram_id: ctx.from?.id?.toString() || '',
-        is_ru: isRu,
-        botName: ctx.botInfo?.username || '',
-        imageCount: ctx.session.morphingImages.length,
-        morphingType: 'seamless',
-      })
-
-      console.log('🧬 [MORPHING WIZARD] Morphing result:', morphingResult)
-      logger.info('[Morphing Wizard] Success', {
-        telegramId: ctx.from?.id,
-        result: morphingResult,
-      })
-
-      const successMessage = isRu
-        ? `✅ <b>Морфинг отправлен на обработку!</b>
-
-🎬 Ваш морфинг будет готов через <b>5-10 минут</b>
-📱 Мы пришлем уведомление, когда обработка завершится
-🧬 Используемая модель: <b>Kling-v1.6</b>
-
-<i>Спасибо за использование Морфинг Студии! ✨</i>`
-        : `✅ <b>Morphing sent for processing!</b>
-
-🎬 Your morphing will be ready in <b>5-10 minutes</b>
-📱 We'll send a notification when processing is complete  
-🧬 Model used: <b>Kling-v1.6</b>
-
-<i>Thank you for using Morphing Studio! ✨</i>`
-
-      await ctx.replyWithHTML(successMessage)
-    } catch (error) {
-      console.error('🧬 [MORPHING WIZARD] Error:', error)
-      logger.error('[Morphing Wizard] Error', {
-        telegramId: ctx.from?.id,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
-
-      const errorMessage = isRu
-        ? '❌ Произошла ошибка при обработке морфинга. Попробуйте позже или обратитесь в поддержку.'
-        : '❌ Error occurred during morphing processing. Please try again later or contact support.'
-
-      await ctx.reply(errorMessage)
-    } finally {
-      // Очищаем временный файл
-      if (zipPath && fs.existsSync(zipPath)) {
-        try {
-          fs.unlinkSync(zipPath)
-          console.log('🧬 [MORPHING WIZARD] Temp file cleaned:', zipPath)
-        } catch (cleanupError) {
-          console.error('🧬 [MORPHING WIZARD] Cleanup error:', cleanupError)
-        }
-      }
-
-      // Очищаем сессию и выходим
-      ctx.session.morphingImages = []
-      ctx.session.morphingProgressMessageId = undefined
-      await ctx.scene.leave()
-    }
+    return // Остаемся на том же шаге
   }
 )
+
+// ✅ ОБРАБОТЧИКИ КНОПОК
+
+// Кнопка "Создать морфинг"
+morphingWizard.action('morphing_start_generation', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    if (!ctx.session?.morphingImages || ctx.session.morphingImages.length < 2) {
+      await ctx.reply(
+        isRu
+          ? '❌ Необходимо минимум 2 изображения для создания морфинга.'
+          : '❌ Minimum 2 images required to create morphing.'
+      )
+      return
+    }
+
+    logger.info('🧬 [MORPHING WIZARD] Starting generation', {
+      telegramId: ctx.from?.id,
+      imagesCount: ctx.session.morphingImages.length,
+    })
+
+    // Показываем информацию о стоимости
+    const imagesCount = ctx.session.morphingImages.length
+    const transitionsCount = imagesCount - 1
+    const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
+    const totalCost = finalPriceInStars * transitionsCount
+
+    const costMessage = isRu
+      ? `💰 <b>Информация о стоимости:</b>
+
+📸 <b>Изображений:</b> ${imagesCount}  
+🎬 <b>Видео переходов:</b> ${transitionsCount}
+💫 <b>Стоимость за переход:</b> ${finalPriceInStars}⭐  
+💎 <b>Общая стоимость:</b> ${totalCost}⭐
+
+✨ Создаю потрясающий морфинг для вас...`
+      : `💰 <b>Cost Information:</b>
+
+📸 <b>Images:</b> ${imagesCount}  
+🎬 <b>Video transitions:</b> ${transitionsCount}
+💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐  
+💎 <b>Total cost:</b> ${totalCost}⭐
+
+✨ Creating amazing morphing for you...`
+
+    await ctx.editMessageText(costMessage, {
+      parse_mode: 'HTML',
+    })
+
+    // Создаем ZIP файл с изображениями
+    const zipPath = createMorphingImagesZip(ctx.session.morphingImages)
+
+    // Вызываем сервис генерации морфинга
+    await generateMorphing({
+      filePath: zipPath,
+      telegram_id: ctx.from!.id.toString(),
+      is_ru: isRu,
+      botName: ctx.botInfo?.username || 'ai_koshey_bot',
+      imageCount: imagesCount,
+      morphingType: 'seamless',
+    })
+
+    // Очищаем сессию и выходим из сцены
+    if (ctx.session) {
+      ctx.session.morphingImages = []
+      ctx.session.morphingProgressMessageId = undefined
+    }
+
+    // Удаляем временный файл
+    setTimeout(() => {
+      try {
+        if (fs.existsSync(zipPath)) {
+          fs.unlinkSync(zipPath)
+          logger.info('Temporary morphing ZIP file deleted', { zipPath })
+        }
+      } catch (error) {
+        logger.error('Error deleting temporary ZIP file', { zipPath, error })
+      }
+    }, 60000) // Удаляем через минуту
+
+    await ctx.scene.leave()
+  } catch (error) {
+    logger.error('Error in morphing generation', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+
+    const isRu = isRussianFromState(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при создании морфинга. Попробуйте позже.'
+        : '❌ An error occurred while creating morphing. Please try again later.'
+    )
+
+    await ctx.scene.leave()
+  }
+})
+
+// Кнопка "Начать заново"
+morphingWizard.action('morphing_restart', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.reply(
+      isRu
+        ? '🔄 Начинаем заново! Загрузка изображений сброшена.'
+        : '🔄 Starting over! Image upload reset.'
+    )
+
+    // Перезапускаем сцену с самого начала
+    await ctx.scene.reenter()
+  } catch (error) {
+    logger.error('Error restarting morphing wizard', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Кнопка "Отмена"
+morphingWizard.action('morphing_cancel', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.reply(
+      isRu
+        ? '❌ Создание морфинга отменено. Возвращаюсь в главное меню.'
+        : '❌ Morphing creation cancelled. Returning to main menu.'
+    )
+
+    await ctx.scene.leave()
+  } catch (error) {
+    logger.error('Error cancelling morphing wizard', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+export default morphingWizard
