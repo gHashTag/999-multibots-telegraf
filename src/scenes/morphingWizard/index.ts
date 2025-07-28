@@ -56,21 +56,33 @@ const createMorphingImagesZip = (
   }
 }
 
-// ✅ Функция для создания прогресс бара
-const createProgressBar = (
-  current: number,
-  total: number = 10,
-  length: number = 10
-): string => {
-  const filled = Math.floor((current / total) * length)
+// ✅ Функция для создания адаптивного прогресс бара для бесконечной загрузки
+const createProgressBar = (current: number, length: number = 10): string => {
+  // Логика: чем больше изображений, тем больше заполняется бар, но не ограничиваемся максимумом
+  // Используем адаптивную шкалу для плавного заполнения
+  let filled: number
+  if (current <= 2) {
+    // Первые 2 изображения = 20% бара (минимум для работы)
+    filled = Math.floor((current / 2) * 2)
+  } else if (current <= 5) {
+    // 3-5 изображений = 20%-50% бара (хорошо)
+    filled = 2 + Math.floor(((current - 2) / 3) * 3)
+  } else if (current <= 10) {
+    // 6-10 изображений = 50%-80% бара (отлично)
+    filled = 5 + Math.floor(((current - 5) / 5) * 3)
+  } else {
+    // Более 10 изображений = 80%-95% бара (потрясающе, но никогда не заполняем полностью)
+    filled = Math.min(9, 8 + Math.floor(Math.log10(current - 9)))
+  }
+
   const empty = length - filled
-  return `[${'▓'.repeat(filled) + '░'.repeat(empty)}] ${current}/${total >= 99 ? '∞' : total}`
+  return `[${'▓'.repeat(filled) + '░'.repeat(empty)}] ${current}/∞`
 }
 
 // ✅ Функция для создания сообщения о прогрессе
 const createProgressMessage = (images: any[], isRu: boolean): string => {
   const count = images.length
-  const progressBar = createProgressBar(count, 10, 10)
+  const progressBar = createProgressBar(count, 10)
 
   const statusIcon = count >= 2 ? '✅' : '⏳'
   const statusText =
@@ -91,7 +103,7 @@ const createProgressMessage = (images: any[], isRu: boolean): string => {
 ${statusIcon} <b>${statusText}</b>
 
 🎬 <b>Будет создано:</b> ${Math.max(0, count - 1)} видео переходов
-💡 <b>Совет:</b> Больше изображений = больше переходов`
+💡 <b>Совет:</b> Больше изображений = больше переходов (без ограничений!)`
     : `🧬 <b>Morphing - Image Upload</b>
 
 📸 <b>Uploaded:</b> ${count} of minimum 2 images  
@@ -100,7 +112,7 @@ ${statusIcon} <b>${statusText}</b>
 ${statusIcon} <b>${statusText}</b>
 
 🎬 <b>Will create:</b> ${Math.max(0, count - 1)} video transitions
-💡 <b>Tip:</b> More images = more transitions`
+💡 <b>Tip:</b> More images = more transitions (unlimited!)`
 }
 
 // ✅ Функция для создания клавиатуры прогресса
@@ -312,6 +324,22 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
               isRu
                 ? '⭐ Превосходно! 5 изображений дадут потрясающий результат!'
                 : '⭐ Excellent! 5 images will give amazing results!'
+            )
+          }, 1000)
+        } else if (imageIndex === 10) {
+          setTimeout(async () => {
+            await ctx.reply(
+              isRu
+                ? '🚀 Невероятно! 10 изображений = эпический морфинг! Можете продолжать добавлять!'
+                : '🚀 Incredible! 10 images = epic morphing! You can keep adding more!'
+            )
+          }, 1000)
+        } else if (imageIndex === 20) {
+          setTimeout(async () => {
+            await ctx.reply(
+              isRu
+                ? '💫 ЛЕГЕНДАРНО! 20 изображений создадут кинематографический шедевр!'
+                : '💫 LEGENDARY! 20 images will create a cinematic masterpiece!'
             )
           }, 1000)
         }
