@@ -72,9 +72,18 @@ export const FLUX_LIGHTING_SETUPS = {
 
 // Конфигурация режимов FLUX Kontext с добавленными настройками камеры
 const FLUX_MODES = {
+  quick: {
+    title_ru: '⚡ Быстрое редактирование',
+    title_en: '⚡ Quick Edit',
+    description_ru: 'Простое редактирование изображения без настроек камеры',
+    description_en: 'Simple image editing without camera settings',
+    images_required: 1,
+    skip_camera_selection: true, // Пропускаем выбор углов камеры
+    default_lighting: 'soft_natural',
+  },
   single: {
-    title_ru: '🖼️ Одиночное редактирование',
-    title_en: '🖼️ Single Image Edit',
+    title_ru: '🖼️ Профессиональное редактирование',
+    title_en: '🖼️ Professional Edit',
     description_ru:
       'Редактирование одного изображения с профессиональными настройками камеры',
     description_en: 'Edit a single image with professional camera settings',
@@ -148,7 +157,11 @@ const FLUX_MODES = {
 // Функция для создания клавиатуры выбора угла камеры
 const createCameraAngleKeyboard = (mode: string, isRu: boolean) => {
   const modeConfig = FLUX_MODES[mode as keyof typeof FLUX_MODES]
-  if (!modeConfig || !modeConfig.camera_angles) {
+  if (
+    !modeConfig ||
+    !('camera_angles' in modeConfig) ||
+    !modeConfig.camera_angles
+  ) {
     return null
   }
 
@@ -307,7 +320,8 @@ fluxKontextScene.enter(async ctx => {
     const description = isRu
       ? `Выберите режим редактирования:
 
-🖼️ *Одиночное редактирование* - классическое редактирование одного изображения
+⚡ *Быстрое редактирование* - простое редактирование без сложных настроек
+🖼️ *Профессиональное редактирование* - с выбором углов камеры
 🔗 *Объединение изображений* - объединение двух изображений в одно
 👤 *Серия портретов* - создание серии портретов из одного изображения  
 💇 *Изменить стрижку* - изменение прически и цвета волос
@@ -317,7 +331,8 @@ fluxKontextScene.enter(async ctx => {
 💡 *Для лучших результатов пишите промпты на английском языке*`
       : `Choose editing mode:
 
-🖼️ *Single Image Edit* - classic editing of one image
+⚡ *Quick Edit* - simple editing without complex settings
+🖼️ *Professional Edit* - with camera angle selection
 🔗 *Multi-Image Combine* - combine two images into one
 👤 *Portrait Series* - generate a series of portraits from one image
 💇 *Change Haircut* - change hairstyle and hair color  
@@ -354,7 +369,27 @@ Object.keys(FLUX_MODES).forEach(modeKey => {
       const modeTitle = isRu ? mode.title_ru : mode.title_en
       const modeDescription = isRu ? mode.description_ru : mode.description_en
 
-      // Показываем выбор угла камеры
+      // 🚀 СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ БЫСТРОГО РЕЖИМА
+      if (modeKey === 'quick') {
+        // Для быстрого режима пропускаем выбор углов камеры
+        if (ctx.session) {
+          ctx.session.fluxKontextStep = 'image_a'
+          ctx.session.awaitingFluxKontextImageA = true
+        }
+
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Выбран режим:* ${modeTitle}\n\n${modeDescription}\n\n📷 Отправьте изображение:`
+            : `✅ *Selected mode:* ${modeTitle}\n\n${modeDescription}\n\n📷 Send an image:`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
+          }
+        )
+        return
+      }
+
+      // Показываем выбор угла камеры для остальных режимов
       const cameraKeyboard = createCameraAngleKeyboard(modeKey, isRu)
 
       await ctx.editMessageText(
@@ -381,7 +416,7 @@ Object.keys(FLUX_MODES).forEach(modeKey => {
 // Обработка выбора угла камеры
 Object.keys(FLUX_MODES).forEach(modeKey => {
   const mode = FLUX_MODES[modeKey as keyof typeof FLUX_MODES]
-  if (mode.camera_angles) {
+  if ('camera_angles' in mode && mode.camera_angles) {
     // Обработка конкретных углов камеры
     mode.camera_angles.forEach(angle => {
       fluxKontextScene.action(`flux_camera_${modeKey}_${angle}`, async ctx => {
@@ -428,7 +463,7 @@ Object.keys(FLUX_MODES).forEach(modeKey => {
         await ctx.answerCbQuery()
         const isRu = isRussianFromState(ctx)
 
-        if (ctx.session) {
+        if (ctx.session && 'camera_angles' in mode && mode.camera_angles) {
           // Выбираем первый доступный угол как автовыбор
           ctx.session.fluxKontextCameraAngle = mode.camera_angles[0]
           ctx.session.fluxKontextStep = 'image_a'
@@ -720,6 +755,11 @@ const requestPrompt = async (ctx: MyContext) => {
 
   // Добавляем специфичные примеры для каждого режима
   switch (ctx.session?.fluxKontextMode) {
+    case 'quick':
+      promptExamples = isRu
+        ? `\n\n💡 *Примеры для быстрого редактирования:*\n• "add sunglasses"\n• "change background to beach"\n• "make it vintage style"\n• "add a hat"\n• "change hair color to blonde"`
+        : `\n\n💡 *Examples for quick editing:*\n• "add sunglasses"\n• "change background to beach"\n• "make it vintage style"\n• "add a hat"\n• "change hair color to blonde"`
+      break
     case 'multi':
       promptExamples = isRu
         ? `\n\n💡 *Примеры для объединения:*\n• "combine these two people in one photo"\n• "merge the backgrounds seamlessly"\n• "blend the lighting from both images"`
@@ -1150,7 +1190,8 @@ fluxKontextScene.action('flux_back_to_modes', async ctx => {
     const description = isRu
       ? `Выберите режим редактирования:
 
-🖼️ *Одиночное редактирование* - классическое редактирование одного изображения
+⚡ *Быстрое редактирование* - простое редактирование без сложных настроек
+🖼️ *Профессиональное редактирование* - с выбором углов камеры
 🔗 *Объединение изображений* - объединение двух изображений в одно
 👤 *Серия портретов* - создание серии портретов из одного изображения  
 💇 *Изменить стрижку* - изменение прически и цвета волос
@@ -1160,7 +1201,8 @@ fluxKontextScene.action('flux_back_to_modes', async ctx => {
 💡 *Для лучших результатов пишите промпты на английском языке*`
       : `Choose editing mode:
 
-🖼️ *Single Image Edit* - classic editing of one image
+⚡ *Quick Edit* - simple editing without complex settings
+🖼️ *Professional Edit* - with camera angle selection
 🔗 *Multi-Image Combine* - combine two images into one
 👤 *Portrait Series* - generate a series of portraits from one image
 💇 *Change Haircut* - change hairstyle and hair color  
