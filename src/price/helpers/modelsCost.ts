@@ -32,6 +32,9 @@ export const BASE_COSTS: BaseCosts = {
   [ModeEnum.VideoGenerationOther]: 2.5, // ~158⭐ = $2.5
   // DigitalAvatarBody - рассчитывается отдельно по шагам
 
+  // 🧬 МОРФИНГ СЕРВИСЫ
+  [ModeEnum.MorphingWizard]: 2.0, // ~126⭐ = $2.0 - базовая цена для Kling морфинга
+
   // 🔧 СИСТЕМНЫЕ ОПЕРАЦИИ (бесплатные)
   [ModeEnum.Avatar]: 0,
   [ModeEnum.ChatWithAvatar]: 0,
