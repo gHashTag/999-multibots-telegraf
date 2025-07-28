@@ -185,6 +185,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   morphingImages?: { buffer: Buffer; filename: string }[] // Массив изображений для морфинга с именами файлов
   morphingButtonsMessageId?: number // ✅ ID сообщения с кнопками морфинга для обновления
   morphingProgressMessageId?: number // ✅ ID сообщения с прогрессом загрузки изображений для морфинга
+  morphingRestarting?: boolean // ✅ Флаг для предотвращения спама кнопки "Начать заново"
   modelName?: string
   targetUserId: number
   username?: string
