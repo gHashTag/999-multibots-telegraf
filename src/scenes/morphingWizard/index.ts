@@ -79,7 +79,7 @@ const createProgressBar = (current: number, length: number = 10): string => {
   return `[${'▓'.repeat(filled) + '░'.repeat(empty)}] ${current}/∞`
 }
 
-// ✅ Функция для создания сообщения о прогрессе
+// ✅ Функция для создания сообщения о прогрессе с последовательностью
 const createProgressMessage = (images: any[], isRu: boolean): string => {
   const count = images.length
   const progressBar = createProgressBar(count, 10)
@@ -94,25 +94,77 @@ const createProgressMessage = (images: any[], isRu: boolean): string => {
         ? 'Загрузите еще изображения'
         : 'Upload more images'
 
+  // ✅ НОВОЕ: Создание списка последовательности изображений
+  let sequenceText = ''
+  if (count > 0) {
+    // Умное отображение: если много изображений, показываем сокращенно
+    let imagesList = ''
+    if (count <= 6) {
+      // Показываем все изображения если их мало
+      imagesList = images
+        .map((_, index) => `${index + 1}️⃣ Изображение ${index + 1}`)
+        .join('\n')
+    } else {
+      // Показываем первые 3, многоточие, и последние 2
+      const first3 = images
+        .slice(0, 3)
+        .map((_, index) => `${index + 1}️⃣ Изображение ${index + 1}`)
+        .join('\n')
+      const last2 = images
+        .slice(-2)
+        .map(
+          (_, index) =>
+            `${count - 1 + index}️⃣ Изображение ${count - 1 + index}`
+        )
+        .join('\n')
+      imagesList = `${first3}\n⋮ ... (+${count - 5} изображений) ...\n${last2}`
+    }
+
+    // Создание примера переходов
+    let transitionsText = ''
+    if (count >= 2) {
+      let transitionsDisplay = ''
+      if (count <= 8) {
+        // Показываем все переходы если их немного
+        const transitions = []
+        for (let i = 0; i < count - 1; i++) {
+          transitions.push(`${i + 1}→${i + 2}`)
+        }
+        transitionsDisplay = transitions.join(', ')
+      } else {
+        // Показываем сокращенно: первые, средние, последние
+        transitionsDisplay = `1→2, 2→3, 3→4, ..., ${count - 1}→${count} (${count - 1} переходов)`
+      }
+
+      transitionsText = isRu
+        ? `\n🔄 <b>Переходы:</b> ${transitionsDisplay}`
+        : `\n🔄 <b>Transitions:</b> ${transitionsDisplay.replace(/переходов/g, 'transitions')}`
+    }
+
+    sequenceText = isRu
+      ? `\n📋 <b>Последовательность склейки:</b>\n${imagesList}${transitionsText}`
+      : `\n📋 <b>Sequence order:</b>\n${imagesList.replace(/Изображение/g, 'Image').replace(/изображений/g, 'images')}${transitionsText}`
+  }
+
   return isRu
     ? `🧬 <b>Морфинг - Загрузка изображений</b>
 
 📸 <b>Загружено:</b> ${count} из минимум 2 изображений  
 📊 <b>Прогресс:</b> ${progressBar}
 
-${statusIcon} <b>${statusText}</b>
+${statusIcon} <b>${statusText}</b>${sequenceText}
 
 🎬 <b>Будет создано:</b> ${Math.max(0, count - 1)} видео переходов
-💡 <b>Совет:</b> Больше изображений = больше переходов (без ограничений!)`
+💡 <b>Совет:</b> Порядок загрузки = порядок склейки (без ограничений!)`
     : `🧬 <b>Morphing - Image Upload</b>
 
 📸 <b>Uploaded:</b> ${count} of minimum 2 images  
 📊 <b>Progress:</b> ${progressBar}
 
-${statusIcon} <b>${statusText}</b>
+${statusIcon} <b>${statusText}</b>${sequenceText}
 
 🎬 <b>Will create:</b> ${Math.max(0, count - 1)} video transitions
-💡 <b>Tip:</b> More images = more transitions (unlimited!)`
+💡 <b>Tip:</b> Upload order = merge order (unlimited!)`
 }
 
 // ✅ Функция для создания клавиатуры прогресса
@@ -167,12 +219,18 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
 📸 Загрузите минимум 2 изображения для начала
 🎯 Система создаст плавные переходы между всеми кадрами
 
+📋 <b>Важно:</b> Порядок загрузки = порядок склейки
+🔄 <b>Пример:</b> Фото 1→2→3 = переходы 1→2, 2→3
+
 <i>📤 Отправьте первое изображение:</i>`
       : `🧬 <b>Welcome to Morphing Studio!</b>
 
 ✨ Create stunning video transitions between images
 📸 Upload minimum 2 images to start
 🎯 System will create smooth transitions between all frames
+
+📋 <b>Important:</b> Upload order = merge order
+🔄 <b>Example:</b> Photo 1→2→3 = transitions 1→2, 2→3
 
 <i>📤 Send your first image:</i>`
 
