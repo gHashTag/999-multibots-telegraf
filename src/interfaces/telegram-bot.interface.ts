@@ -255,6 +255,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   // Advanced FLUX Kontext fields
   fluxKontextMode?:
+    | 'quick'
     | 'single'
     | 'multi'
     | 'portrait_series'

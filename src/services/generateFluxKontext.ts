@@ -38,6 +38,7 @@ export interface FluxKontextParams {
 export interface AdvancedFluxKontextParams {
   prompt: string
   mode:
+    | 'quick'
     | 'single'
     | 'multi'
     | 'portrait_series'
