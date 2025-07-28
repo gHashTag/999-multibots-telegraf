@@ -101,6 +101,7 @@ export const {
   PINATA_JWT,
   PINATA_GATEWAY,
   LOCAL_SERVER_URL,
+  AI_SERVER_LOCAL_URL,
   INNGEST_EVENT_KEY,
   INNGEST_URL,
   INNGEST_SIGNING_KEY,
@@ -108,7 +109,16 @@ export const {
   ROBOKASSA_PASSWORD_2,
 } = process.env
 
-export const API_URL = isDev ? LOCAL_SERVER_URL : API_SERVER_URL
+// API_URL для AI сервера - в разработке используем локальный AI сервер
+export const API_URL = isDev ? AI_SERVER_LOCAL_URL : API_SERVER_URL
+
+// 🚨 ОТЛАДКА: Логируем все URL для понимания проблемы кэширования
+console.log('🚨 [CONFIG DEBUG] URL CONFIGURATION LOADED:')
+console.log(`🚨 [CONFIG DEBUG] isDev: ${isDev}`)
+console.log(`🚨 [CONFIG DEBUG] LOCAL_SERVER_URL: ${LOCAL_SERVER_URL}`)
+console.log(`🚨 [CONFIG DEBUG] API_SERVER_URL: ${API_SERVER_URL}`)
+console.log(`🚨 [CONFIG DEBUG] FINAL API_URL: ${API_URL}`)
+console.log('🚨 [CONFIG DEBUG] =====================================')
 
 // Парсинг ADMIN_IDS в массив чисел
 const adminIdsString = process.env.ADMIN_IDS || ''

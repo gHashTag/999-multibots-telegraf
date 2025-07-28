@@ -182,6 +182,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedSize?: string
   bypass_payment_check?: boolean
   images: BufferType
+  morphingImages?: Uint8Array[] // Массив изображений для морфинга (Buffer -> Uint8Array)
+  morphingButtonsMessageId?: number // ✅ ID сообщения с кнопками морфинга для обновления
   modelName?: string
   targetUserId: number
   username?: string
@@ -253,6 +255,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   // Advanced FLUX Kontext fields
   fluxKontextMode?:
+    | 'quick'
     | 'single'
     | 'multi'
     | 'portrait_series'

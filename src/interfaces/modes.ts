@@ -64,6 +64,7 @@ export enum ModeEnum {
   SubscriptionScene = 'subscription_scene',
   CreateUserScene = 'create_user_scene',
   InstagramScrapingWizard = 'instagram_scraping_wizard',
+  MorphingWizard = 'morphing_wizard',
 
   // ⚠️ УСТАРЕВШИЕ/НЕИСПОЛЬЗУЕМЫЕ (оставляем для совместимости)
   /** @deprecated Не используется */
