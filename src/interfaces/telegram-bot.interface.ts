@@ -184,6 +184,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   images: BufferType
   morphingImages?: Uint8Array[] // Массив изображений для морфинга (Buffer -> Uint8Array)
   morphingButtonsMessageId?: number // ✅ ID сообщения с кнопками морфинга для обновления
+  morphingProgressMessageId?: number // ✅ ID сообщения с прогрессом загрузки изображений для морфинга
   modelName?: string
   targetUserId: number
   username?: string
