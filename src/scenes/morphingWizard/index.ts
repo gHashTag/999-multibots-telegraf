@@ -157,6 +157,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     if (ctx.session) {
       ctx.session.morphingImages = []
       ctx.session.morphingProgressMessageId = undefined
+      ctx.session.morphingRestarting = false // Сбрасываем флаг перезапуска
     }
 
     const welcomeMessage = isRu
@@ -290,6 +291,10 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
               }
             )
           } catch (error) {
+            logger.warn('Failed to edit progress message, creating new one', {
+              telegramId: ctx.from?.id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            })
             // Если не удалось обновить, создаем новое сообщение
             const sentMessage = await ctx.reply(progressMessage, {
               parse_mode: 'HTML',
@@ -475,21 +480,31 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 morphingWizard.action('morphing_restart', async ctx => {
   try {
     await ctx.answerCbQuery()
-    const isRu = isRussianFromState(ctx)
 
-    await ctx.reply(
-      isRu
-        ? '🔄 Начинаем заново! Загрузка изображений сброшена.'
-        : '🔄 Starting over! Image upload reset.'
-    )
+    // ✅ ЗАЩИТА ОТ СПАМА: Проверяем что не выполняется уже перезапуск
+    if (ctx.session?.morphingRestarting) {
+      return
+    }
 
-    // Перезапускаем сцену с самого начала
+    if (ctx.session) {
+      ctx.session.morphingRestarting = true
+      // ✅ ИСПРАВЛЕНИЕ: Очищаем сессию перед перезапуском
+      ctx.session.morphingImages = []
+      ctx.session.morphingProgressMessageId = undefined
+    }
+
+    // ✅ ИСПРАВЛЕНИЕ: Перезапускаем сцену БЕЗ дополнительного сообщения
+    // (приветственное сообщение появится автоматически при reenter)
     await ctx.scene.reenter()
   } catch (error) {
     logger.error('Error restarting morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
+    // Сбрасываем флаг перезапуска при ошибке
+    if (ctx.session) {
+      ctx.session.morphingRestarting = false
+    }
   }
 })
 
