@@ -215,6 +215,39 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
       logger.info('✅ Final video sent to Telegram')
     })
 
+    // ✅ ДОБАВЛЕНО: Отправка морфинг-видео в общую группу pulse
+    await step.run('send-to-pulse', async () => {
+      try {
+        const { sendMediaToPulse } = await import('@/helpers/pulse')
+
+        await sendMediaToPulse({
+          mediaType: 'video',
+          mediaSource: finalVideoPath,
+          telegramId: telegram_id,
+          username: 'unknown', // username не передается в event.data
+          language: 'ru', // можно определить из контекста если доступно
+          serviceType: 'Morphing Loop (Kling)',
+          prompt: prompt || 'Циклическое морфинг-видео',
+          botName: 'neuroblogger',
+          additionalInfo: {
+            images_count: image_urls.length.toString(),
+            video_duration: '~5 секунд',
+            model: 'kling-v1.6-pro',
+          },
+        })
+
+        logger.info('✅ Morphing video sent to pulse group', {
+          telegramId: telegram_id,
+          imagesCount: image_urls.length,
+        })
+      } catch (error) {
+        logger.error('❌ Failed to send morphing video to pulse', {
+          telegramId: telegram_id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+      }
+    })
+
     await step.run('cleanup', async () => {
       const files = await fs.readdir(tempDir)
       for (const file of files) {
