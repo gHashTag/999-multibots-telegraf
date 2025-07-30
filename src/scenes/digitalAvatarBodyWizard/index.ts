@@ -7,10 +7,15 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
 import { calculateCost } from '@/price/priceCalculator'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body',
   async ctx => {
+    // Устанавливаем режим для правильного выбора API endpoint
+    ctx.session.mode = ModeEnum.DigitalAvatarBody
+    console.log('[digitalAvatarBodyWizard] Set session mode:', ctx.session.mode)
+
     const isRu = isRussianFromState(ctx)
     const showRubles = shouldShowRubles(ctx)
     const costMessage = generateCostMessage(
