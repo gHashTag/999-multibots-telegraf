@@ -3,6 +3,9 @@ import AdmZip from 'adm-zip'
 import axios from 'axios'
 import { API_URL, SECRET_API_KEY } from '@/config'
 import { logger } from '@/utils/logger'
+import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
+import { getBotTokenByName } from '@/core/getBotTokenByName'
+import { Telegraf } from 'telegraf'
 
 interface MorphingRequest {
   filePath: string
@@ -18,6 +21,13 @@ interface MorphingResponse {
   video_url?: string
   job_id?: string
   status: 'processing' | 'completed' | 'error'
+}
+
+interface MorphingApiResponse {
+  success: boolean
+  video_url?: string
+  error?: string
+  message?: string
 }
 
 /**
@@ -67,13 +77,13 @@ export async function generateMorphing(
       secretKeyLength: SECRET_API_KEY?.length || 0,
     })
 
-    // Отправляем запрос
-    const response = await axios.post(url, formData, {
+    // Отправляем запрос и ждем результат (увеличиваем таймаут для морфинга)
+    const response = await axios.post<MorphingApiResponse>(url, formData, {
       headers: {
         ...formData.getHeaders(),
         'x-secret-key': SECRET_API_KEY,
       },
-      timeout: 30000, // 30 секунд таймаут
+      timeout: 300000, // 5 минут таймаут для морфинга
     })
 
     logger.info('[MORPHING SERVICE] Response received', {
@@ -82,12 +92,130 @@ export async function generateMorphing(
       data: response.data,
     })
 
+    const apiResponse = response.data
+
+    // Проверяем успешность ответа
+    if (!apiResponse.success || !apiResponse.video_url) {
+      throw new Error(apiResponse.error || 'Морфинг не удался - нет URL видео')
+    }
+
+    // ✅ Морфинг успешно завершен - отправляем пользователю
+    try {
+      const botToken = getBotTokenByName(requestData.botName)
+      if (!botToken) {
+        throw new Error(`Bot token not found for: ${requestData.botName}`)
+      }
+
+      const bot = new Telegraf(botToken)
+
+      const caption = requestData.is_ru
+        ? '🧬 Ваше морфинг-видео готово! Наслаждайтесь плавными переходами между изображениями!'
+        : '🧬 Your morphing video is ready! Enjoy the smooth transitions between images!'
+
+      try {
+        // Пытаемся отправить видео напрямую
+        await bot.telegram.sendVideo(
+          requestData.telegram_id,
+          { url: apiResponse.video_url },
+          { caption }
+        )
+
+        logger.info('✅ Morphing video sent to user directly', {
+          telegramId: requestData.telegram_id,
+          videoUrl: apiResponse.video_url,
+        })
+      } catch (sendVideoError: any) {
+        // Проверяем, является ли это ошибкой "файл слишком большой"
+        const isTooLargeError =
+          sendVideoError?.response?.error_code === 413 ||
+          sendVideoError?.message?.includes('Request Entity Too Large') ||
+          sendVideoError?.message?.includes('file too large') ||
+          sendVideoError?.message?.includes('413')
+
+        if (isTooLargeError) {
+          logger.info(
+            '📁 Video file too large for Telegram, sending download link',
+            {
+              telegramId: requestData.telegram_id,
+              videoUrl: apiResponse.video_url,
+              error: sendVideoError.message,
+            }
+          )
+
+          // Отправляем ссылку на скачивание
+          const downloadMessage = requestData.is_ru
+            ? `🧬 <b>Ваше морфинг-видео готово!</b>
+
+📁 <b>Файл слишком большой для прямой отправки в Telegram</b>
+🔗 <b>Скачайте видео по ссылке:</b>
+
+<a href="${apiResponse.video_url}">📥 Скачать морфинг-видео</a>
+
+💡 <b>Совет:</b> Нажмите на ссылку выше или скопируйте её в браузер для скачивания`
+            : `🧬 <b>Your morphing video is ready!</b>
+
+📁 <b>File too large for direct Telegram delivery</b>
+🔗 <b>Download your video using this link:</b>
+
+<a href="${apiResponse.video_url}">📥 Download Morphing Video</a>
+
+💡 <b>Tip:</b> Click the link above or copy it to your browser to download`
+
+          await bot.telegram.sendMessage(
+            requestData.telegram_id,
+            downloadMessage,
+            {
+              parse_mode: 'HTML',
+              link_preview_options: { is_disabled: false },
+            }
+          )
+
+          logger.info('✅ Download link sent to user due to large file size', {
+            telegramId: requestData.telegram_id,
+            videoUrl: apiResponse.video_url,
+          })
+        } else {
+          // Если это другая ошибка - пробрасываем её дальше
+          throw sendVideoError
+        }
+      }
+
+      // ✅ Отправляем в pulse группу
+      const pulseOptions: MediaPulseOptions = {
+        mediaType: 'video',
+        mediaSource: apiResponse.video_url,
+        telegramId: requestData.telegram_id,
+        username: 'telegram_bot', // Используем то же значение что отправляем на API
+        language: requestData.is_ru ? 'ru' : 'en',
+        serviceType: 'Morphing (Direct)',
+        prompt: 'Морфинг видео',
+        botName: requestData.botName,
+        additionalInfo: {
+          images_count: requestData.imageCount.toString(),
+          morphing_type: requestData.morphingType,
+          model: 'kling-v1.6-pro',
+        },
+      }
+
+      await sendMediaToPulse(pulseOptions)
+
+      logger.info('✅ Morphing video sent to pulse group', {
+        telegramId: requestData.telegram_id,
+      })
+    } catch (sendError) {
+      logger.error('❌ Error sending morphing video', {
+        telegramId: requestData.telegram_id,
+        error: sendError instanceof Error ? sendError.message : 'Unknown error',
+      })
+
+      // Не пробрасываем ошибку отправки, так как видео уже создано
+      // Просто логируем и продолжаем
+    }
+
     return {
-      message: 'Морфинг поставлен в очередь для обработки',
-      status: 'processing',
-      job_id:
-        response.data.job_id ||
-        `morphing-${requestData.telegram_id}-${Date.now()}`,
+      message: 'Морфинг успешно создан и отправлен',
+      status: 'completed' as const,
+      video_url: apiResponse.video_url,
     }
   } catch (error) {
     logger.error('[MORPHING SERVICE] Request failed', {
