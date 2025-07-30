@@ -479,7 +479,8 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐  
 💎 <b>Total cost:</b> ${totalCost}⭐
 
-✨ Creating amazing morphing for you...`
+✨ Creating amazing morphing for you...
+⏳ This may take up to 5 minutes, please wait...`
 
     await ctx.editMessageText(costMessage, {
       parse_mode: 'HTML',
@@ -488,14 +489,31 @@ morphingWizard.action('morphing_start_generation', async ctx => {
     // Создаем ZIP файл с изображениями
     const zipPath = createMorphingImagesZip(ctx.session.morphingImages)
 
-    // Вызываем сервис генерации морфинга
-    await generateMorphing({
+    // Вызываем сервис генерации морфинга (теперь синхронно)
+    const morphingResult = await generateMorphing({
       filePath: zipPath,
       telegram_id: ctx.from!.id.toString(),
       is_ru: isRu,
       botName: ctx.botInfo?.username || 'ai_koshey_bot',
       imageCount: imagesCount,
       morphingType: 'seamless',
+    })
+
+    // Уведомляем о завершении
+    const completionMessage = isRu
+      ? `✅ Морфинг успешно создан! 
+
+📱 Видео отправлено вам в личные сообщения
+
+💡 <b>Примечание:</b> Если файл большой (>50МБ), вы получите ссылку на скачивание`
+      : `✅ Morphing completed successfully! 
+
+📱 Video sent to your private messages
+
+💡 <b>Note:</b> If file is large (>50MB), you'll receive a download link`
+
+    await ctx.editMessageText(completionMessage, {
+      parse_mode: 'HTML',
     })
 
     // Очищаем сессию и выходим из сцены
@@ -524,11 +542,21 @@ morphingWizard.action('morphing_start_generation', async ctx => {
     })
 
     const isRu = isRussianFromState(ctx)
-    await ctx.reply(
-      isRu
-        ? '❌ Произошла ошибка при создании морфинга. Попробуйте позже.'
-        : '❌ An error occurred while creating morphing. Please try again later.'
-    )
+
+    // Более информативное сообщение об ошибке
+    const errorMessage = isRu
+      ? `❌ Произошла ошибка при создании морфинг видео:
+
+${error instanceof Error ? error.message : 'Неизвестная ошибка'}
+
+Пожалуйста, попробуйте еще раз или свяжитесь с поддержкой.`
+      : `❌ An error occurred while creating morphing video:
+
+${error instanceof Error ? error.message : 'Unknown error'}
+
+Please try again or contact support.`
+
+    await ctx.reply(errorMessage)
 
     await ctx.scene.leave()
   }
