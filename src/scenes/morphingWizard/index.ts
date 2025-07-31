@@ -582,6 +582,11 @@ morphingWizard.action('morphing_restart', async ctx => {
     // ✅ ИСПРАВЛЕНИЕ: Перезапускаем сцену БЕЗ дополнительного сообщения
     // (приветственное сообщение появится автоматически при reenter)
     await ctx.scene.reenter()
+
+    // ✅ КРИТИЧЕСКИЙ БАГФИКС: Сбрасываем флаг после успешного перезапуска
+    if (ctx.session) {
+      ctx.session.morphingRestarting = false
+    }
   } catch (error) {
     logger.error('Error restarting morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',
