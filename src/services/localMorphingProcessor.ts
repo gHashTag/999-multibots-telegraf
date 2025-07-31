@@ -39,11 +39,11 @@ export async function createMorphingVideo(
   })
 
   try {
-    // ✅ Шаг 1: Создание пар изображений для морфинга (A->B, B->C, C->A)
+    // ✅ Шаг 1: Создание пар изображений для морфинга (A->B, B->C, C->D) - линейно
     const imagePairs = []
-    for (let i = 0; i < imagePaths.length; i++) {
+    for (let i = 0; i < imagePaths.length - 1; i++) {
       const currentImage = imagePaths[i]
-      const nextImage = imagePaths[(i + 1) % imagePaths.length] // Зацикливаем
+      const nextImage = imagePaths[i + 1] // Следующее изображение (без зацикливания)
 
       // Конвертируем локальные пути в base64 для Replicate
       const currentImageBase64 = fs.readFileSync(currentImage, 'base64')
