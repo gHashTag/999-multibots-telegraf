@@ -9,52 +9,12 @@ import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
 import { isValidImage } from '../../helpers/images'
 import fs from 'fs'
-import path from 'path'
-import AdmZip from 'adm-zip'
 import { ModeEnum } from '@/interfaces/modes'
 
 // ✅ КОНСТАНТА ДЛЯ МОДЕЛИ МОРФИНГА
 const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
 
-// ✅ Функция для создания ZIP из buffer массива
-const createMorphingImagesZip = (
-  images: { buffer: Buffer; filename: string }[]
-): string => {
-  try {
-    const zip = new AdmZip()
-
-    images.forEach((image, index) => {
-      const filename = `morphing_image_${index + 1}.jpg`
-      zip.addFile(filename, image.buffer)
-      logger.info(`Added image ${index + 1} to ZIP`, {
-        filename,
-        size: image.buffer.length,
-      })
-    })
-
-    const tempDir = path.join(process.cwd(), 'temp')
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true })
-    }
-
-    const zipPath = path.join(tempDir, `morphing_images_${Date.now()}.zip`)
-    zip.writeZip(zipPath)
-
-    logger.info('Created morphing images ZIP', {
-      zipPath,
-      imagesCount: images.length,
-      zipSize: fs.statSync(zipPath).size,
-    })
-
-    return zipPath
-  } catch (error) {
-    logger.error('Error creating morphing images ZIP', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      imagesCount: images.length,
-    })
-    throw error
-  }
-}
+// ✅ ZIP архив больше не нужен - работаем напрямую с изображениями
 
 // ✅ Функция для создания адаптивного прогресс бара для бесконечной загрузки
 const createProgressBar = (current: number, length: number = 10): string => {
@@ -459,7 +419,7 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 
     // Показываем информацию о стоимости
     const imagesCount = ctx.session.morphingImages.length
-    const transitionsCount = imagesCount - 1
+    const transitionsCount = imagesCount - 1 // Линейные переходы: 1→2, 2→3, 3→4 (без зацикливания)
     const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
     const totalCost = finalPriceInStars * transitionsCount
 
@@ -486,12 +446,9 @@ morphingWizard.action('morphing_start_generation', async ctx => {
       parse_mode: 'HTML',
     })
 
-    // Создаем ZIP файл с изображениями
-    const zipPath = createMorphingImagesZip(ctx.session.morphingImages)
-
-    // Вызываем сервис генерации морфинга (теперь синхронно)
+    // Вызываем сервис генерации морфинга (прямо с изображениями, без архива)
     const morphingResult = await generateMorphing({
-      filePath: zipPath,
+      images: ctx.session.morphingImages,
       telegram_id: ctx.from!.id.toString(),
       is_ru: isRu,
       botName: ctx.botInfo?.username || 'ai_koshey_bot',
@@ -524,17 +481,7 @@ morphingWizard.action('morphing_start_generation', async ctx => {
       ctx.session.morphingProgressMessageId = undefined
     }
 
-    // Удаляем временный файл
-    setTimeout(() => {
-      try {
-        if (fs.existsSync(zipPath)) {
-          fs.unlinkSync(zipPath)
-          logger.info('Temporary morphing ZIP file deleted', { zipPath })
-        }
-      } catch (error) {
-        logger.error('Error deleting temporary ZIP file', { zipPath, error })
-      }
-    }, 60000) // Удаляем через минуту
+    // Временные файлы изображений будут очищены автоматически в localMorphingProcessor
 
     await ctx.scene.leave()
   } catch (error) {
