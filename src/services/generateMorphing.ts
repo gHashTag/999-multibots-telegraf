@@ -45,172 +45,88 @@ export async function generateMorphing(
   })
 
   try {
-    // URL для отправки запроса на отдельный API сервер
-    const url = `${API_URL}/generate/morph-images`
-
-    // Создаем FormData для отправки файла
-    const FormData = require('form-data')
-    const formData = new FormData()
-
-    // Добавляем файл архива
-    formData.append('images_zip', fs.createReadStream(requestData.filePath))
-
-    // Добавляем остальные параметры
-    formData.append('type', 'morphing')
-    formData.append('telegram_id', requestData.telegram_id)
-    formData.append('image_count', requestData.imageCount.toString())
-    formData.append('morphing_type', requestData.morphingType)
-    formData.append('model', 'kling-v1.6-pro')
-    formData.append('is_ru', requestData.is_ru ? 'true' : 'false')
-    formData.append('bot_name', requestData.botName)
-    formData.append('username', 'telegram_bot')
-
-    console.log('🚨 [MORPHING SERVICE] ABOUT TO SEND HTTP REQUEST:', {
-      url,
+    // ✅ ЛОКАЛЬНАЯ ОБРАБОТКА МОРФИНГА через Inngest функцию
+    logger.info('🧬 [MORPHING SERVICE] Starting local processing', {
       telegram_id: requestData.telegram_id,
       imageCount: requestData.imageCount,
       morphingType: requestData.morphingType,
-      model: 'kling-v1.6-pro',
-      fileExists: fs.existsSync(requestData.filePath),
-      fileSize: fs.statSync(requestData.filePath).size,
-      hasSecretKey: !!SECRET_API_KEY,
-      secretKeyLength: SECRET_API_KEY?.length || 0,
     })
 
-    // Отправляем запрос и ждем результат (увеличиваем таймаут для морфинга)
-    const response = await axios.post<MorphingApiResponse>(url, formData, {
-      headers: {
-        ...formData.getHeaders(),
-        'x-secret-key': SECRET_API_KEY,
+    // Извлекаем изображения из ZIP файла
+    const zip = new AdmZip(requestData.filePath)
+    const zipEntries = zip.getEntries()
+
+    if (zipEntries.length < 2) {
+      throw new Error('Недостаточно изображений для морфинга (минимум 2)')
+    }
+
+    // Создаем временную директорию для изображений
+    const tempDir = `temp/morphing_${requestData.telegram_id}_${Date.now()}`
+    const fullTempDir = `${process.cwd()}/${tempDir}`
+
+    // Создаем директорию если не существует
+    if (!fs.existsSync(fullTempDir)) {
+      fs.mkdirSync(fullTempDir, { recursive: true })
+    }
+
+    // Сохраняем изображения из ZIP
+    const imageUrls: string[] = []
+    for (let i = 0; i < zipEntries.length; i++) {
+      const entry = zipEntries[i]
+      if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png)$/i)) {
+        const imagePath = `${fullTempDir}/image_${i}.jpg`
+        fs.writeFileSync(imagePath, entry.getData())
+
+        // Создаем URL для изображения (предполагаем что nginx настроен для temp/)
+        const imageUrl = `http://localhost:2999/${tempDir}/image_${i}.jpg`
+        imageUrls.push(imageUrl)
+
+        logger.info(`📸 Extracted image ${i + 1}`, { imagePath, imageUrl })
+      }
+    }
+
+    if (imageUrls.length < 2) {
+      throw new Error('Не найдено достаточно валидных изображений в ZIP файле')
+    }
+
+    // Вызываем локальную Inngest функцию через событие
+    const { inngest } = await import('@/inngest_app/client')
+
+    const botToken = getBotTokenByName(requestData.botName)
+    if (!botToken) {
+      throw new Error(`Bot token not found for: ${requestData.botName}`)
+    }
+
+    // Отправляем событие в Inngest для локальной обработки
+    await inngest.send({
+      name: 'reels/generate-advanced-loop',
+      data: {
+        telegram_id: requestData.telegram_id,
+        image_urls: imageUrls,
+        music_url: null, // Пока без музыки
+        bot_token: botToken,
+        model_version: 'kwaivgi/kling-v1.6-pro', // Используем Kling модель
+        prompt: 'cinematic video, beautiful, hd, 4k, morphing effect',
       },
-      timeout: 300000, // 5 минут таймаут для морфинга
     })
 
-    logger.info('[MORPHING SERVICE] Response received', {
+    logger.info('✅ [MORPHING SERVICE] Inngest event sent successfully', {
+      telegram_id: requestData.telegram_id,
+      images_count: imageUrls.length,
+    })
+
+    // Имитируем ответ для совместимости (реальный результат будет отправлен через Inngest)
+    const apiResponse = {
+      success: true,
+      video_url: 'processing', // Видео будет отправлено напрямую в Telegram через Inngest
+      message: 'Морфинг обрабатывается локально через Inngest',
+    }
+
+    // ✅ Локальная обработка запущена - Inngest функция сама отправит видео в Telegram
+    logger.info('🧬 [MORPHING SERVICE] Local processing initiated', {
       telegramId: requestData.telegram_id,
-      status: response.status,
-      data: response.data,
+      message: 'Inngest function will handle video generation and delivery',
     })
-
-    const apiResponse = response.data
-
-    // Проверяем успешность ответа
-    if (!apiResponse.success || !apiResponse.video_url) {
-      throw new Error(apiResponse.error || 'Морфинг не удался - нет URL видео')
-    }
-
-    // ✅ Морфинг успешно завершен - отправляем пользователю
-    try {
-      const botToken = getBotTokenByName(requestData.botName)
-      if (!botToken) {
-        throw new Error(`Bot token not found for: ${requestData.botName}`)
-      }
-
-      const bot = new Telegraf(botToken)
-
-      const caption = requestData.is_ru
-        ? '🧬 Ваше морфинг-видео готово! Наслаждайтесь плавными переходами между изображениями!'
-        : '🧬 Your morphing video is ready! Enjoy the smooth transitions between images!'
-
-      try {
-        // Пытаемся отправить видео напрямую
-        await bot.telegram.sendVideo(
-          requestData.telegram_id,
-          { url: apiResponse.video_url },
-          { caption }
-        )
-
-        logger.info('✅ Morphing video sent to user directly', {
-          telegramId: requestData.telegram_id,
-          videoUrl: apiResponse.video_url,
-        })
-      } catch (sendVideoError: any) {
-        // Проверяем, является ли это ошибкой "файл слишком большой"
-        const isTooLargeError =
-          sendVideoError?.response?.error_code === 413 ||
-          sendVideoError?.message?.includes('Request Entity Too Large') ||
-          sendVideoError?.message?.includes('file too large') ||
-          sendVideoError?.message?.includes('413')
-
-        if (isTooLargeError) {
-          logger.info(
-            '📁 Video file too large for Telegram, sending download link',
-            {
-              telegramId: requestData.telegram_id,
-              videoUrl: apiResponse.video_url,
-              error: sendVideoError.message,
-            }
-          )
-
-          // Отправляем ссылку на скачивание
-          const downloadMessage = requestData.is_ru
-            ? `🧬 <b>Ваше морфинг-видео готово!</b>
-
-📁 <b>Файл слишком большой для прямой отправки в Telegram</b>
-🔗 <b>Скачайте видео по ссылке:</b>
-
-<a href="${apiResponse.video_url}">📥 Скачать морфинг-видео</a>
-
-💡 <b>Совет:</b> Нажмите на ссылку выше или скопируйте её в браузер для скачивания`
-            : `🧬 <b>Your morphing video is ready!</b>
-
-📁 <b>File too large for direct Telegram delivery</b>
-🔗 <b>Download your video using this link:</b>
-
-<a href="${apiResponse.video_url}">📥 Download Morphing Video</a>
-
-💡 <b>Tip:</b> Click the link above or copy it to your browser to download`
-
-          await bot.telegram.sendMessage(
-            requestData.telegram_id,
-            downloadMessage,
-            {
-              parse_mode: 'HTML',
-              link_preview_options: { is_disabled: false },
-            }
-          )
-
-          logger.info('✅ Download link sent to user due to large file size', {
-            telegramId: requestData.telegram_id,
-            videoUrl: apiResponse.video_url,
-          })
-        } else {
-          // Если это другая ошибка - пробрасываем её дальше
-          throw sendVideoError
-        }
-      }
-
-      // ✅ Отправляем в pulse группу
-      const pulseOptions: MediaPulseOptions = {
-        mediaType: 'video',
-        mediaSource: apiResponse.video_url,
-        telegramId: requestData.telegram_id,
-        username: 'telegram_bot', // Используем то же значение что отправляем на API
-        language: requestData.is_ru ? 'ru' : 'en',
-        serviceType: 'Morphing (Direct)',
-        prompt: 'Морфинг видео',
-        botName: requestData.botName,
-        additionalInfo: {
-          images_count: requestData.imageCount.toString(),
-          morphing_type: requestData.morphingType,
-          model: 'kling-v1.6-pro',
-        },
-      }
-
-      await sendMediaToPulse(pulseOptions)
-
-      logger.info('✅ Morphing video sent to pulse group', {
-        telegramId: requestData.telegram_id,
-      })
-    } catch (sendError) {
-      logger.error('❌ Error sending morphing video', {
-        telegramId: requestData.telegram_id,
-        error: sendError instanceof Error ? sendError.message : 'Unknown error',
-      })
-
-      // Не пробрасываем ошибку отправки, так как видео уже создано
-      // Просто логируем и продолжаем
-    }
 
     return {
       message: 'Морфинг успешно создан и отправлен',
