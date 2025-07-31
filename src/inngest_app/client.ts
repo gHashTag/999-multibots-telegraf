@@ -1,11 +1,8 @@
 import { Inngest } from 'inngest'
-// Удалено: generateAdvancedLoopingVideoFunction - морфинг теперь работает синхронно через API сервер
-// import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
+import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
 
-// ✅ Список Inngest функций (временно пуст - морфинг переведен на синхронную обработку)
-export const functions = [
-  // generateAdvancedLoopingVideoFunction - удалено, морфинг теперь синхронный
-]
+// ✅ Список Inngest функций - восстановлена локальная функция морфинга
+export const functions = [generateAdvancedLoopingVideoFunction]
 
 // Создаем клиент Inngest для подключения к нашему dev server
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest

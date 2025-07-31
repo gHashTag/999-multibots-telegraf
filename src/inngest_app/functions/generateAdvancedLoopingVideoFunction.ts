@@ -215,6 +215,36 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
       logger.info('✅ Final video sent to Telegram')
     })
 
+    await step.run('send-to-pulse', async () => {
+      // Импортируем функцию отправки в pulse группу
+      const { sendMediaToPulse } = await import('../../helpers/pulse')
+
+      // Создаем публичный URL для видео (предполагаем что nginx настроен)
+      const videoUrl = `http://localhost:2999/${finalVideoPath.replace(process.cwd() + '/', '')}`
+
+      const pulseOptions = {
+        mediaType: 'video' as const,
+        mediaSource: videoUrl,
+        telegramId: telegram_id,
+        username: 'telegram_bot',
+        language: 'ru' as const,
+        serviceType: 'Morphing Loop (Kling)',
+        prompt: prompt || 'Морфинг видео',
+        botName: 'ai_koshey_bot', // Можно сделать динамическим если нужно
+        additionalInfo: {
+          images_count: image_urls.length.toString(),
+          morphing_type: 'loop',
+          model: 'kling-v1.6-pro',
+        },
+      }
+
+      await sendMediaToPulse(pulseOptions)
+      logger.info('✅ Morphing video sent to pulse group', {
+        telegramId: telegram_id,
+        videoUrl,
+      })
+    })
+
     await step.run('cleanup', async () => {
       const files = await fs.readdir(tempDir)
       for (const file of files) {
