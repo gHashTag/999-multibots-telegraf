@@ -45,8 +45,8 @@ export async function generateMorphing(
   })
 
   try {
-    // ✅ ЛОКАЛЬНАЯ ОБРАБОТКА МОРФИНГА через Inngest функцию
-    logger.info('🧬 [MORPHING SERVICE] Starting local processing', {
+    // ✅ ЛОКАЛЬНАЯ ОБРАБОТКА МОРФИНГА - чистый JavaScript без Inngest
+    logger.info('🧬 [MORPHING SERVICE] Starting local JavaScript processing', {
       telegram_id: requestData.telegram_id,
       imageCount: requestData.imageCount,
       morphingType: requestData.morphingType,
@@ -70,68 +70,120 @@ export async function generateMorphing(
     }
 
     // Сохраняем изображения из ZIP
-    const imageUrls: string[] = []
+    const imagePaths: string[] = []
     for (let i = 0; i < zipEntries.length; i++) {
       const entry = zipEntries[i]
       if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png)$/i)) {
         const imagePath = `${fullTempDir}/image_${i}.jpg`
         fs.writeFileSync(imagePath, entry.getData())
+        imagePaths.push(imagePath)
 
-        // Создаем URL для изображения (предполагаем что nginx настроен для temp/)
-        const imageUrl = `http://localhost:2999/${tempDir}/image_${i}.jpg`
-        imageUrls.push(imageUrl)
-
-        logger.info(`📸 Extracted image ${i + 1}`, { imagePath, imageUrl })
+        logger.info(`📸 Extracted image ${i + 1}`, { imagePath })
       }
     }
 
-    if (imageUrls.length < 2) {
+    if (imagePaths.length < 2) {
       throw new Error('Не найдено достаточно валидных изображений в ZIP файле')
     }
 
-    // Вызываем локальную Inngest функцию через событие
-    const { inngest } = await import('@/inngest_app/client')
+    // ✅ ПРЯМАЯ ОБРАБОТКА МОРФИНГА через Replicate API
+    const { createMorphingVideo } = await import(
+      '@/services/localMorphingProcessor'
+    )
 
+    const finalVideoPath = await createMorphingVideo({
+      imagePaths,
+      tempDir: fullTempDir,
+      telegram_id: requestData.telegram_id,
+    })
+
+    // ✅ ОТПРАВКА ГОТОВОГО ВИДЕО В TELEGRAM
     const botToken = getBotTokenByName(requestData.botName)
     if (!botToken) {
       throw new Error(`Bot token not found for: ${requestData.botName}`)
     }
 
-    // Отправляем событие в Inngest для локальной обработки
-    await inngest.send({
-      name: 'reels/generate-advanced-loop',
-      data: {
-        telegram_id: requestData.telegram_id,
-        image_urls: imageUrls,
-        music_url: null, // Пока без музыки
-        bot_token: botToken,
-        model_version: 'kwaivgi/kling-v1.6-pro', // Используем Kling модель
-        prompt: 'cinematic video, beautiful, hd, 4k, morphing effect',
-      },
-    })
+    const bot = new Telegraf(botToken)
+    const caption = requestData.is_ru
+      ? '🧬 Ваше морфинг-видео готово! Наслаждайтесь плавными переходами между изображениями!'
+      : '🧬 Your morphing video is ready! Enjoy the smooth transitions between images!'
 
-    logger.info('✅ [MORPHING SERVICE] Inngest event sent successfully', {
-      telegram_id: requestData.telegram_id,
-      images_count: imageUrls.length,
-    })
+    try {
+      // Пытаемся отправить видео напрямую
+      await bot.telegram.sendVideo(
+        requestData.telegram_id,
+        { source: finalVideoPath },
+        { caption }
+      )
 
-    // Имитируем ответ для совместимости (реальный результат будет отправлен через Inngest)
-    const apiResponse = {
-      success: true,
-      video_url: 'processing', // Видео будет отправлено напрямую в Telegram через Inngest
-      message: 'Морфинг обрабатывается локально через Inngest',
+      logger.info('✅ Morphing video sent to user directly', {
+        telegramId: requestData.telegram_id,
+        videoPath: finalVideoPath,
+      })
+    } catch (sendVideoError: any) {
+      // Если ошибка 413 (файл слишком большой), отправляем ссылку
+      if (
+        sendVideoError.description?.includes('Request Entity Too Large') ||
+        sendVideoError.message?.includes('413')
+      ) {
+        logger.warn('📁 Video too large for Telegram, sending download link', {
+          telegramId: requestData.telegram_id,
+          error: sendVideoError.message,
+        })
+
+        // Создаем URL для скачивания
+        const videoUrl = `http://localhost:2999/${tempDir.replace('temp/', 'temp/')}/final_video.mp4`
+        const downloadMessage = requestData.is_ru
+          ? `🧬 Ваше морфинг-видео готово!\n\n📁 <b>Файл слишком большой для отправки в Telegram</b>\n📥 <a href="${videoUrl}">Скачать видео</a>\n\n💡 Нажмите на ссылку для скачивания`
+          : `🧬 Your morphing video is ready!\n\n📁 <b>File too large to send via Telegram</b>\n📥 <a href="${videoUrl}">Download video</a>\n\n💡 Click the link to download`
+
+        await bot.telegram.sendMessage(
+          requestData.telegram_id,
+          downloadMessage,
+          {
+            parse_mode: 'HTML',
+            link_preview_options: { is_disabled: false },
+          }
+        )
+
+        logger.info('✅ Download link sent to user', {
+          telegramId: requestData.telegram_id,
+          downloadUrl: videoUrl,
+        })
+      } else {
+        throw sendVideoError
+      }
     }
 
-    // ✅ Локальная обработка запущена - Inngest функция сама отправит видео в Telegram
-    logger.info('🧬 [MORPHING SERVICE] Local processing initiated', {
-      telegramId: requestData.telegram_id,
-      message: 'Inngest function will handle video generation and delivery',
-    })
+    // ✅ ОТПРАВКА В PULSE ГРУППУ
+    try {
+      await sendMediaToPulse({
+        mediaType: 'video',
+        filePath: finalVideoPath,
+        prompt: 'Morphing Loop (Kling)',
+        userId: requestData.telegram_id,
+        typeName: 'Morphing Loop (Kling)',
+        parameters: {
+          image_count: requestData.imageCount,
+          model: 'kling-v1.6-pro',
+          morphing_type: requestData.morphingType,
+        },
+      })
+
+      logger.info('✅ Morphing video sent to pulse group', {
+        telegramId: requestData.telegram_id,
+      })
+    } catch (pulseError) {
+      logger.error('❌ Failed to send to pulse group', {
+        telegramId: requestData.telegram_id,
+        error: pulseError,
+      })
+    }
 
     return {
       message: 'Морфинг успешно создан и отправлен',
       status: 'completed' as const,
-      video_url: apiResponse.video_url,
+      video_url: finalVideoPath,
     }
   } catch (error) {
     logger.error('[MORPHING SERVICE] Request failed', {
