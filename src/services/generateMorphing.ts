@@ -1,5 +1,4 @@
 import fs from 'fs'
-import AdmZip from 'adm-zip'
 import axios from 'axios'
 import { API_URL, SECRET_API_KEY } from '@/config'
 import { logger } from '@/utils/logger'
@@ -8,7 +7,7 @@ import { getBotTokenByName } from '@/core/getBotTokenByName'
 import { Telegraf } from 'telegraf'
 
 interface MorphingRequest {
-  filePath: string
+  images: any[] // Массив изображений из Telegram сессии
   telegram_id: string
   is_ru: boolean
   botName: string
@@ -31,17 +30,16 @@ interface MorphingApiResponse {
 }
 
 /**
- * Сервис для создания морфинга - отправляет ZIP архив на отдельный API сервер
+ * Сервис для создания морфинга - локальная обработка без архивов
  */
 export async function generateMorphing(
   requestData: MorphingRequest
 ): Promise<MorphingResponse> {
-  console.log('🚨 [MORPHING SERVICE] ABOUT TO PROCESS ZIP:', {
+  console.log('🚨 [MORPHING SERVICE] ABOUT TO PROCESS IMAGES:', {
     telegram_id: requestData.telegram_id,
     imageCount: requestData.imageCount,
     morphingType: requestData.morphingType,
-    fileExists: fs.existsSync(requestData.filePath),
-    fileSize: fs.statSync(requestData.filePath).size,
+    imagesCount: requestData.images.length,
   })
 
   try {
@@ -52,11 +50,8 @@ export async function generateMorphing(
       morphingType: requestData.morphingType,
     })
 
-    // Извлекаем изображения из ZIP файла
-    const zip = new AdmZip(requestData.filePath)
-    const zipEntries = zip.getEntries()
-
-    if (zipEntries.length < 2) {
+    // Проверяем количество изображений
+    if (requestData.images.length < 2) {
       throw new Error('Недостаточно изображений для морфинга (минимум 2)')
     }
 
@@ -69,21 +64,49 @@ export async function generateMorphing(
       fs.mkdirSync(fullTempDir, { recursive: true })
     }
 
-    // Сохраняем изображения из ZIP
-    const imagePaths: string[] = []
-    for (let i = 0; i < zipEntries.length; i++) {
-      const entry = zipEntries[i]
-      if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png)$/i)) {
-        const imagePath = `${fullTempDir}/image_${i}.jpg`
-        fs.writeFileSync(imagePath, entry.getData())
-        imagePaths.push(imagePath)
-
-        logger.info(`📸 Extracted image ${i + 1}`, { imagePath })
-      }
+    // Получаем bot token для скачивания файлов
+    const botToken = getBotTokenByName(requestData.botName)
+    if (!botToken) {
+      throw new Error(`Bot token not found for: ${requestData.botName}`)
     }
 
-    if (imagePaths.length < 2) {
-      throw new Error('Не найдено достаточно валидных изображений в ZIP файле')
+    const bot = new Telegraf(botToken)
+
+    // Скачиваем изображения напрямую из Telegram API
+    const imagePaths: string[] = []
+    for (let i = 0; i < requestData.images.length; i++) {
+      const imageData = requestData.images[i]
+      const fileId = imageData.file_id
+
+      logger.info(
+        `📥 Downloading image ${i + 1}/${requestData.images.length}`,
+        { fileId }
+      )
+
+      try {
+        // Получаем информацию о файле
+        const fileInfo = await bot.telegram.getFile(fileId)
+        const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileInfo.file_path}`
+
+        // Скачиваем файл
+        const response = await axios.get(fileUrl, {
+          responseType: 'arraybuffer',
+        })
+        const imageBuffer = Buffer.from(response.data)
+
+        // Сохраняем файл
+        const imagePath = `${fullTempDir}/image_${i}.jpg`
+        fs.writeFileSync(imagePath, imageBuffer)
+        imagePaths.push(imagePath)
+
+        logger.info(`✅ Downloaded image ${i + 1}`, { imagePath })
+      } catch (downloadError) {
+        logger.error(`❌ Failed to download image ${i + 1}`, {
+          error: downloadError,
+          fileId,
+        })
+        throw new Error(`Failed to download image ${i + 1}: ${downloadError}`)
+      }
     }
 
     // ✅ ПРЯМАЯ ОБРАБОТКА МОРФИНГА через Replicate API
@@ -98,12 +121,7 @@ export async function generateMorphing(
     })
 
     // ✅ ОТПРАВКА ГОТОВОГО ВИДЕО В TELEGRAM
-    const botToken = getBotTokenByName(requestData.botName)
-    if (!botToken) {
-      throw new Error(`Bot token not found for: ${requestData.botName}`)
-    }
-
-    const bot = new Telegraf(botToken)
+    // (botToken уже получен выше)
     const caption = requestData.is_ru
       ? '🧬 Ваше морфинг-видео готово! Наслаждайтесь плавными переходами между изображениями!'
       : '🧬 Your morphing video is ready! Enjoy the smooth transitions between images!'
@@ -159,7 +177,7 @@ export async function generateMorphing(
     try {
       await sendMediaToPulse({
         mediaType: 'video',
-        filePath: finalVideoPath,
+        mediaPath: finalVideoPath,
         prompt: 'Morphing Loop (Kling)',
         userId: requestData.telegram_id,
         typeName: 'Morphing Loop (Kling)',
