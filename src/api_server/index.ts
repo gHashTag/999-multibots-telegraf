@@ -13,6 +13,9 @@ export function startApiServer(): void {
   // Middleware для парсинга JSON с установленным лимитом в 10MB
   app.use(express.json({ limit: '10mb' }) as any)
 
+  // ✅ Раздача статических файлов из temp/ директории для морфинга
+  app.use('/temp', express.static('temp') as any)
+
   // Простой middleware для логгирования запросов
   app.use((req: any, res: any, next: any) => {
     console.log(`[API] ${new Date().toISOString()} | ${req.method} ${req.url}`)
