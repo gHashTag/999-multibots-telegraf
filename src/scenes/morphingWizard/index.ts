@@ -499,16 +499,18 @@ morphingWizard.action('morphing_start_generation', async ctx => {
       morphingType: 'seamless',
     })
 
-    // Уведомляем о завершении
+    // Уведомляем о запуске обработки
     const completionMessage = isRu
-      ? `✅ Морфинг успешно создан! 
+      ? `🚀 Морфинг запущен в обработку! 
 
-📱 Видео отправлено вам в личные сообщения
+⏳ Создание видео займет до 5 минут
+📱 Готовое видео будет отправлено вам автоматически
 
 💡 <b>Примечание:</b> Если файл большой (>50МБ), вы получите ссылку на скачивание`
-      : `✅ Morphing completed successfully! 
+      : `🚀 Morphing processing started! 
 
-📱 Video sent to your private messages
+⏳ Video creation will take up to 5 minutes
+📱 Finished video will be sent to you automatically
 
 💡 <b>Note:</b> If file is large (>50MB), you'll receive a download link`
 
