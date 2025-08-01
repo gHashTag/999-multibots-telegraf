@@ -1,13 +1,12 @@
 import fs from 'fs'
-import axios from 'axios'
-import { API_URL, SECRET_API_KEY } from '@/config'
+import { API_URL } from '@/config'
 import { logger } from '@/utils/logger'
-import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
+import { sendMediaToPulse } from '@/helpers/pulse'
 import { getBotTokenByName } from '@/core/getBotTokenByName'
 import { Telegraf } from 'telegraf'
 
 interface MorphingRequest {
-  images: any[] // Массив изображений из Telegram сессии
+  images: Array<{ buffer: Buffer; filename: string }> // Массив изображений с buffer'ами
   telegram_id: string
   is_ru: boolean
   botName: string
@@ -64,48 +63,29 @@ export async function generateMorphing(
       fs.mkdirSync(fullTempDir, { recursive: true })
     }
 
-    // Получаем bot token для скачивания файлов
-    const botToken = getBotTokenByName(requestData.botName)
-    if (!botToken) {
-      throw new Error(`Bot token not found for: ${requestData.botName}`)
-    }
-
-    const bot = new Telegraf(botToken)
-
-    // Скачиваем изображения напрямую из Telegram API
+    // Сохраняем изображения из buffer'ов сессии
     const imagePaths: string[] = []
     for (let i = 0; i < requestData.images.length; i++) {
       const imageData = requestData.images[i]
-      const fileId = imageData.file_id
 
       logger.info(
-        `📥 Downloading image ${i + 1}/${requestData.images.length}`,
-        { fileId }
+        `💾 Saving image ${i + 1}/${requestData.images.length} from buffer`,
+        { filename: imageData.filename, bufferSize: imageData.buffer.length }
       )
 
       try {
-        // Получаем информацию о файле
-        const fileInfo = await bot.telegram.getFile(fileId)
-        const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileInfo.file_path}`
-
-        // Скачиваем файл
-        const response = await axios.get(fileUrl, {
-          responseType: 'arraybuffer',
-        })
-        const imageBuffer = Buffer.from(response.data)
-
-        // Сохраняем файл
+        // Сохраняем файл из buffer'а
         const imagePath = `${fullTempDir}/image_${i}.jpg`
-        fs.writeFileSync(imagePath, imageBuffer)
+        fs.writeFileSync(imagePath, imageData.buffer)
         imagePaths.push(imagePath)
 
-        logger.info(`✅ Downloaded image ${i + 1}`, { imagePath })
-      } catch (downloadError) {
-        logger.error(`❌ Failed to download image ${i + 1}`, {
-          error: downloadError,
-          fileId,
+        logger.info(`✅ Saved image ${i + 1}`, { imagePath })
+      } catch (saveError) {
+        logger.error(`❌ Failed to save image ${i + 1}`, {
+          error: saveError,
+          filename: imageData.filename,
         })
-        throw new Error(`Failed to download image ${i + 1}: ${downloadError}`)
+        throw new Error(`Failed to save image ${i + 1}: ${saveError}`)
       }
     }
 
@@ -121,7 +101,12 @@ export async function generateMorphing(
     })
 
     // ✅ ОТПРАВКА ГОТОВОГО ВИДЕО В TELEGRAM
-    // (botToken уже получен выше)
+    const botToken = getBotTokenByName(requestData.botName)
+    if (!botToken) {
+      throw new Error(`Bot token not found for: ${requestData.botName}`)
+    }
+
+    const bot = new Telegraf(botToken)
     const caption = requestData.is_ru
       ? '🧬 Ваше морфинг-видео готово! Наслаждайтесь плавными переходами между изображениями!'
       : '🧬 Your morphing video is ready! Enjoy the smooth transitions between images!'
@@ -235,21 +220,13 @@ export async function generateMorphing(
       error: error instanceof Error ? error.message : 'Unknown error',
     })
 
-    if (axios.isAxiosError(error)) {
-      console.error('🚨 [MORPHING SERVICE] AXIOS ERROR DETAILS:', {
-        telegramId: requestData.telegram_id,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        headers: error.response?.headers,
-        url: error.config?.url,
-        method: error.config?.method,
-        message: error.message,
-        code: error.code,
-      })
-
-      throw new Error(`Произошла ошибка при создании морфинга на сервере`)
-    }
+    // Дополнительная информация об ошибке
+    console.error('🚨 [MORPHING SERVICE] ERROR DETAILS:', {
+      telegramId: requestData.telegram_id,
+      errorType: error.constructor.name,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    })
 
     throw new Error('Произошла ошибка при создании морфинга')
   }
