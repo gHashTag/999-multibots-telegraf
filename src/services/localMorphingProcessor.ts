@@ -67,8 +67,8 @@ export async function createMorphingVideo(
       )
 
       const input = {
-        image_url: pair.start,
-        image_tail_url: pair.end,
+        start_image: pair.start,
+        end_image: pair.end,
         prompt: 'cinematic video, beautiful, hd, 4k, morphing effect',
         duration: 5, // 5 секунд
         mode: 'pro',
