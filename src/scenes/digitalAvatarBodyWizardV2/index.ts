@@ -11,10 +11,18 @@ import {
 } from '@/price/priceCalculator'
 import { getStepSelectionMenuV2 } from '@/menu'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body_2',
   async ctx => {
+    // Устанавливаем режим V2 для правильного выбора API endpoint
+    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+    console.log(
+      '[digitalAvatarBodyWizardV2] Set session mode:',
+      ctx.session.mode
+    )
+
     const isRu = isRussianFromState(ctx)
     const showRubles = shouldShowRubles(ctx)
     const costMessage = generateCostMessage(
