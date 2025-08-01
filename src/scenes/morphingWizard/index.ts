@@ -269,11 +269,15 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
           return
         }
 
-        // Добавляем изображение в сессию
+        // ✅ ДОБАВЛЯЕМ ИЗОБРАЖЕНИЕ С TIMESTAMP ДЛЯ ПРАВИЛЬНОЙ СОРТИРОВКИ
         const imageIndex = ctx.session.morphingImages.length + 1
+        const currentTimestamp = Date.now() + imageIndex // Уникальный timestamp для сортировки
+
         ctx.session.morphingImages.push({
           buffer: Buffer.from(buffer),
           filename: `morphing_image_${imageIndex}.jpg`,
+          timestamp: currentTimestamp, // ✅ Добавляем timestamp для сортировки
+          originalOrder: imageIndex, // ✅ Сохраняем исходный порядок добавления
         })
 
         logger.info(
