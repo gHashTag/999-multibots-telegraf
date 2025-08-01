@@ -134,33 +134,51 @@ export async function generateMorphing(
           error: sendVideoError.message,
         })
 
-        // ✅ КОПИРУЕМ ФАЙЛ В СЕРВЕРНУЮ ДИРЕКТОРИЮ ДЛЯ ДОСТУПА ЧЕРЕЗ NGINX
+        // ✅ ПРАВИЛЬНАЯ ЛОГИКА ДЛЯ ЛОКАЛЬНОЙ И ПРОДАКШЕННОЙ СРЕДЫ
         const videoFileName = `morphing_${requestData.telegram_id}_${Date.now()}.mp4`
-        const serverFilesDir =
-          process.env.SERVER_FILES_DIR || '/etc/nginx/html/files/'
-        const targetFilePath = `${serverFilesDir}${videoFileName}`
+        const isDev = process.env.NODE_ENV === 'development'
 
-        try {
-          // Создаем серверную директорию если не существует
-          if (!fs.existsSync(serverFilesDir)) {
-            fs.mkdirSync(serverFilesDir, { recursive: true })
+        let videoUrl: string
+
+        if (isDev) {
+          // 🏠 ЛОКАЛЬНАЯ РАЗРАБОТКА: используем temp директорию и localhost
+          const tempRelativePath = finalVideoPath.replace(
+            process.cwd() + '/',
+            ''
+          )
+          videoUrl = `http://localhost:2999/${tempRelativePath}`
+          logger.info('🏠 Local development: using temp directory', {
+            originalPath: finalVideoPath,
+            tempPath: tempRelativePath,
+            localUrl: videoUrl,
+          })
+        } else {
+          // 🌐 ПРОДАКШЕН: копируем в nginx директорию
+          const serverFilesDir =
+            process.env.SERVER_FILES_DIR || '/etc/nginx/html/files/'
+          const targetFilePath = `${serverFilesDir}${videoFileName}`
+
+          try {
+            // Создаем серверную директорию если не существует
+            if (!fs.existsSync(serverFilesDir)) {
+              fs.mkdirSync(serverFilesDir, { recursive: true })
+            }
+
+            // Копируем файл в серверную директорию
+            fs.copyFileSync(finalVideoPath, targetFilePath)
+            logger.info('✅ Video copied to server files directory', {
+              from: finalVideoPath,
+              to: targetFilePath,
+            })
+          } catch (copyError) {
+            logger.error('❌ Failed to copy video to server directory', {
+              error: copyError,
+              targetPath: targetFilePath,
+            })
           }
 
-          // Копируем файл в серверную директорию
-          fs.copyFileSync(finalVideoPath, targetFilePath)
-          logger.info('✅ Video copied to server files directory', {
-            from: finalVideoPath,
-            to: targetFilePath,
-          })
-        } catch (copyError) {
-          logger.error('❌ Failed to copy video to server directory', {
-            error: copyError,
-            targetPath: targetFilePath,
-          })
+          videoUrl = `${API_URL}/files/${videoFileName}`
         }
-
-        // ✅ СОЗДАЕМ ПРАВИЛЬНЫЙ URL ИСПОЛЬЗУЯ API_URL (ПРОДАКШЕН ДОМЕН)
-        const videoUrl = `${API_URL}/files/${videoFileName}`
         const downloadMessage = requestData.is_ru
           ? `🧬 Ваше морфинг-видео готово!\n\n📁 <b>Файл слишком большой для отправки в Telegram</b>\n📥 <a href="${videoUrl}">Скачать видео</a>\n\n💡 Нажмите на ссылку для скачивания`
           : `🧬 Your morphing video is ready!\n\n📁 <b>File too large to send via Telegram</b>\n📥 <a href="${videoUrl}">Download video</a>\n\n💡 Click the link to download`
@@ -177,7 +195,8 @@ export async function generateMorphing(
         logger.info('✅ Download link sent to user', {
           telegramId: requestData.telegram_id,
           downloadUrl: videoUrl,
-          serverPath: targetFilePath,
+          originalVideoPath: finalVideoPath,
+          environment: isDev ? 'development' : 'production',
         })
       } else {
         throw sendVideoError
