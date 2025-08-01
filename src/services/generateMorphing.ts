@@ -6,7 +6,12 @@ import { getBotTokenByName } from '@/core/getBotTokenByName'
 import { Telegraf } from 'telegraf'
 
 interface MorphingRequest {
-  images: Array<{ buffer: Buffer; filename: string }> // Массив изображений с buffer'ами
+  images: Array<{
+    buffer: Buffer
+    filename: string
+    timestamp?: number // ✅ Для правильной сортировки
+    originalOrder?: number // ✅ Исходный порядок добавления
+  }>
   telegram_id: string
   is_ru: boolean
   botName: string
@@ -54,6 +59,30 @@ export async function generateMorphing(
       throw new Error('Недостаточно изображений для морфинга (минимум 2)')
     }
 
+    // ✅ СОРТИРУЕМ ИЗОБРАЖЕНИЯ ПО ПРАВИЛЬНОМУ ПОРЯДКУ
+    const sortedImages = [...requestData.images].sort((a, b) => {
+      // Сначала пробуем сортировать по originalOrder
+      if (a.originalOrder && b.originalOrder) {
+        return a.originalOrder - b.originalOrder
+      }
+      // Если originalOrder нет, сортируем по timestamp
+      if (a.timestamp && b.timestamp) {
+        return a.timestamp - b.timestamp
+      }
+      // Если ничего нет, оставляем как есть
+      return 0
+    })
+
+    logger.info('🔄 [MORPHING SERVICE] Image sorting completed', {
+      telegram_id: requestData.telegram_id,
+      originalOrder: requestData.images
+        .map((img, index) => `${index + 1}:${img.originalOrder || 'none'}`)
+        .join(', '),
+      sortedOrder: sortedImages
+        .map((img, index) => `${index + 1}:${img.originalOrder || 'none'}`)
+        .join(', '),
+    })
+
     // Создаем временную директорию для изображений
     const tempDir = `temp/morphing_${requestData.telegram_id}_${Date.now()}`
     const fullTempDir = `${process.cwd()}/${tempDir}`
@@ -63,14 +92,19 @@ export async function generateMorphing(
       fs.mkdirSync(fullTempDir, { recursive: true })
     }
 
-    // Сохраняем изображения из buffer'ов сессии
+    // ✅ СОХРАНЯЕМ ОТСОРТИРОВАННЫЕ ИЗОБРАЖЕНИЯ
     const imagePaths: string[] = []
-    for (let i = 0; i < requestData.images.length; i++) {
-      const imageData = requestData.images[i]
+    for (let i = 0; i < sortedImages.length; i++) {
+      const imageData = sortedImages[i]
 
       logger.info(
-        `💾 Saving image ${i + 1}/${requestData.images.length} from buffer`,
-        { filename: imageData.filename, bufferSize: imageData.buffer.length }
+        `💾 Saving image ${i + 1}/${sortedImages.length} from buffer`,
+        {
+          filename: imageData.filename,
+          bufferSize: imageData.buffer.length,
+          originalOrder: imageData.originalOrder,
+          sortedPosition: i + 1,
+        }
       )
 
       try {
