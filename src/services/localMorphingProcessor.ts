@@ -7,6 +7,56 @@ import { logger } from '@/utils/logger'
 
 const execAsync = promisify(exec)
 
+// ✅ ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ РАЗРЕШЕНИЯ ВИДЕО
+async function getVideoResolution(
+  videoPath: string
+): Promise<{ width: number; height: number }> {
+  try {
+    const command = `ffprobe -v quiet -print_format json -show_streams "${videoPath}"`
+    const { stdout } = await execAsync(command)
+    const data = JSON.parse(stdout)
+
+    const videoStream = data.streams.find(
+      (stream: any) => stream.codec_type === 'video'
+    )
+    if (!videoStream) {
+      throw new Error('No video stream found')
+    }
+
+    return {
+      width: parseInt(videoStream.width),
+      height: parseInt(videoStream.height),
+    }
+  } catch (error) {
+    logger.error('Failed to get video resolution', { error, videoPath })
+    // Fallback к стандартному разрешению
+    return { width: 1280, height: 720 }
+  }
+}
+
+// ✅ ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ ЦЕЛЕВОГО РАЗРЕШЕНИЯ
+function getTargetResolution(
+  width: number,
+  height: number
+): { width: number; height: number; aspectRatio: string } {
+  const aspectRatio = width / height
+
+  logger.info(
+    `🎬 Analyzing aspect ratio: ${width}x${height} (ratio: ${aspectRatio.toFixed(2)})`
+  )
+
+  if (aspectRatio > 1.5) {
+    // Горизонтальное видео (16:9 или подобное)
+    return { width: 1280, height: 720, aspectRatio: '16:9 (horizontal)' }
+  } else if (aspectRatio < 0.75) {
+    // Вертикальное видео (9:16 или подобное)
+    return { width: 720, height: 1280, aspectRatio: '9:16 (vertical)' }
+  } else {
+    // Квадратное или близкое к квадратному (1:1)
+    return { width: 1024, height: 1024, aspectRatio: '1:1 (square)' }
+  }
+}
+
 interface MorphingVideoOptions {
   imagePaths: string[]
   tempDir: string
@@ -360,17 +410,49 @@ export async function createMorphingVideo(
       }
     }
 
-    // ✅ Шаг 4: Нормализация клипов (постоянная частота кадров)
+    // ✅ Шаг 4: Определение целевого разрешения и нормализация клипов
     const normalizedClipPaths: string[] = []
+    let targetResolution: {
+      width: number
+      height: number
+      aspectRatio: string
+    } | null = null
+
+    // Определяем целевое разрешение на основе первого клипа
+    if (downloadedClipPaths.length > 0) {
+      logger.info('🎯 Determining target resolution from first clip...')
+      const firstClipResolution = await getVideoResolution(
+        downloadedClipPaths[0]
+      )
+      targetResolution = getTargetResolution(
+        firstClipResolution.width,
+        firstClipResolution.height
+      )
+      logger.info(
+        `✅ Target resolution selected: ${targetResolution.width}x${targetResolution.height} (${targetResolution.aspectRatio})`
+      )
+    }
+
+    // Fallback если не удалось определить разрешение
+    if (!targetResolution) {
+      targetResolution = {
+        width: 1280,
+        height: 720,
+        aspectRatio: '16:9 (default)',
+      }
+      logger.warn('⚠️ Using default resolution 1280x720')
+    }
 
     for (let i = 0; i < downloadedClipPaths.length; i++) {
       const inputClip = downloadedClipPaths[i]
       const normalizedClip = path.join(tempDir, `normalized_clip_${i}.mp4`)
 
-      logger.info(`🔧 Normalizing clip ${i + 1}/${downloadedClipPaths.length}`)
+      logger.info(
+        `🔧 Normalizing clip ${i + 1}/${downloadedClipPaths.length} to ${targetResolution.width}x${targetResolution.height}`
+      )
 
-      // ✅ ИСПРАВЛЕНО: Нормализация с одинаковым разрешением для склейки
-      const normalizeCommand = `ffmpeg -y -i "${inputClip}" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1" -r 25 -c:v libx264 -preset fast "${normalizedClip}"`
+      // ✅ УМНАЯ НОРМАЛИЗАЦИЯ: Адаптируется под соотношение сторон первого клипа
+      const normalizeCommand = `ffmpeg -y -i "${inputClip}" -vf "scale=${targetResolution.width}:${targetResolution.height}:force_original_aspect_ratio=decrease,pad=${targetResolution.width}:${targetResolution.height}:(ow-iw)/2:(oh-ih)/2,setsar=1" -r 25 -c:v libx264 -preset fast "${normalizedClip}"`
 
       try {
         await execAsync(normalizeCommand)
