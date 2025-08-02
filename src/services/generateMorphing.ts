@@ -140,6 +140,15 @@ export async function generateMorphing(
       clipNumber: number,
       totalClips: number
     ) => {
+      // ✅ ПРОВЕРКА: Если только 1 видео, то это финальное, не промежуточное!
+      if (totalClips === 1) {
+        logger.info(`⏭️ Skipping intermediate video send - only 1 clip total`, {
+          telegramId: requestData.telegram_id,
+          totalClips,
+        })
+        return
+      }
+
       const bot = new Telegraf(botToken)
 
       const intermediateCaption = requestData.is_ru
