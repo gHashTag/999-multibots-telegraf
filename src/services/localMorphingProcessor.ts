@@ -33,12 +33,26 @@ interface ReplicateClient {
 const MAX_RETRIES = 5 // Максимум 5 попыток для каждого клипа
 const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
 
-// ✅ СПИСОК KLING МОДЕЛЕЙ ДЛЯ RETRY ПРИ ОШИБКАХ БЕЗОПАСНОСТИ (ТОЛЬКО KLING ПОДДЕРЖИВАЕТ МОРФИНГ!)
+// ✅ СПИСОК РЕАЛЬНО СУЩЕСТВУЮЩИХ KLING МОДЕЛЕЙ С ИХ СТОИМОСТЬЮ (ПРОВЕРЕНО В ИНТЕРНЕТЕ!)
 const FALLBACK_KLING_MODELS = [
-  'kwaivgi/kling-v1.6-pro', // Основная модель (самая строгая)
-  'kwaivgi/kling-v1.6-standard', // Менее строгая версия
-  'kwaivgi/kling-v1.6', // Еще менее строгая
-  'kwaivgi/kling-v2.0', // Новая версия (может работать по-другому)
+  {
+    id: 'kwaivgi/kling-v1.6-pro',
+    name: 'Kling v1.6 Pro',
+    cost: 1.96, // ~$1.96 за 10-сек клип (самая дорогая, но лучшее качество)
+    description: '1080p, строгие фильтры',
+  },
+  {
+    id: 'kwaivgi/kling-v1.6-standard',
+    name: 'Kling v1.6 Standard',
+    cost: 0.56, // ~$0.56 за 10-сек клип (дешевле, менее строгая)
+    description: '720p, менее строгие фильтры',
+  },
+  {
+    id: 'kwaivgi/kling-v2.0',
+    name: 'Kling v2.0',
+    cost: 3.0, // ~$0.3 за секунду * 10 сек = $3.0 (новая модель)
+    description: '720p, может обходить некоторые фильтры',
+  },
 ] as const
 
 // ✅ CHECKPOINT SYSTEM (для возобновления процесса)
@@ -487,7 +501,8 @@ async function generateSingleClipWithRetry(
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const currentModel = FALLBACK_KLING_MODELS[currentModelIndex]
+      const currentModelInfo = FALLBACK_KLING_MODELS[currentModelIndex]
+      const currentModel = currentModelInfo.id
 
       // Адаптируем параметры под разные модели Kling
       const input = { ...baseInput }
@@ -500,7 +515,7 @@ async function generateSingleClipWithRetry(
       }
 
       logger.info(
-        `🔄 Attempt ${attempt}/${MAX_RETRIES} for clip ${clipNumber}/${totalClips} using model: ${currentModel}`
+        `🔄 Attempt ${attempt}/${MAX_RETRIES} for clip ${clipNumber}/${totalClips} using model: ${currentModelInfo.name} (cost: $${currentModelInfo.cost}, ${currentModelInfo.description})`
       )
 
       const output = await replicate.run(currentModel, { input })
@@ -536,16 +551,16 @@ async function generateSingleClipWithRetry(
         errorMessage.includes('E005')
       ) {
         logger.warn(
-          `🛡️ Content filtered by ${FALLBACK_KLING_MODELS[currentModelIndex]} (E005)`,
+          `🛡️ Content filtered by ${FALLBACK_KLING_MODELS[currentModelIndex].name} (E005)`,
           errorDetails
         )
 
         // ✅ ПРОБУЕМ СЛЕДУЮЩУЮ МОДЕЛЬ KLING ВМЕСТО ЗАВЕРШЕНИЯ!
         if (currentModelIndex < FALLBACK_KLING_MODELS.length - 1) {
           currentModelIndex++
-          const nextModel = FALLBACK_KLING_MODELS[currentModelIndex]
+          const nextModelInfo = FALLBACK_KLING_MODELS[currentModelIndex]
           logger.info(
-            `🔄 Switching to next model: ${nextModel} due to safety filter`
+            `🔄 Switching to next model: ${nextModelInfo.name} (cost: $${nextModelInfo.cost}, ${nextModelInfo.description}) due to safety filter`
           )
 
           // ✅ СБРАСЫВАЕМ СЧЕТЧИК ПОПЫТОК ДЛЯ НОВОЙ МОДЕЛИ

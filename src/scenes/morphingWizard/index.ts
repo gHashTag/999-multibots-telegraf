@@ -7,6 +7,7 @@ import { generateMorphing } from '../../services/generateMorphing'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
+import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
 import { isValidImage } from '../../helpers/images'
 import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
@@ -640,6 +641,39 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
       imagesCount: ctx.session.morphingImages.length,
     })
 
+    // ===== 💰 ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
+    logger.info('[startMorphingGeneration] Processing balance for morphing', {
+      telegramId: ctx.from?.id,
+      modelId: MORPHING_MODEL_KEY,
+    })
+
+    const balanceResult = await processBalanceVideoOperationHelper(
+      String(ctx.from!.id),
+      MORPHING_MODEL_KEY,
+      isRu,
+      ctx.botInfo?.username || 'unknown_bot',
+      'morphing'
+    )
+
+    if (!balanceResult.success || balanceResult.newBalance === undefined) {
+      logger.error('[startMorphingGeneration] Balance check failed', {
+        telegramId: ctx.from?.id,
+        error: balanceResult.error,
+      })
+      await ctx.reply(
+        balanceResult.error ||
+          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed')
+      )
+      return
+    }
+
+    logger.info('[startMorphingGeneration] Balance sufficient and deducted', {
+      telegramId: ctx.from?.id,
+      paymentAmount: balanceResult.paymentAmount,
+      newBalance: balanceResult.newBalance,
+    })
+    // ===== 💰 КОНЕЦ СПИСАНИЯ БАЛАНСА =====
+
     // Показываем информацию о стоимости
     const imagesCount = ctx.session.morphingImages.length
     const transitionsCount = withLoop
@@ -665,6 +699,8 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 💫 <b>Стоимость за переход:</b> ${finalPriceInStars}⭐  
 💎 <b>Общая стоимость:</b> ${totalCost}⭐
 
+⚠️ <b>ВАЖНО:</b> При ошибках безопасности система попробует альтернативные модели Kling (v1.6 Standard, v2.0), что может увеличить стоимость до $3-5 за клип. Это происходит автоматически для обхода фильтров с лицами.
+
 ✨ Создаю потрясающий морфинг для вас...
 ⏳ Может занять до 5 минут, ожидайте...`
       : `💰 <b>Cost Information:</b>
@@ -674,6 +710,8 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 🔄 <b>Video transitions:</b> ${transitionsCount}
 💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐  
 💎 <b>Total cost:</b> ${totalCost}⭐
+
+⚠️ <b>IMPORTANT:</b> If safety filters reject content, system will automatically try alternative Kling models (v1.6 Standard, v2.0), which may increase cost to $3-5 per clip. This happens automatically to bypass face filters.
 
 ✨ Creating amazing morphing for you...
 ⏳ This may take up to 5 minutes, please wait...`
