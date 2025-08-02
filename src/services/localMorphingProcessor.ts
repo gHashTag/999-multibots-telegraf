@@ -17,6 +17,8 @@ interface MorphingVideoOptions {
     clipNumber: number,
     totalClips: number
   ) => Promise<void>
+  // ✅ Возобновление с определенного клипа (для восстановления после ошибок)
+  resumeFromClip?: number
 }
 
 interface ReplicateClient {
@@ -27,14 +29,127 @@ interface ReplicateClient {
  * 🧬 Локальный процессор морфинга без Inngest
  * Использует прямые вызовы к Replicate API и FFmpeg
  */
-// ✅ RETRY CONFIGURATION
-const MAX_RETRIES = 2 // Максимум 2 попытки для каждого клипа
-const RETRY_DELAY = 3000 // 3 секунды между попытками
+// ✅ RETRY CONFIGURATION (УСИЛЕННЫЙ)
+const MAX_RETRIES = 5 // Максимум 5 попыток для каждого клипа
+const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
+
+// ✅ CHECKPOINT SYSTEM (для возобновления процесса)
+interface MorphingCheckpoint {
+  telegram_id: string
+  imagePaths: string[]
+  tempDir: string
+  totalClips: number
+  completedClips: number[]
+  lastClipIndex: number
+  timestamp: number
+}
+
+// Сохранение checkpoint'а
+function saveCheckpoint(checkpoint: MorphingCheckpoint): void {
+  try {
+    const checkpointPath = path.join(
+      checkpoint.tempDir,
+      'morphing_checkpoint.json'
+    )
+    fs.writeFileSync(checkpointPath, JSON.stringify(checkpoint, null, 2))
+    logger.info(
+      `✅ Checkpoint saved: ${checkpoint.completedClips.length}/${checkpoint.totalClips} clips done`,
+      {
+        telegramId: checkpoint.telegram_id,
+        completedClips: checkpoint.completedClips,
+      }
+    )
+  } catch (error) {
+    logger.warn('⚠️ Failed to save checkpoint', {
+      error,
+      telegramId: checkpoint.telegram_id,
+    })
+  }
+}
+
+// Загрузка checkpoint'а
+function loadCheckpoint(tempDir: string): MorphingCheckpoint | null {
+  try {
+    const checkpointPath = path.join(tempDir, 'morphing_checkpoint.json')
+    if (fs.existsSync(checkpointPath)) {
+      const data = fs.readFileSync(checkpointPath, 'utf8')
+      const checkpoint = JSON.parse(data) as MorphingCheckpoint
+      logger.info(
+        `🔄 Checkpoint loaded: ${checkpoint.completedClips.length}/${checkpoint.totalClips} clips done`,
+        {
+          telegramId: checkpoint.telegram_id,
+          completedClips: checkpoint.completedClips,
+        }
+      )
+      return checkpoint
+    }
+  } catch (error) {
+    logger.warn('⚠️ Failed to load checkpoint', { error })
+  }
+  return null
+}
+
+// ✅ ЭКСПОРТ ФУНКЦИИ ВОЗОБНОВЛЕНИЯ ПРОЦЕССА
+export async function resumeMorphingFromCheckpoint(
+  tempDir: string,
+  telegram_id: string,
+  onIntermediateVideo?: (
+    videoPath: string,
+    clipNumber: number,
+    totalClips: number
+  ) => Promise<void>
+): Promise<string | null> {
+  const checkpoint = loadCheckpoint(tempDir)
+  if (!checkpoint) {
+    logger.warn('🔍 No checkpoint found for resuming', {
+      telegramId: telegram_id,
+    })
+    return null
+  }
+
+  logger.info(`🔄 Resuming morphing from checkpoint`, {
+    telegramId: telegram_id,
+    completedClips: checkpoint.completedClips.length,
+    totalClips: checkpoint.totalClips,
+    lastClipIndex: checkpoint.lastClipIndex,
+  })
+
+  // Возобновляем с того места, где остановились
+  return await createMorphingVideo({
+    imagePaths: checkpoint.imagePaths,
+    tempDir: checkpoint.tempDir,
+    telegram_id: checkpoint.telegram_id,
+    onIntermediateVideo,
+    resumeFromClip: checkpoint.lastClipIndex + 1,
+  })
+}
 
 export async function createMorphingVideo(
   options: MorphingVideoOptions
 ): Promise<string> {
-  const { imagePaths, tempDir, telegram_id, onIntermediateVideo } = options
+  const {
+    imagePaths,
+    tempDir,
+    telegram_id,
+    onIntermediateVideo,
+    resumeFromClip,
+  } = options
+
+  // ✅ ПРОВЕРЯЕМ CHECKPOINT ДЛЯ ВОЗОБНОВЛЕНИЯ
+  let checkpoint = loadCheckpoint(tempDir)
+  let startFromClip = resumeFromClip || 0
+
+  if (checkpoint && !resumeFromClip) {
+    logger.info(
+      `🔄 Found existing checkpoint, resuming from clip ${checkpoint.lastClipIndex + 1}`,
+      {
+        telegramId: telegram_id,
+        completedClips: checkpoint.completedClips.length,
+        totalClips: checkpoint.totalClips,
+      }
+    )
+    startFromClip = checkpoint.lastClipIndex + 1
+  }
 
   logger.info('🧬 [LOCAL MORPHING] Starting video generation', {
     imageCount: imagePaths.length,
@@ -68,21 +183,55 @@ export async function createMorphingVideo(
 
     logger.info(`📸 Created ${imagePairs.length} image pairs for morphing`)
 
-    // ✅ Шаг 2: Генерация морфинг клипов через Replicate Kling API
+    // ✅ Шаг 2: Генерация морфинг клипов через Replicate Kling API (с поддержкой checkpoint)
     const videoClipUrls: string[] = []
 
+    // Инициализируем checkpoint если его еще нет
+    if (!checkpoint) {
+      checkpoint = {
+        telegram_id,
+        imagePaths,
+        tempDir,
+        totalClips: imagePairs.length,
+        completedClips: [],
+        lastClipIndex: -1,
+        timestamp: Date.now(),
+      }
+    }
+
     for (const pair of imagePairs) {
+      const clipIndex = pair.index
+
+      // ✅ ПРОПУСКАЕМ УЖЕ СОЗДАННЫЕ КЛИПЫ
+      if (
+        clipIndex < startFromClip ||
+        checkpoint.completedClips.includes(clipIndex)
+      ) {
+        logger.info(
+          `⏭️ Skipping already completed clip ${clipIndex + 1}/${imagePairs.length}`
+        )
+        // Для пропущенных клипов добавляем пустую строку (заполним при загрузке)
+        videoClipUrls.push('')
+        continue
+      }
+
       logger.info(
-        `🧬 Generating morph clip ${pair.index + 1}/${imagePairs.length}`
+        `🧬 Generating morph clip ${clipIndex + 1}/${imagePairs.length}`
       )
 
       // ✅ ГЕНЕРАЦИЯ КЛИПА С RETRY ЛОГИКОЙ
       const videoUrl = await generateSingleClipWithRetry(
         pair,
-        pair.index + 1,
+        clipIndex + 1,
         imagePairs.length
       )
       videoClipUrls.push(videoUrl)
+
+      // ✅ СОХРАНЯЕМ CHECKPOINT ПОСЛЕ КАЖДОГО УСПЕШНОГО КЛИПА
+      checkpoint.completedClips.push(clipIndex)
+      checkpoint.lastClipIndex = clipIndex
+      checkpoint.timestamp = Date.now()
+      saveCheckpoint(checkpoint)
     }
 
     if (videoClipUrls.length !== imagePairs.length) {
@@ -98,6 +247,55 @@ export async function createMorphingVideo(
       const videoUrl = videoClipUrls[i]
       const clipPath = path.join(tempDir, `clip_${i}.mp4`)
 
+      // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ УЖЕ СКАЧАННЫЙ ФАЙЛ
+      if (fs.existsSync(clipPath)) {
+        logger.info(`⏭️ File already exists, skipping download: ${clipPath}`)
+        downloadedClipPaths.push(clipPath)
+
+        // ✅ ОТПРАВЛЯЕМ УЖЕ СУЩЕСТВУЮЩИЙ КЛИП ПОЛЬЗОВАТЕЛЮ (если еще не отправляли)
+        if (onIntermediateVideo && videoUrl) {
+          // videoUrl не пустой = новый клип
+          try {
+            console.log(
+              `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО отправляю СУЩЕСТВУЮЩИЙ клип ${i + 1}/${videoClipUrls.length}!`
+            )
+            const callbackStart = Date.now()
+            await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
+            const callbackTime = Date.now() - callbackStart
+            console.log(
+              `✅ [LOCAL PROCESSOR] Существующий клип отправлен за ${callbackTime}ms!`
+            )
+            logger.info(
+              `📤 Sent existing intermediate clip ${i + 1} to user IMMEDIATELY`,
+              {
+                callbackTimeMs: callbackTime,
+                clipPath,
+              }
+            )
+          } catch (sendError) {
+            console.log(
+              `❌ [LOCAL PROCESSOR] Ошибка отправки существующего клипа ${i + 1}:`,
+              sendError
+            )
+            logger.warn(
+              `⚠️ Failed to send existing intermediate clip ${i + 1}`,
+              {
+                error: sendError,
+                clipPath,
+                telegram_id,
+              }
+            )
+          }
+        }
+        continue
+      }
+
+      // ✅ ПРОПУСКАЕМ ПУСТЫЕ URL (уже созданные клипы)
+      if (!videoUrl) {
+        logger.warn(`⚠️ Empty video URL for clip ${i + 1}, skipping download`)
+        continue
+      }
+
       logger.info(`📥 Downloading clip ${i + 1}/${videoClipUrls.length}`)
 
       try {
@@ -105,12 +303,30 @@ export async function createMorphingVideo(
         downloadedClipPaths.push(clipPath)
         logger.info(`✅ Downloaded clip ${i + 1}: ${clipPath}`)
 
-        // ✅ ОТПРАВЛЯЕМ ПРОМЕЖУТОЧНОЕ ВИДЕО ПОЛЬЗОВАТЕЛЮ СРАЗУ
+        // ✅ ОТПРАВЛЯЕМ ПРОМЕЖУТОЧНОЕ ВИДЕО ПОЛЬЗОВАТЕЛЮ СРАЗУ ЖЕ!
         if (onIntermediateVideo) {
           try {
+            console.log(
+              `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО вызываю callback для клипа ${i + 1}/${videoClipUrls.length}!`
+            )
+            const callbackStart = Date.now()
             await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
-            logger.info(`📤 Sent intermediate clip ${i + 1} to user`)
+            const callbackTime = Date.now() - callbackStart
+            console.log(
+              `✅ [LOCAL PROCESSOR] Callback выполнен за ${callbackTime}ms!`
+            )
+            logger.info(
+              `📤 Sent intermediate clip ${i + 1} to user IMMEDIATELY`,
+              {
+                callbackTimeMs: callbackTime,
+                clipPath,
+              }
+            )
           } catch (sendError) {
+            console.log(
+              `❌ [LOCAL PROCESSOR] Ошибка в callback для клипа ${i + 1}:`,
+              sendError
+            )
             logger.warn(`⚠️ Failed to send intermediate clip ${i + 1}`, {
               error: sendError,
               clipPath,
@@ -187,6 +403,22 @@ export async function createMorphingVideo(
       fileSizeMB: (finalVideoSize / (1024 * 1024)).toFixed(2),
       telegram_id,
     })
+
+    // ✅ УДАЛЯЕМ CHECKPOINT ПОСЛЕ УСПЕШНОГО ЗАВЕРШЕНИЯ
+    try {
+      const checkpointPath = path.join(tempDir, 'morphing_checkpoint.json')
+      if (fs.existsSync(checkpointPath)) {
+        fs.unlinkSync(checkpointPath)
+        logger.info('🗑️ Checkpoint cleaned up after successful completion', {
+          telegramId: telegram_id,
+        })
+      }
+    } catch (cleanupError) {
+      logger.warn('⚠️ Failed to cleanup checkpoint', {
+        error: cleanupError,
+        telegramId: telegram_id,
+      })
+    }
 
     return finalVideoPath
   } catch (error) {
@@ -304,15 +536,16 @@ async function generateSingleClipWithRetry(
         throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
       }
 
-      // 🔄 RETRY ДЛЯ ДРУГИХ ОШИБОК
+      // 🔄 RETRY ДЛЯ ДРУГИХ ОШИБОК с экспоненциальной задержкой
       if (attempt < MAX_RETRIES) {
+        const retryDelay = BASE_RETRY_DELAY * Math.pow(2, attempt - 1) // Экспоненциальная задержка
         logger.warn(
-          `⚠️ Attempt ${attempt} failed, retrying in ${RETRY_DELAY}ms...`,
+          `⚠️ Attempt ${attempt} failed, retrying in ${retryDelay}ms... (exponential backoff)`,
           errorDetails
         )
 
-        // Пауза перед следующей попыткой
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+        // Пауза перед следующей попыткой (экспоненциально увеличивается)
+        await new Promise(resolve => setTimeout(resolve, retryDelay))
         continue
       }
 
