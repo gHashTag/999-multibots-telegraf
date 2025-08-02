@@ -485,7 +485,16 @@ export const generateAdvancedFluxKontext = async (
       ctx,
     } = params
 
-    const modelKey = `black-forest-labs/flux-kontext-${modelType}`
+    // Выбираем модель в зависимости от режима
+    let modelKey: string
+    if (mode === 'multi') {
+      // Для режима объединения двух изображений используем специальную модель
+      modelKey = 'flux-kontext-apps/multi-image-kontext-pro'
+    } else {
+      // Для остальных режимов используем стандартные модели
+      modelKey = `black-forest-labs/flux-kontext-${modelType}`
+    }
+
     const modelConfig = FLUX_KONTEXT_MODELS[modelKey]
 
     if (!modelConfig) {
@@ -548,20 +557,26 @@ export const generateAdvancedFluxKontext = async (
 
     // Получаем название режима для отображения
     const modeNames = {
+      quick: is_ru ? '⚡ Быстрое редактирование' : '⚡ Quick Edit',
       single: is_ru ? 'Одиночное редактирование' : 'Single Image Edit',
-      multi: is_ru ? 'Объединение изображений' : 'Multi-Image Combine',
+      multi: is_ru ? '🔗 Объединение изображений' : '🔗 Multi-Image Combine',
       portrait_series: is_ru ? 'Серия портретов' : 'Portrait Series',
       haircut: is_ru ? 'Изменение стрижки' : 'Change Haircut',
       landmarks: is_ru ? 'Знаменитые места' : 'Iconic Locations',
       headshot: is_ru ? 'Профессиональный портрет' : 'Professional Headshot',
     }
 
+    // Получаем название режима с fallback
+    const modeName =
+      modeNames[mode as keyof typeof modeNames] ||
+      (is_ru ? 'Стандартное редактирование' : 'Standard Edit')
+
     // Отправка сообщения о начале обработки
     await ctx.telegram.sendMessage(
       telegram_id,
       is_ru
-        ? `✨ Обрабатываю изображение в режиме "${modeNames[mode]}"...\n\n💎 Стоимость: ${cost} ⭐${cost > originalCost ? ` (базовая ${originalCost}⭐ + наценка ${cost - originalCost}⭐)` : ''}`
-        : `✨ Processing image in "${modeNames[mode]}" mode...\n\n💎 Cost: ${cost} ⭐${cost > originalCost ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)` : ''}`,
+        ? `✨ Обрабатываю изображение в режиме "${modeName}"...\n\n💎 Стоимость: ${cost} ⭐${cost > originalCost ? ` (базовая ${originalCost}⭐ + наценка ${cost - originalCost}⭐)` : ''}`
+        : `✨ Processing image in "${modeName}" mode...\n\n💎 Cost: ${cost} ⭐${cost > originalCost ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)` : ''}`,
       {
         reply_markup: { remove_keyboard: true },
       }
@@ -575,12 +590,16 @@ export const generateAdvancedFluxKontext = async (
 
     // Для мульти-режима добавляем второе изображение
     if (mode === 'multi' && imageB) {
-      // В FLUX Kontext для объединения изображений может использоваться специальный подход
-      // Пока используем первое изображение и модифицируем промпт
-      inputParams.prompt = `Combine with second image: ${prompt}. Merge the elements, people, or objects from both images seamlessly while maintaining natural lighting and composition.`
+      // Для модели flux-kontext-apps/multi-image-kontext-pro используем второе изображение
+      inputParams.input_image_2 = imageB
+      inputParams.prompt = `Combine and merge these two images seamlessly: ${prompt}. Create a natural composition that blends both images while maintaining coherent lighting, perspective, and artistic style.`
 
-      // TODO: Здесь можно добавить специальную логику для обработки второго изображения
-      // Например, создать композитное изображение или использовать специальные техники
+      logger.info('Multi-image mode: Using both images', {
+        telegram_id,
+        hasImageA: !!imageA,
+        hasImageB: !!imageB,
+        modelKey,
+      })
     }
 
     logger.info(`Advanced FLUX Kontext editing started`, {
@@ -659,8 +678,8 @@ export const generateAdvancedFluxKontext = async (
       },
       {
         caption: is_ru
-          ? `✨ Изображение обработано!\n\n🎯 Режим: ${modeNames[mode]}\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}\n💎 Стоимость: ${cost} ⭐${cost > originalCost ? ` (базовая ${originalCost}⭐ + наценка ${cost - originalCost}⭐)` : ''}`
-          : `✨ Image processed!\n\n🎯 Mode: ${modeNames[mode]}\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}\n💎 Cost: ${cost} ⭐${cost > originalCost ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)` : ''}`,
+          ? `✨ Изображение обработано!\n\n🎯 Режим: ${modeName}\n📝 Запрос: ${prompt}\n🤖 Модель: ${mode === 'multi' ? 'FLUX Multi-Kontext' : `FLUX Kontext ${modelType.toUpperCase()}`}\n💎 Стоимость: ${cost} ⭐${cost > originalCost ? ` (базовая ${originalCost}⭐ + наценка ${cost - originalCost}⭐)` : ''}`
+          : `✨ Image processed!\n\n🎯 Mode: ${modeName}\n📝 Prompt: ${prompt}\n🤖 Model: ${mode === 'multi' ? 'FLUX Multi-Kontext' : `FLUX Kontext ${modelType.toUpperCase()}`}\n💎 Cost: ${cost} ⭐${cost > originalCost ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)` : ''}`,
         reply_markup: advancedKeyboard.reply_markup,
       }
     )
