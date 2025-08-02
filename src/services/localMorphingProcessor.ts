@@ -11,6 +11,12 @@ interface MorphingVideoOptions {
   imagePaths: string[]
   tempDir: string
   telegram_id: string
+  // ✅ Callback для отправки промежуточных видео пользователю
+  onIntermediateVideo?: (
+    videoPath: string,
+    clipNumber: number,
+    totalClips: number
+  ) => Promise<void>
 }
 
 interface ReplicateClient {
@@ -28,7 +34,7 @@ const RETRY_DELAY = 3000 // 3 секунды между попытками
 export async function createMorphingVideo(
   options: MorphingVideoOptions
 ): Promise<string> {
-  const { imagePaths, tempDir, telegram_id } = options
+  const { imagePaths, tempDir, telegram_id, onIntermediateVideo } = options
 
   logger.info('🧬 [LOCAL MORPHING] Starting video generation', {
     imageCount: imagePaths.length,
@@ -98,6 +104,21 @@ export async function createMorphingVideo(
         await downloadFile(videoUrl, clipPath)
         downloadedClipPaths.push(clipPath)
         logger.info(`✅ Downloaded clip ${i + 1}: ${clipPath}`)
+
+        // ✅ ОТПРАВЛЯЕМ ПРОМЕЖУТОЧНОЕ ВИДЕО ПОЛЬЗОВАТЕЛЮ СРАЗУ
+        if (onIntermediateVideo) {
+          try {
+            await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
+            logger.info(`📤 Sent intermediate clip ${i + 1} to user`)
+          } catch (sendError) {
+            logger.warn(`⚠️ Failed to send intermediate clip ${i + 1}`, {
+              error: sendError,
+              clipPath,
+              telegram_id,
+            })
+            // Не прерываем процесс, если отправка промежуточного видео упала
+          }
+        }
       } catch (downloadError) {
         logger.error(`❌ Failed to download clip ${i + 1}`, {
           error: downloadError,
