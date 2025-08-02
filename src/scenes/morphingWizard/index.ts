@@ -206,19 +206,46 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
 
 <i>📤 Send your first image:</i>`
 
-    await ctx.reply(welcomeMessage, {
-      parse_mode: 'HTML',
-      reply_markup: Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'morphing_cancel')],
-      ]).reply_markup,
-    })
+    try {
+      await ctx.reply(welcomeMessage, {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? 'Отмена' : 'Cancel',
+              'morphing_cancel'
+            ),
+          ],
+        ]).reply_markup,
+      })
 
-    logger.info(
-      '🧬 [MORPHING WIZARD] Step 1 - Welcome message sent, moving to next step',
-      {
+      logger.info(
+        '🧬 [MORPHING WIZARD] Step 1 - Welcome message sent, moving to next step',
+        {
+          telegramId: ctx.from?.id,
+        }
+      )
+    } catch (error) {
+      console.log('❌ [MORPHING_WIZARD] Error sending welcome message:', error)
+      logger.error('Error sending welcome message in morphing wizard', {
+        error: error instanceof Error ? error.message : 'Unknown error',
         telegramId: ctx.from?.id,
+      })
+
+      // Fallback - отправляем простое сообщение без разметки
+      try {
+        await ctx.reply(
+          isRu
+            ? '🧬 Морфинг - загрузите первое изображение:'
+            : '🧬 Morphing - upload first image:'
+        )
+      } catch (fallbackError) {
+        console.log(
+          '❌ [MORPHING_WIZARD] Even fallback message failed:',
+          fallbackError
+        )
       }
-    )
+    }
 
     return ctx.wizard.next()
   },
