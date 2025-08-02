@@ -622,56 +622,64 @@ async function generateSingleClipWithRetry(
         pair: pair.index,
       }
 
-      // 🛡️ ОБРАБОТКА ОШИБКИ ЧУВСТВИТЕЛЬНОГО КОНТЕНТА (E005) - ПРОБУЕМ СЛЕДУЮЩУЮ МОДЕЛЬ!
+      // 🛡️ ОБРАБОТКА ОШИБКИ ЧУВСТВИТЕЛЬНОГО КОНТЕНТА (E005) - СНАЧАЛА БОЛЬШЕ ПОПЫТОК!
       if (
         errorMessage.includes('flagged as sensitive') ||
         errorMessage.includes('E005')
       ) {
         logger.warn(
-          `🛡️ Content filtered by ${FALLBACK_KLING_MODELS[currentModelIndex].name} (E005)`,
+          `🛡️ Content filtered by ${FALLBACK_KLING_MODELS[currentModelIndex].name} (E005) - attempt ${attempt}/${MAX_RETRIES}`,
           errorDetails
         )
 
-        // ✅ ПРОБУЕМ СЛЕДУЮЩУЮ МОДЕЛЬ KLING ВМЕСТО ЗАВЕРШЕНИЯ!
-        if (currentModelIndex < FALLBACK_KLING_MODELS.length - 1) {
-          currentModelIndex++
-          const nextModelInfo = FALLBACK_KLING_MODELS[currentModelIndex]
+        // ✅ СНАЧАЛА ИСЧЕРПЫВАЕМ ВСЕ ПОПЫТКИ НА ТЕКУЩЕЙ МОДЕЛИ
+        if (attempt < MAX_RETRIES) {
           logger.info(
-            `🔄 Switching to next model: ${nextModelInfo.name} (cost: $${nextModelInfo.cost}, ${nextModelInfo.description}) due to safety filter`
+            `⏳ Retrying with same model ${FALLBACK_KLING_MODELS[currentModelIndex].name} (${attempt + 1}/${MAX_RETRIES}) - E005 can be temporary`
           )
-
-          // ✅ СБРАСЫВАЕМ СЧЕТЧИК ПОПЫТОК ДЛЯ НОВОЙ МОДЕЛИ
-          attempt = 0 // будет инкрементирован в начале цикла
-          continue
+          // Продолжаем цикл для следующей попытки
         } else {
-          // ❌ ВСЕ МОДЕЛИ KLING ИСЧЕРПАНЫ - БРОСАЕМ ФИНАЛЬНУЮ ОШИБКУ
-          logger.error('🛡️ All Kling models rejected content (E005)', {
-            ...errorDetails,
-            attemptedModels: FALLBACK_KLING_MODELS.slice(
-              0,
-              currentModelIndex + 1
-            ),
-          })
+          // ✅ ТОЛЬКО ПОСЛЕ 5 ПОПЫТОК - ПРОБУЕМ СЛЕДУЮЩУЮ МОДЕЛЬ!
+          if (currentModelIndex < FALLBACK_KLING_MODELS.length - 1) {
+            currentModelIndex++
+            const nextModelInfo = FALLBACK_KLING_MODELS[currentModelIndex]
+            logger.info(
+              `🔄 All ${MAX_RETRIES} attempts failed for ${FALLBACK_KLING_MODELS[currentModelIndex - 1].name}. Switching to: ${nextModelInfo.name} (cost: $${nextModelInfo.cost}, ${nextModelInfo.description})`
+            )
 
-          const userErrorRu =
-            '🛡️ Ваши изображения были отклонены ВСЕМИ версиями Kling AI.\n\n' +
-            '📋 Возможные причины:\n' +
-            '• Изображения содержат лица людей\n' +
-            '• Защищенный контент (персонажи, знаменитости)\n' +
-            '• Автоматические фильтры безопасности\n\n' +
-            '💡 Решение: Попробуйте использовать другие изображения (пейзажи, предметы, абстракции)\n' +
-            `🔄 Попробованы модели: ${FALLBACK_KLING_MODELS.join(', ')}`
+            // ✅ СБРАСЫВАЕМ СЧЕТЧИК ПОПЫТОК ДЛЯ НОВОЙ МОДЕЛИ
+            attempt = 0 // будет инкрементирован в начале цикла
+            continue
+          } else {
+            // ❌ ВСЕ МОДЕЛИ KLING ИСЧЕРПАНЫ - БРОСАЕМ ФИНАЛЬНУЮ ОШИБКУ
+            logger.error('🛡️ All Kling models rejected content (E005)', {
+              ...errorDetails,
+              attemptedModels: FALLBACK_KLING_MODELS.slice(
+                0,
+                currentModelIndex + 1
+              ),
+            })
 
-          const userErrorEn =
-            '🛡️ Your images were rejected by ALL Kling AI models.\n\n' +
-            '📋 Possible reasons:\n' +
-            '• Images contain human faces\n' +
-            '• Protected content (characters, celebrities)\n' +
-            '• Automatic security filters\n\n' +
-            '💡 Solution: Try using different images (landscapes, objects, abstractions)\n' +
-            `🔄 Attempted models: ${FALLBACK_KLING_MODELS.join(', ')}`
+            const userErrorRu =
+              '🛡️ Ваши изображения были отклонены ВСЕМИ версиями Kling AI после 5 попыток на каждой модели.\n\n' +
+              '📋 Возможные причины:\n' +
+              '• Изображения содержат лица людей\n' +
+              '• Защищенный контент (персонажи, знаменитости)\n' +
+              '• Автоматические фильтры безопасности\n\n' +
+              '💡 Решение: Попробуйте использовать другие изображения (пейзажи, предметы, абстракции)\n' +
+              `🔄 Попробованы модели: ${FALLBACK_KLING_MODELS.map(m => m.name).join(', ')}`
 
-          throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
+            const userErrorEn =
+              '🛡️ Your images were rejected by ALL Kling AI models after 5 attempts per model.\n\n' +
+              '📋 Possible reasons:\n' +
+              '• Images contain human faces\n' +
+              '• Protected content (characters, celebrities)\n' +
+              '• Automatic security filters\n\n' +
+              '💡 Solution: Try using different images (landscapes, objects, abstractions)\n' +
+              `🔄 Attempted models: ${FALLBACK_KLING_MODELS.map(m => m.name).join(', ')}`
+
+            throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
+          }
         }
       }
 
