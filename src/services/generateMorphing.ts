@@ -3,7 +3,7 @@ import { API_URL } from '@/config'
 import { logger } from '@/utils/logger'
 import { sendMediaToPulse } from '@/helpers/pulse'
 import { getBotTokenByName } from '@/core/getBotTokenByName'
-import { Telegraf } from 'telegraf'
+import { Telegraf, Markup } from 'telegraf'
 
 interface MorphingRequest {
   images: Array<{
@@ -157,6 +157,24 @@ export async function generateMorphing(
         telegramId: requestData.telegram_id,
         videoPath: finalVideoPath,
       })
+
+      // ✅ ДОБАВЛЯЕМ КНОПКИ ДЛЯ ПРОДОЛЖЕНИЯ РАБОТЫ
+      const keyboard = Markup.keyboard([
+        [
+          requestData.is_ru
+            ? '🧬 Создать еще морфинг'
+            : '🧬 Create Another Morphing',
+        ],
+        [requestData.is_ru ? '🏠 Главное меню' : '🏠 Main Menu'],
+      ]).resize()
+
+      await bot.telegram.sendMessage(
+        requestData.telegram_id,
+        requestData.is_ru
+          ? 'Ваш морфинг готов! Что дальше?'
+          : 'Your morphing is ready! What next?',
+        keyboard
+      )
     } catch (sendVideoError: any) {
       // Если ошибка 413 (файл слишком большой), отправляем ссылку
       if (
@@ -232,6 +250,24 @@ export async function generateMorphing(
           originalVideoPath: finalVideoPath,
           environment: isDev ? 'development' : 'production',
         })
+
+        // ✅ ДОБАВЛЯЕМ КНОПКИ ДЛЯ ПРОДОЛЖЕНИЯ РАБОТЫ (большой файл)
+        const keyboardBigFile = Markup.keyboard([
+          [
+            requestData.is_ru
+              ? '🧬 Создать еще морфинг'
+              : '🧬 Create Another Morphing',
+          ],
+          [requestData.is_ru ? '🏠 Главное меню' : '🏠 Main Menu'],
+        ]).resize()
+
+        await bot.telegram.sendMessage(
+          requestData.telegram_id,
+          requestData.is_ru
+            ? 'Ваш морфинг готов! Что дальше?'
+            : 'Your morphing is ready! What next?',
+          keyboardBigFile
+        )
       } else {
         throw sendVideoError
       }
