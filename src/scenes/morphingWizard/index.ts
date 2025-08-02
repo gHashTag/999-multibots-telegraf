@@ -529,6 +529,16 @@ morphingWizard.action('morphing_start_generation', async ctx => {
       ctx.wizard.cursor
     )
 
+    // ✅ ПРИНУДИТЕЛЬНО ВЫПОЛНЯЕМ ШАГИ ПОСЛЕ СМЕНЫ КУРСОРА
+    console.log('🚀 [MORPHING_START] About to execute current step...')
+    const currentStepHandler = ctx.wizard.step
+    if (typeof currentStepHandler === 'function') {
+      console.log('🚀 [MORPHING_START] Executing current step handler...')
+      await currentStepHandler(ctx)
+    } else {
+      console.log('❌ [MORPHING_START] No step handler found!')
+    }
+
     return
   } catch (error) {
     console.log('❌ [MORPHING_START] ERROR:', error)
