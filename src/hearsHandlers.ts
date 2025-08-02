@@ -197,7 +197,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         return // Пользователь перенаправлен в subscriptionScene
       }
 
-      ctx.session.mode = ModeEnum.NeuroPhotoV2
+      ctx.session.mode = ModeEnum.NeuroPhoto
       await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
@@ -212,7 +212,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
 
     await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.NeuroPhoto
+    ctx.session.mode = ModeEnum.NeuroPhotoV2
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 

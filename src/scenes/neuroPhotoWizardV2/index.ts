@@ -65,7 +65,14 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       }
     } else {
       console.log('🔧 Используем стандартную функцию V2 для обычного бота')
+      // Сначала пробуем BFL модели
       userModel = await getLatestUserModel(Number(telegramId), 'bfl')
+
+      // Если BFL модель не найдена, пробуем Replicate
+      if (!userModel) {
+        console.log('🔄 BFL модель не найдена, пробуем replicate')
+        userModel = await getLatestUserModel(Number(telegramId), 'replicate')
+      }
     }
 
     console.log('userModel V2', userModel)
