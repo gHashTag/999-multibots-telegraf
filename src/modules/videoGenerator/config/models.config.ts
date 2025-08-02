@@ -138,15 +138,16 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'kling-v2.0': {
     id: 'kling-v2.0',
     title: 'Kling v2.0',
-    inputType: ['image'],
-    description: 'Новейшая модель Kling (цена за секунду)',
+    inputType: ['image', 'morph'],
+    description:
+      '🔥 ПРЕМИУМ: Новейшая модель Kling высокого качества (цена за секунду)',
     basePrice: 0.28,
     api: {
       model: 'kwaivgi/kling-v2.0',
       input: {},
     },
     imageKey: 'start_image',
-    canMorph: false,
+    canMorph: true,
   },
   'hunyuan-video-fast': {
     id: 'hunyuan-video-fast',
