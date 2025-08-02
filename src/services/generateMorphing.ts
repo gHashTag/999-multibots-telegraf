@@ -123,22 +123,57 @@ export async function generateMorphing(
       }
     }
 
+    // ✅ ПОЛУЧАЕМ BOT TOKEN ЗАРАНЕЕ
+    const botToken = getBotTokenByName(requestData.botName)
+    if (!botToken) {
+      throw new Error(`Bot token not found for: ${requestData.botName}`)
+    }
+
     // ✅ ПРЯМАЯ ОБРАБОТКА МОРФИНГА через Replicate API
     const { createMorphingVideo } = await import(
       '@/services/localMorphingProcessor'
     )
 
+    // ✅ СОЗДАЕМ CALLBACK ДЛЯ ОТПРАВКИ ПРОМЕЖУТОЧНЫХ ВИДЕО
+    const sendIntermediateVideo = async (
+      clipPath: string,
+      clipNumber: number,
+      totalClips: number
+    ) => {
+      const bot = new Telegraf(botToken)
+
+      const intermediateCaption = requestData.is_ru
+        ? `🧬 Промежуточное видео ${clipNumber}/${totalClips}\n\n🎬 Переход между изображениями ${clipNumber} → ${clipNumber + 1}\n\n⏳ Создание остальных видео продолжается...`
+        : `🧬 Intermediate video ${clipNumber}/${totalClips}\n\n🎬 Transition between images ${clipNumber} → ${clipNumber + 1}\n\n⏳ Creating remaining videos...`
+
+      try {
+        await bot.telegram.sendVideo(
+          requestData.telegram_id,
+          { source: clipPath },
+          { caption: intermediateCaption }
+        )
+        logger.info(`✅ Intermediate video ${clipNumber} sent to user`, {
+          telegramId: requestData.telegram_id,
+          clipPath,
+        })
+      } catch (error) {
+        logger.warn(`⚠️ Failed to send intermediate video ${clipNumber}`, {
+          error: error,
+          telegramId: requestData.telegram_id,
+          clipPath,
+        })
+        // Не бросаем ошибку, чтобы не прерывать основной процесс
+      }
+    }
+
     const finalVideoPath = await createMorphingVideo({
       imagePaths,
       tempDir: fullTempDir,
       telegram_id: requestData.telegram_id,
+      onIntermediateVideo: sendIntermediateVideo,
     })
 
-    // ✅ ОТПРАВКА ГОТОВОГО ВИДЕО В TELEGRAM
-    const botToken = getBotTokenByName(requestData.botName)
-    if (!botToken) {
-      throw new Error(`Bot token not found for: ${requestData.botName}`)
-    }
+    // ✅ ОТПРАВКА ФИНАЛЬНОГО ВИДЕО В TELEGRAM
 
     const bot = new Telegraf(botToken)
     const caption = requestData.is_ru
