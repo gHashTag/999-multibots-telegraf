@@ -129,12 +129,15 @@ export async function generateMorphing(
       throw new Error(`Bot token not found for: ${requestData.botName}`)
     }
 
+    // ✅ СОЗДАЕМ БОТ ОДИН РАЗ ДЛЯ ВСЕХ ОТПРАВОК
+    const bot = new Telegraf(botToken)
+
     // ✅ ПРЯМАЯ ОБРАБОТКА МОРФИНГА через Replicate API
     const { createMorphingVideo } = await import(
       '@/services/localMorphingProcessor'
     )
 
-    // ✅ СОЗДАЕМ CALLBACK ДЛЯ ОТПРАВКИ ПРОМЕЖУТОЧНЫХ ВИДЕО
+    // ✅ СОЗДАЕМ CALLBACK ДЛЯ НЕМЕДЛЕННОЙ ОТПРАВКИ ПРОМЕЖУТОЧНЫХ ВИДЕО
     const sendIntermediateVideo = async (
       clipPath: string,
       clipNumber: number,
@@ -149,23 +152,40 @@ export async function generateMorphing(
         return
       }
 
-      const bot = new Telegraf(botToken)
+      console.log(
+        `🚀 [IMMEDIATE SEND] Отправляю промежуточное видео ${clipNumber}/${totalClips} СРАЗУ!`
+      )
 
       const intermediateCaption = requestData.is_ru
         ? `🧬 Промежуточное видео ${clipNumber}/${totalClips}\n\n🎬 Переход между изображениями ${clipNumber} → ${clipNumber + 1}\n\n⏳ Создание остальных видео продолжается...`
         : `🧬 Intermediate video ${clipNumber}/${totalClips}\n\n🎬 Transition between images ${clipNumber} → ${clipNumber + 1}\n\n⏳ Creating remaining videos...`
 
       try {
+        // ✅ НЕМЕДЛЕННАЯ ОТПРАВКА БЕЗ ЗАДЕРЖЕК И ОЧЕРЕДЕЙ
+        const startTime = Date.now()
         await bot.telegram.sendVideo(
           requestData.telegram_id,
           { source: clipPath },
-          { caption: intermediateCaption }
+          {
+            caption: intermediateCaption,
+            // Отправляем без сжатия для максимальной скорости
+            supports_streaming: true,
+          }
         )
-        logger.info(`✅ Intermediate video ${clipNumber} sent to user`, {
+        const sendTime = Date.now() - startTime
+        console.log(
+          `✅ [IMMEDIATE SEND] Промежуточное видео ${clipNumber} отправлено за ${sendTime}ms!`
+        )
+        logger.info(`✅ Intermediate video ${clipNumber} sent IMMEDIATELY`, {
           telegramId: requestData.telegram_id,
           clipPath,
+          sendTimeMs: sendTime,
         })
       } catch (error) {
+        console.log(
+          `❌ [IMMEDIATE SEND] Ошибка отправки промежуточного видео ${clipNumber}:`,
+          error
+        )
         logger.warn(`⚠️ Failed to send intermediate video ${clipNumber}`, {
           error: error,
           telegramId: requestData.telegram_id,
@@ -182,9 +202,8 @@ export async function generateMorphing(
       onIntermediateVideo: sendIntermediateVideo,
     })
 
-    // ✅ ОТПРАВКА ФИНАЛЬНОГО ВИДЕО В TELEGRAM
+    // ✅ ОТПРАВКА ФИНАЛЬНОГО ВИДЕО В TELEGRAM (используем тот же bot)
 
-    const bot = new Telegraf(botToken)
     const caption = requestData.is_ru
       ? '🧬 Ваше морфинг-видео готово! Наслаждайтесь плавными переходами между изображениями!'
       : '🧬 Your morphing video is ready! Enjoy the smooth transitions between images!'

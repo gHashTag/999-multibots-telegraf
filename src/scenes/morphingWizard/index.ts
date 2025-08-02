@@ -10,6 +10,7 @@ import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
 import { isValidImage } from '../../helpers/images'
 import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
+import * as path from 'path'
 
 // ✅ КОНСТАНТА ДЛЯ МОДЕЛИ МОРФИНГА
 const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
@@ -146,6 +147,13 @@ const createProgressKeyboard = (images: any[], isRu: boolean) => {
     Markup.button.callback(
       isRu ? '🔄 Начать заново' : '🔄 Start over',
       'morphing_restart'
+    ),
+  ])
+
+  keyboard.push([
+    Markup.button.callback(
+      isRu ? '⚡ Продолжить незавершенное' : '⚡ Resume incomplete',
+      'morphing_resume'
     ),
   ])
 
@@ -406,12 +414,76 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     }
 
     return // Остаемся на том же шаге
+  },
+
+  // ✅ ШАГ 3: Выбор типа морфинга (LOOP или LINEAR)
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+
+    logger.info('🧬 [MORPHING WIZARD] Step 3 - Loop Selection', {
+      telegramId: ctx.from?.id,
+      imagesCount: ctx.session?.morphingImages?.length || 0,
+    })
+
+    const loopMessage = isRu
+      ? `🔄 <b>Выбор типа морфинга</b>
+
+🔄 <b>С зацикливанием (LOOP):</b>
+• Последнее изображение плавно переходит в первое
+• Получается бесконечная анимация
+• Идеально для презентаций и фонов
+
+➡️ <b>Линейный (БЕЗ лупа):</b>
+• Простые переходы от первого к последнему
+• Классический стиль морфинга
+• Лучше для последовательных историй
+
+Какой тип предпочитаете?`
+      : `🔄 <b>Choose Morphing Type</b>
+
+🔄 <b>With Loop:</b>
+• Last image smoothly transitions to first
+• Creates infinite animation
+• Perfect for presentations and backgrounds
+
+➡️ <b>Linear (NO loop):</b>
+• Simple transitions from first to last
+• Classic morphing style
+• Better for sequential stories
+
+Which type do you prefer?`
+
+    await ctx.reply(loopMessage, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? '🔄 С зацикливанием' : '🔄 With Loop',
+            'morphing_confirm_loop'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '➡️ Без зацикливания' : '➡️ No Loop',
+            'morphing_confirm_linear'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '🔙 Назад к загрузке' : '🔙 Back to upload',
+            'morphing_back_to_upload'
+          ),
+        ],
+      ]).reply_markup,
+    })
+
+    return // Остаемся на этом шаге до выбора
   }
 )
 
 // ✅ ОБРАБОТЧИКИ КНОПОК
 
-// Кнопка "Создать морфинг"
+// Кнопка "Создать морфинг" - переход к выбору лупа
 morphingWizard.action('morphing_start_generation', async ctx => {
   try {
     console.log('🚀 [MORPHING_START] Action triggered!')
@@ -427,6 +499,85 @@ morphingWizard.action('morphing_start_generation', async ctx => {
       return
     }
 
+    // ✅ ПЕРЕХОДИМ К ШАГУ ВЫБОРА ЛУПА
+    return ctx.wizard.next()
+  } catch (error) {
+    logger.error('Error in morphing_start_generation', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// ✅ НОВЫЕ CALLBACK'И ДЛЯ ВЫБОРА ЛУПА
+
+// Подтверждение LOOP морфинга
+morphingWizard.action('morphing_confirm_loop', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Сохраняем тип морфинга в сессии
+    if (ctx.session) {
+      ctx.session.morphingType = 'loop'
+    }
+
+    await startMorphingGeneration(ctx, true) // true = with loop
+  } catch (error) {
+    logger.error('Error in morphing_confirm_loop', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Подтверждение LINEAR морфинга
+morphingWizard.action('morphing_confirm_linear', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Сохраняем тип морфинга в сессии
+    if (ctx.session) {
+      ctx.session.morphingType = 'linear'
+    }
+
+    await startMorphingGeneration(ctx, false) // false = no loop
+  } catch (error) {
+    logger.error('Error in morphing_confirm_linear', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Возврат к загрузке
+morphingWizard.action('morphing_back_to_upload', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    return ctx.wizard.back() // Возвращаемся к шагу 2
+  } catch (error) {
+    logger.error('Error in morphing_back_to_upload', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// ✅ ФУНКЦИЯ ЗАПУСКА МОРФИНГА (ВЫДЕЛЕНА ИЗ CALLBACK'А)
+async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
+  const isRu = isRussianFromState(ctx)
+
+  if (!ctx.session?.morphingImages || ctx.session.morphingImages.length < 2) {
+    await ctx.reply(
+      isRu
+        ? '❌ Необходимо минимум 2 изображения для создания морфинга.'
+        : '❌ Minimum 2 images required to create morphing.'
+    )
+    return
+  }
+
+  try {
     logger.info('🧬 [MORPHING WIZARD] Starting generation', {
       telegramId: ctx.from?.id,
       imagesCount: ctx.session.morphingImages.length,
@@ -434,23 +585,36 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 
     // Показываем информацию о стоимости
     const imagesCount = ctx.session.morphingImages.length
-    const transitionsCount = imagesCount - 1 // Линейные переходы: 1→2, 2→3, 3→4 (без зацикливания)
+    const transitionsCount = withLoop
+      ? imagesCount // С лупом: 1→2, 2→3, 3→1 (включая возврат к первому)
+      : imagesCount - 1 // Линейные переходы: 1→2, 2→3, 3→4 (без зацикливания)
     const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
     const totalCost = finalPriceInStars * transitionsCount
+
+    const morphingTypeText = isRu
+      ? withLoop
+        ? '🔄 С зацикливанием (LOOP)'
+        : '➡️ Линейный (БЕЗ лупа)'
+      : withLoop
+        ? '🔄 With Loop'
+        : '➡️ Linear (No Loop)'
 
     const costMessage = isRu
       ? `💰 <b>Информация о стоимости:</b>
 
 📸 <b>Изображений:</b> ${imagesCount}  
-🎬 <b>Видео переходов:</b> ${transitionsCount}
+🎬 <b>Тип:</b> ${morphingTypeText}
+🔄 <b>Видео переходов:</b> ${transitionsCount}
 💫 <b>Стоимость за переход:</b> ${finalPriceInStars}⭐  
 💎 <b>Общая стоимость:</b> ${totalCost}⭐
 
-✨ Создаю потрясающий морфинг для вас...`
+✨ Создаю потрясающий морфинг для вас...
+⏳ Может занять до 5 минут, ожидайте...`
       : `💰 <b>Cost Information:</b>
 
 📸 <b>Images:</b> ${imagesCount}  
-🎬 <b>Video transitions:</b> ${transitionsCount}
+🎬 <b>Type:</b> ${morphingTypeText}
+🔄 <b>Video transitions:</b> ${transitionsCount}
 💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐  
 💎 <b>Total cost:</b> ${totalCost}⭐
 
@@ -469,6 +633,7 @@ morphingWizard.action('morphing_start_generation', async ctx => {
       botName: ctx.botInfo?.username || 'ai_koshey_bot',
       imageCount: imagesCount,
       morphingType: 'seamless',
+      withLoop: withLoop, // ✅ ПЕРЕДАЕМ ПАРАМЕТР ЛУПА
     })
 
     // Уведомляем о запуске обработки
@@ -524,7 +689,7 @@ Please try again or contact support.`
 
     await ctx.scene.leave()
   }
-})
+}
 
 // Кнопка "Начать заново"
 morphingWizard.action('morphing_restart', async ctx => {
@@ -602,6 +767,64 @@ morphingWizard.action('morphing_cancel', async ctx => {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
+  }
+})
+
+// ✅ КНОПКА "ПРОДОЛЖИТЬ НЕЗАВЕРШЕННОЕ"
+morphingWizard.action('morphing_resume', async ctx => {
+  try {
+    console.log('⚡ [MORPHING_RESUME] Action triggered!')
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Ищем checkpoint в temp директории пользователя
+    const telegram_id = ctx.from!.id.toString()
+    const tempDir = path.join(process.cwd(), 'temp', `morphing_${telegram_id}`)
+
+    const { resumeMorphingFromCheckpoint } = await import(
+      '@/services/localMorphingProcessor'
+    )
+
+    const resumeResult = await resumeMorphingFromCheckpoint(
+      tempDir,
+      telegram_id,
+      // Callback для отправки промежуточных видео
+      async (videoPath: string, clipNumber: number, totalClips: number) => {
+        const bot = ctx.tg
+        const caption = isRu
+          ? `🧬 Промежуточное видео ${clipNumber}/${totalClips}\n\n🎬 Переход между изображениями ${clipNumber} → ${clipNumber + 1}\n\n⏳ Создание остальных видео продолжается...`
+          : `🧬 Intermediate video ${clipNumber}/${totalClips}\n\n🎬 Transition between images ${clipNumber} → ${clipNumber + 1}\n\n⏳ Creating remaining videos...`
+
+        await bot.sendVideo(ctx.chat!.id, { source: videoPath }, { caption })
+      }
+    )
+
+    if (resumeResult) {
+      await ctx.reply(
+        isRu
+          ? '✅ Морфинг успешно возобновлен и завершен!'
+          : '✅ Morphing successfully resumed and completed!'
+      )
+    } else {
+      await ctx.reply(
+        isRu
+          ? '⚠️ Не найдено незавершенных процессов морфинга для возобновления.'
+          : '⚠️ No incomplete morphing processes found to resume.'
+      )
+    }
+  } catch (error) {
+    console.log('❌ [MORPHING_RESUME] Error occurred:', error)
+    logger.error('Error resuming morphing', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+
+    const isRu = isRussianFromState(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка при попытке возобновить морфинг. Попробуйте начать заново.'
+        : '❌ Error trying to resume morphing. Please try starting over.'
+    )
   }
 })
 
