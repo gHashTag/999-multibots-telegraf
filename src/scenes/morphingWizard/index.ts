@@ -13,7 +13,7 @@ import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
 import * as path from 'path'
 
-// ✅ КОНСТАНТА ДЛЯ МОДЕЛИ МОРФИНГА
+// ✅ КОНСТАНТА ДЛЯ МОДЕЛИ МОРФИНГА (ПРЕМИУМ КАЧЕСТВО)
 const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
 
 // ✅ ZIP архив больше не нужен - работаем напрямую с изображениями

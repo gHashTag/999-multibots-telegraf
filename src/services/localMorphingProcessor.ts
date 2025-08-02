@@ -36,9 +36,15 @@ const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунд�
 // ✅ СПИСОК РЕАЛЬНО СУЩЕСТВУЮЩИХ KLING МОДЕЛЕЙ С ИХ СТОИМОСТЬЮ (ПРОВЕРЕНО В ИНТЕРНЕТЕ!)
 const FALLBACK_KLING_MODELS = [
   {
+    id: 'kwaivgi/kling-v2.0',
+    name: 'Kling v2.0',
+    cost: 3.0, // ~$0.3 за секунду * 10 сек = $3.0 (ПРЕМИУМ модель, лучшее качество)
+    description: '🔥 ПРЕМИУМ: Новейшая модель, высокое качество',
+  },
+  {
     id: 'kwaivgi/kling-v1.6-pro',
     name: 'Kling v1.6 Pro',
-    cost: 1.96, // ~$1.96 за 10-сек клип (самая дорогая, но лучшее качество)
+    cost: 1.96, // ~$1.96 за 10-сек клип (хорошее качество)
     description: '1080p, строгие фильтры',
   },
   {
@@ -46,12 +52,6 @@ const FALLBACK_KLING_MODELS = [
     name: 'Kling v1.6 Standard',
     cost: 0.56, // ~$0.56 за 10-сек клип (дешевле, менее строгая)
     description: '720p, менее строгие фильтры',
-  },
-  {
-    id: 'kwaivgi/kling-v2.0',
-    name: 'Kling v2.0',
-    cost: 3.0, // ~$0.3 за секунду * 10 сек = $3.0 (новая модель)
-    description: '720p, может обходить некоторые фильтры',
   },
 ] as const
 
@@ -375,7 +375,8 @@ export async function createMorphingVideo(
 
       logger.info(`🔧 Normalizing clip ${i + 1}/${downloadedClipPaths.length}`)
 
-      const normalizeCommand = `ffmpeg -y -i "${inputClip}" -r 25 -c:v libx264 -preset fast "${normalizedClip}"`
+      // ✅ ИСПРАВЛЕНО: Нормализация с одинаковым разрешением для склейки
+      const normalizeCommand = `ffmpeg -y -i "${inputClip}" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1" -r 25 -c:v libx264 -preset fast "${normalizedClip}"`
 
       try {
         await execAsync(normalizeCommand)
