@@ -160,9 +160,12 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
 
+    console.log('🧬 [MORPHING WIZARD] Step 1 - Scene Entry!')
     logger.info('🧬 [MORPHING WIZARD] Step 1 - Scene Entry', {
       telegramId: ctx.from?.id,
       username: ctx.from?.username,
+      sessionExists: !!ctx.session,
+      currentCursor: ctx.wizard?.cursor,
     })
 
     // Очищаем предыдущие данные
@@ -200,6 +203,13 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
         [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'morphing_cancel')],
       ]).reply_markup,
     })
+
+    logger.info(
+      '🧬 [MORPHING WIZARD] Step 1 - Welcome message sent, moving to next step',
+      {
+        telegramId: ctx.from?.id,
+      }
+    )
 
     return ctx.wizard.next()
   },
@@ -404,6 +414,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
 // Кнопка "Создать морфинг"
 morphingWizard.action('morphing_start_generation', async ctx => {
   try {
+    console.log('🚀 [MORPHING_START] Action triggered!')
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
@@ -518,10 +529,20 @@ Please try again or contact support.`
 // Кнопка "Начать заново"
 morphingWizard.action('morphing_restart', async ctx => {
   try {
+    console.log('🔄 [MORPHING_RESTART] Action triggered!')
+    logger.info('🔄 [MORPHING_RESTART] Action triggered', {
+      telegramId: ctx.from?.id,
+      sessionExists: !!ctx.session,
+      isRestarting: ctx.session?.morphingRestarting,
+    })
+
     await ctx.answerCbQuery()
 
     // ✅ ЗАЩИТА ОТ СПАМА: Проверяем что не выполняется уже перезапуск
     if (ctx.session?.morphingRestarting) {
+      logger.info('🔄 [MORPHING_RESTART] Already restarting, skipping', {
+        telegramId: ctx.from?.id,
+      })
       return
     }
 
@@ -534,13 +555,17 @@ morphingWizard.action('morphing_restart', async ctx => {
 
     // ✅ ИСПРАВЛЕНИЕ: Перезапускаем сцену БЕЗ дополнительного сообщения
     // (приветственное сообщение появится автоматически при reenter)
+    console.log('🔄 [MORPHING_RESTART] Reentering scene...')
     await ctx.scene.reenter()
+    console.log('🔄 [MORPHING_RESTART] Scene reentered successfully!')
 
     // ✅ КРИТИЧЕСКИЙ БАГФИКС: Сбрасываем флаг после успешного перезапуска
     if (ctx.session) {
       ctx.session.morphingRestarting = false
     }
+    console.log('🔄 [MORPHING_RESTART] Restart completed!')
   } catch (error) {
+    console.log('❌ [MORPHING_RESTART] Error occurred:', error)
     logger.error('Error restarting morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
@@ -549,12 +574,14 @@ morphingWizard.action('morphing_restart', async ctx => {
     if (ctx.session) {
       ctx.session.morphingRestarting = false
     }
+    console.log('❌ [MORPHING_RESTART] Reset restart flag due to error')
   }
 })
 
 // Кнопка "Отмена"
 morphingWizard.action('morphing_cancel', async ctx => {
   try {
+    console.log('❌ [MORPHING_CANCEL] Action triggered!')
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
@@ -564,7 +591,12 @@ morphingWizard.action('morphing_cancel', async ctx => {
         : '❌ Morphing creation cancelled. Returning to main menu.'
     )
 
+    console.log('❌ [MORPHING_CANCEL] Leaving scene...')
     await ctx.scene.leave()
+    console.log('❌ [MORPHING_CANCEL] Scene left, entering MainMenu...')
+
+    // Принудительно возвращаемся в главное меню
+    await ctx.scene.enter(ModeEnum.MainMenu)
   } catch (error) {
     logger.error('Error cancelling morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',
