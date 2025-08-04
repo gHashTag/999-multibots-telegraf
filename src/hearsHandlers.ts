@@ -537,6 +537,39 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  // ОБРАБОТЧИК ДЛЯ "СОЗДАТЬ ЕЩЕ МОРФИНГ"
+  bot.hears(
+    ['🧬 Создать еще морфинг', '🧬 Create Another Morphing'],
+    async (ctx: MyContext) => {
+      logger.info('HEARS: Создать еще морфинг', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        if (ctx.scene.current) {
+          await ctx.scene.leave()
+        }
+        await ctx.scene.enter('morphing_wizard')
+      } catch (error) {
+        logger.error(
+          'Error entering morphing_wizard from "Создать еще морфинг" hears:',
+          {
+            error: error,
+            errorString: String(error),
+            errorJson: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+            telegramId: ctx.from?.id,
+          }
+        )
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRu = isRussianFromState(ctx)
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при попытке создать морфинг. Попробуйте вернуться в главное меню.'
+            : 'An error occurred while trying to create morphing. Please try returning to the main menu.'
+        )
+      }
+    }
+  )
+
   bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async (ctx: MyContext) => {
     if (!('text' in ctx.message)) {
       logger.warn('Получено нетекстовое сообщение для числового hears')
