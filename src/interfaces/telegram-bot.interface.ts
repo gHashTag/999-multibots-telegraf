@@ -291,6 +291,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // Avatar transformation fields
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
   selectedHero?: string // Выбранный герой Marvel для трансформации
+
+  // Morphing fields
+  morphingType?: 'loop' | 'linear' // Тип морфинга
 }
 
 export interface MyContext extends Context {

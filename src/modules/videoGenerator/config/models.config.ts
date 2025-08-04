@@ -125,21 +125,23 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'kling-v1.6-standard': {
     id: 'kling-v1.6-standard',
     title: 'Kling v1.6 Standard',
-    inputType: ['image'],
-    description: 'Стандартная анимация Kling (цена за секунду)',
+    inputType: ['image', 'morph'],
+    description:
+      'Стандартная анимация Kling с поддержкой морфинга (цена за секунду)',
     basePrice: 0.056,
     api: {
       model: 'kwaivgi/kling-v1.6-standard',
       input: {},
     },
     imageKey: 'start_image',
-    canMorph: false,
+    canMorph: true,
   },
   'kling-v2.0': {
     id: 'kling-v2.0',
     title: 'Kling v2.0',
     inputType: ['image'],
-    description: 'Новейшая модель Kling (цена за секунду)',
+    description:
+      'Новейшая модель Kling (только для image-to-video, морфинг НЕ поддерживается)',
     basePrice: 0.28,
     api: {
       model: 'kwaivgi/kling-v2.0',

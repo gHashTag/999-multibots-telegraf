@@ -31,6 +31,16 @@ export const FLUX_KONTEXT_MODELS: Record<string, FluxKontextModelInfo> = {
     inputType: ['text', 'image'],
     category: 'image-editing',
   },
+  'flux-kontext-apps/multi-image-kontext-pro': {
+    shortName: 'FLUX Multi-Kontext [pro]',
+    description_en: `Experimental model with FLUX Kontext Pro that can combine two input images. Perfect for creating seamless composites, merging different scenes, or blending multiple visual elements into a unified artistic vision.`,
+    description_ru: `Экспериментальная модель с FLUX Kontext Pro, которая может объединять два входных изображения. Идеально для создания бесшовных композитов, объединения разных сцен или смешивания нескольких визуальных элементов в единое художественное видение.`,
+    previewImage:
+      'https://replicate.delivery/pbxt/N55l5TWGh8mSlNzW8usReoaNhGbFwvLeZR3TX1NL4pd2Wtfv/replicate-prediction-f2d25rg6gnrma0cq257vdw2n4c.png',
+    costPerImage: calculateFinalImageCostInStars(0.04),
+    inputType: ['text', 'image'],
+    category: 'image-editing',
+  },
 }
 
 // Экспорт для использования в основном конфиге моделей

@@ -7,10 +7,68 @@ import { logger } from '@/utils/logger'
 
 const execAsync = promisify(exec)
 
+// ✅ ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ РАЗРЕШЕНИЯ ВИДЕО
+async function getVideoResolution(
+  videoPath: string
+): Promise<{ width: number; height: number }> {
+  try {
+    const command = `ffprobe -v quiet -print_format json -show_streams "${videoPath}"`
+    const { stdout } = await execAsync(command)
+    const data = JSON.parse(stdout)
+
+    const videoStream = data.streams.find(
+      (stream: any) => stream.codec_type === 'video'
+    )
+    if (!videoStream) {
+      throw new Error('No video stream found')
+    }
+
+    return {
+      width: parseInt(videoStream.width),
+      height: parseInt(videoStream.height),
+    }
+  } catch (error) {
+    logger.error('Failed to get video resolution', { error, videoPath })
+    // Fallback к стандартному разрешению
+    return { width: 1280, height: 720 }
+  }
+}
+
+// ✅ ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ ЦЕЛЕВОГО РАЗРЕШЕНИЯ
+function getTargetResolution(
+  width: number,
+  height: number
+): { width: number; height: number; aspectRatio: string } {
+  const aspectRatio = width / height
+
+  logger.info(
+    `🎬 Analyzing aspect ratio: ${width}x${height} (ratio: ${aspectRatio.toFixed(2)})`
+  )
+
+  if (aspectRatio > 1.5) {
+    // Горизонтальное видео (16:9 или подобное)
+    return { width: 1280, height: 720, aspectRatio: '16:9 (horizontal)' }
+  } else if (aspectRatio < 0.75) {
+    // Вертикальное видео (9:16 или подобное)
+    return { width: 720, height: 1280, aspectRatio: '9:16 (vertical)' }
+  } else {
+    // Квадратное или близкое к квадратному (1:1)
+    return { width: 1024, height: 1024, aspectRatio: '1:1 (square)' }
+  }
+}
+
 interface MorphingVideoOptions {
   imagePaths: string[]
   tempDir: string
   telegram_id: string
+  // ✅ Callback для отправки промежуточных видео пользователю
+  onIntermediateVideo?: (
+    videoPath: string,
+    clipNumber: number,
+    totalClips: number
+  ) => Promise<void>
+  // ✅ Возобновление с определенного клипа (для восстановления после ошибок)
+  resumeFromClip?: number
 }
 
 interface ReplicateClient {
@@ -21,14 +79,143 @@ interface ReplicateClient {
  * 🧬 Локальный процессор морфинга без Inngest
  * Использует прямые вызовы к Replicate API и FFmpeg
  */
-// ✅ RETRY CONFIGURATION
-const MAX_RETRIES = 2 // Максимум 2 попытки для каждого клипа
-const RETRY_DELAY = 3000 // 3 секунды между попытками
+// ✅ RETRY CONFIGURATION (УСИЛЕННЫЙ)
+const MAX_RETRIES = 5 // Максимум 5 попыток для каждого клипа
+const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
+
+// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (ТОЛЬКО 1.6 ВЕРСИИ!)
+const FALLBACK_KLING_MODELS = [
+  {
+    id: 'kwaivgi/kling-v1.6-pro',
+    name: 'Kling v1.6 Pro',
+    cost: 1.96, // ~$1.96 за 10-сек клип (лучшее качество для морфинга)
+    description: '1080p, основная модель для морфинга',
+  },
+  {
+    id: 'kwaivgi/kling-v1.6-standard',
+    name: 'Kling v1.6 Standard',
+    cost: 0.56, // ~$0.56 за 10-сек клип (запасная модель)
+    description: '720p, fallback модель если Pro отказалась',
+  },
+] as const
+
+// ✅ CHECKPOINT SYSTEM (для возобновления процесса)
+interface MorphingCheckpoint {
+  telegram_id: string
+  imagePaths: string[]
+  tempDir: string
+  totalClips: number
+  completedClips: number[]
+  lastClipIndex: number
+  timestamp: number
+}
+
+// Сохранение checkpoint'а
+function saveCheckpoint(checkpoint: MorphingCheckpoint): void {
+  try {
+    const checkpointPath = path.join(
+      checkpoint.tempDir,
+      'morphing_checkpoint.json'
+    )
+    fs.writeFileSync(checkpointPath, JSON.stringify(checkpoint, null, 2))
+    logger.info(
+      `✅ Checkpoint saved: ${checkpoint.completedClips.length}/${checkpoint.totalClips} clips done`,
+      {
+        telegramId: checkpoint.telegram_id,
+        completedClips: checkpoint.completedClips,
+      }
+    )
+  } catch (error) {
+    logger.warn('⚠️ Failed to save checkpoint', {
+      error,
+      telegramId: checkpoint.telegram_id,
+    })
+  }
+}
+
+// Загрузка checkpoint'а
+function loadCheckpoint(tempDir: string): MorphingCheckpoint | null {
+  try {
+    const checkpointPath = path.join(tempDir, 'morphing_checkpoint.json')
+    if (fs.existsSync(checkpointPath)) {
+      const data = fs.readFileSync(checkpointPath, 'utf8')
+      const checkpoint = JSON.parse(data) as MorphingCheckpoint
+      logger.info(
+        `🔄 Checkpoint loaded: ${checkpoint.completedClips.length}/${checkpoint.totalClips} clips done`,
+        {
+          telegramId: checkpoint.telegram_id,
+          completedClips: checkpoint.completedClips,
+        }
+      )
+      return checkpoint
+    }
+  } catch (error) {
+    logger.warn('⚠️ Failed to load checkpoint', { error })
+  }
+  return null
+}
+
+// ✅ ЭКСПОРТ ФУНКЦИИ ВОЗОБНОВЛЕНИЯ ПРОЦЕССА
+export async function resumeMorphingFromCheckpoint(
+  tempDir: string,
+  telegram_id: string,
+  onIntermediateVideo?: (
+    videoPath: string,
+    clipNumber: number,
+    totalClips: number
+  ) => Promise<void>
+): Promise<string | null> {
+  const checkpoint = loadCheckpoint(tempDir)
+  if (!checkpoint) {
+    logger.warn('🔍 No checkpoint found for resuming', {
+      telegramId: telegram_id,
+    })
+    return null
+  }
+
+  logger.info(`🔄 Resuming morphing from checkpoint`, {
+    telegramId: telegram_id,
+    completedClips: checkpoint.completedClips.length,
+    totalClips: checkpoint.totalClips,
+    lastClipIndex: checkpoint.lastClipIndex,
+  })
+
+  // Возобновляем с того места, где остановились
+  return await createMorphingVideo({
+    imagePaths: checkpoint.imagePaths,
+    tempDir: checkpoint.tempDir,
+    telegram_id: checkpoint.telegram_id,
+    onIntermediateVideo,
+    resumeFromClip: checkpoint.lastClipIndex + 1,
+  })
+}
 
 export async function createMorphingVideo(
   options: MorphingVideoOptions
 ): Promise<string> {
-  const { imagePaths, tempDir, telegram_id } = options
+  const {
+    imagePaths,
+    tempDir,
+    telegram_id,
+    onIntermediateVideo,
+    resumeFromClip,
+  } = options
+
+  // ✅ ПРОВЕРЯЕМ CHECKPOINT ДЛЯ ВОЗОБНОВЛЕНИЯ
+  let checkpoint = loadCheckpoint(tempDir)
+  let startFromClip = resumeFromClip || 0
+
+  if (checkpoint && !resumeFromClip) {
+    logger.info(
+      `🔄 Found existing checkpoint, resuming from clip ${checkpoint.lastClipIndex + 1}`,
+      {
+        telegramId: telegram_id,
+        completedClips: checkpoint.completedClips.length,
+        totalClips: checkpoint.totalClips,
+      }
+    )
+    startFromClip = checkpoint.lastClipIndex + 1
+  }
 
   logger.info('🧬 [LOCAL MORPHING] Starting video generation', {
     imageCount: imagePaths.length,
@@ -62,21 +249,55 @@ export async function createMorphingVideo(
 
     logger.info(`📸 Created ${imagePairs.length} image pairs for morphing`)
 
-    // ✅ Шаг 2: Генерация морфинг клипов через Replicate Kling API
+    // ✅ Шаг 2: Генерация морфинг клипов через Replicate Kling API (с поддержкой checkpoint)
     const videoClipUrls: string[] = []
 
+    // Инициализируем checkpoint если его еще нет
+    if (!checkpoint) {
+      checkpoint = {
+        telegram_id,
+        imagePaths,
+        tempDir,
+        totalClips: imagePairs.length,
+        completedClips: [],
+        lastClipIndex: -1,
+        timestamp: Date.now(),
+      }
+    }
+
     for (const pair of imagePairs) {
+      const clipIndex = pair.index
+
+      // ✅ ПРОПУСКАЕМ УЖЕ СОЗДАННЫЕ КЛИПЫ
+      if (
+        clipIndex < startFromClip ||
+        checkpoint.completedClips.includes(clipIndex)
+      ) {
+        logger.info(
+          `⏭️ Skipping already completed clip ${clipIndex + 1}/${imagePairs.length}`
+        )
+        // Для пропущенных клипов добавляем пустую строку (заполним при загрузке)
+        videoClipUrls.push('')
+        continue
+      }
+
       logger.info(
-        `🧬 Generating morph clip ${pair.index + 1}/${imagePairs.length}`
+        `🧬 Generating morph clip ${clipIndex + 1}/${imagePairs.length}`
       )
 
       // ✅ ГЕНЕРАЦИЯ КЛИПА С RETRY ЛОГИКОЙ
       const videoUrl = await generateSingleClipWithRetry(
         pair,
-        pair.index + 1,
+        clipIndex + 1,
         imagePairs.length
       )
       videoClipUrls.push(videoUrl)
+
+      // ✅ СОХРАНЯЕМ CHECKPOINT ПОСЛЕ КАЖДОГО УСПЕШНОГО КЛИПА
+      checkpoint.completedClips.push(clipIndex)
+      checkpoint.lastClipIndex = clipIndex
+      checkpoint.timestamp = Date.now()
+      saveCheckpoint(checkpoint)
     }
 
     if (videoClipUrls.length !== imagePairs.length) {
@@ -92,12 +313,94 @@ export async function createMorphingVideo(
       const videoUrl = videoClipUrls[i]
       const clipPath = path.join(tempDir, `clip_${i}.mp4`)
 
+      // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ УЖЕ СКАЧАННЫЙ ФАЙЛ
+      if (fs.existsSync(clipPath)) {
+        logger.info(`⏭️ File already exists, skipping download: ${clipPath}`)
+        downloadedClipPaths.push(clipPath)
+
+        // ✅ ОТПРАВЛЯЕМ УЖЕ СУЩЕСТВУЮЩИЙ КЛИП ПОЛЬЗОВАТЕЛЮ (если еще не отправляли)
+        if (onIntermediateVideo && videoUrl) {
+          // videoUrl не пустой = новый клип
+          try {
+            console.log(
+              `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО отправляю СУЩЕСТВУЮЩИЙ клип ${i + 1}/${videoClipUrls.length}!`
+            )
+            const callbackStart = Date.now()
+            await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
+            const callbackTime = Date.now() - callbackStart
+            console.log(
+              `✅ [LOCAL PROCESSOR] Существующий клип отправлен за ${callbackTime}ms!`
+            )
+            logger.info(
+              `📤 Sent existing intermediate clip ${i + 1} to user IMMEDIATELY`,
+              {
+                callbackTimeMs: callbackTime,
+                clipPath,
+              }
+            )
+          } catch (sendError) {
+            console.log(
+              `❌ [LOCAL PROCESSOR] Ошибка отправки существующего клипа ${i + 1}:`,
+              sendError
+            )
+            logger.warn(
+              `⚠️ Failed to send existing intermediate clip ${i + 1}`,
+              {
+                error: sendError,
+                clipPath,
+                telegram_id,
+              }
+            )
+          }
+        }
+        continue
+      }
+
+      // ✅ ПРОПУСКАЕМ ПУСТЫЕ URL (уже созданные клипы)
+      if (!videoUrl) {
+        logger.warn(`⚠️ Empty video URL for clip ${i + 1}, skipping download`)
+        continue
+      }
+
       logger.info(`📥 Downloading clip ${i + 1}/${videoClipUrls.length}`)
 
       try {
         await downloadFile(videoUrl, clipPath)
         downloadedClipPaths.push(clipPath)
         logger.info(`✅ Downloaded clip ${i + 1}: ${clipPath}`)
+
+        // ✅ ОТПРАВЛЯЕМ ПРОМЕЖУТОЧНОЕ ВИДЕО ПОЛЬЗОВАТЕЛЮ СРАЗУ ЖЕ!
+        if (onIntermediateVideo) {
+          try {
+            console.log(
+              `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО вызываю callback для клипа ${i + 1}/${videoClipUrls.length}!`
+            )
+            const callbackStart = Date.now()
+            await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
+            const callbackTime = Date.now() - callbackStart
+            console.log(
+              `✅ [LOCAL PROCESSOR] Callback выполнен за ${callbackTime}ms!`
+            )
+            logger.info(
+              `📤 Sent intermediate clip ${i + 1} to user IMMEDIATELY`,
+              {
+                callbackTimeMs: callbackTime,
+                clipPath,
+              }
+            )
+          } catch (sendError) {
+            console.log(
+              `❌ [LOCAL PROCESSOR] Ошибка в callback для клипа ${i + 1}:`,
+              sendError
+            )
+            logger.warn(`⚠️ Failed to send intermediate clip ${i + 1}`, {
+              error: sendError,
+              clipPath,
+              telegram_id,
+            })
+            // Не прерываем процесс, если отправка промежуточного видео упала
+          }
+        }
       } catch (downloadError) {
         logger.error(`❌ Failed to download clip ${i + 1}`, {
           error: downloadError,
@@ -107,16 +410,49 @@ export async function createMorphingVideo(
       }
     }
 
-    // ✅ Шаг 4: Нормализация клипов (постоянная частота кадров)
+    // ✅ Шаг 4: Определение целевого разрешения и нормализация клипов
     const normalizedClipPaths: string[] = []
+    let targetResolution: {
+      width: number
+      height: number
+      aspectRatio: string
+    } | null = null
+
+    // Определяем целевое разрешение на основе первого клипа
+    if (downloadedClipPaths.length > 0) {
+      logger.info('🎯 Determining target resolution from first clip...')
+      const firstClipResolution = await getVideoResolution(
+        downloadedClipPaths[0]
+      )
+      targetResolution = getTargetResolution(
+        firstClipResolution.width,
+        firstClipResolution.height
+      )
+      logger.info(
+        `✅ Target resolution selected: ${targetResolution.width}x${targetResolution.height} (${targetResolution.aspectRatio})`
+      )
+    }
+
+    // Fallback если не удалось определить разрешение
+    if (!targetResolution) {
+      targetResolution = {
+        width: 1280,
+        height: 720,
+        aspectRatio: '16:9 (default)',
+      }
+      logger.warn('⚠️ Using default resolution 1280x720')
+    }
 
     for (let i = 0; i < downloadedClipPaths.length; i++) {
       const inputClip = downloadedClipPaths[i]
       const normalizedClip = path.join(tempDir, `normalized_clip_${i}.mp4`)
 
-      logger.info(`🔧 Normalizing clip ${i + 1}/${downloadedClipPaths.length}`)
+      logger.info(
+        `🔧 Normalizing clip ${i + 1}/${downloadedClipPaths.length} to ${targetResolution.width}x${targetResolution.height}`
+      )
 
-      const normalizeCommand = `ffmpeg -y -i "${inputClip}" -r 25 -c:v libx264 -preset fast "${normalizedClip}"`
+      // ✅ УМНАЯ НОРМАЛИЗАЦИЯ: Адаптируется под соотношение сторон первого клипа
+      const normalizeCommand = `ffmpeg -y -i "${inputClip}" -vf "scale=${targetResolution.width}:${targetResolution.height}:force_original_aspect_ratio=decrease,pad=${targetResolution.width}:${targetResolution.height}:(ow-iw)/2:(oh-ih)/2,setsar=1" -r 25 -c:v libx264 -preset fast "${normalizedClip}"`
 
       try {
         await execAsync(normalizeCommand)
@@ -167,6 +503,22 @@ export async function createMorphingVideo(
       telegram_id,
     })
 
+    // ✅ УДАЛЯЕМ CHECKPOINT ПОСЛЕ УСПЕШНОГО ЗАВЕРШЕНИЯ
+    try {
+      const checkpointPath = path.join(tempDir, 'morphing_checkpoint.json')
+      if (fs.existsSync(checkpointPath)) {
+        fs.unlinkSync(checkpointPath)
+        logger.info('🗑️ Checkpoint cleaned up after successful completion', {
+          telegramId: telegram_id,
+        })
+      }
+    } catch (cleanupError) {
+      logger.warn('⚠️ Failed to cleanup checkpoint', {
+        error: cleanupError,
+        telegramId: telegram_id,
+      })
+    }
+
     return finalVideoPath
   } catch (error) {
     logger.error('❌ [LOCAL MORPHING] Video generation failed', {
@@ -214,22 +566,43 @@ async function generateSingleClipWithRetry(
     auth: process.env.REPLICATE_API_TOKEN,
   })
 
-  const input = {
+  let currentModelIndex = 0 // Начинаем с первой модели
+
+  const baseInput: {
+    start_image: any
+    end_image: any
+    prompt: string
+    duration: number
+    cfg_scale: number
+    mode?: string // ✅ Добавляем опциональное свойство mode
+  } = {
     start_image: pair.start,
     end_image: pair.end,
     prompt: 'cinematic video, beautiful, hd, 4k, morphing effect',
     duration: 5, // 5 секунд
-    mode: 'pro',
     cfg_scale: 0.5,
   }
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
+      const currentModelInfo = FALLBACK_KLING_MODELS[currentModelIndex]
+      const currentModel = currentModelInfo.id
+
+      // Адаптируем параметры под разные модели Kling
+      const input = { ...baseInput }
+      if (currentModel.includes('pro')) {
+        input.mode = 'pro'
+      } else if (currentModel.includes('standard')) {
+        input.mode = 'std' // standard mode
+      } else {
+        input.mode = 'std' // по умолчанию standard для v1.6 и v2.0
+      }
+
       logger.info(
-        `🔄 Attempt ${attempt}/${MAX_RETRIES} for clip ${clipNumber}/${totalClips}`
+        `🔄 Attempt ${attempt}/${MAX_RETRIES} for clip ${clipNumber}/${totalClips} using model: ${currentModelInfo.name} (cost: $${currentModelInfo.cost}, ${currentModelInfo.description})`
       )
 
-      const output = await replicate.run('kwaivgi/kling-v1.6-pro', { input })
+      const output = await replicate.run(currentModel, { input })
 
       // Результат может быть массивом URL или одним URL
       const videoUrl = Array.isArray(output) ? output[0] : output
@@ -256,42 +629,77 @@ async function generateSingleClipWithRetry(
         pair: pair.index,
       }
 
-      // 🛡️ ОБРАБОТКА ОШИБКИ ЧУВСТВИТЕЛЬНОГО КОНТЕНТА (E005)
+      // 🛡️ ОБРАБОТКА ОШИБКИ ЧУВСТВИТЕЛЬНОГО КОНТЕНТА (E005) - СНАЧАЛА БОЛЬШЕ ПОПЫТОК!
       if (
         errorMessage.includes('flagged as sensitive') ||
         errorMessage.includes('E005')
       ) {
-        logger.error(`🛡️ Content filtered by Kling API (E005)`, errorDetails)
-
-        // ❌ НЕ РЕТРАИТЬ ПРИ E005 - это не временная ошибка
-        const userErrorRu =
-          '🛡️ Ваши изображения были отклонены системой безопасности Kling AI.\n\n' +
-          '📋 Возможные причины:\n' +
-          '• Изображения содержат лица людей\n' +
-          '• Защищенный контент (персонажи, знаменитости)\n' +
-          '• Автоматические фильтры безопасности\n\n' +
-          '💡 Решение: Попробуйте использовать другие изображения (пейзажи, предметы, абстракции)'
-
-        const userErrorEn =
-          '🛡️ Your images were rejected by Kling AI security system.\n\n' +
-          '📋 Possible reasons:\n' +
-          '• Images contain human faces\n' +
-          '• Protected content (characters, celebrities)\n' +
-          '• Automatic security filters\n\n' +
-          '💡 Solution: Try using different images (landscapes, objects, abstractions)'
-
-        throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
-      }
-
-      // 🔄 RETRY ДЛЯ ДРУГИХ ОШИБОК
-      if (attempt < MAX_RETRIES) {
         logger.warn(
-          `⚠️ Attempt ${attempt} failed, retrying in ${RETRY_DELAY}ms...`,
+          `🛡️ Content filtered by ${FALLBACK_KLING_MODELS[currentModelIndex].name} (E005) - attempt ${attempt}/${MAX_RETRIES}`,
           errorDetails
         )
 
-        // Пауза перед следующей попыткой
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+        // ✅ СНАЧАЛА ИСЧЕРПЫВАЕМ ВСЕ ПОПЫТКИ НА ТЕКУЩЕЙ МОДЕЛИ
+        if (attempt < MAX_RETRIES) {
+          logger.info(
+            `⏳ Retrying with same model ${FALLBACK_KLING_MODELS[currentModelIndex].name} (${attempt + 1}/${MAX_RETRIES}) - E005 can be temporary`
+          )
+          // Продолжаем цикл для следующей попытки
+        } else {
+          // ✅ ТОЛЬКО ПОСЛЕ 5 ПОПЫТОК - ПРОБУЕМ СЛЕДУЮЩУЮ МОДЕЛЬ!
+          if (currentModelIndex < FALLBACK_KLING_MODELS.length - 1) {
+            currentModelIndex++
+            const nextModelInfo = FALLBACK_KLING_MODELS[currentModelIndex]
+            logger.info(
+              `🔄 All ${MAX_RETRIES} attempts failed for ${FALLBACK_KLING_MODELS[currentModelIndex - 1].name}. Switching to: ${nextModelInfo.name} (cost: $${nextModelInfo.cost}, ${nextModelInfo.description})`
+            )
+
+            // ✅ СБРАСЫВАЕМ СЧЕТЧИК ПОПЫТОК ДЛЯ НОВОЙ МОДЕЛИ
+            attempt = 0 // будет инкрементирован в начале цикла
+            continue
+          } else {
+            // ❌ ВСЕ МОДЕЛИ KLING ИСЧЕРПАНЫ - БРОСАЕМ ФИНАЛЬНУЮ ОШИБКУ
+            logger.error('🛡️ All Kling models rejected content (E005)', {
+              ...errorDetails,
+              attemptedModels: FALLBACK_KLING_MODELS.slice(
+                0,
+                currentModelIndex + 1
+              ),
+            })
+
+            const userErrorRu =
+              '🛡️ Ваши изображения были отклонены ВСЕМИ версиями Kling AI после 5 попыток на каждой модели.\n\n' +
+              '📋 Возможные причины:\n' +
+              '• Изображения содержат лица людей\n' +
+              '• Защищенный контент (персонажи, знаменитости)\n' +
+              '• Автоматические фильтры безопасности\n\n' +
+              '💡 Решение: Попробуйте использовать другие изображения (пейзажи, предметы, абстракции)\n' +
+              `🔄 Попробованы модели: ${FALLBACK_KLING_MODELS.map(m => m.name).join(', ')}`
+
+            const userErrorEn =
+              '🛡️ Your images were rejected by ALL Kling AI models after 5 attempts per model.\n\n' +
+              '📋 Possible reasons:\n' +
+              '• Images contain human faces\n' +
+              '• Protected content (characters, celebrities)\n' +
+              '• Automatic security filters\n\n' +
+              '💡 Solution: Try using different images (landscapes, objects, abstractions)\n' +
+              `🔄 Attempted models: ${FALLBACK_KLING_MODELS.map(m => m.name).join(', ')}`
+
+            throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
+          }
+        }
+      }
+
+      // 🔄 RETRY ДЛЯ ДРУГИХ ОШИБОК с экспоненциальной задержкой
+      if (attempt < MAX_RETRIES) {
+        const retryDelay = BASE_RETRY_DELAY * Math.pow(2, attempt - 1) // Экспоненциальная задержка
+        logger.warn(
+          `⚠️ Attempt ${attempt} failed, retrying in ${retryDelay}ms... (exponential backoff)`,
+          errorDetails
+        )
+
+        // Пауза перед следующей попыткой (экспоненциально увеличивается)
+        await new Promise(resolve => setTimeout(resolve, retryDelay))
         continue
       }
 
