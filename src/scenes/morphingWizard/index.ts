@@ -562,7 +562,7 @@ morphingWizard.action('morphing_start_generation', async ctx => {
     const currentStepHandler = ctx.wizard.step
     if (typeof currentStepHandler === 'function') {
       console.log('🚀 [MORPHING_START] Executing current step handler...')
-      await currentStepHandler(ctx)
+      await currentStepHandler(ctx, async () => {}) // Добавляем пустую next функцию
     } else {
       console.log('❌ [MORPHING_START] No step handler found!')
     }
