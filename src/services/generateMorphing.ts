@@ -3,7 +3,7 @@ import { API_URL } from '@/config'
 import { logger } from '@/utils/logger'
 import { sendMediaToPulse } from '@/helpers/pulse'
 import { getBotTokenByName } from '@/core/getBotTokenByName'
-import { Telegraf } from 'telegraf'
+import { Telegraf, Markup } from 'telegraf'
 
 interface MorphingRequest {
   images: Array<{
@@ -17,6 +17,7 @@ interface MorphingRequest {
   botName: string
   imageCount: number
   morphingType: 'seamless' | 'loop'
+  withLoop: boolean // ✅ Параметр лупа
 }
 
 interface MorphingResponse {
@@ -123,24 +124,87 @@ export async function generateMorphing(
       }
     }
 
-    // ✅ ПРЯМАЯ ОБРАБОТКА МОРФИНГА через Replicate API
-    const { createMorphingVideo } = await import(
-      '@/services/localMorphingProcessor'
-    )
-
-    const finalVideoPath = await createMorphingVideo({
-      imagePaths,
-      tempDir: fullTempDir,
-      telegram_id: requestData.telegram_id,
-    })
-
-    // ✅ ОТПРАВКА ГОТОВОГО ВИДЕО В TELEGRAM
+    // ✅ ПОЛУЧАЕМ BOT TOKEN ЗАРАНЕЕ
     const botToken = getBotTokenByName(requestData.botName)
     if (!botToken) {
       throw new Error(`Bot token not found for: ${requestData.botName}`)
     }
 
+    // ✅ СОЗДАЕМ БОТ ОДИН РАЗ ДЛЯ ВСЕХ ОТПРАВОК
     const bot = new Telegraf(botToken)
+
+    // ✅ ПРЯМАЯ ОБРАБОТКА МОРФИНГА через Replicate API
+    const { createMorphingVideo } = await import(
+      '@/services/localMorphingProcessor'
+    )
+
+    // ✅ СОЗДАЕМ CALLBACK ДЛЯ НЕМЕДЛЕННОЙ ОТПРАВКИ ПРОМЕЖУТОЧНЫХ ВИДЕО
+    const sendIntermediateVideo = async (
+      clipPath: string,
+      clipNumber: number,
+      totalClips: number
+    ) => {
+      // ✅ ПРОВЕРКА: Если только 1 видео, то это финальное, не промежуточное!
+      if (totalClips === 1) {
+        logger.info(`⏭️ Skipping intermediate video send - only 1 clip total`, {
+          telegramId: requestData.telegram_id,
+          totalClips,
+        })
+        return
+      }
+
+      console.log(
+        `🚀 [IMMEDIATE SEND] Отправляю промежуточное видео ${clipNumber}/${totalClips} СРАЗУ!`
+      )
+
+      const intermediateCaption = requestData.is_ru
+        ? `🧬 Промежуточное видео ${clipNumber}/${totalClips}\n\n🎬 Переход между изображениями ${clipNumber} → ${clipNumber + 1}\n\n⏳ Создание остальных видео продолжается...`
+        : `🧬 Intermediate video ${clipNumber}/${totalClips}\n\n🎬 Transition between images ${clipNumber} → ${clipNumber + 1}\n\n⏳ Creating remaining videos...`
+
+      try {
+        // ✅ НЕМЕДЛЕННАЯ ОТПРАВКА БЕЗ ЗАДЕРЖЕК И ОЧЕРЕДЕЙ
+        const startTime = Date.now()
+        await bot.telegram.sendVideo(
+          requestData.telegram_id,
+          { source: clipPath },
+          {
+            caption: intermediateCaption,
+            // Отправляем без сжатия для максимальной скорости
+            supports_streaming: true,
+          }
+        )
+        const sendTime = Date.now() - startTime
+        console.log(
+          `✅ [IMMEDIATE SEND] Промежуточное видео ${clipNumber} отправлено за ${sendTime}ms!`
+        )
+        logger.info(`✅ Intermediate video ${clipNumber} sent IMMEDIATELY`, {
+          telegramId: requestData.telegram_id,
+          clipPath,
+          sendTimeMs: sendTime,
+        })
+      } catch (error) {
+        console.log(
+          `❌ [IMMEDIATE SEND] Ошибка отправки промежуточного видео ${clipNumber}:`,
+          error
+        )
+        logger.warn(`⚠️ Failed to send intermediate video ${clipNumber}`, {
+          error: error,
+          telegramId: requestData.telegram_id,
+          clipPath,
+        })
+        // Не бросаем ошибку, чтобы не прерывать основной процесс
+      }
+    }
+
+    const finalVideoPath = await createMorphingVideo({
+      imagePaths,
+      tempDir: fullTempDir,
+      telegram_id: requestData.telegram_id,
+      onIntermediateVideo: sendIntermediateVideo,
+    })
+
+    // ✅ ОТПРАВКА ФИНАЛЬНОГО ВИДЕО В TELEGRAM (используем тот же bot)
+
     const caption = requestData.is_ru
       ? '🧬 Ваше морфинг-видео готово! Наслаждайтесь плавными переходами между изображениями!'
       : '🧬 Your morphing video is ready! Enjoy the smooth transitions between images!'
@@ -157,6 +221,24 @@ export async function generateMorphing(
         telegramId: requestData.telegram_id,
         videoPath: finalVideoPath,
       })
+
+      // ✅ ДОБАВЛЯЕМ КНОПКИ ДЛЯ ПРОДОЛЖЕНИЯ РАБОТЫ
+      const keyboard = Markup.keyboard([
+        [
+          requestData.is_ru
+            ? '🧬 Создать еще морфинг'
+            : '🧬 Create Another Morphing',
+        ],
+        [requestData.is_ru ? '🏠 Главное меню' : '🏠 Main Menu'],
+      ]).resize()
+
+      await bot.telegram.sendMessage(
+        requestData.telegram_id,
+        requestData.is_ru
+          ? 'Ваш морфинг готов! Что дальше?'
+          : 'Your morphing is ready! What next?',
+        keyboard
+      )
     } catch (sendVideoError: any) {
       // Если ошибка 413 (файл слишком большой), отправляем ссылку
       if (
@@ -232,6 +314,24 @@ export async function generateMorphing(
           originalVideoPath: finalVideoPath,
           environment: isDev ? 'development' : 'production',
         })
+
+        // ✅ ДОБАВЛЯЕМ КНОПКИ ДЛЯ ПРОДОЛЖЕНИЯ РАБОТЫ (большой файл)
+        const keyboardBigFile = Markup.keyboard([
+          [
+            requestData.is_ru
+              ? '🧬 Создать еще морфинг'
+              : '🧬 Create Another Morphing',
+          ],
+          [requestData.is_ru ? '🏠 Главное меню' : '🏠 Main Menu'],
+        ]).resize()
+
+        await bot.telegram.sendMessage(
+          requestData.telegram_id,
+          requestData.is_ru
+            ? 'Ваш морфинг готов! Что дальше?'
+            : 'Your morphing is ready! What next?',
+          keyboardBigFile
+        )
       } else {
         throw sendVideoError
       }
