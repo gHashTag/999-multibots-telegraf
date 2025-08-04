@@ -17,6 +17,7 @@ interface MorphingRequest {
   botName: string
   imageCount: number
   morphingType: 'seamless' | 'loop'
+  withLoop: boolean // ✅ Параметр лупа
 }
 
 interface MorphingResponse {

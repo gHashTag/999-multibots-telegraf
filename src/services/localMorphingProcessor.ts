@@ -568,7 +568,14 @@ async function generateSingleClipWithRetry(
 
   let currentModelIndex = 0 // Начинаем с первой модели
 
-  const baseInput = {
+  const baseInput: {
+    start_image: any
+    end_image: any
+    prompt: string
+    duration: number
+    cfg_scale: number
+    mode?: string // ✅ Добавляем опциональное свойство mode
+  } = {
     start_image: pair.start,
     end_image: pair.end,
     prompt: 'cinematic video, beautiful, hd, 4k, morphing effect',
