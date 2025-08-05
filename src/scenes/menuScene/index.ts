@@ -292,24 +292,39 @@ const menuNextStep = async (ctx: MyContext) => {
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
     // ВАЖНО: Обработка кнопки подписки напрямую в menuScene (все варианты)
+    console.log(`🔧 [DEBUG] Checking subscription button. Text: "${text}"`)
     if (
       text === '💫 Оформить подписку' ||
       text === '💫 Subscribe' ||
       text === '💳 Оформить подписку' ||
       text === '💳 Subscribe'
     ) {
+      console.log(`🎯 [DEBUG] SUBSCRIPTION BUTTON MATCHED! Processing: ${text}`)
       logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)
       try {
+        console.log('🔧 [DEBUG] Step 1: Leaving current scene...')
         await ctx.scene.leave()
+
+        console.log('🔧 [DEBUG] Step 2: Setting subscription mode...')
         ctx.session.mode = ModeEnum.SubscriptionScene
+
+        console.log('🔧 [DEBUG] Step 3: Entering subscription scene...')
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
+
+        console.log('✅ [DEBUG] Successfully entered subscription scene!')
         return // Explicitly handled
       } catch (error) {
+        console.error(
+          '❌ [DEBUG] Error in subscription button handling:',
+          error
+        )
         logger.error('Error in direct subscription button handling:', {
           error,
           telegramId: ctx.from?.id,
         })
       }
+    } else {
+      console.log(`🔧 [DEBUG] Not a subscription button. Text: "${text}"`)
     }
 
     // 🔍 ПЕРСОНАЛИЗИРОВАННАЯ ОБРАБОТКА КНОПКИ ПАРСИНГ ПО БОТАМ
