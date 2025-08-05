@@ -252,7 +252,14 @@ handleModelSelection.on('text', async ctx => {
       telegramId: ctx.from?.id,
       model: foundModelKey,
     })
-    ctx.session.videoModel = foundModelKey // Store the selected WAN model key
+
+    // Store the selected WAN model key with explicit logging
+    ctx.session.videoModel = foundModelKey
+    logger.info('[I2V Wizard] WAN videoModel set in session', {
+      telegramId: ctx.from?.id,
+      sessionVideoModel: ctx.session.videoModel,
+      foundModelKey,
+    })
 
     // Ask for resolution: 480p, 720p, 1080p for WAN
     const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
@@ -275,6 +282,16 @@ handleModelSelection.on('text', async ctx => {
       ? `🎬 Выберите разрешение для ${modelConfig.title}:`
       : `🎬 Select resolution for ${modelConfig.title}:`
     await ctx.replyWithHTML(text, inlineKeyboard)
+
+    logger.info(
+      '[I2V Wizard] WAN resolution selection UI shown, jumping to step 6',
+      {
+        telegramId: ctx.from?.id,
+        currentStep: (ctx.wizard.state as any)?.step || 'unknown',
+        targetStep: 6,
+      }
+    )
+
     return ctx.wizard.selectStep(6) // Go to handleWanResolutionSelection (после Seedance handlers)
   } else {
     // --- Logic for NON-Kling models (Standard Flow) ---
@@ -629,13 +646,23 @@ handleSeedanceResolutionSelection.use(async ctx => {
 const handleWanResolutionSelection = new Composer<MyContext>()
 handleWanResolutionSelection.action(/^wan_i2v_/, async ctx => {
   const isRu = isRussianFromState(ctx)
+
+  logger.info('[I2V Wizard] WAN resolution callback triggered', {
+    telegramId: ctx.from?.id,
+    callbackData: 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '',
+    sessionVideoModel: ctx.session.videoModel,
+    wizardStep: (ctx.wizard.state as any)?.step || 'unknown',
+  })
+
   await ctx.answerCbQuery()
   await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
 
   const modelKey = ctx.session.videoModel as VideoModelKey
   if (!modelKey || modelKey !== 'wan-2.2-i2v-fast') {
     logger.error('[I2V Wizard] Invalid/missing WAN model key in session', {
+      telegramId: ctx.from?.id,
       modelKey,
+      sessionKeys: Object.keys(ctx.session),
     })
     await sendGenericErrorMessage(ctx, isRu)
     return ctx.scene.leave()
@@ -705,6 +732,17 @@ handleWanResolutionSelection.action(/^wan_i2v_/, async ctx => {
     ? '📷 Отправьте изображение для создания видео:'
     : '📷 Send an image to create video:'
   await ctx.reply(textRequestImage)
+
+  logger.info(
+    '[I2V Wizard] WAN resolution selection completed, jumping to step 5',
+    {
+      telegramId: ctx.from?.id,
+      selectedResolution: resolution,
+      finalPrice: finalPriceInStars,
+      currentStep: (ctx.wizard.state as any)?.step || 'unknown',
+      targetStep: 5,
+    }
+  )
 
   return ctx.wizard.selectStep(5) // Jump to handleStandardImage
 })
@@ -1096,12 +1134,22 @@ imageToVideoWizard.enter(async ctx => {
   logger.info('[I2V Wizard] Scene entered, clearing session flags', {
     telegramId: ctx.from?.id,
     previousModelSelectionShown: ctx.session.modelSelectionShown,
+    existingVideoModel: ctx.session.videoModel,
   })
 
-  // Clear session flags for fresh start
+  // Clear session flags for fresh start, but preserve videoModel if already set
   ctx.session.modelSelectionShown = false
   ctx.session.selectedResolution = undefined
-  ctx.session.videoModel = undefined
+  // Only clear videoModel if this is a fresh start (no model selected yet)
+  if (!ctx.session.videoModel) {
+    ctx.session.videoModel = undefined
+  }
+
+  logger.info('[I2V Wizard] Session state after cleanup', {
+    telegramId: ctx.from?.id,
+    videoModel: ctx.session.videoModel,
+    modelSelectionShown: ctx.session.modelSelectionShown,
+  })
 })
 
 // Add HELP and CANCEL handlers to the scene
