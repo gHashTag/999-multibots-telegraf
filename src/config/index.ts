@@ -112,6 +112,20 @@ export const {
 // API_URL для AI сервера - в разработке используем локальный AI сервер
 export const API_URL = isDev ? AI_SERVER_LOCAL_URL : API_SERVER_URL
 
+// 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
+// Все URL должны использовать один домен для корректной работы с Robokassa
+const BASE_PAYMENT_URL = isDev
+  ? AI_SERVER_LOCAL_URL || 'http://localhost:2999'
+  : API_SERVER_URL ||
+    RESULT_URL2?.split('/payment-success')[0] ||
+    'https://ai-server-u14194.vm.elestio.app'
+
+export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
+
+console.log('💳 [ROBOKASSA FIX] BASE_PAYMENT_URL:', BASE_PAYMENT_URL)
+console.log('💳 [ROBOKASSA FIX] UNIFIED_RESULT_URL:', UNIFIED_RESULT_URL)
+console.log('💳 [ROBOKASSA FIX] Original RESULT_URL2:', RESULT_URL2)
+
 // 🚨 ОТЛАДКА: Логируем все URL для понимания проблемы кэширования
 console.log('🚨 [CONFIG DEBUG] URL CONFIGURATION LOADED:')
 console.log(`🚨 [CONFIG DEBUG] isDev: ${isDev}`)
