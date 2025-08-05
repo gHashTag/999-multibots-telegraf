@@ -205,7 +205,7 @@ handleModelSelection.on('text', async ctx => {
       modelConfig.resolutionOptions?.map(resolution => {
         const price =
           modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
-        const finalPrice = Math.floor(((price * 5) / 0.016) * 2.5) // Формула расчета звезд
+        const finalPrice = Math.floor(((price * 5) / 0.016) * 1.5) // Формула расчета звезд (50% наценка)
         return Markup.button.callback(
           isRu
             ? `${resolution.toUpperCase()} (${finalPrice} ⭐)`
@@ -603,7 +603,7 @@ handleWanResolutionSelection.action(/^wan_i2v_/, async ctx => {
   const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
   const price =
     modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
-  const finalPriceInStars = Math.floor(((price * 5) / 0.016) * 2.5)
+  const finalPriceInStars = Math.floor(((price * 5) / 0.016) * 1.5)
 
   logger.info('[I2V Wizard] WAN resolution selected:', {
     telegramId: ctx.from?.id,
