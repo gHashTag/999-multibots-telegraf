@@ -647,45 +647,23 @@ handleWanResolutionSelection.action(/^wan_i2v_/, async ctx => {
     : `✅ Selected: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
   await ctx.reply(textResolutionChosen)
 
-  // Check if image is already uploaded
-  if (ctx.session.imageUrl) {
-    logger.info(
-      '[I2V Wizard] WAN resolution selected, image already uploaded, jumping to prompt step',
-      {
-        telegramId: ctx.from?.id,
-        selectedResolution: resolution,
-        finalPrice: finalPriceInStars,
-        imageUrl: ctx.session.imageUrl,
-        currentStep: (ctx.wizard.state as any)?.step || 'unknown',
-        targetStep: 7,
-      }
-    )
+  const textRequestImage = isRu
+    ? '📷 Отправьте изображение для создания видео:'
+    : '📷 Send an image to create video:'
+  await ctx.reply(textRequestImage)
 
-    const textRequestPrompt = isRu
-      ? '✍️ Опишите, какое видео вы хотите создать (промпт):'
-      : '✍️ Describe what video you want to create (prompt):'
-    await ctx.reply(textRequestPrompt)
+  logger.info(
+    '[I2V Wizard] WAN resolution selection completed, jumping to step 5',
+    {
+      telegramId: ctx.from?.id,
+      selectedResolution: resolution,
+      finalPrice: finalPriceInStars,
+      currentStep: (ctx.wizard.state as any)?.step || 'unknown',
+      targetStep: 5,
+    }
+  )
 
-    return ctx.wizard.selectStep(7) // Jump directly to handlePrompt
-  } else {
-    const textRequestImage = isRu
-      ? '📷 Отправьте изображение для создания видео:'
-      : '📷 Send an image to create video:'
-    await ctx.reply(textRequestImage)
-
-    logger.info(
-      '[I2V Wizard] WAN resolution selection completed, jumping to step 5',
-      {
-        telegramId: ctx.from?.id,
-        selectedResolution: resolution,
-        finalPrice: finalPriceInStars,
-        currentStep: (ctx.wizard.state as any)?.step || 'unknown',
-        targetStep: 5,
-      }
-    )
-
-    return ctx.wizard.selectStep(5) // Jump to handleStandardImage
-  }
+  return ctx.wizard.selectStep(5) // Jump to handleStandardImage
 })
 
 // Error handler for unhandled callback queries in WAN resolution selection
@@ -823,7 +801,7 @@ handleMorphImageBOrStandardImage.on('photo', async ctx => {
     await ctx.reply(textRequestPrompt, {
       reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
     })
-    return ctx.wizard.next() // Go to handlePrompt (step index 5)
+    return ctx.wizard.selectStep(7) // Go to handlePrompt (step 7)
   } else {
     // This is the image for standard generation
     ctx.session.imageUrl = fileLink.href
@@ -838,7 +816,7 @@ handleMorphImageBOrStandardImage.on('photo', async ctx => {
     await ctx.reply(textRequestPrompt, {
       reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
     })
-    return ctx.wizard.next() // Go to handlePrompt (step index 5)
+    return ctx.wizard.selectStep(7) // Go to handlePrompt (step 7)
   }
 })
 // Fallback for non-photo messages in this step
