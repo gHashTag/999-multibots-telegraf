@@ -661,7 +661,12 @@ handleWanResolutionSelection.use(async ctx => {
     '[I2V Wizard] Unexpected action in handleWanResolutionSelection:',
     ctx.callbackQuery
   )
-  await ctx.answerCbQuery()
+
+  // Only answer callback query if it's actually a callback query
+  if ('callback_query' in ctx.update && ctx.update.callback_query) {
+    await ctx.answerCbQuery()
+  }
+
   await sendGenericErrorMessage(ctx, isRu)
   return ctx.scene.leave()
 })
