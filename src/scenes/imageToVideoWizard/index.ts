@@ -87,6 +87,12 @@ handleModelSelection.on('text', async ctx => {
   const isRu = isRussianFromState(ctx)
   const selectedButtonText = ctx.message?.text
 
+  logger.info('[I2V Wizard] handleModelSelection triggered', {
+    telegramId: ctx.from?.id,
+    selectedButtonText,
+    wizardStep: (ctx.wizard.state as any)?.step || 'unknown',
+  })
+
   if (!selectedButtonText) {
     // HARDCODED TEXT
     const text = isRu
@@ -114,9 +120,21 @@ handleModelSelection.on('text', async ctx => {
   }
 
   if (!foundModelKey) {
-    logger.warn('Could not map button text to model key:', {
+    logger.warn('[I2V Wizard] Could not map button text to model key:', {
+      telegramId: ctx.from?.id,
       selectedButtonText,
+      availableModels: Object.keys(VIDEO_MODELS_CONFIG),
     })
+
+    // Let's also log what the expected button texts are
+    const expectedTexts = Object.entries(VIDEO_MODELS_CONFIG).map(
+      ([key, config]) => {
+        const finalPriceInStars = calculateFinalPrice(key)
+        return `${config.title} (${finalPriceInStars} ⭐)`
+      }
+    )
+    logger.warn('[I2V Wizard] Expected button texts:', { expectedTexts })
+
     // HARDCODED TEXT
     const text = isRu
       ? '👇 Пожалуйста, выберите модель из предложенных кнопок ВНИЗУ.'
@@ -124,6 +142,12 @@ handleModelSelection.on('text', async ctx => {
     await ctx.reply(text)
     return // Stay on this step
   }
+
+  logger.info('[I2V Wizard] Model found successfully:', {
+    telegramId: ctx.from?.id,
+    selectedButtonText,
+    foundModelKey,
+  })
 
   // --- Check if Kling model is selected --- Restore this logic
   if (foundModelKey.startsWith('kling-')) {
