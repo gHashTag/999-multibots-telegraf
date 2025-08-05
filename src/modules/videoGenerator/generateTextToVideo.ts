@@ -67,7 +67,7 @@ export async function generateTextToVideo(
 
     // Специальная обработка для Google Veo 3
     let modelInput: any
-    if (modelConfig.id === 'veo-3') {
+    if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
       modelInput = {
         prompt,
         duration_seconds: modelConfig.api.input.duration_seconds || 8,
@@ -78,10 +78,14 @@ export async function generateTextToVideo(
       if (modelConfig.api.input.prompt_optimizer) {
         modelInput.prompt_optimizer = true
       }
-      logger.info('[generateTextToVideo] Veo 3 model input prepared:', {
-        telegram_id,
-        fullInput: modelInput,
-      })
+      logger.info(
+        `[generateTextToVideo] ${modelConfig.title} model input prepared:`,
+        {
+          telegram_id,
+          modelId: modelConfig.id,
+          fullInput: modelInput,
+        }
+      )
     }
     // ✅ ИСПРАВЛЕНО: Добавлен `else if` для корректной обработки Seedance
     else if (modelConfig.id === 'seedance-1-pro') {
@@ -113,7 +117,8 @@ export async function generateTextToVideo(
     logger.info('[generateTextToVideo] Calling replicate.run with input:', {
       replicateModelId,
       modelInput,
-      isVeo3: modelConfig.id === 'veo-3',
+      isVeo3Family:
+        modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast',
     })
 
     const replicateResult = await replicate.run(replicateModelId as any, {
