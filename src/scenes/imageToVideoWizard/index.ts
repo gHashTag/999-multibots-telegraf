@@ -28,88 +28,7 @@ const MORPHING_MODEL_KEY = 'kling-v1.6-pro' // Constant for the morphing model
 
 // --- Wizard Steps --- //
 
-// Step 0: Ask for Model (Entry Point)
-const askModelStep = new Composer<MyContext>()
-askModelStep.on('message', async ctx => {
-  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-  const isRu = isRussianFromState(ctx) // Determine language once
-
-  logger.info('[I2V Wizard] askModelStep triggered', {
-    telegramId: ctx.from?.id,
-    currentAction: ctx.session.current_action,
-    wizardStep: (ctx.wizard.state as any)?.step || 'unknown',
-    modelSelectionShown: ctx.session.modelSelectionShown || false,
-  })
-
-  // If model selection was already shown, move to next step
-  if (ctx.session.modelSelectionShown) {
-    logger.info(
-      '[I2V Wizard] Model selection already shown, moving to handleModelSelection',
-      {
-        telegramId: ctx.from?.id,
-      }
-    )
-    return ctx.wizard.next() // Go to handleModelSelection (step index 1)
-  }
-
-  // Check if we entered specifically for morphing via menu button
-  if (ctx.session.current_action === 'morphing') {
-    logger.info('[I2V Wizard] Morphing mode entered directly', {
-      telegramId: ctx.from?.id,
-    })
-    // Set model and flag
-    ctx.session.videoModel = MORPHING_MODEL_KEY
-    ctx.session.is_morphing = true
-
-    // Check balance for morphing
-    const morphingCost = calculateFinalPrice(MORPHING_MODEL_KEY)
-    const userDetails: UserDetailsResult = await getUserDetailsSubscription(
-      String(ctx.from?.id)
-    )
-    const currentBalance = userDetails?.stars || 0
-
-    if (!(currentBalance >= morphingCost)) {
-      // HARDCODED TEXT
-      const text = isRu
-        ? `❌ Ошибка: Недостаточно звезд для морфинга (${morphingCost} ★). Ваш баланс: ${Math.floor(currentBalance)} ★.`
-        : `❌ Error: Insufficient stars for morphing (${morphingCost} ★). Your balance: ${Math.floor(currentBalance)} ★.`
-      await ctx.replyWithHTML(text)
-      return ctx.scene.leave()
-    }
-    ctx.session.paymentAmount = morphingCost // Save morphing cost
-
-    // Ask for first image (image_a)
-    // HARDCODED TEXT
-    const text = isRu
-      ? '🖼️ Пожалуйста, отправьте первое изображение для морфинга.'
-      : '🖼️ Please send the first image for morphing.'
-    await ctx.replyWithHTML(text)
-    return ctx.wizard.selectStep(ctx.wizard.cursor + 3) // Jump to handleMorphImageA (step index 3)
-  } else {
-    // Standard flow: Ask to select model (only if not shown before)
-    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-    // HARDCODED TEXT
-    const text = isRu
-      ? '🤔 Выберите модель для генерации видео:'
-      : '🤔 Choose a model for video generation:'
-    await ctx.reply(text, {
-      reply_markup: keyboardMarkup.reply_markup,
-    })
-
-    // Mark that model selection was shown
-    ctx.session.modelSelectionShown = true
-
-    logger.info(
-      '[I2V Wizard] Model selection keyboard shown, staying on step 0',
-      {
-        telegramId: ctx.from?.id,
-      }
-    )
-
-    // Stay on current step, wait for user input
-    return
-  }
-})
+// OLD askModelStep removed - now using simple function in wizard definition
 
 // Step 1: Handle Model Selection (Standard Flow)
 const handleModelSelection = new Composer<MyContext>()
@@ -1117,7 +1036,45 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
 // --- Wizard Definition --- //
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo, // Scene ID
-  askModelStep, // Step 0: Ask Model (or jump if morphing)
+
+  // Шаг 0: Вход и выбор модели - ПРОСТАЯ ФУНКЦИЯ КАК В TEXTTOVIDOEOWIZARD
+  async ctx => {
+    console.log('🎬 [DEBUG] askModelStep (simple function) CALLED!')
+    const isRu = isRussianFromState(ctx)
+
+    logger.info('[I2V Wizard] Step 0 entered', {
+      telegramId: ctx.from?.id,
+      currentAction: ctx.session.current_action,
+    })
+
+    // Check morphing mode
+    if (ctx.session.current_action === 'morphing') {
+      ctx.session.videoModel = MORPHING_MODEL_KEY
+      ctx.session.is_morphing = true
+      const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
+
+      const morphingInfoText = isRu
+        ? `🌀 Режим морфинга активирован!\n🤖 Модель: ${VIDEO_MODELS_CONFIG[MORPHING_MODEL_KEY].title}\n💰 Стоимость: ${finalPriceInStars} ⭐\n\n📷 Сначала загрузите первое изображение (A):`
+        : `🌀 Morphing mode activated!\n🤖 Model: ${VIDEO_MODELS_CONFIG[MORPHING_MODEL_KEY].title}\n💰 Cost: ${finalPriceInStars} ⭐\n\n📷 First, upload the first image (A):`
+
+      await ctx.reply(morphingInfoText)
+      return ctx.wizard.selectStep(4)
+    } else {
+      // Standard flow: show model selection
+      const keyboardMarkup = videoModelKeyboard(isRu, 'image')
+      const text = isRu
+        ? '🤔 Выберите модель для генерации видео:'
+        : '🤔 Choose a model for video generation:'
+
+      await ctx.reply(text, {
+        reply_markup: keyboardMarkup.reply_markup,
+      })
+
+      console.log('🎬 [DEBUG] Step 0 - Moving to next step')
+      return ctx.wizard.next()
+    }
+  },
+
   handleModelSelection, // Step 1: Handle standard model selection / Kling choice / Seedance choice / WAN choice
   handleSeedanceResolutionSelection, // Step 2: Handle Seedance resolution selection (480p/1080p)
   handleKlingModeSelection, // Step 3: Handle Kling mode (standard/morphing) action
@@ -1125,7 +1082,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   handleMorphImageBOrStandardImage, // Step 5: Handle Image B (morph) OR Standard Image
   handleWanResolutionSelection, // Step 6: Handle WAN resolution selection (480p/720p/1080p)
   handlePrompt // Step 7: Handle Prompt (now starts background task and leaves)
-  // Step 8 is now handled by the background task initiated in Step 7
 )
 
 // Add enter handler to clean up session state
