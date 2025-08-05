@@ -196,16 +196,28 @@ export const generateImageToVideo = async (
         )
       }
 
-      // Стандартная обработка для всех моделей
-      modelInput = {
-        ...modelConfig.api.input,
-        prompt,
-        aspect_ratio: userAspectRatio,
-        [modelConfig.imageKey]: imageUrl,
+      // Специальная обработка для Google Veo 3 моделей (поддерживают image-to-video)
+      if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
+        modelInput = {
+          prompt,
+          image: imageUrl,
+          duration_seconds: modelConfig.api.input.duration_seconds || 8,
+          aspect_ratio: userAspectRatio,
+          enable_audio: modelConfig.api.input.enable_audio || true,
+        }
+        // Добавляем prompt_optimizer только если он есть в конфиге
+        if (modelConfig.api.input.prompt_optimizer) {
+          modelInput.prompt_optimizer = true
+        }
+        logger.info(`[I2V BG] ${modelConfig.title} model input prepared:`, {
+          telegramId,
+          modelId: modelConfig.id,
+          hasImage: !!imageUrl,
+          fullInput: modelInput,
+        })
       }
-
       // Специальная обработка для Seedance-1-Pro моделей
-      if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
+      else if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
         modelInput = {
           ...modelConfig.api.input, // ИСПРАВЛЕНИЕ: Включаем базовые параметры API
           prompt,
@@ -219,6 +231,19 @@ export const generateImageToVideo = async (
           imageKey: modelConfig.imageKey,
           imageUrl: imageUrl, // Логируем URL изображения для отладки
           fullInput: modelInput, // Логируем полный input для отладки
+        })
+      } else {
+        // Стандартная обработка для остальных моделей
+        modelInput = {
+          ...modelConfig.api.input,
+          prompt,
+          aspect_ratio: userAspectRatio,
+          [modelConfig.imageKey]: imageUrl,
+        }
+        logger.info('[I2V BG] Standard model input prepared:', {
+          telegramId,
+          modelId: modelConfig.id,
+          inputKeys: Object.keys(modelInput),
         })
       }
 
