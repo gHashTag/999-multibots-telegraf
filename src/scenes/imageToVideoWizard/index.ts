@@ -1091,18 +1091,15 @@ imageToVideoWizard.enter(async ctx => {
   console.log('🎥 [DEBUG] Session data:', {
     mode: ctx.session?.mode,
     videoModel: ctx.session?.videoModel,
-    modelSelectionShown: ctx.session?.modelSelectionShown,
   })
 
   const isRu = isRussianFromState(ctx)
   logger.info('[I2V Wizard] Scene entered, clearing session flags', {
     telegramId: ctx.from?.id,
-    previousModelSelectionShown: ctx.session.modelSelectionShown,
     existingVideoModel: ctx.session.videoModel,
   })
 
   // Clear session flags for fresh start, but preserve videoModel if already set
-  ctx.session.modelSelectionShown = false
   ctx.session.selectedResolution = undefined
   // Only clear videoModel if this is a fresh start (no model selected yet)
   if (!ctx.session.videoModel) {
@@ -1112,7 +1109,6 @@ imageToVideoWizard.enter(async ctx => {
   logger.info('[I2V Wizard] Session state after cleanup', {
     telegramId: ctx.from?.id,
     videoModel: ctx.session.videoModel,
-    modelSelectionShown: ctx.session.modelSelectionShown,
   })
 
   console.log('🎥 [DEBUG] imageToVideoWizard.enter COMPLETED!')
