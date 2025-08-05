@@ -185,8 +185,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'Google Veo 3 Fast',
     inputType: ['text', 'image'],
     description:
-      '⚡ БЫСТРО: Ускоренная версия Veo 3 с аудио - в 5 раз дешевле и на 30% быстрее',
-    basePrice: 0.4,
+      '⚡ БЫСТРО: Ускоренная версия Veo 3 с аудио - $3.20 за 8-секундное видео с финальным качеством',
+    basePrice: 3.2,
     api: {
       model: 'google/veo-3-fast',
       input: {
