@@ -33,6 +33,25 @@ const askModelStep = new Composer<MyContext>()
 askModelStep.on('message', async ctx => {
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx) // Determine language once
+
+  logger.info('[I2V Wizard] askModelStep triggered', {
+    telegramId: ctx.from?.id,
+    currentAction: ctx.session.current_action,
+    wizardStep: (ctx.wizard.state as any)?.step || 'unknown',
+    modelSelectionShown: ctx.session.modelSelectionShown || false,
+  })
+
+  // If model selection was already shown, move to next step
+  if (ctx.session.modelSelectionShown) {
+    logger.info(
+      '[I2V Wizard] Model selection already shown, moving to handleModelSelection',
+      {
+        telegramId: ctx.from?.id,
+      }
+    )
+    return ctx.wizard.next() // Go to handleModelSelection (step index 1)
+  }
+
   // Check if we entered specifically for morphing via menu button
   if (ctx.session.current_action === 'morphing') {
     logger.info('[I2V Wizard] Morphing mode entered directly', {
@@ -67,7 +86,7 @@ askModelStep.on('message', async ctx => {
     await ctx.replyWithHTML(text)
     return ctx.wizard.selectStep(ctx.wizard.cursor + 3) // Jump to handleMorphImageA (step index 3)
   } else {
-    // Standard flow: Ask to select model
+    // Standard flow: Ask to select model (only if not shown before)
     const keyboardMarkup = videoModelKeyboard(isRu, 'image')
     // HARDCODED TEXT
     const text = isRu
@@ -76,7 +95,19 @@ askModelStep.on('message', async ctx => {
     await ctx.reply(text, {
       reply_markup: keyboardMarkup.reply_markup,
     })
-    return ctx.wizard.next() // Go to handleModelSelection (step index 1)
+
+    // Mark that model selection was shown
+    ctx.session.modelSelectionShown = true
+
+    logger.info(
+      '[I2V Wizard] Model selection keyboard shown, staying on step 0',
+      {
+        telegramId: ctx.from?.id,
+      }
+    )
+
+    // Stay on current step, wait for user input
+    return
   }
 })
 
@@ -1058,6 +1089,20 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   handlePrompt // Step 7: Handle Prompt (now starts background task and leaves)
   // Step 8 is now handled by the background task initiated in Step 7
 )
+
+// Add enter handler to clean up session state
+imageToVideoWizard.enter(async ctx => {
+  const isRu = isRussianFromState(ctx)
+  logger.info('[I2V Wizard] Scene entered, clearing session flags', {
+    telegramId: ctx.from?.id,
+    previousModelSelectionShown: ctx.session.modelSelectionShown,
+  })
+
+  // Clear session flags for fresh start
+  ctx.session.modelSelectionShown = false
+  ctx.session.selectedResolution = undefined
+  ctx.session.videoModel = undefined
+})
 
 // Add HELP and CANCEL handlers to the scene
 imageToVideoWizard.help(handleHelpCancel)
