@@ -7,7 +7,11 @@ import {
 } from '@/helpers/centralizedLanguage'
 
 import md5 from 'md5'
-import { MERCHANT_LOGIN, RESULT_URL2, ROBOKASSA_PASSWORD_1 } from '@/config'
+import {
+  MERCHANT_LOGIN,
+  UNIFIED_RESULT_URL,
+  ROBOKASSA_PASSWORD_1,
+} from '@/config'
 import { handleHelpCancel } from '@/handlers'
 import { getBotNameByToken } from '@/core'
 import {
@@ -27,7 +31,7 @@ const paymentOptions = [
   // { amount: 10, stars: '6' },
 ]
 
-const resultUrl2 = RESULT_URL2
+const resultUrl2 = UNIFIED_RESULT_URL
 
 function generateRobokassaUrl(
   merchantLogin: string,
