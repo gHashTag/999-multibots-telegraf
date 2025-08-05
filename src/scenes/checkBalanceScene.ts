@@ -474,9 +474,25 @@ checkBalanceScene.enter(async ctx => {
     })
 
     // --- ВЫЗОВ ФУНКЦИИ ДЛЯ ВХОДА В ЦЕЛЕВУЮ СЦЕНУ ---
+    logger.info({
+      message: `[CheckBalanceScene] Перед вызовом enterTargetScene`,
+      telegramId,
+      function: 'checkBalanceScene.enter',
+      mode,
+      costValue,
+    })
+
     // Передаем необходимые параметры: контекст, пустую функцию next, режим, стоимость
     // @ts-ignore // Временно игнорируем ошибку компилятора, т.к. типы по факту совпадают
     await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Исправленный вызов
+
+    logger.info({
+      message: `[CheckBalanceScene] После вызова enterTargetScene`,
+      telegramId,
+      function: 'checkBalanceScene.enter',
+      mode,
+      costValue,
+    })
   } catch (error) {
     console.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
     logger.error({
@@ -510,11 +526,11 @@ export const enterTargetScene = async (
   const telegramId = ctx.from?.id?.toString() || 'unknown'
 
   logger.info({
-    message: `[EnterTargetSceneWrapper] Попытка входа в режим ${mode}`,
+    message: `[EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим ${mode}`,
     telegramId,
     mode,
     cost,
-    function: 'enterTargetSceneWrapper', // Переименовали для ясности
+    function: 'enterTargetSceneWrapper',
   })
 
   try {
@@ -652,18 +668,35 @@ export const enterTargetScene = async (
       return
     }
 
+    // Fallback для всех остальных режимов
+    logger.info({
+      message: `[EnterTargetSceneWrapper] 🎯 ПЕРЕХОД В СЦЕНУ: ${mode}`,
+      telegramId,
+      mode,
+      function: 'enterTargetSceneWrapper',
+    })
+
     // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
     await ctx.scene.enter(mode, {
       ...(ctx.scene.state || {}),
       cost, // Можно передать стоимость в стейт сцены
       // Дополнительные данные, если нужны для целевой сцены
     })
+
+    logger.info({
+      message: `[EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену ${mode} выполнен`,
+      telegramId,
+      mode,
+      function: 'enterTargetSceneWrapper',
+    })
   } catch (error) {
+    console.error('[DEBUG EnterTargetScene] Error caught:', error) // Добавлено
     logger.error({
-      message: `[EnterTargetSceneWrapper] ❌ Ошибка при обработке входа в режим ${mode}`,
+      message: `[EnterTargetSceneWrapper] ❌ ОШИБКА при обработке входа в режим ${mode}`,
       telegramId,
       mode,
       error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
       function: 'enterTargetSceneWrapper',
     })
     await ctx.reply(
