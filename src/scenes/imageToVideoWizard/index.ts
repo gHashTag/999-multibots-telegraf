@@ -1040,38 +1040,58 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   // Шаг 0: Вход и выбор модели - ПРОСТАЯ ФУНКЦИЯ КАК В TEXTTOVIDOEOWIZARD
   async ctx => {
     console.log('🎬 [DEBUG] askModelStep (simple function) CALLED!')
-    const isRu = isRussianFromState(ctx)
 
-    logger.info('[I2V Wizard] Step 0 entered', {
-      telegramId: ctx.from?.id,
-      currentAction: ctx.session.current_action,
-    })
+    try {
+      const isRu = isRussianFromState(ctx)
+      console.log(
+        '🎬 [DEBUG] Language determined:',
+        isRu ? 'Russian' : 'English'
+      )
 
-    // Check morphing mode
-    if (ctx.session.current_action === 'morphing') {
-      ctx.session.videoModel = MORPHING_MODEL_KEY
-      ctx.session.is_morphing = true
-      const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
-
-      const morphingInfoText = isRu
-        ? `🌀 Режим морфинга активирован!\n🤖 Модель: ${VIDEO_MODELS_CONFIG[MORPHING_MODEL_KEY].title}\n💰 Стоимость: ${finalPriceInStars} ⭐\n\n📷 Сначала загрузите первое изображение (A):`
-        : `🌀 Morphing mode activated!\n🤖 Model: ${VIDEO_MODELS_CONFIG[MORPHING_MODEL_KEY].title}\n💰 Cost: ${finalPriceInStars} ⭐\n\n📷 First, upload the first image (A):`
-
-      await ctx.reply(morphingInfoText)
-      return ctx.wizard.selectStep(4)
-    } else {
-      // Standard flow: show model selection
-      const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-      const text = isRu
-        ? '🤔 Выберите модель для генерации видео:'
-        : '🤔 Choose a model for video generation:'
-
-      await ctx.reply(text, {
-        reply_markup: keyboardMarkup.reply_markup,
+      logger.info('[I2V Wizard] Step 0 entered', {
+        telegramId: ctx.from?.id,
+        currentAction: ctx.session.current_action,
       })
 
-      console.log('🎬 [DEBUG] Step 0 - Moving to next step')
-      return ctx.wizard.next()
+      // Check morphing mode
+      if (ctx.session.current_action === 'morphing') {
+        console.log('🎬 [DEBUG] Morphing mode detected')
+        ctx.session.videoModel = MORPHING_MODEL_KEY
+        ctx.session.is_morphing = true
+        const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
+
+        const morphingInfoText = isRu
+          ? `🌀 Режим морфинга активирован!\n🤖 Модель: ${VIDEO_MODELS_CONFIG[MORPHING_MODEL_KEY].title}\n💰 Стоимость: ${finalPriceInStars} ⭐\n\n📷 Сначала загрузите первое изображение (A):`
+          : `🌀 Morphing mode activated!\n🤖 Model: ${VIDEO_MODELS_CONFIG[MORPHING_MODEL_KEY].title}\n💰 Cost: ${finalPriceInStars} ⭐\n\n📷 First, upload the first image (A):`
+
+        await ctx.reply(morphingInfoText)
+        return ctx.wizard.selectStep(4)
+      } else {
+        console.log('🎬 [DEBUG] Standard flow: creating keyboard...')
+        // Standard flow: show model selection
+        const keyboardMarkup = videoModelKeyboard(isRu, 'image')
+        console.log('🎬 [DEBUG] Keyboard created successfully')
+
+        const text = isRu
+          ? '🤔 Выберите модель для генерации видео:'
+          : '🤔 Choose a model for video generation:'
+
+        console.log('🎬 [DEBUG] About to send reply with keyboard...')
+        await ctx.reply(text, {
+          reply_markup: keyboardMarkup.reply_markup,
+        })
+        console.log('🎬 [DEBUG] Reply sent successfully!')
+
+        console.log('🎬 [DEBUG] Step 0 - Moving to next step')
+        return ctx.wizard.next()
+      }
+    } catch (error) {
+      console.error('🎬 [ERROR] Error in askModelStep:', error)
+      logger.error('[I2V Wizard] Error in Step 0', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      throw error
     }
   },
 
