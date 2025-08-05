@@ -569,9 +569,18 @@ export const enterTargetScene = async (
   })
 
   try {
+    console.log('🎯 [DEBUG] enterTargetScene: Step A - Getting user details...')
     const userDetails = await getUserDetailsSubscription(telegramId)
+    console.log('🎯 [DEBUG] enterTargetScene: Step A DONE, userDetails:', {
+      isExist: userDetails.isExist,
+      isSubscriptionActive: userDetails.isSubscriptionActive,
+      stars: userDetails.stars,
+    })
 
     if (!userDetails.isExist) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: User does not exist, returning...'
+      )
       logger.warn({
         message: '[EnterTargetSceneWrapper] ❌ Пользователь не найден в БД',
         telegramId,
@@ -586,7 +595,13 @@ export const enterTargetScene = async (
       return
     }
 
+    console.log(
+      '🎯 [DEBUG] enterTargetScene: Step B - Checking subscription...'
+    )
     if (!userDetails.isSubscriptionActive) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: Subscription not active, returning...'
+      )
       logger.warn({
         message: '[EnterTargetSceneWrapper] ❌ Подписка неактивна',
         telegramId,
@@ -597,10 +612,17 @@ export const enterTargetScene = async (
       // Возможно, здесь нужно отправить другое сообщение или просто выйти
       return
     }
+    console.log(
+      '🎯 [DEBUG] enterTargetScene: Step B DONE - Subscription is active'
+    )
 
+    console.log('🎯 [DEBUG] enterTargetScene: Step C - Checking balance...')
     const currentBalance = userDetails.stars
 
     if (currentBalance < cost) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: Insufficient balance, returning...'
+      )
       logger.warn({
         message: '[EnterTargetSceneWrapper] ❌ Недостаточно звезд',
         telegramId,
@@ -614,6 +636,9 @@ export const enterTargetScene = async (
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       return
     }
+    console.log(
+      '🎯 [DEBUG] enterTargetScene: Step C DONE - Balance is sufficient'
+    )
 
     // Списываем звезды ТОЛЬКО если стоимость > 0
     if (cost > 0) {
@@ -647,6 +672,9 @@ export const enterTargetScene = async (
       })
     }
 
+    console.log(
+      '🎯 [DEBUG] enterTargetScene: Step D - Access granted, proceeding to scene selection...'
+    )
     logger.info({
       message: `[EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику`,
       telegramId,
@@ -667,8 +695,16 @@ export const enterTargetScene = async (
       function: 'enterTargetSceneWrapper',
     })
 
+    console.log(
+      '🎯 [DEBUG] enterTargetScene: Checking special mode cases for mode:',
+      mode
+    )
+
     // Специальная логика для FluxKontext - направляем в флюкс-контекст сцену
     if (mode === ModeEnum.FluxKontext) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: FluxKontext mode detected, entering flux_kontext_scene'
+      )
       logger.info({
         message: `[EnterTargetSceneWrapper] FluxKontext режим - переход в flux_kontext_scene`,
         telegramId,
@@ -681,6 +717,9 @@ export const enterTargetScene = async (
 
     // Специальная логика для ImageUpscaler - направляем в imageUpscalerWizard сцену
     if (mode === ModeEnum.ImageUpscaler) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: ImageUpscaler mode detected, entering imageUpscaler scene'
+      )
       logger.info({
         message: `[EnterTargetSceneWrapper] ImageUpscaler режим - переход в imageUpscalerWizard`,
         telegramId,
@@ -693,6 +732,9 @@ export const enterTargetScene = async (
 
     // Специальная логика для VideoTranscription - направляем в videoTranscriptionWizard сцену
     if (mode === ModeEnum.VideoTranscription) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: VideoTranscription mode detected, entering video_transcription scene'
+      )
       logger.info({
         message: `[EnterTargetSceneWrapper] VideoTranscription режим - переход в videoTranscriptionWizard`,
         telegramId,
@@ -704,6 +746,10 @@ export const enterTargetScene = async (
     }
 
     // Fallback для всех остальных режимов
+    console.log(
+      '🎯 [DEBUG] enterTargetScene: Using fallback - entering scene with mode:',
+      mode
+    )
     logger.info({
       message: `[EnterTargetSceneWrapper] 🎯 ПЕРЕХОД В СЦЕНУ: ${mode}`,
       telegramId,
@@ -711,12 +757,19 @@ export const enterTargetScene = async (
       function: 'enterTargetSceneWrapper',
     })
 
+    console.log(
+      '🎯 [DEBUG] enterTargetScene: About to call ctx.scene.enter with mode:',
+      mode
+    )
     // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
     await ctx.scene.enter(mode, {
       ...(ctx.scene.state || {}),
       cost, // Можно передать стоимость в стейт сцены
       // Дополнительные данные, если нужны для целевой сцены
     })
+    console.log(
+      '🎯 [DEBUG] enterTargetScene: ctx.scene.enter completed successfully'
+    )
 
     logger.info({
       message: `[EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену ${mode} выполнен`,
