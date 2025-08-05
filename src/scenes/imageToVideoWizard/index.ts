@@ -191,6 +191,36 @@ handleModelSelection.on('text', async ctx => {
       : '🎬 Select resolution for Seedance Pro:'
     await ctx.replyWithHTML(text, inlineKeyboard)
     return ctx.wizard.next() // Go to handleSeedanceResolutionSelection
+  } else if (foundModelKey === 'wan-2.2-i2v-fast') {
+    // --- Check if WAN 2.2 I2V Fast model is selected ---
+    logger.info('[I2V Wizard] WAN 2.2 I2V Fast model selected', {
+      telegramId: ctx.from?.id,
+      model: foundModelKey,
+    })
+    ctx.session.videoModel = foundModelKey // Store the selected WAN model key
+
+    // Ask for resolution: 480p, 720p, 1080p for WAN
+    const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
+    const buttons =
+      modelConfig.resolutionOptions?.map(resolution => {
+        const price =
+          modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
+        const finalPrice = Math.floor(((price * 5) / 0.016) * 2.5) // Формула расчета звезд
+        return Markup.button.callback(
+          isRu
+            ? `${resolution.toUpperCase()} (${finalPrice} ⭐)`
+            : `${resolution.toUpperCase()} (${finalPrice} ⭐)`,
+          `wan_i2v_${resolution}`
+        )
+      }) || []
+
+    const inlineKeyboard = Markup.inlineKeyboard(buttons)
+
+    const text = isRu
+      ? `🎬 Выберите разрешение для ${modelConfig.title}:`
+      : `🎬 Select resolution for ${modelConfig.title}:`
+    await ctx.replyWithHTML(text, inlineKeyboard)
+    return ctx.wizard.selectStep(6) // Go to handleWanResolutionSelection (после Seedance handlers)
   } else {
     // --- Logic for NON-Kling models (Standard Flow) ---
     logger.info('[I2V Wizard] Non-Kling model selected', {
@@ -533,6 +563,102 @@ handleSeedanceResolutionSelection.use(async ctx => {
   const isRu = isRussianFromState(ctx)
   logger.warn(
     '[I2V Wizard] Unexpected action in handleSeedanceResolutionSelection:',
+    ctx.callbackQuery
+  )
+  await ctx.answerCbQuery()
+  await sendGenericErrorMessage(ctx, isRu)
+  return ctx.scene.leave()
+})
+
+// Step 6.5: Handle WAN Resolution Selection (Callback Query)
+const handleWanResolutionSelection = new Composer<MyContext>()
+handleWanResolutionSelection.action(/^wan_i2v_/, async ctx => {
+  const isRu = isRussianFromState(ctx)
+  await ctx.answerCbQuery()
+  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
+
+  const modelKey = ctx.session.videoModel as VideoModelKey
+  if (!modelKey || modelKey !== 'wan-2.2-i2v-fast') {
+    logger.error('[I2V Wizard] Invalid/missing WAN model key in session', {
+      modelKey,
+    })
+    await sendGenericErrorMessage(ctx, isRu)
+    return ctx.scene.leave()
+  }
+
+  // Extract resolution from callback data: "wan_i2v_720p" -> "720p"
+  const callbackData = 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : ''
+  const resolution = callbackData.replace('wan_i2v_', '')
+
+  if (!resolution) {
+    logger.error('[I2V Wizard] Invalid resolution in callback data', {
+      callbackData,
+    })
+    await sendGenericErrorMessage(ctx, isRu)
+    return ctx.scene.leave()
+  }
+
+  // Set resolution and calculate price
+  ctx.session.selectedResolution = resolution
+  const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
+  const price =
+    modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
+  const finalPriceInStars = Math.floor(((price * 5) / 0.016) * 2.5)
+
+  logger.info('[I2V Wizard] WAN resolution selected:', {
+    telegramId: ctx.from?.id,
+    modelKey,
+    resolution,
+    price,
+    finalPriceInStars,
+  })
+
+  const userDetails: UserDetailsResult = await getUserDetailsSubscription(
+    String(ctx.from?.id)
+  )
+  const currentBalance = userDetails?.stars || 0
+
+  if (!(currentBalance >= finalPriceInStars)) {
+    logger.info(
+      `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
+    )
+    const textInsufficient = isRu
+      ? `😕 Недостаточно звезд для ${resolution.toUpperCase()} (${finalPriceInStars} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
+      : `😕 Insufficient stars for ${resolution.toUpperCase()} (${finalPriceInStars} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
+    await ctx.reply(textInsufficient)
+
+    // Reshow model selection
+    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
+    const textSelectAnother = isRu
+      ? '🤔 Выберите другую модель:'
+      : '🤔 Choose another model:'
+    await ctx.reply(textSelectAnother, {
+      reply_markup: keyboardMarkup.reply_markup,
+    })
+    return ctx.wizard.selectStep(0)
+  }
+
+  ctx.session.paymentAmount = finalPriceInStars
+  ctx.session.is_morphing = false
+
+  const textResolutionChosen = isRu
+    ? `✅ Выбрано: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
+    : `✅ Selected: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
+  await ctx.reply(textResolutionChosen)
+
+  const textRequestImage = isRu
+    ? '📷 Отправьте изображение для создания видео:'
+    : '📷 Send an image to create video:'
+  await ctx.reply(textRequestImage)
+
+  return ctx.wizard.selectStep(5) // Jump to handleStandardImage
+})
+
+// Error handler for unhandled callback queries in WAN resolution selection
+handleWanResolutionSelection.use(async ctx => {
+  const isRu = isRussianFromState(ctx)
+  logger.warn(
+    '[I2V Wizard] Unexpected action in handleWanResolutionSelection:',
     ctx.callbackQuery
   )
   await ctx.answerCbQuery()
@@ -894,13 +1020,14 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo, // Scene ID
   askModelStep, // Step 0: Ask Model (or jump if morphing)
-  handleModelSelection, // Step 1: Handle standard model selection / Kling choice / Seedance choice
+  handleModelSelection, // Step 1: Handle standard model selection / Kling choice / Seedance choice / WAN choice
   handleSeedanceResolutionSelection, // Step 2: Handle Seedance resolution selection (480p/1080p)
   handleKlingModeSelection, // Step 3: Handle Kling mode (standard/morphing) action
   handleMorphImageA, // Step 4: Handle Image A for morphing
   handleMorphImageBOrStandardImage, // Step 5: Handle Image B (morph) OR Standard Image
-  handlePrompt // Step 6: Handle Prompt (now starts background task and leaves)
-  // Step 7 is now handled by the background task initiated in Step 6
+  handleWanResolutionSelection, // Step 6: Handle WAN resolution selection (480p/720p/1080p)
+  handlePrompt // Step 7: Handle Prompt (now starts background task and leaves)
+  // Step 8 is now handled by the background task initiated in Step 7
 )
 
 // Add HELP and CANCEL handlers to the scene
