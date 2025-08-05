@@ -42,12 +42,11 @@ export function calculateFinalPrice(
   //    (Умножаем цену за секунду на стандартную длительность)
   const totalBaseCostUSD = basePrice * DEFAULT_VIDEO_DURATION_SECONDS
 
-  // 2. Переводим полную базовую цену в звезды
+  // 3. Переводим полную базовую цену в звезды
   const basePriceInStars = totalBaseCostUSD / SYSTEM_CONFIG.starCost
-  // 3. Применяем наценку к звездам
-  const finalPriceWithMarkup =
-    basePriceInStars * (1 + SYSTEM_CONFIG.interestRate)
-  // 4. Округляем ВНИЗ до целого числа звезд
+  // 4. Применяем наценку к звездам (interestRate уже включает наценку: 1.5 = 150% = 50% наценка)
+  const finalPriceWithMarkup = basePriceInStars * SYSTEM_CONFIG.interestRate
+  // 5. Округляем ВНИЗ до целого числа звезд
   const finalPriceInStars = Math.floor(finalPriceWithMarkup)
 
   // Логируем новый расчет
