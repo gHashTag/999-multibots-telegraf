@@ -226,13 +226,19 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'WAN 2.2 T2V Fast',
     inputType: ['text'],
     description:
-      '💨 БЫСТРО: WAN 2.2 Text-to-Video - 17 ⭐ за качественное 720p видео',
-    basePrice: 0.022,
+      '💨 БЫСТРО: WAN 2.2 Text-to-Video - от 12⭐ (480p) до 26⭐ (1080p)',
+    basePrice: 0.022, // Базовая цена для 720p
     api: {
       model: 'wan-video/wan-2.2-t2v-fast',
       input: {
-        target_resolution: '720p', // 720p для лучшего качества
+        target_resolution: '720p', // По умолчанию 720p
       },
+    },
+    resolutionOptions: ['480p', '720p', '1080p'],
+    priceByResolution: {
+      '480p': 0.0154, // 30% дешевле - примерно 12⭐
+      '720p': 0.022, // Текущая цена - 17⭐
+      '1080p': 0.033, // 50% дороже - примерно 26⭐
     },
     canMorph: false,
   },
@@ -241,13 +247,19 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'WAN 2.2 I2V Fast',
     inputType: ['image'],
     description:
-      '💨 БЫСТРО: WAN 2.2 Image-to-Video - 15 ⭐ за качественное 720p видео',
-    basePrice: 0.02,
+      '💨 БЫСТРО: WAN 2.2 Image-to-Video - от 11⭐ (480p) до 23⭐ (1080p)',
+    basePrice: 0.02, // Базовая цена для 720p
     api: {
       model: 'wan-video/wan-2.2-i2v-fast',
       input: {
-        target_resolution: '720p', // 720p для лучшего качества
+        target_resolution: '720p', // По умолчанию 720p
       },
+    },
+    resolutionOptions: ['480p', '720p', '1080p'],
+    priceByResolution: {
+      '480p': 0.014, // 30% дешевле - примерно 11⭐
+      '720p': 0.02, // Текущая цена - 15⭐
+      '1080p': 0.03, // 50% дороже - примерно 23⭐
     },
     imageKey: 'image',
     canMorph: false,
