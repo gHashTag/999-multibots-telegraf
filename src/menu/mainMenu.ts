@@ -129,10 +129,6 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
-  109: {
-    title_ru: '🔍 Парсинг',
-    title_en: '🔍 Parsing',
-  },
 }
 
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
@@ -327,7 +323,7 @@ export async function mainMenu({
 
     if (parsingAccess.hasAccess) {
       adminSpecificButtons.push(
-        Markup.button.text(isRu ? levels[109].title_ru : levels[109].title_en)
+        Markup.button.text(isRu ? '🔍 Парсинг' : '🔍 Parsing')
       )
 
       const { bot_name } = getBotNameByToken(botToken)
