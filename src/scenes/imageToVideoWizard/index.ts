@@ -1130,6 +1130,14 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
 // Add enter handler to clean up session state
 imageToVideoWizard.enter(async ctx => {
+  console.log('🎥 [DEBUG] imageToVideoWizard.enter CALLED!')
+  console.log('🎥 [DEBUG] User ID:', ctx.from?.id)
+  console.log('🎥 [DEBUG] Session data:', {
+    mode: ctx.session?.mode,
+    videoModel: ctx.session?.videoModel,
+    modelSelectionShown: ctx.session?.modelSelectionShown,
+  })
+
   const isRu = isRussianFromState(ctx)
   logger.info('[I2V Wizard] Scene entered, clearing session flags', {
     telegramId: ctx.from?.id,
@@ -1150,6 +1158,8 @@ imageToVideoWizard.enter(async ctx => {
     videoModel: ctx.session.videoModel,
     modelSelectionShown: ctx.session.modelSelectionShown,
   })
+
+  console.log('🎥 [DEBUG] imageToVideoWizard.enter COMPLETED!')
 })
 
 // Add HELP and CANCEL handlers to the scene
