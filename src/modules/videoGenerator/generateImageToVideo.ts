@@ -232,6 +232,26 @@ export const generateImageToVideo = async (
           imageUrl: imageUrl, // Логируем URL изображения для отладки
           fullInput: modelInput, // Логируем полный input для отладки
         })
+      }
+      // Специальная обработка для WAN 2.2 I2V Fast модели
+      else if (modelConfig.id === 'wan-2.2-i2v-fast') {
+        // Преобразуем aspect_ratio пользователя в формат WAN
+        const wanResolution =
+          userAspectRatio === '16:9' ? '1280x720' : '720x1280'
+        modelInput = {
+          ...modelConfig.api.input,
+          prompt,
+          target_resolution: wanResolution, // WAN использует специфичный формат
+          [modelConfig.imageKey]: imageUrl,
+        }
+        logger.info('[I2V BG] WAN 2.2 I2V model input prepared:', {
+          telegramId,
+          userAspectRatio,
+          wanResolution,
+          hasImage: !!imageUrl,
+          imageKey: modelConfig.imageKey,
+          fullInput: modelInput,
+        })
       } else {
         // Стандартная обработка для остальных моделей
         modelInput = {
