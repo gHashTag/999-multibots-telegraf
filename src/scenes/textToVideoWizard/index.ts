@@ -293,18 +293,143 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       `[TextToVideoWizard Step 1] Model ${foundModelKey} selected and balance checked for ${ctx.from.id}.`
     )
 
-    await ctx.reply(
-      isRu
-        ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
-        : 'Great! Now enter your prompt (a description of what you want to see in the video):',
-      Markup.removeKeyboard()
-    )
-    return ctx.wizard.next()
+    // Проверяем, нужно ли показать выбор разрешения для WAN моделей
+    const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
+    if (
+      modelConfig.resolutionOptions &&
+      modelConfig.resolutionOptions.length > 0
+    ) {
+      // Показываем клавиатуру выбора разрешения для WAN моделей
+      logger.info(
+        `[TextToVideoWizard Step 1] Showing resolution selection for ${foundModelKey}`
+      )
+
+      const buttons = modelConfig.resolutionOptions.map(resolution => {
+        const price =
+          modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
+        const finalPrice = Math.floor(((price * 5) / 0.016) * 2.5) // Формула расчета звезд
+        return Markup.button.callback(
+          isRu
+            ? `${resolution.toUpperCase()} (${finalPrice} ⭐)`
+            : `${resolution.toUpperCase()} (${finalPrice} ⭐)`,
+          `wan_${foundModelKey}_${resolution}`
+        )
+      })
+
+      const inlineKeyboard = Markup.inlineKeyboard(buttons)
+      const text = isRu
+        ? `🎬 Выберите разрешение для ${modelConfig.title}:`
+        : `🎬 Select resolution for ${modelConfig.title}:`
+
+      await ctx.replyWithHTML(text, inlineKeyboard)
+      return ctx.wizard.next() // Переход к шагу обработки выбора разрешения
+    } else {
+      // Стандартная модель без выбора разрешения
+      await ctx.reply(
+        isRu
+          ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+          : 'Great! Now enter your prompt (a description of what you want to see in the video):',
+        Markup.removeKeyboard()
+      )
+      return ctx.wizard.selectStep(3) // Пропускаем шаг выбора разрешения
+    }
   },
 
-  // Шаг 2: Получение промпта и запуск генерации
+  // Шаг 2: Обработка выбора разрешения для WAN моделей (Callback Query)
   async ctx => {
     logger.info(`[TextToVideoWizard Step 2] Entered for user ${ctx.from?.id}`)
+    const isRu = isRussianFromState(ctx)
+
+    if (await handleHelpCancel(ctx)) {
+      return ctx.scene.leave()
+    }
+
+    // Обрабатываем callback query для выбора разрешения WAN
+    if (
+      'callback_query' in ctx.update &&
+      ctx.update.callback_query &&
+      'data' in ctx.update.callback_query
+    ) {
+      const callbackData = ctx.update.callback_query.data
+      await ctx.answerCbQuery()
+      await ctx.editMessageReplyMarkup(undefined) // Удаляем inline keyboard
+
+      if (callbackData?.startsWith('wan_')) {
+        // Парсим callback data: "wan_wan-2.2-t2v-fast_720p"
+        const parts = callbackData.split('_')
+        if (parts.length >= 3) {
+          const resolution = parts[parts.length - 1] // Последняя часть - разрешение
+          ctx.session.selectedResolution = resolution
+
+          const modelKey = ctx.session.videoModel as VideoModelConfigKey
+          const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
+          const price =
+            modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
+          const finalPrice = Math.floor(((price * 5) / 0.016) * 2.5)
+
+          logger.info(`[TextToVideoWizard Step 2] WAN resolution selected:`, {
+            telegramId: ctx.from?.id,
+            modelKey,
+            resolution,
+            price,
+            finalPrice,
+          })
+
+          // Проверяем баланс для выбранного разрешения
+          if (!ctx.from?.id || !ctx.botInfo?.username) {
+            await sendGenericErrorMessage(ctx, isRu)
+            return ctx.scene.leave()
+          }
+
+          const userBalance = await getUserBalance(
+            ctx.from.id.toString(),
+            ctx.botInfo.username
+          )
+
+          if (userBalance < finalPrice) {
+            await ctx.reply(
+              isRu
+                ? `😕 Недостаточно звезд для ${resolution.toUpperCase()} (${finalPrice} ⭐). Ваш баланс: ${Math.floor(userBalance)} ⭐.`
+                : `😕 Insufficient stars for ${resolution.toUpperCase()} (${finalPrice} ⭐). Your balance: ${Math.floor(userBalance)} ⭐.`
+            )
+            return ctx.scene.leave()
+          }
+
+          const textResolutionChosen = isRu
+            ? `✅ Выбрано: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPrice} ⭐).`
+            : `✅ Selected: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPrice} ⭐).`
+          await ctx.reply(textResolutionChosen)
+
+          await ctx.reply(
+            isRu
+              ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+              : 'Great! Now enter your prompt (a description of what you want to see in the video):',
+            Markup.removeKeyboard()
+          )
+          return ctx.wizard.next() // Переход к шагу получения промпта
+        }
+      }
+
+      // Неопознанный callback
+      logger.error('[TextToVideoWizard Step 2] Unexpected callback data:', {
+        callbackData,
+      })
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
+    // Если не callback query, то ошибка
+    await ctx.reply(
+      isRu
+        ? 'Пожалуйста, выберите разрешение, нажав на одну из кнопок.'
+        : 'Please select a resolution by clicking one of the buttons.'
+    )
+    return ctx.wizard.selectStep(ctx.wizard.cursor)
+  },
+
+  // Шаг 3: Получение промпта и запуск генерации
+  async ctx => {
+    logger.info(`[TextToVideoWizard Step 3] Entered for user ${ctx.from?.id}`)
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
@@ -341,7 +466,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       .replace(fallbackRequestEn, '')
       .trim()
 
-    logger.info('[TextToVideoWizard Step 2] Cleaned prompt:', {
+    logger.info('[TextToVideoWizard Step 3] Cleaned prompt:', {
       original: ctx.message.text,
       cleaned: cleanPrompt,
       telegramId: ctx.from?.id,
@@ -362,7 +487,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     // ЗАПУСК ГЕНЕРАЦИИ В ФОНЕ
     // Мы уже получили videoModelKey ранее для очистки промпта
     logger.info(
-      `[TextToVideoWizard Step 2] Starting background generation for user ${ctx.from?.id}`
+      `[TextToVideoWizard Step 3] Starting background generation for user ${ctx.from?.id}`
     )
     // `videoModelKey` уже определена выше
     processVideoGeneration(ctx, prompt, videoModelKey, isRu)
@@ -375,15 +500,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     )
 
     return ctx.scene.leave()
-  }
-)
-
-// Добавляем обработчик для новых кнопок
-textToVideoWizard.hears(
-  ['🎬 Да, создать еще (эта же модель)', '🎬 Yes, create more (same model)'], // <--- ИЗМЕНЕНО
-  async ctx => {
-    // Просто перезапускаем текущий шаг запроса промпта (шаг 2, индекс 2)
-    // ... existing code ...
   }
 )
 

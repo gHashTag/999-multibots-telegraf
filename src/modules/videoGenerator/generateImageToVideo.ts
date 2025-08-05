@@ -235,9 +235,28 @@ export const generateImageToVideo = async (
       }
       // Специальная обработка для WAN 2.2 I2V Fast модели
       else if (modelConfig.id === 'wan-2.2-i2v-fast') {
-        // Преобразуем aspect_ratio пользователя в формат WAN
-        const wanResolution =
-          userAspectRatio === '16:9' ? '1280x720' : '720x1280'
+        // Определяем разрешение из выбора пользователя или aspect_ratio
+        let wanResolution: string
+
+        if (
+          selectedResolution &&
+          ['480p', '720p', '1080p'].includes(selectedResolution)
+        ) {
+          // Пользователь выбрал конкретное разрешение
+          if (selectedResolution === '480p') {
+            wanResolution = userAspectRatio === '16:9' ? '832x480' : '480x832'
+          } else if (selectedResolution === '720p') {
+            wanResolution = userAspectRatio === '16:9' ? '1280x720' : '720x1280'
+          } else {
+            // 1080p
+            wanResolution =
+              userAspectRatio === '16:9' ? '1920x1080' : '1080x1920'
+          }
+        } else {
+          // Fallback: используем 720p по умолчанию с aspect_ratio
+          wanResolution = userAspectRatio === '16:9' ? '1280x720' : '720x1280'
+        }
+
         modelInput = {
           ...modelConfig.api.input,
           prompt,
@@ -246,6 +265,7 @@ export const generateImageToVideo = async (
         }
         logger.info('[I2V BG] WAN 2.2 I2V model input prepared:', {
           telegramId,
+          selectedResolution,
           userAspectRatio,
           wanResolution,
           hasImage: !!imageUrl,
