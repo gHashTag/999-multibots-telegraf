@@ -307,7 +307,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const buttons = modelConfig.resolutionOptions.map(resolution => {
         const price =
           modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
-        const finalPrice = Math.floor(((price * 5) / 0.016) * 2.5) // Формула расчета звезд
+        const finalPrice = Math.floor(((price * 5) / 0.016) * 1.5) // Формула расчета звезд (50% наценка)
         return Markup.button.callback(
           isRu
             ? `${resolution.toUpperCase()} (${finalPrice} ⭐)`
@@ -365,7 +365,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
           const price =
             modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
-          const finalPrice = Math.floor(((price * 5) / 0.016) * 2.5)
+          const finalPrice = Math.floor(((price * 5) / 0.016) * 1.5)
 
           logger.info(`[TextToVideoWizard Step 2] WAN resolution selected:`, {
             telegramId: ctx.from?.id,
