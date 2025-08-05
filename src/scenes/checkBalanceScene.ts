@@ -308,7 +308,11 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 // ==================================================================
 
 checkBalanceScene.enter(async ctx => {
+  console.log('🚀 [DEBUG] checkBalanceScene.enter STARTED!')
   const telegramId = ctx.from?.id?.toString() || 'unknown'
+  console.log('🚀 [DEBUG] telegramId:', telegramId)
+  console.log('🚀 [DEBUG] session.mode:', ctx.session?.mode)
+
   logger.info({
     message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
     telegramId,
@@ -318,23 +322,33 @@ checkBalanceScene.enter(async ctx => {
   })
 
   console.log('💵 CASE: checkBalanceScene')
-  // Шаг 1: Получаем ID и режим
-  const { telegramId: userId } = await getUserInfo(ctx)
-  const mode = ctx.session.mode as ModeEnum
-  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-  const isRu = isRussianFromState(ctx)
-
-  logger.info({
-    message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
-    telegramId: userId,
-    mode,
-    language: isRu ? 'ru' : 'other',
-    function: 'checkBalanceScene.enter',
-    step: 'identifying_user_and_mode',
-  })
 
   try {
+    // Шаг 1: Получаем ID и режим
+    console.log('🚀 [DEBUG] Step 1: Getting user info...')
+    const { telegramId: userId } = await getUserInfo(ctx)
+    console.log('🚀 [DEBUG] Step 1 DONE, userId:', userId)
+
+    console.log('🚀 [DEBUG] Step 2: Getting mode...')
+    const mode = ctx.session.mode as ModeEnum
+    console.log('🚀 [DEBUG] Step 2 DONE, mode:', mode)
+
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    console.log('🚀 [DEBUG] Step 3: Getting language...')
+    const isRu = isRussianFromState(ctx)
+    console.log('🚀 [DEBUG] Step 3 DONE, isRu:', isRu)
+
+    logger.info({
+      message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
+      telegramId: userId,
+      mode,
+      language: isRu ? 'ru' : 'other',
+      function: 'checkBalanceScene.enter',
+      step: 'identifying_user_and_mode',
+    })
+
     // --- ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ ---
+    console.log('🚀 [DEBUG] Step 4: Getting user details from DB...')
     logger.info({
       message: `[CheckBalanceScene] Получение данных пользователя из БД`,
       telegramId,
@@ -343,6 +357,11 @@ checkBalanceScene.enter(async ctx => {
     })
 
     const userDetails = await getUserDetailsSubscription(telegramId)
+    console.log('🚀 [DEBUG] Step 4 DONE, userDetails:', {
+      isExist: userDetails.isExist,
+      isSubscriptionActive: userDetails.isSubscriptionActive,
+      stars: userDetails.stars,
+    })
 
     logger.info({
       message: `[CheckBalanceScene] Данные пользователя получены`,
@@ -474,6 +493,12 @@ checkBalanceScene.enter(async ctx => {
     })
 
     // --- ВЫЗОВ ФУНКЦИИ ДЛЯ ВХОДА В ЦЕЛЕВУЮ СЦЕНУ ---
+    console.log(
+      '🚀 [DEBUG] Step 5: About to call enterTargetScene with mode:',
+      mode,
+      'cost:',
+      costValue
+    )
     logger.info({
       message: `[CheckBalanceScene] Перед вызовом enterTargetScene`,
       telegramId,
@@ -485,6 +510,9 @@ checkBalanceScene.enter(async ctx => {
     // Передаем необходимые параметры: контекст, пустую функцию next, режим, стоимость
     // @ts-ignore // Временно игнорируем ошибку компилятора, т.к. типы по факту совпадают
     await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Исправленный вызов
+    console.log(
+      '🚀 [DEBUG] Step 5 DONE: enterTargetScene completed successfully'
+    )
 
     logger.info({
       message: `[CheckBalanceScene] После вызова enterTargetScene`,
@@ -523,7 +551,14 @@ export const enterTargetScene = async (
   mode: ModeEnum, // Используем ModeEnum
   cost: number
 ) => {
+  console.log(
+    '🎯 [DEBUG] enterTargetScene CALLED with mode:',
+    mode,
+    'cost:',
+    cost
+  )
   const telegramId = ctx.from?.id?.toString() || 'unknown'
+  console.log('🎯 [DEBUG] enterTargetScene telegramId:', telegramId)
 
   logger.info({
     message: `[EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим ${mode}`,
