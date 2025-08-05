@@ -180,6 +180,24 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
     canMorph: false,
   },
+  'veo-3-fast': {
+    id: 'veo-3-fast',
+    title: 'Google Veo 3 Fast',
+    inputType: ['text', 'image'],
+    description:
+      '⚡ БЫСТРО: Ускоренная версия Veo 3 с аудио - в 5 раз дешевле и на 30% быстрее',
+    basePrice: 0.4,
+    api: {
+      model: 'google/veo-3-fast',
+      input: {
+        prompt_optimizer: true,
+        duration_seconds: 8,
+        enable_audio: true,
+      },
+    },
+    imageKey: 'image',
+    canMorph: false,
+  },
   'seedance-1-pro': {
     id: 'seedance-1-pro',
     title: 'Seedance Pro',
