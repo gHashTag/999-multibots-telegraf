@@ -1104,36 +1104,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   handlePrompt // Step 7: Handle Prompt (now starts background task and leaves)
 )
 
-// Add enter handler to clean up session state
-imageToVideoWizard.enter(async ctx => {
-  console.log('🎥 [DEBUG] imageToVideoWizard.enter CALLED!')
-  console.log('🎥 [DEBUG] User ID:', ctx.from?.id)
-  console.log('🎥 [DEBUG] Session data:', {
-    mode: ctx.session?.mode,
-    videoModel: ctx.session?.videoModel,
-  })
-
-  const isRu = isRussianFromState(ctx)
-  logger.info('[I2V Wizard] Scene entered, clearing session flags', {
-    telegramId: ctx.from?.id,
-    existingVideoModel: ctx.session.videoModel,
-  })
-
-  // Clear session flags for fresh start, but preserve videoModel if already set
-  ctx.session.selectedResolution = undefined
-  // Only clear videoModel if this is a fresh start (no model selected yet)
-  if (!ctx.session.videoModel) {
-    ctx.session.videoModel = undefined
-  }
-
-  logger.info('[I2V Wizard] Session state after cleanup', {
-    telegramId: ctx.from?.id,
-    videoModel: ctx.session.videoModel,
-  })
-
-  console.log('🎥 [DEBUG] imageToVideoWizard.enter COMPLETED!')
-})
-
 // Add HELP and CANCEL handlers to the scene
 imageToVideoWizard.help(handleHelpCancel)
 imageToVideoWizard.command('cancel', handleHelpCancel)
