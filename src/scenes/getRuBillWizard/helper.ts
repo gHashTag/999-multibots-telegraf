@@ -1,4 +1,9 @@
-import { MERCHANT_LOGIN, RESULT_URL2, ROBOKASSA_PASSWORD_1 } from '@/config'
+import {
+  MERCHANT_LOGIN,
+  RESULT_URL2,
+  UNIFIED_RESULT_URL,
+  ROBOKASSA_PASSWORD_1,
+} from '@/config'
 import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
@@ -9,7 +14,8 @@ console.log(
   'ROBOKASSA_PASSWORD_1:',
   ROBOKASSA_PASSWORD_1 ? '[PROTECTED]' : 'undefined'
 )
-console.log('RESULT_URL2:', RESULT_URL2)
+console.log('RESULT_URL2 (legacy):', RESULT_URL2)
+console.log('UNIFIED_RESULT_URL (new):', UNIFIED_RESULT_URL)
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = ROBOKASSA_PASSWORD_1
@@ -33,7 +39,7 @@ export const subscriptionTitles = (isRu: boolean) => ({
   neurovideo: isRu ? '📚 НейроВидео' : '📚 NeuroVideo',
 })
 
-export const resultUrl2 = RESULT_URL2
+export const resultUrl2 = UNIFIED_RESULT_URL
 
 export function generateRobokassaUrl(
   merchantLogin: string,
