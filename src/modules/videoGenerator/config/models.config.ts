@@ -227,7 +227,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     inputType: ['text'],
     description:
       '💨 БЫСТРО: WAN 2.2 Text-to-Video - от 12⭐ (480p) до 26⭐ (1080p)',
-    basePrice: 0.022, // Базовая цена для 720p
+    basePrice: 0.03627, // Базовая цена для 720p (17⭐)
     api: {
       model: 'wan-video/wan-2.2-t2v-fast',
       input: {
@@ -236,9 +236,9 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
     resolutionOptions: ['480p', '720p', '1080p'],
     priceByResolution: {
-      '480p': 0.0154, // 30% дешевле - примерно 12⭐
-      '720p': 0.022, // Текущая цена - 17⭐
-      '1080p': 0.033, // 50% дороже - примерно 26⭐
+      '480p': 0.0256, // 12⭐ = (12 * 0.016) / (5 * 1.5)
+      '720p': 0.03627, // 17⭐ = (17 * 0.016) / (5 * 1.5)
+      '1080p': 0.05547, // 26⭐ = (26 * 0.016) / (5 * 1.5)
     },
     canMorph: false,
   },
@@ -248,7 +248,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     inputType: ['image'],
     description:
       '💨 БЫСТРО: WAN 2.2 Image-to-Video - от 11⭐ (480p) до 23⭐ (1080p)',
-    basePrice: 0.02, // Базовая цена для 720p
+    basePrice: 0.032, // Базовая цена для 720p (15⭐)
     api: {
       model: 'wan-video/wan-2.2-i2v-fast',
       input: {
@@ -257,9 +257,9 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
     resolutionOptions: ['480p', '720p', '1080p'],
     priceByResolution: {
-      '480p': 0.014, // 30% дешевле - примерно 11⭐
-      '720p': 0.02, // Текущая цена - 15⭐
-      '1080p': 0.03, // 50% дороже - примерно 23⭐
+      '480p': 0.02347, // 11⭐ = (11 * 0.016) / (5 * 1.5)
+      '720p': 0.032, // 15⭐ = (15 * 0.016) / (5 * 1.5)
+      '1080p': 0.04907, // 23⭐ = (23 * 0.016) / (5 * 1.5)
     },
     imageKey: 'image',
     canMorph: false,
