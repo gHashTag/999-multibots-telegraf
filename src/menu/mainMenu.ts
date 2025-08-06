@@ -79,11 +79,11 @@ export const levels: Record<number, Level> = {
     title_ru: '🧬 Морфинг',
     title_en: '🧬 Morphing',
   },
-  // lip_sync
-  // 14: {
-  //   title_ru: '🎤 Синхронизация губ',
-  //   title_en: '🎤 Lip Sync',
-  // },
+  // lip_sync - новая Kling модель
+  14: {
+    title_ru: '🎤 Kling Lip Sync',
+    title_en: '🎤 Kling Lip Sync',
+  },
   // 15: {
   //   title_ru: '🎥 Видео в URL',
   //   title_en: '🎥 Video in URL',

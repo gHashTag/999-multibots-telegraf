@@ -379,6 +379,31 @@ export const handleMenu = async (ctx: MyContext) => {
         await ctx.scene.enter('morphing_wizard')
         console.log(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
       },
+      [isRu ? levels[14].title_ru : levels[14].title_en]: async () => {
+        logger.info({
+          message: '🎤 [handleMenu] Переход к Kling Lip Sync',
+          telegramId,
+          function: 'handleMenu',
+          action: 'lip_sync',
+          nextScene: 'lip_sync',
+        })
+        console.log('CASE: 🎤 Kling Lip Sync')
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед входом в липсинк
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          '🎤 Kling Lip Sync'
+        )
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        // Устанавливаем режим LipSync и переходим напрямую в lip_sync scene
+        ctx.session.mode = ModeEnum.LipSync
+        console.log(`🔄 [handleMenu] Вход в сцену lip_sync`)
+        await ctx.scene.enter('lip_sync')
+        console.log(`✅ [handleMenu] Завершен вход в сцену lip_sync`)
+      },
       [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
         logger.info({
           message: '⬆️ [handleMenu] Переход к увеличению качества фото',
