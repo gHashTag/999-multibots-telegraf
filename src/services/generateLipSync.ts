@@ -1,97 +1,90 @@
-import axios, { AxiosResponse } from 'axios'
-import FormData from 'form-data'
-import {
-  isDev,
-  SECRET_API_KEY,
-  API_SERVER_URL,
-  LOCAL_SERVER_URL,
-} from '@/config'
-import fs from 'fs'
-import path from 'path'
-import { ensureDirectoryExistence } from '@/helpers'
-import { sendBalanceMessage } from '@/price/helpers'
 import { logger } from '@/utils/logger'
+import {
+  generateKlingLipSync,
+  type KlingLipSyncResult,
+  type KlingLipSyncResponse,
+  type KlingLipSyncError,
+} from '@/core/replicate/generateKlingLipSync'
 
-interface LipSyncResponse {
+// Интерфейс для обратной совместимости
+export interface LipSyncResponse {
   message: string
   resultUrl?: string
+  id?: string
+  status?: string
 }
 
-export async function downloadFile(
-  url: string,
-  outputPath: string
-): Promise<void> {
-  const response = await axios.get(url, { responseType: 'stream' })
-  const writer = fs.createWriteStream(outputPath)
-
-  return new Promise((resolve, reject) => {
-    response.data.pipe(writer)
-    let error: Error | null = null
-    writer.on('error', err => {
-      error = err
-      writer.close()
-      reject(err)
-    })
-    writer.on('close', () => {
-      if (!error) {
-        resolve()
-      }
-    })
-  })
-}
-
+/**
+ * Генерирует видео с липсинком используя новую Kling модель через Replicate
+ * @param videoUrl - URL видео для обработки
+ * @param audioUrl - URL аудио для синхронизации
+ * @param telegramId - ID пользователя Telegram
+ * @param botName - Имя бота (для логирования)
+ * @returns Promise с результатом генерации
+ */
 export async function generateLipSync(
   videoUrl: string,
   audioUrl: string,
-  telegram_id: string,
+  telegramId: string,
   botName: string
 ): Promise<LipSyncResponse> {
   try {
-    const videoPath = path.join(__dirname, '../../tmp', 'temp_video.mp4')
-    const audioPath = path.join(__dirname, '../../tmp', 'temp_audio.mp3')
-    console.log('videoPath', videoPath)
-    console.log('audioPath', audioPath)
-    await ensureDirectoryExistence(path.dirname(videoPath))
-    await ensureDirectoryExistence(path.dirname(audioPath))
-    // Скачиваем видео и аудио файлы
-    await downloadFile(videoUrl, videoPath)
-    await downloadFile(audioUrl, audioPath)
+    logger.info('🎬 Начинаем генерацию липсинка с Kling модели', {
+      telegramId,
+      botName,
+      videoUrl: videoUrl.substring(0, 100) + '...',
+      audioUrl: audioUrl.substring(0, 100) + '...',
+    })
 
-    console.log('LipSync request data:', { videoUrl, audioUrl, telegram_id })
-    const url = `${
-      isDev ? LOCAL_SERVER_URL : API_SERVER_URL
-    }/generate/create-lip-sync`
-
-    // Создаем FormData для передачи URL видео и аудио
-    const formData = new FormData()
-    formData.append('type', 'lip-sync')
-    formData.append('telegram_id', telegram_id)
-    formData.append('is_ru', 'true')
-    formData.append('bot_name', botName)
-    formData.append('video', fs.createReadStream(videoPath))
-    formData.append('audio', fs.createReadStream(audioPath))
-
-    console.log('formData', formData)
-    const response: AxiosResponse<LipSyncResponse> = await axios.post(
-      url,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'x-secret-key': SECRET_API_KEY,
-          ...formData.getHeaders(),
-        },
-      }
+    // Используем новую Kling модель
+    const result: KlingLipSyncResult = await generateKlingLipSync(
+      telegramId,
+      videoUrl,
+      audioUrl,
+      true
     )
 
-    console.log('LipSync response:', response.data)
-    return response.data as LipSyncResponse
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
-      throw new Error('Error occurred while generating lip sync')
+    // Проверяем если результат - это ошибка
+    if ('message' in result && 'error' in result) {
+      const error = result as KlingLipSyncError
+      logger.error('❌ Ошибка от Kling LipSync сервиса', {
+        error: error.message,
+        details: error.error,
+        telegramId,
+      })
+
+      throw new Error(error.message || 'Ошибка при генерации липсинка')
     }
-    console.error('Unexpected error:', error)
+
+    // Результат успешный
+    const success = result as KlingLipSyncResponse
+
+    logger.info('✅ Kling LipSync запущен успешно', {
+      id: success.id,
+      status: success.status,
+      telegramId,
+      hasOutput: !!success.output,
+    })
+
+    // Возвращаем в формате, совместимом со старым API
+    return {
+      message:
+        success.status === 'succeeded'
+          ? 'Видео с липсинком готово'
+          : 'Видео отправлено на обработку. Ждите результата',
+      resultUrl: success.output,
+      id: success.id,
+      status: success.status,
+    }
+  } catch (error) {
+    logger.error('❌ Критическая ошибка при генерации липсинка', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId,
+      botName,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    // Пробрасываем ошибку дальше для обработки в UI
     throw error
   }
 }

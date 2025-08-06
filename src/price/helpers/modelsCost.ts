@@ -48,7 +48,7 @@ export const BASE_COSTS: BaseCosts = {
   [ModeEnum.ImageToVideo]: 0,
   [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0.08,
-  [ModeEnum.LipSync]: 0.9,
+  [ModeEnum.LipSync]: 0.14, // Kling Lip-Sync: $0.014/sec * 10sec = $0.14
   [ModeEnum.VoiceToText]: 0.08,
 }
 

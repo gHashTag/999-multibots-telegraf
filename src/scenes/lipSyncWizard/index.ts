@@ -148,7 +148,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       {
         bot_name: ctx.botInfo?.username || 'unknown_bot',
         service_type: 'lip_sync',
-        model_name: 'lipsync-1.9.0-beta',
+        model_name: 'kwaivgi/kling-lip-sync',
         language: isRu ? 'ru' : 'en',
       }
     )

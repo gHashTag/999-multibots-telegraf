@@ -136,7 +136,7 @@ export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
   [ModeEnum.TextToVideo]: 0,
   [ModeEnum.TextToImage]: 0,
   [ModeEnum.FluxKontext]: 0, // Цена рассчитывается динамически в зависимости от выбранной модели (Pro/Max)
-  [ModeEnum.LipSync]: calculateFinalStarCostFromDollars(0.9),
+  [ModeEnum.LipSync]: calculateFinalStarCostFromDollars(0.14), // Kling Lip-Sync: $0.014/sec * 10sec
   [ModeEnum.VoiceToText]: calculateFinalStarCostFromDollars(0.08),
 }
 
