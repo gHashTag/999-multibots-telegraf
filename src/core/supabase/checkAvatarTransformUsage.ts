@@ -1,6 +1,8 @@
 import { supabase } from './client'
 import { logger } from '@/utils/logger'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { createUser } from './createUser'
+import { CreateUserData } from '@/interfaces'
 
 /**
  * Проверяет может ли пользователь использовать avatar transform функцию
@@ -47,6 +49,67 @@ export const checkAvatarTransformUsage = async (
       .single()
 
     if (error) {
+      // Если ошибка из-за отсутствия пользователя, пытаемся создать его
+      if (
+        error.code === 'PGRST116' ||
+        error.message.includes('Row not found')
+      ) {
+        logger.info(
+          '[checkAvatarTransformUsage] User not found, creating new user',
+          {
+            telegram_id: telegramIdStr,
+          }
+        )
+
+        try {
+          // Создаем пользователя с минимальными данными
+          const [wasCreated, newUser] = await createUser({
+            telegram_id: telegramIdStr,
+            username: telegramIdStr, // Fallback username
+            first_name: null,
+            last_name: null,
+            language_code: 'ru', // Default language
+            is_bot: false,
+            photo_url: null,
+            chat_id: null,
+            mode: 'clean',
+            model: 'gpt-4-turbo',
+            count: 0,
+            aspect_ratio: '9:16',
+            inviter: null,
+            bot_name: null,
+          })
+
+          if (wasCreated && newUser) {
+            logger.info(
+              '[checkAvatarTransformUsage] User created successfully',
+              {
+                telegram_id: telegramIdStr,
+                userId: newUser.id,
+              }
+            )
+            // Новый пользователь может использовать функцию
+            return {
+              canUse: true,
+              isAdmin: false,
+              hasUsedBefore: false,
+            }
+          } else {
+            logger.error('[checkAvatarTransformUsage] Failed to create user', {
+              telegram_id: telegramIdStr,
+            })
+          }
+        } catch (createError) {
+          logger.error('[checkAvatarTransformUsage] Error creating user', {
+            telegram_id: telegramIdStr,
+            error:
+              createError instanceof Error
+                ? createError.message
+                : 'Unknown error',
+          })
+        }
+      }
+
       logger.error('[checkAvatarTransformUsage] Database error', {
         telegram_id: telegramIdStr,
         error: error.message,
