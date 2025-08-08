@@ -210,7 +210,10 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         ctx.session.inviteCode.toString()
       )
 
-      ctx.session.inviter = userData.user_id
+      // Устанавливаем inviter только если пользователь существует
+      if (userData && userData.user_id) {
+        ctx.session.inviter = userData.user_id
+      }
 
       if (ctx.session.inviteCode) {
         try {

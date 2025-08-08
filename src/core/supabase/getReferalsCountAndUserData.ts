@@ -80,9 +80,9 @@ export const getReferalsCountAndUserData = async (
     }
 
     // Теперь ищем рефералов по UUID
-    const { data, error: countError } = await supabase
+    const { count, error: countError } = await supabase
       .from('users')
-      .select('inviter', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
       .eq('inviter', userData.user_id)
 
     if (countError) {
@@ -98,7 +98,7 @@ export const getReferalsCountAndUserData = async (
     }
 
     return {
-      count: data?.length || 0,
+      count: count || 0,
       level: userData.level || 0,
       subscriptionType: subscriptionInfo.type || SubscriptionType.STARS,
       userData: userData as UserType,
