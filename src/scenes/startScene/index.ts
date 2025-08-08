@@ -216,7 +216,10 @@ export const startScene = new Scenes.WizardScene<MyContext>(
                 await getReferalsCountAndUserData(invite_code.toString())
               refCount = count
               referrerData = refUserData || {}
-              ctx.session.inviter = referrerData.user_id
+              // Устанавливаем inviter только если пользователь существует
+              if (refUserData && refUserData.user_id) {
+                ctx.session.inviter = refUserData.user_id
+              }
               // Уведомление рефереру
               try {
                 await ctx.telegram.sendMessage(
