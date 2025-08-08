@@ -7,10 +7,12 @@ import { CreateUserData } from '@/interfaces'
 /**
  * Проверяет может ли пользователь использовать avatar transform функцию
  * @param telegram_id - ID пользователя в Telegram
+ * @param inviteCode - (Опционально) Реферальный код для установки inviter при создании пользователя
  * @returns {Promise<{canUse: boolean, isAdmin: boolean, hasUsedBefore: boolean}>}
  */
 export const checkAvatarTransformUsage = async (
-  telegram_id: string | number
+  telegram_id: string | number,
+  inviteCode?: string
 ): Promise<{
   canUse: boolean
   isAdmin: boolean
@@ -62,6 +64,49 @@ export const checkAvatarTransformUsage = async (
         )
 
         try {
+          // Обрабатываем реферальный код если он передан
+          let inviterId: string | null = null
+          if (inviteCode) {
+            try {
+              const { getReferalsCountAndUserData } = await import(
+                './getReferalsCountAndUserData'
+              )
+              const { userData: referrerData } =
+                await getReferalsCountAndUserData(inviteCode)
+              if (referrerData && referrerData.user_id) {
+                inviterId = referrerData.user_id
+                logger.info(
+                  '[checkAvatarTransformUsage] Referrer found for invite code',
+                  {
+                    telegram_id: telegramIdStr,
+                    inviteCode,
+                    referrerId: inviterId,
+                  }
+                )
+              } else {
+                logger.warn(
+                  '[checkAvatarTransformUsage] Referrer not found for invite code',
+                  {
+                    telegram_id: telegramIdStr,
+                    inviteCode,
+                  }
+                )
+              }
+            } catch (referralError) {
+              logger.error(
+                '[checkAvatarTransformUsage] Error processing referral code',
+                {
+                  telegram_id: telegramIdStr,
+                  inviteCode,
+                  error:
+                    referralError instanceof Error
+                      ? referralError.message
+                      : 'Unknown error',
+                }
+              )
+            }
+          }
+
           // Создаем пользователя с минимальными данными
           const [wasCreated, newUser] = await createUser({
             telegram_id: telegramIdStr,
@@ -76,7 +121,7 @@ export const checkAvatarTransformUsage = async (
             model: 'gpt-4-turbo',
             count: 0,
             aspect_ratio: '9:16',
-            inviter: null,
+            inviter: inviterId,
             bot_name: null,
           })
 
@@ -86,8 +131,41 @@ export const checkAvatarTransformUsage = async (
               {
                 telegram_id: telegramIdStr,
                 userId: newUser.id,
+                hasReferrer: !!inviterId,
               }
             )
+
+            // 📩 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ РЕФЕРЕРУ если пользователь был создан с реферальным кодом
+            if (inviteCode && inviterId) {
+              try {
+                // Импортируем bot instance для отправки уведомления
+                // Примечание: Здесь мы не можем импортировать ctx, поэтому используем прямой импорт telegram
+                logger.info(
+                  '[checkAvatarTransformUsage] Attempting to send referral notification',
+                  {
+                    telegram_id: telegramIdStr,
+                    inviteCode,
+                    referrerId: inviterId,
+                  }
+                )
+
+                // Примечание: Уведомление должно быть отправлено из AvatarTransformScene, где есть доступ к ctx
+                // Возвращаем информацию о том, что нужно отправить уведомление
+              } catch (notificationError) {
+                logger.error(
+                  '[checkAvatarTransformUsage] Error preparing referral notification',
+                  {
+                    telegram_id: telegramIdStr,
+                    inviteCode,
+                    error:
+                      notificationError instanceof Error
+                        ? notificationError.message
+                        : 'Unknown error',
+                  }
+                )
+              }
+            }
+
             // Новый пользователь может использовать функцию
             return {
               canUse: true,

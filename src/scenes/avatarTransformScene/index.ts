@@ -87,13 +87,36 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       step: 'initial',
     })
 
+    // 🔗 ОБРАБОТКА РЕФЕРАЛЬНЫХ ССЫЛОК
+    // Извлекаем invite code из команды /start если он есть
+    let inviteCode = ''
+    if (ctx.message && 'text' in ctx.message) {
+      const messageText = ctx.message.text
+      const { extractInviteCodeFromContext } = await import(
+        '@/helpers/contextUtils'
+      )
+      inviteCode = extractInviteCodeFromContext(ctx)
+
+      if (inviteCode) {
+        ctx.session.inviteCode = inviteCode
+        logger.info('[AvatarTransformScene] Referral code detected', {
+          telegramId,
+          inviteCode,
+          step: 'referral_detected',
+        })
+      }
+    }
+
     // 🛡️ ПРОВЕРЯЕМ ЛИМИТ ИСПОЛЬЗОВАНИЯ ФУНКЦИИ
     logger.info('[AvatarTransformScene] Checking usage limit', {
       telegramId,
       step: 'checking_limit',
     })
 
-    const usageCheck = await checkAvatarTransformUsage(telegramId)
+    const usageCheck = await checkAvatarTransformUsage(
+      telegramId,
+      inviteCode || undefined
+    )
 
     logger.info('[AvatarTransformScene] Usage limit check result', {
       telegramId,
@@ -102,6 +125,46 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       hasUsedBefore: usageCheck.hasUsedBefore,
       step: 'limit_checked',
     })
+
+    // 📩 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ РЕФЕРЕРУ при первом использовании с реферальным кодом
+    if (inviteCode && usageCheck.canUse && !usageCheck.hasUsedBefore) {
+      try {
+        const username =
+          ctx.from?.username || ctx.from?.first_name || telegramId
+        const { getReferalsCountAndUserData } = await import(
+          '@/core/supabase/getReferalsCountAndUserData'
+        )
+        const { count } = await getReferalsCountAndUserData(inviteCode)
+
+        await ctx.telegram.sendMessage(
+          inviteCode,
+          `🔗 Новый пользователь @${username} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${count + 1}`
+        )
+
+        logger.info(
+          '[AvatarTransformScene] Referral notification sent successfully',
+          {
+            telegramId,
+            inviteCode,
+            referralLevel: count + 1,
+            step: 'referral_notification_sent',
+          }
+        )
+      } catch (notificationError) {
+        logger.warn(
+          '[AvatarTransformScene] Could not send referral notification',
+          {
+            telegramId,
+            inviteCode,
+            error:
+              notificationError instanceof Error
+                ? notificationError.message
+                : 'Unknown error',
+            step: 'referral_notification_failed',
+          }
+        )
+      }
+    }
 
     // Если пользователь не может использовать (уже использовал и не админ)
     if (!usageCheck.canUse) {
