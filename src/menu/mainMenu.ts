@@ -11,6 +11,7 @@ import { getBotNameByToken } from '../core/bot'
 interface Level {
   title_ru: string
   title_en: string
+  admin_only?: boolean // Опциональное поле для ограничения доступа только админам
 }
 
 export const levels: Record<number, Level> = {
@@ -78,11 +79,13 @@ export const levels: Record<number, Level> = {
   13: {
     title_ru: '🧬 Морфинг',
     title_en: '🧬 Morphing',
+    admin_only: true, // 🤫 Скрыто для обычных пользователей
   },
   // lip_sync - новая Kling модель
   14: {
     title_ru: '🎤 Kling Lip Sync',
     title_en: '🎤 Kling Lip Sync',
+    admin_only: true, // 🤫 Скрыто для обычных пользователей
   },
   // 15: {
   //   title_ru: '🎥 Видео в URL',
@@ -226,6 +229,7 @@ export async function mainMenu({
 
   // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MAINMENU
   const telegramId = ctx.from?.id?.toString()
+  const userId = ctx.from?.id?.toString() // 🔧 Определяем userId в самом начале
   logger.info(`[mainMenu] 🎹 MENU CREATION STARTED:`, {
     telegramId,
     inputIsRu: isRu,
@@ -269,9 +273,6 @@ export async function mainMenu({
     [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все возможности для тестера
   }
 
-  let availableLevels: Level[] =
-    subscriptionLevelsMap[currentSubscription] || []
-
   const filterServiceLevels = (lvl: Level) =>
     lvl !== levels[100] &&
     lvl !== levels[101] &&
@@ -281,6 +282,8 @@ export async function mainMenu({
     lvl !== levels[105] &&
     lvl !== levels[106] // ✅ ИСКЛЮЧАЕМ кнопку языка из основных кнопок
 
+  let availableLevels: Level[] = []
+
   if (
     currentSubscription === SubscriptionType.NEUROVIDEO ||
     currentSubscription === SubscriptionType.NEUROTESTER
@@ -289,11 +292,19 @@ export async function mainMenu({
     console.log(
       `[mainMenu LOG] Overriding hasFullAccess to true for ${currentSubscription}`
     )
-    availableLevels =
-      subscriptionLevelsMap[currentSubscription].filter(filterServiceLevels)
+    availableLevels = subscriptionLevelsMap[currentSubscription]
+      .filter(filterServiceLevels)
+      .filter(
+        level => !(level.admin_only && !(userId && adminIds.includes(userId)))
+      )
   } else if (currentSubscription === SubscriptionType.STARS) {
     availableLevels = []
+  } else {
+    availableLevels = (subscriptionLevelsMap[currentSubscription] || []).filter(
+      level => !(level.admin_only && !(userId && adminIds.includes(userId)))
+    )
   }
+
   availableLevels = Array.from(new Set(availableLevels))
   console.log(
     `[mainMenu LOG] Determined availableLevels count: ${availableLevels.length}`
@@ -303,36 +314,16 @@ export async function mainMenu({
     Markup.button.text(isRu ? lvl.title_ru : lvl.title_en)
   )
 
-  const userId = ctx.from?.id?.toString()
   const adminSpecificButtons = []
 
   // Админские кнопки для основных админов
   if (userId && adminIds.includes(userId)) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
+      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2'),
+      Markup.button.text(isRu ? '🔍 Парсинг' : '🔍 Parsing') // 🤫 Только для админов
     )
     console.log('[mainMenu LOG] Added admin buttons.')
-  }
-
-  // 🔍 Проверка доступа к кнопке парсинга
-  const botToken = ctx.telegram.token
-
-  if (userId) {
-    const parsingAccess = getParsingAccess(userId, botToken)
-
-    if (parsingAccess.hasAccess) {
-      adminSpecificButtons.push(
-        Markup.button.text(isRu ? '🔍 Парсинг' : '🔍 Parsing')
-      )
-
-      const { bot_name } = getBotNameByToken(botToken)
-      logger.info(`[mainMenu] Added parsing button for ${bot_name} staff`, {
-        userId,
-        botName: bot_name,
-        allowedProjects: parsingAccess.allowedProjects,
-      })
-    }
   }
 
   // --- Создаем кнопки, которые нужны почти всегда ---
