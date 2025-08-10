@@ -71,3 +71,44 @@ null value in column "bot_name" of relation "users" violates not-null constraint
 
 ### Коммит
 Коммит: b1923f99918fe9e1e7cd3b7991a9c459d2141936 (Ветка: fix/user-does-not-exist)
+
+---
+
+## 2025-01-11: Исправление фильтрации admin_only кнопок в главном меню
+
+### Проблема
+Кнопки "🧬 Морфинг" и "🎤 Kling Lip Sync" были помечены как `admin_only: true`, но не скрывались для обычных пользователей из-за нескольких проблем:
+1. Поле `admin_only` не было определено в интерфейсе `Level`
+2. Переменная `userId` использовалась до определения
+3. Логика фильтрации была переопределена для NEUROVIDEO и NEUROTESTER подписок
+
+### Решение
+1. **Добавлено поле в интерфейс**:
+   ```typescript
+   interface Level {
+     title_ru: string
+     title_en: string
+     admin_only?: boolean // Опциональное поле для ограничения доступа
+   }
+   ```
+
+2. **Исправлен порядок определения переменных**:
+   ```typescript
+   const userId = ctx.from?.id?.toString() // Определяем в самом начале
+   ```
+
+3. **Улучшена логика фильтрации**:
+   ```typescript
+   availableLevels = subscriptionLevelsMap[currentSubscription]
+     .filter(filterServiceLevels)
+     .filter((level) => !(level.admin_only && !(userId && adminIds.includes(userId))))
+   ```
+
+### Результат
+- ✅ Кнопки "🧬 Морфинг" и "🎤 Kling Lip Sync" скрыты для обычных пользователей
+- ✅ Админы видят все кнопки, включая admin_only
+- ✅ TypeScript компилируется без ошибок
+- ✅ Логика фильтрации работает для всех типов подписок
+
+### Коммит
+Коммит: 31db83b6 (Ветка: main-updated)
