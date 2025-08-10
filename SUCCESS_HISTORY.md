@@ -70,4 +70,4 @@ null value in column "bot_name" of relation "users" violates not-null constraint
 - ✅ Устранены ошибки базы данных при регистрации
 
 ### Коммит
-(будет добавлен после выполнения git commit)
+Коммит: b1923f99918fe9e1e7cd3b7991a9c459d2141936 (Ветка: fix/user-does-not-exist)
