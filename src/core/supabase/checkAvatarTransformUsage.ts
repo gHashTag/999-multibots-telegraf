@@ -12,7 +12,8 @@ import { CreateUserData } from '@/interfaces'
  */
 export const checkAvatarTransformUsage = async (
   telegram_id: string | number,
-  inviteCode?: string
+  inviteCode?: string,
+  botName?: string
 ): Promise<{
   canUse: boolean
   isAdmin: boolean
@@ -122,7 +123,7 @@ export const checkAvatarTransformUsage = async (
             count: 0,
             aspect_ratio: '9:16',
             inviter: inviterId,
-            bot_name: null,
+            bot_name: botName || 'AI_STARS_bot', // Используем переданное имя бота или дефолт
           })
 
           if (wasCreated && newUser) {
