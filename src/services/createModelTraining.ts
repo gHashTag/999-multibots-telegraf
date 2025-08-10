@@ -63,11 +63,22 @@ export async function createModelTraining(
           'x-secret-key': SECRET_API_KEY,
           ...formData.getHeaders(),
         },
+        // Увеличиваем таймаут для загрузки больших файлов
+        timeout: 300000, // 5 минут
+        // Ограничиваем размер ответа, чтобы избежать переполнения буфера
+        maxContentLength: 50 * 1024 * 1024, // 50MB
+        maxBodyLength: 100 * 1024 * 1024, // 100MB для загрузки файлов
       }
     )
 
     await fs.promises.unlink(requestData.filePath)
-    console.log('Model training response:', response.data)
+    // Логируем только основные данные, не весь объект ответа
+    console.log('Model training response:', {
+      message: response.data.message,
+      model_id: response.data.model_id,
+      bot_name: response.data.bot_name,
+      status: response.status,
+    })
     return response.data
   } catch (error) {
     // if (axios.isAxiosError(error)) {
