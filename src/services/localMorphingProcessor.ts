@@ -5,7 +5,20 @@ import { promisify } from 'util'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
 
-const execAsync = promisify(exec)
+// Увеличиваем размер буфера до 50MB для обработки больших выводов от FFmpeg
+const execAsync = (
+  cmd: string
+): Promise<{ stdout: string; stderr: string }> => {
+  return new Promise((resolve, reject) => {
+    exec(cmd, { maxBuffer: 50 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(error)
+      } else {
+        resolve({ stdout, stderr })
+      }
+    })
+  })
+}
 
 // ✅ ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ РАЗРЕШЕНИЯ ВИДЕО
 async function getVideoResolution(
