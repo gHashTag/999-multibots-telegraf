@@ -41,3 +41,33 @@ const execAsync = (cmd: string): Promise<{ stdout: string; stderr: string }> => 
 
 ### Коммит
 Коммит: e0a3edf3654a779d48d1daff46579b39753f2e63 (Ветка: fix/user-does-not-exist)
+
+---
+
+## 2025-08-10: Исправление ошибки создания пользователя - bot_name NOT NULL constraint
+
+### Проблема
+При создании нового пользователя через функцию `checkAvatarTransformUsage` возникала ошибка:
+```
+null value in column "bot_name" of relation "users" violates not-null constraint
+```
+Поле `bot_name` в таблице `users` является обязательным (NOT NULL), но при создании передавалось `null`.
+
+### Решение
+1. **Добавлен параметр botName** в функцию `checkAvatarTransformUsage`
+2. **Передача имени бота** из контекста в `avatarTransformScene`:
+   ```typescript
+   const botName = ctx.botInfo?.username || 'AI_STARS_bot'
+   ```
+3. **Использование дефолтного значения** при создании пользователя:
+   ```typescript
+   bot_name: botName || 'AI_STARS_bot'
+   ```
+
+### Результат
+- ✅ Новые пользователи успешно создаются с правильным bot_name
+- ✅ Каждый бот сохраняет своё имя при создании пользователя
+- ✅ Устранены ошибки базы данных при регистрации
+
+### Коммит
+(будет добавлен после выполнения git commit)

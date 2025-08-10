@@ -113,9 +113,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       step: 'checking_limit',
     })
 
+    // Получаем имя бота из контекста
+    const botName = ctx.botInfo?.username || 'AI_STARS_bot'
+
     const usageCheck = await checkAvatarTransformUsage(
       telegramId,
-      inviteCode || undefined
+      inviteCode || undefined,
+      botName
     )
 
     logger.info('[AvatarTransformScene] Usage limit check result', {
