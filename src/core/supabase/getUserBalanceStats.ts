@@ -383,15 +383,15 @@ export async function getBotStatsWithCost(
     // Общие финансовые метрики (в звездах)
     // ИСПРАВЛЕНИЕ: Для общих метрик учитываем ВСЕ операции
     const income = payments
-      .filter(p => p.type === 'MONEY_INCOME')
+      .filter(p => p.type === 'MONEY_INCOME' && p.category === 'REAL')
       .reduce((sum, p) => sum + (p.stars || 0), 0)
 
     const outcome = payments
-      .filter(p => p.type === 'MONEY_OUTCOME')
+      .filter(p => p.type === 'MONEY_OUTCOME' && p.category === 'REAL')
       .reduce((sum, p) => sum + (p.stars || 0), 0)
 
     const cost = payments
-      .filter(p => p.type === 'MONEY_OUTCOME')
+      .filter(p => p.type === 'MONEY_OUTCOME' && p.category === 'REAL')
       .reduce((sum, p) => sum + (p.cost || 0), 0)
 
     const netProfit = income - outcome - cost
