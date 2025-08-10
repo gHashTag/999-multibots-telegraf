@@ -40,4 +40,4 @@ const execAsync = (cmd: string): Promise<{ stdout: string; stderr: string }> => 
 - ✅ Процессы обучения модели и морфинга видео работают стабильно
 
 ### Коммит
-(будет добавлен после выполнения git commit)
+Коммит: e0a3edf3654a779d48d1daff46579b39753f2e63 (Ветка: fix/user-does-not-exist)
