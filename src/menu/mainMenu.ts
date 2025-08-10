@@ -79,13 +79,13 @@ export const levels: Record<number, Level> = {
   13: {
     title_ru: '🧬 Морфинг',
     title_en: '🧬 Morphing',
-    admin_only: true, // 🤫 Скрыто для обычных пользователей
+    // Доступно всем пользователям с подпиской
   },
   // lip_sync - новая Kling модель
   14: {
     title_ru: '🎤 Kling Lip Sync',
     title_en: '🎤 Kling Lip Sync',
-    admin_only: true, // 🤫 Скрыто для обычных пользователей
+    admin_only: true, // 🤫 Скрыто для обычных пользователей - только админы
   },
   // 15: {
   //   title_ru: '🎥 Видео в URL',
