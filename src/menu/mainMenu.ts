@@ -298,6 +298,8 @@ export async function mainMenu({
         level => !(level.admin_only && !(userId && adminIds.includes(userId)))
       )
   } else if (currentSubscription === SubscriptionType.STARS) {
+    // Для пользователей без подписки не показываем функциональные кнопки,
+    // но они будут добавлены ниже в bottomRowButtons
     availableLevels = []
   } else {
     availableLevels = (subscriptionLevelsMap[currentSubscription] || []).filter(
@@ -349,8 +351,11 @@ export async function mainMenu({
 
   if (currentSubscription === SubscriptionType.STARS) {
     console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
-    // Для STARS только поддержка (язык будет добавлен ниже отдельно)
-    bottomRowButtons.push([supportButton])
+    // Для STARS добавляем Пригласить друга и Техподдержку
+    const inviteButton = Markup.button.text(
+      isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
+    )
+    bottomRowButtons.push([inviteButton, supportButton])
   } else {
     console.log(
       `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
