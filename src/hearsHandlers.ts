@@ -771,15 +771,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Пополнить баланс от ${ctx.from?.id}`)
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед пополнением баланса
-      const hasSubscription = await checkSubscriptionGuard(
-        ctx,
-        '💎 Пополнить баланс'
-      )
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
+      // Пополнение баланса доступно всем пользователям
       ctx.session.mode = ModeEnum.TopUpBalance
       ctx.session.subscription = SubscriptionType.STARS
       await ctx.scene.enter(ModeEnum.PaymentScene)
@@ -791,12 +783,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Баланс от ${ctx.from?.id}`)
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед показом баланса
-      const hasSubscription = await checkSubscriptionGuard(ctx, '💰 Баланс')
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
+      // Просмотр баланса доступен всем пользователям
       ctx.session.mode = ModeEnum.Balance
       await ctx.scene.enter(ModeEnum.BalanceScene)
     }
