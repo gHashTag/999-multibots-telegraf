@@ -1,6 +1,6 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { isRussian } from '@/helpers/language'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
@@ -79,7 +79,7 @@ const createMarvelPromptByGender = (
 export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.AvatarTransform,
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
 
     logger.info('[AvatarTransformScene] Starting avatar transformation', {
@@ -329,7 +329,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   },
   // Шаг 2: Обработка выбора действия
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
 
     if (!ctx.message || !('text' in ctx.message)) {
@@ -403,7 +403,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   },
   // Шаг 3: Обработка выбора пола и показ кнопок героев
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
 
     if (!ctx.message || !('text' in ctx.message)) {
@@ -547,7 +547,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   },
   // Шаг 4: Обработка выбора героя и генерация
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
 
     // 🔍 ПРОВЕРЯЕМ ТИП СООБЩЕНИЯ ПЕРЕД ПОЛУЧЕНИЕМ ТЕКСТА
@@ -638,13 +638,20 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         '🎨 Doctor Strange': 'Доктор Стрэндж',
         '🎨 Hawkeye': 'Соколиный глаз',
         '🎨 Star Lord': 'Звёздный лорд',
-        // ЖЕНСКИЕ ГЕРОИ - БЕЗОПАСНЫЕ, НО УЗНАВАЕМЫЕ ПРОМПТЫ
+        // ЖЕНСКИЕ ГЕРОИ - Русские кнопки
         '✨ Капитан Марвел': 'Капитан Марвел',
         '✨ Скарлет Витч': 'Скарлет Витч',
         '✨ Алая ведьма': 'Алая ведьма',
         '✨ Гамора': 'Гамора',
         '✨ Шури': 'Шури',
         '✨ Валькирия': 'Валькирия',
+        // ЖЕНСКИЕ ГЕРОИ - Английские кнопки
+        '✨ Captain Marvel': 'Капитан Марвел',
+        '✨ Scarlet Witch': 'Скарлет Витч',
+        '✨ Wanda Maximoff': 'Алая ведьма',
+        '✨ Gamora': 'Гамора',
+        '✨ Shuri': 'Шури',
+        '✨ Valkyrie': 'Валькирия',
       }
 
       selectedHero = buttonToHeroMap[receivedText]
@@ -824,7 +831,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   },
   // Шаг 4: Обработка загруженной фотографии (для случая когда пользователь загружает новое фото)
   async ctx => {
-    const isRu = isRussian(ctx)
+    const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
 
     if (!ctx.message || !('photo' in ctx.message)) {
