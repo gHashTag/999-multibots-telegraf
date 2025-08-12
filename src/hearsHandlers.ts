@@ -175,7 +175,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в цифровое тело
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🤖 Цифровое тело'
+        isRussianFromState(ctx) ? levels[1].title_ru : levels[1].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -192,7 +192,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       logger.debug(`Получен hears для Нейрофото от ${ctx.from?.id}`)
 
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в нейрофото
-      const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото')
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[2].title_ru : levels[2].title_en
+      )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
       }
@@ -224,7 +227,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в промпт из фото
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🔍 Промпт из фото'
+        isRussianFromState(ctx) ? levels[3].title_ru : levels[3].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -243,7 +246,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в мозг аватара
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🧠 Мозг аватара'
+        isRussianFromState(ctx) ? levels[4].title_ru : levels[4].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -262,7 +265,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в чат с аватаром
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '💭 Чат с аватаром'
+        isRussianFromState(ctx) ? levels[5].title_ru : levels[5].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -281,7 +284,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в выбор модели
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🤖 Выбор модели ИИ'
+        isRussianFromState(ctx) ? levels[6].title_ru : levels[6].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -300,7 +303,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в голос аватара
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎤 Голос аватара'
+        isRussianFromState(ctx) ? levels[7].title_ru : levels[7].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -319,7 +322,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в текст в голос
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎙️ Текст в голос'
+        isRussianFromState(ctx) ? levels[8].title_ru : levels[8].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -338,7 +341,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в транскрибацию
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '📺 Транскрибация Reels'
+        isRussianFromState(ctx) ? levels[108].title_ru : levels[108].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -357,7 +360,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в фото в видео
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎥 Фото в видео'
+        isRussianFromState(ctx) ? levels[9].title_ru : levels[9].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -376,7 +379,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в видео из текста
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎥 Видео из текста'
+        isRussianFromState(ctx) ? levels[10].title_ru : levels[10].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -395,7 +398,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в текст в фото
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🖼️ Текст в фото'
+        isRussianFromState(ctx) ? levels[11].title_ru : levels[11].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -414,7 +417,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в FLUX Kontext
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎨 FLUX Kontext'
+        isRussianFromState(ctx) ? levels[12].title_ru : levels[12].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -437,7 +440,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '⬆️ Увеличить качество'
+        isRussianFromState(ctx) ? levels[107].title_ru : levels[107].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
