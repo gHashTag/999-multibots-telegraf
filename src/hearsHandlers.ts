@@ -175,7 +175,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в цифровое тело
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🤖 Цифровое тело'
+        isRussianFromState(ctx) ? levels[1].title_ru : levels[1].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -192,7 +192,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       logger.debug(`Получен hears для Нейрофото от ${ctx.from?.id}`)
 
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в нейрофото
-      const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото')
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[2].title_ru : levels[2].title_en
+      )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
       }
@@ -224,7 +227,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в промпт из фото
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🔍 Промпт из фото'
+        isRussianFromState(ctx) ? levels[3].title_ru : levels[3].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -243,7 +246,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в мозг аватара
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🧠 Мозг аватара'
+        isRussianFromState(ctx) ? levels[4].title_ru : levels[4].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -262,7 +265,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в чат с аватаром
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '💭 Чат с аватаром'
+        isRussianFromState(ctx) ? levels[5].title_ru : levels[5].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -281,7 +284,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в выбор модели
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🤖 Выбор модели ИИ'
+        isRussianFromState(ctx) ? levels[6].title_ru : levels[6].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -300,7 +303,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в голос аватара
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎤 Голос аватара'
+        isRussianFromState(ctx) ? levels[7].title_ru : levels[7].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -319,7 +322,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в текст в голос
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎙️ Текст в голос'
+        isRussianFromState(ctx) ? levels[8].title_ru : levels[8].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -338,7 +341,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в транскрибацию
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '📺 Транскрибация Reels'
+        isRussianFromState(ctx) ? levels[108].title_ru : levels[108].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -357,7 +360,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в фото в видео
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎥 Фото в видео'
+        isRussianFromState(ctx) ? levels[9].title_ru : levels[9].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -376,7 +379,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в видео из текста
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎥 Видео из текста'
+        isRussianFromState(ctx) ? levels[10].title_ru : levels[10].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -395,7 +398,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в текст в фото
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🖼️ Текст в фото'
+        isRussianFromState(ctx) ? levels[11].title_ru : levels[11].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -414,7 +417,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в FLUX Kontext
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '🎨 FLUX Kontext'
+        isRussianFromState(ctx) ? levels[12].title_ru : levels[12].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -437,7 +440,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        '⬆️ Увеличить качество'
+        isRussianFromState(ctx) ? levels[107].title_ru : levels[107].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -768,15 +771,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Пополнить баланс от ${ctx.from?.id}`)
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед пополнением баланса
-      const hasSubscription = await checkSubscriptionGuard(
-        ctx,
-        '💎 Пополнить баланс'
-      )
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
+      // Пополнение баланса доступно всем пользователям
       ctx.session.mode = ModeEnum.TopUpBalance
       ctx.session.subscription = SubscriptionType.STARS
       await ctx.scene.enter(ModeEnum.PaymentScene)
@@ -788,12 +783,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Баланс от ${ctx.from?.id}`)
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед показом баланса
-      const hasSubscription = await checkSubscriptionGuard(ctx, '💰 Баланс')
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
+      // Просмотр баланса доступен всем пользователям
       ctx.session.mode = ModeEnum.Balance
       await ctx.scene.enter(ModeEnum.BalanceScene)
     }
@@ -804,15 +794,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Пригласить друга от ${ctx.from?.id}`)
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед входом в приглашения
-      const hasSubscription = await checkSubscriptionGuard(
-        ctx,
-        '👥 Пригласить друга'
-      )
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
+      // Пригласить друга доступно всем пользователям
       ctx.session.mode = ModeEnum.Invite
       await ctx.scene.enter('inviteScene')
     }
@@ -844,6 +826,43 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     logger.debug(`Получен hears для О боте от ${ctx.from?.id}`)
     await ctx.scene.enter(ModeEnum.Help)
   })
+
+  // === ОБРАБОТЧИК ДЛЯ КНОПОК AVATAR TRANSFORM ===
+  // Эти кнопки могут остаться у пользователя после выхода из сцены
+  bot.hears(
+    ['👨‍💼 Мужской образ', '👨‍💼 Male look', '👩‍💼 Женский образ', '👩‍💼 Female look'],
+    async ctx => {
+      logger.info(
+        'GLOBAL HEARS: Avatar Transform button pressed outside scene',
+        {
+          telegramId: ctx.from?.id,
+          buttonText:
+            ctx.message && 'text' in ctx.message ? ctx.message.text : '',
+        }
+      )
+
+      try {
+        const isRu = isRussianFromState(ctx)
+
+        // Информируем пользователя и предлагаем начать заново
+        await ctx.reply(
+          isRu
+            ? '🔄 Похоже, вы вышли из процесса трансформации.\n\nЧтобы создать новый образ, используйте команду /start'
+            : '🔄 It seems you have exited the transformation process.\n\nTo create a new look, use the /start command',
+          Markup.removeKeyboard()
+        )
+
+        // Переходим в главное меню
+        await ctx.scene.leave()
+        await ctx.scene.enter(ModeEnum.MainMenu)
+      } catch (error) {
+        logger.error('Error handling Avatar Transform button outside scene:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+      }
+    }
+  )
 
   // === АДМИНСКИЕ КНОПКИ ===
   bot.hears('🤖 Цифровое тело 2', async ctx => {
