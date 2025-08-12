@@ -7,6 +7,9 @@ import { ModeEnum } from '@/interfaces/modes'
 import { kickUnpaidUser } from '@/middlewares/checkSubscription'
 import { getSubScribeChannel } from '@/handlers/getSubScribeChannel'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { getSubscriptionMessage, isFeatureAvailable } from './subscriptionInfo'
+import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { Markup } from 'telegraf'
 
 /**
  * Проверяет, имеет ли пользователь активную подписку.
@@ -49,51 +52,38 @@ export async function checkSubscriptionGuard(
       command: commandName,
     })
 
-    // Если нет подписки (включая симуляцию), направляем в subscriptionScene
-    if (!effectiveSubscription) {
+    // Проверяем, доступна ли функция для текущей подписки
+    const isRu = isRussianFromState(ctx)
+    const subscription = effectiveSubscription || SubscriptionType.STARS
+
+    // Проверяем доступность функции
+    if (!isFeatureAvailable(commandName, subscription)) {
       logger.info(
-        `[SubscriptionGuard] ${commandName}: No subscription, redirecting to subscription scene`,
+        `[SubscriptionGuard] ${commandName}: Feature not available for subscription`,
         {
           telegramId,
-          effectiveSubscription,
+          subscription,
           command: commandName,
         }
       )
 
-      // Кикаем пользователя из группы, если он там есть
-      try {
-        const channelId = await getSubScribeChannel(ctx)
-        if (channelId) {
-          const isRu = isRussianFromState(ctx)
-          const kickReason = isRu
-            ? 'Отсутствие оплаченной подписки'
-            : 'No paid subscription'
+      // Отправляем информативное сообщение о доступных функциях
+      const message = getSubscriptionMessage(subscription, isRu, commandName)
 
-          logger.info(
-            `[SubscriptionGuard] ${commandName}: Attempting to kick unpaid user from group`,
-            {
-              telegramId,
-              channelId,
-              reason: kickReason,
-            }
-          )
+      // Отправляем сообщение с кнопкой оформления подписки
+      await ctx.reply(message, {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '👫 Оформить подписку' : '👫 Subscribe',
+              'go_to_subscription_scene'
+            ),
+          ],
+        ]).reply_markup,
+      })
 
-          await kickUnpaidUser(ctx, channelId, kickReason)
-        }
-      } catch (kickError) {
-        logger.warn(
-          `[SubscriptionGuard] ${commandName}: Could not kick user from group`,
-          {
-            error: kickError,
-            telegramId,
-          }
-        )
-        // Продолжаем выполнение даже если кик не удался
-      }
-
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.SubscriptionScene
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      // Не перенаправляем автоматически, пользователь сам решит
       return false
     }
 
