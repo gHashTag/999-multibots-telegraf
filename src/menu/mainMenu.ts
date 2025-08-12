@@ -284,26 +284,27 @@ export async function mainMenu({
 
   let availableLevels: Level[] = []
 
+  // ✅ НОВАЯ ЛОГИКА: ПОКАЗЫВАЕМ ВСЕ КНОПКИ ВСЕМ ПОЛЬЗОВАТЕЛЯМ
+  // Проверка доступа будет происходить при нажатии на кнопку
   if (
     currentSubscription === SubscriptionType.NEUROVIDEO ||
     currentSubscription === SubscriptionType.NEUROTESTER
   ) {
     hasFullAccess = true
-    console.log(
-      `[mainMenu LOG] Overriding hasFullAccess to true for ${currentSubscription}`
-    )
-    availableLevels = subscriptionLevelsMap[currentSubscription]
-      .filter(filterServiceLevels)
-      .filter(
-        level => !(level.admin_only && !(userId && adminIds.includes(userId)))
-      )
-  } else if (currentSubscription === SubscriptionType.STARS) {
-    availableLevels = []
-  } else {
-    availableLevels = (subscriptionLevelsMap[currentSubscription] || []).filter(
+    console.log(`[mainMenu LOG] Full access for ${currentSubscription}`)
+  }
+
+  // Показываем ВСЕ основные функции ВСЕМ пользователям
+  // Фильтруем только служебные кнопки и админские функции
+  availableLevels = Object.values(levels)
+    .filter(filterServiceLevels)
+    .filter(
       level => !(level.admin_only && !(userId && adminIds.includes(userId)))
     )
-  }
+
+  console.log(
+    `[mainMenu LOG] Showing ALL buttons for subscription: ${currentSubscription}`
+  )
 
   availableLevels = Array.from(new Set(availableLevels))
   console.log(
@@ -349,8 +350,11 @@ export async function mainMenu({
 
   if (currentSubscription === SubscriptionType.STARS) {
     console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
-    // Для STARS только поддержка (язык будет добавлен ниже отдельно)
-    bottomRowButtons.push([supportButton])
+    // Для STARS добавляем Пригласить друга и Техподдержку
+    const inviteButton = Markup.button.text(
+      isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
+    )
+    bottomRowButtons.push([inviteButton, supportButton])
   } else {
     console.log(
       `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
