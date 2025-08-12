@@ -298,9 +298,16 @@ export async function mainMenu({
         level => !(level.admin_only && !(userId && adminIds.includes(userId)))
       )
   } else if (currentSubscription === SubscriptionType.STARS) {
-    // Для пользователей без подписки не показываем функциональные кнопки,
-    // но они будут добавлены ниже в bottomRowButtons
-    availableLevels = []
+    // Для пользователей без подписки показываем ВСЕ кнопки,
+    // но при попытке использования будет проверка подписки
+    availableLevels = [
+      levels[1], // Цифровое тело
+      levels[2], // Нейрофото
+      levels[3], // Промпт из фото
+      levels[11], // Текст в фото
+      levels[107], // Увеличить качество фото
+      levels[108], // Транскрибация Reels
+    ]
   } else {
     availableLevels = (subscriptionLevelsMap[currentSubscription] || []).filter(
       level => !(level.admin_only && !(userId && adminIds.includes(userId)))
