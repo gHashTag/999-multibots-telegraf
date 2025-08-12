@@ -1393,6 +1393,32 @@ If not, continue on your own and click the "I myself" button`
       stage.scenes.size
     )
 
+    // ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ПЕРЕХОДА В ПОДПИСКУ
+    bot.action('go_to_subscription_scene', async ctx => {
+      logger.info('🚀 GLOBAL ACTION: go_to_subscription_scene', {
+        telegramId: ctx.from?.id,
+      })
+
+      try {
+        await ctx.answerCbQuery()
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.SubscriptionScene
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        logger.info('Successfully entered subscription scene via global action')
+      } catch (error) {
+        logger.error('Error in go_to_subscription_scene action:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        const isRu = isRussianFromState(ctx)
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка при переходе к оформлению подписки.'
+            : '❌ Error entering subscription.'
+        )
+      }
+    })
+
     // INLINE CALLBACK ОБРАБОТЧИКИ ДЛЯ КНОПОК ПОДПИСКИ
     bot.action(/^subscribe_(.+)$/, async ctx => {
       const subscriptionType = ctx.match[1] // neurophoto или neurovideo
