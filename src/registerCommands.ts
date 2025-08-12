@@ -214,15 +214,80 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       })
 
       try {
-        // При старте всегда сбрасываем сессию и переходим к AI Demo СРАЗУ
+        // При старте всегда сбрасываем сессию
         ctx.session = { ...defaultSession }
         console.log('✅ [START COMMAND] Session reset')
+
+        // ВАЖНО: Извлекаем реферальный код из команды /start
+        if (ctx.message && 'text' in ctx.message) {
+          const parts = ctx.message.text.split(' ')
+          if (parts.length > 1) {
+            const startParam = parts[1]
+            console.log(
+              '📝 [START COMMAND] Start parameter detected:',
+              startParam
+            )
+
+            // Проверяем, не промо ли это
+            const { extractPromoFromContext, extractInviteCodeFromContext } =
+              await import('@/helpers/contextUtils')
+            const promoInfo = extractPromoFromContext(ctx)
+
+            if (!promoInfo?.isPromo && /^\d+$/.test(startParam)) {
+              // Это реферальный код (только цифры)
+              ctx.session.inviteCode = startParam
+              console.log('🔗 [START COMMAND] Referral code set:', startParam)
+            }
+          }
+        }
 
         await ctx.scene.leave() // Явно выходим из любой сцены
         console.log('✅ [START COMMAND] Left previous scene')
 
-        await ctx.scene.enter(ModeEnum.AvatarTransform) // Переходим к AI Demo СРАЗУ
-        console.log('✅ [START COMMAND] Entered AvatarTransform scene')
+        // Проверяем, существует ли пользователь
+        const { getUserDetailsSubscription } = await import('@/core/supabase')
+
+        console.log('🔍 [START COMMAND] Checking user existence...', {
+          telegramId,
+          username: ctx.from?.username,
+          firstName: ctx.from?.first_name,
+          languageCode: ctx.from?.language_code,
+        })
+
+        const userDetails = await getUserDetailsSubscription(telegramId)
+
+        console.log('📊 [START COMMAND] User check result:', {
+          telegramId,
+          userExists: userDetails.isExist,
+          subscriptionType: userDetails.subscriptionType,
+          userId: userDetails.id,
+          inviteCode: ctx.session.inviteCode || 'none',
+          rawUserDetails: JSON.stringify(userDetails),
+        })
+
+        if (!userDetails.isExist) {
+          // Если пользователь не существует, сначала создаем его
+          console.log(
+            '🆕 [START COMMAND] User does not exist, entering CreateUserScene',
+            {
+              telegramId,
+              inviteCode: ctx.session.inviteCode || 'none',
+              username: ctx.from?.username,
+            }
+          )
+          await ctx.scene.enter(ModeEnum.CreateUserScene)
+        } else {
+          // Если пользователь существует, переходим к AI Demo
+          console.log(
+            '✅ [START COMMAND] User exists, entering AvatarTransform scene',
+            {
+              telegramId,
+              userId: userDetails.id,
+              createdAt: userDetails.created_at,
+            }
+          )
+          await ctx.scene.enter(ModeEnum.AvatarTransform)
+        }
       } catch (error) {
         console.error('❌ [START COMMAND] Error:', error)
         logger.error('[START] Error in start command', { error, telegramId })
