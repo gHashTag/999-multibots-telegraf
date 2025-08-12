@@ -837,6 +837,43 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.enter(ModeEnum.Help)
   })
 
+  // === ОБРАБОТЧИК ДЛЯ КНОПОК AVATAR TRANSFORM ===
+  // Эти кнопки могут остаться у пользователя после выхода из сцены
+  bot.hears(
+    ['👨‍💼 Мужской образ', '👨‍💼 Male look', '👩‍💼 Женский образ', '👩‍💼 Female look'],
+    async ctx => {
+      logger.info(
+        'GLOBAL HEARS: Avatar Transform button pressed outside scene',
+        {
+          telegramId: ctx.from?.id,
+          buttonText:
+            ctx.message && 'text' in ctx.message ? ctx.message.text : '',
+        }
+      )
+
+      try {
+        const isRu = isRussianFromState(ctx)
+
+        // Информируем пользователя и предлагаем начать заново
+        await ctx.reply(
+          isRu
+            ? '🔄 Похоже, вы вышли из процесса трансформации.\n\nЧтобы создать новый образ, используйте команду /start'
+            : '🔄 It seems you have exited the transformation process.\n\nTo create a new look, use the /start command',
+          Markup.removeKeyboard()
+        )
+
+        // Переходим в главное меню
+        await ctx.scene.leave()
+        await ctx.scene.enter(ModeEnum.MainMenu)
+      } catch (error) {
+        logger.error('Error handling Avatar Transform button outside scene:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+      }
+    }
+  )
+
   // === АДМИНСКИЕ КНОПКИ ===
   bot.hears('🤖 Цифровое тело 2', async ctx => {
     logger.info('GLOBAL HEARS: Цифровое тело 2 (Admin)', {
