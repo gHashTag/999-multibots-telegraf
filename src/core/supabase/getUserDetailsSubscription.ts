@@ -50,6 +50,11 @@ export const getUserDetailsSubscription = async (
   telegramId: TelegramId
 ): Promise<UserDetailsResult> => {
   const telegramIdStr = normalizeTelegramId(telegramId)
+  console.log('🔍 [getUserDetailsSubscription] Checking user:', {
+    telegram_id: telegramIdStr,
+    input_type: typeof telegramId,
+    normalized: telegramIdStr,
+  })
   logger.info(
     `[getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: ${telegramIdStr}`,
     { telegramId: telegramIdStr }
@@ -109,10 +114,23 @@ export const getUserDetailsSubscription = async (
         }
       } else if (userData) {
         // <--- ЕСЛИ userData не null (т.е. запись найдена и доступна)
+        console.log(
+          '✅ [getUserDetailsSubscription] User FOUND in users table:',
+          {
+            telegram_id: telegramIdStr,
+            user_id: userData.id,
+          }
+        )
         userExists = true // <--- Устанавливаем true
       } else {
         // userData === null (запись не найдена или скрыта RLS)
         // userExists остается false
+        console.log(
+          '❌ [getUserDetailsSubscription] User NOT FOUND in users table:',
+          {
+            telegram_id: telegramIdStr,
+          }
+        )
         logger.info({
           message: `[getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь ${telegramIdStr} НЕ найден в таблице users или недоступен (RLS?).`,
           telegramId: telegramIdStr,
@@ -256,6 +274,14 @@ export const getUserDetailsSubscription = async (
       isExist: userExists,
       subscriptionStartDate: isActive ? startDateDb : null,
     }
+
+    console.log('📦 [getUserDetailsSubscription] FINAL RESULT:', {
+      telegram_id: telegramIdStr,
+      isExist: result.isExist,
+      stars: result.stars,
+      subscriptionType: result.subscriptionType,
+      isSubscriptionActive: result.isSubscriptionActive,
+    })
 
     logger.info(`[getUserDetailsSubscription v4.0 FIXED Finish] Результат`, {
       telegramId: telegramIdStr,
