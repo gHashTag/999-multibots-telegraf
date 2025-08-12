@@ -2,6 +2,7 @@ import { logger } from '@/utils/logger'
 import { MyTextMessageContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
+import { supabase } from '@/core/supabase'
 
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 
@@ -84,6 +85,30 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     }
   }
 
+  // ВАЖНО: Получаем inviter ДО создания пользователя
+  let inviterUserId = null
+  let inviterUserData = null
+  if (ctx.session.inviteCode) {
+    console.log(
+      '🔍 [CreateUserScene] Looking up inviter by telegram_id:',
+      ctx.session.inviteCode
+    )
+    const { userData: inviterData } = await getReferalsCountAndUserData(
+      ctx.session.inviteCode.toString()
+    )
+    if (inviterData && inviterData.user_id) {
+      inviterUserId = inviterData.user_id
+      inviterUserData = inviterData // Сохраняем данные inviter для уведомлений
+      ctx.session.inviter = inviterUserId
+      console.log('✅ [CreateUserScene] Found inviter UUID:', inviterUserId)
+    } else {
+      console.log(
+        '⚠️ [CreateUserScene] Inviter not found for telegram_id:',
+        ctx.session.inviteCode
+      )
+    }
+  }
+
   const userPhotoUrl = await getPhotoUrl(ctx, ctx.from?.id || 0)
   const botPhotoUrl = await photo_url
   const userData = {
@@ -99,9 +124,16 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     model: 'gpt-4-turbo',
     count: 0,
     aspect_ratio: '9:16',
-    inviter: ctx.session.inviter || null,
+    inviter: inviterUserId, // Используем найденный inviter UUID
     bot_name: botName,
   }
+
+  console.log('📝 [CreateUserScene] Creating user with data:', {
+    telegram_id: userData.telegram_id,
+    username: userData.username,
+    inviter: userData.inviter,
+    inviteCode: ctx.session.inviteCode,
+  })
 
   const [wasCreated] = await createUser(userData)
 
@@ -203,17 +235,9 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       }
     }
 
-    // Handle referral logic (existing code)
-    if (ctx.session.inviteCode) {
-      console.log('CASE: ctx.session.inviteCode', ctx.session.inviteCode)
-      const { count, userData } = await getReferalsCountAndUserData(
-        ctx.session.inviteCode.toString()
-      )
-
-      // Устанавливаем inviter только если пользователь существует
-      if (userData && userData.user_id) {
-        ctx.session.inviter = userData.user_id
-      }
+    // Handle referral logic - используем уже полученные данные inviter
+    if (ctx.session.inviteCode && inviterUserId) {
+      console.log('CASE: Sending referral notifications')
 
       if (ctx.session.inviteCode) {
         try {
@@ -260,16 +284,18 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           }
         }
 
+        const inviterUsername =
+          inviterUserData?.username || ctx.session.inviteCode
         await ctx.telegram.sendMessage(
           SUBSCRIBE_CHANNEL_ID,
-          `🔗 Новый пользователь @${finalUsername} зарегистрировался. По реф. ссылке от: @${userData.username}`
+          `🔗 Новый пользователь @${finalUsername} зарегистрировался. По реф. ссылке от: @${inviterUsername}`
         )
         logger.info({
           message:
             '📢 [CreateUserScene] Уведомление о новом пользователе (с рефералом) отправлено в канал',
           telegramId: telegram_id.toString(),
           channel: SUBSCRIBE_CHANNEL_ID,
-          inviterUsername: userData.username,
+          inviterUsername: inviterUserData?.username,
           step: 'admin_notification_sent_referral',
         })
       }
@@ -398,10 +424,65 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     }
   }
 
-  return ctx.scene.enter(ModeEnum.MainMenu)
+  // После создания пользователя переходим в AvatarTransform для демонстрации AI
+  logger.info(
+    '📸 [CreateUserScene] User created/verified, entering AvatarTransform',
+    {
+      telegram_id: telegram_id.toString(),
+      wasCreated,
+    }
+  )
+  return ctx.scene.enter(ModeEnum.AvatarTransform)
 }
 
-export const createUserScene = new Scenes.WizardScene<MyContext>(
-  ModeEnum.CreateUserScene,
-  createUserStep
+// Создаем обычную сцену вместо WizardScene
+export const createUserScene = new Scenes.BaseScene<MyContext>(
+  ModeEnum.CreateUserScene
 )
+
+// При входе в сцену сразу создаем пользователя
+createUserScene.enter(async ctx => {
+  logger.info('🆕 [CreateUserScene] Entering scene to create user', {
+    telegram_id: ctx.from?.id,
+    inviteCode: ctx.session.inviteCode || 'none',
+    username: ctx.from?.username,
+    first_name: ctx.from?.first_name,
+  })
+
+  // Проверяем наличие пользователя
+  if (!ctx.from) {
+    logger.error('❌ [CreateUserScene] No from object in context!')
+    await ctx.reply('Error: User information not available')
+    return ctx.scene.leave()
+  }
+
+  // Вызываем функцию создания пользователя напрямую
+  // Создаем правильную структуру сообщения с сессией и методами
+  const fakeMessage = {
+    ...ctx,
+    from: ctx.from, // Убедимся, что from передается правильно
+    session: ctx.session, // Передаем сессию из реального контекста
+    reply: ctx.reply.bind(ctx), // Передаем метод reply
+    telegram: ctx.telegram, // Передаем telegram API
+    botInfo: ctx.botInfo, // Передаем информацию о боте
+    scene: ctx.scene, // Передаем управление сценами
+    message: {
+      message_id: 0,
+      date: Math.floor(Date.now() / 1000),
+      chat: ctx.chat || { id: ctx.from.id, type: 'private' },
+      text: ctx.session.inviteCode
+        ? `/start ${ctx.session.inviteCode}`
+        : '/start',
+      from: ctx.from,
+    },
+    updateType: 'message' as const,
+  } as MyTextMessageContext
+
+  logger.info('🔄 [CreateUserScene] Calling createUserStep with data', {
+    telegram_id: fakeMessage.from?.id,
+    username: fakeMessage.from?.username,
+    text: fakeMessage.message.text,
+  })
+
+  await createUserStep(fakeMessage)
+})
