@@ -284,35 +284,27 @@ export async function mainMenu({
 
   let availableLevels: Level[] = []
 
+  // ✅ НОВАЯ ЛОГИКА: ПОКАЗЫВАЕМ ВСЕ КНОПКИ ВСЕМ ПОЛЬЗОВАТЕЛЯМ
+  // Проверка доступа будет происходить при нажатии на кнопку
   if (
     currentSubscription === SubscriptionType.NEUROVIDEO ||
     currentSubscription === SubscriptionType.NEUROTESTER
   ) {
     hasFullAccess = true
-    console.log(
-      `[mainMenu LOG] Overriding hasFullAccess to true for ${currentSubscription}`
-    )
-    availableLevels = subscriptionLevelsMap[currentSubscription]
-      .filter(filterServiceLevels)
-      .filter(
-        level => !(level.admin_only && !(userId && adminIds.includes(userId)))
-      )
-  } else if (currentSubscription === SubscriptionType.STARS) {
-    // Для пользователей без подписки показываем ВСЕ кнопки,
-    // но при попытке использования будет проверка подписки
-    availableLevels = [
-      levels[1], // Цифровое тело
-      levels[2], // Нейрофото
-      levels[3], // Промпт из фото
-      levels[11], // Текст в фото
-      levels[107], // Увеличить качество фото
-      levels[108], // Транскрибация Reels
-    ]
-  } else {
-    availableLevels = (subscriptionLevelsMap[currentSubscription] || []).filter(
+    console.log(`[mainMenu LOG] Full access for ${currentSubscription}`)
+  }
+
+  // Показываем ВСЕ основные функции ВСЕМ пользователям
+  // Фильтруем только служебные кнопки и админские функции
+  availableLevels = Object.values(levels)
+    .filter(filterServiceLevels)
+    .filter(
       level => !(level.admin_only && !(userId && adminIds.includes(userId)))
     )
-  }
+
+  console.log(
+    `[mainMenu LOG] Showing ALL buttons for subscription: ${currentSubscription}`
+  )
 
   availableLevels = Array.from(new Set(availableLevels))
   console.log(
