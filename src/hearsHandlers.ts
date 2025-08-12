@@ -804,15 +804,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Пригласить друга от ${ctx.from?.id}`)
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед входом в приглашения
-      const hasSubscription = await checkSubscriptionGuard(
-        ctx,
-        '👥 Пригласить друга'
-      )
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
+      // Пригласить друга доступно всем пользователям
       ctx.session.mode = ModeEnum.Invite
       await ctx.scene.enter('inviteScene')
     }

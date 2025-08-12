@@ -97,44 +97,12 @@ export const startScene = new Scenes.WizardScene<MyContext>(
         // ✅ ИСПРАВЛЕНИЕ: Напрямую обрабатываем команды вместо ожидания глобального обработчика
         switch (text) {
           case '/menu': {
-            // ✅ ИСПРАВЛЕНИЕ: Проверяем подписку перед входом в меню
-            const { getUserDetailsSubscription } = await import(
-              '@/core/supabase'
-            )
-            const { simulateSubscriptionForDev } = await import(
-              '@/scenes/menuScene/helpers/simulateSubscription'
-            )
-            const { isDev } = await import('@/config')
-
-            const userDetails = await getUserDetailsSubscription(telegramId)
-            const effectiveSubscription = simulateSubscriptionForDev(
-              userDetails?.subscriptionType || null,
-              isDev
-            )
-
-            logger.info('[StartScene] /menu: Checking subscription', {
+            // ✅ ИСПРАВЛЕНИЕ: Убираем проверку подписки - пускаем всех в меню
+            logger.info('[StartScene] /menu: Entering main menu', {
               telegramId,
-              originalSubscription: userDetails?.subscriptionType,
-              effectiveSubscription,
-              isDev,
             })
 
             await ctx.scene.leave()
-
-            // Если нет подписки (включая симуляцию), направляем в subscriptionScene
-            if (!effectiveSubscription || effectiveSubscription === 'STARS') {
-              logger.info(
-                '[StartScene] /menu: No subscription, redirecting to subscription scene',
-                {
-                  telegramId,
-                  effectiveSubscription,
-                }
-              )
-              ctx.session.mode = ModeEnum.SubscriptionScene
-              return ctx.scene.enter(ModeEnum.SubscriptionScene)
-            }
-
-            // Если подписка есть, входим в меню
             ctx.session.mode = ModeEnum.MainMenu
             return ctx.scene.enter(ModeEnum.MainMenu)
           }
