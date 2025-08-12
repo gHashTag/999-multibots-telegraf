@@ -34,6 +34,9 @@ export const SUBSCRIPTION_FEATURES = {
       FEATURE_IDS.INVITE_FRIEND,
       FEATURE_IDS.SUPPORT,
       FEATURE_IDS.LANGUAGE,
+      // Критично важно: баланс и пополнение должны быть доступны
+      FEATURE_IDS.BALANCE,
+      FEATURE_IDS.TOP_UP_BALANCE,
     ],
     blocked: [
       FEATURE_IDS.DIGITAL_BODY,
@@ -51,8 +54,6 @@ export const SUBSCRIPTION_FEATURES = {
       FEATURE_IDS.MORPHING,
       FEATURE_IDS.UPSCALE_PHOTO,
       FEATURE_IDS.TRANSCRIBE_REELS,
-      FEATURE_IDS.BALANCE,
-      FEATURE_IDS.TOP_UP_BALANCE,
     ],
   },
   [SubscriptionType.NEUROPHOTO]: {
@@ -192,7 +193,8 @@ export function getSubscriptionMessage(
       }
       message += `📋 <b>С бесплатным аккаунтом доступно:</b>\n`
       message += features.available
-        .map(id => `✅ ${levels[id].title_ru}`)
+        .map(id => (levels[id] ? `✅ ${levels[id].title_ru}` : ''))
+        .filter(Boolean)
         .join('\n')
       message += `\n\n🔒 <b>Для полного доступа оформите подписку:</b>\n`
       message += `• NEUROPHOTO - работа с фото и изображениями\n`
@@ -205,7 +207,8 @@ export function getSubscriptionMessage(
       }
       message += `📋 <b>Available with free account:</b>\n`
       message += features.available
-        .map(id => `✅ ${levels[id].title_en}`)
+        .map(id => (levels[id] ? `✅ ${levels[id].title_en}` : ''))
+        .filter(Boolean)
         .join('\n')
       message += `\n\n🔒 <b>For full access get a subscription:</b>\n`
       message += `• NEUROPHOTO - photo and image features\n`
@@ -222,12 +225,14 @@ export function getSubscriptionMessage(
       message += `📋 <b>В вашей подписке NEUROPHOTO доступно:</b>\n`
       message += features.available
         .slice(0, 5)
-        .map(id => `✅ ${levels[id].title_ru}`)
+        .map(id => (levels[id] ? `✅ ${levels[id].title_ru}` : ''))
+        .filter(Boolean)
         .join('\n')
       message += `\n\n🔒 <b>Для этой функции нужна подписка NEUROVIDEO:</b>\n`
       message += features.blocked
         .slice(0, 5)
-        .map(id => `🚫 ${levels[id].title_ru}`)
+        .map(id => (levels[id] ? `🚫 ${levels[id].title_ru}` : ''))
+        .filter(Boolean)
         .join('\n')
       message += `\n\n💫 Обновите подписку для доступа ко всем функциям`
     } else {
@@ -238,12 +243,14 @@ export function getSubscriptionMessage(
       message += `📋 <b>Available in your NEUROPHOTO subscription:</b>\n`
       message += features.available
         .slice(0, 5)
-        .map(id => `✅ ${levels[id].title_en}`)
+        .map(id => (levels[id] ? `✅ ${levels[id].title_en}` : ''))
+        .filter(Boolean)
         .join('\n')
       message += `\n\n🔒 <b>NEUROVIDEO subscription required for:</b>\n`
       message += features.blocked
         .slice(0, 5)
-        .map(id => `🚫 ${levels[id].title_en}`)
+        .map(id => (levels[id] ? `🚫 ${levels[id].title_en}` : ''))
+        .filter(Boolean)
         .join('\n')
       message += `\n\n💫 Upgrade your subscription for full access`
     }
