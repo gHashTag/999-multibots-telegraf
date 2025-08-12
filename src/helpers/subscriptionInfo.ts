@@ -34,9 +34,6 @@ export const SUBSCRIPTION_FEATURES = {
       FEATURE_IDS.INVITE_FRIEND,
       FEATURE_IDS.SUPPORT,
       FEATURE_IDS.LANGUAGE,
-      // Критично важно: баланс и пополнение должны быть доступны
-      FEATURE_IDS.BALANCE,
-      FEATURE_IDS.TOP_UP_BALANCE,
     ],
     blocked: [
       FEATURE_IDS.DIGITAL_BODY,
@@ -54,6 +51,9 @@ export const SUBSCRIPTION_FEATURES = {
       FEATURE_IDS.MORPHING,
       FEATURE_IDS.UPSCALE_PHOTO,
       FEATURE_IDS.TRANSCRIBE_REELS,
+      // Баланс доступен только с подпиской
+      FEATURE_IDS.BALANCE,
+      FEATURE_IDS.TOP_UP_BALANCE,
     ],
   },
   [SubscriptionType.NEUROPHOTO]: {

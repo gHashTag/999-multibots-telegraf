@@ -771,9 +771,41 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Пополнить баланс от ${ctx.from?.id}`)
 
-      // Пополнение баланса доступно всем пользователям
+      // Проверяем наличие подписки для пополнения баланса
+      const telegramId = ctx.from?.id?.toString() || ''
+      const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
+      const isRu = isRussianFromState(ctx)
+
+      if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
+        // Пользователь без подписки - показываем информативное сообщение
+        const message = isRu
+          ? '❌ <b>Пополнение баланса недоступно без подписки</b>\n\n' +
+            '💳 Функция пополнения баланса доступна только для пользователей с активной подпиской.\n\n' +
+            '📋 <b>Доступные тарифы:</b>\n' +
+            '• NEUROPHOTO - работа с фото и изображениями\n' +
+            '• NEUROVIDEO - все функции включая видео\n\n' +
+            '💫 Нажмите "Оформить подписку" в главном меню для выбора тарифа'
+          : '❌ <b>Balance top-up is not available without subscription</b>\n\n' +
+            '💳 The balance top-up feature is only available for users with an active subscription.\n\n' +
+            '📋 <b>Available plans:</b>\n' +
+            '• NEUROPHOTO - photo and image features\n' +
+            '• NEUROVIDEO - all features including video\n\n' +
+            '💫 Press "Subscribe" in the main menu to choose a plan'
+
+        await ctx.replyWithHTML(message)
+
+        // Возвращаем в главное меню
+        await mainMenu({
+          isRu,
+          subscription: subscriptionType,
+          ctx,
+        })
+        return
+      }
+
+      // У пользователя есть подписка - продолжаем с пополнением
       ctx.session.mode = ModeEnum.TopUpBalance
-      ctx.session.subscription = SubscriptionType.STARS
+      ctx.session.subscription = subscriptionType
       await ctx.scene.enter(ModeEnum.PaymentScene)
     }
   )
@@ -783,7 +815,39 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Баланс от ${ctx.from?.id}`)
 
-      // Просмотр баланса доступен всем пользователям
+      // Проверяем наличие подписки для просмотра баланса
+      const telegramId = ctx.from?.id?.toString() || ''
+      const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
+      const isRu = isRussianFromState(ctx)
+
+      if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
+        // Пользователь без подписки - показываем информативное сообщение
+        const message = isRu
+          ? '❌ <b>Просмотр баланса недоступен без подписки</b>\n\n' +
+            '💳 Функции баланса доступны только для пользователей с активной подпиской.\n\n' +
+            '📋 <b>Доступные тарифы:</b>\n' +
+            '• NEUROPHOTO - работа с фото и изображениями\n' +
+            '• NEUROVIDEO - все функции включая видео\n\n' +
+            '💫 Нажмите "Оформить подписку" в главном меню для выбора тарифа'
+          : '❌ <b>Balance view is not available without subscription</b>\n\n' +
+            '💳 Balance features are only available for users with an active subscription.\n\n' +
+            '📋 <b>Available plans:</b>\n' +
+            '• NEUROPHOTO - photo and image features\n' +
+            '• NEUROVIDEO - all features including video\n\n' +
+            '💫 Press "Subscribe" in the main menu to choose a plan'
+
+        await ctx.replyWithHTML(message)
+
+        // Возвращаем в главное меню
+        await mainMenu({
+          isRu,
+          subscription: subscriptionType,
+          ctx,
+        })
+        return
+      }
+
+      // У пользователя есть подписка - показываем баланс
       ctx.session.mode = ModeEnum.Balance
       await ctx.scene.enter(ModeEnum.BalanceScene)
     }
