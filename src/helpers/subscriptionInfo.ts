@@ -1,103 +1,151 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { levels } from '@/menu/mainMenu'
 
-// Карта доступных функций для каждого типа подписки
+// Идентификаторы функций для проверки доступа
+const FEATURE_IDS = {
+  DIGITAL_BODY: 1,
+  NEURO_PHOTO: 2,
+  IMAGE_TO_PROMPT: 3,
+  AVATAR_BRAIN: 4,
+  CHAT_WITH_AVATAR: 5,
+  SELECT_MODEL: 6,
+  VOICE: 7,
+  TEXT_TO_SPEECH: 8,
+  IMAGE_TO_VIDEO: 9,
+  TEXT_TO_VIDEO: 10,
+  TEXT_TO_IMAGE: 11,
+  FLUX_KONTEXT: 12,
+  MORPHING: 13,
+  TOP_UP_BALANCE: 100,
+  BALANCE: 101,
+  INVITE_FRIEND: 102,
+  SUPPORT: 103,
+  MAIN_MENU: 104,
+  SUBSCRIBE: 105,
+  LANGUAGE: 106,
+  UPSCALE_PHOTO: 107,
+  TRANSCRIBE_REELS: 108,
+}
+
+// Карта доступных функций для каждого типа подписки (используем ID)
 export const SUBSCRIPTION_FEATURES = {
   [SubscriptionType.STARS]: {
-    available: ['👥 Пригласить друга', '💬 Техподдержка', '🌐 Смена языка'],
+    available: [
+      FEATURE_IDS.INVITE_FRIEND,
+      FEATURE_IDS.SUPPORT,
+      FEATURE_IDS.LANGUAGE,
+    ],
     blocked: [
-      '🤖 Цифровое тело',
-      '📸 Нейрофото',
-      '🔍 Промпт из фото',
-      '🧠 Мозг аватара',
-      '💭 Чат с аватаром',
-      '🤖 Выбор модели ИИ',
-      '🎤 Голос аватара',
-      '🎙️ Текст в голос',
-      '🎥 Фото в видео',
-      '🎥 Видео из текста',
-      '🖼️ Текст в фото',
-      '🎨 FLUX Kontext',
-      '🧬 Морфинг',
-      '⬆️ Увеличить качество фото',
-      '📺 Транскрибация Reels',
-      '💰 Баланс',
-      '💎 Пополнить баланс',
+      FEATURE_IDS.DIGITAL_BODY,
+      FEATURE_IDS.NEURO_PHOTO,
+      FEATURE_IDS.IMAGE_TO_PROMPT,
+      FEATURE_IDS.AVATAR_BRAIN,
+      FEATURE_IDS.CHAT_WITH_AVATAR,
+      FEATURE_IDS.SELECT_MODEL,
+      FEATURE_IDS.VOICE,
+      FEATURE_IDS.TEXT_TO_SPEECH,
+      FEATURE_IDS.IMAGE_TO_VIDEO,
+      FEATURE_IDS.TEXT_TO_VIDEO,
+      FEATURE_IDS.TEXT_TO_IMAGE,
+      FEATURE_IDS.FLUX_KONTEXT,
+      FEATURE_IDS.MORPHING,
+      FEATURE_IDS.UPSCALE_PHOTO,
+      FEATURE_IDS.TRANSCRIBE_REELS,
+      FEATURE_IDS.BALANCE,
+      FEATURE_IDS.TOP_UP_BALANCE,
     ],
   },
   [SubscriptionType.NEUROPHOTO]: {
     available: [
-      '🤖 Цифровое тело',
-      '📸 Нейрофото',
-      '🔍 Промпт из фото',
-      '⬆️ Увеличить качество фото',
-      '📺 Транскрибация Reels',
-      '💰 Баланс',
-      '💎 Пополнить баланс',
-      '👥 Пригласить друга',
-      '💬 Техподдержка',
+      FEATURE_IDS.DIGITAL_BODY,
+      FEATURE_IDS.NEURO_PHOTO,
+      FEATURE_IDS.IMAGE_TO_PROMPT,
+      FEATURE_IDS.UPSCALE_PHOTO,
+      FEATURE_IDS.TRANSCRIBE_REELS,
+      FEATURE_IDS.BALANCE,
+      FEATURE_IDS.TOP_UP_BALANCE,
+      FEATURE_IDS.INVITE_FRIEND,
+      FEATURE_IDS.SUPPORT,
     ],
     blocked: [
-      '🧠 Мозг аватара',
-      '💭 Чат с аватаром',
-      '🤖 Выбор модели ИИ',
-      '🎤 Голос аватара',
-      '🎙️ Текст в голос',
-      '🎥 Фото в видео',
-      '🎥 Видео из текста',
-      '🖼️ Текст в фото',
-      '🎨 FLUX Kontext',
-      '🧬 Морфинг',
+      FEATURE_IDS.AVATAR_BRAIN,
+      FEATURE_IDS.CHAT_WITH_AVATAR,
+      FEATURE_IDS.SELECT_MODEL,
+      FEATURE_IDS.VOICE,
+      FEATURE_IDS.TEXT_TO_SPEECH,
+      FEATURE_IDS.IMAGE_TO_VIDEO,
+      FEATURE_IDS.TEXT_TO_VIDEO,
+      FEATURE_IDS.TEXT_TO_IMAGE,
+      FEATURE_IDS.FLUX_KONTEXT,
+      FEATURE_IDS.MORPHING,
     ],
   },
   [SubscriptionType.NEUROVIDEO]: {
     available: [
-      '🤖 Цифровое тело',
-      '📸 Нейрофото',
-      '🔍 Промпт из фото',
-      '🧠 Мозг аватара',
-      '💭 Чат с аватаром',
-      '🤖 Выбор модели ИИ',
-      '🎤 Голос аватара',
-      '🎙️ Текст в голос',
-      '🎥 Фото в видео',
-      '🎥 Видео из текста',
-      '🖼️ Текст в фото',
-      '🎨 FLUX Kontext',
-      '🧬 Морфинг',
-      '⬆️ Увеличить качество фото',
-      '📺 Транскрибация Reels',
-      '💰 Баланс',
-      '💎 Пополнить баланс',
-      '👥 Пригласить друга',
-      '💬 Техподдержка',
+      FEATURE_IDS.DIGITAL_BODY,
+      FEATURE_IDS.NEURO_PHOTO,
+      FEATURE_IDS.IMAGE_TO_PROMPT,
+      FEATURE_IDS.AVATAR_BRAIN,
+      FEATURE_IDS.CHAT_WITH_AVATAR,
+      FEATURE_IDS.SELECT_MODEL,
+      FEATURE_IDS.VOICE,
+      FEATURE_IDS.TEXT_TO_SPEECH,
+      FEATURE_IDS.IMAGE_TO_VIDEO,
+      FEATURE_IDS.TEXT_TO_VIDEO,
+      FEATURE_IDS.TEXT_TO_IMAGE,
+      FEATURE_IDS.FLUX_KONTEXT,
+      FEATURE_IDS.MORPHING,
+      FEATURE_IDS.UPSCALE_PHOTO,
+      FEATURE_IDS.TRANSCRIBE_REELS,
+      FEATURE_IDS.BALANCE,
+      FEATURE_IDS.TOP_UP_BALANCE,
+      FEATURE_IDS.INVITE_FRIEND,
+      FEATURE_IDS.SUPPORT,
     ],
     blocked: [],
   },
   [SubscriptionType.NEUROTESTER]: {
     available: [
-      '🤖 Цифровое тело',
-      '📸 Нейрофото',
-      '🔍 Промпт из фото',
-      '🧠 Мозг аватара',
-      '💭 Чат с аватаром',
-      '🤖 Выбор модели ИИ',
-      '🎤 Голос аватара',
-      '🎙️ Текст в голос',
-      '🎥 Фото в видео',
-      '🎥 Видео из текста',
-      '🖼️ Текст в фото',
-      '🎨 FLUX Kontext',
-      '🧬 Морфинг',
-      '⬆️ Увеличить качество фото',
-      '📺 Транскрибация Reels',
-      '💰 Баланс',
-      '💎 Пополнить баланс',
-      '👥 Пригласить друга',
-      '💬 Техподдержка',
+      FEATURE_IDS.DIGITAL_BODY,
+      FEATURE_IDS.NEURO_PHOTO,
+      FEATURE_IDS.IMAGE_TO_PROMPT,
+      FEATURE_IDS.AVATAR_BRAIN,
+      FEATURE_IDS.CHAT_WITH_AVATAR,
+      FEATURE_IDS.SELECT_MODEL,
+      FEATURE_IDS.VOICE,
+      FEATURE_IDS.TEXT_TO_SPEECH,
+      FEATURE_IDS.IMAGE_TO_VIDEO,
+      FEATURE_IDS.TEXT_TO_VIDEO,
+      FEATURE_IDS.TEXT_TO_IMAGE,
+      FEATURE_IDS.FLUX_KONTEXT,
+      FEATURE_IDS.MORPHING,
+      FEATURE_IDS.UPSCALE_PHOTO,
+      FEATURE_IDS.TRANSCRIBE_REELS,
+      FEATURE_IDS.BALANCE,
+      FEATURE_IDS.TOP_UP_BALANCE,
+      FEATURE_IDS.INVITE_FRIEND,
+      FEATURE_IDS.SUPPORT,
     ],
     blocked: [],
   },
+}
+
+/**
+ * Находит ID функции по названию (поддерживает оба языка)
+ */
+function findFeatureId(featureName: string): number | null {
+  // Проверяем по всем levels
+  for (const [id, level] of Object.entries(levels)) {
+    if (
+      featureName === level.title_ru ||
+      featureName === level.title_en ||
+      featureName.startsWith(level.title_ru.split(' ')[0]) || // По эмодзи
+      featureName.startsWith(level.title_en.split(' ')[0]) // По эмодзи
+    ) {
+      return parseInt(id)
+    }
+  }
+  return null
 }
 
 /**
@@ -114,8 +162,12 @@ export function isFeatureAvailable(
   const features = SUBSCRIPTION_FEATURES[subscriptionType]
   if (!features) return false
 
-  // Проверяем по началу строки (эмодзи + первые слова)
-  return features.available.some(f => featureName.startsWith(f.split(' ')[0]))
+  // Находим ID функции по названию
+  const featureId = findFeatureId(featureName)
+  if (featureId === null) return false
+
+  // Проверяем, есть ли ID в списке доступных
+  return features.available.includes(featureId)
 }
 
 /**
@@ -139,7 +191,9 @@ export function getSubscriptionMessage(
         message += `Вы попытались использовать: <b>${attemptedFeature}</b>\n\n`
       }
       message += `📋 <b>С бесплатным аккаунтом доступно:</b>\n`
-      message += features.available.map(f => `✅ ${f}`).join('\n')
+      message += features.available
+        .map(id => `✅ ${levels[id].title_ru}`)
+        .join('\n')
       message += `\n\n🔒 <b>Для полного доступа оформите подписку:</b>\n`
       message += `• NEUROPHOTO - работа с фото и изображениями\n`
       message += `• NEUROVIDEO - все функции включая видео\n`
@@ -150,7 +204,9 @@ export function getSubscriptionMessage(
         message += `You tried to use: <b>${attemptedFeature}</b>\n\n`
       }
       message += `📋 <b>Available with free account:</b>\n`
-      message += features.available.map(f => `✅ ${f}`).join('\n')
+      message += features.available
+        .map(id => `✅ ${levels[id].title_en}`)
+        .join('\n')
       message += `\n\n🔒 <b>For full access get a subscription:</b>\n`
       message += `• NEUROPHOTO - photo and image features\n`
       message += `• NEUROVIDEO - all features including video\n`
@@ -166,12 +222,12 @@ export function getSubscriptionMessage(
       message += `📋 <b>В вашей подписке NEUROPHOTO доступно:</b>\n`
       message += features.available
         .slice(0, 5)
-        .map(f => `✅ ${f}`)
+        .map(id => `✅ ${levels[id].title_ru}`)
         .join('\n')
       message += `\n\n🔒 <b>Для этой функции нужна подписка NEUROVIDEO:</b>\n`
       message += features.blocked
         .slice(0, 5)
-        .map(f => `🚫 ${f}`)
+        .map(id => `🚫 ${levels[id].title_ru}`)
         .join('\n')
       message += `\n\n💫 Обновите подписку для доступа ко всем функциям`
     } else {
@@ -182,12 +238,12 @@ export function getSubscriptionMessage(
       message += `📋 <b>Available in your NEUROPHOTO subscription:</b>\n`
       message += features.available
         .slice(0, 5)
-        .map(f => `✅ ${f}`)
+        .map(id => `✅ ${levels[id].title_en}`)
         .join('\n')
       message += `\n\n🔒 <b>NEUROVIDEO subscription required for:</b>\n`
       message += features.blocked
         .slice(0, 5)
-        .map(f => `🚫 ${f}`)
+        .map(id => `🚫 ${levels[id].title_en}`)
         .join('\n')
       message += `\n\n💫 Upgrade your subscription for full access`
     }
