@@ -493,6 +493,51 @@ Click "Training" and dive with us.
         text,
       })
 
+      // ✅ ИСПРАВЛЕНИЕ: Обработка команды /start с параметром (реферальный код)
+      if (text.startsWith('/start ')) {
+        const parts = text.split(' ')
+        if (parts.length > 1) {
+          const startParam = parts[1]
+          logger.info('[StartScene Step 2] /start with parameter detected', {
+            telegramId,
+            parameter: startParam,
+          })
+
+          // Проверяем, является ли это реферальным кодом (только цифры)
+          if (/^\d+$/.test(startParam)) {
+            // Это реферальный код
+            logger.info(
+              '[StartScene Step 2] Referral code detected, redirecting to /start handler',
+              {
+                telegramId,
+                referralCode: startParam,
+              }
+            )
+
+            // Сбрасываем сессию и сохраняем реферальный код
+            ctx.session = { ...defaultSession }
+            ctx.session.inviteCode = startParam
+
+            // Выходим из сцены и запускаем обработчик /start
+            await ctx.scene.leave()
+
+            // Проверяем существование пользователя
+            const { getUserDetailsSubscription } = await import(
+              '@/core/supabase'
+            )
+            const userDetails = await getUserDetailsSubscription(telegramId)
+
+            if (!userDetails.isExist) {
+              // Новый пользователь - идем в CreateUserScene с реферальным кодом
+              return ctx.scene.enter(ModeEnum.CreateUserScene)
+            } else {
+              // Существующий пользователь - идем в AvatarTransform
+              return ctx.scene.enter(ModeEnum.AvatarTransform)
+            }
+          }
+        }
+      }
+
       // ✅ ДОБАВЛЯЕМ: Проверка промо-команд во втором шаге
       const { extractPromoFromContext } = await import('@/helpers/contextUtils')
       const promoInfo = extractPromoFromContext(ctx)
