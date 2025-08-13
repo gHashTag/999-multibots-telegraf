@@ -27,7 +27,6 @@ type ModelInfo = FixedPriceModel | DynamicPriceModel
 // Доступные модели и их цены
 const MODELS: Record<string, ModelInfo> = {
   // Фиксированные модели
-  'haiper-video-2': { name: 'Haiper Video 2', price: 4, type: 'fixed' },
   'kling-v1.6-pro': { name: 'Kling v1.6 Pro', price: 9, type: 'fixed' },
   'ray-v2': { name: 'Ray-v2', price: 16, type: 'fixed' },
   'hunyuan-video-fast': { name: 'Hunyuan Fast', price: 18, type: 'fixed' },
@@ -72,7 +71,7 @@ async function testTextToVideo(modelId?: string, duration?: number) {
   )
 
   // Определяем модель
-  const selectedModel = modelId || 'haiper-video-2' // Самая дешевая по умолчанию
+  const selectedModel = modelId || 'kling-v1.6-pro' // Одна из самых доступных моделей по умолчанию
   const modelInfo = MODELS[selectedModel as keyof typeof MODELS]
 
   if (!modelInfo) {
@@ -182,7 +181,7 @@ if (!modelId) {
     '  npx ts-node scripts/test-text-to-video.ts [модель] [длительность]'
   )
   console.log('\n📝 Примеры:')
-  console.log('  npx ts-node scripts/test-text-to-video.ts haiper-video-2')
+  console.log('  npx ts-node scripts/test-text-to-video.ts kling-v1.6-pro')
   console.log('  npx ts-node scripts/test-text-to-video.ts veo-3-fast 4')
   console.log('  npx ts-node scripts/test-text-to-video.ts veo-3 8')
   console.log('\n🎬 Доступные модели:')

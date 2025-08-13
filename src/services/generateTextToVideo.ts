@@ -9,7 +9,6 @@ import { logger } from '@/utils/logger'
 
 // Типы моделей видео
 export type VideoModelId =
-  | 'haiper-video-2'
   | 'kling-v1.6-pro'
   | 'ray-v2'
   | 'hunyuan-video-fast'
