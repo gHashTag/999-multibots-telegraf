@@ -217,4 +217,4 @@ npx ts-node scripts/test-text-to-video.ts veo-3 8
 ```
 
 ### Коммит
-Коммит: [будет добавлен после git commit] (Ветка: feat/text-to-video-api)
+Коммит: 06817beb4d6470c1b4264ea02fbabf771a875aa3 (Ветка: feat/text-to-video-api)
