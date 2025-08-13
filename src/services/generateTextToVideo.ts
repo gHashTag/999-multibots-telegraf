@@ -7,9 +7,23 @@ import {
 } from '@/config'
 import { logger } from '@/utils/logger'
 
+// Типы моделей видео
+export type VideoModelId =
+  | 'haiper-video-2'
+  | 'kling-v1.6-pro'
+  | 'ray-v2'
+  | 'hunyuan-video-fast'
+  | 'wan-image-to-video'
+  | 'wan-text-to-video'
+  | 'minimax'
+  | 'veo-3'
+  | 'veo-3-fast'
+  | 'veo-2'
+
 interface TextToVideoRequest {
   prompt: string
-  videoModel: 'veo-3' | 'veo-3-fast'
+  videoModel: VideoModelId
+  duration?: number // Длительность в секундах (только для Veo моделей)
   telegram_id: string
   username: string
   is_ru: boolean
@@ -26,12 +40,20 @@ interface TextToVideoResponse {
 
 /**
  * Генерация видео из текстового промпта через API сервера
- * Поддерживает модели Veo 3 и Veo 3 Fast
+ * Поддерживает все модели согласно документации
  */
 export async function generateTextToVideo(
   params: TextToVideoRequest
 ): Promise<TextToVideoResponse> {
-  const { prompt, videoModel, telegram_id, username, is_ru, bot_name } = params
+  const {
+    prompt,
+    videoModel,
+    duration,
+    telegram_id,
+    username,
+    is_ru,
+    bot_name,
+  } = params
 
   // Валидация параметров
   if (!prompt) {
@@ -54,6 +76,7 @@ export async function generateTextToVideo(
   logger.info('Starting text-to-video generation', {
     prompt: prompt.substring(0, 100), // Логируем только начало промпта
     videoModel,
+    duration,
     telegram_id,
     username,
     is_ru,
@@ -71,25 +94,29 @@ export async function generateTextToVideo(
 
     logger.info('Sending request to API server', { url })
 
+    // Формируем тело запроса
+    const requestBody: any = {
+      prompt,
+      videoModel,
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+    }
+
+    // Добавляем duration только для Veo моделей
+    if (['veo-3', 'veo-3-fast', 'veo-2'].includes(videoModel) && duration) {
+      requestBody.duration = duration
+    }
+
     // Отправляем запрос на сервер
-    const response = await axios.post<TextToVideoResponse>(
-      url,
-      {
-        prompt,
-        videoModel,
-        telegram_id,
-        username,
-        is_ru,
-        bot_name,
+    const response = await axios.post<TextToVideoResponse>(url, requestBody, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-secret-key': SECRET_API_KEY,
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-        timeout: 300000, // 5 минут таймаут для длительной генерации
-      }
-    )
+      timeout: 300000, // 5 минут таймаут для длительной генерации
+    })
 
     // Логирование успешного ответа
     logger.info('Text-to-video generation response received', {

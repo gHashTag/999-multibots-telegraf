@@ -2,7 +2,7 @@
 
 ## Обзор
 
-Эта ветка добавляет прямую интеграцию с Google AI для генерации видео из текста, используя модели **Veo 3** и **Veo 3 Fast**.
+Эта ветка добавляет прямую интеграцию с API сервером для генерации видео из текста, поддерживая множество моделей включая Google Veo, Haiper, Kling, Ray, Hunyuan, Wan и Minimax.
 
 ## 🚀 Основные компоненты
 
@@ -40,7 +40,8 @@ POST /generate/text-to-video
 ```json
 {
   "prompt": "string - описание видео",
-  "videoModel": "veo-3 | veo-3-fast",
+  "videoModel": "string - ID модели (см. таблицу моделей)",
+  "duration": "number - длительность в секундах (только для Veo)",
   "telegram_id": "string - ID пользователя",
   "username": "string - имя пользователя",
   "is_ru": "boolean - язык пользователя",
@@ -73,12 +74,43 @@ GET /generate/text-to-video/status/{jobId}
 }
 ```
 
-## 💰 Цены
+## 💰 Модели и цены
 
-| Модель | Цена за секунду | 8 секунд видео |
-|--------|-----------------|----------------|
-| Veo 3 | $0.75 | $6.00 |
-| Veo 3 Fast | $0.384 | $3.07 |
+### Фиксированные модели
+| Модель | Название | Цена | Длительность | Тип ввода |
+|--------|----------|------|--------------|----------|
+| haiper-video-2 | Haiper Video 2 | 4 ⭐ | 6 сек | text, image |
+| kling-v1.6-pro | Kling v1.6 Pro | 9 ⭐ | фикс. | text, image |
+| ray-v2 | Ray-v2 | 16 ⭐ | фикс. | text, image |
+| hunyuan-video-fast | Hunyuan Fast | 18 ⭐ | фикс. | text |
+| wan-text-to-video | Wan-2.1 | 23 ⭐ | фикс. | text |
+| minimax | Minimax | 46 ⭐ | фикс. | text, image |
+
+### Динамические модели Veo
+
+#### veo-3 (Premium) - $0.40/сек
+| Длительность | Цена |
+|--------------|------|
+| 2 сек | 75 ⭐ |
+| 4 сек | 150 ⭐ |
+| 6 сек | 225 ⭐ |
+| 8 сек | 300 ⭐ (по умолчанию) |
+
+#### veo-3-fast - $0.30/сек
+| Длительность | Цена |
+|--------------|------|
+| 2 сек | 56 ⭐ |
+| 4 сек | 112 ⭐ (по умолчанию) |
+| 6 сек | 168 ⭐ |
+| 8 сек | 225 ⭐ |
+
+#### veo-2 - $0.30/сек
+| Длительность | Цена |
+|--------------|------|
+| 4 сек | 112 ⭐ |
+| 6 сек | 168 ⭐ |
+| 8 сек | 225 ⭐ (по умолчанию) |
+| 10 сек | 281 ⭐ |
 
 ## 🔧 Настройка окружения
 
@@ -100,21 +132,61 @@ NODE_ENV=development
 
 ### Запуск тестового скрипта
 ```bash
-npm run ts-node src/test-text-to-video.ts
+# Показать доступные модели
+npx ts-node scripts/test-text-to-video.ts
+
+# Тест с самой дешевой моделью
+npx ts-node scripts/test-text-to-video.ts haiper-video-2
+
+# Тест Veo моделей с длительностью
+npx ts-node scripts/test-text-to-video.ts veo-3-fast 4
+npx ts-node scripts/test-text-to-video.ts veo-3 8
+npx ts-node scripts/test-text-to-video.ts veo-2 10
 ```
 
 ### Тестирование через curl
+
+#### Самый дешевый вариант (Haiper - 4 звезды)
 ```bash
 curl -X POST http://localhost:4000/generate/text-to-video \
   -H "Content-Type: application/json" \
-  -H "x-secret-key: your-secret-key" \
   -d '{
-    "prompt": "A beautiful sunset over mountains",
-    "videoModel": "veo-3",
-    "telegram_id": "123456",
-    "username": "testuser",
+    "prompt": "Dancing cat in space",
+    "videoModel": "haiper-video-2",
+    "telegram_id": "144022504",
+    "username": "playra",
     "is_ru": false,
-    "bot_name": "test_bot"
+    "bot_name": "neuro_blogger_bot"
+  }'
+```
+
+#### Veo 3 Fast - 2 секунды (56 звёзд)
+```bash
+curl -X POST http://localhost:4000/generate/text-to-video \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Quick magic effect",
+    "videoModel": "veo-3-fast",
+    "duration": 2,
+    "telegram_id": "144022504",
+    "username": "playra",
+    "is_ru": false,
+    "bot_name": "neuro_blogger_bot"
+  }'
+```
+
+#### Veo 3 Premium - 8 секунд (300 звёзд)
+```bash
+curl -X POST http://localhost:4000/generate/text-to-video \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Epic battle scene",
+    "videoModel": "veo-3",
+    "duration": 8,
+    "telegram_id": "144022504",
+    "username": "playra",
+    "is_ru": false,
+    "bot_name": "neuro_blogger_bot"
   }'
 ```
 
@@ -125,17 +197,19 @@ curl -X POST http://localhost:4000/generate/text-to-video \
 ```typescript
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 
-// В обработчике команды
+// В обработчике команды с выбором модели
 bot.command('generate_video', async (ctx) => {
-  const prompt = ctx.message.text.replace('/generate_video', '').trim()
+  const args = ctx.message.text.split(' ')
+  const model = args[1] || 'haiper-video-2' // Самая дешевая по умолчанию
+  const duration = args[2] ? parseInt(args[2]) : undefined
+  const prompt = args.slice(duration ? 3 : 2).join(' ')
   
   if (!prompt) {
-    await ctx.reply('Please provide a prompt for video generation')
+    await ctx.reply('Usage: /generate_video [model] [duration] <prompt>')
     return
   }
   
-  // Используем Veo 3 Fast для быстрой генерации
-  await handleTextToVideoDirect(ctx, prompt, 'veo-3-fast')
+  await handleTextToVideoDirect(ctx, prompt, model, duration)
 })
 
 // Обработка callback для обновления статуса
@@ -202,11 +276,13 @@ bot.action('update_video_status', handleVideoStatusUpdate)
 
 ## 📈 Будущие улучшения
 
-- [ ] Добавить поддержку выбора длительности видео
+- [x] Добавить поддержку выбора длительности видео
+- [x] Поддержка всех моделей согласно документации сервера
 - [ ] Реализовать очередь для обработки множественных запросов
 - [ ] Добавить webhook для получения уведомлений о готовности
 - [ ] Интегрировать с системой аналитики
 - [ ] Добавить кэширование для повторяющихся запросов
+- [ ] Добавить поддержку генерации из изображений
 
 ## 🤝 Поддержка
 

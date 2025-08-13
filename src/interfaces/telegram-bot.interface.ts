@@ -295,6 +295,13 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   // Morphing fields
   morphingType?: 'loop' | 'linear' // Тип морфинга
+
+  // Text-to-video direct generation fields
+  videoJobId?: string // ID задачи генерации видео для отслеживания статуса
+  videoPrompt?: string // Промпт для генерации видео
+  videoModelId?: string // ID выбранной модели (дублирует videoModel для совместимости)
+  videoDuration?: number // Длительность видео в секундах (для VEO моделей)
+  videoMessageId?: number // ID сообщения с прогрессом генерации
 }
 
 export interface MyContext extends Context {
