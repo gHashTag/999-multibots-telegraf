@@ -21,13 +21,6 @@ export function calculateStarsFromUSD(usdAmount: number): number {
 // Конфигурация всех видео моделей
 export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
   // Фиксированные модели
-  'haiper-video-2': {
-    id: 'haiper-video-2',
-    name: 'Haiper Video 2',
-    nameRu: 'Haiper Video 2',
-    priceFixed: 4,
-    inputTypes: ['text', 'image'],
-  },
   'kling-v1.6-pro': {
     id: 'kling-v1.6-pro',
     name: 'Kling v1.6 Pro',

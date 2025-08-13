@@ -183,7 +183,6 @@ const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
 ### Поддерживаемые модели
 
 **Фиксированные цены:**
-- Haiper Video 2: 4⭐
 - Kling v1.6 Pro: 9⭐ 
 - Ray-v2: 16⭐
 - Hunyuan Fast: 18⭐
@@ -196,7 +195,7 @@ const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
 - **VEO-2**: $0.30/сек (4,6,8,10 сек, по умолчанию: 8)
 
 ### Результат
-- ✅ Полная интеграция 11 видео моделей
+- ✅ Полная интеграция 10 видео моделей
 - ✅ Динамическое ценообразование для VEO моделей
 - ✅ Прямая синхронизация с сервером (API: `/generate/text-to-video`)
 - ✅ TypeScript компилируется без ошибок
@@ -209,8 +208,8 @@ const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
 # VEO-3 Fast (4 сек) → 112⭐
 npx ts-node scripts/test-text-to-video.ts veo-3-fast 4
 
-# Haiper Video 2 (фиксированная) → 4⭐  
-npx ts-node scripts/test-text-to-video.ts haiper-video-2
+# Kling v1.6 Pro (фиксированная) → 9⭐  
+npx ts-node scripts/test-text-to-video.ts kling-v1.6-pro
 
 # VEO-3 Premium (8 сек) → 300⭐
 npx ts-node scripts/test-text-to-video.ts veo-3 8
