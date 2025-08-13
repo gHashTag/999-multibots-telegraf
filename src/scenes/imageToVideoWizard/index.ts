@@ -43,6 +43,29 @@ handleModelSelection.on('text', async ctx => {
     wizardStep: (ctx.wizard.state as any)?.step || 'unknown',
   })
 
+  // 🛡️ Проверяем, что мы действительно в режиме выбора модели I2V
+  // Игнорируем сообщения, которые выглядят как команды из других контекстов
+  const ignoredPatterns = [
+    /^🆕/, // Новый промпт
+    /^📐/, // Изменить размер
+    /^⬆️/, // Увеличить качество/Улучшить промпт
+    /^🏠/, // Главное меню
+    /^💎/, // Пополнить баланс
+    /^🤑/, // Баланс
+  ]
+
+  if (
+    selectedButtonText &&
+    ignoredPatterns.some(pattern => pattern.test(selectedButtonText))
+  ) {
+    logger.warn('[I2V Wizard] Ignoring non-model button text', {
+      telegramId: ctx.from?.id,
+      ignoredText: selectedButtonText,
+    })
+    // Не обрабатываем это сообщение в контексте I2V Wizard
+    return
+  }
+
   if (!selectedButtonText) {
     // HARDCODED TEXT
     const text = isRu
