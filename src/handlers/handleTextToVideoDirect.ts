@@ -2,53 +2,66 @@ import { MyContext } from '@/interfaces'
 import {
   generateTextToVideo,
   checkVideoGenerationStatus,
+  VideoModelId,
 } from '@/services/generateTextToVideo'
+import {
+  VIDEO_MODELS,
+  getModelPriceInStars,
+  getValidDuration,
+  formatModelInfo,
+} from '@/services/videoModels'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { checkSubscription } from '@/helpers/checkSubscription'
+import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
-import { uploadToSupabase } from '@/helpers/uploadToSupabase'
+import { uploadTelegramFileLocal } from '@/helpers/uploadTelegramFileLocal'
 
 /**
- * Handler для генерации видео из текста через прямую интеграцию с Google
- * Поддерживает модели Veo 3 и Veo 3 Fast
+ * Handler для генерации видео из текста через прямую интеграцию с сервером
+ * Поддерживает все модели согласно документации
  */
 export async function handleTextToVideoDirect(
   ctx: MyContext,
   prompt: string,
-  modelId: 'veo-3' | 'veo-3-fast'
+  modelId: VideoModelId,
+  duration?: number
 ): Promise<void> {
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
   const is_ru = isRussianFromState(ctx)
   const bot_name = ctx.botInfo?.username || 'unknown_bot'
 
+  // Получаем корректную длительность для модели
+  const validDuration = getValidDuration(modelId, duration)
+
   logger.info('[handleTextToVideoDirect] Starting video generation', {
     telegram_id,
     username,
     modelId,
+    duration: validDuration,
     promptLength: prompt.length,
   })
 
   // Проверка подписки
-  const subscriptionCheck = await checkSubscription(ctx, 'NeuroVideo')
-  if (!subscriptionCheck.allowed) {
-    await ctx.reply(
-      is_ru
-        ? '❌ У вас недостаточно прав для генерации видео. Пожалуйста, оформите подписку.'
-        : '❌ You do not have sufficient rights to generate video. Please subscribe.'
-    )
+  const hasSubscription = await checkSubscriptionGuard(ctx, 'NeuroVideo')
+  if (!hasSubscription) {
+    // checkSubscriptionGuard уже отправил сообщение, просто возвращаемся
     return
   }
+
+  // Получаем информацию о модели
+  const modelInfo = VIDEO_MODELS[modelId]
+  const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
+  const price = getModelPriceInStars(modelId, validDuration)
 
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(
     is_ru
-      ? '⏳ Начинаю генерацию видео через Google AI...\n\nЭто может занять несколько минут.'
-      : '⏳ Starting video generation through Google AI...\n\nThis may take a few minutes.',
+      ? `⏳ Начинаю генерацию видео...\n\n🤖 Модель: ${modelName}\n${validDuration ? `⏱️ Длительность: ${validDuration} сек\n` : ''}💰 Стоимость: ${price} ⭐\n\nЭто может занять несколько минут.`
+      : `⏳ Starting video generation...\n\n🤖 Model: ${modelName}\n${validDuration ? `⏱️ Duration: ${validDuration} sec\n` : ''}💰 Cost: ${price} ⭐\n\nThis may take a few minutes.`,
     {
       reply_markup: {
         inline_keyboard: [
@@ -68,6 +81,7 @@ export async function handleTextToVideoDirect(
     const response = await generateTextToVideo({
       prompt,
       videoModel: modelId,
+      duration: validDuration,
       telegram_id,
       username,
       is_ru,
@@ -93,6 +107,7 @@ export async function handleTextToVideoDirect(
         response.videoUrl,
         prompt,
         modelId,
+        validDuration,
         processingMessage.message_id
       )
       return
@@ -104,6 +119,7 @@ export async function handleTextToVideoDirect(
       ctx.session.videoJobId = response.jobId
       ctx.session.videoPrompt = prompt
       ctx.session.videoModelId = modelId
+      ctx.session.videoDuration = validDuration
       ctx.session.videoMessageId = processingMessage.message_id
 
       // Запускаем мониторинг статуса
@@ -148,7 +164,8 @@ async function monitorVideoGeneration(
           ctx,
           statusResponse.videoUrl,
           ctx.session.videoPrompt || '',
-          ctx.session.videoModelId || 'veo-3',
+          (ctx.session.videoModelId as VideoModelId) || 'veo-3',
+          ctx.session.videoDuration,
           messageId
         )
 
@@ -156,6 +173,7 @@ async function monitorVideoGeneration(
         delete ctx.session.videoJobId
         delete ctx.session.videoPrompt
         delete ctx.session.videoModelId
+        delete ctx.session.videoDuration
         delete ctx.session.videoMessageId
       } else if (!statusResponse.success) {
         // Ошибка генерации
@@ -203,19 +221,16 @@ async function handleVideoReady(
   ctx: MyContext,
   videoUrl: string,
   prompt: string,
-  modelId: string,
+  modelId: VideoModelId,
+  duration: number | undefined,
   messageId: number
 ): Promise<void> {
   const is_ru = isRussianFromState(ctx)
   const telegram_id = ctx.from?.id.toString() || ''
 
   try {
-    // Загружаем видео в Supabase для постоянного хранения
-    const uploadedUrl = await uploadToSupabase(
-      videoUrl,
-      'videos',
-      `${telegram_id}/${Date.now()}.mp4`
-    )
+    // Используем оригинальный URL видео с сервера
+    const uploadedUrl = videoUrl
 
     // Обновляем сообщение
     await ctx.telegram.editMessageText(
@@ -227,34 +242,36 @@ async function handleVideoReady(
         : '✅ Video generated successfully! Sending...'
     )
 
+    // Получаем информацию о модели для подписи
+    const modelInfo = VIDEO_MODELS[modelId]
+    const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
+
     // Отправляем видео пользователю
     await ctx.replyWithVideo(Input.fromURL(uploadedUrl || videoUrl), {
       caption:
         `🎬 ${prompt}\n\n` +
-        `🤖 Model: ${modelId === 'veo-3' ? 'Google Veo 3' : 'Google Veo 3 Fast'}\n` +
-        `⚡ Generated with direct Google AI integration`,
+        `🤖 ${is_ru ? 'Модель' : 'Model'}: ${modelName}\n` +
+        (duration
+          ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${is_ru ? 'сек' : 'sec'}\n`
+          : '') +
+        `⚡ ${is_ru ? 'Сгенерировано через' : 'Generated with'} AI`,
       parse_mode: 'Markdown',
     })
 
     // Списываем баланс
-    const price = modelId === 'veo-3' ? 0.75 * 8 : 0.384 * 8 // Цена за 8 секунд
-    const finalPrice = calculateFinalPrice(
-      price,
-      PaymentType.STARS,
-      telegram_id
-    )
+    const price = getModelPriceInStars(modelId, duration)
 
     await updateUserBalance(
       telegram_id,
-      finalPrice.final,
-      'text-to-video',
-      `Video generation: ${modelId}`
+      price,
+      PaymentType.MONEY_OUTCOME,
+      `Video generation: ${modelId}${duration ? ` (${duration}s)` : ''}`
     )
 
     logger.info('[handleVideoReady] Video sent successfully', {
       telegram_id,
       modelId,
-      price: finalPrice.final,
+      price,
     })
   } catch (error) {
     logger.error('[handleVideoReady] Error sending video:', error)
@@ -296,7 +313,8 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx,
         statusResponse.videoUrl,
         ctx.session.videoPrompt || '',
-        ctx.session.videoModelId || 'veo-3',
+        (ctx.session.videoModelId as VideoModelId) || 'veo-3',
+        ctx.session.videoDuration,
         ctx.session.videoMessageId || 0
       )
 
@@ -304,6 +322,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
       delete ctx.session.videoJobId
       delete ctx.session.videoPrompt
       delete ctx.session.videoModelId
+      delete ctx.session.videoDuration
       delete ctx.session.videoMessageId
     } else if (!statusResponse.success) {
       await ctx.answerCbQuery(

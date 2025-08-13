@@ -114,3 +114,107 @@ null value in column "bot_name" of relation "users" violates not-null constraint
 ### Коммиты
 - Коммит: 31db83b6 - исправление фильтрации admin_only
 - Коммит: 4ffb8c77 - скрытие Lip Sync, Морфинг остается доступным
+
+---
+
+## 2025-08-13: Интеграция новых видео моделей VEO3 с динамическим ценообразованием
+
+### Проблема
+Необходимо было интегрировать новые мощные видео модели Google VEO3 (включая Fast VEO3) с динамическим ценообразованием, зависящим от длительности видео, и обеспечить прямую синхронизацию с сервером.
+
+### Решение
+1. **Создана система управления видео моделями** (`src/services/videoModels.ts`):
+   - Конфигурация всех моделей (фиксированные и динамические цены)
+   - Функции расчета цены в звездах: `getModelPriceInStars(modelId, duration)`
+   - Валидация поддерживаемых длительностей: `getValidDuration(modelId, duration)`
+   - Форматирование информации о моделях: `formatModelInfo(modelId, duration, is_ru)`
+
+2. **Обновлен сервис генерации** (`src/services/generateTextToVideo.ts`):
+   - Поддержка параметра `duration` для VEO моделей
+   - Улучшенная обработка ошибок и таймаутов (5 минут)
+   - Функция проверки статуса генерации: `checkVideoGenerationStatus(jobId)`
+
+3. **Создан полноценный handler** (`src/handlers/handleTextToVideoDirect.ts`):
+   - Проверка подписки через `checkSubscriptionGuard`
+   - Асинхронный мониторинг статуса генерации
+   - Автоматическая отправка готового видео пользователю
+   - Списание баланса через `updateUserBalance`
+
+4. **Исправлены все ошибки TypeScript**:
+   - Добавлены поля в `MySession`: `videoJobId`, `videoPrompt`, `videoModelId`, `videoDuration`, `videoMessageId`
+   - Исправлены импорты и типы данных
+   - Правильное использование `PaymentType.MONEY_OUTCOME`
+
+5. **Создан тестовый скрипт** (`scripts/test-text-to-video.ts`):
+   - Полное тестирование всех моделей с различными параметрами
+   - Расчет цен для динамических моделей
+   - Проверка API интеграции
+
+### Ключевые паттерны
+
+**Динамическое ценообразование для VEO моделей:**
+```typescript
+// Формула расчета цены в звездах
+const usdPrice = duration * model.pricePerSecond
+const starsPrice = Math.floor((usdPrice / 0.016) * 1.5)
+
+// Пример для VEO-3 Fast (4 сек): 4 * $0.30 = $1.20 = 112⭐
+// Пример для VEO-3 Premium (8 сек): 8 * $0.40 = $3.20 = 300⭐
+```
+
+**Конфигурация моделей:**
+```typescript
+const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
+  // Фиксированные модели
+  'haiper-video-2': {
+    priceFixed: 4,
+    inputTypes: ['text', 'image'],
+  },
+  // Динамические модели
+  'veo-3-fast': {
+    pricePerSecond: 0.30,
+    supportedDurations: [2, 4, 6, 8],
+    defaultDuration: 4,
+    inputTypes: ['text'],
+  },
+}
+```
+
+### Поддерживаемые модели
+
+**Фиксированные цены:**
+- Haiper Video 2: 4⭐
+- Kling v1.6 Pro: 9⭐ 
+- Ray-v2: 16⭐
+- Hunyuan Fast: 18⭐
+- Wan-2.1 Text/Image to Video: 23⭐
+- Minimax: 46⭐
+
+**Динамические цены (VEO):**
+- **VEO-3 Fast**: $0.30/сек (2,4,6,8 сек, по умолчанию: 4)
+- **VEO-3 Premium**: $0.40/сек (2,4,6,8 сек, по умолчанию: 8) 
+- **VEO-2**: $0.30/сек (4,6,8,10 сек, по умолчанию: 8)
+
+### Результат
+- ✅ Полная интеграция 11 видео моделей
+- ✅ Динамическое ценообразование для VEO моделей
+- ✅ Прямая синхронизация с сервером (API: `/generate/text-to-video`)
+- ✅ TypeScript компилируется без ошибок
+- ✅ Все тесты API проходят успешно
+- ✅ Автоматический мониторинг статуса генерации
+- ✅ Интеграция с балансом пользователей
+
+### Тестирование
+```bash
+# VEO-3 Fast (4 сек) → 112⭐
+npx ts-node scripts/test-text-to-video.ts veo-3-fast 4
+
+# Haiper Video 2 (фиксированная) → 4⭐  
+npx ts-node scripts/test-text-to-video.ts haiper-video-2
+
+# VEO-3 Premium (8 сек) → 300⭐
+npx ts-node scripts/test-text-to-video.ts veo-3 8
+```
+
+### Коммит
+Коммит: [будет добавлен после git commit] (Ветка: feat/text-to-video-api)
