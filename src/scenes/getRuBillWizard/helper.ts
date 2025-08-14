@@ -57,11 +57,11 @@ export function generateRobokassaUrl(
     })
   }
 
-  // Используем тот же формат подписи
+  // Формируем подпись согласно документации Robokassa
+  // В подпись НЕ включается ResultURL!
+  // Формат: MerchantLogin:OutSum:InvId:Password1
   const signatureValue = md5(
-    `${merchantLogin}:${outSum}:${invId}:${encodeURIComponent(
-      resultUrl2
-    )}:${password1}`
+    `${merchantLogin}:${outSum}:${invId}:${password1}`
   ).toUpperCase()
 
   console.log('generateRobokassaUrl params:', {
@@ -75,7 +75,7 @@ export function generateRobokassaUrl(
 
   const url = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=${merchantLogin}&OutSum=${outSum}&InvId=${invId}&Description=${encodeURIComponent(
     description
-  )}&SignatureValue=${signatureValue}&ResultUrl2=${encodeURIComponent(
+  )}&SignatureValue=${signatureValue}&ResultURL=${encodeURIComponent(
     resultUrl2 || ''
   )}`
 
@@ -107,10 +107,10 @@ export async function getInvoiceId(
       })
     }
 
+    // Формируем подпись согласно документации Robokassa
+    // В подпись НЕ включается ResultURL!
     const signatureValue = md5(
-      `${merchantLogin}:${outSum}:${invId}:${encodeURIComponent(
-        resultUrl2
-      )}:${password1}`
+      `${merchantLogin}:${outSum}:${invId}:${password1}`
     )
     console.log('signatureValue', signatureValue)
 
