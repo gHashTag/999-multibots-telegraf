@@ -13,9 +13,23 @@ export const validateRobokassaSignature = (
   outSum: string,
   invId: string,
   password: string,
-  signature: string
+  signature: string | any
 ): boolean => {
   try {
+    // Проверяем наличие всех параметров
+    if (!outSum || !invId || !password || !signature) {
+      logger.warn('Robokassa signature validation: missing parameters', {
+        hasOutSum: !!outSum,
+        hasInvId: !!invId,
+        hasPassword: !!password,
+        hasSignature: !!signature,
+      })
+      return false
+    }
+
+    // Преобразуем signature в строку для безопасности
+    const signatureStr = String(signature)
+
     // Формируем строку для хеширования: OutSum:InvId:Пароль
     const dataToHash = `${outSum}:${invId}:${password}`
     // Рассчитываем MD5 хеш
@@ -26,7 +40,7 @@ export const validateRobokassaSignature = (
 
     // Сравниваем рассчитанную подпись с полученной (регистронезависимо)
     const isValid =
-      calculatedSignature.toLowerCase() === signature.toLowerCase()
+      calculatedSignature.toLowerCase() === signatureStr.toLowerCase()
     if (!isValid) {
       logger.warn('Robokassa signature validation failed', {
         calculated: calculatedSignature,
