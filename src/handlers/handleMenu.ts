@@ -17,6 +17,7 @@ import {
   isRussianFromState,
   setUserLanguageInState,
 } from '@/helpers/centralizedLanguage'
+import { getParsingAccess } from '@/menu/mainMenu'
 
 // Получаем ID администраторов из переменных окружения
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
@@ -642,6 +643,57 @@ export const handleMenu = async (ctx: MyContext) => {
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
+        )
+      },
+      // Instagram parser button handler
+      [isRu ? levels[109]?.title_ru : levels[109]?.title_en]: async () => {
+        if (!levels[109]) return // Проверка на существование уровня
+
+        logger.info({
+          message: '📱 [handleMenu] Переход к Instagram парсеру',
+          telegramId,
+          function: 'handleMenu',
+          action: 'instagram_parser',
+          nextScene: 'instagram_parser_scene',
+        })
+        console.log('CASE: 📱 Instagram Парсер')
+
+        // Проверяем доступ к парсингу
+        const userId = ctx.from?.id?.toString()
+        const botToken = ctx.telegram.token
+
+        if (!userId) {
+          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+          return
+        }
+
+        const parsingAccess = getParsingAccess(userId, botToken)
+
+        if (!parsingAccess.hasAccess) {
+          logger.warn('Instagram parsing access denied via button', {
+            telegramId,
+            userId,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ У вас нет доступа к функции парсинга Instagram.'
+              : "❌ You don't have access to Instagram parsing feature."
+          )
+          return
+        }
+
+        logger.info('Instagram parser access granted via button', {
+          telegramId,
+          userId,
+          allowedProjects: parsingAccess.allowedProjects,
+        })
+
+        // Переходим в Instagram parser scene
+        ctx.session.mode = 'instagram_parser' as any
+        console.log(`🔄 [handleMenu] Вход в сцену instagram_parser_scene`)
+        await ctx.scene.enter('instagram_parser_scene')
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
         )
       },
       // УБРАН КОНФЛИКТУЮЩИЙ ОБРАБОТЧИК /start - команды обрабатываются только в registerCommands.ts

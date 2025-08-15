@@ -132,6 +132,12 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
+  // Instagram parser button - with restricted access
+  109: {
+    title_ru: '📱 Instagram Парсер',
+    title_en: '📱 Instagram Parser',
+    admin_only: true, // Скрыто для обычных пользователей - только для тех, у кого есть доступ
+  },
 }
 
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
@@ -301,6 +307,25 @@ export async function mainMenu({
     .filter(
       level => !(level.admin_only && !(userId && adminIds.includes(userId)))
     )
+
+  // Добавляем кнопку Instagram парсера только для пользователей с доступом
+  const botToken = ctx.telegram.token
+  if (userId && levels[109]) {
+    const parsingAccess = getParsingAccess(userId, botToken)
+    if (parsingAccess.hasAccess) {
+      // Добавляем кнопку Instagram парсера для тех, у кого есть доступ
+      if (!availableLevels.includes(levels[109])) {
+        availableLevels.push(levels[109])
+        logger.info(
+          '[mainMenu] Added Instagram parser button for user with access',
+          {
+            userId,
+            allowedProjects: parsingAccess.allowedProjects,
+          }
+        )
+      }
+    }
+  }
 
   console.log(
     `[mainMenu LOG] Showing ALL buttons for subscription: ${currentSubscription}`

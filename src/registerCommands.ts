@@ -69,6 +69,7 @@ import {
   fluxKontextScene,
   avatarTransformScene,
   instagramScrapingWizard,
+  instagramParserScene,
   morphingWizard,
 } from './scenes'
 
@@ -132,6 +133,7 @@ export const stage = new Scenes.Stage<MyContext>([
   createUserScene,
   neuroCoderScene,
   instagramScrapingWizard,
+  instagramParserScene,
   // handleTextMessage, // ❌ ИСПРАВЛЕНО: убираем из stage сцен - это должен быть middleware, не сцена!
 ])
 
