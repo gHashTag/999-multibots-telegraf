@@ -4,9 +4,9 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { inngest } from '@/inngest_app/client'
-import { supabaseAdmin } from '@/core/supabase'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { scrapeInstagramDirect } from '@/services/instagramScraperDirect'
+import { supabaseAdmin } from '@/core/supabase/client'
 
 // ========== ИНТЕРФЕЙСЫ ==========
 interface InstagramParserState {
@@ -376,34 +376,13 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           }
         )
 
-        // Запускаем парсинг через Inngest
-        const result = await inngest.send({
-          name: 'instagram/scraper-v2',
-          data: {
-            // Основные параметры для новой версии скрапера
-            username_or_id: state.target,
-            project_id: 37, // Default project ID для Instagram парсинга
-            max_users: 1, // Парсим только указанный аккаунт
-            max_reels_per_user: state.count,
-            scrape_reels: true,
-            requester_telegram_id: userId.toString(),
-
-            // Дополнительные данные для контекста
-            source_type: state.type,
-            bot_name: ctx.botInfo?.username || 'AI_STARS_bot',
-            username: ctx.from?.username,
-            language: isRu ? 'ru' : 'en',
-            timestamp: new Date().toISOString(),
-
-            // Данные для оплаты и статистики
-            cost_stars: state.cost,
-            parsing_type: state.type === 'competitor' ? 'account' : 'hashtag',
-          },
-          user: {
-            external_id: userId.toString(),
-          },
-          // ID для дедупликации
-          id: `instagram-parser-${userId}-${state.target}-${Date.now()}`,
+        // Запускаем парсинг напрямую через Apify
+        const result = await scrapeInstagramDirect({
+          username_or_hashtag: state.target,
+          type: state.type,
+          maxPosts: state.count,
+          userId: userId.toString(),
+          telegram_id: userId.toString(),
         })
 
         logger.info('Instagram parsing started', {
@@ -411,40 +390,88 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           target: state.target,
           type: state.type,
           count: state.count,
-          inngestId: (result as any).ids,
+          runId: result.runId,
         })
 
-        await ctx.editMessageText(
-          isRu
-            ? `✅ Парсинг запущен!\n\n` +
-                `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-                `📊 Количество: ${state.count} рилсов\n` +
-                `💰 Списано: ${state.cost} ⭐\n\n` +
-                `⏳ Это займёт 5-15 минут.\n` +
-                `📨 Я отправлю уведомление когда будет готово.\n\n` +
-                `💡 Вы можете продолжать пользоваться ботом`
-            : `✅ Parsing started!\n\n` +
-                `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-                `📊 Count: ${state.count} reels\n` +
-                `💰 Charged: ${state.cost} ⭐\n\n` +
-                `⏳ This will take 5-15 minutes.\n` +
-                `📨 I'll send notification when ready.\n\n` +
-                `💡 You can continue using the bot`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                isRu ? '🏠 В главное меню' : '🏠 Main menu',
-                'main_menu'
-              ),
-            ],
-            [
-              Markup.button.callback(
-                isRu ? '🔄 Новый парсинг' : '🔄 New parsing',
-                'restart'
-              ),
-            ],
-          ])
-        )
+        if (result.success) {
+          // Парсинг завершен успешно
+          const reelsCount = result.data?.length || 0
+          await ctx.editMessageText(
+            isRu
+              ? `✅ Парсинг завершен!\n\n` +
+                  `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
+                  `📊 Найдено рилсов: ${reelsCount}\n` +
+                  `💰 Списано: ${state.cost} ⭐\n\n` +
+                  `📨 Результаты сохранены в базе данных.\n` +
+                  `💡 Вы можете запустить новый парсинг`
+              : `✅ Parsing completed!\n\n` +
+                  `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
+                  `📊 Reels found: ${reelsCount}\n` +
+                  `💰 Charged: ${state.cost} ⭐\n\n` +
+                  `📨 Results saved to database.\n` +
+                  `💡 You can start a new parsing`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  isRu ? '🏠 В главное меню' : '🏠 Main menu',
+                  'main_menu'
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  isRu ? '🔄 Новый парсинг' : '🔄 New parsing',
+                  'restart'
+                ),
+              ],
+            ])
+          )
+
+          // Отправляем данные пользователю если есть результаты
+          if (result.data && result.data.length > 0) {
+            const message = isRu
+              ? `📊 Найденные рилсы:\n\n`
+              : `📊 Found reels:\n\n`
+
+            const reelsInfo = result.data
+              .slice(0, 10)
+              .map((reel: any, index: number) => {
+                const caption = reel.caption
+                  ? reel.caption.substring(0, 50) + '...'
+                  : 'Без описания'
+                return `${index + 1}. ${reel.shortCode ? `[${reel.shortCode}]` : ''} ${caption}`
+              })
+              .join('\n')
+
+            await ctx.reply(message + reelsInfo)
+          }
+        } else {
+          // Ошибка парсинга
+          await ctx.editMessageText(
+            isRu
+              ? `❌ Ошибка парсинга\n\n` +
+                  `Причина: ${result.error}\n\n` +
+                  `💰 Средства не были списаны.\n` +
+                  `Попробуйте еще раз позже.`
+              : `❌ Parsing error\n\n` +
+                  `Reason: ${result.error}\n\n` +
+                  `💰 Funds were not charged.\n` +
+                  `Please try again later.`,
+            Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  isRu ? '🏠 В главное меню' : '🏠 Main menu',
+                  'main_menu'
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  isRu ? '🔄 Попробовать снова' : '🔄 Try again',
+                  'restart'
+                ),
+              ],
+            ])
+          )
+        }
       } catch (error) {
         logger.error('Instagram parsing error', { error, userId, state })
 
