@@ -378,15 +378,32 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
         // Запускаем парсинг через Inngest
         const result = await inngest.send({
-          name: 'instagram/apify-scrape-prod',
+          name: 'instagram/scraper-v2',
           data: {
-            telegram_id: userId.toString(),
-            username_or_hashtag: state.target,
+            // Основные параметры для новой версии скрапера
+            username_or_id: state.target,
+            project_id: 37, // Default project ID для Instagram парсинга
+            max_users: 1, // Парсим только указанный аккаунт
+            max_reels_per_user: state.count,
+            scrape_reels: true,
+            requester_telegram_id: userId.toString(),
+
+            // Дополнительные данные для контекста
             source_type: state.type,
             bot_name: ctx.botInfo?.username || 'AI_STARS_bot',
-            max_reels: state.count,
+            username: ctx.from?.username,
             language: isRu ? 'ru' : 'en',
+            timestamp: new Date().toISOString(),
+
+            // Данные для оплаты и статистики
+            cost_stars: state.cost,
+            parsing_type: state.type === 'competitor' ? 'account' : 'hashtag',
           },
+          user: {
+            external_id: userId.toString(),
+          },
+          // ID для дедупликации
+          id: `instagram-parser-${userId}-${state.target}-${Date.now()}`,
         })
 
         logger.info('Instagram parsing started', {
