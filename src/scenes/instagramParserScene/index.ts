@@ -26,7 +26,7 @@ const REELS_PRICING = {
 
 // ========== WIZARD SCENE ==========
 export const instagramParserScene = new Scenes.WizardScene<MyContext>(
-  'instagram_parser',
+  'instagram_parser_scene',
 
   // ШАГ 1: Главное меню
   async ctx => {
