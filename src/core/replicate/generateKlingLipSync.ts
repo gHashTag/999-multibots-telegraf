@@ -33,30 +33,78 @@ export type KlingLipSyncResult = KlingLipSyncResponse | KlingLipSyncError
  * Генерирует видео с липсинком используя Kling модель от Replicate
  * @param telegramId - ID пользователя Telegram
  * @param videoUrl - URL видео для обработки
- * @param audioUrl - URL аудио для синхронизации
+ * @param audioUrl - URL аудио для синхронизации (опционально)
  * @param isRu - Язык интерфейса (для логирования)
+ * @param text - Текст для генерации речи (если нет аудио)
  * @returns Promise с результатом генерации
  */
 export async function generateKlingLipSync(
   telegramId: string,
   videoUrl: string,
-  audioUrl: string,
-  isRu: boolean = true
+  audioUrl?: string,
+  isRu: boolean = true,
+  text?: string
 ): Promise<KlingLipSyncResult> {
   try {
     logger.info('🎬 Начинаем генерацию Kling LipSync', {
       telegramId,
       videoUrl: videoUrl.substring(0, 100) + '...',
-      audioUrl: audioUrl.substring(0, 100) + '...',
+      audioUrl: audioUrl ? audioUrl.substring(0, 100) + '...' : 'not provided',
+      text: text ? text.substring(0, 50) + '...' : 'not provided',
       model: 'kwaivgi/kling-lip-sync',
+    })
+
+    // Определяем webhook URL в зависимости от окружения
+    const webhookUrl = process.env.NODE_ENV === 'production'
+      ? `${process.env.API_SERVER_URL || 'https://ai-server-u14194.vm.elestio.app'}/api/webhooks/replicate`
+      : process.env.NGROK_URL 
+        ? `${process.env.NGROK_URL}/api/webhooks/replicate`
+        : undefined // В development без ngrok не используем webhook
+
+    if (webhookUrl) {
+      logger.info('🔔 [Kling LipSync] Using webhook URL', {
+        webhookUrl,
+        environment: process.env.NODE_ENV,
+      })
+    }
+
+    // Подготавливаем входные параметры
+    const input: any = {
+      video_url: videoUrl,
+    }
+
+    // Если есть аудио, используем его
+    if (audioUrl) {
+      input.audio_file = audioUrl
+    } 
+    // Если есть текст, используем его
+    else if (text) {
+      input.text = text
+      // Можно добавить voice_id для выбора голоса
+      input.voice_id = isRu ? 'ru_AOT' : 'en_AOT'
+    } 
+    // Если нет ни аудио, ни текста
+    else {
+      logger.error('❌ Не указан ни аудио файл, ни текст', {
+        telegramId,
+        videoUrl,
+      })
+      return {
+        message: 'Необходимо указать аудио файл или текст для генерации',
+        error: 'MISSING_AUDIO_OR_TEXT',
+      } as KlingLipSyncError
+    }
+
+    logger.info('🚀 Отправляем запрос к Replicate', {
+      input,
+      webhookUrl,
     })
 
     // Запускаем Replicate модель
     const prediction = await replicate.run('kwaivgi/kling-lip-sync', {
-      input: {
-        video_url: videoUrl,
-        audio_url: audioUrl,
-      },
+      input,
+      webhook: webhookUrl || undefined,
+      webhook_events_filter: webhookUrl ? ['completed'] as any : undefined,
     })
 
     logger.info('📡 Replicate prediction создан', {

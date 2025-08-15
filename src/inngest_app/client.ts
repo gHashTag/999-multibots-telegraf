@@ -1,10 +1,13 @@
 import { Inngest } from 'inngest'
 // Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
 // import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
+import { lipSyncFunction, lipSyncWebhookFunction } from './functions/lipSyncFunction'
 
-// ✅ Список Inngest функций (пуст - морфинг переведен на чистый JavaScript)
+// ✅ Список Inngest функций
 export const functions = [
   // generateAdvancedLoopingVideoFunction - отключено, используем localMorphingProcessor
+  lipSyncFunction,
+  lipSyncWebhookFunction,
 ]
 
 // Создаем клиент Inngest для подключения к нашему dev server
