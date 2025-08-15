@@ -13,10 +13,11 @@ export interface VideoModelInfo {
   maxDuration?: number // Максимальная длительность для динамических моделей
 }
 
-// Функция расчета цены в звездах для динамических моделей
-export function calculateStarsFromUSD(usdAmount: number): number {
-  return Math.floor((usdAmount / 0.016) * 1.5)
-}
+// Импортируем единую функцию расчета
+import {
+  calculateVideoPriceInStars,
+  VEO_MODELS_PRICING,
+} from '@/config/unified-pricing.config'
 
 // Конфигурация всех видео моделей
 export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
@@ -64,32 +65,32 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     inputTypes: ['text', 'image'],
   },
 
-  // Динамические модели Veo
+  // Динамические модели Veo (используем конфигурацию из unified-pricing.config.ts)
   'veo-3': {
     id: 'veo-3',
     name: 'Google Veo 3 (Premium)',
     nameRu: 'Google Veo 3 (Премиум)',
-    pricePerSecond: 0.4,
-    supportedDurations: [2, 4, 6, 8],
-    defaultDuration: 8,
+    pricePerSecond: VEO_MODELS_PRICING['veo-3'].pricePerSecondUSD,
+    supportedDurations: VEO_MODELS_PRICING['veo-3'].supportedDurations,
+    defaultDuration: VEO_MODELS_PRICING['veo-3'].defaultDuration,
     inputTypes: ['text'],
   },
   'veo-3-fast': {
     id: 'veo-3-fast',
     name: 'Google Veo 3 Fast',
     nameRu: 'Google Veo 3 Fast',
-    pricePerSecond: 0.3,
-    supportedDurations: [2, 4, 6, 8],
-    defaultDuration: 4,
+    pricePerSecond: VEO_MODELS_PRICING['veo-3-fast'].pricePerSecondUSD,
+    supportedDurations: VEO_MODELS_PRICING['veo-3-fast'].supportedDurations,
+    defaultDuration: VEO_MODELS_PRICING['veo-3-fast'].defaultDuration,
     inputTypes: ['text', 'image'],
   },
   'veo-2': {
     id: 'veo-2',
     name: 'Google Veo 2',
     nameRu: 'Google Veo 2',
-    pricePerSecond: 0.3,
-    supportedDurations: [4, 6, 8, 10],
-    defaultDuration: 8,
+    pricePerSecond: VEO_MODELS_PRICING['veo-2'].pricePerSecondUSD,
+    supportedDurations: VEO_MODELS_PRICING['veo-2'].supportedDurations,
+    defaultDuration: VEO_MODELS_PRICING['veo-2'].defaultDuration,
     inputTypes: ['text'],
   },
 }
@@ -118,8 +119,7 @@ export function getModelPriceInStars(
   // Для динамических моделей
   if (model.pricePerSecond !== undefined) {
     const finalDuration = duration || model.defaultDuration || 4
-    const usdPrice = finalDuration * model.pricePerSecond
-    return calculateStarsFromUSD(usdPrice)
+    return calculateVideoPriceInStars(model.pricePerSecond, finalDuration)
   }
 
   throw new Error(`Cannot calculate price for model: ${modelId}`)

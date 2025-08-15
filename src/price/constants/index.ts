@@ -1,17 +1,21 @@
-// Объявления констант без циклических зависимостей
-// Объявляем примитивные значения самыми первыми
+// Импортируем единые константы из централизованной конфигурации
+import {
+  STAR_COST_USD,
+  MARKUP_MULTIPLIER,
+  USD_TO_RUB_RATE,
+} from '@/config/unified-pricing.config'
 
-// Экспортируем примитивные значения
-export const starCost = 0.016
-export const interestRate = 1.5
+// Экспортируем для обратной совместимости
+export const starCost = STAR_COST_USD
+export const interestRate = MARKUP_MULTIPLIER
 
-// Теперь создаем объект конфигурации на основе этих значений
+// Создаем объект конфигурации
 export const SYSTEM_CONFIG = {
-  starCost: starCost,
-  interestRate: interestRate,
+  starCost: STAR_COST_USD,
+  interestRate: MARKUP_MULTIPLIER,
   currency: 'RUB',
   subscriptionBonus: 0.0,
-  rubRate: 80,
+  rubRate: USD_TO_RUB_RATE,
 }
 
 // Импорт типов после объявления примитивных констант
