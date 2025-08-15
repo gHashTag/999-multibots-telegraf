@@ -689,9 +689,11 @@ export const handleMenu = async (ctx: MyContext) => {
         })
 
         // Переходим в Instagram parser scene
-        ctx.session.mode = 'instagram_parser' as any
-        console.log(`🔄 [handleMenu] Вход в сцену instagram_parser_scene`)
-        await ctx.scene.enter('instagram_parser_scene')
+        ctx.session.mode = ModeEnum.InstagramParserScene
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
+        )
+        await ctx.scene.enter(ModeEnum.InstagramParserScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
         )
