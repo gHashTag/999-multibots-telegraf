@@ -81,7 +81,7 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     pricePerSecond: 0.3,
     supportedDurations: [2, 4, 6, 8],
     defaultDuration: 4,
-    inputTypes: ['text'],
+    inputTypes: ['text', 'image'],
   },
   'veo-2': {
     id: 'veo-2',
