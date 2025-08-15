@@ -302,6 +302,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   videoModelId?: string // ID выбранной модели (дублирует videoModel для совместимости)
   videoDuration?: number // Длительность видео в секундах (для VEO моделей)
   videoMessageId?: number // ID сообщения с прогрессом генерации
+  selectedVideoModel?: string // ID выбранной модели для генерации видео (для сцены выбора длительности)
 }
 
 export interface MyContext extends Context {

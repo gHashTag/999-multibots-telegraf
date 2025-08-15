@@ -1,16 +1,23 @@
 import { Scenes, Markup } from 'telegraf'
-import { MyContext, VideoModelKey } from '@/interfaces'
-import { calculateFinalPrice } from '@/price/helpers'
-import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
+import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { sendGenericErrorMessage, videoModelKeyboard } from '@/menu'
+import { sendGenericErrorMessage } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
-import { getUserBalance } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { logger } from '@/utils/logger'
+import {
+  createVideoModelKeyboard,
+  findModelByButtonText,
+} from '@/helpers/videoModelKeyboard'
+import { VIDEO_MODELS, getModelPriceInStars } from '@/services/videoModels'
+import { VideoModelId } from '@/services/generateTextToVideo'
+import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
+import { calculateFinalPrice } from '@/price/helpers'
+import { getUserBalance } from '@/core/supabase'
 import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
+import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
 
 // Определяем тип ключа конфига локально
 type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -206,7 +213,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     logger.info(`[TextToVideoWizard Step 0] Entered for user ${ctx.from?.id}`)
     const isRu = isRussianFromState(ctx)
     await ctx.reply(isRu ? 'Выберите модель:' : 'Select a model:', {
-      reply_markup: videoModelKeyboard(isRu, 'text').reply_markup,
+      reply_markup: createVideoModelKeyboard(isRu, 'text').reply_markup,
     })
     return ctx.wizard.next()
   },
