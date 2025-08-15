@@ -6,6 +6,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { inngest } from '@/inngest_app/client'
 import { supabaseAdmin } from '@/core/supabase'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
 
 // ========== ИНТЕРФЕЙСЫ ==========
 interface InstagramParserState {
@@ -248,13 +249,11 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      const { data: user } = await supabaseAdmin
-        .from('users')
-        .select('balance')
-        .eq('telegram_id', userId.toString())
-        .single()
-
-      const currentBalance = user?.balance || 0
+      // Используем правильную функцию для получения баланса
+      const currentBalance = await getUserBalance(
+        userId.toString(),
+        ctx.botInfo?.username
+      )
 
       if (currentBalance < cost) {
         await ctx.answerCbQuery()
