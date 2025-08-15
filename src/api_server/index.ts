@@ -1,6 +1,7 @@
 import express from 'express'
 import healthRouter from './routes/health.routes'
 import robokassaRouter from './routes/robokassa.routes'
+import replicateRouter from './routes/replicate.routes'
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
@@ -27,6 +28,9 @@ export function startApiServer(): void {
 
   // Регистрируем маршруты для Robokassa webhook
   app.use('/api', robokassaRouter)
+
+  // Регистрируем маршруты для Replicate webhooks
+  app.use('/api', replicateRouter)
 
   // Интеграция Inngest с API для версии 2.7.2
   // Используем type assertion, чтобы избежать ошибок типизации

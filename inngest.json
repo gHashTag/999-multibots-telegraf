@@ -1,0 +1,10 @@
+{
+  "name": "999-multibots-telegraf",
+  "sdk-url": ["http://localhost:2999/api/inngest"],
+  "dev": {
+    "port": 8288,
+    "no-discovery": false
+  },
+  "description": "Telegram bot with Inngest integration for lipsync and other background tasks",
+  "version": "1.0.0"
+}
