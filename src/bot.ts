@@ -104,7 +104,6 @@ async function initializeBots() {
   }
 
   if (isDev) {
-    console.log('🔍 [DEBUG BOT.TS] ENTERING DEV BRANCH - looking for test bot')
     // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
     const targetBotUsername = process.env.TEST_BOT_NAME
     if (!targetBotUsername) {
@@ -150,10 +149,6 @@ async function initializeBots() {
       )
     }
 
-    console.log(
-      '🔍 [DEBUG BOT.TS] DEV BRANCH: Bot found, setting up middleware and commands...'
-    )
-
     // Добавляем логи перед регистрацией команд
     console.log(
       '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
@@ -170,9 +165,7 @@ async function initializeBots() {
     // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
     setupNotificationProcessor(bot)
 
-    console.log('🔍 [DEBUG BOT.TS] DEV BRANCH: About to call registerCommands!')
     registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
-    console.log('🔍 [DEBUG BOT.TS] DEV BRANCH: registerCommands completed!')
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
@@ -205,7 +198,6 @@ async function initializeBots() {
       `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
     )
   } else {
-    console.log('🔍 [DEBUG BOT.TS] ENTERING PROD BRANCH - using all bots')
     // В продакшене используем все активные боты
     const botTokens = [
       process.env.BOT_TOKEN_1,
@@ -239,13 +231,7 @@ async function initializeBots() {
         // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
         setupNotificationProcessor(bot)
 
-        console.log(
-          '🔍 [DEBUG BOT.TS] PROD BRANCH: About to call registerCommands!'
-        )
         registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
-        console.log(
-          '🔍 [DEBUG BOT.TS] PROD BRANCH: registerCommands completed!'
-        )
         // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
         setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
@@ -335,7 +321,6 @@ process.once('SIGINT', () => gracefulShutdown('SIGINT'))
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 console.log('🏁 Запуск приложения')
-console.log(`🔍 [DEBUG BOT.TS] Starting application, isDev: ${isDev}`)
 
 // Запускаем API сервер
 // Это будет выполнено при старте src/bot.ts
