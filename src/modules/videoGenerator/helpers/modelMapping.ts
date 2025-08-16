@@ -1,0 +1,76 @@
+import { VIDEO_MODELS_CONFIG } from '../config/models.config'
+import { calculateFinalPrice } from '@/price/helpers'
+import { logger } from '@/utils/logger'
+
+export type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
+
+/**
+ * Форматирует текст кнопки для модели с учетом цены
+ */
+export function formatModelButton(modelKey: VideoModelConfigKey): string {
+  const config = VIDEO_MODELS_CONFIG[modelKey]
+  const finalPrice = calculateFinalPrice(modelKey)
+  return `${config.title} (${finalPrice} ⭐)`
+}
+
+/**
+ * Находит ключ модели по тексту кнопки
+ */
+export function findModelByButtonText(
+  buttonText: string
+): VideoModelConfigKey | null {
+  logger.info('[findModelByButtonText] Looking for model', { buttonText })
+
+  for (const [key, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
+    const expectedButtonText = formatModelButton(key as VideoModelConfigKey)
+    if (expectedButtonText === buttonText) {
+      return key as VideoModelConfigKey
+    }
+  }
+
+  return null
+}
+
+/**
+ * Получает список доступных моделей для данного типа ввода
+ */
+export function getAvailableModels(
+  inputType: 'text' | 'image'
+): VideoModelConfigKey[] {
+  return Object.entries(VIDEO_MODELS_CONFIG)
+    .filter(([_, config]) => config.inputType.includes(inputType))
+    .map(([key]) => key as VideoModelConfigKey)
+}
+
+/**
+ * Проверяет, поддерживает ли модель выбор разрешения
+ */
+export function supportsResolution(modelKey: VideoModelConfigKey): boolean {
+  const config = VIDEO_MODELS_CONFIG[modelKey]
+  return Boolean(config.resolutionOptions?.length)
+}
+
+/**
+ * Получает доступные разрешения для модели
+ */
+export function getAvailableResolutions(
+  modelKey: VideoModelConfigKey
+): string[] {
+  const config = VIDEO_MODELS_CONFIG[modelKey]
+  return config.resolutionOptions || []
+}
+
+/**
+ * Получает цену для определенного разрешения
+ */
+export function getPriceForResolution(
+  modelKey: VideoModelConfigKey,
+  resolution: string
+): number {
+  const config = VIDEO_MODELS_CONFIG[modelKey]
+  if (!config.priceByResolution) {
+    return calculateFinalPrice(modelKey)
+  }
+  const basePrice = config.priceByResolution[resolution] || config.basePrice
+  return Math.floor(((basePrice * 5) / 0.016) * 1.5) // Формула расчета звезд (50% наценка)
+}
