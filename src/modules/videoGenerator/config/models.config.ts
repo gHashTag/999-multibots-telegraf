@@ -287,35 +287,43 @@ export const findModelByTitle = (
   title: string,
   type: 'image' | 'text'
 ): string | undefined => {
-  // Изменен возвращаемый тип на string | undefined
-  console.log('🔍 Поиск модели по заголовку:', {
-    inputTitle: title.trim(),
-    inputType: type,
-  })
+  // Ищем модель по тексту кнопки
+  console.log('🔍 Поиск модели по тексту:', { title, type })
 
-  const foundModel = Object.values(VIDEO_MODELS_CONFIG).find(model => {
-    const normalizedInput = title.toLowerCase().trim()
-    const normalizedModelTitle = model.title.toLowerCase().trim()
+  // Извлекаем имя модели из текста кнопки (удаляем цену в скобках)
+  const modelTitle = title.replace(/\s*\([^)]*\)\s*$/, '').trim()
 
-    const titleMatch = normalizedModelTitle === normalizedInput
+  console.log('🔍 Нормализованное имя модели:', { modelTitle })
+
+  const foundModel = Object.entries(VIDEO_MODELS_CONFIG).find(([_, model]) => {
     const typeMatch = model.inputType.includes(type)
+    const titleMatch = model.title === modelTitle
 
-    console.log(`🔄 Проверка "${model.title}" [${model.inputType}]:`, {
-      titleMatch,
+    console.log(`🔄 Проверка модели ${model.title}:`, {
       typeMatch,
+      titleMatch,
+      expectedTitle: modelTitle,
+      actualTitle: model.title,
     })
 
     return titleMatch && typeMatch
   })
 
-  const resultId = foundModel?.id
-  console.log('🔎 Результат поиска:', resultId || 'Модель не найдена')
-  return resultId
+  if (foundModel) {
+    console.log('✅ Модель найдена:', {
+      key: foundModel[0],
+      title: foundModel[1].title,
+    })
+    return foundModel[0] // Возвращаем ключ модели
+  }
+
+  console.log('❌ Модель не найдена')
+  return undefined
 }
 export const videoModelKeyboard = (
   isRu: boolean,
   inputType: 'text' | 'image'
-): Markup.Markup<ReplyKeyboardMarkup> => {
+) => {
   console.log('🎹 Создание клавиатуры для видео-моделей:', {
     description: 'Creating video models keyboard',
     isRu,
@@ -345,9 +353,17 @@ export const videoModelKeyboard = (
   // Формируем ряды кнопок по 2 в ряд
   const modelButtons: string[][] = []
   for (let i = 0; i < filteredModels.length; i += 2) {
-    const row = [filteredModels[i].title, filteredModels[i + 1]?.title].filter(
-      (title): title is string => Boolean(title)
-    )
+    const row = [filteredModels[i], filteredModels[i + 1]]
+      .filter(Boolean)
+      .map(model => {
+        let price = model.basePrice
+        if (model.priceByResolution) {
+          // Для моделей с разными разрешениями показываем минимальную цену
+          price = Math.min(...Object.values(model.priceByResolution))
+        }
+        const stars = Math.floor(((price * 5) / 0.016) * 1.5)
+        return `${model.title} (${stars} ⭐)`
+      })
 
     if (row.length > 0) {
       modelButtons.push(row)

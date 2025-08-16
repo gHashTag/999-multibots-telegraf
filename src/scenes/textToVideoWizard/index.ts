@@ -9,8 +9,15 @@ import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { logger } from '@/utils/logger'
 import {
   createVideoModelKeyboard,
+  createResolutionKeyboard,
+} from '@/modules/videoGenerator/helpers/keyboard'
+import {
   findModelByButtonText,
-} from '@/helpers/videoModelKeyboard'
+  VideoModelConfigKey,
+  supportsResolution,
+  getAvailableResolutions,
+  getPriceForResolution,
+} from '@/modules/videoGenerator/helpers/modelMapping'
 import { VIDEO_MODELS, getModelPriceInStars } from '@/services/videoModels'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
@@ -18,9 +25,6 @@ import { calculateFinalPrice } from '@/price/helpers'
 import { getUserBalance } from '@/core/supabase'
 import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
 import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
-
-// Определяем тип ключа конфига локально
-type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
 
 // Асинхронная функция для обработки генерации видео в фоне
 async function processVideoGeneration(
@@ -238,16 +242,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const selectedButtonText = message.text
-    let foundModelKey: VideoModelConfigKey | null = null
-
-    for (const [key, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
-      const finalPriceInStars = calculateFinalPrice(key as VideoModelConfigKey)
-      const expectedButtonText = `${config.title} (${finalPriceInStars} ⭐)`
-      if (expectedButtonText === selectedButtonText) {
-        foundModelKey = key as VideoModelConfigKey
-        break
-      }
-    }
+    const foundModelKey = findModelByButtonText(selectedButtonText)
 
     if (!foundModelKey) {
       logger.warn(
@@ -306,29 +301,19 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       modelConfig.resolutionOptions &&
       modelConfig.resolutionOptions.length > 0
     ) {
-      // Показываем клавиатуру выбора разрешения для WAN моделей
+      // Показываем клавиатуру выбора разрешения
       logger.info(
         `[TextToVideoWizard Step 1] Showing resolution selection for ${foundModelKey}`
       )
 
-      const buttons = modelConfig.resolutionOptions.map(resolution => {
-        const price =
-          modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
-        const finalPrice = Math.floor(((price * 5) / 0.016) * 1.5) // Формула расчета звезд (50% наценка)
-        return Markup.button.callback(
-          isRu
-            ? `${resolution.toUpperCase()} (${finalPrice} ⭐)`
-            : `${resolution.toUpperCase()} (${finalPrice} ⭐)`,
-          `wan_${foundModelKey}_${resolution}`
-        )
-      })
-
-      const inlineKeyboard = Markup.inlineKeyboard(buttons)
       const text = isRu
         ? `🎬 Выберите разрешение для ${modelConfig.title}:`
         : `🎬 Select resolution for ${modelConfig.title}:`
 
-      await ctx.replyWithHTML(text, inlineKeyboard)
+      await ctx.replyWithHTML(
+        text,
+        createResolutionKeyboard(foundModelKey, isRu)
+      )
       return ctx.wizard.next() // Переход к шагу обработки выбора разрешения
     } else {
       // Стандартная модель без выбора разрешения
