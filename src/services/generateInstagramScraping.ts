@@ -22,7 +22,7 @@ export interface InstagramScrapingResponse {
 export async function generateInstagramScraping(
   username_or_id: string,
   project_id: number,
-  max_users: number = 50,
+  max_users: number = 50, // Правильное имя параметра для API
   max_reels_per_user: number = 50,
   scrape_reels: boolean = false,
   telegram_id: string,
@@ -36,7 +36,7 @@ export async function generateInstagramScraping(
     description: 'Starting Instagram competitor analysis via Inngest',
     username_or_id,
     project_id,
-    max_users,
+    max_users, // Используем max_users согласно API документации
     max_reels_per_user,
     scrape_reels,
     telegram_id,
