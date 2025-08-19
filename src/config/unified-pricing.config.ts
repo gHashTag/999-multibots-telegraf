@@ -118,6 +118,103 @@ export const VEO_MODELS_PRICING: Record<string, DynamicVideoPrice> = {
 }
 
 // ============================================
+// КОНФИГУРАЦИЯ МОДЕЛЕЙ KIE.AI
+// ============================================
+
+export interface KieAiModelPrice {
+  pricePerSecondUSD?: number // Для видео моделей
+  pricePerImageUSD?: number // Для изображений
+  priceBaseUSD?: number // Базовая цена для музыки
+  maxDuration?: number // Максимальная длительность
+  supportedDurations?: number[]
+  defaultDuration?: number
+}
+
+export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
+  // Видео модели
+  'kie-veo-3-fast': {
+    pricePerSecondUSD: 0.05, // 83% экономия vs Google
+    supportedDurations: [2, 4, 6, 8, 10],
+    defaultDuration: 5,
+    maxDuration: 10,
+  },
+  'kie-veo-3': {
+    pricePerSecondUSD: 0.25, // 37% экономия vs Google
+    supportedDurations: [2, 4, 6, 8, 10],
+    defaultDuration: 8,
+    maxDuration: 10,
+  },
+  'kie-runway-aleph': {
+    pricePerSecondUSD: 0.3, // 25% экономия vs Google
+    supportedDurations: [2, 4, 6, 8, 10],
+    defaultDuration: 6,
+    maxDuration: 10,
+  },
+
+  // Модели изображений
+  'kie-gpt-4o-image': {
+    pricePerImageUSD: 0.1,
+  },
+  'kie-midjourney-v7': {
+    pricePerImageUSD: 0.15,
+  },
+  'kie-flux-1-kontext': {
+    pricePerImageUSD: 0.08,
+  },
+
+  // Музыкальные модели (цена за поколение)
+  'kie-suno-v3.5': {
+    priceBaseUSD: 0.2,
+    maxDuration: 180, // 3 минуты
+  },
+  'kie-suno-v4': {
+    priceBaseUSD: 0.25,
+    maxDuration: 240, // 4 минуты
+  },
+  'kie-suno-v4.5': {
+    priceBaseUSD: 0.3,
+    maxDuration: 300, // 5 минут
+  },
+  'kie-suno-v4.5-plus': {
+    priceBaseUSD: 0.4,
+    maxDuration: 480, // 8 минут
+  },
+}
+
+/**
+ * Рассчитывает цену в звёздах для Kie.ai модели
+ */
+export function calculateKieAiPriceInStars(
+  modelId: string,
+  duration?: number,
+  numImages?: number
+): number {
+  const model = KIE_AI_MODELS_PRICING[modelId]
+  if (!model) {
+    throw new Error(`Unknown Kie.ai model: ${modelId}`)
+  }
+
+  let totalCostUSD = 0
+
+  // Видео модели
+  if (model.pricePerSecondUSD) {
+    const finalDuration = duration || model.defaultDuration || 5
+    totalCostUSD = model.pricePerSecondUSD * finalDuration
+  }
+  // Модели изображений
+  else if (model.pricePerImageUSD) {
+    const finalNumImages = numImages || 1
+    totalCostUSD = model.pricePerImageUSD * finalNumImages
+  }
+  // Музыкальные модели
+  else if (model.priceBaseUSD) {
+    totalCostUSD = model.priceBaseUSD
+  }
+
+  return usdToStars(totalCostUSD)
+}
+
+// ============================================
 // ВАЛИДАЦИЯ КОНФИГУРАЦИИ
 // ============================================
 

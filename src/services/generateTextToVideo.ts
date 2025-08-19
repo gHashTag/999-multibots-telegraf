@@ -18,6 +18,10 @@ export type VideoModelId =
   | 'veo-3'
   | 'veo-3-fast'
   | 'veo-2'
+  // Kie.ai модели
+  | 'kie-veo-3-fast'
+  | 'kie-veo-3'
+  | 'kie-runway-aleph'
 
 interface TextToVideoRequest {
   prompt: string

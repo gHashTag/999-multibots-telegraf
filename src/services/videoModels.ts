@@ -17,6 +17,8 @@ export interface VideoModelInfo {
 import {
   calculateVideoPriceInStars,
   VEO_MODELS_PRICING,
+  calculateKieAiPriceInStars,
+  KIE_AI_MODELS_PRICING,
 } from '@/config/unified-pricing.config'
 
 // Конфигурация всех видео моделей
@@ -93,6 +95,41 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     defaultDuration: VEO_MODELS_PRICING['veo-2'].defaultDuration,
     inputTypes: ['text'],
   },
+
+  // Kie.ai модели с более выгодными ценами
+  'kie-veo-3-fast': {
+    id: 'kie-veo-3-fast',
+    name: 'Kie.ai Veo 3 Fast',
+    nameRu: 'Kie.ai Veo 3 Fast',
+    pricePerSecond: KIE_AI_MODELS_PRICING['kie-veo-3-fast'].pricePerSecondUSD!,
+    supportedDurations:
+      KIE_AI_MODELS_PRICING['kie-veo-3-fast'].supportedDurations!,
+    defaultDuration: KIE_AI_MODELS_PRICING['kie-veo-3-fast'].defaultDuration!,
+    maxDuration: KIE_AI_MODELS_PRICING['kie-veo-3-fast'].maxDuration,
+    inputTypes: ['text', 'image'],
+  },
+  'kie-veo-3': {
+    id: 'kie-veo-3',
+    name: 'Kie.ai Veo 3 Quality',
+    nameRu: 'Kie.ai Veo 3 Качество',
+    pricePerSecond: KIE_AI_MODELS_PRICING['kie-veo-3'].pricePerSecondUSD!,
+    supportedDurations: KIE_AI_MODELS_PRICING['kie-veo-3'].supportedDurations!,
+    defaultDuration: KIE_AI_MODELS_PRICING['kie-veo-3'].defaultDuration!,
+    maxDuration: KIE_AI_MODELS_PRICING['kie-veo-3'].maxDuration,
+    inputTypes: ['text'],
+  },
+  'kie-runway-aleph': {
+    id: 'kie-runway-aleph',
+    name: 'Kie.ai Runway Aleph',
+    nameRu: 'Kie.ai Runway Aleph',
+    pricePerSecond:
+      KIE_AI_MODELS_PRICING['kie-runway-aleph'].pricePerSecondUSD!,
+    supportedDurations:
+      KIE_AI_MODELS_PRICING['kie-runway-aleph'].supportedDurations!,
+    defaultDuration: KIE_AI_MODELS_PRICING['kie-runway-aleph'].defaultDuration!,
+    maxDuration: KIE_AI_MODELS_PRICING['kie-runway-aleph'].maxDuration,
+    inputTypes: ['text', 'image'],
+  },
 }
 
 /**
@@ -119,6 +156,12 @@ export function getModelPriceInStars(
   // Для динамических моделей
   if (model.pricePerSecond !== undefined) {
     const finalDuration = duration || model.defaultDuration || 4
+
+    // Для Kie.ai моделей используем специальную функцию расчета
+    if (modelId.startsWith('kie-')) {
+      return calculateKieAiPriceInStars(modelId, finalDuration)
+    }
+
     return calculateVideoPriceInStars(model.pricePerSecond, finalDuration)
   }
 
