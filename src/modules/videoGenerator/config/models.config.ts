@@ -163,41 +163,6 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       },
     },
   },
-  'veo-3': {
-    id: 'veo-3',
-    title: 'Google Veo 3',
-    inputType: ['text'],
-    description:
-      '🔥 ПРЕМИУМ: Флагманская модель Google для создания видео с аудио в 4K качестве (высокая стоимость)',
-    basePrice: 0.75,
-    api: {
-      model: 'google/veo-3',
-      input: {
-        prompt_optimizer: true,
-        duration_seconds: 8,
-        enable_audio: true,
-      },
-    },
-    canMorph: false,
-  },
-  'veo-3-fast': {
-    id: 'veo-3-fast',
-    title: 'Google Veo 3 Fast',
-    inputType: ['text', 'image'],
-    description:
-      '⚡ БЫСТРО: Ускоренная версия Veo 3 с аудио - 300 ⭐ за 8-секундное видео',
-    basePrice: 0.384,
-    api: {
-      model: 'google/veo-3-fast',
-      input: {
-        prompt_optimizer: true,
-        duration_seconds: 8,
-        enable_audio: true,
-      },
-    },
-    imageKey: 'image',
-    canMorph: false,
-  },
   'seedance-1-pro': {
     id: 'seedance-1-pro',
     title: 'Seedance Pro',
@@ -260,6 +225,60 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       '480p': 0.02347, // 11⭐ = (11 * 0.016) / (5 * 1.5)
       '720p': 0.032, // 15⭐ = (15 * 0.016) / (5 * 1.5)
       '1080p': 0.04907, // 23⭐ = (23 * 0.016) / (5 * 1.5)
+    },
+    imageKey: 'image',
+    canMorph: false,
+  },
+
+  // Новые доступные модели через Kie.ai API
+  'kie-veo-3-fast': {
+    id: 'kie-veo-3-fast',
+    title: 'Veo 3 Fast',
+    inputType: ['text', 'image'],
+    description:
+      '⚡ БЫСТРО: Veo 3 Fast с аудио - от 9⭐ за 2 сек до 46⭐ за 10 сек',
+    basePrice: 0.05,
+    api: {
+      model: 'google/veo-3-fast',
+      input: {
+        prompt_optimizer: true,
+        duration_seconds: 5,
+        enable_audio: true,
+      },
+    },
+    imageKey: 'image',
+    canMorph: false,
+  },
+  'kie-veo-3': {
+    id: 'kie-veo-3',
+    title: 'Veo 3 Quality',
+    inputType: ['text'],
+    description:
+      '🎯 КАЧЕСТВО: Veo 3 премиум с аудио - от 18⭐ за 2 сек до 93⭐ за 10 сек',
+    basePrice: 0.25,
+    api: {
+      model: 'google/veo-3',
+      input: {
+        prompt_optimizer: true,
+        duration_seconds: 8,
+        enable_audio: true,
+      },
+    },
+    canMorph: false,
+  },
+  'kie-runway-aleph': {
+    id: 'kie-runway-aleph',
+    title: 'Runway Aleph',
+    inputType: ['text', 'image'],
+    description:
+      '🎬 ПРЕМИУМ: Runway Aleph высококачественное видео - от 18⭐ за 2 сек до 93⭐ за 10 сек',
+    basePrice: 0.3,
+    api: {
+      model: 'runway-ml/runway-aleph',
+      input: {
+        prompt_optimizer: true,
+        duration_seconds: 6,
+      },
     },
     imageKey: 'image',
     canMorph: false,
