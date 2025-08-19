@@ -87,6 +87,27 @@ export async function generateTextToVideo(
         }
       )
     }
+    // Специальная обработка для Kie.ai моделей
+    else if (modelConfig.id.startsWith('kie-')) {
+      modelInput = {
+        prompt,
+        duration_seconds: modelConfig.api.input.duration_seconds || 5,
+        aspect_ratio: userAspectRatio,
+        enable_audio: modelConfig.api.input.enable_audio || true,
+      }
+      // Добавляем prompt_optimizer только если он есть в конфиге
+      if (modelConfig.api.input.prompt_optimizer) {
+        modelInput.prompt_optimizer = true
+      }
+      logger.info(
+        `[generateTextToVideo] ${modelConfig.title} model input prepared:`,
+        {
+          telegram_id,
+          modelId: modelConfig.id,
+          fullInput: modelInput,
+        }
+      )
+    }
     // ✅ ИСПРАВЛЕНО: Добавлен `else if` для корректной обработки Seedance
     else if (modelConfig.id === 'seedance-1-pro') {
       // Специальная обработка для Seedance-1-Pro моделей
@@ -150,14 +171,35 @@ export async function generateTextToVideo(
       })
     }
 
+    // Для Kie.ai моделей используем обычный Replicate, но с измененным именем модели
+    let finalReplicateModelId = replicateModelId
+    if (modelConfig.id.startsWith('kie-')) {
+      // Извлекаем базовое имя модели (например, 'veo-3-fast' из 'kie-veo-3-fast')
+      const baseModel = modelConfig.id.replace('kie-', '')
+      // Сервер будет обрабатывать эти модели как обычные, но с маппингом на Kie.ai
+      finalReplicateModelId = modelConfig.api.model
+
+      logger.info(
+        '[generateTextToVideo] Using server routing for economy model:',
+        {
+          telegram_id,
+          originalModelId: modelConfig.id,
+          serverModelId: finalReplicateModelId,
+          modelInput,
+        }
+      )
+    }
+
     logger.info('[generateTextToVideo] Calling replicate.run with input:', {
-      replicateModelId,
+      replicateModelId: finalReplicateModelId,
       modelInput,
       isVeo3Family:
-        modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast',
+        modelConfig.id === 'veo-3' ||
+        modelConfig.id === 'veo-3-fast' ||
+        modelConfig.id.startsWith('kie-'),
     })
 
-    const replicateResult = await replicate.run(replicateModelId as any, {
+    const replicateResult = await replicate.run(finalReplicateModelId as any, {
       input: modelInput,
     })
 
