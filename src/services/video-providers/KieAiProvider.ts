@@ -5,6 +5,12 @@ interface KieAiCredits {
   credits: number
 }
 
+interface KieAiApiResponse<T> {
+  code: number
+  msg: string
+  data: T
+}
+
 interface KieAiVideoRequest {
   model: string
   prompt: string
@@ -174,7 +180,13 @@ export class KieAiProvider {
         },
       })
 
-      return response.data
+      const apiResponse: KieAiApiResponse<number> = response.data
+
+      if (apiResponse.code !== 200) {
+        throw new Error(`API Error: ${apiResponse.msg}`)
+      }
+
+      return { credits: apiResponse.data }
     } catch (error) {
       logger.error('Failed to get Kie.ai account balance', { error })
       throw error
