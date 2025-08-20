@@ -237,7 +237,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   // Kie.ai модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
   'kie-veo-3-fast': {
     id: 'kie-veo-3-fast',
-    title: 'Вео 3 фаст',
+    title: 'Veo 3 Fast',
     inputType: ['text', 'image'],
     description: '🚀 БЫСТРО: 8 сек, 720p, быстрый режим - 40⭐ (экономия до 87%)',
     basePrice: 0.64, // $0.64 USD за 8 секунд = 40 звезд
@@ -255,7 +255,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   },
   'kie-veo-3': {
     id: 'kie-veo-3',
-    title: 'Вео 3',
+    title: 'Veo 3',
     inputType: ['text'],
     description:
       '⭐ ПРЕМИУМ: 8 сек, 1080p, премиум качество - 202⭐ (экономия до 37%)',
