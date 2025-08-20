@@ -222,3 +222,23 @@ assets/**/*.aac
 
 # Ignore testing scripts folder
 scripts/testing/
+
+# Temporary analysis and backup files
+*_anomaly_correction_report.json
+*_refund_anomalies_report.json
+backup_before_corrections_*.json
+ludmila_*.json
+model_training_*.json
+
+# Temporary calculation scripts
+calculate-correct-prices.js
+test-corrected-prices.js
+test-keyboard-compatibility.js
+test-models-simple.js
+test-real-kie-prices.js
+test-replicate-text.js
+recalculate-exact-price.js
+
+# Temporary video directories
+ready_morphing_videos/
+temp_*/
