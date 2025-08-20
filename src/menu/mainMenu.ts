@@ -124,8 +124,8 @@ export const levels: Record<number, Level> = {
     title_en: '📺 Transcribe Reels',
   },
   109: {
-    title_ru: '🔍 Парсинг',
-    title_en: '🔍 Parsing',
+    title_ru: '🔍 Мониторинг конкурентов',
+    title_en: '🔍 Competitor Monitoring',
   },
 }
 
@@ -245,12 +245,12 @@ export async function mainMenu({
     console.log('[mainMenu LOG] Added admin buttons.')
   }
 
-  // 🔍 Кнопка парсинга для сотрудников HaimGroupMedia_bot + Админов
+  // 🔍 Кнопка мониторинга конкурентов для сотрудников HaimGroupMedia_bot + Админов
   if (userId && (HAIM_GROUP_STAFF_IDS.includes(userId) || adminIds.includes(userId))) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? levels[109].title_ru : levels[109].title_en)
     )
-    console.log('[mainMenu LOG] Added parsing button for HaimGroupMedia staff or admin.')
+    console.log('[mainMenu LOG] Added competitor monitoring button for HaimGroupMedia staff or admin.')
   }
 
   // --- Создаем кнопки, которые нужны почти всегда ---

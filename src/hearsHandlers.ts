@@ -29,6 +29,16 @@ import { upscaleFluxKontextImage } from './services/generateFluxKontext'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
+  // Настройка callback'ов для мониторинга конкурентов
+  try {
+    import('@/services/competitorSubscriptionService').then(module => {
+      module.setupCompetitorCallbacks(bot)
+      logger.info('Competitor monitoring callbacks registered')
+    })
+  } catch (error) {
+    logger.error('Failed to setup competitor callbacks:', error)
+  }
+
   // 🚨 ЭКСТРЕННЫЙ ОБРАБОТЧИК ПОДПИСКИ - САМЫЙ ПЕРВЫЙ!
   // Перехватывает ЛЮБОЙ текст содержащий "подписк" или "Subscribe"
   bot.hears(/подписк|Subscribe/i, async ctx => {
@@ -909,16 +919,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.enter('flux_kontext_scene')
   })
 
-  // === ПАРСИНГ INSTAGRAM ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT ===
-  bot.hears(['🔍 Парсинг', '🔍 Parsing'], async ctx => {
+  // === МОНИТОРИНГ КОНКУРЕНТОВ INSTAGRAM ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT ===
+  bot.hears(['🔍 Мониторинг конкурентов', '🔍 Competitor Monitoring', '🔍 Парсинг', '🔍 Parsing'], async ctx => {
     const userId = ctx.from?.id?.toString()
     const adminIds = process.env.ADMIN_IDS?.split(',') || []
 
-    // Массив сотрудников бота @HaimGroupMedia_bot с доступом к парсингу + Админы
+    // Массив сотрудников бота @HaimGroupMedia_bot с доступом к мониторингу конкурентов + Админы
 
     const hasAccess = userId && (HAIM_GROUP_STAFF_IDS.includes(userId) || adminIds.includes(userId))
 
-    logger.info('GLOBAL HEARS: Парсинг Instagram button pressed', {
+    logger.info('GLOBAL HEARS: Competitor Monitoring button pressed', {
       telegramId: ctx.from?.id,
       userId,
       hasAccess,
@@ -928,7 +938,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
     // Проверяем доступ по Telegram ID
     if (!hasAccess) {
-      logger.warn('Instagram parsing access denied', {
+      logger.warn('Competitor monitoring access denied', {
         telegramId: ctx.from?.id,
         userId,
         reason: 'Not in HaimGroupMedia staff list or admin list',
@@ -937,48 +947,29 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       const isRu = isRussianFromState(ctx)
       await ctx.reply(
         isRu
-          ? '❌ У вас нет доступа к функции парсинга Instagram.'
-          : '❌ You do not have access to Instagram parsing feature.'
+          ? '❌ У вас нет доступа к функции мониторинга конкурентов.'
+          : '❌ You do not have access to competitor monitoring feature.'
       )
       return
     }
 
     try {
-      logger.info('Instagram parsing access granted - starting direct API parsing', {
+      logger.info('Instagram monitoring access granted - showing competitor subscriptions', {
         telegramId: ctx.from?.id,
         userId,
       })
 
-      const isRu = isRussianFromState(ctx)
+      // Импортируем функцию мониторинга конкурентов
+      const { handleCompetitorMonitoring } = await import('@/services/competitorSubscriptionService')
       
-      await ctx.reply(
-        isRu
-          ? '🚀 Запускаем анализ Instagram конкурентов...\n\n👤 Целевой аккаунт: @neuro_sage\n📊 Количество конкурентов: 25\n🎬 Рилсы: ❌ Без рилсов\n\n⏳ Это займет 3-5 минут...'
-          : '🚀 Starting Instagram competitor analysis...\n\n👤 Target account: @neuro_sage\n📊 Competitors: 25\n🎬 Reels: ❌ No reels\n\n⏳ This will take 3-5 minutes...'
-      )
+      await handleCompetitorMonitoring(ctx)
 
-      // Импортируем функцию прямого парсинга
-      const { startDirectInstagramParsing } = await import('@/services/directInstagramParsing')
-      
-      const result = await startDirectInstagramParsing(ctx, {
-        username: 'neuro_sage',
-        projectId: 1, // Coco Age project
-        maxUsers: 25,
-        scrapeReels: false
+      logger.info('Successfully showed competitor monitoring interface', {
+        telegramId: ctx.from?.id,
       })
 
-      if (result) {
-        logger.info('Successfully started Instagram parsing via direct API', {
-          telegramId: ctx.from?.id,
-        })
-      } else {
-        logger.error('Failed to start Instagram parsing via direct API', {
-          telegramId: ctx.from?.id,
-        })
-      }
-
     } catch (error) {
-      logger.error('Error starting Instagram parsing via direct API:', {
+      logger.error('Error showing competitor monitoring:', {
         error,
         telegramId: ctx.from?.id,
       })
@@ -986,8 +977,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       const isRu = isRussianFromState(ctx)
       await ctx.reply(
         isRu
-          ? '❌ Ошибка при запуске парсинга Instagram. Попробуйте позже.'
-          : '❌ Error starting Instagram parsing. Please try again later.'
+          ? '❌ Ошибка при загрузке мониторинга конкурентов. Попробуйте позже.'
+          : '❌ Error loading competitor monitoring. Please try again later.'
       )
     }
   })
