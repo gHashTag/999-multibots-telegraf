@@ -782,8 +782,11 @@ export const handleMenu = async (ctx: MyContext) => {
     console.log('🔧 [DEBUG] Available action keys:', actionKeys)
     console.log('🔧 [DEBUG] Looking for key:', normalizedText)
     console.log('🔧 [DEBUG] levels[10].title_ru:', levels[10].title_ru)
-    console.log('🔧 [DEBUG] Exact match check:', actionKeys.includes(normalizedText))
-    
+    console.log(
+      '🔧 [DEBUG] Exact match check:',
+      actionKeys.includes(normalizedText)
+    )
+
     // Выполняем действие, если оно существует
     if (actions[normalizedText]) {
       logger.info({

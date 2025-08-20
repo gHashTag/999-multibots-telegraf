@@ -200,9 +200,13 @@ export function calculateKieAiPriceInStars(
   if (model.pricePerSecondUSD) {
     const finalDuration = duration || model.defaultDuration || 5
     totalCostUSD = model.pricePerSecondUSD * finalDuration
-    
+
     // Для конкурентных видео моделей возвращаем точную цену в звёздах без дополнительной наценки
-    if (modelId === 'kie-veo-3-fast' || modelId === 'kie-veo-3' || modelId === 'kie-runway-aleph') {
+    if (
+      modelId === 'kie-veo-3-fast' ||
+      modelId === 'kie-veo-3' ||
+      modelId === 'kie-runway-aleph'
+    ) {
       return Math.floor(totalCostUSD / STAR_COST_USD)
     }
   }
