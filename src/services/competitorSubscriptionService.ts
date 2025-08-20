@@ -70,7 +70,7 @@ export async function handleCompetitorMonitoring(ctx: MyContext): Promise<void> 
   }
 }
 
-async function promptForCompetitorUsername(ctx: MyContext, isRu: boolean): Promise<void> {
+export async function promptForCompetitorUsername(ctx: MyContext, isRu: boolean): Promise<void> {
   const message = isRu
     ? `🔍 Мониторинг конкурентов Instagram
 
