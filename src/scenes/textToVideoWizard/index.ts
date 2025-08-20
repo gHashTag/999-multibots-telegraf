@@ -251,7 +251,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 2: Обработка выбора длительности для Veo моделей или разрешения для WAN моделей (Callback Query)
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 2] Entered for user ${ctx.from?.id}`)
+    logger.info(`[TextToVideoWizard Step 2] 🚨 CALLBACK HANDLER STARTED for user ${ctx.from?.id}`, {
+      hasUpdate: !!ctx.update,
+      updateType: Object.keys(ctx.update || {}),
+      isCallbackQuery: 'callback_query' in (ctx.update || {}),
+      callbackData: 'callback_query' in (ctx.update || {}) && ctx.update.callback_query ? ctx.update.callback_query.data : 'NO_DATA'
+    })
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
@@ -265,6 +270,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       'data' in ctx.update.callback_query
     ) {
       const callbackData = ctx.update.callback_query.data
+      logger.info(`[TextToVideoWizard Step 2] CALLBACK DEBUG - Processing callback:`, {
+        telegramId: ctx.from?.id,
+        callbackData,
+        hasCallbackQuery: !!ctx.update.callback_query,
+        hasData: !!'data' in ctx.update.callback_query
+      })
+      
       await ctx.answerCbQuery()
       await ctx.editMessageReplyMarkup(undefined) // Удаляем inline keyboard
 
