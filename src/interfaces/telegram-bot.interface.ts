@@ -275,6 +275,11 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // Neurophoto upscaling fields
   lastNeuroPhotoImageUrl?: string // URL последнего нейрофото
   lastNeuroPhotoPrompt?: string // Промпт последнего нейрофото
+
+  // Competitor monitoring fields
+  competitorMonitoring?: {
+    waitingForUsername?: boolean // Ожидается ли ввод username конкурента
+  }
 }
 
 export interface MyContext extends Context {

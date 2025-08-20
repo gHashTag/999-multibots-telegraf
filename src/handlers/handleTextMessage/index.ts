@@ -35,6 +35,20 @@ scene.enter(async ctx => {
       return
     }
 
+    // Проверяем, ожидается ли ввод username конкурента
+    try {
+      const { handleCompetitorUsernameInput } = await import('@/services/competitorSubscriptionService')
+      const handled = await handleCompetitorUsernameInput(ctx, ctx.message.text)
+      if (handled) {
+        logger.info('[handleTextMessage] Competitor username input handled', {
+          telegramId: ctx.from?.id,
+        })
+        return // Выходим, если обработали ввод конкурента
+      }
+    } catch (error) {
+      logger.error('[handleTextMessage] Error handling competitor username input:', error)
+    }
+
     if (
       ctx.message &&
       'text' in ctx.message &&

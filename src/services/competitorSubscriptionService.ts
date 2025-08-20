@@ -7,14 +7,7 @@ import {
 } from '@/core/supabase/instagramDatabase'
 import { Markup } from 'telegraf'
 
-// Дефолтные конкуренты для мониторинга
-const DEFAULT_COMPETITORS = [
-  'neuro_sage',
-  'ai_sage_official', 
-  'neuralcat_official',
-  'vibecoderofficial',
-  'openai'
-]
+// Пользователь сам вводит конкурентов - никаких готовых списков!
 
 export async function handleCompetitorMonitoring(ctx: MyContext): Promise<void> {
   const isRu = isRussianFromState(ctx)
@@ -41,8 +34,8 @@ export async function handleCompetitorMonitoring(ctx: MyContext): Promise<void> 
     const activeSubscriptions = existingSubscriptions.filter(s => s.is_active)
     
     if (activeSubscriptions.length === 0) {
-      // Если нет подписок - предлагаем создать
-      await showCompetitorSubscriptionMenu(ctx, isRu)
+      // Если нет подписок - просим ввести username
+      await promptForCompetitorUsername(ctx, isRu)
     } else {
       // Показываем существующие подписки
       await showExistingSubscriptions(ctx, activeSubscriptions, isRu)
@@ -62,7 +55,7 @@ export async function handleCompetitorMonitoring(ctx: MyContext): Promise<void> 
   }
 }
 
-async function showCompetitorSubscriptionMenu(ctx: MyContext, isRu: boolean): Promise<void> {
+async function promptForCompetitorUsername(ctx: MyContext, isRu: boolean): Promise<void> {
   const message = isRu
     ? `🔍 **Мониторинг конкурентов Instagram**
 
@@ -70,41 +63,27 @@ async function showCompetitorSubscriptionMenu(ctx: MyContext, isRu: boolean): Pr
 🎬 Видео и рилсы с высокими просмотрами
 📊 Аналитика трендов
 
-Выберите конкурентов для мониторинга:`
+✏️ **Введите Instagram username конкурента** (без @):
+
+💡 Например: neuro_sage`
     : `🔍 **Instagram Competitor Monitoring**
 
 📺 Get new competitor content every 24 hours
 🎬 Videos and reels with high views
 📊 Trend analytics
 
-Choose competitors to monitor:`
+✏️ **Enter competitor Instagram username** (without @):
 
-  const competitorButtons = DEFAULT_COMPETITORS.map(username => [
-    Markup.button.callback(
-      `📱 @${username}`,
-      `add_competitor_${username}`
-    )
-  ])
+💡 Example: neuro_sage`
 
-  const keyboard = Markup.inlineKeyboard([
-    ...competitorButtons,
-    [
-      Markup.button.callback(
-        isRu ? '✏️ Добавить своего' : '✏️ Add custom',
-        'add_custom_competitor'
-      )
-    ],
-    [
-      Markup.button.callback(
-        isRu ? '📋 Мои подписки' : '📋 My subscriptions', 
-        'view_subscriptions'
-      )
-    ]
-  ])
+  // Сохраняем состояние "ожидания ввода конкурента" в сессии
+  if (!ctx.session.competitorMonitoring) {
+    ctx.session.competitorMonitoring = {}
+  }
+  ctx.session.competitorMonitoring.waitingForUsername = true
 
   await ctx.reply(message, {
-    parse_mode: 'Markdown',
-    ...keyboard
+    parse_mode: 'Markdown'
   })
 }
 
@@ -235,33 +214,45 @@ export async function addCompetitorSubscription(
 
 // Callback handlers для inline кнопок
 export function setupCompetitorCallbacks(bot: any): void {
-  // Добавление предустановленных конкурентов
-  DEFAULT_COMPETITORS.forEach(username => {
-    bot.action(`add_competitor_${username}`, async (ctx: MyContext) => {
-      await addCompetitorSubscription(ctx, username)
-    })
-  })
-
   // Показать меню добавления конкурентов
   bot.action('add_new_competitor', async (ctx: MyContext) => {
     const isRu = isRussianFromState(ctx)
-    await showCompetitorSubscriptionMenu(ctx, isRu)
+    await promptForCompetitorUsername(ctx, isRu)
   })
 
   // Обновить список подписок
   bot.action('refresh_subscriptions', async (ctx: MyContext) => {
     await handleCompetitorMonitoring(ctx)
   })
+}
 
-  // Добавить кастомного конкурента
-  bot.action('add_custom_competitor', async (ctx: MyContext) => {
-    const isRu = isRussianFromState(ctx)
-    await ctx.answerCbQuery()
-    await ctx.editMessageText(
+// Обработка текстового ввода username конкурента
+export async function handleCompetitorUsernameInput(ctx: MyContext, username: string): Promise<boolean> {
+  // Проверяем, ожидается ли ввод username
+  if (!ctx.session.competitorMonitoring?.waitingForUsername) {
+    return false // Не обрабатываем этот текст
+  }
+
+  const isRu = isRussianFromState(ctx)
+  
+  // Валидация Instagram username
+  const cleanUsername = username.trim().replace('@', '')
+  const instagramUsernameRegex = /^[a-zA-Z0-9._]{1,30}$/
+  
+  if (!instagramUsernameRegex.test(cleanUsername)) {
+    await ctx.reply(
       isRu
-        ? '✏️ Введите Instagram username конкурента (без @):\n\nПример: neuro_sage'
-        : '✏️ Enter competitor Instagram username (without @):\n\nExample: neuro_sage'
+        ? '❌ Некорректный Instagram username!\n\n✅ Должен содержать только буквы, цифры, точки и подчеркивания (1-30 символов)\n💡 Попробуйте еще раз:'
+        : '❌ Invalid Instagram username!\n\n✅ Must contain only letters, numbers, dots and underscores (1-30 characters)\n💡 Try again:'
     )
-    // TODO: Обработка текстового ввода
-  })
+    return true // Обрабатывали, но с ошибкой
+  }
+
+  // Сбрасываем состояние ожидания
+  ctx.session.competitorMonitoring.waitingForUsername = false
+
+  // Добавляем подписку
+  await addCompetitorSubscription(ctx, cleanUsername)
+  
+  return true // Успешно обработали
 }
