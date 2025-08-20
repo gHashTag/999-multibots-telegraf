@@ -89,7 +89,11 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 0: Вход и выбор модели
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 0] Entered for user ${ctx.from?.id}`)
+    logger.info(`[TextToVideoWizard Step 0] 🚨 WIZARD STARTED for user ${ctx.from?.id}`, {
+      currentStep: ctx.wizard.cursor,
+      hasUpdate: !!ctx.update,
+      updateType: Object.keys(ctx.update || {}),
+    })
     const isRu = isRussianFromState(ctx)
     await ctx.reply(isRu ? 'Выберите модель:' : 'Select a model:', {
       reply_markup: createVideoModelKeyboard(isRu, 'text').reply_markup,
@@ -99,7 +103,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 1: Обработка выбора модели, проверка баланса и запрос промпта
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 1] Entered for user ${ctx.from?.id}`)
+    logger.info(`[TextToVideoWizard Step 1] 🚨 MODEL SELECTION STEP for user ${ctx.from?.id}`, {
+      currentStep: ctx.wizard.cursor,
+      hasUpdate: !!ctx.update,
+      updateType: Object.keys(ctx.update || {}),
+      isMessage: 'message' in (ctx.update || {}),
+      messageText: 'message' in (ctx.update || {}) && ctx.update.message && 'text' in ctx.update.message ? ctx.update.message.text : 'NO_TEXT'
+    })
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
@@ -462,7 +472,15 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 3: Получение промпта и запуск генерации
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 3] Entered for user ${ctx.from?.id}`)
+    logger.info(`[TextToVideoWizard Step 3] 🚨 PROMPT INPUT STEP for user ${ctx.from?.id}`, {
+      currentStep: ctx.wizard.cursor,
+      hasUpdate: !!ctx.update,
+      updateType: Object.keys(ctx.update || {}),
+      isMessage: 'message' in (ctx.update || {}),
+      messageText: 'message' in (ctx.update || {}) && ctx.update.message && 'text' in ctx.update.message ? ctx.update.message.text?.substring(0, 50) : 'NO_TEXT',
+      sessionSelectedAspectRatio: ctx.session.selectedAspectRatio,
+      sessionSelectedDuration: ctx.session.selectedDuration
+    })
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
