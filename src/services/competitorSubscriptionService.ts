@@ -3,6 +3,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { competitorMonitoringApi } from './competitorMonitoringApiService'
 import { Markup } from 'telegraf'
+import { ADMIN_IDS_ARRAY } from '@/config'
 
 // Пользователь сам вводит конкурентов - никаких готовых списков!
 
@@ -131,25 +132,39 @@ ${subscriptions.map((sub, index) =>
     )
   ])
 
-  const keyboard = Markup.inlineKeyboard([
-    [
+  // Проверяем, является ли пользователь администратором
+  const userId = ctx.from?.id
+  const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+  // Создаем массив кнопок для клавиатуры
+  const keyboardButtons = []
+
+  // Добавляем кнопку "Добавить конкурента" только для администраторов
+  if (isAdmin) {
+    keyboardButtons.push([
       Markup.button.callback(
         isRu ? '➕ Добавить конкурента' : '➕ Add competitor',
         'add_new_competitor'
       )
-    ],
-    ...subscriptionButtons,
-    [
-      Markup.button.callback(
-        isRu ? '⚙️ Настройки' : '⚙️ Settings',
-        'subscription_settings'
-      ),
-      Markup.button.callback(
-        isRu ? '🔄 Обновить' : '🔄 Refresh',
-        'refresh_subscriptions'
-      )
-    ]
+    ])
+  }
+
+  // Добавляем кнопки удаления подписок
+  keyboardButtons.push(...subscriptionButtons)
+
+  // Добавляем служебные кнопки
+  keyboardButtons.push([
+    Markup.button.callback(
+      isRu ? '⚙️ Настройки' : '⚙️ Settings',
+      'subscription_settings'
+    ),
+    Markup.button.callback(
+      isRu ? '🔄 Обновить' : '🔄 Refresh',
+      'refresh_subscriptions'
+    )
   ])
+
+  const keyboard = Markup.inlineKeyboard(keyboardButtons)
 
   await ctx.reply(message, keyboard)
 }

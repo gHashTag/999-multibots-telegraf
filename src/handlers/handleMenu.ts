@@ -799,6 +799,19 @@ export const handleMenu = async (ctx: MyContext) => {
     if (callbackData === 'add_new_competitor') {
       console.log('➕ [handleMenu] add_new_competitor callback')
       const isRu = isRussianFromState(ctx)
+      
+      // Проверяем права администратора
+      const userId = ctx.from?.id?.toString()
+      if (!userId || !adminIds.includes(userId)) {
+        await ctx.answerCbQuery()
+        await ctx.reply(
+          isRu
+            ? '❌ У вас нет прав для добавления конкурентов'
+            : '❌ You do not have permission to add competitors'
+        )
+        return
+      }
+      
       await ctx.answerCbQuery()
       const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
       await promptForCompetitorUsername(ctx, isRu)
