@@ -245,11 +245,13 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'google/veo-3-fast',
       input: {
         duration: 8, // Фиксированная длительность 8 секунд
-        aspect_ratio: '16:9', // Фиксированное соотношение сторон 16:9
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     imageKey: 'image',
     canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
   },
   'kie-veo-3': {
     id: 'kie-veo-3',
@@ -262,10 +264,12 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'google/veo-3',
       input: {
         duration: 8, // Фиксированная длительность 8 секунд
-        aspect_ratio: '16:9', // Фиксированное соотношение сторон 16:9
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
   },
   'kie-runway-aleph': {
     id: 'kie-runway-aleph',

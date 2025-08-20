@@ -192,7 +192,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         ? `📱 Выберите соотношение сторон для ${modelConfig.title}:`
         : `📱 Select aspect ratio for ${modelConfig.title}:`
 
-      await ctx.replyWithHTML(
+      await ctx.reply(
         text,
         createAspectRatioKeyboard(foundModelKey, isRu)
       )
@@ -256,215 +256,72 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // Шаг 2: Обработка выбора длительности для Veo моделей или разрешения для WAN моделей (Callback Query)
+  // Шаг 2: Обработка выбора соотношения сторон (простые кнопки)
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 2] 🚨 CALLBACK HANDLER STARTED for user ${ctx.from?.id}`, {
-      hasUpdate: !!ctx.update,
-      updateType: Object.keys(ctx.update || {}),
-      isCallbackQuery: 'callback_query' in (ctx.update || {}),
-      callbackData: 'callback_query' in (ctx.update || {}) && (ctx.update as any).callback_query ? (ctx.update as any).callback_query.data : 'NO_DATA'
-    })
+    logger.info(`[TextToVideoWizard Step 2] 🚨 ASPECT RATIO SELECTION for user ${ctx.from?.id}`)
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
       return ctx.scene.leave()
     }
 
-    // Обрабатываем callback query для выбора разрешения WAN
-    if (
-      'callback_query' in ctx.update &&
-      ctx.update.callback_query &&
-      'data' in ctx.update.callback_query
-    ) {
-      const callbackData = ctx.update.callback_query.data
-      logger.info(`[TextToVideoWizard Step 2] CALLBACK DEBUG - Processing callback:`, {
-        telegramId: ctx.from?.id,
-        callbackData,
-        hasCallbackQuery: !!ctx.update.callback_query,
-        hasCallbackData: 'data' in ctx.update.callback_query
-      })
-      
-      await ctx.answerCbQuery()
-      await ctx.editMessageReplyMarkup(undefined) // Удаляем inline keyboard
+    const message = ctx.message
+    if (!message || !('text' in message)) {
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите соотношение сторон, нажав на одну из кнопок.'
+          : 'Please select aspect ratio by clicking one of the buttons.'
+      )
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
 
-      if (callbackData?.startsWith('aspect_')) {
-        // Парсим callback data: "aspect_kie-veo-3-fast_9:16"
-        const parts = callbackData.split('_')
-        if (parts.length >= 3) {
-          const aspectRatio = parts[parts.length - 1] // Последняя часть - соотношение сторон
-          ctx.session.selectedAspectRatio = aspectRatio
+    const selectedText = message.text
 
-          const modelKey = ctx.session.videoModel as VideoModelConfigKey
-          const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
-
-          logger.info(`[TextToVideoWizard Step 2] ASPECT RATIO CHECK - Aspect ratio selected and saved to session:`, {
-            telegramId: ctx.from?.id,
-            modelKey,
-            aspectRatio,
-            sessionSelectedAspectRatio: ctx.session.selectedAspectRatio,
-          })
-
-          // Теперь проверяем, нужно ли показать выбор длительности
-          if (
-            modelConfig.durationOptions &&
-            modelConfig.durationOptions.length > 1
-          ) {
-            const text = isRu
-              ? `⏱️ Выберите длительность для ${modelConfig.title}:`
-              : `⏱️ Select duration for ${modelConfig.title}:`
-
-            await ctx.replyWithHTML(
-              text,
-              createDurationKeyboard(modelKey, isRu)
-            )
-            return // Остаемся на том же шаге для выбора длительности
-          } else {
-            // Если у модели только одна длительность, устанавливаем её автоматически
-            if (
-              modelConfig.durationOptions &&
-              modelConfig.durationOptions.length === 1
-            ) {
-              ctx.session.selectedDuration = modelConfig.durationOptions[0]
-              logger.info(
-                `[TextToVideoWizard Step 2] Auto-selected single duration after aspect ratio: ${modelConfig.durationOptions[0]}`
-              )
-            }
-            
-            // Переходим к вводу промпта
-            await ctx.reply(
-              isRu
-                ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
-                : 'Great! Now enter your prompt (description of what you want to see in the video):'
-            )
-            return ctx.wizard.next() // Переход к следующему шагу
-          }
-        }
-      } else if (callbackData?.startsWith('veo_')) {
-        // Парсим callback data: "veo_kie-veo-3-fast_8"
-        const parts = callbackData.split('_')
-        if (parts.length >= 3) {
-          const duration = parseInt(parts[parts.length - 1]) // Последняя часть - длительность
-          ctx.session.selectedDuration = duration
-
-          const modelKey = ctx.session.videoModel as VideoModelConfigKey
-          const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
-          const price =
-            modelConfig.priceByDuration?.[duration] ||
-            modelConfig.basePrice * duration
-          const finalPrice = Math.floor(price / 0.016) // Конвертация в звезды
-
-          logger.info(`[TextToVideoWizard Step 2] Veo duration selected:`, {
-            telegramId: ctx.from?.id,
-            modelKey,
-            duration,
-            price,
-            finalPrice,
-          })
-
-          // Проверяем баланс для выбранной длительности
-          if (!ctx.from?.id || !ctx.botInfo?.username) {
-            await sendGenericErrorMessage(ctx, isRu)
-            return ctx.scene.leave()
-          }
-
-          const userBalance = await getUserBalance(
-            ctx.from.id.toString(),
-            ctx.botInfo.username
-          )
-
-          if (userBalance < finalPrice) {
-            await ctx.reply(
-              isRu
-                ? `😕 Недостаточно звезд для ${duration} сек (${finalPrice} ⭐). Ваш баланс: ${Math.floor(userBalance)} ⭐.`
-                : `😕 Insufficient stars for ${duration} sec (${finalPrice} ⭐). Your balance: ${Math.floor(userBalance)} ⭐.`
-            )
-            return ctx.scene.leave()
-          }
-
-          const textDurationChosen = isRu
-            ? `✅ Выбрано: ${modelConfig.title} ${duration} сек (${finalPrice} ⭐).`
-            : `✅ Selected: ${modelConfig.title} ${duration} sec (${finalPrice} ⭐).`
-          await ctx.reply(textDurationChosen)
-
-          await ctx.reply(
-            isRu
-              ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
-              : 'Great! Now enter your prompt (a description of what you want to see in the video):',
-            Markup.removeKeyboard()
-          )
-          return ctx.wizard.next() // Переход к шагу получения промпта
-        }
-      } else if (callbackData?.startsWith('wan_')) {
-        // Парсим callback data: "wan_wan-2.2-t2v-fast_720p"
-        const parts = callbackData.split('_')
-        if (parts.length >= 3) {
-          const resolution = parts[parts.length - 1] // Последняя часть - разрешение
-          ctx.session.selectedResolution = resolution
-
-          const modelKey = ctx.session.videoModel as VideoModelConfigKey
-          const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
-          const price =
-            modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
-          const finalPrice = Math.floor(((price * 5) / 0.016) * 1.5)
-
-          logger.info(`[TextToVideoWizard Step 2] WAN resolution selected:`, {
-            telegramId: ctx.from?.id,
-            modelKey,
-            resolution,
-            price,
-            finalPrice,
-          })
-
-          // Проверяем баланс для выбранного разрешения
-          if (!ctx.from?.id || !ctx.botInfo?.username) {
-            await sendGenericErrorMessage(ctx, isRu)
-            return ctx.scene.leave()
-          }
-
-          const userBalance = await getUserBalance(
-            ctx.from.id.toString(),
-            ctx.botInfo.username
-          )
-
-          if (userBalance < finalPrice) {
-            await ctx.reply(
-              isRu
-                ? `😕 Недостаточно звезд для ${resolution.toUpperCase()} (${finalPrice} ⭐). Ваш баланс: ${Math.floor(userBalance)} ⭐.`
-                : `😕 Insufficient stars for ${resolution.toUpperCase()} (${finalPrice} ⭐). Your balance: ${Math.floor(userBalance)} ⭐.`
-            )
-            return ctx.scene.leave()
-          }
-
-          const textResolutionChosen = isRu
-            ? `✅ Выбрано: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPrice} ⭐).`
-            : `✅ Selected: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPrice} ⭐).`
-          await ctx.reply(textResolutionChosen)
-
-          await ctx.reply(
-            isRu
-              ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
-              : 'Great! Now enter your prompt (a description of what you want to see in the video):',
-            Markup.removeKeyboard()
-          )
-          return ctx.wizard.next() // Переход к шагу получения промпта
-        }
-      }
-
-      // Неопознанный callback
-      logger.error('[TextToVideoWizard Step 2] Unexpected callback data:', {
-        callbackData,
-      })
-      await sendGenericErrorMessage(ctx, isRu)
+    // Проверяем кнопку "Назад"
+    if (selectedText === '⬅️ Назад в меню' || selectedText === '⬅️ Back to Menu') {
       return ctx.scene.leave()
     }
 
-    // Если не callback query, то ошибка
+    // Определяем выбранное соотношение сторон
+    let selectedAspectRatio: string
+    if (selectedText.includes('9:16') || selectedText.includes('Вертикальное') || selectedText.includes('Vertical')) {
+      selectedAspectRatio = '9:16'
+    } else if (selectedText.includes('16:9') || selectedText.includes('Горизонтальное') || selectedText.includes('Horizontal')) {
+      selectedAspectRatio = '16:9'
+    } else {
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите соотношение сторон из предложенных вариантов.'
+          : 'Please select aspect ratio from the provided options.'
+      )
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    // Сохраняем выбор
+    ctx.session.selectedAspectRatio = selectedAspectRatio
+    
+    const modelKey = ctx.session.videoModel as VideoModelConfigKey
+    const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
+
+    logger.info(`[TextToVideoWizard Step 2] Aspect ratio selected:`, {
+      telegramId: ctx.from?.id,
+      modelKey,
+      selectedAspectRatio,
+    })
+
+    // Показываем подтверждение и переходим к вводу промпта
+    const aspectText = isRu
+      ? selectedAspectRatio === '9:16' ? 'вертикальное (9:16)' : 'горизонтальное (16:9)'
+      : selectedAspectRatio === '9:16' ? 'vertical (9:16)' : 'horizontal (16:9)'
+
     await ctx.reply(
       isRu
-        ? 'Пожалуйста, выберите длительность или разрешение, нажав на одну из кнопок.'
-        : 'Please select duration or resolution by clicking one of the buttons.'
+        ? `✅ Выбрано ${aspectText}. Теперь введите ваш промпт:`
+        : `✅ Selected ${aspectText}. Now enter your prompt:`,
+      Markup.removeKeyboard()
     )
-    return ctx.wizard.selectStep(ctx.wizard.cursor)
+
+    return ctx.wizard.next() // Переход к шагу получения промпта
   },
 
   // Шаг 3: Получение промпта и запуск генерации
