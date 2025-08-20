@@ -72,8 +72,8 @@ export async function startInstagramScraping(
     }
 
     // Валидация параметров
-    if (max_users < 1 || max_users > 100) {
-      throw new Error('Max users must be between 1 and 100')
+    if (max_users < 1 || max_users > 10000) {
+      throw new Error('Max users must be between 1 and 10000')
     }
 
     if (max_reels_per_user < 1 || max_reels_per_user > 200) {
@@ -122,7 +122,7 @@ export async function startInstagramScraping(
     })
 
     const successMessage = isRu
-      ? `🚀 Анализ конкурентов Instagram запущен!
+      ? `🚀 Анализ конкурентов Instagram запущен через Inngest!
 
 👤 **Целевой аккаунт:** @${cleanUsername}
 📊 **Анализ до:** ${max_users} конкурентов
@@ -133,8 +133,8 @@ export async function startInstagramScraping(
 📬 **Уведомления:** Отправим результаты автоматически
 
 🔍 **Session ID:** \`${debugSessionId}\`
-💡 Вы можете продолжить использовать бота`
-      : `🚀 Instagram Competitor Analysis Started!
+💡 Система работает через Inngest события`
+      : `🚀 Instagram Competitor Analysis Started via Inngest!
 
 👤 **Target Account:** @${cleanUsername}
 📊 **Analyzing up to:** ${max_users} competitors
@@ -145,7 +145,7 @@ export async function startInstagramScraping(
 📬 **Notifications:** We'll send results automatically
 
 🔍 **Session ID:** \`${debugSessionId}\`
-💡 You can continue using the bot`
+💡 System works via Inngest events`
 
     return {
       success: true,

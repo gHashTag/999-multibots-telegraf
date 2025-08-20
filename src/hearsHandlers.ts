@@ -944,20 +944,41 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
 
     try {
-      logger.info('Instagram parsing access granted - entering wizard', {
+      logger.info('Instagram parsing access granted - starting direct API parsing', {
         telegramId: ctx.from?.id,
         userId,
       })
 
-      await ctx.scene.leave() // Выходим из текущей сцены
-      ctx.session.mode = ModeEnum.InstagramScrapingWizard
-      await ctx.scene.enter(ModeEnum.InstagramScrapingWizard)
+      const isRu = isRussianFromState(ctx)
+      
+      await ctx.reply(
+        isRu
+          ? '🚀 Запускаем анализ Instagram конкурентов...\n\n👤 Целевой аккаунт: @neuro_sage\n📊 Количество конкурентов: 25\n🎬 Рилсы: ❌ Без рилсов\n\n⏳ Это займет 3-5 минут...'
+          : '🚀 Starting Instagram competitor analysis...\n\n👤 Target account: @neuro_sage\n📊 Competitors: 25\n🎬 Reels: ❌ No reels\n\n⏳ This will take 3-5 minutes...'
+      )
 
-      logger.info('Successfully entered Instagram scraping wizard via button', {
-        telegramId: ctx.from?.id,
+      // Импортируем функцию прямого парсинга
+      const { startDirectInstagramParsing } = await import('@/services/directInstagramParsing')
+      
+      const result = await startDirectInstagramParsing(ctx, {
+        username: 'neuro_sage',
+        projectId: 1, // Coco Age project
+        maxUsers: 25,
+        scrapeReels: false
       })
+
+      if (result) {
+        logger.info('Successfully started Instagram parsing via direct API', {
+          telegramId: ctx.from?.id,
+        })
+      } else {
+        logger.error('Failed to start Instagram parsing via direct API', {
+          telegramId: ctx.from?.id,
+        })
+      }
+
     } catch (error) {
-      logger.error('Error entering Instagram scraping wizard via button:', {
+      logger.error('Error starting Instagram parsing via direct API:', {
         error,
         telegramId: ctx.from?.id,
       })

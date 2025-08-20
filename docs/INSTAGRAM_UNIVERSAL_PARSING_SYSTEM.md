@@ -254,18 +254,15 @@ const validateSubscriptionLimits = {
 
 ## 🚀 Instagram API интеграция
 
-### **RapidAPI конфигурация**
+### **Inngest Events конфигурация**
 ```javascript
-const RAPIDAPI_CONFIG = {
-  host: 'real-time-instagram-scraper-api1.p.rapidapi.com',
-  endpoints: {
-    similarUsers: '/v1/similar_users_v2',
-    userReels: '/v1/user_reels'
+const INNGEST_CONFIG = {
+  events: {
+    instagramScraper: 'instagram/scraper-v2',
+    competitorParser: 'competitor/auto-parser',
+    createInstagramUser: 'instagram/create-user'
   },
-  headers: {
-    'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
-    'X-RapidAPI-Host': 'real-time-instagram-scraper-api1.p.rapidapi.com'
-  }
+  client: inngest
 }
 ```
 
@@ -425,11 +422,8 @@ logger.info('[Instagram API] Operation completed', {
 
 ### **Environment Variables**
 ```bash
-# Instagram API
-RAPIDAPI_KEY=your_rapidapi_key_here
-
 # Database
-NEON_DATABASE_URL=postgresql://user:pass@host:5432/dbname
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
 
 # Inngest
 INNGEST_EVENT_KEY=your_inngest_key_for_production
@@ -437,6 +431,9 @@ INNGEST_EVENT_KEY=your_inngest_key_for_production
 # Server
 NODE_ENV=production
 PORT=2999
+
+# Admin Access
+ADMIN_IDS=144022504,1474143172,7669741878
 ```
 
 ### **Скрипты развертывания**
