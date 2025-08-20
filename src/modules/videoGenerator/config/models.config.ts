@@ -20,6 +20,8 @@ export type VideoModelConfig = {
   canMorph?: boolean
   resolutionOptions?: string[]
   priceByResolution?: Record<string, number>
+  durationOptions?: number[] // Поддерживаемые длительности в секундах
+  priceByDuration?: Record<number, number> // Цена за каждую длительность
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
@@ -236,8 +238,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'Veo 3 Fast',
     inputType: ['text', 'image'],
     description:
-      '⚡ БЫСТРО: Veo 3 Fast - 40⭐ за 8 сек (конкурентная цена!)',
-    basePrice: 0.08, // Конкурентная цена: 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек
+      '⚡ БЫСТРО: Veo 3 Fast - от 10⭐ за 2 сек до 50⭐ за 10 сек',
+    basePrice: 0.08, // Базовая цена за секунду
     api: {
       model: 'google/veo-3-fast',
       input: {
@@ -246,6 +248,14 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
     imageKey: 'image',
     canMorph: false,
+    durationOptions: [2, 4, 6, 8, 10], // Поддерживаемые длительности
+    priceByDuration: {
+      2: 0.16,  // 2 * 0.08 = 0.16 USD = ~10⭐
+      4: 0.32,  // 4 * 0.08 = 0.32 USD = ~20⭐
+      6: 0.48,  // 6 * 0.08 = 0.48 USD = ~30⭐
+      8: 0.64,  // 8 * 0.08 = 0.64 USD = ~40⭐
+      10: 0.80, // 10 * 0.08 = 0.80 USD = ~50⭐
+    },
   },
   'kie-veo-3': {
     id: 'kie-veo-3',
