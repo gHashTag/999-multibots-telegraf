@@ -99,8 +99,8 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
   // Kie.ai модели с более выгодными ценами
   'kie-veo-3-fast': {
     id: 'kie-veo-3-fast',
-    name: 'Kie.ai Veo 3 Fast',
-    nameRu: 'Kie.ai Veo 3 Fast',
+    name: 'Veo 3 Fast',
+    nameRu: 'Veo 3 Fast',
     pricePerSecond: KIE_AI_MODELS_PRICING['kie-veo-3-fast'].pricePerSecondUSD!,
     supportedDurations:
       KIE_AI_MODELS_PRICING['kie-veo-3-fast'].supportedDurations!,
@@ -110,8 +110,8 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
   },
   'kie-veo-3': {
     id: 'kie-veo-3',
-    name: 'Kie.ai Veo 3 Quality',
-    nameRu: 'Kie.ai Veo 3 Качество',
+    name: 'Veo 3 Quality',
+    nameRu: 'Veo 3 Качество',
     pricePerSecond: KIE_AI_MODELS_PRICING['kie-veo-3'].pricePerSecondUSD!,
     supportedDurations: KIE_AI_MODELS_PRICING['kie-veo-3'].supportedDurations!,
     defaultDuration: KIE_AI_MODELS_PRICING['kie-veo-3'].defaultDuration!,
@@ -120,8 +120,8 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
   },
   'kie-runway-aleph': {
     id: 'kie-runway-aleph',
-    name: 'Kie.ai Runway Aleph',
-    nameRu: 'Kie.ai Runway Aleph',
+    name: 'Runway Aleph',
+    nameRu: 'Runway Aleph',
     pricePerSecond:
       KIE_AI_MODELS_PRICING['kie-runway-aleph'].pricePerSecondUSD!,
     supportedDurations:
