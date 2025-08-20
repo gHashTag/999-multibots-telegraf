@@ -106,14 +106,24 @@ app.post('/webhook', (req, res) => {
 
 async function start() {
   try {
+    console.log(`🔄 Starting initialization of ${bots.length} bots...`)
+    
     // Initialize all bots
-    for (const botData of bots) {
-      const info = await botData.bot.telegram.getMe()
-      console.log(`✅ Bot ${botData.id} (@${botData.name}) ready: @${info.username}`)
+    for (let i = 0; i < bots.length; i++) {
+      const botData = bots[i]
+      console.log(`🔄 Initializing bot ${i + 1}/${bots.length} (ID: ${botData.id})...`)
       
-      // Clear any webhooks
-      await botData.bot.telegram.deleteWebhook({ drop_pending_updates: true })
-      console.log(`🧹 Bot ${botData.id} (@${botData.name}) webhooks cleared`)
+      try {
+        const info = await botData.bot.telegram.getMe()
+        console.log(`✅ Bot ${botData.id} (@${botData.name}) ready: @${info.username}`)
+        
+        // Clear any webhooks
+        await botData.bot.telegram.deleteWebhook({ drop_pending_updates: true })
+        console.log(`🧹 Bot ${botData.id} (@${botData.name}) webhooks cleared`)
+      } catch (error) {
+        console.error(`❌ Failed to initialize bot ${botData.id}: ${error.message}`)
+        // Continue with other bots instead of failing completely
+      }
     }
     
     // Start HTTP server ONLY
@@ -121,11 +131,20 @@ async function start() {
       console.log(`🌐 HTTP server running on port ${port}`)
       const mode = isProduction ? 'Production' : `Test (@${testBotName})`
       console.log(`🎉 Railway bot farm READY! (${bots.length} bots, ${mode} mode)`)
+      
+      // Log all successfully initialized bots
+      const workingBots = bots.filter(b => b.bot)
+      console.log(`📊 Working bots: ${workingBots.map(b => b.name).join(', ')}`)
     })
     
   } catch (error) {
-    console.error('❌ Error:', error.message)
-    process.exit(1)
+    console.error('❌ Critical error in start():', error.message)
+    console.error('❌ Stack trace:', error.stack)
+    
+    // Try to start HTTP server anyway for debugging
+    app.listen(port, () => {
+      console.log(`🌐 HTTP server running on port ${port} (emergency mode)`)
+    })
   }
 }
 
