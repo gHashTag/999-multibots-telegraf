@@ -123,6 +123,14 @@ ${subscriptions.map((sub, index) =>
 
 ⏰ Updates: every 24 hours at 08:00 UTC`
 
+  // Создаем кнопки для каждой подписки с возможностью удаления
+  const subscriptionButtons = subscriptions.map((sub) => [
+    Markup.button.callback(
+      `❌ ${sub.competitor_username}`,
+      `delete_subscription_${sub.id}`
+    )
+  ])
+
   const keyboard = Markup.inlineKeyboard([
     [
       Markup.button.callback(
@@ -130,6 +138,7 @@ ${subscriptions.map((sub, index) =>
         'add_new_competitor'
       )
     ],
+    ...subscriptionButtons,
     [
       Markup.button.callback(
         isRu ? '⚙️ Настройки' : '⚙️ Settings',
@@ -142,9 +151,7 @@ ${subscriptions.map((sub, index) =>
     ]
   ])
 
-  await ctx.reply(message, {
-    ...keyboard
-  })
+  await ctx.reply(message, keyboard)
 }
 
 export async function addCompetitorSubscription(
@@ -226,6 +233,36 @@ export function setupCompetitorCallbacks(bot: any): void {
   // Обновить список подписок
   bot.action('refresh_subscriptions', async (ctx: MyContext) => {
     await handleCompetitorMonitoring(ctx)
+  })
+
+  // Обработчик удаления подписок (regex для всех кнопок delete_subscription_*)
+  bot.action(/^delete_subscription_(.+)$/, async (ctx: MyContext & { match: RegExpExecArray }) => {
+    const subscriptionId = ctx.match[1]
+    const isRu = isRussianFromState(ctx)
+    
+    console.log(`🗑️ [Delete Subscription] Attempting to delete subscription ID: ${subscriptionId}`)
+    
+    try {
+      const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
+      
+      if (result.success) {
+        console.log(`✅ [Delete Subscription] Successfully deleted subscription: ${subscriptionId}`)
+        await ctx.answerCbQuery(result.message)
+        
+        // Обновляем список подписок после удаления
+        await handleCompetitorMonitoring(ctx)
+      } else {
+        console.log(`❌ [Delete Subscription] Failed to delete subscription: ${subscriptionId}`)
+        await ctx.answerCbQuery(result.message)
+      }
+    } catch (error) {
+      console.log(`💥 [Delete Subscription] Error deleting subscription: ${error}`)
+      await ctx.answerCbQuery(
+        isRu 
+          ? '❌ Ошибка при удалении подписки' 
+          : '❌ Error deleting subscription'
+      )
+    }
   })
 }
 
