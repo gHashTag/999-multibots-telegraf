@@ -4,8 +4,6 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { sendGenericErrorMessage } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
-import { ModeEnum } from '@/interfaces/modes'
-import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { logger } from '@/utils/logger'
 import {
   createVideoModelKeyboard,
@@ -16,19 +14,13 @@ import {
 import {
   findModelByButtonText,
   VideoModelConfigKey,
-  supportsResolution,
-  getAvailableResolutions,
-  getPriceForResolution,
 } from '@/modules/videoGenerator/helpers/modelMapping'
-import { VIDEO_MODELS, getModelPriceInStars } from '@/services/videoModels'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { calculateFinalPrice } from '@/price/helpers'
 import { getUserBalance } from '@/core/supabase'
-import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
-import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
 
-// Асинхронная функция для обработки генерации видео в фоне
+// Упрощенная функция для обработки генерации видео через сервер
 async function processVideoGeneration(
   ctx: MyContext,
   prompt: string,
@@ -36,179 +28,49 @@ async function processVideoGeneration(
   isRu: boolean
 ) {
   try {
-    // Проверка наличия необходимой информации о пользователе и боте
-    if (!ctx.from || !ctx.from.id || !ctx.botInfo || !ctx.chat?.id) {
-      logger.error(
-        '[processVideoGeneration] Critical user/bot/chat info missing.',
-        { from: ctx.from, botInfo: ctx.botInfo, chatId: ctx.chat?.id }
-      )
-      // Попытка отправить сообщение об ошибке, если chat.id известен
-      if (ctx.chat?.id) {
-        await ctx.telegram.sendMessage(
-          ctx.chat.id,
-          isRu
-            ? 'Произошла внутренняя ошибка (отсутствует информация для обработки вашего запроса).'
-            : 'An internal error occurred (missing information to process your request).'
-        )
-      }
-      return
+    // Преобразуем VideoModelConfigKey в VideoModelId
+    const modelMapping: Record<VideoModelConfigKey, VideoModelId> = {
+      'kie-veo-3-fast': 'kie-veo-3-fast',
+      'kie-veo-3': 'kie-veo-3',
+      'kie-runway-aleph': 'kie-runway-aleph',
+      'veo-3': 'veo-3',
+      'veo-3-fast': 'veo-3-fast',
+      'veo-2': 'veo-2',
+      minimax: 'minimax',
+      'ray-v2': 'ray-v2',
+      'hunyuan-video-fast': 'hunyuan-video-fast',
+      'wan-image-to-video': 'wan-image-to-video',
+      'wan-text-to-video': 'wan-text-to-video',
+      'kling-v1.6-pro': 'kling-v1.6-pro',
     }
-    const telegramId = ctx.from.id.toString()
-    const username = ctx.from.username || 'unknown_user' // Предоставить значение по умолчанию, если username отсутствует
-    const botName = ctx.botInfo.username
 
-    // ===== ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
-    logger.info(
-      '[processVideoGeneration] Processing balance for text_to_video',
-      { telegramId: ctx.from.id, modelId: videoModelKey }
-    )
-
-    const balanceResult = await processBalanceVideoOperationHelper(
-      String(ctx.from.id),
-      videoModelKey,
-      isRu,
-      ctx.botInfo.username,
-      'text_to_video'
-    )
-
-    if (!balanceResult.success || balanceResult.newBalance === undefined) {
-      logger.error('[processVideoGeneration] Balance check failed', {
-        telegramId,
-        error: balanceResult.error,
-      })
-      await ctx.telegram.sendMessage(
-        ctx.chat.id,
-        balanceResult.error ||
-          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed')
+    const videoModelId = modelMapping[videoModelKey]
+    if (!videoModelId) {
+      logger.error('[processVideoGeneration] Unknown model key', { videoModelKey })
+      await ctx.reply(
+        isRu
+          ? '❌ Неизвестная модель видео.'
+          : '❌ Unknown video model.'
       )
       return
     }
 
-    logger.info('[processVideoGeneration] Balance sufficient and deducted', {
-      telegramId,
-      paymentAmount: balanceResult.paymentAmount,
-      newBalance: balanceResult.newBalance,
-    })
-    // ===== КОНЕЦ СПИСАНИЯ БАЛАНСА =====
-
-    const videoUrl = await generateTextToVideo(
+    // Используем серверную генерацию через handleTextToVideoDirect
+    // Она уже включает проверку баланса, списание средств и отправку видео
+    await handleTextToVideoDirect(
+      ctx,
       prompt,
-      telegramId,
-      username,
-      isRu,
-      botName,
-      videoModelKey,
-      ctx.session.selectedResolution, // Передаём выбранное разрешение для Seedance
-      ctx.session.selectedDuration, // Передаём выбранную длительность для Veo моделей
-      ctx.session.selectedAspectRatio // Передаём выбранное соотношение сторон для Kie.ai моделей
+      videoModelId,
+      ctx.session.selectedDuration
     )
 
-    if (videoUrl) {
-      // Добавляем информацию о стоимости в сообщение с видео
-      const modelTitle =
-        VIDEO_MODELS_CONFIG[videoModelKey]?.title || videoModelKey
-      const caption = isRu
-        ? `✨ Ваше видео (${modelTitle}) готово!\n💰 Списано: ${balanceResult.paymentAmount} ✨\n💎 Остаток: ${balanceResult.newBalance} ✨`
-        : `✨ Your video (${modelTitle}) is ready!\n💰 Cost: ${balanceResult.paymentAmount} ✨\n💎 Balance: ${balanceResult.newBalance} ✨`
-
-      await ctx.telegram.sendVideo(ctx.chat.id, videoUrl, { caption })
-
-      try {
-        const pulseOptions: MediaPulseOptions = {
-          mediaType: 'video',
-          mediaSource: videoUrl,
-          telegramId: telegramId,
-          username: username,
-          language: isRu ? 'ru' : 'en',
-          serviceType: ModeEnum.TextToVideo,
-          prompt: prompt,
-          botName: botName,
-          additionalInfo: {
-            model_used: modelTitle,
-            original_url:
-              videoUrl.substring(0, 100) + (videoUrl.length > 100 ? '...' : ''),
-          },
-        }
-        await sendMediaToPulse(pulseOptions)
-        logger.info('[processVideoGeneration] Pulse sent successfully.', {
-          telegram_id: telegramId,
-        })
-      } catch (pulseError) {
-        logger.error('[processVideoGeneration] Error sending pulse:', {
-          telegram_id: telegramId,
-          error: pulseError,
-        })
-      }
-
-      // Добавляем логирование ПЕРЕД отправкой кнопок
-      logger.info(
-        '[processVideoGeneration] Attempting to send final message with buttons.',
-        { telegram_id: telegramId, chat_id: ctx.chat.id }
-      )
-
-      const keyboard = Markup.keyboard([
-        [
-          isRu
-            ? '✨ Создать еще (Текст в Видео)'
-            : '✨ Create More (Text to Video)',
-        ],
-        [
-          isRu
-            ? '🖼 Выбрать другую модель (Видео)'
-            : '🖼 Select Another Model (Video)',
-        ],
-        [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
-      ]).resize()
-      await ctx.telegram.sendMessage(
-        ctx.chat.id,
-        isRu
-          ? 'Ваше видео готово! Что дальше?'
-          : 'Your video is ready! What next?',
-        keyboard
-      )
-
-      // Добавляем логирование ПОСЛЕ отправки кнопок
-      logger.info(
-        '[processVideoGeneration] Successfully sent final message with buttons.',
-        { telegram_id: telegramId }
-      )
-    } else {
-      // Средства автоматически возвращаются при любой ошибке генерации
-      const refundMessage = isRu
-        ? ' Средства возвращены на ваш баланс.'
-        : ' Funds have been refunded to your balance.'
-
-      await ctx.telegram.sendMessage(
-        ctx.chat.id,
-        isRu
-          ? `Не удалось сгенерировать видео. Попробуйте другой промпт или модель.${refundMessage}`
-          : `Failed to generate video. Try a different prompt or model.${refundMessage}`
-      )
-    }
   } catch (error) {
-    logger.error(
-      '[processVideoGeneration] Error during background video processing:',
-      { error, telegram_id: ctx.from?.id }
+    logger.error('[processVideoGeneration] Error:', error)
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка во время генерации видео.'
+        : '❌ An error occurred during video generation.'
     )
-    try {
-      if (ctx.chat?.id) {
-        await ctx.telegram.sendMessage(
-          ctx.chat.id,
-          isRu
-            ? 'Произошла ошибка во время генерации видео.'
-            : 'An error occurred during video generation.'
-        )
-      } else {
-        logger.error(
-          '[processVideoGeneration] ctx.chat.id is undefined, cannot send error message to user.'
-        )
-      }
-    } catch (e) {
-      logger.error(
-        '[processVideoGeneration] Failed to send error message to user after background processing error',
-        e
-      )
-    }
   }
 }
 
@@ -633,20 +495,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     ctx.session.prompt = prompt
 
-    // ЗАПУСК ГЕНЕРАЦИИ В ФОНЕ
-    // Мы уже получили videoModelKey ранее для очистки промпта
+    // ЗАПУСК СЕРВЕРНОЙ ГЕНЕРАЦИИ
     logger.info(
-      `[TextToVideoWizard Step 3] Starting background generation for user ${ctx.from?.id}`
+      `[TextToVideoWizard Step 3] Starting server generation for user ${ctx.from?.id}`
     )
-    // `videoModelKey` уже определена выше
-    processVideoGeneration(ctx, prompt, videoModelKey, isRu)
-
-    // Немедленно отвечаем пользователю и выходим из сцены
-    await ctx.reply(
-      isRu
-        ? '⏳ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
-        : '⏳ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
-    )
+    
+    // Запускаем серверную генерацию (handleTextToVideoDirect уже обрабатывает все)
+    await processVideoGeneration(ctx, prompt, videoModelKey, isRu)
 
     return ctx.scene.leave()
   }
