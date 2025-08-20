@@ -16,6 +16,7 @@
     "test:vitest": "cross-env SUPABASE_URL=TEST_URL SUPABASE_SERVICE_KEY=TEST_KEY pnpm vitest run",
     "test:instagram": "node scripts/test-instagram-download.js",
     "test:instagram-prod": "node scripts/test-instagram-production.js",
+    "test:instagram-api": "node scripts/test-instagram-api.js",
     "test:apify": "node scripts/test-apify-token.js",
     "lint": "bunx eslint . --ext .ts",
     "format": "bunx prettier --write \"src/**/*.ts\"",
