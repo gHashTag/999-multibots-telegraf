@@ -209,7 +209,8 @@ export async function mainMenu({
     lvl !== levels[103] &&
     lvl !== levels[104] &&
     lvl !== levels[105] &&
-    lvl !== levels[106] // ✅ ИСКЛЮЧАЕМ кнопку языка из основных кнопок
+    lvl !== levels[106] && // ✅ ИСКЛЮЧАЕМ кнопку языка из основных кнопок
+    lvl !== levels[109] // ✅ ИСКЛЮЧАЕМ кнопку мониторинга - она добавляется только для определенных пользователей
 
   if (
     currentSubscription === SubscriptionType.NEUROVIDEO ||
@@ -236,6 +237,9 @@ export async function mainMenu({
   const userId = ctx.from?.id?.toString()
   const adminSpecificButtons = []
 
+  // Флаг для отслеживания добавления кнопки мониторинга
+  let monitoringButtonAdded = false
+
   // Админские кнопки для основных админов
   if (userId && adminIds.includes(userId)) {
     adminSpecificButtons.push(
@@ -246,10 +250,11 @@ export async function mainMenu({
   }
 
   // 🔍 Кнопка мониторинга конкурентов для сотрудников HaimGroupMedia_bot + Админов
-  if (userId && (HAIM_GROUP_STAFF_IDS.includes(userId) || adminIds.includes(userId))) {
+  if (userId && (HAIM_GROUP_STAFF_IDS.includes(userId) || adminIds.includes(userId)) && !monitoringButtonAdded) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? levels[109].title_ru : levels[109].title_en)
     )
+    monitoringButtonAdded = true
     console.log('[mainMenu LOG] Added competitor monitoring button for HaimGroupMedia staff or admin.')
   }
 
