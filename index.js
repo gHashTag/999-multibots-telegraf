@@ -15,8 +15,8 @@ console.log(`🌐 Port: ${port}`)
 const bots = []
 
 if (isProduction) {
-  // PRODUCTION: Use BOT_TOKEN_1, BOT_TOKEN_2, etc.
-  for (let i = 1; i <= 10; i++) {
+  // PRODUCTION: Use BOT_TOKEN_1, BOT_TOKEN_2, etc. (temporarily limited to 4 bots for Railway)
+  for (let i = 1; i <= 4; i++) {
     const token = process.env[`BOT_TOKEN_${i}`]
     if (token) {
       const bot = new Telegraf(token)
