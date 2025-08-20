@@ -38,11 +38,12 @@ export async function handleTextToVideoDirect(
   // Получаем корректную длительность для модели
   const validDuration = getValidDuration(modelId, duration)
 
-  logger.info('[handleTextToVideoDirect] Starting video generation', {
+  logger.info('[handleTextToVideoDirect] ASPECT RATIO CHECK - Starting video generation', {
     telegram_id,
     username,
     modelId,
     duration: validDuration,
+    aspectRatio: aspectRatio,
     promptLength: prompt.length,
   })
 
