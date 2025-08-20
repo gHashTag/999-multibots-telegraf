@@ -26,340 +26,44 @@ export type VideoModelConfig = {
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
-  minimax: {
-    id: 'minimax',
-    title: 'Minimax',
-    inputType: ['text', 'image'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.5,
-    api: {
-      model: 'minimax/video-01',
-      input: {
-        prompt_optimizer: true,
-      },
-    },
-    imageKey: 'first_frame_image',
-    canMorph: false,
-  },
-  'haiper-video-2': {
-    id: 'haiper-video-2',
-    title: 'Haiper Video 2',
-    description: 'Высокое качество, длительность 6 секунд',
-    inputType: ['text', 'image'],
-    basePrice: 0.05,
-    api: {
-      model: 'haiper-ai/haiper-video-2',
-      input: {
-        duration: 6,
-        aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9',
-        use_prompt_enhancer: true,
-      },
-    },
-    imageKey: 'frame_image_url',
-  },
-  'ray-v2': {
-    id: 'ray-v2',
-    title: 'Ray-v2',
-    description: 'Продвинутая модель для детальной анимации',
-    inputType: ['text', 'image'],
-    basePrice: 0.18,
-    api: {
-      model: 'luma/ray-2-720p',
-      input: {},
-    },
-    imageKey: 'start_image_url',
-  },
-  'wan-image-to-video': {
-    id: 'wan-image-to-video',
-    title: 'Wan-2.1-i2v',
-    inputType: ['image'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.25,
-    api: {
-      model: 'wavespeedai/wan-2.1-i2v-720p',
-      input: {
-        fast_mode: 'Balanced',
-        num_frames: 81,
-        sample_shift: 5,
-        sample_steps: 30,
-        frames_per_second: 16,
-        sample_guide_scale: 5,
-        max_area: '720x1280',
-      },
-    },
-    imageKey: 'image',
-  },
-  'wan-text-to-video': {
-    id: 'wan-text-to-video',
-    title: 'Wan-2.1',
-    inputType: ['text'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.25,
-    api: {
-      model: 'wavespeedai/wan-2.1-t2v-720p',
-      input: {
-        fast_mode: 'Balanced',
-        num_frames: 81,
-        sample_shift: 5,
-        sample_steps: 30,
-        frames_per_second: 16,
-        sample_guide_scale: 5,
-        max_area: '720x1280',
-      },
-    },
-  },
-  'kling-v1.6-pro': {
-    id: 'kling-v1.6-pro',
-    title: 'Kling v1.6 Pro',
-    inputType: ['image', 'morph'],
-    description: 'Продвинутая анимация (цена за секунду)',
-    basePrice: 0.098,
-    api: {
-      model: 'kwaivgi/kling-v1.6-pro',
-      input: {
-        prompt_optimizer: true,
-        cfg_scale: 0.5,
-      },
-    },
-    imageKey: 'start_image',
-    canMorph: true,
-  },
-  'kling-v1.6-standard': {
-    id: 'kling-v1.6-standard',
-    title: 'Kling v1.6 Standard',
-    inputType: ['image', 'morph'],
-    description:
-      'Стандартная анимация Kling с поддержкой морфинга (цена за секунду)',
-    basePrice: 0.056,
-    api: {
-      model: 'kwaivgi/kling-v1.6-standard',
-      input: {},
-    },
-    imageKey: 'start_image',
-    canMorph: true,
-  },
-  'kling-v2.0': {
-    id: 'kling-v2.0',
-    title: 'Kling v2.0',
-    inputType: ['image'],
-    description:
-      'Новейшая модель Kling (только для image-to-video, морфинг НЕ поддерживается)',
-    basePrice: 0.28,
-    api: {
-      model: 'kwaivgi/kling-v2.0',
-      input: {},
-    },
-    imageKey: 'start_image',
-    canMorph: false,
-  },
-  'hunyuan-video-fast': {
-    id: 'hunyuan-video-fast',
-    title: 'Hunyuan Video Fast',
-    inputType: ['text'],
-    description: 'Быстрая анимация с оптимизацией промптов',
-    basePrice: 0.2,
-    api: {
-      model: 'wavespeedai/hunyuan-video-fast',
-      input: {
-        prompt_optimizer: true,
-      },
-    },
-  },
-  'seedance-1-pro': {
-    id: 'seedance-1-pro',
-    title: 'Seedance Pro',
-    inputType: ['text', 'image'],
-    description:
-      'ByteDance Seedance Pro модель для создания видео 5-10 секунд с выбором разрешения',
-    basePrice: 0.03, // базовая цена за 480p, будет пересчитана при выборе разрешения
-    api: {
-      model: 'bytedance/seedance-1-pro',
-      input: {
-        duration: 5, // стандартная длительность 5 секунд
-        fps: 24, // стандартная частота кадров
-        // resolution будет добавлено динамически
-      },
-    },
-    imageKey: 'image', // ИСПРАВЛЕНО: по документации должно быть 'image', а не 'first_frame_image'
-    canMorph: false,
-    resolutionOptions: ['480p', '1080p'], // новое поле для поддержки выбора разрешения
-    priceByResolution: {
-      '480p': 0.03,
-      '1080p': 0.15,
-    },
-  },
-  'wan-2.2-t2v-fast': {
-    id: 'wan-2.2-t2v-fast',
-    title: 'WAN 2.2 T2V Fast',
-    inputType: ['text'],
-    description:
-      '💨 БЫСТРО: WAN 2.2 Text-to-Video - от 12⭐ (480p) до 26⭐ (1080p)',
-    basePrice: 0.03627, // Базовая цена для 720p (17⭐)
-    api: {
-      model: 'wan-video/wan-2.2-t2v-fast',
-      input: {
-        target_resolution: '720p', // По умолчанию 720p
-      },
-    },
-    resolutionOptions: ['480p', '720p', '1080p'],
-    priceByResolution: {
-      '480p': 0.0256, // 12⭐ = (12 * 0.016) / (5 * 1.5)
-      '720p': 0.03627, // 17⭐ = (17 * 0.016) / (5 * 1.5)
-      '1080p': 0.05547, // 26⭐ = (26 * 0.016) / (5 * 1.5)
-    },
-    canMorph: false,
-  },
-  'wan-2.2-i2v-fast': {
-    id: 'wan-2.2-i2v-fast',
-    title: 'WAN 2.2 I2V Fast',
-    inputType: ['image'],
-    description:
-      '💨 БЫСТРО: WAN 2.2 Image-to-Video - от 11⭐ (480p) до 23⭐ (1080p)',
-    basePrice: 0.032, // Базовая цена для 720p (15⭐)
-    api: {
-      model: 'wan-video/wan-2.2-i2v-fast',
-      input: {
-        target_resolution: '720p', // По умолчанию 720p
-      },
-    },
-    resolutionOptions: ['480p', '720p', '1080p'],
-    priceByResolution: {
-      '480p': 0.02347, // 11⭐ = (11 * 0.016) / (5 * 1.5)
-      '720p': 0.032, // 15⭐ = (15 * 0.016) / (5 * 1.5)
-      '1080p': 0.04907, // 23⭐ = (23 * 0.016) / (5 * 1.5)
-    },
-    imageKey: 'image',
-    canMorph: false,
-  },
-
-  // Оригинальные Google Veo модели
   'veo-3': {
     id: 'veo-3',
-    title: 'Google Veo 3 (Premium)',
+    title: 'Вео 3',
     inputType: ['text'],
-    description: '🎯 ПРЕМИУМ: Google Veo 3 - топовое качество, переменная цена по длительности',
-    basePrice: 0.656, // Базовая цена за секунду (переменная стоимость)
+    description: '🎯 КАЧЕСТВО: Вео 3 премиум - 202⭐ за 8 сек',
+    basePrice: 0.404,
     api: {
       model: 'google/veo-3',
       input: {
-        duration_seconds: 8, // Длительность по умолчанию
-        aspect_ratio: '16:9',
-        enable_audio: true,
-        prompt_optimizer: true,
+        duration: 8,
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9',
       },
     },
     canMorph: false,
-    durationOptions: [4, 8], // Поддерживаемые длительности
-    priceByDuration: {
-      4: 2.624, // 4 * 0.656 = 2.624 USD = ~164⭐
-      8: 5.248, // 8 * 0.656 = 5.248 USD = ~328⭐
-    },
+    aspectRatioOptions: ['16:9', '9:16'],
   },
   'veo-3-fast': {
     id: 'veo-3-fast',
-    title: 'Google Veo 3 Fast',
+    title: 'Вео 3 фаст',
     inputType: ['text', 'image'],
-    description: '⚡ БЫСТРО: Google Veo 3 Fast - переменная цена по длительности',
-    basePrice: 0.164, // Базовая цена за секунду (переменная стоимость)
+    description: '⚡ БЫСТРО: Вео 3 фаст - 40⭐ за 8 сек',
+    basePrice: 0.08,
     api: {
       model: 'google/veo-3-fast',
       input: {
-        duration_seconds: 8, // Длительность по умолчанию
-        aspect_ratio: '16:9',
-        enable_audio: true,
-        prompt_optimizer: true,
+        duration: 8,
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9',
       },
     },
     imageKey: 'image',
     canMorph: false,
-    durationOptions: [4, 8], // Поддерживаемые длительности
+    durationOptions: [8],
+    aspectRatioOptions: ['16:9', '9:16'],
     priceByDuration: {
-      4: 0.656, // 4 * 0.164 = 0.656 USD = ~41⭐
-      8: 1.312, // 8 * 0.164 = 1.312 USD = ~82⭐
+      8: 0.64,
     },
-  },
-  'veo-2': {
-    id: 'veo-2',
-    title: 'Google Veo 2',
-    inputType: ['text'],
-    description: '🎬 КАЧЕСТВО: Google Veo 2 - стабильное качество, переменная цена',
-    basePrice: 0.328, // Базовая цена за секунду
-    api: {
-      model: 'google/veo-2',
-      input: {
-        duration_seconds: 8, // Длительность по умолчанию
-        aspect_ratio: '16:9',
-        enable_audio: true,
-      },
-    },
-    canMorph: false,
-    durationOptions: [4, 8], // Поддерживаемые длительности
-    priceByDuration: {
-      4: 1.312, // 4 * 0.328 = 1.312 USD = ~82⭐
-      8: 2.624, // 8 * 0.328 = 2.624 USD = ~164⭐
-    },
-  },
-
-  // Kie.ai модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
-  'kie-veo-3-fast': {
-    id: 'kie-veo-3-fast',
-    title: 'Veo 3 Fast',
-    inputType: ['text', 'image'],
-    description: '⚡ БЫСТРО: Veo 3 Fast - 40⭐ за 8 сек',
-    basePrice: 0.08, // Базовая цена за секунду
-    api: {
-      model: 'google/veo-3-fast',
-      input: {
-        duration: 8, // Длительность по умолчанию
-        aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
-      },
-    },
-    imageKey: 'image',
-    canMorph: false,
-    durationOptions: [8], // VEO FAST поддерживает только 8 секунд
-    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
-    priceByDuration: {
-      8: 0.64, // 8 * 0.08 = 0.64 USD = ~40⭐ (единственная поддерживаемая длительность)
-    },
-  },
-  'kie-veo-3': {
-    id: 'kie-veo-3',
-    title: 'Veo 3 Quality',
-    inputType: ['text'],
-    description:
-      '🎯 КАЧЕСТВО: Veo 3 премиум - 202⭐ за 8 сек (конкурентная цена!)',
-    basePrice: 0.404, // Конкурентная цена: 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек
-    api: {
-      model: 'google/veo-3',
-      input: {
-        duration: 8, // Длительность по умолчанию
-        aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
-      },
-    },
-    canMorph: false,
-    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
-  },
-  'kie-runway-aleph': {
-    id: 'kie-runway-aleph',
-    title: 'Runway Aleph',
-    inputType: ['text', 'image'],
-    description:
-      '🎬 ПРЕМИУМ: Runway Aleph - 182⭐ за 6 сек (конкурентная цена!)',
-    basePrice: 0.485, // Конкурентная цена: 182⭐ за 6 сек = $2.912 за 6 сек = $0.485/сек
-    api: {
-      model: 'runwayml/gen-3-alpha',
-      input: {
-        duration: 6, // Длительность по умолчанию
-        aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
-      },
-    },
-    imageKey: 'image',
-    canMorph: false,
-    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
   },
 }
 

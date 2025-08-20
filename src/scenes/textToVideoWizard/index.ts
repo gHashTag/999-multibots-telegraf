@@ -30,18 +30,8 @@ async function processVideoGeneration(
   try {
     // Преобразуем VideoModelConfigKey в VideoModelId
     const modelMapping: Record<VideoModelConfigKey, VideoModelId> = {
-      'kie-veo-3-fast': 'kie-veo-3-fast',
-      'kie-veo-3': 'kie-veo-3',
-      'kie-runway-aleph': 'kie-runway-aleph',
       'veo-3': 'veo-3',
       'veo-3-fast': 'veo-3-fast',
-      'veo-2': 'veo-2',
-      minimax: 'minimax',
-      'ray-v2': 'ray-v2',
-      'hunyuan-video-fast': 'hunyuan-video-fast',
-      'wan-image-to-video': 'wan-image-to-video',
-      'wan-text-to-video': 'wan-text-to-video',
-      'kling-v1.6-pro': 'kling-v1.6-pro',
     }
 
     const videoModelId = modelMapping[videoModelKey]
@@ -108,7 +98,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       hasUpdate: !!ctx.update,
       updateType: Object.keys(ctx.update || {}),
       isMessage: 'message' in (ctx.update || {}),
-      messageText: 'message' in (ctx.update || {}) && ctx.update.message && 'text' in ctx.update.message ? ctx.update.message.text : 'NO_TEXT'
+      messageText: 'message' in (ctx.update || {}) && (ctx.update as any).message && 'text' in (ctx.update as any).message ? (ctx.update as any).message.text : 'NO_TEXT'
     })
     const isRu = isRussianFromState(ctx)
 
@@ -265,7 +255,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       hasUpdate: !!ctx.update,
       updateType: Object.keys(ctx.update || {}),
       isCallbackQuery: 'callback_query' in (ctx.update || {}),
-      callbackData: 'callback_query' in (ctx.update || {}) && ctx.update.callback_query ? ctx.update.callback_query.data : 'NO_DATA'
+      callbackData: 'callback_query' in (ctx.update || {}) && (ctx.update as any).callback_query ? (ctx.update as any).callback_query.data : 'NO_DATA'
     })
     const isRu = isRussianFromState(ctx)
 
@@ -284,7 +274,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         telegramId: ctx.from?.id,
         callbackData,
         hasCallbackQuery: !!ctx.update.callback_query,
-        hasData: !!'data' in ctx.update.callback_query
+        hasCallbackData: 'data' in ctx.update.callback_query
       })
       
       await ctx.answerCbQuery()
@@ -477,7 +467,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       hasUpdate: !!ctx.update,
       updateType: Object.keys(ctx.update || {}),
       isMessage: 'message' in (ctx.update || {}),
-      messageText: 'message' in (ctx.update || {}) && ctx.update.message && 'text' in ctx.update.message ? ctx.update.message.text?.substring(0, 50) : 'NO_TEXT',
+      messageText: 'message' in (ctx.update || {}) && (ctx.update as any).message && 'text' in (ctx.update as any).message ? (ctx.update as any).message.text?.substring(0, 50) : 'NO_TEXT',
       sessionSelectedAspectRatio: ctx.session.selectedAspectRatio,
       sessionSelectedDuration: ctx.session.selectedDuration
     })
