@@ -15,9 +15,6 @@ export type VideoModelId =
   | 'wan-image-to-video'
   | 'wan-text-to-video'
   | 'minimax'
-  | 'veo-3'
-  | 'veo-3-fast'
-  | 'veo-2'
   // Kie.ai модели
   | 'kie-veo-3-fast'
   | 'kie-veo-3'

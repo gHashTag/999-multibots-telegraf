@@ -30,8 +30,15 @@ async function processVideoGeneration(
   try {
     // Преобразуем VideoModelConfigKey в VideoModelId
     const modelMapping: Record<VideoModelConfigKey, VideoModelId> = {
-      'veo-3': 'veo-3',
-      'veo-3-fast': 'veo-3-fast',
+      'kie-veo-3-fast': 'kie-veo-3-fast',
+      'kie-veo-3': 'kie-veo-3',
+      'kie-runway-aleph': 'kie-runway-aleph',
+      'kling-v1.6-pro': 'kling-v1.6-pro',
+      'ray-v2': 'ray-v2',
+      'hunyuan-video-fast': 'hunyuan-video-fast',
+      'wan-image-to-video': 'wan-image-to-video',
+      'wan-text-to-video': 'wan-text-to-video',
+      'minimax': 'minimax',
     }
 
     const videoModelId = modelMapping[videoModelKey]
