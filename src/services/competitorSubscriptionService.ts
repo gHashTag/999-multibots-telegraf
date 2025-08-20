@@ -1,10 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
-import { 
-  getCompetitorSubscriptions,
-  createCompetitorSubscription 
-} from '@/core/supabase/instagramDatabase'
+import { competitorMonitoringApi } from './competitorMonitoringApiService'
 import { Markup } from 'telegraf'
 
 // Пользователь сам вводит конкурентов - никаких готовых списков!
@@ -29,13 +26,13 @@ export async function handleCompetitorMonitoring(ctx: MyContext): Promise<void> 
   try {
     logger.info('[Competitor Monitoring] Getting user subscriptions', { telegramId })
 
-    // Получаем существующие подписки пользователя
-    logger.info('[Competitor Monitoring] Calling getCompetitorSubscriptions...')
-    const existingSubscriptions = await getCompetitorSubscriptions(
+    // Получаем существующие подписки пользователя через API сервис
+    logger.info('[Competitor Monitoring] Calling competitorMonitoringApi.getSubscriptions...')
+    const existingSubscriptions = await competitorMonitoringApi.getSubscriptions(
       telegramId,
       'telegram_bot'
     )
-    logger.info('[Competitor Monitoring] getCompetitorSubscriptions returned', { 
+    logger.info('[Competitor Monitoring] competitorMonitoringApi.getSubscriptions returned', { 
       subscriptionsCount: existingSubscriptions.length,
       subscriptions: existingSubscriptions 
     })
@@ -182,50 +179,24 @@ export async function addCompetitorSubscription(
         : 'Adding subscription...'
     )
 
-    console.log('📞 [addCompetitorSubscription] Calling createCompetitorSubscription...')
-    const subscription = await createCompetitorSubscription({
-      user_telegram_id: telegramId,
-      bot_name: 'telegram_bot',
-      competitor_username: competitorUsername,
-      max_reels: 15, // До 15 рилсов за день
-      min_views: 5000, // Минимум 5к просмотров
-      max_age_days: 1, // Только за последний день
-      delivery_format: 'individual' // Каждый рилс отдельно
+    console.log('📞 [addCompetitorSubscription] Calling competitorMonitoringApi.createSubscription...')
+    const result = await competitorMonitoringApi.createSubscription(ctx, {
+      competitorUsername,
+      maxReels: 15, // До 15 рилсов за день
+      minViews: 5000, // Минимум 5к просмотров
+      maxAgeDays: 1, // Только за последний день
+      deliveryFormat: 'individual' // Каждый рилс отдельно
     })
     
-    console.log('📞 [addCompetitorSubscription] createCompetitorSubscription result:', !!subscription)
+    console.log('📞 [addCompetitorSubscription] competitorMonitoringApi.createSubscription result:', result.success)
 
-    if (subscription) {
+    if (result.success) {
       console.log('✅ [addCompetitorSubscription] Subscription created, sending success message...')
-      await ctx.reply(
-        isRu
-          ? `✅ Подписка на @${competitorUsername} создана!
-
-📊 Настройки:
-• До 15 рилсов в день
-• Минимум 5,000 просмотров  
-• Доставка: каждый рилс отдельно
-• Обновление: каждые 24 часа
-
-🎬 Начнем присылать новый контент завтра в 08:00 UTC`
-          : `✅ Subscription to @${competitorUsername} created!
-
-📊 Settings:
-• Up to 15 reels per day
-• Minimum 5,000 views
-• Delivery: individual reels
-• Updates: every 24 hours
-
-🎬 Will start sending new content tomorrow at 08:00 UTC`
-      )
+      await ctx.reply(result.message)
       console.log('✅ [addCompetitorSubscription] Success message sent')
     } else {
       console.log('❌ [addCompetitorSubscription] Subscription creation failed, sending error message...')
-      await ctx.reply(
-        isRu
-          ? '❌ Не удалось создать подписку. Возможно, достигнут лимит (10 подписок)'
-          : '❌ Failed to create subscription. Limit (10 subscriptions) may be reached'
-      )
+      await ctx.reply(result.message)
     }
 
   } catch (error) {
