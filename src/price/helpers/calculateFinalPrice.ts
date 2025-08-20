@@ -24,7 +24,7 @@ export function calculateFinalPrice(
   if (modelKey === 'kie-veo-3-fast') {
     logger.info('calculateFinalPrice: Using fixed price for Veo 3 Fast', {
       modelKey,
-      fixedPriceInStars: 40
+      fixedPriceInStars: 40,
     })
     return 40
   }
@@ -32,7 +32,7 @@ export function calculateFinalPrice(
   if (modelKey === 'kie-veo-3') {
     logger.info('calculateFinalPrice: Using fixed price for Veo 3', {
       modelKey,
-      fixedPriceInStars: 202
+      fixedPriceInStars: 202,
     })
     return 202
   }

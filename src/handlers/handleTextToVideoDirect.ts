@@ -38,14 +38,17 @@ export async function handleTextToVideoDirect(
   // Получаем корректную длительность для модели
   const validDuration = getValidDuration(modelId, duration)
 
-  logger.info('[handleTextToVideoDirect] ASPECT RATIO CHECK - Starting video generation', {
-    telegram_id,
-    username,
-    modelId,
-    duration: validDuration,
-    aspectRatio: aspectRatio,
-    promptLength: prompt.length,
-  })
+  logger.info(
+    '[handleTextToVideoDirect] ASPECT RATIO CHECK - Starting video generation',
+    {
+      telegram_id,
+      username,
+      modelId,
+      duration: validDuration,
+      aspectRatio: aspectRatio,
+      promptLength: prompt.length,
+    }
+  )
 
   // Проверка подписки
   const hasSubscription = await checkSubscriptionGuard(ctx, 'NeuroVideo')
@@ -129,12 +132,15 @@ export async function handleTextToVideoDirect(
       monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
     } else {
       // Если нет jobId, но генерация запущена, показываем сообщение
-      logger.info('[handleTextToVideoDirect] No jobId received, generation started without monitoring', {
-        telegram_id,
-        modelId,
-        hasMessage: !!response.message
-      })
-      
+      logger.info(
+        '[handleTextToVideoDirect] No jobId received, generation started without monitoring',
+        {
+          telegram_id,
+          modelId,
+          hasMessage: !!response.message,
+        }
+      )
+
       await ctx.telegram.editMessageText(
         ctx.chat!.id,
         processingMessage.message_id,
@@ -304,7 +310,7 @@ async function handleVideoReady(
       ],
       resize_keyboard: true,
     }
-    
+
     await ctx.reply(
       is_ru
         ? 'Ваше видео готово! Что дальше?'
