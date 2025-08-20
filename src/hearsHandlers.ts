@@ -921,29 +921,17 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
   // === МОНИТОРИНГ КОНКУРЕНТОВ INSTAGRAM ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT ===
   bot.hears(['🔍 Мониторинг конкурентов', '🔍 Competitor Monitoring', '🔍 Парсинг', '🔍 Parsing'], async ctx => {
+    console.log('🚨🚨🚨 COMPETITOR MONITORING BUTTON CLICKED! 🚨🚨🚨')
+    
     const userId = ctx.from?.id?.toString()
     const adminIds = process.env.ADMIN_IDS?.split(',') || []
-
-    // Массив сотрудников бота @HaimGroupMedia_bot с доступом к мониторингу конкурентов + Админы
-
     const hasAccess = userId && (HAIM_GROUP_STAFF_IDS.includes(userId) || adminIds.includes(userId))
 
-    logger.info('GLOBAL HEARS: Competitor Monitoring button pressed', {
-      telegramId: ctx.from?.id,
-      userId,
-      hasAccess,
-      isStaff: userId ? HAIM_GROUP_STAFF_IDS.includes(userId) : false,
-      isAdmin: userId ? adminIds.includes(userId) : false,
-    })
+    console.log('ACCESS CHECK:', { userId, hasAccess })
 
     // Проверяем доступ по Telegram ID
     if (!hasAccess) {
-      logger.warn('Competitor monitoring access denied', {
-        telegramId: ctx.from?.id,
-        userId,
-        reason: 'Not in HaimGroupMedia staff list or admin list',
-      })
-
+      console.log('❌ ACCESS DENIED!')
       const isRu = isRussianFromState(ctx)
       await ctx.reply(
         isRu
@@ -953,33 +941,51 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       return
     }
 
+    console.log('✅ ACCESS GRANTED! Starting competitor monitoring...')
+
     try {
-      logger.info('Instagram monitoring access granted - showing competitor subscriptions', {
-        telegramId: ctx.from?.id,
-        userId,
-      })
-
-      // Импортируем функцию мониторинга конкурентов
-      logger.info('Importing competitorSubscriptionService module...')
-      const { handleCompetitorMonitoring } = await import('@/services/competitorSubscriptionService')
-      logger.info('Successfully imported competitorSubscriptionService module')
+      const isRu = isRussianFromState(ctx)
       
-      logger.info('Calling handleCompetitorMonitoring function...')
-      await handleCompetitorMonitoring(ctx)
-      logger.info('handleCompetitorMonitoring function completed successfully')
+      // ПРОСТОЙ ПОДХОД: Прямо здесь показываем интерфейс без сложных функций
+      console.log('🎯 Showing simple competitor monitoring interface...')
+      
+      await ctx.reply(
+        isRu
+          ? `🔍 **Мониторинг конкурентов Instagram**
 
-      logger.info('Successfully showed competitor monitoring interface', {
-        telegramId: ctx.from?.id,
-      })
+📺 Получайте новый контент конкурентов каждые 24 часа
+🎬 Видео и рилсы с высокими просмотрами
+📊 Аналитика трендов
+
+✏️ **Введите Instagram username конкурента** (без @):
+
+💡 Например: neuro_sage`
+          : `🔍 **Instagram Competitor Monitoring**
+
+📺 Get new competitor content every 24 hours
+🎬 Videos and reels with high views
+📊 Trend analytics
+
+✏️ **Enter competitor Instagram username** (without @):
+
+💡 Example: neuro_sage`,
+        {
+          parse_mode: 'Markdown'
+        }
+      )
+
+      // Устанавливаем состояние ожидания ввода
+      if (!ctx.session.competitorMonitoring) {
+        ctx.session.competitorMonitoring = {}
+      }
+      ctx.session.competitorMonitoring.waitingForUsername = true
+
+      console.log('✅ Simple interface shown successfully')
 
     } catch (error) {
-      logger.error('Error showing competitor monitoring:', {
-        error: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-        telegramId: ctx.from?.id,
-        phase: 'main_try_catch'
-      })
-
+      console.log('💥💥💥 ERROR! 💥💥💥')
+      console.log('Error:', error)
+      
       const isRu = isRussianFromState(ctx)
       await ctx.reply(
         isRu
