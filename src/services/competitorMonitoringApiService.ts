@@ -117,7 +117,7 @@ export class CompetitorMonitoringApiService {
       // Подготавливаем данные для создания подписки
       const subscriptionData: CreateSubscriptionRequest = {
         user_telegram_id: userTelegramId,
-        bot_name: ctx.botInfo?.username || 'telegram_bot',
+        bot_name: 'telegram_bot', // Фиксированное имя для консистентности
         competitor_username: competitorUsername.replace('@', ''),
         max_reels: maxReels,
         min_views: minViews,
@@ -306,7 +306,7 @@ export class CompetitorMonitoringApiService {
         {
           params: {
             user_telegram_id: userTelegramId,
-            bot_name: ctx.botInfo?.username || 'telegram_bot'
+            bot_name: 'telegram_bot' // Фиксированное имя для консистентности
           },
           timeout: 10000,
           headers: {
@@ -398,7 +398,7 @@ export class CompetitorMonitoringApiService {
         {
           ...updates,
           user_telegram_id: userTelegramId,
-          bot_name: ctx.botInfo?.username || 'telegram_bot'
+          bot_name: 'telegram_bot' // Фиксированное имя для консистентности
         },
         {
           timeout: 10000,
