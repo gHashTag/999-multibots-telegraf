@@ -230,20 +230,18 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
   },
 
-  // Новые доступные модели через Kie.ai API
+  // Kie.ai модели - с правильными ценами из unified-pricing.config.ts
   'kie-veo-3-fast': {
     id: 'kie-veo-3-fast',
-    title: 'Veo 3 Fast',
+    title: 'Kie.ai Veo 3 Fast',
     inputType: ['text', 'image'],
     description:
-      '⚡ БЫСТРО: Veo 3 Fast с аудио - от 9⭐ за 2 сек до 46⭐ за 10 сек',
-    basePrice: 0.05,
+      '⚡ БЫСТРО: Veo 3 Fast через Kie.ai - от 9⭐ за 2 сек до 46⭐ за 10 сек (83% экономия)',
+    basePrice: 0.05, // Цена за секунду из KIE_AI_MODELS_PRICING
     api: {
-      model: 'google/veo-3-fast',
+      model: 'kie-veo-3-fast',
       input: {
-        prompt_optimizer: true,
-        duration_seconds: 5,
-        enable_audio: true,
+        duration: 5, // Длительность по умолчанию
       },
     },
     imageKey: 'image',
@@ -251,33 +249,30 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   },
   'kie-veo-3': {
     id: 'kie-veo-3',
-    title: 'Veo 3 Quality',
+    title: 'Kie.ai Veo 3 Quality',
     inputType: ['text'],
     description:
-      '🎯 КАЧЕСТВО: Veo 3 премиум с аудио - от 18⭐ за 2 сек до 93⭐ за 10 сек',
-    basePrice: 0.25,
+      '🎯 КАЧЕСТВО: Veo 3 премиум через Kie.ai - от 18⭐ за 2 сек до 93⭐ за 10 сек (38% экономия)',
+    basePrice: 0.25, // Цена за секунду из KIE_AI_MODELS_PRICING
     api: {
-      model: 'google/veo-3',
+      model: 'kie-veo-3',
       input: {
-        prompt_optimizer: true,
-        duration_seconds: 8,
-        enable_audio: true,
+        duration: 8, // Длительность по умолчанию
       },
     },
     canMorph: false,
   },
   'kie-runway-aleph': {
     id: 'kie-runway-aleph',
-    title: 'Runway Aleph',
+    title: 'Kie.ai Runway Aleph',
     inputType: ['text', 'image'],
     description:
-      '🎬 ПРЕМИУМ: Runway Aleph высококачественное видео - от 18⭐ за 2 сек до 93⭐ за 10 сек',
-    basePrice: 0.3,
+      '🎬 ПРЕМИУМ: Runway Aleph через Kie.ai - от 18⭐ за 2 сек до 93⭐ за 10 сек (25% экономия)',
+    basePrice: 0.3, // Цена за секунду из KIE_AI_MODELS_PRICING
     api: {
-      model: 'runway-ml/runway-aleph',
+      model: 'kie-runway-aleph',
       input: {
-        prompt_optimizer: true,
-        duration_seconds: 6,
+        duration: 6, // Длительность по умолчанию
       },
     },
     imageKey: 'image',
