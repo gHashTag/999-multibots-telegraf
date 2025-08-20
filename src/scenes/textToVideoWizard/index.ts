@@ -323,9 +323,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     // Проверяем, нужно ли показать выбор длительности для Veo моделей
     else if (
       modelConfig.durationOptions &&
-      modelConfig.durationOptions.length > 0
+      modelConfig.durationOptions.length > 1
     ) {
-      // Показываем клавиатуру выбора длительности
+      // Показываем клавиатуру выбора длительности только если есть выбор
       logger.info(
         `[TextToVideoWizard Step 1] Showing duration selection for ${foundModelKey}`
       )
@@ -336,6 +336,16 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.replyWithHTML(text, createDurationKeyboard(foundModelKey, isRu))
       return ctx.wizard.next() // Переход к шагу обработки выбора длительности
+    }
+    // Если у модели только одна длительность, устанавливаем её автоматически
+    else if (
+      modelConfig.durationOptions &&
+      modelConfig.durationOptions.length === 1
+    ) {
+      ctx.session.selectedDuration = modelConfig.durationOptions[0]
+      logger.info(
+        `[TextToVideoWizard Step 1] Auto-selected single duration for ${foundModelKey}: ${modelConfig.durationOptions[0]}`
+      )
     }
     // Проверяем, нужно ли показать выбор разрешения для WAN моделей
     else if (
@@ -406,7 +416,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           // Теперь проверяем, нужно ли показать выбор длительности
           if (
             modelConfig.durationOptions &&
-            modelConfig.durationOptions.length > 0
+            modelConfig.durationOptions.length > 1
           ) {
             const text = isRu
               ? `⏱️ Выберите длительность для ${modelConfig.title}:`
@@ -418,7 +428,18 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             )
             return // Остаемся на том же шаге для выбора длительности
           } else {
-            // Если нет выбора длительности, переходим к вводу промпта
+            // Если у модели только одна длительность, устанавливаем её автоматически
+            if (
+              modelConfig.durationOptions &&
+              modelConfig.durationOptions.length === 1
+            ) {
+              ctx.session.selectedDuration = modelConfig.durationOptions[0]
+              logger.info(
+                `[TextToVideoWizard Step 2] Auto-selected single duration after aspect ratio: ${modelConfig.durationOptions[0]}`
+              )
+            }
+            
+            // Переходим к вводу промпта
             await ctx.reply(
               isRu
                 ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
