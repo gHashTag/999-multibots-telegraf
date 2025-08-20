@@ -306,39 +306,31 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     id: 'kie-veo-3-fast',
     title: 'Вео 3 фаст',
     inputType: ['text', 'image'],
-    description: '⚡ БЫСТРО: Вео 3 фаст - от 10⭐ за 2 сек до 50⭐ за 10 сек',
-    basePrice: 0.08, // Базовая цена за секунду
+    description: '🚀 БЫСТРО: 8 сек, 720p, быстрый режим - 40⭐ (экономия до 87%)',
+    basePrice: 0.64, // $0.64 USD за 8 секунд = 40 звезд
     api: {
       model: 'google/veo-3-fast',
       input: {
-        duration: 8, // Длительность по умолчанию
+        duration: 8, // Фиксированная длительность 8 секунд
         aspect_ratio: (userAspect: string) =>
           userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     imageKey: 'image',
     canMorph: false,
-    durationOptions: [2, 4, 6, 8, 10], // Поддерживаемые длительности
     aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
-    priceByDuration: {
-      2: 0.16, // 2 * 0.08 = 0.16 USD = ~10⭐
-      4: 0.32, // 4 * 0.08 = 0.32 USD = ~20⭐
-      6: 0.48, // 6 * 0.08 = 0.48 USD = ~30⭐
-      8: 0.64, // 8 * 0.08 = 0.64 USD = ~40⭐
-      10: 0.8, // 10 * 0.08 = 0.80 USD = ~50⭐
-    },
   },
   'kie-veo-3': {
     id: 'kie-veo-3',
     title: 'Вео 3',
     inputType: ['text'],
     description:
-      '🎯 КАЧЕСТВО: Вео 3 премиум - 202⭐ за 8 сек (конкурентная цена!)',
-    basePrice: 0.404, // Конкурентная цена: 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек
+      '⭐ ПРЕМИУМ: 8 сек, 1080p, премиум качество - 202⭐ (экономия до 37%)',
+    basePrice: 3.23, // $3.23 USD за 8 секунд = 202 звезды
     api: {
       model: 'google/veo-3',
       input: {
-        duration: 8, // Длительность по умолчанию
+        duration: 8, // Фиксированная длительность 8 секунд
         aspect_ratio: (userAspect: string) =>
           userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
