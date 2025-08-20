@@ -125,7 +125,9 @@ export function createAspectRatioKeyboard(
 ): ReturnType<typeof Markup.keyboard> {
   const config = VIDEO_MODELS_CONFIG[modelKey]
   if (!config.aspectRatioOptions) {
-    return Markup.keyboard([[isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu']]).resize()
+    return Markup.keyboard([
+      [isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'],
+    ]).resize()
   }
 
   const buttons = config.aspectRatioOptions.map(aspectRatio => {

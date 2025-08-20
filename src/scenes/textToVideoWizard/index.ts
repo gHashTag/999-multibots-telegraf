@@ -38,27 +38,30 @@ async function processVideoGeneration(
       'hunyuan-video-fast': 'hunyuan-video-fast',
       'wan-image-to-video': 'wan-image-to-video',
       'wan-text-to-video': 'wan-text-to-video',
-      'minimax': 'minimax',
+      minimax: 'minimax',
     }
 
     const videoModelId = modelMapping[videoModelKey]
     if (!videoModelId) {
-      logger.error('[processVideoGeneration] Unknown model key', { videoModelKey })
+      logger.error('[processVideoGeneration] Unknown model key', {
+        videoModelKey,
+      })
       await ctx.reply(
-        isRu
-          ? '❌ Неизвестная модель видео.'
-          : '❌ Unknown video model.'
+        isRu ? '❌ Неизвестная модель видео.' : '❌ Unknown video model.'
       )
       return
     }
 
     // Логируем параметры перед отправкой на сервер
-    logger.info('[processVideoGeneration] ASPECT RATIO CHECK - calling handleTextToVideoDirect', {
-      videoModelId,
-      selectedDuration: ctx.session.selectedDuration,
-      selectedAspectRatio: ctx.session.selectedAspectRatio,
-      telegram_id: ctx.from?.id
-    })
+    logger.info(
+      '[processVideoGeneration] ASPECT RATIO CHECK - calling handleTextToVideoDirect',
+      {
+        videoModelId,
+        selectedDuration: ctx.session.selectedDuration,
+        selectedAspectRatio: ctx.session.selectedAspectRatio,
+        telegram_id: ctx.from?.id,
+      }
+    )
 
     // Используем серверную генерацию через handleTextToVideoDirect
     // Она уже включает проверку баланса, списание средств и отправку видео
@@ -69,7 +72,6 @@ async function processVideoGeneration(
       ctx.session.selectedDuration,
       ctx.session.selectedAspectRatio
     )
-
   } catch (error) {
     logger.error('[processVideoGeneration] Error:', error)
     await ctx.reply(
@@ -86,11 +88,14 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 0: Вход и выбор модели
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 0] 🚨 WIZARD STARTED for user ${ctx.from?.id}`, {
-      currentStep: ctx.wizard.cursor,
-      hasUpdate: !!ctx.update,
-      updateType: Object.keys(ctx.update || {}),
-    })
+    logger.info(
+      `[TextToVideoWizard Step 0] 🚨 WIZARD STARTED for user ${ctx.from?.id}`,
+      {
+        currentStep: ctx.wizard.cursor,
+        hasUpdate: !!ctx.update,
+        updateType: Object.keys(ctx.update || {}),
+      }
+    )
     const isRu = isRussianFromState(ctx)
     await ctx.reply(isRu ? 'Выберите модель:' : 'Select a model:', {
       reply_markup: createVideoModelKeyboard(isRu, 'text').reply_markup,
@@ -100,13 +105,21 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 1: Обработка выбора модели, проверка баланса и запрос промпта
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 1] 🚨 MODEL SELECTION STEP for user ${ctx.from?.id}`, {
-      currentStep: ctx.wizard.cursor,
-      hasUpdate: !!ctx.update,
-      updateType: Object.keys(ctx.update || {}),
-      isMessage: 'message' in (ctx.update || {}),
-      messageText: 'message' in (ctx.update || {}) && (ctx.update as any).message && 'text' in (ctx.update as any).message ? (ctx.update as any).message.text : 'NO_TEXT'
-    })
+    logger.info(
+      `[TextToVideoWizard Step 1] 🚨 MODEL SELECTION STEP for user ${ctx.from?.id}`,
+      {
+        currentStep: ctx.wizard.cursor,
+        hasUpdate: !!ctx.update,
+        updateType: Object.keys(ctx.update || {}),
+        isMessage: 'message' in (ctx.update || {}),
+        messageText:
+          'message' in (ctx.update || {}) &&
+          (ctx.update as any).message &&
+          'text' in (ctx.update as any).message
+            ? (ctx.update as any).message.text
+            : 'NO_TEXT',
+      }
+    )
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
@@ -192,10 +205,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         ? `📱 Выберите соотношение сторон для ${modelConfig.title}:`
         : `📱 Select aspect ratio for ${modelConfig.title}:`
 
-      await ctx.reply(
-        text,
-        createAspectRatioKeyboard(foundModelKey, isRu)
-      )
+      await ctx.reply(text, createAspectRatioKeyboard(foundModelKey, isRu))
       return ctx.wizard.next() // Переход к шагу обработки выбора соотношения сторон
     }
     // Проверяем, нужно ли показать выбор длительности для Veo моделей
@@ -258,7 +268,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 2: Обработка выбора соотношения сторон (простые кнопки)
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 2] 🚨 ASPECT RATIO SELECTION for user ${ctx.from?.id}`)
+    logger.info(
+      `[TextToVideoWizard Step 2] 🚨 ASPECT RATIO SELECTION for user ${ctx.from?.id}`
+    )
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
@@ -278,15 +290,26 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     const selectedText = message.text
 
     // Проверяем кнопку "Назад"
-    if (selectedText === '⬅️ Назад в меню' || selectedText === '⬅️ Back to Menu') {
+    if (
+      selectedText === '⬅️ Назад в меню' ||
+      selectedText === '⬅️ Back to Menu'
+    ) {
       return ctx.scene.leave()
     }
 
     // Определяем выбранное соотношение сторон
     let selectedAspectRatio: string
-    if (selectedText.includes('9:16') || selectedText.includes('Вертикальное') || selectedText.includes('Vertical')) {
+    if (
+      selectedText.includes('9:16') ||
+      selectedText.includes('Вертикальное') ||
+      selectedText.includes('Vertical')
+    ) {
       selectedAspectRatio = '9:16'
-    } else if (selectedText.includes('16:9') || selectedText.includes('Горизонтальное') || selectedText.includes('Horizontal')) {
+    } else if (
+      selectedText.includes('16:9') ||
+      selectedText.includes('Горизонтальное') ||
+      selectedText.includes('Horizontal')
+    ) {
       selectedAspectRatio = '16:9'
     } else {
       await ctx.reply(
@@ -299,7 +322,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // Сохраняем выбор
     ctx.session.selectedAspectRatio = selectedAspectRatio
-    
+
     const modelKey = ctx.session.videoModel as VideoModelConfigKey
     const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
 
@@ -311,8 +334,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // Показываем подтверждение и переходим к вводу промпта
     const aspectText = isRu
-      ? selectedAspectRatio === '9:16' ? 'вертикальное (9:16)' : 'горизонтальное (16:9)'
-      : selectedAspectRatio === '9:16' ? 'vertical (9:16)' : 'horizontal (16:9)'
+      ? selectedAspectRatio === '9:16'
+        ? 'вертикальное (9:16)'
+        : 'горизонтальное (16:9)'
+      : selectedAspectRatio === '9:16'
+        ? 'vertical (9:16)'
+        : 'horizontal (16:9)'
 
     await ctx.reply(
       isRu
@@ -326,15 +353,23 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 3: Получение промпта и запуск генерации
   async ctx => {
-    logger.info(`[TextToVideoWizard Step 3] 🚨 PROMPT INPUT STEP for user ${ctx.from?.id}`, {
-      currentStep: ctx.wizard.cursor,
-      hasUpdate: !!ctx.update,
-      updateType: Object.keys(ctx.update || {}),
-      isMessage: 'message' in (ctx.update || {}),
-      messageText: 'message' in (ctx.update || {}) && (ctx.update as any).message && 'text' in (ctx.update as any).message ? (ctx.update as any).message.text?.substring(0, 50) : 'NO_TEXT',
-      sessionSelectedAspectRatio: ctx.session.selectedAspectRatio,
-      sessionSelectedDuration: ctx.session.selectedDuration
-    })
+    logger.info(
+      `[TextToVideoWizard Step 3] 🚨 PROMPT INPUT STEP for user ${ctx.from?.id}`,
+      {
+        currentStep: ctx.wizard.cursor,
+        hasUpdate: !!ctx.update,
+        updateType: Object.keys(ctx.update || {}),
+        isMessage: 'message' in (ctx.update || {}),
+        messageText:
+          'message' in (ctx.update || {}) &&
+          (ctx.update as any).message &&
+          'text' in (ctx.update as any).message
+            ? (ctx.update as any).message.text?.substring(0, 50)
+            : 'NO_TEXT',
+        sessionSelectedAspectRatio: ctx.session.selectedAspectRatio,
+        sessionSelectedDuration: ctx.session.selectedDuration,
+      }
+    )
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
@@ -391,29 +426,30 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // ЗАПУСК СЕРВЕРНОЙ ГЕНЕРАЦИИ
     logger.info(
-      `[TextToVideoWizard Step 3] ASPECT RATIO CHECK - Starting server generation for user ${ctx.from?.id}`, {
+      `[TextToVideoWizard Step 3] ASPECT RATIO CHECK - Starting server generation for user ${ctx.from?.id}`,
+      {
         videoModelKey,
         sessionSelectedDuration: ctx.session.selectedDuration,
         sessionSelectedAspectRatio: ctx.session.selectedAspectRatio,
-        prompt: prompt.substring(0, 50)
+        prompt: prompt.substring(0, 50),
       }
     )
-    
+
     try {
       // Запускаем серверную генерацию и ждем результата
       await processVideoGeneration(ctx, prompt, videoModelKey, isRu)
-      
+
       // После успешного запуска генерации выходим из сцены
       return ctx.scene.leave()
     } catch (error) {
       logger.error('[TextToVideoWizard] Generation error:', error)
-      
+
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при запуске генерации видео. Попробуйте еще раз.'
           : '❌ An error occurred while starting video generation. Please try again.'
       )
-      
+
       // В случае ошибки остаемся в сцене, чтобы пользователь мог попробовать снова
       return ctx.wizard.selectStep(ctx.wizard.cursor)
     }
