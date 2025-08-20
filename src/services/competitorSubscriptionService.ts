@@ -97,7 +97,7 @@ async function promptForCompetitorUsername(ctx: MyContext, isRu: boolean): Promi
   }
   ctx.session.competitorMonitoring.waitingForUsername = true
 
-  await ctx.reply(message, Markup.removeKeyboard())
+  await ctx.reply(message)
 }
 
 async function showExistingSubscriptions(
@@ -151,10 +151,7 @@ ${subscriptions.map((sub, index) =>
     ]
   ])
 
-  await ctx.reply(message, {
-    ...keyboard,
-    ...Markup.removeKeyboard()
-  })
+  await ctx.reply(message, keyboard)
 }
 
 export async function addCompetitorSubscription(
