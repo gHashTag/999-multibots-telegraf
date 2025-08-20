@@ -18,6 +18,10 @@ export type VideoModelId =
   | 'veo-3'
   | 'veo-3-fast'
   | 'veo-2'
+  // Kie.ai модели
+  | 'kie-veo-3-fast'
+  | 'kie-veo-3'
+  | 'kie-runway-aleph'
 
 interface TextToVideoRequest {
   prompt: string
@@ -103,8 +107,18 @@ export async function generateTextToVideo(
       bot_name,
     }
 
-    // Добавляем duration только для Veo моделей
-    if (['veo-3', 'veo-3-fast', 'veo-2'].includes(videoModel) && duration) {
+    // Добавляем duration для Veo и Kie.ai моделей
+    if (
+      [
+        'veo-3',
+        'veo-3-fast',
+        'veo-2',
+        'kie-veo-3-fast',
+        'kie-veo-3',
+        'kie-runway-aleph',
+      ].includes(videoModel) &&
+      duration
+    ) {
       requestBody.duration = duration
     }
 
