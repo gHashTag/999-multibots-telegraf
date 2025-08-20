@@ -31,10 +31,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
   // Настройка callback'ов для мониторинга конкурентов
   try {
-    import('@/services/competitorSubscriptionService').then(module => {
-      module.setupCompetitorCallbacks(bot)
-      logger.info('Competitor monitoring callbacks registered')
-    })
+    const { setupCompetitorCallbacks } = require('@/services/competitorSubscriptionService')
+    setupCompetitorCallbacks(bot)
+    logger.info('Competitor monitoring callbacks registered')
   } catch (error) {
     logger.error('Failed to setup competitor callbacks:', error)
   }

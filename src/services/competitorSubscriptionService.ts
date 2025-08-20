@@ -97,7 +97,7 @@ async function promptForCompetitorUsername(ctx: MyContext, isRu: boolean): Promi
   }
   ctx.session.competitorMonitoring.waitingForUsername = true
 
-  await ctx.reply(message)
+  await ctx.reply(message, Markup.removeKeyboard())
 }
 
 async function showExistingSubscriptions(
@@ -151,7 +151,10 @@ ${subscriptions.map((sub, index) =>
     ]
   ])
 
-  await ctx.reply(message, keyboard)
+  await ctx.reply(message, {
+    ...keyboard,
+    ...Markup.removeKeyboard()
+  })
 }
 
 export async function addCompetitorSubscription(
@@ -224,14 +227,20 @@ export async function addCompetitorSubscription(
 
 // Callback handlers для inline кнопок
 export function setupCompetitorCallbacks(bot: any): void {
+  console.log('🔧 [setupCompetitorCallbacks] Registering competitor monitoring callbacks...')
+  
   // Показать меню добавления конкурентов
   bot.action('add_new_competitor', async (ctx: MyContext) => {
+    console.log('➕ [Callback] add_new_competitor triggered')
     const isRu = isRussianFromState(ctx)
+    await ctx.answerCbQuery() // Обязательно отвечаем на callback query
     await promptForCompetitorUsername(ctx, isRu)
   })
 
   // Обновить список подписок
   bot.action('refresh_subscriptions', async (ctx: MyContext) => {
+    console.log('🔄 [Callback] refresh_subscriptions triggered')
+    await ctx.answerCbQuery() // Обязательно отвечаем на callback query
     await handleCompetitorMonitoring(ctx)
   })
 
@@ -240,7 +249,7 @@ export function setupCompetitorCallbacks(bot: any): void {
     const subscriptionId = ctx.match[1]
     const isRu = isRussianFromState(ctx)
     
-    console.log(`🗑️ [Delete Subscription] Attempting to delete subscription ID: ${subscriptionId}`)
+    console.log(`🗑️ [Callback] delete_subscription triggered for ID: ${subscriptionId}`)
     
     try {
       const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
@@ -264,6 +273,8 @@ export function setupCompetitorCallbacks(bot: any): void {
       )
     }
   })
+
+  console.log('✅ [setupCompetitorCallbacks] All competitor monitoring callbacks registered successfully')
 }
 
 // Обработка текстового ввода username конкурента
