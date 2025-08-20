@@ -131,21 +131,21 @@ export interface KieAiModelPrice {
 }
 
 export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
-  // Видео модели - РЕАЛЬНЫЕ ЦЕНЫ Kie.ai API (2025) как на сервере
+  // Видео модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
   'kie-veo-3-fast': {
-    pricePerSecondUSD: 0.05, // Реальная цена Kie.ai: $0.05/сек ($0.40 за 8 сек)
+    pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек (конкурентно с +8.1% наценкой)
     supportedDurations: [2, 4, 6, 8, 10],
-    defaultDuration: 5,
+    defaultDuration: 8,
     maxDuration: 10,
   },
   'kie-veo-3': {
-    pricePerSecondUSD: 0.25, // Реальная цена Kie.ai: $0.25/сек ($2.00 за 8 сек)
+    pricePerSecondUSD: 0.404, // 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек (конкурентно с +8.1% наценкой)
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 8,
     maxDuration: 10,
   },
   'kie-runway-aleph': {
-    pricePerSecondUSD: 0.30, // Цена как на сервере: $0.30/сек
+    pricePerSecondUSD: 0.485, // 182⭐ за 6 сек = $2.912 за 6 сек = $0.485/сек (конкурентно с +8.1% наценкой)
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 6,
     maxDuration: 10,
@@ -196,10 +196,15 @@ export function calculateKieAiPriceInStars(
 
   let totalCostUSD = 0
 
-  // Видео модели
+  // Видео модели - конкурентное ценообразование
   if (model.pricePerSecondUSD) {
     const finalDuration = duration || model.defaultDuration || 5
     totalCostUSD = model.pricePerSecondUSD * finalDuration
+    
+    // Для конкурентных видео моделей возвращаем точную цену в звёздах без дополнительной наценки
+    if (modelId === 'kie-veo-3-fast' || modelId === 'kie-veo-3' || modelId === 'kie-runway-aleph') {
+      return Math.floor(totalCostUSD / STAR_COST_USD)
+    }
   }
   // Модели изображений
   else if (model.pricePerImageUSD) {
@@ -211,6 +216,7 @@ export function calculateKieAiPriceInStars(
     totalCostUSD = model.priceBaseUSD
   }
 
+  // Для остальных моделей применяем стандартную наценку
   return usdToStars(totalCostUSD)
 }
 
