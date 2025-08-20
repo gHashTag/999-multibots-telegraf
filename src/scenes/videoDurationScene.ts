@@ -41,6 +41,14 @@ videoDurationScene.enter(async ctx => {
     return ctx.scene.leave()
   }
 
+  // Если у модели только одна поддерживаемая длительность, пропускаем выбор
+  if (model.supportedDurations.length === 1) {
+    const duration = model.supportedDurations[0]
+    ctx.session.videoDuration = duration
+    await handleTextToVideoDirect(ctx, prompt, modelId, duration)
+    return ctx.scene.leave()
+  }
+
   // Создаем кнопки с длительностями
   const buttons = model.supportedDurations.map(duration => {
     const price = getModelPriceInStars(modelId, duration)
