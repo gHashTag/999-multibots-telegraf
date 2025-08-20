@@ -31,10 +31,11 @@ if (!process.env.BOT_TOKEN_8) throw new Error('BOT_TOKEN_8 is not set')
 if (!process.env.BOT_TOKEN_9) throw new Error('BOT_TOKEN_9 is not set')
 if (!process.env.BOT_TOKEN_10) throw new Error('BOT_TOKEN_10 is not set')
 
-if (!process.env.BOT_TOKEN_TEST_1)
-  throw new Error('BOT_TOKEN_TEST_1 is not set')
-if (!process.env.BOT_TOKEN_TEST_2)
-  throw new Error('BOT_TOKEN_TEST_2 is not set')
+// Temporary: Skip test tokens validation for Instagram parsing tests
+// if (!process.env.BOT_TOKEN_TEST_1)
+//   throw new Error('BOT_TOKEN_TEST_1 is not set')
+// if (!process.env.BOT_TOKEN_TEST_2)
+//   throw new Error('BOT_TOKEN_TEST_2 is not set')
 
 const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_1,

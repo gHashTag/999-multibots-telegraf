@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
-import { getBotNameByToken, getBotByToken } from '@/core/bot'
+import { getBotNameByToken } from '@/core/bot'
+import { Telegraf } from 'telegraf'
 import { getBotToken } from '@/handlers/getBotToken'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
@@ -54,8 +55,13 @@ export async function sendInstagramParsingNotification(
   })
 
   try {
-    // Получаем нужный бот по имени
-    const bot = getBotByToken(getBotTokenByName(botName))
+    // Получаем токен и создаём бота
+    const token = getBotTokenByName(botName)
+    if (!token) {
+      logger.error('[Telegram Notifications] Bot token not found', { botName, telegramId })
+      return
+    }
+    const bot = new Telegraf(token)
     
     if (!bot) {
       logger.error('[Telegram Notifications] Bot not found', { botName, telegramId })
@@ -98,7 +104,7 @@ ${result.reportUrls.archive ? `• [ZIP Archive](${result.reportUrls.archive})` 
 
       await bot.telegram.sendMessage(telegramId, message, {
         parse_mode: 'Markdown',
-        disable_web_page_preview: false
+        link_preview_options: { is_disabled: false }
       })
     } else {
       // Ошибка в парсинге
@@ -157,7 +163,12 @@ export async function sendCompetitorReelsNotification(
   })
 
   try {
-    const bot = getBotByToken(getBotTokenByName(botName))
+    const token = getBotTokenByName(botName)
+    if (!token) {
+      logger.error('[Telegram Notifications] Bot token not found', { botName, telegramId })
+      return
+    }
+    const bot = new Telegraf(token)
     
     if (!bot) {
       logger.error('[Telegram Notifications] Bot not found', { botName, telegramId })
@@ -262,7 +273,7 @@ ${reel.caption ? `"${reel.caption.substring(0, 100)}${reel.caption.length > 100 
 
   await bot.telegram.sendMessage(telegramId, message, {
     parse_mode: 'Markdown',
-    disable_web_page_preview: false
+    link_preview_options: { is_disabled: false }
   })
 }
 
@@ -297,7 +308,7 @@ ${reel.caption ? `**Caption:**\n"${reel.caption.substring(0, 200)}${reel.caption
 
     await bot.telegram.sendMessage(telegramId, message, {
       parse_mode: 'Markdown',
-      disable_web_page_preview: false
+      link_preview_options: { is_disabled: false }
     })
 
     // Добавляем небольшую задержку между сообщениями
@@ -315,7 +326,7 @@ async function sendArchiveNotification(
   const message = isRu
     ? `📦 **Архив рилсов готов**
 
-👤 **Конкурент:** @${competitorUsername}
+👤 **Конкурент:** @${notification.competitorUsername}
 🎬 **Рилсов в архиве:** ${notification.newReelsCount}
 
 📋 Архив включает:

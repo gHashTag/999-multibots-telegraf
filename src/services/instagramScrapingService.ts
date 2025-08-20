@@ -118,8 +118,7 @@ export async function startInstagramScraping(
 
     logger.info('[Instagram Scraping Service] Event sent successfully to Inngest', {
       inngestResult,
-      debugSessionId,
-      eventId: inngestResult?.ids?.[0]
+      debugSessionId
     })
 
     const successMessage = isRu
@@ -150,7 +149,7 @@ export async function startInstagramScraping(
 
     return {
       success: true,
-      eventId: inngestResult?.ids?.[0] || debugSessionId,
+      eventId: debugSessionId,
       message: successMessage
     }
 
