@@ -1,0 +1,74 @@
+{
+  "timestamp": "2025-07-26T12:06:59.669Z",
+  "sourceImage": "/Users/playra/999-multibots-telegraf/assets/bible_vibecoder/lyps-sync.jpg",
+  "model": "black-forest-labs/flux-kontext-max",
+  "totalAngles": 8,
+  "successCount": 0,
+  "errorCount": 8,
+  "results": [
+    {
+      "angle": "🔍 Крупный план",
+      "filename": "01_closeup_emotion.jpg",
+      "status": "FAILED",
+      "error": "Replicate API error: Unprocessable Entity - {\"detail\":\"- version is required\\n- Additional property model is not allowed\\n\",\"status\":422,\"title\":\"Input validation failed\",\"invalid_fields\":[{\"type\":\"required\",\"field\":\"\",\"description\":\"version is required\"},{\"type\":\"additional_property_not_allowed\",\"field\":\"\",\"description\":\"Additional property model is not allowed\"}]}\n",
+      "duration": "5.7",
+      "priority": "HIGH"
+    },
+    {
+      "angle": "📷 Средний план",
+      "filename": "02_medium_performance.jpg",
+      "status": "FAILED",
+      "error": "Replicate API error: Unprocessable Entity - {\"detail\":\"- version is required\\n- Additional property model is not allowed\\n\",\"status\":422,\"title\":\"Input validation failed\",\"invalid_fields\":[{\"type\":\"required\",\"field\":\"\",\"description\":\"version is required\"},{\"type\":\"additional_property_not_allowed\",\"field\":\"\",\"description\":\"Additional property model is not allowed\"}]}\n",
+      "duration": "3.7",
+      "priority": "HIGH"
+    },
+    {
+      "angle": "🇺🇸 Американский план",
+      "filename": "03_american_cinematic.jpg",
+      "status": "FAILED",
+      "error": "Replicate API error: Unprocessable Entity - {\"detail\":\"- version is required\\n- Additional property model is not allowed\\n\",\"status\":422,\"title\":\"Input validation failed\",\"invalid_fields\":[{\"type\":\"required\",\"field\":\"\",\"description\":\"version is required\"},{\"type\":\"additional_property_not_allowed\",\"field\":\"\",\"description\":\"Additional property model is not allowed\"}]}\n",
+      "duration": "3.3",
+      "priority": "HIGH"
+    },
+    {
+      "angle": "📐 Нижний ракурс",
+      "filename": "04_lowangle_power.jpg",
+      "status": "FAILED",
+      "error": "Replicate API error: Unprocessable Entity - {\"detail\":\"- version is required\\n- Additional property model is not allowed\\n\",\"status\":422,\"title\":\"Input validation failed\",\"invalid_fields\":[{\"type\":\"required\",\"field\":\"\",\"description\":\"version is required\"},{\"type\":\"additional_property_not_allowed\",\"field\":\"\",\"description\":\"Additional property model is not allowed\"}]}\n",
+      "duration": "3.4",
+      "priority": "HIGH"
+    },
+    {
+      "angle": "🤠 Ковбойский план",
+      "filename": "05_cowboy_dance.jpg",
+      "status": "FAILED",
+      "error": "Replicate API error: Unprocessable Entity - {\"detail\":\"- version is required\\n- Additional property model is not allowed\\n\",\"status\":422,\"title\":\"Input validation failed\",\"invalid_fields\":[{\"type\":\"required\",\"field\":\"\",\"description\":\"version is required\"},{\"type\":\"additional_property_not_allowed\",\"field\":\"\",\"description\":\"Additional property model is not allowed\"}]}\n",
+      "duration": "3.8",
+      "priority": "ARTISTIC"
+    },
+    {
+      "angle": "🎭 Голландский угол",
+      "filename": "06_dutch_dramatic.jpg",
+      "status": "FAILED",
+      "error": "Replicate API error: Unprocessable Entity - {\"detail\":\"- version is required\\n- Additional property model is not allowed\\n\",\"status\":422,\"title\":\"Input validation failed\",\"invalid_fields\":[{\"type\":\"required\",\"field\":\"\",\"description\":\"version is required\"},{\"type\":\"additional_property_not_allowed\",\"field\":\"\",\"description\":\"Additional property model is not allowed\"}]}\n",
+      "duration": "3.5",
+      "priority": "ARTISTIC"
+    },
+    {
+      "angle": "👤 Профиль",
+      "filename": "07_profile_artistic.jpg",
+      "status": "FAILED",
+      "error": "Replicate API error: Unprocessable Entity - {\"detail\":\"- version is required\\n- Additional property model is not allowed\\n\",\"status\":422,\"title\":\"Input validation failed\",\"invalid_fields\":[{\"type\":\"required\",\"field\":\"\",\"description\":\"version is required\"},{\"type\":\"additional_property_not_allowed\",\"field\":\"\",\"description\":\"Additional property model is not allowed\"}]}\n",
+      "duration": "6.1",
+      "priority": "ARTISTIC"
+    },
+    {
+      "angle": "🌐 Общий план",
+      "filename": "08_wide_location.jpg",
+      "status": "FAILED",
+      "error": "Replicate API error: Unprocessable Entity - {\"detail\":\"- version is required\\n- Additional property model is not allowed\\n\",\"status\":422,\"title\":\"Input validation failed\",\"invalid_fields\":[{\"type\":\"required\",\"field\":\"\",\"description\":\"version is required\"},{\"type\":\"additional_property_not_allowed\",\"field\":\"\",\"description\":\"Additional property model is not allowed\"}]}\n",
+      "duration": "4.8",
+      "priority": "ARTISTIC"
+    }
+  ]
+}

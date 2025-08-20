@@ -8,16 +8,17 @@ import {
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
+// import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect' // ОТКЛЮЧЕНО: теперь только через сервер
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 
 /**
- * Гибридная функция для генерации neuro_photo:
- * План А: Отправляет запрос на сервер (предотвращает множественные генерации)
- * План Б: Если сервер недоступен, использует локальную обработку
+ * Функция для генерации neuro_photo через сервер:
+ * Всегда отправляет запрос ТОЛЬКО на сервер
+ * НЕ переключается на локальную обработку при ошибке
  *
  * ИСПРАВЛЯЕТ ПРОБЛЕМУ ОКРУГЛЕНИЯ: передает точную цену 7.5⭐ на сервер
+ * КРИТИЧЕСКИ ВАЖНО: Все запросы должны идти только через сервер!
  */
 export async function generateNeuroPhotoHybrid(
   prompt: string,
@@ -65,10 +66,10 @@ export async function generateNeuroPhotoHybrid(
     numImages,
   })
 
-  // ПЛАН А: Попытка отправки на сервер с точной ценой
+  // 🌐 КРИТИЧЕСКИ ВАЖНО: Отправляем ТОЛЬКО на сервер
   try {
     logger.info({
-      message: '🌐 [HYBRID] План А: Отправка запроса на сервер',
+      message: '🌐 [SERVER-ONLY] Отправка запроса на сервер',
       telegram_id,
     })
 
@@ -108,7 +109,7 @@ export async function generateNeuroPhotoHybrid(
     })
 
     logger.info({
-      message: '✅ [HYBRID] План А успешен - сервер ответил',
+      message: '✅ [SERVER-ONLY] Сервер успешно ответил',
       telegram_id,
       response_status: response.status,
       response_data: JSON.stringify(response.data),
@@ -117,7 +118,7 @@ export async function generateNeuroPhotoHybrid(
     // Проверяем содержимое ответа сервера
     if (!response.data) {
       logger.error({
-        message: '❌ [HYBRID] Сервер вернул пустой ответ',
+        message: '❌ [SERVER-ONLY] Сервер вернул пустой ответ',
         telegram_id,
         response_status: response.status,
       })
@@ -127,7 +128,7 @@ export async function generateNeuroPhotoHybrid(
     // Проверяем, есть ли ошибка в ответе сервера
     if (response.data.error) {
       logger.error({
-        message: '❌ [HYBRID] Сервер вернул ошибку',
+        message: '❌ [SERVER-ONLY] Сервер вернул ошибку',
         telegram_id,
         server_error: response.data.error,
       })
@@ -136,14 +137,17 @@ export async function generateNeuroPhotoHybrid(
 
     return response.data
   } catch (error) {
-    // Логируем ошибку сервера
+    // 🚫 КРИТИЧЕСКИ ВАЖНО: НЕ переключаемся на локальную обработку!
+    // Логируем ошибку сервера и возвращаем ошибку
     if (isAxiosError(error)) {
-      logger.warn({
-        message: '⚠️ [HYBRID] План А неудачен - ошибка сервера',
+      logger.error({
+        message:
+          '❌ [SERVER-ONLY] Ошибка сервера - локальная обработка ОТКЛЮЧЕНА',
         telegram_id,
         error_status: error.response?.status,
         error_message: error.response?.data?.error || error.message,
         error_code: error.code,
+        api_server_url: API_SERVER_URL,
       })
 
       // Специальная обработка NSFW
@@ -155,65 +159,36 @@ export async function generateNeuroPhotoHybrid(
         )
         return null
       }
+
+      // Специальная обработка недоступности сервера
+      if (
+        error.code === 'ECONNREFUSED' ||
+        error.response?.status === 502 ||
+        error.response?.status >= 500
+      ) {
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '🚫 Сервер генерации изображений временно недоступен. Пожалуйста, попробуйте позже или обратитесь в поддержку.'
+            : '🚫 Image generation server is temporarily unavailable. Please try again later or contact support.'
+        )
+        return null
+      }
     } else {
-      logger.warn({
-        message: '⚠️ [HYBRID] План А неудачен - неизвестная ошибка',
+      logger.error({
+        message: '❌ [SERVER-ONLY] Неизвестная ошибка сервера',
         telegram_id,
         error: String(error),
+        api_server_url: API_SERVER_URL,
       })
     }
 
-    // ПЛАН Б: Локальная обработка
-    logger.info({
-      message: '🔄 [HYBRID] Переключение на План Б: локальная обработка',
-      telegram_id,
-    })
+    // Отправляем сообщение об ошибке пользователю
+    await ctx.reply(
+      isRussianFromState(ctx)
+        ? '❌ Произошла ошибка при генерации изображения. Пожалуйста, попробуйте позже или обратитесь в поддержку.'
+        : '❌ An error occurred during image generation. Please try again later or contact support.'
+    )
 
-    try {
-      const localResult = await generateNeuroPhotoDirect(
-        prompt,
-        model_url,
-        numImages,
-        telegram_id,
-        ctx,
-        botName,
-        explicitAspectRatio,
-        {
-          disable_telegram_sending: false, // Разрешаем отправку сообщений
-          bypass_payment_check: false, // НЕ обходим проверку баланса
-        }
-      )
-
-      if (localResult && localResult.success) {
-        logger.info({
-          message: '✅ [HYBRID] План Б успешен - локальная обработка завершена',
-          telegram_id,
-        })
-      } else {
-        logger.error({
-          message:
-            '❌ [HYBRID] План Б неудачен - локальная обработка провалилась',
-          telegram_id,
-        })
-      }
-
-      return localResult
-    } catch (localError) {
-      logger.error({
-        message: '❌ [HYBRID] Критическая ошибка - оба плана провалились',
-        telegram_id,
-        server_error: String(error),
-        local_error: String(localError),
-      })
-
-      // Отправляем сообщение об ошибке пользователю
-      await ctx.reply(
-        isRussianFromState(ctx)
-          ? 'Произошла ошибка при генерации изображения. Пожалуйста, попробуйте позже.'
-          : 'An error occurred during image generation. Please try again later.'
-      )
-
-      return null
-    }
+    return null
   }
 }

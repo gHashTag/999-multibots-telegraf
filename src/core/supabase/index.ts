@@ -70,3 +70,6 @@ export { getUserBalanceStats } from './getUserBalanceStats'
 // ✅ Добавляем экспорт новых функций для работы с языком
 export { updateUserLanguage } from './updateUserLanguage'
 export { getUserLanguageFromDB } from './getUserLanguage'
+
+// ✅ Добавляем экспорт функции для HaimGroupMedia
+export { getActiveUserModelsByTypeForHaim } from './getActiveUserModelsByTypeForHaim'

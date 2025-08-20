@@ -1,0 +1,55 @@
+MUSIC VIDEO FRAME GENERATION PLAN
+==================================
+Date: 2025-07-26
+Source Image: assets/bible_vibecoder/lyps-sync.jpg
+Model: FLUX Kontext Max
+Output Directory: assets/music_video_frames/
+
+GENERATION SEQUENCE:
+1. 🔍 Крупный план → 01_closeup_emotion.jpg
+   Prompt: Emotional close-up shot for music video, intense facial expression, dramatic lighting
+   Priority: HIGH
+   Description: Эмоциональный крупный план - основа любого клипа
+
+2. 📷 Средний план → 02_medium_performance.jpg
+   Prompt: Medium shot for music video, perfect for lip sync and performance
+   Priority: HIGH
+   Description: Классический план для пения и перформанса
+
+3. 🇺🇸 Американский план → 03_american_cinematic.jpg
+   Prompt: American shot for music video, cinematic 3/4 framing, dynamic pose
+   Priority: HIGH
+   Description: Кинематографический план - золотой стандарт клипов
+
+4. 🤠 Ковбойский план → 04_cowboy_dance.jpg
+   Prompt: Cowboy shot for music video, hip level framing, energetic pose
+   Priority: MEDIUM
+   Description: Динамичный план для танцевальных сцен
+
+5. 🌐 Общий план → 05_wide_location.jpg
+   Prompt: Wide establishing shot for music video, full scene context
+   Priority: MEDIUM
+   Description: Общий план для показа локации и атмосферы
+
+6. 🎭 Голландский угол → 06_dutch_dramatic.jpg
+   Prompt: Dutch angle shot for music video, tilted dramatic composition, artistic tension
+   Priority: MEDIUM
+   Description: Драматический угол для художественного эффекта
+
+7. 📐 Нижний ракурс → 07_lowangle_power.jpg
+   Prompt: Low angle shot for music video, powerful upward perspective, commanding presence
+   Priority: HIGH
+   Description: Мощный ракурс для создания образа звезды
+
+8. 👤 Профиль → 08_profile_artistic.jpg
+   Prompt: Profile shot for music video, elegant side angle, artistic silhouette
+   Priority: MEDIUM
+   Description: Художественный профиль для стильных моментов
+
+QUALITY CRITERIA:
+- Cinematic Appeal (1-10)
+- Angle Accuracy (1-10)  
+- Music Video Suitability (1-10)
+
+EXPECTED TOTAL TIME: ~23 minutes
+ESTIMATED COST: $0.60 (~4 ⭐)
