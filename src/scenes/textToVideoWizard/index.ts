@@ -61,7 +61,8 @@ async function processVideoGeneration(
       ctx,
       prompt,
       videoModelId,
-      ctx.session.selectedDuration
+      ctx.session.selectedDuration,
+      ctx.session.selectedAspectRatio
     )
 
   } catch (error) {
@@ -495,13 +496,17 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     ctx.session.prompt = prompt
 
-    // ЗАПУСК СЕРВЕРНОЙ ГЕНЕРАЦИИ
+    // ЗАПУСК СЕРВЕРНОЙ ГЕНЕРАЦИИ В ФОНЕ
     logger.info(
       `[TextToVideoWizard Step 3] Starting server generation for user ${ctx.from?.id}`
     )
     
-    // Запускаем серверную генерацию (handleTextToVideoDirect уже обрабатывает все)
-    await processVideoGeneration(ctx, prompt, videoModelKey, isRu)
+    // Запускаем серверную генерацию в фоне (БЕЗ await)
+    processVideoGeneration(ctx, prompt, videoModelKey, isRu).catch(error => {
+      logger.error('[TextToVideoWizard] Background generation error:', error)
+    })
+
+    // НЕ показываем сообщение здесь - оно показывается в handleTextToVideoDirect
 
     return ctx.scene.leave()
   }
