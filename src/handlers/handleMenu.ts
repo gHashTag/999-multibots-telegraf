@@ -10,6 +10,7 @@ import { handleTechSupport } from '@/commands/handleTechSupport'
 import { handleRestartVideoGeneration } from './handleVideoRestart'
 // Импортируем функцию мониторинга конкурентов
 import { handleCompetitorMonitoring } from '@/services/competitorSubscriptionService'
+import { competitorMonitoringApi } from '@/services/competitorMonitoringApiService'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 // ✅ Обновляем импорты для новых функций языка
@@ -45,6 +46,69 @@ export const handleMenu = async (ctx: MyContext) => {
     currentLanguage,
     telegramLanguage: ctx.from?.language_code,
   })
+
+  // Обработка callback_query (для inline кнопок)
+  if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+    const callbackData = ctx.callbackQuery.data || ''
+    logger.info({
+      message: `📱 [handleMenu] Получен callback: "${callbackData}"`,
+      telegramId,
+      function: 'handleMenu',
+      callbackData,
+    })
+
+    console.log('CASE: handleMenuCommand.callback', callbackData)
+
+    // Проверяем callback для мониторинга конкурентов
+    if (callbackData === 'add_new_competitor') {
+      console.log('➕ [handleMenu] add_new_competitor callback')
+      const isRu = isRussianFromState(ctx)
+      await ctx.answerCbQuery()
+      const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
+      await promptForCompetitorUsername(ctx, isRu)
+      return
+    }
+
+    if (callbackData === 'refresh_subscriptions') {
+      console.log('🔄 [handleMenu] refresh_subscriptions callback')
+      await ctx.answerCbQuery()
+      await handleCompetitorMonitoring(ctx)
+      return
+    }
+
+    if (callbackData.startsWith('delete_subscription_')) {
+      const subscriptionId = callbackData.replace('delete_subscription_', '')
+      console.log(`🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`)
+      const isRu = isRussianFromState(ctx)
+      
+      try {
+        const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
+        
+        if (result.success) {
+          console.log(`✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`)
+          await ctx.answerCbQuery(result.message)
+          
+          // Обновляем список подписок после удаления
+          await handleCompetitorMonitoring(ctx)
+        } else {
+          console.log(`❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`)
+          await ctx.answerCbQuery(result.message)
+        }
+      } catch (error) {
+        console.log(`💥 [handleMenu] Error deleting subscription: ${error}`)
+        await ctx.answerCbQuery(
+          isRu 
+            ? '❌ Ошибка при удалении подписки' 
+            : '❌ Error deleting subscription'
+        )
+      }
+      return
+    }
+
+    // Если callback не обработан, отвечаем и возвращаемся
+    await ctx.answerCbQuery()
+    return
+  }
 
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text || ''
