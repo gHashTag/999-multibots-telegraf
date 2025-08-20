@@ -92,7 +92,7 @@ console.log('🚨 [SCENE_DEBUG] textToVideoWizard check:', {
   isImported: !!textToVideoWizard,
   hasId: textToVideoWizard?.id,
   wizardId: textToVideoWizard?.id,
-  sceneType: typeof textToVideoWizard
+  sceneType: typeof textToVideoWizard,
 })
 
 export const stage = new Scenes.Stage<MyContext>([
@@ -150,7 +150,7 @@ export const stage = new Scenes.Stage<MyContext>([
 console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
   totalScenes: stage.scenes.size,
   hasTextToVideoWizard: stage.scenes.has('text_to_video'),
-  sceneNames: Array.from(stage.scenes.keys())
+  sceneNames: Array.from(stage.scenes.keys()),
 })
 
 // Function to send the promotional message

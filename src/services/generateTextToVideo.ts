@@ -113,12 +113,12 @@ export async function generateTextToVideo(
       logger.info('ASPECT RATIO CHECK - Added aspectRatio to request body', {
         aspectRatio,
         videoModel,
-        telegram_id
+        telegram_id,
       })
     } else {
       logger.warn('ASPECT RATIO CHECK - No aspectRatio provided', {
         videoModel,
-        telegram_id
+        telegram_id,
       })
     }
 
@@ -138,12 +138,15 @@ export async function generateTextToVideo(
     }
 
     // Логируем финальное тело запроса
-    logger.info('ASPECT RATIO CHECK - Final request body being sent to server', {
-      url,
-      requestBody: JSON.stringify(requestBody, null, 2),
-      videoModel,
-      telegram_id
-    })
+    logger.info(
+      'ASPECT RATIO CHECK - Final request body being sent to server',
+      {
+        url,
+        requestBody: JSON.stringify(requestBody, null, 2),
+        videoModel,
+        telegram_id,
+      }
+    )
 
     // Отправляем запрос на сервер
     const response = await axios.post<TextToVideoResponse>(url, requestBody, {
