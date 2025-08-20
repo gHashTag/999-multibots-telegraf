@@ -24,6 +24,8 @@ import {
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 // Импортируем FLUX Kontext команду
 import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
+// Импортируем команду тестирования Instagram
+import { handleInstagramTest, handleInstagramTestCallback } from './commands/instagramTestCommand'
 // Импортируем сцену handleTextMessage
 import { handleTextMessage } from './handlers/handleTextMessage'
 
@@ -413,6 +415,29 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         await ctx.reply('❌ Произошла ошибка. Попробуйте позже.')
       }
     })
+
+    // 🧪 АДМИНСКАЯ КОМАНДА ТЕСТИРОВАНИЯ INSTAGRAM ПАРСИНГА
+    bot.command('instagram_test', async ctx => {
+      if (ctx.chat.type !== 'private') {
+        return sendGroupCommandReply(ctx)
+      }
+
+      logger.info('ADMIN TEST COMMAND /instagram_test called', {
+        telegramId: ctx.from?.id,
+        username: ctx.from?.username
+      })
+
+      await handleInstagramTest(ctx)
+    })
+
+    // Обработка callback'ов для тестовых команд Instagram
+    bot.action([
+      'instagram_test_quick',
+      'instagram_test_full', 
+      'instagram_test_custom',
+      'instagram_test_status',
+      'back_to_main'
+    ], handleInstagramTestCallback)
 
     // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
     setupInteractiveStats(bot)
