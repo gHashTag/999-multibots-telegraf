@@ -1,6 +1,5 @@
 import { VIDEO_MODELS_CONFIG } from '../config/models.config'
 import { calculateFinalPrice } from '@/price/helpers'
-import { calculateKieAiPriceInStars } from '@/config/unified-pricing.config'
 import { logger } from '@/utils/logger'
 
 export type VideoModelConfigKey = keyof typeof VIDEO_MODELS_CONFIG
@@ -21,14 +20,7 @@ export function formatModelButton(modelKey: VideoModelConfigKey): string {
   }
 
   // Для моделей с фиксированной ценой показываем стоимость
-  let finalPrice: number
-  if (modelKey.startsWith('kie-')) {
-    // Берем длительность по умолчанию из API конфига
-    const duration = config.api.input.duration || 5
-    finalPrice = calculateKieAiPriceInStars(modelKey, duration)
-  } else {
-    finalPrice = calculateFinalPrice(modelKey)
-  }
+  const finalPrice = calculateFinalPrice(modelKey)
 
   return `${config.title} (${finalPrice} ⭐)`
 }
@@ -96,12 +88,6 @@ export function getPriceForResolution(
   resolution: string
 ): number {
   const config = VIDEO_MODELS_CONFIG[modelKey]
-
-  // Для моделей Kie.ai всегда используем единую цену (они не поддерживают разрешения)
-  if (modelKey.startsWith('kie-')) {
-    const duration = config.api.input.duration || 5
-    return calculateKieAiPriceInStars(modelKey, duration)
-  }
 
   if (!config.priceByResolution) {
     return calculateFinalPrice(modelKey)
