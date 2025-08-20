@@ -298,6 +298,20 @@ const menuNextStep = async (ctx: MyContext) => {
     const text = ctx.update.message.text
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
+    // Проверяем, ожидается ли ввод username конкурента
+    try {
+      const { handleCompetitorUsernameInput } = await import('@/services/competitorSubscriptionService')
+      const handled = await handleCompetitorUsernameInput(ctx, text)
+      if (handled) {
+        logger.info('[menuNextStep] Competitor username input handled', {
+          telegramId: ctx.from?.id,
+        })
+        return // Выходим, если обработали ввод конкурента
+      }
+    } catch (error) {
+      logger.error('[menuNextStep] Error handling competitor username input:', error)
+    }
+
     // ВАЖНО: Обработка кнопки подписки напрямую в menuScene (все варианты)
     if (
       text === '💫 Оформить подписку' ||
@@ -319,70 +333,6 @@ const menuNextStep = async (ctx: MyContext) => {
       }
     }
 
-    // 🔍 ОБРАБОТКА КНОПКИ ПАРСИНГ ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT
-    if (text === '🔍 Парсинг' || text === '🔍 Parsing') {
-      const userId = ctx.from?.id?.toString()
-
-      logger.info(`[menuNextStep] PARSING BUTTON HANDLING: ${text}`, {
-        telegramId: ctx.from?.id,
-        userId,
-        hasAccess: userId ? HAIM_GROUP_STAFF_IDS.includes(userId) : false,
-      })
-
-      // Проверяем доступ по Telegram ID
-      if (!userId || !HAIM_GROUP_STAFF_IDS.includes(userId)) {
-        logger.warn('Instagram parsing access denied in menuScene', {
-          telegramId: ctx.from?.id,
-          userId,
-          reason: 'Not in HaimGroupMedia staff list',
-        })
-
-        const isRu = isRussianFromState(ctx)
-        await ctx.reply(
-          isRu
-            ? '❌ У вас нет доступа к функции парсинга Instagram.'
-            : '❌ You do not have access to Instagram parsing feature.'
-        )
-        return // Останавливаем обработку
-      }
-
-      try {
-        logger.info(
-          'Instagram parsing access granted - entering wizard from menuScene',
-          {
-            telegramId: ctx.from?.id,
-            userId,
-          }
-        )
-
-        await ctx.scene.leave() // Выходим из menuScene
-        ctx.session.mode = ModeEnum.InstagramScrapingWizard
-        await ctx.scene.enter(ModeEnum.InstagramScrapingWizard)
-
-        logger.info(
-          'Successfully entered Instagram scraping wizard from menuScene',
-          {
-            telegramId: ctx.from?.id,
-          }
-        )
-        return // Explicitly handled
-      } catch (error) {
-        logger.error(
-          'Error entering Instagram scraping wizard from menuScene:',
-          {
-            error,
-            telegramId: ctx.from?.id,
-          }
-        )
-
-        const isRu = isRussianFromState(ctx)
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка при запуске парсинга Instagram. Попробуйте позже.'
-            : '❌ Error starting Instagram parsing. Please try again later.'
-        )
-      }
-    }
 
     // Specific text button handling (example: "Generate new video?")
     if (

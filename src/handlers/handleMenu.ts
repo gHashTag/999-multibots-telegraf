@@ -429,6 +429,8 @@ export const handleMenu = async (ctx: MyContext) => {
         // Вызываем функцию мониторинга конкурентов
         await handleCompetitorMonitoring(ctx)
         
+        // После обработки мониторинга остаемся в текущей сцене
+        // Это позволит пользователю вводить username, если он нужен
         logger.info({
           message: '✅ [handleMenu] Завершен вызов handleCompetitorMonitoring',
           telegramId,
