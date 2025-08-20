@@ -20,6 +20,8 @@ export type VideoModelConfig = {
   canMorph?: boolean
   resolutionOptions?: string[]
   priceByResolution?: Record<string, number>
+  durationOptions?: number[] // Поддерживаемые длительности в секундах
+  priceByDuration?: Record<number, number> // Цена за каждую длительность
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
@@ -163,41 +165,6 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       },
     },
   },
-  'veo-3': {
-    id: 'veo-3',
-    title: 'Google Veo 3',
-    inputType: ['text'],
-    description:
-      '🔥 ПРЕМИУМ: Флагманская модель Google для создания видео с аудио в 4K качестве (высокая стоимость)',
-    basePrice: 0.75,
-    api: {
-      model: 'google/veo-3',
-      input: {
-        prompt_optimizer: true,
-        duration_seconds: 8,
-        enable_audio: true,
-      },
-    },
-    canMorph: false,
-  },
-  'veo-3-fast': {
-    id: 'veo-3-fast',
-    title: 'Google Veo 3 Fast',
-    inputType: ['text', 'image'],
-    description:
-      '⚡ БЫСТРО: Ускоренная версия Veo 3 с аудио - 300 ⭐ за 8-секундное видео',
-    basePrice: 0.384,
-    api: {
-      model: 'google/veo-3-fast',
-      input: {
-        prompt_optimizer: true,
-        duration_seconds: 8,
-        enable_audio: true,
-      },
-    },
-    imageKey: 'image',
-    canMorph: false,
-  },
   'seedance-1-pro': {
     id: 'seedance-1-pro',
     title: 'Seedance Pro',
@@ -260,6 +227,62 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       '480p': 0.02347, // 11⭐ = (11 * 0.016) / (5 * 1.5)
       '720p': 0.032, // 15⭐ = (15 * 0.016) / (5 * 1.5)
       '1080p': 0.04907, // 23⭐ = (23 * 0.016) / (5 * 1.5)
+    },
+    imageKey: 'image',
+    canMorph: false,
+  },
+
+  // Kie.ai модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
+  'kie-veo-3-fast': {
+    id: 'kie-veo-3-fast',
+    title: 'Veo 3 Fast',
+    inputType: ['text', 'image'],
+    description: '⚡ БЫСТРО: Veo 3 Fast - от 10⭐ за 2 сек до 50⭐ за 10 сек',
+    basePrice: 0.08, // Базовая цена за секунду
+    api: {
+      model: 'google/veo-3-fast',
+      input: {
+        duration: 8, // Длительность по умолчанию
+      },
+    },
+    imageKey: 'image',
+    canMorph: false,
+    durationOptions: [2, 4, 6, 8, 10], // Поддерживаемые длительности
+    priceByDuration: {
+      2: 0.16, // 2 * 0.08 = 0.16 USD = ~10⭐
+      4: 0.32, // 4 * 0.08 = 0.32 USD = ~20⭐
+      6: 0.48, // 6 * 0.08 = 0.48 USD = ~30⭐
+      8: 0.64, // 8 * 0.08 = 0.64 USD = ~40⭐
+      10: 0.8, // 10 * 0.08 = 0.80 USD = ~50⭐
+    },
+  },
+  'kie-veo-3': {
+    id: 'kie-veo-3',
+    title: 'Veo 3 Quality',
+    inputType: ['text'],
+    description:
+      '🎯 КАЧЕСТВО: Veo 3 премиум - 202⭐ за 8 сек (конкурентная цена!)',
+    basePrice: 0.404, // Конкурентная цена: 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек
+    api: {
+      model: 'google/veo-3',
+      input: {
+        duration: 8, // Длительность по умолчанию
+      },
+    },
+    canMorph: false,
+  },
+  'kie-runway-aleph': {
+    id: 'kie-runway-aleph',
+    title: 'Runway Aleph',
+    inputType: ['text', 'image'],
+    description:
+      '🎬 ПРЕМИУМ: Runway Aleph - 182⭐ за 6 сек (конкурентная цена!)',
+    basePrice: 0.485, // Конкурентная цена: 182⭐ за 6 сек = $2.912 за 6 сек = $0.485/сек
+    api: {
+      model: 'runwayml/gen-3-alpha',
+      input: {
+        duration: 6, // Длительность по умолчанию
+      },
     },
     imageKey: 'image',
     canMorph: false,

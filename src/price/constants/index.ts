@@ -2,8 +2,10 @@
 import {
   STAR_COST_USD,
   MARKUP_MULTIPLIER,
-  USD_TO_RUB_RATE,
 } from '@/config/unified-pricing.config'
+
+// Импортируем модуль для работы с курсом валют
+import { getCurrentRate } from '@/modules/currency-rate'
 
 // Экспортируем для обратной совместимости
 export const starCost = STAR_COST_USD
@@ -15,7 +17,7 @@ export const SYSTEM_CONFIG = {
   interestRate: MARKUP_MULTIPLIER,
   currency: 'RUB',
   subscriptionBonus: 0.0,
-  rubRate: USD_TO_RUB_RATE,
+  getRubRate: async () => await getCurrentRate(),
 }
 
 // Импорт типов после объявления примитивных констант
@@ -64,7 +66,7 @@ export const {
   starCost: systemStarCost,
   interestRate: systemInterestRate,
   subscriptionBonus,
-  rubRate,
+  getRubRate,
 } = SYSTEM_CONFIG
 
 export const conversionRates = {
