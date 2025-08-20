@@ -162,11 +162,27 @@ uploads/144022504/image-to-video/
 
 uploads/435572800/image-to-video/
 
-src/uploads/89962285/neuro-photo-direct/
+# Build artifacts
+dist/
+build/
 
-# Added by Claude Task Master
+# Test artifacts
+html-report/
+coverage/
+
+# Upload directories
+uploads/
+src/uploads/
+
+# Log files with rotation
+logs/
+*.log.*
 dev-debug.log
-# Environment variables
+
+# Temporary files  
+tmp/
+temp/
+
 # Editor directories and files
 .idea
 .vscode
@@ -175,7 +191,7 @@ dev-debug.log
 *.njsproj
 *.sln
 *.sw?
-# OS specific
+
 # Task files
 tasks.json
 tasks/
@@ -185,23 +201,7 @@ scripts/analytics/
 
 # Test files for debugging
 test_*.ts
-check_*.ts 
-src/uploads/144022504/flux-kontext-edit/
-
-src/uploads/144022504/flux-kontext-haircut/
-
-src/uploads/144022504/flux-kontext-single/
-
-src/uploads/144022504/flux-kontext-upscaled/
-
-src/uploads/144022504/flux-kontext-multi/
-
-src/uploads/144022504/flux-kontext-portrait_series/
-
-src/uploads/144022504/image-upscaler/
-
-# Ignore all user uploads
-src/uploads/
+check_*.ts
 
 # Ignore heavy media assets
 assets/bible_vibecoder/
@@ -219,9 +219,6 @@ assets/**/*.avi
 assets/**/*.mkv
 assets/**/*.wav
 assets/**/*.aac
-
-# Ignore temp folder with test files
-temp/
 
 # Ignore testing scripts folder
 scripts/testing/
