@@ -53,9 +53,16 @@ async function initializeBots() {
           bot.start((ctx) => ctx.reply(`🎯 Railway HTTP бот #${i} работает!`))
           bot.command('test', (ctx) => ctx.reply(`✅ HTTP тест успешен! Бот #${i}`))
           
-          // Test bot connection
-          const info = await bot.telegram.getMe()
-          await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+          // Test bot connection with timeout
+          const info = await Promise.race([
+            bot.telegram.getMe(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+          ])
+          
+          await Promise.race([
+            bot.telegram.deleteWebhook({ drop_pending_updates: true }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+          ])
           
           // Map bot number to actual bot name
           const botNames = {
@@ -94,14 +101,27 @@ async function initializeBots() {
         bot.start((ctx) => ctx.reply(`🎯 Тестовый бот @${testBotName} работает!`))
         bot.command('test', (ctx) => ctx.reply(`✅ HTTP тест успешен! @${testBotName}`))
         
-        // Test bot connection
-        const info = await bot.telegram.getMe()
-        await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+        // Test bot connection with timeout
+        const info = await Promise.race([
+          bot.telegram.getMe(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout getting bot info')), 10000))
+        ])
+        
+        await Promise.race([
+          bot.telegram.deleteWebhook({ drop_pending_updates: true }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout clearing webhook')), 5000))
+        ])
         
         bots.push({ id: 'test', bot, token: testToken, name: testBotName, username: info.username })
         console.log(`✅ Test Bot @${testBotName} (@${info.username}) ready`)
       } catch (error) {
         console.error(`❌ Failed to init test bot: ${error.message}`)
+        // Add bot anyway for webhook testing
+        const bot = new Telegraf(testToken)
+        bot.start((ctx) => ctx.reply(`🎯 Тестовый бот @${testBotName} работает! (fallback mode)`))
+        bot.command('test', (ctx) => ctx.reply(`✅ HTTP тест успешен! @${testBotName} (fallback mode)`))
+        bots.push({ id: 'test', bot, token: testToken, name: testBotName, username: testBotName })
+        console.log(`⚠️ Test Bot @${testBotName} added in fallback mode`)
       }
     }
   }
@@ -110,8 +130,13 @@ async function initializeBots() {
   console.log(`🎉 Bot farm initialized! (${bots.length} bots)`)
 }
 
-// Initialize bots after server starts
-setTimeout(initializeBots, 1000)
+// Initialize bots after server starts (non-blocking)
+setTimeout(() => {
+  initializeBots().catch(error => {
+    console.error('❌ Bot initialization failed:', error.message)
+    // Continue anyway - server still works
+  })
+}, 1000)
 
 // Update main endpoint to show current status
 app.get('/', (req, res) => {
