@@ -118,6 +118,109 @@ export const VEO_MODELS_PRICING: Record<string, DynamicVideoPrice> = {
 }
 
 // ============================================
+// КОНФИГУРАЦИЯ МОДЕЛЕЙ KIE.AI
+// ============================================
+
+export interface KieAiModelPrice {
+  pricePerSecondUSD?: number // Для видео моделей
+  pricePerImageUSD?: number // Для изображений
+  priceBaseUSD?: number // Базовая цена для музыки
+  maxDuration?: number // Максимальная длительность
+  supportedDurations?: number[]
+  defaultDuration?: number
+}
+
+export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
+  // Видео модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
+  'kie-veo-3-fast': {
+    pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек (конкурентно с +8.1% наценкой)
+    supportedDurations: [2, 4, 6, 8, 10],
+    defaultDuration: 8,
+    maxDuration: 10,
+  },
+  'kie-veo-3': {
+    pricePerSecondUSD: 0.404, // 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек (конкурентно с +8.1% наценкой)
+    supportedDurations: [2, 4, 6, 8, 10],
+    defaultDuration: 8,
+    maxDuration: 10,
+  },
+  'kie-runway-aleph': {
+    pricePerSecondUSD: 0.485, // 182⭐ за 6 сек = $2.912 за 6 сек = $0.485/сек (конкурентно с +8.1% наценкой)
+    supportedDurations: [2, 4, 6, 8, 10],
+    defaultDuration: 6,
+    maxDuration: 10,
+  },
+
+  // Модели изображений
+  'kie-gpt-4o-image': {
+    pricePerImageUSD: 0.1,
+  },
+  'kie-midjourney-v7': {
+    pricePerImageUSD: 0.15,
+  },
+  'kie-flux-1-kontext': {
+    pricePerImageUSD: 0.08,
+  },
+
+  // Музыкальные модели (цена за поколение)
+  'kie-suno-v3.5': {
+    priceBaseUSD: 0.2,
+    maxDuration: 180, // 3 минуты
+  },
+  'kie-suno-v4': {
+    priceBaseUSD: 0.25,
+    maxDuration: 240, // 4 минуты
+  },
+  'kie-suno-v4.5': {
+    priceBaseUSD: 0.3,
+    maxDuration: 300, // 5 минут
+  },
+  'kie-suno-v4.5-plus': {
+    priceBaseUSD: 0.4,
+    maxDuration: 480, // 8 минут
+  },
+}
+
+/**
+ * Рассчитывает цену в звёздах для Kie.ai модели
+ */
+export function calculateKieAiPriceInStars(
+  modelId: string,
+  duration?: number,
+  numImages?: number
+): number {
+  const model = KIE_AI_MODELS_PRICING[modelId]
+  if (!model) {
+    throw new Error(`Unknown Kie.ai model: ${modelId}`)
+  }
+
+  let totalCostUSD = 0
+
+  // Видео модели - конкурентное ценообразование
+  if (model.pricePerSecondUSD) {
+    const finalDuration = duration || model.defaultDuration || 5
+    totalCostUSD = model.pricePerSecondUSD * finalDuration
+    
+    // Для конкурентных видео моделей возвращаем точную цену в звёздах без дополнительной наценки
+    if (modelId === 'kie-veo-3-fast' || modelId === 'kie-veo-3' || modelId === 'kie-runway-aleph') {
+      return Math.floor(totalCostUSD / STAR_COST_USD)
+    }
+  }
+  // Модели изображений
+  else if (model.pricePerImageUSD) {
+    const finalNumImages = numImages || 1
+    totalCostUSD = model.pricePerImageUSD * finalNumImages
+  }
+  // Музыкальные модели
+  else if (model.priceBaseUSD) {
+    totalCostUSD = model.priceBaseUSD
+  }
+
+  // Для остальных моделей применяем стандартную наценку
+  return usdToStars(totalCostUSD)
+}
+
+// ============================================
 // ВАЛИДАЦИЯ КОНФИГУРАЦИИ
 // ============================================
 

@@ -78,3 +78,42 @@ export function createResolutionKeyboard(
 
   return Markup.inlineKeyboard(buttons.map(btn => [btn]))
 }
+
+/**
+ * Создает inline клавиатуру для выбора длительности видео
+ */
+export function createDurationKeyboard(
+  modelKey: VideoModelConfigKey,
+  isRu: boolean
+): ReturnType<typeof Markup.inlineKeyboard> {
+  const config = VIDEO_MODELS_CONFIG[modelKey]
+  if (!config.durationOptions || !config.priceByDuration) {
+    return Markup.inlineKeyboard([])
+  }
+
+  const buttons = config.durationOptions.map(duration => {
+    const basePrice = config.priceByDuration![duration] || (config.basePrice * duration)
+    const finalPrice = Math.floor(basePrice / 0.016) // Конвертация в звезды
+
+    const buttonText = isRu 
+      ? `${duration} сек (${finalPrice} ⭐)`
+      : `${duration} sec (${finalPrice} ⭐)`
+
+    return Markup.button.callback(
+      buttonText,
+      `veo_${modelKey}_${duration}`
+    )
+  })
+
+  // Группируем кнопки по 2 в ряд для лучшего вида
+  const rows = []
+  for (let i = 0; i < buttons.length; i += 2) {
+    if (i + 1 < buttons.length) {
+      rows.push([buttons[i], buttons[i + 1]])
+    } else {
+      rows.push([buttons[i]])
+    }
+  }
+
+  return Markup.inlineKeyboard(rows)
+}

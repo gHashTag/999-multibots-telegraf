@@ -93,7 +93,8 @@ export const handlePriceCommand = async (ctx: MyContext) => {
         subscriptionInfoRu = `\n    <b>🌟 Подписки для пополнения баланса:</b>${subscriptionInfoRu}\n    <i>Покупка подписки - это выгодный способ пополнить ваш баланс звезд!</i>\n`
       }
       // Стоимость звезды в рублях показываем только если не NeurostylistShtogrina_bot
-      starCostInfoRu = `\n    <b>💵 Стоимость 1 ⭐️:</b> ${(SYSTEM_CONFIG.starCost * SYSTEM_CONFIG.rubRate).toFixed(2)} руб`
+      const currentRate = await SYSTEM_CONFIG.getRubRate()
+      starCostInfoRu = `\n    <b>💵 Стоимость 1 ⭐️:</b> ${(SYSTEM_CONFIG.starCost * currentRate).toFixed(2)} руб`
     }
 
     const message = isRu

@@ -798,7 +798,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
           const result = await generateInstagramScraping(
             sessionData.targetUsername!,
             sessionData.projectId!,
-            sessionData.maxCompetitors!,
+            sessionData.maxCompetitors!, // Здесь используется правильное имя из сессии
             sessionData.maxReelsPerUser!,
             sessionData.includeReels!,
             ctx.from!.id.toString(),
