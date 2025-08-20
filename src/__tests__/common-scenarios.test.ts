@@ -1,19 +1,15 @@
-import { vi } from 'vitest'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 
-// Mock Supabase client
-vi.mock('@/core/supabase/client.ts', () => {
-  return {
-    supabase: {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          data: [],
-          error: null,
-        }),
-        insert: vi.fn().mockReturnValue({
-          data: [{ id: 'mocked-id' }],
-          error: null,
-        }),
-      }),
-    },
-  }
-})
+// Mock Supabase client для Bun Test
+const mockSupabase = {
+  from: mock(() => ({
+    select: mock(() => ({
+      data: [],
+      error: null,
+    })),
+    insert: mock(() => ({
+      data: [{ id: 'mocked-id' }],
+      error: null,
+    })),
+  })),
+}
