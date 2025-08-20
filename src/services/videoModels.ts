@@ -70,15 +70,15 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
   // Kie.ai модели с конкурентными ценами
   'kie-veo-3-fast': {
     id: 'kie-veo-3-fast',
-    name: 'Вео 3 фаст',
-    nameRu: 'Вео 3 фаст',
+    name: 'Veo 3 Fast',
+    nameRu: 'Veo 3 Fast',
     priceFixed: 40,
     inputTypes: ['text', 'image'],
   },
   'kie-veo-3': {
     id: 'kie-veo-3',
-    name: 'Вео 3',
-    nameRu: 'Вео 3',
+    name: 'Veo 3',
+    nameRu: 'Veo 3',
     priceFixed: 202,
     inputTypes: ['text'],
   },
