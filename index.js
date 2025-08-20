@@ -42,8 +42,8 @@ async function initializeBots() {
   console.log('🔄 Starting bot initialization...')
   
   if (isProduction) {
-    // PRODUCTION: Use BOT_TOKEN_1, BOT_TOKEN_2, etc. (temporarily limited to 4 bots for Railway)
-    for (let i = 1; i <= 4; i++) {
+    // PRODUCTION: Use BOT_TOKEN_1, BOT_TOKEN_2, etc. (all 9 production bots)
+    for (let i = 1; i <= 9; i++) {
       const token = process.env[`BOT_TOKEN_${i}`]
       if (token) {
         try {
@@ -57,8 +57,27 @@ async function initializeBots() {
           const info = await bot.telegram.getMe()
           await bot.telegram.deleteWebhook({ drop_pending_updates: true })
           
-          bots.push({ id: i, bot, token, name: `bot_${i}`, username: info.username })
-          console.log(`✅ Production Bot #${i} (@${info.username}) ready`)
+          // Map bot number to actual bot name
+          const botNames = {
+            1: 'neuro_blogger_bot',
+            2: 'MetaMuse_Manifest_bot', 
+            3: 'ZavaraBot',
+            4: 'LeeSolarbot',
+            5: 'NeuroLenaAssistant_bot',
+            6: 'NeurostylistShtogrina_bot',
+            7: 'Gaia_Kamskaia_bot',
+            8: 'Kaya_easy_art_bot',
+            9: 'AI_STARS_bot'
+          }
+          
+          bots.push({ 
+            id: i, 
+            bot, 
+            token, 
+            name: botNames[i] || `bot_${i}`, 
+            username: info.username 
+          })
+          console.log(`✅ Production Bot #${i} (@${info.username}) ready as ${botNames[i]}`)
         } catch (error) {
           console.error(`❌ Failed to init bot #${i}: ${error.message}`)
         }
@@ -117,27 +136,32 @@ app.get('/health', (req, res) => {
   })
 })
 
-// Webhook for specific bot
-app.post('/webhook/:botId', (req, res) => {
+// Universal webhook handler - supports both bot ID and bot name  
+app.post('/webhook/:botIdentifier', (req, res) => {
   if (!botsInitialized || bots.length === 0) {
     return res.status(503).json({ error: 'Bots not initialized yet' })
   }
   
-  let botId = req.params.botId
+  const identifier = req.params.botIdentifier
+  let botData
   
-  // Convert to number for production mode, keep as string for test mode
-  if (isProduction) {
-    botId = parseInt(botId)
+  // Try to find by ID (number) first
+  const botId = parseInt(identifier)
+  if (!isNaN(botId)) {
+    botData = bots.find(b => b.id === botId)
   }
   
-  const botData = bots.find(b => b.id === botId)
+  // If not found by ID, try to find by name
+  if (!botData) {
+    botData = bots.find(b => b.name === identifier)
+  }
   
   if (!botData) {
-    console.log(`❌ Bot ${botId} not found`)
+    console.log(`❌ Bot ${identifier} not found (tried ID and name)`)
     return res.status(404).json({ error: 'Bot not found' })
   }
   
-  console.log(`📨 Webhook received for bot ${botId} (@${botData.name})`)
+  console.log(`📨 Webhook received for ${identifier} → ${botData.name} (@${botData.username})`)
   botData.bot.handleUpdate(req.body)
   res.sendStatus(200)
 })
