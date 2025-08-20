@@ -188,14 +188,7 @@ export async function getCompetitorSubscriptions(
   userTelegramId: string,
   botName: string
 ): Promise<CompetitorSubscription[]> {
-  logger.info('[Instagram DB] Getting competitor subscriptions', {
-    userTelegramId,
-    botName
-  })
-
-  try {
-    const result = await queryNeon(
-      `
+  const sqlQuery = `
       SELECT 
         id,
         user_telegram_id,
@@ -212,14 +205,32 @@ export async function getCompetitorSubscriptions(
       FROM competitor_subscriptions
       WHERE user_telegram_id = $1 AND bot_name = $2
       ORDER BY created_at DESC
-      `,
-      [userTelegramId, botName]
-    )
+      `
 
-    logger.info('[Instagram DB] Found competitor subscriptions', {
+  logger.info('[Instagram DB] 🔍 EXECUTING SQL QUERY', {
+    operation: 'SELECT',
+    table: 'competitor_subscriptions',
+    userTelegramId,
+    botName,
+    sqlQuery: sqlQuery.trim(),
+    parameters: [userTelegramId, botName]
+  })
+
+  try {
+    const result = await queryNeon(sqlQuery, [userTelegramId, botName])
+
+    logger.info('[Instagram DB] ✅ SQL QUERY EXECUTED SUCCESSFULLY', {
+      operation: 'SELECT',
+      table: 'competitor_subscriptions',
       userTelegramId,
       botName,
-      count: result.rows.length
+      rowCount: result.rows.length,
+      resultData: result.rows.map(row => ({
+        id: row.id,
+        competitor_username: row.competitor_username,
+        is_active: row.is_active,
+        created_at: row.created_at
+      }))
     })
 
     return result.rows.map(row => ({
@@ -249,21 +260,33 @@ export async function getCompetitorSubscriptions(
 export async function createCompetitorSubscription(
   request: CreateSubscriptionRequest
 ): Promise<CompetitorSubscription | null> {
-  logger.info('[Instagram DB] Creating competitor subscription', {
+  logger.info('[Instagram DB] 🚀 STARTING SUBSCRIPTION CREATION', {
     userTelegramId: request.user_telegram_id,
     competitorUsername: request.competitor_username,
-    botName: request.bot_name
+    botName: request.bot_name,
+    requestData: request
   })
 
   // Проверяем лимит активных подписок (максимум 10)
-  const activeCount = await queryNeon(
-    `
+  const countQuery = `
     SELECT COUNT(*) as count 
     FROM competitor_subscriptions 
     WHERE user_telegram_id = $1 AND bot_name = $2 AND is_active = true
-    `,
-    [request.user_telegram_id, request.bot_name]
-  )
+    `
+
+  logger.info('[Instagram DB] 🔍 CHECKING ACTIVE SUBSCRIPTIONS LIMIT', {
+    operation: 'COUNT',
+    table: 'competitor_subscriptions',
+    sqlQuery: countQuery.trim(),
+    parameters: [request.user_telegram_id, request.bot_name]
+  })
+
+  const activeCount = await queryNeon(countQuery, [request.user_telegram_id, request.bot_name])
+
+  logger.info('[Instagram DB] 📊 ACTIVE SUBSCRIPTIONS COUNT RESULT', {
+    activeCount: activeCount.rows[0].count,
+    limit: 10
+  })
 
   if (parseInt(activeCount.rows[0].count) >= 10) {
     logger.warn('[Instagram DB] User has reached maximum active subscriptions limit', {
@@ -276,8 +299,7 @@ export async function createCompetitorSubscription(
   try {
     const subscriptionId = generateUuidV4()
     
-    const result = await queryNeon(
-      `
+    const insertQuery = `
       INSERT INTO competitor_subscriptions (
         id,
         user_telegram_id,
@@ -292,25 +314,61 @@ export async function createCompetitorSubscription(
         updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW())
       RETURNING *
-      `,
-      [
-        subscriptionId,
-        request.user_telegram_id,
-        request.bot_name,
-        request.competitor_username,
-        request.max_reels,
-        request.min_views,
-        request.max_age_days,
-        request.delivery_format
-      ]
-    )
+      `
+
+    const insertParams = [
+      subscriptionId,
+      request.user_telegram_id,
+      request.bot_name,
+      request.competitor_username,
+      request.max_reels,
+      request.min_views,
+      request.max_age_days,
+      request.delivery_format
+    ]
+
+    logger.info('[Instagram DB] 💾 EXECUTING INSERT QUERY', {
+      operation: 'INSERT',
+      table: 'competitor_subscriptions',
+      subscriptionId,
+      sqlQuery: insertQuery.trim(),
+      parameters: insertParams,
+      parameterMapping: {
+        '$1 (id)': subscriptionId,
+        '$2 (user_telegram_id)': request.user_telegram_id,
+        '$3 (bot_name)': request.bot_name,
+        '$4 (competitor_username)': request.competitor_username,
+        '$5 (max_reels)': request.max_reels,
+        '$6 (min_views)': request.min_views,
+        '$7 (max_age_days)': request.max_age_days,
+        '$8 (delivery_format)': request.delivery_format
+      }
+    })
+
+    const result = await queryNeon(insertQuery, insertParams)
 
     const row = result.rows[0]
     
-    logger.info('[Instagram DB] Successfully created competitor subscription', {
+    logger.info('[Instagram DB] ✅ SUBSCRIPTION CREATED SUCCESSFULLY IN DATABASE', {
+      operation: 'INSERT',
+      table: 'competitor_subscriptions',
       subscriptionId: row.id,
       userTelegramId: request.user_telegram_id,
-      competitorUsername: request.competitor_username
+      competitorUsername: request.competitor_username,
+      rowsAffected: result.rowCount,
+      createdRecord: {
+        id: row.id,
+        user_telegram_id: row.user_telegram_id,
+        bot_name: row.bot_name,
+        competitor_username: row.competitor_username,
+        max_reels: row.max_reels,
+        min_views: row.min_views,
+        max_age_days: row.max_age_days,
+        delivery_format: row.delivery_format,
+        is_active: row.is_active,
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      }
     })
 
     return {
@@ -448,33 +506,59 @@ export async function deleteCompetitorSubscription(
   userTelegramId: string,
   botName: string
 ): Promise<boolean> {
-  logger.info('[Instagram DB] Deleting competitor subscription', {
+  const deleteQuery = `
+      DELETE FROM competitor_subscriptions
+      WHERE id = $1 AND user_telegram_id = $2 AND bot_name = $3
+      `
+
+  const deleteParams = [subscriptionId, userTelegramId, botName]
+
+  logger.info('[Instagram DB] 🗑️ EXECUTING DELETE QUERY', {
+    operation: 'DELETE',
+    table: 'competitor_subscriptions',
     subscriptionId,
     userTelegramId,
-    botName
+    botName,
+    sqlQuery: deleteQuery.trim(),
+    parameters: deleteParams,
+    parameterMapping: {
+      '$1 (id)': subscriptionId,
+      '$2 (user_telegram_id)': userTelegramId,
+      '$3 (bot_name)': botName
+    }
   })
 
   try {
-    const result = await queryNeon(
-      `
-      DELETE FROM competitor_subscriptions
-      WHERE id = $1 AND user_telegram_id = $2 AND bot_name = $3
-      `,
-      [subscriptionId, userTelegramId, botName]
-    )
+    const result = await queryNeon(deleteQuery, deleteParams)
 
     const deleted = result.rowCount && result.rowCount > 0
 
+    logger.info('[Instagram DB] 🔥 DELETE OPERATION COMPLETED', {
+      operation: 'DELETE',
+      table: 'competitor_subscriptions',
+      subscriptionId,
+      userTelegramId,
+      botName,
+      rowsAffected: result.rowCount,
+      deleted: deleted,
+      sqlResult: {
+        rowCount: result.rowCount,
+        command: result.command
+      }
+    })
+
     if (deleted) {
-      logger.info('[Instagram DB] Successfully deleted competitor subscription', {
-        subscriptionId,
-        userTelegramId
-      })
-    } else {
-      logger.warn('[Instagram DB] Subscription not found or access denied', {
+      logger.info('[Instagram DB] ✅ SUBSCRIPTION SUCCESSFULLY DELETED FROM DATABASE', {
         subscriptionId,
         userTelegramId,
-        botName
+        confirmedDeleted: true
+      })
+    } else {
+      logger.warn('[Instagram DB] ❌ SUBSCRIPTION NOT FOUND OR ACCESS DENIED', {
+        subscriptionId,
+        userTelegramId,
+        botName,
+        rowsAffected: result.rowCount
       })
     }
 

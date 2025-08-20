@@ -63,6 +63,19 @@ router.get('/competitor-subscriptions', async (req, res) => {
 
 // POST /api/competitor-subscriptions - Создание подписки
 router.post('/competitor-subscriptions', async (req, res) => {
+  const requestTimestamp = new Date().toISOString()
+  
+  logger.info('[Instagram API] 🚀 RECEIVED CREATE SUBSCRIPTION REQUEST', {
+    timestamp: requestTimestamp,
+    method: 'POST',
+    endpoint: '/api/competitor-subscriptions',
+    requestBody: req.body,
+    headers: {
+      'content-type': req.headers['content-type'],
+      'user-agent': req.headers['user-agent']
+    }
+  })
+
   try {
     const {
       user_telegram_id,
@@ -74,8 +87,25 @@ router.post('/competitor-subscriptions', async (req, res) => {
       delivery_format = 'digest'
     }: CreateSubscriptionRequest = req.body
 
+    logger.info('[Instagram API] 🔍 VALIDATING REQUEST PARAMETERS', {
+      user_telegram_id,
+      bot_name,
+      competitor_username,
+      max_reels,
+      min_views,
+      max_age_days,
+      delivery_format
+    })
+
     // Валидация обязательных полей
     if (!user_telegram_id || !bot_name || !competitor_username) {
+      logger.warn('[Instagram API] ❌ VALIDATION FAILED - Missing required fields', {
+        missingFields: {
+          user_telegram_id: !user_telegram_id,
+          bot_name: !bot_name,
+          competitor_username: !competitor_username
+        }
+      })
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: user_telegram_id, bot_name, competitor_username'
@@ -120,10 +150,16 @@ router.post('/competitor-subscriptions', async (req, res) => {
       })
     }
 
-    logger.info('[Instagram API] Creating competitor subscription', {
+    logger.info('[Instagram API] ✅ VALIDATION PASSED - Calling database function', {
       user_telegram_id,
       bot_name,
-      competitor_username
+      competitor_username,
+      parameters: {
+        max_reels,
+        min_views,
+        max_age_days,
+        delivery_format
+      }
     })
 
     const subscription = await createCompetitorSubscription({
@@ -137,11 +173,30 @@ router.post('/competitor-subscriptions', async (req, res) => {
     })
 
     if (!subscription) {
+      logger.error('[Instagram API] ❌ DATABASE RETURNED NULL - Subscription creation failed', {
+        user_telegram_id,
+        bot_name,
+        competitor_username,
+        possibleReason: 'Maximum limit (10) reached or database error'
+      })
       return res.status(409).json({
         success: false,
         error: 'Failed to create subscription. Maximum limit (10) may be reached.'
       })
     }
+
+    logger.info('[Instagram API] ✅ SUBSCRIPTION CREATED SUCCESSFULLY - Sending response', {
+      user_telegram_id,
+      subscriptionId: subscription.id,
+      competitor_username: subscription.competitor_username,
+      responseData: {
+        success: true,
+        subscription_id: subscription.id,
+        competitor_username: subscription.competitor_username,
+        is_active: subscription.is_active,
+        created_at: subscription.created_at
+      }
+    })
 
     res.status(201).json({
       success: true,
@@ -272,16 +327,44 @@ router.put('/competitor-subscriptions/:id', async (req, res) => {
 
 // DELETE /api/competitor-subscriptions/:id - Удаление подписки
 router.delete('/competitor-subscriptions/:id', async (req, res) => {
+  const requestTimestamp = new Date().toISOString()
+  
+  logger.info('[Instagram API] 🗑️ RECEIVED DELETE SUBSCRIPTION REQUEST', {
+    timestamp: requestTimestamp,
+    method: 'DELETE',
+    endpoint: `/api/competitor-subscriptions/${req.params.id}`,
+    subscriptionId: req.params.id,
+    queryParams: req.query
+  })
+
   try {
     const { id } = req.params
     const { user_telegram_id, bot_name } = req.query
 
+    logger.info('[Instagram API] 🔍 VALIDATING DELETE PARAMETERS', {
+      subscriptionId: id,
+      user_telegram_id,
+      bot_name
+    })
+
     if (!user_telegram_id || !bot_name) {
+      logger.warn('[Instagram API] ❌ DELETE VALIDATION FAILED - Missing parameters', {
+        missing: {
+          user_telegram_id: !user_telegram_id,
+          bot_name: !bot_name
+        }
+      })
       return res.status(400).json({
         success: false,
         error: 'Missing required parameters: user_telegram_id, bot_name'
       })
     }
+
+    logger.info('[Instagram API] ✅ DELETE VALIDATION PASSED - Calling database function', {
+      subscriptionId: id,
+      user_telegram_id,
+      bot_name
+    })
 
     const deleted = await deleteCompetitorSubscription(
       id,
@@ -290,11 +373,29 @@ router.delete('/competitor-subscriptions/:id', async (req, res) => {
     )
 
     if (!deleted) {
+      logger.warn('[Instagram API] ❌ DATABASE DELETION FAILED', {
+        subscriptionId: id,
+        user_telegram_id,
+        bot_name,
+        result: deleted,
+        possibleReason: 'Subscription not found or access denied'
+      })
       return res.status(404).json({
         success: false,
         error: 'Subscription not found or access denied'
       })
     }
+
+    logger.info('[Instagram API] ✅ SUBSCRIPTION DELETED SUCCESSFULLY - Sending response', {
+      subscriptionId: id,
+      user_telegram_id,
+      bot_name,
+      deleted: true,
+      responseData: {
+        success: true,
+        message: 'Subscription deleted successfully'
+      }
+    })
 
     res.json({
       success: true,
