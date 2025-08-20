@@ -25,7 +25,8 @@ export async function generateTextToVideo(
   is_ru: boolean,
   bot_name: string,
   modelId: string,
-  selectedResolution?: string // Добавлен параметр для разрешения Seedance
+  selectedResolution?: string, // Добавлен параметр для разрешения Seedance
+  selectedDuration?: number // Добавлен параметр для длительности Veo моделей
 ): Promise<string | null> {
   logger.info('[generateTextToVideo] Starting local generation with modelId:', {
     telegram_id,
@@ -68,9 +69,10 @@ export async function generateTextToVideo(
     // Специальная обработка для Google Veo 3
     let modelInput: any
     if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
+      const finalDuration = selectedDuration || modelConfig.api.input.duration_seconds || 8
       modelInput = {
         prompt,
-        duration_seconds: modelConfig.api.input.duration_seconds || 8,
+        duration_seconds: finalDuration,
         aspect_ratio: userAspectRatio, // Используем пользовательские настройки
         enable_audio: modelConfig.api.input.enable_audio || true,
       }
@@ -89,9 +91,10 @@ export async function generateTextToVideo(
     }
     // Специальная обработка для Kie.ai моделей
     else if (modelConfig.id.startsWith('kie-')) {
+      const finalDuration = selectedDuration || modelConfig.api.input.duration_seconds || 5
       modelInput = {
         prompt,
-        duration_seconds: modelConfig.api.input.duration_seconds || 5,
+        duration_seconds: finalDuration,
         aspect_ratio: userAspectRatio,
         enable_audio: modelConfig.api.input.enable_audio || true,
       }

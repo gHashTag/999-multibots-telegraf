@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger'
 import {
   createVideoModelKeyboard,
   createResolutionKeyboard,
+  createDurationKeyboard,
 } from '@/modules/videoGenerator/helpers/keyboard'
 import {
   findModelByButtonText,
@@ -96,7 +97,8 @@ async function processVideoGeneration(
       isRu,
       botName,
       videoModelKey,
-      ctx.session.selectedResolution // Передаём выбранное разрешение для Seedance
+      ctx.session.selectedResolution, // Передаём выбранное разрешение для Seedance
+      ctx.session.selectedDuration // Передаём выбранную длительность для Veo моделей
     )
 
     if (videoUrl) {
@@ -295,9 +297,29 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       `[TextToVideoWizard Step 1] Model ${foundModelKey} selected and balance checked for ${ctx.from.id}.`
     )
 
-    // Проверяем, нужно ли показать выбор разрешения для WAN моделей
+    // Проверяем, нужно ли показать выбор длительности для Veo моделей
     const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
     if (
+      modelConfig.durationOptions &&
+      modelConfig.durationOptions.length > 0
+    ) {
+      // Показываем клавиатуру выбора длительности
+      logger.info(
+        `[TextToVideoWizard Step 1] Showing duration selection for ${foundModelKey}`
+      )
+
+      const text = isRu
+        ? `⏱️ Выберите длительность для ${modelConfig.title}:`
+        : `⏱️ Select duration for ${modelConfig.title}:`
+
+      await ctx.replyWithHTML(
+        text,
+        createDurationKeyboard(foundModelKey, isRu)
+      )
+      return ctx.wizard.next() // Переход к шагу обработки выбора длительности
+    }
+    // Проверяем, нужно ли показать выбор разрешения для WAN моделей
+    else if (
       modelConfig.resolutionOptions &&
       modelConfig.resolutionOptions.length > 0
     ) {
@@ -316,18 +338,18 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
       return ctx.wizard.next() // Переход к шагу обработки выбора разрешения
     } else {
-      // Стандартная модель без выбора разрешения
+      // Стандартная модель без выбора разрешения/длительности
       await ctx.reply(
         isRu
           ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
           : 'Great! Now enter your prompt (a description of what you want to see in the video):',
         Markup.removeKeyboard()
       )
-      return ctx.wizard.selectStep(3) // Пропускаем шаг выбора разрешения
+      return ctx.wizard.selectStep(3) // Пропускаем шаг выбора разрешения/длительности
     }
   },
 
-  // Шаг 2: Обработка выбора разрешения для WAN моделей (Callback Query)
+  // Шаг 2: Обработка выбора длительности для Veo моделей или разрешения для WAN моделей (Callback Query)
   async ctx => {
     logger.info(`[TextToVideoWizard Step 2] Entered for user ${ctx.from?.id}`)
     const isRu = isRussianFromState(ctx)
@@ -346,7 +368,60 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       await ctx.answerCbQuery()
       await ctx.editMessageReplyMarkup(undefined) // Удаляем inline keyboard
 
-      if (callbackData?.startsWith('wan_')) {
+      if (callbackData?.startsWith('veo_')) {
+        // Парсим callback data: "veo_kie-veo-3-fast_8"
+        const parts = callbackData.split('_')
+        if (parts.length >= 3) {
+          const duration = parseInt(parts[parts.length - 1]) // Последняя часть - длительность
+          ctx.session.selectedDuration = duration
+
+          const modelKey = ctx.session.videoModel as VideoModelConfigKey
+          const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
+          const price = modelConfig.priceByDuration?.[duration] || (modelConfig.basePrice * duration)
+          const finalPrice = Math.floor(price / 0.016) // Конвертация в звезды
+
+          logger.info(`[TextToVideoWizard Step 2] Veo duration selected:`, {
+            telegramId: ctx.from?.id,
+            modelKey,
+            duration,
+            price,
+            finalPrice,
+          })
+
+          // Проверяем баланс для выбранной длительности
+          if (!ctx.from?.id || !ctx.botInfo?.username) {
+            await sendGenericErrorMessage(ctx, isRu)
+            return ctx.scene.leave()
+          }
+
+          const userBalance = await getUserBalance(
+            ctx.from.id.toString(),
+            ctx.botInfo.username
+          )
+
+          if (userBalance < finalPrice) {
+            await ctx.reply(
+              isRu
+                ? `😕 Недостаточно звезд для ${duration} сек (${finalPrice} ⭐). Ваш баланс: ${Math.floor(userBalance)} ⭐.`
+                : `😕 Insufficient stars for ${duration} sec (${finalPrice} ⭐). Your balance: ${Math.floor(userBalance)} ⭐.`
+            )
+            return ctx.scene.leave()
+          }
+
+          const textDurationChosen = isRu
+            ? `✅ Выбрано: ${modelConfig.title} ${duration} сек (${finalPrice} ⭐).`
+            : `✅ Selected: ${modelConfig.title} ${duration} sec (${finalPrice} ⭐).`
+          await ctx.reply(textDurationChosen)
+
+          await ctx.reply(
+            isRu
+              ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+              : 'Great! Now enter your prompt (a description of what you want to see in the video):',
+            Markup.removeKeyboard()
+          )
+          return ctx.wizard.next() // Переход к шагу получения промпта
+        }
+      } else if (callbackData?.startsWith('wan_')) {
         // Парсим callback data: "wan_wan-2.2-t2v-fast_720p"
         const parts = callbackData.split('_')
         if (parts.length >= 3) {
@@ -413,8 +488,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     // Если не callback query, то ошибка
     await ctx.reply(
       isRu
-        ? 'Пожалуйста, выберите разрешение, нажав на одну из кнопок.'
-        : 'Please select a resolution by clicking one of the buttons.'
+        ? 'Пожалуйста, выберите длительность или разрешение, нажав на одну из кнопок.'
+        : 'Please select duration or resolution by clicking one of the buttons.'
     )
     return ctx.wizard.selectStep(ctx.wizard.cursor)
   },
