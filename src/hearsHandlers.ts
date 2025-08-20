@@ -912,21 +912,26 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   // === ПАРСИНГ INSTAGRAM ДЛЯ СОТРУДНИКОВ HAIMGROUPMEDIA_BOT ===
   bot.hears(['🔍 Парсинг', '🔍 Parsing'], async ctx => {
     const userId = ctx.from?.id?.toString()
+    const adminIds = process.env.ADMIN_IDS?.split(',') || []
 
-    // Массив сотрудников бота @HaimGroupMedia_bot с доступом к парсингу
+    // Массив сотрудников бота @HaimGroupMedia_bot с доступом к парсингу + Админы
+
+    const hasAccess = userId && (HAIM_GROUP_STAFF_IDS.includes(userId) || adminIds.includes(userId))
 
     logger.info('GLOBAL HEARS: Парсинг Instagram button pressed', {
       telegramId: ctx.from?.id,
       userId,
-      hasAccess: userId ? HAIM_GROUP_STAFF_IDS.includes(userId) : false,
+      hasAccess,
+      isStaff: userId ? HAIM_GROUP_STAFF_IDS.includes(userId) : false,
+      isAdmin: userId ? adminIds.includes(userId) : false,
     })
 
     // Проверяем доступ по Telegram ID
-    if (!userId || !HAIM_GROUP_STAFF_IDS.includes(userId)) {
+    if (!hasAccess) {
       logger.warn('Instagram parsing access denied', {
         telegramId: ctx.from?.id,
         userId,
-        reason: 'Not in HaimGroupMedia staff list',
+        reason: 'Not in HaimGroupMedia staff list or admin list',
       })
 
       const isRu = isRussianFromState(ctx)
