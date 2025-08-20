@@ -75,22 +75,22 @@ export async function handleCompetitorMonitoring(ctx: MyContext): Promise<void> 
 
 async function promptForCompetitorUsername(ctx: MyContext, isRu: boolean): Promise<void> {
   const message = isRu
-    ? `🔍 **Мониторинг конкурентов Instagram**
+    ? `🔍 Мониторинг конкурентов Instagram
 
 📺 Получайте новый контент конкурентов каждые 24 часа
-🎬 Видео и рилсы с высокими просмотрами
+🎬 Видео и рилсы с высокими просмотрами  
 📊 Аналитика трендов
 
-✏️ **Введите Instagram username конкурента** (без @):
+✏️ Введите Instagram username конкурента (без @):
 
 💡 Например: neuro_sage`
-    : `🔍 **Instagram Competitor Monitoring**
+    : `🔍 Instagram Competitor Monitoring
 
 📺 Get new competitor content every 24 hours
 🎬 Videos and reels with high views
 📊 Trend analytics
 
-✏️ **Enter competitor Instagram username** (without @):
+✏️ Enter competitor Instagram username (without @):
 
 💡 Example: neuro_sage`
 
@@ -100,9 +100,7 @@ async function promptForCompetitorUsername(ctx: MyContext, isRu: boolean): Promi
   }
   ctx.session.competitorMonitoring.waitingForUsername = true
 
-  await ctx.reply(message, {
-    parse_mode: 'Markdown'
-  })
+  await ctx.reply(message)
 }
 
 async function showExistingSubscriptions(
@@ -111,7 +109,7 @@ async function showExistingSubscriptions(
   isRu: boolean
 ): Promise<void> {
   const message = isRu
-    ? `📋 **Ваши подписки на конкурентов** (${subscriptions.length}/10)
+    ? `📋 Ваши подписки на конкурентов (${subscriptions.length}/10)
 
 ${subscriptions.map((sub, index) => 
   `${index + 1}. @${sub.competitor_username} ${sub.is_active ? '🟢' : '🔴'}
@@ -119,7 +117,7 @@ ${subscriptions.map((sub, index) =>
 ).join('\n\n')}
 
 ⏰ Обновление: каждые 24 часа в 08:00 UTC`
-    : `📋 **Your competitor subscriptions** (${subscriptions.length}/10)
+    : `📋 Your competitor subscriptions (${subscriptions.length}/10)
 
 ${subscriptions.map((sub, index) => 
   `${index + 1}. @${sub.competitor_username} ${sub.is_active ? '🟢' : '🔴'}
@@ -148,7 +146,6 @@ ${subscriptions.map((sub, index) =>
   ])
 
   await ctx.reply(message, {
-    parse_mode: 'Markdown',
     ...keyboard
   })
 }
