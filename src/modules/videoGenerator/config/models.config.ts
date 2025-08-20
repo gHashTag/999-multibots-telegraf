@@ -243,6 +243,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'google/veo-3-fast',
       input: {
         duration: 8, // Длительность по умолчанию
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     imageKey: 'image',
@@ -267,6 +269,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'google/veo-3',
       input: {
         duration: 8, // Длительность по умолчанию
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     canMorph: false,
@@ -282,6 +286,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'runwayml/gen-3-alpha',
       input: {
         duration: 6, // Длительность по умолчанию
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     imageKey: 'image',

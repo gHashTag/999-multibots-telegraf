@@ -94,10 +94,19 @@ export async function generateTextToVideo(
     else if (modelConfig.id.startsWith('kie-')) {
       const finalDuration =
         selectedDuration || modelConfig.api.input.duration_seconds || 5
+
+      // Определяем aspect_ratio с использованием функции из конфига или прямого значения
+      let aspectRatio = userAspectRatio
+      if (typeof modelConfig.api.input.aspect_ratio === 'function') {
+        aspectRatio = modelConfig.api.input.aspect_ratio(userAspectRatio)
+      } else if (modelConfig.api.input.aspect_ratio) {
+        aspectRatio = modelConfig.api.input.aspect_ratio
+      }
+
       modelInput = {
         prompt,
         duration_seconds: finalDuration,
-        aspect_ratio: userAspectRatio,
+        aspect_ratio: aspectRatio,
         enable_audio: modelConfig.api.input.enable_audio || true,
       }
       // Добавляем prompt_optimizer только если он есть в конфиге
