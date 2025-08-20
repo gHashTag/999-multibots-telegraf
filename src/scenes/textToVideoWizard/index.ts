@@ -11,6 +11,7 @@ import {
   createVideoModelKeyboard,
   createResolutionKeyboard,
   createDurationKeyboard,
+  createAspectRatioKeyboard,
 } from '@/modules/videoGenerator/helpers/keyboard'
 import {
   findModelByButtonText,
@@ -98,7 +99,8 @@ async function processVideoGeneration(
       botName,
       videoModelKey,
       ctx.session.selectedResolution, // Передаём выбранное разрешение для Seedance
-      ctx.session.selectedDuration // Передаём выбранную длительность для Veo моделей
+      ctx.session.selectedDuration, // Передаём выбранную длительность для Veo моделей
+      ctx.session.selectedAspectRatio // Передаём выбранное соотношение сторон для Kie.ai моделей
     )
 
     if (videoUrl) {
@@ -297,9 +299,32 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       `[TextToVideoWizard Step 1] Model ${foundModelKey} selected and balance checked for ${ctx.from.id}.`
     )
 
-    // Проверяем, нужно ли показать выбор длительности для Veo моделей
+    // Проверяем, нужно ли показать выбор соотношения сторон для Kie.ai моделей
     const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
-    if (modelConfig.durationOptions && modelConfig.durationOptions.length > 0) {
+    if (
+      modelConfig.aspectRatioOptions &&
+      modelConfig.aspectRatioOptions.length > 0
+    ) {
+      // Показываем клавиатуру выбора соотношения сторон
+      logger.info(
+        `[TextToVideoWizard Step 1] Showing aspect ratio selection for ${foundModelKey}`
+      )
+
+      const text = isRu
+        ? `📱 Выберите соотношение сторон для ${modelConfig.title}:`
+        : `📱 Select aspect ratio for ${modelConfig.title}:`
+
+      await ctx.replyWithHTML(
+        text,
+        createAspectRatioKeyboard(foundModelKey, isRu)
+      )
+      return ctx.wizard.next() // Переход к шагу обработки выбора соотношения сторон
+    }
+    // Проверяем, нужно ли показать выбор длительности для Veo моделей
+    else if (
+      modelConfig.durationOptions &&
+      modelConfig.durationOptions.length > 0
+    ) {
       // Показываем клавиатуру выбора длительности
       logger.info(
         `[TextToVideoWizard Step 1] Showing duration selection for ${foundModelKey}`
@@ -362,7 +387,47 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       await ctx.answerCbQuery()
       await ctx.editMessageReplyMarkup(undefined) // Удаляем inline keyboard
 
-      if (callbackData?.startsWith('veo_')) {
+      if (callbackData?.startsWith('aspect_')) {
+        // Парсим callback data: "aspect_kie-veo-3-fast_9:16"
+        const parts = callbackData.split('_')
+        if (parts.length >= 3) {
+          const aspectRatio = parts[parts.length - 1] // Последняя часть - соотношение сторон
+          ctx.session.selectedAspectRatio = aspectRatio
+
+          const modelKey = ctx.session.videoModel as VideoModelConfigKey
+          const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
+
+          logger.info(`[TextToVideoWizard Step 2] Aspect ratio selected:`, {
+            telegramId: ctx.from?.id,
+            modelKey,
+            aspectRatio,
+          })
+
+          // Теперь проверяем, нужно ли показать выбор длительности
+          if (
+            modelConfig.durationOptions &&
+            modelConfig.durationOptions.length > 0
+          ) {
+            const text = isRu
+              ? `⏱️ Выберите длительность для ${modelConfig.title}:`
+              : `⏱️ Select duration for ${modelConfig.title}:`
+
+            await ctx.replyWithHTML(
+              text,
+              createDurationKeyboard(modelKey, isRu)
+            )
+            return // Остаемся на том же шаге для выбора длительности
+          } else {
+            // Если нет выбора длительности, переходим к вводу промпта
+            await ctx.reply(
+              isRu
+                ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+                : 'Great! Now enter your prompt (description of what you want to see in the video):'
+            )
+            return ctx.wizard.next() // Переход к следующему шагу
+          }
+        }
+      } else if (callbackData?.startsWith('veo_')) {
         // Парсим callback data: "veo_kie-veo-3-fast_8"
         const parts = callbackData.split('_')
         if (parts.length >= 3) {

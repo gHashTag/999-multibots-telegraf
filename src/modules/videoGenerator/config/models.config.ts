@@ -22,6 +22,7 @@ export type VideoModelConfig = {
   priceByResolution?: Record<string, number>
   durationOptions?: number[] // Поддерживаемые длительности в секундах
   priceByDuration?: Record<number, number> // Цена за каждую длительность
+  aspectRatioOptions?: string[] // Поддерживаемые соотношения сторон
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
@@ -250,6 +251,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     imageKey: 'image',
     canMorph: false,
     durationOptions: [2, 4, 6, 8, 10], // Поддерживаемые длительности
+    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
     priceByDuration: {
       2: 0.16, // 2 * 0.08 = 0.16 USD = ~10⭐
       4: 0.32, // 4 * 0.08 = 0.32 USD = ~20⭐
@@ -274,6 +276,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       },
     },
     canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
   },
   'kie-runway-aleph': {
     id: 'kie-runway-aleph',
@@ -292,6 +295,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
     imageKey: 'image',
     canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
   },
 }
 
