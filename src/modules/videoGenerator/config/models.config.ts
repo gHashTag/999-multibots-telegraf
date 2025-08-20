@@ -230,18 +230,18 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
   },
 
-  // Kie.ai модели - РЕАЛЬНЫЕ ЦЕНЫ Kie.ai API (2025)
+  // Kie.ai модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
   'kie-veo-3-fast': {
     id: 'kie-veo-3-fast',
     title: 'Kie.ai Veo 3 Fast',
     inputType: ['text', 'image'],
     description:
-      '⚡ БЫСТРО: Veo 3 Fast - $0.05/сек через Kie.ai (дешевле на 83%)',
-    basePrice: 0.05, // Реальная цена Kie.ai: $0.05/сек
+      '⚡ БЫСТРО: Veo 3 Fast - 40⭐ за 8 сек через Kie.ai (конкурентная цена!)',
+    basePrice: 0.08, // Конкурентная цена: 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек
     api: {
       model: 'kie-veo-3-fast',
       input: {
-        duration: 5, // Длительность по умолчанию
+        duration: 8, // Длительность по умолчанию
       },
     },
     imageKey: 'image',
@@ -252,8 +252,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'Kie.ai Veo 3 Quality',
     inputType: ['text'],
     description:
-      '🎯 КАЧЕСТВО: Veo 3 премиум - $0.25/сек через Kie.ai (дешевле на 37%)',
-    basePrice: 0.25, // Реальная цена Kie.ai: $0.25/сек
+      '🎯 КАЧЕСТВО: Veo 3 премиум - 202⭐ за 8 сек через Kie.ai (конкурентная цена!)',
+    basePrice: 0.404, // Конкурентная цена: 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек
     api: {
       model: 'kie-veo-3',
       input: {
@@ -267,8 +267,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'Kie.ai Runway Aleph',
     inputType: ['text', 'image'],
     description:
-      '🎬 ПРЕМИУМ: Runway Aleph - $0.30/сек через Kie.ai (продвинутое редактирование)',
-    basePrice: 0.30, // Цена как на сервере: $0.30/сек
+      '🎬 ПРЕМИУМ: Runway Aleph - 182⭐ за 6 сек через Kie.ai (конкурентная цена!)',
+    basePrice: 0.485, // Конкурентная цена: 182⭐ за 6 сек = $2.912 за 6 сек = $0.485/сек
     api: {
       model: 'kie-runway-aleph',
       input: {
