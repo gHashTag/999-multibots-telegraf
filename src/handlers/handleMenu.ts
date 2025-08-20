@@ -725,6 +725,50 @@ export const handleMenu = async (ctx: MyContext) => {
       console.log('CASE: handleMenuCommand.if', normalizedText)
       await actions[normalizedText]()
     } else {
+      // 🔍 ПРОВЕРЯЕМ ВВОД USERNAME ДЛЯ МОНИТОРИНГА КОНКУРЕНТОВ
+      console.log('🔍 [handleMenu] Checking competitor username input...')
+      console.log('Session competitor monitoring state:', ctx.session.competitorMonitoring)
+      
+      if (ctx.session.competitorMonitoring?.waitingForUsername) {
+        console.log('✅ [handleMenu] User is waiting for username input, processing...')
+        logger.info({
+          message: `🔍 [handleMenu] Обрабатываем ввод username конкурента: "${normalizedText}"`,
+          telegramId,
+          function: 'handleMenu',
+          text: normalizedText,
+          result: 'competitor_username_input',
+        })
+        
+        try {
+          // Импортируем и вызываем функцию обработки username
+          const { handleCompetitorUsernameInput } = await import('@/services/competitorSubscriptionService')
+          
+          console.log('📞 [handleMenu] Calling handleCompetitorUsernameInput...')
+          const handled = await handleCompetitorUsernameInput(ctx, normalizedText)
+          console.log('📞 [handleMenu] handleCompetitorUsernameInput result:', handled)
+          
+          if (handled) {
+            logger.info({
+              message: `✅ [handleMenu] Username "${normalizedText}" успешно обработан`,
+              telegramId,
+              function: 'handleMenu',
+              text: normalizedText,
+              result: 'competitor_username_handled',
+            })
+            return // Завершаем обработку
+          }
+        } catch (error) {
+          console.log('💥 [handleMenu] Error in competitor username processing:', error)
+          logger.error('[handleMenu] Error handling competitor username input:', {
+            error: error instanceof Error ? error.message : String(error),
+            telegramId,
+            text: normalizedText
+          })
+        }
+      } else {
+        console.log('❌ [handleMenu] Not waiting for username input')
+      }
+      
       // Логика для необработанного текста (если нужна)
       logger.warn({
         message: `⚠️ [handleMenu] Не найдено действие для текста: "${normalizedText}"`,

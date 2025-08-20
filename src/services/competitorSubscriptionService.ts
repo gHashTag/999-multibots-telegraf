@@ -154,23 +154,35 @@ export async function addCompetitorSubscription(
   ctx: MyContext,
   competitorUsername: string
 ): Promise<void> {
+  console.log('🎯 [addCompetitorSubscription] Function called with username:', competitorUsername)
+  
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id?.toString()
   
-  if (!telegramId) return
+  console.log('🎯 [addCompetitorSubscription] Telegram ID:', telegramId)
+  console.log('🎯 [addCompetitorSubscription] Language:', isRu ? 'ru' : 'en')
+  
+  if (!telegramId) {
+    console.log('❌ [addCompetitorSubscription] No telegram ID, returning')
+    return
+  }
 
   try {
+    console.log('📝 [addCompetitorSubscription] Logging subscription creation...')
     logger.info('[Competitor Monitoring] Adding competitor subscription', {
       telegramId,
       competitorUsername
     })
 
-    await ctx.answerCbQuery(
+    // ВАЖНО: Не используем answerCbQuery для обычных сообщений!
+    console.log('💬 [addCompetitorSubscription] Sending progress message...')
+    await ctx.reply(
       isRu 
         ? 'Добавляем подписку...' 
         : 'Adding subscription...'
     )
 
+    console.log('📞 [addCompetitorSubscription] Calling createCompetitorSubscription...')
     const subscription = await createCompetitorSubscription({
       user_telegram_id: telegramId,
       bot_name: 'telegram_bot',
@@ -180,9 +192,12 @@ export async function addCompetitorSubscription(
       max_age_days: 1, // Только за последний день
       delivery_format: 'individual' // Каждый рилс отдельно
     })
+    
+    console.log('📞 [addCompetitorSubscription] createCompetitorSubscription result:', !!subscription)
 
     if (subscription) {
-      await ctx.editMessageText(
+      console.log('✅ [addCompetitorSubscription] Subscription created, sending success message...')
+      await ctx.reply(
         isRu
           ? `✅ Подписка на @${competitorUsername} создана!
 
@@ -201,11 +216,12 @@ export async function addCompetitorSubscription(
 • Delivery: individual reels
 • Updates: every 24 hours
 
-🎬 Will start sending new content tomorrow at 08:00 UTC`,
-        { parse_mode: 'Markdown' }
+🎬 Will start sending new content tomorrow at 08:00 UTC`
       )
+      console.log('✅ [addCompetitorSubscription] Success message sent')
     } else {
-      await ctx.editMessageText(
+      console.log('❌ [addCompetitorSubscription] Subscription creation failed, sending error message...')
+      await ctx.reply(
         isRu
           ? '❌ Не удалось создать подписку. Возможно, достигнут лимит (10 подписок)'
           : '❌ Failed to create subscription. Limit (10 subscriptions) may be reached'
@@ -213,13 +229,14 @@ export async function addCompetitorSubscription(
     }
 
   } catch (error) {
+    console.log('💥 [addCompetitorSubscription] Error occurred:', error)
     logger.error('[Competitor Monitoring] Error adding competitor subscription', {
       error: error instanceof Error ? error.message : String(error),
       telegramId,
       competitorUsername
     })
 
-    await ctx.editMessageText(
+    await ctx.reply(
       isRu
         ? '❌ Ошибка при создании подписки'
         : '❌ Error creating subscription'
@@ -243,18 +260,28 @@ export function setupCompetitorCallbacks(bot: any): void {
 
 // Обработка текстового ввода username конкурента
 export async function handleCompetitorUsernameInput(ctx: MyContext, username: string): Promise<boolean> {
+  console.log('🎯 [handleCompetitorUsernameInput] Function called with username:', username)
+  console.log('🎯 [handleCompetitorUsernameInput] Session state:', ctx.session.competitorMonitoring)
+  
   // Проверяем, ожидается ли ввод username
   if (!ctx.session.competitorMonitoring?.waitingForUsername) {
+    console.log('❌ [handleCompetitorUsernameInput] Not waiting for username, returning false')
     return false // Не обрабатываем этот текст
   }
 
+  console.log('✅ [handleCompetitorUsernameInput] Waiting for username = true, processing...')
   const isRu = isRussianFromState(ctx)
   
   // Валидация Instagram username
   const cleanUsername = username.trim().replace('@', '')
-  const instagramUsernameRegex = /^[a-zA-Z0-9._]{1,30}$/
+  console.log('🔍 [handleCompetitorUsernameInput] Clean username:', cleanUsername)
   
-  if (!instagramUsernameRegex.test(cleanUsername)) {
+  const instagramUsernameRegex = /^[a-zA-Z0-9._]{1,30}$/
+  const isValid = instagramUsernameRegex.test(cleanUsername)
+  console.log('🔍 [handleCompetitorUsernameInput] Username validation result:', isValid)
+  
+  if (!isValid) {
+    console.log('❌ [handleCompetitorUsernameInput] Invalid username, sending error message')
     await ctx.reply(
       isRu
         ? '❌ Некорректный Instagram username!\n\n✅ Должен содержать только буквы, цифры, точки и подчеркивания (1-30 символов)\n💡 Попробуйте еще раз:'
@@ -263,11 +290,16 @@ export async function handleCompetitorUsernameInput(ctx: MyContext, username: st
     return true // Обрабатывали, но с ошибкой
   }
 
+  console.log('✅ [handleCompetitorUsernameInput] Username is valid, resetting state and adding subscription')
+  
   // Сбрасываем состояние ожидания
   ctx.session.competitorMonitoring.waitingForUsername = false
+  console.log('🔄 [handleCompetitorUsernameInput] Set waitingForUsername = false')
 
   // Добавляем подписку
+  console.log('📞 [handleCompetitorUsernameInput] Calling addCompetitorSubscription...')
   await addCompetitorSubscription(ctx, cleanUsername)
+  console.log('✅ [handleCompetitorUsernameInput] addCompetitorSubscription completed')
   
   return true // Успешно обработали
 }
