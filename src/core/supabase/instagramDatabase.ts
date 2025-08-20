@@ -208,7 +208,7 @@ export async function getCompetitorSubscriptions(
         is_active,
         created_at,
         updated_at,
-        last_delivery
+        last_parsed_at as last_delivery
       FROM competitor_subscriptions
       WHERE user_telegram_id = $1 AND bot_name = $2
       ORDER BY created_at DESC
@@ -509,7 +509,7 @@ export async function getSubscriptionById(
         is_active,
         created_at,
         updated_at,
-        last_delivery
+        last_parsed_at as last_delivery
       FROM competitor_subscriptions
       WHERE id = $1 AND user_telegram_id = $2 AND bot_name = $3
       `,

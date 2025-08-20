@@ -960,9 +960,13 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       })
 
       // Импортируем функцию мониторинга конкурентов
+      logger.info('Importing competitorSubscriptionService module...')
       const { handleCompetitorMonitoring } = await import('@/services/competitorSubscriptionService')
+      logger.info('Successfully imported competitorSubscriptionService module')
       
+      logger.info('Calling handleCompetitorMonitoring function...')
       await handleCompetitorMonitoring(ctx)
+      logger.info('handleCompetitorMonitoring function completed successfully')
 
       logger.info('Successfully showed competitor monitoring interface', {
         telegramId: ctx.from?.id,
@@ -970,8 +974,10 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
     } catch (error) {
       logger.error('Error showing competitor monitoring:', {
-        error,
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
         telegramId: ctx.from?.id,
+        phase: 'main_try_catch'
       })
 
       const isRu = isRussianFromState(ctx)

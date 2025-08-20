@@ -10,10 +10,14 @@ import { Markup } from 'telegraf'
 // Пользователь сам вводит конкурентов - никаких готовых списков!
 
 export async function handleCompetitorMonitoring(ctx: MyContext): Promise<void> {
+  logger.info('[Competitor Monitoring] Function called')
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id?.toString()
   
+  logger.info('[Competitor Monitoring] Retrieved telegram ID', { telegramId, isRu })
+  
   if (!telegramId) {
+    logger.warn('[Competitor Monitoring] No telegram ID found')
     await ctx.reply(
       isRu 
         ? '❌ Ошибка: не удалось определить ваш Telegram ID'
@@ -26,25 +30,39 @@ export async function handleCompetitorMonitoring(ctx: MyContext): Promise<void> 
     logger.info('[Competitor Monitoring] Getting user subscriptions', { telegramId })
 
     // Получаем существующие подписки пользователя
+    logger.info('[Competitor Monitoring] Calling getCompetitorSubscriptions...')
     const existingSubscriptions = await getCompetitorSubscriptions(
       telegramId,
       'telegram_bot'
     )
+    logger.info('[Competitor Monitoring] getCompetitorSubscriptions returned', { 
+      subscriptionsCount: existingSubscriptions.length,
+      subscriptions: existingSubscriptions 
+    })
 
     const activeSubscriptions = existingSubscriptions.filter(s => s.is_active)
+    logger.info('[Competitor Monitoring] Filtered active subscriptions', { 
+      activeCount: activeSubscriptions.length 
+    })
     
     if (activeSubscriptions.length === 0) {
+      logger.info('[Competitor Monitoring] No active subscriptions, prompting for username')
       // Если нет подписок - просим ввести username
       await promptForCompetitorUsername(ctx, isRu)
     } else {
+      logger.info('[Competitor Monitoring] Showing existing subscriptions')
       // Показываем существующие подписки
       await showExistingSubscriptions(ctx, activeSubscriptions, isRu)
     }
 
+    logger.info('[Competitor Monitoring] Function completed successfully')
+
   } catch (error) {
     logger.error('[Competitor Monitoring] Error handling competitor monitoring', {
       error: error instanceof Error ? error.message : String(error),
-      telegramId
+      errorStack: error instanceof Error ? error.stack : undefined,
+      telegramId,
+      phase: 'handleCompetitorMonitoring'
     })
 
     await ctx.reply(
