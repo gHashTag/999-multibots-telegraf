@@ -389,7 +389,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     ctx.session.prompt = prompt
 
-    // ЗАПУСК СЕРВЕРНОЙ ГЕНЕРАЦИИ В ФОНЕ
+    // ЗАПУСК СЕРВЕРНОЙ ГЕНЕРАЦИИ
     logger.info(
       `[TextToVideoWizard Step 3] ASPECT RATIO CHECK - Starting server generation for user ${ctx.from?.id}`, {
         videoModelKey,
@@ -399,14 +399,24 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       }
     )
     
-    // Запускаем серверную генерацию в фоне (БЕЗ await)
-    processVideoGeneration(ctx, prompt, videoModelKey, isRu).catch(error => {
-      logger.error('[TextToVideoWizard] Background generation error:', error)
-    })
-
-    // НЕ показываем сообщение здесь - оно показывается в handleTextToVideoDirect
-
-    return ctx.scene.leave()
+    try {
+      // Запускаем серверную генерацию и ждем результата
+      await processVideoGeneration(ctx, prompt, videoModelKey, isRu)
+      
+      // После успешного запуска генерации выходим из сцены
+      return ctx.scene.leave()
+    } catch (error) {
+      logger.error('[TextToVideoWizard] Generation error:', error)
+      
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при запуске генерации видео. Попробуйте еще раз.'
+          : '❌ An error occurred while starting video generation. Please try again.'
+      )
+      
+      // В случае ошибки остаемся в сцене, чтобы пользователь мог попробовать снова
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
   }
 )
 
