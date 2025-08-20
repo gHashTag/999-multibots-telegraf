@@ -230,14 +230,14 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
   },
 
-  // Kie.ai модели - с правильными ценами из unified-pricing.config.ts
+  // Kie.ai модели - ИСПРАВЛЕННЫЕ ЦЕНЫ: 5 ⭐ за секунду
   'kie-veo-3-fast': {
     id: 'kie-veo-3-fast',
     title: 'Kie.ai Veo 3 Fast',
     inputType: ['text', 'image'],
     description:
-      '⚡ БЫСТРО: Veo 3 Fast через Kie.ai - от 9⭐ за 2 сек до 46⭐ за 10 сек (83% экономия)',
-    basePrice: 0.05, // Цена за секунду из KIE_AI_MODELS_PRICING
+      '⚡ БЫСТРО: Veo 3 Fast - от 10⭐ за 2 сек до 50⭐ за 10 сек (5⭐/сек)',
+    basePrice: 0.0534, // ТОЧНАЯ ЦЕНА: 5 ⭐ за секунду
     api: {
       model: 'kie-veo-3-fast',
       input: {
@@ -252,8 +252,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'Kie.ai Veo 3 Quality',
     inputType: ['text'],
     description:
-      '🎯 КАЧЕСТВО: Veo 3 премиум через Kie.ai - от 18⭐ за 2 сек до 93⭐ за 10 сек (38% экономия)',
-    basePrice: 0.25, // Цена за секунду из KIE_AI_MODELS_PRICING
+      '🎯 КАЧЕСТВО: Veo 3 премиум - от 10⭐ за 2 сек до 50⭐ за 10 сек (5⭐/сек)',
+    basePrice: 0.0534, // ТОЧНАЯ ЦЕНА: 40⭐ за 8 сек
     api: {
       model: 'kie-veo-3',
       input: {
@@ -267,8 +267,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'Kie.ai Runway Aleph',
     inputType: ['text', 'image'],
     description:
-      '🎬 ПРЕМИУМ: Runway Aleph через Kie.ai - от 18⭐ за 2 сек до 93⭐ за 10 сек (25% экономия)',
-    basePrice: 0.3, // Цена за секунду из KIE_AI_MODELS_PRICING
+      '🎬 ПРЕМИУМ: Runway Aleph - от 10⭐ за 2 сек до 50⭐ за 10 сек (5⭐/сек)',
+    basePrice: 0.0534, // ТОЧНАЯ ЦЕНА: 5 ⭐ за секунду
     api: {
       model: 'kie-runway-aleph',
       input: {
