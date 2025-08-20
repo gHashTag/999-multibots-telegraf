@@ -55,6 +55,14 @@ async function processVideoGeneration(
       return
     }
 
+    // Логируем параметры перед отправкой на сервер
+    logger.info('[processVideoGeneration] ASPECT RATIO CHECK - calling handleTextToVideoDirect', {
+      videoModelId,
+      selectedDuration: ctx.session.selectedDuration,
+      selectedAspectRatio: ctx.session.selectedAspectRatio,
+      telegram_id: ctx.from?.id
+    })
+
     // Используем серверную генерацию через handleTextToVideoDirect
     // Она уже включает проверку баланса, списание средств и отправку видео
     await handleTextToVideoDirect(
@@ -270,10 +278,11 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           const modelKey = ctx.session.videoModel as VideoModelConfigKey
           const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
 
-          logger.info(`[TextToVideoWizard Step 2] Aspect ratio selected:`, {
+          logger.info(`[TextToVideoWizard Step 2] ASPECT RATIO CHECK - Aspect ratio selected and saved to session:`, {
             telegramId: ctx.from?.id,
             modelKey,
             aspectRatio,
+            sessionSelectedAspectRatio: ctx.session.selectedAspectRatio,
           })
 
           // Теперь проверяем, нужно ли показать выбор длительности
@@ -498,7 +507,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // ЗАПУСК СЕРВЕРНОЙ ГЕНЕРАЦИИ В ФОНЕ
     logger.info(
-      `[TextToVideoWizard Step 3] Starting server generation for user ${ctx.from?.id}`
+      `[TextToVideoWizard Step 3] ASPECT RATIO CHECK - Starting server generation for user ${ctx.from?.id}`, {
+        videoModelKey,
+        sessionSelectedDuration: ctx.session.selectedDuration,
+        sessionSelectedAspectRatio: ctx.session.selectedAspectRatio,
+        prompt: prompt.substring(0, 50)
+      }
     )
     
     // Запускаем серверную генерацию в фоне (БЕЗ await)

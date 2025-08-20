@@ -78,10 +78,11 @@ export async function generateTextToVideo(
   }
 
   // Логирование начала генерации
-  logger.info('Starting text-to-video generation', {
+  logger.info('ASPECT RATIO CHECK - Starting text-to-video generation', {
     prompt: prompt.substring(0, 100), // Логируем только начало промпта
     videoModel,
     duration,
+    aspectRatio: aspectRatio,
     telegram_id,
     username,
     is_ru,
@@ -112,6 +113,16 @@ export async function generateTextToVideo(
     // Добавляем aspectRatio если указан
     if (aspectRatio) {
       requestBody.aspectRatio = aspectRatio
+      logger.info('ASPECT RATIO CHECK - Added aspectRatio to request body', {
+        aspectRatio,
+        videoModel,
+        telegram_id
+      })
+    } else {
+      logger.warn('ASPECT RATIO CHECK - No aspectRatio provided', {
+        videoModel,
+        telegram_id
+      })
     }
 
     // Добавляем duration для Veo и Kie.ai моделей
@@ -128,6 +139,14 @@ export async function generateTextToVideo(
     ) {
       requestBody.duration = duration
     }
+
+    // Логируем финальное тело запроса
+    logger.info('ASPECT RATIO CHECK - Final request body being sent to server', {
+      url,
+      requestBody: JSON.stringify(requestBody, null, 2),
+      videoModel,
+      telegram_id
+    })
 
     // Отправляем запрос на сервер
     const response = await axios.post<TextToVideoResponse>(url, requestBody, {
