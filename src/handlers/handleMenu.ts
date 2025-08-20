@@ -8,6 +8,8 @@ import { logger } from '@/utils/logger'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 // Импортируем функцию перезапуска видео сцены
 import { handleRestartVideoGeneration } from './handleVideoRestart'
+// Импортируем функцию мониторинга конкурентов
+import { handleCompetitorMonitoring } from '@/services/competitorSubscriptionService'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 // ✅ Обновляем импорты для новых функций языка
@@ -414,6 +416,24 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+      },
+      [isRu ? levels[109].title_ru : levels[109].title_en]: async () => {
+        logger.info({
+          message: '🔍 [handleMenu] Переход к мониторингу конкурентов',
+          telegramId,
+          function: 'handleMenu',
+          action: 'competitor_monitoring',
+        })
+        console.log('CASE: 🔍 Мониторинг конкурентов')
+        
+        // Вызываем функцию мониторинга конкурентов
+        await handleCompetitorMonitoring(ctx)
+        
+        logger.info({
+          message: '✅ [handleMenu] Завершен вызов handleCompetitorMonitoring',
+          telegramId,
+          function: 'handleMenu',
+        })
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
