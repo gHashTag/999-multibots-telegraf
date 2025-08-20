@@ -127,6 +127,22 @@ export async function handleTextToVideoDirect(
 
       // Запускаем мониторинг статуса
       monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
+    } else {
+      // Если нет jobId, но генерация запущена, показываем сообщение
+      logger.info('[handleTextToVideoDirect] No jobId received, generation started without monitoring', {
+        telegram_id,
+        modelId,
+        hasMessage: !!response.message
+      })
+      
+      await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        processingMessage.message_id,
+        undefined,
+        is_ru
+          ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
+          : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+      )
     }
   } catch (error) {
     logger.error('[handleTextToVideoDirect] Unexpected error:', error)
