@@ -131,21 +131,21 @@ export interface KieAiModelPrice {
 }
 
 export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
-  // Видео модели
+  // Видео модели - ИСПРАВЛЕННЫЕ ЦЕНЫ: 5 ⭐ за секунду
   'kie-veo-3-fast': {
-    pricePerSecondUSD: 0.05, // 83% экономия vs Google
+    pricePerSecondUSD: 0.0534, // ТОЧНАЯ ЦЕНА для 5 ⭐ за секунду
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 5,
     maxDuration: 10,
   },
   'kie-veo-3': {
-    pricePerSecondUSD: 0.25, // 37% экономия vs Google
+    pricePerSecondUSD: 0.0534, // ТОЧНАЯ ЦЕНА: 40 ⭐ за 8 сек
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 8,
     maxDuration: 10,
   },
   'kie-runway-aleph': {
-    pricePerSecondUSD: 0.3, // 25% экономия vs Google
+    pricePerSecondUSD: 0.0534, // ТОЧНАЯ ЦЕНА для 5 ⭐ за секунду
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 6,
     maxDuration: 10,
