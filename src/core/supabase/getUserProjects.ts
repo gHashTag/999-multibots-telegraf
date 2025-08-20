@@ -155,7 +155,7 @@ export const getUserProjects = async (
       // ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ: Получаем только их проекты
       const userResult = await queryNeon(
         `
-        SELECT user_id 
+        SELECT id 
         FROM users 
         WHERE telegram_id = $1
       `,
@@ -170,7 +170,7 @@ export const getUserProjects = async (
         return []
       }
 
-      const userId = userResult.rows[0].user_id
+      const userId = userResult.rows[0].id
 
       const projectsResult = await queryNeon(
         `
