@@ -316,13 +316,13 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         logger.info({
-          message: '🖼️ [handleMenu] Переход к тексту в фото',
+          message: '🖼️ [handleMenu] Переход к генерации изображений',
           telegramId,
           function: 'handleMenu',
           action: 'text_to_image',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        console.log('CASE: 🖼️ Текст в фото')
+        console.log('CASE: 🖼️ Генерация изображений')
         ctx.session.mode = ModeEnum.TextToImage
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`

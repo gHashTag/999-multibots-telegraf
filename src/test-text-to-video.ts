@@ -20,7 +20,7 @@ async function testTextToVideoGeneration() {
   const testRequest = {
     prompt:
       'A majestic white cat wearing a starry wizard robe, casting magical spells with floating golden sparkles in a mystical forest',
-    videoModel: 'veo-3' as const,
+    videoModel: 'kie-veo-3-fast' as const,
     telegram_id: '144022504',
     username: 'playra',
     is_ru: false,
