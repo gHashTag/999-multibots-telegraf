@@ -132,11 +132,11 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
-  // Instagram parser button - with restricted access
+  // Competitor monitoring button - admin only access
   109: {
-    title_ru: '📱 Instagram Парсер',
-    title_en: '📱 Instagram Parser',
-    admin_only: true, // Скрыто для обычных пользователей - только для тех, у кого есть доступ
+    title_ru: '🔍 Мониторинг конкурентов',
+    title_en: '🔍 Competitor Monitoring',
+    admin_only: true, // Скрыто для обычных пользователей - только для администраторов
   },
 }
 
@@ -308,19 +308,21 @@ export async function mainMenu({
       level => !(level.admin_only && !(userId && adminIds.includes(userId)))
     )
 
-  // Добавляем кнопку Instagram парсера только для пользователей с доступом
-  const botToken = ctx.telegram.token
+  // Добавляем кнопку мониторинга конкурентов только для администраторов
   if (userId && levels[109]) {
-    const parsingAccess = getParsingAccess(userId, botToken)
-    if (parsingAccess.hasAccess) {
-      // Добавляем кнопку Instagram парсера для тех, у кого есть доступ
+    // Импортируем ADMIN_IDS_ARRAY для проверки
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+    
+    if (isAdmin) {
+      // Добавляем кнопку мониторинга конкурентов для администраторов
       if (!availableLevels.includes(levels[109])) {
         availableLevels.push(levels[109])
         logger.info(
-          '[mainMenu] Added Instagram parser button for user with access',
+          '[mainMenu] Added competitor monitoring button for admin',
           {
             userId,
-            allowedProjects: parsingAccess.allowedProjects,
+            isAdmin: true,
           }
         )
       }
