@@ -1,4 +1,5 @@
 import { createLogger, format, transports } from 'winston'
+// @ts-ignore - winston-daily-rotate-file doesn't have proper types
 import DailyRotateFile from 'winston-daily-rotate-file'
 import path from 'path'
 import fs from 'fs'
@@ -35,15 +36,30 @@ const structuredFormat = format.combine(
 const consoleFormat = format.combine(
   format.colorize(),
   format.timestamp({ format: 'HH:mm:ss' }),
-  format.printf(({ timestamp, level, message, correlationId, service, operation, telegramId, ...rest }) => {
-    const correlation = correlationId ? `[${String(correlationId).slice(0, 8)}]` : ''
-    const context = service || operation || telegramId ? 
-      `[${[service, operation, telegramId].filter(Boolean).join('|')}]` : ''
-    const metadata = Object.keys(rest).length > 0 ? 
-      ` ${JSON.stringify(rest, null, 0)}` : ''
-    
-    return `${timestamp} ${level}${correlation}${context}: ${message}${metadata}`
-  })
+  format.printf(
+    ({
+      timestamp,
+      level,
+      message,
+      correlationId,
+      service,
+      operation,
+      telegramId,
+      ...rest
+    }) => {
+      const correlation = correlationId
+        ? `[${String(correlationId).slice(0, 8)}]`
+        : ''
+      const context =
+        service || operation || telegramId
+          ? `[${[service, operation, telegramId].filter(Boolean).join('|')}]`
+          : ''
+      const metadata =
+        Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest, null, 0)}` : ''
+
+      return `${timestamp} ${level}${correlation}${context}: ${message}${metadata}`
+    }
+  )
 )
 
 // Настройка ротации логов
@@ -55,7 +71,7 @@ const createRotateTransport = (filename: string, level?: string) => {
     maxFiles: '14d',
     level,
     format: structuredFormat,
-    auditFile: path.join(logDir, `${filename}-audit.json`)
+    auditFile: path.join(logDir, `${filename}-audit.json`),
   })
 }
 
@@ -66,7 +82,7 @@ const logTransports: any[] = []
 if (process.env.NODE_ENV !== 'production') {
   logTransports.push(
     new transports.Console({
-      format: consoleFormat
+      format: consoleFormat,
     })
   )
 }
@@ -107,7 +123,7 @@ export class EnhancedLogger {
     return new EnhancedLogger({
       ...this.context,
       ...additionalContext,
-      correlationId: this.correlationId
+      correlationId: this.correlationId,
     })
   }
 
@@ -117,20 +133,22 @@ export class EnhancedLogger {
   timed<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     const start = performance.now()
     const operationLogger = this.child({ operation })
-    
+
     operationLogger.info(`Starting ${operation}`)
-    
+
     return fn()
-      .then((result) => {
+      .then(result => {
         const duration = performance.now() - start
-        operationLogger.info(`Completed ${operation}`, { duration: Math.round(duration) })
+        operationLogger.info(`Completed ${operation}`, {
+          duration: Math.round(duration),
+        })
         return result
       })
-      .catch((error) => {
+      .catch(error => {
         const duration = performance.now() - start
-        operationLogger.error(`Failed ${operation}`, { 
+        operationLogger.error(`Failed ${operation}`, {
           error: error.message,
-          duration: Math.round(duration)
+          duration: Math.round(duration),
         })
         throw error
       })
@@ -141,7 +159,7 @@ export class EnhancedLogger {
       correlationId: this.correlationId,
       ...this.context,
       ...meta,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
   }
 
@@ -175,7 +193,8 @@ export const logger = {
   info: (message: string, meta?: any) => enhancedLogger.info(message, meta),
   warn: (message: string, meta?: any) => enhancedLogger.warn(message, meta),
   error: (message: string, meta?: any) => enhancedLogger.error(message, meta),
-  security: (message: string, meta?: any) => enhancedLogger.security(message, meta)
+  security: (message: string, meta?: any) =>
+    enhancedLogger.security(message, meta),
 }
 
 export default logger
