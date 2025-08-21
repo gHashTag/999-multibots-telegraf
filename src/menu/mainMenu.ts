@@ -140,8 +140,6 @@ export const levels: Record<number, Level> = {
   },
 }
 
-const adminIds = process.env.ADMIN_IDS?.split(',') || []
-
 // 🔍 ПЕРСОНАЛИЗИРОВАННЫЕ МАССИВЫ СОТРУДНИКОВ ПО БОТАМ
 
 // 🤖 Массив сотрудников HaimGroupMedia_bot (ограниченный доступ к парсингу)
@@ -171,6 +169,8 @@ function getParsingAccess(
   hasAccess: boolean
   allowedProjects?: string[]
 } {
+  // Импортируем ADMIN_IDS_ARRAY
+  const { ADMIN_IDS_ARRAY } = require('@/config')
   const { bot_name } = getBotNameByToken(botToken)
 
   // 👑 ГЛАВНЫЙ АДМИН ИМЕЕТ ДОСТУП КО ВСЕМ БОТАМ И ВСЕМ ПРОЕКТАМ
@@ -202,10 +202,9 @@ function getParsingAccess(
     }
   }
 
-  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ
-  // Главные админы из ADMIN_IDS тоже получают доступ
-  const adminIds = process.env.ADMIN_IDS?.split(',') || []
-  if (adminIds.includes(userId)) {
+  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ  
+  // Главные админы из ADMIN_IDS_ARRAY тоже получают доступ
+  if (ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
     return {
       hasAccess: true,
       allowedProjects: ['all'], // Полный доступ для админов
@@ -300,18 +299,19 @@ export async function mainMenu({
     console.log(`[mainMenu LOG] Full access for ${currentSubscription}`)
   }
 
+  // Получаем ADMIN_IDS_ARRAY для проверки админских функций
+  const { ADMIN_IDS_ARRAY } = await import('@/config')
+  
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
     .filter(
-      level => !(level.admin_only && !(userId && adminIds.includes(userId)))
+      level => !(level.admin_only && !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))))
     )
 
   // Добавляем кнопку мониторинга конкурентов только для администраторов
   if (userId && levels[109]) {
-    // Импортируем ADMIN_IDS_ARRAY для проверки
-    const { ADMIN_IDS_ARRAY } = await import('@/config')
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
     
     if (isAdmin) {
@@ -345,7 +345,7 @@ export async function mainMenu({
   const adminSpecificButtons = []
 
   // Админские кнопки для основных админов
-  if (userId && adminIds.includes(userId)) {
+  if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
       Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2'),
