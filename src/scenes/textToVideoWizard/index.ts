@@ -27,6 +27,15 @@ async function processVideoGeneration(
   videoModelKey: VideoModelConfigKey,
   isRu: boolean
 ) {
+  logger.info('[processVideoGeneration] FUNCTION ENTRY', {
+    hasCtx: !!ctx,
+    hasTelegram: !!(ctx && ctx.telegram),
+    hasChat: !!(ctx && ctx.chat),
+    hasFrom: !!(ctx && ctx.from),
+    videoModelKey,
+    prompt: prompt.substring(0, 30)
+  })
+
   try {
     // Преобразуем VideoModelConfigKey в VideoModelId
     const modelMapping: Record<VideoModelConfigKey, VideoModelId> = {
@@ -63,6 +72,17 @@ async function processVideoGeneration(
       }
     )
 
+    // Проверяем контекст перед вызовом handleTextToVideoDirect
+    logger.info('[processVideoGeneration] PRE-HANDLE-TEXT-TO-VIDEO-DIRECT CTX CHECK', {
+      hasCtx: !!ctx,
+      hasTelegram: !!(ctx && ctx.telegram),
+      hasChat: !!(ctx && ctx.chat),
+      hasBotInfo: !!(ctx && ctx.botInfo),
+      videoModelId,
+      selectedDuration: ctx.session.selectedDuration,
+      selectedAspectRatio: ctx.session.selectedAspectRatio
+    })
+
     // Используем серверную генерацию через handleTextToVideoDirect
     // Она уже включает проверку баланса, списание средств и отправку видео
     await handleTextToVideoDirect(
@@ -72,6 +92,12 @@ async function processVideoGeneration(
       ctx.session.selectedDuration,
       ctx.session.selectedAspectRatio
     )
+    
+    logger.info('[processVideoGeneration] POST-HANDLE-TEXT-TO-VIDEO-DIRECT CTX CHECK', {
+      hasCtx: !!ctx,
+      hasTelegram: !!(ctx && ctx.telegram),
+      hasChat: !!(ctx && ctx.chat)
+    })
   } catch (error) {
     logger.error('[processVideoGeneration] Error:', error)
     await ctx.reply(
@@ -348,11 +374,31 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       Markup.removeKeyboard()
     )
 
+    logger.info(`[TextToVideoWizard Step 2] 🚨 END OF STEP 2 - About to transition to Step 3`, {
+      telegramId: ctx.from?.id,
+      modelKey,
+      selectedAspectRatio,
+      hasCtx: !!ctx,
+      hasTelegram: !!(ctx && ctx.telegram),
+      hasChat: !!(ctx && ctx.chat),
+      currentStep: ctx.wizard.cursor,
+      nextStep: ctx.wizard.cursor + 1
+    })
+
     return ctx.wizard.next() // Переход к шагу получения промпта
   },
 
   // Шаг 3: Получение промпта и запуск генерации
   async ctx => {
+    logger.info(`[TextToVideoWizard Step 3] 🚨 STEP 3 ENTRY - VERY FIRST LINE`, {
+      telegramId: ctx.from?.id,
+      hasCtx: !!ctx,
+      hasTelegram: !!(ctx && ctx.telegram),
+      hasChat: !!(ctx && ctx.chat),
+      hasMessage: !!(ctx && ctx.message),
+      currentStep: ctx.wizard.cursor,
+    })
+    
     logger.info(
       `[TextToVideoWizard Step 3] 🚨 PROMPT INPUT STEP for user ${ctx.from?.id}`,
       {
@@ -370,6 +416,18 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         sessionSelectedDuration: ctx.session.selectedDuration,
       }
     )
+
+    // Детальная проверка контекста
+    logger.info('[TextToVideoWizard Step 3] CTX VALIDATION CHECK', {
+      hasCtx: !!ctx,
+      hasTelegram: !!(ctx && ctx.telegram),
+      hasChat: !!(ctx && ctx.chat),
+      hasMessage: !!(ctx && ctx.message),
+      hasFrom: !!(ctx && ctx.from),
+      chatId: ctx?.chat?.id,
+      fromId: ctx?.from?.id,
+      messageType: ctx?.message ? Object.keys(ctx.message) : 'NO_MESSAGE'
+    })
     const isRu = isRussianFromState(ctx)
 
     if (await handleHelpCancel(ctx)) {
@@ -436,19 +494,45 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     )
 
     try {
+      // Проверяем контекст перед запуском генерации
+      logger.info('[TextToVideoWizard Step 3] PRE-GENERATION CTX CHECK', {
+        hasCtx: !!ctx,
+        hasTelegram: !!(ctx && ctx.telegram),
+        hasChat: !!(ctx && ctx.chat),
+        hasFrom: !!(ctx && ctx.from),
+        prompt: prompt.substring(0, 30)
+      })
+
       // Запускаем серверную генерацию и ждем результата
       await processVideoGeneration(ctx, prompt, videoModelKey, isRu)
+
+      logger.info('[TextToVideoWizard Step 3] POST-GENERATION CTX CHECK', {
+        hasCtx: !!ctx,
+        hasTelegram: !!(ctx && ctx.telegram),
+        hasChat: !!(ctx && ctx.chat)
+      })
 
       // После успешного запуска генерации выходим из сцены
       return ctx.scene.leave()
     } catch (error) {
       logger.error('[TextToVideoWizard] Generation error:', error)
+      
+      logger.info('[TextToVideoWizard Step 3] ERROR CTX CHECK', {
+        hasCtx: !!ctx,
+        hasTelegram: !!(ctx && ctx.telegram),
+        hasChat: !!(ctx && ctx.chat),
+        errorMessage: error.message
+      })
 
-      await ctx.reply(
-        isRu
-          ? '❌ Произошла ошибка при запуске генерации видео. Попробуйте еще раз.'
-          : '❌ An error occurred while starting video generation. Please try again.'
-      )
+      if (ctx && ctx.reply) {
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при запуске генерации видео. Попробуйте еще раз.'
+            : '❌ An error occurred while starting video generation. Please try again.'
+        )
+      } else {
+        logger.error('[TextToVideoWizard] Cannot reply - ctx.reply is not available')
+      }
 
       // В случае ошибки остаемся в сцене, чтобы пользователь мог попробовать снова
       return ctx.wizard.selectStep(ctx.wizard.cursor)
