@@ -1,9 +1,0 @@
-[build]
-builder = "nixpacks"
-watchPatterns = ["index.js", "package.json"]
-
-[deploy]
-startCommand = "node index.js"
-healthcheckPath = "/health"
-healthcheckTimeout = 600
-restartPolicyType = "ON_FAILURE"
