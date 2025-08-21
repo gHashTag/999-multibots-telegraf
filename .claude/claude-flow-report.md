@@ -1,21 +1,21 @@
 # Claude Flow Integration Report
 
-**Время:** Thu Aug 21 23:49:45 +07 2025  
+**Время:** Fri Aug 22 00:04:04 +07 2025  
 **Проект:** claude-flow  
-**Namespace:** claude-flow-20250821  
+**Namespace:** claude-flow-20250822  
 
 ## Промпт
 ```
-Создай план проекта для веб-приложения с использованием React и Node.js...
+Проверка правильной команды Claude Flow...
 ```
 
 ## Результат
 - ✅ Claude Flow запущен успешно
-- 📂 Сессий в hive-mind:        0
-- 📋 Последняя сессия: 
+- 📂 Сессий в hive-mind:        4
+- 📋 Последняя сессия: session-1755795552291-o2q21rvol-auto-save-1755795582294.json
 
 ## Файлы
-- Лог интеграции: `.claude/logs/claude-flow-integration_20250821_234944.log`
+- Лог интеграции: `.claude/logs/claude-flow-integration_20250822_000332.log`
 - Сессии: `.hive-mind/sessions/`
 
 ---

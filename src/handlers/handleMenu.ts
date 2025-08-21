@@ -19,7 +19,10 @@ import {
 } from '@/helpers/centralizedLanguage'
 import { getParsingAccess } from '@/menu/mainMenu'
 // Импортируем функции мониторинга конкурентов
-import { handleCompetitorMonitoring, handleCompetitorUsernameInput } from '@/services/competitorSubscriptionService'
+import {
+  handleCompetitorMonitoring,
+  handleCompetitorUsernameInput,
+} from '@/services/competitorSubscriptionService'
 import { competitorMonitoringApi } from '@/services/competitorMonitoringApiService'
 
 // Получаем ID администраторов из переменных окружения
@@ -474,10 +477,10 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'competitor_monitoring',
         })
         console.log('CASE: 🔍 Мониторинг конкурентов')
-        
+
         // Вызываем функцию мониторинга конкурентов
         await handleCompetitorMonitoring(ctx)
-        
+
         // После обработки мониторинга остаемся в текущей сцене
         // Это позволит пользователю вводить username, если он нужен
         logger.info({
@@ -831,13 +834,18 @@ export const handleMenu = async (ctx: MyContext) => {
         result: 'action_not_found',
       })
       console.log('CASE: handleMenuCommand.else', normalizedText)
-      
+
       // Проверяем, ожидается ли ввод username конкурента
       console.log('🔍 [handleMenu] Checking competitor username input...')
-      console.log('Session competitor monitoring state:', ctx.session.competitorMonitoring)
-      
+      console.log(
+        'Session competitor monitoring state:',
+        ctx.session.competitorMonitoring
+      )
+
       if (ctx.session.competitorMonitoring?.waitingForUsername) {
-        console.log('✅ [handleMenu] User is waiting for username input, processing...')
+        console.log(
+          '✅ [handleMenu] User is waiting for username input, processing...'
+        )
         logger.info({
           message: `🔍 [handleMenu] Обрабатываем ввод username конкурента: "${normalizedText}"`,
           telegramId,
@@ -845,24 +853,35 @@ export const handleMenu = async (ctx: MyContext) => {
           text: normalizedText,
           result: 'competitor_username_input',
         })
-        
+
         try {
           // Импортируем и вызываем функцию обработки username
-          const handled = await handleCompetitorUsernameInput(ctx, normalizedText)
+          const handled = await handleCompetitorUsernameInput(
+            ctx,
+            normalizedText
+          )
           if (handled) {
-            console.log('✅ [handleMenu] Successfully handled competitor username input')
+            console.log(
+              '✅ [handleMenu] Successfully handled competitor username input'
+            )
             return // Завершаем обработку
           }
         } catch (error) {
-          console.log('❌ [handleMenu] Error handling competitor username input:', error)
-          logger.error('[handleMenu] Error handling competitor username input', {
-            error: error instanceof Error ? error.message : String(error),
-            telegramId,
-            username: normalizedText
-          })
+          console.log(
+            '❌ [handleMenu] Error handling competitor username input:',
+            error
+          )
+          logger.error(
+            '[handleMenu] Error handling competitor username input',
+            {
+              error: error instanceof Error ? error.message : String(error),
+              telegramId,
+              username: normalizedText,
+            }
+          )
         }
       }
-      
+
       // Возможно, здесь не нужно ничего делать или отправить сообщение типа "Неизвестная команда"
     }
   } else {
@@ -893,7 +912,7 @@ export const handleMenu = async (ctx: MyContext) => {
     if (callbackData === 'add_new_competitor') {
       console.log('➕ [handleMenu] add_new_competitor callback')
       const isRu = isRussianFromState(ctx)
-      
+
       // Проверяем права администратора
       const userId = ctx.from?.id?.toString()
       if (!userId || !adminIds.includes(userId)) {
@@ -905,9 +924,11 @@ export const handleMenu = async (ctx: MyContext) => {
         )
         return
       }
-      
+
       await ctx.answerCbQuery()
-      const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
+      const { promptForCompetitorUsername } = await import(
+        '@/services/competitorSubscriptionService'
+      )
       await promptForCompetitorUsername(ctx, isRu)
       return
     }
@@ -922,27 +943,36 @@ export const handleMenu = async (ctx: MyContext) => {
     if (callbackData.startsWith('delete_subscription_')) {
       const subscriptionId = callbackData.replace('delete_subscription_', '')
       const isRu = isRussianFromState(ctx)
-      
-      console.log(`🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`)
-      
+
+      console.log(
+        `🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`
+      )
+
       try {
-        const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
-        
+        const result = await competitorMonitoringApi.deleteSubscription(
+          ctx,
+          subscriptionId
+        )
+
         if (result.success) {
-          console.log(`✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`)
+          console.log(
+            `✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`
+          )
           await ctx.answerCbQuery(result.message)
-          
+
           // Обновляем список подписок после удаления
           await handleCompetitorMonitoring(ctx)
         } else {
-          console.log(`❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`)
+          console.log(
+            `❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`
+          )
           await ctx.answerCbQuery(result.message)
         }
       } catch (error) {
         console.log(`💥 [handleMenu] Error deleting subscription: ${error}`)
         await ctx.answerCbQuery(
-          isRu 
-            ? '❌ Ошибка при удалении подписки' 
+          isRu
+            ? '❌ Ошибка при удалении подписки'
             : '❌ Error deleting subscription'
         )
       }
