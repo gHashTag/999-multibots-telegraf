@@ -2,6 +2,8 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
+import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
+import { VideoModelId } from '@/services/generateTextToVideo'
 
 console.log('🎬 [WIZARD] Loading simplified textToVideoWizard...')
 
@@ -218,23 +220,38 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     )
 
     try {
-      // Имитируем генерацию пока что
-      console.log('🎬 [WIZARD] Step 4: Simulating generation...')
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      // 🎬 РЕАЛЬНАЯ генерация через API
+      console.log('🎬 [WIZARD] Step 4: Starting REAL video generation...')
       
-      await ctx.reply(
-        isRu
-          ? `✅ Видео готово! (Тестовая версия)\n\n🎥 Модель: ${selectedModel}\n📱 Формат: ${aspectRatio}\n💭 Описание: "${prompt}"\n\n📝 Примечание: Интеграция с реальным API сервером будет добавлена после тестирования wizard'a`
-          : `✅ Video is ready! (Test version)\n\n🎥 Model: ${selectedModel}\n📱 Format: ${aspectRatio}\n💭 Description: "${prompt}"\n\n📝 Note: Real API server integration will be added after wizard testing`
+      // Конвертируем параметры в нужный формат
+      const videoModelId = selectedModel as VideoModelId
+      const duration = selectedModel.includes('veo') ? 5 : undefined // Veo модели поддерживают duration
+      
+      console.log('🎬 [WIZARD] Step 4: Calling handleTextToVideoDirect with:', {
+        prompt: prompt.substring(0, 50) + '...',
+        videoModelId,
+        duration,
+        aspectRatio
+      })
+
+      // 🚀 Вызываем РЕАЛЬНУЮ генерацию видео
+      await handleTextToVideoDirect(
+        ctx,
+        prompt,
+        videoModelId,
+        duration,
+        aspectRatio
       )
 
-      console.log('🎬 [WIZARD] Step 4: Generation completed successfully (test mode)')
-      logger.info('[TextToVideoWizard] Video generation completed (test mode)', {
+      console.log('🎬 [WIZARD] Step 4: REAL video generation initiated successfully')
+      logger.info('[TextToVideoWizard] REAL video generation initiated', {
         telegramId: ctx.from?.id,
         selectedModel,
         aspectRatio,
         cost,
-        success: true
+        success: true,
+        prompt: prompt.substring(0, 100),
+        duration
       })
 
     } catch (error) {
