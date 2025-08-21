@@ -24,8 +24,9 @@ export const MARKUP_MULTIPLIER = 1.5
 /**
  * Курс USD к RUB
  * Используется для отображения цен в рублях
+ * Установлен с небольшим запасом на волатильность (реальный курс ~80)
  */
-export const USD_TO_RUB_RATE = 100
+export const USD_TO_RUB_RATE = 85
 
 // ============================================
 // РАСЧЁТНЫЕ ФУНКЦИИ
@@ -261,3 +262,27 @@ export function logPricingConfig(): void {
     console.log(`    ${model}: $${config.pricePerSecondUSD}/sec`)
   })
 }
+
+// ============================================
+// ГЕНЕРАЦИЯ ПАКЕТОВ ПОПОЛНЕНИЯ
+// ============================================
+
+/**
+ * Генерирует пакет пополнения для заданной суммы в рублях
+ * @param amountRub - сумма в рублях
+ * @returns объект с суммой в рублях и количеством звёзд
+ */
+export function generateTopUpPackage(amountRub: number): { amountRub: number; stars: number } {
+  const stars = rubToStars(amountRub)
+  return { amountRub, stars }
+}
+
+/**
+ * Стандартные пакеты пополнения в рублях
+ */
+export const STANDARD_RUB_PACKAGES = [10, 500, 1000, 2000, 5000, 10000]
+
+/**
+ * Готовые пакеты пополнения
+ */
+export const TOP_UP_PACKAGES = STANDARD_RUB_PACKAGES.map(generateTopUpPackage)

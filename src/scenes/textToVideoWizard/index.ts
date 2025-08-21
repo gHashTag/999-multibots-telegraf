@@ -4,6 +4,8 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { sendGenericErrorMessage } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { ModeEnum } from '@/interfaces/modes'
+import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { logger } from '@/utils/logger'
 import {
   createVideoModelKeyboard,
@@ -15,10 +17,13 @@ import {
   findModelByButtonText,
   VideoModelConfigKey,
 } from '@/modules/videoGenerator/helpers/modelMapping'
+import { VIDEO_MODELS, getModelPriceInStars } from '@/services/videoModels'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { calculateFinalPrice } from '@/price/helpers'
 import { getUserBalance } from '@/core/supabase'
+import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
+import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
 
 // Упрощенная функция для обработки генерации видео через сервер
 async function processVideoGeneration(
