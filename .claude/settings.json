@@ -76,6 +76,20 @@
       "event": "UserPromptSubmit",
       "matchers": [
         {
+          "user_prompt": ".*"
+        }
+      ],
+      "commands": [
+        {
+          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/claude-flow-integration.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/claude-flow-integration.sh\" \"$USER_PROMPT\" 2>&1 | head -5",
+          "timeout": 70
+        }
+      ]
+    },
+    {
+      "event": "UserPromptSubmit",
+      "matchers": [
+        {
           "user_prompt": ".*(токен|token|ключ|key|пароль|password).*(показать|покажи|выведи|скопируй).*"
         }
       ],
