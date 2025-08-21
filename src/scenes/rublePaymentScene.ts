@@ -3,7 +3,7 @@ import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleSelectRubAmount } from '@/handlers'
-import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
+import { rubTopUpOptions, getDynamicRubTopUpOption } from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
 import { MERCHANT_LOGIN, ROBOKASSA_PASSWORD_1 } from '@/config'
 import { setPayments } from '@/core/supabase'
@@ -228,11 +228,11 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       }
     )
 
-    // Специальная обработка для админской тестовой кнопки "1 рубль"
-    let selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
+    // Получаем актуальную информацию о пакете с динамическим курсом
+    let selectedOption: { amountRub: number; stars: number } | undefined
 
-    // Если это админский тест на 1 рубль, создаем специальный объект
-    if (!selectedOption && amountRub === 1) {
+    // Специальная обработка для админской тестовой кнопки "1 рубль"  
+    if (amountRub === 1) {
       const userId = ctx.from?.id
       const { ADMIN_IDS_ARRAY } = await import('@/config')
 
@@ -245,6 +245,24 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
           }
         )
         selectedOption = { amountRub: 1, stars: 1 } // Админский тест: 1 рубль = 1 звезда
+      }
+    }
+
+    // Для обычных пакетов используем динамический курс
+    if (!selectedOption) {
+      try {
+        selectedOption = await getDynamicRubTopUpOption(amountRub)
+        logger.info(
+          `[${ModeEnum.RublePaymentScene}] Dynamic rate package generated`,
+          {
+            telegram_id: ctx.from?.id,
+            amountRub,
+            stars: selectedOption.stars,
+          }
+        )
+      } catch (error) {
+        logger.error('Error getting dynamic rub option, fallback to static', error)
+        selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
       }
     }
 

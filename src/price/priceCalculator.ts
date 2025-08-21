@@ -1,14 +1,35 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { 
+  STAR_COST_USD, 
+  getUsdToRubRate,
+  DEFAULT_USD_TO_RUB_RATE,
+  starsToRUBAsync 
+} from '@/config/unified-pricing.config'
 
 // Базовые константы
 const COST_PER_STEP_IN_STARS = 0.22
 const COST_PER_STEP_IN_STARS_V2 = 0.5
-const RUBLES_TO_DOLLARS_RATE = 80
-const STAR_COST = 0.016 // Стоимость одной звезды в долларах
 
-// Стоимость шага в долларах и рублях
+// Используем централизованные константы
+const STAR_COST = STAR_COST_USD
+
+// Стоимость шага в долларах (статическая)
 export const stepCostInDollars = STAR_COST * COST_PER_STEP_IN_STARS
-export const stepCostInRubles = stepCostInDollars * RUBLES_TO_DOLLARS_RATE
+
+/**
+ * Вычисляет стоимость шага в рублях с актуальным курсом
+ * @param fallback - курс по умолчанию если API недоступен
+ * @returns Promise со стоимостью шага в рублях
+ */
+export async function getStepCostInRubles(fallback = DEFAULT_USD_TO_RUB_RATE): Promise<number> {
+  const rate = await getUsdToRubRate(fallback)
+  return stepCostInDollars * rate
+}
+
+/**
+ * @deprecated Используйте getStepCostInRubles() для динамического курса
+ */
+export const stepCostInRubles = stepCostInDollars * DEFAULT_USD_TO_RUB_RATE
 
 export interface PaymentOption {
   amount: number
@@ -39,17 +60,35 @@ export interface ConversionRates {
   rublesToDollarsRate: number
 }
 
-// Определяем конверсии
+// Определяем конверсии (статические)
 export const conversionRates: ConversionRates = {
   costPerStepInStars: COST_PER_STEP_IN_STARS,
   costPerStarInDollars: STAR_COST,
-  rublesToDollarsRate: RUBLES_TO_DOLLARS_RATE,
+  rublesToDollarsRate: DEFAULT_USD_TO_RUB_RATE,
 }
 
 export const conversionRatesV2: ConversionRates = {
   costPerStepInStars: COST_PER_STEP_IN_STARS_V2,
   costPerStarInDollars: STAR_COST,
-  rublesToDollarsRate: RUBLES_TO_DOLLARS_RATE,
+  rublesToDollarsRate: DEFAULT_USD_TO_RUB_RATE,
+}
+
+/**
+ * Получает динамические конверсионные курсы с актуальным курсом USDT/RUB
+ * @param version - версия тарификации
+ * @param fallback - курс по умолчанию если API недоступен
+ * @returns Promise с динамическими курсами
+ */
+export async function getDynamicConversionRates(
+  version: 'v1' | 'v2' = 'v1',
+  fallback = DEFAULT_USD_TO_RUB_RATE
+): Promise<ConversionRates> {
+  const rate = await getUsdToRubRate(fallback)
+  return {
+    costPerStepInStars: version === 'v1' ? COST_PER_STEP_IN_STARS : COST_PER_STEP_IN_STARS_V2,
+    costPerStarInDollars: STAR_COST,
+    rublesToDollarsRate: rate,
+  }
 }
 
 export interface CostDetails {
@@ -64,6 +103,31 @@ export function calculateCost(
   version: 'v1' | 'v2' = 'v1'
 ): CostDetails {
   const rates = version === 'v1' ? conversionRates : conversionRatesV2
+  const stars = steps * rates.costPerStepInStars
+  const dollars = stars * rates.costPerStarInDollars
+  const rubles = dollars * rates.rublesToDollarsRate
+
+  return {
+    steps,
+    stars: parseFloat(stars.toFixed(2)),
+    dollars: parseFloat(dollars.toFixed(2)),
+    rubles: parseFloat(rubles.toFixed(2)),
+  }
+}
+
+/**
+ * Рассчитывает стоимость с использованием актуального курса USDT/RUB
+ * @param steps - количество шагов
+ * @param version - версия тарификации
+ * @param fallback - курс по умолчанию если API недоступен
+ * @returns Promise с детализированной стоимостью
+ */
+export async function calculateCostDynamic(
+  steps: number,
+  version: 'v1' | 'v2' = 'v1',
+  fallback = DEFAULT_USD_TO_RUB_RATE
+): Promise<CostDetails> {
+  const rates = await getDynamicConversionRates(version, fallback)
   const stars = steps * rates.costPerStepInStars
   const dollars = stars * rates.costPerStarInDollars
   const rubles = dollars * rates.rublesToDollarsRate

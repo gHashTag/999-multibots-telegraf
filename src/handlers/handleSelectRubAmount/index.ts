@@ -1,5 +1,5 @@
 import { Context, Markup } from 'telegraf'
-import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
+import { getDynamicRubTopUpOptions, rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { ADMIN_IDS_ARRAY } from '@/config'
 
 interface SelectRubParams {
@@ -9,8 +9,18 @@ interface SelectRubParams {
 
 export async function handleSelectRubAmount({ ctx, isRu }: SelectRubParams) {
   try {
+    // Получаем динамические пакеты пополнения с актуальным курсом
+    let topUpOptions: { amountRub: number; stars: number }[]
+    try {
+      topUpOptions = await getDynamicRubTopUpOptions()
+      console.log('✅ Используются динамические пакеты пополнения с актуальным курсом USDT/RUB')
+    } catch (error) {
+      console.error('Ошибка получения динамических пакетов, используем статические:', error)
+      topUpOptions = rubTopUpOptions
+    }
+
     // Создаем массив рядов, где каждый ряд содержит одну кнопку
-    const inlineKeyboardRows = rubTopUpOptions.map(option => [
+    const inlineKeyboardRows = topUpOptions.map(option => [
       Markup.button.callback(
         `💰 ${option.amountRub} ₽ (~${option.stars}⭐️)`,
         `top_up_rub_${option.amountRub}`

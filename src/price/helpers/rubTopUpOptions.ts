@@ -1,20 +1,37 @@
-// Пакеты пополнения в рублях
-// Рассчитано по курсу: 1 USD = 85 RUB, 1 звезда = $0.016, наценка 50%
-// Цена 1 звезды для пользователя: 0.016 * 1.5 * 85 = 2.04 рубля
-export const rubTopUpOptions: { amountRub: number; stars: number }[] = [
-  { amountRub: 10, stars: 4 },      // 10₽ / 2.04₽ = 4.9 → 4⭐
-  { amountRub: 500, stars: 245 },   // 500₽ / 2.04₽ = 245⭐
-  { amountRub: 1000, stars: 490 },  // 1000₽ / 2.04₽ = 490⭐
-  { amountRub: 2000, stars: 980 },  // 2000₽ / 2.04₽ = 980⭐
-  { amountRub: 5000, stars: 2450 }, // 5000₽ / 2.04₽ = 2450⭐
-  { amountRub: 10000, stars: 4901 },// 10000₽ / 2.04₽ = 4901⭐
-].filter(option => option.stars > 0) // На всякий случай оставим фильтр
+import {
+  generateDynamicTopUpPackages,
+  TOP_UP_PACKAGES,
+  DEFAULT_USD_TO_RUB_RATE
+} from '@/config/unified-pricing.config'
 
-// Проверка, если вдруг все пакеты стали невалидными
-if (rubTopUpOptions.length === 0) {
-  console.error(
-    'Не удалось сформировать пакеты пополнения рублями из фиксированного списка.'
-  )
-  // Добавляем хотя бы один пакет по умолчанию
-  rubTopUpOptions.push({ amountRub: 100, stars: 1 })
+/**
+ * Статические пакеты пополнения в рублях (для обратной совместимости)
+ * @deprecated Используйте getDynamicRubTopUpOptions() для актуальных курсов
+ */
+export const rubTopUpOptions = TOP_UP_PACKAGES
+
+/**
+ * Получает динамические пакеты пополнения с актуальным курсом USDT/RUB
+ * @param fallback - курс по умолчанию если API Bybit недоступен
+ * @returns Promise с пакетами пополнения по актуальному курсу
+ */
+export async function getDynamicRubTopUpOptions(fallback = DEFAULT_USD_TO_RUB_RATE): Promise<{ amountRub: number; stars: number }[]> {
+  try {
+    return await generateDynamicTopUpPackages(fallback)
+  } catch (error) {
+    console.error('Ошибка получения динамических пакетов пополнения:', error)
+    // Возвращаем статические пакеты в случае ошибки
+    return rubTopUpOptions
+  }
+}
+
+/**
+ * Получает динамический пакет пополнения для конкретной суммы
+ * @param amountRub - сумма в рублях
+ * @param fallback - курс по умолчанию если API Bybit недоступен  
+ * @returns Promise с пакетом пополнения
+ */
+export async function getDynamicRubTopUpOption(amountRub: number, fallback = DEFAULT_USD_TO_RUB_RATE): Promise<{ amountRub: number; stars: number }> {
+  const { generateTopUpPackageAsync } = await import('@/config/unified-pricing.config')
+  return await generateTopUpPackageAsync(amountRub, fallback)
 }

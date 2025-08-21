@@ -5,6 +5,8 @@
  * Все расчёты должны использовать эти константы.
  */
 
+import { getCurrentRate } from '@/modules/currency-rate'
+
 // ============================================
 // БАЗОВЫЕ КОНСТАНТЫ (НЕ ИЗМЕНЯТЬ БЕЗ СОГЛАСОВАНИЯ!)
 // ============================================
@@ -22,11 +24,24 @@ export const STAR_COST_USD = 0.016
 export const MARKUP_MULTIPLIER = 1.5
 
 /**
- * Курс USD к RUB
- * Используется для отображения цен в рублях
- * Установлен с небольшим запасом на волатильность (реальный курс ~80)
+ * Курс USD к RUB по умолчанию
+ * Используется как fallback если динамический курс недоступен
  */
-export const USD_TO_RUB_RATE = 85
+export const DEFAULT_USD_TO_RUB_RATE = 85
+
+/**
+ * Получает актуальный курс USD к RUB динамически через Bybit API
+ * @param fallback - значение по умолчанию если API недоступен
+ * @returns Promise с актуальным курсом
+ */
+export async function getUsdToRubRate(fallback = DEFAULT_USD_TO_RUB_RATE): Promise<number> {
+  return await getCurrentRate({ fallback })
+}
+
+/**
+ * @deprecated Используйте getUsdToRubRate() для динамического курса
+ */
+export const USD_TO_RUB_RATE = DEFAULT_USD_TO_RUB_RATE
 
 // ============================================
 // РАСЧЁТНЫЕ ФУНКЦИИ
@@ -53,22 +68,48 @@ export function starsToUSD(stars: number): number {
 }
 
 /**
- * Преобразует количество звёзд в рубли
+ * Преобразует количество звёзд в рубли (статический курс)
+ * @deprecated Используйте starsToRUBAsync() для динамического курса
  * @param stars - количество звёзд
  * @returns стоимость в рублях
  */
 export function starsToRUB(stars: number): number {
   const usd = starsToUSD(stars)
-  return Math.round(usd * USD_TO_RUB_RATE)
+  return Math.round(usd * DEFAULT_USD_TO_RUB_RATE)
 }
 
 /**
- * Преобразует рубли в количество звёзд
+ * Преобразует рубли в количество звёзд (статический курс)
+ * @deprecated Используйте rubToStarsAsync() для динамического курса
  * @param rub - сумма в рублях
  * @returns количество звёзд (округлённое вниз)
  */
 export function rubToStars(rub: number): number {
-  const usd = rub / USD_TO_RUB_RATE
+  const usd = rub / DEFAULT_USD_TO_RUB_RATE
+  return usdToStars(usd)
+}
+
+/**
+ * Преобразует количество звёзд в рубли с актуальным курсом
+ * @param stars - количество звёзд
+ * @param fallback - курс по умолчанию если API недоступен
+ * @returns Promise со стоимостью в рублях
+ */
+export async function starsToRUBAsync(stars: number, fallback = DEFAULT_USD_TO_RUB_RATE): Promise<number> {
+  const usd = starsToUSD(stars)
+  const rate = await getUsdToRubRate(fallback)
+  return Math.round(usd * rate)
+}
+
+/**
+ * Преобразует рубли в количество звёзд с актуальным курсом
+ * @param rub - сумма в рублях
+ * @param fallback - курс по умолчанию если API недоступен
+ * @returns Promise с количеством звёзд (округлённое вниз)
+ */
+export async function rubToStarsAsync(rub: number, fallback = DEFAULT_USD_TO_RUB_RATE): Promise<number> {
+  const rate = await getUsdToRubRate(fallback)
+  const usd = rub / rate
   return usdToStars(usd)
 }
 
@@ -238,8 +279,8 @@ if (MARKUP_MULTIPLIER < 1) {
   throw new Error('MARKUP_MULTIPLIER must be >= 1 (no negative markup allowed)')
 }
 
-if (USD_TO_RUB_RATE <= 0) {
-  throw new Error('USD_TO_RUB_RATE must be positive')
+if (DEFAULT_USD_TO_RUB_RATE <= 0) {
+  throw new Error('DEFAULT_USD_TO_RUB_RATE must be positive')
 }
 
 // ============================================
@@ -249,14 +290,16 @@ if (USD_TO_RUB_RATE <= 0) {
 // Эти экспорты для обратной совместимости со старым кодом
 export const starCost = STAR_COST_USD
 export const interestRate = MARKUP_MULTIPLIER
-export const rubRate = USD_TO_RUB_RATE
+export const rubRate = DEFAULT_USD_TO_RUB_RATE
 
 // Для логирования конфигурации
-export function logPricingConfig(): void {
+export async function logPricingConfig(): Promise<void> {
+  const currentRate = await getUsdToRubRate()
   console.log('💰 PRICING CONFIGURATION:')
   console.log(`  1 ⭐ = $${STAR_COST_USD}`)
   console.log(`  Markup: ${((MARKUP_MULTIPLIER - 1) * 100).toFixed(0)}%`)
-  console.log(`  1 USD = ${USD_TO_RUB_RATE} RUB`)
+  console.log(`  1 USD = ${currentRate} RUB (dynamic)`)
+  console.log(`  Fallback rate: ${DEFAULT_USD_TO_RUB_RATE} RUB`)
   console.log('  VEO Models:')
   Object.entries(VEO_MODELS_PRICING).forEach(([model, config]) => {
     console.log(`    ${model}: $${config.pricePerSecondUSD}/sec`)
@@ -268,7 +311,8 @@ export function logPricingConfig(): void {
 // ============================================
 
 /**
- * Генерирует пакет пополнения для заданной суммы в рублях
+ * Генерирует пакет пополнения для заданной суммы в рублях (статический курс)
+ * @deprecated Используйте generateTopUpPackageAsync() для динамического курса
  * @param amountRub - сумма в рублях
  * @returns объект с суммой в рублях и количеством звёзд
  */
@@ -278,11 +322,34 @@ export function generateTopUpPackage(amountRub: number): { amountRub: number; st
 }
 
 /**
+ * Генерирует пакет пополнения для заданной суммы в рублях с актуальным курсом
+ * @param amountRub - сумма в рублях
+ * @param fallback - курс по умолчанию если API недоступен
+ * @returns Promise с объектом пакета пополнения
+ */
+export async function generateTopUpPackageAsync(amountRub: number, fallback = DEFAULT_USD_TO_RUB_RATE): Promise<{ amountRub: number; stars: number }> {
+  const stars = await rubToStarsAsync(amountRub, fallback)
+  return { amountRub, stars }
+}
+
+/**
  * Стандартные пакеты пополнения в рублях
  */
 export const STANDARD_RUB_PACKAGES = [10, 500, 1000, 2000, 5000, 10000]
 
 /**
- * Готовые пакеты пополнения
+ * Готовые пакеты пополнения (статические)
+ * @deprecated Используйте generateDynamicTopUpPackages() для динамических пакетов
  */
 export const TOP_UP_PACKAGES = STANDARD_RUB_PACKAGES.map(generateTopUpPackage)
+
+/**
+ * Генерирует динамические пакеты пополнения с актуальным курсом
+ * @param fallback - курс по умолчанию если API недоступен
+ * @returns Promise с массивом пакетов пополнения
+ */
+export async function generateDynamicTopUpPackages(fallback = DEFAULT_USD_TO_RUB_RATE): Promise<{ amountRub: number; stars: number }[]> {
+  return Promise.all(
+    STANDARD_RUB_PACKAGES.map(amount => generateTopUpPackageAsync(amount, fallback))
+  )
+}
