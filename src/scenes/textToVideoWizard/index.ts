@@ -374,11 +374,31 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       Markup.removeKeyboard()
     )
 
+    logger.info(`[TextToVideoWizard Step 2] 🚨 END OF STEP 2 - About to transition to Step 3`, {
+      telegramId: ctx.from?.id,
+      modelKey,
+      selectedAspectRatio,
+      hasCtx: !!ctx,
+      hasTelegram: !!(ctx && ctx.telegram),
+      hasChat: !!(ctx && ctx.chat),
+      currentStep: ctx.wizard.cursor,
+      nextStep: ctx.wizard.cursor + 1
+    })
+
     return ctx.wizard.next() // Переход к шагу получения промпта
   },
 
   // Шаг 3: Получение промпта и запуск генерации
   async ctx => {
+    logger.info(`[TextToVideoWizard Step 3] 🚨 STEP 3 ENTRY - VERY FIRST LINE`, {
+      telegramId: ctx.from?.id,
+      hasCtx: !!ctx,
+      hasTelegram: !!(ctx && ctx.telegram),
+      hasChat: !!(ctx && ctx.chat),
+      hasMessage: !!(ctx && ctx.message),
+      currentStep: ctx.wizard.cursor,
+    })
+    
     logger.info(
       `[TextToVideoWizard Step 3] 🚨 PROMPT INPUT STEP for user ${ctx.from?.id}`,
       {
