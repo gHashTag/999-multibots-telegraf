@@ -95,14 +95,16 @@ export async function handleTextToVideoDirect(
     })
 
     if (!response.success) {
-      await ctx.telegram.editMessageText(
-        ctx.chat!.id,
-        processingMessage.message_id,
-        undefined,
-        is_ru
-          ? `❌ Ошибка генерации: ${response.error}`
-          : `❌ Generation error: ${response.error}`
-      )
+      if (ctx && ctx.telegram && ctx.chat) {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          processingMessage.message_id,
+          undefined,
+          is_ru
+            ? `❌ Ошибка генерации: ${response.error}`
+            : `❌ Generation error: ${response.error}`
+        )
+      }
       return
     }
 
@@ -141,26 +143,30 @@ export async function handleTextToVideoDirect(
         }
       )
 
-      await ctx.telegram.editMessageText(
-        ctx.chat!.id,
-        processingMessage.message_id,
-        undefined,
-        is_ru
-          ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
-          : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
-      )
+      if (ctx && ctx.telegram && ctx.chat) {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          processingMessage.message_id,
+          undefined,
+          is_ru
+            ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
+            : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+        )
+      }
     }
   } catch (error) {
     logger.error('[handleTextToVideoDirect] Unexpected error:', error)
 
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      processingMessage.message_id,
-      undefined,
-      is_ru
-        ? '❌ Произошла неожиданная ошибка при генерации видео.'
-        : '❌ An unexpected error occurred during video generation.'
-    )
+    if (ctx && ctx.telegram && ctx.chat) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        processingMessage.message_id,
+        undefined,
+        is_ru
+          ? '❌ Произошла неожиданная ошибка при генерации видео.'
+          : '❌ An unexpected error occurred during video generation.'
+      )
+    }
   }
 }
 
@@ -203,38 +209,44 @@ async function monitorVideoGeneration(
       } else if (!statusResponse.success) {
         // Ошибка генерации
         clearInterval(checkInterval)
-        await ctx.telegram.editMessageText(
-          ctx.chat!.id,
-          messageId,
-          undefined,
-          is_ru
-            ? `❌ Ошибка генерации: ${statusResponse.error}`
-            : `❌ Generation error: ${statusResponse.error}`
-        )
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            messageId,
+            undefined,
+            is_ru
+              ? `❌ Ошибка генерации: ${statusResponse.error}`
+              : `❌ Generation error: ${statusResponse.error}`
+          )
+        }
       } else if (attempts >= maxAttempts) {
         // Таймаут
         clearInterval(checkInterval)
-        await ctx.telegram.editMessageText(
-          ctx.chat!.id,
-          messageId,
-          undefined,
-          is_ru
-            ? '⏱️ Генерация видео заняла слишком много времени. Пожалуйста, попробуйте позже.'
-            : '⏱️ Video generation took too long. Please try again later.'
-        )
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            messageId,
+            undefined,
+            is_ru
+              ? '⏱️ Генерация видео заняла слишком много времени. Пожалуйста, попробуйте позже.'
+              : '⏱️ Video generation took too long. Please try again later.'
+          )
+        }
       }
     } catch (error) {
       clearInterval(checkInterval)
       logger.error('[monitorVideoGeneration] Error checking status:', error)
 
-      await ctx.telegram.editMessageText(
-        ctx.chat!.id,
-        messageId,
-        undefined,
-        is_ru
-          ? '❌ Ошибка при проверке статуса генерации.'
-          : '❌ Error checking generation status.'
-      )
+      if (ctx && ctx.telegram && ctx.chat) {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          messageId,
+          undefined,
+          is_ru
+            ? '❌ Ошибка при проверке статуса генерации.'
+            : '❌ Error checking generation status.'
+        )
+      }
     }
   }, 5000) // Проверяем каждые 5 секунд
 }
@@ -258,14 +270,16 @@ async function handleVideoReady(
     const uploadedUrl = videoUrl
 
     // Обновляем сообщение
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      messageId,
-      undefined,
-      is_ru
-        ? '✅ Видео успешно сгенерировано! Отправляю...'
-        : '✅ Video generated successfully! Sending...'
-    )
+    if (ctx && ctx.telegram && ctx.chat) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '✅ Видео успешно сгенерировано! Отправляю...'
+          : '✅ Video generated successfully! Sending...'
+      )
+    }
 
     // Получаем информацию о модели для подписи
     const modelInfo = VIDEO_MODELS[modelId]
@@ -326,14 +340,16 @@ async function handleVideoReady(
   } catch (error) {
     logger.error('[handleVideoReady] Error sending video:', error)
 
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      messageId,
-      undefined,
-      is_ru
-        ? '❌ Ошибка при отправке видео. Пожалуйста, попробуйте позже.'
-        : '❌ Error sending video. Please try again later.'
-    )
+    if (ctx && ctx.telegram && ctx.chat) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '❌ Ошибка при отправке видео. Пожалуйста, попробуйте позже.'
+          : '❌ Error sending video. Please try again later.'
+      )
+    }
   }
 }
 
