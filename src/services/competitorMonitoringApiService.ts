@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -21,16 +20,14 @@ interface CompetitorMonitoringOptions {
 
 /**
  * 🚀 API Service для мониторинга конкурентов Instagram
- * Интегрируется с backend API и Inngest функциями
+ * Использует готовый backend API
  */
 export class CompetitorMonitoringApiService {
   private apiUrl: string
 
   constructor() {
-    // Используем тот же паттерн определения URL, что и в других сервисах
-    this.apiUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://ai-server-u14194.vm.elestio.app' 
-      : 'http://localhost:2999'
+    // Используем API_URL из конфига (уже настроен правильно)
+    this.apiUrl = API_URL
   }
 
   /**
@@ -47,7 +44,7 @@ export class CompetitorMonitoringApiService {
         apiUrl: this.apiUrl
       })
 
-      const response = await axios.get<SubscriptionsResponse>(
+      const response = await axios.get(
         `${this.apiUrl}/api/competitor-subscriptions`,
         {
           params: {
@@ -104,7 +101,7 @@ export class CompetitorMonitoringApiService {
       }
     }
 
-    const { competitorUsername, maxReels = 20, minViews = 1000, maxAgeDays = 7, deliveryFormat = 'digest' } = options
+    const { competitorUsername, maxReels = 15, minViews = 5000, maxAgeDays = 1, deliveryFormat = 'individual' } = options
 
     try {
       logger.info('[Competitor Monitoring API] Creating subscription', {
@@ -114,10 +111,10 @@ export class CompetitorMonitoringApiService {
         apiUrl: this.apiUrl
       })
 
-      // Подготавливаем данные для создания подписки
-      const subscriptionData: CreateSubscriptionRequest = {
+      // Подготавливаем данные для создания подписки согласно backend схеме
+      const subscriptionData = {
         user_telegram_id: userTelegramId,
-        bot_name: 'telegram_bot', // Фиксированное имя для консистентности
+        bot_name: 'telegram_bot',
         competitor_username: competitorUsername.replace('@', ''),
         max_reels: maxReels,
         min_views: minViews,
@@ -125,8 +122,8 @@ export class CompetitorMonitoringApiService {
         delivery_format: deliveryFormat
       }
 
-      // Делаем POST запрос для создания подписки
-      const response = await axios.post<SubscriptionResponse>(
+      // Используем готовый backend API endpoint
+      const response = await axios.post(
         `${this.apiUrl}/api/competitor-subscriptions`,
         subscriptionData,
         {
@@ -144,9 +141,7 @@ export class CompetitorMonitoringApiService {
           subscriptionId: response.data.subscription.id
         })
 
-        // Сразу после создания подписки запускаем первоначальный парсинг через Inngest
-        await this.triggerInitialParsing(ctx, response.data.subscription)
-
+        // Backend автоматически запустит парсинг через Inngest cron
         const successMessage = isRu
           ? `✅ Подписка на мониторинг @${competitorUsername} создана!
 
@@ -156,8 +151,8 @@ export class CompetitorMonitoringApiService {
 📅 Возраст контента: до ${maxAgeDays} дней
 📦 Формат доставки: ${deliveryFormat === 'digest' ? 'Дайджест' : deliveryFormat === 'individual' ? 'Отдельные сообщения' : 'Архив'}
 
-🚀 Запускаем первоначальный анализ...
-📬 Результаты придут в течение 10-15 минут`
+🚀 Парсинг запустится автоматически каждые 24 часа в 08:00 UTC
+📬 Первые результаты придут в течение 24 часов`
           : `✅ Monitoring subscription for @${competitorUsername} created!
 
 📊 **Monitoring Settings:**
@@ -166,8 +161,8 @@ export class CompetitorMonitoringApiService {
 📅 Content age: up to ${maxAgeDays} days
 📦 Delivery format: ${deliveryFormat}
 
-🚀 Starting initial analysis...
-📬 Results will arrive within 10-15 minutes`
+🚀 Parsing will start automatically every 24 hours at 08:00 UTC
+📬 First results will arrive within 24 hours`
 
         return {
           success: true,
@@ -221,61 +216,6 @@ export class CompetitorMonitoringApiService {
   }
 
   /**
-   * 🚀 Запуск первоначального парсинга через Inngest
-   */
-  private async triggerInitialParsing(
-    ctx: MyContext,
-    subscription: CompetitorSubscription
-  ): Promise<void> {
-    try {
-      const userTelegramId = ctx.from?.id?.toString()
-      
-      if (!userTelegramId) return
-
-      logger.info('[Competitor Monitoring API] Triggering initial parsing via Inngest', {
-        subscriptionId: subscription.id,
-        competitorUsername: subscription.competitor_username,
-        userTelegramId
-      })
-
-      // Запускаем Inngest функцию competitorAutoParser для первоначального парсинга
-      const inngestResult = await inngest.send({
-        name: 'competitor/auto-parser',
-        data: {
-          subscription_id: subscription.id,
-          competitor_username: subscription.competitor_username,
-          user_telegram_id: subscription.user_telegram_id,
-          bot_name: subscription.bot_name,
-          max_reels: subscription.max_reels,
-          min_views: subscription.min_views,
-          max_age_days: subscription.max_age_days,
-          delivery_format: subscription.delivery_format,
-          
-          // Метаданные для отладки
-          trigger_type: 'initial_parsing',
-          timestamp: new Date().toISOString(),
-          debug_source: 'competitor-monitoring-api-service'
-        },
-        user: {
-          external_id: userTelegramId
-        },
-        id: `competitor-parser-${subscription.id}-${Date.now()}`
-      })
-
-      logger.info('[Competitor Monitoring API] Initial parsing triggered successfully', {
-        subscriptionId: subscription.id,
-        inngestResult
-      })
-
-    } catch (error) {
-      logger.error('[Competitor Monitoring API] Error triggering initial parsing', {
-        error: error instanceof Error ? error.message : String(error),
-        subscriptionId: subscription.id
-      })
-    }
-  }
-
-  /**
    * 🗑️ Удалить подписку
    */
   async deleteSubscription(
@@ -301,12 +241,13 @@ export class CompetitorMonitoringApiService {
         apiUrl: this.apiUrl
       })
 
-      const response = await axios.delete<SubscriptionResponse>(
+      // Используем готовый backend API endpoint
+      const response = await axios.delete(
         `${this.apiUrl}/api/competitor-subscriptions/${subscriptionId}`,
         {
           params: {
             user_telegram_id: userTelegramId,
-            bot_name: 'telegram_bot' // Фиксированное имя для консистентности
+            bot_name: 'telegram_bot'
           },
           timeout: 10000,
           headers: {
