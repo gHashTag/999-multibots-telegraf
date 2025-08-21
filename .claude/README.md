@@ -1,6 +1,15 @@
-# Claude Code Security Hooks System
+# Claude Code Integration System
 
-Система автоматической защиты от утечек токенов и поддержания чистоты кода в проекте.
+Полная система интеграции Claude Code с Claude Flow + автоматическая защита от утечек токенов и поддержание чистоты проекта.
+
+## 🤖 Claude Flow Интеграция
+
+### UserPromptSubmit хуки (для каждого промпта):
+- **Автоматический запуск** Claude Flow hive-mind для каждого промпта
+- **Создание AI-агентов** для анализа и выполнения задач
+- **Генерация summary** и отчетов по результатам работы
+- **Сохранение сессий** в .hive-mind/sessions/ для истории
+- **Интеллектуальная обработка** сложных многошаговых задач
 
 ## 🛡️ Что делают хуки
 
@@ -28,14 +37,27 @@
 .claude/
 ├── settings.json           # Конфигурация хуков
 ├── README.md              # Эта документация
+├── activate-hooks.sh       # Скрипт активации системы
+├── quick-check.sh         # Быстрая проверка интеграции
+├── validate-claude-flow.sh # Полная валидация Claude Flow
+├── test-claude-flow.sh    # Тестирование Claude Flow интеграции
 ├── logs/                  # Логи выполнения хуков
+│   ├── claude-flow-integration_*.log  # Логи Claude Flow
+│   ├── post-task-security_*.log       # Логи security проверок
+│   └── stop-cleanup_*.log             # Логи финальной очистки
 ├── hooks/
-│   ├── security-scan.sh   # Полное security сканирование
-│   ├── cleanup.sh         # Очистка мусора
-│   ├── post-task-security.sh  # Быстрая проверка после действий
-│   └── stop-cleanup.sh    # Финальная проверка при завершении
-├── SECURITY_ALERT.txt     # Создается при обнаружении проблем
-└── COMPLETION_BLOCKED.txt # Создается при блокировке завершения
+│   ├── claude-flow-integration.sh  # 🤖 Интеграция с Claude Flow
+│   ├── security-scan.sh           # 🛡️ Полное security сканирование
+│   ├── cleanup.sh                 # 🧹 Очистка мусора
+│   ├── post-task-security.sh      # ⚡ Быстрая проверка после действий
+│   └── stop-cleanup.sh            # 🔚 Финальная проверка при завершении
+├── claude-flow-report.md   # Отчет о работе Claude Flow
+├── SECURITY_ALERT.txt      # Создается при обнаружении проблем
+└── COMPLETION_BLOCKED.txt  # Создается при блокировке завершения
+
+.hive-mind/                 # Claude Flow workspace
+├── sessions/               # Сессии AI-агентов
+└── memory/                 # Память и контекст
 ```
 
 ## 🚀 Активация системы
@@ -53,7 +75,13 @@ ln -sf "$(pwd)/.claude/settings.json" ~/.claude/settings.json
 
 ### 3. Проверка активации:
 ```bash
-# Запустить любое действие Claude Code и проверить логи
+# Быстрая проверка интеграции
+bash .claude/quick-check.sh
+
+# Полная валидация (займет больше времени)  
+bash .claude/validate-claude-flow.sh
+
+# Проверить логи
 ls -la .claude/logs/
 ```
 
@@ -148,6 +176,51 @@ bash .claude/hooks/cleanup.sh
 bash .claude/hooks/post-task-security.sh "Manual" "test"
 ```
 
+### Тестирование Claude Flow интеграции:
+```bash
+bash .claude/test-claude-flow.sh
+```
+
+## 🤖 Работа с Claude Flow
+
+### Проверка активности Claude Flow:
+```bash
+# Проверить логи интеграции
+ls -la .claude/logs/claude-flow-integration_*.log
+
+# Посмотреть последний лог
+tail -20 .claude/logs/claude-flow-integration_*.log | tail -1
+
+# Проверить созданные сессии
+ls -la .hive-mind/sessions/
+
+# Посмотреть последний summary
+find .hive-mind/sessions -name "summary.md" -exec ls -lt {} + | head -1
+```
+
+### Анализ результатов Claude Flow:
+```bash
+# Отчет о последней интеграции
+cat .claude/claude-flow-report.md
+
+# Детальный анализ последней сессии
+LATEST_SESSION=$(ls -t .hive-mind/sessions/ | head -1)
+echo "Последняя сессия: $LATEST_SESSION"
+cat .hive-mind/sessions/$LATEST_SESSION/summary.md
+```
+
+### Статистика работы агентов:
+```bash
+# Количество сессий
+echo "Всего сессий: $(ls -1 .hive-mind/sessions/ | wc -l)"
+
+# Размер workspace
+echo "Размер .hive-mind: $(du -sh .hive-mind)"
+
+# Активность по дням
+find .hive-mind/sessions -name "*.md" -newermt "1 day ago" | wc -l
+```
+
 ## 📊 Мониторинг
 
 ### Просмотр логов:
@@ -189,9 +262,24 @@ find . -type f -newermt "1 hour ago" -not -path "./node_modules/*"
 
 ## 🎯 Результат
 
+🤖 **Claude Flow автоматически обрабатывает каждый промпт**  
 ✅ **Никакие токены не попадут в git**  
 ✅ **Проект всегда остается чистым**  
 ✅ **Автоматическая защита от утечек**  
 ✅ **Полная прозрачность через логи**  
+🧠 **AI-агенты помогают с каждой задачей**  
+📊 **Детальная аналитика работы системы**  
 
-**Система работает автоматически и не требует вмешательства пользователя!**
+**Теперь у вас есть полная AI-assisted среда разработки с автоматической защитой!**
+
+## 🚀 Как это работает
+
+1. **Отправляете промпт в Claude Code** 
+2. **Автоматически запускается Claude Flow** → создает AI-агентов для анализа
+3. **Агенты обрабатывают задачу** → генерируют решения и рекомендации  
+4. **Claude Code выполняет задачу** → с учетом рекомендаций агентов
+5. **Security система проверяет результат** → блокирует утечки токенов
+6. **Генерируется отчет** → сохраняется в .hive-mind/sessions/
+7. **Проект очищается** → удаляется мусор, оптимизируется размер
+
+**Все происходит автоматически, вы просто работаете как обычно!**

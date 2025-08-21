@@ -92,12 +92,13 @@ Claude Code Security Hooks - Активированы $(date)
 Настройки: $SETTINGS_FILE
 
 Активированные хуки:
+✓ UserPromptSubmit - Автоматический запуск Claude Flow для промптов
 ✓ PostToolUse - Проверка после каждого действия
 ✓ Stop - Финальная проверка при завершении
 ✓ PreToolUse - Предупреждения перед опасными действиями
-✓ UserPromptSubmit - Блокировка небезопасных запросов
 
-Автоматические проверки:
+Автоматические функции:
+✓ Claude Flow интеграция (hive-mind spawn для каждого промпта)
 ✓ Сканирование токенов (Telegram, OpenAI, Supabase)
 ✓ Проверка git staged файлов
 ✓ Очистка временных файлов
@@ -117,8 +118,37 @@ echo "🔍 Логи: $CLAUDE_DIR/logs/"
 echo ""
 echo "🚀 Система готова к работе!"
 echo "   Теперь Claude Code будет автоматически:"
+echo "   • 🤖 Запускать Claude Flow для каждого промпта"
 echo "   • 🛡️ Проверять код на утечки токенов"
 echo "   • 🧹 Очищать мусор после задач"  
 echo "   • 🚨 Блокировать небезопасные операции"
 echo "   • 📊 Вести подробные логи"
+echo ""
+echo "🧪 ТЕСТИРОВАНИЕ И ВАЛИДАЦИЯ:"
+echo "============================"
+echo ""
+echo "1. Валидация интеграции:"
+echo "   bash $CLAUDE_DIR/validate-claude-flow.sh"
+echo ""
+echo "2. Тестирование Claude Flow:"
+echo "   bash $CLAUDE_DIR/test-claude-flow.sh"
+echo ""
+echo "3. Проверка логов интеграции:"
+echo "   ls -la $CLAUDE_DIR/logs/claude-flow-integration_*.log"
+echo ""
+echo "4. Проверка hive-mind сессий:"
+echo "   ls -la .hive-mind/sessions/"
+echo ""
+echo "🎯 ПОДТВЕРЖДЕНИЕ РАБОТЫ Claude Flow:"
+echo "===================================="
+echo ""
+echo "После отправки любого промпта в Claude Code проверьте:"
+echo "• Появились ли логи в .claude/logs/claude-flow-integration_*.log"
+echo "• Создались ли сессии в .hive-mind/sessions/"
+echo "• Сгенерировался ли .claude/claude-flow-report.md"
+echo ""
+echo "Если Claude Flow не запускается автоматически:"
+echo "• Убедитесь что используете настройки этого проекта"
+echo "• Установите Claude Flow: npm install -g claude-flow@alpha"
+echo "• Проверьте переменную CLAUDE_PROJECT_DIR"
 echo ""
