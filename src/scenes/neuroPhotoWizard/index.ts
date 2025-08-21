@@ -359,7 +359,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     // Сохраняем промпт в сессии
     ctx.session.prompt = promptText
 
-    const model_url = ctx.session.userModel.model_url as string
+    const model_url = ctx.session.userModel.model_url as ModelUrl
     const trigger_word = ctx.session.userModel.trigger_word as string
 
     logger.info({
