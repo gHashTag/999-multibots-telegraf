@@ -1,4 +1,4 @@
-import { getUsdToRubRate, rubToStars, DEFAULT_USD_TO_RUB_RATE } from '@/config/unified-pricing.config'
+import { getUsdToRubRate, rubToStars, usdToStars, DEFAULT_USD_TO_RUB_RATE } from '@/config/unified-pricing.config'
 
 // Пакеты пополнения в рублях (фиксированные, для fallback)
 export const rubTopUpOptions: { amountRub: number; stars: number }[] = [
@@ -33,10 +33,15 @@ export async function generateDynamicTopUpPackages(
     // Базовые суммы в рублях для пакетов
     const baseAmounts = [10, 500, 1000, 2000, 5000, 10000]
     
-    const dynamicPackages = baseAmounts.map(amountRub => ({
-      amountRub,
-      stars: Math.max(1, Math.floor(rubToStars(amountRub))), // Минимум 1 звезда
-    }))
+    const dynamicPackages = baseAmounts.map(amountRub => {
+      // Используем динамический курс для расчёта звёзд
+      const usd = amountRub / currentRate
+      const stars = Math.max(1, Math.floor(usdToStars(usd)))
+      return {
+        amountRub,
+        stars
+      }
+    })
     
     // Фильтруем пакеты с валидным количеством звёзд
     return dynamicPackages.filter(option => option.stars > 0)
