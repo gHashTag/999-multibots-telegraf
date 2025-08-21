@@ -175,7 +175,8 @@ async function initializeBots() {
     setupHearsHandlers(bot) // 4. Hears
 
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
-    bot.on(message('text'), handleTextMessage)
+    // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
+    // bot.on(message('text'), handleTextMessage)
     // <<<---------------------------------------------------->>>
 
     // Используем импортированную функцию setBotCommands
@@ -241,7 +242,8 @@ async function initializeBots() {
         setupHearsHandlers(bot) // 4. Hears
 
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
-        bot.on(message('text'), handleTextMessage)
+        // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
+        // bot.on(message('text'), handleTextMessage)
         // <<<---------------------------------------------------->>>
 
         botInstances.push(bot)

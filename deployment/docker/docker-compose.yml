@@ -42,6 +42,7 @@ services:
       - '3007:3007'
       - '3008:3008'
       - '3009:3009'
+      - '3010:3010'
     env_file:
       - .env
     environment:
@@ -70,6 +71,7 @@ services:
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+      - WEBHOOK_DOMAIN=https://ai-server-u14194.vm.elestio.app
       - DOCKER_ENVIRONMENT=true
       - DEBUG=true
       - TS_NODE_PROJECT=tsconfig.prod.json

@@ -26,7 +26,8 @@ export async function generateTextToVideo(
   bot_name: string,
   modelId: string,
   selectedResolution?: string, // Добавлен параметр для разрешения Seedance
-  selectedDuration?: number // Добавлен параметр для длительности Veo моделей
+  selectedDuration?: number, // Добавлен параметр для длительности Veo моделей
+  selectedAspectRatio?: string // Добавлен параметр для соотношения сторон Kie.ai моделей
 ): Promise<string | null> {
   logger.info('[generateTextToVideo] Starting local generation with modelId:', {
     telegram_id,
@@ -94,10 +95,19 @@ export async function generateTextToVideo(
     else if (modelConfig.id.startsWith('kie-')) {
       const finalDuration =
         selectedDuration || modelConfig.api.input.duration_seconds || 5
+
+      // Определяем aspect_ratio с использованием выбранного пользователем или функции из конфига
+      let aspectRatio = selectedAspectRatio || userAspectRatio
+      if (typeof modelConfig.api.input.aspect_ratio === 'function') {
+        aspectRatio = modelConfig.api.input.aspect_ratio(aspectRatio)
+      } else if (modelConfig.api.input.aspect_ratio) {
+        aspectRatio = modelConfig.api.input.aspect_ratio
+      }
+
       modelInput = {
         prompt,
         duration_seconds: finalDuration,
-        aspect_ratio: userAspectRatio,
+        aspect_ratio: aspectRatio,
         enable_audio: modelConfig.api.input.enable_audio || true,
       }
       // Добавляем prompt_optimizer только если он есть в конфиге
