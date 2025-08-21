@@ -1,0 +1,295 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Минимальные права для PR проверок
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+  checks: write
+
+jobs:
+  # Блокировка черновиков
+  draft-check:
+    name: Check if PR is ready
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block draft PRs
+        if: github.event.pull_request.draft == true
+        run: |
+          echo "::error::PR is in draft mode. Please mark as ready for review."
+          exit 1
+
+  # Быстрые проверки перед полным тестированием
+  quick-checks:
+    name: Quick Quality Checks
+    runs-on: ubuntu-latest
+    needs: draft-check
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          # Получаем полную историю для сравнения
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check PR title format
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          # Проверяем формат: type: description или type(scope): description
+          if [[ ! "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build)(\([a-zA-Z0-9_-]+\))?: .+ ]]; then
+            echo "::error::PR title must follow conventional commits format: 'type: description' or 'type(scope): description'"
+            echo "::error::Valid types: feat, fix, docs, style, refactor, test, chore, perf, ci, build"
+            echo "::error::Current title: $PR_TITLE"
+            exit 1
+          fi
+
+      - name: Lint changed files only
+        run: |
+          # Получаем список измененных .ts файлов
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep '\.ts$' || true)
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "Linting changed files: $CHANGED_FILES"
+            npx eslint $CHANGED_FILES
+          else
+            echo "No TypeScript files changed"
+          fi
+
+      - name: Check for console.log in changed files
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep '\.ts$' || true)
+          if [ -n "$CHANGED_FILES" ]; then
+            if grep -n "console\.log" $CHANGED_FILES; then
+              echo "::warning::Found console.log statements in changed files. Consider using proper logging."
+            fi
+          fi
+
+      - name: Check TypeScript compilation
+        run: npm run typecheck
+
+  # Тестирование только изменений
+  test-changes:
+    name: Test Changes
+    runs-on: ubuntu-latest
+    needs: quick-checks
+    strategy:
+      matrix:
+        node-version: [18, 20]
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create test environment
+        run: |
+          touch .env.test
+          echo "SUPABASE_URL=test_url" >> .env.test
+          echo "SUPABASE_SERVICE_KEY=test_key" >> .env.test
+          echo "NODE_ENV=test" >> .env.test
+
+      - name: Run tests with coverage
+        run: npm test -- --coverage --coverageReporters=text-lcov > coverage.lcov
+        env:
+          NODE_ENV: test
+
+      - name: Check test coverage threshold
+        run: |
+          # Проверяем покрытие тестами (минимум 70%)
+          COVERAGE=$(npm test -- --coverage --silent | grep -oP 'All files.*?(\d+\.?\d*)%' | grep -oP '\d+\.?\d*' | tail -1)
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "::error::Test coverage is $COVERAGE%, minimum required is 70%"
+            exit 1
+          fi
+          echo "Test coverage: $COVERAGE%"
+
+  # Проверка размера изменений
+  change-analysis:
+    name: Analyze Changes
+    runs-on: ubuntu-latest
+    needs: draft-check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze PR size
+        run: |
+          # Подсчитываем изменения
+          ADDITIONS=$(git diff --numstat origin/${{ github.base_ref }} HEAD | awk '{sum+=$1} END {print sum}')
+          DELETIONS=$(git diff --numstat origin/${{ github.base_ref }} HEAD | awk '{sum+=$2} END {print sum}')
+          TOTAL=$((ADDITIONS + DELETIONS))
+          
+          echo "PR Statistics:"
+          echo "- Additions: $ADDITIONS"
+          echo "- Deletions: $DELETIONS"
+          echo "- Total changes: $TOTAL"
+          
+          # Предупреждение о больших PR
+          if [ $TOTAL -gt 500 ]; then
+            echo "::warning::Large PR detected ($TOTAL lines). Consider splitting into smaller PRs."
+          fi
+          
+          # Проверяем файлы
+          FILES_CHANGED=$(git diff --name-only origin/${{ github.base_ref }} HEAD | wc -l)
+          echo "- Files changed: $FILES_CHANGED"
+          
+          if [ $FILES_CHANGED -gt 20 ]; then
+            echo "::warning::Many files changed ($FILES_CHANGED). Ensure changes are related."
+          fi
+
+  # Проверка зависимостей (только если package.json изменен)
+  dependency-check:
+    name: Check Dependencies
+    runs-on: ubuntu-latest
+    needs: draft-check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if dependencies changed
+        id: deps
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }} HEAD | grep -E "(package\.json|package-lock\.json)"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.deps.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Check for security vulnerabilities
+        if: steps.deps.outputs.changed == 'true'
+        run: |
+          npm ci
+          npm audit --audit-level=high
+
+      - name: Check for new dependencies
+        if: steps.deps.outputs.changed == 'true'
+        run: |
+          echo "Checking new dependencies..."
+          git show HEAD:package.json > package.old.json
+          
+          # Сравниваем зависимости
+          NEW_DEPS=$(jq -r '.dependencies // {} | keys[]' package.json | sort > new_deps.txt; jq -r '.dependencies // {} | keys[]' package.old.json | sort > old_deps.txt; comm -13 old_deps.txt new_deps.txt || true)
+          
+          if [ -n "$NEW_DEPS" ]; then
+            echo "::notice::New dependencies added:"
+            echo "$NEW_DEPS"
+          fi
+
+  # Сборка и проверка артефактов
+  build-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [quick-checks, test-changes]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "::error::Build directory 'dist' not found"
+            exit 1
+          fi
+          
+          echo "Build artifacts created:"
+          find dist -name "*.js" | head -10
+
+  # Финальная проверка готовности к мержу
+  pr-ready:
+    name: PR Ready for Review
+    runs-on: ubuntu-latest
+    needs: [quick-checks, test-changes, change-analysis, build-check]
+    if: always()
+    steps:
+      - name: Check all jobs status
+        run: |
+          if [[ "${{ needs.quick-checks.result }}" != "success" || 
+                "${{ needs.test-changes.result }}" != "success" || 
+                "${{ needs.build-check.result }}" != "success" ]]; then
+            echo "::error::❌ PR checks failed. Please fix the issues before requesting review."
+            exit 1
+          else
+            echo "::notice::✅ PR is ready for review! All checks passed."
+          fi
+
+  # Комментарий с результатами
+  comment-results:
+    name: Comment Results
+    runs-on: ubuntu-latest
+    needs: [pr-ready, change-analysis]
+    if: always() && github.event.action == 'opened'
+    steps:
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const success = '${{ needs.pr-ready.result }}' === 'success';
+            const icon = success ? '✅' : '❌';
+            const status = success ? 'passed' : 'failed';
+            
+            const comment = `## ${icon} PR Quality Check ${status.charAt(0).toUpperCase() + status.slice(1)}
+            
+            This PR has been automatically checked for code quality and readiness.
+            
+            **Quick Tips:**
+            - Ensure all tests pass before requesting review
+            - Keep PRs focused and reasonably sized
+            - Follow conventional commit format for PR titles
+            - Add tests for new functionality
+            
+            ${success ? 'This PR is ready for human review! 🚀' : 'Please address the issues above before requesting review.'}`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

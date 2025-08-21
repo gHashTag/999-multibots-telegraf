@@ -27,7 +27,8 @@ export async function handleTextToVideoDirect(
   ctx: MyContext,
   prompt: string,
   modelId: VideoModelId,
-  duration?: number
+  duration?: number,
+  aspectRatio?: string
 ): Promise<void> {
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
@@ -37,13 +38,17 @@ export async function handleTextToVideoDirect(
   // Получаем корректную длительность для модели
   const validDuration = getValidDuration(modelId, duration)
 
-  logger.info('[handleTextToVideoDirect] Starting video generation', {
-    telegram_id,
-    username,
-    modelId,
-    duration: validDuration,
-    promptLength: prompt.length,
-  })
+  logger.info(
+    '[handleTextToVideoDirect] ASPECT RATIO CHECK - Starting video generation',
+    {
+      telegram_id,
+      username,
+      modelId,
+      duration: validDuration,
+      aspectRatio: aspectRatio,
+      promptLength: prompt.length,
+    }
+  )
 
   // Проверка подписки
   const hasSubscription = await checkSubscriptionGuard(ctx, 'NeuroVideo')
@@ -82,6 +87,7 @@ export async function handleTextToVideoDirect(
       prompt,
       videoModel: modelId,
       duration: validDuration,
+      aspectRatio: aspectRatio,
       telegram_id,
       username,
       is_ru,
@@ -89,14 +95,16 @@ export async function handleTextToVideoDirect(
     })
 
     if (!response.success) {
-      await ctx.telegram.editMessageText(
-        ctx.chat!.id,
-        processingMessage.message_id,
-        undefined,
-        is_ru
-          ? `❌ Ошибка генерации: ${response.error}`
-          : `❌ Generation error: ${response.error}`
-      )
+      if (ctx && ctx.telegram && ctx.chat) {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          processingMessage.message_id,
+          undefined,
+          is_ru
+            ? `❌ Ошибка генерации: ${response.error}`
+            : `❌ Generation error: ${response.error}`
+        )
+      }
       return
     }
 
@@ -124,18 +132,41 @@ export async function handleTextToVideoDirect(
 
       // Запускаем мониторинг статуса
       monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
+    } else {
+      // Если нет jobId, но генерация запущена, показываем сообщение
+      logger.info(
+        '[handleTextToVideoDirect] No jobId received, generation started without monitoring',
+        {
+          telegram_id,
+          modelId,
+          hasMessage: !!response.message,
+        }
+      )
+
+      if (ctx && ctx.telegram && ctx.chat) {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          processingMessage.message_id,
+          undefined,
+          is_ru
+            ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
+            : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+        )
+      }
     }
   } catch (error) {
     logger.error('[handleTextToVideoDirect] Unexpected error:', error)
 
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      processingMessage.message_id,
-      undefined,
-      is_ru
-        ? '❌ Произошла неожиданная ошибка при генерации видео.'
-        : '❌ An unexpected error occurred during video generation.'
-    )
+    if (ctx && ctx.telegram && ctx.chat) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        processingMessage.message_id,
+        undefined,
+        is_ru
+          ? '❌ Произошла неожиданная ошибка при генерации видео.'
+          : '❌ An unexpected error occurred during video generation.'
+      )
+    }
   }
 }
 
@@ -164,7 +195,7 @@ async function monitorVideoGeneration(
           ctx,
           statusResponse.videoUrl,
           ctx.session.videoPrompt || '',
-          (ctx.session.videoModelId as VideoModelId) || 'veo-3',
+          (ctx.session.videoModelId as VideoModelId) || 'kie-veo-3-fast',
           ctx.session.videoDuration,
           messageId
         )
@@ -178,38 +209,44 @@ async function monitorVideoGeneration(
       } else if (!statusResponse.success) {
         // Ошибка генерации
         clearInterval(checkInterval)
-        await ctx.telegram.editMessageText(
-          ctx.chat!.id,
-          messageId,
-          undefined,
-          is_ru
-            ? `❌ Ошибка генерации: ${statusResponse.error}`
-            : `❌ Generation error: ${statusResponse.error}`
-        )
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            messageId,
+            undefined,
+            is_ru
+              ? `❌ Ошибка генерации: ${statusResponse.error}`
+              : `❌ Generation error: ${statusResponse.error}`
+          )
+        }
       } else if (attempts >= maxAttempts) {
         // Таймаут
         clearInterval(checkInterval)
-        await ctx.telegram.editMessageText(
-          ctx.chat!.id,
-          messageId,
-          undefined,
-          is_ru
-            ? '⏱️ Генерация видео заняла слишком много времени. Пожалуйста, попробуйте позже.'
-            : '⏱️ Video generation took too long. Please try again later.'
-        )
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            messageId,
+            undefined,
+            is_ru
+              ? '⏱️ Генерация видео заняла слишком много времени. Пожалуйста, попробуйте позже.'
+              : '⏱️ Video generation took too long. Please try again later.'
+          )
+        }
       }
     } catch (error) {
       clearInterval(checkInterval)
       logger.error('[monitorVideoGeneration] Error checking status:', error)
 
-      await ctx.telegram.editMessageText(
-        ctx.chat!.id,
-        messageId,
-        undefined,
-        is_ru
-          ? '❌ Ошибка при проверке статуса генерации.'
-          : '❌ Error checking generation status.'
-      )
+      if (ctx && ctx.telegram && ctx.chat) {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          messageId,
+          undefined,
+          is_ru
+            ? '❌ Ошибка при проверке статуса генерации.'
+            : '❌ Error checking generation status.'
+        )
+      }
     }
   }, 5000) // Проверяем каждые 5 секунд
 }
@@ -233,14 +270,16 @@ async function handleVideoReady(
     const uploadedUrl = videoUrl
 
     // Обновляем сообщение
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      messageId,
-      undefined,
-      is_ru
-        ? '✅ Видео успешно сгенерировано! Отправляю...'
-        : '✅ Video generated successfully! Sending...'
-    )
+    if (ctx && ctx.telegram && ctx.chat) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '✅ Видео успешно сгенерировано! Отправляю...'
+          : '✅ Video generated successfully! Sending...'
+      )
+    }
 
     // Получаем информацию о модели для подписи
     const modelInfo = VIDEO_MODELS[modelId]
@@ -268,6 +307,31 @@ async function handleVideoReady(
       `Video generation: ${modelId}${duration ? ` (${duration}s)` : ''}`
     )
 
+    // Показываем кнопки после успешной отправки видео
+    const keyboard = {
+      keyboard: [
+        [
+          is_ru
+            ? '✨ Создать еще (Текст в Видео)'
+            : '✨ Create More (Text to Video)',
+        ],
+        [
+          is_ru
+            ? '🖼 Выбрать другую модель (Видео)'
+            : '🖼 Select Another Model (Video)',
+        ],
+        [is_ru ? '🏠 Главное меню' : '🏠 Main Menu'],
+      ],
+      resize_keyboard: true,
+    }
+
+    await ctx.reply(
+      is_ru
+        ? 'Ваше видео готово! Что дальше?'
+        : 'Your video is ready! What next?',
+      { reply_markup: keyboard }
+    )
+
     logger.info('[handleVideoReady] Video sent successfully', {
       telegram_id,
       modelId,
@@ -276,14 +340,16 @@ async function handleVideoReady(
   } catch (error) {
     logger.error('[handleVideoReady] Error sending video:', error)
 
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      messageId,
-      undefined,
-      is_ru
-        ? '❌ Ошибка при отправке видео. Пожалуйста, попробуйте позже.'
-        : '❌ Error sending video. Please try again later.'
-    )
+    if (ctx && ctx.telegram && ctx.chat) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '❌ Ошибка при отправке видео. Пожалуйста, попробуйте позже.'
+          : '❌ Error sending video. Please try again later.'
+      )
+    }
   }
 }
 
@@ -313,7 +379,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx,
         statusResponse.videoUrl,
         ctx.session.videoPrompt || '',
-        (ctx.session.videoModelId as VideoModelId) || 'veo-3',
+        (ctx.session.videoModelId as VideoModelId) || 'kie-veo-3-fast',
         ctx.session.videoDuration,
         ctx.session.videoMessageId || 0
       )
