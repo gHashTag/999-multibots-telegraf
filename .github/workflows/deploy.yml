@@ -1,0 +1,262 @@
+name: Deploy to Servers
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - development
+      branch:
+        description: 'Branch to deploy'
+        required: true
+        default: 'main'
+        type: string
+
+# Необходимые права
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  NODE_VERSION: '20'
+  BUN_VERSION: 'latest'
+
+jobs:
+  # Подготовка к деплою
+  prepare-deploy:
+    name: Prepare Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_env: ${{ steps.set_env.outputs.deploy_env }}
+      target_branch: ${{ steps.set_env.outputs.target_branch }}
+      server_host: ${{ steps.set_env.outputs.server_host }}
+      should_deploy: ${{ steps.set_env.outputs.should_deploy }}
+    steps:
+      - name: Set deployment environment
+        id: set_env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            DEPLOY_ENV="${{ github.event.inputs.environment }}"
+            TARGET_BRANCH="${{ github.event.inputs.branch }}"
+          else
+            DEPLOY_ENV="production"
+            TARGET_BRANCH="${{ github.ref_name }}"
+          fi
+          
+          # Определяем сервер в зависимости от окружения
+          if [ "$DEPLOY_ENV" == "production" ]; then
+            SERVER_HOST="999-multibots-u14194.vm.elestio.app"
+            SHOULD_DEPLOY="true"
+          elif [ "$DEPLOY_ENV" == "development" ]; then
+            SERVER_HOST="999-multibots-dev-u14194.vm.elestio.app"
+            SHOULD_DEPLOY="true"
+          else
+            echo "::error::Unknown environment: $DEPLOY_ENV"
+            SHOULD_DEPLOY="false"
+          fi
+          
+          echo "deploy_env=$DEPLOY_ENV" >> $GITHUB_OUTPUT
+          echo "target_branch=$TARGET_BRANCH" >> $GITHUB_OUTPUT
+          echo "server_host=$SERVER_HOST" >> $GITHUB_OUTPUT
+          echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          
+          echo "🚀 Deploying $TARGET_BRANCH to $DEPLOY_ENV ($SERVER_HOST)"
+
+  # Сборка проекта
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: prepare-deploy
+    if: needs.prepare-deploy.outputs.should_deploy == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-deploy.outputs.target_branch }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run linting
+        run: bun run lint
+
+      - name: Run type checking
+        run: bun run typecheck
+
+      - name: Build application
+        run: bun run build:prod
+
+      - name: Verify build
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "::error::Build failed - no dist directory"
+            exit 1
+          fi
+          echo "Build successful, dist size:"
+          du -sh dist/
+
+      - name: Create deployment archive
+        run: |
+          # Создаем архив для деплоя
+          tar -czf deployment.tar.gz \
+            dist/ \
+            package.json \
+            bun.lockb \
+            deployment/ \
+            scripts/ \
+            --exclude='scripts/deployment' \
+            --exclude='*.test.*' \
+            --exclude='__tests__'
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package-${{ github.sha }}
+          path: deployment.tar.gz
+          retention-days: 7
+
+  # Деплой на сервер
+  deploy:
+    name: Deploy to ${{ needs.prepare-deploy.outputs.deploy_env }}
+    runs-on: ubuntu-latest
+    needs: [prepare-deploy, build]
+    environment: ${{ needs.prepare-deploy.outputs.deploy_env }}
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-package-${{ github.sha }}
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ needs.prepare-deploy.outputs.server_host }} >> ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        run: |
+          ssh -i ~/.ssh/id_rsa -o ConnectTimeout=10 root@${{ needs.prepare-deploy.outputs.server_host }} "echo 'SSH connection successful'"
+
+      - name: Deploy to server
+        run: |
+          SERVER_HOST="${{ needs.prepare-deploy.outputs.server_host }}"
+          DEPLOY_ENV="${{ needs.prepare-deploy.outputs.deploy_env }}"
+          TARGET_BRANCH="${{ needs.prepare-deploy.outputs.target_branch }}"
+          
+          echo "🚀 Starting deployment to $SERVER_HOST ($DEPLOY_ENV)"
+          
+          # Копируем архив на сервер
+          scp -i ~/.ssh/id_rsa deployment.tar.gz root@$SERVER_HOST:/tmp/
+          
+          # Выполняем деплой на сервере
+          ssh -i ~/.ssh/id_rsa root@$SERVER_HOST << 'ENDSSH'
+          set -e
+          
+          echo "📦 Extracting deployment package..."
+          cd /opt/app/999-multibots-telegraf
+          
+          # Останавливаем сервисы
+          if [ -f "docker-compose.yml" ]; then
+            echo "🛑 Stopping services..."
+            if [ "'$DEPLOY_ENV'" == "development" ]; then
+              docker-compose -f docker-compose.dev.yml down || true
+            else
+              docker-compose down || true
+            fi
+          fi
+          
+          # Создаем backup
+          echo "💾 Creating backup..."
+          BACKUP_DIR="/opt/backups/$(date +%Y%m%d_%H%M%S)"
+          mkdir -p $BACKUP_DIR
+          cp -r dist $BACKUP_DIR/ 2>/dev/null || echo "No dist directory to backup"
+          
+          # Извлекаем новую версию
+          echo "📂 Extracting new version..."
+          tar -xzf /tmp/deployment.tar.gz
+          rm /tmp/deployment.tar.gz
+          
+          # Устанавливаем зависимости (если нужно)
+          if command -v bun &> /dev/null; then
+            echo "📦 Installing dependencies with bun..."
+            bun install --production
+          else
+            echo "📦 Installing dependencies with npm..."
+            npm ci --production
+          fi
+          
+          # Запускаем сервисы
+          echo "🚀 Starting services..."
+          if [ "'$DEPLOY_ENV'" == "development" ]; then
+            docker-compose -f docker-compose.dev.yml up -d --build
+          else
+            docker-compose up -d --build
+          fi
+          
+          # Ждем запуска
+          echo "⏳ Waiting for services to start..."
+          sleep 15
+          
+          # Проверяем статус
+          echo "📊 Checking service status..."
+          if [ "'$DEPLOY_ENV'" == "development" ]; then
+            docker-compose -f docker-compose.dev.yml ps
+          else
+            docker-compose ps
+          fi
+          
+          echo "✅ Deployment completed successfully!"
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          SERVER_HOST="${{ needs.prepare-deploy.outputs.server_host }}"
+          
+          echo "🔍 Verifying deployment..."
+          
+          # Проверяем доступность API
+          if curl -f -s "https://$SERVER_HOST" > /dev/null; then
+            echo "✅ Server is responding"
+          else
+            echo "❌ Server is not responding"
+            exit 1
+          fi
+
+      - name: Notify deployment result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🎉 Deployment to ${{ needs.prepare-deploy.outputs.deploy_env }} completed successfully!"
+          else
+            echo "💥 Deployment to ${{ needs.prepare-deploy.outputs.deploy_env }} failed!"
+          fi
+
+  # Очистка
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+    steps:
+      - name: Cleanup SSH keys
+        run: |
+          rm -f ~/.ssh/id_rsa
+          echo "🧹 SSH keys cleaned up"
