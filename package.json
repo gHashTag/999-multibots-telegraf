@@ -21,7 +21,10 @@
     "format": "bunx prettier --write \"src/**/*.ts\"",
     "typecheck": "bun run build:ts --noEmit",
     "check:translations": "bun run scripts/check_ai_stars_translations.ts",
-    "generate:translations-sql": "bun run scripts/check_ai_stars_translations.ts --generate-sql"
+    "generate:translations-sql": "bun run scripts/check_ai_stars_translations.ts --generate-sql",
+    "test:production": "./scripts/test-production-build.sh",
+    "test:docker": "./scripts/test-docker-build.sh",
+    "build:production": "npm install && npx tsc --skipLibCheck --skipDefaultLibCheck && npx tsc-alias"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

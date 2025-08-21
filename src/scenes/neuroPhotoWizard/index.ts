@@ -444,7 +444,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       // Генерация изображения
       await generateNeuroImage(
         fullPrompt,
-        model_url,
+        model_url as `${string}/${string}:${string}`,
         1,
         userId.toString(),
         ctx,
