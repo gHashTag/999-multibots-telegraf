@@ -52,7 +52,6 @@ import {
   starPaymentScene,
   levelQuestWizard,
   neuroCoderScene,
-  lipSyncWizard,
   startScene,
   chatWithAvatarWizard,
   helpScene,
@@ -127,7 +126,6 @@ export const stage = new Scenes.Stage<MyContext>([
     ...(textToSpeechWizard.steps as any)
   ),
   videoTranscriptionWizard,
-  lipSyncWizard,
   avatarTransformScene,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
   new Scenes.WizardScene(
