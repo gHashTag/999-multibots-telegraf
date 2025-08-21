@@ -237,57 +237,6 @@ export async function addCompetitorSubscription(
   }
 }
 
-// Callback handlers для inline кнопок
-export function setupCompetitorCallbacks(bot: any): void {
-  console.log('🔧 [setupCompetitorCallbacks] Registering competitor monitoring callbacks...')
-  
-  // Показать меню добавления конкурентов
-  bot.action('add_new_competitor', async (ctx: MyContext) => {
-    console.log('➕ [Callback] add_new_competitor triggered')
-    const isRu = isRussianFromState(ctx)
-    await ctx.answerCbQuery() // Обязательно отвечаем на callback query
-    await promptForCompetitorUsername(ctx, isRu)
-  })
-
-  // Обновить список подписок
-  bot.action('refresh_subscriptions', async (ctx: MyContext) => {
-    console.log('🔄 [Callback] refresh_subscriptions triggered')
-    await ctx.answerCbQuery() // Обязательно отвечаем на callback query
-    await handleCompetitorMonitoring(ctx)
-  })
-
-  // Обработчик удаления подписок (regex для всех кнопок delete_subscription_*)
-  bot.action(/^delete_subscription_(.+)$/, async (ctx: MyContext & { match: RegExpExecArray }) => {
-    const subscriptionId = ctx.match[1]
-    const isRu = isRussianFromState(ctx)
-    
-    console.log(`🗑️ [Callback] delete_subscription triggered for ID: ${subscriptionId}`)
-    
-    try {
-      const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
-      
-      if (result.success) {
-        console.log(`✅ [Delete Subscription] Successfully deleted subscription: ${subscriptionId}`)
-        await ctx.answerCbQuery(result.message)
-        
-        // Обновляем список подписок после удаления
-        await handleCompetitorMonitoring(ctx)
-      } else {
-        console.log(`❌ [Delete Subscription] Failed to delete subscription: ${subscriptionId}`)
-        await ctx.answerCbQuery(result.message)
-      }
-    } catch (error) {
-      console.log(`💥 [Delete Subscription] Error deleting subscription: ${error}`)
-      await ctx.answerCbQuery(
-        isRu 
-          ? '❌ Ошибка при удалении подписки' 
-          : '❌ Error deleting subscription'
-      )
-    }
-  })
-
-  console.log('✅ [setupCompetitorCallbacks] All competitor monitoring callbacks registered successfully')
-}
 
 // Обработка текстового ввода username конкурента
 export async function handleCompetitorUsernameInput(ctx: MyContext, username: string): Promise<boolean> {
