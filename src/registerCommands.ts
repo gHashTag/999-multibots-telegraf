@@ -86,6 +86,15 @@ import { registerPaymentActions } from './handlers/paymentActions'
 // Убираем импорт handleMenu, так как он не используется здесь напрямую
 // import { handleMenu } from './handlers/handleMenu'
 //https://github.com/telegraf/telegraf/issues/705
+
+// Проверяем что textToVideoWizard загружен
+console.log('🚨 [SCENE_DEBUG] textToVideoWizard check:', {
+  isImported: !!textToVideoWizard,
+  hasId: textToVideoWizard?.id,
+  wizardId: textToVideoWizard?.id,
+  sceneType: typeof textToVideoWizard,
+})
+
 export const stage = new Scenes.Stage<MyContext>([
   startScene,
   menuScene,
@@ -136,6 +145,13 @@ export const stage = new Scenes.Stage<MyContext>([
   instagramParserScene,
   // handleTextMessage, // ❌ ИСПРАВЛЕНО: убираем из stage сцен - это должен быть middleware, не сцена!
 ])
+
+// Проверяем зарегистрированные сцены
+console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
+  totalScenes: stage.scenes.size,
+  hasTextToVideoWizard: stage.scenes.has('text_to_video'),
+  sceneNames: Array.from(stage.scenes.keys()),
+})
 
 // Function to send the promotional message
 const sendGroupCommandReply = async (ctx: MyContext) => {
