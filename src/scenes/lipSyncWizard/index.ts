@@ -8,6 +8,13 @@ import { BASE_COSTS } from '@/scenes/checkBalanceScene'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
+// НОВОЕ: Проверка админских прав для LipSync
+const adminIds = process.env.ADMIN_IDS?.split(',') || []
+
+function isUserAdmin(telegramId: string): boolean {
+  return adminIds.includes(telegramId)
+}
+
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
 
 // Рассчитываем стоимость LipSync
@@ -21,6 +28,18 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
   'lip_sync',
   async ctx => {
     const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+    
+    // НОВОЕ: Проверка админских прав
+    if (!telegramId || !isUserAdmin(telegramId)) {
+      await ctx.reply(
+        isRu 
+          ? '🔒 Извините, функция LipSync временно доступна только администраторам.'
+          : '🔒 Sorry, LipSync feature is temporarily available for administrators only.'
+      )
+      return ctx.scene.leave()
+    }
+    
     await ctx.reply(
       isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
       {
