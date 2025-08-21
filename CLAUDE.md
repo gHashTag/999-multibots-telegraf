@@ -183,3 +183,88 @@ SECRET_KEY=your-robokassa-secret
 5. Document in service layer
 
 This architecture supports high-scale operations with multiple AI services, complex pricing models, and robust error handling for production Telegram bot deployment.
+
+## CI/CD Best Practices & Automation
+
+### GitHub Actions Workflows
+
+#### Main CI/CD Pipeline (`.github/workflows/ci.yml`)
+- **Multi-stage pipeline** with dependency detection and change analysis
+- **Security-first approach** with audit checks and vulnerability scanning
+- **Matrix testing** across Node.js versions (18, 20, 21)
+- **Intelligent caching** for faster builds
+- **Docker integration** with build verification
+- **Artifact preservation** for debugging and deployment
+
+#### PR Quality Gates (`.github/workflows/pr-checks.yml`)
+- **Automatic PR validation** with conventional commit format enforcement
+- **Incremental testing** - only tests changed files for faster feedback
+- **Coverage requirements** - minimum 70% test coverage
+- **Size analysis** - warnings for large PRs (>500 lines, >20 files)
+- **Build verification** before merge approval
+- **Automated commenting** with helpful feedback
+
+#### Security Scanning (`.github/workflows/security.yml`)
+- **Secrets detection** with TruffleHog for credential scanning
+- **Dependency vulnerability** auditing with npm audit
+- **Static Application Security Testing (SAST)** with custom rules
+- **Docker image scanning** with Trivy
+- **Malicious package detection** and security policy enforcement
+- **Weekly scheduled scans** for continuous monitoring
+
+### Required CI/CD Practices
+
+#### Before Merging Any Feature
+1. **All tests must pass** - Jest + Vitest test suites
+2. **Security checks must pass** - No critical vulnerabilities
+3. **Code quality gates** - ESLint + Prettier + TypeScript checks
+4. **Build verification** - Clean production build
+5. **Coverage threshold** - Minimum 70% test coverage
+
+#### Automated Quality Checks
+- **Lint on changed files only** for faster PR feedback
+- **TypeScript strict compilation** 
+- **Circular dependency detection**
+- **Bundle size monitoring**
+- **License compliance verification**
+
+#### Security Enforcement
+- **Critical vulnerabilities block deployment**
+- **Hardcoded credentials detection**
+- **Dangerous code pattern scanning** (eval, SQL injection)
+- **Environment variable validation**
+- **Docker image vulnerability scanning**
+
+### Development Workflow Integration
+
+#### Feature Development Cycle
+1. **Create feature branch** from `main`
+2. **Implement changes** with tests
+3. **Push commits** - triggers PR checks automatically
+4. **Address any failing checks** before requesting review
+5. **Manual review** after all automated checks pass
+6. **Merge to main** - triggers full CI/CD pipeline
+7. **Automatic deployment** verification
+
+#### Testing Requirements
+- **Unit tests** for new functionality (Jest)
+- **Integration tests** for API endpoints (Vitest)
+- **Coverage reports** uploaded to Codecov
+- **Test environment** isolation with `.env.test`
+- **Supabase mocking** for database operations
+
+#### Code Quality Standards
+- **Conventional commits** format for PR titles
+- **ESLint security rules** enforcement
+- **Prettier formatting** consistency
+- **TypeScript strict mode** for type safety
+- **No console.log** in production code
+
+### Monitoring and Alerting
+- **Build status badges** for repository health
+- **Security scan results** in GitHub Security tab
+- **Coverage trends** tracking over time
+- **Dependency update** notifications
+- **Performance regression** detection
+
+This CI/CD implementation ensures zero-downtime deployments with comprehensive testing, security validation, and quality assurance at every step.
