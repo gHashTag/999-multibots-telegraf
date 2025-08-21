@@ -1,0 +1,140 @@
+=== CHANGES FOR ADMIN COMPETITOR ACCESS ===
+commit f4c176e427ea37ebd8341f57d480b73e4fc06f0c
+Author: Dmitriy Vasilev <raoffonom@icloud.com>
+Date:   Thu Aug 21 07:03:58 2025 +0700
+
+    checkpoint: Так эта функция должна быть доступна только адм...
+
+admin-competitor-access.patch
+
+commit f4c176e427ea37ebd8341f57d480b73e4fc06f0c
+Author: Dmitriy Vasilev <raoffonom@icloud.com>
+Date:   Thu Aug 21 07:03:58 2025 +0700
+
+    checkpoint: Так эта функция должна быть доступна только адм...
+
+diff --git a/admin-competitor-access.patch b/admin-competitor-access.patch
+new file mode 100644
+index 00000000..0b76be3e
+--- /dev/null
++++ b/admin-competitor-access.patch
+@@ -0,0 +1,119 @@
++From 2304cd3df342fbffe9106854d165b54242326a57 Mon Sep 17 00:00:00 2001
++From: Dmitriy Vasilev <raoffonom@icloud.com>
++Date: Thu, 21 Aug 2025 06:43:44 +0700
++Subject: [PATCH] =?UTF-8?q?feat:=20=D0=9E=D0=B3=D1=80=D0=B0=D0=BD=D0=B8?=
++ =?UTF-8?q?=D1=87=D0=B8=D1=82=D1=8C=20=D0=B4=D0=BE=D0=B1=D0=B0=D0=B2=D0=BB?=
++ =?UTF-8?q?=D0=B5=D0=BD=D0=B8=D0=B5=20=D0=BA=D0=BE=D0=BD=D0=BA=D1=83=D1=80?=
++ =?UTF-8?q?=D0=B5=D0=BD=D1=82=D0=BE=D0=B2=20=D1=82=D0=BE=D0=BB=D1=8C=D0=BA?=
++ =?UTF-8?q?=D0=BE=20=D0=B0=D0=B4=D0=BC=D0=B8=D0=BD=D0=B8=D1=81=D1=82=D1=80?=
++ =?UTF-8?q?=D0=B0=D1=82=D0=BE=D1=80=D0=B0=D0=BC=D0=B8?=
++MIME-Version: 1.0
++Content-Type: text/plain; charset=UTF-8
++Content-Transfer-Encoding: 8bit
++
++- Добавлена проверка прав администратора в handleMenu.ts для callback 'add_new_competitor'
++- Кнопка "Добавить конкурента" теперь отображается только для администраторов
++- Экспортирована функция promptForCompetitorUsername из competitorSubscriptionService.ts
++
++🤖 Generated with [Claude Code](https://claude.ai/code)
++
++Co-Authored-By: Claude <noreply@anthropic.com>
++---
++ src/handlers/handleMenu.ts                    | 13 ++++++
++ src/services/competitorSubscriptionService.ts | 43 +++++++++++++------
++ 2 files changed, 42 insertions(+), 14 deletions(-)
++
++diff --git a/src/handlers/handleMenu.ts b/src/handlers/handleMenu.ts
++index 0f6a3931..f44b62c2 100644
++--- a/src/handlers/handleMenu.ts
+++++ b/src/handlers/handleMenu.ts
++@@ -799,6 +799,19 @@ export const handleMenu = async (ctx: MyContext) => {
++     if (callbackData === 'add_new_competitor') {
++       console.log('➕ [handleMenu] add_new_competitor callback')
++       const isRu = isRussianFromState(ctx)
+++      
+++      // Проверяем права администратора
+++      const userId = ctx.from?.id?.toString()
+++      if (!userId || !adminIds.includes(userId)) {
+++        await ctx.answerCbQuery()
+++        await ctx.reply(
+++          isRu
+++            ? '❌ У вас нет прав для добавления конкурентов'
+++            : '❌ You do not have permission to add competitors'
+++        )
+++        return
+++      }
+++      
++       await ctx.answerCbQuery()
++       const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
++       await promptForCompetitorUsername(ctx, isRu)
++diff --git a/src/services/competitorSubscriptionService.ts b/src/services/competitorSubscriptionService.ts
++index ebe0e4c3..b276ce9f 100644
++--- a/src/services/competitorSubscriptionService.ts
+++++ b/src/services/competitorSubscriptionService.ts
++@@ -3,6 +3,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
++ import { logger } from '@/utils/logger'
++ import { competitorMonitoringApi } from './competitorMonitoringApiService'
++ import { Markup } from 'telegraf'
+++import { ADMIN_IDS_ARRAY } from '@/config'
++ 
++ // Пользователь сам вводит конкурентов - никаких готовых списков!
++ 
++@@ -131,26 +132,40 @@ ${subscriptions.map((sub, index) =>
++     )
++   ])
++ 
++-  const keyboard = Markup.inlineKeyboard([
++-    [
+++  // Проверяем, является ли пользователь администратором
+++  const userId = ctx.from?.id
+++  const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+++
+++  // Создаем массив кнопок для клавиатуры
+++  const keyboardButtons = []
+++
+++  // Добавляем кнопку "Добавить конкурента" только для администраторов
+++  if (isAdmin) {
+++    keyboardButtons.push([
++       Markup.button.callback(
++         isRu ? '➕ Добавить конкурента' : '➕ Add competitor',
++         'add_new_competitor'
++       )
++-    ],
++-    ...subscriptionButtons,
++-    [
++-      Markup.button.callback(
++-        isRu ? '⚙️ Настройки' : '⚙️ Settings',
++-        'subscription_settings'
++-      ),
++-      Markup.button.callback(
++-        isRu ? '🔄 Обновить' : '🔄 Refresh',
++-        'refresh_subscriptions'
++-      )
++-    ]
+++    ])
+++  }
+++
+++  // Добавляем кнопки удаления подписок
+++  keyboardButtons.push(...subscriptionButtons)
+++
+++  // Добавляем служебные кнопки
+++  keyboardButtons.push([
+++    Markup.button.callback(
+++      isRu ? '⚙️ Настройки' : '⚙️ Settings',
+++      'subscription_settings'
+++    ),
+++    Markup.button.callback(
+++      isRu ? '🔄 Обновить' : '🔄 Refresh',
+++      'refresh_subscriptions'
+++    )
++   ])
++ 
+++  const keyboard = Markup.inlineKeyboard(keyboardButtons)
+++
++   await ctx.reply(message, keyboard)
++ }
++ 
++-- 
++2.48.1
++
