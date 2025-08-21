@@ -88,14 +88,23 @@ export async function scrapeInstagramDirect(
 
     console.log(`📊 Retrieved ${results.items.length} posts`)
 
+    // Debug: log first item structure
+    if (results.items.length > 0) {
+      console.log('🔍 DEBUG: First item structure:', JSON.stringify(results.items[0], null, 2))
+    }
+
     // Filter for reels/videos
     const reels = results.items.filter((item: any) => {
-      return (
-        item.type === 'Video' ||
-        item.type === 'Reel' ||
-        item.videoUrl ||
-        (item.videos && item.videos.length > 0)
-      )
+      const isVideo = item.type === 'Video' || 
+                     item.type === 'Reel' || 
+                     item.videoUrl ||
+                     (item.videos && item.videos.length > 0) ||
+                     item.isVideo ||
+                     item.__typename === 'GraphVideo' ||
+                     item.media_type === 2  // Instagram API: 2 = video
+
+      console.log(`🔍 Item type: ${item.type}, isVideo: ${isVideo}, hasVideoUrl: ${!!item.videoUrl}, videos: ${item.videos?.length || 0}`)
+      return isVideo
     })
 
     console.log(`🎬 Found ${reels.length} reels/videos`)
