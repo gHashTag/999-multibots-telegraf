@@ -17,7 +17,7 @@ export const inngest = new Inngest({
   baseUrl:
     process.env.NODE_ENV === 'development'
       ? 'http://localhost:8288' // Наш dev server
-      : 'https://ai-server-u14194.vm.elestio.app/api/inngest', // Продакшн сервер
+      : 'https://ai-server-production-production-8e2d.up.railway.app/api/inngest', // Railway продакшн сервер
   isDev: process.env.NODE_ENV === 'development',
   // Event key только для production
   eventKey:
