@@ -551,6 +551,10 @@ checkBalanceScene.on('text', async (ctx) => {
   
   // Показываем пользователю, что его сообщение получено, но сцена не готова его обрабатывать
   await ctx.reply('⏳ Обрабатываю ваш запрос...')
+  
+  // Проверяем текущую сцену
+  console.log('📝 [DEBUG] checkBalanceScene.text: Current scene:', ctx.scene.current?.id)
+  console.log('📝 [DEBUG] checkBalanceScene.text: Session mode:', ctx.session?.mode)
 })
 
 /**
@@ -774,7 +778,28 @@ export const enterTargetScene = async (
         mode,
         function: 'enterTargetSceneWrapper',
       })
-      await ctx.scene.enter('text_to_video')
+      try {
+        await ctx.scene.enter('text_to_video')
+        console.log('🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene')
+        logger.info({
+          message: `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену text_to_video`,
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        })
+      } catch (sceneEnterError) {
+        console.error('❌ [DEBUG] enterTargetScene: ERROR entering text_to_video scene:', sceneEnterError)
+        logger.error({
+          message: `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену text_to_video`,
+          telegramId,
+          mode,
+          error: sceneEnterError instanceof Error ? sceneEnterError.message : String(sceneEnterError),
+          stack: sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
+          function: 'enterTargetSceneWrapper',
+        })
+        // Попробуем fallback в основную сцену
+        await ctx.reply('❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.')
+      }
       return
     }
 
