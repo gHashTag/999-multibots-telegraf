@@ -313,18 +313,15 @@ export async function mainMenu({
     // Импортируем ADMIN_IDS_ARRAY для проверки
     const { ADMIN_IDS_ARRAY } = await import('@/config')
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
-    
+
     if (isAdmin) {
       // Добавляем кнопку мониторинга конкурентов для администраторов
       if (!availableLevels.includes(levels[109])) {
         availableLevels.push(levels[109])
-        logger.info(
-          '[mainMenu] Added competitor monitoring button for admin',
-          {
-            userId,
-            isAdmin: true,
-          }
-        )
+        logger.info('[mainMenu] Added competitor monitoring button for admin', {
+          userId,
+          isAdmin: true,
+        })
       }
     }
   }
