@@ -535,6 +535,24 @@ checkBalanceScene.enter(async ctx => {
   }
 })
 
+// Добавляем обработчик текстовых сообщений для отладки
+checkBalanceScene.on('text', async (ctx) => {
+  console.log('📝 [DEBUG] checkBalanceScene: Received text message:', ctx.message.text)
+  const telegramId = ctx.from?.id?.toString() || 'unknown'
+  
+  logger.info({
+    message: '📝 [CheckBalanceScene] Получено текстовое сообщение в checkBalanceScene',
+    telegramId,
+    text: ctx.message.text,
+    function: 'checkBalanceScene.text',
+    sessionMode: ctx.session?.mode,
+    note: 'checkBalanceScene не должна обрабатывать текст - возможно, пользователь застрял в этой сцене'
+  })
+  
+  // Показываем пользователю, что его сообщение получено, но сцена не готова его обрабатывать
+  await ctx.reply('⏳ Обрабатываю ваш запрос...')
+})
+
 /**
  * Обертка для входа в целевую сцену с проверкой баланса и списанием.
  * Используется как middleware перед обработчиками, требующими оплаты.
@@ -745,6 +763,21 @@ export const enterTargetScene = async (
       return
     }
 
+    // Специальная логика для TextToVideo - направляем в text_to_video сцену
+    if (mode === ModeEnum.TextToVideo) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: TextToVideo mode detected, entering text_to_video scene'
+      )
+      logger.info({
+        message: `[EnterTargetSceneWrapper] TextToVideo режим - переход в text_to_video`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      await ctx.scene.enter('text_to_video')
+      return
+    }
+
     // Fallback для всех остальных режимов
     console.log(
       '🎯 [DEBUG] enterTargetScene: Using fallback - entering scene with mode:',
@@ -761,15 +794,49 @@ export const enterTargetScene = async (
       '🎯 [DEBUG] enterTargetScene: About to call ctx.scene.enter with mode:',
       mode
     )
-    // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
-    await ctx.scene.enter(mode, {
-      ...(ctx.scene.state || {}),
-      cost, // Можно передать стоимость в стейт сцены
-      // Дополнительные данные, если нужны для целевой сцены
+    
+    logger.info({
+      message: `🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: ${mode}`,
+      telegramId,
+      mode,
+      currentScene: ctx.scene.current?.id || 'unknown',
+      function: 'enterTargetSceneWrapper',
+      step: 'calling_scene_enter'
     })
-    console.log(
-      '🎯 [DEBUG] enterTargetScene: ctx.scene.enter completed successfully'
-    )
+    
+    try {
+      // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
+      await ctx.scene.enter(mode, {
+        ...(ctx.scene.state || {}),
+        cost, // Можно передать стоимость в стейт сцены
+        // Дополнительные данные, если нужны для целевой сцены
+      })
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: ctx.scene.enter completed successfully'
+      )
+      
+      logger.info({
+        message: `✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: ${mode}`,
+        telegramId,
+        mode,
+        newScene: ctx.scene.current?.id || 'unknown',
+        function: 'enterTargetSceneWrapper',
+        step: 'scene_enter_completed'
+      })
+    } catch (sceneEnterError) {
+      console.error('❌ [DEBUG] enterTargetScene: Error in ctx.scene.enter:', sceneEnterError)
+      
+      logger.error({
+        message: `❌ [EnterTargetSceneWrapper] ОШИБКА в ctx.scene.enter для режима: ${mode}`,
+        telegramId,
+        mode,
+        error: sceneEnterError instanceof Error ? sceneEnterError.message : String(sceneEnterError),
+        stack: sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
+        function: 'enterTargetSceneWrapper',
+        step: 'scene_enter_error'
+      })
+      throw sceneEnterError
+    }
 
     logger.info({
       message: `[EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену ${mode} выполнен`,
