@@ -2,8 +2,6 @@ import { ApifyClient } from 'apify-client'
 import { logger } from '@/utils/logger'
 import { supabaseAdmin } from '@/core/supabase/client'
 
-console.log('🔑 APIFY_TOKEN available:', !!process.env.APIFY_TOKEN, 'length:', process.env.APIFY_TOKEN?.length)
-
 const client = new ApifyClient({
   token: process.env.APIFY_TOKEN,
 })
