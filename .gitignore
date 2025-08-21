@@ -242,3 +242,17 @@ recalculate-exact-price.js
 # Temporary video directories
 ready_morphing_videos/
 temp_*/
+
+# Claude Code Security Hooks
+.claude/logs/
+.claude/*.log
+.claude/SECURITY_ALERT.txt
+.claude/COMPLETION_BLOCKED.txt
+.claude/activation-summary.txt
+.claude/task-completion-summary.md
+
+# Keep important Claude Code files (explicitly not ignored):
+# !.claude/settings.json
+# !.claude/README.md  
+# !.claude/hooks/*.sh
+# !.claude/activate-hooks.sh

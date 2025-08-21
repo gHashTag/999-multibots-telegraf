@@ -1,0 +1,90 @@
+{
+  "hooks": [
+    {
+      "event": "PostToolUse",
+      "matchers": [
+        {
+          "tool_name": "Write|Edit|MultiEdit|NotebookEdit"
+        }
+      ],
+      "commands": [
+        {
+          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-task-security.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-task-security.sh\" \"$TOOL_NAME\" \"$TOOL_INPUT\"",
+          "timeout": 30
+        }
+      ]
+    },
+    {
+      "event": "PostToolUse", 
+      "matchers": [
+        {
+          "tool_name": "Bash"
+        }
+      ],
+      "commands": [
+        {
+          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-task-security.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-task-security.sh\" \"Bash\" \"${TOOL_INPUT:0:200}\"",
+          "timeout": 20
+        }
+      ]
+    },
+    {
+      "event": "Stop",
+      "matchers": [
+        {
+          "tool_name": "*"
+        }
+      ],
+      "commands": [
+        {
+          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-cleanup.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-cleanup.sh\"",
+          "timeout": 60
+        }
+      ]
+    },
+    {
+      "event": "PreToolUse",
+      "matchers": [
+        {
+          "tool_name": "Write|Edit|MultiEdit",
+          "tool_input": ".*\\.env.*"
+        }
+      ],
+      "commands": [
+        {
+          "command": "echo '⚠️  ВНИМАНИЕ: Редактирование .env файла! Убедитесь что секреты не попадут в git.' && echo 'Проверьте .gitignore и используйте переменные окружения для секретов.'",
+          "timeout": 5
+        }
+      ]
+    },
+    {
+      "event": "PreToolUse",
+      "matchers": [
+        {
+          "tool_name": "Bash",
+          "tool_input": ".*(rm -rf|sudo|chmod 777).*"
+        }
+      ],
+      "commands": [
+        {
+          "command": "echo '🚨 ОПАСНАЯ КОМАНДА ОБНАРУЖЕНА! Будьте осторожны с: rm -rf, sudo, chmod 777'",
+          "timeout": 5
+        }
+      ]
+    },
+    {
+      "event": "UserPromptSubmit",
+      "matchers": [
+        {
+          "user_prompt": ".*(токен|token|ключ|key|пароль|password).*(показать|покажи|выведи|скопируй).*"
+        }
+      ],
+      "commands": [
+        {
+          "command": "echo '{\"decision\": \"block\", \"message\": \"🛡️ Заблокирован потенциально небезопасный запрос на вывод секретной информации. Используйте переменные окружения для работы с секретами.\"}'",
+          "timeout": 5
+        }
+      ]
+    }
+  ]
+}
