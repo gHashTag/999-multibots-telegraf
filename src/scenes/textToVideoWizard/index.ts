@@ -114,6 +114,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 0: Вход и выбор модели
   async ctx => {
+    console.log('🎬 [DEBUG] textToVideoWizard Step 0 CALLED! ctx.from?.id:', ctx.from?.id)
+    console.log('🎬 [DEBUG] textToVideoWizard Step 0 ctx.wizard.cursor:', ctx.wizard.cursor)
+    
     logger.info(
       `[TextToVideoWizard Step 0] 🚨 WIZARD STARTED for user ${ctx.from?.id}`,
       {
@@ -539,6 +542,17 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   }
 )
+
+// Добавляем обработчик входа в сцену для отладки
+textToVideoWizard.enter(async ctx => {
+  console.log('🎬 [DEBUG] textToVideoWizard.enter() CALLED! User:', ctx.from?.id)
+  console.log('🎬 [DEBUG] textToVideoWizard.enter() Scene ID:', ctx.scene.current?.id)
+  logger.info('[TextToVideoWizard] Enter handler called', {
+    telegramId: ctx.from?.id,
+    sceneId: ctx.scene.current?.id,
+    currentStep: ctx.wizard?.cursor
+  })
+})
 
 textToVideoWizard.hears(
   ['🔄 Выбрать другую модель', '🔄 Choose another model'], // <--- ИЗМЕНЕНО
