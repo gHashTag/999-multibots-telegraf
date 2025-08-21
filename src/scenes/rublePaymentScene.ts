@@ -3,7 +3,7 @@ import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleSelectRubAmount } from '@/handlers'
-import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
+import { rubTopUpOptions, getDynamicRubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
 import { MERCHANT_LOGIN, ROBOKASSA_PASSWORD_1 } from '@/config'
 import { setPayments } from '@/core/supabase'
@@ -228,8 +228,9 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       }
     )
 
-    // Специальная обработка для админской тестовой кнопки "1 рубль"
-    let selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
+    // Получаем актуальные пакеты с динамическим курсом
+    const dynamicOptions = await getDynamicRubTopUpOptions()
+    let selectedOption = dynamicOptions.find(o => o.amountRub === amountRub)
 
     // Если это админский тест на 1 рубль, создаем специальный объект
     if (!selectedOption && amountRub === 1) {
