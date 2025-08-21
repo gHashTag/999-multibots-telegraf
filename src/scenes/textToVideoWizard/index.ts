@@ -4,30 +4,23 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { sendGenericErrorMessage } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
-import { ModeEnum } from '@/interfaces/modes'
-import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { logger } from '@/utils/logger'
 import {
   createVideoModelKeyboard,
   createResolutionKeyboard,
   createDurationKeyboard,
+  createAspectRatioKeyboard,
 } from '@/modules/videoGenerator/helpers/keyboard'
 import {
   findModelByButtonText,
   VideoModelConfigKey,
-  supportsResolution,
-  getAvailableResolutions,
-  getPriceForResolution,
 } from '@/modules/videoGenerator/helpers/modelMapping'
-import { VIDEO_MODELS, getModelPriceInStars } from '@/services/videoModels'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { calculateFinalPrice } from '@/price/helpers'
 import { getUserBalance } from '@/core/supabase'
-import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
-import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
 
-// Асинхронная функция для обработки генерации видео в фоне
+// Упрощенная функция для обработки генерации видео через сервер
 async function processVideoGeneration(
   ctx: MyContext,
   prompt: string,
@@ -35,178 +28,50 @@ async function processVideoGeneration(
   isRu: boolean
 ) {
   try {
-    // Проверка наличия необходимой информации о пользователе и боте
-    if (!ctx.from || !ctx.from.id || !ctx.botInfo || !ctx.chat?.id) {
-      logger.error(
-        '[processVideoGeneration] Critical user/bot/chat info missing.',
-        { from: ctx.from, botInfo: ctx.botInfo, chatId: ctx.chat?.id }
-      )
-      // Попытка отправить сообщение об ошибке, если chat.id известен
-      if (ctx.chat?.id) {
-        await ctx.telegram.sendMessage(
-          ctx.chat.id,
-          isRu
-            ? 'Произошла внутренняя ошибка (отсутствует информация для обработки вашего запроса).'
-            : 'An internal error occurred (missing information to process your request).'
-        )
-      }
-      return
+    // Преобразуем VideoModelConfigKey в VideoModelId
+    const modelMapping: Record<VideoModelConfigKey, VideoModelId> = {
+      'kie-veo-3-fast': 'kie-veo-3-fast',
+      'kie-veo-3': 'kie-veo-3',
+      'kie-runway-aleph': 'kie-runway-aleph',
+      'veo-3': 'veo-3',
+      'veo-3-fast': 'veo-3-fast',
+      'veo-2': 'veo-2',
+      minimax: 'minimax',
+      'ray-v2': 'ray-v2',
+      'hunyuan-video-fast': 'hunyuan-video-fast',
+      'wan-image-to-video': 'wan-image-to-video',
+      'wan-text-to-video': 'wan-text-to-video',
+      'kling-v1.6-pro': 'kling-v1.6-pro',
     }
-    const telegramId = ctx.from.id.toString()
-    const username = ctx.from.username || 'unknown_user' // Предоставить значение по умолчанию, если username отсутствует
-    const botName = ctx.botInfo.username
 
-    // ===== ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
-    logger.info(
-      '[processVideoGeneration] Processing balance for text_to_video',
-      { telegramId: ctx.from.id, modelId: videoModelKey }
-    )
-
-    const balanceResult = await processBalanceVideoOperationHelper(
-      String(ctx.from.id),
-      videoModelKey,
-      isRu,
-      ctx.botInfo.username,
-      'text_to_video'
-    )
-
-    if (!balanceResult.success || balanceResult.newBalance === undefined) {
-      logger.error('[processVideoGeneration] Balance check failed', {
-        telegramId,
-        error: balanceResult.error,
-      })
-      await ctx.telegram.sendMessage(
-        ctx.chat.id,
-        balanceResult.error ||
-          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed')
+    const videoModelId = modelMapping[videoModelKey]
+    if (!videoModelId) {
+      logger.error('[processVideoGeneration] Unknown model key', { videoModelKey })
+      await ctx.reply(
+        isRu
+          ? '❌ Неизвестная модель видео.'
+          : '❌ Unknown video model.'
       )
       return
     }
 
-    logger.info('[processVideoGeneration] Balance sufficient and deducted', {
-      telegramId,
-      paymentAmount: balanceResult.paymentAmount,
-      newBalance: balanceResult.newBalance,
-    })
-    // ===== КОНЕЦ СПИСАНИЯ БАЛАНСА =====
-
-    const videoUrl = await generateTextToVideo(
+    // Используем серверную генерацию через handleTextToVideoDirect
+    // Она уже включает проверку баланса, списание средств и отправку видео
+    await handleTextToVideoDirect(
+      ctx,
       prompt,
-      telegramId,
-      username,
-      isRu,
-      botName,
-      videoModelKey,
-      ctx.session.selectedResolution, // Передаём выбранное разрешение для Seedance
-      ctx.session.selectedDuration // Передаём выбранную длительность для Veo моделей
+      videoModelId,
+      ctx.session.selectedDuration,
+      ctx.session.selectedAspectRatio
     )
 
-    if (videoUrl) {
-      // Добавляем информацию о стоимости в сообщение с видео
-      const modelTitle =
-        VIDEO_MODELS_CONFIG[videoModelKey]?.title || videoModelKey
-      const caption = isRu
-        ? `✨ Ваше видео (${modelTitle}) готово!\n💰 Списано: ${balanceResult.paymentAmount} ✨\n💎 Остаток: ${balanceResult.newBalance} ✨`
-        : `✨ Your video (${modelTitle}) is ready!\n💰 Cost: ${balanceResult.paymentAmount} ✨\n💎 Balance: ${balanceResult.newBalance} ✨`
-
-      await ctx.telegram.sendVideo(ctx.chat.id, videoUrl, { caption })
-
-      try {
-        const pulseOptions: MediaPulseOptions = {
-          mediaType: 'video',
-          mediaSource: videoUrl,
-          telegramId: telegramId,
-          username: username,
-          language: isRu ? 'ru' : 'en',
-          serviceType: ModeEnum.TextToVideo,
-          prompt: prompt,
-          botName: botName,
-          additionalInfo: {
-            model_used: modelTitle,
-            original_url:
-              videoUrl.substring(0, 100) + (videoUrl.length > 100 ? '...' : ''),
-          },
-        }
-        await sendMediaToPulse(pulseOptions)
-        logger.info('[processVideoGeneration] Pulse sent successfully.', {
-          telegram_id: telegramId,
-        })
-      } catch (pulseError) {
-        logger.error('[processVideoGeneration] Error sending pulse:', {
-          telegram_id: telegramId,
-          error: pulseError,
-        })
-      }
-
-      // Добавляем логирование ПЕРЕД отправкой кнопок
-      logger.info(
-        '[processVideoGeneration] Attempting to send final message with buttons.',
-        { telegram_id: telegramId, chat_id: ctx.chat.id }
-      )
-
-      const keyboard = Markup.keyboard([
-        [
-          isRu
-            ? '✨ Создать еще (Текст в Видео)'
-            : '✨ Create More (Text to Video)',
-        ],
-        [
-          isRu
-            ? '🖼 Выбрать другую модель (Видео)'
-            : '🖼 Select Another Model (Video)',
-        ],
-        [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
-      ]).resize()
-      await ctx.telegram.sendMessage(
-        ctx.chat.id,
-        isRu
-          ? 'Ваше видео готово! Что дальше?'
-          : 'Your video is ready! What next?',
-        keyboard
-      )
-
-      // Добавляем логирование ПОСЛЕ отправки кнопок
-      logger.info(
-        '[processVideoGeneration] Successfully sent final message with buttons.',
-        { telegram_id: telegramId }
-      )
-    } else {
-      // Средства автоматически возвращаются при любой ошибке генерации
-      const refundMessage = isRu
-        ? ' Средства возвращены на ваш баланс.'
-        : ' Funds have been refunded to your balance.'
-
-      await ctx.telegram.sendMessage(
-        ctx.chat.id,
-        isRu
-          ? `Не удалось сгенерировать видео. Попробуйте другой промпт или модель.${refundMessage}`
-          : `Failed to generate video. Try a different prompt or model.${refundMessage}`
-      )
-    }
   } catch (error) {
-    logger.error(
-      '[processVideoGeneration] Error during background video processing:',
-      { error, telegram_id: ctx.from?.id }
+    logger.error('[processVideoGeneration] Error:', error)
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка во время генерации видео.'
+        : '❌ An error occurred during video generation.'
     )
-    try {
-      if (ctx.chat?.id) {
-        await ctx.telegram.sendMessage(
-          ctx.chat.id,
-          isRu
-            ? 'Произошла ошибка во время генерации видео.'
-            : 'An error occurred during video generation.'
-        )
-      } else {
-        logger.error(
-          '[processVideoGeneration] ctx.chat.id is undefined, cannot send error message to user.'
-        )
-      }
-    } catch (e) {
-      logger.error(
-        '[processVideoGeneration] Failed to send error message to user after background processing error',
-        e
-      )
-    }
   }
 }
 
@@ -297,10 +162,33 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       `[TextToVideoWizard Step 1] Model ${foundModelKey} selected and balance checked for ${ctx.from.id}.`
     )
 
-    // Проверяем, нужно ли показать выбор длительности для Veo моделей
+    // Проверяем, нужно ли показать выбор соотношения сторон для Kie.ai моделей
     const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
-    if (modelConfig.durationOptions && modelConfig.durationOptions.length > 0) {
-      // Показываем клавиатуру выбора длительности
+    if (
+      modelConfig.aspectRatioOptions &&
+      modelConfig.aspectRatioOptions.length > 0
+    ) {
+      // Показываем клавиатуру выбора соотношения сторон
+      logger.info(
+        `[TextToVideoWizard Step 1] Showing aspect ratio selection for ${foundModelKey}`
+      )
+
+      const text = isRu
+        ? `📱 Выберите соотношение сторон для ${modelConfig.title}:`
+        : `📱 Select aspect ratio for ${modelConfig.title}:`
+
+      await ctx.replyWithHTML(
+        text,
+        createAspectRatioKeyboard(foundModelKey, isRu)
+      )
+      return ctx.wizard.next() // Переход к шагу обработки выбора соотношения сторон
+    }
+    // Проверяем, нужно ли показать выбор длительности для Veo моделей
+    else if (
+      modelConfig.durationOptions &&
+      modelConfig.durationOptions.length > 1
+    ) {
+      // Показываем клавиатуру выбора длительности только если есть выбор
       logger.info(
         `[TextToVideoWizard Step 1] Showing duration selection for ${foundModelKey}`
       )
@@ -311,6 +199,16 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.replyWithHTML(text, createDurationKeyboard(foundModelKey, isRu))
       return ctx.wizard.next() // Переход к шагу обработки выбора длительности
+    }
+    // Если у модели только одна длительность, устанавливаем её автоматически
+    else if (
+      modelConfig.durationOptions &&
+      modelConfig.durationOptions.length === 1
+    ) {
+      ctx.session.selectedDuration = modelConfig.durationOptions[0]
+      logger.info(
+        `[TextToVideoWizard Step 1] Auto-selected single duration for ${foundModelKey}: ${modelConfig.durationOptions[0]}`
+      )
     }
     // Проверяем, нужно ли показать выбор разрешения для WAN моделей
     else if (
@@ -362,7 +260,58 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       await ctx.answerCbQuery()
       await ctx.editMessageReplyMarkup(undefined) // Удаляем inline keyboard
 
-      if (callbackData?.startsWith('veo_')) {
+      if (callbackData?.startsWith('aspect_')) {
+        // Парсим callback data: "aspect_kie-veo-3-fast_9:16"
+        const parts = callbackData.split('_')
+        if (parts.length >= 3) {
+          const aspectRatio = parts[parts.length - 1] // Последняя часть - соотношение сторон
+          ctx.session.selectedAspectRatio = aspectRatio
+
+          const modelKey = ctx.session.videoModel as VideoModelConfigKey
+          const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
+
+          logger.info(`[TextToVideoWizard Step 2] Aspect ratio selected:`, {
+            telegramId: ctx.from?.id,
+            modelKey,
+            aspectRatio,
+          })
+
+          // Теперь проверяем, нужно ли показать выбор длительности
+          if (
+            modelConfig.durationOptions &&
+            modelConfig.durationOptions.length > 1
+          ) {
+            const text = isRu
+              ? `⏱️ Выберите длительность для ${modelConfig.title}:`
+              : `⏱️ Select duration for ${modelConfig.title}:`
+
+            await ctx.replyWithHTML(
+              text,
+              createDurationKeyboard(modelKey, isRu)
+            )
+            return // Остаемся на том же шаге для выбора длительности
+          } else {
+            // Если у модели только одна длительность, устанавливаем её автоматически
+            if (
+              modelConfig.durationOptions &&
+              modelConfig.durationOptions.length === 1
+            ) {
+              ctx.session.selectedDuration = modelConfig.durationOptions[0]
+              logger.info(
+                `[TextToVideoWizard Step 2] Auto-selected single duration after aspect ratio: ${modelConfig.durationOptions[0]}`
+              )
+            }
+            
+            // Переходим к вводу промпта
+            await ctx.reply(
+              isRu
+                ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+                : 'Great! Now enter your prompt (description of what you want to see in the video):'
+            )
+            return ctx.wizard.next() // Переход к следующему шагу
+          }
+        }
+      } else if (callbackData?.startsWith('veo_')) {
         // Парсим callback data: "veo_kie-veo-3-fast_8"
         const parts = callbackData.split('_')
         if (parts.length >= 3) {
@@ -547,20 +496,17 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     ctx.session.prompt = prompt
 
-    // ЗАПУСК ГЕНЕРАЦИИ В ФОНЕ
-    // Мы уже получили videoModelKey ранее для очистки промпта
+    // ЗАПУСК СЕРВЕРНОЙ ГЕНЕРАЦИИ В ФОНЕ
     logger.info(
-      `[TextToVideoWizard Step 3] Starting background generation for user ${ctx.from?.id}`
+      `[TextToVideoWizard Step 3] Starting server generation for user ${ctx.from?.id}`
     )
-    // `videoModelKey` уже определена выше
-    processVideoGeneration(ctx, prompt, videoModelKey, isRu)
+    
+    // Запускаем серверную генерацию в фоне (БЕЗ await)
+    processVideoGeneration(ctx, prompt, videoModelKey, isRu).catch(error => {
+      logger.error('[TextToVideoWizard] Background generation error:', error)
+    })
 
-    // Немедленно отвечаем пользователю и выходим из сцены
-    await ctx.reply(
-      isRu
-        ? '⏳ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
-        : '⏳ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
-    )
+    // НЕ показываем сообщение здесь - оно показывается в handleTextToVideoDirect
 
     return ctx.scene.leave()
   }

@@ -27,7 +27,8 @@ export async function handleTextToVideoDirect(
   ctx: MyContext,
   prompt: string,
   modelId: VideoModelId,
-  duration?: number
+  duration?: number,
+  aspectRatio?: string
 ): Promise<void> {
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
@@ -82,6 +83,7 @@ export async function handleTextToVideoDirect(
       prompt,
       videoModel: modelId,
       duration: validDuration,
+      aspectRatio: aspectRatio,
       telegram_id,
       username,
       is_ru,
@@ -266,6 +268,31 @@ async function handleVideoReady(
       price,
       PaymentType.MONEY_OUTCOME,
       `Video generation: ${modelId}${duration ? ` (${duration}s)` : ''}`
+    )
+
+    // Показываем кнопки после успешной отправки видео
+    const keyboard = {
+      keyboard: [
+        [
+          is_ru
+            ? '✨ Создать еще (Текст в Видео)'
+            : '✨ Create More (Text to Video)',
+        ],
+        [
+          is_ru
+            ? '🖼 Выбрать другую модель (Видео)'
+            : '🖼 Select Another Model (Video)',
+        ],
+        [is_ru ? '🏠 Главное меню' : '🏠 Main Menu'],
+      ],
+      resize_keyboard: true,
+    }
+    
+    await ctx.reply(
+      is_ru
+        ? 'Ваше видео готово! Что дальше?'
+        : 'Your video is ready! What next?',
+      { reply_markup: keyboard }
     )
 
     logger.info('[handleVideoReady] Video sent successfully', {
