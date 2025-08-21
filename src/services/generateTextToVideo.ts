@@ -27,6 +27,7 @@ interface TextToVideoRequest {
   prompt: string
   videoModel: VideoModelId
   duration?: number // Длительность в секундах (только для Veo моделей)
+  aspectRatio?: string // Соотношение сторон (например, "9:16" или "16:9")
   telegram_id: string
   username: string
   is_ru: boolean
@@ -52,6 +53,7 @@ export async function generateTextToVideo(
     prompt,
     videoModel,
     duration,
+    aspectRatio,
     telegram_id,
     username,
     is_ru,
@@ -105,6 +107,11 @@ export async function generateTextToVideo(
       username,
       is_ru,
       bot_name,
+    }
+
+    // Добавляем aspectRatio если указан
+    if (aspectRatio) {
+      requestBody.aspectRatio = aspectRatio
     }
 
     // Добавляем duration для Veo и Kie.ai моделей

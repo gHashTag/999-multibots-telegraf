@@ -22,6 +22,7 @@ export type VideoModelConfig = {
   priceByResolution?: Record<string, number>
   durationOptions?: number[] // Поддерживаемые длительности в секундах
   priceByDuration?: Record<number, number> // Цена за каждую длительность
+  aspectRatioOptions?: string[] // Поддерживаемые соотношения сторон
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
@@ -237,23 +238,22 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     id: 'kie-veo-3-fast',
     title: 'Veo 3 Fast',
     inputType: ['text', 'image'],
-    description: '⚡ БЫСТРО: Veo 3 Fast - от 10⭐ за 2 сек до 50⭐ за 10 сек',
+    description: '⚡ БЫСТРО: Veo 3 Fast - 40⭐ за 8 сек',
     basePrice: 0.08, // Базовая цена за секунду
     api: {
       model: 'google/veo-3-fast',
       input: {
         duration: 8, // Длительность по умолчанию
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     imageKey: 'image',
     canMorph: false,
-    durationOptions: [2, 4, 6, 8, 10], // Поддерживаемые длительности
+    durationOptions: [8], // VEO FAST поддерживает только 8 секунд
+    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
     priceByDuration: {
-      2: 0.16, // 2 * 0.08 = 0.16 USD = ~10⭐
-      4: 0.32, // 4 * 0.08 = 0.32 USD = ~20⭐
-      6: 0.48, // 6 * 0.08 = 0.48 USD = ~30⭐
-      8: 0.64, // 8 * 0.08 = 0.64 USD = ~40⭐
-      10: 0.8, // 10 * 0.08 = 0.80 USD = ~50⭐
+      8: 0.64, // 8 * 0.08 = 0.64 USD = ~40⭐ (единственная поддерживаемая длительность)
     },
   },
   'kie-veo-3': {
@@ -267,9 +267,12 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'google/veo-3',
       input: {
         duration: 8, // Длительность по умолчанию
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
   },
   'kie-runway-aleph': {
     id: 'kie-runway-aleph',
@@ -282,10 +285,13 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       model: 'runwayml/gen-3-alpha',
       input: {
         duration: 6, // Длительность по умолчанию
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
     imageKey: 'image',
     canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
   },
 }
 
