@@ -33,7 +33,8 @@ export const generateImageToVideo = async (
   imageBUrl: string | null,
   telegramInstance: Telegraf<MyContext>['telegram'],
   chatId: number,
-  selectedResolution?: string // Добавлен параметр для разрешения Seedance
+  selectedResolution?: string, // Добавлен параметр для разрешения Seedance
+  selectedAspectRatio?: string // Добавлен параметр для соотношения сторон Kie.ai моделей
 ): Promise<void> => {
   let localVideoPath: string | undefined
   const notificationMessage = isRu
@@ -125,7 +126,8 @@ export const generateImageToVideo = async (
         })
       }
     }
-    const userAspectRatio = userExists.aspect_ratio ?? '9:16'
+    const userAspectRatio =
+      selectedAspectRatio || (userExists.aspect_ratio ?? '9:16')
 
     const balanceResult = await processBalanceVideoOperationHelper(
       telegramId,
