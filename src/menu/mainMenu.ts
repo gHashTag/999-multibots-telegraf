@@ -67,8 +67,8 @@ export const levels: Record<number, Level> = {
   },
   // text_to_image
   11: {
-    title_ru: '🖼️ Текст в фото',
-    title_en: '🖼️ Text to Image',
+    title_ru: '🖼️ Генерация изображений',
+    title_en: '🖼️ Generate Images',
   },
   // flux_kontext
   12: {

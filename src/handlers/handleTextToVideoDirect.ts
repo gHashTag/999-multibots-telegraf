@@ -38,13 +38,17 @@ export async function handleTextToVideoDirect(
   // Получаем корректную длительность для модели
   const validDuration = getValidDuration(modelId, duration)
 
-  logger.info('[handleTextToVideoDirect] Starting video generation', {
-    telegram_id,
-    username,
-    modelId,
-    duration: validDuration,
-    promptLength: prompt.length,
-  })
+  logger.info(
+    '[handleTextToVideoDirect] ASPECT RATIO CHECK - Starting video generation',
+    {
+      telegram_id,
+      username,
+      modelId,
+      duration: validDuration,
+      aspectRatio: aspectRatio,
+      promptLength: prompt.length,
+    }
+  )
 
   // Проверка подписки
   const hasSubscription = await checkSubscriptionGuard(ctx, 'NeuroVideo')
@@ -126,6 +130,25 @@ export async function handleTextToVideoDirect(
 
       // Запускаем мониторинг статуса
       monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
+    } else {
+      // Если нет jobId, но генерация запущена, показываем сообщение
+      logger.info(
+        '[handleTextToVideoDirect] No jobId received, generation started without monitoring',
+        {
+          telegram_id,
+          modelId,
+          hasMessage: !!response.message,
+        }
+      )
+
+      await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        processingMessage.message_id,
+        undefined,
+        is_ru
+          ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
+          : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+      )
     }
   } catch (error) {
     logger.error('[handleTextToVideoDirect] Unexpected error:', error)
@@ -166,7 +189,7 @@ async function monitorVideoGeneration(
           ctx,
           statusResponse.videoUrl,
           ctx.session.videoPrompt || '',
-          (ctx.session.videoModelId as VideoModelId) || 'veo-3',
+          (ctx.session.videoModelId as VideoModelId) || 'kie-veo-3-fast',
           ctx.session.videoDuration,
           messageId
         )
@@ -287,7 +310,7 @@ async function handleVideoReady(
       ],
       resize_keyboard: true,
     }
-    
+
     await ctx.reply(
       is_ru
         ? 'Ваше видео готово! Что дальше?'
@@ -340,7 +363,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx,
         statusResponse.videoUrl,
         ctx.session.videoPrompt || '',
-        (ctx.session.videoModelId as VideoModelId) || 'veo-3',
+        (ctx.session.videoModelId as VideoModelId) || 'kie-veo-3-fast',
         ctx.session.videoDuration,
         ctx.session.videoMessageId || 0
       )
