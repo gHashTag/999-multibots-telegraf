@@ -257,9 +257,7 @@ export async function checkVideoGenerationStatus(
   is_ru: boolean
 ): Promise<TextToVideoResponse> {
   try {
-    const baseUrl = isDev
-      ? LOCAL_SERVER_URL || 'http://localhost:4000'
-      : API_SERVER_URL
+    const baseUrl = LOCAL_SERVER_URL || API_SERVER_URL
 
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 
