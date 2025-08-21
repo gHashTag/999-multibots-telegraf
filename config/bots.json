@@ -1,0 +1,34 @@
+{
+  "bots": [
+    {
+      "name": "main_bot",
+      "description": "Основной бот с LipSync функциональностью",
+      "enabled": true,
+      "features": [
+        "lipsync",
+        "image_generation",
+        "video_generation",
+        "voice_generation"
+      ]
+    }
+  ],
+  "lipsync": {
+    "enabled": true,
+    "models": [
+      {
+        "id": "kling",
+        "name": "Kling LipSync",
+        "provider": "replicate",
+        "modelId": "kwaivgi/kling-lip-sync",
+        "isDefault": true
+      },
+      {
+        "id": "sync_v2",
+        "name": "Sync LipSync-2",
+        "provider": "sync",
+        "modelId": "sync/lipsync-2",
+        "isDefault": false
+      }
+    ]
+  }
+}
