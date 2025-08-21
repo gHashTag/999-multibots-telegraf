@@ -100,36 +100,48 @@ cd "$PROJECT_DIR"
 # Запускаем Claude Flow
 log_flow "🚀 Запуск Claude Flow hive-mind..."
 
-if [ -n "$EXISTING_SESSION" ]; then
-    log_flow "📂 Продолжаем существующую сессию: $EXISTING_SESSION"
+# Запускаем Claude Flow в background с timeout
+log_flow "🚀 Запуск Claude Flow в background режиме..."
+
+# Создаем временный файл для команды
+TEMP_CMD="/tmp/claude-flow-cmd-$TIMESTAMP.sh"
+cat > "$TEMP_CMD" << EOF
+#!/bin/bash
+cd "$PROJECT_DIR"
+echo "Starting Claude Flow..." >> "$LOG_FILE" 2>&1
+
+# Правильный вызов с objective как аргумент
+npx claude-flow@alpha hive-mind spawn "$SAFE_PROMPT" \
+    --namespace "$NAMESPACE" \
+    --auto-spawn \
+    --non-interactive \
+    >> "$LOG_FILE" 2>&1
+
+echo "Claude Flow command completed with exit code: \$?" >> "$LOG_FILE" 2>&1
+EOF
+
+chmod +x "$TEMP_CMD"
+
+# Запускаем с timeout в background
+if bash "$TEMP_CMD" & then
+    FLOW_PID=$!
     
-    # Продолжаем существующую сессию
-    if npx claude-flow@alpha hive-mind spawn "$SAFE_PROMPT" \
-        --namespace "$NAMESPACE" \
-        --claude \
-        --continue-session true \
-        --session-id "$EXISTING_SESSION" \
-        >> "$LOG_FILE" 2>&1; then
-        
-        log_flow "✅ Claude Flow успешно обработал промпт (продолжение сессии)"
+    # Ждем максимум 30 секунд
+    ( sleep 30 && kill $FLOW_PID 2>/dev/null ) &
+    KILLER_PID=$!
+    
+    if wait $FLOW_PID 2>/dev/null; then
+        kill $KILLER_PID 2>/dev/null
+        log_flow "✅ Claude Flow завершился успешно"
     else
-        log_flow "⚠️ Claude Flow завершился с ошибкой (продолжение сессии)"
+        log_flow "⚠️ Claude Flow завершился по timeout (30s)"
     fi
 else
-    log_flow "🆕 Создаем новую сессию"
-    
-    # Создаем новую сессию  
-    if npx claude-flow@alpha hive-mind spawn "$SAFE_PROMPT" \
-        --namespace "$NAMESPACE" \
-        --claude \
-        --continue-session true \
-        >> "$LOG_FILE" 2>&1; then
-        
-        log_flow "✅ Claude Flow успешно обработал промпт (новая сессия)"
-    else
-        log_flow "⚠️ Claude Flow завершился с ошибкой (новая сессия)"
-    fi
+    log_flow "❌ Ошибка запуска Claude Flow"
 fi
+
+# Удаляем временный файл
+rm -f "$TEMP_CMD"
 
 # Проверяем результаты
 if [ -d "$PROJECT_DIR/.hive-mind" ]; then
