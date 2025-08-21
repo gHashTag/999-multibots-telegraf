@@ -104,7 +104,7 @@ if [ -n "$EXISTING_SESSION" ]; then
     log_flow "📂 Продолжаем существующую сессию: $EXISTING_SESSION"
     
     # Продолжаем существующую сессию
-    if timeout 60 npx claude-flow@alpha hive-mind spawn "$SAFE_PROMPT" \
+    if npx claude-flow@alpha hive-mind spawn "$SAFE_PROMPT" \
         --namespace "$NAMESPACE" \
         --claude \
         --continue-session true \
@@ -113,13 +113,13 @@ if [ -n "$EXISTING_SESSION" ]; then
         
         log_flow "✅ Claude Flow успешно обработал промпт (продолжение сессии)"
     else
-        log_flow "⚠️ Claude Flow завершился с ошибкой или timeout (продолжение сессии)"
+        log_flow "⚠️ Claude Flow завершился с ошибкой (продолжение сессии)"
     fi
 else
     log_flow "🆕 Создаем новую сессию"
     
-    # Создаем новую сессию
-    if timeout 60 npx claude-flow@alpha hive-mind spawn "$SAFE_PROMPT" \
+    # Создаем новую сессию  
+    if npx claude-flow@alpha hive-mind spawn "$SAFE_PROMPT" \
         --namespace "$NAMESPACE" \
         --claude \
         --continue-session true \
@@ -127,7 +127,7 @@ else
         
         log_flow "✅ Claude Flow успешно обработал промпт (новая сессия)"
     else
-        log_flow "⚠️ Claude Flow завершился с ошибкой или timeout (новая сессия)"
+        log_flow "⚠️ Claude Flow завершился с ошибкой (новая сессия)"
     fi
 fi
 
