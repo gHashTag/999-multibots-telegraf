@@ -2,7 +2,7 @@
 commit f4c176e427ea37ebd8341f57d480b73e4fc06f0c
 Author: Dmitriy Vasilev <raoffonom@icloud.com>
 Date:   Thu Aug 21 07:03:58 2025 +0700
-
+№
     checkpoint: Так эта функция должна быть доступна только адм...
 
 admin-competitor-access.patch
