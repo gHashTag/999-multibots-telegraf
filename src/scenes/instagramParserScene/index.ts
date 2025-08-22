@@ -34,7 +34,11 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const userId = ctx.from?.id
 
-    logger.info('Instagram parser scene entered', { userId })
+    logger.info('Instagram parser scene - Step 1 (main menu) entered', { 
+      userId,
+      from: ctx.from,
+      botInfo: ctx.botInfo?.username
+    })
 
     const menuText = isRu
       ? '🎬 Instagram Парсер\n\n' +
@@ -76,13 +80,31 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
   // ШАГ 2: Обработка выбора
   async ctx => {
-    if (!ctx.callbackQuery) return
+    const userId = ctx.from?.id
+    
+    logger.info('Instagram parser scene - Step 2 entered', { 
+      userId,
+      hasCallbackQuery: !!ctx.callbackQuery,
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no message'
+    })
+
+    if (!ctx.callbackQuery) {
+      logger.warn('Instagram parser scene - No callback query in step 2', { userId })
+      return
+    }
 
     const isRu = isRussianFromState(ctx)
     const action = (ctx.callbackQuery as any).data
     const state = ctx.wizard.state as InstagramParserState
 
+    logger.info('Instagram parser scene - Processing callback', { 
+      userId,
+      action,
+      currentState: state
+    })
+
     if (action === 'parse_competitor') {
+      logger.info('Instagram parser scene - Competitor parsing selected', { userId })
       state.type = 'competitor'
       await ctx.answerCbQuery()
       await ctx.editMessageText(
@@ -101,6 +123,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
     }
 
     if (action === 'parse_hashtag') {
+      logger.info('Instagram parser scene - Hashtag parsing selected', { userId })
       state.type = 'hashtag'
       await ctx.answerCbQuery()
       await ctx.editMessageText(
@@ -221,19 +244,42 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
   // ШАГ 4: Выбор количества и оплата
   async ctx => {
-    if (!ctx.callbackQuery) return
+    const userId = ctx.from?.id
+    
+    logger.info('Instagram parser scene - Step 4 (count selection) entered', { 
+      userId,
+      hasCallbackQuery: !!ctx.callbackQuery,
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no message'
+    })
+
+    if (!ctx.callbackQuery) {
+      logger.warn('Instagram parser scene - No callback query in step 4', { userId })
+      return
+    }
 
     const isRu = isRussianFromState(ctx)
     const action = (ctx.callbackQuery as any).data
     const state = ctx.wizard.state as InstagramParserState
 
+    logger.info('Instagram parser scene - Processing count selection callback', { 
+      userId,
+      action,
+      currentState: state
+    })
+
     if (action === 'cancel') {
+      logger.info('Instagram parser scene - Cancel selected in step 4', { userId })
       await ctx.answerCbQuery()
       return ctx.wizard.selectStep(0)
     }
 
     const match = action.match(/count_(\d+)/)
     if (match) {
+      logger.info('Instagram parser scene - Count selected', { 
+        userId,
+        action,
+        selectedCount: match[1]
+      })
       const count = parseInt(match[1])
       const cost = REELS_PRICING[count as keyof typeof REELS_PRICING]
 
@@ -326,30 +372,53 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
   // ШАГ 5: Запуск парсинга
   async ctx => {
-    if (!ctx.callbackQuery) return
+    const userId = ctx.from?.id
+    
+    logger.info('Instagram parser scene - Step 5 (parsing start) entered', { 
+      userId,
+      hasCallbackQuery: !!ctx.callbackQuery,
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no message'
+    })
+
+    if (!ctx.callbackQuery) {
+      logger.warn('Instagram parser scene - No callback query in step 5', { userId })
+      return
+    }
 
     const isRu = isRussianFromState(ctx)
     const action = (ctx.callbackQuery as any).data
     const state = ctx.wizard.state as InstagramParserState
-    const userId = ctx.from?.id
+
+    logger.info('Instagram parser scene - Processing parsing start callback', { 
+      userId,
+      action,
+      currentState: state
+    })
 
     if (action === 'cancel') {
+      logger.info('Instagram parser scene - Cancel selected in step 5', { userId })
       await ctx.answerCbQuery()
       return ctx.wizard.selectStep(0)
     }
 
     if (action === 'back') {
+      logger.info('Instagram parser scene - Back selected in step 5', { userId })
       await ctx.answerCbQuery()
       return ctx.wizard.selectStep(0)
     }
 
     if (action === 'top_up') {
+      logger.info('Instagram parser scene - Top up selected in step 5', { userId })
       await ctx.answerCbQuery()
       await ctx.scene.enter('payment_scene')
       return
     }
 
     if (action === 'start_parsing') {
+      logger.info('Instagram parser scene - Start parsing selected', { 
+        userId,
+        state
+      })
       await ctx.answerCbQuery(
         isRu ? '🚀 Запускаю парсинг...' : '🚀 Starting parsing...'
       )

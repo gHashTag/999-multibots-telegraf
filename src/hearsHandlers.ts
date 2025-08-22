@@ -1097,7 +1097,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     // ✅ Доступ разрешен - запускаем мастер парсинга
     try {
       await ctx.scene.leave()
-      await ctx.scene.enter('instagram_parser_wizard')
+      await ctx.scene.enter(ModeEnum.InstagramParserScene)
     } catch (error) {
       logger.error('Error entering Instagram parser wizard', {
         telegramId: ctx.from?.id,
