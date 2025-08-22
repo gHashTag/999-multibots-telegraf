@@ -15,9 +15,6 @@ export type VideoModelId =
   | 'wan-image-to-video'
   | 'wan-text-to-video'
   | 'minimax'
-  | 'veo-3'
-  | 'veo-3-fast'
-  | 'veo-2'
   // Kie.ai модели
   | 'kie-veo-3-fast'
   | 'kie-veo-3'
@@ -27,6 +24,7 @@ interface TextToVideoRequest {
   prompt: string
   videoModel: VideoModelId
   duration?: number // Длительность в секундах (только для Veo моделей)
+  aspectRatio?: string // Соотношение сторон (например, "9:16" или "16:9")
   telegram_id: string
   username: string
   is_ru: boolean
@@ -52,6 +50,7 @@ export async function generateTextToVideo(
     prompt,
     videoModel,
     duration,
+    aspectRatio,
     telegram_id,
     username,
     is_ru,
@@ -76,10 +75,11 @@ export async function generateTextToVideo(
   }
 
   // Логирование начала генерации
-  logger.info('Starting text-to-video generation', {
+  logger.info('ASPECT RATIO CHECK - Starting text-to-video generation', {
     prompt: prompt.substring(0, 100), // Логируем только начало промпта
     videoModel,
     duration,
+    aspectRatio: aspectRatio,
     telegram_id,
     username,
     is_ru,
@@ -88,14 +88,18 @@ export async function generateTextToVideo(
 
   try {
     // Определяем URL в зависимости от окружения
-    // Используем LOCAL_SERVER_URL если определен, иначе localhost:4000 для dev, или API_SERVER_URL для prod
-    const baseUrl = isDev
-      ? LOCAL_SERVER_URL || 'http://localhost:4000'
-      : API_SERVER_URL
+    // Используем LOCAL_SERVER_URL если определен, иначе API_SERVER_URL для всех окружений
+    logger.info('URL Selection Debug', {
+      LOCAL_SERVER_URL,
+      API_SERVER_URL,
+      isDev,
+    })
+    
+    const baseUrl = LOCAL_SERVER_URL || API_SERVER_URL
 
     const url = `${baseUrl}/generate/text-to-video`
 
-    logger.info('Sending request to API server', { url })
+    logger.info('Sending request to API server', { url, baseUrl })
 
     // Формируем тело запроса
     const requestBody: any = {
@@ -105,6 +109,21 @@ export async function generateTextToVideo(
       username,
       is_ru,
       bot_name,
+    }
+
+    // Добавляем aspectRatio если указан
+    if (aspectRatio) {
+      requestBody.aspectRatio = aspectRatio
+      logger.info('ASPECT RATIO CHECK - Added aspectRatio to request body', {
+        aspectRatio,
+        videoModel,
+        telegram_id,
+      })
+    } else {
+      logger.warn('ASPECT RATIO CHECK - No aspectRatio provided', {
+        videoModel,
+        telegram_id,
+      })
     }
 
     // Добавляем duration для Veo и Kie.ai моделей
@@ -121,6 +140,17 @@ export async function generateTextToVideo(
     ) {
       requestBody.duration = duration
     }
+
+    // Логируем финальное тело запроса
+    logger.info(
+      'ASPECT RATIO CHECK - Final request body being sent to server',
+      {
+        url,
+        requestBody: JSON.stringify(requestBody, null, 2),
+        videoModel,
+        telegram_id,
+      }
+    )
 
     // Отправляем запрос на сервер
     const response = await axios.post<TextToVideoResponse>(url, requestBody, {
@@ -227,9 +257,7 @@ export async function checkVideoGenerationStatus(
   is_ru: boolean
 ): Promise<TextToVideoResponse> {
   try {
-    const baseUrl = isDev
-      ? LOCAL_SERVER_URL || 'http://localhost:4000'
-      : API_SERVER_URL
+    const baseUrl = LOCAL_SERVER_URL || API_SERVER_URL
 
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 

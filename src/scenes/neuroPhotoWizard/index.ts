@@ -29,7 +29,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     telegramId,
     step: ctx.session.__scenes?.cursor || 0,
     prompt: ctx.session.prompt,
-    initialized: ctx.session.neuroPhotoInitialized || false
+    initialized: ctx.session.neuroPhotoInitialized || false,
   })
   logger.info({
     message: 'Starting conversation step',
@@ -74,7 +74,7 @@ Create your model or use other bot functions.`,
     logger.debug('User model found in session', {
       telegramId,
       modelUrl: ctx.session.userModel.model_url,
-      triggerWord: ctx.session.userModel.trigger_word
+      triggerWord: ctx.session.userModel.trigger_word,
     })
     logger.info({
       message: 'User model validation successful',
@@ -88,7 +88,7 @@ Create your model or use other bot functions.`,
     if (ctx.session.prompt && ctx.session.neuroPhotoInitialized === true) {
       logger.debug('Prompt already exists, proceeding to step 1', {
         telegramId,
-        prompt: ctx.session.prompt
+        prompt: ctx.session.prompt,
       })
       logger.info({
         message: 'Transitioning to prompt step with existing prompt',
@@ -118,7 +118,7 @@ Create your model or use other bot functions.`,
     ) {
       logger.debug('Received text from user', {
         telegramId,
-        text: ctx.message.text
+        text: ctx.message.text,
       })
       logger.info({
         message: 'Text received from user',
@@ -130,7 +130,7 @@ Create your model or use other bot functions.`,
       ctx.session.prompt = ctx.message.text
       logger.debug('Prompt saved', {
         telegramId,
-        prompt: ctx.session.prompt
+        prompt: ctx.session.prompt,
       })
       logger.info({
         message: 'Saving prompt',
@@ -149,7 +149,7 @@ Create your model or use other bot functions.`,
       // Это команда меню - не обрабатываем как промпт
       logger.debug('Menu command received, waiting for next message', {
         telegramId,
-        text: ctx.message.text
+        text: ctx.message.text,
       })
       logger.info({
         message: 'Menu command received, awaiting prompt input',
@@ -204,7 +204,7 @@ Describe what you want to depict. For example:
     logger.error('Error in neuroPhotoConversationStep', {
       telegramId,
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     })
     logger.error({
       message: 'Error in conversation step',
@@ -230,7 +230,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     telegramId,
     step: ctx.session.__scenes?.cursor || 0,
     prompt: ctx.session.prompt,
-    initialized: ctx.session.neuroPhotoInitialized || false
+    initialized: ctx.session.neuroPhotoInitialized || false,
   })
   const isRu = ctx.from?.language_code === 'ru'
 
@@ -268,7 +268,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         promptText = ctx.message.text
         logger.debug('Text prompt received from message', {
           telegramId,
-          promptText
+          promptText,
         })
       }
     }
@@ -277,7 +277,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       promptText = ctx.session.prompt
       logger.debug('Text prompt received from session', {
         telegramId,
-        promptText
+        promptText,
       })
     }
     // Если промпта нет вообще или это команда меню
@@ -359,7 +359,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     // Сохраняем промпт в сессии
     ctx.session.prompt = promptText
 
-    const model_url = ctx.session.userModel.model_url
+    const model_url = ctx.session.userModel.model_url as ModelUrl
     const trigger_word = ctx.session.userModel.trigger_word as string
 
     logger.info({
@@ -414,7 +414,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     logger.info('Starting image generation', {
       telegramId,
       fullPrompt,
-      userId: userId.toString()
+      userId: userId.toString(),
     })
 
     // Отправляем сообщение о начале генерации
@@ -444,7 +444,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       // Генерация изображения
       await generateNeuroImage(
         fullPrompt,
-        model_url,
+        model_url as `${string}/${string}:${string}`,
         1,
         userId.toString(),
         ctx,
@@ -515,7 +515,10 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
       logger.error('Image generation error', {
         telegramId,
-        error: generateError instanceof Error ? generateError.message : String(generateError)
+        error:
+          generateError instanceof Error
+            ? generateError.message
+            : String(generateError),
       })
 
       await ctx.reply(
@@ -538,7 +541,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
     logger.error('Critical error in neuroPhotoPromptStep', {
       telegramId,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
 
     await ctx.reply(
@@ -569,7 +572,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     telegramId,
     step: ctx.session.__scenes?.cursor || 0,
     prompt: ctx.session.prompt,
-    initialized: ctx.session.neuroPhotoInitialized || false
+    initialized: ctx.session.neuroPhotoInitialized || false,
   })
   logger.info({
     message: 'Starting neuroPhotoButtonStep scene',
@@ -646,7 +649,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         telegramId,
         hasPrompt: !!prompt,
         hasUserModel: !!ctx.session.userModel,
-        hasModelUrl: !!ctx.session.userModel?.model_url
+        hasModelUrl: !!ctx.session.userModel?.model_url,
       })
       await ctx.reply(
         isRu
@@ -796,7 +799,7 @@ neuroPhotoWizard.use(async (ctx, next) => {
   logger.debug('Middleware called', {
     telegramId,
     step,
-    sessionState: JSON.stringify(ctx.session)
+    sessionState: JSON.stringify(ctx.session),
   })
 
   // Проверяем, что сообщение является текстовым
@@ -804,7 +807,7 @@ neuroPhotoWizard.use(async (ctx, next) => {
     logger.debug('Middleware received text message', {
       telegramId,
       messageText: ctx.message.text,
-      step
+      step,
     })
     logger.info({
       message: 'Message received',
@@ -836,7 +839,7 @@ neuroPhotoWizard.use(async (ctx, next) => {
     ) {
       logger.debug('Intercepting text as prompt on step 0', {
         telegramId,
-        prompt: ctx.message.text
+        prompt: ctx.message.text,
       })
       logger.info({
         message: 'Intercepting text as prompt on step 0',
@@ -864,7 +867,7 @@ neuroPhotoWizard.enter(async ctx => {
   logger.debug('Entering neuroPhotoWizard scene', {
     telegramId,
     previousPrompt: ctx.session.prompt,
-    previousInitialized: ctx.session.neuroPhotoInitialized || false
+    previousInitialized: ctx.session.neuroPhotoInitialized || false,
   })
   logger.info({
     message: 'Entering scene',
@@ -899,7 +902,7 @@ neuroPhotoWizard.enter(async ctx => {
     logger.debug('User model loaded from database', {
       telegramId,
       userId,
-      userModel: JSON.stringify(userModel)
+      userModel: JSON.stringify(userModel),
     })
 
     if (!userModel) {
@@ -923,7 +926,7 @@ Create your model or use other bot functions.`,
 
     logger.debug('User model retrieved from database', {
       telegramId,
-      model: JSON.stringify(userModel)
+      model: JSON.stringify(userModel),
     })
 
     // Сохраняем модель в сессии - без этого ничего не будет работать
@@ -932,7 +935,7 @@ Create your model or use other bot functions.`,
     logger.debug('User model saved to session', {
       telegramId,
       modelUrl: userModel.model_url,
-      triggerWord: userModel.trigger_word
+      triggerWord: userModel.trigger_word,
     })
     logger.info({
       message: 'User model loaded from database',
@@ -945,7 +948,7 @@ Create your model or use other bot functions.`,
   } catch (error) {
     logger.error('Critical error loading user model', {
       telegramId,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
     logger.error({
       message: 'Critical error loading model',
@@ -972,7 +975,7 @@ neuroPhotoWizard.on('text', async (ctx, next) => {
     telegramId,
     step,
     text: ctx.message.text,
-    hasUserModel: !!ctx.session.userModel?.model_url
+    hasUserModel: !!ctx.session.userModel?.model_url,
   })
   logger.info({
     message: 'Processing text message',
@@ -998,7 +1001,7 @@ neuroPhotoWizard.on('text', async (ctx, next) => {
   if (isMenuButton || isCommand || isSceneButton) {
     logger.debug('Command or button received, passing to next handler', {
       telegramId,
-      text: ctx.message.text
+      text: ctx.message.text,
     })
     return next()
   }
@@ -1009,7 +1012,7 @@ neuroPhotoWizard.on('text', async (ctx, next) => {
     if (ctx.session.userModel?.model_url) {
       logger.debug('Processing text as prompt on step 0', {
         telegramId,
-        prompt: ctx.message.text
+        prompt: ctx.message.text,
       })
       logger.info({
         message: 'Processing text as prompt on step 0',
@@ -1028,7 +1031,7 @@ neuroPhotoWizard.on('text', async (ctx, next) => {
     // На шаге 1 - обрабатываем текст как уточнение/изменение промпта
     logger.debug('Processing text as prompt update on step 1', {
       telegramId,
-      prompt: ctx.message.text
+      prompt: ctx.message.text,
     })
     ctx.session.prompt = ctx.message.text
     return await neuroPhotoPromptStep(ctx)
@@ -1046,7 +1049,7 @@ neuroPhotoWizard.leave(async ctx => {
     telegramId,
     currentScene: ctx.session.__scenes?.current,
     finalSessionState: JSON.stringify(ctx.session),
-    stackTrace
+    stackTrace,
   })
 
   logger.info({
