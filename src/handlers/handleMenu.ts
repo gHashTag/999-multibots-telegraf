@@ -506,14 +506,14 @@ export const handleMenu = async (ctx: MyContext) => {
           parsingAccess
         })
         
-        // Переходим в новую простую Instagram parser scene
-        ctx.session.mode = ModeEnum.InstagramSimpleParserScene
+        // Переходим в Instagram parser scene
+        ctx.session.mode = ModeEnum.InstagramParserScene
         console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramSimpleParserScene}`
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
         )
-        await ctx.scene.enter(ModeEnum.InstagramSimpleParserScene)
+        await ctx.scene.enter(ModeEnum.InstagramParserScene)
         console.log(
-          `✅ [handleMenu] Завершен вход в сцену instagram_simple_parser_scene`
+          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
         )
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
