@@ -376,6 +376,23 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           }
         )
 
+        // Показываем сообщение о начале парсинга
+        await ctx.editMessageText(
+          isRu
+            ? `🚀 Парсинг запущен!\n\n` +
+                `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
+                `📊 Количество: ${state.count} рилсов\n` +
+                `💰 Списано: ${state.cost} ⭐\n\n` +
+                `⏳ Ожидайте завершения парсинга...\n` +
+                `⏱️ Обычно занимает 2-5 минут`
+            : `🚀 Parsing started!\n\n` +
+                `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
+                `📊 Count: ${state.count} reels\n` +
+                `💰 Charged: ${state.cost} ⭐\n\n` +
+                `⏳ Please wait for parsing to complete...\n` +
+                `⏱️ Usually takes 2-5 minutes`
+        )
+
         // Запускаем парсинг напрямую через Apify
         const result = await scrapeInstagramDirect({
           username_or_hashtag: state.target,
@@ -396,19 +413,31 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         if (result.success) {
           // Парсинг завершен успешно
           const reelsCount = result.data?.length || 0
+          
+          // Проверяем количество найденных рилсов для корректного сообщения
+          const statusMessage = reelsCount > 0 
+            ? (isRu ? '✅ Парсинг завершен!' : '✅ Parsing completed!')
+            : (isRu ? '⚠️ Парсинг завершен' : '⚠️ Parsing completed')
+            
+          const statusNote = reelsCount > 0
+            ? (isRu ? '📨 Результаты сохранены в базе данных.' : '📨 Results saved to database.')
+            : (isRu 
+                ? '📝 Рилсы не найдены. Возможные причины:\n• Аккаунт закрыт или без видео\n• Неактивный аккаунт\n• Технические ограничения' 
+                : '📝 No reels found. Possible reasons:\n• Account is private or has no videos\n• Inactive account\n• Technical limitations')
+          
           await ctx.editMessageText(
             isRu
-              ? `✅ Парсинг завершен!\n\n` +
+              ? `${statusMessage}\n\n` +
                   `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
                   `📊 Найдено рилсов: ${reelsCount}\n` +
                   `💰 Списано: ${state.cost} ⭐\n\n` +
-                  `📨 Результаты сохранены в базе данных.\n` +
+                  `${statusNote}\n` +
                   `💡 Вы можете запустить новый парсинг`
-              : `✅ Parsing completed!\n\n` +
+              : `${statusMessage}\n\n` +
                   `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
                   `📊 Reels found: ${reelsCount}\n` +
                   `💰 Charged: ${state.cost} ⭐\n\n` +
-                  `📨 Results saved to database.\n` +
+                  `${statusNote}\n` +
                   `💡 You can start a new parsing`,
             Markup.inlineKeyboard([
               [
