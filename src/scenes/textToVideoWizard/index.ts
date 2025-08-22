@@ -8,91 +8,127 @@ import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.conf
 
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
 
-// Функция для расчета стоимости в звездах из конфига
+// Функция для расчета стоимости в звездах из конфига (БЕЗОПАСНАЯ)
 function calculateStarsFromConfig(modelId: string, duration?: number): number {
-  const config = VIDEO_MODELS_CONFIG[modelId]
-  if (!config) return 40 // fallback
-  
-  let price = config.basePrice
-  
-  // Для Kling модели - цена за секунду
-  if (modelId.includes('kling') && duration) {
-    price = price * duration
-  }
-  
-  // Конвертация в звезды: basePrice * 5 / 0.016 * 1.5
-  return Math.floor(((price * 5) / 0.016) * 1.5)
-}
-
-// Функция создания кнопки с правильной ценой и длительностью
-function createModelButton(modelId: string, aspectRatio: string, isRu: boolean): string {
-  const config = VIDEO_MODELS_CONFIG[modelId]
-  if (!config) return `${modelId} | ${aspectRatio}`
-  
-  const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
-  
-  // Определяем длительность
-  let durationText = ''
-  let stars = 0
-  
-  if (modelId === 'kie-veo-3-fast') {
-    durationText = ' | 8s'
-    stars = calculateStarsFromConfig(modelId, 8)
-  } else if (modelId === 'kie-veo-3') {
-    durationText = ' | 8s'  
-    stars = calculateStarsFromConfig(modelId, 8)
-  } else if (modelId === 'kie-runway-aleph') {
-    durationText = ' | 6s'
-    stars = calculateStarsFromConfig(modelId, 6)
-  } else if (modelId === 'kling-v1.6-pro') {
-    durationText = ''
-    stars = calculateStarsFromConfig(modelId, 10) // примерная длительность
-  } else if (modelId === 'minimax') {
-    durationText = ' | 6s'
-    stars = calculateStarsFromConfig(modelId, 6)
-  } else {
-    stars = calculateStarsFromConfig(modelId)
-  }
-  
-  return `${config.title}${durationText} | ${aspectIcon} (${stars}⭐)`
-}
-
-// Функция парсинга выбранной модели из кнопки
-function parseModelSelection(buttonText: string): { modelId: string, aspectRatio: string, duration?: number, cost: number } | null {
-  // Определяем соотношение сторон по иконке
-  const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
-  
-  // Ищем модель по названию в конфиге
-  for (const [modelId, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
-    if (buttonText.includes(config.title)) {
-      // Определяем длительность и стоимость на основе модели
-      let duration: number | undefined
-      let cost: number
-      
-      if (modelId === 'kie-veo-3-fast') {
-        duration = 8
-        cost = calculateStarsFromConfig(modelId, duration)
-      } else if (modelId === 'kie-veo-3') {
-        duration = 8
-        cost = calculateStarsFromConfig(modelId, duration)
-      } else if (modelId === 'kie-runway-aleph') {
-        duration = 6
-        cost = calculateStarsFromConfig(modelId, duration)
-      } else if (modelId === 'kling-v1.6-pro') {
-        duration = 10 // стандартная длительность для Kling
-        cost = calculateStarsFromConfig(modelId, duration)
-      } else if (modelId === 'minimax') {
-        duration = 6
-        cost = calculateStarsFromConfig(modelId, duration)
-      } else {
-        cost = calculateStarsFromConfig(modelId)
-      }
-      
-      return { modelId, aspectRatio, duration, cost }
+  try {
+    const config = VIDEO_MODELS_CONFIG[modelId]
+    if (!config || !config.basePrice || config.basePrice <= 0) {
+      console.warn('🎬 [CALC] Invalid config for model:', modelId)
+      return 40 // fallback
     }
+    
+    let price = config.basePrice
+    
+    // Для Kling модели - цена за секунду
+    if (modelId.includes('kling') && duration && duration > 0) {
+      price = price * duration
+    }
+    
+    // Упрощенная конвертация в звезды: price * 100 (примерно)
+    const stars = Math.max(1, Math.floor(price * 100))
+    
+    console.log('🎬 [CALC] Model:', modelId, 'Price:', price, 'Duration:', duration, 'Stars:', stars)
+    return stars
+  } catch (error) {
+    console.error('🎬 [CALC] Error calculating stars for model:', modelId, error)
+    return 40 // fallback
   }
-  
-  return null
+}
+
+// Функция создания кнопки с правильной ценой и длительностью (БЕЗОПАСНАЯ)
+function createModelButton(modelId: string, aspectRatio: string, isRu: boolean): string {
+  try {
+    const config = VIDEO_MODELS_CONFIG[modelId]
+    if (!config || !config.title) {
+      console.warn('🎬 [BUTTON] Invalid config for model:', modelId)
+      return `${modelId} | ${aspectRatio} (40⭐)`
+    }
+    
+    const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
+    
+    // УПРОЩЕННЫЕ длительности и цены
+    let durationText = ''
+    let stars = 40 // по умолчанию
+    
+    switch(modelId) {
+      case 'kie-veo-3-fast':
+        durationText = ' | 8s'
+        stars = 40
+        break
+      case 'kie-veo-3':
+        durationText = ' | 8s'  
+        stars = 202
+        break
+      case 'kie-runway-aleph':
+        durationText = ' | 6s'
+        stars = 182
+        break
+      case 'kling-v1.6-pro':
+        durationText = ' | ~10s'
+        stars = 60
+        break
+      case 'minimax':
+        durationText = ' | 6s'
+        stars = 50
+        break
+      case 'hunyuan-video-fast':
+        durationText = ' | 5s'
+        stars = 25
+        break
+      case 'wan-text-to-video':
+        durationText = ' | 5s'
+        stars = 20
+        break
+      default:
+        stars = calculateStarsFromConfig(modelId)
+        break
+    }
+    
+    return `${config.title}${durationText} | ${aspectIcon} (${stars}⭐)`
+  } catch (error) {
+    console.error('🎬 [BUTTON] Error creating button for model:', modelId, error)
+    return `${modelId} | ${aspectRatio} (40⭐)`
+  }
+}
+
+// Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
+function parseModelSelection(buttonText: string): { modelId: string, aspectRatio: string, duration?: number, cost: number } | null {
+  try {
+    console.log('🎬 [PARSE] Parsing button text:', buttonText)
+    
+    // Определяем соотношение сторон по иконке
+    const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
+    
+    // УПРОЩЕННЫЙ парсинг по ключевым словам
+    if (buttonText.includes('Veo 3 Fast')) {
+      return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 }
+    }
+    if (buttonText.includes('Veo 3')) {
+      return { modelId: 'kie-veo-3', aspectRatio, duration: 8, cost: 202 }
+    }
+    if (buttonText.includes('Runway Aleph')) {
+      return { modelId: 'kie-runway-aleph', aspectRatio, duration: 6, cost: 182 }
+    }
+    if (buttonText.includes('Kling v1.6 Pro')) {
+      return { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
+    }
+    if (buttonText.includes('Minimax')) {
+      return { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
+    }
+    if (buttonText.includes('Hunyuan Video Fast')) {
+      return { modelId: 'hunyuan-video-fast', aspectRatio, duration: 5, cost: 25 }
+    }
+    if (buttonText.includes('Wan-2.1')) {
+      return { modelId: 'wan-text-to-video', aspectRatio, duration: 5, cost: 20 }
+    }
+    
+    console.warn('🎬 [PARSE] No match found for button text:', buttonText)
+    return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
+    
+  } catch (error) {
+    console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
+    return { modelId: 'kie-veo-3-fast', aspectRatio: '9:16', duration: 8, cost: 40 } // safe fallback
+  }
 }
 
 // КОНФИГ-БАЗИРОВАННЫЙ wizard - всего 2 шага
@@ -107,46 +143,28 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isRu = isRussianFromState(ctx)
         console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
       
-      // 🚀 КОНФИГ-БАЗИРОВАННАЯ клавиатура (правильные цены и длительности)
-      const textToVideoModels = [
-        'kie-veo-3-fast',    // Veo 3 Fast - 8s
-        'kie-veo-3',         // Veo 3 - 8s  
-        'kie-runway-aleph',  // Runway Aleph - 6s
-        'kling-v1.6-pro',    // Kling Pro - переменная
-        'minimax',           // Minimax - 6s
-        'hunyuan-video-fast', // Hunyuan - быстрая
-        'wan-text-to-video'   // Wan T2V - быстрая
-      ]
+      // 🚀 УПРОЩЕННАЯ и БЕЗОПАСНАЯ клавиатура (TOP-4 модели)
+      console.log('🎬 [WIZARD] Step 1: Creating simplified keyboard...')
       
       const keyboard = Markup.keyboard([
         // === VEO МОДЕЛИ (премиум) ===
         [
-          createModelButton('kie-veo-3-fast', '9:16', isRu),
-          createModelButton('kie-veo-3-fast', '16:9', isRu)
+          'Veo 3 Fast | 8s | 📱 (40⭐)',
+          'Veo 3 Fast | 8s | 🖥️ (40⭐)'
         ],
         [
-          createModelButton('kie-veo-3', '9:16', isRu),
-          createModelButton('kie-veo-3', '16:9', isRu)
-        ],
-        [
-          createModelButton('kie-runway-aleph', '9:16', isRu),
-          createModelButton('kie-runway-aleph', '16:9', isRu)
+          'Veo 3 | 8s | 📱 (202⭐)',
+          'Veo 3 | 8s | 🖥️ (202⭐)'
         ],
         
-        // === KLING (анимация) ===
+        // === ДОСТУПНЫЕ МОДЕЛИ ===
         [
-          createModelButton('kling-v1.6-pro', '9:16', isRu),
-          createModelButton('kling-v1.6-pro', '16:9', isRu)
-        ],
-        
-        // === БЫСТРЫЕ МОДЕЛИ ===
-        [
-          createModelButton('minimax', '9:16', isRu),
-          createModelButton('minimax', '16:9', isRu)
+          'Kling v1.6 Pro | ~10s | 📱 (60⭐)',
+          'Kling v1.6 Pro | ~10s | 🖥️ (60⭐)'
         ],
         [
-          createModelButton('hunyuan-video-fast', '9:16', isRu),
-          createModelButton('wan-text-to-video', '16:9', isRu)
+          'Minimax | 6s | 📱 (50⭐)',
+          'Minimax | 6s | 🖥️ (50⭐)'
         ],
         
         [isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu']
