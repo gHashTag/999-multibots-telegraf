@@ -132,17 +132,11 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
-  // Competitor monitoring button - admin only access
+  // Competitor monitoring button - admin only access - opens Instagram Parser Scene directly
   109: {
     title_ru: '🔍 Мониторинг конкурентов',
     title_en: '🔍 Competitor Monitoring',
     admin_only: true, // Скрыто для обычных пользователей - только для администраторов
-  },
-  // Instagram Parser button - separate from monitoring  
-  110: {
-    title_ru: '🔍 Парсинг Instagram',
-    title_en: '🔍 Instagram Parsing',
-    admin_only: true, // Только для администраторов
   },
 }
 
@@ -320,23 +314,11 @@ export async function mainMenu({
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
     
     if (isAdmin) {
-      // Добавляем кнопку мониторинга конкурентов для администраторов
+      // Добавляем кнопку мониторинга конкурентов для администраторов (теперь открывает парсер)
       if (!availableLevels.includes(levels[109])) {
         availableLevels.push(levels[109])
         logger.info(
-          '[mainMenu] Added competitor monitoring button for admin',
-          {
-            userId,
-            isAdmin: true,
-          }
-        )
-      }
-      
-      // Добавляем кнопку Instagram парсинга для администраторов
-      if (levels[110] && !availableLevels.includes(levels[110])) {
-        availableLevels.push(levels[110])
-        logger.info(
-          '[mainMenu] Added Instagram parsing button for admin',
+          '[mainMenu] Added competitor monitoring button for admin (opens parser)',
           {
             userId,
             isAdmin: true,
