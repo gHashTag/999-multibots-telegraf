@@ -47,18 +47,18 @@ LOG_FORMAT=combined
 ADMIN_IDS=144022504,1254048880,352374518,1852726961
 
 # Замените эти значения реальными токенами в docker-compose.yml
-BOT_TOKEN_1=REPLACE_WITH_REAL_TOKEN_1
-BOT_TOKEN_2=REPLACE_WITH_REAL_TOKEN_2
-BOT_TOKEN_3=REPLACE_WITH_REAL_TOKEN_3
-BOT_TOKEN_4=REPLACE_WITH_REAL_TOKEN_4
-BOT_TOKEN_5=REPLACE_WITH_REAL_TOKEN_5
-BOT_TOKEN_6=REPLACE_WITH_REAL_TOKEN_6
-BOT_TOKEN_7=REPLACE_WITH_REAL_TOKEN_7
-BOT_TOKEN_8=REPLACE_WITH_REAL_TOKEN_8
+BOT_TOKEN_1=dummy_token_1
+BOT_TOKEN_2=dummy_token_2
+BOT_TOKEN_3=dummy_token_3
+BOT_TOKEN_4=dummy_token_4
+BOT_TOKEN_5=dummy_token_5
+BOT_TOKEN_6=dummy_token_6
+BOT_TOKEN_7=dummy_token_7
+BOT_TOKEN_8=dummy_token_8
 
 # Другие настройки
 ORIGIN=https://999-multibots-telegraf-u14194.vm.elestio.app
-SECRET_KEY=REPLACE_WITH_PRODUCTION_SECRET_KEY
+SECRET_KEY=default_secret_key_replace_in_production
 EOF
   echo "✅ Базовый .env файл создан. Обязательно обновите настоящие токены через переменные окружения."
 else
