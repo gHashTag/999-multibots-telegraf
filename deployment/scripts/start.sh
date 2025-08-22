@@ -38,7 +38,7 @@ fi
 echo "🔑 Проверка критических переменных окружения..."
 if [ -z "$ORIGIN" ]; then
   echo "❌ Переменная ORIGIN не установлена. Используем значение по умолчанию."
-  export ORIGIN=https://999-multibots-u14194.vm.elestio.app
+  export ORIGIN=https://999-multibots-telegraf-u14194.vm.elestio.app
 fi
 
 if [ -z "$PORT" ]; then
