@@ -199,3 +199,35 @@ src/uploads/144022504/flux-kontext-multi/
 src/uploads/144022504/flux-kontext-portrait_series/
 
 src/uploads/144022504/image-upscaler/
+
+# Media and large files
+*.mp4
+*.mov
+*.avi
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# Large images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.psd
+
+# Temporary and generated files
+temp/
+assets/bible_vibecoder/
+vaults/vibecoding/_RES/
+vaults/**/*.png
+vaults/**/*.jpg
+vaults/**/*.jpeg
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.bz2
