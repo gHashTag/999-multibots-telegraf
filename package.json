@@ -19,7 +19,10 @@
     "typecheck": "tsc --noEmit",
     "check:translations": "bun run scripts/check_ai_stars_translations.ts",
     "generate:translations-sql": "bun run scripts/check_ai_stars_translations.ts --generate-sql",
-    "build:production": "bun install && bun run build:nocheck"
+    "build:production": "bun install && bun run build:nocheck",
+    "check:build": "./scripts/check-build-health.sh",
+    "check:quick": "./scripts/quick-build-check.sh",
+    "check:merge": "./scripts/pre-merge-check.sh"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
