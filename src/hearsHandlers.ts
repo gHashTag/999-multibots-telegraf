@@ -208,6 +208,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   bot.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async (ctx: MyContext) => {
     logger.debug(`Получен hears для Нейрофото 2 от ${ctx.from?.id}`)
 
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+    
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
+
     // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
     const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
     if (!hasSubscription) {
@@ -934,6 +944,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       telegramId: ctx.from?.id,
     })
 
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+    
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
+
     // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
     const hasSubscription = await checkSubscriptionGuard(
       ctx,
@@ -952,6 +972,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     logger.info('GLOBAL HEARS: Нейрофото 2 (Admin)', {
       telegramId: ctx.from?.id,
     })
+
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+    
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
 
     // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
     const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
