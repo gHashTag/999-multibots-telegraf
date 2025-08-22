@@ -1,8 +1,0 @@
----
-- name: Configure Nginx
-  hosts: webservers
-  vars_files:
-    - vault.yml
-  roles:
-    - nginx
-# ansible-playbook playbook.yml --vault-password-file .vault_password
