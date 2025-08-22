@@ -138,6 +138,12 @@ export const levels: Record<number, Level> = {
     title_en: '🔍 Competitor Monitoring',
     admin_only: true, // Скрыто для обычных пользователей - только для администраторов
   },
+  // Instagram Parser button - separate from monitoring  
+  110: {
+    title_ru: '🔍 Парсинг Instagram',
+    title_en: '🔍 Instagram Parsing',
+    admin_only: true, // Только для администраторов
+  },
 }
 
 // Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
@@ -319,6 +325,18 @@ export async function mainMenu({
         availableLevels.push(levels[109])
         logger.info(
           '[mainMenu] Added competitor monitoring button for admin',
+          {
+            userId,
+            isAdmin: true,
+          }
+        )
+      }
+      
+      // Добавляем кнопку Instagram парсинга для администраторов
+      if (levels[110] && !availableLevels.includes(levels[110])) {
+        availableLevels.push(levels[110])
+        logger.info(
+          '[mainMenu] Added Instagram parsing button for admin',
           {
             userId,
             isAdmin: true,

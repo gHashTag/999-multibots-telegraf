@@ -668,9 +668,9 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
         )
       },
-      // Instagram parser button handler
-      [isRu ? levels[109]?.title_ru : levels[109]?.title_en]: async () => {
-        if (!levels[109]) return // Проверка на существование уровня
+      // Instagram parser button handler - FIXED: using levels[110] instead of [109] 
+      [isRu ? levels[110]?.title_ru : levels[110]?.title_en]: async () => {
+        if (!levels[110]) return // Проверка на существование уровня
 
         logger.info({
           message: '📱 [handleMenu] Переход к Instagram парсеру',
