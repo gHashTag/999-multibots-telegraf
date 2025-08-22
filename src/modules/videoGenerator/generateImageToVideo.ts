@@ -344,7 +344,8 @@ export const generateImageToVideo = async (
     }
     const uniqueFilename = `${timestamp}_${baseFilename}`
     localVideoPath = path.join(dirPath, uniqueFilename)
-    await writeFile(localVideoPath, videoBuffer)
+    const u8 = new Uint8Array(videoBuffer)
+    await writeFile(localVideoPath, u8)
     logger.info('[I2V BG] Video saved locally', {
       telegramId,
       path: localVideoPath,

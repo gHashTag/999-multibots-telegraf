@@ -1,39 +1,38 @@
-const { execSync } = require('child_process')
-const os = require('os')
+#!/usr/bin/env node
 
-/**
- * Kill process by port
- * @param {number} port - The port to kill
- */
-function killPort(port) {
-  const platform = os.platform()
-  let command = ''
+const { exec } = require('child_process');
 
-  try {
-    if (platform === 'win32') {
-      command = `netstat -ano | findstr :${port} | findstr LISTENING && FOR /F "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /F /PID %a`
-    } else {
-      command = `lsof -i :${port} -t | xargs -r kill -9`
-    }
+// Get ports from command line arguments
+const ports = process.argv.slice(2);
 
-    console.log(`Checking port ${port}...`)
-    execSync(command, { stdio: 'pipe' })
-    console.log(`Successfully killed process on port ${port}`)
-  } catch (e) {
-    console.error(`Error checking/killing port ${port}: ${e.message}`)
-  }
+if (ports.length === 0) {
+  console.log('Usage: node kill-port.cjs [port1] [port2] ...');
+  process.exit(1);
 }
 
-// Get ports from arguments
-const args = process.argv.slice(2)
-if (args.length === 0) {
-  console.log('No ports specified')
-  process.exit(0)
+// Function to kill process on specific port
+function killPort(port) {
+  return new Promise((resolve) => {
+    // Kill process using lsof and kill command
+    exec(`lsof -ti:${port} | xargs kill -9`, (error) => {
+      if (error) {
+        console.log(`No process found on port ${port} or failed to kill`);
+      } else {
+        console.log(`✓ Killed process on port ${port}`);
+      }
+      resolve();
+    });
+  });
 }
 
 // Kill all specified ports
-args.forEach(port => {
-  killPort(parseInt(port, 10))
-})
+async function killAllPorts() {
+  console.log(`Killing processes on ports: ${ports.join(', ')}`);
+  
+  const promises = ports.map(port => killPort(port));
+  await Promise.all(promises);
+  
+  console.log('Done');
+}
 
-console.log('All ports checked')
+killAllPorts().catch(console.error);

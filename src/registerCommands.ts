@@ -72,6 +72,7 @@ import {
   avatarTransformScene,
   instagramScrapingWizard,
   instagramParserScene,
+  instagramParserWizard,
   morphingWizard,
 } from './scenes'
 
