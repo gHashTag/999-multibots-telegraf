@@ -2,9 +2,9 @@ name: Security Checks
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, Jest-Test, cicd ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, Jest-Test ]
   schedule:
     # Запускать еженедельно по воскресеньям в 3:00 UTC
     - cron: '0 3 * * 0'
@@ -67,19 +67,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Security audit (high and critical only)
         run: |
-          npm audit --audit-level=high --production
+          bun audit --audit-level=high --production
           
-      - name: Advanced security scan with npm audit
+      - name: Advanced security scan with bun audit
         run: |
           # Создаем детальный отчет
-          npm audit --json > audit-report.json || true
+          bun audit --json > audit-report.json || true
           
           # Проверяем критические уязвимости
           CRITICAL=$(cat audit-report.json | jq -r '.metadata.vulnerabilities.critical // 0')
@@ -91,7 +95,7 @@ jobs:
           
           if [ "$CRITICAL" -gt 0 ]; then
             echo "::error::Critical vulnerabilities found! Blocking deployment."
-            npm audit --audit-level=critical
+            bun audit --audit-level=critical
             exit 1
           elif [ "$HIGH" -gt 3 ]; then
             echo "::warning::Many high-severity vulnerabilities found ($HIGH). Consider updating dependencies."
@@ -103,7 +107,7 @@ jobs:
           MALICIOUS_PACKAGES="event-source-polyfill@0.0.9 ua-parser-js@0.7.29 rc@1.2.9"
           
           for package in $MALICIOUS_PACKAGES; do
-            if npm list $package 2>/dev/null; then
+            if bun pm ls $package 2>/dev/null; then
               echo "::error::Malicious package detected: $package"
               exit 1
             fi
@@ -121,18 +125,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Install security linters
         run: |
-          npm install --no-save eslint-plugin-security @typescript-eslint/eslint-plugin
+          bun add --dev eslint-plugin-security @typescript-eslint/eslint-plugin
 
       - name: Run security-focused ESLint rules
         run: |
-          npx eslint src/ --ext .ts \
+          bunx eslint src/ --ext .ts \
             --rule 'security/detect-object-injection: error' \
             --rule 'security/detect-non-literal-require: error' \
             --rule 'security/detect-non-literal-fs-filename: error' \
