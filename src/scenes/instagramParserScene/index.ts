@@ -34,8 +34,11 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const userId = ctx.from?.id
 
-    logger.info('Instagram parser scene - Step 1 (main menu) entered', { 
+    logger.info('🔥 [WIZARD DEBUG] Step 1 entered', { 
       userId,
+      wizardCursor: ctx.wizard.cursor,
+      wizardState: ctx.wizard.state,
+      updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown',
       from: ctx.from,
       botInfo: ctx.botInfo?.username
     })
@@ -82,10 +85,14 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const userId = ctx.from?.id
     
-    logger.info('Instagram parser scene - Step 2 entered', { 
+    logger.info('🔥 [WIZARD DEBUG] Step 2 entered', { 
       userId,
+      wizardCursor: ctx.wizard.cursor,
+      wizardState: ctx.wizard.state,
+      updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown',
       hasCallbackQuery: !!ctx.callbackQuery,
-      messageType: ctx.message ? Object.keys(ctx.message) : 'no message'
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
+      callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback'
     })
 
     if (!ctx.callbackQuery) {
@@ -185,11 +192,15 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
   // ШАГ 3: Ввод цели
   async ctx => {
     const userId = ctx.from?.id
-    logger.info('🔥 [Instagram Parser Scene] Step 3 (target input) entered', { 
+    logger.info('🔥 [WIZARD DEBUG] Step 3 entered', { 
       userId,
+      wizardCursor: ctx.wizard.cursor,
+      wizardState: ctx.wizard.state,
+      updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown',
       hasMessage: !!ctx.message,
       hasCallbackQuery: !!ctx.callbackQuery,
-      messageType: ctx.message ? Object.keys(ctx.message) : 'no message'
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
+      callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback'
     })
     
     const isRu = isRussianFromState(ctx)
@@ -277,14 +288,15 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const userId = ctx.from?.id
     
-    logger.info('🔥 [Instagram Parser Scene] Step 4 (count selection) entered', { 
+    logger.info('🔥 [WIZARD DEBUG] Step 4 entered', { 
       userId,
+      wizardCursor: ctx.wizard.cursor,
+      wizardState: ctx.wizard.state,
+      updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown',
       hasCallbackQuery: !!ctx.callbackQuery,
       hasMessage: !!ctx.message,
       messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
-      callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback',
-      wizardCursor: ctx.wizard.cursor,
-      wizardState: ctx.wizard.state
+      callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback'
     })
 
     if (!ctx.callbackQuery) {
@@ -410,14 +422,15 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const userId = ctx.from?.id
     
-    logger.info('🔥 [Instagram Parser Scene] Step 5 (parsing start) entered', { 
+    logger.info('🔥 [WIZARD DEBUG] Step 5 entered', { 
       userId,
+      wizardCursor: ctx.wizard.cursor,
+      wizardState: ctx.wizard.state,
+      updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown',
       hasCallbackQuery: !!ctx.callbackQuery,
       hasMessage: !!ctx.message,
       messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
-      callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback',
-      wizardCursor: ctx.wizard.cursor,
-      wizardState: ctx.wizard.state
+      callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback'
     })
 
     if (!ctx.callbackQuery) {
@@ -694,6 +707,22 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
     }
   }
 )
+
+// ========== MIDDLEWARE ДЛЯ ДИАГНОСТИКИ ==========
+instagramParserScene.use(async (ctx, next) => {
+  const userId = ctx.from?.id
+  logger.info('🔥 [SCENE MIDDLEWARE] Processing update in Instagram Parser Scene', {
+    userId,
+    updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown',
+    callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback',
+    messageText: ctx.message && 'text' in ctx.message ? ctx.message.text : 'no text',
+    wizardCursor: ctx.wizard.cursor,
+    wizardState: ctx.wizard.state,
+    sceneSession: ctx.scene.session
+  })
+  
+  return next()
+})
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 async function showStats(ctx: MyContext) {
