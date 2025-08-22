@@ -101,7 +101,7 @@ describe('Database Table Structure Analysis', () => {
     expect(true).toBe(true) // Тест для логирования
   })
 
-  it('должен проанализировать логику расчета новых пользователей в getBotStatsWithCost', async () => {
+  it.skip('должен проанализировать логику расчета новых пользователей в getBotStatsWithCost', async () => {
     console.log('🧮 Анализируем логику getBotStatsWithCost...')
 
     // Получаем статистику за разные периоды

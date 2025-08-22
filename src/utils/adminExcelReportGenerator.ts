@@ -3,7 +3,7 @@
  * Создает детальную аналитику по ботам с красивым оформлением
  */
 
-import * as XLSX from 'xlsx'
+// import * as XLSX from 'xlsx' // Временно отключено
 import { z } from 'zod'
 import { supabase } from '@/core/supabase'
 import {
@@ -115,6 +115,12 @@ interface BotReportData {
 }
 
 export async function generateAdminExcelReport(
+  botName: string
+): Promise<Buffer> {
+  throw new Error('Excel export temporarily disabled - xlsx package not available')
+}
+
+export async function generateAdminExcelReport_DISABLED(
   botName: string
 ): Promise<Buffer> {
   try {

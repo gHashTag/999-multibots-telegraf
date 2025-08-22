@@ -289,6 +289,11 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   lastNeuroPhotoImageUrl?: string // URL последнего нейрофото
   lastNeuroPhotoPrompt?: string // Промпт последнего нейрофото
 
+  // Competitor monitoring fields
+  competitorMonitoring?: {
+    waitingForUsername?: boolean // Ожидается ли ввод username конкурента
+  }
+
   // Avatar transformation fields
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
   selectedHero?: string // Выбранный герой Marvel для трансформации
@@ -303,7 +308,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   videoDuration?: number // Длительность видео в секундах (для VEO моделей)
   videoMessageId?: number // ID сообщения с прогрессом генерации
   selectedVideoModel?: string // ID выбранной модели для генерации видео (для сцены выбора длительности)
-  selectedDuration?: number // Выбранная длительность видео для Veo моделей
+  selectedDuration?: number // Выбранная длительность для Veo 3 Fast модели
 }
 
 export interface MyContext extends Context {

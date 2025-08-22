@@ -299,10 +299,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // Проверяем, нужно ли показать выбор длительности для Veo моделей
     const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
-    if (
-      modelConfig.durationOptions &&
-      modelConfig.durationOptions.length > 0
-    ) {
+    if (modelConfig.durationOptions && modelConfig.durationOptions.length > 0) {
       // Показываем клавиатуру выбора длительности
       logger.info(
         `[TextToVideoWizard Step 1] Showing duration selection for ${foundModelKey}`
@@ -312,10 +309,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         ? `⏱️ Выберите длительность для ${modelConfig.title}:`
         : `⏱️ Select duration for ${modelConfig.title}:`
 
-      await ctx.replyWithHTML(
-        text,
-        createDurationKeyboard(foundModelKey, isRu)
-      )
+      await ctx.replyWithHTML(text, createDurationKeyboard(foundModelKey, isRu))
       return ctx.wizard.next() // Переход к шагу обработки выбора длительности
     }
     // Проверяем, нужно ли показать выбор разрешения для WAN моделей
@@ -377,7 +371,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
           const modelKey = ctx.session.videoModel as VideoModelConfigKey
           const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
-          const price = modelConfig.priceByDuration?.[duration] || (modelConfig.basePrice * duration)
+          const price =
+            modelConfig.priceByDuration?.[duration] ||
+            modelConfig.basePrice * duration
           const finalPrice = Math.floor(price / 0.016) // Конвертация в звезды
 
           logger.info(`[TextToVideoWizard Step 2] Veo duration selected:`, {

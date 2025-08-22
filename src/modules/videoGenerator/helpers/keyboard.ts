@@ -92,17 +92,15 @@ export function createDurationKeyboard(
   }
 
   const buttons = config.durationOptions.map(duration => {
-    const basePrice = config.priceByDuration![duration] || (config.basePrice * duration)
+    const basePrice =
+      config.priceByDuration![duration] || config.basePrice * duration
     const finalPrice = Math.floor(basePrice / 0.016) // Конвертация в звезды
 
-    const buttonText = isRu 
+    const buttonText = isRu
       ? `${duration} сек (${finalPrice} ⭐)`
       : `${duration} sec (${finalPrice} ⭐)`
 
-    return Markup.button.callback(
-      buttonText,
-      `veo_${modelKey}_${duration}`
-    )
+    return Markup.button.callback(buttonText, `veo_${modelKey}_${duration}`)
   })
 
   // Группируем кнопки по 2 в ряд для лучшего вида

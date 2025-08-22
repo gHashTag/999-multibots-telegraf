@@ -1045,26 +1045,23 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       return
     }
 
-    // 🔍 Проверяем доступ к парсингу для текущего бота
-    const parsingAccess = getParsingAccess(userId, botToken)
+    // 🔍 Простая проверка - доступ только админам
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
 
-    if (!parsingAccess.hasAccess) {
-      logger.warn('Instagram parsing access denied', {
+    if (!isAdmin) {
+      logger.warn('Instagram parsing access denied - not admin', {
         telegramId: ctx.from?.id,
         userId,
-        reason: 'Not in bot staff list',
-        botName: require('./core/bot').getBotNameByToken(botToken).bot_name,
       })
 
       await ctx.reply('❌ У вас нет доступа к функции парсинга Instagram.')
       return
     }
 
-    logger.info('Instagram parsing access granted', {
+    logger.info('Instagram parsing access granted for admin', {
       telegramId: ctx.from?.id,
       userId,
-      botName: require('./core/bot').getBotNameByToken(botToken).bot_name,
-      allowedProjects: parsingAccess.allowedProjects,
     })
 
     // ✅ Доступ разрешен - запускаем мастер парсинга

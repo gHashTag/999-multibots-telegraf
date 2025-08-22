@@ -132,15 +132,15 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
-  // Instagram parser button - with restricted access
+  // Competitor monitoring button - admin only access
   109: {
-    title_ru: '📱 Instagram Парсер',
-    title_en: '📱 Instagram Parser',
-    admin_only: true, // Скрыто для обычных пользователей - только для тех, у кого есть доступ
+    title_ru: '🔍 Мониторинг конкурентов',
+    title_en: '🔍 Competitor Monitoring',
+    admin_only: true, // Скрыто для обычных пользователей - только для администраторов
   },
 }
 
-const adminIds = process.env.ADMIN_IDS?.split(',') || []
+// Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
 
 // 🔍 ПЕРСОНАЛИЗИРОВАННЫЕ МАССИВЫ СОТРУДНИКОВ ПО БОТАМ
 
@@ -203,9 +203,8 @@ function getParsingAccess(
   }
 
   // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ
-  // Главные админы из ADMIN_IDS тоже получают доступ
-  const adminIds = process.env.ADMIN_IDS?.split(',') || []
-  if (adminIds.includes(userId)) {
+  // Главные админы из ADMIN_IDS_ARRAY тоже получают доступ
+  if (ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
     return {
       hasAccess: true,
       allowedProjects: ['all'], // Полный доступ для админов
@@ -302,25 +301,27 @@ export async function mainMenu({
 
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
+  // Используем ADMIN_IDS_ARRAY для единой проверки (уже импортирован в начале файла)
+  
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
     .filter(
-      level => !(level.admin_only && !(userId && adminIds.includes(userId)))
+      level => !(level.admin_only && !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))))
     )
 
-  // Добавляем кнопку Instagram парсера только для пользователей с доступом
-  const botToken = ctx.telegram.token
+  // Добавляем кнопку мониторинга конкурентов только для администраторов
   if (userId && levels[109]) {
-    const parsingAccess = getParsingAccess(userId, botToken)
-    if (parsingAccess.hasAccess) {
-      // Добавляем кнопку Instagram парсера для тех, у кого есть доступ
+    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+    
+    if (isAdmin) {
+      // Добавляем кнопку мониторинга конкурентов для администраторов
       if (!availableLevels.includes(levels[109])) {
         availableLevels.push(levels[109])
         logger.info(
-          '[mainMenu] Added Instagram parser button for user with access',
+          '[mainMenu] Added competitor monitoring button for admin',
           {
             userId,
-            allowedProjects: parsingAccess.allowedProjects,
+            isAdmin: true,
           }
         )
       }
@@ -343,7 +344,7 @@ export async function mainMenu({
   const adminSpecificButtons = []
 
   // Админские кнопки для основных админов
-  if (userId && adminIds.includes(userId)) {
+  if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
       Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2'),
