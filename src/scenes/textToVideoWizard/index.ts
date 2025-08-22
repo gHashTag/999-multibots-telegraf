@@ -291,6 +291,43 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
 // ========== ОБРАБОТЧИКИ WIZARD'A ==========
 
+// ПРЯМАЯ функция первого шага (для вызова из enter)
+async function executeFirstStep(ctx: any) {
+  try {
+    console.log('🎬 [WIZARD] DIRECT Step 1: Model selection for user:', ctx.from?.id)
+    
+    const isRu = true // упрощенно
+    
+    console.log('🎬 [WIZARD] DIRECT Step 1: Creating keyboard...')
+    
+    const keyboard = {
+      reply_markup: {
+        keyboard: [
+          ['Veo 3 Fast | 8s | 📱 (40⭐)', 'Veo 3 Fast | 8s | 🖥️ (40⭐)'],
+          ['Veo 3 | 8s | 📱 (202⭐)', 'Veo 3 | 8s | 🖥️ (202⭐)'],
+          ['Kling v1.6 Pro | ~10s | 📱 (60⭐)', 'Kling v1.6 Pro | ~10s | 🖥️ (60⭐)'],
+          ['Minimax | 6s | 📱 (50⭐)', 'Minimax | 6s | 🖥️ (50⭐)'],
+          ['⬅️ Назад в меню']
+        ],
+        resize_keyboard: true
+      }
+    }
+
+    await ctx.reply(
+      '🎥 Выберите модель и формат видео:\n\n🚀 Veo - премиум качество\n🎯 Kling - анимация\n💨 Minimax - быстро и доступно',
+      keyboard
+    )
+    
+    console.log('🎬 [WIZARD] DIRECT Step 1: Reply sent, setting cursor to 1')
+    ctx.wizard.cursor = 1
+    
+  } catch (error) {
+    console.error('🎬 [WIZARD] DIRECT Step 1 ERROR:', error)
+    await ctx.reply('❌ Ошибка в мастере генерации видео')
+    await ctx.scene.leave()
+  }
+}
+
 // Обработчик входа в wizard
 textToVideoWizard.enter(async (ctx) => {
   console.log('🎬 [WIZARD] ✅ WIZARD ENTERED! User:', ctx.from?.id)
@@ -304,25 +341,9 @@ textToVideoWizard.enter(async (ctx) => {
     timestamp: new Date().toISOString()
   })
   
-  // 🔥 ПРИНУДИТЕЛЬНО запускаем первый шаг
-  console.log('🎬 [WIZARD] Forcing Step 1 execution...')
-  try {
-    // Сбрасываем cursor на первый шаг (0)
-    ctx.wizard.cursor = 0
-    
-    // Принудительно вызываем первый шаг
-    const firstStepHandler = ctx.wizard.steps[0]
-    if (firstStepHandler) {
-      console.log('🎬 [WIZARD] Executing first step handler...')
-      await firstStepHandler(ctx)
-    }
-  } catch (error) {
-    console.error('🎬 [WIZARD] Error in forced step execution:', error)
-    logger.error('[TextToVideoWizard] Error in forced step execution', {
-      telegramId: ctx.from?.id,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
-  }
+  // 🔥 ПРЯМО вызываем первый шаг
+  console.log('🎬 [WIZARD] Calling DIRECT first step...')
+  await executeFirstStep(ctx)
 })
 
 // Обработчик выхода из wizard
