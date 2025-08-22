@@ -332,6 +332,9 @@ checkBalanceScene.enter(async ctx => {
     console.log('🚀 [DEBUG] Step 2: Getting mode...')
     const mode = ctx.session.mode as ModeEnum
     console.log('🚀 [DEBUG] Step 2 DONE, mode:', mode)
+    console.log('🚀 [DEBUG] Step 2: mode typeof:', typeof mode)
+    console.log('🚀 [DEBUG] Step 2: ModeEnum.TextToVideo:', ModeEnum.TextToVideo)
+    console.log('🚀 [DEBUG] Step 2: mode === ModeEnum.TextToVideo:', mode === ModeEnum.TextToVideo)
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     console.log('🚀 [DEBUG] Step 3: Getting language...')
@@ -767,6 +770,41 @@ export const enterTargetScene = async (
       return
     }
 
+    // Специальная логика для TextToVideo сцены
+    if (mode === ModeEnum.TextToVideo) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: TextToVideo mode detected, entering text_to_video scene'
+      )
+      logger.info({
+        message: `[EnterTargetSceneWrapper] TextToVideo режим - переход в text_to_video`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      try {
+        await ctx.scene.enter('text_to_video')
+        console.log('🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene')
+        logger.info({
+          message: `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену text_to_video`,
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        })
+      } catch (sceneEnterError) {
+        console.error('❌ [DEBUG] enterTargetScene: ERROR entering text_to_video scene:', sceneEnterError)
+        logger.error({
+          message: `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену text_to_video`,
+          telegramId,
+          mode,
+          error: sceneEnterError instanceof Error ? sceneEnterError.message : String(sceneEnterError),
+          stack: sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
+          function: 'enterTargetSceneWrapper',
+        })
+        // Попробуем fallback в основную сцену
+        await ctx.reply('❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.')
+      }
+      return
+    }
 
     // Fallback для всех остальных режимов
     console.log(

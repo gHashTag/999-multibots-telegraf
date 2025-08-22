@@ -7,21 +7,29 @@ export const functions = [
   // generateAdvancedLoopingVideoFunction - отключено, используем localMorphingProcessor
 ]
 
-// Создаем клиент Inngest для подключения к нашему dev server
-// @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
-export const inngest = new Inngest({
-  // @ts-ignore - Совместимость между версиями
+// Определяем конфигурацию для логирования
+const config = {
   name: 'telegram-bot-client',
   id: 'telegram-bot-client',
   // Подключение к нашему Inngest Dev Server
   baseUrl:
     process.env.NODE_ENV === 'development'
       ? 'http://localhost:8288' // Наш dev server
-      : 'https://ai-server-u14194.vm.elestio.app/api/inngest', // Продакшн сервер
+      : 'https://ai-server-production-production-8e2d.up.railway.app/api/inngest', // Railway продакшн сервер
   isDev: process.env.NODE_ENV === 'development',
   // Event key только для production
   eventKey:
     process.env.NODE_ENV === 'production'
       ? process.env.INNGEST_EVENT_KEY
       : undefined,
+}
+
+console.log('🔥 [DEBUG] Inngest client configuration:', {
+  ...config,
+  eventKey: config.eventKey ? '***HIDDEN***' : 'not set',
+  environment: process.env.NODE_ENV
 })
+
+// Создаем клиент Inngest для подключения к нашему dev server
+// @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
+export const inngest = new Inngest(config)

@@ -3,7 +3,7 @@
   "compilerOptions": {
     "target": "es2022",
     "lib": ["esnext", "dom"],
-    "types": [],
+    "types": ["node"],
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -54,5 +54,14 @@
     "require": ["tsconfig-paths/register"]
   },
   "include": ["src/**/*.ts", "src/**/*.json"],
-  "exclude": ["node_modules", "src/node_modules", "dist", "**/*.d.ts", "__tests__/**/*", "src/__tests__/**/*"]
+  "exclude": [
+    "node_modules",
+    "src/node_modules",
+    "dist",
+    "**/*.d.ts",
+    "__tests__/**/*",
+    "src/__tests__/**/*",
+    "src/**/*.test.ts",
+    "src/**/__tests__/**"
+  ]
 }
