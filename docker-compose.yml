@@ -30,7 +30,7 @@ services:
     container_name: 999-multibots
     build:
       context: ./
-      dockerfile: deployment/docker/Dockerfile
+      dockerfile: Dockerfile
     ports:
       - '2999:2999'
       - '3000:3000'
@@ -108,7 +108,7 @@ services:
       - '8080:80'
     volumes:
       # Используем нашу кастомную конфигурацию
-      - ./config/nginx/nginx-config:/etc/nginx/conf.d:ro
+      - ./nginx-config:/etc/nginx/conf.d:ro
       # Пути к сертификатам с хоста остаются
       - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
       - /etc/pki/key.pem:/etc/pki/key.pem:ro
