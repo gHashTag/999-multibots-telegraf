@@ -67,55 +67,19 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     inputTypes: ['text', 'image'],
   },
 
-  // Динамические модели Veo (используем конфигурацию из unified-pricing.config.ts)
-  'veo-3': {
-    id: 'veo-3',
-    name: 'Google Veo 3 (Premium)',
-    nameRu: 'Google Veo 3 (Премиум)',
-    pricePerSecond: VEO_MODELS_PRICING['veo-3'].pricePerSecondUSD,
-    supportedDurations: VEO_MODELS_PRICING['veo-3'].supportedDurations,
-    defaultDuration: VEO_MODELS_PRICING['veo-3'].defaultDuration,
-    inputTypes: ['text'],
-  },
-  'veo-3-fast': {
-    id: 'veo-3-fast',
-    name: 'Google Veo 3 Fast',
-    nameRu: 'Google Veo 3 Fast',
-    pricePerSecond: VEO_MODELS_PRICING['veo-3-fast'].pricePerSecondUSD,
-    supportedDurations: VEO_MODELS_PRICING['veo-3-fast'].supportedDurations,
-    defaultDuration: VEO_MODELS_PRICING['veo-3-fast'].defaultDuration,
-    inputTypes: ['text', 'image'],
-  },
-  'veo-2': {
-    id: 'veo-2',
-    name: 'Google Veo 2',
-    nameRu: 'Google Veo 2',
-    pricePerSecond: VEO_MODELS_PRICING['veo-2'].pricePerSecondUSD,
-    supportedDurations: VEO_MODELS_PRICING['veo-2'].supportedDurations,
-    defaultDuration: VEO_MODELS_PRICING['veo-2'].defaultDuration,
-    inputTypes: ['text'],
-  },
-
-  // Kie.ai модели с более выгодными ценами
+  // Kie.ai модели с конкурентными ценами
   'kie-veo-3-fast': {
     id: 'kie-veo-3-fast',
     name: 'Veo 3 Fast',
     nameRu: 'Veo 3 Fast',
-    pricePerSecond: KIE_AI_MODELS_PRICING['kie-veo-3-fast'].pricePerSecondUSD!,
-    supportedDurations:
-      KIE_AI_MODELS_PRICING['kie-veo-3-fast'].supportedDurations!,
-    defaultDuration: KIE_AI_MODELS_PRICING['kie-veo-3-fast'].defaultDuration!,
-    maxDuration: KIE_AI_MODELS_PRICING['kie-veo-3-fast'].maxDuration,
+    priceFixed: 40,
     inputTypes: ['text', 'image'],
   },
   'kie-veo-3': {
     id: 'kie-veo-3',
-    name: 'Veo 3 Quality',
-    nameRu: 'Veo 3 Качество',
-    pricePerSecond: KIE_AI_MODELS_PRICING['kie-veo-3'].pricePerSecondUSD!,
-    supportedDurations: KIE_AI_MODELS_PRICING['kie-veo-3'].supportedDurations!,
-    defaultDuration: KIE_AI_MODELS_PRICING['kie-veo-3'].defaultDuration!,
-    maxDuration: KIE_AI_MODELS_PRICING['kie-veo-3'].maxDuration,
+    name: 'Veo 3',
+    nameRu: 'Veo 3',
+    priceFixed: 202,
     inputTypes: ['text'],
   },
   'kie-runway-aleph': {

@@ -18,6 +18,12 @@ import {
   setUserLanguageInState,
 } from '@/helpers/centralizedLanguage'
 import { getParsingAccess } from '@/menu/mainMenu'
+// Импортируем функции мониторинга конкурентов
+import {
+  handleCompetitorMonitoring,
+  handleCompetitorUsernameInput,
+} from '@/services/competitorSubscriptionService'
+import { competitorMonitoringApi } from '@/services/competitorMonitoringApiService'
 
 // Получаем ID администраторов из переменных окружения
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
@@ -313,13 +319,13 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         logger.info({
-          message: '🖼️ [handleMenu] Переход к тексту в фото',
+          message: '🖼️ [handleMenu] Переход к генерации изображений',
           telegramId,
           function: 'handleMenu',
           action: 'text_to_image',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        console.log('CASE: 🖼️ Текст в фото')
+        console.log('CASE: 🖼️ Генерация изображений')
         ctx.session.mode = ModeEnum.TextToImage
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -462,6 +468,26 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+      },
+      [isRu ? levels[109].title_ru : levels[109].title_en]: async () => {
+        logger.info({
+          message: '🔍 [handleMenu] Переход к мониторингу конкурентов',
+          telegramId,
+          function: 'handleMenu',
+          action: 'competitor_monitoring',
+        })
+        console.log('CASE: 🔍 Мониторинг конкурентов')
+
+        // Вызываем функцию мониторинга конкурентов
+        await handleCompetitorMonitoring(ctx)
+
+        // После обработки мониторинга остаемся в текущей сцене
+        // Это позволит пользователю вводить username, если он нужен
+        logger.info({
+          message: '✅ [handleMenu] Завершен вызов handleCompetitorMonitoring',
+          telegramId,
+          function: 'handleMenu',
+        })
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
@@ -782,8 +808,11 @@ export const handleMenu = async (ctx: MyContext) => {
     console.log('🔧 [DEBUG] Available action keys:', actionKeys)
     console.log('🔧 [DEBUG] Looking for key:', normalizedText)
     console.log('🔧 [DEBUG] levels[10].title_ru:', levels[10].title_ru)
-    console.log('🔧 [DEBUG] Exact match check:', actionKeys.includes(normalizedText))
-    
+    console.log(
+      '🔧 [DEBUG] Exact match check:',
+      actionKeys.includes(normalizedText)
+    )
+
     // Выполняем действие, если оно существует
     if (actions[normalizedText]) {
       logger.info({
@@ -805,6 +834,54 @@ export const handleMenu = async (ctx: MyContext) => {
         result: 'action_not_found',
       })
       console.log('CASE: handleMenuCommand.else', normalizedText)
+
+      // Проверяем, ожидается ли ввод username конкурента
+      console.log('🔍 [handleMenu] Checking competitor username input...')
+      console.log(
+        'Session competitor monitoring state:',
+        ctx.session.competitorMonitoring
+      )
+
+      if (ctx.session.competitorMonitoring?.waitingForUsername) {
+        console.log(
+          '✅ [handleMenu] User is waiting for username input, processing...'
+        )
+        logger.info({
+          message: `🔍 [handleMenu] Обрабатываем ввод username конкурента: "${normalizedText}"`,
+          telegramId,
+          function: 'handleMenu',
+          text: normalizedText,
+          result: 'competitor_username_input',
+        })
+
+        try {
+          // Импортируем и вызываем функцию обработки username
+          const handled = await handleCompetitorUsernameInput(
+            ctx,
+            normalizedText
+          )
+          if (handled) {
+            console.log(
+              '✅ [handleMenu] Successfully handled competitor username input'
+            )
+            return // Завершаем обработку
+          }
+        } catch (error) {
+          console.log(
+            '❌ [handleMenu] Error handling competitor username input:',
+            error
+          )
+          logger.error(
+            '[handleMenu] Error handling competitor username input',
+            {
+              error: error instanceof Error ? error.message : String(error),
+              telegramId,
+              username: normalizedText,
+            }
+          )
+        }
+      }
+
       // Возможно, здесь не нужно ничего делать или отправить сообщение типа "Неизвестная команда"
     }
   } else {
@@ -816,6 +893,94 @@ export const handleMenu = async (ctx: MyContext) => {
       messageType: ctx.message ? typeof ctx.message : 'undefined',
       result: 'non_text_message',
     })
+  }
+
+  // Обработка callback queries (inline кнопок)
+  if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
+    const callbackData = ctx.callbackQuery.data
+
+    logger.info({
+      message: `📱 [handleMenu] Получен callback: "${callbackData}"`,
+      telegramId,
+      function: 'handleMenu',
+      callbackData,
+    })
+
+    console.log('CASE: handleMenuCommand.callback', callbackData)
+
+    // Проверяем callback для мониторинга конкурентов
+    if (callbackData === 'add_new_competitor') {
+      console.log('➕ [handleMenu] add_new_competitor callback')
+      const isRu = isRussianFromState(ctx)
+
+      // Проверяем права администратора
+      const userId = ctx.from?.id?.toString()
+      if (!userId || !adminIds.includes(userId)) {
+        await ctx.answerCbQuery()
+        await ctx.reply(
+          isRu
+            ? '❌ У вас нет прав для добавления конкурентов'
+            : '❌ You do not have permission to add competitors'
+        )
+        return
+      }
+
+      await ctx.answerCbQuery()
+      const { promptForCompetitorUsername } = await import(
+        '@/services/competitorSubscriptionService'
+      )
+      await promptForCompetitorUsername(ctx, isRu)
+      return
+    }
+
+    if (callbackData === 'refresh_subscriptions') {
+      console.log('🔄 [handleMenu] refresh_subscriptions callback')
+      await ctx.answerCbQuery()
+      await handleCompetitorMonitoring(ctx)
+      return
+    }
+
+    if (callbackData.startsWith('delete_subscription_')) {
+      const subscriptionId = callbackData.replace('delete_subscription_', '')
+      const isRu = isRussianFromState(ctx)
+
+      console.log(
+        `🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`
+      )
+
+      try {
+        const result = await competitorMonitoringApi.deleteSubscription(
+          ctx,
+          subscriptionId
+        )
+
+        if (result.success) {
+          console.log(
+            `✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`
+          )
+          await ctx.answerCbQuery(result.message)
+
+          // Обновляем список подписок после удаления
+          await handleCompetitorMonitoring(ctx)
+        } else {
+          console.log(
+            `❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`
+          )
+          await ctx.answerCbQuery(result.message)
+        }
+      } catch (error) {
+        console.log(`💥 [handleMenu] Error deleting subscription: ${error}`)
+        await ctx.answerCbQuery(
+          isRu
+            ? '❌ Ошибка при удалении подписки'
+            : '❌ Error deleting subscription'
+        )
+      }
+      return
+    }
+
+    // Отвечаем на неизвестные callback queries
+    await ctx.answerCbQuery()
   }
 }
 

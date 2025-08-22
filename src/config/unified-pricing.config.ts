@@ -5,6 +5,8 @@
  * Все расчёты должны использовать эти константы.
  */
 
+import { getCurrentRate } from '@/modules/currency-rate'
+
 // ============================================
 // БАЗОВЫЕ КОНСТАНТЫ (НЕ ИЗМЕНЯТЬ БЕЗ СОГЛАСОВАНИЯ!)
 // ============================================
@@ -22,10 +24,24 @@ export const STAR_COST_USD = 0.016
 export const MARKUP_MULTIPLIER = 1.5
 
 /**
- * Курс USD к RUB
- * Используется для отображения цен в рублях
+ * Курс USD к RUB по умолчанию
+ * Используется как fallback если динамический курс недоступен
  */
-export const USD_TO_RUB_RATE = 100
+export const DEFAULT_USD_TO_RUB_RATE = 85
+
+/**
+ * Получает актуальный курс USD к RUB динамически через Bybit API
+ * @param fallback - значение по умолчанию если API недоступен
+ * @returns Promise с актуальным курсом
+ */
+export async function getUsdToRubRate(fallback = DEFAULT_USD_TO_RUB_RATE): Promise<number> {
+  return await getCurrentRate({ fallback })
+}
+
+/**
+ * @deprecated Используйте getUsdToRubRate() для динамического курса
+ */
+export const USD_TO_RUB_RATE = DEFAULT_USD_TO_RUB_RATE
 
 // ============================================
 // РАСЧЁТНЫЕ ФУНКЦИИ
@@ -134,9 +150,9 @@ export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
   // Видео модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
   'kie-veo-3-fast': {
     pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек (конкурентно с +8.1% наценкой)
-    supportedDurations: [2, 4, 6, 8, 10],
+    supportedDurations: [8], // VEO FAST поддерживает только 8 секунд
     defaultDuration: 8,
-    maxDuration: 10,
+    maxDuration: 8,
   },
   'kie-veo-3': {
     pricePerSecondUSD: 0.404, // 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек (конкурентно с +8.1% наценкой)
@@ -200,9 +216,13 @@ export function calculateKieAiPriceInStars(
   if (model.pricePerSecondUSD) {
     const finalDuration = duration || model.defaultDuration || 5
     totalCostUSD = model.pricePerSecondUSD * finalDuration
-    
+
     // Для конкурентных видео моделей возвращаем точную цену в звёздах без дополнительной наценки
-    if (modelId === 'kie-veo-3-fast' || modelId === 'kie-veo-3' || modelId === 'kie-runway-aleph') {
+    if (
+      modelId === 'kie-veo-3-fast' ||
+      modelId === 'kie-veo-3' ||
+      modelId === 'kie-runway-aleph'
+    ) {
       return Math.floor(totalCostUSD / STAR_COST_USD)
     }
   }
