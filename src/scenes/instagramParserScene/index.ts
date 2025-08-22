@@ -131,6 +131,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         )
         logger.info('✅ Message edited successfully, moving to next step', { userId })
         
+        logger.info('✅ [Instagram Parser Scene] Moving to step 3 (target input)', { userId })
         return ctx.wizard.next()
       } catch (error) {
         logger.error('❌ Error in parse_competitor handler', { 
@@ -183,6 +184,14 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
   // ШАГ 3: Ввод цели
   async ctx => {
+    const userId = ctx.from?.id
+    logger.info('🔥 [Instagram Parser Scene] Step 3 (target input) entered', { 
+      userId,
+      hasMessage: !!ctx.message,
+      hasCallbackQuery: !!ctx.callbackQuery,
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no message'
+    })
+    
     const isRu = isRussianFromState(ctx)
     const state = ctx.wizard.state as InstagramParserState
 
@@ -259,6 +268,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         ])
       )
 
+      logger.info('✅ [Instagram Parser Scene] Moving to step 4 (count selection)', { userId: ctx.from?.id, target })
       return ctx.wizard.next()
     }
   },
@@ -267,10 +277,14 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const userId = ctx.from?.id
     
-    logger.info('Instagram parser scene - Step 4 (count selection) entered', { 
+    logger.info('🔥 [Instagram Parser Scene] Step 4 (count selection) entered', { 
       userId,
       hasCallbackQuery: !!ctx.callbackQuery,
-      messageType: ctx.message ? Object.keys(ctx.message) : 'no message'
+      hasMessage: !!ctx.message,
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
+      callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback',
+      wizardCursor: ctx.wizard.cursor,
+      wizardState: ctx.wizard.state
     })
 
     if (!ctx.callbackQuery) {
@@ -387,6 +401,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         ])
       )
 
+      logger.info('✅ [Instagram Parser Scene] Moving to step 5 (parsing start)', { userId, count, cost })
       return ctx.wizard.next()
     }
   },
@@ -395,10 +410,14 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const userId = ctx.from?.id
     
-    logger.info('Instagram parser scene - Step 5 (parsing start) entered', { 
+    logger.info('🔥 [Instagram Parser Scene] Step 5 (parsing start) entered', { 
       userId,
       hasCallbackQuery: !!ctx.callbackQuery,
-      messageType: ctx.message ? Object.keys(ctx.message) : 'no message'
+      hasMessage: !!ctx.message,
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
+      callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback',
+      wizardCursor: ctx.wizard.cursor,
+      wizardState: ctx.wizard.state
     })
 
     if (!ctx.callbackQuery) {
