@@ -145,7 +145,6 @@ export const stage = new Scenes.Stage<MyContext>([
   neuroCoderScene,
   instagramScrapingWizard,
   instagramParserScene,
-  // handleTextMessage, // ❌ ИСПРАВЛЕНО: убираем из stage сцен - это должен быть middleware, не сцена!
 ])
 
 // Проверяем зарегистрированные сцены
