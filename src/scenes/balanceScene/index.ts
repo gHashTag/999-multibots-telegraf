@@ -2,6 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+import { PaymentType } from '@/interfaces/payments.interface'
 import {
   getServiceEmoji,
   getServiceDisplayTitle,
@@ -443,5 +444,41 @@ balanceScene.action('back_to_menu', async (ctx: MyContext) => {
   await ctx.answerCbQuery()
   await ctx.scene.enter(ModeEnum.MainMenu)
 })
+
+// Обработчики для кнопок меню, которые могут быть нажаты из сцены баланса
+balanceScene.hears(
+  ['💎 Пополнить баланс', '💎 Top up balance'],
+  async (ctx: MyContext) => {
+    // Переходим в сцену пополнения баланса
+    ctx.session.mode = ModeEnum.PaymentScene
+    
+    // Инициализируем selectedPayment для контекста пополнения баланса
+    ctx.session.selectedPayment = {
+      amount: 0,
+      stars: 0,
+      subscription: null,
+      type: PaymentType.MONEY_INCOME,
+    }
+    
+    await ctx.scene.enter(ModeEnum.PaymentScene)
+  }
+)
+
+balanceScene.hears(
+  ['💰 Баланс', '💰 Balance'],
+  async (ctx: MyContext) => {
+    // Пользователь уже в сцене баланса, просто обновляем информацию
+    await ctx.scene.reenter()
+  }
+)
+
+balanceScene.hears(
+  ['/menu', '🏠 Главное меню', '🏠 Main menu'],
+  async (ctx: MyContext) => {
+    // Возвращаемся в главное меню
+    ctx.session.mode = ModeEnum.MainMenu
+    await ctx.scene.enter(ModeEnum.MainMenu)
+  }
+)
 
 // Функция getServiceEmoji теперь импортируется из @/utils/serviceMapping
