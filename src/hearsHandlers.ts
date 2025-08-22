@@ -1056,7 +1056,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.enter('flux_kontext_scene')
   })
 
-  // === ПАРСИНГ INSTAGRAM ДЛЯ СОТРУДНИКОВ С ПЕРСОНАЛИЗИРОВАННЫМ ДОСТУПОМ ===
+  // === ПАРСИНГ INSTAGRAM ДЛЯ АДМИНОВ (НОВЫЙ WIZARD БЕЗ CALLBACKS) ===
   bot.hears(['🔍 Парсинг', '🔍 Parsing'], async ctx => {
     const userId = ctx.from?.id?.toString()
     const botToken = ctx.telegram.token
@@ -1097,14 +1097,14 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     // ✅ Доступ разрешен - запускаем мастер парсинга
     try {
       await ctx.scene.leave()
-      await ctx.scene.enter('instagram_scraping_wizard')
+      await ctx.scene.enter('instagram_parser_wizard')
     } catch (error) {
-      logger.error('Error entering Instagram scraping wizard', {
+      logger.error('Error entering Instagram parser wizard', {
         telegramId: ctx.from?.id,
         userId,
         error: error instanceof Error ? error.message : String(error),
       })
-      await ctx.reply('❌ Произошла ошибка при запуске мастера парсинга.')
+      await ctx.reply('❌ Произошла ошибка при запуске парсинга. Попробуйте позже.')
     }
   })
 }
