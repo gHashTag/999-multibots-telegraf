@@ -28,8 +28,8 @@ services:
   app:
     container_name: 999-multibots
     build:
-      context: ./
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: deployment/docker/Dockerfile
     ports:
       - '2999:2999'
       - '3000:3000'
@@ -71,7 +71,7 @@ services:
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
-      - WEBHOOK_DOMAIN=https://ai-server-u14194.vm.elestio.app
+      # - WEBHOOK_DOMAIN=https://ai-server-u14194.vm.elestio.app
       - DOCKER_ENVIRONMENT=true
       - DEBUG=true
       - TS_NODE_PROJECT=tsconfig.prod.json
