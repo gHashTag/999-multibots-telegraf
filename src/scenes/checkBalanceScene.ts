@@ -767,13 +767,13 @@ export const enterTargetScene = async (
       return
     }
 
-    // Специальная логика для text_to_video сцены
-    if (mode === 'text_to_video') {
+    // Специальная логика для TextToVideo сцены
+    if (mode === ModeEnum.TextToVideo) {
       console.log(
-        '🎯 [DEBUG] enterTargetScene: text_to_video mode detected, entering text_to_video scene'
+        '🎯 [DEBUG] enterTargetScene: TextToVideo mode detected, entering text_to_video scene'
       )
       logger.info({
-        message: `[EnterTargetSceneWrapper] text_to_video режим - переход в text_to_video`,
+        message: `[EnterTargetSceneWrapper] TextToVideo режим - переход в text_to_video`,
         telegramId,
         mode,
         function: 'enterTargetSceneWrapper',
