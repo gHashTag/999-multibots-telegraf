@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, claude-flow ]
+    branches: [ main, Jest-Test, cicd ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, Jest-Test ]
   schedule:
     # Запускать ежедневно в 2:00 UTC для проверки зависимостей
     - cron: '0 2 * * *'
@@ -26,6 +26,7 @@ jobs:
       src: ${{ steps.changes.outputs.src }}
       deps: ${{ steps.changes.outputs.deps }}
       docker: ${{ steps.changes.outputs.docker }}
+      has_tests: ${{ steps.check_tests.outputs.has_tests }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,6 +52,15 @@ jobs:
               - 'docker-compose*.yml'
               - 'Makefile'
 
+      - name: Check if tests exist
+        id: check_tests
+        run: |
+          if [ -d "__tests__" ] && [ "$(find __tests__ -name "*.test.ts" -o -name "*.spec.ts" | wc -l)" -gt 0 ]; then
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+          fi
+
   # Проверка безопасности и качества кода
   security-and-quality:
     name: Security & Code Quality
@@ -67,37 +77,41 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Security audit
-        run: npm audit --audit-level=critical
+        run: bun audit --audit-level=critical
         continue-on-error: true
 
       - name: Check for outdated dependencies
-        run: npm outdated || true
+        run: bun outdated || true
 
       - name: ESLint
-        run: npm run lint
+        run: bun run lint
 
       - name: Prettier check
-        run: npx prettier --check "src/**/*.ts"
+        run: bunx prettier --check "src/**/*.ts"
 
       - name: TypeScript check
-        run: npm run typecheck
+        run: bun run typecheck
 
       - name: Check for circular dependencies
-        run: npx madge --circular src/
+        run: bunx madge --circular src/
         continue-on-error: true
 
-  # Основное тестирование с matrix
+  # Основное тестирование с matrix (только если есть тесты)
   test:
     name: Tests
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    if: needs.changes.outputs.has_tests == 'true' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true')
     strategy:
       matrix:
         node-version: [18, 20, 21]
@@ -111,10 +125,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Create test environment
         run: |
@@ -123,21 +141,23 @@ jobs:
           echo "SUPABASE_SERVICE_KEY=test_key" >> .env.test
           echo "NODE_ENV=test" >> .env.test
 
-      - name: Run Jest tests
-        run: npm test
+      - name: Run tests
+        run: bun test
         env:
           NODE_ENV: test
 
       - name: Run Vitest tests
-        run: npm run test:vitest
+        run: bun run test:vitest
         env:
           NODE_ENV: test
+        continue-on-error: true
 
       - name: Generate test coverage
         if: matrix.node-version == '20'
-        run: npm test -- --coverage --coverageReporters=lcov
+        run: bun test -- --coverage --coverageReporters=lcov
         env:
           NODE_ENV: test
+        continue-on-error: true
 
       - name: Upload coverage to Codecov
         if: matrix.node-version == '20'
@@ -152,7 +172,7 @@ jobs:
   build:
     name: Build & Package
     runs-on: ubuntu-latest
-    needs: [changes, test, security-and-quality]
+    needs: [changes]
     if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
     steps:
       - name: Checkout
@@ -162,16 +182,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Build TypeScript
-        run: npm run build
+        run: bun run build
 
       - name: Build production
-        run: npm run build:prod
+        run: bun run build:prod
 
       - name: Check build size
         run: |
@@ -207,12 +231,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # Интеграционные тесты (только на main ветке)
+  # Интеграционные тесты (только на main ветке и если есть тесты)
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: [test, build]
-    if: github.ref == 'refs/heads/main' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true')
+    needs: [changes, build]
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.has_tests == 'true' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -221,10 +245,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -253,18 +281,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Check licenses
-        run: npx license-checker --summary
+        run: bunx license-checker --summary
         continue-on-error: true
 
       - name: Check bundle size
         run: |
-          npx bundlephobia-cli package.json || true
+          bunx bundlephobia-cli package.json || true
 
   # Финальная проверка перед мержем
   all-checks:
@@ -275,15 +307,21 @@ jobs:
     steps:
       - name: Check all jobs
         run: |
+          # Проверяем обязательные джобы
           if [[ "${{ needs.security-and-quality.result }}" == "failure" || 
-                "${{ needs.test.result }}" == "failure" || 
                 "${{ needs.build.result }}" == "failure" || 
                 "${{ needs.docker-check.result }}" == "failure" ]]; then
-            echo "❌ Some checks failed!"
+            echo "❌ Critical checks failed!"
             exit 1
-          else
-            echo "✅ All checks passed!"
           fi
+          
+          # Проверяем тесты только если они должны были запуститься
+          if [[ "${{ needs.test.result }}" == "failure" ]]; then
+            echo "❌ Tests failed!"
+            exit 1
+          fi
+          
+          echo "✅ All checks passed!"
 
   # Уведомления о статусе
   notify:

@@ -37,7 +37,14 @@ WORKDIR /app
 # Устанавливаем только необходимые системные зависимости
 RUN apk add --no-cache \
     openssh-client \
-    sshpass
+    sshpass \
+    python3 \
+    py3-pip \
+    ffmpeg
+
+# Устанавливаем yt-dlp для скачивания видео с дополнительными зависимостями
+RUN pip3 install --break-system-packages yt-dlp[default] && \
+    yt-dlp --version
 
 # Создаем нужные каталоги внутри рабочей директории и устанавливаем права
 RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
@@ -63,11 +70,11 @@ COPY .env.* ./
 RUN touch .env
 
 # Копируем entrypoint скрипт
-COPY docker-entrypoint.sh ./
+COPY scripts/docker-entrypoint.sh ./
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Экспортируем порт для API и боты
-EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 2999
+EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010 2999
 
 # Используем наш entrypoint скрипт для подготовки окружения
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

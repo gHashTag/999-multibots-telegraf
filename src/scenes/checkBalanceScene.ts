@@ -767,41 +767,6 @@ export const enterTargetScene = async (
       return
     }
 
-    // Специальная логика для text_to_video сцены
-    if (mode === 'text_to_video') {
-      console.log(
-        '🎯 [DEBUG] enterTargetScene: text_to_video mode detected, entering text_to_video scene'
-      )
-      logger.info({
-        message: `[EnterTargetSceneWrapper] text_to_video режим - переход в text_to_video`,
-        telegramId,
-        mode,
-        function: 'enterTargetSceneWrapper',
-      })
-      try {
-        await ctx.scene.enter('text_to_video')
-        console.log('🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene')
-        logger.info({
-          message: `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену text_to_video`,
-          telegramId,
-          mode,
-          function: 'enterTargetSceneWrapper',
-        })
-      } catch (sceneEnterError) {
-        console.error('❌ [DEBUG] enterTargetScene: ERROR entering text_to_video scene:', sceneEnterError)
-        logger.error({
-          message: `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену text_to_video`,
-          telegramId,
-          mode,
-          error: sceneEnterError instanceof Error ? sceneEnterError.message : String(sceneEnterError),
-          stack: sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
-          function: 'enterTargetSceneWrapper',
-        })
-        // Попробуем fallback в основную сцену
-        await ctx.reply('❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.')
-      }
-      return
-    }
 
     // Fallback для всех остальных режимов
     console.log(
