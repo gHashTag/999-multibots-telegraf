@@ -29,7 +29,7 @@ export function startApiServer(): void {
   app.use('/api', robokassaRouter)
 
   // Интеграция Inngest с API (актуальная сигнатура serve)
-  const inngestHandler = serve({ client: inngest as any, functions: inngestFunctions as any }) as any
+  const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
   app.use('/api/inngest', inngestHandler)
 
   // Запуск сервера
