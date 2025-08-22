@@ -7,7 +7,7 @@
 
 console.log('🔍 === ТЕСТ AI-SERVER LIPSYNC ===\n')
 
-const AI_SERVER_URL = 'https://ai-server-u14194.vm.elestio.app'
+const AI_SERVER_URL = 'https://ai-server-production-production-8e2d.up.railway.app'
 
 // Тест доступности сервера
 async function testServerHealth() {
