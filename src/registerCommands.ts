@@ -70,6 +70,7 @@ import {
   avatarTransformScene,
   instagramScrapingWizard,
   instagramParserScene,
+  instagramParserWizard,
   morphingWizard,
 } from './scenes'
 
@@ -143,6 +144,7 @@ export const stage = new Scenes.Stage<MyContext>([
   neuroCoderScene,
   instagramScrapingWizard,
   instagramParserScene,
+  instagramParserWizard,
   // handleTextMessage, // ❌ ИСПРАВЛЕНО: убираем из stage сцен - это должен быть middleware, не сцена!
 ])
 
