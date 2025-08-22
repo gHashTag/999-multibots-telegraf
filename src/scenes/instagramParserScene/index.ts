@@ -411,33 +411,48 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         })
 
         if (result.success) {
-          // Парсинг завершен успешно
+          // Парсинг выполнен (но не обязательно успешно в плане результатов)
           const reelsCount = result.data?.length || 0
+          const totalProcessed = result.totalItemsProcessed || 0
+          const hasResults = result.hasResults || false
           
-          // Проверяем количество найденных рилсов для корректного сообщения
-          const statusMessage = reelsCount > 0 
-            ? (isRu ? '✅ Парсинг завершен!' : '✅ Parsing completed!')
-            : (isRu ? '⚠️ Парсинг завершен' : '⚠️ Parsing completed')
-            
-          const statusNote = reelsCount > 0
-            ? (isRu ? '📨 Результаты сохранены в базе данных.' : '📨 Results saved to database.')
-            : (isRu 
-                ? '📝 Рилсы не найдены. Возможные причины:\n• Аккаунт закрыт или без видео\n• Неактивный аккаунт\n• Технические ограничения' 
-                : '📝 No reels found. Possible reasons:\n• Account is private or has no videos\n• Inactive account\n• Technical limitations')
+          // Более точная диагностика результатов
+          let statusMessage: string
+          let statusNote: string
+          
+          if (hasResults) {
+            // Есть результаты - реальный успех
+            statusMessage = isRu ? '✅ Парсинг завершен!' : '✅ Parsing completed!'
+            statusNote = isRu ? '📨 Результаты сохранены в базе данных.' : '📨 Results saved to database.'
+          } else if (totalProcessed > 0) {
+            // Данные были получены, но рилсов не найдено
+            statusMessage = isRu ? '⚠️ Парсинг завершен' : '⚠️ Parsing completed'
+            statusNote = isRu 
+              ? `📊 Обработано ${totalProcessed} постов, но рилсов не найдено.\n📝 Возможные причины:\n• Аккаунт публикует только фото\n• Нет новых видео за период\n• Все видео не соответствуют критериям`
+              : `📊 Processed ${totalProcessed} posts, but no reels found.\n📝 Possible reasons:\n• Account posts only photos\n• No new videos in period\n• All videos don't meet criteria`
+          } else {
+            // Вообще никаких данных не получено - подозрительно
+            statusMessage = isRu ? '❌ Проблема с парсингом' : '❌ Parsing issue'
+            statusNote = isRu 
+              ? '🔍 Не удалось получить данные с Instagram.\n📝 Возможные причины:\n• Аккаунт не существует или заблокирован\n• Аккаунт приватный\n• Технические проблемы с доступом'
+              : '🔍 Failed to retrieve data from Instagram.\n📝 Possible reasons:\n• Account doesn\'t exist or is blocked\n• Account is private\n• Technical access issues'
+          }
           
           await ctx.editMessageText(
             isRu
               ? `${statusMessage}\n\n` +
                   `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-                  `📊 Найдено рилсов: ${reelsCount}\n` +
-                  `💰 Списано: ${state.cost} ⭐\n\n` +
-                  `${statusNote}\n` +
+                  `📊 Найдено рилсов: ${reelsCount}${totalProcessed > 0 ? ` из ${totalProcessed}` : ''}\n` +
+                  `💰 Списано: ${state.cost} ⭐\n` +
+                  `🔄 Run ID: ${result.runId || 'N/A'}\n\n` +
+                  `${statusNote}\n\n` +
                   `💡 Вы можете запустить новый парсинг`
               : `${statusMessage}\n\n` +
                   `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-                  `📊 Reels found: ${reelsCount}\n` +
-                  `💰 Charged: ${state.cost} ⭐\n\n` +
-                  `${statusNote}\n` +
+                  `📊 Reels found: ${reelsCount}${totalProcessed > 0 ? ` of ${totalProcessed}` : ''}\n` +
+                  `💰 Charged: ${state.cost} ⭐\n` +
+                  `🔄 Run ID: ${result.runId || 'N/A'}\n\n` +
+                  `${statusNote}\n\n` +
                   `💡 You can start a new parsing`,
             Markup.inlineKeyboard([
               [

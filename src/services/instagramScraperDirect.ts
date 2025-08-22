@@ -6,6 +6,11 @@ const client = new ApifyClient({
   token: process.env.APIFY_TOKEN,
 })
 
+// Проверяем что токен существует
+if (!process.env.APIFY_TOKEN) {
+  logger.error('APIFY_TOKEN is not configured')
+}
+
 export interface InstagramScraperParams {
   username_or_hashtag: string
   type: 'competitor' | 'hashtag'
@@ -19,6 +24,9 @@ export interface InstagramScraperResult {
   data?: any[]
   error?: string
   runId?: string
+  hasResults?: boolean
+  totalItemsProcessed?: number
+  reelsFiltered?: number
 }
 
 export async function scrapeInstagramDirect(
@@ -34,6 +42,11 @@ export async function scrapeInstagramDirect(
   })
 
   try {
+    // Проверяем что Apify токен настроен
+    if (!process.env.APIFY_TOKEN) {
+      throw new Error('APIFY_TOKEN не настроен. Парсинг невозможен.')
+    }
+
     // Prepare input based on type
     const input =
       type === 'competitor'
@@ -68,6 +81,10 @@ export async function scrapeInstagramDirect(
       memory: 4096,
     })
 
+    if (!run || !run.id) {
+      throw new Error('Apify не вернул корректный run объект. Возможно, сервис недоступен.')
+    }
+
     console.log(`✅ Actor run started with ID: ${run.id}`)
     console.log(`📊 Status: ${run.status}`)
 
@@ -84,9 +101,28 @@ export async function scrapeInstagramDirect(
 
     // Get the results
     const dataset = await client.dataset(run.defaultDatasetId)
+    
+    if (!dataset) {
+      throw new Error('Не удалось получить dataset. Возможно, проблема с Apify API.')
+    }
+    
     const results = await dataset.listItems()
+    
+    if (!results || !Array.isArray(results.items)) {
+      throw new Error('Apify вернул некорректные данные. Возможно, проблема с API.')
+    }
 
     console.log(`📊 Retrieved ${results.items.length} posts`)
+    
+    // Логируем детали для диагностики
+    logger.info('Apify parsing results details', {
+      totalItems: results.items.length,
+      runId: run.id,
+      finalStatus: finalRun?.status,
+      hasDataset: !!dataset,
+      target: username_or_hashtag,
+      type
+    })
 
     // Debug: log first item structure
     if (results.items.length > 0) {
@@ -109,40 +145,39 @@ export async function scrapeInstagramDirect(
 
     console.log(`🎬 Found ${reels.length} reels/videos`)
 
-    // Save to database
-    if (reels.length > 0) {
-      const { error: dbError } = await supabaseAdmin
-        .from('instagram_scrapings')
-        .insert({
-          telegram_id,
-          user_id: userId,
-          target: username_or_hashtag,
-          source_type: type,
-          reels_count: reels.length,
-          cost:
-            maxPosts <= 10
-              ? 3
-              : maxPosts <= 25
-                ? 8
-                : maxPosts <= 50
-                  ? 15
-                  : maxPosts <= 100
-                    ? 30
-                    : 55,
-          status: 'completed',
-          result_data: reels,
-          apify_run_id: run.id,
-        })
+    // Определяем статус операции на основе результатов
+    const hasValidResults = reels.length > 0
+    const operationStatus = hasValidResults ? 'completed' : 'completed_no_results'
+    
+    // Save to database - всегда сохраняем результат для аудита
+    const costCalculation = maxPosts <= 10 ? 3 : maxPosts <= 25 ? 8 : maxPosts <= 50 ? 15 : maxPosts <= 100 ? 30 : 55
+    
+    const { error: dbError } = await supabaseAdmin
+      .from('instagram_scrapings')
+      .insert({
+        telegram_id,
+        user_id: userId,
+        target: username_or_hashtag,
+        source_type: type,
+        reels_count: reels.length,
+        cost: costCalculation,
+        status: operationStatus,
+        result_data: reels,
+        apify_run_id: run.id,
+      })
 
-      if (dbError) {
-        logger.error('Failed to save scraping results to database', dbError)
-      }
+    if (dbError) {
+      logger.error('Failed to save scraping results to database', dbError)
     }
 
+    // Возвращаем результат с детальной информацией
     return {
       success: true,
       data: reels,
       runId: run.id,
+      hasResults: hasValidResults,
+      totalItemsProcessed: results.items.length,
+      reelsFiltered: reels.length
     }
   } catch (error) {
     logger.error('Instagram scraping failed', { error, params })
