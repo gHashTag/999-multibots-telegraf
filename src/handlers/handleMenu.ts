@@ -506,23 +506,15 @@ export const handleMenu = async (ctx: MyContext) => {
           parsingAccess
         })
         
-        // Переходим в Instagram parser scene
-        ctx.session.mode = ModeEnum.InstagramParserScene
+        // Переходим в новую простую Instagram parser scene
+        ctx.session.mode = ModeEnum.InstagramSimpleParserScene
         console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramSimpleParserScene}`
         )
-        await ctx.scene.enter(ModeEnum.InstagramParserScene)
+        await ctx.scene.enter(ModeEnum.InstagramSimpleParserScene)
         console.log(
-          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
+          `✅ [handleMenu] Завершен вход в сцену instagram_simple_parser_scene`
         )
-        
-        // После обработки мониторинга остаемся в текущей сцене
-        // Это позволит пользователю вводить username, если он нужен
-        logger.info({
-          message: '✅ [handleMenu] Завершен вызов handleCompetitorMonitoring',
-          telegramId,
-          function: 'handleMenu',
-        })
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
