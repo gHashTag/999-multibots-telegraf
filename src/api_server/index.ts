@@ -28,8 +28,7 @@ export function startApiServer(): void {
   // Регистрируем маршруты для Robokassa webhook
   app.use('/api', robokassaRouter)
 
-  // Интеграция Inngest с API для версии 2.7.2
-  // Используем type assertion, чтобы избежать ошибок типизации
+  // Интеграция Inngest с API (актуальная сигнатура serve)
   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
   app.use('/api/inngest', inngestHandler)
 
