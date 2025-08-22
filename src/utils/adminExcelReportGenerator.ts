@@ -3,7 +3,7 @@
  * Создает детальную аналитику по ботам с красивым оформлением
  */
 
-// import * as XLSX from 'xlsx' // Временно отключено
+import * as XLSX from 'xlsx'
 import { z } from 'zod'
 import { supabase } from '@/core/supabase'
 import {
