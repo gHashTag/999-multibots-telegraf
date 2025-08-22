@@ -825,18 +825,18 @@ async function showHelp(ctx: MyContext) {
   )
 }
 
-// ========== ОБРАБОТЧИКИ ACTION ==========
-instagramParserScene.action('back_to_menu', async ctx => {
-  await ctx.answerCbQuery()
-  return ctx.wizard.selectStep(0)
-})
+// // ========== ОБРАБОТЧИКИ ACTION ==========
+// instagramParserScene.action('back_to_menu', async ctx => {
+//   await ctx.answerCbQuery()
+//   return ctx.wizard.selectStep(0)
+// })
 
-instagramParserScene.action('restart', async ctx => {
-  await ctx.answerCbQuery()
-  return ctx.wizard.selectStep(0)
-})
+// instagramParserScene.action('restart', async ctx => {
+//   await ctx.answerCbQuery()
+//   return ctx.wizard.selectStep(0)
+// })
 
-instagramParserScene.action('main_menu', async ctx => {
-  await ctx.answerCbQuery()
-  await ctx.scene.enter('main_menu')
-})
+// instagramParserScene.action('main_menu', async ctx => {
+//   await ctx.answerCbQuery()
+//   await ctx.scene.enter('main_menu')
+// })
