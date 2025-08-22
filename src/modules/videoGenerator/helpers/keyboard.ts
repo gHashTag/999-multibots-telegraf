@@ -92,17 +92,15 @@ export function createDurationKeyboard(
   }
 
   const buttons = config.durationOptions.map(duration => {
-    const basePrice = config.priceByDuration![duration] || (config.basePrice * duration)
+    const basePrice =
+      config.priceByDuration![duration] || config.basePrice * duration
     const finalPrice = Math.floor(basePrice / 0.016) // Конвертация в звезды
 
-    const buttonText = isRu 
+    const buttonText = isRu
       ? `${duration} сек (${finalPrice} ⭐)`
       : `${duration} sec (${finalPrice} ⭐)`
 
-    return Markup.button.callback(
-      buttonText,
-      `veo_${modelKey}_${duration}`
-    )
+    return Markup.button.callback(buttonText, `veo_${modelKey}_${duration}`)
   })
 
   // Группируем кнопки по 2 в ряд для лучшего вида
@@ -116,4 +114,33 @@ export function createDurationKeyboard(
   }
 
   return Markup.inlineKeyboard(rows)
+}
+
+/**
+ * Создает обычную клавиатуру для выбора соотношения сторон видео
+ */
+export function createAspectRatioKeyboard(
+  modelKey: VideoModelConfigKey,
+  isRu: boolean
+): ReturnType<typeof Markup.keyboard> {
+  const config = VIDEO_MODELS_CONFIG[modelKey]
+  if (!config.aspectRatioOptions) {
+    return Markup.keyboard([
+      [isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'],
+    ]).resize()
+  }
+
+  const buttons = config.aspectRatioOptions.map(aspectRatio => {
+    return isRu
+      ? aspectRatio === '9:16'
+        ? '📱 Вертикальное (9:16)'
+        : '📺 Горизонтальное (16:9)'
+      : aspectRatio === '9:16'
+        ? '📱 Vertical (9:16)'
+        : '📺 Horizontal (16:9)'
+  })
+
+  // Располагаем кнопки в один ряд + кнопка назад
+  const keyboard = [buttons, [isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu']]
+  return Markup.keyboard(keyboard).resize()
 }
