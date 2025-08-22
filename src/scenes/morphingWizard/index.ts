@@ -19,7 +19,7 @@ const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
 // ✅ ZIP архив больше не нужен - работаем напрямую с изображениями
 
 // ✅ Функция для создания адаптивного прогресс бара для бесконечной загрузки
-const createProgressBar = (current: number, length: number = 10): string => {
+const createProgressBar = (current: number, length = 10): string => {
   // Логика: чем больше изображений, тем больше заполняется бар, но не ограничиваемся максимумом
   // Используем адаптивную шкалу для плавного заполнения
   let filled: number

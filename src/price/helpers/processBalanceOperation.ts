@@ -11,6 +11,15 @@ type BalanceOperationProps = {
   bot_name?: string
 }
 
+/**
+ * 🔧 УЛУЧШЕНА: Операция баланса с защитой от дублирования
+ *
+ * ⚠️ ВАЖНО: Эта функция создает операцию MONEY_OUTCOME в БД
+ * Убедитесь что она не вызывается повторно для одной и той же операции
+ *
+ * @param BalanceOperationProps параметры операции
+ * @returns BalanceOperationResult результат операции
+ */
 export const processBalanceOperation = async ({
   ctx,
   telegram_id,
@@ -76,18 +85,19 @@ export const processBalanceOperation = async ({
       bot_name: ctx?.botInfo?.username || bot_name || 'unknown_bot',
       service_type: ctx?.session?.mode || 'unknown_mode',
     })
+
+    // 🔧 ИСПРАВЛЕНО: Передаем отрицательную сумму для операции списания
     const updateSuccess = await updateUserBalance(
       telegram_id.toString(),
-      paymentAmount,
+      -paymentAmount, // Отрицательная сумма для списания
       PaymentType.MONEY_OUTCOME,
       'Payment operation',
       {
         bot_name: ctx?.botInfo?.username || bot_name || 'unknown_bot',
         service_type: ctx?.session?.mode || 'unknown_mode',
-        modePrice: paymentAmount,
+        modePrice: paymentAmount, // Положительная сумма для логики расчета
         currentBalance: currentBalance,
-      },
-      paymentAmount
+      }
     )
 
     if (!updateSuccess) {

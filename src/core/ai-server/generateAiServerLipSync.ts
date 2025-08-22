@@ -33,7 +33,7 @@ export async function generateAiServerLipSync(
   telegramId: string,
   videoUrl: string,
   audioUrl: string,
-  isRu: boolean = true
+  isRu = true
 ): Promise<AiServerLipSyncResult> {
   try {
     logger.info('🎬 Начинаем генерацию AiServer LipSync', {
