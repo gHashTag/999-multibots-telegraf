@@ -115,10 +115,10 @@ export const API_URL = isDev ? AI_SERVER_LOCAL_URL : API_SERVER_URL
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
 const BASE_PAYMENT_URL = isDev
-  ? API_SERVER_URL || 'https://ai-server-production-production-8e2d.up.railway.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
+  ? API_SERVER_URL || 'https://999-multibots-telegraf-u14194.vm.elestio.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
-    'https://ai-server-production-production-8e2d.up.railway.app'
+    'https://999-multibots-telegraf-u14194.vm.elestio.app'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 

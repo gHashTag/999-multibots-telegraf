@@ -9,6 +9,8 @@ import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
+// Импортируем обработчик статуса видео
+import { handleVideoStatusUpdate } from './handlers/handleTextToVideoDirect'
 import { sendMediaToPulse } from './helpers/pulse'
 // Импортируем обработчик команды hello_world
 import { handleHelloWorld } from './commands/handleHelloWorld'
@@ -144,8 +146,6 @@ export const stage = new Scenes.Stage<MyContext>([
   neuroCoderScene,
   instagramScrapingWizard,
   instagramParserScene,
-  instagramParserWizard,
-  // handleTextMessage, // ❌ ИСПРАВЛЕНО: убираем из stage сцен - это должен быть middleware, не сцена!
 ])
 
 // Проверяем зарегистрированные сцены
@@ -1543,6 +1543,22 @@ If not, continue on your own and click the "I myself" button`
         } catch (replyError) {
           console.error('❌ Failed to send error message:', replyError)
         }
+      }
+    })
+
+    // Callback handler для обновления статуса видео генерации
+    bot.action('update_video_status', async ctx => {
+      logger.info('🔄 GLOBAL ACTION: update_video_status', {
+        telegramId: ctx.from?.id,
+      })
+      
+      try {
+        await handleVideoStatusUpdate(ctx)
+      } catch (error) {
+        logger.error('Error in update_video_status action:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
       }
     })
 
