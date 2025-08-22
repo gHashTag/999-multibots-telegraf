@@ -104,22 +104,43 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
     })
 
     if (action === 'parse_competitor') {
-      logger.info('Instagram parser scene - Competitor parsing selected', { userId })
+      logger.info('🔥 Instagram parser scene - Competitor parsing selected', { 
+        userId,
+        action,
+        currentWizardStep: ctx.wizard.cursor,
+        sessionState: state
+      })
+      
       state.type = 'competitor'
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(
-        isRu
-          ? '👤 Введите username аккаунта (без @):\n\n' +
-              '📝 Примеры: nike, adidas, zara\n' +
-              '⚠️ Аккаунт должен быть открытым'
-          : '👤 Enter account username (without @):\n\n' +
-              '📝 Examples: nike, adidas, zara\n' +
-              '⚠️ Account must be public',
-        Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
-        ])
-      )
-      return ctx.wizard.next()
+      
+      try {
+        await ctx.answerCbQuery()
+        logger.info('✅ Callback query answered successfully', { userId })
+        
+        await ctx.editMessageText(
+          isRu
+            ? '👤 Введите username аккаунта (без @):\n\n' +
+                '📝 Примеры: nike, adidas, zara\n' +
+                '⚠️ Аккаунт должен быть открытым'
+            : '👤 Enter account username (without @):\n\n' +
+                '📝 Examples: nike, adidas, zara\n' +
+                '⚠️ Account must be public',
+          Markup.inlineKeyboard([
+            [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
+          ])
+        )
+        logger.info('✅ Message edited successfully, moving to next step', { userId })
+        
+        return ctx.wizard.next()
+      } catch (error) {
+        logger.error('❌ Error in parse_competitor handler', { 
+          error: error.message,
+          stack: error.stack,
+          userId,
+          action
+        })
+        throw error
+      }
     }
 
     if (action === 'parse_hashtag') {
@@ -463,6 +484,14 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         )
 
         // Используем правильный API-based подход через ai-server
+        logger.info('🚀 [Instagram Parser Scene] About to call generateInstagramScraping', {
+          userId,
+          target: state.target,
+          type: state.type,
+          count: state.count,
+          cost: state.cost
+        })
+        
         const { generateInstagramScraping } = await import('@/services/generateInstagramScraping')
         
         const result = await generateInstagramScraping(
@@ -476,15 +505,26 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           ctx.botInfo?.username || 'telegram_bot'
         )
 
-        logger.info('Instagram parsing request sent', {
+        logger.info('🎯 [Instagram Parser Scene] generateInstagramScraping completed', {
           userId,
           target: state.target,
           type: state.type,
           count: state.count,
-          eventId: result?.eventId,
+          result: {
+            success: result?.success,
+            eventId: result?.eventId,
+            message: result?.message,
+            error: result?.error
+          }
         })
 
         if (result && result.success) {
+          logger.info('✅ [Instagram Parser Scene] Request successful, updating user message', {
+            userId,
+            target: state.target,
+            eventId: result.eventId
+          })
+          
           // Запрос успешно отправлен на сервер
           await ctx.editMessageText(
             isRu
@@ -521,9 +561,18 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
               ],
             ])
           )
+          
+          logger.info('✅ [Instagram Parser Scene] Success message sent to user', { userId })
         } else {
           // Ошибка отправки запроса
           const errorMessage = result?.error || result?.message || 'Неизвестная ошибка'
+          
+          logger.error('❌ [Instagram Parser Scene] Request failed, showing error to user', {
+            userId,
+            target: state.target,
+            errorMessage,
+            fullResult: result
+          })
           
           await ctx.editMessageText(
             isRu
@@ -550,11 +599,28 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
               ],
             ])
           )
+          
+          logger.info('✅ [Instagram Parser Scene] Error message sent to user', { userId })
         }
       } catch (error) {
-        logger.error('Instagram parsing request error', { error, userId, state })
+        console.error('🔥 [DEBUG] Full parsing error object:', error)
+        
+        logger.error('❌ [Instagram Parser Scene] Critical error during parsing request', { 
+          error: error instanceof Error ? error.message : 'Unknown error',
+          errorStack: error instanceof Error ? error.stack : 'No stack trace',
+          errorName: error instanceof Error ? error.name : 'Unknown error type',
+          userId, 
+          state: {
+            type: state.type,
+            target: state.target,
+            count: state.count,
+            cost: state.cost
+          }
+        })
 
         // Возвращаем деньги при ошибке запроса
+        logger.info('💰 [Instagram Parser Scene] Attempting to refund user', { userId, cost: state.cost })
+        
         try {
           await updateUserBalance(
             userId.toString(),
@@ -570,19 +636,37 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
               stars: state.cost,
             }
           )
+          
+          logger.info('✅ [Instagram Parser Scene] User refunded successfully', { userId, cost: state.cost })
         } catch (refundError) {
-          logger.error('Failed to refund user', { refundError, userId, state })
+          console.error('🔥 [DEBUG] Refund error:', refundError)
+          
+          logger.error('❌ [Instagram Parser Scene] Failed to refund user', { 
+            refundError: refundError instanceof Error ? refundError.message : 'Unknown refund error',
+            refundErrorStack: refundError instanceof Error ? refundError.stack : 'No stack trace',
+            userId, 
+            state 
+          })
         }
 
-        await ctx.editMessageText(
-          isRu
-            ? '❌ Произошла ошибка при отправке запроса на сервер.\n\n' +
-                '💰 Средства возвращены на баланс.\n' +
-                'Попробуйте позже или обратитесь в поддержку.'
-            : '❌ Error occurred while sending request to server.\n\n' +
-                '💰 Funds have been refunded to your balance.\n' +
-                'Try again later or contact support.'
-        )
+        try {
+          await ctx.editMessageText(
+            isRu
+              ? '❌ Произошла ошибка при отправке запроса на сервер.\n\n' +
+                  '💰 Средства возвращены на баланс.\n' +
+                  'Попробуйте позже или обратитесь в поддержку.'
+              : '❌ Error occurred while sending request to server.\n\n' +
+                  '💰 Funds have been refunded to your balance.\n' +
+                  'Try again later or contact support.'
+          )
+          
+          logger.info('✅ [Instagram Parser Scene] Error message sent to user', { userId })
+        } catch (messageError) {
+          logger.error('❌ [Instagram Parser Scene] Failed to send error message', {
+            messageError: messageError instanceof Error ? messageError.message : 'Unknown message error',
+            userId
+          })
+        }
       }
 
       // Сброс состояния
