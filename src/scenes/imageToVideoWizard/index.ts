@@ -14,6 +14,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { createAspectRatioKeyboard } from '@/modules/videoGenerator/helpers/keyboard'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers'
 
@@ -291,15 +292,31 @@ handleModelSelection.on('text', async ctx => {
       : `✅ You chose: ${selectedModelTitle}.`
     await ctx.reply(textModelChosen, Markup.removeKeyboard())
 
-    // HARDCODED TEXT
-    const textRequestImage = isRu
-      ? '🖼️ Теперь отправьте изображение для генерации видео'
-      : '🖼️ Now send an image for video generation'
-    await ctx.reply(textRequestImage, {
-      reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-    })
-    // Jump to handleStandardImage (step index 5)
-    return ctx.wizard.selectStep(ctx.wizard.cursor + 4) // Adjust step index if needed (should be 5)
+    // Check if model supports aspect ratio selection (Kie.ai models)
+    const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
+    if (
+      modelConfig.aspectRatioOptions &&
+      modelConfig.aspectRatioOptions.length > 0
+    ) {
+      // Show aspect ratio selection for Kie.ai models
+      const aspectRatioKeyboard = createAspectRatioKeyboard(foundModelKey, isRu)
+      const text = isRu
+        ? '📐 Выберите соотношение сторон видео:'
+        : '📐 Select video aspect ratio:'
+      await ctx.reply(text, aspectRatioKeyboard)
+      return ctx.wizard.selectStep(8) // Go to handleAspectRatioSelection (new step 8)
+    } else {
+      // No aspect ratio selection needed, go directly to image request
+      // HARDCODED TEXT
+      const textRequestImage = isRu
+        ? '🖼️ Теперь отправьте изображение для генерации видео'
+        : '🖼️ Now send an image for video generation'
+      await ctx.reply(textRequestImage, {
+        reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+      })
+      // Jump to handleStandardImage (step index 5)
+      return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
+    }
   }
 })
 // Fallback for non-text messages in this step
@@ -926,6 +943,66 @@ handlePrompt.use(async ctx => {
   await ctx.reply(text)
 })
 
+// Step 8: Handle Aspect Ratio Selection (Callback Query)
+const handleAspectRatioSelection = new Composer<MyContext>()
+handleAspectRatioSelection.action(/^aspect_/, async ctx => {
+  const isRu = isRussianFromState(ctx)
+  await ctx.answerCbQuery()
+  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
+
+  const callbackData = 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : ''
+  const parts = callbackData.split('_') // aspect_modelKey_aspectRatio
+  if (parts.length !== 3) {
+    logger.error('[I2V Wizard] Invalid aspect ratio callback data', {
+      callbackData,
+    })
+    await sendGenericErrorMessage(ctx, isRu)
+    return ctx.scene.leave()
+  }
+
+  const selectedAspectRatio = parts[2] // e.g., "9:16" or "16:9"
+  ctx.session.selectedAspectRatio = selectedAspectRatio
+
+  logger.info('[I2V Wizard] Aspect ratio selected', {
+    telegramId: ctx.from?.id,
+    selectedAspectRatio,
+  })
+
+  const aspectRatioText = isRu
+    ? selectedAspectRatio === '9:16'
+      ? '📱 9:16 (вертикальное)'
+      : '📺 16:9 (горизонтальное)'
+    : selectedAspectRatio === '9:16'
+      ? '📱 9:16 (vertical)'
+      : '📺 16:9 (horizontal)'
+
+  const textAspectRatioChosen = isRu
+    ? `✅ Выбрано соотношение сторон: ${aspectRatioText}`
+    : `✅ Selected aspect ratio: ${aspectRatioText}`
+  await ctx.reply(textAspectRatioChosen)
+
+  // Now ask for image
+  const textRequestImage = isRu
+    ? '🖼️ Теперь отправьте изображение для генерации видео'
+    : '🖼️ Now send an image for video generation'
+  await ctx.reply(textRequestImage, {
+    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+  })
+  return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
+})
+
+// Error handler for unhandled callback queries in aspect ratio selection
+handleAspectRatioSelection.use(async ctx => {
+  const isRu = isRussianFromState(ctx)
+  logger.warn(
+    '[I2V Wizard] Unexpected action in handleAspectRatioSelection:',
+    ctx.callbackQuery
+  )
+  await ctx.answerCbQuery()
+  await sendGenericErrorMessage(ctx, isRu)
+  return ctx.scene.leave()
+})
+
 // --- New Function to Start Generation in Background ---
 async function startGenerateImageToVideoInBackground(ctx: MyContext) {
   const isRu = isRussianFromState(ctx)
@@ -1005,7 +1082,8 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
       imageBUrl, // Pass imageBUrl directly
       ctx.telegram, // Pass telegram instance
       ctx.from.id, // Pass chat id (which is the user id for private chat)
-      ctx.session.selectedResolution // Pass selected resolution for Seedance
+      ctx.session.selectedResolution, // Pass selected resolution for Seedance
+      ctx.session.selectedAspectRatio // Pass selected aspect ratio for Kie.ai models
     ).catch(bgError => {
       // Catch errors specifically from the background execution of generateImageToVideo
       logger.error(
@@ -1124,7 +1202,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   handleMorphImageA, // Step 4: Handle Image A for morphing
   handleMorphImageBOrStandardImage, // Step 5: Handle Image B (morph) OR Standard Image
   handleWanResolutionSelection, // Step 6: Handle WAN resolution selection (480p/720p/1080p)
-  handlePrompt // Step 7: Handle Prompt (now starts background task and leaves)
+  handlePrompt, // Step 7: Handle Prompt (now starts background task and leaves)
+  handleAspectRatioSelection // Step 8: Handle Aspect Ratio Selection for Kie.ai models
 )
 
 // Add HELP and CANCEL handlers to the scene

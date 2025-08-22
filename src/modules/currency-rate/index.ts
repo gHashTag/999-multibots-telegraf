@@ -18,7 +18,7 @@ interface BybitResponse {
 
 const BYBIT_API_URL =
   'https://www.bybit.com/x-api/fiat/public/channel/payment-list'
-const CACHE_TTL = 300000 // 5 минут в миллисекундах
+const CACHE_TTL = 300000 // 5 минут в миллисекундах для кеширования курса
 const DEFAULT_RATE = 85 // Значение по умолчанию, если API недоступен
 
 interface RateCache {

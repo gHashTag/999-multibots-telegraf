@@ -67,8 +67,8 @@ export const levels: Record<number, Level> = {
   },
   // text_to_image
   11: {
-    title_ru: '🖼️ Текст в фото',
-    title_en: '🖼️ Text to Image',
+    title_ru: '🖼️ Генерация изображений',
+    title_en: '🖼️ Generate Images',
   },
   // flux_kontext
   12: {
@@ -81,11 +81,11 @@ export const levels: Record<number, Level> = {
     title_en: '🧬 Morphing',
     // Доступно всем пользователям с подпиской
   },
-  // lip_sync - новая Kling модель
+  // lip_sync - новая Kling модель (временно только для админов)
   14: {
     title_ru: '🎤 Kling Lip Sync',
     title_en: '🎤 Kling Lip Sync',
-    admin_only: true, // 🤫 Скрыто для обычных пользователей - только админы
+    admin_only: true, // 🔒 ВРЕМЕННО: только для админов пока тестируется интеграция с ai-server
   },
   // 15: {
   //   title_ru: '🎥 Видео в URL',
@@ -312,7 +312,7 @@ export async function mainMenu({
   // Добавляем кнопку мониторинга конкурентов только для администраторов
   if (userId && levels[109]) {
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
-    
+
     if (isAdmin) {
       // Добавляем кнопку мониторинга конкурентов для администраторов (теперь открывает парсер)
       if (!availableLevels.includes(levels[109])) {

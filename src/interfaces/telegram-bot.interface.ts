@@ -309,6 +309,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   videoMessageId?: number // ID сообщения с прогрессом генерации
   selectedVideoModel?: string // ID выбранной модели для генерации видео (для сцены выбора длительности)
   selectedDuration?: number // Выбранная длительность для Veo 3 Fast модели
+  selectedAspectRatio?: string // Выбранное соотношение сторон для Kie.ai VEO моделей
+  selectedVideoCost?: number // Стоимость выбранной модели в звездах
 }
 
 export interface MyContext extends Context {

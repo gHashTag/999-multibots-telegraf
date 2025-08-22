@@ -115,3 +115,32 @@ export function createDurationKeyboard(
 
   return Markup.inlineKeyboard(rows)
 }
+
+/**
+ * Создает обычную клавиатуру для выбора соотношения сторон видео
+ */
+export function createAspectRatioKeyboard(
+  modelKey: VideoModelConfigKey,
+  isRu: boolean
+): ReturnType<typeof Markup.keyboard> {
+  const config = VIDEO_MODELS_CONFIG[modelKey]
+  if (!config.aspectRatioOptions) {
+    return Markup.keyboard([
+      [isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'],
+    ]).resize()
+  }
+
+  const buttons = config.aspectRatioOptions.map(aspectRatio => {
+    return isRu
+      ? aspectRatio === '9:16'
+        ? '📱 Вертикальное (9:16)'
+        : '📺 Горизонтальное (16:9)'
+      : aspectRatio === '9:16'
+        ? '📱 Vertical (9:16)'
+        : '📺 Horizontal (16:9)'
+  })
+
+  // Располагаем кнопки в один ряд + кнопка назад
+  const keyboard = [buttons, [isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu']]
+  return Markup.keyboard(keyboard).resize()
+}
