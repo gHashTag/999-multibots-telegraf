@@ -17,8 +17,8 @@ export const sendPhotoDescriptionRequest = async (
         ? 'нейрофотографию'
         : 'neurophoto'
       : isRuFromState
-        ? 'фотографию'
-        : 'photo'
+      ? 'фотографию'
+      : 'photo'
 
   const message = isRuFromState
     ? `📸 Опишите на английском, какую ${type} вы хотите сгенерировать.`

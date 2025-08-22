@@ -136,8 +136,8 @@ export function createAspectRatioKeyboard(
         ? '📱 Вертикальное (9:16)'
         : '📺 Горизонтальное (16:9)'
       : aspectRatio === '9:16'
-        ? '📱 Vertical (9:16)'
-        : '📺 Horizontal (16:9)'
+      ? '📱 Vertical (9:16)'
+      : '📺 Horizontal (16:9)'
   })
 
   // Располагаем кнопки в один ряд + кнопка назад

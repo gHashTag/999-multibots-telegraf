@@ -38,8 +38,8 @@ const createStepScene = (
           ? `Нажмите "${nextStepText}", чтобы продолжить.`
           : `Click "${nextStepText}", to continue.`
         : isRu
-          ? `Вы успешно прошли все обучение и достигли максимального уровня! 🌟✨`
-          : `You have successfully completed all training and reached the maximum level! 🌟✨`,
+        ? `Вы успешно прошли все обучение и достигли максимального уровня! 🌟✨`
+        : `You have successfully completed all training and reached the maximum level! 🌟✨`,
       stepNumber < 12
         ? Markup.keyboard([[nextStepText], ['➡️ Завершить']]).resize()
         : await mainMenu({

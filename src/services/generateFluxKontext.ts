@@ -575,8 +575,18 @@ export const generateAdvancedFluxKontext = async (
     await ctx.telegram.sendMessage(
       telegram_id,
       is_ru
-        ? `✨ Обрабатываю изображение в режиме "${modeName}"...\n\n💎 Стоимость: ${cost} ⭐${cost > originalCost ? ` (базовая ${originalCost}⭐ + наценка ${cost - originalCost}⭐)` : ''}`
-        : `✨ Processing image in "${modeName}" mode...\n\n💎 Cost: ${cost} ⭐${cost > originalCost ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)` : ''}`,
+        ? `✨ Обрабатываю изображение в режиме "${modeName}"...\n\n💎 Стоимость: ${cost} ⭐${
+            cost > originalCost
+              ? ` (базовая ${originalCost}⭐ + наценка ${
+                  cost - originalCost
+                }⭐)`
+              : ''
+          }`
+        : `✨ Processing image in "${modeName}" mode...\n\n💎 Cost: ${cost} ⭐${
+            cost > originalCost
+              ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)`
+              : ''
+          }`,
       {
         reply_markup: { remove_keyboard: true },
       }
@@ -678,8 +688,26 @@ export const generateAdvancedFluxKontext = async (
       },
       {
         caption: is_ru
-          ? `✨ Изображение обработано!\n\n🎯 Режим: ${modeName}\n📝 Запрос: ${prompt}\n🤖 Модель: ${mode === 'multi' ? 'FLUX Multi-Kontext' : `FLUX Kontext ${modelType.toUpperCase()}`}\n💎 Стоимость: ${cost} ⭐${cost > originalCost ? ` (базовая ${originalCost}⭐ + наценка ${cost - originalCost}⭐)` : ''}`
-          : `✨ Image processed!\n\n🎯 Mode: ${modeName}\n📝 Prompt: ${prompt}\n🤖 Model: ${mode === 'multi' ? 'FLUX Multi-Kontext' : `FLUX Kontext ${modelType.toUpperCase()}`}\n💎 Cost: ${cost} ⭐${cost > originalCost ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)` : ''}`,
+          ? `✨ Изображение обработано!\n\n🎯 Режим: ${modeName}\n📝 Запрос: ${prompt}\n🤖 Модель: ${
+              mode === 'multi'
+                ? 'FLUX Multi-Kontext'
+                : `FLUX Kontext ${modelType.toUpperCase()}`
+            }\n💎 Стоимость: ${cost} ⭐${
+              cost > originalCost
+                ? ` (базовая ${originalCost}⭐ + наценка ${
+                    cost - originalCost
+                  }⭐)`
+                : ''
+            }`
+          : `✨ Image processed!\n\n🎯 Mode: ${modeName}\n📝 Prompt: ${prompt}\n🤖 Model: ${
+              mode === 'multi'
+                ? 'FLUX Multi-Kontext'
+                : `FLUX Kontext ${modelType.toUpperCase()}`
+            }\n💎 Cost: ${cost} ⭐${
+              cost > originalCost
+                ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)`
+                : ''
+            }`,
         reply_markup: advancedKeyboard.reply_markup,
       }
     )
@@ -927,8 +955,12 @@ export const upscaleFluxKontextImage = async (params: {
       },
       {
         caption: is_ru
-          ? `⬆️ Качество изображения увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n🎯 Режим: Сохранение оригинала\n✨ Качество: Высокое без искажений\n💎 Стоимость: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Исходный запрос: ${originalPrompt}` : ''}`
-          : `⬆️ Image quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n🎯 Mode: Original preservation\n✨ Quality: High without distortion\n💎 Cost: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Original prompt: ${originalPrompt}` : ''}`,
+          ? `⬆️ Качество изображения увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n🎯 Режим: Сохранение оригинала\n✨ Качество: Высокое без искажений\n💎 Стоимость: ${upscaleCost} ⭐${
+              originalPrompt ? `\n📝 Исходный запрос: ${originalPrompt}` : ''
+            }`
+          : `⬆️ Image quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n🎯 Mode: Original preservation\n✨ Quality: High without distortion\n💎 Cost: ${upscaleCost} ⭐${
+              originalPrompt ? `\n📝 Original prompt: ${originalPrompt}` : ''
+            }`,
         reply_markup: Markup.inlineKeyboard([
           [
             Markup.button.callback(

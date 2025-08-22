@@ -158,8 +158,12 @@ export async function generateMorphing(
       )
 
       const intermediateCaption = requestData.is_ru
-        ? `🧬 Промежуточное видео ${clipNumber}/${totalClips}\n\n🎬 Переход между изображениями ${clipNumber} → ${clipNumber + 1}\n\n⏳ Создание остальных видео продолжается...`
-        : `🧬 Intermediate video ${clipNumber}/${totalClips}\n\n🎬 Transition between images ${clipNumber} → ${clipNumber + 1}\n\n⏳ Creating remaining videos...`
+        ? `🧬 Промежуточное видео ${clipNumber}/${totalClips}\n\n🎬 Переход между изображениями ${clipNumber} → ${
+            clipNumber + 1
+          }\n\n⏳ Создание остальных видео продолжается...`
+        : `🧬 Intermediate video ${clipNumber}/${totalClips}\n\n🎬 Transition between images ${clipNumber} → ${
+            clipNumber + 1
+          }\n\n⏳ Creating remaining videos...`
 
       try {
         // ✅ НЕМЕДЛЕННАЯ ОТПРАВКА БЕЗ ЗАДЕРЖЕК И ОЧЕРЕДЕЙ
@@ -251,7 +255,9 @@ export async function generateMorphing(
         })
 
         // ✅ ПРАВИЛЬНАЯ ЛОГИКА ДЛЯ ЛОКАЛЬНОЙ И ПРОДАКШЕННОЙ СРЕДЫ
-        const videoFileName = `morphing_${requestData.telegram_id}_${Date.now()}.mp4`
+        const videoFileName = `morphing_${
+          requestData.telegram_id
+        }_${Date.now()}.mp4`
         const isDev = process.env.NODE_ENV === 'development'
 
         let videoUrl: string
