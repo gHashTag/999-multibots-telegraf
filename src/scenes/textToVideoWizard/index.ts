@@ -143,39 +143,41 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isRu = isRussianFromState(ctx)
         console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
       
-      // 🚀 УПРОЩЕННАЯ и БЕЗОПАСНАЯ клавиатура (TOP-4 модели)
-      console.log('🎬 [WIZARD] Step 1: Creating simplified keyboard...')
+      // 🚀 КОНФИГ-БАЗИРОВАННАЯ клавиатура из VIDEO_MODELS_CONFIG
+      console.log('🎬 [WIZARD] Step 1: Creating CONFIG-based keyboard...')
       
-      const keyboard = Markup.keyboard([
-        // === VEO МОДЕЛИ (премиум) ===
-        [
-          'Veo 3 Fast | 8s | 📱 (40⭐)',
-          'Veo 3 Fast | 8s | 🖥️ (40⭐)'
-        ],
-        [
-          'Veo 3 | 8s | 📱 (202⭐)',
-          'Veo 3 | 8s | 🖥️ (202⭐)'
-        ],
+      // Отбираем только text-to-video модели
+      const textModels = Object.entries(VIDEO_MODELS_CONFIG)
+        .filter(([_, config]) => config.inputType.includes('text'))
+        .filter(([modelId]) => [
+          'kie-veo-3-fast', 'kie-veo-3', 'kie-runway-aleph',
+          'kling-v1.6-pro', 'minimax', 'hunyuan-video-fast', 'wan-text-to-video'
+        ].includes(modelId)) // Оставляем только основные модели
+      
+      console.log('🎬 [WIZARD] Step 1: Filtered text models:', textModels.map(([id, config]) => ({ id, title: config.title })))
+      
+      const keyboardRows: string[][] = []
+      
+      // Создаем кнопки по 2 в ряд (для каждого соотношения сторон)
+      textModels.forEach(([modelId, config]) => {
+        // Создаем кнопки для обоих форматов
+        const button9x16 = createModelButton(modelId, '9:16', isRu)
+        const button16x9 = createModelButton(modelId, '16:9', isRu)
         
-        // === ДОСТУПНЫЕ МОДЕЛИ ===
-        [
-          'Kling v1.6 Pro | ~10s | 📱 (60⭐)',
-          'Kling v1.6 Pro | ~10s | 🖥️ (60⭐)'
-        ],
-        [
-          'Minimax | 6s | 📱 (50⭐)',
-          'Minimax | 6s | 🖥️ (50⭐)'
-        ],
-        
-        [isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu']
-      ]).resize()
+        keyboardRows.push([button9x16, button16x9])
+      })
+      
+      // Кнопка назад
+      keyboardRows.push([isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'])
+      
+      const keyboard = Markup.keyboard(keyboardRows).resize()
 
       console.log('🎬 [WIZARD] Step 1: Keyboard created')
 
       await ctx.reply(
         isRu 
-          ? '🎥 Выберите модель и формат видео:\n\n🚀 Veo - премиум качество, фиксированное время\n🎯 Kling - анимация, гибкая длительность\n💨 Быстрые модели - доступные цены'
-          : '🎥 Choose model and video format:\n\n🚀 Veo - premium quality, fixed duration\n🎯 Kling - animation, flexible duration\n💨 Fast models - affordable prices',
+          ? `🎥 Выберите модель и формат видео:\n\n📱 — 9:16 (вертикально)\n🖥️ — 16:9 (горизонтально)\n\n⭐ Цена в Telegram Stars`
+          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`,
         keyboard
       )
       
@@ -204,7 +206,16 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       }
 
       const selectedText = ctx.message.text
-      console.log('🎬 [WIZARD] Step 2: Received text:', selectedText.substring(0, 50))
+      console.log('🎬 [WIZARD] Step 2: Received text:', selectedText)
+
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: проверяем не является ли это кнопкой меню
+      if (selectedText === '🎥 Видео из текста' || selectedText === '🎥 Video from text') {
+        console.log('🎬 [WIZARD] Step 2: Menu button clicked again - this should not happen!')
+        console.log('🎬 [WIZARD] Step 2: Redirecting back to step 1...')
+        // Возвращаемся к первому шагу
+        ctx.wizard.selectStep(0)
+        return
+      }
 
       // Назад в меню
       if (selectedText.includes('Назад') || selectedText.includes('Back')) {
@@ -213,8 +224,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      // Если это промпт (НЕ содержит эмодзи моделей)
-      if (!selectedText.includes('🚀') && !selectedText.includes('⭐') && !selectedText.includes('🎯') && !selectedText.includes('💨')) {
+      // Если это промпт (НЕ содержит эмодзи моделей или кнопочный текст)
+      if (!selectedText.includes('🚀') && !selectedText.includes('⭐') && !selectedText.includes('🎯') && !selectedText.includes('💨') && !selectedText.includes('Veo') && !selectedText.includes('Kling') && !selectedText.includes('Minimax')) {
         console.log('🎬 [WIZARD] Step 2: Processing as prompt')
         
         const prompt = selectedText.trim()
@@ -291,42 +302,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
 // ========== ОБРАБОТЧИКИ WIZARD'A ==========
 
-// ПРЯМАЯ функция первого шага (для вызова из enter)
-async function executeFirstStep(ctx: any) {
-  try {
-    console.log('🎬 [WIZARD] DIRECT Step 1: Model selection for user:', ctx.from?.id)
-    
-    const isRu = true // упрощенно
-    
-    console.log('🎬 [WIZARD] DIRECT Step 1: Creating keyboard...')
-    
-    const keyboard = {
-      reply_markup: {
-        keyboard: [
-          ['Veo 3 Fast | 8s | 📱 (40⭐)', 'Veo 3 Fast | 8s | 🖥️ (40⭐)'],
-          ['Veo 3 | 8s | 📱 (202⭐)', 'Veo 3 | 8s | 🖥️ (202⭐)'],
-          ['Kling v1.6 Pro | ~10s | 📱 (60⭐)', 'Kling v1.6 Pro | ~10s | 🖥️ (60⭐)'],
-          ['Minimax | 6s | 📱 (50⭐)', 'Minimax | 6s | 🖥️ (50⭐)'],
-          ['⬅️ Назад в меню']
-        ],
-        resize_keyboard: true
-      }
-    }
-
-    await ctx.reply(
-      '🎥 Выберите модель и формат видео:\n\n🚀 Veo - премиум качество\n🎯 Kling - анимация\n💨 Minimax - быстро и доступно',
-      keyboard
-    )
-    
-    console.log('🎬 [WIZARD] DIRECT Step 1: Reply sent, setting cursor to 1')
-    ctx.wizard.cursor = 1
-    
-  } catch (error) {
-    console.error('🎬 [WIZARD] DIRECT Step 1 ERROR:', error)
-    await ctx.reply('❌ Ошибка в мастере генерации видео')
-    await ctx.scene.leave()
-  }
-}
+// ИСПРАВЛЕНИЕ: удаляем executeFirstStep - пусть wizard обрабатывает шаги стандартным способом
 
 // Обработчик входа в wizard
 textToVideoWizard.enter(async (ctx) => {
@@ -341,9 +317,9 @@ textToVideoWizard.enter(async (ctx) => {
     timestamp: new Date().toISOString()
   })
   
-  // 🔥 ПРЯМО вызываем первый шаг
-  console.log('🎬 [WIZARD] Calling DIRECT first step...')
-  await executeFirstStep(ctx)
+  // ИСПРАВЛЕНИЕ: не вызываем executeFirstStep, пусть wizard сам обрабатывает шаги
+  // Wizard автоматически перейдет к первому шагу (step 0)
+  console.log('🎬 [WIZARD] Wizard entered, first step will execute automatically')
 })
 
 // Обработчик выхода из wizard
