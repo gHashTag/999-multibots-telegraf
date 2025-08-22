@@ -140,6 +140,8 @@ export const levels: Record<number, Level> = {
   },
 }
 
+// Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
+
 // 🔍 ПЕРСОНАЛИЗИРОВАННЫЕ МАССИВЫ СОТРУДНИКОВ ПО БОТАМ
 
 // 🤖 Массив сотрудников HaimGroupMedia_bot (ограниченный доступ к парсингу)
@@ -169,8 +171,6 @@ function getParsingAccess(
   hasAccess: boolean
   allowedProjects?: string[]
 } {
-  // Импортируем ADMIN_IDS_ARRAY
-  const { ADMIN_IDS_ARRAY } = require('@/config')
   const { bot_name } = getBotNameByToken(botToken)
 
   // 👑 ГЛАВНЫЙ АДМИН ИМЕЕТ ДОСТУП КО ВСЕМ БОТАМ И ВСЕМ ПРОЕКТАМ
@@ -202,7 +202,7 @@ function getParsingAccess(
     }
   }
 
-  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ  
+  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ
   // Главные админы из ADMIN_IDS_ARRAY тоже получают доступ
   if (ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
     return {
@@ -299,11 +299,10 @@ export async function mainMenu({
     console.log(`[mainMenu LOG] Full access for ${currentSubscription}`)
   }
 
-  // Получаем ADMIN_IDS_ARRAY для проверки админских функций
-  const { ADMIN_IDS_ARRAY } = await import('@/config')
-  
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
+  // Используем ADMIN_IDS_ARRAY для единой проверки (уже импортирован в начале файла)
+  
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
     .filter(
