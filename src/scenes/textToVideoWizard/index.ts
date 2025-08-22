@@ -13,169 +13,159 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // ========== ШАГ 1: ВЫБОР МОДЕЛИ + ФОРМАТ СРАЗУ (ВСЕ МОДЕЛИ) ==========
   async (ctx) => {
-    console.log('🎬 [WIZARD] Step 1: Complete model + format selection for user:', ctx.from?.id)
-    
-    const isRu = isRussianFromState(ctx)
-    
-    // 🚀 ПОЛНАЯ клавиатура со всеми моделями, ценами и длительностью
-    const keyboard = Markup.keyboard([
-      // === VEO МОДЕЛИ (Google/Kie.ai) - ПРЕМИУМ ===
-      ['🚀 Veo 3 Fast | 8s | 📱 (40⭐)', '🚀 Veo 3 Fast | 8s | 🖥️ (40⭐)'],
-      ['⭐ Veo 3 Pro | 8s | 📱 (202⭐)', '⭐ Veo 3 Pro | 8s | 🖥️ (202⭐)'],
-      ['🎬 Runway Aleph | 6s | 📱 (182⭐)', '🎬 Runway Aleph | 6s | 🖥️ (182⭐)'],
+    try {
+      console.log('🎬 [WIZARD] Step 1: Complete model + format selection for user:', ctx.from?.id)
       
-      // === KLING МОДЕЛИ - АНИМАЦИЯ ===
-      ['🎯 Kling Pro | 📱 (9⭐/s)', '🎯 Kling Pro | 🖥️ (9⭐/s)'],
+      const isRu = isRussianFromState(ctx)
+        console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
       
-      // === WAN МОДЕЛИ - БЫСТРЫЕ ===
-      ['💨 Wan T2V Fast | 📱 (12⭐)', '💨 Wan T2V Fast | 🖥️ (12⭐)'],
-      ['💨 Wan I2V Fast | 📱 (11⭐)', '💨 Wan I2V Fast | 🖥️ (11⭐)'],
+      // 🚀 УПРОЩЕННАЯ клавиатура (меньше кнопок)
+      const keyboard = Markup.keyboard([
+        // === TOP 3 МОДЕЛИ ===
+        ['🚀 Veo Fast | 8s | 📱 (40⭐)', '🚀 Veo Fast | 8s | 🖥️ (40⭐)'],
+        ['⭐ Veo Pro | 8s | 📱 (202⭐)', '⭐ Veo Pro | 8s | 🖥️ (202⭐)'],
+        ['🎯 Kling Pro | 📱 (60⭐)', '🎯 Kling Pro | 🖥️ (60⭐)'],
+        
+        // === БЫСТРЫЕ МОДЕЛИ ===
+        ['💨 Minimax | 📱 (50⭐)', '💨 Minimax | 🖥️ (50⭐)'],
+        
+        ['⬅️ Назад в меню']
+      ]).resize()
+
+      console.log('🎬 [WIZARD] Step 1: Keyboard created')
+
+      await ctx.reply(
+        isRu 
+          ? '🎥 Выберите модель и формат видео:\n\n🚀 Veo - премиум качество\n🎯 Kling - анимация\n💨 Minimax - быстро и доступно'
+          : '🎥 Choose model and video format:\n\n🚀 Veo - premium quality\n🎯 Kling - animation\n💨 Minimax - fast and affordable',
+        keyboard
+      )
       
-      // === ДРУГИЕ ДОСТУПНЫЕ МОДЕЛИ ===
-      ['🔥 Minimax | 📱 (47⭐)', '🔥 Minimax | 🖥️ (47⭐)'],
-      ['⚡ Ray v2 | 📱 (17⭐)', '⚡ Ray v2 | 🖥️ (17⭐)'],
-      ['💫 Hunyuan Fast | 📱 (19⭐)', '💫 Hunyuan Fast | 🖥️ (19⭐)'],
+      console.log('🎬 [WIZARD] Step 1: Reply sent, moving to next step')
+      return ctx.wizard.next()
       
-      ['⬅️ Назад в меню']
-    ]).resize()
-
-    await ctx.reply(
-      isRu 
-        ? '🎥 Выберите модель и формат видео:\n\n🚀 Veo - премиум качество, фикс. время\n🎯 Kling - анимация, цена за секунду\n💨 Wan - быстрые, доступные\n⚡ Другие - базовые модели'
-        : '🎥 Choose model and video format:\n\n🚀 Veo - premium quality, fixed time\n🎯 Kling - animation, price per second\n💨 Wan - fast, affordable\n⚡ Others - basic models',
-      keyboard
-    )
-
-    return ctx.wizard.next()
-  },
-
-  // ========== ШАГ 2: ПРОМПТ И СРАЗУ ГЕНЕРАЦИЯ (УМНЫЙ ПАРСИНГ) ==========
-  async (ctx) => {
-    console.log('🎬 [WIZARD] Step 2: Smart prompt + generation for user:', ctx.from?.id)
-    
-    const isRu = isRussianFromState(ctx)
-
-    if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply(isRu ? 'Выберите модель из кнопок выше.' : 'Select a model from the buttons above.')
-      return
-    }
-
-    const selectedText = ctx.message.text
-
-    // Назад в меню
-    if (selectedText.includes('Назад') || selectedText.includes('Back')) {
-      await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
+    } catch (error) {
+      console.error('🎬 [WIZARD] Step 1 ERROR:', error)
+      logger.error('TextToVideoWizard Step 1 error', { error: error instanceof Error ? error.message : 'Unknown error' })
+      await ctx.reply('❌ Ошибка в мастере генерации видео')
       return ctx.scene.leave()
     }
+  },
 
-    // Если это промпт (второй раз в этом шаге) - НЕ содержит эмодзи моделей
-    if (!selectedText.includes('🚀') && !selectedText.includes('⭐') && !selectedText.includes('🎯') && 
-        !selectedText.includes('💨') && !selectedText.includes('🔥') && !selectedText.includes('⚡') && 
-        !selectedText.includes('💫') && !selectedText.includes('🎬')) {
+  // ========== ШАГ 2: ПРОМПТ И СРАЗУ ГЕНЕРАЦИЯ (УПРОЩЕННЫЙ ПАРСИНГ) ==========
+  async (ctx) => {
+    try {
+      console.log('🎬 [WIZARD] Step 2: Processing message for user:', ctx.from?.id)
       
-      const prompt = selectedText.trim()
-      
-      if (!prompt || prompt.length < 3) {
-        await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
+      const isRu = isRussianFromState(ctx)
+
+      if (!ctx.message || !('text' in ctx.message)) {
+        console.log('🎬 [WIZARD] Step 2: No text message')
+        await ctx.reply(isRu ? 'Выберите модель из кнопок выше.' : 'Select a model from the buttons above.')
         return
       }
 
-      // Получаем сохраненные параметры
-      const selectedModel = ctx.session.selectedVideoModel || 'kie-veo-3-fast'
-      const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
-      const cost = ctx.session.selectedVideoCost || 40
-      const duration = ctx.session.selectedDuration
+      const selectedText = ctx.message.text
+      console.log('🎬 [WIZARD] Step 2: Received text:', selectedText.substring(0, 50))
 
-      // Сразу генерируем
-      await ctx.reply(
-        isRu
-          ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐${duration ? ` | ${duration}s` : ''}\n💭 ${prompt.substring(0, 100)}`
-          : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐${duration ? ` | ${duration}s` : ''}\n💭 ${prompt.substring(0, 100)}`
-      )
+      // Назад в меню
+      if (selectedText.includes('Назад') || selectedText.includes('Back')) {
+        console.log('🎬 [WIZARD] Step 2: Going back to menu')
+        await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
+        return ctx.scene.leave()
+      }
 
-      try {
+      // Если это промпт (НЕ содержит эмодзи моделей)
+      if (!selectedText.includes('🚀') && !selectedText.includes('⭐') && !selectedText.includes('🎯') && !selectedText.includes('💨')) {
+        console.log('🎬 [WIZARD] Step 2: Processing as prompt')
+        
+        const prompt = selectedText.trim()
+        
+        if (!prompt || prompt.length < 3) {
+          await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
+          return
+        }
+
+        // Получаем сохраненные параметры
+        const selectedModel = ctx.session.selectedVideoModel || 'kie-veo-3-fast'
+        const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
+        const cost = ctx.session.selectedVideoCost || 40
+        const duration = ctx.session.selectedDuration
+
+        console.log('🎬 [WIZARD] Step 2: Starting generation with params:', { selectedModel, aspectRatio, cost, duration })
+
+        // Сразу генерируем
+        await ctx.reply(
+          isRu
+            ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐${duration ? ` | ${duration}s` : ''}\n💭 ${prompt.substring(0, 100)}`
+            : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐${duration ? ` | ${duration}s` : ''}\n💭 ${prompt.substring(0, 100)}`
+        )
+
         const videoModelId = selectedModel as VideoModelId
         await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio)
         console.log('🎬 [WIZARD] Video generation success!')
-        
-      } catch (error) {
-        console.error('🎬 [WIZARD] Generation error:', error)
-        await ctx.reply(isRu ? '❌ Ошибка генерации' : '❌ Generation error')
+
+        return ctx.scene.leave()
       }
 
+      // Парсинг модели (УПРОЩЕННЫЙ)
+      console.log('🎬 [WIZARD] Step 2: Processing as model selection')
+      
+      let selectedModel = 'kie-veo-3-fast'
+      let cost = 40
+      let duration = 8
+      let aspectRatio = '9:16'
+
+      // === УПРОЩЕННЫЙ парсинг ===
+      if (selectedText.includes('Veo Fast')) {
+        selectedModel = 'kie-veo-3-fast'
+        cost = 40
+        duration = 8
+      } else if (selectedText.includes('Veo Pro')) {
+        selectedModel = 'kie-veo-3'
+        cost = 202
+        duration = 8
+      } else if (selectedText.includes('Kling Pro')) {
+        selectedModel = 'kling-v1.6-pro'
+        cost = 60 // фиксированная цена
+        duration = 10 // стандартная длительность
+      } else if (selectedText.includes('Minimax')) {
+        selectedModel = 'minimax'
+        cost = 50
+        duration = 6
+      }
+
+      // Определяем соотношение сторон
+      if (selectedText.includes('🖥️')) {
+        aspectRatio = '16:9'
+      } else if (selectedText.includes('📱')) {
+        aspectRatio = '9:16'
+      }
+
+      // Сохраняем в сессии
+      ctx.session.selectedVideoModel = selectedModel
+      ctx.session.selectedVideoCost = cost
+      ctx.session.selectedAspectRatio = aspectRatio
+      ctx.session.selectedDuration = duration
+
+      console.log('🎬 [WIZARD] Step 2: Params saved:', { selectedModel, cost, aspectRatio, duration })
+
+      // Просим промпт
+      await ctx.reply(
+        isRu
+          ? `✅ ${selectedText}\n\n💭 Введите описание видео:\n\nПример: "танцующий шаман у костра"`
+          : `✅ ${selectedText}\n\n💭 Enter video description:\n\nExample: "dancing shaman around fire"`,
+        Markup.removeKeyboard()
+      )
+
+      console.log('🎬 [WIZARD] Step 2: Prompt request sent')
+
+    } catch (error) {
+      console.error('🎬 [WIZARD] Step 2 ERROR:', error)
+      logger.error('TextToVideoWizard Step 2 error', { error: error instanceof Error ? error.message : 'Unknown error' })
+      await ctx.reply('❌ Ошибка в мастере генерации видео')
       return ctx.scene.leave()
     }
-
-    // 🔥 СУПЕР-УМНЫЙ парсинг всех моделей
-    let selectedModel = 'kie-veo-3-fast'
-    let cost = 40
-    let duration = 8
-    let aspectRatio = '9:16'
-
-    // === VEO МОДЕЛИ ===
-    if (selectedText.includes('Veo 3 Fast')) {
-      selectedModel = 'kie-veo-3-fast'
-      cost = 40
-      duration = 8
-    } else if (selectedText.includes('Veo 3 Pro')) {
-      selectedModel = 'kie-veo-3'
-      cost = 202
-      duration = 8
-    } else if (selectedText.includes('Runway Aleph')) {
-      selectedModel = 'kie-runway-aleph'
-      cost = 182
-      duration = 6
-    
-    // === KLING МОДЕЛИ ===
-    } else if (selectedText.includes('Kling Pro')) {
-      selectedModel = 'kling-v1.6-pro'
-      cost = 9 // за секунду
-      duration = undefined // будет задана пользователем или по умолчанию
-    
-    // === WAN МОДЕЛИ ===
-    } else if (selectedText.includes('Wan T2V Fast')) {
-      selectedModel = 'wan-text-to-video'
-      cost = 12 // минимальная цена 480p
-    } else if (selectedText.includes('Wan I2V Fast')) {
-      selectedModel = 'wan-image-to-video'
-      cost = 11 // минимальная цена 480p
-    
-    // === ДРУГИЕ МОДЕЛИ ===
-    } else if (selectedText.includes('Minimax')) {
-      selectedModel = 'minimax'
-      cost = 47
-    } else if (selectedText.includes('Ray v2')) {
-      selectedModel = 'ray-v2'
-      cost = 17
-    } else if (selectedText.includes('Hunyuan Fast')) {
-      selectedModel = 'hunyuan-video-fast'
-      cost = 19
-    }
-
-    // Определяем соотношение сторон
-    if (selectedText.includes('🖥️')) {
-      aspectRatio = '16:9'
-    } else if (selectedText.includes('📱')) {
-      aspectRatio = '9:16'
-    }
-
-    // Сохраняем в сессии
-    ctx.session.selectedVideoModel = selectedModel
-    ctx.session.selectedVideoCost = cost
-    ctx.session.selectedAspectRatio = aspectRatio
-    ctx.session.selectedDuration = duration
-
-    console.log('🎬 [WIZARD] All params saved:', { selectedModel, cost, aspectRatio, duration })
-
-    // Просим промпт с детальной информацией
-    await ctx.reply(
-      isRu
-        ? `✅ ${selectedText}\n\n💭 Введите описание видео:\n\nПримеры:\n"танцующий шаман у костра"\n"космический корабль летит к звездам"\n"кот играет с мячиком"`
-        : `✅ ${selectedText}\n\n💭 Enter video description:\n\nExamples:\n"dancing shaman around fire"\n"spaceship flying to stars"\n"cat playing with ball"`,
-      Markup.removeKeyboard()
-    )
-
-    // Остаемся в том же шаге для получения промпта
   }
 )
 
