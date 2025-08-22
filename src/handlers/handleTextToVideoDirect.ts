@@ -130,10 +130,8 @@ export async function handleTextToVideoDirect(
       ctx.session.videoDuration = validDuration
       ctx.session.videoMessageId = processingMessage.message_id
 
-      // 🚧 ВРЕМЕННО: Отключаем мониторинг статуса пока status endpoint не развернут
-      // monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
-      
-      // Показываем сообщение без мониторинга
+      // ✅ Включаем мониторинг статуса - endpoint реализован
+      monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
       if (ctx && ctx.telegram && ctx.chat) {
         await ctx.telegram.editMessageText(
           ctx.chat.id,
