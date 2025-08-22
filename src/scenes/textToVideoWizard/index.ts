@@ -303,6 +303,26 @@ textToVideoWizard.enter(async (ctx) => {
     currentStep: ctx.wizard?.cursor,
     timestamp: new Date().toISOString()
   })
+  
+  // 🔥 ПРИНУДИТЕЛЬНО запускаем первый шаг
+  console.log('🎬 [WIZARD] Forcing Step 1 execution...')
+  try {
+    // Сбрасываем cursor на первый шаг (0)
+    ctx.wizard.cursor = 0
+    
+    // Принудительно вызываем первый шаг
+    const firstStepHandler = ctx.wizard.steps[0]
+    if (firstStepHandler) {
+      console.log('🎬 [WIZARD] Executing first step handler...')
+      await firstStepHandler(ctx)
+    }
+  } catch (error) {
+    console.error('🎬 [WIZARD] Error in forced step execution:', error)
+    logger.error('[TextToVideoWizard] Error in forced step execution', {
+      telegramId: ctx.from?.id,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
 })
 
 // Обработчик выхода из wizard
