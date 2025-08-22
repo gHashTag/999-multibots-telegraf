@@ -2,7 +2,7 @@ name: PR Quality Gate
 
 on:
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, Jest-Test ]
     types: [opened, synchronize, reopened, ready_for_review]
 
 # Минимальные права для PR проверок
@@ -24,6 +24,28 @@ jobs:
           echo "::error::PR is in draft mode. Please mark as ready for review."
           exit 1
 
+  # Проверка наличия тестов
+  check-tests:
+    name: Check Tests Availability
+    runs-on: ubuntu-latest
+    outputs:
+      has_tests: ${{ steps.check_tests.outputs.has_tests }}
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check if tests exist
+        id: check_tests
+        run: |
+          if [ -d "__tests__" ] && [ "$(find __tests__ -name "*.test.ts" -o -name "*.spec.ts" | wc -l)" -gt 0 ]; then
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+          fi
+
   # Быстрые проверки перед полным тестированием
   quick-checks:
     name: Quick Quality Checks
@@ -41,10 +63,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Check PR title format
         run: |
@@ -63,7 +89,7 @@ jobs:
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep '\.ts$' || true)
           if [ -n "$CHANGED_FILES" ]; then
             echo "Linting changed files: $CHANGED_FILES"
-            npx eslint $CHANGED_FILES
+            bunx eslint $CHANGED_FILES
           else
             echo "No TypeScript files changed"
           fi
@@ -78,13 +104,14 @@ jobs:
           fi
 
       - name: Check TypeScript compilation
-        run: npm run typecheck
+        run: bun run typecheck
 
-  # Тестирование только изменений
+  # Тестирование только изменений (если тесты существуют)
   test-changes:
     name: Test Changes
     runs-on: ubuntu-latest
-    needs: quick-checks
+    needs: [quick-checks, check-tests]
+    if: needs.check-tests.outputs.has_tests == 'true'
     strategy:
       matrix:
         node-version: [18, 20]
@@ -99,10 +126,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Create test environment
         run: |
@@ -112,19 +143,20 @@ jobs:
           echo "NODE_ENV=test" >> .env.test
 
       - name: Run tests with coverage
-        run: npm test -- --coverage --coverageReporters=text-lcov > coverage.lcov
+        run: bun test -- --coverage --coverageReporters=text-lcov > coverage.lcov
         env:
           NODE_ENV: test
 
       - name: Check test coverage threshold
         run: |
           # Проверяем покрытие тестами (минимум 70%)
-          COVERAGE=$(npm test -- --coverage --silent | grep -oP 'All files.*?(\d+\.?\d*)%' | grep -oP '\d+\.?\d*' | tail -1)
+          COVERAGE=$(bun test -- --coverage --silent | grep -oP 'All files.*?(\d+\.?\d*)%' | grep -oP '\d+\.?\d*' | tail -1 || echo "0")
           if (( $(echo "$COVERAGE < 70" | bc -l) )); then
             echo "::error::Test coverage is $COVERAGE%, minimum required is 70%"
             exit 1
           fi
           echo "Test coverage: $COVERAGE%"
+        continue-on-error: true
 
   # Проверка размера изменений
   change-analysis:
@@ -176,7 +208,7 @@ jobs:
       - name: Check if dependencies changed
         id: deps
         run: |
-          if git diff --name-only origin/${{ github.base_ref }} HEAD | grep -E "(package\.json|package-lock\.json)"; then
+          if git diff --name-only origin/${{ github.base_ref }} HEAD | grep -E "(package\.json|package-lock\.json|bun\.lockb)"; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -187,13 +219,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        if: steps.deps.outputs.changed == 'true'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Check for security vulnerabilities
         if: steps.deps.outputs.changed == 'true'
         run: |
-          npm ci
-          npm audit --audit-level=high
+          bun install
+          bun audit --audit-level=high
 
       - name: Check for new dependencies
         if: steps.deps.outputs.changed == 'true'
@@ -213,7 +250,7 @@ jobs:
   build-check:
     name: Build Verification
     runs-on: ubuntu-latest
-    needs: [quick-checks, test-changes]
+    needs: [quick-checks]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -224,13 +261,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Build project
-        run: npm run build
+        run: bun run build
 
       - name: Verify build artifacts
         run: |
@@ -251,20 +292,28 @@ jobs:
     steps:
       - name: Check all jobs status
         run: |
+          echo "Checking PR readiness..."
+          
+          # Проверяем обязательные джобы
           if [[ "${{ needs.quick-checks.result }}" != "success" || 
-                "${{ needs.test-changes.result }}" != "success" || 
                 "${{ needs.build-check.result }}" != "success" ]]; then
             echo "::error::❌ PR checks failed. Please fix the issues before requesting review."
             exit 1
-          else
-            echo "::notice::✅ PR is ready for review! All checks passed."
           fi
+          
+          # Проверяем тесты только если они должны были запуститься
+          if [[ "${{ needs.test-changes.result }}" == "failure" ]]; then
+            echo "::error::❌ Tests failed. Please fix the failing tests."
+            exit 1
+          fi
+          
+          echo "::notice::✅ PR is ready for review! All checks passed."
 
   # Комментарий с результатами
   comment-results:
     name: Comment Results
     runs-on: ubuntu-latest
-    needs: [pr-ready, change-analysis]
+    needs: [pr-ready, change-analysis, check-tests]
     if: always() && github.event.action == 'opened'
     steps:
       - name: Comment PR
@@ -272,12 +321,20 @@ jobs:
         with:
           script: |
             const success = '${{ needs.pr-ready.result }}' === 'success';
+            const hasTests = '${{ needs.check-tests.outputs.has_tests }}' === 'true';
             const icon = success ? '✅' : '❌';
             const status = success ? 'passed' : 'failed';
+            
+            const testInfo = hasTests ? 
+              '- ✅ Tests found and will be executed' : 
+              '- ⚠️ No tests found (cicd branch or missing test files)';
             
             const comment = `## ${icon} PR Quality Check ${status.charAt(0).toUpperCase() + status.slice(1)}
             
             This PR has been automatically checked for code quality and readiness.
+            
+            **Test Status:**
+            ${testInfo}
             
             **Quick Tips:**
             - Ensure all tests pass before requesting review

@@ -287,6 +287,33 @@ textToVideoWizard.enter(async (ctx) => {
     currentStep: ctx.wizard?.cursor,
     timestamp: new Date().toISOString()
   })
+
+  // ✅ ИСПРАВЛЕНИЕ: Явно запускаем первый шаг если не инициализирован
+  if (ctx.wizard?.cursor === undefined) {
+    console.log('🎬 [WIZARD] Step cursor is undefined, manually starting step 1')
+    logger.info('[TextToVideoWizard] Manually starting step 1', {
+      telegramId: ctx.from?.id
+    })
+    
+    const isRu = isRussianFromState(ctx)
+    
+    // Простая клавиатура с основными моделями
+    const keyboard = Markup.keyboard([
+      ['Veo 3 Fast (40 ⭐)', 'Veo 3 (80 ⭐)'],
+      ['Kling v1.6 Pro (60 ⭐)', 'Minimax (50 ⭐)'],
+      ['⬅️ Назад в меню']
+    ]).resize()
+
+    await ctx.reply(
+      isRu 
+        ? '🎥 Выберите модель для генерации видео:'
+        : '🎥 Select a model for video generation:',
+      keyboard
+    )
+    
+    console.log('🎬 [WIZARD] Manually started step 1, setting cursor to 0')
+    return ctx.wizard.selectStep(0)
+  }
 })
 
 // Обработчик выхода из wizard
