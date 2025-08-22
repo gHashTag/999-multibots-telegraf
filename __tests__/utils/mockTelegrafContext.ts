@@ -59,8 +59,12 @@ export function makeMockContext(
       id: 12345,
       language_code: 'ru',
     },
+    message: {
+      text: 'test message',
+    },
     wizard: {
       next: jest.fn(),
+      selectStep: jest.fn(),
       cursor: 0,
     },
     scene: {
