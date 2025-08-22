@@ -393,66 +393,49 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
                 `⏱️ Usually takes 2-5 minutes`
         )
 
-        // Запускаем парсинг напрямую через Apify
-        const result = await scrapeInstagramDirect({
-          username_or_hashtag: state.target,
-          type: state.type,
-          maxPosts: state.count,
-          userId: userId.toString(),
-          telegram_id: userId.toString(),
-        })
+        // Используем правильный API-based подход через ai-server
+        const { generateInstagramScraping } = await import('@/services/generateInstagramScraping')
+        
+        const result = await generateInstagramScraping(
+          state.target,
+          1, // project_id (можно настроить)
+          state.count, // max_users
+          state.count, // max_reels_per_user  
+          true, // scrape_reels
+          userId.toString(),
+          ctx,
+          ctx.botInfo?.username || 'telegram_bot'
+        )
 
-        logger.info('Instagram parsing started', {
+        logger.info('Instagram parsing request sent', {
           userId,
           target: state.target,
           type: state.type,
           count: state.count,
-          runId: result.runId,
+          eventId: result?.eventId,
         })
 
-        if (result.success) {
-          // Парсинг выполнен (но не обязательно успешно в плане результатов)
-          const reelsCount = result.data?.length || 0
-          const totalProcessed = result.totalItemsProcessed || 0
-          const hasResults = result.hasResults || false
-          
-          // Более точная диагностика результатов
-          let statusMessage: string
-          let statusNote: string
-          
-          if (hasResults) {
-            // Есть результаты - реальный успех
-            statusMessage = isRu ? '✅ Парсинг завершен!' : '✅ Parsing completed!'
-            statusNote = isRu ? '📨 Результаты сохранены в базе данных.' : '📨 Results saved to database.'
-          } else if (totalProcessed > 0) {
-            // Данные были получены, но рилсов не найдено
-            statusMessage = isRu ? '⚠️ Парсинг завершен' : '⚠️ Parsing completed'
-            statusNote = isRu 
-              ? `📊 Обработано ${totalProcessed} постов, но рилсов не найдено.\n📝 Возможные причины:\n• Аккаунт публикует только фото\n• Нет новых видео за период\n• Все видео не соответствуют критериям`
-              : `📊 Processed ${totalProcessed} posts, but no reels found.\n📝 Possible reasons:\n• Account posts only photos\n• No new videos in period\n• All videos don't meet criteria`
-          } else {
-            // Вообще никаких данных не получено - подозрительно
-            statusMessage = isRu ? '❌ Проблема с парсингом' : '❌ Parsing issue'
-            statusNote = isRu 
-              ? '🔍 Не удалось получить данные с Instagram.\n📝 Возможные причины:\n• Аккаунт не существует или заблокирован\n• Аккаунт приватный\n• Технические проблемы с доступом'
-              : '🔍 Failed to retrieve data from Instagram.\n📝 Possible reasons:\n• Account doesn\'t exist or is blocked\n• Account is private\n• Technical access issues'
-          }
-          
+        if (result && result.success) {
+          // Запрос успешно отправлен на сервер
           await ctx.editMessageText(
             isRu
-              ? `${statusMessage}\n\n` +
+              ? `✅ Запрос принят сервером!\n\n` +
                   `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-                  `📊 Найдено рилсов: ${reelsCount}${totalProcessed > 0 ? ` из ${totalProcessed}` : ''}\n` +
+                  `📊 Количество: ${state.count} рилсов\n` +
                   `💰 Списано: ${state.cost} ⭐\n` +
-                  `🔄 Run ID: ${result.runId || 'N/A'}\n\n` +
-                  `${statusNote}\n\n` +
+                  `🔄 Event ID: ${result.eventId || 'N/A'}\n\n` +
+                  `${result.message}\n\n` +
+                  `📬 Результаты будут отправлены автоматически когда парсинг завершится.\n` +
+                  `⏱️ Обычно занимает 3-10 минут.\n\n` +
                   `💡 Вы можете запустить новый парсинг`
-              : `${statusMessage}\n\n` +
+              : `✅ Request accepted by server!\n\n` +
                   `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-                  `📊 Reels found: ${reelsCount}${totalProcessed > 0 ? ` of ${totalProcessed}` : ''}\n` +
+                  `📊 Count: ${state.count} reels\n` +
                   `💰 Charged: ${state.cost} ⭐\n` +
-                  `🔄 Run ID: ${result.runId || 'N/A'}\n\n` +
-                  `${statusNote}\n\n` +
+                  `🔄 Event ID: ${result.eventId || 'N/A'}\n\n` +
+                  `${result.message}\n\n` +
+                  `📬 Results will be sent automatically when parsing is complete.\n` +
+                  `⏱️ Usually takes 3-10 minutes.\n\n` +
                   `💡 You can start a new parsing`,
             Markup.inlineKeyboard([
               [
@@ -469,35 +452,18 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
               ],
             ])
           )
-
-          // Отправляем данные пользователю если есть результаты
-          if (result.data && result.data.length > 0) {
-            const message = isRu
-              ? `📊 Найденные рилсы:\n\n`
-              : `📊 Found reels:\n\n`
-
-            const reelsInfo = result.data
-              .slice(0, 10)
-              .map((reel: any, index: number) => {
-                const caption = reel.caption
-                  ? reel.caption.substring(0, 50) + '...'
-                  : 'Без описания'
-                return `${index + 1}. ${reel.shortCode ? `[${reel.shortCode}]` : ''} ${caption}`
-              })
-              .join('\n')
-
-            await ctx.reply(message + reelsInfo)
-          }
         } else {
-          // Ошибка парсинга
+          // Ошибка отправки запроса
+          const errorMessage = result?.error || result?.message || 'Неизвестная ошибка'
+          
           await ctx.editMessageText(
             isRu
-              ? `❌ Ошибка парсинга\n\n` +
-                  `Причина: ${result.error}\n\n` +
+              ? `❌ Ошибка отправки запроса\n\n` +
+                  `Причина: ${errorMessage}\n\n` +
                   `💰 Средства не были списаны.\n` +
                   `Попробуйте еще раз позже.`
-              : `❌ Parsing error\n\n` +
-                  `Reason: ${result.error}\n\n` +
+              : `❌ Request sending error\n\n` +
+                  `Reason: ${errorMessage}\n\n` +
                   `💰 Funds were not charged.\n` +
                   `Please try again later.`,
             Markup.inlineKeyboard([
@@ -517,13 +483,35 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           )
         }
       } catch (error) {
-        logger.error('Instagram parsing error', { error, userId, state })
+        logger.error('Instagram parsing request error', { error, userId, state })
+
+        // Возвращаем деньги при ошибке запроса
+        try {
+          await updateUserBalance(
+            userId.toString(),
+            state.cost as any,
+            PaymentType.MONEY_INCOME,
+            isRu
+              ? `Возврат за ошибку парсинга: ${state.type === 'competitor' ? '@' : '#'}${state.target}`
+              : `Refund for parsing error: ${state.type === 'competitor' ? '@' : '#'}${state.target}`,
+            {
+              service_type: 'instagram_parser_refund',
+              target: state.target,
+              count: state.count,
+              stars: state.cost,
+            }
+          )
+        } catch (refundError) {
+          logger.error('Failed to refund user', { refundError, userId, state })
+        }
 
         await ctx.editMessageText(
           isRu
-            ? '❌ Произошла ошибка при запуске парсинга.\n' +
+            ? '❌ Произошла ошибка при отправке запроса на сервер.\n\n' +
+                '💰 Средства возвращены на баланс.\n' +
                 'Попробуйте позже или обратитесь в поддержку.'
-            : '❌ Error occurred while starting parsing.\n' +
+            : '❌ Error occurred while sending request to server.\n\n' +
+                '💰 Funds have been refunded to your balance.\n' +
                 'Try again later or contact support.'
         )
       }
