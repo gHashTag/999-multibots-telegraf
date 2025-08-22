@@ -1,0 +1,29 @@
+# Global owners - these people will be requested for review on all PRs
+* @gHashTag
+
+# CI/CD and GitHub workflows
+/.github/ @gHashTag
+
+# Core bot logic
+/src/bot.ts @gHashTag
+/src/core/ @gHashTag
+
+# Configuration and environment
+/config/ @gHashTag
+CLAUDE.md @gHashTag
+package.json @gHashTag
+tsconfig.json @gHashTag
+
+# Security and deployment
+/deployment/ @gHashTag
+docker-compose*.yml @gHashTag
+Dockerfile @gHashTag
+Makefile @gHashTag
+
+# Testing infrastructure
+/src/__tests__/ @gHashTag
+jest.config.js @gHashTag
+vitest.config.ts @gHashTag
+
+# Scripts and automation
+/scripts/ @gHashTag

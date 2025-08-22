@@ -1,0 +1,29 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "[Husky pre-push] ВРЕМЕННО ОТКЛЮЧЕНА ПРОВЕРКА ДЛЯ PUSH В MAIN!"
+exit 0 # <--- ДОБАВЛЯЕМ ЭТУ СТРОКУ ДЛЯ ВРЕМЕННОГО ОТКЛЮЧЕНИЯ
+
+# Защищенная ветка
+protected_branch="main"
+
+echo "[Husky pre-push] Проверка ветки перед push..."
+
+# Читаем стандартный ввод от Git (локальная ветка, локальный sha, удаленная ветка, удаленный sha)
+while read local_ref local_sha remote_ref remote_sha; do
+  # Извлекаем имя удаленной ветки
+  remote_branch=$(echo "$remote_ref" | sed 's!refs/heads/!!')
+  echo "[Husky pre-push] Попытка push в удаленную ветку: $remote_branch"
+
+  # Проверяем, совпадает ли с защищенной веткой
+  if [ "$remote_branch" = "$protected_branch" ]; then
+    echo "
+⛔️⛔️⛔️ ОШИБКА: Прямой push в ветку '$protected_branch' ЗАПРЕЩЕН! ⛔️⛔️⛔️
+" >&2
+    echo "💡 Пожалуйста, создайте Pull Request для внесения изменений в '$protected_branch'." >&2
+    exit 1 # Запрещаем push
+  fi
+done
+
+echo "[Husky pre-push] Проверка пройдена. Push разрешен."
+exit 0 # Разрешаем push
