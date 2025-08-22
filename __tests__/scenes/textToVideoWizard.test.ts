@@ -43,6 +43,63 @@ describe('textToVideoWizard', () => {
       // Note: Bun mock checking is different from Jest
       expect(textToVideoWizard.enterHandler).toBeDefined()
     })
+
+    it('should automatically set wizard step to 0 on enter', async () => {
+      const ctx = makeMockContext()
+      const consoleSpy = mock(() => {})
+      global.console.log = consoleSpy
+      
+      // Mock wizard.selectStep to track calls
+      const selectStepSpy = mock(() => {})
+      ctx.wizard.selectStep = selectStepSpy
+      
+      await textToVideoWizard.enterHandler(ctx as any)
+
+      // Verify that wizard.selectStep(0) was called to set wizard to first step
+      expect(selectStepSpy).toHaveBeenCalledWith(0)
+    })
+
+    it('should handle wizard step setting errors gracefully', async () => {
+      const ctx = makeMockContext()
+      const consoleSpy = mock(() => {})
+      const consoleErrorSpy = mock(() => {})
+      global.console.log = consoleSpy
+      global.console.error = consoleErrorSpy
+      
+      // Mock wizard.selectStep to throw error
+      const selectStepSpy = mock(() => {
+        throw new Error('Step setting failed')
+      })
+      ctx.wizard.selectStep = selectStepSpy
+      
+      await textToVideoWizard.enterHandler(ctx as any)
+
+      // Should handle error gracefully and log it
+      expect(consoleErrorSpy).toHaveBeenCalled()
+    })
+
+    it('should set wizard cursor correctly after step selection', async () => {
+      const ctx = makeMockContext()
+      const consoleSpy = mock(() => {})
+      global.console.log = consoleSpy
+      
+      // Mock wizard properties
+      let cursorValue = undefined
+      Object.defineProperty(ctx.wizard, 'cursor', {
+        get: () => cursorValue,
+        set: (value) => { cursorValue = value }
+      })
+      
+      const selectStepSpy = mock(() => {
+        cursorValue = 0 // Simulate successful step selection to step 0
+      })
+      ctx.wizard.selectStep = selectStepSpy
+      
+      await textToVideoWizard.enterHandler(ctx as any)
+
+      expect(selectStepSpy).toHaveBeenCalledWith(0)
+      expect(ctx.wizard.cursor).toBe(0)
+    })
   })
 
   describe('🎯 Step 1: Model Selection', () => {

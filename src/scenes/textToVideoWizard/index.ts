@@ -315,15 +315,14 @@ textToVideoWizard.enter(async (ctx) => {
     timestamp: new Date().toISOString()
   })
   
-  // ИСПРАВЛЕНИЕ: ЯВНО переходим к первому шагу wizard'а через next()
-  console.log('🎬 [WIZARD] Manually navigating to first step...')
+  // ИСПРАВЛЕНИЕ: ЯВНО устанавливаем шаг 0 - это критично для правильной работы wizard'а
+  console.log('🎬 [WIZARD] Setting wizard step to 0...')
   try {
-    // Используем ctx.wizard.next() для перехода к следующему шагу
-    await ctx.wizard.next()
-    console.log('🎬 [WIZARD] Navigated to step, cursor now:', ctx.wizard?.cursor)
+    ctx.wizard.selectStep(0)
+    console.log('🎬 [WIZARD] Step set to 0, cursor now:', ctx.wizard?.cursor)
   } catch (error) {
-    console.error('🎬 [WIZARD] ERROR navigating to first step:', error)
-    logger.error('[TextToVideoWizard] Error navigating to first step', {
+    console.error('🎬 [WIZARD] ERROR setting wizard step:', error)
+    logger.error('[TextToVideoWizard] Error setting wizard step', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id
     })
