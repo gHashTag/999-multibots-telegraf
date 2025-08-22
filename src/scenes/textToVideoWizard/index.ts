@@ -209,12 +209,10 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       console.log('🎬 [WIZARD] Step 2: Received text:', selectedText)
 
       // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: проверяем не является ли это кнопкой меню
-      if (selectedText === '🎥 Видео из текста' || selectedText === '🎥 Video from text') {
-        console.log('🎬 [WIZARD] Step 2: Menu button clicked again - this should not happen!')
-        console.log('🎬 [WIZARD] Step 2: Redirecting back to step 1...')
-        // Возвращаемся к первому шагу
-        ctx.wizard.selectStep(0)
-        return
+      if (selectedText === '🎥 Видео из текста' || selectedText === '🎥 Video from text' || selectedText === '🎥 Text to Video') {
+        console.log('🎬 [WIZARD] Step 2: Menu button clicked again - going back to main menu!')
+        await ctx.reply(isRu ? 'Возвращаемся в главное меню...' : 'Going back to main menu...')
+        return ctx.scene.leave()
       }
 
       // Назад в меню
