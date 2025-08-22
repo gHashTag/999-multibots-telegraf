@@ -35,6 +35,46 @@ export const processBalanceOperation = async ({
   })
   console.log('Context available:', !!ctx)
 
+  // 🛡️ БЕЗОПАСНОСТЬ: Валидация размера операции
+  const MAX_OPERATION_AMOUNT = 10000 // Максимум 10,000 звезд за операцию
+  const MIN_OPERATION_AMOUNT = 0.01 // Минимум 0.01 звезды
+
+  if (paymentAmount > MAX_OPERATION_AMOUNT) {
+    console.error('🚨 ПРЕВЫШЕН ЛИМИТ ОПЕРАЦИИ:', {
+      telegram_id,
+      paymentAmount,
+      maxAllowed: MAX_OPERATION_AMOUNT,
+    })
+    return {
+      newBalance: await getUserBalance(telegram_id.toString()),
+      success: false,
+      error: is_ru
+        ? `Превышен лимит операции. Максимум: ${MAX_OPERATION_AMOUNT} ⭐`
+        : `Operation limit exceeded. Maximum: ${MAX_OPERATION_AMOUNT} ⭐`,
+      modePrice: paymentAmount,
+      paymentAmount: paymentAmount,
+      currentBalance: await getUserBalance(telegram_id.toString()),
+    }
+  }
+
+  if (paymentAmount < MIN_OPERATION_AMOUNT) {
+    console.error('🚨 СУММА НИЖЕ МИНИМУМА:', {
+      telegram_id,
+      paymentAmount,
+      minAllowed: MIN_OPERATION_AMOUNT,
+    })
+    return {
+      newBalance: await getUserBalance(telegram_id.toString()),
+      success: false,
+      error: is_ru
+        ? `Минимальная сумма операции: ${MIN_OPERATION_AMOUNT} ⭐`
+        : `Minimum operation amount: ${MIN_OPERATION_AMOUNT} ⭐`,
+      modePrice: paymentAmount,
+      paymentAmount: paymentAmount,
+      currentBalance: await getUserBalance(telegram_id.toString()),
+    }
+  }
+
   // 🎁 ЛИДMАГНЕТ: Проверяем флаг обхода платежа
   if (ctx?.session?.bypass_payment_check) {
     console.log('🎁 [LEAD MAGNET] Bypassing payment check - FREE usage!', {
