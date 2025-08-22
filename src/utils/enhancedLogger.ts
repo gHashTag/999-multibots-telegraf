@@ -36,7 +36,7 @@ const consoleFormat = format.combine(
   format.colorize(),
   format.timestamp({ format: 'HH:mm:ss' }),
   format.printf(({ timestamp, level, message, correlationId, service, operation, telegramId, ...rest }) => {
-    const correlation = correlationId ? `[${correlationId.slice(0, 8)}]` : ''
+    const correlation = correlationId ? `[${String(correlationId).slice(0, 8)}]` : ''
     const context = service || operation || telegramId ? 
       `[${[service, operation, telegramId].filter(Boolean).join('|')}]` : ''
     const metadata = Object.keys(rest).length > 0 ? 
