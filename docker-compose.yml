@@ -22,6 +22,7 @@
 #
 # LAST WORKING UPDATE: 21.04.2025
 # TESTED BY: @playra
+# FIXED: 22.08.2025 - Исправлены пути для работы из корня
 
 
 services:
@@ -41,6 +42,8 @@ services:
       - '3006:3006'
       - '3007:3007'
       - '3008:3008'
+      - '3009:3009'
+      - '3010:3010'
     env_file:
       - .env
     environment:
@@ -53,6 +56,8 @@ services:
       - BOT_TOKEN_6=${BOT_TOKEN_6}
       - BOT_TOKEN_7=${BOT_TOKEN_7}
       - BOT_TOKEN_8=${BOT_TOKEN_8}
+      - BOT_TOKEN_9=${BOT_TOKEN_9}
+      - BOT_TOKEN_10=${BOT_TOKEN_10}
       - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
       - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
       - INNGEST_URL=${INNGEST_URL}
@@ -67,6 +72,8 @@ services:
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+      # - WEBHOOK_DOMAIN=${WEBHOOK_DOMAIN}
+      - USE_POLLING=true
       - DOCKER_ENVIRONMENT=true
       - DEBUG=true
       - TS_NODE_PROJECT=tsconfig.prod.json
