@@ -269,32 +269,46 @@ async function initializeBots() {
         )
 
         const webhookDomain = process.env.WEBHOOK_DOMAIN
-        if (!webhookDomain) {
-          throw new Error('WEBHOOK_DOMAIN не установлен в переменных окружения')
+        const usePolling = process.env.USE_POLLING === 'true'
+
+        if (usePolling || !webhookDomain) {
+          // Используем polling режим
+          console.log(`🔄 Запуск бота ${botInfo.username} в polling режиме`)
+          await bot.telegram.deleteWebhook() // Удаляем webhook перед polling
+          bot.launch({
+            allowedUpdates: [
+              'message',
+              'callback_query',
+              'pre_checkout_query' as any,
+              'successful_payment' as any,
+            ],
+          })
+          console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
+        } else {
+          // Используем webhook режим
+          console.log(`🔗 Запуск бота ${botInfo.username} в webhook режиме`)
+          
+          // Формируем правильный путь для вебхука, используя имя бота
+          const webhookPath = `/${botInfo.username}` // Используем имя бота как путь
+
+          bot.launch({
+            webhook: {
+              domain: webhookDomain,
+              port: currentPort,
+              hookPath: webhookPath, // Используем hookPath, как было раньше
+            },
+            allowedUpdates: [
+              'message',
+              'callback_query',
+              'pre_checkout_query' as any,
+              'successful_payment' as any,
+            ],
+          })
+          console.log(`🚀 Бот ${botInfo.username} запущен в webhook режиме на порту ${currentPort}`)
+          
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          currentPort++
         }
-
-        // Формируем правильный путь для вебхука, используя имя бота
-        const webhookPath = `/${botInfo.username}` // Используем имя бота как путь
-
-        bot.launch({
-          webhook: {
-            domain: webhookDomain,
-            port: currentPort,
-            hookPath: webhookPath, // Используем hookPath, как было раньше
-          },
-          allowedUpdates: [
-            'message',
-            'callback_query',
-            'pre_checkout_query' as any,
-            'successful_payment' as any,
-          ],
-        })
-
-        console.log(
-          `🚀 Бот ${botInfo.username} запущен в продакшен режиме на порту ${currentPort}`
-        )
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        currentPort++
       }
     }
   }

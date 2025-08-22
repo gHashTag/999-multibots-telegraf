@@ -13,18 +13,13 @@
     "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && bun run build:alias",
     "predev": "pkill -f 'bun.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
     "test": "bun test",
-    "test:vitest": "cross-env SUPABASE_URL=TEST_URL SUPABASE_SERVICE_KEY=TEST_KEY pnpm vitest run",
-    "test:instagram": "node scripts/test-instagram-download.js",
-    "test:instagram-prod": "node scripts/test-instagram-production.js",
-    "test:apify": "node scripts/test-apify-token.js",
+    "test:vitest": "cross-env SUPABASE_URL=TEST_URL SUPABASE_SERVICE_KEY=TEST_KEY bun run vitest",
     "lint": "bunx eslint . --ext .ts",
     "format": "bunx prettier --write \"src/**/*.ts\"",
-    "typecheck": "bun run build:ts --noEmit",
+    "typecheck": "tsc --noEmit",
     "check:translations": "bun run scripts/check_ai_stars_translations.ts",
     "generate:translations-sql": "bun run scripts/check_ai_stars_translations.ts --generate-sql",
-    "test:production": "./scripts/test-production-build.sh",
-    "test:docker": "./scripts/test-docker-build.sh",
-    "build:production": "npm install && npx tsc --skipLibCheck --skipDefaultLibCheck && npx tsc-alias"
+    "build:production": "bun install && bun run build:nocheck"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -97,6 +92,7 @@
     "prettier": "^3.2.4",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.8",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.3",
     "vitest": "^3.1.2"
