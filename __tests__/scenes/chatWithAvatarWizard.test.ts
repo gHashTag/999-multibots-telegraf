@@ -7,16 +7,28 @@ import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock dependencies
 jest.mock('../../src/helpers/language', () => ({ isRussian: jest.fn() }))
-jest.mock('../../src/menu/createHelpCancelKeyboard', () => ({ createHelpCancelKeyboard: jest.fn() }))
-jest.mock('../../src/handlers/handleHelpCancel', () => ({ handleHelpCancel: jest.fn() }))
-jest.mock('../../src/handlers/handleTextMessage', () => ({ handleTextMessage: jest.fn() }))
-jest.mock('../../src/core/supabase', () => ({ getUserByTelegramId: jest.fn(), updateUserLevelPlusOne: jest.fn() }))
+jest.mock('../../src/menu/createHelpCancelKeyboard', () => ({
+  createHelpCancelKeyboard: jest.fn(),
+}))
+jest.mock('../../src/handlers/handleHelpCancel', () => ({
+  handleHelpCancel: jest.fn(),
+}))
+jest.mock('../../src/handlers/handleTextMessage', () => ({
+  handleTextMessage: jest.fn(),
+}))
+jest.mock('../../src/core/supabase', () => ({
+  getUserByTelegramId: jest.fn(),
+  updateUserLevelPlusOne: jest.fn(),
+}))
 
 import { isRussian } from '../../src/helpers/language'
 import { createHelpCancelKeyboard } from '../../src/menu/createHelpCancelKeyboard'
 import { handleHelpCancel } from '../../src/handlers/handleHelpCancel'
 import { handleTextMessage } from '../../src/handlers/handleTextMessage'
-import { getUserByTelegramId, updateUserLevelPlusOne } from '../../src/core/supabase'
+import {
+  getUserByTelegramId,
+  updateUserLevelPlusOne,
+} from '../../src/core/supabase'
 
 describe.skip('chatWithAvatarWizard', () => {
   beforeEach(() => {
@@ -25,9 +37,12 @@ describe.skip('chatWithAvatarWizard', () => {
 
   it('step0: sends prompt and calls next()', async () => {
     const ctx = makeMockContext()
-    ;(isRussian as jest.Mock).mockReturnValue(true)
-    // Mock keyboard
-    (createHelpCancelKeyboard as jest.Mock).mockReturnValue({ reply_markup: { foo: 'bar' } })
+    ;(isRussian as jest.Mock)
+      .mockReturnValue(true)(
+        // Mock keyboard
+        createHelpCancelKeyboard as jest.Mock
+      )
+      .mockReturnValue({ reply_markup: { foo: 'bar' } })
 
     // Invoke step 0
     // @ts-ignore
@@ -64,7 +79,9 @@ describe.skip('chatWithAvatarWizard', () => {
   it('step1: processes text and does not update level when level != 4', async () => {
     const ctx = makeMockContext({}, { message: { text: 'hello' } })
     ;(handleHelpCancel as jest.Mock).mockResolvedValue(false)
-    ;(getUserByTelegramId as jest.Mock).mockResolvedValue({ data: { level: 3 } })
+    ;(getUserByTelegramId as jest.Mock).mockResolvedValue({
+      data: { level: 3 },
+    })
 
     // @ts-ignore
     const step1 = chatWithAvatarWizard.steps[1]
@@ -77,7 +94,9 @@ describe.skip('chatWithAvatarWizard', () => {
   it('step1: processes text and updates level when level === 4', async () => {
     const ctx = makeMockContext({}, { message: { text: 'hello' } })
     ;(handleHelpCancel as jest.Mock).mockResolvedValue(false)
-    ;(getUserByTelegramId as jest.Mock).mockResolvedValue({ data: { level: 4 } })
+    ;(getUserByTelegramId as jest.Mock).mockResolvedValue({
+      data: { level: 4 },
+    })
 
     // @ts-ignore
     const step1 = chatWithAvatarWizard.steps[1]
@@ -85,7 +104,8 @@ describe.skip('chatWithAvatarWizard', () => {
 
     expect(handleTextMessage).toHaveBeenCalledWith(ctx)
     expect(updateUserLevelPlusOne).toHaveBeenCalledWith(
-      ctx.from.id.toString(), 4
+      ctx.from.id.toString(),
+      4
     )
   })
 

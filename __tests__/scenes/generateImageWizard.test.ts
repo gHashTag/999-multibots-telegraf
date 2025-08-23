@@ -1,7 +1,9 @@
 import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем внешние зависимости до импортов
 jest.mock('../../src/services/generateImageFromPrompt', () => jest.fn())
-jest.mock('../../src/handlers/handleHelpCancel', () => ({ handleHelpCancel: jest.fn() }))
+jest.mock('../../src/handlers/handleHelpCancel', () => ({
+  handleHelpCancel: jest.fn(),
+}))
 import { generateImageWizard } from '@/scenes/generateImage'
 import makeMockContext from '../utils/mockTelegrafContext'
 import generateImageFromPrompt from '../../src/services/generateImageFromPrompt'
@@ -69,12 +71,13 @@ describe.skip('generateImageWizard steps', () => {
     const step1 = generateImageWizard.steps[1]
     await step1(ctx)
     // проверяем сохранение
-    const state = (ctx.scene.session.state as any)
+    const state = ctx.scene.session.state as any
     expect(state.prompt).toBe('test prompt')
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Выберите размер изображения:',
-      { reply_markup: expect.objectContaining({ inline_keyboard: expect.any(Array) }) }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Выберите размер изображения:', {
+      reply_markup: expect.objectContaining({
+        inline_keyboard: expect.any(Array),
+      }),
+    })
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
@@ -100,7 +103,9 @@ describe.skip('generateImageWizard steps', () => {
   })
 
   it('step 2: generates image on valid selection', async () => {
-    (generateImageFromPrompt as jest.Mock).mockResolvedValueOnce('http://img.url')
+    ;(generateImageFromPrompt as jest.Mock).mockResolvedValueOnce(
+      'http://img.url'
+    )
     ctx.callbackQuery = { data: 'size_512' } as any
     // Устанавливаем prompt в состоянии
     ctx.scene.session.state = { prompt: 'hello' }
@@ -117,10 +122,9 @@ describe.skip('generateImageWizard steps', () => {
       'standard',
       '512x512'
     )
-    expect(ctx.replyWithPhoto).toHaveBeenCalledWith(
-      'http://img.url',
-      { caption: 'Изображение сгенерировано по вашему запросу' }
-    )
+    expect(ctx.replyWithPhoto).toHaveBeenCalledWith('http://img.url', {
+      caption: 'Изображение сгенерировано по вашему запросу',
+    })
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 })

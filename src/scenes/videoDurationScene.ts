@@ -53,7 +53,9 @@ videoDurationScene.enter(async ctx => {
   const buttons = model.supportedDurations.map(duration => {
     const price = getModelPriceInStars(modelId, duration)
     const isDefault = duration === model.defaultDuration
-    const label = `${duration} ${is_ru ? 'сек' : 'sec'} - ${price} ⭐${isDefault ? ' ⭐' : ''}`
+    const label = `${duration} ${is_ru ? 'сек' : 'sec'} - ${price} ⭐${
+      isDefault ? ' ⭐' : ''
+    }`
 
     return [
       {

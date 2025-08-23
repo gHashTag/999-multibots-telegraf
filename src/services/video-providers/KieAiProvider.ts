@@ -134,7 +134,9 @@ export class KieAiProvider {
       ) {
         const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff
         logger.warn(
-          `🔄 Retrying Kie.ai request in ${delay}ms (attempt ${retryCount + 1}/${this.maxRetries})`
+          `🔄 Retrying Kie.ai request in ${delay}ms (attempt ${
+            retryCount + 1
+          }/${this.maxRetries})`
         )
 
         await new Promise(resolve => setTimeout(resolve, delay))

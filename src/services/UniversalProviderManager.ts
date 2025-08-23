@@ -161,7 +161,9 @@ export class UniversalProviderManager {
     })
 
     logger.info(
-      `📋 Initialized ${this.models.size} models across ${new Set([...this.models.values()].map(m => m.provider)).size} providers`
+      `📋 Initialized ${this.models.size} models across ${
+        new Set([...this.models.values()].map(m => m.provider)).size
+      } providers`
     )
   }
 
