@@ -791,16 +791,28 @@ function formatDetailedStatsMessage(stats: DetailedBotStats): string {
 
   // Детализация по валютам - Рубли
   message += `💰 <b>Реальные рублевые операции</b>\n`
-  message += `   📈 Доходы: ${formatNumber(stats.rub_income)} ₽ (${stats.rub_income_transactions} операций)\n`
-  message += `   📉 Расходы: ${formatNumber(stats.rub_outcome)} ₽ (${stats.rub_outcome_transactions} операций)\n`
-  message += `   💎 Чистый результат: ${formatNumber(stats.rub_net_result)} ₽\n\n`
+  message += `   📈 Доходы: ${formatNumber(stats.rub_income)} ₽ (${
+    stats.rub_income_transactions
+  } операций)\n`
+  message += `   📉 Расходы: ${formatNumber(stats.rub_outcome)} ₽ (${
+    stats.rub_outcome_transactions
+  } операций)\n`
+  message += `   💎 Чистый результат: ${formatNumber(
+    stats.rub_net_result
+  )} ₽\n\n`
 
   // Детализация по валютам - Звезды
   message += `⭐ <b>Реальные операции в звездах</b>\n`
-  message += `   📈 Доходы: ${formatNumber(stats.stars_income)} ⭐ (${stats.stars_income_transactions} операций)\n`
-  message += `   📉 Расходы: ${formatNumber(stats.stars_outcome)} ⭐ (${stats.stars_outcome_transactions} операций)\n`
+  message += `   📈 Доходы: ${formatNumber(stats.stars_income)} ⭐ (${
+    stats.stars_income_transactions
+  } операций)\n`
+  message += `   📉 Расходы: ${formatNumber(stats.stars_outcome)} ⭐ (${
+    stats.stars_outcome_transactions
+  } операций)\n`
   message += `   🏭 Себестоимость: ${formatNumber(stats.stars_cost)} ⭐\n`
-  message += `   💎 Чистый результат: ${formatNumber(stats.stars_net_result)} ⭐\n\n`
+  message += `   💎 Чистый результат: ${formatNumber(
+    stats.stars_net_result
+  )} ⭐\n\n`
 
   // Общие финансовые показатели
   message += `💰 <b>Финансовые показатели</b>\n`
@@ -809,7 +821,9 @@ function formatDetailedStatsMessage(stats: DetailedBotStats): string {
   message += `   🏭 Себестоимость: ${formatNumber(stats.total_cost)} ⭐️\n`
   message += `   💎 Чистая прибыль: ${formatNumber(stats.net_profit)} ⭐️\n`
   message += `   📊 Маржинальность: ${formatPercent(stats.profit_margin)}%\n`
-  message += `   📈 Себестоимость от оборота: ${formatPercent(stats.cost_percentage)}%\n\n`
+  message += `   📈 Себестоимость от оборота: ${formatPercent(
+    stats.cost_percentage
+  )}%\n\n`
 
   // Пользовательские метрики
   message += `👥 <b>Пользователи</b>\n`
@@ -818,14 +832,18 @@ function formatDetailedStatsMessage(stats: DetailedBotStats): string {
   message += `   📅 Активных за неделю: ${stats.active_users_week}\n`
   message += `   📆 Активных за месяц: ${stats.active_users_month}\n`
   message += `   ✨ Новых за месяц: ${stats.new_users_month}\n`
-  message += `   📊 Рост пользователей: ${formatPercent(stats.user_growth_rate)}%\n`
+  message += `   📊 Рост пользователей: ${formatPercent(
+    stats.user_growth_rate
+  )}%\n`
   message += `   🎯 Конверсия: ${formatPercent(stats.conversion_rate)}%\n`
   message += `   🔄 Удержание: ${formatPercent(stats.retention_rate)}%\n\n`
 
   // Операционные метрики
   message += `⚡ <b>Операции</b>\n`
   message += `   🔢 Всего транзакций: ${stats.total_transactions}\n`
-  message += `   📈 Средняя сумма: ${formatNumber(stats.avg_transaction_value)} ⭐️\n`
+  message += `   📈 Средняя сумма: ${formatNumber(
+    stats.avg_transaction_value
+  )} ⭐️\n`
   message += `   📅 За сегодня: ${stats.transactions_today}\n`
   message += `   📊 За неделю: ${stats.transactions_week}\n`
   message += `   📆 За месяц: ${stats.transactions_month}\n\n`
@@ -834,9 +852,15 @@ function formatDetailedStatsMessage(stats: DetailedBotStats): string {
   if (stats.top_services && stats.top_services.length > 0) {
     message += `🏆 <b>Топ сервисы по прибыльности</b>\n`
     stats.top_services.slice(0, 5).forEach((service, index) => {
-      message += `   ${index + 1}. ${service.emoji} ${service.service_display_name}\n`
-      message += `      💰 Выручка: ${formatNumber(service.total_revenue)} ⭐️ | 💸 Себестоимость: ${formatNumber(service.total_cost)} ⭐️\n`
-      message += `      📈 Прибыль: ${formatNumber(service.profit)} ⭐️ | 📊 Маржа: ${formatPercent(service.profit_margin)}%\n`
+      message += `   ${index + 1}. ${service.emoji} ${
+        service.service_display_name
+      }\n`
+      message += `      💰 Выручка: ${formatNumber(
+        service.total_revenue
+      )} ⭐️ | 💸 Себестоимость: ${formatNumber(service.total_cost)} ⭐️\n`
+      message += `      📈 Прибыль: ${formatNumber(
+        service.profit
+      )} ⭐️ | 📊 Маржа: ${formatPercent(service.profit_margin)}%\n`
       message += `      🔢 Использований: ${service.transaction_count}\n`
     })
     message += '\n'
@@ -951,7 +975,11 @@ function exportStatsToCSV(stats: DetailedBotStats): string {
     'Сервис,Транзакций,Выручка,Себестоимость,Прибыль,Маржа %',
     ...stats.top_services.map(
       service =>
-        `${service.service_name},${service.transaction_count},${formatNumber(service.total_revenue)},${formatNumber(service.total_cost)},${formatNumber(service.profit)},${formatPercent(service.profit_margin)}`
+        `${service.service_name},${service.transaction_count},${formatNumber(
+          service.total_revenue
+        )},${formatNumber(service.total_cost)},${formatNumber(
+          service.profit
+        )},${formatPercent(service.profit_margin)}`
     ),
   ]
 
@@ -971,7 +999,9 @@ function formatStatsMessage(
 
   message += `👤 <b>Пользователь:</b> ${stats.user_telegram_id}\n`
   if (stats.user_first_name || stats.user_last_name) {
-    message += `   Имя: ${stats.user_first_name || ''} ${stats.user_last_name || ''}`
+    message += `   Имя: ${stats.user_first_name || ''} ${
+      stats.user_last_name || ''
+    }`
     message += `\n`
   }
   if (stats.user_username) {
@@ -988,15 +1018,21 @@ function formatStatsMessage(
   message += `   💸 Потрачено: ${formatNumber(stats.total_spent)} ⭐️\n`
   message += `   💰 Заработано: ${formatNumber(stats.total_earned)} ⭐️\n`
   message += `   🏭 Себестоимость: ${formatNumber(stats.total_cost)} ⭐️\n`
-  message += `   💎 Вклад в прибыль: ${formatNumber(stats.net_contribution)} ⭐️\n`
+  message += `   💎 Вклад в прибыль: ${formatNumber(
+    stats.net_contribution
+  )} ⭐️\n`
   message += `   🔢 Транзакций: ${stats.transaction_count}\n`
 
   if (stats.last_activity) {
-    message += `   🕐 Последняя активность: ${new Date(stats.last_activity).toLocaleDateString('ru-RU')}\n`
+    message += `   🕐 Последняя активность: ${new Date(
+      stats.last_activity
+    ).toLocaleDateString('ru-RU')}\n`
   }
 
   if (stats.registration_date) {
-    message += `   📅 Регистрация: ${new Date(stats.registration_date).toLocaleDateString('ru-RU')}\n`
+    message += `   📅 Регистрация: ${new Date(
+      stats.registration_date
+    ).toLocaleDateString('ru-RU')}\n`
   }
 
   if (stats.favorite_services && stats.favorite_services.length > 0) {
@@ -1020,7 +1056,9 @@ async function sendAdminExcelReport(
     const excelBuffer = await generateAdminExcelReport(botName)
     const generationTime = ((Date.now() - startTime) / 1000).toFixed(1)
 
-    const fileName = `admin_report_${botName}_${new Date().toISOString().split('T')[0]}.xlsx`
+    const fileName = `admin_report_${botName}_${
+      new Date().toISOString().split('T')[0]
+    }.xlsx`
 
     // Создаем временный файл
     const fs = require('fs')
@@ -1078,7 +1116,9 @@ async function sendStatsExport(
 ): Promise<void> {
   try {
     const csvData = exportStatsToCSV(stats)
-    const fileName = `stats_${botName}_${new Date().toISOString().split('T')[0]}.csv`
+    const fileName = `stats_${botName}_${
+      new Date().toISOString().split('T')[0]
+    }.csv`
 
     // Создаем временный файл
     const fs = require('fs')
@@ -1095,7 +1135,9 @@ async function sendStatsExport(
     await ctx.replyWithDocument(
       { source: filePath, filename: fileName },
       {
-        caption: `📊 Экспорт статистики для @${botName}\n📅 ${formatDateSafe(new Date())}`,
+        caption: `📊 Экспорт статистики для @${botName}\n📅 ${formatDateSafe(
+          new Date()
+        )}`,
         parse_mode: 'HTML',
       }
     )
@@ -1124,7 +1166,9 @@ function formatBotStatsMessage(
   message += `💰 <b>Доходы</b>\n`
   message += `   Всего дохода: ${formatNumber(stats.total_income)} ⭐️\n`
   message += `   - NEUROVIDEO: ${formatNumber(stats.neurovideo_income)} ⭐️\n`
-  message += `   - Пополнения: ${formatNumber(stats.stars_topup_income)} ⭐️\n\n`
+  message += `   - Пополнения: ${formatNumber(
+    stats.stars_topup_income
+  )} ⭐️\n\n`
 
   // Расходы
   message += `💸 <b>Расходы пользователей</b>\n`
@@ -1444,34 +1488,64 @@ function formatDetailedFinancialMessage(
   message += `   📊 Всего транзакций: ${breakdown.summary.total_payments}\n`
   message += `   💰 Реальные платежи: ${breakdown.summary.real_payments}\n`
   message += `   🎁 Бонусные/тестовые: ${breakdown.summary.bonus_payments}\n`
-  message += `   📅 Период: ${breakdown.summary.date_range.first?.split('T')[0]} - ${breakdown.summary.date_range.last?.split('T')[0]}\n`
+  message += `   📅 Период: ${
+    breakdown.summary.date_range.first?.split('T')[0]
+  } - ${breakdown.summary.date_range.last?.split('T')[0]}\n`
   message += `   💱 Валюты: ${breakdown.summary.currencies_used.join(', ')}\n`
-  message += `   🔧 Сервисы: ${breakdown.summary.services_used.slice(0, 3).join(', ')}${breakdown.summary.services_used.length > 3 ? '...' : ''}\n\n`
+  message += `   🔧 Сервисы: ${breakdown.summary.services_used
+    .slice(0, 3)
+    .join(', ')}${breakdown.summary.services_used.length > 3 ? '...' : ''}\n\n`
 
   // Разбивка по рублям (только реальные)
   if (breakdown.rub_breakdown.total_transactions > 0) {
     message += `💰 <b>Реальные рублевые операции</b>\n`
-    message += `   📈 Доходы: ${formatNumber(breakdown.rub_breakdown.income.amount)} ₽ (${breakdown.rub_breakdown.income.count} операций)\n`
-    message += `   📉 Расходы: ${formatNumber(breakdown.rub_breakdown.outcome.amount)} ₽ (${breakdown.rub_breakdown.outcome.count} операций)\n`
-    message += `   💎 Чистый результат: ${formatNumber(breakdown.rub_breakdown.net)} ₽\n\n`
+    message += `   📈 Доходы: ${formatNumber(
+      breakdown.rub_breakdown.income.amount
+    )} ₽ (${breakdown.rub_breakdown.income.count} операций)\n`
+    message += `   📉 Расходы: ${formatNumber(
+      breakdown.rub_breakdown.outcome.amount
+    )} ₽ (${breakdown.rub_breakdown.outcome.count} операций)\n`
+    message += `   💎 Чистый результат: ${formatNumber(
+      breakdown.rub_breakdown.net
+    )} ₽\n\n`
   }
 
   // Разбивка по звездам (только реальные)
   message += `⭐ <b>Реальные операции в звездах</b>\n`
-  message += `   📈 Доходы: ${formatNumber(breakdown.stars_breakdown.income.amount)} ⭐ (${breakdown.stars_breakdown.income.count} операций)\n`
-  message += `   📉 Расходы: ${formatNumber(breakdown.stars_breakdown.outcome.amount)} ⭐ (${breakdown.stars_breakdown.outcome.count} операций)\n`
-  message += `   🏭 Себестоимость: ${formatNumber(breakdown.stars_breakdown.outcome.cost)} ⭐\n`
-  message += `   💰 Чистая выручка: ${formatNumber(breakdown.stars_breakdown.net_revenue)} ⭐\n`
-  message += `   💎 Чистая прибыль: ${formatNumber(breakdown.stars_breakdown.net_profit)} ⭐\n`
-  message += `   📊 Маржинальность: ${formatPercent(breakdown.stars_breakdown.margin)}%\n\n`
+  message += `   📈 Доходы: ${formatNumber(
+    breakdown.stars_breakdown.income.amount
+  )} ⭐ (${breakdown.stars_breakdown.income.count} операций)\n`
+  message += `   📉 Расходы: ${formatNumber(
+    breakdown.stars_breakdown.outcome.amount
+  )} ⭐ (${breakdown.stars_breakdown.outcome.count} операций)\n`
+  message += `   🏭 Себестоимость: ${formatNumber(
+    breakdown.stars_breakdown.outcome.cost
+  )} ⭐\n`
+  message += `   💰 Чистая выручка: ${formatNumber(
+    breakdown.stars_breakdown.net_revenue
+  )} ⭐\n`
+  message += `   💎 Чистая прибыль: ${formatNumber(
+    breakdown.stars_breakdown.net_profit
+  )} ⭐\n`
+  message += `   📊 Маржинальность: ${formatPercent(
+    breakdown.stars_breakdown.margin
+  )}%\n\n`
 
   // Бонусные операции
   if (breakdown.bonus_breakdown.total_transactions > 0) {
     message += `🎁 <b>Бонусные/тестовые операции</b>\n`
-    message += `   📈 Начислено: ${formatNumber(breakdown.bonus_breakdown.income.amount)} ⭐ (${breakdown.bonus_breakdown.income.count} операций)\n`
-    message += `   📉 Потрачено: ${formatNumber(breakdown.bonus_breakdown.outcome.amount)} ⭐ (${breakdown.bonus_breakdown.outcome.count} операций)\n`
-    message += `   🏭 Себестоимость: ${formatNumber(breakdown.bonus_breakdown.outcome.cost)} ⭐\n`
-    message += `   💫 Остаток бонусов: ${formatNumber(breakdown.bonus_breakdown.net_usage)} ⭐\n`
+    message += `   📈 Начислено: ${formatNumber(
+      breakdown.bonus_breakdown.income.amount
+    )} ⭐ (${breakdown.bonus_breakdown.income.count} операций)\n`
+    message += `   📉 Потрачено: ${formatNumber(
+      breakdown.bonus_breakdown.outcome.amount
+    )} ⭐ (${breakdown.bonus_breakdown.outcome.count} операций)\n`
+    message += `   🏭 Себестоимость: ${formatNumber(
+      breakdown.bonus_breakdown.outcome.cost
+    )} ⭐\n`
+    message += `   💫 Остаток бонусов: ${formatNumber(
+      breakdown.bonus_breakdown.net_usage
+    )} ⭐\n`
 
     // Топ бонусных транзакций
     if (breakdown.bonus_breakdown.top_transactions.length > 0) {
@@ -1481,7 +1555,9 @@ function formatDetailedFinancialMessage(
         .forEach((t: any, i: number) => {
           const typeIcon = t.type === 'MONEY_INCOME' ? '📈' : '📉'
           const amount = formatNumber(t.stars || t.amount)
-          message += `      ${i + 1}. ${typeIcon} ${amount} ${t.currency === 'RUB' ? '₽' : '⭐'} - ${t.description?.substring(0, 30) || 'Без описания'}...\n`
+          message += `      ${i + 1}. ${typeIcon} ${amount} ${
+            t.currency === 'RUB' ? '₽' : '⭐'
+          } - ${t.description?.substring(0, 30) || 'Без описания'}...\n`
         })
     }
     message += '\n'
@@ -1495,7 +1571,9 @@ function formatDetailedFinancialMessage(
       .slice(0, 3)
       .forEach((t: any, i: number) => {
         const amount = formatNumber(t.stars || t.amount)
-        message += `      ${i + 1}. ${amount} ${t.currency === 'RUB' ? '₽' : '⭐'} - ${t.description?.substring(0, 30) || 'Без описания'}...\n`
+        message += `      ${i + 1}. ${amount} ${
+          t.currency === 'RUB' ? '₽' : '⭐'
+        } - ${t.description?.substring(0, 30) || 'Без описания'}...\n`
       })
   } else {
     message += `   ⚠️ Нет реальных доходов\n`
@@ -1508,7 +1586,9 @@ function formatDetailedFinancialMessage(
       .forEach((t: any, i: number) => {
         const amount = formatNumber(t.stars || t.amount)
         const cost = formatNumber(t.cost || 0)
-        message += `      ${i + 1}. ${amount} ${t.currency === 'RUB' ? '₽' : '⭐'} (себестоимость: ${cost} ⭐) - ${t.service_type || 'Неизвестно'}\n`
+        message += `      ${i + 1}. ${amount} ${
+          t.currency === 'RUB' ? '₽' : '⭐'
+        } (себестоимость: ${cost} ⭐) - ${t.service_type || 'Неизвестно'}\n`
       })
   } else {
     message += `   ⚠️ Нет реальных расходов\n`
@@ -1741,7 +1821,9 @@ export async function debugStatsCommand(ctx: MyContext): Promise<void> {
         sampleMessage += `${i + 1}. ID: ${t.id}\n`
         sampleMessage += `   💰 ${t.stars} ⭐ (${t.currency})\n`
         sampleMessage += `   📅 ${t.date.split('T')[0]}\n`
-        sampleMessage += `   📝 "${t.description?.substring(0, 50) || 'Без описания'}...\n`
+        sampleMessage += `   📝 "${
+          t.description?.substring(0, 50) || 'Без описания'
+        }...\n`
         sampleMessage += `   🏷️ ${t.service_type || 'Без типа'}\n\n`
       })
       await ctx.reply(sampleMessage, { parse_mode: 'HTML' })
@@ -1878,7 +1960,9 @@ export async function userSpendingCommand(ctx: MyContext): Promise<void> {
       .filter(p => new Date(p.payment_date) >= sixMonthsAgo)
       .forEach(payment => {
         const date = new Date(payment.payment_date)
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        const monthKey = `${date.getFullYear()}-${String(
+          date.getMonth() + 1
+        ).padStart(2, '0')}`
 
         const current = monthlyStats.get(monthKey) || {
           income: 0,
@@ -1901,18 +1985,29 @@ export async function userSpendingCommand(ctx: MyContext): Promise<void> {
 
     // Информация о пользователе
     message += `📋 <b>Информация о пользователе:</b>\n`
-    message += `   👤 Имя: ${userInfo.first_name || 'Не указано'} ${userInfo.last_name || ''}\n`
-    message += `   📱 Username: ${userInfo.username ? '@' + userInfo.username : 'Не указан'}\n`
+    message += `   👤 Имя: ${userInfo.first_name || 'Не указано'} ${
+      userInfo.last_name || ''
+    }\n`
+    message += `   📱 Username: ${
+      userInfo.username ? '@' + userInfo.username : 'Не указан'
+    }\n`
     message += `   🤖 Бот: @${userInfo.bot_name}\n\n`
 
     // Общая статистика
     message += `📊 <b>Общая статистика:</b>\n`
     message += `   📈 Всего транзакций: ${payments.length}\n`
-    message += `   💰 Реальные доходы: ${realIncomes.length} (${totalRealIncomeStars}⭐, ${totalRealIncomeRub.toFixed(2)}₽)\n`
+    message += `   💰 Реальные доходы: ${
+      realIncomes.length
+    } (${totalRealIncomeStars}⭐, ${totalRealIncomeRub.toFixed(2)}₽)\n`
     message += `   🎁 Бонусы: ${bonusIncomes.length} (${totalBonusStars}⭐)\n`
     message += `   📉 Расходы: ${outcomes.length} (${totalOutcomeStars}⭐)\n`
     message += `   🔄 Возвраты: ${refunds.length} (${totalRefundStars}⭐)\n`
-    message += `   💎 Текущий баланс: ${totalRealIncomeStars + totalBonusStars - totalOutcomeStars + totalRefundStars}⭐\n\n`
+    message += `   💎 Текущий баланс: ${
+      totalRealIncomeStars +
+      totalBonusStars -
+      totalOutcomeStars +
+      totalRefundStars
+    }⭐\n\n`
 
     // Топ сервисов
     message += `🛠️ <b>Топ сервисов по тратам:</b>\n`
@@ -1925,7 +2020,9 @@ export async function userSpendingCommand(ctx: MyContext): Promise<void> {
         totalOutcomeStars > 0
           ? ((stats.stars / totalOutcomeStars) * 100).toFixed(1)
           : '0.0'
-      message += `   ${index + 1}. ${service}: ${stats.stars}⭐ (${stats.count} транзакций, ${percentage}%)\n`
+      message += `   ${index + 1}. ${service}: ${stats.stars}⭐ (${
+        stats.count
+      } транзакций, ${percentage}%)\n`
     })
 
     // Активность по месяцам
@@ -1953,10 +2050,12 @@ export async function userSpendingCommand(ctx: MyContext): Promise<void> {
         payment.type === 'MONEY_INCOME'
           ? '📈'
           : payment.type === 'MONEY_OUTCOME'
-            ? '📉'
-            : '🔄'
+          ? '📉'
+          : '🔄'
       const categoryInfo = payment.category ? ` (${payment.category})` : ''
-      message += `   ${index + 1}. ${typeEmoji} ${date}: ${payment.stars || 0}⭐ - ${payment.service_type || 'unknown'}${categoryInfo}\n`
+      message += `   ${index + 1}. ${typeEmoji} ${date}: ${
+        payment.stars || 0
+      }⭐ - ${payment.service_type || 'unknown'}${categoryInfo}\n`
     })
 
     // Разбиваем длинное сообщение на части
@@ -2078,8 +2177,12 @@ export async function findUserCommand(ctx: MyContext): Promise<void> {
       }
 
       message += `${index + 1}. <b>ID: ${user.telegram_id}</b>\n`
-      message += `   👤 ${user.first_name || 'Не указано'} ${user.last_name || ''}\n`
-      message += `   📱 ${user.username ? '@' + user.username : 'Username не указан'}\n`
+      message += `   👤 ${user.first_name || 'Не указано'} ${
+        user.last_name || ''
+      }\n`
+      message += `   📱 ${
+        user.username ? '@' + user.username : 'Username не указан'
+      }\n`
       message += `   🤖 Бот: @${user.bot_name}\n`
       message += `   📊 Транзакций: ${stats.transactions}, Доходы: ${stats.realIncome}⭐, Траты: ${stats.totalSpent}⭐\n`
       message += `   💡 Команда: <code>/user_spending ${user.telegram_id}</code>\n\n`
@@ -2188,7 +2291,11 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
 3. <code>/debug_stats MetaMuse_Manifest_bot</code>
 
 🔐 <b>Ваш уровень доступа:</b>
-${isAdmin ? '👑 Супер-админ - доступ ко всем ботам' : `👤 Владелец ботов - доступ к: ${ownedBots?.join(', ') || 'нет ботов'}`}`
+${
+  isAdmin
+    ? '👑 Супер-админ - доступ ко всем ботам'
+    : `👤 Владелец ботов - доступ к: ${ownedBots?.join(', ') || 'нет ботов'}`
+}`
 
     await ctx.reply(helpMessage, { parse_mode: 'HTML' })
   } catch (error) {

@@ -284,8 +284,8 @@ If not, continue on your own and click the "I myself" button`
                   url: channelId.startsWith('@')
                     ? `https://t.me/${channelId.slice(1)}`
                     : channelId.startsWith('http')
-                      ? channelId
-                      : `https://t.me/${channelId}`,
+                    ? channelId
+                    : `https://t.me/${channelId}`,
                 },
               ],
               [

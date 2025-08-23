@@ -38,7 +38,9 @@ describe('subscriptionCheckScene', () => {
   it('должна перейти в createUserScene, если пользователь не существует', async () => {
     const ctx = makeMockContext()
     // @ts-ignore: requireMock returns unknown
-    const supabaseMock = jest.requireMock('../../src/core/supabase') as SupabaseMocks
+    const supabaseMock = jest.requireMock(
+      '../../src/core/supabase'
+    ) as SupabaseMocks
     supabaseMock.getUserByTelegramId.mockResolvedValueOnce(null)
 
     // Вызываем единственный шаг сцены
@@ -64,7 +66,9 @@ describe('subscriptionCheckScene', () => {
     handlerMock.getSubScribeChannel.mockReturnValueOnce('channel123')
 
     // @ts-ignore: requireMock returns unknown
-    const verifyMock = jest.requireMock('../../src/middlewares/verifySubscription') as VerifyMocks
+    const verifyMock = jest.requireMock(
+      '../../src/middlewares/verifySubscription'
+    ) as VerifyMocks
     verifyMock.verifySubscription.mockResolvedValueOnce(false)
 
     // @ts-ignore
@@ -78,7 +82,9 @@ describe('subscriptionCheckScene', () => {
     const ctx = makeMockContext()
     ctx.session.mode = 'main_menu'
     // @ts-ignore: requireMock returns unknown
-    const supabaseMock = jest.requireMock('../../src/core/supabase') as SupabaseMocks
+    const supabaseMock = jest.requireMock(
+      '../../src/core/supabase'
+    ) as SupabaseMocks
     supabaseMock.getUserByTelegramId.mockResolvedValueOnce({
       subscription: 'stars',
     })
@@ -95,7 +101,9 @@ describe('subscriptionCheckScene', () => {
     // @ts-ignore: allow invalid mode for test
     ctx.session.mode = 'other'
     // @ts-ignore: requireMock returns unknown
-    const supabaseMock = jest.requireMock('../../src/core/supabase') as SupabaseMocks
+    const supabaseMock = jest.requireMock(
+      '../../src/core/supabase'
+    ) as SupabaseMocks
     supabaseMock.getUserByTelegramId.mockResolvedValueOnce({
       subscription: 'stars',
     })
@@ -111,7 +119,9 @@ describe('subscriptionCheckScene', () => {
     const ctx = makeMockContext()
     ctx.session.mode = 'main_menu'
     // @ts-ignore: requireMock returns unknown
-    const supabaseMock = jest.requireMock('../../src/core/supabase') as SupabaseMocks
+    const supabaseMock = jest.requireMock(
+      '../../src/core/supabase'
+    ) as SupabaseMocks
     supabaseMock.getUserByTelegramId.mockResolvedValueOnce({
       subscription: 'premium',
     })
@@ -121,7 +131,9 @@ describe('subscriptionCheckScene', () => {
     handlerMock.getSubScribeChannel.mockReturnValueOnce('channel123')
 
     // @ts-ignore: requireMock returns unknown
-    const verifyMock = jest.requireMock('../../src/middlewares/verifySubscription') as VerifyMocks
+    const verifyMock = jest.requireMock(
+      '../../src/middlewares/verifySubscription'
+    ) as VerifyMocks
     verifyMock.verifySubscription.mockResolvedValueOnce(true)
 
     // @ts-ignore
@@ -136,7 +148,9 @@ describe('subscriptionCheckScene', () => {
     // @ts-ignore: allow invalid mode for test
     ctx.session.mode = 'other'
     // @ts-ignore: requireMock returns unknown
-    const supabaseMock = jest.requireMock('../../src/core/supabase') as SupabaseMocks
+    const supabaseMock = jest.requireMock(
+      '../../src/core/supabase'
+    ) as SupabaseMocks
     supabaseMock.getUserByTelegramId.mockResolvedValueOnce({
       subscription: 'premium',
     })
@@ -146,7 +160,9 @@ describe('subscriptionCheckScene', () => {
     handlerMock.getSubScribeChannel.mockReturnValueOnce('channel123')
 
     // @ts-ignore: requireMock returns unknown
-    const verifyMock = jest.requireMock('../../src/middlewares/verifySubscription') as VerifyMocks
+    const verifyMock = jest.requireMock(
+      '../../src/middlewares/verifySubscription'
+    ) as VerifyMocks
     verifyMock.verifySubscription.mockResolvedValueOnce(true)
 
     // @ts-ignore

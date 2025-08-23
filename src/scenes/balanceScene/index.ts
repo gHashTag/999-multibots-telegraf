@@ -239,7 +239,9 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
             message += `   ${index + 1}. ${serviceEmoji} ${serviceTitle}:\n`
             message += `      💰 ${serviceStars}⭐ (${percentage}%)\n`
-            message += `      🔢 ${stats.count} ${isRu ? 'операций' : 'operations'}\n\n`
+            message += `      🔢 ${stats.count} ${
+              isRu ? 'операций' : 'operations'
+            }\n\n`
           })
         }
 
@@ -305,7 +307,9 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
               isRu
             )
 
-            message += `   ${index + 1}. 📉 ${date}: ${stars}⭐ - ${serviceEmoji} ${serviceTitle}\n`
+            message += `   ${
+              index + 1
+            }. 📉 ${date}: ${stars}⭐ - ${serviceEmoji} ${serviceTitle}\n`
           })
         }
 
@@ -374,7 +378,9 @@ balanceScene.action('download_excel_report', async (ctx: MyContext) => {
       .eq('telegram_id', userId)
       .single()
 
-    const filename = `financial_report_${userInfo?.username || userId}_${new Date().toISOString().split('T')[0]}.xlsx`
+    const filename = `financial_report_${userInfo?.username || userId}_${
+      new Date().toISOString().split('T')[0]
+    }.xlsx`
 
     // Отправляем файл
     await ctx.replyWithDocument(

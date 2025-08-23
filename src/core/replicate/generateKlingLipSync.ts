@@ -41,7 +41,7 @@ export async function generateKlingLipSync(
   telegramId: string,
   videoUrl: string,
   audioUrl: string,
-  isRu: boolean = true
+  isRu = true
 ): Promise<KlingLipSyncResult> {
   try {
     logger.info('🎬 Начинаем генерацию Kling LipSync', {

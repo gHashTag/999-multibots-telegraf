@@ -57,7 +57,11 @@ describe('helpSceneEnterHandler', () => {
   it('enters step0 for help mode', async () => {
     ctx.session.mode = 'help'
     ;(isRussian as jest.Mock).mockReturnValueOnce(false)
-    ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValueOnce({ count: 0, subscription: '', level: 0 })
+    ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValueOnce({
+      count: 0,
+      subscription: '',
+      level: 0,
+    })
     await helpSceneEnterHandler(ctx)
     expect(ctx.scene.enter).toHaveBeenCalledWith('step0')
   })
@@ -65,7 +69,9 @@ describe('helpSceneEnterHandler', () => {
   it('handles errors by replying to user', async () => {
     ctx.session.mode = 'digital_avatar_body'
     ;(isRussian as jest.Mock).mockReturnValueOnce(true)
-    ;(getReferalsCountAndUserData as jest.Mock).mockRejectedValueOnce(new Error('fail'))
+    ;(getReferalsCountAndUserData as jest.Mock).mockRejectedValueOnce(
+      new Error('fail')
+    )
     await helpSceneEnterHandler(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
       'Произошла ошибка. Пожалуйста, попробуйте снова.'

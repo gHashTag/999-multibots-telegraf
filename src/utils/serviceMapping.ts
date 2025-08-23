@@ -253,7 +253,7 @@ export function getServiceCategory(
 export function getServiceDisplayTitle(
   service: UserService,
   description?: string,
-  isRu: boolean = true
+  isRu = true
 ): string {
   // Если это платежная операция, пытаемся определить более точное название
   if (service === UserService.PaymentOperation && description) {
