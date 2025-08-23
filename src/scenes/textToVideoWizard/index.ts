@@ -1,352 +1,506 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { logger } from '@/utils/logger'
-import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
-import { VideoModelId } from '@/services/generateTextToVideo'
+import { sendGenericErrorMessage } from '@/menu'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { ModeEnum } from '@/interfaces/modes'
+import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
+import { logger } from '@/utils/logger'
+import {
+  createVideoModelKeyboard,
+  createResolutionKeyboard,
+} from '@/modules/videoGenerator/helpers/keyboard'
+import {
+  findModelByButtonText,
+  VideoModelConfigKey,
+  supportsResolution,
+  getAvailableResolutions,
+  getPriceForResolution,
+} from '@/modules/videoGenerator/helpers/modelMapping'
+import { VIDEO_MODELS, getModelPriceInStars } from '@/services/videoModels'
+import { VideoModelId } from '@/services/generateTextToVideo'
+import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
+import { calculateFinalPrice } from '@/price/helpers'
+import { getUserBalance } from '@/core/supabase'
+import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
+import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
 
-console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
-
-// Функция для расчета стоимости в звездах из конфига (БЕЗОПАСНАЯ)
-function calculateStarsFromConfig(modelId: string, duration?: number): number {
+// Асинхронная функция для обработки генерации видео в фоне
+async function processVideoGeneration(
+  ctx: MyContext,
+  prompt: string,
+  videoModelKey: VideoModelConfigKey,
+  isRu: boolean
+) {
   try {
-    const config = VIDEO_MODELS_CONFIG[modelId]
-    if (!config || !config.basePrice || config.basePrice <= 0) {
-      console.warn('🎬 [CALC] Invalid config for model:', modelId)
-      return 40 // fallback
+    // Проверка наличия необходимой информации о пользователе и боте
+    if (!ctx.from || !ctx.from.id || !ctx.botInfo || !ctx.chat?.id) {
+      logger.error(
+        '[processVideoGeneration] Critical user/bot/chat info missing.',
+        { from: ctx.from, botInfo: ctx.botInfo, chatId: ctx.chat?.id }
+      )
+      // Попытка отправить сообщение об ошибке, если chat.id известен
+      if (ctx.chat?.id) {
+        await ctx.telegram.sendMessage(
+          ctx.chat.id,
+          isRu
+            ? 'Произошла внутренняя ошибка (отсутствует информация для обработки вашего запроса).'
+            : 'An internal error occurred (missing information to process your request).'
+        )
+      }
+      return
     }
-    
-    let price = config.basePrice
-    
-    // Для Kling модели - цена за секунду
-    if (modelId.includes('kling') && duration && duration > 0) {
-      price = price * duration
+    const telegramId = ctx.from.id.toString()
+    const username = ctx.from.username || 'unknown_user' // Предоставить значение по умолчанию, если username отсутствует
+    const botName = ctx.botInfo.username
+
+    // ===== ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
+    logger.info(
+      '[processVideoGeneration] Processing balance for text_to_video',
+      { telegramId: ctx.from.id, modelId: videoModelKey }
+    )
+
+    const balanceResult = await processBalanceVideoOperationHelper(
+      String(ctx.from.id),
+      videoModelKey,
+      isRu,
+      ctx.botInfo.username,
+      'text_to_video'
+    )
+
+    if (!balanceResult.success || balanceResult.newBalance === undefined) {
+      logger.error('[processVideoGeneration] Balance check failed', {
+        telegramId,
+        error: balanceResult.error,
+      })
+      await ctx.telegram.sendMessage(
+        ctx.chat.id,
+        balanceResult.error ||
+          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed')
+      )
+      return
     }
-    
-    // Упрощенная конвертация в звезды: price * 100 (примерно)
-    const stars = Math.max(1, Math.floor(price * 100))
-    
-    console.log('🎬 [CALC] Model:', modelId, 'Price:', price, 'Duration:', duration, 'Stars:', stars)
-    return stars
+
+    logger.info('[processVideoGeneration] Balance sufficient and deducted', {
+      telegramId,
+      paymentAmount: balanceResult.paymentAmount,
+      newBalance: balanceResult.newBalance,
+    })
+    // ===== КОНЕЦ СПИСАНИЯ БАЛАНСА =====
+
+    const videoUrl = await generateTextToVideo(
+      prompt,
+      telegramId,
+      username,
+      isRu,
+      botName,
+      videoModelKey,
+      ctx.session.selectedResolution // Передаём выбранное разрешение для Seedance
+    )
+
+    if (videoUrl) {
+      // Добавляем информацию о стоимости в сообщение с видео
+      const modelTitle =
+        VIDEO_MODELS_CONFIG[videoModelKey]?.title || videoModelKey
+      const caption = isRu
+        ? `✨ Ваше видео (${modelTitle}) готово!\n💰 Списано: ${balanceResult.paymentAmount} ✨\n💎 Остаток: ${balanceResult.newBalance} ✨`
+        : `✨ Your video (${modelTitle}) is ready!\n💰 Cost: ${balanceResult.paymentAmount} ✨\n💎 Balance: ${balanceResult.newBalance} ✨`
+
+      await ctx.telegram.sendVideo(ctx.chat.id, videoUrl, { caption })
+
+      try {
+        const pulseOptions: MediaPulseOptions = {
+          mediaType: 'video',
+          mediaSource: videoUrl,
+          telegramId: telegramId,
+          username: username,
+          language: isRu ? 'ru' : 'en',
+          serviceType: ModeEnum.TextToVideo,
+          prompt: prompt,
+          botName: botName,
+          additionalInfo: {
+            model_used: modelTitle,
+            original_url:
+              videoUrl.substring(0, 100) + (videoUrl.length > 100 ? '...' : ''),
+          },
+        }
+        await sendMediaToPulse(pulseOptions)
+        logger.info('[processVideoGeneration] Pulse sent successfully.', {
+          telegram_id: telegramId,
+        })
+      } catch (pulseError) {
+        logger.error('[processVideoGeneration] Error sending pulse:', {
+          telegram_id: telegramId,
+          error: pulseError,
+        })
+      }
+
+      // Добавляем логирование ПЕРЕД отправкой кнопок
+      logger.info(
+        '[processVideoGeneration] Attempting to send final message with buttons.',
+        { telegram_id: telegramId, chat_id: ctx.chat.id }
+      )
+
+      const keyboard = Markup.keyboard([
+        [
+          isRu
+            ? '✨ Создать еще (Текст в Видео)'
+            : '✨ Create More (Text to Video)',
+        ],
+        [
+          isRu
+            ? '🖼 Выбрать другую модель (Видео)'
+            : '🖼 Select Another Model (Video)',
+        ],
+        [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+      ]).resize()
+      await ctx.telegram.sendMessage(
+        ctx.chat.id,
+        isRu
+          ? 'Ваше видео готово! Что дальше?'
+          : 'Your video is ready! What next?',
+        keyboard
+      )
+
+      // Добавляем логирование ПОСЛЕ отправки кнопок
+      logger.info(
+        '[processVideoGeneration] Successfully sent final message with buttons.',
+        { telegram_id: telegramId }
+      )
+    } else {
+      // Средства автоматически возвращаются при любой ошибке генерации
+      const refundMessage = isRu
+        ? ' Средства возвращены на ваш баланс.'
+        : ' Funds have been refunded to your balance.'
+
+      await ctx.telegram.sendMessage(
+        ctx.chat.id,
+        isRu
+          ? `Не удалось сгенерировать видео. Попробуйте другой промпт или модель.${refundMessage}`
+          : `Failed to generate video. Try a different prompt or model.${refundMessage}`
+      )
+    }
   } catch (error) {
-    console.error('🎬 [CALC] Error calculating stars for model:', modelId, error)
-    return 40 // fallback
+    logger.error(
+      '[processVideoGeneration] Error during background video processing:',
+      { error, telegram_id: ctx.from?.id }
+    )
+    try {
+      if (ctx.chat?.id) {
+        await ctx.telegram.sendMessage(
+          ctx.chat.id,
+          isRu
+            ? 'Произошла ошибка во время генерации видео.'
+            : 'An error occurred during video generation.'
+        )
+      } else {
+        logger.error(
+          '[processVideoGeneration] ctx.chat.id is undefined, cannot send error message to user.'
+        )
+      }
+    } catch (e) {
+      logger.error(
+        '[processVideoGeneration] Failed to send error message to user after background processing error',
+        e
+      )
+    }
   }
 }
 
-// Функция создания кнопки с правильной ценой и длительностью (БЕЗОПАСНАЯ)
-function createModelButton(modelId: string, aspectRatio: string, isRu: boolean): string {
-  try {
-    const config = VIDEO_MODELS_CONFIG[modelId]
-    if (!config || !config.title) {
-      console.warn('🎬 [BUTTON] Invalid config for model:', modelId)
-      return `${modelId} | ${aspectRatio} (40⭐)`
-    }
-    
-    const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
-    
-    // УПРОЩЕННЫЕ длительности и цены
-    let durationText = ''
-    let stars = 40 // по умолчанию
-    
-    switch(modelId) {
-      case 'kie-veo-3-fast':
-        durationText = ' | 8s'
-        stars = 40
-        break
-      case 'kie-veo-3':
-        durationText = ' | 8s'  
-        stars = 202
-        break
-      case 'kie-runway-aleph':
-        durationText = ' | 6s'
-        stars = 182
-        break
-      case 'kling-v1.6-pro':
-        durationText = ' | ~10s'
-        stars = 60
-        break
-      case 'minimax':
-        durationText = ' | 6s'
-        stars = 50
-        break
-      case 'hunyuan-video-fast':
-        durationText = ' | 5s'
-        stars = 25
-        break
-      case 'wan-text-to-video':
-        durationText = ' | 5s'
-        stars = 20
-        break
-      default:
-        stars = calculateStarsFromConfig(modelId)
-        break
-    }
-    
-    return `${config.title}${durationText} | ${aspectIcon} (${stars}⭐)`
-  } catch (error) {
-    console.error('🎬 [BUTTON] Error creating button for model:', modelId, error)
-    return `${modelId} | ${aspectRatio} (40⭐)`
-  }
-}
-
-// Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
-function parseModelSelection(buttonText: string): { modelId: string, aspectRatio: string, duration?: number, cost: number } | null {
-  try {
-    console.log('🎬 [PARSE] Parsing button text:', buttonText)
-    
-    // Определяем соотношение сторон по иконке
-    const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
-    
-    // УПРОЩЕННЫЙ парсинг по ключевым словам
-    if (buttonText.includes('Veo 3 Fast')) {
-      return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 }
-    }
-    if (buttonText.includes('Veo 3')) {
-      return { modelId: 'kie-veo-3', aspectRatio, duration: 8, cost: 202 }
-    }
-    if (buttonText.includes('Runway Aleph')) {
-      return { modelId: 'kie-runway-aleph', aspectRatio, duration: 6, cost: 182 }
-    }
-    if (buttonText.includes('Kling v1.6 Pro')) {
-      return { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
-    }
-    if (buttonText.includes('Minimax')) {
-      return { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
-    }
-    if (buttonText.includes('Hunyuan Video Fast')) {
-      return { modelId: 'hunyuan-video-fast', aspectRatio, duration: 5, cost: 25 }
-    }
-    if (buttonText.includes('Wan-2.1')) {
-      return { modelId: 'wan-text-to-video', aspectRatio, duration: 5, cost: 20 }
-    }
-    
-    console.warn('🎬 [PARSE] No match found for button text:', buttonText)
-    return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
-    
-  } catch (error) {
-    console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
-    return { modelId: 'kie-veo-3-fast', aspectRatio: '9:16', duration: 8, cost: 40 } // safe fallback
-  }
-}
-
-// КОНФИГ-БАЗИРОВАННЫЙ wizard - всего 2 шага
+// Определяем наш Wizard
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
 
-  // ========== ШАГ 1: ВЫБОР МОДЕЛИ + ФОРМАТ СРАЗУ (ВСЕ МОДЕЛИ) ==========
-  async (ctx) => {
-    try {
-      console.log('🎬 [WIZARD] Step 1: Complete model + format selection for user:', ctx.from?.id)
-      
-      const isRu = isRussianFromState(ctx)
-        console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
-      
-      // 🚀 КОНФИГ-БАЗИРОВАННАЯ клавиатура из VIDEO_MODELS_CONFIG
-      console.log('🎬 [WIZARD] Step 1: Creating CONFIG-based keyboard...')
-      
-      // Отбираем только text-to-video модели
-      const textModels = Object.entries(VIDEO_MODELS_CONFIG)
-        .filter(([_, config]) => config.inputType.includes('text'))
-        .filter(([modelId]) => [
-          'kie-veo-3-fast', 'kie-veo-3', 'kie-runway-aleph',
-          'kling-v1.6-pro', 'minimax', 'hunyuan-video-fast', 'wan-text-to-video'
-        ].includes(modelId)) // Оставляем только основные модели
-      
-      console.log('🎬 [WIZARD] Step 1: Filtered text models:', textModels.map(([id, config]) => ({ id, title: config.title })))
-      
-      const keyboardRows: string[][] = []
-      
-      // Создаем кнопки по 2 в ряд (для каждого соотношения сторон)
-      textModels.forEach(([modelId, config]) => {
-        // Создаем кнопки для обоих форматов
-        const button9x16 = createModelButton(modelId, '9:16', isRu)
-        const button16x9 = createModelButton(modelId, '16:9', isRu)
-        
-        keyboardRows.push([button9x16, button16x9])
-      })
-      
-      // Кнопка назад
-      keyboardRows.push([isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'])
-      
-      const keyboard = Markup.keyboard(keyboardRows).resize()
+  // Шаг 0: Вход и выбор модели
+  async ctx => {
+    logger.info(`[TextToVideoWizard Step 0] Entered for user ${ctx.from?.id}`)
+    const isRu = isRussianFromState(ctx)
+    await ctx.reply(isRu ? 'Выберите модель:' : 'Select a model:', {
+      reply_markup: createVideoModelKeyboard(isRu, 'text').reply_markup,
+    })
+    return ctx.wizard.next()
+  },
 
-      console.log('🎬 [WIZARD] Step 1: Keyboard created')
+  // Шаг 1: Обработка выбора модели, проверка баланса и запрос промпта
+  async ctx => {
+    logger.info(`[TextToVideoWizard Step 1] Entered for user ${ctx.from?.id}`)
+    const isRu = isRussianFromState(ctx)
 
-      await ctx.reply(
-        isRu 
-          ? `🎥 Выберите модель и формат видео:\n\n📱 — 9:16 (вертикально)\n🖥️ — 16:9 (горизонтально)\n\n⭐ Цена в Telegram Stars`
-          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`,
-        keyboard
-      )
-      
-      console.log('🎬 [WIZARD] Step 1: Reply sent, moving to next step')
-      return ctx.wizard.next()
-      
-    } catch (error) {
-      console.error('🎬 [WIZARD] Step 1 ERROR:', error)
-      logger.error('TextToVideoWizard Step 1 error', { error: error instanceof Error ? error.message : 'Unknown error' })
-      await ctx.reply('❌ Ошибка в мастере генерации видео')
+    if (await handleHelpCancel(ctx)) {
       return ctx.scene.leave()
+    }
+
+    const message = ctx.message
+    if (!message || !('text' in message)) {
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите модель, нажав на одну из кнопок.'
+          : 'Please select a model by clicking one of the buttons.'
+      )
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    const selectedButtonText = message.text
+    const foundModelKey = findModelByButtonText(selectedButtonText)
+
+    if (!foundModelKey) {
+      logger.warn(
+        '[TextToVideoWizard Step 1] Could not map button text to model key',
+        { selectedButtonText, telegramId: ctx.from?.id }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, выберите модель из предложенных кнопок.'
+          : 'Please select a model using the provided buttons.'
+      )
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    const cost = calculateFinalPrice(foundModelKey)
+    if (cost === null || cost === 0) {
+      logger.error(
+        '[TextToVideoWizard Step 1] Could not calculate price for model',
+        { foundModelKey, telegramId: ctx.from?.id }
+      )
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
+    if (!ctx.from?.id || !ctx.botInfo?.username) {
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
+    const userBalance = await getUserBalance(
+      ctx.from.id.toString(),
+      ctx.botInfo.username
+    )
+
+    if (userBalance < cost) {
+      await ctx.reply(
+        isRu
+          ? `😕 Недостаточно звезд (${cost} ⭐). Ваш баланс: ${Math.floor(
+              userBalance
+            )} ⭐.`
+          : `😕 Insufficient stars (${cost} ⭐). Your balance: ${Math.floor(
+              userBalance
+            )} ⭐.`
+      )
+      return ctx.scene.leave()
+    }
+
+    ctx.session.videoModel = foundModelKey
+    logger.info(
+      `[TextToVideoWizard Step 1] Model ${foundModelKey} selected and balance checked for ${ctx.from.id}.`
+    )
+
+    // Проверяем, нужно ли показать выбор разрешения для WAN моделей
+    const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
+    if (
+      modelConfig.resolutionOptions &&
+      modelConfig.resolutionOptions.length > 0
+    ) {
+      // Показываем клавиатуру выбора разрешения
+      logger.info(
+        `[TextToVideoWizard Step 1] Showing resolution selection for ${foundModelKey}`
+      )
+
+      const text = isRu
+        ? `🎬 Выберите разрешение для ${modelConfig.title}:`
+        : `🎬 Select resolution for ${modelConfig.title}:`
+
+      await ctx.replyWithHTML(
+        text,
+        createResolutionKeyboard(foundModelKey, isRu)
+      )
+      return ctx.wizard.next() // Переход к шагу обработки выбора разрешения
+    } else {
+      // Стандартная модель без выбора разрешения
+      await ctx.reply(
+        isRu
+          ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+          : 'Great! Now enter your prompt (a description of what you want to see in the video):',
+        Markup.removeKeyboard()
+      )
+      return ctx.wizard.selectStep(3) // Пропускаем шаг выбора разрешения
     }
   },
 
-  // ========== ШАГ 2: ПРОМПТ И СРАЗУ ГЕНЕРАЦИЯ (УПРОЩЕННЫЙ ПАРСИНГ) ==========
-  async (ctx) => {
-    try {
-      console.log('🎬 [WIZARD] Step 2: Processing message for user:', ctx.from?.id)
-      
-      const isRu = isRussianFromState(ctx)
+  // Шаг 2: Обработка выбора разрешения для WAN моделей (Callback Query)
+  async ctx => {
+    logger.info(`[TextToVideoWizard Step 2] Entered for user ${ctx.from?.id}`)
+    const isRu = isRussianFromState(ctx)
 
-      if (!ctx.message || !('text' in ctx.message)) {
-        console.log('🎬 [WIZARD] Step 2: No text message')
-        await ctx.reply(isRu ? 'Выберите модель из кнопок выше.' : 'Select a model from the buttons above.')
-        return
-      }
-
-      const selectedText = ctx.message.text
-      console.log('🎬 [WIZARD] Step 2: Received text:', selectedText)
-
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: проверяем не является ли это кнопкой меню
-      if (selectedText === '🎥 Видео из текста' || selectedText === '🎥 Video from text' || selectedText === '🎥 Text to Video') {
-        console.log('🎬 [WIZARD] Step 2: Menu button clicked again - going back to main menu!')
-        await ctx.reply(isRu ? 'Возвращаемся в главное меню...' : 'Going back to main menu...')
-        return ctx.scene.leave()
-      }
-
-      // Назад в меню
-      if (selectedText.includes('Назад') || selectedText.includes('Back')) {
-        console.log('🎬 [WIZARD] Step 2: Going back to menu')
-        await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
-        return ctx.scene.leave()
-      }
-
-      // Если это промпт (НЕ содержит эмодзи моделей или кнопочный текст)
-      if (!selectedText.includes('🚀') && !selectedText.includes('⭐') && !selectedText.includes('🎯') && !selectedText.includes('💨') && !selectedText.includes('Veo') && !selectedText.includes('Kling') && !selectedText.includes('Minimax')) {
-        console.log('🎬 [WIZARD] Step 2: Processing as prompt')
-        
-        const prompt = selectedText.trim()
-        
-        if (!prompt || prompt.length < 3) {
-          await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
-          return
-        }
-
-        // Получаем сохраненные параметры
-        const selectedModel = ctx.session.selectedVideoModel || 'kie-veo-3-fast'
-        const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
-        const cost = ctx.session.selectedVideoCost || 40
-        const duration = ctx.session.selectedDuration
-
-        console.log('🎬 [WIZARD] Step 2: Starting generation with params:', { selectedModel, aspectRatio, cost, duration })
-
-        // Сразу генерируем
-        await ctx.reply(
-          isRu
-            ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐${duration ? ` | ${duration}s` : ''}\n💭 ${prompt.substring(0, 100)}`
-            : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐${duration ? ` | ${duration}s` : ''}\n💭 ${prompt.substring(0, 100)}`
-        )
-
-        const videoModelId = selectedModel as VideoModelId
-        await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio)
-        console.log('🎬 [WIZARD] Video generation success!')
-
-        return ctx.scene.leave()
-      }
-
-      // КОНФИГ-БАЗИРОВАННЫЙ парсинг модели
-      console.log('🎬 [WIZARD] Step 2: Processing as model selection')
-      
-      const parsedModel = parseModelSelection(selectedText)
-      
-      if (!parsedModel) {
-        console.error('🎬 [WIZARD] Step 2: Failed to parse model from:', selectedText)
-        await ctx.reply(isRu ? 'Ошибка выбора модели. Попробуйте еще раз.' : 'Model selection error. Try again.')
-        return
-      }
-
-      const { modelId, aspectRatio, duration, cost } = parsedModel
-
-      // Сохраняем в сессии
-      ctx.session.selectedVideoModel = modelId
-      ctx.session.selectedVideoCost = cost
-      ctx.session.selectedAspectRatio = aspectRatio
-      ctx.session.selectedDuration = duration
-
-      console.log('🎬 [WIZARD] Step 2: CONFIG-based params saved:', { modelId, cost, aspectRatio, duration })
-
-      // Просим промпт с детальной информацией из конфига
-      const configInfo = VIDEO_MODELS_CONFIG[modelId]
-      const durationInfo = duration ? `${duration}s` : 'переменная'
-      
-      await ctx.reply(
-        isRu
-          ? `✅ Выбрано: ${configInfo?.title}\n📋 ${aspectRatio} | ${durationInfo} | ${cost}⭐\n\n💭 Введите описание видео:\n\nПример: "танцующий шаман у костра"`
-          : `✅ Selected: ${configInfo?.title}\n📋 ${aspectRatio} | ${durationInfo} | ${cost}⭐\n\n💭 Enter video description:\n\nExample: "dancing shaman around fire"`,
-        Markup.removeKeyboard()
-      )
-
-      console.log('🎬 [WIZARD] Step 2: Prompt request sent')
-
-    } catch (error) {
-      console.error('🎬 [WIZARD] Step 2 ERROR:', error)
-      logger.error('TextToVideoWizard Step 2 error', { error: error instanceof Error ? error.message : 'Unknown error' })
-      await ctx.reply('❌ Ошибка в мастере генерации видео')
+    if (await handleHelpCancel(ctx)) {
       return ctx.scene.leave()
     }
+
+    // Обрабатываем callback query для выбора разрешения WAN
+    if (
+      'callback_query' in ctx.update &&
+      ctx.update.callback_query &&
+      'data' in ctx.update.callback_query
+    ) {
+      const callbackData = ctx.update.callback_query.data
+      await ctx.answerCbQuery()
+      await ctx.editMessageReplyMarkup(undefined) // Удаляем inline keyboard
+
+      if (callbackData?.startsWith('wan_')) {
+        // Парсим callback data: "wan_wan-2.2-t2v-fast_720p"
+        const parts = callbackData.split('_')
+        if (parts.length >= 3) {
+          const resolution = parts[parts.length - 1] // Последняя часть - разрешение
+          ctx.session.selectedResolution = resolution
+
+          const modelKey = ctx.session.videoModel as VideoModelConfigKey
+          const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
+          const price =
+            modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
+          const finalPrice = Math.floor(((price * 5) / 0.016) * 1.5)
+
+          logger.info(`[TextToVideoWizard Step 2] WAN resolution selected:`, {
+            telegramId: ctx.from?.id,
+            modelKey,
+            resolution,
+            price,
+            finalPrice,
+          })
+
+          // Проверяем баланс для выбранного разрешения
+          if (!ctx.from?.id || !ctx.botInfo?.username) {
+            await sendGenericErrorMessage(ctx, isRu)
+            return ctx.scene.leave()
+          }
+
+          const userBalance = await getUserBalance(
+            ctx.from.id.toString(),
+            ctx.botInfo.username
+          )
+
+          if (userBalance < finalPrice) {
+            await ctx.reply(
+              isRu
+                ? `😕 Недостаточно звезд для ${resolution.toUpperCase()} (${finalPrice} ⭐). Ваш баланс: ${Math.floor(userBalance)} ⭐.`
+                : `😕 Insufficient stars for ${resolution.toUpperCase()} (${finalPrice} ⭐). Your balance: ${Math.floor(userBalance)} ⭐.`
+            )
+            return ctx.scene.leave()
+          }
+
+          const textResolutionChosen = isRu
+            ? `✅ Выбрано: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPrice} ⭐).`
+            : `✅ Selected: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPrice} ⭐).`
+          await ctx.reply(textResolutionChosen)
+
+          await ctx.reply(
+            isRu
+              ? 'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+              : 'Great! Now enter your prompt (a description of what you want to see in the video):',
+            Markup.removeKeyboard()
+          )
+          return ctx.wizard.next() // Переход к шагу получения промпта
+        }
+      }
+
+      // Неопознанный callback
+      logger.error('[TextToVideoWizard Step 2] Unexpected callback data:', {
+        callbackData,
+      })
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
+    // Если не callback query, то ошибка
+    await ctx.reply(
+      isRu
+        ? 'Пожалуйста, выберите разрешение, нажав на одну из кнопок.'
+        : 'Please select a resolution by clicking one of the buttons.'
+    )
+    return ctx.wizard.selectStep(ctx.wizard.cursor)
+  },
+
+  // Шаг 3: Получение промпта и запуск генерации
+  async ctx => {
+    logger.info(`[TextToVideoWizard Step 3] Entered for user ${ctx.from?.id}`)
+    const isRu = isRussianFromState(ctx)
+
+    if (await handleHelpCancel(ctx)) {
+      return ctx.scene.leave()
+    }
+
+    if (!('text' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, отправьте текстовое описание для видео.'
+          : 'Please send a text description for the video.'
+      )
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    // Очищаем промпт от возможного "мусора" (текста кнопок, инструкций)
+    const videoModelKey = ctx.session.videoModel as VideoModelConfigKey
+    const modelConfig = VIDEO_MODELS_CONFIG[videoModelKey]
+    const finalPriceInStars = calculateFinalPrice(videoModelKey)
+    const buttonText = `${modelConfig.title} (${finalPriceInStars} ⭐)`
+    const requestTextRu =
+      'Отлично! Теперь введите ваш промпт (описание того, что вы хотите увидеть на видео):'
+    const requestTextEn =
+      'Great! Now enter your prompt (a description of what you want to see in the video):'
+    const fallbackRequestRu =
+      'Пожалуйста, отправьте текстовое описание для видео.'
+    const fallbackRequestEn = 'Please send a text description for the video.'
+
+    const cleanPrompt = ctx.message.text
+      .replace(buttonText, '')
+      .replace(requestTextRu, '')
+      .replace(requestTextEn, '')
+      .replace(fallbackRequestRu, '')
+      .replace(fallbackRequestEn, '')
+      .trim()
+
+    logger.info('[TextToVideoWizard Step 3] Cleaned prompt:', {
+      original: ctx.message.text,
+      cleaned: cleanPrompt,
+      telegramId: ctx.from?.id,
+    })
+
+    const prompt = cleanPrompt
+    if (!prompt) {
+      await ctx.reply(
+        isRu
+          ? 'Вы отправили пустой промпт. Пожалуйста, введите описание для видео.'
+          : 'You sent an empty prompt. Please enter a description for the video.'
+      )
+      return ctx.wizard.selectStep(ctx.wizard.cursor)
+    }
+
+    ctx.session.prompt = prompt
+
+    // ЗАПУСК ГЕНЕРАЦИИ В ФОНЕ
+    // Мы уже получили videoModelKey ранее для очистки промпта
+    logger.info(
+      `[TextToVideoWizard Step 3] Starting background generation for user ${ctx.from?.id}`
+    )
+    // `videoModelKey` уже определена выше
+    processVideoGeneration(ctx, prompt, videoModelKey, isRu)
+
+    // Немедленно отвечаем пользователю и выходим из сцены
+    await ctx.reply(
+      isRu
+        ? '⏳ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
+        : '⏳ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
+    )
+
+    return ctx.scene.leave()
   }
 )
 
-// ========== ОБРАБОТЧИКИ WIZARD'A ==========
-
-// ИСПРАВЛЕНИЕ: удаляем executeFirstStep - пусть wizard обрабатывает шаги стандартным способом
-
-// Обработчик входа в wizard
-textToVideoWizard.enter(async (ctx) => {
-  console.log('🎬 [WIZARD] ✅ WIZARD ENTERED! User:', ctx.from?.id)
-  console.log('🎬 [WIZARD] Scene ID:', ctx.scene.current?.id)
-  console.log('🎬 [WIZARD] Current step:', ctx.wizard?.cursor)
-  
-  logger.info('[TextToVideoWizard] Wizard entered successfully', {
-    telegramId: ctx.from?.id,
-    sceneId: ctx.scene.current?.id,
-    currentStep: ctx.wizard?.cursor,
-    timestamp: new Date().toISOString()
-  })
-  
-  // ИСПРАВЛЕНИЕ: ЯВНО устанавливаем шаг 0 - это критично для правильной работы wizard'а
-  console.log('🎬 [WIZARD] Setting wizard step to 0...')
-  try {
-    ctx.wizard.selectStep(0)
-    console.log('🎬 [WIZARD] Step set to 0, cursor now:', ctx.wizard?.cursor)
-  } catch (error) {
-    console.error('🎬 [WIZARD] ERROR setting wizard step:', error)
-    logger.error('[TextToVideoWizard] Error setting wizard step', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id
-    })
+textToVideoWizard.hears(
+  ['🔄 Выбрать другую модель', '🔄 Choose another model'], // <--- ИЗМЕНЕНО
+  async ctx => {
+    // Возвращаемся к первому шагу выбора модели (индекс 0)
+    return ctx.wizard.selectStep(0) // Индекс шага выбора модели
   }
-})
-
-// Обработчик выхода из wizard
-textToVideoWizard.leave(async (ctx) => {
-  console.log('🎬 [WIZARD] 👋 WIZARD LEFT! User:', ctx.from?.id)
-  
-  logger.info('[TextToVideoWizard] Wizard left', {
-    telegramId: ctx.from?.id,
-    timestamp: new Date().toISOString()
-  })
-
-  // Очищаем данные сессии
-  if (ctx.session) {
-    delete ctx.session.selectedVideoModel
-    delete ctx.session.selectedVideoCost
-    delete ctx.session.selectedAspectRatio
-    delete ctx.session.selectedDuration
-  }
-})
-
-console.log('🎬 [WIZARD] CONFIG-BASED textToVideoWizard loaded successfully')
+)
 
 export default textToVideoWizard
