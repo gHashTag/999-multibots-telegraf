@@ -54,7 +54,7 @@ export async function uploadTelegramFileLocal(
       process.env.NODE_ENV === 'development'
         ? 'https://44ed576f17a7.ngrok.app' // Ngrok туннель для локального development
         : process.env.API_SERVER_URL ||
-          process.env.ELESTIO_URL ||
+          process.env.SERVER_API_URL ||
           'https://ai-server-production-production-8e2d.up.railway.app'
 
     console.log(

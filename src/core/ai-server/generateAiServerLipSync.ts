@@ -78,11 +78,11 @@ export async function generateAiServerLipSync(
       error: result.error,
       urls: {
         get: `${
-          process.env.ELESTIO_URL ||
+          process.env.SERVER_API_URL ||
           'https://ai-server-production-production-8e2d.up.railway.app'
         }/api/lipsync/${result.id}`,
         cancel: `${
-          process.env.ELESTIO_URL ||
+          process.env.SERVER_API_URL ||
           'https://ai-server-production-production-8e2d.up.railway.app'
         }/api/lipsync/${result.id}/cancel`,
       },
@@ -129,11 +129,11 @@ export async function getAiServerLipSyncStatus(
       error: result.error,
       urls: {
         get: `${
-          process.env.ELESTIO_URL ||
+          process.env.SERVER_API_URL ||
           'https://ai-server-production-production-8e2d.up.railway.app'
         }/api/lipsync/${result.id}`,
         cancel: `${
-          process.env.ELESTIO_URL ||
+          process.env.SERVER_API_URL ||
           'https://ai-server-production-production-8e2d.up.railway.app'
         }/api/lipsync/${result.id}/cancel`,
       },

@@ -113,9 +113,7 @@ function createModelButton(
 }
 
 // Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
-function parseModelSelection(
-  buttonText: string
-): {
+function parseModelSelection(buttonText: string): {
   modelId: string
   aspectRatio: string
   duration?: number

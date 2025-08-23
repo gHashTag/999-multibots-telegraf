@@ -143,7 +143,7 @@
     - ✅ **Inngest Integration:** 
         - Настроен клиент `src/inngest_app/client.ts` с поддержкой dev/production режимов
         - Development: подключение к localhost:8288 через SDK
-        - Production: HTTP API к ${process.env.ELESTIO_URL}/api/inngest
+        - Production: HTTP API к ${process.env.SERVER_API_URL}/api/inngest
     - ✅ **Database Integration:**
         - Создан клиент Neon PostgreSQL `src/core/neon/client.ts`
         - Функция `src/core/supabase/getUserProjects.ts` с админ-доступом ко всем проектам

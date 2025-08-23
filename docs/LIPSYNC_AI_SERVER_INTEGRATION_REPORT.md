@@ -70,7 +70,7 @@ logger.info('✅ ai-server LipSync запущен успешно')
 ### **Environment Variables**
 ```bash
 # AI-Server (Primary Provider)
-ELESTIO_URL=https://ai-server-production-production-8e2d.up.railway.app
+SERVER_API_URL=https://ai-server-production-production-8e2d.up.railway.app
 AI_SERVER_API_KEY=
 
 # Replicate (Fallback Provider) 

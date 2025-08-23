@@ -7,7 +7,7 @@ import { logger } from '@/utils/logger'
 
 // Используем заглушку, если переменная не установлена
 const API_URL =
-  process.env.ELESTIO_URL ||
+  process.env.SERVER_API_URL ||
   'https://ai-server-production-production-8e2d.up.railway.app'
 
 export async function generateNeuroImage(
