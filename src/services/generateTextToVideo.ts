@@ -95,7 +95,11 @@ export async function generateTextToVideo(
       isDev,
     })
     
-    const baseUrl = LOCAL_SERVER_URL || API_SERVER_URL
+    const baseUrl = API_SERVER_URL || LOCAL_SERVER_URL
+    
+    if (!baseUrl) {
+      throw new Error('API_SERVER_URL or LOCAL_SERVER_URL must be configured')
+    }
 
     const url = `${baseUrl}/generate/text-to-video`
 
@@ -257,7 +261,11 @@ export async function checkVideoGenerationStatus(
   is_ru: boolean
 ): Promise<TextToVideoResponse> {
   try {
-    const baseUrl = LOCAL_SERVER_URL || API_SERVER_URL
+    const baseUrl = API_SERVER_URL || LOCAL_SERVER_URL
+    
+    if (!baseUrl) {
+      throw new Error('API_SERVER_URL or LOCAL_SERVER_URL must be configured')
+    }
 
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 
