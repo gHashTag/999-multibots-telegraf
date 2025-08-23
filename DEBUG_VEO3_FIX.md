@@ -154,7 +154,44 @@ if (typeof firstStepHandler === 'function') {
 ### ✅ Результат
 Теперь при входе в wizard пользователь сразу видит интерфейс выбора моделей.
 
+## 🎯 КРИТИЧЕСКОЕ ОБНОВЛЕНИЕ: Исправлена архитектурная проблема
+
+### 🚨 Найденная проблема
+**Архитектурная проблема**: После входа в `text_to_video` wizard пользователь **НЕ покидал `menuScene`**, поэтому:
+
+1. Пользователь нажимает "🎥 Видео из текста" 
+2. Вызывается `handleMenu` → входит в `text_to_video` wizard
+3. Wizard выполняет первый шаг → отправляет клавиатуру с моделями
+4. **ПРОБЛЕМА**: Пользователь все еще в `menuScene`
+5. `menuScene.menuNextStep()` перехватывает ответ первого шага и **снова вызывает `handleMenu()`**
+6. Создается **бесконечный цикл**: `menuCommand` → `wizard` → `menuCommand` → ...
+
+### 🔧 Исправление в `src/scenes/menuScene/index.ts:491`
+
+```typescript
+// БЫЛО:
+await handleMenu(ctx)
+
+// СТАЛО:
+const currentSceneId = ctx.scene.current?.id
+if (currentSceneId !== ModeEnum.MainMenu) {
+  logger.info(`[menuNextStep] User is in different scene (${currentSceneId}), NOT calling handleMenu`)
+  return // НЕ обрабатываем, если пользователь в другой сцене
+}
+await handleMenu(ctx)
+```
+
+### ✅ Результат
+- Устранен бесконечный цикл вызовов `menuCommand`
+- Wizard'ы теперь работают корректно без помех от `menuScene`
+- Пользователь видит интерфейс выбора моделей сразу после входа
+
+### 💫 Дополнительно: Улучшен UX
+Добавлены индикаторы typing в популярные команды:
+- "🎥 Видео из текста" - `await ctx.sendChatAction('typing')`
+- "📸 Нейрофото" - `await ctx.sendChatAction('typing')`
+
 ---
-**Статус**: ✅ Полностью исправлено с fallback логикой + wizard вход  
-**Дата**: 2025-08-23 (обновлено)  
+**Статус**: ✅ Полностью исправлено (fallback + wizard вход + архитектурная проблема + UX)  
+**Дата**: 2025-08-23 (финальное обновление)  
 **Автор**: Claude Code  
