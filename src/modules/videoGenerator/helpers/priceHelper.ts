@@ -15,7 +15,7 @@ export const processBalanceVideoOperationHelper = async (
   modelId: string, // Changed configKey to modelId for clarity
   isRu: boolean,
   botName: string, // Added botName
-  serviceType: string = 'image_to_video' // Исправляем дефис на подчеркивание
+  serviceType = 'image_to_video' // Исправляем дефис на подчеркивание
 ): Promise<BalanceOperationResult> => {
   let currentBalanceAtStart = 0
 

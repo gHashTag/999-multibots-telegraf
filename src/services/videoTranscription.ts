@@ -265,7 +265,11 @@ class VideoTranscriptionService {
 
       const stats = fs.statSync(filePath)
       console.log(
-        `✅ Video downloaded successfully, size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`
+        `✅ Video downloaded successfully, size: ${(
+          stats.size /
+          1024 /
+          1024
+        ).toFixed(2)} MB`
       )
 
       // Log file info for debugging
@@ -279,7 +283,9 @@ class VideoTranscriptionService {
     } catch (error) {
       console.error('❌ Error downloading video file:', error)
       throw new Error(
-        `Failed to download video file: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to download video file: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       )
     }
   }

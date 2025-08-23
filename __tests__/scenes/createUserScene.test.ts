@@ -45,7 +45,10 @@ describe('createUserStep', () => {
       }
     )
     // Симулируем ответ getReferalsCountAndUserData для no-invite branch
-    ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValueOnce({ count: 5, userData: { user_id: 'X', username: 'u', balance: 0 } })
+    ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValueOnce({
+      count: 5,
+      userData: { user_id: 'X', username: 'u', balance: 0 },
+    })
     await createUserStep(ctx)
     // Проверяем вызовы фоток
     expect(getPhotoUrl).toHaveBeenCalledWith(ctx, 1)
@@ -93,10 +96,15 @@ describe('createUserStep', () => {
     // Отправка сообщения пригласителю
     expect(ctx.telegram.sendMessage).toHaveBeenCalledWith(
       '777',
-      expect.stringContaining('Новый пользователь зарегистрировался по вашей ссылке')
+      expect.stringContaining(
+        'Новый пользователь зарегистрировался по вашей ссылке'
+      )
     )
     // Пополнение баланса
-    expect(incrementBalance).toHaveBeenCalledWith({ telegram_id: '777', amount: 100 })
+    expect(incrementBalance).toHaveBeenCalledWith({
+      telegram_id: '777',
+      amount: 100,
+    })
     // Отправка сообщения в канал подписки
     expect(ctx.telegram.sendMessage).toHaveBeenCalledWith(
       '@channel123',

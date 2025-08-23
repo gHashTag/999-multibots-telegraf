@@ -186,15 +186,17 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
             ? 'Аккаунт'
             : 'Account'
           : isRu
-            ? 'Хештег'
-            : 'Hashtag'
+          ? 'Хештег'
+          : 'Hashtag'
 
       await ctx.reply(
         isRu
-          ? `✅ ${typeText}: ${state.type === 'competitor' ? '@' : '#'}${target}\n\n` +
-              '⚙️ Выберите количество рилсов для парсинга:'
-          : `✅ ${typeText}: ${state.type === 'competitor' ? '@' : '#'}${target}\n\n` +
-              '⚙️ Choose number of reels to parse:',
+          ? `✅ ${typeText}: ${
+              state.type === 'competitor' ? '@' : '#'
+            }${target}\n\n` + '⚙️ Выберите количество рилсов для парсинга:'
+          : `✅ ${typeText}: ${
+              state.type === 'competitor' ? '@' : '#'
+            }${target}\n\n` + '⚙️ Choose number of reels to parse:',
         Markup.inlineKeyboard([
           [
             Markup.button.callback(`10 (${REELS_PRICING[10]}⭐)`, 'count_10'),
@@ -290,20 +292,24 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
             ? 'Аккаунт'
             : 'Account'
           : isRu
-            ? 'Хештег'
-            : 'Hashtag'
+          ? 'Хештег'
+          : 'Hashtag'
 
       await ctx.editMessageText(
         isRu
           ? `💰 Подтверждение оплаты\n\n` +
-              `${typeText}: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
+              `${typeText}: ${state.type === 'competitor' ? '@' : '#'}${
+                state.target
+              }\n` +
               `Количество рилсов: ${count}\n` +
               `Стоимость: ${cost} ⭐\n` +
               `Ваш баланс: ${currentBalance} ⭐\n` +
               `После оплаты: ${currentBalance - cost} ⭐\n\n` +
               `Подтвердить парсинг?`
           : `💰 Payment confirmation\n\n` +
-              `${typeText}: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
+              `${typeText}: ${state.type === 'competitor' ? '@' : '#'}${
+                state.target
+              }\n` +
               `Number of reels: ${count}\n` +
               `Cost: ${cost} ⭐\n` +
               `Your balance: ${currentBalance} ⭐\n` +
@@ -366,8 +372,12 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           state.cost as any,
           PaymentType.MONEY_OUTCOME,
           isRu
-            ? `Instagram парсинг: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${state.count} рилсов)`
-            : `Instagram parsing: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${state.count} reels)`,
+            ? `Instagram парсинг: ${state.type === 'competitor' ? '@' : '#'}${
+                state.target
+              } (${state.count} рилсов)`
+            : `Instagram parsing: ${state.type === 'competitor' ? '@' : '#'}${
+                state.target
+              } (${state.count} reels)`,
           {
             service_type: 'instagram_parser',
             target: state.target,
@@ -399,13 +409,17 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           await ctx.editMessageText(
             isRu
               ? `✅ Парсинг завершен!\n\n` +
-                  `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
+                  `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${
+                    state.target
+                  }\n` +
                   `📊 Найдено рилсов: ${reelsCount}\n` +
                   `💰 Списано: ${state.cost} ⭐\n\n` +
                   `📨 Результаты сохранены в базе данных.\n` +
                   `💡 Вы можете запустить новый парсинг`
               : `✅ Parsing completed!\n\n` +
-                  `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
+                  `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${
+                    state.target
+                  }\n` +
                   `📊 Reels found: ${reelsCount}\n` +
                   `💰 Charged: ${state.cost} ⭐\n\n` +
                   `📨 Results saved to database.\n` +
@@ -438,7 +452,9 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
                 const caption = reel.caption
                   ? reel.caption.substring(0, 50) + '...'
                   : 'Без описания'
-                return `${index + 1}. ${reel.shortCode ? `[${reel.shortCode}]` : ''} ${caption}`
+                return `${index + 1}. ${
+                  reel.shortCode ? `[${reel.shortCode}]` : ''
+                } ${caption}`
               })
               .join('\n')
 
@@ -515,7 +531,9 @@ async function showStats(ctx: MyContext) {
     const recentText = recent
       .map(
         s =>
-          `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${s.reels_count} ${isRu ? 'рилсов' : 'reels'}`
+          `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${
+            s.reels_count
+          } ${isRu ? 'рилсов' : 'reels'}`
       )
       .join('\n')
 
