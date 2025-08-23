@@ -25,8 +25,25 @@ import { getBotNameByToken } from '@/core/bot'
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
 
-  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MENUSCENE
+  // 🚨 КРИТИЧЕСКАЯ ПРОВЕРКА: НЕ обрабатываем если пользователь УЖЕ в другой сцене!
+  const currentSceneId = ctx.scene.current?.id
   const telegramId = ctx.from?.id?.toString()
+  
+  if (currentSceneId !== ModeEnum.MainMenu) {
+    console.log(`🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`, {
+      telegramId,
+      currentSceneId,
+      mainMenuId: ModeEnum.MainMenu
+    })
+    return // НЕ обрабатываем, если пользователь в другой сцене
+  }
+
+  console.log(`✅ [menuCommandStep] User is in main menu scene, processing menuCommand`, {
+    telegramId,
+    currentSceneId
+  })
+
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MENUSCENE
   logger.info(`[menuCommandStep] 🎭 SCENE STARTED:`, {
     telegramId,
     sessionLanguage: ctx.session?.userLanguage,
