@@ -73,8 +73,17 @@ export const MyContextSchema = z.object({
 
 // Схема для текстового сообщения (гарантирует наличие текста)
 export const TextMessageContextSchema = MyContextSchema.extend({
-  message: TelegramMessageSchema.extend({
-    text: z.string().min(1, 'Text message required')
+  message: z.object({
+    message_id: z.number().positive(),
+    from: TelegramUserSchema.optional(),
+    chat: TelegramChatSchema,
+    date: z.number().positive(),
+    text: z.string().min(1, 'Text message required'),
+    caption: z.string().optional(),
+    photo: z.array(z.any()).optional(),
+    document: z.any().optional(),
+    voice: z.any().optional(),
+    video: z.any().optional(),
   }).required()
 })
 
