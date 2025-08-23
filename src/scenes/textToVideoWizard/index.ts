@@ -6,16 +6,18 @@ import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
 
-// 🎯 ИСПРАВЛЕНИЕ: Маппинг неправильных идентификаторов модели в правильные
+// 🎯 ИСПРАВЛЕНИЕ: Маппинг неправильных идентификаторов модели в ПРАВИЛЬНЫЕ
 const MODEL_ID_MAPPING: Record<string, string> = {
-  'veo3_fast': 'kie-veo-3-fast',
-  'veo3-fast': 'kie-veo-3-fast',
-  'veo_3_fast': 'kie-veo-3-fast',
-  'veo-3_fast': 'kie-veo-3-fast',
-  'veo3': 'kie-veo-3',
-  'veo_3': 'kie-veo-3',
-  'runway_aleph': 'kie-runway-aleph',
-  'runway-aleph': 'kie-runway-aleph',
+  'veo3_fast': 'veo-3-fast',
+  'veo3-fast': 'veo-3-fast', 
+  'veo_3_fast': 'veo-3-fast',
+  'veo-3_fast': 'veo-3-fast',
+  'kie-veo-3-fast': 'veo-3-fast', // ❌ Убираем неправильный kie- префикс
+  'veo3': 'veo-3',
+  'veo_3': 'veo-3',
+  'kie-veo-3': 'veo-3', // ❌ Убираем неправильный kie- префикс
+  'runway_aleph': 'runway-aleph',
+  'kie-runway-aleph': 'runway-aleph', // ❌ Убираем неправильный kie- префикс
 }
 // 🎯 Импортируем Zod схемы для безопасной валидации
 import {
@@ -158,15 +160,15 @@ function createModelButton(
     let stars = 40 // по умолчанию
 
     switch (validatedInput.modelId) {
-      case 'kie-veo-3-fast':
+      case 'veo-3-fast':
         durationText = ' | 8s'
         stars = 40
         break
-      case 'kie-veo-3':
+      case 'veo-3':
         durationText = ' | 8s'
         stars = 202
         break
-      case 'kie-runway-aleph':
+      case 'runway-aleph':
         durationText = ' | 6s'
         stars = 182
         break
@@ -241,14 +243,14 @@ function parseModelSelection(buttonText: string): ParsedModelSelection | null {
 
     let rawResult: any = null
 
-    // УПРОЩЕННЫЙ парсинг по ключевым словам
+    // УПРОЩЕННЫЙ парсинг по ключевым словам с ПРАВИЛЬНЫМИ именами моделей
     if (buttonText.includes('Veo 3 Fast')) {
-      rawResult = { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 }
+      rawResult = { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
     } else if (buttonText.includes('Veo 3')) {
-      rawResult = { modelId: 'kie-veo-3', aspectRatio, duration: 8, cost: 202 }
+      rawResult = { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
     } else if (buttonText.includes('Runway Aleph')) {
       rawResult = {
-        modelId: 'kie-runway-aleph',
+        modelId: 'runway-aleph',
         aspectRatio,
         duration: 6,
         cost: 182,
@@ -273,7 +275,7 @@ function parseModelSelection(buttonText: string): ParsedModelSelection | null {
       }
     } else {
       console.warn('🎬 [PARSE] No match found for button text:', buttonText)
-      rawResult = { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
+      rawResult = { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback с правильным именем
     }
 
     // 🎯 ZOD: Валидация результата парсинга
@@ -284,8 +286,8 @@ function parseModelSelection(buttonText: string): ParsedModelSelection | null {
       console.error('🔍 [ZOD] ❌ PARSED MODEL VALIDATION FAILED:', selectionValidation.error.issues)
       console.error('🔍 [ZOD] Raw result was:', rawResult)
       
-      // Fallback с валидными данными
-      const fallbackResult = { modelId: 'kie-veo-3-fast', aspectRatio: '9:16' as const, duration: 8, cost: 40 }
+      // Fallback с валидными данными и ПРАВИЛЬНЫМ именем модели
+      const fallbackResult = { modelId: 'veo-3-fast', aspectRatio: '9:16' as const, duration: 8, cost: 40 }
       const fallbackValidation = ParsedModelSelectionSchema.safeParse(fallbackResult)
       
       if (fallbackValidation.success) {
@@ -305,9 +307,9 @@ function parseModelSelection(buttonText: string): ParsedModelSelection | null {
     console.error('🎬 [PARSE] 💥 Error parsing button text:', buttonText, error)
     console.error('🎬 [PARSE] Error stack:', error instanceof Error ? error.stack : 'No stack')
     
-    // Безопасный fallback с Zod валидацией
+    // Безопасный fallback с Zod валидацией и ПРАВИЛЬНЫМ именем модели
     try {
-      const safeFallback = { modelId: 'kie-veo-3-fast', aspectRatio: '9:16' as const, duration: 8, cost: 40 }
+      const safeFallback = { modelId: 'veo-3-fast', aspectRatio: '9:16' as const, duration: 8, cost: 40 }
       const fallbackValidation = ParsedModelSelectionSchema.safeParse(safeFallback)
       
       if (fallbackValidation.success) {
@@ -395,15 +397,15 @@ const textToVideoStep1 = async (ctx: MyContext) => {
       
       const textModels = textInputModels.filter(([modelId]) =>
         [
-          'kie-veo-3-fast',
-          'kie-veo-3',
-          'kie-runway-aleph',
+          'veo-3-fast',
+          'veo-3',
+          'runway-aleph',
           'kling-v1.6-pro',
           'minimax',
           'hunyuan-video-fast',
           'wan-text-to-video',
         ].includes(modelId)
-      ) // Оставляем только основные модели
+      ) // Оставляем только основные модели с правильными именами
         
       console.log('🎬 [WIZARD] Step 1: Text models filtering completed, final count:', textModels.length)
 
@@ -541,7 +543,7 @@ const textToVideoStep2 = async (ctx: MyContext) => {
       ctx.session.selectedModel = normalizedModelId
       ctx.session.aspect_ratio = parsedModel.aspectRatio
       ctx.session.selectedVideoCost = parsedModel.cost
-      ctx.session.selectedVideoDuration = parsedModel.duration // ✅ Сохраняем duration
+      ctx.session.selectedDuration = parsedModel.duration // ✅ Сохраняем duration
       
       console.log(`🔧 [SESSION_FIX] Saved normalized model to session: ${normalizedModelId}`)
       
@@ -656,11 +658,11 @@ const textToVideoStep3 = async (ctx: MyContext) => {
 
     console.log('🔍 [ZOD] ✅ Session validation passed')
 
-    // Получаем сохраненные параметры с fallback значениями
-    const selectedModel = sessionValidation.data.selectedModel || 'kie-veo-3-fast'
+    // Получаем сохраненные параметры с fallback значениями и ПРАВИЛЬНЫМ именем модели
+    const selectedModel = sessionValidation.data.selectedModel || 'veo-3-fast'
     const aspectRatio = sessionValidation.data.aspect_ratio || '9:16'
     const cost = sessionValidation.data.selectedVideoCost || 40
-    const duration = sessionValidation.data.selectedVideoDuration || 8 // ✅ Добавляем duration
+    const duration = sessionValidation.data.selectedDuration || 8 // ✅ Добавляем duration
 
     // 🎯 ZOD: Валидация параметров генерации видео
     console.log('🔍 [ZOD] Validating video generation params...')
