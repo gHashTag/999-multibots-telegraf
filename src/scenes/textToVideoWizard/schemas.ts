@@ -72,20 +72,15 @@ export const MyContextSchema = z.object({
 })
 
 // Схема для текстового сообщения (гарантирует наличие текста)
-export const TextMessageContextSchema = MyContextSchema.extend({
-  message: z.object({
-    message_id: z.number().positive(),
-    from: TelegramUserSchema.optional(),
-    chat: TelegramChatSchema,
-    date: z.number().positive(),
-    text: z.string().min(1, 'Text message required'),
-    caption: z.string().optional(),
-    photo: z.array(z.any()).optional(),
-    document: z.any().optional(),
-    voice: z.any().optional(),
-    video: z.any().optional(),
-  }).required()
-})
+// Используем merge для корректной обработки optional полей - best practice
+export const TextMessageContextSchema = MyContextSchema.merge(
+  z.object({
+    message: z.object({
+      ...TelegramMessageSchema.shape,
+      text: z.string().min(1, 'Text message required') // Переопределяем только text как обязательный
+    })
+  })
+)
 
 // Схема для конфигурации модели видео
 export const VideoModelConfigSchema = z.object({
@@ -196,12 +191,13 @@ export const safeParseContext = (ctx: any, schema = MyContextSchema) => {
 }
 
 export const safeParseTextMessage = (ctx: any) => {
-  console.log('🚀 [ZOD] SCHEMA RELOADED! Using FIXED TextMessageContextSchema')
+  console.log('🎉 [ZOD] USING NEW MERGE-BASED SCHEMA! Optional fields should work now! 🎉')
   const result = TextMessageContextSchema.safeParse(ctx)
   if (!result.success) {
     console.error('🔍 [ZOD] Text message validation failed:', result.error.issues)
     return { success: false, error: result.error, data: null }
   }
+  console.log('✅ [ZOD] Text message validation PASSED! Fixed!')
   return { success: true, error: null, data: result.data }
 }
 
