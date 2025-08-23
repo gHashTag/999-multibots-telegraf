@@ -34,7 +34,7 @@ export async function combineVideos(
   clipPaths: string[],
   outputPath: string,
   transition: 'fade' | 'none' = 'none',
-  transitionDuration: number = 1
+  transitionDuration = 1
 ): Promise<string> {
   if (clipPaths.length === 0) throw new Error('No video clips to combine')
   if (clipPaths.length === 1) return clipPaths[0]

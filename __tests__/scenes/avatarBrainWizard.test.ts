@@ -59,7 +59,9 @@ describe('avatarBrainWizard', () => {
     // @ts-ignore
     const isRu = jest.requireMock('../../src/helpers/language').isRussian
     // @ts-ignore
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
+    const cancel = jest.requireMock(
+      '../../src/handlers/handleHelpCancel'
+    ).handleHelpCancel
     // @ts-ignore
     const createKb = jest.requireMock('../../src/menu').createHelpCancelKeyboard
     isRu.mockReturnValueOnce(false)
@@ -70,17 +72,18 @@ describe('avatarBrainWizard', () => {
     await step1(ctx)
     // @ts-ignore
     expect(ctx.wizard.state.company).toBe('AcmeCorp')
-    expect(ctx.reply).toHaveBeenCalledWith(
-      '💼 What is your position?',
-      { keyboard: [['cancel']] }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('💼 What is your position?', {
+      keyboard: [['cancel']],
+    })
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
   it('шаг 1: при отмене уходит из сцены', async () => {
     const ctx = makeMockContext({}, { message: { text: 'AcmeCorp' } })
     // @ts-ignore
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
+    const cancel = jest.requireMock(
+      '../../src/handlers/handleHelpCancel'
+    ).handleHelpCancel
     cancel.mockResolvedValueOnce(true)
     // @ts-ignore
     const step1 = avatarBrainWizard.steps[1]
@@ -96,7 +99,9 @@ describe('avatarBrainWizard', () => {
     // @ts-ignore
     const isRu = jest.requireMock('../../src/helpers/language').isRussian
     // @ts-ignore
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
+    const cancel = jest.requireMock(
+      '../../src/handlers/handleHelpCancel'
+    ).handleHelpCancel
     // @ts-ignore
     const createKb = jest.requireMock('../../src/menu').createHelpCancelKeyboard
     isRu.mockReturnValueOnce(true)
@@ -107,10 +112,9 @@ describe('avatarBrainWizard', () => {
     await step2(ctx)
     // @ts-ignore
     expect(ctx.wizard.state.position).toBe('Developer')
-    expect(ctx.reply).toHaveBeenCalledWith(
-      '🛠️ Какие у тебя навыки?',
-      { keyboard: [['cancel']] }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('🛠️ Какие у тебя навыки?', {
+      keyboard: [['cancel']],
+    })
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
@@ -122,15 +126,23 @@ describe('avatarBrainWizard', () => {
     ctx.from.id = 999
     // Моки
     // @ts-ignore
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
+    const cancel = jest.requireMock(
+      '../../src/handlers/handleHelpCancel'
+    ).handleHelpCancel
     // @ts-ignore
     const isRu = jest.requireMock('../../src/helpers/language').isRussian
     // @ts-ignore
-    const updateSoul = jest.requireMock('../../src/core/supabase').updateUserSoul
+    const updateSoul = jest.requireMock(
+      '../../src/core/supabase'
+    ).updateUserSoul
     // @ts-ignore
-    const getById = jest.requireMock('../../src/core/supabase').getUserByTelegramId
+    const getById = jest.requireMock(
+      '../../src/core/supabase'
+    ).getUserByTelegramId
     // @ts-ignore
-    const updateLevel = jest.requireMock('../../src/core/supabase').updateUserLevelPlusOne
+    const updateLevel = jest.requireMock(
+      '../../src/core/supabase'
+    ).updateUserLevelPlusOne
     isRu.mockReturnValueOnce(true)
     cancel.mockResolvedValueOnce(false)
     updateSoul.mockResolvedValueOnce(true)
@@ -139,11 +151,17 @@ describe('avatarBrainWizard', () => {
     const step3 = avatarBrainWizard.steps[3]
     await step3(ctx)
     expect(updateSoul).toHaveBeenCalledWith(
-      '999', 'AcmeCorp', 'Developer', 'JS, TS'
+      '999',
+      'AcmeCorp',
+      'Developer',
+      'JS, TS'
     )
-    expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('✅ Аватар успешно получил информацию'), {
-      parse_mode: 'HTML',
-    })
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Аватар успешно получил информацию'),
+      {
+        parse_mode: 'HTML',
+      }
+    )
     expect(updateLevel).not.toHaveBeenCalled()
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
@@ -153,11 +171,19 @@ describe('avatarBrainWizard', () => {
     // @ts-ignore
     ctx.wizard.state = { company: 'AcmeCorp', position: 'Developer' }
     ctx.from.id = 321
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
+    const cancel = jest.requireMock(
+      '../../src/handlers/handleHelpCancel'
+    ).handleHelpCancel
     const isRu = jest.requireMock('../../src/helpers/language').isRussian
-    const updateSoul = jest.requireMock('../../src/core/supabase').updateUserSoul
-    const getById = jest.requireMock('../../src/core/supabase').getUserByTelegramId
-    const updateLevel = jest.requireMock('../../src/core/supabase').updateUserLevelPlusOne
+    const updateSoul = jest.requireMock(
+      '../../src/core/supabase'
+    ).updateUserSoul
+    const getById = jest.requireMock(
+      '../../src/core/supabase'
+    ).getUserByTelegramId
+    const updateLevel = jest.requireMock(
+      '../../src/core/supabase'
+    ).updateUserLevelPlusOne
     isRu.mockReturnValueOnce(false)
     cancel.mockResolvedValueOnce(false)
     updateSoul.mockResolvedValueOnce(true)
@@ -174,8 +200,12 @@ describe('avatarBrainWizard', () => {
     // @ts-ignore
     ctx.wizard.state = { company: 'Acme', position: 'Dev' }
     ctx.from.id = 555
-    const cancel = jest.requireMock('../../src/handlers/handleHelpCancel').handleHelpCancel
-    const getById = jest.requireMock('../../src/core/supabase').getUserByTelegramId
+    const cancel = jest.requireMock(
+      '../../src/handlers/handleHelpCancel'
+    ).handleHelpCancel
+    const getById = jest.requireMock(
+      '../../src/core/supabase'
+    ).getUserByTelegramId
     cancel.mockResolvedValueOnce(false)
     getById.mockResolvedValueOnce({ data: null })
     // @ts-ignore

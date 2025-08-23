@@ -1,6 +1,8 @@
 import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 // Мокаем handleHelpCancel
-jest.mock('../../src/handlers/handleHelpCancel', () => ({ handleHelpCancel: jest.fn() }))
+jest.mock('../../src/handlers/handleHelpCancel', () => ({
+  handleHelpCancel: jest.fn(),
+}))
 import { selectPaymentOptionStep } from '../../src/scenes/getEmailWizard/index'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { handleHelpCancel } from '../../src/handlers/handleHelpCancel'
