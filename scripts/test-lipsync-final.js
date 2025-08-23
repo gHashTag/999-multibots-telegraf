@@ -107,7 +107,7 @@ function testEnvironmentVariables() {
 async function testAiServerAvailability() {
   console.log('\n4️⃣ Проверка доступности ai-server...')
   
-  const AI_SERVER_URL = process.env.AI_SERVER_URL || 'https://ai-server-u14194.vm.elestio.app'
+  const AI_SERVER_URL = process.env.AI_SERVER_URL || process.env.SERVER_API_URL || 'https://ai-server-production-production-8e2d.up.railway.app'
   
   try {
     const response = await fetch(AI_SERVER_URL)

@@ -71,9 +71,15 @@ export async function generateAiServerLipSync(
       output: result.result_url,
       error: result.error,
       urls: {
-        get: `https://ai-server-u14194.vm.elestio.app/api/lipsync/${result.id}`,
-        cancel: `https://ai-server-u14194.vm.elestio.app/api/lipsync/${result.id}/cancel`
-      }
+        get: `${
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
+        }/api/lipsync/${result.id}`,
+        cancel: `${
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
+        }/api/lipsync/${result.id}/cancel`,
+      },
     } as AiServerLipSyncResponse
 
   } catch (error) {
@@ -113,9 +119,15 @@ export async function getAiServerLipSyncStatus(
       output: result.result_url,
       error: result.error,
       urls: {
-        get: `https://ai-server-u14194.vm.elestio.app/api/lipsync/${result.id}`,
-        cancel: `https://ai-server-u14194.vm.elestio.app/api/lipsync/${result.id}/cancel`
-      }
+        get: `${
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
+        }/api/lipsync/${result.id}`,
+        cancel: `${
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
+        }/api/lipsync/${result.id}/cancel`,
+      },
     } as AiServerLipSyncResponse
 
   } catch (error) {
