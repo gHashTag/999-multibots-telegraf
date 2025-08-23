@@ -197,22 +197,29 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       console.log('🎬 [WIZARD] Step 1: Creating CONFIG-based keyboard...')
 
       console.log('🎬 [WIZARD] Step 1: About to filter text models from VIDEO_MODELS_CONFIG...')
+      console.log('🎬 [WIZARD] Step 1: VIDEO_MODELS_CONFIG keys:', Object.keys(VIDEO_MODELS_CONFIG))
+      console.log('🎬 [WIZARD] Step 1: VIDEO_MODELS_CONFIG length:', Object.keys(VIDEO_MODELS_CONFIG).length)
+      
       // Отбираем только text-to-video модели
-      const textModels = Object.entries(VIDEO_MODELS_CONFIG)
-        .filter(([_, config]) => config.inputType.includes('text'))
-        .filter(([modelId]) =>
-          [
-            'kie-veo-3-fast',
-            'kie-veo-3',
-            'kie-runway-aleph',
-            'kling-v1.6-pro',
-            'minimax',
-            'hunyuan-video-fast',
-            'wan-text-to-video',
-          ].includes(modelId)
-        ) // Оставляем только основные модели
+      const allModels = Object.entries(VIDEO_MODELS_CONFIG)
+      console.log('🎬 [WIZARD] Step 1: All models count:', allModels.length)
+      
+      const textInputModels = allModels.filter(([_, config]) => config.inputType.includes('text'))
+      console.log('🎬 [WIZARD] Step 1: Text input models count:', textInputModels.length)
+      
+      const textModels = textInputModels.filter(([modelId]) =>
+        [
+          'kie-veo-3-fast',
+          'kie-veo-3',
+          'kie-runway-aleph',
+          'kling-v1.6-pro',
+          'minimax',
+          'hunyuan-video-fast',
+          'wan-text-to-video',
+        ].includes(modelId)
+      ) // Оставляем только основные модели
         
-      console.log('🎬 [WIZARD] Step 1: Text models filtering completed')
+      console.log('🎬 [WIZARD] Step 1: Text models filtering completed, final count:', textModels.length)
 
       console.log(
         '🎬 [WIZARD] Step 1: Filtered text models:',
@@ -450,13 +457,19 @@ textToVideoWizard.enter(async ctx => {
       if (typeof firstStepHandler === 'function') {
         console.log('🎬 [WIZARD] About to call firstStepHandler...')
         try {
+          console.log('🎬 [WIZARD] Calling firstStepHandler NOW...')
           await firstStepHandler(ctx)
           console.log('🎬 [WIZARD] ✅ First step executed successfully from .enter()')
           console.log('🎬 [WIZARD] Current wizard cursor after first step:', ctx.wizard.cursor)
           console.log('🎬 [WIZARD] Current scene after first step:', ctx.scene.current?.id)
         } catch (stepError) {
-          console.error('🎬 [WIZARD] ❌ ERROR inside first step execution:', stepError)
-          throw stepError // Re-throw для внешнего catch
+          console.error('🎬 [WIZARD] ❌ CRITICAL ERROR inside first step execution:', stepError)
+          console.error('🎬 [WIZARD] Error name:', stepError instanceof Error ? stepError.name : 'Unknown')
+          console.error('🎬 [WIZARD] Error message:', stepError instanceof Error ? stepError.message : String(stepError))
+          console.error('🎬 [WIZARD] Error stack:', stepError instanceof Error ? stepError.stack : 'No stack')
+          
+          // НЕ re-throw - пусть wizard остается активным для отладки
+          await ctx.reply('❌ Ошибка в первом шаге wizard. Попробуйте позже.')
         }
       } else {
         console.error('🎬 [WIZARD] ❌ First step handler is not a function:', typeof firstStepHandler)
