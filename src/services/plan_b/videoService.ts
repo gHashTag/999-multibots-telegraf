@@ -20,7 +20,8 @@ export class VideoService {
       await mkdir(path.dirname(videoLocalPath), { recursive: true })
 
       const videoBuffer = await downloadFile(videoUrl)
-      await writeFile(videoLocalPath, videoBuffer)
+      const u8 = new Uint8Array(videoBuffer)
+      await writeFile(videoLocalPath, u8)
 
       return videoLocalPath
     } catch (error) {

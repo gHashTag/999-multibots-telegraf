@@ -117,6 +117,12 @@ interface BotReportData {
 export async function generateAdminExcelReport(
   botName: string
 ): Promise<Buffer> {
+  throw new Error('Excel export temporarily disabled - xlsx package not available')
+}
+
+export async function generateAdminExcelReport_DISABLED(
+  botName: string
+): Promise<Buffer> {
   try {
     // Валидируем входные данные
     const validatedBotName = z.string().min(1).parse(botName)
