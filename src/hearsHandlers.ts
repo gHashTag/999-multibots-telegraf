@@ -191,28 +191,18 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Нейрофото от ${ctx.from?.id}`)
 
-      console.log('🔍 [DEBUG] NeuroPhoto hears handler triggered', {
-        userId: ctx.from?.id,
-        text: ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown'
-      })
-
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в нейрофото
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
         isRussianFromState(ctx) ? levels[2].title_ru : levels[2].title_en
       )
       
-      console.log('🔍 [DEBUG] checkSubscriptionGuard result:', hasSubscription)
-      
       if (!hasSubscription) {
-        console.log('🔍 [DEBUG] No subscription - user should see subscription message')
         return // Пользователь получил сообщение в checkSubscriptionGuard
       }
 
-      console.log('🔍 [DEBUG] Subscription OK, setting mode and entering CheckBalanceScene')
       ctx.session.mode = ModeEnum.NeuroPhoto
       await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      console.log('🔍 [DEBUG] CheckBalanceScene entered successfully')
     }
   )
 
