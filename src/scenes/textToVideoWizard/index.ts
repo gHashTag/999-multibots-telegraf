@@ -324,24 +324,20 @@ textToVideoWizard.enter(async (ctx) => {
     currentStep: ctx.wizard?.cursor,
     timestamp: new Date().toISOString()
   })
-
   
-  // ИСПРАВЛЕНИЕ: ЯВНО устанавливаем шаг 0 - это критично для правильной работы wizard'а
-  console.log('🎬 [WIZARD] Setting wizard step to 0...')
-  try {
-    ctx.wizard.selectStep(0)
-    console.log('🎬 [WIZARD] Step set to 0, cursor now:', ctx.wizard?.cursor)
-    
-    // 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ЗАПУСКАЕМ ПЕРВЫЙ ШАГ СРАЗУ ПОСЛЕ ВХОДА
-    console.log('🎬 [WIZARD] EXECUTING FIRST STEP IMMEDIATELY...')
-    return ctx.wizard.steps[0](ctx)
-  } catch (error) {
-    console.error('🎬 [WIZARD] ERROR setting wizard step or executing first step:', error)
-    logger.error('[TextToVideoWizard] Error setting wizard step or executing first step', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id
-    })
-  }
+  // 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отправляем приветственное сообщение сразу
+  // чтобы инициировать первый шаг wizard'а
+  const isRu = ctx.session?.language === 'ru' || ctx.from?.language_code === 'ru'
+  
+  console.log('🎬 [WIZARD] Sending welcome message to trigger first step...')
+  
+  await ctx.reply(
+    isRu 
+      ? '🎥 Добро пожаловать в генератор видео из текста!\n\nВыберите модель и формат:'
+      : '🎥 Welcome to text-to-video generator!\n\nChoose model and format:'
+  )
+  
+  console.log('🎬 [WIZARD] Welcome message sent, wizard should proceed to first step')
 })
 
 // Обработчик выхода из wizard
