@@ -128,7 +128,7 @@ export const {
 } = process.env
 
 // API_URL для AI сервера - в разработке используем локальный AI сервер
-export const API_URL = isDev ? AI_SERVER_LOCAL_URL : API_SERVER_URL
+export const API_URL = isDev ? (LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL) : API_SERVER_URL
 
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
@@ -153,10 +153,13 @@ console.log(`🚨 [CONFIG DEBUG] isDev: ${isDev}`)
 console.log(`🚨 [CONFIG DEBUG] LOCAL_SERVER_URL: ${LOCAL_SERVER_URL}`)
 console.log(`🚨 [CONFIG DEBUG] API_SERVER_URL: ${API_SERVER_URL}`)
 console.log(`🚨 [CONFIG DEBUG] FINAL API_URL: ${API_URL}`)
+console.log(`🚨 [CONFIG DEBUG] SUPABASE_URL: ${SUPABASE_URL}`)
+console.log(`🚨 [CONFIG DEBUG] SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY ? '***SET***' : 'UNDEFINED'}`)
 console.log('🚨 [CONFIG DEBUG] =====================================')
 
 // Парсинг ADMIN_IDS в массив чисел
-const adminIdsString = process.env.ADMIN_IDS || ''
+const adminIdsString = process.env.ADMIN_IDS || process.env.ADMIN_TELEGRAM_ID || ''
+console.log('[CONFIG DEBUG] Raw ADMIN_IDS value:', adminIdsString)
 export const ADMIN_IDS_ARRAY: number[] = adminIdsString
   .split(',') // Разделяем строку по запятым
   .map(id => parseInt(id.trim(), 10)) // Преобразуем каждую часть в число
