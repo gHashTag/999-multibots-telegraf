@@ -19,10 +19,7 @@ import {
 } from '@/helpers/centralizedLanguage'
 import { getParsingAccess } from '@/menu/mainMenu'
 // Импортируем функции мониторинга конкурентов
-import {
-  handleCompetitorMonitoring,
-  handleCompetitorUsernameInput,
-} from '@/services/competitorSubscriptionService'
+import { handleCompetitorMonitoring, handleCompetitorUsernameInput } from '@/services/competitorSubscriptionService'
 import { competitorMonitoringApi } from '@/services/competitorMonitoringApiService'
 
 // Получаем ID администраторов из переменных окружения
@@ -78,7 +75,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.SubscriptionScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SubscriptionScene}`
@@ -98,7 +94,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -117,16 +112,12 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
-        // 💫 УЛУЧШЕНИЕ UX: Показываем индикатор typing
-        await ctx.sendChatAction('typing')
-        
         logger.info({
           message: '📸 [handleMenu] Переход к нейрофото',
           telegramId,
@@ -139,7 +130,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -158,7 +148,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -178,7 +167,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -197,7 +185,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -216,7 +203,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -235,7 +221,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -252,7 +237,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModel
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.SelectModel}`)
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.SelectModel)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SelectModel}`
@@ -271,7 +255,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -290,7 +273,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -309,16 +291,12 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
       [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
-        // 💫 УЛУЧШЕНИЕ UX: Показываем индикатор typing 
-        await ctx.sendChatAction('typing')
-        
         logger.info({
           message: '🎬 [handleMenu] Переход к видео из текста',
           telegramId,
@@ -327,16 +305,16 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: ModeEnum.CheckBalanceScene,
         })
         console.log('CASE: 🎬 Видео из текста')
+        
+        // ✅ Добавляем немедленную обратную связь пользователю
+        await ctx.reply(isRu ? '🎬 Загружаем генератор видео...' : '🎬 Loading video generator...')
+        
         console.log('🎬 [handleMenu] SETTING MODE TO:', ModeEnum.TextToVideo)
         ctx.session.mode = ModeEnum.TextToVideo
-        console.log(
-          '🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:',
-          ctx.session.mode
-        )
+        console.log('🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:', ctx.session.mode)
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -344,18 +322,17 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         logger.info({
-          message: '🖼️ [handleMenu] Переход к генерации изображений',
+          message: '🖼️ [handleMenu] Переход к тексту в фото',
           telegramId,
           function: 'handleMenu',
           action: 'text_to_image',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        console.log('CASE: 🖼️ Генерация изображений')
+        console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -385,7 +362,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -410,7 +386,6 @@ export const handleMenu = async (ctx: MyContext) => {
         // Устанавливаем режим морфинга и переходим напрямую в morphing_wizard
         ctx.session.mode = 'morphing' as any
         console.log(`🔄 [handleMenu] Вход в сцену morphing_wizard`)
-        await ctx.scene.leave()
         await ctx.scene.enter('morphing_wizard')
         console.log(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
       },
@@ -436,7 +411,6 @@ export const handleMenu = async (ctx: MyContext) => {
         // Устанавливаем режим LipSync и переходим напрямую в lip_sync scene
         ctx.session.mode = ModeEnum.LipSync
         console.log(`🔄 [handleMenu] Вход в сцену lip_sync`)
-        await ctx.scene.leave()
         await ctx.scene.enter('lip_sync')
         console.log(`✅ [handleMenu] Завершен вход в сцену lip_sync`)
       },
@@ -464,7 +438,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -494,7 +467,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -502,23 +474,53 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[109].title_ru : levels[109].title_en]: async () => {
         logger.info({
-          message: '🔍 [handleMenu] Переход к мониторингу конкурентов',
+          message: '🔍 [handleMenu] Переход к Instagram парсеру',
           telegramId,
           function: 'handleMenu',
-          action: 'competitor_monitoring',
+          action: 'instagram_parser',
+          nextScene: 'instagram_parser_scene',
         })
-        console.log('CASE: 🔍 Мониторинг конкурентов')
-
-        // Вызываем функцию мониторинга конкурентов
-        await handleCompetitorMonitoring(ctx)
-
-        // После обработки мониторинга остаемся в текущей сцене
-        // Это позволит пользователю вводить username, если он нужен
-        logger.info({
-          message: '✅ [handleMenu] Завершен вызов handleCompetitorMonitoring',
+        console.log('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
+        
+        // Проверяем доступ к парсингу
+        const userId = ctx.from?.id?.toString()
+        const botToken = ctx.telegram.token
+        
+        if (!userId) {
+          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+          return
+        }
+        
+        const parsingAccess = getParsingAccess(userId, botToken)
+        
+        if (!parsingAccess.hasAccess) {
+          logger.warn('Instagram parsing access denied via competitor monitoring button', {
+            telegramId,
+            userId,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ У вас нет доступа к Instagram парсингу.'
+              : '❌ You do not have access to Instagram parsing.'
+          )
+          return
+        }
+        
+        logger.info('✅ Instagram parsing access granted via competitor monitoring', {
           telegramId,
-          function: 'handleMenu',
+          userId,
+          parsingAccess
         })
+        
+        // Переходим в Instagram parser scene
+        ctx.session.mode = ModeEnum.InstagramParserScene
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
+        )
+        await ctx.scene.enter(ModeEnum.InstagramParserScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
+        )
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
@@ -552,7 +554,6 @@ export const handleMenu = async (ctx: MyContext) => {
         )
 
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.PaymentScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
@@ -569,7 +570,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🤑 Баланс')
         ctx.session.mode = ModeEnum.Balance
         console.log(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
-        await ctx.scene.leave()
         await ctx.scene.enter('balanceScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
       },
@@ -584,7 +584,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
         console.log(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
-        await ctx.scene.leave()
         await ctx.scene.enter('inviteScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
@@ -614,7 +613,6 @@ export const handleMenu = async (ctx: MyContext) => {
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
@@ -646,7 +644,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
         console.log(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
-        await ctx.scene.leave()
         await ctx.scene.enter('inviteScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
@@ -673,7 +670,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 💰 Баланс')
         ctx.session.mode = ModeEnum.Balance
         console.log(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
-        await ctx.scene.leave()
         await ctx.scene.enter('balanceScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
       },
@@ -688,7 +684,6 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
-        await ctx.scene.leave()
         await ctx.scene.enter('helpScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Help}`)
       },
@@ -704,64 +699,9 @@ export const handleMenu = async (ctx: MyContext) => {
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
-        )
-      },
-      // Instagram parser button handler
-      [isRu ? levels[109]?.title_ru : levels[109]?.title_en]: async () => {
-        if (!levels[109]) return // Проверка на существование уровня
-
-        logger.info({
-          message: '📱 [handleMenu] Переход к Instagram парсеру',
-          telegramId,
-          function: 'handleMenu',
-          action: 'instagram_parser',
-          nextScene: 'instagram_parser_scene',
-        })
-        console.log('CASE: 📱 Instagram Парсер')
-
-        // Проверяем доступ к парсингу
-        const userId = ctx.from?.id?.toString()
-        const botToken = ctx.telegram.token
-
-        if (!userId) {
-          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
-          return
-        }
-
-        const parsingAccess = getParsingAccess(userId, botToken)
-
-        if (!parsingAccess.hasAccess) {
-          logger.warn('Instagram parsing access denied via button', {
-            telegramId,
-            userId,
-          })
-          await ctx.reply(
-            isRu
-              ? '❌ У вас нет доступа к функции парсинга Instagram.'
-              : "❌ You don't have access to Instagram parsing feature."
-          )
-          return
-        }
-
-        logger.info('Instagram parser access granted via button', {
-          telegramId,
-          userId,
-          allowedProjects: parsingAccess.allowedProjects,
-        })
-
-        // Переходим в Instagram parser scene
-        ctx.session.mode = ModeEnum.InstagramParserScene
-        console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
-        )
-        await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.InstagramParserScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
         )
       },
       // УБРАН КОНФЛИКТУЮЩИЙ ОБРАБОТЧИК /start - команды обрабатываются только в registerCommands.ts
@@ -809,7 +749,6 @@ export const handleMenu = async (ctx: MyContext) => {
         // Перезагружаем главное меню с новым языком
         ctx.session.mode = ModeEnum.MainMenu
         console.log(`🔄 [handleMenu] Перезагрузка меню с английским языком`)
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(`✅ [handleMenu] Меню перезагружено с языком: en`)
       },
@@ -839,7 +778,6 @@ export const handleMenu = async (ctx: MyContext) => {
         // Перезагружаем главное меню с новым языком
         ctx.session.mode = ModeEnum.MainMenu
         console.log(`🔄 [handleMenu] Перезагрузка меню с русским языком`)
-        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(`✅ [handleMenu] Меню перезагружено с языком: ru`)
       },
@@ -876,18 +814,13 @@ export const handleMenu = async (ctx: MyContext) => {
         result: 'action_not_found',
       })
       console.log('CASE: handleMenuCommand.else', normalizedText)
-
+      
       // Проверяем, ожидается ли ввод username конкурента
       console.log('🔍 [handleMenu] Checking competitor username input...')
-      console.log(
-        'Session competitor monitoring state:',
-        ctx.session.competitorMonitoring
-      )
-
+      console.log('Session competitor monitoring state:', ctx.session.competitorMonitoring)
+      
       if (ctx.session.competitorMonitoring?.waitingForUsername) {
-        console.log(
-          '✅ [handleMenu] User is waiting for username input, processing...'
-        )
+        console.log('✅ [handleMenu] User is waiting for username input, processing...')
         logger.info({
           message: `🔍 [handleMenu] Обрабатываем ввод username конкурента: "${normalizedText}"`,
           telegramId,
@@ -895,35 +828,24 @@ export const handleMenu = async (ctx: MyContext) => {
           text: normalizedText,
           result: 'competitor_username_input',
         })
-
+        
         try {
           // Импортируем и вызываем функцию обработки username
-          const handled = await handleCompetitorUsernameInput(
-            ctx,
-            normalizedText
-          )
+          const handled = await handleCompetitorUsernameInput(ctx, normalizedText)
           if (handled) {
-            console.log(
-              '✅ [handleMenu] Successfully handled competitor username input'
-            )
+            console.log('✅ [handleMenu] Successfully handled competitor username input')
             return // Завершаем обработку
           }
         } catch (error) {
-          console.log(
-            '❌ [handleMenu] Error handling competitor username input:',
-            error
-          )
-          logger.error(
-            '[handleMenu] Error handling competitor username input',
-            {
-              error: error instanceof Error ? error.message : String(error),
-              telegramId,
-              username: normalizedText,
-            }
-          )
+          console.log('❌ [handleMenu] Error handling competitor username input:', error)
+          logger.error('[handleMenu] Error handling competitor username input', {
+            error: error instanceof Error ? error.message : String(error),
+            telegramId,
+            username: normalizedText
+          })
         }
       }
-
+      
       // Возможно, здесь не нужно ничего делать или отправить сообщение типа "Неизвестная команда"
     }
   } else {
@@ -954,7 +876,7 @@ export const handleMenu = async (ctx: MyContext) => {
     if (callbackData === 'add_new_competitor') {
       console.log('➕ [handleMenu] add_new_competitor callback')
       const isRu = isRussianFromState(ctx)
-
+      
       // Проверяем права администратора
       const userId = ctx.from?.id?.toString()
       if (!userId || !adminIds.includes(userId)) {
@@ -966,11 +888,9 @@ export const handleMenu = async (ctx: MyContext) => {
         )
         return
       }
-
+      
       await ctx.answerCbQuery()
-      const { promptForCompetitorUsername } = await import(
-        '@/services/competitorSubscriptionService'
-      )
+      const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
       await promptForCompetitorUsername(ctx, isRu)
       return
     }
@@ -985,36 +905,27 @@ export const handleMenu = async (ctx: MyContext) => {
     if (callbackData.startsWith('delete_subscription_')) {
       const subscriptionId = callbackData.replace('delete_subscription_', '')
       const isRu = isRussianFromState(ctx)
-
-      console.log(
-        `🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`
-      )
-
+      
+      console.log(`🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`)
+      
       try {
-        const result = await competitorMonitoringApi.deleteSubscription(
-          ctx,
-          subscriptionId
-        )
-
+        const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
+        
         if (result.success) {
-          console.log(
-            `✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`
-          )
+          console.log(`✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`)
           await ctx.answerCbQuery(result.message)
-
+          
           // Обновляем список подписок после удаления
           await handleCompetitorMonitoring(ctx)
         } else {
-          console.log(
-            `❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`
-          )
+          console.log(`❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`)
           await ctx.answerCbQuery(result.message)
         }
       } catch (error) {
         console.log(`💥 [handleMenu] Error deleting subscription: ${error}`)
         await ctx.answerCbQuery(
-          isRu
-            ? '❌ Ошибка при удалении подписки'
+          isRu 
+            ? '❌ Ошибка при удалении подписки' 
             : '❌ Error deleting subscription'
         )
       }

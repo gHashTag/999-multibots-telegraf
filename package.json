@@ -19,7 +19,10 @@
     "typecheck": "tsc --noEmit",
     "check:translations": "bun run scripts/check_ai_stars_translations.ts",
     "generate:translations-sql": "bun run scripts/check_ai_stars_translations.ts --generate-sql",
-    "build:production": "bun install && bun run build:nocheck"
+    "build:production": "bun install && bun run build:nocheck",
+    "check:build": "./scripts/check-build-health.sh",
+    "check:quick": "./scripts/quick-build-check.sh",
+    "check:merge": "./scripts/pre-merge-check.sh"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -29,6 +32,7 @@
   },
   "dependencies": {
     "@fastify/express": "^4.0.2",
+    "@octokit/rest": "^22.0.0",
     "@supabase/supabase-js": "^2.39.3",
     "@types/pg": "^8.15.4",
     "adm-zip": "^0.5.16",
@@ -42,6 +46,7 @@
     "envalid": "^7.3.1",
     "express": "^5.1.0",
     "express-fileupload": "^1.4.3",
+    "express-rate-limit": "^8.0.1",
     "express-serve-static-core": "^0.1.1",
     "fastify": "^5.3.2",
     "form-data": "^4.0.0",
