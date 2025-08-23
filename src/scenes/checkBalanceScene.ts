@@ -447,14 +447,45 @@ checkBalanceScene.enter(async ctx => {
 
       console.log(ctx.botInfo)
 
-      // Передаем и баланс и уровень из userDetails
-      await sendBalanceMessage(
-        ctx,
-        currentBalance,
-        costValue,
-        isRu,
-        ctx.botInfo?.username
-      )
+      try {
+        // Передаем и баланс и уровень из userDetails
+        await sendBalanceMessage(
+          ctx,
+          currentBalance,
+          costValue,
+          isRu,
+          ctx.botInfo?.username
+        )
+      } catch (sendMessageError) {
+        console.error('❌ [DEBUG] Failed to send balance message:', sendMessageError)
+        
+        if (sendMessageError && typeof sendMessageError === 'object' && 'response' in sendMessageError) {
+          const telegramError = sendMessageError as any
+          if (telegramError.response?.error_code === 403) {
+            console.log('🚫 [DEBUG] User blocked the bot (403) - skipping balance message')
+            logger.warn(`[CheckBalanceScene] User ${telegramId} blocked the bot`, {
+              telegramId,
+              error: 'user_blocked_bot_403',
+              mode
+            })
+            // Продолжаем выполнение без отправки сообщения
+          } else if (telegramError.response?.error_code === 401) {
+            console.log('🚫 [DEBUG] Bot unauthorized (401) - possibly blocked or token issue - skipping balance message')
+            logger.warn(`[CheckBalanceScene] Bot unauthorized for user ${telegramId}`, {
+              telegramId,
+              error: 'bot_unauthorized_401',
+              mode,
+              description: telegramError.response?.description
+            })
+            // Продолжаем выполнение без отправки сообщения
+          } else {
+            console.log('❌ [DEBUG] Other Telegram error:', telegramError.response)
+            throw sendMessageError // Перебрасываем другие ошибки
+          }
+        } else {
+          throw sendMessageError // Перебрасываем неизвестные ошибки
+        }
+      }
     }
 
     // Шаг 7: Проверка достаточности баланса
@@ -471,7 +502,28 @@ checkBalanceScene.enter(async ctx => {
         result: 'access_denied',
       })
       // Отправляем сообщение о нехватке звезд
-      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      try {
+        await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      } catch (insufficientStarsError) {
+        console.error('❌ [DEBUG] Failed to send insufficient stars message:', insufficientStarsError)
+        
+        if (insufficientStarsError && typeof insufficientStarsError === 'object' && 'response' in insufficientStarsError) {
+          const telegramError = insufficientStarsError as any
+          if (telegramError.response?.error_code === 403 || telegramError.response?.error_code === 401) {
+            console.log('🚫 [DEBUG] Cannot send insufficient stars message - user blocked bot or unauthorized')
+            logger.warn(`[CheckBalanceScene] Cannot send insufficient stars message to user ${telegramId}`, {
+              telegramId,
+              error: `bot_error_${telegramError.response?.error_code}`,
+              mode
+            })
+            // Продолжаем выполнение без отправки сообщения
+          } else {
+            throw insufficientStarsError // Перебрасываем другие ошибки
+          }
+        } else {
+          throw insufficientStarsError // Перебрасываем неизвестные ошибки
+        }
+      }
       // Выходим из сцены, т.к. баланса не хватает
       logger.info({
         message: `[CheckBalanceScene] Выход из сцены из-за недостатка баланса`,

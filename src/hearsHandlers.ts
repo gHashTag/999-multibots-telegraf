@@ -196,8 +196,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         ctx,
         isRussianFromState(ctx) ? levels[2].title_ru : levels[2].title_en
       )
+      
       if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
+        return // Пользователь получил сообщение в checkSubscriptionGuard
       }
 
       ctx.session.mode = ModeEnum.NeuroPhoto
@@ -990,7 +991,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
 
     await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.NeuroPhoto
+    ctx.session.mode = ModeEnum.NeuroPhotoV2
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
