@@ -26,6 +26,55 @@ export type VideoModelConfig = {
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
+  // Veo модели (Google)
+  'kie-veo-3-fast': {
+    id: 'kie-veo-3-fast',
+    title: 'Veo 3 Fast',
+    inputType: ['text'],
+    description: 'Быстрая генерация видео от Google',
+    basePrice: 0.4,
+    api: {
+      model: 'google/veo-3-fast',
+      input: {
+        duration: 8,
+        aspect_ratio: '9:16',
+      },
+    },
+    durationOptions: [8],
+    aspectRatioOptions: ['9:16', '16:9'],
+  },
+  'kie-veo-3': {
+    id: 'kie-veo-3',
+    title: 'Veo 3',
+    inputType: ['text'],
+    description: 'Премиум генерация видео от Google',
+    basePrice: 2.02,
+    api: {
+      model: 'google/veo-3',
+      input: {
+        duration: 8,
+        aspect_ratio: '9:16',
+      },
+    },
+    durationOptions: [8],
+    aspectRatioOptions: ['9:16', '16:9'],
+  },
+  'kie-runway-aleph': {
+    id: 'kie-runway-aleph',
+    title: 'Runway Aleph',
+    inputType: ['text'],
+    description: 'Продвинутая модель от Runway',
+    basePrice: 1.82,
+    api: {
+      model: 'runway/aleph',
+      input: {
+        duration: 6,
+        aspect_ratio: '16:9',
+      },
+    },
+    durationOptions: [6],
+    aspectRatioOptions: ['9:16', '16:9'],
+  },
   minimax: {
     id: 'minimax',
     title: 'Minimax',
@@ -112,9 +161,9 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'kling-v1.6-pro': {
     id: 'kling-v1.6-pro',
     title: 'Kling v1.6 Pro',
-    inputType: ['image', 'morph'],
+    inputType: ['text', 'image', 'morph'],
     description: 'Продвинутая анимация (цена за секунду)',
-    basePrice: 0.098,
+    basePrice: 0.06,
     api: {
       model: 'kwaivgi/kling-v1.6-pro',
       input: {
@@ -231,64 +280,6 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
     imageKey: 'image',
     canMorph: false,
-  },
-
-  // Kie.ai модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
-  'kie-veo-3-fast': {
-    id: 'kie-veo-3-fast',
-    title: 'Veo 3 Fast',
-    inputType: ['text', 'image'],
-    description:
-      '🚀 БЫСТРО: 8 сек, 720p, быстрый режим - 40⭐ (экономия до 87%)',
-    basePrice: 0.64, // $0.64 USD за 8 секунд = 40 звезд
-    api: {
-      model: 'google/veo-3-fast',
-      input: {
-        duration: 8, // Фиксированная длительность 8 секунд
-        aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
-      },
-    },
-    imageKey: 'image',
-    canMorph: false,
-    aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
-  },
-  'kie-veo-3': {
-    id: 'kie-veo-3',
-    title: 'Veo 3',
-    inputType: ['text'],
-    description:
-      '⭐ ПРЕМИУМ: 8 сек, 1080p, премиум качество - 202⭐ (экономия до 37%)',
-    basePrice: 3.23, // $3.23 USD за 8 секунд = 202 звезды
-    api: {
-      model: 'google/veo-3',
-      input: {
-        duration: 8, // Фиксированная длительность 8 секунд
-        aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
-      },
-    },
-    canMorph: false,
-    aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
-  },
-  'kie-runway-aleph': {
-    id: 'kie-runway-aleph',
-    title: 'Runway Aleph',
-    inputType: ['text', 'image'],
-    description:
-      '🎬 ПРЕМИУМ: Runway Aleph - 182⭐ за 6 сек (конкурентная цена!)',
-    basePrice: 0.485, // Конкурентная цена: 182⭐ за 6 сек = $2.912 за 6 сек = $0.485/сек
-    api: {
-      model: 'runwayml/gen-3-alpha',
-      input: {
-        duration: 6, // Длительность по умолчанию
-        aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
-      },
-    },
-    imageKey: 'image',
-    canMorph: false,
-    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
   },
 }
 
