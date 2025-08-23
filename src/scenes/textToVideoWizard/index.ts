@@ -176,7 +176,8 @@ function parseModelSelection(buttonText: string): {
   }
 }
 
-// КОНФИГ-БАЗИРОВАННЫЙ wizard - всего 3 шага
+// КОНФИГ-БАЗИРОВАННЫЙ wizard - всего 3 шага  
+console.log('🔥 [DEBUG] CREATING textToVideoWizard with ID text_to_video NOW!')
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
 
@@ -429,6 +430,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
+console.log('🔥 [DEBUG] textToVideoWizard CREATED! ID:', textToVideoWizard.id)
+console.log('🔥 [DEBUG] textToVideoWizard steps count:', (textToVideoWizard as any).steps?.length)
+
 // ========== ОБРАБОТЧИКИ WIZARD'A ==========
 
 // ИСПРАВЛЕНИЕ: удаляем executeFirstStep - пусть wizard обрабатывает шаги стандартным способом
@@ -438,6 +442,7 @@ textToVideoWizard.enter(async ctx => {
   console.log('🎬 [WIZARD] ✅ WIZARD ENTERED! User:', ctx.from?.id)
   console.log('🎬 [WIZARD] Scene ID:', ctx.scene.current?.id)
   console.log('🎬 [WIZARD] Current step:', ctx.wizard?.cursor)
+  console.log('🚨 [DEBUG] THIS IS THE REAL textToVideoWizard.enter() FROM index.ts, NOT OLD VERSION!')
 
   logger.info('[TextToVideoWizard] Wizard entered successfully', {
     telegramId: ctx.from?.id,
