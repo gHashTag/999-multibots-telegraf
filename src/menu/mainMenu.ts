@@ -132,13 +132,15 @@ export const levels: Record<number, Level> = {
     title_ru: '📺 Транскрибация Reels',
     title_en: '📺 Transcribe Reels',
   },
-  // Competitor monitoring button - admin only access
+  // Competitor monitoring button - admin only access - opens Instagram Parser Scene directly
   109: {
     title_ru: '🔍 Мониторинг конкурентов',
     title_en: '🔍 Competitor Monitoring',
     admin_only: true, // Скрыто для обычных пользователей - только для администраторов
   },
 }
+
+// Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
 
 // 🔍 ПЕРСОНАЛИЗИРОВАННЫЕ МАССИВЫ СОТРУДНИКОВ ПО БОТАМ
 
@@ -169,8 +171,6 @@ function getParsingAccess(
   hasAccess: boolean
   allowedProjects?: string[]
 } {
-  // Импортируем ADMIN_IDS_ARRAY
-  const { ADMIN_IDS_ARRAY } = require('@/config')
   const { bot_name } = getBotNameByToken(botToken)
 
   // 👑 ГЛАВНЫЙ АДМИН ИМЕЕТ ДОСТУП КО ВСЕМ БОТАМ И ВСЕМ ПРОЕКТАМ
@@ -202,7 +202,7 @@ function getParsingAccess(
     }
   }
 
-  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ  
+  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ
   // Главные админы из ADMIN_IDS_ARRAY тоже получают доступ
   if (ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
     return {
@@ -299,15 +299,18 @@ export async function mainMenu({
     console.log(`[mainMenu LOG] Full access for ${currentSubscription}`)
   }
 
-  // Получаем ADMIN_IDS_ARRAY для проверки админских функций
-  const { ADMIN_IDS_ARRAY } = await import('@/config')
-  
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
+  // Используем ADMIN_IDS_ARRAY для единой проверки (уже импортирован в начале файла)
+  
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
     .filter(
-      level => !(level.admin_only && !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))))
+      level =>
+        !(
+          level.admin_only &&
+          !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId)))
+        )
     )
 
   // Добавляем кнопку мониторинга конкурентов только для администраторов
@@ -315,13 +318,16 @@ export async function mainMenu({
     const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
 
     if (isAdmin) {
-      // Добавляем кнопку мониторинга конкурентов для администраторов
+      // Добавляем кнопку мониторинга конкурентов для администраторов (теперь открывает парсер)
       if (!availableLevels.includes(levels[109])) {
         availableLevels.push(levels[109])
-        logger.info('[mainMenu] Added competitor monitoring button for admin', {
-          userId,
-          isAdmin: true,
-        })
+        logger.info(
+          '[mainMenu] Added competitor monitoring button for admin (opens parser)',
+          {
+            userId,
+            isAdmin: true,
+          }
+        )
       }
     }
   }
@@ -401,7 +407,9 @@ export async function mainMenu({
   // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
   bottomRowButtons.push([languageButton])
   console.log(
-    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
+    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(
+      bottomRowButtons
+    )}`
   )
 
   // Собираем все ряды, КРОМЕ последнего (Подписка)

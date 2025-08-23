@@ -25,176 +25,230 @@ const REELS_PRICING = {
   200: 55, // 200 рилсов = 55 звезд (скидка)
 }
 
-// ========== WIZARD SCENE ==========
+// ========== SIMPLIFIED SCENE ==========
 export const instagramParserScene = new Scenes.WizardScene<MyContext>(
   'instagram_parser_scene',
 
-  // ШАГ 1: Главное меню
+  // ШАГ 1: Главное меню + обработка выбора
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const userId = ctx.from?.id
 
-    logger.info('Instagram parser scene entered', { userId })
+    logger.info('🔥 [SIMPLIFIED] Step 1 entered', { 
+      userId,
+      wizardCursor: ctx.wizard.cursor,
+      wizardState: ctx.wizard.state,
+      updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown'
+    })
 
-    const menuText = isRu
-      ? '🎬 Instagram Парсер\n\n' +
-        '📱 Собирайте рилсы конкурентов и по хештегам\n' +
-        '⚡ Быстро и эффективно\n\n' +
-        'Выберите действие:'
-      : '🎬 Instagram Parser\n\n' +
-        '📱 Collect competitor reels and by hashtags\n' +
-        '⚡ Fast and efficient\n\n' +
-        'Choose action:'
+    // Если это callback query (пользователь выбрал опцию)
+    if (ctx.callbackQuery) {
+      const action = (ctx.callbackQuery as any).data
+      const state = ctx.wizard.state as InstagramParserState
 
-    await ctx.reply(
-      menuText,
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            isRu ? '👤 Парсинг конкурента' : '👤 Parse competitor',
-            'parse_competitor'
-          ),
-        ],
-        [
-          Markup.button.callback(
-            isRu ? '#️⃣ Парсинг по хештегу' : '#️⃣ Parse by hashtag',
-            'parse_hashtag'
-          ),
-        ],
-        [
-          Markup.button.callback(
-            isRu ? '📊 Моя статистика' : '📊 My statistics',
-            'my_stats'
-          ),
-        ],
-        [Markup.button.callback(isRu ? '❓ Помощь' : '❓ Help', 'help')],
-        [Markup.button.callback(isRu ? '❌ Выход' : '❌ Exit', 'exit')],
-      ])
-    )
-    return ctx.wizard.next()
-  },
+      logger.info('Instagram parser scene - Processing callback', { userId, action })
 
-  // ШАГ 2: Обработка выбора
-  async ctx => {
-    if (!ctx.callbackQuery) return
+      if (action === 'parse_competitor') {
+        state.type = 'competitor'
+        await ctx.answerCbQuery()
+        await ctx.editMessageText(
+          isRu
+            ? '👤 Введите username аккаунта (без @):\n\n📝 Примеры: nike, adidas, zara'
+            : '👤 Enter account username (without @):\n\n📝 Examples: nike, adidas, zara',
+          Markup.inlineKeyboard([
+            [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
+          ])
+        )
+        return ctx.wizard.next()
+      }
 
-    const isRu = isRussianFromState(ctx)
-    const action = (ctx.callbackQuery as any).data
-    const state = ctx.wizard.state as InstagramParserState
+      if (action === 'parse_hashtag') {
+        state.type = 'hashtag'
+        await ctx.answerCbQuery()
+        await ctx.editMessageText(
+          isRu
+            ? '#️⃣ Введите хештег (без #):\n\n📝 Примеры: fitness, travel, food'
+            : '#️⃣ Enter hashtag (without #):\n\n📝 Examples: fitness, travel, food',
+          Markup.inlineKeyboard([
+            [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
+          ])
+        )
+        return ctx.wizard.next()
+      }
 
-    if (action === 'parse_competitor') {
-      state.type = 'competitor'
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(
-        isRu
-          ? '👤 Введите username аккаунта (без @):\n\n' +
-              '📝 Примеры: nike, adidas, zara\n' +
-              '⚠️ Аккаунт должен быть открытым'
-          : '👤 Enter account username (without @):\n\n' +
-              '📝 Examples: nike, adidas, zara\n' +
-              '⚠️ Account must be public',
+      if (action === 'my_stats') {
+        await ctx.answerCbQuery()
+        await showStats(ctx)
+        return
+      }
+
+      if (action === 'help') {
+        await ctx.answerCbQuery()
+        await showHelp(ctx)
+        return
+      }
+
+      if (action === 'exit') {
+        await ctx.answerCbQuery()
+        await ctx.editMessageText(isRu ? '👋 До встречи!' : '👋 See you!')
+        return ctx.scene.leave()
+      }
+    } else {
+      // Показываем главное меню при входе
+      const menuText = isRu
+        ? '🎬 Instagram Парсер\n\n📱 Собирайте рилсы конкурентов и по хештегам\n⚡ Быстро и эффективно\n\nВыберите действие:'
+        : '🎬 Instagram Parser\n\n📱 Collect competitor reels and by hashtags\n⚡ Fast and efficient\n\nChoose action:'
+
+      await ctx.reply(
+        menuText,
         Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
+          [Markup.button.callback(isRu ? '👤 Парсинг конкурента' : '👤 Parse competitor', 'parse_competitor')],
+          [Markup.button.callback(isRu ? '#️⃣ Парсинг по хештегу' : '#️⃣ Parse by hashtag', 'parse_hashtag')],
+          [Markup.button.callback(isRu ? '📊 Моя статистика' : '📊 My statistics', 'my_stats')],
+          [Markup.button.callback(isRu ? '❓ Помощь' : '❓ Help', 'help')],
+          [Markup.button.callback(isRu ? '❌ Выход' : '❌ Exit', 'exit')],
         ])
       )
-      return ctx.wizard.next()
-    }
-
-    if (action === 'parse_hashtag') {
-      state.type = 'hashtag'
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(
-        isRu
-          ? '#️⃣ Введите хештег (без #):\n\n' +
-              '📝 Примеры: fitness, travel, food\n' +
-              '💡 Популярные хештеги дают больше результатов'
-          : '#️⃣ Enter hashtag (without #):\n\n' +
-              '📝 Examples: fitness, travel, food\n' +
-              '💡 Popular hashtags give more results',
-        Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
-        ])
-      )
-      return ctx.wizard.next()
-    }
-
-    if (action === 'my_stats') {
-      await ctx.answerCbQuery()
-      await showStats(ctx)
-      return
-    }
-
-    if (action === 'help') {
-      await ctx.answerCbQuery()
-      await showHelp(ctx)
-      return
-    }
-
-    if (action === 'exit') {
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(isRu ? '👋 До встречи!' : '👋 See you!')
-      return ctx.scene.leave()
     }
   },
 
-  // ШАГ 3: Ввод цели
+  // ШАГ 2: Обработка ввода + выбор количества + выполнение парсинга
   async ctx => {
+    const userId = ctx.from?.id
     const isRu = isRussianFromState(ctx)
     const state = ctx.wizard.state as InstagramParserState
 
-    if (
-      ctx.callbackQuery &&
-      'data' in ctx.callbackQuery &&
-      ctx.callbackQuery.data === 'cancel'
-    ) {
+    logger.info('🔥 [SIMPLIFIED] Step 2 entered', { 
+      userId,
+      wizardCursor: ctx.wizard.cursor,
+      updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown'
+    })
+
+    // Обработка отмены
+    if (ctx.callbackQuery && (ctx.callbackQuery as any).data === 'cancel') {
       await ctx.answerCbQuery()
       return ctx.wizard.selectStep(0)
     }
 
+    // Если это выбор количества рилсов
+    if (ctx.callbackQuery) {
+      const action = (ctx.callbackQuery as any).data
+      const match = action.match(/count_(\d+)/)
+      
+      if (match) {
+        const count = parseInt(match[1])
+        const cost = REELS_PRICING[count as keyof typeof REELS_PRICING]
+        
+        state.count = count
+        state.cost = cost
+
+        if (!userId) {
+          await ctx.answerCbQuery(isRu ? '❌ Ошибка авторизации' : '❌ Authorization error')
+          return ctx.scene.leave()
+        }
+
+        // Проверяем баланс
+        const currentBalance = await getUserBalance(userId.toString(), ctx.botInfo?.username)
+
+        if (currentBalance < cost) {
+          await ctx.answerCbQuery()
+          await ctx.editMessageText(
+            isRu
+              ? `❌ Недостаточно звезд\n\nНеобходимо: ${cost} ⭐\nВаш баланс: ${currentBalance} ⭐`
+              : `❌ Not enough stars\n\nRequired: ${cost} ⭐\nYour balance: ${currentBalance} ⭐`,
+            Markup.inlineKeyboard([
+              [Markup.button.callback(isRu ? '💳 Пополнить баланс' : '💳 Top up balance', 'top_up')],
+              [Markup.button.callback(isRu ? '⬅️ Назад' : '⬅️ Back', 'back')]
+            ])
+          )
+          return
+        }
+
+        await ctx.answerCbQuery(isRu ? '🚀 Запускаю парсинг...' : '🚀 Starting parsing...')
+
+        try {
+          // Списываем баланс
+          await updateUserBalance(
+            userId.toString(),
+            cost as any,
+            PaymentType.MONEY_OUTCOME,
+            isRu
+              ? `Instagram парсинг: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${count} рилсов)`
+              : `Instagram parsing: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${count} reels)`,
+            { service_type: 'instagram_parser', target: state.target, count, stars: cost }
+          )
+
+          // Запускаем парсинг
+          const { generateInstagramScraping } = await import('@/services/generateInstagramScraping')
+          const result = await generateInstagramScraping(
+            state.target,
+            1,
+            count,
+            count,
+            true,
+            userId.toString(),
+            ctx,
+            ctx.botInfo?.username || 'telegram_bot'
+          )
+
+          if (result?.success) {
+            await ctx.editMessageText(
+              isRu
+                ? `✅ Парсинг запущен!\n\n🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Количество: ${count} рилсов\n💰 Списано: ${cost} ⭐\n\n📬 Результаты придут автоматически через 3-10 минут`
+                : `✅ Parsing started!\n\n🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Count: ${count} reels\n💰 Charged: ${cost} ⭐\n\n📬 Results will arrive automatically in 3-10 minutes`,
+              Markup.inlineKeyboard([
+                [Markup.button.callback(isRu ? '🔄 Новый парсинг' : '🔄 New parsing', 'restart')],
+                [Markup.button.callback(isRu ? '🏠 В главное меню' : '🏠 Main menu', 'main_menu')]
+              ])
+            )
+          } else {
+            await ctx.editMessageText(isRu ? '❌ Ошибка запуска парсинга' : '❌ Parsing start error')
+          }
+        } catch (error) {
+          logger.error('Parsing error', { error, userId })
+          await ctx.editMessageText(isRu ? '❌ Ошибка парсинга' : '❌ Parsing error')
+        }
+
+        ;(ctx.wizard as any).state = {}
+        return ctx.scene.leave()
+      }
+
+      // Обработка служебных кнопок
+      if (action === 'top_up') {
+        await ctx.answerCbQuery()
+        await ctx.scene.enter('payment_scene')
+        return
+      }
+      
+      if (action === 'back') {
+        await ctx.answerCbQuery()
+        return ctx.wizard.selectStep(0)
+      }
+    }
+
+    // Если это ввод текста (target)
     if (ctx.message && 'text' in ctx.message) {
       const target = ctx.message.text.replace(/[@#]/g, '').trim().toLowerCase()
 
-      if (target.length < 2) {
-        await ctx.reply(
-          isRu ? '❌ Слишком короткое название' : '❌ Too short name'
-        )
-        return
-      }
-
-      if (target.length > 30) {
-        await ctx.reply(
-          isRu ? '❌ Слишком длинное название' : '❌ Too long name'
-        )
-        return
-      }
-
-      // Проверка на допустимые символы
-      if (!/^[a-z0-9._]+$/.test(target)) {
+      // Валидация
+      if (target.length < 2 || target.length > 30 || !/^[a-z0-9._]+$/.test(target)) {
         await ctx.reply(
           isRu
-            ? '❌ Используйте только латинские буквы, цифры, точки и подчеркивания'
-            : '❌ Use only latin letters, numbers, dots and underscores'
+            ? '❌ Некорректное название. Используйте 2-30 символов: буквы, цифры, точки, подчеркивания'
+            : '❌ Invalid name. Use 2-30 characters: letters, numbers, dots, underscores'
         )
         return
       }
 
       state.target = target
 
-      const typeText =
-        state.type === 'competitor'
-          ? isRu
-            ? 'Аккаунт'
-            : 'Account'
-          : isRu
-            ? 'Хештег'
-            : 'Hashtag'
+      const typeText = state.type === 'competitor' ? (isRu ? 'Аккаунт' : 'Account') : (isRu ? 'Хештег' : 'Hashtag')
+      const prefix = state.type === 'competitor' ? '@' : '#'
 
       await ctx.reply(
         isRu
-          ? `✅ ${typeText}: ${state.type === 'competitor' ? '@' : '#'}${target}\n\n` +
-              '⚙️ Выберите количество рилсов для парсинга:'
-          : `✅ ${typeText}: ${state.type === 'competitor' ? '@' : '#'}${target}\n\n` +
-              '⚙️ Choose number of reels to parse:',
+          ? `✅ ${typeText}: ${prefix}${target}\n\n⚙️ Выберите количество рилсов:`
+          : `✅ ${typeText}: ${prefix}${target}\n\n⚙️ Choose number of reels:`,
         Markup.inlineKeyboard([
           [
             Markup.button.callback(`10 (${REELS_PRICING[10]}⭐)`, 'count_10'),
@@ -202,294 +256,31 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
             Markup.button.callback(`50 (${REELS_PRICING[50]}⭐)`, 'count_50'),
           ],
           [
-            Markup.button.callback(
-              `100 (${REELS_PRICING[100]}⭐)`,
-              'count_100'
-            ),
-            Markup.button.callback(
-              `200 (${REELS_PRICING[200]}⭐)`,
-              'count_200'
-            ),
+            Markup.button.callback(`100 (${REELS_PRICING[100]}⭐)`, 'count_100'),
+            Markup.button.callback(`200 (${REELS_PRICING[200]}⭐)`, 'count_200'),
           ],
           [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
         ])
       )
-
-      return ctx.wizard.next()
-    }
-  },
-
-  // ШАГ 4: Выбор количества и оплата
-  async ctx => {
-    if (!ctx.callbackQuery) return
-
-    const isRu = isRussianFromState(ctx)
-    const action = (ctx.callbackQuery as any).data
-    const state = ctx.wizard.state as InstagramParserState
-
-    if (action === 'cancel') {
-      await ctx.answerCbQuery()
-      return ctx.wizard.selectStep(0)
-    }
-
-    const match = action.match(/count_(\d+)/)
-    if (match) {
-      const count = parseInt(match[1])
-      const cost = REELS_PRICING[count as keyof typeof REELS_PRICING]
-
-      state.count = count
-      state.cost = cost
-
-      // Проверяем баланс пользователя
-      const userId = ctx.from?.id
-      if (!userId) {
-        await ctx.answerCbQuery(
-          isRu ? '❌ Ошибка авторизации' : '❌ Authorization error'
-        )
-        return ctx.scene.leave()
-      }
-
-      // Используем правильную функцию для получения баланса
-      const currentBalance = await getUserBalance(
-        userId.toString(),
-        ctx.botInfo?.username
-      )
-
-      if (currentBalance < cost) {
-        await ctx.answerCbQuery()
-        await ctx.editMessageText(
-          isRu
-            ? `❌ Недостаточно звезд\n\n` +
-                `Ваш баланс: ${currentBalance} ⭐\n` +
-                `Необходимо: ${cost} ⭐\n` +
-                `Не хватает: ${cost - currentBalance} ⭐\n\n` +
-                `Пополните баланс и попробуйте снова`
-            : `❌ Not enough stars\n\n` +
-                `Your balance: ${currentBalance} ⭐\n` +
-                `Required: ${cost} ⭐\n` +
-                `Need more: ${cost - currentBalance} ⭐\n\n` +
-                `Top up your balance and try again`,
-          Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                isRu ? '💳 Пополнить баланс' : '💳 Top up balance',
-                'top_up'
-              ),
-            ],
-            [Markup.button.callback(isRu ? '⬅️ Назад' : '⬅️ Back', 'back')],
-          ])
-        )
-        return
-      }
-
-      await ctx.answerCbQuery()
-
-      const typeText =
-        state.type === 'competitor'
-          ? isRu
-            ? 'Аккаунт'
-            : 'Account'
-          : isRu
-            ? 'Хештег'
-            : 'Hashtag'
-
-      await ctx.editMessageText(
-        isRu
-          ? `💰 Подтверждение оплаты\n\n` +
-              `${typeText}: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-              `Количество рилсов: ${count}\n` +
-              `Стоимость: ${cost} ⭐\n` +
-              `Ваш баланс: ${currentBalance} ⭐\n` +
-              `После оплаты: ${currentBalance - cost} ⭐\n\n` +
-              `Подтвердить парсинг?`
-          : `💰 Payment confirmation\n\n` +
-              `${typeText}: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-              `Number of reels: ${count}\n` +
-              `Cost: ${cost} ⭐\n` +
-              `Your balance: ${currentBalance} ⭐\n` +
-              `After payment: ${currentBalance - cost} ⭐\n\n` +
-              `Confirm parsing?`,
-        Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              isRu ? '✅ Оплатить и начать' : '✅ Pay and start',
-              'start_parsing'
-            ),
-          ],
-          [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
-        ])
-      )
-
-      return ctx.wizard.next()
-    }
-  },
-
-  // ШАГ 5: Запуск парсинга
-  async ctx => {
-    if (!ctx.callbackQuery) return
-
-    const isRu = isRussianFromState(ctx)
-    const action = (ctx.callbackQuery as any).data
-    const state = ctx.wizard.state as InstagramParserState
-    const userId = ctx.from?.id
-
-    if (action === 'cancel') {
-      await ctx.answerCbQuery()
-      return ctx.wizard.selectStep(0)
-    }
-
-    if (action === 'back') {
-      await ctx.answerCbQuery()
-      return ctx.wizard.selectStep(0)
-    }
-
-    if (action === 'top_up') {
-      await ctx.answerCbQuery()
-      await ctx.scene.enter('payment_scene')
-      return
-    }
-
-    if (action === 'start_parsing') {
-      await ctx.answerCbQuery(
-        isRu ? '🚀 Запускаю парсинг...' : '🚀 Starting parsing...'
-      )
-
-      if (!userId || !state.target || !state.count || !state.cost) {
-        await ctx.editMessageText(isRu ? '❌ Ошибка данных' : '❌ Data error')
-        return ctx.scene.leave()
-      }
-
-      try {
-        // Списываем баланс
-        await updateUserBalance(
-          userId.toString(),
-          state.cost as any,
-          PaymentType.MONEY_OUTCOME,
-          isRu
-            ? `Instagram парсинг: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${state.count} рилсов)`
-            : `Instagram parsing: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${state.count} reels)`,
-          {
-            service_type: 'instagram_parser',
-            target: state.target,
-            count: state.count,
-            stars: state.cost,
-          }
-        )
-
-        // Запускаем парсинг напрямую через Apify
-        const result = await scrapeInstagramDirect({
-          username_or_hashtag: state.target,
-          type: state.type,
-          maxPosts: state.count,
-          userId: userId.toString(),
-          telegram_id: userId.toString(),
-        })
-
-        logger.info('Instagram parsing started', {
-          userId,
-          target: state.target,
-          type: state.type,
-          count: state.count,
-          runId: result.runId,
-        })
-
-        if (result.success) {
-          // Парсинг завершен успешно
-          const reelsCount = result.data?.length || 0
-          await ctx.editMessageText(
-            isRu
-              ? `✅ Парсинг завершен!\n\n` +
-                  `🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-                  `📊 Найдено рилсов: ${reelsCount}\n` +
-                  `💰 Списано: ${state.cost} ⭐\n\n` +
-                  `📨 Результаты сохранены в базе данных.\n` +
-                  `💡 Вы можете запустить новый парсинг`
-              : `✅ Parsing completed!\n\n` +
-                  `🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n` +
-                  `📊 Reels found: ${reelsCount}\n` +
-                  `💰 Charged: ${state.cost} ⭐\n\n` +
-                  `📨 Results saved to database.\n` +
-                  `💡 You can start a new parsing`,
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  isRu ? '🏠 В главное меню' : '🏠 Main menu',
-                  'main_menu'
-                ),
-              ],
-              [
-                Markup.button.callback(
-                  isRu ? '🔄 Новый парсинг' : '🔄 New parsing',
-                  'restart'
-                ),
-              ],
-            ])
-          )
-
-          // Отправляем данные пользователю если есть результаты
-          if (result.data && result.data.length > 0) {
-            const message = isRu
-              ? `📊 Найденные рилсы:\n\n`
-              : `📊 Found reels:\n\n`
-
-            const reelsInfo = result.data
-              .slice(0, 10)
-              .map((reel: any, index: number) => {
-                const caption = reel.caption
-                  ? reel.caption.substring(0, 50) + '...'
-                  : 'Без описания'
-                return `${index + 1}. ${reel.shortCode ? `[${reel.shortCode}]` : ''} ${caption}`
-              })
-              .join('\n')
-
-            await ctx.reply(message + reelsInfo)
-          }
-        } else {
-          // Ошибка парсинга
-          await ctx.editMessageText(
-            isRu
-              ? `❌ Ошибка парсинга\n\n` +
-                  `Причина: ${result.error}\n\n` +
-                  `💰 Средства не были списаны.\n` +
-                  `Попробуйте еще раз позже.`
-              : `❌ Parsing error\n\n` +
-                  `Reason: ${result.error}\n\n` +
-                  `💰 Funds were not charged.\n` +
-                  `Please try again later.`,
-            Markup.inlineKeyboard([
-              [
-                Markup.button.callback(
-                  isRu ? '🏠 В главное меню' : '🏠 Main menu',
-                  'main_menu'
-                ),
-              ],
-              [
-                Markup.button.callback(
-                  isRu ? '🔄 Попробовать снова' : '🔄 Try again',
-                  'restart'
-                ),
-              ],
-            ])
-          )
-        }
-      } catch (error) {
-        logger.error('Instagram parsing error', { error, userId, state })
-
-        await ctx.editMessageText(
-          isRu
-            ? '❌ Произошла ошибка при запуске парсинга.\n' +
-                'Попробуйте позже или обратитесь в поддержку.'
-            : '❌ Error occurred while starting parsing.\n' +
-                'Try again later or contact support.'
-        )
-      }
-
-      // Сброс состояния
-      ;(ctx.wizard as any).state = {}
-      return ctx.scene.leave()
     }
   }
 )
+
+// ========== MIDDLEWARE ДЛЯ ДИАГНОСТИКИ ==========
+instagramParserScene.use(async (ctx, next) => {
+  const userId = ctx.from?.id
+  logger.info('🔥 [SCENE MIDDLEWARE] Processing update in Instagram Parser Scene', {
+    userId,
+    updateType: ctx.callbackQuery ? 'callback_query' : ctx.message ? 'message' : 'unknown',
+    callbackData: ctx.callbackQuery ? (ctx.callbackQuery as any).data : 'no callback',
+    messageText: ctx.message && 'text' in ctx.message ? ctx.message.text : 'no text',
+    wizardCursor: ctx.wizard.cursor,
+    wizardState: ctx.wizard.state,
+    sceneSession: ctx.scene.session
+  })
+  
+  return next()
+})
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 async function showStats(ctx: MyContext) {
@@ -515,7 +306,9 @@ async function showStats(ctx: MyContext) {
     const recentText = recent
       .map(
         s =>
-          `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${s.reels_count} ${isRu ? 'рилсов' : 'reels'}`
+          `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${
+            s.reels_count
+          } ${isRu ? 'рилсов' : 'reels'}`
       )
       .join('\n')
 
@@ -600,10 +393,11 @@ instagramParserScene.action('back_to_menu', async ctx => {
 
 instagramParserScene.action('restart', async ctx => {
   await ctx.answerCbQuery()
+  ;(ctx.wizard as any).state = {}
   return ctx.wizard.selectStep(0)
 })
 
 instagramParserScene.action('main_menu', async ctx => {
   await ctx.answerCbQuery()
-  await ctx.scene.enter('main_menu')
+  await ctx.scene.enter('menuScene')
 })

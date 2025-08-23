@@ -261,8 +261,12 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
                 await ctx.reply(
                   isRu
-                    ? `Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, то выберите количество изображений в меню 1️⃣, 2️⃣, 3️⃣, 4️⃣.\n\nВаш новый баланс: ${currentBalance.toFixed(2)} ⭐️`
-                    : `Your images have been generated!\n\nGenerate more?\n\nYour new balance: ${currentBalance.toFixed(2)} ⭐️`,
+                    ? `Ваши изображения сгенерированы!\n\nЕсли хотите сгенерировать еще, то выберите количество изображений в меню 1️⃣, 2️⃣, 3️⃣, 4️⃣.\n\nВаш новый баланс: ${currentBalance.toFixed(
+                        2
+                      )} ⭐️`
+                    : `Your images have been generated!\n\nGenerate more?\n\nYour new balance: ${currentBalance.toFixed(
+                        2
+                      )} ⭐️`,
                   {
                     reply_markup: {
                       keyboard: [

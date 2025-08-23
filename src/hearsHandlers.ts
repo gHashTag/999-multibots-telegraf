@@ -196,8 +196,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         ctx,
         isRussianFromState(ctx) ? levels[2].title_ru : levels[2].title_en
       )
+      
       if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
+        return // Пользователь получил сообщение в checkSubscriptionGuard
       }
 
       ctx.session.mode = ModeEnum.NeuroPhoto
@@ -207,6 +208,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
   bot.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async (ctx: MyContext) => {
     logger.debug(`Получен hears для Нейрофото 2 от ${ctx.from?.id}`)
+
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+    
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
 
     // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
     const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
@@ -934,6 +945,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       telegramId: ctx.from?.id,
     })
 
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+    
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
+
     // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
     const hasSubscription = await checkSubscriptionGuard(
       ctx,
@@ -953,6 +974,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       telegramId: ctx.from?.id,
     })
 
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+    
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
+
     // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
     const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
     if (!hasSubscription) {
@@ -960,7 +991,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
 
     await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.NeuroPhoto
+    ctx.session.mode = ModeEnum.NeuroPhotoV2
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   })
 
@@ -1026,7 +1057,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.enter('flux_kontext_scene')
   })
 
-  // === ПАРСИНГ INSTAGRAM ДЛЯ СОТРУДНИКОВ С ПЕРСОНАЛИЗИРОВАННЫМ ДОСТУПОМ ===
+  // === ПАРСИНГ INSTAGRAM ДЛЯ АДМИНОВ (НОВЫЙ WIZARD БЕЗ CALLBACKS) ===
   bot.hears(['🔍 Парсинг', '🔍 Parsing'], async ctx => {
     const userId = ctx.from?.id?.toString()
     const botToken = ctx.telegram.token
@@ -1045,39 +1076,36 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       return
     }
 
-    // 🔍 Проверяем доступ к парсингу для текущего бота
-    const parsingAccess = getParsingAccess(userId, botToken)
+    // 🔍 Простая проверка - доступ только админам
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
 
-    if (!parsingAccess.hasAccess) {
-      logger.warn('Instagram parsing access denied', {
+    if (!isAdmin) {
+      logger.warn('Instagram parsing access denied - not admin', {
         telegramId: ctx.from?.id,
         userId,
-        reason: 'Not in bot staff list',
-        botName: require('./core/bot').getBotNameByToken(botToken).bot_name,
       })
 
       await ctx.reply('❌ У вас нет доступа к функции парсинга Instagram.')
       return
     }
 
-    logger.info('Instagram parsing access granted', {
+    logger.info('Instagram parsing access granted for admin', {
       telegramId: ctx.from?.id,
       userId,
-      botName: require('./core/bot').getBotNameByToken(botToken).bot_name,
-      allowedProjects: parsingAccess.allowedProjects,
     })
 
     // ✅ Доступ разрешен - запускаем мастер парсинга
     try {
       await ctx.scene.leave()
-      await ctx.scene.enter('instagram_scraping_wizard')
+      await ctx.scene.enter(ModeEnum.InstagramParserScene)
     } catch (error) {
-      logger.error('Error entering Instagram scraping wizard', {
+      logger.error('Error entering Instagram parser wizard', {
         telegramId: ctx.from?.id,
         userId,
         error: error instanceof Error ? error.message : String(error),
       })
-      await ctx.reply('❌ Произошла ошибка при запуске мастера парсинга.')
+      await ctx.reply('❌ Произошла ошибка при запуске парсинга. Попробуйте позже.')
     }
   })
 }

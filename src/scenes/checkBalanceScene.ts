@@ -447,14 +447,45 @@ checkBalanceScene.enter(async ctx => {
 
       console.log(ctx.botInfo)
 
-      // Передаем и баланс и уровень из userDetails
-      await sendBalanceMessage(
-        ctx,
-        currentBalance,
-        costValue,
-        isRu,
-        ctx.botInfo?.username
-      )
+      try {
+        // Передаем и баланс и уровень из userDetails
+        await sendBalanceMessage(
+          ctx,
+          currentBalance,
+          costValue,
+          isRu,
+          ctx.botInfo?.username
+        )
+      } catch (sendMessageError) {
+        console.error('❌ [DEBUG] Failed to send balance message:', sendMessageError)
+        
+        if (sendMessageError && typeof sendMessageError === 'object' && 'response' in sendMessageError) {
+          const telegramError = sendMessageError as any
+          if (telegramError.response?.error_code === 403) {
+            console.log('🚫 [DEBUG] User blocked the bot (403) - skipping balance message')
+            logger.warn(`[CheckBalanceScene] User ${telegramId} blocked the bot`, {
+              telegramId,
+              error: 'user_blocked_bot_403',
+              mode
+            })
+            // Продолжаем выполнение без отправки сообщения
+          } else if (telegramError.response?.error_code === 401) {
+            console.log('🚫 [DEBUG] Bot unauthorized (401) - possibly blocked or token issue - skipping balance message')
+            logger.warn(`[CheckBalanceScene] Bot unauthorized for user ${telegramId}`, {
+              telegramId,
+              error: 'bot_unauthorized_401',
+              mode,
+              description: telegramError.response?.description
+            })
+            // Продолжаем выполнение без отправки сообщения
+          } else {
+            console.log('❌ [DEBUG] Other Telegram error:', telegramError.response)
+            throw sendMessageError // Перебрасываем другие ошибки
+          }
+        } else {
+          throw sendMessageError // Перебрасываем неизвестные ошибки
+        }
+      }
     }
 
     // Шаг 7: Проверка достаточности баланса
@@ -471,7 +502,28 @@ checkBalanceScene.enter(async ctx => {
         result: 'access_denied',
       })
       // Отправляем сообщение о нехватке звезд
-      await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      try {
+        await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
+      } catch (insufficientStarsError) {
+        console.error('❌ [DEBUG] Failed to send insufficient stars message:', insufficientStarsError)
+        
+        if (insufficientStarsError && typeof insufficientStarsError === 'object' && 'response' in insufficientStarsError) {
+          const telegramError = insufficientStarsError as any
+          if (telegramError.response?.error_code === 403 || telegramError.response?.error_code === 401) {
+            console.log('🚫 [DEBUG] Cannot send insufficient stars message - user blocked bot or unauthorized')
+            logger.warn(`[CheckBalanceScene] Cannot send insufficient stars message to user ${telegramId}`, {
+              telegramId,
+              error: `bot_error_${telegramError.response?.error_code}`,
+              mode
+            })
+            // Продолжаем выполнение без отправки сообщения
+          } else {
+            throw insufficientStarsError // Перебрасываем другие ошибки
+          }
+        } else {
+          throw insufficientStarsError // Перебрасываем неизвестные ошибки
+        }
+      }
       // Выходим из сцены, т.к. баланса не хватает
       logger.info({
         message: `[CheckBalanceScene] Выход из сцены из-за недостатка баланса`,
@@ -539,25 +591,35 @@ checkBalanceScene.enter(async ctx => {
 })
 
 // Добавляем обработчик текстовых сообщений для отладки
-checkBalanceScene.on('text', async (ctx) => {
-  console.log('📝 [DEBUG] checkBalanceScene: Received text message:', ctx.message.text)
+checkBalanceScene.on('text', async ctx => {
+  console.log(
+    '📝 [DEBUG] checkBalanceScene: Received text message:',
+    ctx.message.text
+  )
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  
+
   logger.info({
-    message: '📝 [CheckBalanceScene] Получено текстовое сообщение в checkBalanceScene',
+    message:
+      '📝 [CheckBalanceScene] Получено текстовое сообщение в checkBalanceScene',
     telegramId,
     text: ctx.message.text,
     function: 'checkBalanceScene.text',
     sessionMode: ctx.session?.mode,
-    note: 'checkBalanceScene не должна обрабатывать текст - возможно, пользователь застрял в этой сцене'
+    note: 'checkBalanceScene не должна обрабатывать текст - возможно, пользователь застрял в этой сцене',
   })
-  
+
   // Показываем пользователю, что его сообщение получено, но сцена не готова его обрабатывать
   await ctx.reply('⏳ Обрабатываю ваш запрос...')
-  
+
   // Проверяем текущую сцену
-  console.log('📝 [DEBUG] checkBalanceScene.text: Current scene:', ctx.scene.current?.id)
-  console.log('📝 [DEBUG] checkBalanceScene.text: Session mode:', ctx.session?.mode)
+  console.log(
+    '📝 [DEBUG] checkBalanceScene.text: Current scene:',
+    ctx.scene.current?.id
+  )
+  console.log(
+    '📝 [DEBUG] checkBalanceScene.text: Session mode:',
+    ctx.session?.mode
+  )
 })
 
 /**
@@ -783,7 +845,9 @@ export const enterTargetScene = async (
       })
       try {
         await ctx.scene.enter('text_to_video')
-        console.log('🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene'
+        )
         logger.info({
           message: `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену text_to_video`,
           telegramId,
@@ -791,17 +855,28 @@ export const enterTargetScene = async (
           function: 'enterTargetSceneWrapper',
         })
       } catch (sceneEnterError) {
-        console.error('❌ [DEBUG] enterTargetScene: ERROR entering text_to_video scene:', sceneEnterError)
+        console.error(
+          '❌ [DEBUG] enterTargetScene: ERROR entering text_to_video scene:',
+          sceneEnterError
+        )
         logger.error({
           message: `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену text_to_video`,
           telegramId,
           mode,
-          error: sceneEnterError instanceof Error ? sceneEnterError.message : String(sceneEnterError),
-          stack: sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
+          error:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.message
+              : String(sceneEnterError),
+          stack:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.stack
+              : undefined,
           function: 'enterTargetSceneWrapper',
         })
         // Попробуем fallback в основную сцену
-        await ctx.reply('❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.')
+        await ctx.reply(
+          '❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.'
+        )
       }
       return
     }
@@ -822,16 +897,16 @@ export const enterTargetScene = async (
       '🎯 [DEBUG] enterTargetScene: About to call ctx.scene.enter with mode:',
       mode
     )
-    
+
     logger.info({
       message: `🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: ${mode}`,
       telegramId,
       mode,
       currentScene: ctx.scene.current?.id || 'unknown',
       function: 'enterTargetSceneWrapper',
-      step: 'calling_scene_enter'
+      step: 'calling_scene_enter',
     })
-    
+
     try {
       // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
       await ctx.scene.enter(mode, {
@@ -842,26 +917,33 @@ export const enterTargetScene = async (
       console.log(
         '🎯 [DEBUG] enterTargetScene: ctx.scene.enter completed successfully'
       )
-      
+
       logger.info({
         message: `✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: ${mode}`,
         telegramId,
         mode,
         newScene: ctx.scene.current?.id || 'unknown',
         function: 'enterTargetSceneWrapper',
-        step: 'scene_enter_completed'
+        step: 'scene_enter_completed',
       })
     } catch (sceneEnterError) {
-      console.error('❌ [DEBUG] enterTargetScene: Error in ctx.scene.enter:', sceneEnterError)
-      
+      console.error(
+        '❌ [DEBUG] enterTargetScene: Error in ctx.scene.enter:',
+        sceneEnterError
+      )
+
       logger.error({
         message: `❌ [EnterTargetSceneWrapper] ОШИБКА в ctx.scene.enter для режима: ${mode}`,
         telegramId,
         mode,
-        error: sceneEnterError instanceof Error ? sceneEnterError.message : String(sceneEnterError),
-        stack: sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
+        error:
+          sceneEnterError instanceof Error
+            ? sceneEnterError.message
+            : String(sceneEnterError),
+        stack:
+          sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
         function: 'enterTargetSceneWrapper',
-        step: 'scene_enter_error'
+        step: 'scene_enter_error',
       })
       throw sceneEnterError
     }

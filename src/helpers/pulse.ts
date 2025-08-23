@@ -306,7 +306,7 @@ export const sendMediaToPulse = async (
           })
           try {
             await pulseBot.telegram.sendMessage(chatId, textMessage, {
-              parse_mode: 'HTML', // <--- МЕНЯЕМ НА HTML
+              parse_mode: 'HTML',
               link_preview_options: { is_disabled: true },
             })
             logger.info({
@@ -337,7 +337,6 @@ export const sendMediaToPulse = async (
                   '⚠️ [pulse] Повторная попытка отправки текста без форматирования' /* ... */,
               })
               await pulseBot.telegram.sendMessage(chatId, textMessage, {
-                // Отправляем тот же текст, но без parse_mode
                 link_preview_options: { is_disabled: true },
               })
               logger.info({

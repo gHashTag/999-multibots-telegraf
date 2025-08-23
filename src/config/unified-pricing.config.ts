@@ -34,7 +34,9 @@ export const DEFAULT_USD_TO_RUB_RATE = 85
  * @param fallback - значение по умолчанию если API недоступен
  * @returns Promise с актуальным курсом
  */
-export async function getUsdToRubRate(fallback = DEFAULT_USD_TO_RUB_RATE): Promise<number> {
+export async function getUsdToRubRate(
+  fallback = DEFAULT_USD_TO_RUB_RATE
+): Promise<number> {
   return await getCurrentRate({ fallback })
 }
 

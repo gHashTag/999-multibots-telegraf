@@ -55,7 +55,9 @@ function getTargetResolution(
   const aspectRatio = width / height
 
   logger.info(
-    `🎬 Analyzing aspect ratio: ${width}x${height} (ratio: ${aspectRatio.toFixed(2)})`
+    `🎬 Analyzing aspect ratio: ${width}x${height} (ratio: ${aspectRatio.toFixed(
+      2
+    )})`
   )
 
   if (aspectRatio > 1.5) {
@@ -220,7 +222,9 @@ export async function createMorphingVideo(
 
   if (checkpoint && !resumeFromClip) {
     logger.info(
-      `🔄 Found existing checkpoint, resuming from clip ${checkpoint.lastClipIndex + 1}`,
+      `🔄 Found existing checkpoint, resuming from clip ${
+        checkpoint.lastClipIndex + 1
+      }`,
       {
         telegramId: telegram_id,
         completedClips: checkpoint.completedClips.length,
@@ -287,7 +291,9 @@ export async function createMorphingVideo(
         checkpoint.completedClips.includes(clipIndex)
       ) {
         logger.info(
-          `⏭️ Skipping already completed clip ${clipIndex + 1}/${imagePairs.length}`
+          `⏭️ Skipping already completed clip ${clipIndex + 1}/${
+            imagePairs.length
+          }`
         )
         // Для пропущенных клипов добавляем пустую строку (заполним при загрузке)
         videoClipUrls.push('')
@@ -336,7 +342,9 @@ export async function createMorphingVideo(
           // videoUrl не пустой = новый клип
           try {
             console.log(
-              `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО отправляю СУЩЕСТВУЮЩИЙ клип ${i + 1}/${videoClipUrls.length}!`
+              `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО отправляю СУЩЕСТВУЮЩИЙ клип ${
+                i + 1
+              }/${videoClipUrls.length}!`
             )
             const callbackStart = Date.now()
             await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
@@ -353,7 +361,9 @@ export async function createMorphingVideo(
             )
           } catch (sendError) {
             console.log(
-              `❌ [LOCAL PROCESSOR] Ошибка отправки существующего клипа ${i + 1}:`,
+              `❌ [LOCAL PROCESSOR] Ошибка отправки существующего клипа ${
+                i + 1
+              }:`,
               sendError
             )
             logger.warn(
@@ -386,7 +396,9 @@ export async function createMorphingVideo(
         if (onIntermediateVideo) {
           try {
             console.log(
-              `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО вызываю callback для клипа ${i + 1}/${videoClipUrls.length}!`
+              `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО вызываю callback для клипа ${
+                i + 1
+              }/${videoClipUrls.length}!`
             )
             const callbackStart = Date.now()
             await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
@@ -461,7 +473,9 @@ export async function createMorphingVideo(
       const normalizedClip = path.join(tempDir, `normalized_clip_${i}.mp4`)
 
       logger.info(
-        `🔧 Normalizing clip ${i + 1}/${downloadedClipPaths.length} to ${targetResolution.width}x${targetResolution.height}`
+        `🔧 Normalizing clip ${i + 1}/${downloadedClipPaths.length} to ${
+          targetResolution.width
+        }x${targetResolution.height}`
       )
 
       // ✅ УМНАЯ НОРМАЛИЗАЦИЯ: Адаптируется под соотношение сторон первого клипа
@@ -655,7 +669,9 @@ async function generateSingleClipWithRetry(
         // ✅ СНАЧАЛА ИСЧЕРПЫВАЕМ ВСЕ ПОПЫТКИ НА ТЕКУЩЕЙ МОДЕЛИ
         if (attempt < MAX_RETRIES) {
           logger.info(
-            `⏳ Retrying with same model ${FALLBACK_KLING_MODELS[currentModelIndex].name} (${attempt + 1}/${MAX_RETRIES}) - E005 can be temporary`
+            `⏳ Retrying with same model ${
+              FALLBACK_KLING_MODELS[currentModelIndex].name
+            } (${attempt + 1}/${MAX_RETRIES}) - E005 can be temporary`
           )
           // Продолжаем цикл для следующей попытки
         } else {
@@ -664,7 +680,11 @@ async function generateSingleClipWithRetry(
             currentModelIndex++
             const nextModelInfo = FALLBACK_KLING_MODELS[currentModelIndex]
             logger.info(
-              `🔄 All ${MAX_RETRIES} attempts failed for ${FALLBACK_KLING_MODELS[currentModelIndex - 1].name}. Switching to: ${nextModelInfo.name} (cost: $${nextModelInfo.cost}, ${nextModelInfo.description})`
+              `🔄 All ${MAX_RETRIES} attempts failed for ${
+                FALLBACK_KLING_MODELS[currentModelIndex - 1].name
+              }. Switching to: ${nextModelInfo.name} (cost: $${
+                nextModelInfo.cost
+              }, ${nextModelInfo.description})`
             )
 
             // ✅ СБРАСЫВАЕМ СЧЕТЧИК ПОПЫТОК ДЛЯ НОВОЙ МОДЕЛИ
@@ -687,7 +707,9 @@ async function generateSingleClipWithRetry(
               '• Защищенный контент (персонажи, знаменитости)\n' +
               '• Автоматические фильтры безопасности\n\n' +
               '💡 Решение: Попробуйте использовать другие изображения (пейзажи, предметы, абстракции)\n' +
-              `🔄 Попробованы модели: ${FALLBACK_KLING_MODELS.map(m => m.name).join(', ')}`
+              `🔄 Попробованы модели: ${FALLBACK_KLING_MODELS.map(
+                m => m.name
+              ).join(', ')}`
 
             const userErrorEn =
               '🛡️ Your images were rejected by ALL Kling AI models after 5 attempts per model.\n\n' +
@@ -696,7 +718,9 @@ async function generateSingleClipWithRetry(
               '• Protected content (characters, celebrities)\n' +
               '• Automatic security filters\n\n' +
               '💡 Solution: Try using different images (landscapes, objects, abstractions)\n' +
-              `🔄 Attempted models: ${FALLBACK_KLING_MODELS.map(m => m.name).join(', ')}`
+              `🔄 Attempted models: ${FALLBACK_KLING_MODELS.map(
+                m => m.name
+              ).join(', ')}`
 
             throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
           }
