@@ -139,7 +139,9 @@ export const createAudioFileFromText = async ({
     }
 
     throw new Error(
-      `[TTS_BOT] Failed to generate audio (manual stream processing): ${error.message || 'Unknown error'}`
+      `[TTS_BOT] Failed to generate audio (manual stream processing): ${
+        error.message || 'Unknown error'
+      }`
     )
   }
 }

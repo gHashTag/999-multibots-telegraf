@@ -92,7 +92,9 @@ Examples:
   }
 
   // ЗАЩИТА ОТ ДУБЛИРОВАНИЯ ОПЕРАЦИЙ
-  const operationKey = `${ctx.from.id}-${targetUserId}-${amount}-${Date.now().toString().slice(0, -3)}` // Округляем до секунд
+  const operationKey = `${ctx.from.id}-${targetUserId}-${amount}-${Date.now()
+    .toString()
+    .slice(0, -3)}` // Округляем до секунд
   const now = Date.now()
 
   // Проверяем, была ли такая операция недавно
@@ -141,13 +143,17 @@ Examples:
         ? 'списываю'
         : 'deducting'
       : isRu
-        ? 'пополняю'
-        : 'adding'
+      ? 'пополняю'
+      : 'adding'
 
     await ctx.reply(
       isRu
-        ? `⏳ ${operationText} ${absoluteAmount} ⭐ ${isDeduction ? 'с' : ''} баланса пользователя ${targetUserId}...`
-        : `⏳ ${operationText} ${absoluteAmount} ⭐ ${isDeduction ? 'from' : 'to'} user ${targetUserId} balance...`
+        ? `⏳ ${operationText} ${absoluteAmount} ⭐ ${
+            isDeduction ? 'с' : ''
+          } баланса пользователя ${targetUserId}...`
+        : `⏳ ${operationText} ${absoluteAmount} ⭐ ${
+            isDeduction ? 'from' : 'to'
+          } user ${targetUserId} balance...`
     )
 
     // Выполняем операцию с балансом
@@ -161,7 +167,9 @@ Examples:
         service_type: isDeduction ? 'admin_deduction' : 'admin_topup',
         payment_method: 'Admin',
         language: isRu ? 'ru' : 'en',
-        operation_id: `admin-${isDeduction ? 'deduct' : 'topup'}-${Date.now()}-${ctx.from.id}`,
+        operation_id: `admin-${
+          isDeduction ? 'deduct' : 'topup'
+        }-${Date.now()}-${ctx.from.id}`,
         admin_id: ctx.from.id,
         admin_username: ctx.from.username,
         reason: reason,
@@ -223,8 +231,12 @@ ${isDeduction ? '➖ Deducted' : '➕ Added'}: ${absoluteAmount} ⭐
 
     await ctx.reply(
       isRu
-        ? `❌ Произошла ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
-        : `❌ An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`
+        ? `❌ Произошла ошибка: ${
+            error instanceof Error ? error.message : 'Неизвестная ошибка'
+          }`
+        : `❌ An error occurred: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`
     )
   } finally {
     // Удаляем операцию из кэша через некоторое время
@@ -282,8 +294,12 @@ export async function handleCheckBalanceCommand(ctx: MyContext) {
   } catch (error) {
     await ctx.reply(
       isRu
-        ? `❌ Ошибка получения баланса: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
-        : `❌ Error getting balance: ${error instanceof Error ? error.message : 'Unknown error'}`
+        ? `❌ Ошибка получения баланса: ${
+            error instanceof Error ? error.message : 'Неизвестная ошибка'
+          }`
+        : `❌ Error getting balance: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`
     )
   }
 }

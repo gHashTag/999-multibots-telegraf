@@ -628,8 +628,18 @@ export async function generateNeuroPhotoDirect(
             if (!options?.disable_telegram_sending) {
               // Добавляем caption с информацией о нейрофото и кнопки
               const caption = is_ru
-                ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${costPerImage} ⭐`
-                : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${costPerImage} ⭐`
+                ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(
+                    0,
+                    100
+                  )}${
+                    prompt.length > 100 ? '...' : ''
+                  }\n💎 Стоимость: ${costPerImage} ⭐`
+                : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(
+                    0,
+                    100
+                  )}${
+                    prompt.length > 100 ? '...' : ''
+                  }\n💎 Cost: ${costPerImage} ⭐`
 
               await bot.telegram.sendPhoto(
                 telegram_id,
