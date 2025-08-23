@@ -299,6 +299,24 @@ simpleTextToVideoWizard.enter(async ctx => {
     telegramId: ctx.from?.id,
     step: ctx.wizard?.cursor,
   })
+  
+  // КРИТИЧНО: Выполняем первый шаг wizard'а
+  console.log('🎬 [SIMPLE] Executing first step (model selection)...')
+  try {
+    const firstStepHandler = ctx.wizard.steps[0]
+    if (typeof firstStepHandler === 'function') {
+      await firstStepHandler(ctx)
+      console.log('🎬 [SIMPLE] First step executed successfully')
+    } else {
+      console.error('🎬 [SIMPLE] First step handler is not a function:', typeof firstStepHandler)
+    }
+  } catch (error) {
+    console.error('🎬 [SIMPLE] ERROR executing first step:', error)
+    logger.error('[SimpleTextToVideoWizard] Error executing first step', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
 })
 
 // Добавляем обработчик выхода
