@@ -58,10 +58,12 @@ describe('handleSelectStars', () => {
     const markup = reply.extra.reply_markup
     expect(markup.inline_keyboard.length).toBe(2)
     expect(markup.inline_keyboard[0].map((b: any) => b.callback_data)).toEqual([
-      'top_up_5', 'top_up_10', 'top_up_15'
+      'top_up_5',
+      'top_up_10',
+      'top_up_15',
     ])
     expect(markup.inline_keyboard[1].map((b: any) => b.callback_data)).toEqual([
-      'top_up_20'
+      'top_up_20',
     ])
     expect(reply.message).toBe('Выберите количество звезд для покупки:')
   })
@@ -72,7 +74,9 @@ describe('handleSelectStars', () => {
     const markup = reply.extra.reply_markup
     expect(markup.inline_keyboard.length).toBe(1)
     expect(markup.inline_keyboard[0].map((b: any) => b.text)).toEqual([
-      '1⭐️', '2⭐️', '3⭐️'
+      '1⭐️',
+      '2⭐️',
+      '3⭐️',
     ])
     expect(reply.message).toBe('Choose the number of stars to buy:')
   })
