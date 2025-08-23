@@ -1,9 +1,9 @@
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import { logger } from '@/utils/logger'
-import {
+import { 
   generateLipSyncViaAiServer,
   getLipSyncStatusFromAiServer,
-  AiServerLipSyncRequest,
+  AiServerLipSyncRequest 
 } from '../ai-server/lipsync-adapter'
 
 export interface AiServerLipSyncResponse {
@@ -22,9 +22,7 @@ export interface AiServerLipSyncError {
   error?: string
 }
 
-export type AiServerLipSyncResult =
-  | AiServerLipSyncResponse
-  | AiServerLipSyncError
+export type AiServerLipSyncResult = AiServerLipSyncResponse | AiServerLipSyncError
 
 /**
  * Генерирует видео с липсинком используя ai-server как прокси
@@ -33,7 +31,7 @@ export async function generateAiServerLipSync(
   telegramId: string,
   videoUrl: string,
   audioUrl: string,
-  isRu = true
+  isRu: boolean = true
 ): Promise<AiServerLipSyncResult> {
   try {
     logger.info('🎬 Начинаем генерацию AiServer LipSync', {
@@ -47,7 +45,7 @@ export async function generateAiServerLipSync(
       video_url: videoUrl,
       audio_url: audioUrl,
       user_id: telegramId,
-      model: 'kwaivgi/kling-lip-sync',
+      model: 'kwaivgi/kling-lip-sync'
     }
 
     const result = await generateLipSyncViaAiServer(request)
@@ -68,19 +66,22 @@ export async function generateAiServerLipSync(
 
     return {
       id: result.id,
-      status:
-        result.status === 'completed'
-          ? 'succeeded'
-          : result.status === 'failed'
-          ? 'failed'
-          : 'starting',
+      status: result.status === 'completed' ? 'succeeded' : 
+             result.status === 'failed' ? 'failed' : 'starting',
       output: result.result_url,
       error: result.error,
       urls: {
-        get: `https://ai-server-u14194.vm.elestio.app/api/lipsync/${result.id}`,
-        cancel: `https://ai-server-u14194.vm.elestio.app/api/lipsync/${result.id}/cancel`,
+        get: `${
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
+        }/api/lipsync/${result.id}`,
+        cancel: `${
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
+        }/api/lipsync/${result.id}/cancel`,
       },
     } as AiServerLipSyncResponse
+
   } catch (error) {
     logger.error('❌ Ошибка при генерации AiServer LipSync', {
       error: error instanceof Error ? error.message : String(error),
@@ -113,19 +114,22 @@ export async function getAiServerLipSyncStatus(
 
     return {
       id: result.id,
-      status:
-        result.status === 'completed'
-          ? 'succeeded'
-          : result.status === 'failed'
-          ? 'failed'
-          : 'processing',
+      status: result.status === 'completed' ? 'succeeded' : 
+             result.status === 'failed' ? 'failed' : 'processing',
       output: result.result_url,
       error: result.error,
       urls: {
-        get: `https://ai-server-u14194.vm.elestio.app/api/lipsync/${result.id}`,
-        cancel: `https://ai-server-u14194.vm.elestio.app/api/lipsync/${result.id}/cancel`,
+        get: `${
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
+        }/api/lipsync/${result.id}`,
+        cancel: `${
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
+        }/api/lipsync/${result.id}/cancel`,
       },
     } as AiServerLipSyncResponse
+
   } catch (error) {
     logger.error('❌ Ошибка при получении статуса AiServer LipSync', {
       error: error instanceof Error ? error.message : String(error),

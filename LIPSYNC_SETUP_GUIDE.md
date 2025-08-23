@@ -15,14 +15,14 @@
 
 ```bash
 # Получить на https://replicate.com/account/api-tokens
-REPLICATE_API_TOKEN=r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+REPLICATE_API_TOKEN=your_replicate_api_token_here
 
 # Настройки Supabase проекта
 SUPABASE_URL=https://ваш-проект.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
-# Токен Telegram бота
-BOT_TOKEN=1234567890:AAHdqTcvbXYZKlmnOpqRSTuvwxYz123456789
+# Токен Telegram бота (получить у @BotFather)
+BOT_TOKEN=your_bot_token_from_botfather
 ```
 
 #### 2. Протестировать подключения
