@@ -78,6 +78,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.SubscriptionScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SubscriptionScene}`
@@ -97,6 +98,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -115,6 +117,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -136,6 +139,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -154,6 +158,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -173,6 +178,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -191,6 +197,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -209,6 +216,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -227,6 +235,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -243,6 +252,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModel
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.SelectModel}`)
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.SelectModel)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SelectModel}`
@@ -261,6 +271,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -279,6 +290,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -297,6 +309,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -323,6 +336,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -341,6 +355,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -370,6 +385,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -394,6 +410,7 @@ export const handleMenu = async (ctx: MyContext) => {
         // Устанавливаем режим морфинга и переходим напрямую в morphing_wizard
         ctx.session.mode = 'morphing' as any
         console.log(`🔄 [handleMenu] Вход в сцену morphing_wizard`)
+        await ctx.scene.leave()
         await ctx.scene.enter('morphing_wizard')
         console.log(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
       },
@@ -419,6 +436,7 @@ export const handleMenu = async (ctx: MyContext) => {
         // Устанавливаем режим LipSync и переходим напрямую в lip_sync scene
         ctx.session.mode = ModeEnum.LipSync
         console.log(`🔄 [handleMenu] Вход в сцену lip_sync`)
+        await ctx.scene.leave()
         await ctx.scene.enter('lip_sync')
         console.log(`✅ [handleMenu] Завершен вход в сцену lip_sync`)
       },
@@ -446,6 +464,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -475,6 +494,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -532,6 +552,7 @@ export const handleMenu = async (ctx: MyContext) => {
         )
 
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.PaymentScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
@@ -548,6 +569,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🤑 Баланс')
         ctx.session.mode = ModeEnum.Balance
         console.log(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
+        await ctx.scene.leave()
         await ctx.scene.enter('balanceScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
       },
@@ -562,6 +584,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
         console.log(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
+        await ctx.scene.leave()
         await ctx.scene.enter('inviteScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
@@ -591,6 +614,7 @@ export const handleMenu = async (ctx: MyContext) => {
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
@@ -622,6 +646,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
         console.log(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
+        await ctx.scene.leave()
         await ctx.scene.enter('inviteScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
@@ -648,6 +673,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 💰 Баланс')
         ctx.session.mode = ModeEnum.Balance
         console.log(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
+        await ctx.scene.leave()
         await ctx.scene.enter('balanceScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
       },
@@ -662,6 +688,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
+        await ctx.scene.leave()
         await ctx.scene.enter('helpScene')
         console.log(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Help}`)
       },
@@ -677,6 +704,7 @@ export const handleMenu = async (ctx: MyContext) => {
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
         console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
@@ -730,6 +758,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
         )
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.InstagramParserScene)
         console.log(
           `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
@@ -780,6 +809,7 @@ export const handleMenu = async (ctx: MyContext) => {
         // Перезагружаем главное меню с новым языком
         ctx.session.mode = ModeEnum.MainMenu
         console.log(`🔄 [handleMenu] Перезагрузка меню с английским языком`)
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(`✅ [handleMenu] Меню перезагружено с языком: en`)
       },
@@ -809,6 +839,7 @@ export const handleMenu = async (ctx: MyContext) => {
         // Перезагружаем главное меню с новым языком
         ctx.session.mode = ModeEnum.MainMenu
         console.log(`🔄 [handleMenu] Перезагрузка меню с русским языком`)
+        await ctx.scene.leave()
         await ctx.scene.enter(ModeEnum.MainMenu)
         console.log(`✅ [handleMenu] Меню перезагружено с языком: ru`)
       },
