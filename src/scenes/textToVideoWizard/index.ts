@@ -26,7 +26,7 @@ import {
   type ParsedModelSelection,
 } from './schemas'
 
-console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
+console.log('🚀🚀🚀 [WIZARD] Loading FIXED CONFIG-BASED textToVideoWizard WITH NEW ZOD SCHEMA! 🚀🚀🚀')
 
 // Функция для расчета стоимости в звездах из конфига (С ZOD ВАЛИДАЦИЕЙ)
 function calculateStarsFromConfig(modelId: string, duration?: number): number {
