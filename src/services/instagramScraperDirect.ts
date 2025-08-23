@@ -114,12 +114,12 @@ export async function scrapeInstagramDirect(
             maxPosts <= 10
               ? 3
               : maxPosts <= 25
-                ? 8
-                : maxPosts <= 50
-                  ? 15
-                  : maxPosts <= 100
-                    ? 30
-                    : 55,
+              ? 8
+              : maxPosts <= 50
+              ? 15
+              : maxPosts <= 100
+              ? 30
+              : 55,
           status: 'completed',
           result_data: reels,
           apify_run_id: run.id,

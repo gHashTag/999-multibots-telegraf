@@ -202,7 +202,7 @@ function getParsingAccess(
     }
   }
 
-  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ  
+  // 🌐 УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ОСТАЛЬНЫХ БОТОВ
   // Главные админы из ADMIN_IDS_ARRAY тоже получают доступ
   if (ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
     return {
@@ -301,13 +301,17 @@ export async function mainMenu({
 
   // Получаем ADMIN_IDS_ARRAY для проверки админских функций
   const { ADMIN_IDS_ARRAY } = await import('@/config')
-  
+
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
     .filter(
-      level => !(level.admin_only && !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))))
+      level =>
+        !(
+          level.admin_only &&
+          !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId)))
+        )
     )
 
   // Добавляем кнопку мониторинга конкурентов только для администраторов
@@ -401,7 +405,9 @@ export async function mainMenu({
   // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
   bottomRowButtons.push([languageButton])
   console.log(
-    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
+    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(
+      bottomRowButtons
+    )}`
   )
 
   // Собираем все ряды, КРОМЕ последнего (Подписка)

@@ -161,7 +161,9 @@ const sendGroupCommandReply = async (ctx: MyContext) => {
     await ctx.reply(message)
   } catch (e) {
     logger.error(
-      `Error replying to command in group for ${ctx.botInfo?.username || 'unknown bot'}:`,
+      `Error replying to command in group for ${
+        ctx.botInfo?.username || 'unknown bot'
+      }:`,
       {
         error: e instanceof Error ? e.message : String(e),
         chatId: ctx.chat?.id,
@@ -620,8 +622,8 @@ If not, continue on your own and click the "I myself" button`
                     url: channelId.startsWith('@')
                       ? `https://t.me/${channelId.slice(1)}`
                       : channelId.startsWith('http')
-                        ? channelId
-                        : `https://t.me/${channelId}`,
+                      ? channelId
+                      : `https://t.me/${channelId}`,
                   },
                 ],
                 [

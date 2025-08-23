@@ -310,7 +310,10 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log('CASE: 🎬 Видео из текста')
         console.log('🎬 [handleMenu] SETTING MODE TO:', ModeEnum.TextToVideo)
         ctx.session.mode = ModeEnum.TextToVideo
-        console.log('🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:', ctx.session.mode)
+        console.log(
+          '🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:',
+          ctx.session.mode
+        )
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )

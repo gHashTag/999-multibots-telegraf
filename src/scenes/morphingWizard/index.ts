@@ -19,7 +19,7 @@ const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
 // ✅ ZIP архив больше не нужен - работаем напрямую с изображениями
 
 // ✅ Функция для создания адаптивного прогресс бара для бесконечной загрузки
-const createProgressBar = (current: number, length: number = 10): string => {
+const createProgressBar = (current: number, length = 10): string => {
   // Логика: чем больше изображений, тем больше заполняется бар, но не ограничиваемся максимумом
   // Используем адаптивную шкалу для плавного заполнения
   let filled: number
@@ -53,8 +53,8 @@ const createProgressMessage = (images: any[], isRu: boolean): string => {
         ? 'Достаточно изображений для создания морфинга!'
         : 'Enough images to create morphing!'
       : isRu
-        ? 'Загрузите еще изображения'
-        : 'Upload more images'
+      ? 'Загрузите еще изображения'
+      : 'Upload more images'
 
   // ✅ НОВОЕ: Создание списка последовательности изображений
   let sequenceText = ''
@@ -95,17 +95,24 @@ const createProgressMessage = (images: any[], isRu: boolean): string => {
         transitionsDisplay = transitions.join(', ')
       } else {
         // Показываем сокращенно: первые, средние, последние
-        transitionsDisplay = `1→2, 2→3, 3→4, ..., ${count - 1}→${count} (${count - 1} переходов)`
+        transitionsDisplay = `1→2, 2→3, 3→4, ..., ${count - 1}→${count} (${
+          count - 1
+        } переходов)`
       }
 
       transitionsText = isRu
         ? `\n🔄 <b>Переходы:</b> ${transitionsDisplay}`
-        : `\n🔄 <b>Transitions:</b> ${transitionsDisplay.replace(/переходов/g, 'transitions')}`
+        : `\n🔄 <b>Transitions:</b> ${transitionsDisplay.replace(
+            /переходов/g,
+            'transitions'
+          )}`
     }
 
     sequenceText = isRu
       ? `\n📋 <b>Последовательность склейки:</b>\n${imagesList}${transitionsText}`
-      : `\n📋 <b>Sequence order:</b>\n${imagesList.replace(/Изображение/g, 'Image').replace(/изображений/g, 'images')}${transitionsText}`
+      : `\n📋 <b>Sequence order:</b>\n${imagesList
+          .replace(/Изображение/g, 'Image')
+          .replace(/изображений/g, 'images')}${transitionsText}`
   }
 
   return isRu
@@ -714,8 +721,8 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
         ? '🔄 С зацикливанием (LOOP)'
         : '➡️ Линейный (БЕЗ лупа)'
       : withLoop
-        ? '🔄 With Loop'
-        : '➡️ Linear (No Loop)'
+      ? '🔄 With Loop'
+      : '➡️ Linear (No Loop)'
 
     const costMessage = isRu
       ? `💰 <b>Информация о стоимости:</b>
@@ -914,8 +921,12 @@ morphingWizard.action('morphing_resume', async ctx => {
       async (videoPath: string, clipNumber: number, totalClips: number) => {
         const bot = ctx.tg
         const caption = isRu
-          ? `🧬 Промежуточное видео ${clipNumber}/${totalClips}\n\n🎬 Переход между изображениями ${clipNumber} → ${clipNumber + 1}\n\n⏳ Создание остальных видео продолжается...`
-          : `🧬 Intermediate video ${clipNumber}/${totalClips}\n\n🎬 Transition between images ${clipNumber} → ${clipNumber + 1}\n\n⏳ Creating remaining videos...`
+          ? `🧬 Промежуточное видео ${clipNumber}/${totalClips}\n\n🎬 Переход между изображениями ${clipNumber} → ${
+              clipNumber + 1
+            }\n\n⏳ Создание остальных видео продолжается...`
+          : `🧬 Intermediate video ${clipNumber}/${totalClips}\n\n🎬 Transition between images ${clipNumber} → ${
+              clipNumber + 1
+            }\n\n⏳ Creating remaining videos...`
 
         await bot.sendVideo(ctx.chat!.id, { source: videoPath }, { caption })
       }

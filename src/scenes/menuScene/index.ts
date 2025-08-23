@@ -81,7 +81,9 @@ const menuCommandStep = async (ctx: MyContext) => {
       translationKey = 'digitalAvatar' // Для STARS и остальных
     }
     logger.info(
-      `[menuCommandStep] Subscription: ${newSubscription || 'None'}. Using translation key: '${translationKey}'`
+      `[menuCommandStep] Subscription: ${
+        newSubscription || 'None'
+      }. Using translation key: '${translationKey}'`
     )
 
     // --- Get Translation using the determined key ---
@@ -131,11 +133,17 @@ const menuCommandStep = async (ctx: MyContext) => {
       translation.trim() !== ''
     ) {
       logger.info(
-        `[menuCommandStep] Sending DB message: "${message.substring(0, 50)}...", Photo URL: ${photo_url}`
+        `[menuCommandStep] Sending DB message: "${message.substring(
+          0,
+          50
+        )}...", Photo URL: ${photo_url}`
       )
     } else {
       logger.info(
-        `[menuCommandStep] Sending FALLBACK message: "${(isRu ? '🏠 Главное меню\\nВыберите нужный раздел 👇' : '🏠 Main Menu\\nSelect the section 👇').substring(0, 50)}...", Photo URL: null`
+        `[menuCommandStep] Sending FALLBACK message: "${(isRu
+          ? '🏠 Главное меню\\nВыберите нужный раздел 👇'
+          : '🏠 Main Menu\\nSelect the section 👇'
+        ).substring(0, 50)}...", Photo URL: null`
       )
     }
 
