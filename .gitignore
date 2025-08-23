@@ -80,6 +80,44 @@ web_modules/
 .env.local
 .env.*
 
+# 🔐 SECURITY: Дополнительные файлы с секретами
+secrets/
+secrets.json
+secrets.yaml
+secrets.yml
+config/secrets/
+.secrets
+.secrets.*
+credentials.json
+auth.json
+service-account.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# API ключи и токены (на всякий случай)
+api_keys.json
+tokens.json
+*_credentials_*
+*_secrets_*
+*_keys_*
+backup_keys_*
+temp_secrets_*
+
+# Резервные копии .env файлов
+.env.backup
+.env.bak
+.env.old
+.env.orig
+
+# Файлы с паролями
+passwords.txt
+.htpasswd
+.passwd
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -256,3 +294,56 @@ temp_*/
 # !.claude/README.md  
 # !.claude/hooks/*.sh
 # !.claude/activate-hooks.sh
+
+# 🔐 SECURITY: Дополнительная защита
+# Логи с потенциальными секретами
+*.log
+debug.log
+error.log
+security.log
+audit.log
+access.log
+
+# Дампы памяти и дебаг файлы
+*.dump
+*.dmp
+core.*
+*.stackdump
+
+# Файлы конфигурации с секретами
+config.local.*
+local.config.*
+*.local.json
+*.local.yaml
+*.local.yml
+
+# SSH ключи
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+known_hosts
+authorized_keys
+
+# GPG ключи  
+*.gpg
+*.asc
+
+# Wallet файлы
+*.wallet
+*.keystore
+
+# Database файлы с секретами
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Jupyter notebook checkpoints (могут содержать секреты)
+.ipynb_checkpoints/
+
+# 🛡️ Security scan results
+security-report.json
+vulnerability-report.json
+audit-results.json
+secrets-scan.json
+.secrets.baseline
