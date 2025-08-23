@@ -132,17 +132,17 @@ docker-compose up -d
 Создайте файл `.env` на основе примера:
 
 ```
-# Токены ботов
-BOT_TOKEN_1=1234567890:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-BOT_TOKEN_2=0987654321:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+# Токены ботов (получить у @BotFather)
+BOT_TOKEN_1=your_first_bot_token_here
+BOT_TOKEN_2=your_second_bot_token_here
 
 # Настройки сервера
 PORT=3000
 ORIGIN=https://your-domain.com
 
-# База данных
-SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_KEY=your-supabase-key
+# База данных (получить в https://supabase.com)
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_SERVICE_KEY=your_supabase_service_key_here
 ```
 
 ## 📚 Документация
