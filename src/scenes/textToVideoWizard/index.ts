@@ -176,7 +176,7 @@ function parseModelSelection(buttonText: string): {
   }
 }
 
-// КОНФИГ-БАЗИРОВАННЫЙ wizard - всего 2 шага
+// КОНФИГ-БАЗИРОВАННЫЙ wizard - всего 3 шага
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
 
@@ -445,55 +445,8 @@ textToVideoWizard.enter(async ctx => {
     timestamp: new Date().toISOString(),
   })
 
-  // ОКАЗЫВАЕТСЯ TELEGRAF НЕ ВЫЗЫВАЕТ ПЕРВЫЙ ШАГ АВТОМАТИЧЕСКИ!
-  // НУЖНО ВЫЗЫВАТЬ ЕГО ВРУЧНУЮ, НО БЕЗ ДВОЙНОГО ВЫЗОВА
-  console.log('🎬 [WIZARD] Manually executing first step since Telegraf doesnt do it automatically...')
-  
-  try {
-    // Проверяем что это первый вход (cursor = undefined)
-    if (ctx.wizard.cursor === undefined) {
-      console.log('🎬 [WIZARD] Fresh wizard entry, executing first step...')
-      
-      // ДЕТАЛЬНАЯ ПРОВЕРКА WIZARD STEPS (access limited due to private property)
-      // console.log('🎬 [WIZARD] Wizard steps count:', ctx.wizard.steps.length)
-      // console.log('🎬 [WIZARD] Wizard steps types:', ctx.wizard.steps.map((step, i) => `${i}: ${typeof step}`))
-      
-      // Note: ctx.wizard.steps is private in newer versions of Telegraf
-      const firstStepHandler = (ctx.wizard as any).steps[0]
-      console.log('🎬 [WIZARD] First step handler type:', typeof firstStepHandler)
-      console.log('🎬 [WIZARD] First step handler function name:', firstStepHandler?.name || 'anonymous')
-      console.log('🎬 [WIZARD] First step handler toString (first 100 chars):', 
-        typeof firstStepHandler === 'function' 
-          ? firstStepHandler.toString().substring(0, 100) + '...'
-          : 'Not a function'
-      )
-      
-      if (typeof firstStepHandler === 'function') {
-        console.log('🎬 [WIZARD] About to call firstStepHandler...')
-        try {
-          console.log('🎬 [WIZARD] Calling firstStepHandler NOW...')
-          await firstStepHandler(ctx)
-          console.log('🎬 [WIZARD] ✅ First step executed successfully from .enter()')
-          console.log('🎬 [WIZARD] Current wizard cursor after first step:', ctx.wizard.cursor)
-          console.log('🎬 [WIZARD] Current scene after first step:', ctx.scene.current?.id)
-        } catch (stepError) {
-          console.error('🎬 [WIZARD] ❌ CRITICAL ERROR inside first step execution:', stepError)
-          console.error('🎬 [WIZARD] Error name:', stepError instanceof Error ? stepError.name : 'Unknown')
-          console.error('🎬 [WIZARD] Error message:', stepError instanceof Error ? stepError.message : String(stepError))
-          console.error('🎬 [WIZARD] Error stack:', stepError instanceof Error ? stepError.stack : 'No stack')
-          
-          // НЕ re-throw - пусть wizard остается активным для отладки
-          await ctx.reply('❌ Ошибка в первом шаге wizard. Попробуйте позже.')
-        }
-      } else {
-        console.error('🎬 [WIZARD] ❌ First step handler is not a function:', typeof firstStepHandler)
-      }
-    } else {
-      console.log('🎬 [WIZARD] Wizard already has cursor:', ctx.wizard.cursor, '- NOT executing first step')
-    }
-  } catch (error) {
-    console.error('🎬 [WIZARD] ❌ ERROR executing first step from .enter():', error)
-  }
+  // Telegraf АВТОМАТИЧЕСКИ вызовет первый шаг
+  console.log('🎬 [WIZARD] Letting Telegraf handle first step automatically...')
 })
 
 // Обработчик выхода из wizard
