@@ -1,9 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 
-// TODO: Install express-rate-limit dependency  
-// import rateLimit from 'express-rate-limit'
-// Временная заглушка для rate limiting
-const rateLimit = (options: any) => (req: Request, res: Response, next: NextFunction) => next()
+import rateLimit from 'express-rate-limit'
 
 export const githubWebhookRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
