@@ -113,6 +113,7 @@ export const WizardSessionSchema = z.object({
   selectedModel: z.string().optional(),
   aspect_ratio: z.enum(['9:16', '16:9']).optional(),
   selectedVideoCost: z.number().min(1).optional(),
+  selectedVideoDuration: z.number().positive().optional(), // ✅ Добавляем duration
   mode: z.string().optional(),
   // Другие поля сессии...
 }).passthrough() // Разрешаем дополнительные поля
