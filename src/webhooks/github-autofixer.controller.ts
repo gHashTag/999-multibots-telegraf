@@ -1,4 +1,4 @@
-import { Request, Response } from 'express'
+import express from 'express'
 import * as crypto from 'crypto'
 import { GitHubAutoFixerService } from './github-autofixer.service'
 import { TelegramNotifierService } from '../services/telegram-notifier.service'
@@ -14,7 +14,7 @@ export class GitHubAutoFixerController {
     this.webhookSecret = process.env.GITHUB_WEBHOOK_SECRET || ''
   }
 
-  async handlePullRequestWebhook(req: Request, res: Response): Promise<void> {
+  async handlePullRequestWebhook(req: any, res: any): Promise<void> {
     try {
       // Валидация подписи GitHub webhook
       if (!this.validateWebhookSignature(req)) {
@@ -67,7 +67,7 @@ export class GitHubAutoFixerController {
     }
   }
 
-  private validateWebhookSignature(req: Request): boolean {
+  private validateWebhookSignature(req: any): boolean {
     if (!this.webhookSecret) return true // Skip validation in dev
 
     const signature = req.headers['x-hub-signature-256'] as string
@@ -117,7 +117,7 @@ export class GitHubAutoFixerController {
     }
   }
 
-  async handleManualFix(req: Request, res: Response): Promise<void> {
+  async handleManualFix(req: any, res: any): Promise<void> {
     try {
       const { prNumber } = req.params
       const { repoOwner, repoName } = req.body
