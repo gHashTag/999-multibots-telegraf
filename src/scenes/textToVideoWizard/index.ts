@@ -331,9 +331,13 @@ textToVideoWizard.enter(async (ctx) => {
   try {
     ctx.wizard.selectStep(0)
     console.log('🎬 [WIZARD] Step set to 0, cursor now:', ctx.wizard?.cursor)
+    
+    // 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ЗАПУСКАЕМ ПЕРВЫЙ ШАГ СРАЗУ ПОСЛЕ ВХОДА
+    console.log('🎬 [WIZARD] EXECUTING FIRST STEP IMMEDIATELY...')
+    return ctx.wizard.steps[0](ctx)
   } catch (error) {
-    console.error('🎬 [WIZARD] ERROR setting wizard step:', error)
-    logger.error('[TextToVideoWizard] Error setting wizard step', {
+    console.error('🎬 [WIZARD] ERROR setting wizard step or executing first step:', error)
+    logger.error('[TextToVideoWizard] Error setting wizard step or executing first step', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id
     })
