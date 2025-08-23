@@ -22,7 +22,7 @@ export function formatModelButton(modelKey: VideoModelConfigKey): string {
 
   // Для моделей с фиксированной ценой показываем стоимость
   let finalPrice: number
-  if (modelKey.startsWith('kie-')) {
+  if (isKieAiModel(modelKey)) {
     // Берем длительность по умолчанию из API конфига
     const duration = config.api.input.duration || 5
     finalPrice = calculateKieAiPriceInStars(modelKey, duration)
@@ -91,6 +91,13 @@ export function getAvailableResolutions(
 /**
  * Получает цену для определенного разрешения
  */
+/**
+ * Проверяет, является ли модель моделью Kie.AI
+ */
+function isKieAiModel(modelKey: string): boolean {
+  return ['veo-3-fast', 'veo-3', 'runway-aleph'].includes(modelKey)
+}
+
 export function getPriceForResolution(
   modelKey: VideoModelConfigKey,
   resolution: string
@@ -98,7 +105,7 @@ export function getPriceForResolution(
   const config = VIDEO_MODELS_CONFIG[modelKey]
 
   // Для моделей Kie.ai всегда используем единую цену (они не поддерживают разрешения)
-  if (modelKey.startsWith('kie-')) {
+  if (isKieAiModel(modelKey)) {
     const duration = config.api.input.duration || 5
     return calculateKieAiPriceInStars(modelKey, duration)
   }

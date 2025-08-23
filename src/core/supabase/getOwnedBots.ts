@@ -40,7 +40,9 @@ export const getOwnedBots = async (
       .map(avatar => avatar.bot_name)
       .filter(name => name) as string[]
     logger.info(
-      `[getOwnedBots] Найдены боты: ${botNames.join(', ')} для владельца ${ownerTelegramId}`
+      `[getOwnedBots] Найдены боты: ${botNames.join(
+        ', '
+      )} для владельца ${ownerTelegramId}`
     )
     return botNames
   } catch (err) {

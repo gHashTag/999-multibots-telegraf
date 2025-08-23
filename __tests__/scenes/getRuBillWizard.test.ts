@@ -31,23 +31,33 @@ describe('generateInvoiceStep', () => {
   })
 
   it('should process selectedPayment, create invoice and leave scene (RU)', async () => {
-    (isRussian as jest.Mock).mockReturnValue(true)
+    ;(isRussian as jest.Mock).mockReturnValue(true)
     ;(getInvoiceId as jest.Mock).mockResolvedValueOnce('https://pay.url')
-    const ctx = makeMockContext({}, { session: { selectedPayment: { subscription: 'neurophoto' }, email: 'e@e' } })
+    const ctx = makeMockContext(
+      {},
+      {
+        session: {
+          selectedPayment: { subscription: 'neurophoto' },
+          email: 'e@e',
+        },
+      }
+    )
     await generateInvoiceStep(ctx)
     // setPayments called
-    expect(setPayments).toHaveBeenCalledWith(expect.objectContaining({
-      telegram_id: ctx.from.id.toString(),
-      OutSum: '1110',
-      InvId: expect.any(String),
-      currency: 'RUB',
-      stars: 476,
-      status: 'PENDING',
-      payment_method: 'Telegram',
-      subscription: 'neurophoto',
-      bot_name: 'bot1',
-      language: ctx.from.language_code,
-    }))
+    expect(setPayments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        telegram_id: ctx.from.id.toString(),
+        OutSum: '1110',
+        InvId: expect.any(String),
+        currency: 'RUB',
+        stars: 476,
+        status: 'PENDING',
+        payment_method: 'Telegram',
+        subscription: 'neurophoto',
+        bot_name: 'bot1',
+        language: ctx.from.language_code,
+      })
+    )
     // reply with HTML invoice message
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('<b>💵 Чек создан для подписки Фото'),
@@ -60,7 +70,7 @@ describe('generateInvoiceStep', () => {
   })
 
   it('should reply error when no selectedPayment', async () => {
-    (isRussian as jest.Mock).mockReturnValue(false)
+    ;(isRussian as jest.Mock).mockReturnValue(false)
     const ctx = makeMockContext({}, { session: { selectedPayment: null } })
     await generateInvoiceStep(ctx)
     expect(setPayments).not.toHaveBeenCalled()

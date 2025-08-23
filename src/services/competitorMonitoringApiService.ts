@@ -167,7 +167,13 @@ export class CompetitorMonitoringApiService {
 🎬 Максимум рилсов: ${maxReels}
 👀 Минимум просмотров: ${minViews.toLocaleString()}
 📅 Возраст контента: до ${maxAgeDays} дней
-📦 Формат доставки: ${deliveryFormat === 'digest' ? 'Дайджест' : deliveryFormat === 'individual' ? 'Отдельные сообщения' : 'Архив'}
+📦 Формат доставки: ${
+              deliveryFormat === 'digest'
+                ? 'Дайджест'
+                : deliveryFormat === 'individual'
+                ? 'Отдельные сообщения'
+                : 'Архив'
+            }
 
 🚀 Парсинг запустится автоматически каждые 24 часа в 08:00 UTC
 📬 Первые результаты придут в течение 24 часов`
