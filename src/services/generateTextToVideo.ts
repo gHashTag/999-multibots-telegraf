@@ -16,9 +16,9 @@ export type VideoModelId =
   | 'wan-text-to-video'
   | 'minimax'
   // Kie.ai модели
-  | 'kie-veo-3-fast'
-  | 'kie-veo-3'
-  | 'kie-runway-aleph'
+  | 'veo-3-fast'
+  | 'veo-3'
+  | 'runway-aleph'
 
 interface TextToVideoRequest {
   prompt: string
@@ -146,9 +146,9 @@ export async function generateTextToVideo(
         'veo-3',
         'veo-3-fast',
         'veo-2',
-        'kie-veo-3-fast',
-        'kie-veo-3',
-        'kie-runway-aleph',
+        'veo-3-fast',
+        'veo-3',
+        'runway-aleph',
       ].includes(videoModel) &&
       duration
     ) {
