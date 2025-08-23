@@ -444,7 +444,6 @@ textToVideoWizard.enter(async ctx => {
   console.log('🎬 [WIZARD] ✅ WIZARD ENTERED! User:', ctx.from?.id)
   console.log('🎬 [WIZARD] Scene ID:', ctx.scene.current?.id)
   console.log('🎬 [WIZARD] Current step:', ctx.wizard?.cursor)
-  console.log('🚨 [DEBUG] THIS IS THE REAL textToVideoWizard.enter() FROM index.ts, NOT OLD VERSION!')
 
   logger.info('[TextToVideoWizard] Wizard entered successfully', {
     telegramId: ctx.from?.id,
@@ -453,29 +452,8 @@ textToVideoWizard.enter(async ctx => {
     timestamp: new Date().toISOString(),
   })
 
-  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Telegraf НЕ вызывает первый шаг автоматически!
-  console.log('🎬 [WIZARD] Manually calling first step since Telegraf does NOT call it automatically...')
-  
-  try {
-    if (ctx.wizard.cursor === undefined) {
-      console.log('🎬 [WIZARD] Fresh wizard entry, executing first step...')
-      
-      // Получаем первый шаг нашего wizard'а (НЕ menuCommandStep!)
-      const firstStepHandler = (ctx.wizard as any).steps[0]
-      console.log('🎬 [WIZARD] First step handler type:', typeof firstStepHandler)
-      
-      if (typeof firstStepHandler === 'function') {
-        console.log('🎬 [WIZARD] About to call OUR first step handler...')
-        await firstStepHandler(ctx)
-        console.log('🎬 [WIZARD] ✅ First step executed successfully')
-      } else {
-        console.error('🎬 [WIZARD] ❌ First step handler is not a function:', typeof firstStepHandler)
-      }
-    }
-  } catch (error) {
-    console.error('🎬 [WIZARD] ❌ Error executing first step:', error)
-    await ctx.reply('❌ Ошибка в wizard. Попробуйте позже.')
-  }
+  // Let Telegraf handle the first step automatically - don't manually call it
+  console.log('🎬 [WIZARD] Wizard entered, Telegraf will handle first step automatically')
 })
 
 // Обработчик выхода из wizard
