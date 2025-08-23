@@ -1,21 +1,7 @@
 import { ClaudeIntegrationService } from '../services/claude-integration.service'
 import { BotCodeAnalyzer } from '../utils/bot-code-analyzer'
 
-// TODO: Install @octokit/rest dependency
-// import { Octokit } from '@octokit/rest'
-// Временная заглушка для Octokit
-class MockOctokit {
-  constructor(options: any) {}
-  pulls = {
-    listFiles: async () => ({ data: [] }),
-    get: async () => ({ data: { head: { ref: 'main' }, base: { ref: 'main' } } })
-  }
-  repos = {
-    getContent: async () => ({ data: { content: '', sha: '' } }),
-    createOrUpdateFileContents: async () => ({ data: {} })
-  }
-}
-const Octokit = MockOctokit as any
+import { Octokit } from '@octokit/rest'
 
 export interface FixResult {
   type: 'typescript' | 'eslint' | 'telegraf' | 'scene' | 'async'
@@ -25,7 +11,7 @@ export interface FixResult {
 }
 
 export class GitHubAutoFixerService {
-  private readonly octokit: any
+  private readonly octokit: Octokit
   private readonly claudeService: ClaudeIntegrationService
   private readonly codeAnalyzer: BotCodeAnalyzer
 

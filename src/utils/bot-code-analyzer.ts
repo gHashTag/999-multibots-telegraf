@@ -75,31 +75,31 @@ export class BotCodeAnalyzer {
 
   private isTelegrafHandler(line: string): boolean {
     const patterns = [
-      /\\.(?:action|command|on|hears|use)\\(/,
-      /scene\\.(?:enter|leave|action|command|on|hears)/,
-      /wizard\\.(?:action|command|on|hears)/
+      /\.(?:action|command|on|hears|use)\(/,
+      /scene\.(?:enter|leave|action|command|on|hears)/,
+      /wizard\.(?:action|command|on|hears)/
     ]
     return patterns.some(pattern => pattern.test(line))
   }
 
   private hasAsync(line: string): boolean {
-    return /\\basync\\b/.test(line)
+    return /\basync\b/.test(line)
   }
 
   private hasAwait(line: string): boolean {
-    return /\\bawait\\b/.test(line)
+    return /\bawait\b/.test(line)
   }
 
   private hasContextReply(line: string): boolean {
-    return /ctx\\.(?:reply|replyWithPhoto|replyWithVideo|replyWithDocument|editMessageText)/.test(line)
+    return /ctx\.(?:reply|replyWithPhoto|replyWithVideo|replyWithDocument|editMessageText)/.test(line)
   }
 
   private hasSceneTransition(line: string): boolean {
-    return /ctx\\.scene\\.(?:enter|leave|reenter)/.test(line)
+    return /ctx\.scene\.(?:enter|leave|reenter)/.test(line)
   }
 
   private needsContextType(line: string): boolean {
-    return this.isTelegrafHandler(line) && /\\(\\s*ctx\\s*[,)]/.test(line)
+    return this.isTelegrafHandler(line) && /\(\s*ctx\s*[,)]/.test(line)
   }
 
   private hasContextType(content: string): boolean {
