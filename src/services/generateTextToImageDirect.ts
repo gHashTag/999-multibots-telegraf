@@ -226,8 +226,16 @@ export const generateTextToImageDirect = async (
         await ctx.telegram.sendMessage(
           telegram_id,
           is_ru
-            ? `Ваши изображения сгенерированы! (${results.length} шт.)\n\nЕсли хотите сгенерировать еще, выберите количество.\n\nВаш новый баланс: ${currentBalance.toFixed(2)} ⭐️`
-            : `Your images have been generated! (${results.length} pcs.)\n\nWant to generate more? Select the quantity.\n\nYour new balance: ${currentBalance.toFixed(2)} ⭐️`,
+            ? `Ваши изображения сгенерированы! (${
+                results.length
+              } шт.)\n\nЕсли хотите сгенерировать еще, выберите количество.\n\nВаш новый баланс: ${currentBalance.toFixed(
+                2
+              )} ⭐️`
+            : `Your images have been generated! (${
+                results.length
+              } pcs.)\n\nWant to generate more? Select the quantity.\n\nYour new balance: ${currentBalance.toFixed(
+                2
+              )} ⭐️`,
           {
             reply_markup: keyboard.reply_markup,
           }

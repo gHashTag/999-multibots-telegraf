@@ -25,7 +25,9 @@ export function createLipSyncModelKeyboard(): InlineKeyboardMarkup {
 
     return [
       {
-        text: `${qualityIcon} ${model.name}\n💰 ${costText} | 🎯 ${model.quality.toUpperCase()}`,
+        text: `${qualityIcon} ${
+          model.name
+        }\n💰 ${costText} | 🎯 ${model.quality.toUpperCase()}`,
         callback_data: `lip_sync_model_${model.id}`,
       },
     ]

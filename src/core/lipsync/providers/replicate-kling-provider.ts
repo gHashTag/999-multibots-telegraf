@@ -111,7 +111,9 @@ export class ReplicateKlingProvider implements ILipSyncProvider {
 
         // Сохраняем в Supabase
         if (klingInput.parameters?.saveOutput !== false) {
-          const uniqueId = `kling_lipsync_${Date.now()}_${klingInput.telegramId}`
+          const uniqueId = `kling_lipsync_${Date.now()}_${
+            klingInput.telegramId
+          }`
           await saveVideoUrlToSupabase(
             klingInput.telegramId,
             uniqueId,

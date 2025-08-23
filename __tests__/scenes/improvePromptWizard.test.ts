@@ -7,12 +7,24 @@ import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock dependencies
 jest.mock('@/core/openai/upgradePrompt', () => ({ upgradePrompt: jest.fn() }))
-jest.mock('@/menu/sendPromptImprovementMessage', () => ({ sendPromptImprovementMessage: jest.fn() }))
-jest.mock('@/menu/sendPromptImprovementFailureMessage', () => ({ sendPromptImprovementFailureMessage: jest.fn() }))
-jest.mock('@/menu/sendGenericErrorMessage', () => ({ sendGenericErrorMessage: jest.fn() }))
-jest.mock('@/services/generateNeuroImage', () => ({ generateNeuroImage: jest.fn() }))
-jest.mock('@/services/generateTextToVideo', () => ({ generateTextToVideo: jest.fn() }))
-jest.mock('@/services/generateTextToImage', () => ({ generateTextToImage: jest.fn() }))
+jest.mock('@/menu/sendPromptImprovementMessage', () => ({
+  sendPromptImprovementMessage: jest.fn(),
+}))
+jest.mock('@/menu/sendPromptImprovementFailureMessage', () => ({
+  sendPromptImprovementFailureMessage: jest.fn(),
+}))
+jest.mock('@/menu/sendGenericErrorMessage', () => ({
+  sendGenericErrorMessage: jest.fn(),
+}))
+jest.mock('@/services/generateNeuroImage', () => ({
+  generateNeuroImage: jest.fn(),
+}))
+jest.mock('@/services/generateTextToVideo', () => ({
+  generateTextToVideo: jest.fn(),
+}))
+jest.mock('@/services/generateTextToImage', () => ({
+  generateTextToImage: jest.fn(),
+}))
 
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
 import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
@@ -81,7 +93,11 @@ describe('improvePromptWizard', () => {
   it('step 1: cancel case', async () => {
     const ctx = makeMockContext({}, { message: { text: '❌ Cancel' } })
     ctx.from.language_code = 'en'
-    ctx.session = { prompt: 'p', mode: 'neuro_photo', userModel: { model_url: 'url' } }
+    ctx.session = {
+      prompt: 'p',
+      mode: 'neuro_photo',
+      userModel: { model_url: 'url' },
+    }
     // @ts-ignore
     const step1 = improvePromptWizard.steps[1]
     await step1(ctx)
@@ -96,14 +112,23 @@ describe('improvePromptWizard', () => {
       { message: { text: '✅ Да. Cгенерировать?' } }
     )
     ctx.from = { id: 1, username: 'u', language_code: 'ru' }
-    ctx.session = { prompt: 'pr', mode: 'neuro_photo', userModel: { model_url: 'url' } }
+    ctx.session = {
+      prompt: 'pr',
+      mode: 'neuro_photo',
+      userModel: { model_url: 'url' },
+    }
     // step 1 generate branch, no handleHelpCancel
     ;(generateNeuroImage as jest.Mock).mockResolvedValueOnce(undefined)
     // @ts-ignore
     const step1 = improvePromptWizard.steps[1]
     await step1(ctx)
     expect(generateNeuroImage).toHaveBeenCalledWith(
-      'pr', 'url', 1, '1', ctx, undefined
+      'pr',
+      'url',
+      1,
+      '1',
+      ctx,
+      undefined
     )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })

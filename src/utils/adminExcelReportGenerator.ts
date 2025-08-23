@@ -157,7 +157,9 @@ export async function generateAdminExcelReport(
   } catch (error) {
     console.error('❌ Ошибка генерации Excel отчета:', error)
     throw new Error(
-      `Не удалось создать Excel отчет: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      `Не удалось создать Excel отчет: ${
+        error instanceof Error ? error.message : 'Неизвестная ошибка'
+      }`
     )
   }
 }
@@ -418,7 +420,11 @@ function createBotSummarySheet(data: BotReportData) {
       ],
       [
         '💎 Результат:',
-        `${Math.round((data.starsIncome - data.starsOutcome - data.starsCost) * 100) / 100} ⭐`,
+        `${
+          Math.round(
+            (data.starsIncome - data.starsOutcome - data.starsCost) * 100
+          ) / 100
+        } ⭐`,
         '',
         '',
       ],
@@ -474,7 +480,11 @@ function createBotSummarySheet(data: BotReportData) {
     ['🟢 Активных за месяц:', data.activeUsersMonth.toString(), '', ''],
     [
       '📊 Конверсия:',
-      `${data.totalUsers > 0 ? Math.round((data.activeUsersMonth / data.totalUsers) * 10000) / 100 : 0}%`,
+      `${
+        data.totalUsers > 0
+          ? Math.round((data.activeUsersMonth / data.totalUsers) * 10000) / 100
+          : 0
+      }%`,
       '',
       '',
     ],
@@ -502,7 +512,9 @@ function createBotSummarySheet(data: BotReportData) {
       .sort(([, a], [, b]) => b.revenue - a.revenue)
       .slice(0, 5)
       .map(([service, stats], index) => [
-        `${index + 1}. ${getServiceEmoji(service)} ${getServiceDisplayTitle(service as UserService)}:`,
+        `${index + 1}. ${getServiceEmoji(service)} ${getServiceDisplayTitle(
+          service as UserService
+        )}:`,
         `${Math.round(stats.revenue * 100) / 100} ⭐`,
         `(${stats.count} операций)`,
         '',
@@ -658,7 +670,9 @@ function createServicesAnalyticsSheet(data: BotReportData) {
           totalRevenue > 0 ? (stats.revenue / totalRevenue) * 100 : 0
 
         return [
-          `${getServiceEmoji(service)} ${getServiceDisplayTitle(service as UserService)}`,
+          `${getServiceEmoji(service)} ${getServiceDisplayTitle(
+            service as UserService
+          )}`,
           stats.count,
           Math.round(stats.revenue * 100) / 100,
           Math.round(stats.cost * 100) / 100,
@@ -796,19 +810,20 @@ function createTransactionsSheet(data: BotReportData) {
         : '',
       getPaymentMethodDisplay(payment),
       payment.service_type
-        ? `${getServiceEmoji(payment.service_type)} ${getServiceDisplayTitle(payment.service_type as UserService)}`
+        ? `${getServiceEmoji(payment.service_type)} ${getServiceDisplayTitle(
+            payment.service_type as UserService
+          )}`
         : '',
       payment.telegram_id,
       payment.description || '',
       payment.category === 'REAL'
         ? '💎 Реальные'
         : payment.category === 'BONUS'
-          ? '🎁 Бонусы'
-          : payment.payment_method === 'Admin' ||
-              (payment.description &&
-                payment.description.includes('Admin balance'))
-            ? '👨‍💼 Админские'
-            : '❓ Неизвестно',
+        ? '🎁 Бонусы'
+        : payment.payment_method === 'Admin' ||
+          (payment.description && payment.description.includes('Admin balance'))
+        ? '👨‍💼 Админские'
+        : '❓ Неизвестно',
     ]),
   ]
 
@@ -842,7 +857,9 @@ function getMonthlyStats(payments: any[]) {
 
   payments.forEach(payment => {
     const date = new Date(payment.payment_date)
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    const monthKey = `${date.getFullYear()}-${String(
+      date.getMonth() + 1
+    ).padStart(2, '0')}`
 
     const current = monthlyMap.get(monthKey) || {
       period: monthKey,

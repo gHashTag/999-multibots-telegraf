@@ -204,7 +204,7 @@ export function getImageToVideoModels(): VideoModelInfo[] {
 export function formatModelInfo(
   modelId: VideoModelId,
   duration?: number,
-  is_ru: boolean = false
+  is_ru = false
 ): string {
   const model = VIDEO_MODELS[modelId]
   if (!model) return 'Unknown model'
