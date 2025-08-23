@@ -22,7 +22,7 @@ describe('emailWizardEnterHandler', () => {
   })
 
   it('should prompt for email with cancel button (RU)', async () => {
-    (isRussian as jest.Mock).mockReturnValueOnce(true)
+    ;(isRussian as jest.Mock).mockReturnValueOnce(true)
     const ctx = makeMockContext()
     await emailWizardEnterHandler(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -36,7 +36,7 @@ describe('emailWizardEnterHandler', () => {
   })
 
   it('should prompt for email with cancel button (EN)', async () => {
-    (isRussian as jest.Mock).mockReturnValueOnce(false)
+    ;(isRussian as jest.Mock).mockReturnValueOnce(false)
     const ctx = makeMockContext()
     await emailWizardEnterHandler(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
@@ -56,7 +56,7 @@ describe('emailWizardEmailHandler', () => {
   })
 
   it('should save email and show payment options (RU)', async () => {
-    (isRussian as jest.Mock).mockReturnValueOnce(true)
+    ;(isRussian as jest.Mock).mockReturnValueOnce(true)
     const ctx = makeMockContext()
     // @ts-ignore
     ctx.message = { text: 'user@example.com' }
@@ -80,7 +80,7 @@ describe('emailWizardEmailHandler', () => {
   })
 
   it('should handle save error (EN)', async () => {
-    (isRussian as jest.Mock).mockReturnValueOnce(false)
+    ;(isRussian as jest.Mock).mockReturnValueOnce(false)
     // @ts-ignore
     saveUserEmail.mockRejectedValueOnce(new Error('fail'))
     const ctx = makeMockContext()

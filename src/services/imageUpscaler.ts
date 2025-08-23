@@ -156,8 +156,14 @@ export const upscaleImage = async (
       },
       {
         caption: is_ru
-          ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Исходное изображение: ${originalPrompt}` : ''}`
-          : `⬆️ Photo quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n✨ Quality: High resolution\n💎 Cost: ${upscaleCost} ⭐${originalPrompt ? `\n📝 Original image: ${originalPrompt}` : ''}`,
+          ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${
+              originalPrompt
+                ? `\n📝 Исходное изображение: ${originalPrompt}`
+                : ''
+            }`
+          : `⬆️ Photo quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n✨ Quality: High resolution\n💎 Cost: ${upscaleCost} ⭐${
+              originalPrompt ? `\n📝 Original image: ${originalPrompt}` : ''
+            }`,
         reply_markup: createUpscalerResultKeyboard(is_ru).reply_markup,
       }
     )

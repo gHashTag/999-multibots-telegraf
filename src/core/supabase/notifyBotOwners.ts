@@ -50,7 +50,9 @@ export async function notifyBotOwners(
     // Формируем сообщение для владельца
     const ownerMessage = `⭐ Оплата звездами в боте @${bot_name}\nПользователь: @${
       paymentInfo.username || 'Без username'
-    } (ID: ${paymentInfo.telegram_id})\nЗвезд получено: ${paymentInfo.stars}⭐\n${
+    } (ID: ${paymentInfo.telegram_id})\nЗвезд получено: ${
+      paymentInfo.stars
+    }⭐\n${
       paymentInfo.subscription
         ? `Подписка активирована: ${paymentInfo.subscription}`
         : 'Пополнение баланса'
