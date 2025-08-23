@@ -308,7 +308,7 @@ simpleTextToVideoWizard.enter(async ctx => {
     // Проверяем что это первый вход (cursor = undefined)
     if (ctx.wizard.cursor === undefined) {
       console.log('🎬 [SIMPLE] Fresh wizard entry, executing first step...')
-      const firstStepHandler = ctx.wizard.steps[0]
+      const firstStepHandler = (ctx.wizard as any).steps[0]
       if (typeof firstStepHandler === 'function') {
         await firstStepHandler(ctx)
         console.log('🎬 [SIMPLE] ✅ First step executed successfully from .enter()')
