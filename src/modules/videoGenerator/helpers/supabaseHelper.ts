@@ -30,7 +30,9 @@ export async function getUserHelper(
       )
     } else {
       logger.info(
-        `[getUserHelper] Supabase result for telegramId ${telegramId}: ${user ? 'User found' : 'User not found'}`
+        `[getUserHelper] Supabase result for telegramId ${telegramId}: ${
+          user ? 'User found' : 'User not found'
+        }`
       )
     }
 
