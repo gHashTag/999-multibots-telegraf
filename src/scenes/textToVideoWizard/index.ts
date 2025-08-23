@@ -265,12 +265,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         keyboard
       )
 
-      console.log('🎬 [WIZARD] Step 1: ✅ REPLY SENT SUCCESSFULLY! Waiting for user choice...')
+      console.log('🎬 [WIZARD] Step 1: ✅ REPLY SENT SUCCESSFULLY! Moving to next step...')
       console.log('🎬 [WIZARD] Step 1: Current wizard cursor:', ctx.wizard.cursor)
       console.log('🎬 [WIZARD] Step 1: Current scene:', ctx.scene.current?.id)
       console.log('🎬 [WIZARD] Step 1: 🏁 STEP 1 COMPLETED SUCCESSFULLY!')
-      // НЕ переходим на следующий шаг - ждём выбора пользователя
-      // return ctx.wizard.next() - УДАЛЕНО!
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ВОЗВРАЩАЕМ ctx.wizard.next()!
+      return ctx.wizard.next()
     } catch (error) {
       console.error('🎬 [WIZARD] 💥 STEP 1 CRASHED WITH ERROR:', error)
       console.error('🎬 [WIZARD] Error stack:', error instanceof Error ? error.stack : 'No stack')
@@ -451,25 +451,8 @@ textToVideoWizard.enter(async ctx => {
     timestamp: new Date().toISOString(),
   })
 
-  // Telegraf НЕ вызывает первый шаг автоматически - нужен ручной вызов
-  console.log('🎬 [WIZARD] Manually calling first step since Telegraf doesn\'t do it automatically...')
-  
-  try {
-    if (ctx.wizard.cursor === undefined) {
-      console.log('🎬 [WIZARD] Fresh wizard entry, executing first step...')
-      
-      // Получаем первый шаг и вызываем его напрямую
-      const firstStepHandler = (ctx.wizard as any).steps[0]
-      if (typeof firstStepHandler === 'function') {
-        console.log('🎬 [WIZARD] Calling first step handler...')
-        await firstStepHandler(ctx)
-        console.log('🎬 [WIZARD] ✅ First step executed successfully')
-      }
-    }
-  } catch (error) {
-    console.error('🎬 [WIZARD] ❌ Error executing first step:', error)
-    await ctx.reply('❌ Ошибка в wizard. Попробуйте позже.')
-  }
+  // Telegraf автоматически вызовет первый шаг после .enter()
+  console.log('🎬 [WIZARD] Telegraf will automatically call first step...')
 })
 
 // Обработчик выхода из wizard
