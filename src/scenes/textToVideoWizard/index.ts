@@ -92,7 +92,12 @@ function createModelButton(modelId: string, aspectRatio: string, isRu: boolean):
 }
 
 // Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
-function parseModelSelection(buttonText: string): { modelId: string, aspectRatio: string, duration?: number, cost: number } | null {
+function parseModelSelection(buttonText: string): {
+  modelId: string
+  aspectRatio: string
+  duration?: number
+  cost: number
+} | null {
   try {
     console.log('🎬 [PARSE] Parsing button text:', buttonText)
     
