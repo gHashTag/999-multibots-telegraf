@@ -49,8 +49,21 @@ if (!process.env.NODE_ENV) {
   console.log("[CONFIG] NODE_ENV was not set, setting to 'development'")
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
 }
-export const isDev = process.env.NODE_ENV === 'development'
+
+// 🔧 ИСПРАВЛЕНИЕ: Принудительный development режим через FORCE_DEV_MODE или TEST_BOT_NAME
+const forceDevMode = process.env.FORCE_DEV_MODE === 'true'
+const hasTestBot = !!process.env.TEST_BOT_NAME
+if (forceDevMode) {
+  console.log('[CONFIG] FORCE_DEV_MODE=true detected, overriding to development mode')
+  ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
+} else if (hasTestBot) {
+  console.log(`[CONFIG] TEST_BOT_NAME=${process.env.TEST_BOT_NAME} detected, overriding to development mode`)
+  ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
+}
+
+export const isDev = process.env.NODE_ENV === 'development' || forceDevMode || hasTestBot
 console.log(`[CONFIG] isDev flag set to: ${isDev}`)
+console.log(`[CONFIG] forceDevMode: ${forceDevMode}`)
 
 console.log(`[CONFIG] NODE_ENV is set to: ${process.env.NODE_ENV}`)
 console.log('--- End Debugging .env loading --- ')
@@ -111,6 +124,7 @@ export const {
   INNGEST_SIGNING_KEY,
   ROBOKASSA_PASSWORD_1,
   ROBOKASSA_PASSWORD_2,
+  SERVER_API_URL,
 } = process.env
 
 // API_URL для AI сервера - в разработке используем локальный AI сервер
@@ -119,10 +133,13 @@ export const API_URL = isDev ? AI_SERVER_LOCAL_URL : API_SERVER_URL
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
 const BASE_PAYMENT_URL = isDev
-  ? API_SERVER_URL || 'https://ai-server-u14194.vm.elestio.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
+  ? API_SERVER_URL ||
+    process.env.SERVER_API_URL ||
+    'https://ai-server-production-production-8e2d.up.railway.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
-    'https://ai-server-u14194.vm.elestio.app'
+    process.env.SERVER_API_URL ||
+    'https://ai-server-production-production-8e2d.up.railway.app'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 
