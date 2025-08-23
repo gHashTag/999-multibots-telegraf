@@ -196,6 +196,7 @@ export const safeParseContext = (ctx: any, schema = MyContextSchema) => {
 }
 
 export const safeParseTextMessage = (ctx: any) => {
+  console.log('🚀 [ZOD] SCHEMA RELOADED! Using FIXED TextMessageContextSchema')
   const result = TextMessageContextSchema.safeParse(ctx)
   if (!result.success) {
     console.error('🔍 [ZOD] Text message validation failed:', result.error.issues)
