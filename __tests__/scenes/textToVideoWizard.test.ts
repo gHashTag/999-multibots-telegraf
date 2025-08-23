@@ -68,7 +68,7 @@ describe('textToVideoWizard', () => {
 
       // Mock wizard.selectStep to throw error
       const selectStepSpy = mock(() => {
-        throw new Error('Step setting failed')
+throw new Error('Step setting failed')
       })
       ctx.wizard.selectStep = selectStepSpy
 
@@ -86,14 +86,14 @@ describe('textToVideoWizard', () => {
       // Mock wizard properties
       let cursorValue = undefined
       Object.defineProperty(ctx.wizard, 'cursor', {
-        get: () => cursorValue,
-        set: value => {
-          cursorValue = value
-        },
+get: () => cursorValue,
+set: (value) => {
+  cursorValue = value
+},
       })
 
       const selectStepSpy = mock(() => {
-        cursorValue = 0 // Simulate successful step selection to step 0
+cursorValue = 0 // Simulate successful step selection to step 0
       })
       ctx.wizard.selectStep = selectStepSpy
 
@@ -125,7 +125,7 @@ describe('textToVideoWizard', () => {
 
       // Мокаем ошибку
       mockIsRussianFromState.mockImplementationOnce?.(() => {
-        throw new Error('Language detection error')
+throw new Error('Language detection error')
       })
 
       await textToVideoWizard.steps[0](ctx as any)
@@ -138,159 +138,161 @@ describe('textToVideoWizard', () => {
   describe('🎯 Step 2: Model Parsing & Prompt', () => {
     describe('Menu button handling', () => {
       it('should handle menu button clicked again', async () => {
-        const ctx = makeMockContext()
-        const consoleSpy = mock(() => {})
-        global.console.log = consoleSpy
-        ctx.message.text = '🎥 Видео из текста'
+const ctx = makeMockContext()
+const consoleSpy = mock(() => {})
+global.console.log = consoleSpy
+ctx.message.text = '🎥 Видео из текста'
 
-        await textToVideoWizard.steps[1](ctx as any)
+await textToVideoWizard.steps[1](ctx as any)
 
-        expect(ctx.wizard.selectStep).toBeDefined()
+expect(ctx.wizard.selectStep).toBeDefined()
       })
 
       it('should handle "Назад" button', async () => {
-        const ctx = makeMockContext()
-        ctx.message.text = '⬅️ Назад в меню'
+const ctx = makeMockContext()
+ctx.message.text = '⬅️ Назад в меню'
 
-        await textToVideoWizard.steps[1](ctx as any)
+await textToVideoWizard.steps[1](ctx as any)
 
-        expect(ctx.reply).toBeDefined()
-        expect(ctx.scene.leave).toBeDefined()
+expect(ctx.reply).toBeDefined()
+expect(ctx.scene.leave).toBeDefined()
       })
     })
 
     describe('Model selection parsing', () => {
       const testCases = [
-        {
-          buttonText: 'Veo 3 Fast | 8s | 📱 (40⭐)',
-          expected: {
-            modelId: 'kie-veo-3-fast',
-            aspectRatio: '9:16',
-            duration: 8,
-            cost: 40,
-          },
-        },
-        {
-          buttonText: 'Veo 3 | 8s | 🖥️ (202⭐)',
-          expected: {
-            modelId: 'kie-veo-3',
-            aspectRatio: '16:9',
-            duration: 8,
-            cost: 202,
-          },
-        },
-        {
-          buttonText: 'Kling v1.6 Pro | ~10s | 📱 (60⭐)',
-          expected: {
-            modelId: 'kling-v1.6-pro',
-            aspectRatio: '9:16',
-            duration: 10,
-            cost: 60,
-          },
-        },
-        {
-          buttonText: 'Minimax | 6s | 🖥️ (50⭐)',
-          expected: {
-            modelId: 'minimax',
-            aspectRatio: '16:9',
-            duration: 6,
-            cost: 50,
-          },
-        },
+{
+  buttonText: 'Veo 3 Fast | 8s | 📱 (40⭐)',
+  expected: {
+    modelId: 'kie-veo-3-fast',
+    aspectRatio: '9:16',
+    duration: 8,
+    cost: 40,
+  },
+},
+{
+  buttonText: 'Veo 3 | 8s | 🖥️ (202⭐)',
+  expected: {
+    modelId: 'kie-veo-3',
+    aspectRatio: '16:9',
+    duration: 8,
+    cost: 202,
+  },
+},
+{
+  buttonText: 'Kling v1.6 Pro | ~10s | 📱 (60⭐)',
+  expected: {
+    modelId: 'kling-v1.6-pro',
+    aspectRatio: '9:16',
+    duration: 10,
+    cost: 60,
+  },
+},
+{
+  buttonText: 'Minimax | 6s | 🖥️ (50⭐)',
+  expected: {
+    modelId: 'minimax',
+    aspectRatio: '16:9',
+    duration: 6,
+    cost: 50,
+  },
+},
       ]
 
       testCases.forEach(({ buttonText, expected }) => {
-        it(`should parse "${buttonText}" correctly`, async () => {
-          const ctx = makeMockContext()
-          ctx.message.text = buttonText
+it(`should parse "${buttonText}" correctly`, async () => {
+  const ctx = makeMockContext()
+  ctx.message.text = buttonText
 
-          await textToVideoWizard.steps[1](ctx as any)
+      await textToVideoWizard.steps[1](ctx as any)
 
-          expect(ctx.session.selectedVideoModel).toBe(expected.modelId)
-          expect(ctx.session.selectedAspectRatio).toBe(expected.aspectRatio)
-          expect(ctx.session.selectedDuration).toBe(expected.duration)
-          expect(ctx.session.selectedVideoCost).toBe(expected.cost)
-        })
+  expect(ctx.session.selectedVideoModel).toBe(expected.modelId)
+  expect(ctx.session.selectedAspectRatio).toBe(expected.aspectRatio)
+  expect(ctx.session.selectedDuration).toBe(expected.duration)
+  expect(ctx.session.selectedVideoCost).toBe(expected.cost)
+})
       })
     })
 
     describe('Prompt handling', () => {
       it('should accept valid prompt and start generation', async () => {
-        const ctx = makeMockContext()
-        ctx.message.text = 'танцующий шаман у костра'
-        ctx.session.selectedVideoModel = 'kie-veo-3-fast'
-        ctx.session.selectedAspectRatio = '9:16'
-        ctx.session.selectedVideoCost = 40
-        ctx.session.selectedDuration = 8
+const ctx = makeMockContext()
+ctx.message.text = 'танцующий шаман у костра'
+ctx.session.selectedVideoModel = 'kie-veo-3-fast'
+ctx.session.selectedAspectRatio = '9:16'
+ctx.session.selectedVideoCost = 40
+ctx.session.selectedDuration = 8
 
-        mockHandleTextToVideoDirect.mockResolvedValue?.(undefined)
+mockHandleTextToVideoDirect.mockResolvedValue?.(undefined)
 
-        await textToVideoWizard.steps[1](ctx as any)
+  mockHandleTextToVideoDirect.mockResolvedValue?.(undefined)
+  await textToVideoWizard.steps[1](ctx as any)
 
-        expect(ctx.reply).toBeDefined()
-        expect(ctx.scene.leave).toBeDefined()
+expect(ctx.reply).toBeDefined()
+expect(ctx.scene.leave).toBeDefined()
       })
 
       it('should reject short prompts', async () => {
-        const ctx = makeMockContext()
-        ctx.message.text = 'hi'
-        ctx.session.selectedVideoModel = 'kie-veo-3-fast'
+const ctx = makeMockContext()
+ctx.message.text = 'hi'
+ctx.session.selectedVideoModel = 'kie-veo-3-fast'
 
-        await textToVideoWizard.steps[1](ctx as any)
+  await textToVideoWizard.steps[1](ctx as any)
 
-        expect(ctx.reply).toBeDefined()
-        // Should not call scene.leave for validation errors
+expect(ctx.reply).toBeDefined()
+// Should not call scene.leave for validation errors
       })
 
       it('should handle generation errors gracefully', async () => {
-        const ctx = makeMockContext()
-        ctx.message.text = 'танцующий шаман у костра'
-        ctx.session.selectedVideoModel = 'kie-veo-3-fast'
-        ctx.session.selectedAspectRatio = '9:16'
-        ctx.session.selectedVideoCost = 40
-        ctx.session.selectedDuration = 8
+const ctx = makeMockContext()
+ctx.message.text = 'танцующий шаман у костра'
+ctx.session.selectedVideoModel = 'kie-veo-3-fast'
+ctx.session.selectedAspectRatio = '9:16'
+ctx.session.selectedVideoCost = 40
+ctx.session.selectedDuration = 8
 
-        mockHandleTextToVideoDirect.mockRejectedValue?.(
-          new Error('Generation failed')
-        )
+mockHandleTextToVideoDirect.mockRejectedValue?.(
+  new Error('Generation failed')
+)
 
-        await textToVideoWizard.steps[1](ctx as any)
+  mockHandleTextToVideoDirect.mockRejectedValue?.(new Error('Generation failed'))
+  await textToVideoWizard.steps[1](ctx as any)
 
-        expect(ctx.reply).toBeDefined()
-        expect(ctx.scene.leave).toBeDefined()
+expect(ctx.reply).toBeDefined()
+expect(ctx.scene.leave).toBeDefined()
       })
     })
 
     describe('Error handling', () => {
       it('should handle no message', async () => {
-        const ctx = makeMockContext()
-        ctx.message = undefined
+const ctx = makeMockContext()
+ctx.message = undefined
 
-        await textToVideoWizard.steps[1](ctx as any)
+  await textToVideoWizard.steps[1](ctx as any)
 
-        expect(ctx.reply).toBeDefined()
+expect(ctx.reply).toBeDefined()
       })
 
       it('should handle message without text', async () => {
-        const ctx = makeMockContext()
-        delete (ctx.message as any).text
+const ctx = makeMockContext()
+delete (ctx.message as any).text
 
-        await textToVideoWizard.steps[1](ctx as any)
+  await textToVideoWizard.steps[1](ctx as any)
 
-        expect(ctx.reply).toBeDefined()
+expect(ctx.reply).toBeDefined()
       })
 
       it('should handle unknown model selection', async () => {
-        const ctx = makeMockContext()
-        ctx.message.text = 'Unknown Model | 📱 (100⭐)'
+const ctx = makeMockContext()
+ctx.message.text = 'Unknown Model | 📱 (100⭐)'
 
-        await textToVideoWizard.steps[1](ctx as any)
+  await textToVideoWizard.steps[1](ctx as any)
 
-        // Should fallback to default model
-        expect(ctx.session.selectedVideoModel).toBe('kie-veo-3-fast')
-        expect(ctx.session.selectedAspectRatio).toBe('9:16')
-        expect(ctx.session.selectedDuration).toBe(8)
-        expect(ctx.session.selectedVideoCost).toBe(40)
+// Should fallback to default model
+expect(ctx.session.selectedVideoModel).toBe('kie-veo-3-fast')
+expect(ctx.session.selectedAspectRatio).toBe('9:16')
+expect(ctx.session.selectedDuration).toBe(8)
+expect(ctx.session.selectedVideoCost).toBe(40)
       })
     })
   })

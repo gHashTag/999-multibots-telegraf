@@ -333,14 +333,8 @@ checkBalanceScene.enter(async ctx => {
     const mode = ctx.session.mode as ModeEnum
     console.log('🚀 [DEBUG] Step 2 DONE, mode:', mode)
     console.log('🚀 [DEBUG] Step 2: mode typeof:', typeof mode)
-    console.log(
-      '🚀 [DEBUG] Step 2: ModeEnum.TextToVideo:',
-      ModeEnum.TextToVideo
-    )
-    console.log(
-      '🚀 [DEBUG] Step 2: mode === ModeEnum.TextToVideo:',
-      mode === ModeEnum.TextToVideo
-    )
+    console.log('🚀 [DEBUG] Step 2: ModeEnum.TextToVideo:', ModeEnum.TextToVideo)
+    console.log('🚀 [DEBUG] Step 2: mode === ModeEnum.TextToVideo:', mode === ModeEnum.TextToVideo)
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     console.log('🚀 [DEBUG] Step 3: Getting language...')

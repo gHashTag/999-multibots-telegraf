@@ -82,7 +82,8 @@ export const createAudioFileFromText = async ({
             completeBuffer.length
           )
 
-          fs.writeFile(outputPath, completeBuffer, err => {
+          const u8 = new Uint8Array(completeBuffer)
+          fs.writeFile(outputPath, u8, err => {
             if (err) {
               console.error('[TTS_BOT] Error writing audio file manually:', err)
               reject(err)

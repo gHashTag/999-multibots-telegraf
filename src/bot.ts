@@ -186,8 +186,24 @@ async function initializeBots() {
     // Используем уже полученную информацию о боте
     console.log(`🤖 Тестовый бот ${foundBotInfo.username} инициализирован`)
 
+    // 🔧 FIX 409: Очистка webhook перед polling в dev режиме
+    try {
+      const webhookInfo = await bot.telegram.getWebhookInfo()
+      if (webhookInfo.url) {
+        console.log(
+          `🔌 [WEBHOOK] Обнаружен активный вебхук для ${foundBotInfo.username}: ${webhookInfo.url}. Удаляю...`
+        )
+        await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+        console.log('✅ [WEBHOOK] Вебхук удалён, переходим к polling')
+      } else {
+        console.log('🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling')
+      }
+    } catch (error) {
+      console.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
+    }
+
     // В режиме разработки используем polling
-    bot.launch({
+    await bot.launch({
       allowedUpdates: [
         'message',
         'callback_query',

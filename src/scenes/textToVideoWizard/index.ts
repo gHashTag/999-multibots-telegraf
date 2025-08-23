@@ -429,17 +429,31 @@ textToVideoWizard.enter(async ctx => {
     timestamp: new Date().toISOString(),
   })
 
-  // ИСПРАВЛЕНИЕ: ЯВНО устанавливаем шаг 0 - это критично для правильной работы wizard'а
-  console.log('🎬 [WIZARD] Setting wizard step to 0...')
-  try {
-    ctx.wizard.selectStep(0)
-    console.log('🎬 [WIZARD] Step set to 0, cursor now:', ctx.wizard?.cursor)
-  } catch (error) {
-    console.error('🎬 [WIZARD] ERROR setting wizard step:', error)
-    logger.error('[TextToVideoWizard] Error setting wizard step', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id,
+  // ✅ ИСПРАВЛЕНИЕ: Явно запускаем первый шаг если не инициализирован
+  if (ctx.wizard?.cursor === undefined) {
+    console.log('🎬 [WIZARD] Step cursor is undefined, manually starting step 1')
+    logger.info('[TextToVideoWizard] Manually starting step 1', {
+      telegramId: ctx.from?.id
     })
+    
+    const isRu = isRussianFromState(ctx)
+    
+    // Простая клавиатура с основными моделями
+    const keyboard = Markup.keyboard([
+      ['Veo 3 Fast (40 ⭐)', 'Veo 3 (80 ⭐)'],
+      ['Kling v1.6 Pro (60 ⭐)', 'Minimax (50 ⭐)'],
+      ['⬅️ Назад в меню']
+    ]).resize()
+
+    await ctx.reply(
+      isRu 
+        ? '🎥 Выберите модель для генерации видео:'
+        : '🎥 Select a model for video generation:',
+      keyboard
+    )
+    
+    console.log('🎬 [WIZARD] Manually started step 1, setting cursor to 0')
+    return ctx.wizard.selectStep(0)
   }
 })
 
