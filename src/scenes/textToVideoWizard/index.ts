@@ -213,6 +213,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         '🎬 [WIZARD] Step 1: Filtered text models:',
         textModels.map(([id, config]) => ({ id, title: config.title }))
       )
+      
+      if (textModels.length === 0) {
+        console.error('🎬 [WIZARD] Step 1: NO TEXT MODELS FOUND!')
+        await ctx.reply('❌ Модели не найдены. Попробуйте позже.')
+        return ctx.scene.leave()
+      }
 
       const keyboardRows: string[][] = []
 
@@ -230,7 +236,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
-      console.log('🎬 [WIZARD] Step 1: Keyboard created')
+      console.log('🎬 [WIZARD] Step 1: Keyboard created with', keyboardRows.length, 'rows')
+      console.log('🎬 [WIZARD] Step 1: Keyboard rows:', keyboardRows.map(row => row.map(btn => btn.substring(0, 30))))
 
       await ctx.reply(
         isRu
@@ -239,7 +246,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         keyboard
       )
 
-      console.log('🎬 [WIZARD] Step 1: Reply sent, WAITING for user choice')
+      console.log('🎬 [WIZARD] Step 1: ✅ REPLY SENT SUCCESSFULLY! Waiting for user choice...')
+      console.log('🎬 [WIZARD] Step 1: Current wizard cursor:', ctx.wizard.cursor)
       // НЕ переходим на следующий шаг - ждём выбора пользователя
       // return ctx.wizard.next() - УДАЛЕНО!
     } catch (error) {
@@ -417,28 +425,8 @@ textToVideoWizard.enter(async ctx => {
     timestamp: new Date().toISOString(),
   })
 
-  // ИСПРАВЛЕНИЕ: ЯВНО устанавливаем шаг 0 и выполняем первый шаг
-  console.log('🎬 [WIZARD] Setting wizard step to 0 and executing first step...')
-  try {
-    ctx.wizard.selectStep(0)
-    console.log('🎬 [WIZARD] Step set to 0, cursor now:', ctx.wizard?.cursor)
-    
-    // КРИТИЧНО: Выполняем первый шаг wizard'а
-    console.log('🎬 [WIZARD] Executing first step (model selection)...')
-    const firstStepHandler = ctx.wizard.steps[0]
-    if (typeof firstStepHandler === 'function') {
-      await firstStepHandler(ctx)
-      console.log('🎬 [WIZARD] First step executed successfully')
-    } else {
-      console.error('🎬 [WIZARD] First step handler is not a function:', typeof firstStepHandler)
-    }
-  } catch (error) {
-    console.error('🎬 [WIZARD] ERROR setting wizard step or executing first step:', error)
-    logger.error('[TextToVideoWizard] Error setting wizard step', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id,
-    })
-  }
+  // TELEGRAF АВТОМАТИЧЕСКИ ВЫЗЫВАЕТ ПЕРВЫЙ ШАГ - НЕ НУЖНО ДЕЛАТЬ ЭТО ВРУЧНУЮ!
+  console.log('🎬 [WIZARD] Wizard will automatically execute first step...')
 })
 
 // Обработчик выхода из wizard
