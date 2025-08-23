@@ -107,7 +107,7 @@ export async function generateTextToVideo(
         success: true,
         message: 'Mock: Video generation started',
         videoUrl:
-          'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4', // Тестовое видео
+          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
       }
     }
 
@@ -221,7 +221,7 @@ export async function generateTextToVideo(
           success: true,
           message: 'Mock: Video generation completed (server unavailable)',
           videoUrl:
-            'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4', // Тестовое видео
+            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
         }
       }
 
