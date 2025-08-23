@@ -116,7 +116,7 @@ docker-compose -f deployment/docker/docker-compose.dev.yml logs -f
 ### URLs
 
 - **Dev:** https://999-multibots-dev-u14194.vm.elestio.app
-- **Prod:** https://ai-server-u14194.vm.elestio.app
+- **Prod:** https://ai-server-production-production-8e2d.up.railway.app
 
 ## Troubleshooting
 

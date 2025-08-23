@@ -10,7 +10,7 @@ const path = require('path')
 
 console.log('🛠️ === ИСПРАВЛЕНИЕ LIPSYNC ДЛЯ AI-SERVER ===\n')
 
-const AI_SERVER_URL = 'https://ai-server-u14194.vm.elestio.app'
+const AI_SERVER_URL = process.env.ELESTIO_URL || 'https://ai-server-production-production-8e2d.up.railway.app'
 
 // Основная функция исправления
 async function fixLipSyncIntegration() {
@@ -51,7 +51,7 @@ async function createAiServerAdapter() {
  * Заменяет прямые вызовы Replicate API
  */
 
-const AI_SERVER_URL = process.env.AI_SERVER_URL || 'https://ai-server-u14194.vm.elestio.app'
+const AI_SERVER_URL = process.env.AI_SERVER_URL || process.env.ELESTIO_URL || 'https://ai-server-production-production-8e2d.up.railway.app'
 
 export interface AiServerLipSyncRequest {
   video_url: string
@@ -322,8 +322,8 @@ export async function generateAiServerLipSync(
       output: result.result_url,
       error: result.error,
       urls: {
-        get: \`https://ai-server-u14194.vm.elestio.app/api/lipsync/\${result.id}\`,
-        cancel: \`https://ai-server-u14194.vm.elestio.app/api/lipsync/\${result.id}/cancel\`
+        get: \`\${process.env.ELESTIO_URL || 'https://ai-server-production-production-8e2d.up.railway.app'}/api/lipsync/\${result.id}\`,
+        cancel: \`\${process.env.ELESTIO_URL || 'https://ai-server-production-production-8e2d.up.railway.app'}/api/lipsync/\${result.id}/cancel\`
       }
     } as AiServerLipSyncResponse
 
@@ -364,8 +364,8 @@ export async function getAiServerLipSyncStatus(
       output: result.result_url,
       error: result.error,
       urls: {
-        get: \`https://ai-server-u14194.vm.elestio.app/api/lipsync/\${result.id}\`,
-        cancel: \`https://ai-server-u14194.vm.elestio.app/api/lipsync/\${result.id}/cancel\`
+        get: \`\${process.env.ELESTIO_URL || 'https://ai-server-production-production-8e2d.up.railway.app'}/api/lipsync/\${result.id}\`,
+        cancel: \`\${process.env.ELESTIO_URL || 'https://ai-server-production-production-8e2d.up.railway.app'}/api/lipsync/\${result.id}/cancel\`
       }
     } as AiServerLipSyncResponse
 

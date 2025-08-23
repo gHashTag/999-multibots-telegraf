@@ -33,10 +33,14 @@ if (loadResult.error) {
   }
 } else {
   console.log(
-    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${Object.keys(loadResult.parsed).length}`
+    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${
+      Object.keys(loadResult.parsed).length
+    }`
   )
   console.log(
-    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'}`
+    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${
+      loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'
+    }`
   )
 }
 
@@ -107,6 +111,7 @@ export const {
   INNGEST_SIGNING_KEY,
   ROBOKASSA_PASSWORD_1,
   ROBOKASSA_PASSWORD_2,
+  ELESTIO_URL,
 } = process.env
 
 // API_URL для AI сервера - в разработке используем локальный AI сервер
@@ -115,10 +120,13 @@ export const API_URL = isDev ? AI_SERVER_LOCAL_URL : API_SERVER_URL
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
 const BASE_PAYMENT_URL = isDev
-  ? API_SERVER_URL || 'https://ai-server-u14194.vm.elestio.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
+  ? API_SERVER_URL ||
+    process.env.ELESTIO_URL ||
+    'https://ai-server-production-production-8e2d.up.railway.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
-    'https://ai-server-u14194.vm.elestio.app'
+    process.env.ELESTIO_URL ||
+    'https://ai-server-production-production-8e2d.up.railway.app'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 

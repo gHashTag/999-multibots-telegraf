@@ -8,24 +8,24 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
   'simple_text_to_video',
 
   // ШАГ 1: Выбор модели
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [SIMPLE] Step 1: Model selection started')
     logger.info('[SimpleTextToVideoWizard] Step 1: Model selection', {
       telegramId: ctx.from?.id,
-      step: ctx.wizard.cursor
+      step: ctx.wizard.cursor,
     })
 
     const isRu = isRussianFromState(ctx)
-    
+
     // Простая клавиатура с основными моделями
     const keyboard = Markup.keyboard([
       ['Veo 3 Fast (40 ⭐)', 'Veo 3 (80 ⭐)'],
       ['Kling v1.6 Pro (60 ⭐)', 'Minimax (50 ⭐)'],
-      ['⬅️ Назад в меню']
+      ['⬅️ Назад в меню'],
     ]).resize()
 
     await ctx.reply(
-      isRu 
+      isRu
         ? '🎥 Выберите модель для генерации видео:'
         : '🎥 Select a model for video generation:',
       keyboard
@@ -35,18 +35,23 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // ШАГ 2: Обработка выбора модели и выбор параметров
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [SIMPLE] Step 2: Model processing and parameters')
     logger.info('[SimpleTextToVideoWizard] Step 2: Processing model choice', {
       telegramId: ctx.from?.id,
       step: ctx.wizard.cursor,
-      messageText: ctx.message && 'text' in ctx.message ? ctx.message.text : 'NO_TEXT'
+      messageText:
+        ctx.message && 'text' in ctx.message ? ctx.message.text : 'NO_TEXT',
     })
 
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply(isRu ? 'Выберите модель из кнопок выше.' : 'Select a model from the buttons above.')
+      await ctx.reply(
+        isRu
+          ? 'Выберите модель из кнопок выше.'
+          : 'Select a model from the buttons above.'
+      )
       return
     }
 
@@ -83,13 +88,13 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     logger.info('[SimpleTextToVideoWizard] Model selected', {
       telegramId: ctx.from?.id,
       selectedModel,
-      cost
+      cost,
     })
 
     // Выбор соотношения сторон (упрощенно)
     const aspectKeyboard = Markup.keyboard([
       ['📱 Вертикальное (9:16)', '🖥️ Горизонтальное (16:9)'],
-      ['⬅️ Назад']
+      ['⬅️ Назад'],
     ]).resize()
 
     await ctx.reply(
@@ -103,18 +108,23 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // ШАГ 3: Обработка соотношения сторон
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [SIMPLE] Step 3: Aspect ratio processing')
     logger.info('[SimpleTextToVideoWizard] Step 3: Processing aspect ratio', {
       telegramId: ctx.from?.id,
       step: ctx.wizard.cursor,
-      messageText: ctx.message && 'text' in ctx.message ? ctx.message.text : 'NO_TEXT'
+      messageText:
+        ctx.message && 'text' in ctx.message ? ctx.message.text : 'NO_TEXT',
     })
 
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply(isRu ? 'Выберите соотношение сторон из кнопок выше.' : 'Select aspect ratio from the buttons above.')
+      await ctx.reply(
+        isRu
+          ? 'Выберите соотношение сторон из кнопок выше.'
+          : 'Select aspect ratio from the buttons above.'
+      )
       return
     }
 
@@ -127,7 +137,11 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // Определяем соотношение сторон
     let aspectRatio = '9:16' // по умолчанию вертикальное
-    if (selectedText.includes('16:9') || selectedText.includes('Горизонтальное') || selectedText.includes('Horizontal')) {
+    if (
+      selectedText.includes('16:9') ||
+      selectedText.includes('Горизонтальное') ||
+      selectedText.includes('Horizontal')
+    ) {
       aspectRatio = '16:9'
     }
 
@@ -136,14 +150,20 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     logger.info('[SimpleTextToVideoWizard] Aspect ratio selected', {
       telegramId: ctx.from?.id,
-      aspectRatio
+      aspectRatio,
     })
 
     // Переходим к вводу промпта
     await ctx.reply(
       isRu
-        ? `✅ Выбрано: ${aspectRatio === '9:16' ? 'Вертикальное (9:16)' : 'Горизонтальное (16:9)'}\n\n💭 Теперь введите описание видео (промпт):`
-        : `✅ Selected: ${aspectRatio === '9:16' ? 'Vertical (9:16)' : 'Horizontal (16:9)'}\n\n💭 Now enter your video description (prompt):`,
+        ? `✅ Выбрано: ${
+            aspectRatio === '9:16'
+              ? 'Вертикальное (9:16)'
+              : 'Горизонтальное (16:9)'
+          }\n\n💭 Теперь введите описание видео (промпт):`
+        : `✅ Selected: ${
+            aspectRatio === '9:16' ? 'Vertical (9:16)' : 'Horizontal (16:9)'
+          }\n\n💭 Now enter your video description (prompt):`,
       Markup.removeKeyboard()
     )
 
@@ -151,25 +171,36 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // ШАГ 4: Получение промпта и генерация
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [SIMPLE] Step 4: Prompt processing and generation')
     logger.info('[SimpleTextToVideoWizard] Step 4: Processing prompt', {
       telegramId: ctx.from?.id,
       step: ctx.wizard.cursor,
-      messageText: ctx.message && 'text' in ctx.message ? ctx.message.text?.substring(0, 50) : 'NO_TEXT'
+      messageText:
+        ctx.message && 'text' in ctx.message
+          ? ctx.message.text?.substring(0, 50)
+          : 'NO_TEXT',
     })
 
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply(isRu ? 'Пожалуйста, введите описание видео текстом.' : 'Please enter video description as text.')
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, введите описание видео текстом.'
+          : 'Please enter video description as text.'
+      )
       return
     }
 
     const prompt = ctx.message.text.trim()
 
     if (!prompt || prompt.length < 3) {
-      await ctx.reply(isRu ? 'Описание слишком короткое. Пожалуйста, введите более подробное описание.' : 'Description is too short. Please enter a more detailed description.')
+      await ctx.reply(
+        isRu
+          ? 'Описание слишком короткое. Пожалуйста, введите более подробное описание.'
+          : 'Description is too short. Please enter a more detailed description.'
+      )
       return
     }
 
@@ -183,39 +214,47 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
       selectedModel,
       aspectRatio,
       cost,
-      prompt: prompt.substring(0, 50)
+      prompt: prompt.substring(0, 50),
     })
 
     // Начинаем генерацию
     await ctx.reply(
       isRu
-        ? `🎬 Генерируем видео...\n\n📋 Модель: ${selectedModel}\n📱 Соотношение: ${aspectRatio}\n💰 Стоимость: ${cost} ⭐\n💭 Промпт: ${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}`
-        : `🎬 Generating video...\n\n📋 Model: ${selectedModel}\n📱 Aspect ratio: ${aspectRatio}\n💰 Cost: ${cost} ⭐\n💭 Prompt: ${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}`
+        ? `🎬 Генерируем видео...\n\n📋 Модель: ${selectedModel}\n📱 Соотношение: ${aspectRatio}\n💰 Стоимость: ${cost} ⭐\n💭 Промпт: ${prompt.substring(
+            0,
+            100
+          )}${prompt.length > 100 ? '...' : ''}`
+        : `🎬 Generating video...\n\n📋 Model: ${selectedModel}\n📱 Aspect ratio: ${aspectRatio}\n💰 Cost: ${cost} ⭐\n💭 Prompt: ${prompt.substring(
+            0,
+            100
+          )}${prompt.length > 100 ? '...' : ''}`
     )
 
     try {
       // Имитируем генерацию (пока что просто сообщение)
       await new Promise(resolve => setTimeout(resolve, 2000))
-      
+
       await ctx.reply(
         isRu
           ? '✅ Видео готово!\n\n(Это тестовая версия, интеграция с API сервером будет добавлена после исправления проблем с wizard)'
           : '✅ Video is ready!\n\n(This is a test version, API server integration will be added after wizard issues are fixed)'
       )
 
-      logger.info('[SimpleTextToVideoWizard] Video generation completed (test mode)', {
-        telegramId: ctx.from?.id,
-        selectedModel,
-        aspectRatio,
-        cost
-      })
-
+      logger.info(
+        '[SimpleTextToVideoWizard] Video generation completed (test mode)',
+        {
+          telegramId: ctx.from?.id,
+          selectedModel,
+          aspectRatio,
+          cost,
+        }
+      )
     } catch (error) {
       logger.error('[SimpleTextToVideoWizard] Generation error', {
         telegramId: ctx.from?.id,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
-      
+
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при генерации видео. Попробуйте позже.'
@@ -229,19 +268,19 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Добавляем обработчик входа в сцену
-simpleTextToVideoWizard.enter(async (ctx) => {
+simpleTextToVideoWizard.enter(async ctx => {
   console.log('🎬 [SIMPLE] Wizard entered! User:', ctx.from?.id)
   logger.info('[SimpleTextToVideoWizard] Wizard entered', {
     telegramId: ctx.from?.id,
-    step: ctx.wizard?.cursor
+    step: ctx.wizard?.cursor,
   })
 })
 
 // Добавляем обработчик выхода
-simpleTextToVideoWizard.leave(async (ctx) => {
+simpleTextToVideoWizard.leave(async ctx => {
   console.log('🎬 [SIMPLE] Wizard left! User:', ctx.from?.id)
   logger.info('[SimpleTextToVideoWizard] Wizard left', {
-    telegramId: ctx.from?.id
+    telegramId: ctx.from?.id,
   })
 })
 

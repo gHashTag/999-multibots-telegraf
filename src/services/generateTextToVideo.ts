@@ -94,7 +94,7 @@ export async function generateTextToVideo(
       API_SERVER_URL,
       isDev,
     })
-    
+
     const baseUrl = LOCAL_SERVER_URL || API_SERVER_URL
 
     const url = `${baseUrl}/generate/text-to-video`

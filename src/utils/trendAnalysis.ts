@@ -191,7 +191,9 @@ function getMonthlyRevenue(
     .filter(p => p.type === 'MONEY_INCOME' && p.category === 'REAL')
     .forEach(payment => {
       const date = new Date(payment.payment_date)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const monthKey = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, '0')}`
 
       const current = monthlyMap.get(monthKey) || 0
       monthlyMap.set(monthKey, current + (payment.stars || 0))
@@ -284,7 +286,9 @@ function generateAlerts(
       alerts.push({
         type: 'revenue_drop',
         severity: 'high',
-        message: `Доходы упали на ${Math.round((1 - lastMonth / prevMonth) * 100)}% по сравнению с прошлым месяцем`,
+        message: `Доходы упали на ${Math.round(
+          (1 - lastMonth / prevMonth) * 100
+        )}% по сравнению с прошлым месяцем`,
         recommendation:
           'Проанализируйте причины снижения и рассмотрите проведение акции',
       })
@@ -320,7 +324,9 @@ function generateAlerts(
     alerts.push({
       type: 'user_churn',
       severity: 'medium',
-      message: `Активность пользователей снизилась на ${Math.round((1 - recentUsers.size / prevWeekUsers.size) * 100)}%`,
+      message: `Активность пользователей снизилась на ${Math.round(
+        (1 - recentUsers.size / prevWeekUsers.size) * 100
+      )}%`,
       recommendation: 'Запустите кампанию по возвращению пользователей',
     })
   }
