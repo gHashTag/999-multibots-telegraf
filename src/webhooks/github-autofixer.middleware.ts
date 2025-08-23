@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express'
+import express from 'express'
 
 import rateLimit from 'express-rate-limit'
 
@@ -13,9 +13,9 @@ export const githubWebhookRateLimit = rateLimit({
 })
 
 export const validateGitHubHeaders = (
-  req: Request,
-  res: Response,
-  next: NextFunction
+  req: any,
+  res: any,
+  next: any
 ): void => {
   const userAgent = req.get('User-Agent')
   const event = req.get('X-GitHub-Event')
@@ -38,9 +38,9 @@ export const validateGitHubHeaders = (
 }
 
 export const validatePullRequestEvent = (
-  req: Request,
-  res: Response,
-  next: NextFunction
+  req: any,
+  res: any,
+  next: any
 ): void => {
   if (req.githubEvent !== 'pull_request') {
     res.status(200).json({ message: 'Event ignored' })
@@ -58,9 +58,9 @@ export const validatePullRequestEvent = (
 }
 
 export const logWebhookRequest = (
-  req: Request,
-  res: Response,
-  next: NextFunction
+  req: any,
+  res: any,
+  next: any
 ): void => {
   const timestamp = new Date().toISOString()
   const event = req.githubEvent || 'unknown'
@@ -75,9 +75,9 @@ export const logWebhookRequest = (
 }
 
 export const enableRawBody = (
-  req: Request,
-  res: Response,
-  next: NextFunction
+  req: any,
+  res: any,
+  next: any
 ): void => {
   // Сохраняем raw body для валидации подписи
   req.rawBody = JSON.stringify(req.body)
