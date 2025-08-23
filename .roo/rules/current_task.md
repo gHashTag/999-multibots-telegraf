@@ -101,7 +101,7 @@ alwaysApply: true
 
 ## ⚠️ Контекст:
 *   При попытке запуска тренировки модели через `uploadTrainFluxModelScene` (которая вызывает сервис `createModelTraining`) `ai-server` возвращает ошибку 500 (Internal Server Error).
-*   URL запроса к `ai-server`: `https://ai-server-u14194.vm.elestio.app/generate/create-model-training`.
+*   URL запроса к `ai-server`: `${process.env.SERVER_API_URL}/generate/create-model-training`.
 *   Код на стороне бота (`src/services/createModelTraining.ts`) формирует `FormData` корректно, включая поле `gender`, и не содержит ошибок типов.
 *   Файлы предыдущего рефакторинга модуля `digitalAvatarBody` (`src/modules/digitalAvatarBody/*`) были удалены. Текущий поток использует глобальный сервис.
 

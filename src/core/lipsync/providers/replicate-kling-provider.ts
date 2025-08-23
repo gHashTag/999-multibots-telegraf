@@ -1,4 +1,4 @@
-import Replicate from 'replicate'
+const Replicate = require('replicate')
 import { logger } from '@/utils/logger'
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import type { ILipSyncProvider } from '../interfaces/lipsync-provider.interface'
@@ -19,7 +19,7 @@ export class ReplicateKlingProvider implements ILipSyncProvider {
   readonly providerName = 'Replicate Kling Lip-Sync'
   readonly supportedModels = ['kling']
 
-  private replicate: Replicate
+  private replicate: typeof Replicate
   private config: {
     timeout: number
     retryAttempts: number
