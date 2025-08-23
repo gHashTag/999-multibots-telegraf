@@ -68,7 +68,7 @@
     "winston-daily-rotate-file": "^5.0.0",
     "xlsx": "^0.18.5",
     "yt-dlp-wrap": "^2.3.12",
-    "zod": "^4.1.0"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/axios": "^0.14.4",
