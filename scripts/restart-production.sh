@@ -4,7 +4,7 @@
 # Автор: Claude Code AI
 # Дата: 21.08.2025
 
-SERVER="ai-server-u14194.vm.elestio.app"
+SERVER="${SERVER_API_URL#https://}" # Убираем https://
 USER="playra"
 
 echo "🔧 Диагностика и перезапуск ботов в продакшене"
