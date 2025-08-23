@@ -786,7 +786,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 }
 
 export const neuroPhotoWizard = new Scenes.WizardScene<MyContext>(
-  ModeEnum.NeuroPhoto,
+  ModeEnum.NeuroPhoto as string,
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep

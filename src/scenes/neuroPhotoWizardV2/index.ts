@@ -107,7 +107,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     ctx.session.userModel = modelToUse as UserModel
 
-    await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
+    await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhotoV2)
     const isCancel = await handleHelpCancel(ctx)
     console.log('isCancel', isCancel)
     if (isCancel) {
@@ -283,7 +283,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 }
 
 export const neuroPhotoWizardV2 = new Scenes.WizardScene<MyContext>(
-  'neuro_photo_v2',
+  ModeEnum.NeuroPhotoV2 as string,
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep
