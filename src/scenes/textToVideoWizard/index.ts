@@ -319,6 +319,7 @@ textToVideoWizard.enter(async (ctx) => {
     currentStep: ctx.wizard?.cursor,
     timestamp: new Date().toISOString()
   })
+
   
   // ИСПРАВЛЕНИЕ: ЯВНО устанавливаем шаг 0 - это критично для правильной работы wizard'а
   console.log('🎬 [WIZARD] Setting wizard step to 0...')
@@ -331,6 +332,7 @@ textToVideoWizard.enter(async (ctx) => {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id
     })
+  }
   }
 })
 

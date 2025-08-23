@@ -9,6 +9,8 @@ import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
+// Импортируем обработчик статуса видео
+import { handleVideoStatusUpdate } from './handlers/handleTextToVideoDirect'
 import { sendMediaToPulse } from './helpers/pulse'
 // Импортируем обработчик команды hello_world
 import { handleHelloWorld } from './commands/handleHelloWorld'
@@ -24,6 +26,9 @@ import {
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 // Импортируем FLUX Kontext команду
 import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
+// Импортируем AutoFixer команды
+import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
+import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
 // Импортируем сцену handleTextMessage
 // import { handleTextMessage } from './handlers/handleTextMessage' // ❌ ИСПРАВЛЕНО: не используется как сцена
 
@@ -70,6 +75,7 @@ import {
   avatarTransformScene,
   instagramScrapingWizard,
   instagramParserScene,
+  instagramParserWizard,
   morphingWizard,
 } from './scenes'
 
@@ -142,8 +148,8 @@ export const stage = new Scenes.Stage<MyContext>([
   createUserScene,
   neuroCoderScene,
   instagramScrapingWizard,
+  autoFixerConfigScene,
   instagramParserScene,
-  // handleTextMessage, // ❌ ИСПРАВЛЕНО: убираем из stage сцен - это должен быть middleware, не сцена!
 ])
 
 // Проверяем зарегистрированные сцены
@@ -554,6 +560,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // 👑 АДМИНСКИЕ КОМАНДЫ
     bot.command('addbalance', handleAddBalanceCommand)
     bot.command('checkbalance', handleCheckBalanceCommand)
+
+    // 🤖 АВТОФИКСЕР КОМАНДЫ
+    setupAutoFixerCommands(bot)
 
     // 📊 КОМАНДА АНАЛИЗА РАСХОДОВ
     bot.use(expenseAnalysisCommand)
@@ -1541,6 +1550,22 @@ If not, continue on your own and click the "I myself" button`
         } catch (replyError) {
           console.error('❌ Failed to send error message:', replyError)
         }
+      }
+    })
+
+    // Callback handler для обновления статуса видео генерации
+    bot.action('update_video_status', async ctx => {
+      logger.info('🔄 GLOBAL ACTION: update_video_status', {
+        telegramId: ctx.from?.id,
+      })
+      
+      try {
+        await handleVideoStatusUpdate(ctx)
+      } catch (error) {
+        logger.error('Error in update_video_status action:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
       }
     })
 
