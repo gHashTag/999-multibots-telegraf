@@ -1,4 +1,4 @@
-import Replicate from 'replicate'
+const Replicate = require('replicate')
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import { logger } from '@/utils/logger'
 
