@@ -36,31 +36,27 @@ export async function generateLipSync(
       botName,
       videoUrl: videoUrl.substring(0, 100) + '...',
       audioUrl: audioUrl.substring(0, 100) + '...',
-      strategy: 'ai-server-first'
+      strategy: 'ai-server-first',
     })
 
     // НОВОЕ: Пробуем ai-server сначала
     try {
       logger.info('🚀 Пытаемся использовать ai-server...')
-      
-      const aiServerResult: AiServerLipSyncResult = await generateAiServerLipSync(
-        telegramId,
-        videoUrl,
-        audioUrl,
-        true
-      )
+
+      const aiServerResult: AiServerLipSyncResult =
+        await generateAiServerLipSync(telegramId, videoUrl, audioUrl, true)
 
       // Проверяем если результат - это ошибка
       if ('message' in aiServerResult && 'error' in aiServerResult) {
         logger.warn('⚠️ ai-server вернул ошибку, переключаемся на Replicate', {
-          error: aiServerResult.message
+          error: aiServerResult.message,
         })
         throw new Error(aiServerResult.message)
       }
 
       // Результат успешный от ai-server
       const success = aiServerResult as any
-      
+
       logger.info('✅ ai-server LipSync запущен успешно', {
         id: success.id,
         status: success.status,
@@ -69,19 +65,22 @@ export async function generateLipSync(
       })
 
       return {
-        message: success.status === 'succeeded'
-          ? 'Видео с липсинком готово (ai-server)'
-          : 'Видео отправлено на обработку через ai-server. Ждите результата',
+        message:
+          success.status === 'succeeded'
+            ? 'Видео с липсинком готово (ai-server)'
+            : 'Видео отправлено на обработку через ai-server. Ждите результата',
         resultUrl: success.output,
         id: success.id,
         status: success.status,
       }
-      
     } catch (aiServerError) {
       logger.warn('⚠️ ai-server недоступен, используем Replicate fallback', {
-        error: aiServerError instanceof Error ? aiServerError.message : String(aiServerError)
+        error:
+          aiServerError instanceof Error
+            ? aiServerError.message
+            : String(aiServerError),
       })
-      
+
       // Fallback на оригинальную Kling модель через Replicate
       const result: KlingLipSyncResult = await generateKlingLipSync(
         telegramId,
@@ -113,15 +112,15 @@ export async function generateLipSync(
       })
 
       return {
-        message: success.status === 'succeeded'
-          ? 'Видео с липсинком готово (Replicate)'
-          : 'Видео отправлено на обработку через Replicate. Ждите результата',
+        message:
+          success.status === 'succeeded'
+            ? 'Видео с липсинком готово (Replicate)'
+            : 'Видео отправлено на обработку через Replicate. Ждите результата',
         resultUrl: success.output,
         id: success.id,
         status: success.status,
       }
     }
-
   } catch (error) {
     logger.error('❌ Критическая ошибка при генерации липсинка', {
       error: error instanceof Error ? error.message : String(error),

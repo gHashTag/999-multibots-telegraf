@@ -195,7 +195,7 @@ export async function hasReceivedPromo(
 export async function processPromoLink(
   telegram_id: string,
   promoType: string,
-  bot_name: string = 'MetaMuse_Manifest_bot'
+  bot_name = 'MetaMuse_Manifest_bot'
 ): Promise<boolean> {
   try {
     logger.info('🎁 [PromoHelper] Processing promo link', {

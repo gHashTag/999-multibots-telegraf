@@ -38,8 +38,18 @@ describe('cancelPredictionsWizard', () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: {
         results: [
-          { id: '1', input: { prompt: 'hello' }, status: 'processing', urls: { cancel: 'url1' } },
-          { id: '2', input: { prompt: 'other' }, status: 'processing', urls: { cancel: 'url2' } },
+          {
+            id: '1',
+            input: { prompt: 'hello' },
+            status: 'processing',
+            urls: { cancel: 'url1' },
+          },
+          {
+            id: '2',
+            input: { prompt: 'other' },
+            status: 'processing',
+            urls: { cancel: 'url2' },
+          },
         ],
       },
     })
@@ -54,12 +64,12 @@ describe('cancelPredictionsWizard', () => {
     expect(mockedAxios.get).toHaveBeenCalled()
     // Expect only matching prediction canceled
     expect(mockedAxios.post).toHaveBeenCalledWith(
-      'url1', {}, expect.any(Object)
+      'url1',
+      {},
+      expect.any(Object)
     )
     // Expect reply for cancelled prediction
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Запрос с ID: 1 успешно отменен.'
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Запрос с ID: 1 успешно отменен.')
     // Expect refundUser called
     expect(refundUser).toHaveBeenCalledWith(ctx, 5)
     // Expect scene.leave called
@@ -76,7 +86,9 @@ describe('cancelPredictionsWizard', () => {
     await step(ctx)
 
     expect(sendGenericErrorMessage).toHaveBeenCalledWith(
-      ctx, false, expect.any(Error)
+      ctx,
+      false,
+      expect.any(Error)
     )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })

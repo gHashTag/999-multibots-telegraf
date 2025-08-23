@@ -6,7 +6,10 @@ jest.mock('@/menu', () => ({ mainMenu: jest.fn() }))
 jest.mock('@/core/supabase', () => ({ getReferalsCountAndUserData: jest.fn() }))
 jest.mock('@/helpers/error', () => ({ errorMessage: jest.fn() }))
 
-import { handleQuestRules, handleQuestComplete } from '@/scenes/levelQuestWizard/handlers'
+import {
+  handleQuestRules,
+  handleQuestComplete,
+} from '@/scenes/levelQuestWizard/handlers'
 import makeMockContext from '../utils/mockTelegrafContext'
 import { getSubScribeChannel } from '@/handlers'
 import { isRussian } from '@/helpers'
@@ -35,7 +38,9 @@ describe('levelQuestWizard handlers', () => {
 
     it('calls errorMessage on exception', async () => {
       ;(isRussian as jest.Mock).mockReturnValue(false)
-      ;(getSubScribeChannel as jest.Mock).mockImplementation(() => { throw new Error('fail') })
+      ;(getSubScribeChannel as jest.Mock).mockImplementation(() => {
+        throw new Error('fail')
+      })
       await expect(handleQuestRules(ctx)).rejects.toThrow('fail')
       expect(errorMessage).toHaveBeenCalledWith(ctx, expect.any(Error), false)
     })
@@ -44,8 +49,14 @@ describe('levelQuestWizard handlers', () => {
   describe('handleQuestComplete', () => {
     it('replies with completion message and keyboard', async () => {
       ;(isRussian as jest.Mock).mockReturnValue(false)
-      ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValue({ count: 5, subscription: 'sub', level: 3 })
-      ;(mainMenu as jest.Mock).mockReturnValue({ reply_markup: { keyboard: [['m']] } })
+      ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValue({
+        count: 5,
+        subscription: 'sub',
+        level: 3,
+      })
+      ;(mainMenu as jest.Mock).mockReturnValue({
+        reply_markup: { keyboard: [['m']] },
+      })
       await handleQuestComplete(ctx)
       expect(ctx.reply).toHaveBeenCalledWith(
         expect.stringContaining('NeuroQuest completed'),
@@ -55,7 +66,9 @@ describe('levelQuestWizard handlers', () => {
 
     it('calls errorMessage on exception', async () => {
       ;(isRussian as jest.Mock).mockReturnValue(true)
-      ;(getReferalsCountAndUserData as jest.Mock).mockRejectedValue(new Error('oops'))
+      ;(getReferalsCountAndUserData as jest.Mock).mockRejectedValue(
+        new Error('oops')
+      )
       await expect(handleQuestComplete(ctx)).rejects.toThrow('oops')
       expect(errorMessage).toHaveBeenCalledWith(ctx, expect.any(Error), true)
     })

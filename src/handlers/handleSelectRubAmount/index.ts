@@ -1,5 +1,8 @@
 import { Context, Markup } from 'telegraf'
-import { rubTopUpOptions, getDynamicRubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
+import {
+  rubTopUpOptions,
+  getDynamicRubTopUpOptions,
+} from '@/price/helpers/rubTopUpOptions'
 import { ADMIN_IDS_ARRAY } from '@/config'
 
 interface SelectRubParams {
@@ -11,7 +14,7 @@ export async function handleSelectRubAmount({ ctx, isRu }: SelectRubParams) {
   try {
     // Получаем динамические пакеты пополнения с fallback на статические
     const topUpOptions = await getDynamicRubTopUpOptions()
-    
+
     // Создаем массив рядов, где каждый ряд содержит одну кнопку
     const inlineKeyboardRows = topUpOptions.map(option => [
       Markup.button.callback(
