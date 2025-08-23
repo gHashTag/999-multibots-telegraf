@@ -15,7 +15,9 @@ const config = {
   baseUrl:
     process.env.NODE_ENV === 'development'
       ? 'http://localhost:8288' // Наш dev server
-      : 'https://ai-server-production-production-8e2d.up.railway.app/api/inngest', // Railway продакшн сервер
+      : (process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app') +
+        '/api/inngest', // Продакшн сервер
   isDev: process.env.NODE_ENV === 'development',
   // Event key только для production
   eventKey:
