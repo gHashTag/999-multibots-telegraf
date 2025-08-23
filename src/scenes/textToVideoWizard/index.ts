@@ -176,15 +176,11 @@ function parseModelSelection(buttonText: string): {
   }
 }
 
-// КОНФИГ-БАЗИРОВАННЫЙ wizard - всего 3 шага  
-console.log('🔥 [DEBUG] CREATING textToVideoWizard with ID text_to_video NOW!')
-export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
-  'text_to_video',
+// ========== ОТДЕЛЬНЫЕ ФУНКЦИИ ШАГОВ ==========
 
-  // ========== ШАГ 1: ВЫБОР МОДЕЛИ + ФОРМАТ СРАЗУ (ВСЕ МОДЕЛИ) ==========
-  async ctx => {
-    console.log('🎬 [WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
-    console.log('🔥 [DEBUG] THIS IS THE REAL textToVideoWizard STEP 1, NOT menuCommandStep!')
+const textToVideoStep1 = async (ctx: MyContext) => {
+  console.log('🎬 [WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
+  console.log('🔥 [DEBUG] THIS IS THE REAL textToVideoWizard STEP 1, NOT menuCommandStep!')
     try {
       console.log(
         '🎬 [WIZARD] Step 1: Complete model + format selection for user:',
@@ -280,154 +276,160 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply('❌ Ошибка в мастере генерации видео')
       return ctx.scene.leave()
     }
-  },
+}
 
-  // ========== ШАГ 2: ПРОМПТ И СРАЗУ ГЕНЕРАЦИЯ (УПРОЩЕННЫЙ ПАРСИНГ) ==========
-  async ctx => {
-    try {
-      console.log(
-        '🎬 [WIZARD] Step 2: Processing message for user:',
-        ctx.from?.id
-      )
+const textToVideoStep2 = async (ctx: MyContext) => {
+  try {
+    console.log(
+      '🎬 [WIZARD] Step 2: Processing message for user:',
+      ctx.from?.id
+    )
 
-      const isRu = isRussianFromState(ctx)
+    const isRu = isRussianFromState(ctx)
 
-      if (!ctx.message || !('text' in ctx.message)) {
-        console.log('🎬 [WIZARD] Step 2: No text message')
-        await ctx.reply(
-          isRu
-            ? 'Выберите модель из кнопок выше.'
-            : 'Select a model from the buttons above.'
-        )
-        return
-      }
-
-      const selectedText = ctx.message.text
-      console.log('🎬 [WIZARD] Step 2: Received text:', selectedText)
-
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: если это выбор модели, а не промпт
-      const parsedModel = parseModelSelection(selectedText)
-      if (parsedModel) {
-        console.log('🎬 [WIZARD] Step 2: Model selected:', parsedModel)
-        
-        // Сохраняем выбранную модель в сессию
-        ctx.session.selectedModel = parsedModel.modelId
-        ctx.session.aspect_ratio = parsedModel.aspectRatio
-        ctx.session.selectedVideoCost = parsedModel.cost
-        
-        // Просим ввести промпт
-        await ctx.reply(
-          isRu 
-            ? `✅ Модель выбрана: ${selectedText}\n\n📝 Теперь опишите, что должно происходить в видео:`
-            : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`
-        )
-        
-        // Переходим к следующему шагу (ожидание промпта)
-        return ctx.wizard.next()
-      }
-
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: проверяем не является ли это кнопкой меню
-      if (
-        selectedText === '🎥 Видео из текста' ||
-        selectedText === '🎥 Video from text' ||
-        selectedText === '🎥 Text to Video'
-      ) {
-        console.log(
-          '🎬 [WIZARD] Step 2: Menu button clicked again - going back to main menu!'
-        )
-        await ctx.reply(
-          isRu ? 'Возвращаемся в главное меню...' : 'Going back to main menu...'
-        )
-        return ctx.scene.leave()
-      }
-
-      // Назад в меню
-      if (selectedText.includes('Назад') || selectedText.includes('Back')) {
-        console.log('🎬 [WIZARD] Step 2: Going back to menu')
-        await ctx.reply(
-          isRu ? 'Возвращаемся в меню...' : 'Returning to menu...'
-        )
-        return ctx.scene.leave()
-      }
-
-      // Если это НЕ модель и НЕ кнопка назад - это неизвестный ввод
-      console.log('🎬 [WIZARD] Step 2: Unknown input, asking to select model')
+    if (!ctx.message || !('text' in ctx.message)) {
+      console.log('🎬 [WIZARD] Step 2: No text message')
       await ctx.reply(
         isRu
-          ? 'Пожалуйста, выберите модель из кнопок выше.'
-          : 'Please select a model from the buttons above.'
+          ? 'Выберите модель из кнопок выше.'
+          : 'Select a model from the buttons above.'
       )
-    } catch (error) {
-      console.error('🎬 [WIZARD] Step 2 ERROR:', error)
-      await ctx.reply('❌ Ошибка во втором шаге wizard')
-      return ctx.scene.leave()
+      return
     }
-  },
 
-  // ========== ШАГ 3: ОБРАБОТКА ПРОМПТА И ГЕНЕРАЦИЯ ==========
-  async ctx => {
-    try {
-      console.log(
-        '🎬 [WIZARD] Step 3: Processing prompt for user:',
-        ctx.from?.id
-      )
+    const selectedText = ctx.message.text
+    console.log('🎬 [WIZARD] Step 2: Received text:', selectedText)
 
-      const isRu = isRussianFromState(ctx)
-
-      if (!ctx.message || !('text' in ctx.message)) {
-        console.log('🎬 [WIZARD] Step 3: No text message')
-        await ctx.reply(
-          isRu
-            ? 'Опишите, что должно происходить в видео.'
-            : 'Describe what should happen in the video.'
-        )
-        return
-      }
-
-      const prompt = ctx.message.text.trim()
-
-      if (!prompt || prompt.length < 3) {
-        await ctx.reply(
-          isRu ? 'Описание слишком короткое.' : 'Description is too short.'
-        )
-        return
-      }
-
-      // Получаем сохраненные параметры
-      const selectedModel = ctx.session.selectedModel || 'kie-veo-3-fast'
-      const aspectRatio = ctx.session.aspect_ratio || '9:16'
-      const cost = ctx.session.selectedVideoCost || 40
-
-      console.log('🎬 [WIZARD] Step 3: Starting generation with params:', {
-        selectedModel,
-        aspectRatio,
-        cost,
-      })
-
-      // Генерируем видео
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: если это выбор модели, а не промпт
+    const parsedModel = parseModelSelection(selectedText)
+    if (parsedModel) {
+      console.log('🎬 [WIZARD] Step 2: Model selected:', parsedModel)
+      
+      // Сохраняем выбранную модель в сессию
+      ctx.session.selectedModel = parsedModel.modelId
+      ctx.session.aspect_ratio = parsedModel.aspectRatio
+      ctx.session.selectedVideoCost = parsedModel.cost
+      
+      // Просим ввести промпт
       await ctx.reply(
-        isRu
-          ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
-          : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+        isRu 
+          ? `✅ Модель выбрана: ${selectedText}\n\n📝 Теперь опишите, что должно происходить в видео:`
+          : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`
       )
+      
+      // Переходим к следующему шагу (ожидание промпта)
+      return ctx.wizard.next()
+    }
 
-      const videoModelId = selectedModel as VideoModelId
-      await handleTextToVideoDirect(
-        ctx,
-        prompt,
-        videoModelId,
-        undefined, // duration
-        aspectRatio
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: проверяем не является ли это кнопкой меню
+    if (
+      selectedText === '🎥 Видео из текста' ||
+      selectedText === '🎥 Video from text' ||
+      selectedText === '🎥 Text to Video'
+    ) {
+      console.log(
+        '🎬 [WIZARD] Step 2: Menu button clicked again - going back to main menu!'
       )
-      console.log('🎬 [WIZARD] Video generation success!')
-
-      return ctx.scene.leave()
-    } catch (error) {
-      console.error('🎬 [WIZARD] Step 3 ERROR:', error)
-      await ctx.reply('❌ Ошибка в третьем шаге wizard')
+      await ctx.reply(
+        isRu ? 'Возвращаемся в главное меню...' : 'Going back to main menu...'
+      )
       return ctx.scene.leave()
     }
+
+    // Назад в меню
+    if (selectedText.includes('Назад') || selectedText.includes('Back')) {
+      console.log('🎬 [WIZARD] Step 2: Going back to menu')
+      await ctx.reply(
+        isRu ? 'Возвращаемся в меню...' : 'Returning to menu...'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Если это НЕ модель и НЕ кнопка назад - это неизвестный ввод
+    console.log('🎬 [WIZARD] Step 2: Unknown input, asking to select model')
+    await ctx.reply(
+      isRu
+        ? 'Пожалуйста, выберите модель из кнопок выше.'
+        : 'Please select a model from the buttons above.'
+    )
+  } catch (error) {
+    console.error('🎬 [WIZARD] Step 2 ERROR:', error)
+    await ctx.reply('❌ Ошибка во втором шаге wizard')
+    return ctx.scene.leave()
   }
+}
+
+const textToVideoStep3 = async (ctx: MyContext) => {
+  try {
+    console.log(
+      '🎬 [WIZARD] Step 3: Processing prompt for user:',
+      ctx.from?.id
+    )
+
+    const isRu = isRussianFromState(ctx)
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      console.log('🎬 [WIZARD] Step 3: No text message')
+      await ctx.reply(
+        isRu
+          ? 'Опишите, что должно происходить в видео.'
+          : 'Describe what should happen in the video.'
+      )
+      return
+    }
+
+    const prompt = ctx.message.text.trim()
+
+    if (!prompt || prompt.length < 3) {
+      await ctx.reply(
+        isRu ? 'Описание слишком короткое.' : 'Description is too short.'
+      )
+      return
+    }
+
+    // Получаем сохраненные параметры
+    const selectedModel = ctx.session.selectedModel || 'kie-veo-3-fast'
+    const aspectRatio = ctx.session.aspect_ratio || '9:16'
+    const cost = ctx.session.selectedVideoCost || 40
+
+    console.log('🎬 [WIZARD] Step 3: Starting generation with params:', {
+      selectedModel,
+      aspectRatio,
+      cost,
+    })
+
+    // Генерируем видео
+    await ctx.reply(
+      isRu
+        ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+        : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+    )
+
+    const videoModelId = selectedModel as VideoModelId
+    await handleTextToVideoDirect(
+      ctx,
+      prompt,
+      videoModelId,
+      undefined, // duration
+      aspectRatio
+    )
+    console.log('🎬 [WIZARD] Video generation success!')
+
+    return ctx.scene.leave()
+  } catch (error) {
+    console.error('🎬 [WIZARD] Step 3 ERROR:', error)
+    await ctx.reply('❌ Ошибка в третьем шаге wizard')
+    return ctx.scene.leave()
+  }
+}
+
+// ========== СОЗДАНИЕ WIZARD'A С ОТДЕЛЬНЫМИ ФУНКЦИЯМИ ==========
+
+export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
+  'text_to_video',
+  textToVideoStep1,  // Используем отдельные функции!
+  textToVideoStep2,
+  textToVideoStep3
 )
 
 console.log('🔥 [DEBUG] textToVideoWizard CREATED! ID:', textToVideoWizard.id)
@@ -495,5 +497,3 @@ textToVideoWizard.leave(async ctx => {
 })
 
 console.log('🎬 [WIZARD] CONFIG-BASED textToVideoWizard loaded successfully')
-
-export default textToVideoWizard
