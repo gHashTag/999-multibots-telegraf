@@ -519,12 +519,14 @@ const textToVideoStep2 = async (ctx: MyContext) => {
       ctx.session.selectedModel = parsedModel.modelId
       ctx.session.aspect_ratio = parsedModel.aspectRatio
       ctx.session.selectedVideoCost = parsedModel.cost
+      ctx.session.selectedVideoDuration = parsedModel.duration // ✅ Сохраняем duration
       
       // Просим ввести промпт
       await ctx.reply(
         isRu 
           ? `✅ Модель выбрана: ${selectedText}\n\n📝 Теперь опишите, что должно происходить в видео:`
-          : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`
+          : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`,
+        Markup.removeKeyboard() // ✅ Убираем клавиатуру когда модель выбрана
       )
       
       // Переходим к следующему шагу (ожидание промпта)
@@ -634,6 +636,7 @@ const textToVideoStep3 = async (ctx: MyContext) => {
     const selectedModel = sessionValidation.data.selectedModel || 'kie-veo-3-fast'
     const aspectRatio = sessionValidation.data.aspect_ratio || '9:16'
     const cost = sessionValidation.data.selectedVideoCost || 40
+    const duration = sessionValidation.data.selectedVideoDuration || 8 // ✅ Добавляем duration
 
     // 🎯 ZOD: Валидация параметров генерации видео
     console.log('🔍 [ZOD] Validating video generation params...')
@@ -641,7 +644,8 @@ const textToVideoStep3 = async (ctx: MyContext) => {
       prompt: validatedPrompt,
       modelId: selectedModel,
       aspectRatio: aspectRatio,
-      cost: cost
+      cost: cost,
+      duration: duration // ✅ Добавляем duration в параметры
     }
     
     const paramsValidation = VideoGenerationParamsSchema.safeParse(generationParams)
