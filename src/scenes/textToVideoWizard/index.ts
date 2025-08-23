@@ -5,69 +5,138 @@ import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+// 🎯 Импортируем Zod схемы для безопасной валидации
+import {
+  safeParseContext,
+  safeParseTextMessage,
+  safeParseModelConfig,
+  TextMessageContextSchema,
+  SelectedModelSchema,
+  PromptSchema,
+  ModelButtonTextSchema,
+  WizardSessionSchema,
+  VideoGenerationParamsSchema,
+  ParsedModelSelectionSchema,
+  StarsCalculationInputSchema,
+  StarsCalculationOutputSchema,
+  ModelButtonInputSchema,
+  ModelButtonOutputSchema,
+  type SelectedModel,
+  type VideoGenerationParams,
+  type ParsedModelSelection,
+} from './schemas'
 
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
 
-// Функция для расчета стоимости в звездах из конфига (БЕЗОПАСНАЯ)
+// Функция для расчета стоимости в звездах из конфига (С ZOD ВАЛИДАЦИЕЙ)
 function calculateStarsFromConfig(modelId: string, duration?: number): number {
   try {
-    const config = VIDEO_MODELS_CONFIG[modelId]
+    console.log('🎬 [CALC] Calculating stars for model:', modelId, 'duration:', duration)
+    
+    // 🎯 ZOD: Валидация входных параметров
+    console.log('🔍 [ZOD] Validating stars calculation input...')
+    const inputValidation = StarsCalculationInputSchema.safeParse({ modelId, duration })
+    
+    if (!inputValidation.success) {
+      console.error('🔍 [ZOD] ❌ STARS CALCULATION INPUT VALIDATION FAILED:', inputValidation.error.issues)
+      console.warn('🎬 [CALC] Using fallback due to invalid input')
+      return 40 // fallback
+    }
+
+    console.log('🔍 [ZOD] ✅ Input validation passed')
+    const validatedInput = inputValidation.data
+
+    const config = VIDEO_MODELS_CONFIG[validatedInput.modelId]
     if (!config || !config.basePrice || config.basePrice <= 0) {
-      console.warn('🎬 [CALC] Invalid config for model:', modelId)
+      console.warn('🎬 [CALC] Invalid config for model:', validatedInput.modelId)
       return 40 // fallback
     }
 
     let price = config.basePrice
 
     // Для Kling модели - цена за секунду
-    if (modelId.includes('kling') && duration && duration > 0) {
-      price = price * duration
+    if (validatedInput.modelId.includes('kling') && validatedInput.duration && validatedInput.duration > 0) {
+      price = price * validatedInput.duration
     }
 
     // Упрощенная конвертация в звезды: price * 100 (примерно)
-    const stars = Math.max(1, Math.floor(price * 100))
+    const rawStars = Math.max(1, Math.floor(price * 100))
+
+    // 🎯 ZOD: Валидация результата
+    console.log('🔍 [ZOD] Validating stars calculation output...')
+    const outputValidation = StarsCalculationOutputSchema.safeParse(rawStars)
+    
+    if (!outputValidation.success) {
+      console.error('🔍 [ZOD] ❌ STARS CALCULATION OUTPUT VALIDATION FAILED:', outputValidation.error.issues)
+      console.warn('🎬 [CALC] Raw stars value was invalid:', rawStars)
+      return 40 // safe fallback
+    }
+
+    console.log('🔍 [ZOD] ✅ Output validation passed')
+    const validatedStars = outputValidation.data
 
     console.log(
       '🎬 [CALC] Model:',
-      modelId,
+      validatedInput.modelId,
       'Price:',
       price,
       'Duration:',
-      duration,
+      validatedInput.duration,
       'Stars:',
-      stars
+      validatedStars
     )
-    return stars
+    
+    return validatedStars
   } catch (error) {
     console.error(
-      '🎬 [CALC] Error calculating stars for model:',
+      '🎬 [CALC] 💥 Error calculating stars for model:',
       modelId,
       error
     )
-    return 40 // fallback
+    console.error('🎬 [CALC] Error stack:', error instanceof Error ? error.stack : 'No stack')
+    return 40 // safe fallback
   }
 }
 
-// Функция создания кнопки с правильной ценой и длительностью (БЕЗОПАСНАЯ)
+// Функция создания кнопки с правильной ценой и длительностью (С ZOD ВАЛИДАЦИЕЙ)
 function createModelButton(
   modelId: string,
   aspectRatio: string,
   isRu: boolean
 ): string {
   try {
-    const config = VIDEO_MODELS_CONFIG[modelId]
-    if (!config || !config.title) {
-      console.warn('🎬 [BUTTON] Invalid config for model:', modelId)
+    console.log('🎬 [BUTTON] Creating button for model:', modelId, 'aspect:', aspectRatio, 'isRu:', isRu)
+    
+    // 🎯 ZOD: Валидация входных параметров
+    console.log('🔍 [ZOD] Validating button input parameters...')
+    const inputValidation = ModelButtonInputSchema.safeParse({ 
+      modelId, 
+      aspectRatio: aspectRatio as '9:16' | '16:9', 
+      isRu 
+    })
+    
+    if (!inputValidation.success) {
+      console.error('🔍 [ZOD] ❌ BUTTON INPUT VALIDATION FAILED:', inputValidation.error.issues)
+      console.warn('🎬 [BUTTON] Using fallback due to invalid input')
       return `${modelId} | ${aspectRatio} (40⭐)`
     }
 
-    const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
+    console.log('🔍 [ZOD] ✅ Input validation passed')
+    const validatedInput = inputValidation.data
+
+    const config = VIDEO_MODELS_CONFIG[validatedInput.modelId]
+    if (!config || !config.title) {
+      console.warn('🎬 [BUTTON] Invalid config for model:', validatedInput.modelId)
+      return `${validatedInput.modelId} | ${validatedInput.aspectRatio} (40⭐)`
+    }
+
+    const aspectIcon = validatedInput.aspectRatio === '9:16' ? '📱' : '🖥️'
 
     // УПРОЩЕННЫЕ длительности и цены
     let durationText = ''
     let stars = 40 // по умолчанию
 
-    switch (modelId) {
+    switch (validatedInput.modelId) {
       case 'kie-veo-3-fast':
         durationText = ' | 8s'
         stars = 40
@@ -97,82 +166,138 @@ function createModelButton(
         stars = 20
         break
       default:
-        stars = calculateStarsFromConfig(modelId)
+        stars = calculateStarsFromConfig(validatedInput.modelId)
         break
     }
 
-    return `${config.title}${durationText} | ${aspectIcon} (${stars}⭐)`
+    const rawButtonText = `${config.title}${durationText} | ${aspectIcon} (${stars}⭐)`
+
+    // 🎯 ZOD: Валидация результата
+    console.log('🔍 [ZOD] Validating button output...')
+    const outputValidation = ModelButtonOutputSchema.safeParse(rawButtonText)
+    
+    if (!outputValidation.success) {
+      console.error('🔍 [ZOD] ❌ BUTTON OUTPUT VALIDATION FAILED:', outputValidation.error.issues)
+      console.warn('🎬 [BUTTON] Raw button text was invalid:', rawButtonText)
+      return `${validatedInput.modelId} | ${validatedInput.aspectRatio} (40⭐)` // safe fallback
+    }
+
+    console.log('🔍 [ZOD] ✅ Output validation passed')
+    const validatedButtonText = outputValidation.data
+
+    console.log('🎬 [BUTTON] Created button:', validatedButtonText)
+    return validatedButtonText
   } catch (error) {
     console.error(
-      '🎬 [BUTTON] Error creating button for model:',
+      '🎬 [BUTTON] 💥 Error creating button for model:',
       modelId,
       error
     )
-    return `${modelId} | ${aspectRatio} (40⭐)`
+    console.error('🎬 [BUTTON] Error stack:', error instanceof Error ? error.stack : 'No stack')
+    return `${modelId} | ${aspectRatio} (40⭐)` // safe fallback
   }
 }
 
-// Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
-function parseModelSelection(buttonText: string): {
-  modelId: string
-  aspectRatio: string
-  duration?: number
-  cost: number
-} | null {
+// Функция парсинга выбранной модели из кнопки (С ZOD ВАЛИДАЦИЕЙ)
+function parseModelSelection(buttonText: string): ParsedModelSelection | null {
   try {
     console.log('🎬 [PARSE] Parsing button text:', buttonText)
+    
+    // 🎯 ZOD: Валидация входящего текста кнопки
+    console.log('🔍 [ZOD] Validating button text format...')
+    const buttonValidation = ModelButtonTextSchema.safeParse(buttonText)
+    
+    if (!buttonValidation.success) {
+      console.error('🔍 [ZOD] ❌ BUTTON TEXT VALIDATION FAILED:', buttonValidation.error.issues)
+      console.warn('🎬 [PARSE] Button text does not match expected format:', buttonText)
+      // Не возвращаем ошибку, продолжаем парсинг для совместимости
+    }
+
+    console.log('🔍 [ZOD] Button text format check completed')
 
     // Определяем соотношение сторон по иконке
-    const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
+    const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9' as const
+
+    let rawResult: any = null
 
     // УПРОЩЕННЫЙ парсинг по ключевым словам
     if (buttonText.includes('Veo 3 Fast')) {
-      return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 }
-    }
-    if (buttonText.includes('Veo 3')) {
-      return { modelId: 'kie-veo-3', aspectRatio, duration: 8, cost: 202 }
-    }
-    if (buttonText.includes('Runway Aleph')) {
-      return {
+      rawResult = { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 }
+    } else if (buttonText.includes('Veo 3')) {
+      rawResult = { modelId: 'kie-veo-3', aspectRatio, duration: 8, cost: 202 }
+    } else if (buttonText.includes('Runway Aleph')) {
+      rawResult = {
         modelId: 'kie-runway-aleph',
         aspectRatio,
         duration: 6,
         cost: 182,
       }
-    }
-    if (buttonText.includes('Kling v1.6 Pro')) {
-      return { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
-    }
-    if (buttonText.includes('Minimax')) {
-      return { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
-    }
-    if (buttonText.includes('Hunyuan Video Fast')) {
-      return {
+    } else if (buttonText.includes('Kling v1.6 Pro')) {
+      rawResult = { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
+    } else if (buttonText.includes('Minimax')) {
+      rawResult = { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
+    } else if (buttonText.includes('Hunyuan Video Fast')) {
+      rawResult = {
         modelId: 'hunyuan-video-fast',
         aspectRatio,
         duration: 5,
         cost: 25,
       }
-    }
-    if (buttonText.includes('Wan-2.1')) {
-      return {
+    } else if (buttonText.includes('Wan-2.1')) {
+      rawResult = {
         modelId: 'wan-text-to-video',
         aspectRatio,
         duration: 5,
         cost: 20,
       }
+    } else {
+      console.warn('🎬 [PARSE] No match found for button text:', buttonText)
+      rawResult = { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
     }
 
-    console.warn('🎬 [PARSE] No match found for button text:', buttonText)
-    return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
+    // 🎯 ZOD: Валидация результата парсинга
+    console.log('🔍 [ZOD] Validating parsed model selection...')
+    const selectionValidation = ParsedModelSelectionSchema.safeParse(rawResult)
+    
+    if (!selectionValidation.success) {
+      console.error('🔍 [ZOD] ❌ PARSED MODEL VALIDATION FAILED:', selectionValidation.error.issues)
+      console.error('🔍 [ZOD] Raw result was:', rawResult)
+      
+      // Fallback с валидными данными
+      const fallbackResult = { modelId: 'kie-veo-3-fast', aspectRatio: '9:16' as const, duration: 8, cost: 40 }
+      const fallbackValidation = ParsedModelSelectionSchema.safeParse(fallbackResult)
+      
+      if (fallbackValidation.success) {
+        console.log('🔍 [ZOD] Using validated fallback result')
+        return fallbackValidation.data
+      } else {
+        console.error('🔍 [ZOD] Even fallback validation failed!')
+        return null
+      }
+    }
+
+    console.log('🔍 [ZOD] ✅ Parsed model selection validation passed')
+    console.log('🎬 [PARSE] Successfully parsed model:', selectionValidation.data)
+    
+    return selectionValidation.data
   } catch (error) {
-    console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
-    return {
-      modelId: 'kie-veo-3-fast',
-      aspectRatio: '9:16',
-      duration: 8,
-      cost: 40,
-    } // safe fallback
+    console.error('🎬 [PARSE] 💥 Error parsing button text:', buttonText, error)
+    console.error('🎬 [PARSE] Error stack:', error instanceof Error ? error.stack : 'No stack')
+    
+    // Безопасный fallback с Zod валидацией
+    try {
+      const safeFallback = { modelId: 'kie-veo-3-fast', aspectRatio: '9:16' as const, duration: 8, cost: 40 }
+      const fallbackValidation = ParsedModelSelectionSchema.safeParse(safeFallback)
+      
+      if (fallbackValidation.success) {
+        console.log('🔍 [ZOD] Using emergency validated fallback')
+        return fallbackValidation.data
+      }
+    } catch (fallbackError) {
+      console.error('🎬 [PARSE] Even emergency fallback failed:', fallbackError)
+    }
+    
+    return null
   }
 }
 
@@ -181,15 +306,46 @@ function parseModelSelection(buttonText: string): {
 const textToVideoStep1 = async (ctx: MyContext) => {
   console.log('🎬 [WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
   console.log('🔥 [DEBUG] THIS IS THE REAL textToVideoWizard STEP 1, NOT menuCommandStep!')
+  
+  // 🎯 ZOD: Валидация контекста перед выполнением
+  console.log('🔍 [ZOD] Validating wizard context...')
+  const contextValidation = safeParseContext(ctx)
+  
+  if (!contextValidation.success) {
+    console.error('🔍 [ZOD] ❌ CONTEXT VALIDATION FAILED:', contextValidation.error.issues)
+    logger.error('[TextToVideoWizard] Context validation failed', {
+      telegramId: ctx.from?.id,
+      errors: contextValidation.error.issues,
+    })
+    
+    await ctx.reply('❌ Системная ошибка. Попробуйте позже.')
+    return ctx.scene.leave()
+  }
+  
+  console.log('🔍 [ZOD] ✅ Context validation passed')
   console.log('🎬 [WIZARD] ✅ WIZARD ENTERED AUTOMATICALLY! User:', ctx.from?.id)
   console.log('🎬 [WIZARD] Scene ID:', ctx.scene.current?.id)
   console.log('🎬 [WIZARD] Current step:', ctx.wizard?.cursor)
+
+  // 🎯 ZOD: Дополнительная проверка wizard состояния
+  if (!ctx.wizard) {
+    console.error('🔍 [ZOD] ❌ WIZARD CONTEXT MISSING!')
+    await ctx.reply('❌ Ошибка wizard системы')
+    return ctx.scene.leave()
+  }
+
+  if (!ctx.wizard.next || typeof ctx.wizard.next !== 'function') {
+    console.error('🔍 [ZOD] ❌ WIZARD.NEXT FUNCTION MISSING!')
+    await ctx.reply('❌ Ошибка навигации wizard')  
+    return ctx.scene.leave()
+  }
 
   logger.info('[TextToVideoWizard] Wizard entered and step 1 started', {
     telegramId: ctx.from?.id,
     sceneId: ctx.scene.current?.id,
     currentStep: ctx.wizard?.cursor,
     timestamp: new Date().toISOString(),
+    validationPassed: true,
   })
 
     try {
@@ -298,18 +454,61 @@ const textToVideoStep2 = async (ctx: MyContext) => {
 
     const isRu = isRussianFromState(ctx)
 
-    if (!ctx.message || !('text' in ctx.message)) {
-      console.log('🎬 [WIZARD] Step 2: No text message')
-      await ctx.reply(
-        isRu
-          ? 'Выберите модель из кнопок выше.'
-          : 'Select a model from the buttons above.'
-      )
+    // 🎯 ZOD: Валидация что это текстовое сообщение
+    console.log('🔍 [ZOD] Validating text message...')
+    const textMessageValidation = safeParseTextMessage(ctx)
+    
+    if (!textMessageValidation.success) {
+      console.error('🔍 [ZOD] ❌ TEXT MESSAGE VALIDATION FAILED:', textMessageValidation.error.issues)
+      
+      // Проверяем конкретную причину ошибки
+      const hasMessage = !!ctx.message
+      const hasText = ctx.message && 'text' in ctx.message && ctx.message.text
+      
+      console.log('🔍 [ZOD] Validation details:', {
+        hasMessage,
+        hasText,
+        messageType: ctx.message ? Object.keys(ctx.message).filter(k => 
+          ['text', 'photo', 'video', 'document', 'voice'].includes(k)
+        ) : []
+      })
+
+      if (!hasMessage) {
+        await ctx.reply(
+          isRu
+            ? '❌ Не получено сообщение. Выберите модель из кнопок.'
+            : '❌ No message received. Select a model from the buttons.'
+        )
+      } else if (!hasText) {
+        await ctx.reply(
+          isRu
+            ? '📝 Пожалуйста, выберите модель из текстовых кнопок выше (не отправляйте фото/файлы).'
+            : '📝 Please select a model from the text buttons above (don\'t send photos/files).'
+        )
+      } else {
+        await ctx.reply(
+          isRu
+            ? 'Выберите модель из кнопок выше.'
+            : 'Select a model from the buttons above.'
+        )
+      }
       return
     }
 
-    const selectedText = ctx.message.text
+    console.log('🔍 [ZOD] ✅ Text message validation passed')
+    const selectedText = textMessageValidation.data.message.text
     console.log('🎬 [WIZARD] Step 2: Received text:', selectedText)
+    
+    // 🎯 ZOD: Валидация текста кнопки модели  
+    console.log('🔍 [ZOD] Validating button text format...')
+    const buttonValidation = ModelButtonTextSchema.safeParse(selectedText)
+    
+    let isValidModelButton = buttonValidation.success
+    console.log('🔍 [ZOD] Button format valid:', isValidModelButton)
+    
+    if (!isValidModelButton) {
+      console.log('🔍 [ZOD] Button validation failed, details:', buttonValidation.error?.issues)
+    }
 
     // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: если это выбор модели, а не промпт
     const parsedModel = parseModelSelection(selectedText)
@@ -379,56 +578,128 @@ const textToVideoStep3 = async (ctx: MyContext) => {
 
     const isRu = isRussianFromState(ctx)
 
-    if (!ctx.message || !('text' in ctx.message)) {
-      console.log('🎬 [WIZARD] Step 3: No text message')
+    // 🎯 ZOD: Валидация что это текстовое сообщение
+    console.log('🔍 [ZOD] Validating text message for prompt...')
+    const textMessageValidation = safeParseTextMessage(ctx)
+    
+    if (!textMessageValidation.success) {
+      console.error('🔍 [ZOD] ❌ PROMPT TEXT MESSAGE VALIDATION FAILED:', textMessageValidation.error.issues)
       await ctx.reply(
         isRu
-          ? 'Опишите, что должно происходить в видео.'
-          : 'Describe what should happen in the video.'
+          ? '📝 Пожалуйста, отправьте текстовое описание для видео.'
+          : '📝 Please send a text description for the video.'
       )
       return
     }
 
-    const prompt = ctx.message.text.trim()
+    console.log('🔍 [ZOD] ✅ Text message validation passed for prompt')
+    const promptText = textMessageValidation.data.message.text.trim()
 
-    if (!prompt || prompt.length < 3) {
+    // 🎯 ZOD: Валидация промпта
+    console.log('🔍 [ZOD] Validating prompt content...')
+    const promptValidation = PromptSchema.safeParse(promptText)
+    
+    if (!promptValidation.success) {
+      console.error('🔍 [ZOD] ❌ PROMPT VALIDATION FAILED:', promptValidation.error.issues)
+      
+      const errorMessage = promptValidation.error.issues[0]?.message || 'Invalid prompt'
       await ctx.reply(
-        isRu ? 'Описание слишком короткое.' : 'Description is too short.'
+        isRu
+          ? `❌ Ошибка в описании: ${errorMessage}`
+          : `❌ Prompt error: ${errorMessage}`
       )
       return
     }
 
-    // Получаем сохраненные параметры
-    const selectedModel = ctx.session.selectedModel || 'kie-veo-3-fast'
-    const aspectRatio = ctx.session.aspect_ratio || '9:16'
-    const cost = ctx.session.selectedVideoCost || 40
+    console.log('🔍 [ZOD] ✅ Prompt validation passed')
+    const validatedPrompt = promptValidation.data
 
-    console.log('🎬 [WIZARD] Step 3: Starting generation with params:', {
-      selectedModel,
-      aspectRatio,
-      cost,
+    // 🎯 ZOD: Валидация данных сессии
+    console.log('🔍 [ZOD] Validating wizard session data...')
+    const sessionValidation = WizardSessionSchema.safeParse(ctx.session)
+    
+    if (!sessionValidation.success) {
+      console.error('🔍 [ZOD] ❌ SESSION VALIDATION FAILED:', sessionValidation.error.issues)
+      await ctx.reply(
+        isRu 
+          ? '❌ Ошибка данных сессии. Начните сначала.'
+          : '❌ Session data error. Please start over.'
+      )
+      return ctx.scene.leave()
+    }
+
+    console.log('🔍 [ZOD] ✅ Session validation passed')
+
+    // Получаем сохраненные параметры с fallback значениями
+    const selectedModel = sessionValidation.data.selectedModel || 'kie-veo-3-fast'
+    const aspectRatio = sessionValidation.data.aspect_ratio || '9:16'
+    const cost = sessionValidation.data.selectedVideoCost || 40
+
+    // 🎯 ZOD: Валидация параметров генерации видео
+    console.log('🔍 [ZOD] Validating video generation params...')
+    const generationParams = {
+      prompt: validatedPrompt,
+      modelId: selectedModel,
+      aspectRatio: aspectRatio,
+      cost: cost
+    }
+    
+    const paramsValidation = VideoGenerationParamsSchema.safeParse(generationParams)
+    
+    if (!paramsValidation.success) {
+      console.error('🔍 [ZOD] ❌ VIDEO GENERATION PARAMS VALIDATION FAILED:', paramsValidation.error.issues)
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка параметров генерации. Проверьте выбранную модель.'
+          : '❌ Generation parameters error. Check selected model.'
+      )
+      return ctx.scene.leave()
+    }
+
+    console.log('🔍 [ZOD] ✅ Video generation params validation passed')
+    const validatedParams = paramsValidation.data
+
+    console.log('🎬 [WIZARD] Step 3: Starting generation with validated params:', {
+      selectedModel: validatedParams.modelId,
+      aspectRatio: validatedParams.aspectRatio,
+      cost: validatedParams.cost,
+      promptLength: validatedParams.prompt.length
     })
 
     // Генерируем видео
     await ctx.reply(
       isRu
-        ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
-        : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+        ? `🎬 Генерируем видео...\n📋 ${validatedParams.modelId} | ${validatedParams.aspectRatio} | ${validatedParams.cost}⭐\n💭 ${validatedParams.prompt.substring(0, 100)}`
+        : `🎬 Generating video...\n📋 ${validatedParams.modelId} | ${validatedParams.aspectRatio} | ${validatedParams.cost}⭐\n💭 ${validatedParams.prompt.substring(0, 100)}`
     )
 
-    const videoModelId = selectedModel as VideoModelId
+    const videoModelId = validatedParams.modelId as VideoModelId
     await handleTextToVideoDirect(
       ctx,
-      prompt,
+      validatedParams.prompt,
       videoModelId,
-      undefined, // duration
-      aspectRatio
+      validatedParams.duration, // now properly passed from validation
+      validatedParams.aspectRatio
     )
-    console.log('🎬 [WIZARD] Video generation success!')
+    
+    console.log('🎬 [WIZARD] ✅ Video generation completed successfully!')
+    logger.info('[TextToVideoWizard] Video generation completed', {
+      telegramId: ctx.from?.id,
+      modelId: validatedParams.modelId,
+      aspectRatio: validatedParams.aspectRatio,
+      cost: validatedParams.cost,
+      promptLength: validatedParams.prompt.length,
+      validationPassed: true,
+    })
 
     return ctx.scene.leave()
   } catch (error) {
-    console.error('🎬 [WIZARD] Step 3 ERROR:', error)
+    console.error('🎬 [WIZARD] 💥 STEP 3 CRASHED WITH ERROR:', error)
+    console.error('🎬 [WIZARD] Error stack:', error instanceof Error ? error.stack : 'No stack')
+    logger.error('TextToVideoWizard Step 3 error', {
+      telegramId: ctx.from?.id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
     await ctx.reply('❌ Ошибка в третьем шаге wizard')
     return ctx.scene.leave()
   }
