@@ -120,6 +120,7 @@ export const {
   INNGEST_SIGNING_KEY,
   ROBOKASSA_PASSWORD_1,
   ROBOKASSA_PASSWORD_2,
+  SERVER_API_URL,
 } = process.env
 
 // API_URL для AI сервера - в разработке используем локальный AI сервер
@@ -128,10 +129,13 @@ export const API_URL = isDev ? AI_SERVER_LOCAL_URL : API_SERVER_URL
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
 const BASE_PAYMENT_URL = isDev
-  ? API_SERVER_URL || 'https://999-multibots-telegraf-u14194.vm.elestio.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
+  ? API_SERVER_URL ||
+    process.env.SERVER_API_URL ||
+    'https://ai-server-production-production-8e2d.up.railway.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
-    'https://999-multibots-telegraf-u14194.vm.elestio.app'
+    process.env.SERVER_API_URL ||
+    'https://ai-server-production-production-8e2d.up.railway.app'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 
