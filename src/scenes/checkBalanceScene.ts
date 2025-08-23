@@ -397,6 +397,8 @@ checkBalanceScene.enter(async ctx => {
           ? '❌ Не удалось найти ваш профиль. Пожалуйста, перезапустите бота командой /start.'
           : '❌ Could not find your profile. Please restart the bot with /start.'
       )
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       return ctx.scene.enter(ModeEnum.StartScene) // Выход, если пользователь не существует
     }
 
@@ -411,6 +413,8 @@ checkBalanceScene.enter(async ctx => {
         mode,
         result: 'redirect_to_start',
       })
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       return ctx.scene.enter(ModeEnum.StartScene)
     } else {
       logger.info({
@@ -752,6 +756,8 @@ export const enterTargetScene = async (
         mode,
         function: 'enterTargetSceneWrapper',
       })
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       await ctx.scene.enter('flux_kontext_scene')
       return
     }
@@ -767,6 +773,8 @@ export const enterTargetScene = async (
         mode,
         function: 'enterTargetSceneWrapper',
       })
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       await ctx.scene.enter(ModeEnum.ImageUpscaler)
       return
     }
@@ -782,6 +790,8 @@ export const enterTargetScene = async (
         mode,
         function: 'enterTargetSceneWrapper',
       })
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       await ctx.scene.enter('video_transcription')
       return
     }
@@ -798,6 +808,10 @@ export const enterTargetScene = async (
         function: 'enterTargetSceneWrapper',
       })
       try {
+        // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
+        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        await ctx.scene.leave()
+        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video')
         await ctx.scene.enter('text_to_video')
         console.log(
           '🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene'
@@ -862,6 +876,8 @@ export const enterTargetScene = async (
     })
 
     try {
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
       await ctx.scene.enter(mode, {
         ...(ctx.scene.state || {}),
