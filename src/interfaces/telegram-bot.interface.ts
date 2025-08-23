@@ -311,6 +311,11 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedDuration?: number // Выбранная длительность для Veo 3 Fast модели
   selectedAspectRatio?: string // Выбранное соотношение сторон для Kie.ai VEO моделей
   selectedVideoCost?: number // Стоимость выбранной модели в звездах
+
+  // LipSync specific fields
+  step?: 'video' | 'audio' | 'processing'
+  startTime?: number
+  requestId?: string
 }
 
 export interface MyContext extends Context {
