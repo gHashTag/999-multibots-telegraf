@@ -172,17 +172,60 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
-      console.log('🎬 [WIZARD] Step 1: Keyboard created')
+      console.log('🎬 [WIZARD] Step 1: Keyboard created with', keyboardRows.length, 'rows')
+      console.log('🎬 [WIZARD] Step 1: First few keyboard rows:', JSON.stringify(keyboardRows.slice(0, 3), null, 2))
 
-      await ctx.reply(
-        isRu 
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Добавляем детальную обработку ошибок для ctx.reply
+      try {
+        console.log('🎬 [WIZARD] Step 1: Attempting to send reply to user:', ctx.from?.id)
+        console.log('🎬 [WIZARD] Step 1: Context check:', {
+          hasCtx: !!ctx,
+          hasReply: !!ctx.reply,
+          hasFrom: !!ctx.from,
+          userId: ctx.from?.id,
+          chatId: ctx.chat?.id,
+          chatType: ctx.chat?.type
+        })
+        
+        const replyText = isRu 
           ? `🎥 Выберите модель и формат видео:\n\n📱 — 9:16 (вертикально)\n🖥️ — 16:9 (горизонтально)\n\n⭐ Цена в Telegram Stars`
-          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`,
-        keyboard
-      )
-      
-      console.log('🎬 [WIZARD] Step 1: Reply sent, moving to next step')
-      return ctx.wizard.next()
+          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`
+        
+        console.log('🎬 [WIZARD] Step 1: About to send reply...')
+        
+        const replyResult = await ctx.reply(replyText, keyboard)
+        
+        console.log('🎬 [WIZARD] Step 1: ✅ Reply sent successfully! Message ID:', replyResult.message_id)
+        console.log('🎬 [WIZARD] Step 1: Moving to next step...')
+        return ctx.wizard.next()
+        
+      } catch (replyError) {
+        console.error('🎬 [WIZARD] Step 1: ❌ CRITICAL ERROR - Failed to send reply:', replyError)
+        logger.error('[TextToVideoWizard] Critical error sending keyboard reply', {
+          error: replyError instanceof Error ? replyError.message : 'Unknown error',
+          stack: replyError instanceof Error ? replyError.stack : undefined,
+          userId: ctx.from?.id,
+          chatId: ctx.chat?.id,
+          keyboardRowsCount: keyboardRows.length
+        })
+        
+        // Пытаемся отправить простое сообщение об ошибке без клавиатуры
+        try {
+          console.log('🎬 [WIZARD] Step 1: Trying fallback simple reply...')
+          await ctx.reply(
+            isRu 
+              ? '❌ Произошла ошибка при загрузке меню. Попробуйте /start'
+              : '❌ Menu loading error. Try /start'
+          )
+          console.log('🎬 [WIZARD] Step 1: Fallback reply sent')
+        } catch (fallbackError) {
+          console.error('🎬 [WIZARD] Step 1: ❌ Even fallback reply failed:', fallbackError)
+        }
+        
+        // Выходим из wizard при ошибке
+        console.log('🎬 [WIZARD] Step 1: Leaving wizard due to reply error')
+        return ctx.scene.leave()
+      }
       
     } catch (error) {
       console.error('🎬 [WIZARD] Step 1 ERROR:', error)
@@ -315,18 +358,11 @@ textToVideoWizard.enter(async (ctx) => {
     timestamp: new Date().toISOString()
   })
   
-  // ИСПРАВЛЕНИЕ: ЯВНО устанавливаем шаг 0 - это критично для правильной работы wizard'а
-  console.log('🎬 [WIZARD] Setting wizard step to 0...')
-  try {
-    ctx.wizard.selectStep(0)
-    console.log('🎬 [WIZARD] Step set to 0, cursor now:', ctx.wizard?.cursor)
-  } catch (error) {
-    console.error('🎬 [WIZARD] ERROR setting wizard step:', error)
-    logger.error('[TextToVideoWizard] Error setting wizard step', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id
-    })
-  }
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ устанавливаем шаг вручную! 
+  // Telegraf автоматически запускает первый шаг при входе в wizard
+  // Ручное установление шага мешает автоматическому выполнению
+  console.log('🎬 [WIZARD] Letting Telegraf handle first step execution automatically...')
+  console.log('🎬 [WIZARD] Wizard entered, first step should execute now')
 })
 
 // Обработчик выхода из wizard
