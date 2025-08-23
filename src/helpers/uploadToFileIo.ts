@@ -58,7 +58,9 @@ export async function uploadTelegramFileToFileIo(
 
     if (!uploadResponse.data?.success || !uploadResponse.data?.files?.[0]) {
       throw new Error(
-        `Pomf.lain.la upload failed: ${uploadResponse.data?.errorcode || 'Unknown error'}`
+        `Pomf.lain.la upload failed: ${
+          uploadResponse.data?.errorcode || 'Unknown error'
+        }`
       )
     }
 

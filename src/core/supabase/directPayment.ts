@@ -385,7 +385,7 @@ export async function updateUserBalance(
   type: PaymentType,
   description: string,
   metadata: Record<string, any> = {},
-  bypass_payment_check: boolean = false
+  bypass_payment_check = false
 ): Promise<boolean> {
   console.log(
     `updateUserBalance called: telegram_id=${telegram_id}, amount=${amount}, type=${type}`

@@ -57,7 +57,9 @@ export async function validateImageUrl(
     if (size > MAX_SIZE) {
       return {
         isValid: false,
-        reason: `File too large: ${(size / 1024 / 1024).toFixed(2)}MB (max: ${MAX_SIZE / 1024 / 1024}MB)`,
+        reason: `File too large: ${(size / 1024 / 1024).toFixed(2)}MB (max: ${
+          MAX_SIZE / 1024 / 1024
+        }MB)`,
         size,
         contentType,
         status: response.status,
@@ -111,7 +113,9 @@ export async function validateImageUrl(
         }
 
         logger.info(
-          `[validateImageUrl] Image signature validation passed. Type detected: ${isPNG ? 'PNG' : isJPEG ? 'JPEG' : isGIF ? 'GIF' : 'WebP'}`
+          `[validateImageUrl] Image signature validation passed. Type detected: ${
+            isPNG ? 'PNG' : isJPEG ? 'JPEG' : isGIF ? 'GIF' : 'WebP'
+          }`
         )
       } else {
         logger.warn(
@@ -137,7 +141,9 @@ export async function validateImageUrl(
     logger.error(`[validateImageUrl] Validation error for ${url}:`, error)
     return {
       isValid: false,
-      reason: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      reason: `Network error: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
     }
   }
 }
