@@ -451,8 +451,29 @@ textToVideoWizard.enter(async ctx => {
     timestamp: new Date().toISOString(),
   })
 
-  // Telegraf автоматически вызовет первый шаг после .enter()
-  console.log('🎬 [WIZARD] Telegraf will automatically call first step...')
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Telegraf НЕ вызывает первый шаг автоматически!
+  console.log('🎬 [WIZARD] Manually calling first step since Telegraf does NOT call it automatically...')
+  
+  try {
+    if (ctx.wizard.cursor === undefined) {
+      console.log('🎬 [WIZARD] Fresh wizard entry, executing first step...')
+      
+      // Получаем первый шаг нашего wizard'а (НЕ menuCommandStep!)
+      const firstStepHandler = (ctx.wizard as any).steps[0]
+      console.log('🎬 [WIZARD] First step handler type:', typeof firstStepHandler)
+      
+      if (typeof firstStepHandler === 'function') {
+        console.log('🎬 [WIZARD] About to call OUR first step handler...')
+        await firstStepHandler(ctx)
+        console.log('🎬 [WIZARD] ✅ First step executed successfully')
+      } else {
+        console.error('🎬 [WIZARD] ❌ First step handler is not a function:', typeof firstStepHandler)
+      }
+    }
+  } catch (error) {
+    console.error('🎬 [WIZARD] ❌ Error executing first step:', error)
+    await ctx.reply('❌ Ошибка в wizard. Попробуйте позже.')
+  }
 })
 
 // Обработчик выхода из wizard
