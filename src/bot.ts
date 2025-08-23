@@ -2,6 +2,7 @@ import { isDev } from './config'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
+// Test CI/CD pipeline: проверка работы автоматической сборки после очистки веток
 setupSafeConsoleLogging()
 
 console.log(`--- Bot Logic ---`)
