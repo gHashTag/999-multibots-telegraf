@@ -1,0 +1,61 @@
+{
+  "hooks": [
+    {
+      "event": "UserPromptSubmit",
+      "matchers": [
+        {
+          "user_prompt": ".*"
+        }
+      ],
+      "commands": [
+        {
+          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-pr-start.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-pr-start.sh\" \"$USER_PROMPT\"",
+          "timeout": 60
+        }
+      ]
+    },
+    {
+      "event": "Stop",
+      "matchers": [
+        {
+          "tool_name": "*"
+        }
+      ],
+      "commands": [
+        {
+          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/pr-status.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/pr-status.sh\"",
+          "timeout": 60
+        }
+      ]
+    },
+    {
+      "event": "PreToolUse",
+      "matchers": [
+        {
+          "tool_name": "Write|Edit|MultiEdit"
+        }
+      ],
+      "commands": [
+        {
+          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/pr-cleanup.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/pr-cleanup.sh\"",
+          "timeout": 30
+        }
+      ]
+    },
+    {
+      "event": "PreToolUse",
+      "matchers": [
+        {
+          "tool_name": "Write|Edit|MultiEdit",
+          "tool_input": ".*\\.(md|txt|rst|adoc).*"
+        }
+      ],
+      "commands": [
+        {
+          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/docs-cleanup.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/docs-cleanup.sh\"",
+          "timeout": 20
+        }
+      ]
+    }
+  ]
+}
