@@ -310,8 +310,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         
         // Сохраняем выбранную модель в сессию
         ctx.session.selectedModel = parsedModel.modelId
-        ctx.session.aspectRatio = parsedModel.aspectRatio
-        ctx.session.videoCost = parsedModel.cost
+        ctx.session.aspect_ratio = parsedModel.aspectRatio
+        ctx.session.selectedVideoCost = parsedModel.cost
         
         // Просим ввести промпт
         await ctx.reply(
@@ -393,8 +393,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       // Получаем сохраненные параметры
       const selectedModel = ctx.session.selectedModel || 'kie-veo-3-fast'
-      const aspectRatio = ctx.session.aspectRatio || '9:16'
-      const cost = ctx.session.videoCost || 40
+      const aspectRatio = ctx.session.aspect_ratio || '9:16'
+      const cost = ctx.session.selectedVideoCost || 40
 
       console.log('🎬 [WIZARD] Step 3: Starting generation with params:', {
         selectedModel,
@@ -453,7 +453,21 @@ textToVideoWizard.enter(async ctx => {
     // Проверяем что это первый вход (cursor = undefined)
     if (ctx.wizard.cursor === undefined) {
       console.log('🎬 [WIZARD] Fresh wizard entry, executing first step...')
-      const firstStepHandler = ctx.wizard.steps[0]
+      
+      // ДЕТАЛЬНАЯ ПРОВЕРКА WIZARD STEPS (access limited due to private property)
+      // console.log('🎬 [WIZARD] Wizard steps count:', ctx.wizard.steps.length)
+      // console.log('🎬 [WIZARD] Wizard steps types:', ctx.wizard.steps.map((step, i) => `${i}: ${typeof step}`))
+      
+      // Note: ctx.wizard.steps is private in newer versions of Telegraf
+      const firstStepHandler = (ctx.wizard as any).steps[0]
+      console.log('🎬 [WIZARD] First step handler type:', typeof firstStepHandler)
+      console.log('🎬 [WIZARD] First step handler function name:', firstStepHandler?.name || 'anonymous')
+      console.log('🎬 [WIZARD] First step handler toString (first 100 chars):', 
+        typeof firstStepHandler === 'function' 
+          ? firstStepHandler.toString().substring(0, 100) + '...'
+          : 'Not a function'
+      )
+      
       if (typeof firstStepHandler === 'function') {
         console.log('🎬 [WIZARD] About to call firstStepHandler...')
         try {
