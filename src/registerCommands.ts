@@ -26,6 +26,9 @@ import {
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 // Импортируем FLUX Kontext команду
 import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
+// Импортируем AutoFixer команды
+import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
+import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
 // Импортируем сцену handleTextMessage
 // import { handleTextMessage } from './handlers/handleTextMessage' // ❌ ИСПРАВЛЕНО: не используется как сцена
 
@@ -145,6 +148,7 @@ export const stage = new Scenes.Stage<MyContext>([
   createUserScene,
   neuroCoderScene,
   instagramScrapingWizard,
+  autoFixerConfigScene,
   instagramParserScene,
 ])
 
@@ -556,6 +560,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // 👑 АДМИНСКИЕ КОМАНДЫ
     bot.command('addbalance', handleAddBalanceCommand)
     bot.command('checkbalance', handleCheckBalanceCommand)
+
+    // 🤖 АВТОФИКСЕР КОМАНДЫ
+    setupAutoFixerCommands(bot)
 
     // 📊 КОМАНДА АНАЛИЗА РАСХОДОВ
     bot.use(expenseAnalysisCommand)
