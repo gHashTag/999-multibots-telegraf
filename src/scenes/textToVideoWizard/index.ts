@@ -333,7 +333,6 @@ textToVideoWizard.enter(async (ctx) => {
       telegramId: ctx.from?.id
     })
   }
-  }
 })
 
 // Обработчик выхода из wizard
