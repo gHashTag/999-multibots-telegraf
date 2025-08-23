@@ -182,18 +182,21 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // ========== ШАГ 1: ВЫБОР МОДЕЛИ + ФОРМАТ СРАЗУ (ВСЕ МОДЕЛИ) ==========
   async ctx => {
+    console.log('🎬 [WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
     try {
       console.log(
         '🎬 [WIZARD] Step 1: Complete model + format selection for user:',
         ctx.from?.id
       )
 
+      console.log('🎬 [WIZARD] Step 1: About to detect language...')
       const isRu = isRussianFromState(ctx)
       console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
 
       // 🚀 КОНФИГ-БАЗИРОВАННАЯ клавиатура из VIDEO_MODELS_CONFIG
       console.log('🎬 [WIZARD] Step 1: Creating CONFIG-based keyboard...')
 
+      console.log('🎬 [WIZARD] Step 1: About to filter text models from VIDEO_MODELS_CONFIG...')
       // Отбираем только text-to-video модели
       const textModels = Object.entries(VIDEO_MODELS_CONFIG)
         .filter(([_, config]) => config.inputType.includes('text'))
@@ -208,6 +211,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             'wan-text-to-video',
           ].includes(modelId)
         ) // Оставляем только основные модели
+        
+      console.log('🎬 [WIZARD] Step 1: Text models filtering completed')
 
       console.log(
         '🎬 [WIZARD] Step 1: Filtered text models:',
@@ -220,10 +225,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      console.log('🎬 [WIZARD] Step 1: About to create keyboard rows...')
       const keyboardRows: string[][] = []
 
       // Создаем кнопки по 2 в ряд (для каждого соотношения сторон)
       textModels.forEach(([modelId, config]) => {
+        console.log('🎬 [WIZARD] Step 1: Creating buttons for model:', modelId)
         // Создаем кнопки для обоих форматов
         const button9x16 = createModelButton(modelId, '9:16', isRu)
         const button16x9 = createModelButton(modelId, '16:9', isRu)
@@ -233,12 +240,15 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       // Кнопка назад
       keyboardRows.push([isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'])
+      console.log('🎬 [WIZARD] Step 1: Keyboard rows created')
 
+      console.log('🎬 [WIZARD] Step 1: About to create Markup.keyboard...')
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
       console.log('🎬 [WIZARD] Step 1: Keyboard created with', keyboardRows.length, 'rows')
       console.log('🎬 [WIZARD] Step 1: Keyboard rows:', keyboardRows.map(row => row.map(btn => btn.substring(0, 30))))
 
+      console.log('🎬 [WIZARD] Step 1: About to send reply with keyboard...')
       await ctx.reply(
         isRu
           ? `🎥 Выберите модель и формат видео:\n\n📱 — 9:16 (вертикально)\n🖥️ — 16:9 (горизонтально)\n\n⭐ Цена в Telegram Stars`
@@ -248,10 +258,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🎬 [WIZARD] Step 1: ✅ REPLY SENT SUCCESSFULLY! Waiting for user choice...')
       console.log('🎬 [WIZARD] Step 1: Current wizard cursor:', ctx.wizard.cursor)
+      console.log('🎬 [WIZARD] Step 1: Current scene:', ctx.scene.current?.id)
+      console.log('🎬 [WIZARD] Step 1: 🏁 STEP 1 COMPLETED SUCCESSFULLY!')
       // НЕ переходим на следующий шаг - ждём выбора пользователя
       // return ctx.wizard.next() - УДАЛЕНО!
     } catch (error) {
-      console.error('🎬 [WIZARD] Step 1 ERROR:', error)
+      console.error('🎬 [WIZARD] 💥 STEP 1 CRASHED WITH ERROR:', error)
+      console.error('🎬 [WIZARD] Error stack:', error instanceof Error ? error.stack : 'No stack')
       logger.error('TextToVideoWizard Step 1 error', {
         error: error instanceof Error ? error.message : 'Unknown error',
       })
@@ -435,8 +448,16 @@ textToVideoWizard.enter(async ctx => {
       console.log('🎬 [WIZARD] Fresh wizard entry, executing first step...')
       const firstStepHandler = ctx.wizard.steps[0]
       if (typeof firstStepHandler === 'function') {
-        await firstStepHandler(ctx)
-        console.log('🎬 [WIZARD] ✅ First step executed successfully from .enter()')
+        console.log('🎬 [WIZARD] About to call firstStepHandler...')
+        try {
+          await firstStepHandler(ctx)
+          console.log('🎬 [WIZARD] ✅ First step executed successfully from .enter()')
+          console.log('🎬 [WIZARD] Current wizard cursor after first step:', ctx.wizard.cursor)
+          console.log('🎬 [WIZARD] Current scene after first step:', ctx.scene.current?.id)
+        } catch (stepError) {
+          console.error('🎬 [WIZARD] ❌ ERROR inside first step execution:', stepError)
+          throw stepError // Re-throw для внешнего catch
+        }
       } else {
         console.error('🎬 [WIZARD] ❌ First step handler is not a function:', typeof firstStepHandler)
       }
