@@ -7,8 +7,12 @@ import { createHelpCancelKeyboard } from '@/menu'
 
 // Mock dependencies
 jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))
-jest.mock('@/handlers/handleHelpCancel', () => ({ handleHelpCancel: jest.fn() }))
-jest.mock('@/menu', () => ({ createHelpCancelKeyboard: jest.fn(() => ({ reply_markup: {} })) }))
+jest.mock('@/handlers/handleHelpCancel', () => ({
+  handleHelpCancel: jest.fn(),
+}))
+jest.mock('@/menu', () => ({
+  createHelpCancelKeyboard: jest.fn(() => ({ reply_markup: {} })),
+}))
 
 describe('textToImageWizard', () => {
   beforeEach(() => {
