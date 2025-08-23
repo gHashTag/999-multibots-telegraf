@@ -29,17 +29,17 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
-    
+
     // НОВОЕ: Проверка админских прав
     if (!telegramId || !isUserAdmin(telegramId)) {
       await ctx.reply(
-        isRu 
+        isRu
           ? '🔒 Извините, функция LipSync временно доступна только администраторам.'
           : '🔒 Sorry, LipSync feature is temporarily available for administrators only.'
       )
       return ctx.scene.leave()
     }
-    
+
     await ctx.reply(
       isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
       {

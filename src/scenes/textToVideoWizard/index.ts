@@ -66,17 +66,17 @@ function createModelButton(
     // УПРОЩЕННЫЕ длительности и цены
     let durationText = ''
     let stars = 40 // по умолчанию
-
-    switch (modelId) {
-      case 'kie-veo-3-fast':
+    
+    switch(modelId) {
+      case 'veo-3-fast':
         durationText = ' | 8s'
         stars = 40
         break
-      case 'kie-veo-3':
-        durationText = ' | 8s'
+      case 'veo-3':
+        durationText = ' | 8s'  
         stars = 202
         break
-      case 'kie-runway-aleph':
+      case 'runway-aleph':
         durationText = ' | 6s'
         stars = 182
         break
@@ -127,14 +127,14 @@ function parseModelSelection(buttonText: string): {
 
     // УПРОЩЕННЫЙ парсинг по ключевым словам
     if (buttonText.includes('Veo 3 Fast')) {
-      return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 }
+      return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
     }
     if (buttonText.includes('Veo 3')) {
-      return { modelId: 'kie-veo-3', aspectRatio, duration: 8, cost: 202 }
+      return { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
     }
     if (buttonText.includes('Runway Aleph')) {
       return {
-        modelId: 'kie-runway-aleph',
+        modelId: 'runway-aleph',
         aspectRatio,
         duration: 6,
         cost: 182,
@@ -164,15 +164,11 @@ function parseModelSelection(buttonText: string): {
     }
 
     console.warn('🎬 [PARSE] No match found for button text:', buttonText)
-    return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
+    return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
+    
   } catch (error) {
     console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
-    return {
-      modelId: 'kie-veo-3-fast',
-      aspectRatio: '9:16',
-      duration: 8,
-      cost: 40,
-    } // safe fallback
+    return { modelId: 'veo-3-fast', aspectRatio: '9:16', duration: 8, cost: 40 } // safe fallback
   }
 }
 
@@ -197,23 +193,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Отбираем только text-to-video модели
       const textModels = Object.entries(VIDEO_MODELS_CONFIG)
         .filter(([_, config]) => config.inputType.includes('text'))
-        .filter(([modelId]) =>
-          [
-            'kie-veo-3-fast',
-            'kie-veo-3',
-            'kie-runway-aleph',
-            'kling-v1.6-pro',
-            'minimax',
-            'hunyuan-video-fast',
-            'wan-text-to-video',
-          ].includes(modelId)
-        ) // Оставляем только основные модели
-
-      console.log(
-        '🎬 [WIZARD] Step 1: Filtered text models:',
-        textModels.map(([id, config]) => ({ id, title: config.title }))
-      )
-
+        .filter(([modelId]) => [
+          'veo-3-fast', 'veo-3', 'runway-aleph',
+          'kling-v1.6-pro', 'minimax', 'hunyuan-video-fast', 'wan-text-to-video'
+        ].includes(modelId))
+      
+      console.log('🎬 [WIZARD] Step 1: Filtered text models:', textModels.map(([id, config]) => ({ id, title: config.title })))
+      
       const keyboardRows: string[][] = []
 
       // Создаем кнопки по 2 в ряд (для каждого соотношения сторон)
@@ -320,7 +306,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         }
 
         // Получаем сохраненные параметры
-        const selectedModel = ctx.session.selectedVideoModel || 'kie-veo-3-fast'
+        const selectedModel = ctx.session.selectedVideoModel || 'veo-3-fast'
         const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
         const cost = ctx.session.selectedVideoCost || 40
         const duration = ctx.session.selectedDuration

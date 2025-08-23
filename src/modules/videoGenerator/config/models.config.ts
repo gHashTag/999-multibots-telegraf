@@ -281,6 +281,62 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     imageKey: 'image',
     canMorph: false,
   },
+  'veo-3-fast': {
+    id: 'veo-3-fast',
+    title: 'Veo 3 Fast',
+    inputType: ['text', 'image'],
+    description:
+      '🚀 БЫСТРО: 8 сек, 720p, быстрый режим - 40⭐ (экономия до 87%)',
+    basePrice: 0.64, // $0.64 USD за 8 секунд = 40 звезд
+    api: {
+      model: 'google/veo-3-fast',
+      input: {
+        duration: 8, // Фиксированная длительность 8 секунд
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
+      },
+    },
+    imageKey: 'image',
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
+  },
+  'veo-3': {
+    id: 'veo-3',
+    title: 'Veo 3',
+    inputType: ['text'],
+    description:
+      '⭐ ПРЕМИУМ: 8 сек, 1080p, премиум качество - 202⭐ (экономия до 37%)',
+    basePrice: 3.23, // $3.23 USD за 8 секунд = 202 звезды
+    api: {
+      model: 'google/veo-3',
+      input: {
+        duration: 8, // Фиксированная длительность 8 секунд
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
+      },
+    },
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
+  },
+  'runway-aleph': {
+    id: 'runway-aleph',
+    title: 'Runway Aleph',
+    inputType: ['text', 'image'],
+    description:
+      '🎬 ПРЕМИУМ: Runway Aleph - 182⭐ за 6 сек (конкурентная цена!)',
+    basePrice: 0.485, // Конкурентная цена: 182⭐ за 6 сек = $2.912 за 6 сек = $0.485/сек
+    api: {
+      model: 'runwayml/gen-3-alpha',
+      input: {
+        duration: 6, // Длительность по умолчанию
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
+      },
+    },
+    imageKey: 'image',
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
+  },
 }
 
 // Определяем тип ключей конфига

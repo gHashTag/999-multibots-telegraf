@@ -10,19 +10,29 @@ jest.mock('../../src/core/supabase', () => ({
   getVoiceId: jest.fn(),
   getUserBalance: jest.fn(),
 }))
-jest.mock('../../src/services/generateTextToSpeech', () => ({ generateTextToSpeech: jest.fn() }))
+jest.mock('../../src/services/generateTextToSpeech', () => ({
+  generateTextToSpeech: jest.fn(),
+}))
 jest.mock('@/price/helpers', () => ({
   sendBalanceMessage: jest.fn(),
   sendInsufficientStarsMessage: jest.fn(),
   voiceConversationCost: 5,
 }))
 jest.mock('@/helpers', () => ({ isRussian: jest.fn().mockReturnValue(false) }))
-jest.mock('@/menu', () => ({ createHelpCancelKeyboard: jest.fn().mockReturnValue({}), }))
-jest.mock('@/handlers', () => ({ handleHelpCancel: jest.fn().mockResolvedValue(false) }))
+jest.mock('@/menu', () => ({
+  createHelpCancelKeyboard: jest.fn().mockReturnValue({}),
+}))
+jest.mock('@/handlers', () => ({
+  handleHelpCancel: jest.fn().mockResolvedValue(false),
+}))
 
 import { getVoiceId, getUserBalance } from '../../src/core/supabase'
 import { generateTextToSpeech } from '../../src/services/generateTextToSpeech'
-import { sendBalanceMessage, sendInsufficientStarsMessage, voiceConversationCost } from '@/price/helpers'
+import {
+  sendBalanceMessage,
+  sendInsufficientStarsMessage,
+  voiceConversationCost,
+} from '@/price/helpers'
 import { isRussian } from '@/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
@@ -50,17 +60,16 @@ describe('textToSpeechWizard', () => {
     // @ts-ignore
     const step1 = textToSpeechWizard.steps[1]
     await step1(ctx)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      '✍️ Please send text'
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('✍️ Please send text')
     // should not leave or generate
     expect(handleHelpCancel).not.toHaveBeenCalled()
     expect(generateTextToSpeech).not.toHaveBeenCalled()
   })
 
   it('step 1: with text but no voice_id asks to train avatar and leaves', async () => {
-    const ctx = makeMockContext({ message: { text: 'Hello' } })
-    (getVoiceId as jest.Mock).mockResolvedValueOnce(null)
+    const ctx = makeMockContext({ message: { text: 'Hello' } })(
+      getVoiceId as jest.Mock
+    ).mockResolvedValueOnce(null)
     // @ts-ignore
     const step1 = textToSpeechWizard.steps[1]
     await step1(ctx)
@@ -72,8 +81,9 @@ describe('textToSpeechWizard', () => {
   })
 
   it('step 1: with text and voice_id generates speech and leaves', async () => {
-    const ctx = makeMockContext({ message: { text: 'Hello world' } })
-    (getVoiceId as jest.Mock).mockResolvedValueOnce('voice123')
+    const ctx = makeMockContext({ message: { text: 'Hello world' } })(
+      getVoiceId as jest.Mock
+    ).mockResolvedValueOnce('voice123')
     // @ts-ignore
     const step1 = textToSpeechWizard.steps[1]
     await step1(ctx)

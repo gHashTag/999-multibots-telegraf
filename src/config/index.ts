@@ -33,10 +33,14 @@ if (loadResult.error) {
   }
 } else {
   console.log(
-    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${Object.keys(loadResult.parsed).length}`
+    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${
+      Object.keys(loadResult.parsed).length
+    }`
   )
   console.log(
-    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'}`
+    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${
+      loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'
+    }`
   )
 }
 
@@ -45,8 +49,21 @@ if (!process.env.NODE_ENV) {
   console.log("[CONFIG] NODE_ENV was not set, setting to 'development'")
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
 }
-export const isDev = process.env.NODE_ENV === 'development'
+
+// 🔧 ИСПРАВЛЕНИЕ: Принудительный development режим через FORCE_DEV_MODE или TEST_BOT_NAME
+const forceDevMode = process.env.FORCE_DEV_MODE === 'true'
+const hasTestBot = !!process.env.TEST_BOT_NAME
+if (forceDevMode) {
+  console.log('[CONFIG] FORCE_DEV_MODE=true detected, overriding to development mode')
+  ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
+} else if (hasTestBot) {
+  console.log(`[CONFIG] TEST_BOT_NAME=${process.env.TEST_BOT_NAME} detected, overriding to development mode`)
+  ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
+}
+
+export const isDev = process.env.NODE_ENV === 'development' || forceDevMode || hasTestBot
 console.log(`[CONFIG] isDev flag set to: ${isDev}`)
+console.log(`[CONFIG] forceDevMode: ${forceDevMode}`)
 
 console.log(`[CONFIG] NODE_ENV is set to: ${process.env.NODE_ENV}`)
 console.log('--- End Debugging .env loading --- ')

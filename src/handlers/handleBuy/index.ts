@@ -72,7 +72,9 @@ export async function handleBuy(ctx: MyContext) {
         })
 
         await ctx.replyWithInvoice({
-          title: `${amountToSend} ⭐️${amountToSend === 1 ? ' (Admin Test)' : ''}`,
+          title: `${amountToSend} ⭐️${
+            amountToSend === 1 ? ' (Admin Test)' : ''
+          }`,
           description: isRu
             ? `💬 Получите ${amountToSend} звезд.`
             : `💬 Get ${amountToSend} stars.`,
