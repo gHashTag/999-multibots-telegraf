@@ -121,6 +121,9 @@ export const handleMenu = async (ctx: MyContext) => {
         )
       },
       [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
+        // 💫 УЛУЧШЕНИЕ UX: Показываем индикатор typing
+        await ctx.sendChatAction('typing')
+        
         logger.info({
           message: '📸 [handleMenu] Переход к нейрофото',
           telegramId,
@@ -300,6 +303,9 @@ export const handleMenu = async (ctx: MyContext) => {
         )
       },
       [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
+        // 💫 УЛУЧШЕНИЕ UX: Показываем индикатор typing 
+        await ctx.sendChatAction('typing')
+        
         logger.info({
           message: '🎬 [handleMenu] Переход к видео из текста',
           telegramId,
