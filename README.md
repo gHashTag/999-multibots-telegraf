@@ -41,6 +41,53 @@
 
 Подробнее: [docs/LOGGING.md](docs/LOGGING.md)
 
+## 🤖 Workflow для AI-ассистентов
+
+### ⚠️ КРИТИЧЕСКИ ВАЖНО: Правило "Одна задача = один PR"
+
+**Для Claude Code, ChatGPT и других AI-инструментов:**
+
+#### 🔄 Обязательный процесс:
+1. **Новая задача** → создать новую ветку
+2. **Завершение задачи** → создать новый PR
+3. **НИКОГДА не переиспользовать** закрытые или существующие PR
+4. **Один PR = одна фича/исправление**
+
+#### 📋 Алгоритм работы:
+```bash
+# Для каждой НОВОЙ задачи:
+git checkout main
+git pull origin main  
+git checkout -b type/task-description
+
+# Примеры:
+git checkout -b feat/admin-middleware
+git checkout -b fix/webhook-timeout
+git checkout -b docs/api-documentation
+
+# После выполнения задачи:
+git add .
+git commit -m "type: описание изменений"
+git push -u origin type/task-description
+gh pr create --title "type: заголовок" --base main
+```
+
+#### 🏷️ Соглашения об именовании веток:
+- `feat/` - новые функции
+- `fix/` - исправления багов
+- `docs/` - документация
+- `chore/` - служебные задачи
+- `test/` - тесты
+- `refactor/` - рефакторинг
+
+#### 🎯 Почему это важно:
+- ✅ Чистая история git
+- ✅ Упрощенный код-ревью
+- ✅ Правильное отслеживание изменений
+- ✅ Автоматизация CI/CD
+
+**📖 Подробнее:** [CONTRIBUTING.md](CONTRIBUTING.md) | [Branch Naming Guide](.github/BRANCH_NAMING_GUIDE.md)
+
 ## 🛡️ Правила взаимодействия с Supabase (ЗОЛОТОЕ ПРАВИЛО!)
 
 Чтобы обеспечить стабильность и предсказуемость при работе с базой данных, необходимо **строго** соблюдать следующие правила:
@@ -132,17 +179,17 @@ docker-compose up -d
 Создайте файл `.env` на основе примера:
 
 ```
-# Токены ботов
-BOT_TOKEN_1=1234567890:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-BOT_TOKEN_2=0987654321:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+# Токены ботов (получить у @BotFather)
+BOT_TOKEN_1=your_first_bot_token_here
+BOT_TOKEN_2=your_second_bot_token_here
 
 # Настройки сервера
 PORT=3000
 ORIGIN=https://your-domain.com
 
-# База данных
-SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_KEY=your-supabase-key
+# База данных (получить в https://supabase.com)
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_SERVICE_KEY=your_supabase_service_key_here
 ```
 
 ## 📚 Документация

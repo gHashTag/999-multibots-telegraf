@@ -39,7 +39,9 @@ export async function downloadFile(
       )
     }
 
-    await fs.writeFile(localPath, buffer)
+    // Приводим к типу Uint8Array, совместимому с ArrayBufferView
+    const u8 = new Uint8Array(buffer)
+    await fs.writeFile(localPath, u8)
   } catch (error) {
     console.error(`Error downloading file from ${url} to ${localPath}:`, error)
     if (isAxiosError(error)) {
