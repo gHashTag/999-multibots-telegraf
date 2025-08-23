@@ -2,30 +2,42 @@
 
 ## ⚠️ ПРОБЛЕМА КОТОРУЮ ИСПРАВИЛИ
 
-**НИКОГДА НЕ ВЫЗЫВАЙ ПЕРВЫЙ ШАГ WIZARD'А ВРУЧНУЮ В .enter() МЕТОДЕ!**
+**TELEGRAF НЕ ВЫЗЫВАЕТ ПЕРВЫЙ ШАГ WIZARD'А АВТОМАТИЧЕСКИ!**
 
-### ❌ НЕПРАВИЛЬНО:
+### ❌ НЕПРАВИЛЬНО (было сначала):
 ```typescript
 textToVideoWizard.enter(async ctx => {
-  // ❌ ДВОЙНОЙ ВЫЗОВ ПЕРВОГО ШАГА - ЛОМАЕТ WIZARD!
+  // ❌ ДВОЙНОЙ ВЫЗОВ - без проверки cursor
   const firstStepHandler = ctx.wizard.steps[0]
-  await firstStepHandler(ctx) // ❌❌❌ НЕ ДЕЛАЙ ЭТО!
+  await firstStepHandler(ctx) // ❌ Всегда вызывает!
 })
 ```
 
-### ✅ ПРАВИЛЬНО:
+### ❌ ТОЖЕ НЕПРАВИЛЬНО (было потом):
 ```typescript  
 textToVideoWizard.enter(async ctx => {
-  // ✅ TELEGRAF АВТОМАТИЧЕСКИ ВЫЗЫВАЕТ ПЕРВЫЙ ШАГ
+  // ❌ НЕ ВЫЗЫВАЕМ ПЕРВЫЙ ШАГ ВООБЩЕ - думали что Telegraf сам это делает
   console.log('Wizard entered, first step will execute automatically')
+  // НО TELEGRAF НЕ ДЕЛАЕТ ЭТОГО!
+})
+```
+
+### ✅ ПРАВИЛЬНО (ФИНАЛЬНАЯ ВЕРСИЯ):
+```typescript  
+textToVideoWizard.enter(async ctx => {
+  // ✅ ВЫЗЫВАЕМ ПЕРВЫЙ ШАГ ТОЛЬКО ПРИ ПЕРВОМ ВХОДЕ
+  if (ctx.wizard.cursor === undefined) {
+    const firstStepHandler = ctx.wizard.steps[0]
+    await firstStepHandler(ctx)
+  }
 })
 ```
 
 ## 🎯 СУТЬ ПРОБЛЕМЫ
 
-1. **Telegraf автоматически** вызывает первый шаг при `ctx.scene.enter()`
-2. **НАШ enter handler** ТОЖЕ вызывал первый шаг  
-3. **Результат**: ДВОЙНОЙ ВЫЗОВ → wizard ломается → пользователь видит главное меню вместо выбора моделей
+1. **Сначала**: Мы всегда вызывали первый шаг → **ДВОЙНОЙ ВЫЗОВ** → wizard ломался
+2. **Потом**: Мы убрали вызов совсем → **НИ ОДНОГО ВЫЗОВА** → первый шаг не выполнялся
+3. **Теперь**: Проверяем `cursor === undefined` → **ОДИНОЧНЫЙ ВЫЗОВ** → работает правильно
 
 ## 🛠️ ЧТО ИСПРАВИЛИ
 
