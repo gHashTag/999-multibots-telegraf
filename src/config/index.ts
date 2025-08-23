@@ -33,10 +33,14 @@ if (loadResult.error) {
   }
 } else {
   console.log(
-    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${Object.keys(loadResult.parsed).length}`
+    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${
+      Object.keys(loadResult.parsed).length
+    }`
   )
   console.log(
-    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'}`
+    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${
+      loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'
+    }`
   )
 }
 

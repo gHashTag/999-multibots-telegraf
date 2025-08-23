@@ -7,9 +7,15 @@ import { generateImageToPrompt } from '@/services/generateImageToPrompt'
 import { getBotToken } from '@/handlers'
 
 // Mock dependencies
-jest.mock('@/handlers/handleHelpCancel', () => ({ handleHelpCancel: jest.fn() }))
-jest.mock('@/menu', () => ({ createHelpCancelKeyboard: jest.fn(opts => ({ reply_markup: opts })) }))
-jest.mock('@/services/generateImageToPrompt', () => ({ generateImageToPrompt: jest.fn() }))
+jest.mock('@/handlers/handleHelpCancel', () => ({
+  handleHelpCancel: jest.fn(),
+}))
+jest.mock('@/menu', () => ({
+  createHelpCancelKeyboard: jest.fn(opts => ({ reply_markup: opts })),
+}))
+jest.mock('@/services/generateImageToPrompt', () => ({
+  generateImageToPrompt: jest.fn(),
+}))
 jest.mock('@/handlers/getBotToken', () => ({ getBotToken: jest.fn() }))
 
 describe('imageToPromptWizard steps', () => {
@@ -49,10 +55,9 @@ describe('imageToPromptWizard steps', () => {
     // @ts-ignore
     const step1 = imageToPromptWizard.steps[1]
     await step1(ctx)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Please send an image',
-      { reply_markup: keyboard.reply_markup }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Please send an image', {
+      reply_markup: keyboard.reply_markup,
+    })
   })
 
   it('step1: leaves if cancelled', async () => {
@@ -68,11 +73,16 @@ describe('imageToPromptWizard steps', () => {
     ;(handleHelpCancel as jest.Mock).mockResolvedValue(false)
     ;(getBotToken as jest.Mock).mockResolvedValueOnce(['tok', 'botName'])
     ;(getBotToken as jest.Mock).mockResolvedValueOnce(['tok', 'botName'])
-    const ctx = makeMockContext({}, {
-      message: { photo: [{ file_id: 'fid1' }, { file_id: 'fid2' }] }
-    })
+    const ctx = makeMockContext(
+      {},
+      {
+        message: { photo: [{ file_id: 'fid1' }, { file_id: 'fid2' }] },
+      }
+    )
     // mock getFileLink
-    ctx.telegram.getFileLink = jest.fn().mockResolvedValue({ href: 'http://file.jpg' })
+    ctx.telegram.getFileLink = jest
+      .fn()
+      .mockResolvedValue({ href: 'http://file.jpg' })
     // @ts-ignore
     const step1 = imageToPromptWizard.steps[1]
     await step1(ctx)

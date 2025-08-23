@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { 
-  generateLipSyncViaAiServer, 
+import {
+  generateLipSyncViaAiServer,
   getLipSyncStatusFromAiServer,
-  type AiServerLipSyncRequest 
+  type AiServerLipSyncRequest,
 } from '@/core/ai-server/lipsync-adapter'
 
 // Мокаем fetch для тестов
@@ -18,18 +18,18 @@ describe('AiServer LipSync Adapter', () => {
       const mockResponse = {
         id: 'test-task-123',
         status: 'processing',
-        result_url: null
+        result_url: null,
       }
 
       ;(fetch as any).mockResolvedValueOnce({
         ok: true,
-        json: async () => mockResponse
+        json: async () => mockResponse,
       })
 
       const request: AiServerLipSyncRequest = {
         video_url: 'https://example.com/video.mp4',
         audio_url: 'https://example.com/audio.mp3',
-        user_id: 'test_user_123'
+        user_id: 'test_user_123',
       }
 
       const result = await generateLipSyncViaAiServer(request)
@@ -39,7 +39,7 @@ describe('AiServer LipSync Adapter', () => {
         status: 'processing',
         result_url: null,
         error: undefined,
-        progress: undefined
+        progress: undefined,
       })
     })
 
@@ -48,24 +48,24 @@ describe('AiServer LipSync Adapter', () => {
       ;(fetch as any).mockResolvedValue({
         ok: false,
         status: 404,
-        text: async () => 'Not Found'
+        text: async () => 'Not Found',
       })
 
       const request: AiServerLipSyncRequest = {
         video_url: 'https://example.com/video.mp4',
-        audio_url: 'https://example.com/audio.mp3', 
-        user_id: 'test_user_123'
+        audio_url: 'https://example.com/audio.mp3',
+        user_id: 'test_user_123',
       }
 
       // Мокаем Replicate fallback
       const mockReplicateResult = {
         id: 'replicate-123',
         status: 'starting',
-        output: null
+        output: null,
       }
-      
+
       vi.doMock('@/core/replicate/generateKlingLipSync', () => ({
-        generateKlingLipSync: vi.fn().mockResolvedValue(mockReplicateResult)
+        generateKlingLipSync: vi.fn().mockResolvedValue(mockReplicateResult),
       }))
 
       const result = await generateLipSyncViaAiServer(request)
@@ -80,12 +80,12 @@ describe('AiServer LipSync Adapter', () => {
       const mockResponse = {
         id: 'test-task-123',
         status: 'completed',
-        result_url: 'https://result.com/video.mp4'
+        result_url: 'https://result.com/video.mp4',
       }
 
       ;(fetch as any).mockResolvedValueOnce({
         ok: true,
-        json: async () => mockResponse
+        json: async () => mockResponse,
       })
 
       const result = await getLipSyncStatusFromAiServer('test-task-123')
@@ -95,7 +95,7 @@ describe('AiServer LipSync Adapter', () => {
         status: 'completed',
         result_url: 'https://result.com/video.mp4',
         error: undefined,
-        progress: undefined
+        progress: undefined,
       })
     })
   })

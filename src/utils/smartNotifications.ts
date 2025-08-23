@@ -168,7 +168,9 @@ async function checkRevenueAlerts(
           type: 'revenue_milestone',
           severity: 'success',
           title: '🚀 Отличный рост доходов!',
-          message: `Доходы выросли на ${Math.round(growthRate)}% за неделю (${weekRevenue.toLocaleString()}⭐)`,
+          message: `Доходы выросли на ${Math.round(
+            growthRate
+          )}% за неделю (${weekRevenue.toLocaleString()}⭐)`,
           action_required: false,
           recommendations: [
             'Проанализируйте, что привело к росту',
@@ -186,7 +188,9 @@ async function checkRevenueAlerts(
           type: 'revenue_milestone',
           severity: 'warning',
           title: '📉 Снижение доходов',
-          message: `Доходы упали на ${Math.round(Math.abs(growthRate))}% за неделю`,
+          message: `Доходы упали на ${Math.round(
+            Math.abs(growthRate)
+          )}% за неделю`,
           action_required: true,
           recommendations: [
             'Проанализируйте причины снижения',
@@ -461,7 +465,9 @@ export async function generateWeeklySummary(
 
     if (trends.revenue_forecast.growth_rate !== 0) {
       const trendEmoji = trends.revenue_forecast.growth_rate > 0 ? '📈' : '📉'
-      summaryMessage += `${trendEmoji} Тренд: ${trends.revenue_forecast.growth_rate > 0 ? '+' : ''}${trends.revenue_forecast.growth_rate}%\n`
+      summaryMessage += `${trendEmoji} Тренд: ${
+        trends.revenue_forecast.growth_rate > 0 ? '+' : ''
+      }${trends.revenue_forecast.growth_rate}%\n`
     }
 
     summaryMessage += `🔮 Прогноз на месяц: ${trends.revenue_forecast.predicted_amount.toLocaleString()}⭐\n`

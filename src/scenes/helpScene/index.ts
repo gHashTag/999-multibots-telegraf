@@ -33,8 +33,9 @@ helpScene.enter(async ctx => {
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
   const telegram_id = ctx.from.id.toString()
-  const { count, subscriptionType, level } =
-    await getReferalsCountAndUserData(telegram_id)
+  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
+    telegram_id
+  )
 
   let helpText = isRu ? 'Общая справка...' : 'General help...'
 

@@ -225,7 +225,9 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
       }
 
       console.log(
-        `[handleTextMessage] Preparing to call answerAi for user ${userId}. Model: ${userModel || 'default_model'}. Text: "${textForAi.substring(0, 50)}..."`,
+        `[handleTextMessage] Preparing to call answerAi for user ${userId}. Model: ${
+          userModel || 'default_model'
+        }. Text: "${textForAi.substring(0, 50)}..."`,
         { userId, model: userModel || 'deepseek-chat' }
       )
       console.log(
@@ -243,7 +245,9 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
       )
 
       console.log(
-        `[handleTextMessage] Received response from answerAi for user ${userId}: ${response ? `"${response.substring(0, 50)}..."` : 'null or empty'}`,
+        `[handleTextMessage] Received response from answerAi for user ${userId}: ${
+          response ? `"${response.substring(0, 50)}..."` : 'null or empty'
+        }`,
         { userId, response: response ? !!response : false }
       )
 

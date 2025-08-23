@@ -256,8 +256,8 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
               ? '❌ У вас нет доступных проектов для анализа.\n\n🔍 Доступные проекты для @HaimGroupMedia_bot:\n• Coco Age\n• Вячеслав Неклюдов\n'
               : '❌ You have no available projects for analysis.\n\n🔍 Available projects for @HaimGroupMedia_bot:\n• Coco Age\n• Vyacheslav Nekludov\n'
             : isRu
-              ? '❌ У вас нет доступных проектов для анализа Instagram.'
-              : '❌ You have no available projects for Instagram analysis.'
+            ? '❌ У вас нет доступных проектов для анализа Instagram.'
+            : '❌ You have no available projects for Instagram analysis.'
 
         await ctx.reply(noAccessMessage, createHelpCancelKeyboard(isRu))
         return
@@ -284,8 +284,8 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             ? '📁 Выберите проект для анализа конкурентов (только Cocoáge и Вячеслав Неклюдов):'
             : '📁 Select project for competitor analysis (Cocoáge and Vyacheslav Nekludov only):'
           : isRu
-            ? '📁 Выберите проект для анализа конкурентов Instagram:'
-            : '📁 Select project for Instagram competitor analysis:'
+          ? '📁 Выберите проект для анализа конкурентов Instagram:'
+          : '📁 Select project for Instagram competitor analysis:'
 
       try {
         await ctx.reply(
@@ -736,8 +736,20 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         // Показываем финальное резюме
         console.log('🚨 [DEBUG] Creating summary text...')
         const summaryText = isRu
-          ? `🎯 Запуск анализа конкурентов Instagram\n\n📁 Проект: ${sessionData.selectedProject!.name}\n👤 Username: @${sessionData.targetUsername}\n📊 Конкурентов: ${sessionData.maxCompetitors}\n🎬 Рилсы: ${sessionData.includeReels ? '✅ Да' : '❌ Нет'}\n\n⏳ Запускаем анализ...`
-          : `🎯 Starting Instagram competitor analysis\n\n📁 Project: ${sessionData.selectedProject!.name}\n👤 Username: @${sessionData.targetUsername}\n📊 Competitors: ${sessionData.maxCompetitors}\n🎬 Reels: ${sessionData.includeReels ? '✅ Yes' : '❌ No'}\n\n⏳ Starting analysis...`
+          ? `🎯 Запуск анализа конкурентов Instagram\n\n📁 Проект: ${
+              sessionData.selectedProject!.name
+            }\n👤 Username: @${sessionData.targetUsername}\n📊 Конкурентов: ${
+              sessionData.maxCompetitors
+            }\n🎬 Рилсы: ${
+              sessionData.includeReels ? '✅ Да' : '❌ Нет'
+            }\n\n⏳ Запускаем анализ...`
+          : `🎯 Starting Instagram competitor analysis\n\n📁 Project: ${
+              sessionData.selectedProject!.name
+            }\n👤 Username: @${sessionData.targetUsername}\n📊 Competitors: ${
+              sessionData.maxCompetitors
+            }\n🎬 Reels: ${
+              sessionData.includeReels ? '✅ Yes' : '❌ No'
+            }\n\n⏳ Starting analysis...`
 
         console.log('🚨 [DEBUG] Editing message with summary...')
         try {
@@ -815,8 +827,20 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             try {
               await ctx.reply(
                 isRu
-                  ? `🚀 Анализ конкурентов запущен успешно!\n\n📁 Проект: ${sessionData.selectedProject!.name}\n👤 Username: @${sessionData.targetUsername}\n📊 Конкурентов: ${sessionData.maxCompetitors}\n\n⏰ Время обработки: 5-15 минут\n📬 Мы уведомим вас, когда анализ будет готов!\n\n💡 Вы можете продолжить использовать бота`
-                  : `🚀 Competitor analysis started successfully!\n\n📁 Project: ${sessionData.selectedProject!.name}\n👤 Username: @${sessionData.targetUsername}\n📊 Competitors: ${sessionData.maxCompetitors}\n\n⏰ Processing time: 5-15 minutes\n📬 We'll notify you when the analysis is ready!\n\n💡 You can continue using the bot`
+                  ? `🚀 Анализ конкурентов запущен успешно!\n\n📁 Проект: ${
+                      sessionData.selectedProject!.name
+                    }\n👤 Username: @${
+                      sessionData.targetUsername
+                    }\n📊 Конкурентов: ${
+                      sessionData.maxCompetitors
+                    }\n\n⏰ Время обработки: 5-15 минут\n📬 Мы уведомим вас, когда анализ будет готов!\n\n💡 Вы можете продолжить использовать бота`
+                  : `🚀 Competitor analysis started successfully!\n\n📁 Project: ${
+                      sessionData.selectedProject!.name
+                    }\n👤 Username: @${
+                      sessionData.targetUsername
+                    }\n📊 Competitors: ${
+                      sessionData.maxCompetitors
+                    }\n\n⏰ Processing time: 5-15 minutes\n📬 We'll notify you when the analysis is ready!\n\n💡 You can continue using the bot`
               )
               console.log('🚨 [DEBUG] Success message sent successfully!')
             } catch (error) {

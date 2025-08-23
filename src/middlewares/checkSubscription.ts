@@ -33,7 +33,7 @@ export async function checkSubscription(
 export async function kickUnpaidUser(
   ctx: MyContext,
   telegram_channel_id: string,
-  reason: string = 'Неоплаченная подписка'
+  reason = 'Неоплаченная подписка'
 ): Promise<boolean> {
   try {
     if (!ctx.from?.id) {
