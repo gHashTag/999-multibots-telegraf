@@ -3,7 +3,12 @@ import makeMockContext from '../utils/mockTelegrafContext'
 import { imageToVideoWizard } from '../../src/scenes/imageToVideoWizard'
 import { isRussian } from '@/helpers/language'
 import { handleHelpCancel, getBotToken } from '@/handlers'
-import { videoModelKeyboard, createHelpCancelKeyboard, sendGenerationCancelledMessage, sendGenericErrorMessage } from '@/menu'
+import {
+  videoModelKeyboard,
+  createHelpCancelKeyboard,
+  sendGenerationCancelledMessage,
+  sendGenericErrorMessage,
+} from '@/menu'
 import { processBalanceVideoOperation } from '@/price/helpers/processBalanceVideoOperation'
 import { sendBalanceMessage } from '@/price/helpers'
 import { generateImageToVideo } from '@/services/generateImageToVideo'
@@ -24,7 +29,9 @@ jest.mock('@/price/helpers/processBalanceVideoOperation', () => ({
   processBalanceVideoOperation: jest.fn(),
 }))
 jest.mock('@/price/helpers', () => ({ sendBalanceMessage: jest.fn() }))
-jest.mock('@/services/generateImageToVideo', () => ({ generateImageToVideo: jest.fn() }))
+jest.mock('@/services/generateImageToVideo', () => ({
+  generateImageToVideo: jest.fn(),
+}))
 
 describe('imageToVideoWizard', () => {
   beforeEach(() => {
@@ -39,10 +46,9 @@ describe('imageToVideoWizard', () => {
     // @ts-ignore
     const step0 = imageToVideoWizard.steps[0]
     await step0(ctx)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Choose generation model:',
-      { reply_markup: {} }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Choose generation model:', {
+      reply_markup: {},
+    })
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
@@ -61,7 +67,11 @@ describe('imageToVideoWizard', () => {
     ;(isRussian as jest.Mock).mockReturnValue(false)
     const ctx = makeMockContext({}, { message: { text: 'model1' } })
     ;(handleHelpCancel as jest.Mock).mockResolvedValueOnce(false)
-    ;(processBalanceVideoOperation as jest.Mock).mockResolvedValueOnce({ newBalance: 10, success: true, modePrice: 5 })
+    ;(processBalanceVideoOperation as jest.Mock).mockResolvedValueOnce({
+      newBalance: 10,
+      success: true,
+      modePrice: 5,
+    })
     const keyboard = { reply_markup: {} }
     ;(createHelpCancelKeyboard as jest.Mock).mockReturnValue(keyboard)
     // @ts-ignore

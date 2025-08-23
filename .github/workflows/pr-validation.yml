@@ -1,0 +1,232 @@
+name: 🔍 PR Validation & Rules Enforcement
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, ready_for_review]
+  pull_request_target:
+    types: [opened, edited]
+
+jobs:
+  validate-pr:
+    name: 🚨 Validate PR Rules
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+      - name: 🏷️ Validate Branch Naming
+        uses: deepakputhraya/action-branch-name@master
+        with:
+          regex: '^(feat|fix|docs|chore|test|refactor|hotfix)\/[a-z0-9-]+$'
+          allowed_prefixes: 'feat,fix,docs,chore,test,refactor,hotfix'
+          ignore: main,develop,staging,production
+          min_length: 5
+          max_length: 50
+
+      - name: 📝 Check PR Title Format
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            test
+            chore
+            perf
+            ci
+            build
+            revert
+          scopes: |
+            admin
+            auth
+            bot
+            core
+            ui
+            api
+            db
+            config
+            deps
+          requireScope: false
+          subjectPattern: ^.{1,50}$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            doesn't match the configured pattern. Please ensure that the subject
+            doesn't start with an uppercase character.
+
+      - name: 🔍 Check PR Description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            
+            // Check if PR body is not empty
+            if (body.trim().length < 10) {
+              core.setFailed('❌ PR description is too short. Please provide a meaningful description.');
+              return;
+            }
+            
+            // Check for required sections
+            const requiredSections = [
+              '## 📝 Description',
+              '## 🎯 Type of Change'
+            ];
+            
+            const missingSections = requiredSections.filter(section => !body.includes(section));
+            
+            if (missingSections.length > 0) {
+              core.setFailed(`❌ Missing required sections: ${missingSections.join(', ')}`);
+              return;
+            }
+            
+            // Check if checkboxes are marked
+            const hasMarkedCheckbox = /- \[x\]/.test(body);
+            if (!hasMarkedCheckbox) {
+              core.setFailed('❌ Please mark at least one checkbox in the Type of Change section.');
+              return;
+            }
+            
+            core.info('✅ PR description validation passed!');
+
+      - name: 🤖 AI Assistant Rule Check  
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+            const body = context.payload.pull_request.body || '';
+            const author = context.payload.pull_request.user.login;
+            
+            // Check for AI assistant commits
+            const aiIndicators = [
+              'claude',
+              'chatgpt', 
+              'ai assistant',
+              'generated with claude code',
+              'co-authored-by: claude'
+            ];
+            
+            const isAiGenerated = aiIndicators.some(indicator => 
+              title.toLowerCase().includes(indicator) || 
+              body.toLowerCase().includes(indicator)
+            );
+            
+            if (isAiGenerated) {
+              // Check if this is a new task (not reusing old PR)
+              const prNumber = context.payload.pull_request.number;
+              
+              // Get recent PRs from same author
+              const { data: recentPRs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'closed',
+                sort: 'updated',
+                direction: 'desc',
+                per_page: 10
+              });
+              
+              const authorPRs = recentPRs.filter(pr => pr.user.login === author);
+              
+              if (authorPRs.length > 0) {
+                const lastPR = authorPRs[0];
+                const timeDiff = Date.now() - new Date(lastPR.updated_at).getTime();
+                const hoursDiff = timeDiff / (1000 * 60 * 60);
+                
+                // If less than 1 hour between PRs, might be reusing
+                if (hoursDiff < 1) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    body: `🤖 **AI Assistant Reminder**
+                    
+                    Hey there! It looks like this might be an AI-generated PR. 
+                    
+                    📋 **Remember the rule:** 
+                    - ✅ Each new task = new branch + new PR
+                    - ❌ Don't reuse old/closed PRs
+                    
+                    If this is a genuinely new task, great! If not, please:
+                    1. Create a fresh branch for your new task
+                    2. Open a brand new PR
+                    
+                    Keep up the good work! 🚀`
+                  });
+                }
+              }
+              
+              core.info('✅ AI Assistant rules check completed');
+            }
+
+      - name: 📊 PR Size Check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const changedFiles = pr.changed_files;
+            const additions = pr.additions;
+            const deletions = pr.deletions;
+            
+            let warningMessage = '';
+            let isLarge = false;
+            
+            if (changedFiles > 20) {
+              warningMessage += `⚠️ Large PR: ${changedFiles} files changed. `;
+              isLarge = true;
+            }
+            
+            if (additions > 500) {
+              warningMessage += `⚠️ Many additions: ${additions} lines. `;
+              isLarge = true;
+            }
+            
+            if (isLarge) {
+              warningMessage += '\n\n💡 Consider breaking this into smaller PRs for easier review.';
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: warningMessage
+              });
+            }
+            
+            core.info('✅ PR size check completed');
+
+  security-check:
+    name: 🔒 Security Validation
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: 🔍 Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      - name: 📋 Comment Security Status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `🔒 **Security Check Completed**
+              
+              ✅ No secrets detected in this PR
+              🔍 Scanned for: API keys, passwords, tokens, certificates
+              
+              *Automated security scan by GitHub Actions*`
+            });

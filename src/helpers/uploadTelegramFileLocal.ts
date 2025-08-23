@@ -54,7 +54,8 @@ export async function uploadTelegramFileLocal(
       process.env.NODE_ENV === 'development'
         ? 'https://44ed576f17a7.ngrok.app' // Ngrok туннель для локального development
         : process.env.API_SERVER_URL ||
-          'https://ai-server-u14194.vm.elestio.app'
+          process.env.SERVER_API_URL ||
+          'https://ai-server-production-production-8e2d.up.railway.app'
 
     console.log(
       '🌐 [uploadLocal] Using public URL for Replicate access:',
@@ -71,17 +72,14 @@ export async function uploadTelegramFileLocal(
     })
 
     // Планируем удаление файла через 2 часа (достаточно для LipSync)
-    setTimeout(
-      async () => {
-        try {
-          await fs.unlink(filePath)
-          console.log('🗑️ [uploadLocal] Temporary file cleaned up:', filePath)
-        } catch (error) {
-          console.error('⚠️ [uploadLocal] Failed to cleanup file:', error)
-        }
-      },
-      2 * 60 * 60 * 1000
-    ) // 2 часа в миллисекундах
+    setTimeout(async () => {
+      try {
+        await fs.unlink(filePath)
+        console.log('🗑️ [uploadLocal] Temporary file cleaned up:', filePath)
+      } catch (error) {
+        console.error('⚠️ [uploadLocal] Failed to cleanup file:', error)
+      }
+    }, 2 * 60 * 60 * 1000) // 2 часа в миллисекундах
 
     return publicUrl
   } catch (error) {
