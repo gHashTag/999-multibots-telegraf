@@ -89,7 +89,9 @@ export async function generateInstagramScraping(
       `✅ [${process.env.NODE_ENV?.toUpperCase()}] Event sent via SDK to:`,
       process.env.NODE_ENV === 'development'
         ? 'localhost:8288'
-        : 'ai-server-u14194.vm.elestio.app/api/inngest'
+        : (process.env.SERVER_API_URL?.replace('https://', '') ||
+            'ai-server-production-production-8e2d.up.railway.app') +
+            '/api/inngest'
     )
     console.log(
       `🔥 [DEBUG] Event sent with debug_session_id: ${debugSessionId}`
