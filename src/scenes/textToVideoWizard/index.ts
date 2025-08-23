@@ -5,6 +5,18 @@ import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+
+// 🎯 ИСПРАВЛЕНИЕ: Маппинг неправильных идентификаторов модели в правильные
+const MODEL_ID_MAPPING: Record<string, string> = {
+  'veo3_fast': 'kie-veo-3-fast',
+  'veo3-fast': 'kie-veo-3-fast',
+  'veo_3_fast': 'kie-veo-3-fast',
+  'veo-3_fast': 'kie-veo-3-fast',
+  'veo3': 'kie-veo-3',
+  'veo_3': 'kie-veo-3',
+  'runway_aleph': 'kie-runway-aleph',
+  'runway-aleph': 'kie-runway-aleph',
+}
 // 🎯 Импортируем Zod схемы для безопасной валидации
 import {
   safeParseContext,
@@ -27,6 +39,15 @@ import {
 } from './schemas'
 
 console.log('🚀🚀🚀 [WIZARD] Loading FIXED CONFIG-BASED textToVideoWizard WITH NEW ZOD SCHEMA! 🚀🚀🚀')
+
+// 🎯 ИСПРАВЛЕНИЕ: Функция для нормализации идентификатора модели
+function normalizeModelId(modelId: string): string {
+  const normalized = MODEL_ID_MAPPING[modelId] || modelId
+  if (normalized !== modelId) {
+    console.log(`🔧 [MODEL_FIX] Normalized model ID: ${modelId} -> ${normalized}`)
+  }
+  return normalized
+}
 
 // Функция для расчета стоимости в звездах из конфига (С ZOD ВАЛИДАЦИЕЙ)
 function calculateStarsFromConfig(modelId: string, duration?: number): number {
@@ -515,11 +536,14 @@ const textToVideoStep2 = async (ctx: MyContext) => {
     if (parsedModel) {
       console.log('🎬 [WIZARD] Step 2: Model selected:', parsedModel)
       
-      // Сохраняем выбранную модель в сессию
-      ctx.session.selectedModel = parsedModel.modelId
+      // 🎯 ИСПРАВЛЕНИЕ: Нормализуем и сохраняем выбранную модель в сессию
+      const normalizedModelId = normalizeModelId(parsedModel.modelId)
+      ctx.session.selectedModel = normalizedModelId
       ctx.session.aspect_ratio = parsedModel.aspectRatio
       ctx.session.selectedVideoCost = parsedModel.cost
       ctx.session.selectedVideoDuration = parsedModel.duration // ✅ Сохраняем duration
+      
+      console.log(`🔧 [SESSION_FIX] Saved normalized model to session: ${normalizedModelId}`)
       
       // Просим ввести промпт
       await ctx.reply(
@@ -677,11 +701,14 @@ const textToVideoStep3 = async (ctx: MyContext) => {
         : `🎬 Generating video...\n📋 ${validatedParams.modelId} | ${validatedParams.aspectRatio} | ${validatedParams.cost}⭐\n💭 ${validatedParams.prompt.substring(0, 100)}`
     )
 
-    const videoModelId = validatedParams.modelId as VideoModelId
+    // 🎯 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Нормализуем modelId перед отправкой
+    const normalizedModelId = normalizeModelId(validatedParams.modelId) as VideoModelId
+    console.log(`🔧 [FINAL_FIX] Using normalized model ID: ${normalizedModelId}`)
+    
     await handleTextToVideoDirect(
       ctx,
       validatedParams.prompt,
-      videoModelId,
+      normalizedModelId,
       validatedParams.duration, // now properly passed from validation
       validatedParams.aspectRatio
     )
