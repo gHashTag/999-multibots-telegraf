@@ -183,6 +183,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   // ========== ШАГ 1: ВЫБОР МОДЕЛИ + ФОРМАТ СРАЗУ (ВСЕ МОДЕЛИ) ==========
   async ctx => {
     console.log('🎬 [WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
+    console.log('🔥 [DEBUG] THIS IS THE REAL textToVideoWizard STEP 1, NOT menuCommandStep!')
     try {
       console.log(
         '🎬 [WIZARD] Step 1: Complete model + format selection for user:',
