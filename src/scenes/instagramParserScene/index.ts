@@ -306,7 +306,9 @@ async function showStats(ctx: MyContext) {
     const recentText = recent
       .map(
         s =>
-          `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${s.reels_count} ${isRu ? 'рилсов' : 'reels'}`
+          `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${
+            s.reels_count
+          } ${isRu ? 'рилсов' : 'reels'}`
       )
       .join('\n')
 

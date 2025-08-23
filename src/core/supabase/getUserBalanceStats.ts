@@ -683,7 +683,9 @@ function generateRecommendations(metrics: {
   )
   if (lowMarginServices.length > 0) {
     recommendations.push(
-      `🔧 Сервисы с низкой маржой: ${lowMarginServices.map(s => s.service_name).join(', ')}. Оптимизируйте их`
+      `🔧 Сервисы с низкой маржой: ${lowMarginServices
+        .map(s => s.service_name)
+        .join(', ')}. Оптимизируйте их`
     )
   }
 

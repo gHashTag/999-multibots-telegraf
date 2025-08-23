@@ -30,6 +30,15 @@ interface ServiceBalanceOperationProps {
   metadata?: Record<string, any> // Метаданные для расчета cost
 }
 
+/**
+ * 🔧 УЛУЧШЕНА: Сервисная операция баланса с улучшенной логикой
+ *
+ * ⚠️ ВАЖНО: Эта функция создает операцию MONEY_OUTCOME в БД
+ * Убедитесь что она не вызывается повторно для одной и той же операции
+ *
+ * @param ServiceBalanceOperationProps параметры операции
+ * @returns ServiceBalanceOperationResult результат операции
+ */
 export const processServiceBalanceOperation = async ({
   telegram_id,
   paymentAmount,
@@ -81,6 +90,7 @@ export const processServiceBalanceOperation = async ({
         // Передаем остальные данные в metadata
         bot_name,
         service_type,
+        modePrice: paymentAmount, // 🔧 ИСПРАВЛЕНО: modePrice для корректной логики
         paymentAmount: paymentAmount, // Дублируем для логики внутри updateUserBalance
         currentBalance: currentBalance, // Передаем текущий баланс для логов
         operation: 'service_payment', // Добавляем маркер операции

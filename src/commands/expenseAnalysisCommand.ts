@@ -118,7 +118,9 @@ async function performExpenseAnalysis(): Promise<string> {
 
     report += `\n🚨 <b>АНОМАЛИИ:</b>\n`
     report += `❌ Транзакций без bot_name: ${anomalies.length}\n`
-    report += `💸 Расходы аномалий: ${anomalyExpenses.toFixed(0)}⭐ (${anomalyPercentage}%)\n`
+    report += `💸 Расходы аномалий: ${anomalyExpenses.toFixed(
+      0
+    )}⭐ (${anomalyPercentage}%)\n`
   } else {
     report += '\n✅ <b>АНОМАЛИЙ НЕТ!</b>\n'
     report += 'Все транзакции корректно привязаны к ботам\n'
@@ -142,7 +144,9 @@ async function performExpenseAnalysis(): Promise<string> {
 
   report += '\n📅 <b>ТОП-5 ДНЕЙ ПО РАСХОДАМ:</b>\n'
   sortedDays.forEach(([date, stats], index) => {
-    report += `${index + 1}. ${date}: ${stats.cost.toLocaleString()}⭐ (${stats.transactions} транз.)\n`
+    report += `${index + 1}. ${date}: ${stats.cost.toLocaleString()}⭐ (${
+      stats.transactions
+    } транз.)\n`
   })
 
   return report

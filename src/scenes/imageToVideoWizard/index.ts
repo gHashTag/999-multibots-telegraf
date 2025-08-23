@@ -250,8 +250,9 @@ handleModelSelection.on('text', async ctx => {
 
     const telegram_id = ctx.from.id.toString()
     const finalPriceInStars = calculateFinalPrice(foundModelKey)
-    const userDetails: UserDetailsResult =
-      await getUserDetailsSubscription(telegram_id)
+    const userDetails: UserDetailsResult = await getUserDetailsSubscription(
+      telegram_id
+    )
     const currentBalance = userDetails?.stars || 0
 
     if (!(currentBalance >= finalPriceInStars)) {
@@ -260,8 +261,12 @@ handleModelSelection.on('text', async ctx => {
       )
       // HARDCODED TEXT
       const text = isRu
-        ? `😕 Недостаточно звезд (${finalPriceInStars} ★). Баланс: ${Math.floor(currentBalance)} ★.`
-        : `😕 Insufficient stars (${finalPriceInStars} ★). Balance: ${Math.floor(currentBalance)} ★.`
+        ? `😕 Недостаточно звезд (${finalPriceInStars} ★). Баланс: ${Math.floor(
+            currentBalance
+          )} ★.`
+        : `😕 Insufficient stars (${finalPriceInStars} ★). Balance: ${Math.floor(
+            currentBalance
+          )} ★.`
       await ctx.reply(text)
 
       // Reshow model selection
@@ -357,8 +362,12 @@ handleKlingModeSelection.action('kling_standard', async ctx => {
     )
     // HARDCODED TEXT
     const textInsufficient = isRu
-      ? `😕 Недостаточно звезд (${finalPriceInStars} ★). Баланс: ${Math.floor(currentBalance)} ★.`
-      : `😕 Insufficient stars (${finalPriceInStars} ★). Balance: ${Math.floor(currentBalance)} ★.`
+      ? `😕 Недостаточно звезд (${finalPriceInStars} ★). Баланс: ${Math.floor(
+          currentBalance
+        )} ★.`
+      : `😕 Insufficient stars (${finalPriceInStars} ★). Balance: ${Math.floor(
+          currentBalance
+        )} ★.`
     await ctx.reply(textInsufficient)
 
     // Reshow model selection
@@ -418,8 +427,12 @@ handleKlingModeSelection.action('kling_morphing', async ctx => {
 
   if (!(currentBalance >= finalPriceInStars)) {
     const textInsufficient = isRu
-      ? `😕 Недостаточно звезд для морфинга (${finalPriceInStars} ★). Баланс: ${Math.floor(currentBalance)} ★.`
-      : `😕 Insufficient stars for morphing (${finalPriceInStars} ★). Balance: ${Math.floor(currentBalance)} ★.`
+      ? `😕 Недостаточно звезд для морфинга (${finalPriceInStars} ★). Баланс: ${Math.floor(
+          currentBalance
+        )} ★.`
+      : `😕 Insufficient stars for morphing (${finalPriceInStars} ★). Balance: ${Math.floor(
+          currentBalance
+        )} ★.`
     await ctx.reply(textInsufficient)
 
     // Reshow model selection
@@ -497,8 +510,12 @@ handleSeedanceResolutionSelection.action('seedance_480p', async ctx => {
       `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
     )
     const textInsufficient = isRu
-      ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
-      : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
+      ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(
+          currentBalance
+        )} ⭐.`
+      : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(
+          currentBalance
+        )} ⭐.`
     await ctx.reply(textInsufficient)
 
     // Reshow model selection
@@ -557,8 +574,12 @@ handleSeedanceResolutionSelection.action('seedance_1080p', async ctx => {
       `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
     )
     const textInsufficient = isRu
-      ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
-      : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
+      ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(
+          currentBalance
+        )} ⭐.`
+      : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(
+          currentBalance
+        )} ⭐.`
     await ctx.reply(textInsufficient)
 
     // Reshow model selection
@@ -664,8 +685,12 @@ handleWanResolutionSelection.action(/^wan_i2v_/, async ctx => {
       `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
     )
     const textInsufficient = isRu
-      ? `😕 Недостаточно звезд для ${resolution.toUpperCase()} (${finalPriceInStars} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
-      : `😕 Insufficient stars for ${resolution.toUpperCase()} (${finalPriceInStars} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
+      ? `😕 Недостаточно звезд для ${resolution.toUpperCase()} (${finalPriceInStars} ⭐). Баланс: ${Math.floor(
+          currentBalance
+        )} ⭐.`
+      : `😕 Insufficient stars for ${resolution.toUpperCase()} (${finalPriceInStars} ⭐). Balance: ${Math.floor(
+          currentBalance
+        )} ⭐.`
     await ctx.reply(textInsufficient)
 
     // Reshow model selection
@@ -683,8 +708,12 @@ handleWanResolutionSelection.action(/^wan_i2v_/, async ctx => {
   ctx.session.is_morphing = false
 
   const textResolutionChosen = isRu
-    ? `✅ Выбрано: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
-    : `✅ Selected: ${modelConfig.title} ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
+    ? `✅ Выбрано: ${
+        modelConfig.title
+      } ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
+    : `✅ Selected: ${
+        modelConfig.title
+      } ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
   await ctx.reply(textResolutionChosen)
 
   const textRequestImage = isRu
@@ -808,8 +837,8 @@ handleMorphImageBOrStandardImage.on('photo', async ctx => {
         ? '🧐 Кажется, это не фото. Пожалуйста, отправьте ВТОРОЕ изображение.'
         : '🧐 Кажется, это не фото. Пожалуйста, отправьте изображение.'
       : ctx.session.is_morphing
-        ? "🧐 That doesn't seem to be a photo. Please send the SECOND image."
-        : "🧐 That doesn't seem to be a photo. Please send an image."
+      ? "🧐 That doesn't seem to be a photo. Please send the SECOND image."
+      : "🧐 That doesn't seem to be a photo. Please send an image."
     await ctx.reply(text)
     return // Stay on this step
   }
@@ -873,8 +902,8 @@ handleMorphImageBOrStandardImage.use(async ctx => {
       ? '🖼️ Пожалуйста, отправьте ВТОРОЕ изображение.'
       : '🖼️ Пожалуйста, отправьте изображение.'
     : ctx.session.is_morphing
-      ? '🖼️ Please send the SECOND image.'
-      : '🖼️ Please send an image.'
+    ? '🖼️ Please send the SECOND image.'
+    : '🖼️ Please send an image.'
   await ctx.reply(text)
 })
 
@@ -973,8 +1002,8 @@ handleAspectRatioSelection.action(/^aspect_/, async ctx => {
       ? '📱 9:16 (вертикальное)'
       : '📺 16:9 (горизонтальное)'
     : selectedAspectRatio === '9:16'
-      ? '📱 9:16 (vertical)'
-      : '📺 16:9 (horizontal)'
+    ? '📱 9:16 (vertical)'
+    : '📺 16:9 (horizontal)'
 
   const textAspectRatioChosen = isRu
     ? `✅ Выбрано соотношение сторон: ${aspectRatioText}`

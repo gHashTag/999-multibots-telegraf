@@ -123,7 +123,7 @@ export function getServiceDisplayName(
     }
 
     // Платежные операции → payment_operation (системный сервис)
-    if (desc === 'payment operation') {
+    if (desc === 'payment operation' || desc === 'system operation') {
       return UserService.PaymentOperation
     }
   }
@@ -198,6 +198,8 @@ export function getServiceEmoji(serviceName: string): string {
 
     // Системные операции
     system: UserService.PaymentOperation,
+    payment_operation: UserService.PaymentOperation,
+    system_operation: UserService.PaymentOperation,
     prompts: UserService.Other,
     start_scene: UserService.PaymentOperation,
     main_menu: UserService.PaymentOperation,
@@ -253,7 +255,7 @@ export function getServiceCategory(
 export function getServiceDisplayTitle(
   service: UserService,
   description?: string,
-  isRu: boolean = true
+  isRu = true
 ): string {
   // Если это платежная операция, пытаемся определить более точное название
   if (service === UserService.PaymentOperation && description) {
@@ -276,6 +278,10 @@ export function getServiceDisplayTitle(
 
     if (desc.includes('top-up') || desc.includes('пополнение')) {
       return isRu ? 'Пополнение баланса' : 'Balance Top-up'
+    }
+
+    if (desc === 'payment operation' || desc === 'system operation') {
+      return isRu ? 'Системная операция' : 'System Operation'
     }
   }
 
@@ -301,7 +307,7 @@ export function getServiceDisplayTitle(
     [UserService.TextToImage]: 'Генерация изображений',
 
     // ⚙️ СИСТЕМНЫЕ
-    [UserService.PaymentOperation]: 'Системная операция',
+    [UserService.PaymentOperation]: 'Платежная операция',
     [UserService.Other]: 'Другое',
     [UserService.Unknown]: 'Неизвестно',
   }
@@ -328,7 +334,7 @@ export function getServiceDisplayTitle(
     [UserService.TextToImage]: 'Image Generation',
 
     // ⚙️ SYSTEM
-    [UserService.PaymentOperation]: 'System Operation',
+    [UserService.PaymentOperation]: 'Payment Operation',
     [UserService.Other]: 'Other',
     [UserService.Unknown]: 'Unknown',
   }

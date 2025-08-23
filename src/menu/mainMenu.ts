@@ -306,7 +306,11 @@ export async function mainMenu({
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
     .filter(
-      level => !(level.admin_only && !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))))
+      level =>
+        !(
+          level.admin_only &&
+          !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId)))
+        )
     )
 
   // Добавляем кнопку мониторинга конкурентов только для администраторов
@@ -403,7 +407,9 @@ export async function mainMenu({
   // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
   bottomRowButtons.push([languageButton])
   console.log(
-    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
+    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(
+      bottomRowButtons
+    )}`
   )
 
   // Собираем все ряды, КРОМЕ последнего (Подписка)

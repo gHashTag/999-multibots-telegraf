@@ -71,17 +71,14 @@ export async function uploadTelegramFileLocal(
     })
 
     // Планируем удаление файла через 2 часа (достаточно для LipSync)
-    setTimeout(
-      async () => {
-        try {
-          await fs.unlink(filePath)
-          console.log('🗑️ [uploadLocal] Temporary file cleaned up:', filePath)
-        } catch (error) {
-          console.error('⚠️ [uploadLocal] Failed to cleanup file:', error)
-        }
-      },
-      2 * 60 * 60 * 1000
-    ) // 2 часа в миллисекундах
+    setTimeout(async () => {
+      try {
+        await fs.unlink(filePath)
+        console.log('🗑️ [uploadLocal] Temporary file cleaned up:', filePath)
+      } catch (error) {
+        console.error('⚠️ [uploadLocal] Failed to cleanup file:', error)
+      }
+    }, 2 * 60 * 60 * 1000) // 2 часа в миллисекундах
 
     return publicUrl
   } catch (error) {

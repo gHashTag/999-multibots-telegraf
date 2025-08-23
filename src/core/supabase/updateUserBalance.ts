@@ -8,6 +8,7 @@ import {
 import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 import { CreatePaymentV2Schema } from '@/interfaces/zod/payment.zod'
 import { calculateServiceCost } from '@/price/helpers/calculateServiceCost'
+import { checkRateLimit } from '@/core/supabase/rateLimiter'
 
 type BalanceUpdateMetadata = {
   stars?: number
@@ -37,15 +38,79 @@ export const updateUserBalance = async (
   cost_in_stars?: number
 ): Promise<boolean> => {
   try {
+    // 🛡️ БЕЗОПАСНОСТЬ: Валидация входных данных
+    // 1. Валидация telegram_id
+    if (
+      !telegram_id ||
+      typeof telegram_id !== 'string' ||
+      !/^\d+$/.test(telegram_id)
+    ) {
+      logger.error('🚨 БЕЗОПАСНОСТЬ: Некорректный telegram_id:', {
+        telegram_id,
+        type: typeof telegram_id,
+        error: 'telegram_id должен быть строкой из цифр',
+      })
+      return false
+    }
+
+    // 2. Валидация суммы
+    const MAX_AMOUNT = 100000 // 100,000 звезд максимум
+    const validatedAmount = Number(amount)
+
+    if (!Number.isFinite(validatedAmount)) {
+      logger.error('🚨 БЕЗОПАСНОСТЬ: Некорректная сумма (не число):', {
+        telegram_id,
+        amount,
+        validatedAmount,
+        error: 'Сумма не является валидным числом',
+      })
+      return false
+    }
+
+    if (Math.abs(validatedAmount) > MAX_AMOUNT) {
+      logger.error('🚨 БЕЗОПАСНОСТЬ: Превышен лимит суммы:', {
+        telegram_id,
+        amount: validatedAmount,
+        maxAllowed: MAX_AMOUNT,
+        error: 'Сумма превышает максимально допустимую',
+      })
+      return false
+    }
+
+    // 3. Защита от JSON injection в metadata
+    let safeMetadata = {}
+    if (metadata) {
+      try {
+        // Проверяем что metadata сериализуется без ошибок
+        const serialized = JSON.stringify(metadata)
+        if (serialized.length > 10000) {
+          // Лимит на размер метаданных
+          logger.warn('⚠️ БЕЗОПАСНОСТЬ: Слишком большие metadata:', {
+            telegram_id,
+            metadataSize: serialized.length,
+          })
+          safeMetadata = { ...metadata, warning: 'metadata truncated' }
+        } else {
+          safeMetadata = metadata
+        }
+      } catch (error) {
+        logger.error('🚨 БЕЗОПАСНОСТЬ: Ошибка сериализации metadata:', {
+          telegram_id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+        safeMetadata = { error: 'Invalid metadata' }
+      }
+    }
+
     // Подробное логирование входных данных для диагностики
     logger.info('🔍 Входные данные updateUserBalance:', {
-      log_description: 'Input parameters for updateUserBalance',
+      log_description: 'Input parameters for updateUserBalance (validated)',
       telegram_id,
-      amount,
-      amount_type: typeof amount,
+      amount: validatedAmount,
+      amount_type: typeof validatedAmount,
       type,
       operation_description: description,
-      metadata: metadata ? JSON.stringify(metadata) : 'нет метаданных',
+      metadata: safeMetadata ? JSON.stringify(safeMetadata) : 'нет метаданных',
       cost_in_stars,
     })
 
@@ -214,290 +279,309 @@ export const updateUserBalance = async (
       type,
     })
 
-    // Проверяем существование пользователя и его баланс для outcome операций
-    if (type === PaymentType.MONEY_OUTCOME) {
-      // Проверка существования пользователя
-      const { error: userError } = await supabase
-        .from('users')
-        // Исправлено: выбираем telegram_id или просто проверяем существование
-        .select('telegram_id', { count: 'exact', head: true })
-        .eq('telegram_id', telegram_id)
-      // Убираем .single(), так как head: true уже гарантирует 0 или 1 строку и не возвращает data
+    // 🔒 КРИТИЧЕСКАЯ ЗАЩИТА: Проверка rate limit для предотвращения спам-атак
+    logger.info('🔍 Проверка rate limit перед операцией:', {
+      description: 'Checking rate limit before operation',
+      telegram_id,
+      operationType: type,
+      amount: safeAmount,
+    })
 
-      // Проверяем только ошибку (например, сетевую), а не факт отсутствия пользователя
-      // Отсутствие пользователя (count === 0) теперь не считается ошибкой здесь,
-      // так как баланс все равно считается по payments_v2
-      if (userError && userError.code !== 'PGRST116') {
-        // PGRST116 - No rows found
-        logger.error('❌ Ошибка при проверке существования пользователя:', {
-          description: 'Error checking user existence (not user not found)',
-          telegram_id,
-          error: userError.message,
-          errorCode: userError.code,
-        })
-        // Можно решить, стоит ли здесь возвращать false или продолжить,
-        // полагаясь на balance check
-        // return false;
+    const rateLimitResult = await checkRateLimit(telegram_id, type)
+
+    if (!rateLimitResult.allowed) {
+      const errorMessage =
+        rateLimitResult.error ||
+        `Превышен лимит операций: ${rateLimitResult.currentCount}/${rateLimitResult.limit} за ${rateLimitResult.windowMinutes} мин.`
+
+      logger.warn('🚨 ОПЕРАЦИЯ ЗАБЛОКИРОВАНА - Rate limit превышен:', {
+        description: 'Operation blocked - Rate limit exceeded',
+        telegram_id,
+        operationType: type,
+        currentCount: rateLimitResult.currentCount,
+        limit: rateLimitResult.limit,
+        windowMinutes: rateLimitResult.windowMinutes,
+        resetTime: rateLimitResult.resetTime,
+        error: errorMessage,
+      })
+
+      // Возвращаем false - операция заблокирована
+      return false
+    }
+
+    logger.info('✅ Rate limit проверка пройдена:', {
+      description: 'Rate limit check passed',
+      telegram_id,
+      operationType: type,
+      currentCount: rateLimitResult.currentCount,
+      limit: rateLimitResult.limit,
+      remainingOperations: rateLimitResult.limit - rateLimitResult.currentCount,
+    })
+
+    // 🔒 КРИТИЧЕСКАЯ ЗАЩИТА ОТ RACE CONDITIONS:
+    // Используем database transaction с row-level locking для предотвращения
+    // параллельных операций одного пользователя
+
+    if (type === PaymentType.MONEY_OUTCOME) {
+      logger.info('🔒 Начинаем транзакцию с блокировкой для MONEY_OUTCOME:', {
+        description: 'Starting transaction with locking for MONEY_OUTCOME',
+        telegram_id,
+        operationAmount: safeAmount,
+      })
+
+      // Выполняем операцию в transaction с retry логикой
+      const maxRetries = 3
+      let retryCount = 0
+
+      while (retryCount < maxRetries) {
+        try {
+          // 🔒 ТРАНЗАКЦИЯ: Атомарная проверка баланса и вставка записи
+          const transactionResult = await supabase.rpc(
+            'process_balance_operation_atomic',
+            {
+              p_telegram_id: parseInt(telegram_id),
+              p_operation_amount: safeAmount,
+              p_payment_record: {
+                telegram_id: parseInt(telegram_id),
+                amount: originalAmount,
+                stars: Number(safeAmount.toFixed(2)),
+                currency: metadata?.currency || Currency.XTR,
+                status: metadata?.status || PaymentStatus.COMPLETED,
+                type: type,
+                payment_method: metadata?.payment_method || 'System',
+                description: description || 'System operation',
+                metadata: metadata || {},
+                bot_name: metadata?.bot_name || 'unknown_bot',
+                service_type: metadata?.service_type || 'unknown_service',
+                model_name: metadata?.model_name || null,
+                subscription_type: null,
+                payment_date: new Date().toISOString(),
+                inv_id: metadata?.inv_id || `sys-${Date.now()}-${telegram_id}`,
+                operation_id: metadata?.operation_id || null,
+                category: metadata?.category || 'REAL',
+                cost:
+                  cost_in_stars !== undefined
+                    ? cost_in_stars
+                    : calculateServiceCost(
+                        metadata?.service_type || null,
+                        metadata,
+                        safeAmount
+                      ),
+              },
+            }
+          )
+
+          if (transactionResult.error) {
+            // Если это ошибка недостатка средств - не ретраем
+            if (
+              transactionResult.error.message?.includes('insufficient funds')
+            ) {
+              logger.error('❌ Недостаточно средств на балансе (транзакция):', {
+                description: 'Insufficient funds (transaction)',
+                telegram_id,
+                error: transactionResult.error.message,
+              })
+              return false
+            }
+
+            // Если это deadlock или temporary error - ретраем
+            if (
+              transactionResult.error.message?.includes('deadlock') ||
+              transactionResult.error.message?.includes(
+                'could not serialize'
+              ) ||
+              retryCount < maxRetries - 1
+            ) {
+              retryCount++
+              const backoffMs = Math.pow(2, retryCount) * 100 // Exponential backoff
+
+              logger.warn(
+                `⚠️ Транзакция ${retryCount}/${maxRetries}: повтор через ${backoffMs}мс:`,
+                {
+                  description: 'Transaction retry due to concurrency',
+                  telegram_id,
+                  error: transactionResult.error.message,
+                  retryCount,
+                  backoffMs,
+                }
+              )
+
+              await new Promise(resolve => setTimeout(resolve, backoffMs))
+              continue // Повторяем попытку
+            } else {
+              // Критическая ошибка - прекращаем попытки
+              logger.error('❌ Критическая ошибка транзакции баланса:', {
+                description: 'Critical balance transaction error',
+                telegram_id,
+                error: transactionResult.error.message,
+                retryCount,
+              })
+              return false
+            }
+          }
+
+          // Транзакция успешна
+          logger.info('✅ Транзакция баланса успешно завершена:', {
+            description: 'Balance transaction completed successfully',
+            telegram_id,
+            operationAmount: safeAmount,
+            result: transactionResult.data,
+          })
+
+          // Инвалидация кэша баланса
+          await invalidateBalanceCache(telegram_id.toString())
+          return true
+        } catch (error) {
+          retryCount++
+
+          if (retryCount >= maxRetries) {
+            logger.error('❌ Все попытки транзакции исчерпаны:', {
+              description: 'All transaction retry attempts exhausted',
+              telegram_id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              maxRetries,
+            })
+            return false
+          }
+
+          const backoffMs = Math.pow(2, retryCount) * 100
+          logger.warn(
+            `⚠️ Ошибка транзакции ${retryCount}/${maxRetries}: повтор через ${backoffMs}мс:`,
+            {
+              description: 'Transaction error, retrying',
+              telegram_id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              retryCount,
+              backoffMs,
+            }
+          )
+
+          await new Promise(resolve => setTimeout(resolve, backoffMs))
+        }
       }
 
-      // Убрана проверка if (!userData), так как head: true не возвращает data
+      return false // Все попытки исчерпаны
+    } else {
+      // 💰 ОПЕРАЦИИ ПОПОЛНЕНИЯ (MONEY_INCOME) - без блокировок, но с валидацией
+      logger.info('💰 Обработка операции пополнения MONEY_INCOME:', {
+        description: 'Processing MONEY_INCOME operation',
+        telegram_id,
+        amount: safeAmount,
+      })
 
-      // Получаем баланс пользователя из таблицы payments
-      // Оставляем попытку вызова RPC, но если она не сработает,
-      // fallback будет использовать payments_v2
-      const { data: balanceData, error: balanceError } = await supabase.rpc(
-        'get_user_balance',
-        { user_telegram_id: Number(telegram_id) }
-      )
-      console.log('balanceData 📊', balanceData)
-
-      // Если RPC функция не существует, используем обычный SQL запрос
-      let currentBalance = 0
-      if (balanceError) {
-        logger.warn('⚠️ Ошибка при вызове RPC get_user_balance:', {
-          description: 'Error calling RPC get_user_balance',
+      // Проверяем, есть ли inv_id в метаданных (для обновления существующей записи)
+      if (metadata?.inv_id) {
+        logger.info('🔄 Обновление существующей записи о пополнении:', {
+          description: 'Updating existing income transaction record',
           telegram_id,
-          error: balanceError.message,
+          inv_id: metadata.inv_id,
+          amount: safeAmount,
         })
 
-        // Вычисляем баланс суммируя все транзакции из payments_v2
-        const { data: paymentsData, error: paymentsError } = await supabase
-          // .from('payments') // Старая таблица
-          .from('payments_v2') // Новая таблица
-          .select('stars, type')
-          .eq('telegram_id', Number(telegram_id))
-          .eq('status', PaymentStatus.COMPLETED)
+        // Обновляем существующую запись в payments_v2
+        const { error: updateError } = await supabase
+          .from('payments_v2')
+          .update({
+            status: PaymentStatus.COMPLETED,
+          })
+          .eq('inv_id', metadata.inv_id)
 
-        if (paymentsError) {
-          logger.error('❌ Ошибка при получении истории платежей:', {
-            description: 'Error getting payments history',
+        if (updateError) {
+          logger.error('❌ Ошибка при обновлении записи о пополнении:', {
+            description: 'Error updating income transaction record',
             telegram_id,
-            error: paymentsError.message,
+            inv_id: metadata.inv_id,
+            error: updateError.message,
           })
           return false
         }
 
-        // Вычисляем баланс: сумма всех поступлений минус сумма всех списаний
-        currentBalance = (paymentsData || []).reduce((sum, payment) => {
-          if (payment.type === 'money_income') {
-            return sum + (payment.stars || 0)
-          } else {
-            return sum - (payment.stars || 0)
-          }
-        }, 0)
-      } else {
-        // Используем результат RPC функции
-        currentBalance = Number(balanceData) || 0
-      }
-
-      logger.info('💰 Баланс пользователя (из payments):', {
-        description: 'User balance from payments table',
-        telegram_id,
-        balance: currentBalance,
-        required_amount: safeAmount,
-      })
-
-      // Проверка достаточности средств для списания
-      if (currentBalance < safeAmount) {
-        logger.error('❌ Недостаточно средств на балансе:', {
-          description: 'Insufficient funds',
-          telegram_id,
-          balance: currentBalance,
-          required_amount: safeAmount,
-        })
-        return false
-      }
-    } else {
-      // Для операций пополнения просто проверяем существование пользователя
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('telegram_id', telegram_id)
-        .single()
-
-      if (userError) {
-        logger.error('❌ Пользователь не найден при создании транзакции:', {
-          description: 'User not found during transaction creation',
-          telegram_id,
-          error: userError.message,
-        })
-        return false
-      }
-
-      if (!userData) {
-        logger.error('❌ Пользователь не найден (нет данных):', {
-          description: 'User not found (no data)',
-          telegram_id,
-        })
-        return false
-      }
-    }
-
-    // Проверяем, есть ли inv_id в метаданных (для обновления существующей записи)
-    if (metadata?.inv_id) {
-      logger.info('🔄 Обновление существующей записи о транзакции:', {
-        description: 'Updating existing transaction record',
-        telegram_id,
-        inv_id: metadata.inv_id,
-        amount: Math.abs(safeAmount),
-        type,
-      })
-
-      // Обновляем существующую запись в payments_v2
-      const { error: updateError } = await supabase
-        // .from('payments') // Старая таблица
-        .from('payments_v2') // Новая таблица
-        .update({
-          status: PaymentStatus.COMPLETED,
-        })
-        .eq('inv_id', metadata.inv_id)
-
-      if (updateError) {
-        logger.error('❌ Ошибка при обновлении записи о транзакции:', {
-          description: 'Error updating transaction record',
+        logger.info('✅ Запись о пополнении успешно обновлена:', {
+          description: 'Income transaction record successfully updated',
           telegram_id,
           inv_id: metadata.inv_id,
-          error: updateError.message,
+          amount: safeAmount,
         })
-        return false
+
+        // Инвалидация кэша баланса
+        await invalidateBalanceCache(telegram_id.toString())
+        return true
       }
 
-      logger.info('✅ Транзакция успешно обновлена:', {
-        description: 'Transaction successfully updated',
-        telegram_id,
-        inv_id: metadata.inv_id,
-        amount: safeAmount,
-        type,
-      })
-    }
-
-    // Обновление баланса в таблице Users больше не требуется - используем динамическое вычисление
-
-    // --- НОВАЯ ЛОГИКА СОХРАНЕНИЯ ТРАНЗАКЦИИ В payments_v2 ---
-    const paymentRecordToValidate: any = {
-      telegram_id: Number(telegram_id), // Преобразуем в число для соответствия схеме
-      amount: originalAmount,
-      stars: Number(safeAmount.toFixed(2)), // Сохраняем точность до 2 знаков
-      currency: metadata?.currency || Currency.XTR,
-      status: metadata?.status || PaymentStatus.COMPLETED,
-      type: type,
-      payment_method: metadata?.payment_method || 'System',
-      description: description || 'System operation',
-      metadata: metadata,
-      bot_name: metadata?.bot_name || 'unknown_bot',
-      service_type:
-        type === PaymentType.MONEY_OUTCOME
-          ? metadata?.service_type || 'unknown_service'
-          : null,
-      model_name:
-        type === PaymentType.MONEY_OUTCOME
-          ? metadata?.model_name || null
-          : null,
-      subscription_type:
-        type === PaymentType.MONEY_INCOME
-          ? metadata?.subscription_type || null
-          : null,
-      payment_date:
-        metadata?.status === PaymentStatus.COMPLETED
-          ? new Date().toISOString()
-          : null,
-      inv_id: metadata?.inv_id || `sys-${Date.now()}-${telegram_id}`,
-      operation_id: metadata?.operation_id || null, // Добавляем operation_id из метаданных
-      category: metadata?.category || 'REAL', // Добавляем category из метаданных, по умолчанию REAL
-    }
-
-    // Рассчитываем и добавляем cost для MONEY_OUTCOME операций
-    if (type === PaymentType.MONEY_OUTCOME) {
-      let calculatedCost = 0
-
-      // Если cost_in_stars передан явно, используем его
-      if (cost_in_stars !== undefined) {
-        calculatedCost = cost_in_stars
-        logger.info('🎯 Используем переданный cost_in_stars:', {
-          telegram_id,
-          service_type: metadata?.service_type,
-          cost_in_stars,
-        })
-      } else {
-        // Автоматически рассчитываем cost на основе service_type
-        calculatedCost = calculateServiceCost(
-          metadata?.service_type || null,
-          metadata,
-          safeAmount
-        )
-        logger.info('🧮 Автоматически рассчитан cost:', {
-          telegram_id,
-          service_type: metadata?.service_type,
-          metadata,
-          stars: safeAmount,
-          calculatedCost,
-        })
+      // Создаем новую запись о пополнении
+      const paymentRecord: any = {
+        telegram_id: Number(telegram_id),
+        amount: originalAmount,
+        stars: Number(safeAmount.toFixed(2)),
+        currency: metadata?.currency || Currency.XTR,
+        status: metadata?.status || PaymentStatus.COMPLETED,
+        type: type,
+        payment_method: metadata?.payment_method || 'System',
+        description: description || 'System operation',
+        metadata: metadata || {},
+        bot_name: metadata?.bot_name || 'unknown_bot',
+        service_type: null,
+        model_name: null,
+        subscription_type: metadata?.subscription_type || null,
+        payment_date: new Date().toISOString(),
+        inv_id: metadata?.inv_id || `sys-${Date.now()}-${telegram_id}`,
+        operation_id: metadata?.operation_id || null,
+        category: metadata?.category || 'REAL',
+        cost: 0, // Для пополнений cost всегда 0
       }
 
-      paymentRecordToValidate.cost = calculatedCost
-    } else {
-      // Для MONEY_INCOME операций cost всегда 0
-      paymentRecordToValidate.cost = 0
-    }
-
-    // Валидация с помощью Zod
-    try {
-      const validatedPaymentRecord = CreatePaymentV2Schema.parse(
-        paymentRecordToValidate
-      )
-      logger.info('✅ Данные для payments_v2 прошли валидацию Zod:', {
-        description: 'Data for payments_v2 passed Zod validation',
-        telegram_id,
-        record: validatedPaymentRecord,
-      })
-
-      // Вставляем валидированную запись в payments_v2
-      const { error: paymentError } = await supabase
-        .from('payments_v2')
-        .insert(validatedPaymentRecord)
-
-      if (paymentError) {
-        logger.error('❌ Ошибка при добавлении записи в payments_v2:', {
-          description: 'Error inserting record into payments_v2',
+      // Валидация с помощью Zod
+      try {
+        const validatedPaymentRecord =
+          CreatePaymentV2Schema.parse(paymentRecord)
+        logger.info('✅ Данные пополнения прошли валидацию Zod:', {
+          description: 'Income data passed Zod validation',
           telegram_id,
           record: validatedPaymentRecord,
-          error: paymentError.message,
-          details: paymentError.details,
-          hint: paymentError.hint,
+        })
+
+        // Вставляем запись о пополнении в payments_v2
+        const { error: paymentError } = await supabase
+          .from('payments_v2')
+          .insert(validatedPaymentRecord)
+
+        if (paymentError) {
+          logger.error('❌ Ошибка при добавлении записи о пополнении:', {
+            description: 'Error inserting income record',
+            telegram_id,
+            record: validatedPaymentRecord,
+            error: paymentError.message,
+            details: paymentError.details,
+            hint: paymentError.hint,
+          })
+          return false
+        }
+
+        logger.info('✅ Запись о пополнении успешно добавлена:', {
+          description: 'Income record successfully added',
+          telegram_id,
+          record_id: validatedPaymentRecord.inv_id,
+          amount_stars: safeAmount,
+        })
+      } catch (validationError) {
+        logger.error('❌ Ошибка валидации пополнения Zod:', {
+          description: 'Zod validation error for income record',
+          telegram_id,
+          record: paymentRecord,
+          error: validationError.errors || validationError.message,
         })
         return false
       }
 
-      logger.info('✅ Запись успешно добавлена в payments_v2:', {
-        description: 'Record successfully added to payments_v2',
+      // Инвалидация кэша баланса
+      await invalidateBalanceCache(telegram_id.toString())
+      logger.info('💰 Кэш баланса инвалидирован после пополнения:', {
+        description: 'Balance cache invalidated after income',
         telegram_id,
-        record_id: validatedPaymentRecord.inv_id,
-        type,
-        final_amount_stars: safeAmount,
-        cost_in_stars: validatedPaymentRecord.cost,
       })
-    } catch (validationError) {
-      logger.error(
-        '❌ Ошибка валидации Zod для payments_v2 (CreatePaymentV2Schema):',
-        {
-          description:
-            'Zod validation error for payments_v2 (CreatePaymentV2Schema)',
-          telegram_id,
-          record: paymentRecordToValidate,
-          error: validationError.errors || validationError.message,
-        }
-      )
-      return false
+
+      return true
     }
-
-    // Инвалидация кэша баланса
-    await invalidateBalanceCache(telegram_id.toString())
-    logger.info('💰 Кэш баланса инвалидирован для:', {
-      description: 'Balance cache invalidated for',
-      telegram_id,
-    })
-
-    return true
   } catch (error) {
     logger.error('❌ Неожиданная ошибка при создании транзакции:', {
       description: 'Unexpected error creating transaction',

@@ -65,8 +65,12 @@ export async function handleTextToVideoDirect(
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(
     is_ru
-      ? `⏳ Начинаю генерацию видео...\n\n🤖 Модель: ${modelName}\n${validDuration ? `⏱️ Длительность: ${validDuration} сек\n` : ''}💰 Стоимость: ${price} ⭐\n\nЭто может занять несколько минут.`
-      : `⏳ Starting video generation...\n\n🤖 Model: ${modelName}\n${validDuration ? `⏱️ Duration: ${validDuration} sec\n` : ''}💰 Cost: ${price} ⭐\n\nThis may take a few minutes.`,
+      ? `⏳ Начинаю генерацию видео...\n\n🤖 Модель: ${modelName}\n${
+          validDuration ? `⏱️ Длительность: ${validDuration} сек\n` : ''
+        }💰 Стоимость: ${price} ⭐\n\nЭто может занять несколько минут.`
+      : `⏳ Starting video generation...\n\n🤖 Model: ${modelName}\n${
+          validDuration ? `⏱️ Duration: ${validDuration} sec\n` : ''
+        }💰 Cost: ${price} ⭐\n\nThis may take a few minutes.`,
     {
       reply_markup: {
         inline_keyboard: [
@@ -130,8 +134,18 @@ export async function handleTextToVideoDirect(
       ctx.session.videoDuration = validDuration
       ctx.session.videoMessageId = processingMessage.message_id
 
-      // Запускаем мониторинг статуса
+      // ✅ Включаем мониторинг статуса - endpoint реализован
       monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
+      if (ctx && ctx.telegram && ctx.chat) {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          processingMessage.message_id,
+          undefined,
+          is_ru
+            ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
+            : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+        )
+      }
     } else {
       // Если нет jobId, но генерация запущена, показываем сообщение
       logger.info(
@@ -291,7 +305,9 @@ async function handleVideoReady(
         `🎬 ${prompt}\n\n` +
         `🤖 ${is_ru ? 'Модель' : 'Model'}: ${modelName}\n` +
         (duration
-          ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${is_ru ? 'сек' : 'sec'}\n`
+          ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${
+              is_ru ? 'сек' : 'sec'
+            }\n`
           : '') +
         `⚡ ${is_ru ? 'Сгенерировано через' : 'Generated with'} AI`,
       parse_mode: 'Markdown',
