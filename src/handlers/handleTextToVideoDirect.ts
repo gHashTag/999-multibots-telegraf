@@ -199,7 +199,7 @@ async function monitorVideoGeneration(
           ctx,
           statusResponse.videoUrl,
           ctx.session.videoPrompt || '',
-          (ctx.session.videoModelId as VideoModelId) || 'kie-veo-3-fast',
+          (ctx.session.videoModelId as VideoModelId) || 'veo-3-fast',
           ctx.session.videoDuration,
           messageId
         )
@@ -385,7 +385,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx,
         statusResponse.videoUrl,
         ctx.session.videoPrompt || '',
-        (ctx.session.videoModelId as VideoModelId) || 'kie-veo-3-fast',
+        (ctx.session.videoModelId as VideoModelId) || 'veo-3-fast',
         ctx.session.videoDuration,
         ctx.session.videoMessageId || 0
       )
