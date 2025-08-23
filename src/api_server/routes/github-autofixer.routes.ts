@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express'
+import express, { Router } from 'express'
 import { GitHubAutoFixerController } from '../../webhooks/github-autofixer.controller'
 import {
   githubWebhookRateLimit,
@@ -8,11 +8,11 @@ import {
   enableRawBody
 } from '../../webhooks/github-autofixer.middleware'
 
-const router = Router()
+const router: Router = express.Router()
 const controller = new GitHubAutoFixerController()
 
 // Middleware для всех GitHub webhook endpoints
-router.use(githubWebhookRateLimit)
+router.use(githubWebhookRateLimit as any)
 router.use(logWebhookRequest)
 
 // Основной endpoint для GitHub PR webhooks
@@ -20,17 +20,17 @@ router.post('/webhooks/github/pr-issues', [
   enableRawBody,
   validateGitHubHeaders,
   validatePullRequestEvent
-], async (req: Request, res: Response) => {
+], async (req: any, res: any) => {
   await controller.handlePullRequestWebhook(req, res)
 })
 
 // Endpoint для ручного исправления PR
-router.post('/webhooks/github/manual-fix/:prNumber', async (req: Request, res: Response) => {
+router.post('/webhooks/github/manual-fix/:prNumber', async (req: any, res: any) => {
   await controller.handleManualFix(req, res)
 })
 
 // Endpoint для проверки статуса автофиксера
-router.get('/autofixer/status', (req: Request, res: Response) => {
+router.get('/autofixer/status', (req: any, res: any) => {
   res.json({
     status: 'active',
     version: '1.0.0',
@@ -46,7 +46,7 @@ router.get('/autofixer/status', (req: Request, res: Response) => {
 })
 
 // Endpoint для статистики автофиксера
-router.get('/autofixer/stats', (req: Request, res: Response) => {
+router.get('/autofixer/stats', (req: any, res: any) => {
   // TODO: Реализовать сбор статистики из базы данных
   res.json({
     totalPRsProcessed: 0,
@@ -64,7 +64,7 @@ router.get('/autofixer/stats', (req: Request, res: Response) => {
 })
 
 // Health check для автофиксера
-router.get('/autofixer/health', (req: Request, res: Response) => {
+router.get('/autofixer/health', (req: any, res: any) => {
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
