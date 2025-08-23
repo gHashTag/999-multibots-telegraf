@@ -193,7 +193,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       return
     }
 
-    const model_url = ctx.session.userModel.model_url
+    const model_url = ctx.session.userModel.model_url as string
     const trigger_word = ctx.session.userModel.trigger_word as string
 
     const userData = await getUserData(userId?.toString() ?? '')
