@@ -54,7 +54,9 @@ const replicateApi = {
           error: (prediction as any)?.detail || 'Unknown API error',
         })
         throw new Error(
-          `Prediction poll failed: ${(prediction as any)?.detail || 'Unknown error'}`
+          `Prediction poll failed: ${
+            (prediction as any)?.detail || 'Unknown error'
+          }`
         )
       }
       logger.info('Polling prediction status...', { status: prediction.status })
@@ -220,7 +222,10 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
       const { sendMediaToPulse } = await import('../../helpers/pulse')
 
       // Создаем публичный URL для видео (предполагаем что nginx настроен)
-      const videoUrl = `http://localhost:2999/${finalVideoPath.replace(process.cwd() + '/', '')}`
+      const videoUrl = `http://localhost:2999/${finalVideoPath.replace(
+        process.cwd() + '/',
+        ''
+      )}`
 
       const pulseOptions = {
         mediaType: 'video' as const,
