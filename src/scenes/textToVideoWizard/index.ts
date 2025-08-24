@@ -66,14 +66,27 @@ function createModelButton(
 
     const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
 
-    // Используем цены из конфига
-    let price = config.basePrice
-    if (config.priceByResolution) {
-      // Для моделей с разными разрешениями используем минимальную цену
-      price = Math.min(...Object.values(config.priceByResolution))
+    // Используем договоренные цены вместо расчета по базовой цене
+    let stars: number
+    switch (modelId) {
+      case 'veo-3-fast':
+        stars = 40
+        break
+      case 'veo-3':
+        stars = 202
+        break
+      case 'runway-aleph':
+        stars = 182
+        break
+      default:
+        // Для остальных моделей используем расчет из конфига
+        let price = config.basePrice
+        if (config.priceByResolution) {
+          price = Math.min(...Object.values(config.priceByResolution))
+        }
+        stars = Math.floor(((price * 5) / 0.016) * 1.5)
+        break
     }
-
-    const stars = Math.floor(((price * 5) / 0.016) * 1.5)
 
     // Определяем длительность из описания или API конфига
     let durationText = ''
@@ -113,12 +126,28 @@ function parseModelSelection(buttonText: string): {
 
     if (foundModel) {
       const [modelId, config] = foundModel
-      let price = config.basePrice
-      if (config.priceByResolution) {
-        price = Math.min(...Object.values(config.priceByResolution))
-      }
       
-      const stars = Math.floor(((price * 5) / 0.016) * 1.5)
+      // Используем договоренные цены
+      let stars: number
+      switch (modelId) {
+        case 'veo-3-fast':
+          stars = 40
+          break
+        case 'veo-3':
+          stars = 202
+          break
+        case 'runway-aleph':
+          stars = 182
+          break
+        default:
+          // Для остальных моделей используем расчет из конфига
+          let price = config.basePrice
+          if (config.priceByResolution) {
+            price = Math.min(...Object.values(config.priceByResolution))
+          }
+          stars = Math.floor(((price * 5) / 0.016) * 1.5)
+          break
+      }
       
       // Определяем длительность
       let duration: number | undefined
@@ -257,7 +286,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu 
             ? `✅ Модель выбрана: ${selectedText}\n\n📝 Теперь опишите, что должно происходить в видео:`
-            : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`
+            : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`,
+          Markup.removeKeyboard()
         )
         return // Остаемся в том же шаге, ждем промпт
       }
