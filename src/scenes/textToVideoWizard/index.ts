@@ -289,46 +289,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`,
           Markup.removeKeyboard()
         )
-        return // Остаемся в том же шаге, ждем промпт
+        
+        // Переходим к следующему шагу для ожидания промпта
+        ctx.wizard.next()
+        return
       }
 
-      // ЛОГИКА 2: Если это промпт (не модель)
-      if (ctx.session.selectedVideoModel) {
-        const prompt = selectedText.trim()
-
-        if (!prompt || prompt.length < TEXT_TO_VIDEO_CONSTANTS.MIN_PROMPT_LENGTH) {
-          await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
-          return
-        }
-
-        if (prompt.length > TEXT_TO_VIDEO_CONSTANTS.MAX_PROMPT_LENGTH) {
-          await ctx.reply(isRu ? 'Описание слишком длинное.' : 'Description is too long.')
-          return
-        }
-
-        // Получаем параметры
-        const selectedModel = ctx.session.selectedVideoModel
-        const aspectRatio = ctx.session.selectedAspectRatio || TEXT_TO_VIDEO_CONSTANTS.DEFAULT_ASPECT_RATIO
-        const cost = ctx.session.selectedVideoCost || 40
-        const duration = ctx.session.selectedDuration
-
-        console.log('🎬 [WIZARD] Step 2: Starting generation with params:', {
-          selectedModel, aspectRatio, cost, duration
-        })
-
-        // Генерируем видео
-        await ctx.reply(
-          isRu
-            ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
-            : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
-        )
-
-        const videoModelId = selectedModel as VideoModelId
-        await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio)
-        console.log('🎬 [WIZARD] Video generation success!')
-
-        return ctx.scene.leave()
-      }
 
       // ЛОГИКА 3: Если модель не выбрана - просим выбрать
       console.log('🎬 [WIZARD] Step 2: No model selected, asking to select')
@@ -339,6 +305,80 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     } catch (error) {
       console.error('🎬 [WIZARD] Step 2 ERROR:', error)
       await ctx.reply('❌ Ошибка во втором шаге wizard')
+      return ctx.scene.leave()
+    }
+  },
+
+  // ========== ШАГ 3: ОБРАБОТКА ПРОМПТА И ГЕНЕРАЦИЯ ==========
+  async (ctx) => {
+    console.log('🎬 [WIZARD] 🔥 STEP 3 STARTED! User:', ctx.from?.id)
+    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard.cursor)
+    
+    try {
+      const isRu = isRussianFromState(ctx)
+      const message = ctx.message
+
+      if (!message || !('text' in message)) {
+        console.log('🎬 [WIZARD] Step 3: No text message')
+        await ctx.reply(
+          isRu ? 'Введите описание видео.' : 'Enter video description.'
+        )
+        return
+      }
+
+      const prompt = message.text.trim()
+      console.log('🎬 [WIZARD] Step 3: Received prompt:', prompt)
+
+      // Назад в меню
+      if (prompt.includes('Назад') || prompt.includes('Back')) {
+        console.log('🎬 [WIZARD] Step 3: Going back to menu')
+        await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
+        return ctx.scene.leave()
+      }
+
+      if (!prompt || prompt.length < TEXT_TO_VIDEO_CONSTANTS.MIN_PROMPT_LENGTH) {
+        await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
+        return
+      }
+
+      if (prompt.length > TEXT_TO_VIDEO_CONSTANTS.MAX_PROMPT_LENGTH) {
+        await ctx.reply(isRu ? 'Описание слишком длинное.' : 'Description is too long.')
+        return
+      }
+
+      // Получаем параметры из сессии
+      const selectedModel = ctx.session.selectedVideoModel
+      const aspectRatio = ctx.session.selectedAspectRatio || TEXT_TO_VIDEO_CONSTANTS.DEFAULT_ASPECT_RATIO
+      const cost = ctx.session.selectedVideoCost || 40
+      const duration = ctx.session.selectedDuration
+
+      if (!selectedModel) {
+        console.log('🎬 [WIZARD] Step 3: No model selected - returning to step 1')
+        await ctx.reply(isRu ? 'Модель не выбрана. Начинаем заново.' : 'No model selected. Starting over.')
+        ctx.wizard.selectStep(0)
+        return
+      }
+
+      console.log('🎬 [WIZARD] Step 3: Starting generation with params:', {
+        selectedModel, aspectRatio, cost, duration
+      })
+
+      // Генерируем видео
+      await ctx.reply(
+        isRu
+          ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+          : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+      )
+
+      const videoModelId = selectedModel as VideoModelId
+      await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio)
+      console.log('🎬 [WIZARD] Video generation success!')
+
+      return ctx.scene.leave()
+      
+    } catch (error) {
+      console.error('🎬 [WIZARD] Step 3 ERROR:', error)
+      await ctx.reply('❌ Ошибка в третьем шаге wizard')
       return ctx.scene.leave()
     }
   }
