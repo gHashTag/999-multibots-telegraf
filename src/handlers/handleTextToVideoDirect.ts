@@ -34,23 +34,42 @@ export async function handleTextToVideoDirect(
   const username = ctx.from?.username || 'unknown'
   const is_ru = isRussianFromState(ctx)
   
-  // Получаем bot_name с проверкой доступности бота
-  let bot_name = ctx.botInfo?.username || 'neuro_blogger_bot'
+  // Получаем bot_name и проверяем его доступность
+  const bot_name = ctx.botInfo?.username || 'unknown_bot'
   
-  // Проверяем, что бот существует и доступен, если нет - используем fallback
+  // Проверяем, что бот существует и настроен правильно
   try {
     const { getBotByName } = await import('@/core/bot')
     const botResult = getBotByName(bot_name)
-    if (!botResult.bot) {
-      logger.warn(`[handleTextToVideoDirect] Bot ${bot_name} not found, using fallback`, {
-        original_bot_name: bot_name,
-        fallback: 'neuro_blogger_bot'
+    if (!botResult.bot || botResult.error) {
+      const errorMsg = is_ru 
+        ? `❌ Произошла ошибка.\n\nБот "${bot_name}" не найден или не настроен правильно.\n\nОбратитесь в техподдержку.`
+        : `❌ An error occurred.\n\nBot "${bot_name}" not found or not configured properly.\n\nPlease contact support.`
+      
+      logger.error(`[handleTextToVideoDirect] Bot configuration error`, {
+        bot_name,
+        error: botResult.error,
+        telegram_id,
+        username
       })
-      bot_name = 'neuro_blogger_bot'
+      
+      await ctx.reply(errorMsg)
+      return
     }
   } catch (error) {
-    logger.error(`[handleTextToVideoDirect] Error checking bot availability`, { error, bot_name })
-    bot_name = 'neuro_blogger_bot'
+    const errorMsg = is_ru 
+      ? `❌ Произошла системная ошибка.\n\nОбратитесь в техподдержку.`
+      : `❌ A system error occurred.\n\nPlease contact support.`
+    
+    logger.error(`[handleTextToVideoDirect] Critical bot system error`, { 
+      error, 
+      bot_name, 
+      telegram_id, 
+      username 
+    })
+    
+    await ctx.reply(errorMsg)
+    return
   }
 
   // Получаем корректную длительность для модели
