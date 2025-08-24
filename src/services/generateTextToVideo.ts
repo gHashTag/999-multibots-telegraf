@@ -2,8 +2,7 @@ import axios, { isAxiosError } from 'axios'
 import {
   isDev,
   SECRET_API_KEY,
-  API_SERVER_URL,
-  LOCAL_SERVER_URL,
+  API_URL,
 } from '@/config'
 import { logger } from '@/utils/logger'
 
@@ -87,15 +86,13 @@ export async function generateTextToVideo(
   })
 
   try {
-    // Определяем URL в зависимости от окружения
-    // Используем LOCAL_SERVER_URL если определен, иначе API_SERVER_URL для всех окружений
+    // Используем API_URL который учитывает USE_PRODUCTION_API флаг
     logger.info('URL Selection Debug', {
-      LOCAL_SERVER_URL,
-      API_SERVER_URL,
+      API_URL,
       isDev,
     })
 
-    const baseUrl = LOCAL_SERVER_URL || API_SERVER_URL
+    const baseUrl = API_URL
 
     // 🔧 ВРЕМЕННАЯ ЗАГЛУШКА: Если сервер недоступен, возвращаем mock результат
     // TODO: Убрать после восстановления работы AI сервера
@@ -107,7 +104,7 @@ export async function generateTextToVideo(
         success: true,
         message: 'Mock: Video generation started',
         videoUrl:
-          'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4', // Тестовое видео
+          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
       }
     }
 
@@ -221,7 +218,7 @@ export async function generateTextToVideo(
           success: true,
           message: 'Mock: Video generation completed (server unavailable)',
           videoUrl:
-            'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4', // Тестовое видео
+            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
         }
       }
 
@@ -286,7 +283,7 @@ export async function checkVideoGenerationStatus(
   is_ru: boolean
 ): Promise<TextToVideoResponse> {
   try {
-    const baseUrl = LOCAL_SERVER_URL || API_SERVER_URL
+    const baseUrl = API_URL
 
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 
