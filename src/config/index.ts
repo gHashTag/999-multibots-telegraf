@@ -125,10 +125,16 @@ export const {
   ROBOKASSA_PASSWORD_1,
   ROBOKASSA_PASSWORD_2,
   SERVER_API_URL,
+  USE_PRODUCTION_API,
 } = process.env
 
-// API_URL для AI сервера - в разработке используем локальный AI сервер
-export const API_URL = isDev ? (LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL) : API_SERVER_URL
+// API_URL для AI сервера - логика переключения между локальным и продакшн сервером
+const forceProductionAPI = USE_PRODUCTION_API === 'true'
+export const API_URL = forceProductionAPI 
+  ? API_SERVER_URL // 🚀 Принудительно используем продакшн Railway сервер
+  : isDev 
+    ? (LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL) // 🛠️ В dev режиме - локальный/ngrok
+    : API_SERVER_URL // 📦 В production режиме - всегда продакшн сервер
 
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
@@ -152,6 +158,8 @@ console.log('🚨 [CONFIG DEBUG] URL CONFIGURATION LOADED:')
 console.log(`🚨 [CONFIG DEBUG] isDev: ${isDev}`)
 console.log(`🚨 [CONFIG DEBUG] LOCAL_SERVER_URL: ${LOCAL_SERVER_URL}`)
 console.log(`🚨 [CONFIG DEBUG] API_SERVER_URL: ${API_SERVER_URL}`)
+console.log(`🚨 [CONFIG DEBUG] USE_PRODUCTION_API: ${USE_PRODUCTION_API}`)
+console.log(`🚨 [CONFIG DEBUG] forceProductionAPI: ${forceProductionAPI}`)
 console.log(`🚨 [CONFIG DEBUG] FINAL API_URL: ${API_URL}`)
 console.log(`🚨 [CONFIG DEBUG] SUPABASE_URL: ${SUPABASE_URL}`)
 console.log(`🚨 [CONFIG DEBUG] SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY ? '***SET***' : 'UNDEFINED'}`)
