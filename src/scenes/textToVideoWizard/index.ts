@@ -46,41 +46,35 @@ function createModelButton(modelId: string, aspectRatio: string, isRu: boolean):
     
     const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
     
-    // УПРОЩЕННЫЕ длительности и цены
+    // Динамический расчет цены из конфига
+    let stars = Math.floor(((config.basePrice * 5) / 0.016) * 1.5)
     let durationText = ''
-    let stars = 40 // по умолчанию
     
+    // Определяем длительность для каждой модели
     switch(modelId) {
       case 'veo-3-fast':
-        durationText = ' | 8s'
-        stars = 40
-        break
       case 'veo-3':
-        durationText = ' | 8s'  
-        stars = 202
+        durationText = ' | 8s'
         break
       case 'runway-aleph':
         durationText = ' | 6s'
-        stars = 182
         break
       case 'kling-v1.6-pro':
+      case 'kling-v1.6-standard':
         durationText = ' | ~10s'
-        stars = 60
         break
       case 'minimax':
+      case 'haiper-video-2':
         durationText = ' | 6s'
-        stars = 50
         break
       case 'hunyuan-video-fast':
-        durationText = ' | 5s'
-        stars = 25
-        break
       case 'wan-text-to-video':
+      case 'wan-2.2-t2v-fast':
+      case 'seedance-1-pro':
         durationText = ' | 5s'
-        stars = 20
         break
       default:
-        stars = calculateStarsFromConfig(modelId)
+        durationText = ' | 6s' // default
         break
     }
     
@@ -92,44 +86,53 @@ function createModelButton(modelId: string, aspectRatio: string, isRu: boolean):
 }
 
 // Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
-function parseModelSelection(buttonText: string): {
-  modelId: string
-  aspectRatio: string
-  duration?: number
-  cost: number
-} | null {
+function parseModelSelection(buttonText: string): { modelId: string, aspectRatio: string, duration?: number, cost: number } | null {
   try {
     console.log('🎬 [PARSE] Parsing button text:', buttonText)
     
     // Определяем соотношение сторон по иконке
     const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
     
-    // УПРОЩЕННЫЙ парсинг по ключевым словам
-    if (buttonText.includes('Veo 3 Fast')) {
-      return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
-    }
-    if (buttonText.includes('Veo 3')) {
-      return { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
-    }
-    if (buttonText.includes('Runway Aleph')) {
-      return {
-        modelId: 'runway-aleph',
-        aspectRatio,
-        duration: 6,
-        cost: 182,
+    // Динамический парсинг по конфигу моделей
+    for (const [modelId, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
+      if (config.inputType.includes('text') && buttonText.includes(config.title)) {
+        const cost = Math.floor(((config.basePrice * 5) / 0.016) * 1.5)
+        let duration
+        
+        // Определяем длительность для каждой модели
+        switch(modelId) {
+          case 'veo-3-fast':
+          case 'veo-3':
+            duration = 8
+            break
+          case 'runway-aleph':
+            duration = 6
+            break
+          case 'kling-v1.6-pro':
+          case 'kling-v1.6-standard':
+            duration = 10
+            break
+          case 'minimax':
+            duration = 6
+            break
+          case 'hunyuan-video-fast':
+          case 'wan-text-to-video':
+          case 'wan-2.2-t2v-fast':
+            duration = 5
+            break
+          case 'haiper-video-2':
+            duration = 6
+            break
+          case 'seedance-1-pro':
+            duration = 5
+            break
+          default:
+            duration = 6 // default
+            break
+        }
+        
+        return { modelId, aspectRatio, duration, cost }
       }
-    }
-    if (buttonText.includes('Kling v1.6 Pro')) {
-      return { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
-    }
-    if (buttonText.includes('Minimax')) {
-      return { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
-    }
-    if (buttonText.includes('Hunyuan Video Fast')) {
-      return { modelId: 'hunyuan-video-fast', aspectRatio, duration: 5, cost: 25 }
-    }
-    if (buttonText.includes('Wan-2.1')) {
-      return { modelId: 'wan-text-to-video', aspectRatio, duration: 5, cost: 20 }
     }
     
     console.warn('🎬 [PARSE] No match found for button text:', buttonText)
@@ -159,10 +162,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Отбираем только text-to-video модели
       const textModels = Object.entries(VIDEO_MODELS_CONFIG)
         .filter(([_, config]) => config.inputType.includes('text'))
-        .filter(([modelId]) => [
-          'veo-3-fast', 'veo-3', 'runway-aleph',
-          'kling-v1.6-pro', 'minimax', 'hunyuan-video-fast', 'wan-text-to-video'
-        ].includes(modelId))
       
       console.log('🎬 [WIZARD] Step 1: Filtered text models:', textModels.map(([id, config]) => ({ id, title: config.title })))
       
@@ -182,17 +181,60 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
-      console.log('🎬 [WIZARD] Step 1: Keyboard created')
+      console.log('🎬 [WIZARD] Step 1: Keyboard created with', keyboardRows.length, 'rows')
+      console.log('🎬 [WIZARD] Step 1: First few keyboard rows:', JSON.stringify(keyboardRows.slice(0, 3), null, 2))
 
-      await ctx.reply(
-        isRu 
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Добавляем детальную обработку ошибок для ctx.reply
+      try {
+        console.log('🎬 [WIZARD] Step 1: Attempting to send reply to user:', ctx.from?.id)
+        console.log('🎬 [WIZARD] Step 1: Context check:', {
+          hasCtx: !!ctx,
+          hasReply: !!ctx.reply,
+          hasFrom: !!ctx.from,
+          userId: ctx.from?.id,
+          chatId: ctx.chat?.id,
+          chatType: ctx.chat?.type
+        })
+        
+        const replyText = isRu 
           ? `🎥 Выберите модель и формат видео:\n\n📱 — 9:16 (вертикально)\n🖥️ — 16:9 (горизонтально)\n\n⭐ Цена в Telegram Stars`
-          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`,
-        keyboard
-      )
-      
-      console.log('🎬 [WIZARD] Step 1: Reply sent, moving to next step')
-      return ctx.wizard.next()
+          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`
+        
+        console.log('🎬 [WIZARD] Step 1: About to send reply...')
+        
+        const replyResult = await ctx.reply(replyText, keyboard)
+        
+        console.log('🎬 [WIZARD] Step 1: ✅ Reply sent successfully! Message ID:', replyResult.message_id)
+        console.log('🎬 [WIZARD] Step 1: Moving to next step...')
+        return ctx.wizard.next()
+        
+      } catch (replyError) {
+        console.error('🎬 [WIZARD] Step 1: ❌ CRITICAL ERROR - Failed to send reply:', replyError)
+        logger.error('[TextToVideoWizard] Critical error sending keyboard reply', {
+          error: replyError instanceof Error ? replyError.message : 'Unknown error',
+          stack: replyError instanceof Error ? replyError.stack : undefined,
+          userId: ctx.from?.id,
+          chatId: ctx.chat?.id,
+          keyboardRowsCount: keyboardRows.length
+        })
+        
+        // Пытаемся отправить простое сообщение об ошибке без клавиатуры
+        try {
+          console.log('🎬 [WIZARD] Step 1: Trying fallback simple reply...')
+          await ctx.reply(
+            isRu 
+              ? '❌ Произошла ошибка при загрузке меню. Попробуйте /start'
+              : '❌ Menu loading error. Try /start'
+          )
+          console.log('🎬 [WIZARD] Step 1: Fallback reply sent')
+        } catch (fallbackError) {
+          console.error('🎬 [WIZARD] Step 1: ❌ Even fallback reply failed:', fallbackError)
+        }
+        
+        // Выходим из wizard при ошибке
+        console.log('🎬 [WIZARD] Step 1: Leaving wizard due to reply error')
+        return ctx.scene.leave()
+      }
       
     } catch (error) {
       console.error('🎬 [WIZARD] Step 1 ERROR:', error)
@@ -324,20 +366,12 @@ textToVideoWizard.enter(async (ctx) => {
     currentStep: ctx.wizard?.cursor,
     timestamp: new Date().toISOString()
   })
-
   
-  // ИСПРАВЛЕНИЕ: ЯВНО устанавливаем шаг 0 - это критично для правильной работы wizard'а
-  console.log('🎬 [WIZARD] Setting wizard step to 0...')
-  try {
-    ctx.wizard.selectStep(0)
-    console.log('🎬 [WIZARD] Step set to 0, cursor now:', ctx.wizard?.cursor)
-  } catch (error) {
-    console.error('🎬 [WIZARD] ERROR setting wizard step:', error)
-    logger.error('[TextToVideoWizard] Error setting wizard step', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id
-    })
-  }
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ устанавливаем шаг вручную! 
+  // Telegraf автоматически запускает первый шаг при входе в wizard
+  // Ручное установление шага мешает автоматическому выполнению
+  console.log('🎬 [WIZARD] Letting Telegraf handle first step execution automatically...')
+  console.log('🎬 [WIZARD] Wizard entered, first step should execute now')
 })
 
 // Обработчик выхода из wizard
