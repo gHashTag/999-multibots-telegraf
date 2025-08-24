@@ -6,7 +6,9 @@ import { digitalAvatarBodyWizard } from '../../src/scenes/digitalAvatarBodyWizar
 import makeMockContext from '../utils/mockTelegrafContext'
 
 // Mock dependencies
-jest.mock('../../src/menu/getStepSelectionMenu', () => ({ getStepSelectionMenu: jest.fn() }))
+jest.mock('../../src/menu/getStepSelectionMenu', () => ({
+  getStepSelectionMenu: jest.fn(),
+}))
 jest.mock('@/helpers/language', () => ({ isRussian: jest.fn() }))
 jest.mock('@/price/priceCalculator', () => ({
   calculateCost: jest.fn(),
@@ -14,7 +16,9 @@ jest.mock('@/price/priceCalculator', () => ({
   stepOptions: [1, 2],
 }))
 jest.mock('@/price/helpers', () => ({ handleTrainingCost: jest.fn() }))
-jest.mock('../../src/handlers/handleHelpCancel', () => ({ handleHelpCancel: jest.fn() }))
+jest.mock('../../src/handlers/handleHelpCancel', () => ({
+  handleHelpCancel: jest.fn(),
+}))
 
 import { getStepSelectionMenu } from '../../src/menu/getStepSelectionMenu'
 import { isRussian } from '@/helpers/language'
@@ -28,11 +32,12 @@ describe.skip('digitalAvatarBodyWizard', () => {
   })
 
   it('step 0: sends cost message and calls next()', async () => {
-    const ctx = makeMockContext()
-    (isRussian as jest.Mock).mockReturnValue(true)
-    (calculateCost as jest.Mock).mockReturnValueOnce(10).mockReturnValueOnce(20)
-    (generateCostMessage as jest.Mock).mockReturnValue('COST MSG')
-    (getStepSelectionMenu as jest.Mock).mockReturnValue({ keyboard: [['X']] })
+    const ctx = makeMockContext()(isRussian as jest.Mock)
+      .mockReturnValue(true)(calculateCost as jest.Mock)
+      .mockReturnValueOnce(10)
+      .mockReturnValueOnce(20)(generateCostMessage as jest.Mock)
+      .mockReturnValue('COST MSG')(getStepSelectionMenu as jest.Mock)
+      .mockReturnValue({ keyboard: [['X']] })
 
     // @ts-ignore
     const step0 = digitalAvatarBodyWizard.steps[0]
@@ -45,9 +50,15 @@ describe.skip('digitalAvatarBodyWizard', () => {
   })
 
   it('step 1: leaveScene true -> leaves scene', async () => {
-    const ctx = makeMockContext({}, { message: { text: '3' } })
-    (isRussian as jest.Mock).mockReturnValue(false)
-    ;(handleTrainingCost as jest.Mock).mockResolvedValue({ leaveScene: true, trainingCostInStars: 0, currentBalance: 0 })
+    const ctx = makeMockContext(
+      {},
+      { message: { text: '3' } }
+    )(isRussian as jest.Mock).mockReturnValue(false)
+    ;(handleTrainingCost as jest.Mock).mockResolvedValue({
+      leaveScene: true,
+      trainingCostInStars: 0,
+      currentBalance: 0,
+    })
 
     // @ts-ignore
     const step1 = digitalAvatarBodyWizard.steps[1]
@@ -58,9 +69,15 @@ describe.skip('digitalAvatarBodyWizard', () => {
   })
 
   it('step 1: leaveScene false -> replies and enters next scene', async () => {
-    const ctx = makeMockContext({}, { message: { text: '5' } })
-    (isRussian as jest.Mock).mockReturnValue(true)
-    ;(handleTrainingCost as jest.Mock).mockResolvedValue({ leaveScene: false, trainingCostInStars: 5, currentBalance: 42 })
+    const ctx = makeMockContext(
+      {},
+      { message: { text: '5' } }
+    )(isRussian as jest.Mock).mockReturnValue(true)
+    ;(handleTrainingCost as jest.Mock).mockResolvedValue({
+      leaveScene: false,
+      trainingCostInStars: 5,
+      currentBalance: 42,
+    })
 
     // @ts-ignore
     const step1 = digitalAvatarBodyWizard.steps[1]

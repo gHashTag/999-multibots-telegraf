@@ -1,0 +1,95 @@
+name: 👋 Welcome New Contributors
+
+on:
+  pull_request_target:
+    types: [opened]
+  issues:
+    types: [opened]
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🎉 Welcome First Time Contributors
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isIssue = context.eventName === 'issues';
+            const isPR = context.eventName === 'pull_request_target';
+            
+            // Get contributor info
+            const contributor = isPR ? context.payload.pull_request.user : context.payload.issue.user;
+            const number = isPR ? context.payload.pull_request.number : context.payload.issue.number;
+            
+            // Check if this is their first contribution
+            const { data: userContributions } = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} author:${contributor.login}`,
+            });
+            
+            if (userContributions.total_count <= 1) {
+              const welcomeMessage = `
+            🎉 **Welcome to 999-multibots-telegraf, @${contributor.login}!**
+            
+            Thank you for your ${isIssue ? 'issue' : 'pull request'}! We're excited to have you contributing to our multi-bot Telegram system.
+            
+            ## 📚 **Getting Started Resources**
+            
+            - 📖 **[Contributing Guide](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTING.md)** - Everything you need to know
+            - 🏷️ **[Branch Naming Guide](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/.github/BRANCH_NAMING_GUIDE.md)** - How to name your branches
+            - 🚀 **[README](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/README.md)** - Project overview and setup
+            
+            ## 🤖 **Special Note for AI Assistants**
+            
+            If you're using Claude Code, ChatGPT, or other AI tools:
+            
+            **🔄 Remember: One Task = One PR**
+            - Create a new branch for each new task
+            - Don't reuse old or closed PRs
+            - Follow our branch naming conventions
+            
+            ## 🆘 **Need Help?**
+            
+            - 💬 **Questions?** Feel free to ask in the comments
+            - 🐛 **Issues?** Check our existing issues first
+            - 💡 **Ideas?** Start a discussion in the Discussions tab
+            
+            ## 🔍 **What Happens Next?**
+            
+            ${isPR ? 
+              `1. 🤖 **Automated checks** will run on your PR
+              2. 👀 **Code review** from our maintainers
+              3. 🧪 **Testing** in our staging environment
+              4. ✅ **Approval and merge** once everything looks good` :
+              `1. 👀 **Review** by our maintainers
+              2. 🏷️ **Labeling** and assignment if needed
+              3. 💬 **Discussion** if more details are needed
+              4. 🚀 **Implementation** by you or the community`
+            }
+            
+            ---
+            
+            We appreciate your contribution and look forward to collaborating with you! 🌟
+            
+            *Happy coding!* 🚀
+              `.trim();
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: number,
+                body: welcomeMessage
+              });
+              
+              // Add welcome label
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: number,
+                labels: ['👋 welcome', 'first-contribution']
+              });
+              
+              core.info(`✅ Welcomed new contributor: ${contributor.login}`);
+            } else {
+              core.info(`ℹ️ Not a first-time contributor: ${contributor.login}`);
+            }

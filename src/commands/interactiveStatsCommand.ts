@@ -200,7 +200,9 @@ async function showStatsMenu(
     // Получаем базовую статистику
     const stats = await getBotStatsWithCost(botName, period as any)
 
-    let message = `📊 <b>Статистика @${botName}</b>\n⏰ Период: ${getPeriodName(period)}\n\n`
+    let message = `📊 <b>Статистика @${botName}</b>\n⏰ Период: ${getPeriodName(
+      period
+    )}\n\n`
 
     // Показываем доходы по валютам только если они есть
     let hasFinancialData = false
@@ -208,9 +210,13 @@ async function showStatsMenu(
     // Рублевые доходы - показываем только если есть
     if (stats.rub_income > 0 || stats.rub_income_transactions > 0) {
       message += `💰 <b>Рублевые доходы:</b>\n`
-      message += `   📈 Доходы: ${stats.rub_income.toLocaleString()} ₽ (${stats.rub_income_transactions} операций)\n`
+      message += `   📈 Доходы: ${stats.rub_income.toLocaleString()} ₽ (${
+        stats.rub_income_transactions
+      } операций)\n`
       if (stats.rub_outcome > 0) {
-        message += `   📉 Расходы: ${stats.rub_outcome.toLocaleString()} ₽ (${stats.rub_outcome_transactions} операций)\n`
+        message += `   📉 Расходы: ${stats.rub_outcome.toLocaleString()} ₽ (${
+          stats.rub_outcome_transactions
+        } операций)\n`
       }
       message += `   💎 Результат: ${stats.rub_net_result.toLocaleString()} ₽\n\n`
       hasFinancialData = true
@@ -219,9 +225,13 @@ async function showStatsMenu(
     // Звездные доходы - показываем только если есть
     if (stats.stars_income > 0 || stats.stars_income_transactions > 0) {
       message += `⭐ <b>Звездные доходы:</b>\n`
-      message += `   📈 Доходы: ${stats.stars_income.toLocaleString()}⭐ (${stats.stars_income_transactions} операций)\n`
+      message += `   📈 Доходы: ${stats.stars_income.toLocaleString()}⭐ (${
+        stats.stars_income_transactions
+      } операций)\n`
       if (stats.stars_outcome > 0) {
-        message += `   📉 Расходы: ${stats.stars_outcome.toLocaleString()}⭐ (${stats.stars_outcome_transactions} операций)\n`
+        message += `   📉 Расходы: ${stats.stars_outcome.toLocaleString()}⭐ (${
+          stats.stars_outcome_transactions
+        } операций)\n`
         message += `   🏭 Себестоимость: ${stats.stars_cost.toLocaleString()}⭐\n`
       }
       message += `   💎 Результат: ${stats.stars_net_result.toLocaleString()}⭐\n\n`
@@ -638,7 +648,9 @@ async function sendDetailedStats(
   try {
     const stats = await getBotStatsWithCost(botName, period as any)
 
-    let message = `📈 <b>Детальная статистика @${botName}</b>\n⏰ Период: ${getPeriodName(period)}\n\n`
+    let message = `📈 <b>Детальная статистика @${botName}</b>\n⏰ Период: ${getPeriodName(
+      period
+    )}\n\n`
 
     // Показываем детализацию по валютам только если есть данные
     let hasFinancialData = false
@@ -646,9 +658,13 @@ async function sendDetailedStats(
     // Рублевые операции - показываем только если есть
     if (stats.rub_income > 0 || stats.rub_income_transactions > 0) {
       message += `💰 <b>Рублевые операции:</b>\n`
-      message += `   📈 Доходы: ${stats.rub_income.toLocaleString()} ₽ (${stats.rub_income_transactions} операций)\n`
+      message += `   📈 Доходы: ${stats.rub_income.toLocaleString()} ₽ (${
+        stats.rub_income_transactions
+      } операций)\n`
       if (stats.rub_outcome > 0) {
-        message += `   📉 Расходы: ${stats.rub_outcome.toLocaleString()} ₽ (${stats.rub_outcome_transactions} операций)\n`
+        message += `   📉 Расходы: ${stats.rub_outcome.toLocaleString()} ₽ (${
+          stats.rub_outcome_transactions
+        } операций)\n`
       }
       message += `   💎 Результат: ${stats.rub_net_result.toLocaleString()} ₽\n\n`
       hasFinancialData = true
@@ -657,9 +673,13 @@ async function sendDetailedStats(
     // Звездные операции - показываем только если есть
     if (stats.stars_income > 0 || stats.stars_income_transactions > 0) {
       message += `⭐ <b>Звездные операции:</b>\n`
-      message += `   📈 Доходы: ${stats.stars_income.toLocaleString()}⭐ (${stats.stars_income_transactions} операций)\n`
+      message += `   📈 Доходы: ${stats.stars_income.toLocaleString()}⭐ (${
+        stats.stars_income_transactions
+      } операций)\n`
       if (stats.stars_outcome > 0) {
-        message += `   📉 Расходы: ${stats.stars_outcome.toLocaleString()}⭐ (${stats.stars_outcome_transactions} операций)\n`
+        message += `   📉 Расходы: ${stats.stars_outcome.toLocaleString()}⭐ (${
+          stats.stars_outcome_transactions
+        } операций)\n`
         message += `   🏭 Себестоимость: ${stats.stars_cost.toLocaleString()}⭐\n`
       }
       message += `   💎 Результат: ${stats.stars_net_result.toLocaleString()}⭐\n\n`
@@ -674,7 +694,9 @@ async function sendDetailedStats(
       message += `   🏭 Себестоимость: ${stats.total_cost.toLocaleString()}⭐\n`
       message += `   💎 Чистая прибыль: ${stats.net_profit.toLocaleString()}⭐\n`
       message += `   📊 Маржа прибыли: ${stats.profit_margin.toFixed(1)}%\n`
-      message += `   📈 Доля себестоимости: ${stats.cost_percentage.toFixed(1)}%\n\n`
+      message += `   📈 Доля себестоимости: ${stats.cost_percentage.toFixed(
+        1
+      )}%\n\n`
     }
 
     message +=
@@ -734,7 +756,9 @@ async function sendExcelReport(
     const excelBuffer = await generateAdminExcelReport(botName)
     const generationTime = ((Date.now() - startTime) / 1000).toFixed(1)
 
-    const fileName = `stats_${botName}_${period}_${new Date().toISOString().split('T')[0]}.xlsx`
+    const fileName = `stats_${botName}_${period}_${
+      new Date().toISOString().split('T')[0]
+    }.xlsx`
     const fileSizeKB = Math.round(excelBuffer.length / 1024)
 
     const caption =
@@ -801,8 +825,12 @@ async function sendDebugInfo(ctx: MyContext, botName: string): Promise<void> {
       message += `${index + 1}. ID: ${payment.id}\n`
       message += `   📅 ${date}\n`
       message += `   🔄 ${payment.type} | ${payment.status}\n`
-      message += `   🏷️ ${payment.category || 'Нет'} | ${payment.service_type || 'Нет'}\n`
-      message += `   💰 ${payment.stars}⭐ | Себестоимость: ${payment.cost || 0}⭐\n\n`
+      message += `   🏷️ ${payment.category || 'Нет'} | ${
+        payment.service_type || 'Нет'
+      }\n`
+      message += `   💰 ${payment.stars}⭐ | Себестоимость: ${
+        payment.cost || 0
+      }⭐\n\n`
     })
 
     const keyboard = Markup.inlineKeyboard([
@@ -983,11 +1011,13 @@ async function sendTrendAnalysis(
         trends.revenue_forecast.trend_direction === 'growing'
           ? '📈'
           : trends.revenue_forecast.trend_direction === 'declining'
-            ? '📉'
-            : '➡️'
+          ? '📉'
+          : '➡️'
 
       message += `   ${trendEmoji} Следующий месяц: ${trends.revenue_forecast.predicted_amount.toLocaleString()}⭐\n`
-      message += `   📊 Рост: ${trends.revenue_forecast.growth_rate > 0 ? '+' : ''}${trends.revenue_forecast.growth_rate}%\n`
+      message += `   📊 Рост: ${
+        trends.revenue_forecast.growth_rate > 0 ? '+' : ''
+      }${trends.revenue_forecast.growth_rate}%\n`
       message += `   🎯 Уверенность: ${trends.revenue_forecast.confidence_level}%\n\n`
     } else {
       message += `   ⚠️ Недостаточно данных для прогноза\n\n`
@@ -1006,8 +1036,8 @@ async function sendTrendAnalysis(
           alert.severity === 'high'
             ? '🔴'
             : alert.severity === 'medium'
-              ? '🟡'
-              : '🟢'
+            ? '🟡'
+            : '🟢'
         message += `${index + 1}. ${severityEmoji} ${alert.message}\n`
         message += `   💡 ${alert.recommendation}\n\n`
       })
@@ -1066,12 +1096,16 @@ async function sendSmartRecommendations(
     // Возможности роста
     message += `🚀 <b>Возможности роста:</b>\n`
     if (recommendations.growth_opportunities.trending_services.length > 0) {
-      message += `   📈 Растущие сервисы: ${recommendations.growth_opportunities.trending_services.join(', ')}\n`
+      message += `   📈 Растущие сервисы: ${recommendations.growth_opportunities.trending_services.join(
+        ', '
+      )}\n`
     }
     if (
       recommendations.growth_opportunities.underperforming_services.length > 0
     ) {
-      message += `   📉 Недоиспользуемые: ${recommendations.growth_opportunities.underperforming_services.join(', ')}\n`
+      message += `   📉 Недоиспользуемые: ${recommendations.growth_opportunities.underperforming_services.join(
+        ', '
+      )}\n`
     }
     message += `\n   💡 <b>Предложения:</b>\n`
     recommendations.growth_opportunities.expansion_suggestions.forEach(
@@ -1130,7 +1164,9 @@ async function sendUserSegmentation(
         message += `\n${segmentEmoji} <b>${segment.name} (${segment.count} чел.)</b>\n`
         message += `   💰 Средний доход: ${segment.avg_revenue}⭐\n`
         message += `   📈 Удержание: ${segment.retention_rate}%\n`
-        message += `   🎯 Действия: ${segment.recommended_actions.slice(0, 2).join(', ')}\n`
+        message += `   🎯 Действия: ${segment.recommended_actions
+          .slice(0, 2)
+          .join(', ')}\n`
       })
 
     const keyboard = Markup.inlineKeyboard([
@@ -1187,7 +1223,9 @@ async function sendAIInsights(ctx: MyContext, botName: string): Promise<void> {
       segmentation.segments.find(s => s.name === 'At_Risk')?.count || 0
 
     if (vipUsers > 0) {
-      message += `💎 VIP-клиенты: ${vipUsers} из ${totalUsers} (${Math.round((vipUsers / totalUsers) * 100)}%)\n`
+      message += `💎 VIP-клиенты: ${vipUsers} из ${totalUsers} (${Math.round(
+        (vipUsers / totalUsers) * 100
+      )}%)\n`
     }
     if (atRiskUsers > 0) {
       message += `⚠️ Под риском оттока: ${atRiskUsers} пользователей\n`
@@ -1282,7 +1320,9 @@ function generateWeeklyRecommendations(
   if (recommendations.pricing_optimization.length > 0) {
     const topService = recommendations.pricing_optimization[0]
     recs.push(
-      `💰 Пересмотрите цены на "${topService.service}" - ${topService.suggested_action.toLowerCase()}`
+      `💰 Пересмотрите цены на "${
+        topService.service
+      }" - ${topService.suggested_action.toLowerCase()}`
     )
   }
 

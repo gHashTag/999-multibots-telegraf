@@ -18,8 +18,8 @@ export const neonPool = new Pool({
 // 🔄 RETRY HELPER - Повторные попытки при сетевых ошибках
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
-  maxRetries: number = 2,
-  initialDelay: number = 1000
+  maxRetries = 2,
+  initialDelay = 1000
 ): Promise<T> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {

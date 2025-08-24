@@ -255,8 +255,8 @@ export function getComplexPricingServices(): PaidServiceEnum[] {
  */
 export function calculateFinalPriceInStars(
   baseCostUSD: number,
-  starCost: number = 0.016,
-  markup: number = 1.5
+  starCost = 0.016,
+  markup = 1.5
 ): number {
   // 1. Переводим себестоимость в звезды
   const basePriceInStars = baseCostUSD / starCost
