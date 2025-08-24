@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import type { Router as ExpressRouter } from 'express'
 import { GitHubAutoFixerController } from '../../webhooks/github-autofixer.controller'
 import {
   githubWebhookRateLimit,
@@ -8,7 +9,7 @@ import {
   enableRawBody
 } from '../../webhooks/github-autofixer.middleware'
 
-const router = Router()
+const router: ExpressRouter = Router()
 const controller = new GitHubAutoFixerController()
 
 // Middleware для всех GitHub webhook endpoints
