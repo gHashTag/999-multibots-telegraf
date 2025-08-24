@@ -9,10 +9,12 @@ import {
 
 // Mock переменных окружения
 const originalEnv = process.env
-const testApiKey = 'test_dart_ai_api_key_unit_test'
+const testServerUrl = 'http://localhost:2999'
 
 beforeAll(() => {
-  process.env.DART_AI_API_KEY = testApiKey
+  // Override .env file settings for tests
+  process.env.ORIGIN = testServerUrl
+  process.env.NODE_ENV = 'test'
 })
 
 afterAll(() => {
@@ -45,6 +47,11 @@ const mockLogger = {
 
 mock.module('../../src/utils/logger', () => ({
   logger: mockLogger,
+}))
+
+// Mock config module
+mock.module('../../src/config', () => ({
+  ORIGIN: testServerUrl,
 }))
 
 // Тестовые данные
@@ -112,26 +119,36 @@ describe('DartAIService Unit Tests', () => {
       expect(dartAIService.isConfigured()).toBe(true)
     })
 
-    it('should create axios client with correct configuration', () => {
-      expect(mockAxiosCreate).toHaveBeenCalledWith({
-        baseURL: 'https://api.dart.ai',
-        headers: {
-          'Authorization': `Bearer ${testApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
-      })
+    it('should create axios client with correct configuration', async () => {
+      // Create a fresh service instance with the test environment
+      process.env.ORIGIN = testServerUrl
+      const testService = new DartAIService()
+      
+      // Clear previous calls
+      mockAxiosCreate.mockClear()
+      
+      // Trigger HTTP client creation by making a call
+      mockAxiosClient.get.mockResolvedValueOnce({ data: { success: true, data: [] } })
+      await testService.getSpaces()
+      
+      expect(mockAxiosCreate).toHaveBeenCalled()
+      const createCall = mockAxiosCreate.mock.calls[0]
+      const config = createCall[0]
+      
+      expect(config.baseURL).toBe(testServerUrl)
+      expect(config.headers['Content-Type']).toBe('application/json')
+      expect(config.timeout).toBe(30000)
+      expect(config.headers['Authorization']).toBeUndefined()
     })
 
-    it('should handle missing API key', () => {
-      delete process.env.DART_AI_API_KEY
+    it('should handle missing server URL', () => {
+      delete process.env.ORIGIN
       const unconfiguredService = new DartAIService()
       
-      expect(unconfiguredService.isConfigured()).toBe(false)
-      expect(mockLogger.warn).toHaveBeenCalledWith('⚠️ [Dart AI] API key not configured')
+      expect(unconfiguredService.isConfigured()).toBe(true) // uses localhost fallback
       
-      // Восстанавливаем ключ
-      process.env.DART_AI_API_KEY = testApiKey
+      // Восстанавливаем URL
+      process.env.ORIGIN = testServerUrl
     })
   })
 
@@ -140,13 +157,13 @@ describe('DartAIService Unit Tests', () => {
       mockAxiosClient.get.mockResolvedValueOnce({
         data: {
           success: true,
-          data: { spaces: [mockSpace] },
+          data: [mockSpace],
         },
       })
 
       const spaces = await dartAIService.getSpaces()
 
-      expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces')
+      expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/spaces')
       expect(spaces).toEqual([mockSpace])
       expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Fetching user spaces')
       expect(mockLogger.info).toHaveBeenCalledWith('✅ [Dart AI] Found 1 spaces')
@@ -160,16 +177,16 @@ describe('DartAIService Unit Tests', () => {
         },
       })
 
-      await expect(dartAIService.getSpaces()).rejects.toThrow('Permission denied')
+      await expect(dartAIService.getSpaces()).rejects.toThrow('Failed to fetch spaces')
     })
 
-    it('should throw error when not configured', async () => {
-      delete process.env.DART_AI_API_KEY
-      const unconfiguredService = new DartAIService()
+    it('should handle server error', async () => {
+      mockAxiosClient.get.mockRejectedValueOnce({
+        isAxiosError: true,
+        response: { status: 500, data: { error: 'Server error' } },
+      })
 
-      await expect(unconfiguredService.getSpaces()).rejects.toThrow('Dart AI API key not configured')
-
-      process.env.DART_AI_API_KEY = testApiKey
+      await expect(dartAIService.getSpaces()).rejects.toThrow('Server error')
     })
   })
 
@@ -179,13 +196,13 @@ describe('DartAIService Unit Tests', () => {
         mockAxiosClient.get.mockResolvedValueOnce({
           data: {
             success: true,
-            data: { tasks: [mockTask] },
+            data: [mockTask],
           },
         })
 
         const tasks = await dartAIService.getTasks()
 
-        expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces/default/tasks')
+        expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/tasks/default')
         expect(tasks).toEqual([mockTask])
       })
 
@@ -193,13 +210,13 @@ describe('DartAIService Unit Tests', () => {
         mockAxiosClient.get.mockResolvedValueOnce({
           data: {
             success: true,
-            data: { tasks: [mockTask] },
+            data: [mockTask],
           },
         })
 
         const tasks = await dartAIService.getTasks('custom-space')
 
-        expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces/custom-space/tasks')
+        expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/tasks/custom-space')
         expect(tasks).toEqual([mockTask])
       })
     })
@@ -215,7 +232,7 @@ describe('DartAIService Unit Tests', () => {
 
         const task = await dartAIService.getTask('task-abc123')
 
-        expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces/default/tasks/task-abc123')
+        expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/tasks/default/task-abc123')
         expect(task).toEqual(mockTask)
         expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Fetching task: task-abc123')
         expect(mockLogger.info).toHaveBeenCalledWith('✅ [Dart AI] Task found: Unit Test Task')
@@ -251,7 +268,7 @@ describe('DartAIService Unit Tests', () => {
 
         const task = await dartAIService.createTask(taskData)
 
-        expect(mockAxiosClient.post).toHaveBeenCalledWith('/v0/spaces/default/tasks', taskData)
+        expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/tasks/default', taskData)
         expect(task.title).toBe(taskData.title)
         expect(task.description).toBe(taskData.description)
         expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Creating task: New Task')
@@ -281,7 +298,7 @@ describe('DartAIService Unit Tests', () => {
 
         const task = await dartAIService.createTask(taskData, 'custom-space')
 
-        expect(mockAxiosClient.post).toHaveBeenCalledWith('/v0/spaces/custom-space/tasks', taskData)
+        expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/tasks/custom-space', taskData)
         expect(task.priority).toBe('high')
         expect(task.status).toBe('in_progress')
         expect(task.tags).toEqual(['urgent', 'feature'])
@@ -307,7 +324,7 @@ describe('DartAIService Unit Tests', () => {
 
         const task = await dartAIService.updateTask('task-abc123', updates)
 
-        expect(mockAxiosClient.put).toHaveBeenCalledWith('/v0/spaces/default/tasks/task-abc123', updates)
+        expect(mockAxiosClient.put).toHaveBeenCalledWith('/api/dart-ai/tasks/default/task-abc123', updates)
         expect(task.status).toBe('done')
         expect(task.priority).toBe('critical')
         expect(task.description).toBe('Updated description')
@@ -327,7 +344,7 @@ describe('DartAIService Unit Tests', () => {
 
         const task = await dartAIService.updateTaskStatus('task-abc123', newStatus)
 
-        expect(mockAxiosClient.put).toHaveBeenCalledWith('/v0/spaces/default/tasks/task-abc123', {
+        expect(mockAxiosClient.put).toHaveBeenCalledWith('/api/dart-ai/tasks/default/task-abc123', {
           status: newStatus,
         })
         expect(task.status).toBe(newStatus)
@@ -346,7 +363,7 @@ describe('DartAIService Unit Tests', () => {
 
         const task = await dartAIService.updateTaskPriority('task-abc123', newPriority)
 
-        expect(mockAxiosClient.put).toHaveBeenCalledWith('/v0/spaces/default/tasks/task-abc123', {
+        expect(mockAxiosClient.put).toHaveBeenCalledWith('/api/dart-ai/tasks/default/task-abc123', {
           priority: newPriority,
         })
         expect(task.priority).toBe(newPriority)
@@ -364,7 +381,7 @@ describe('DartAIService Unit Tests', () => {
 
         const result = await dartAIService.deleteTask('task-abc123')
 
-        expect(mockAxiosClient.delete).toHaveBeenCalledWith('/v0/spaces/default/tasks/task-abc123')
+        expect(mockAxiosClient.delete).toHaveBeenCalledWith('/api/dart-ai/tasks/default/task-abc123')
         expect(result).toBe(true)
         expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Deleting task: task-abc123')
         expect(mockLogger.info).toHaveBeenCalledWith('✅ [Dart AI] Task deleted: task-abc123')
@@ -393,20 +410,15 @@ describe('DartAIService Unit Tests', () => {
         repository: 'company/project',
       }
 
-      const expectedTaskData: CreateDartAITaskRequest = {
+      const createdTask = {
+        ...mockTask,
         title: '[GitHub #456] Bug in authentication',
-        description: '',
-        status: 'todo',
-        priority: 'medium',
-        tags: [],
         metadata: {
           github_issue: 456,
           repository: 'company/project',
           source: 'github',
         },
       }
-
-      const createdTask = { ...mockTask, ...expectedTaskData }
 
       mockAxiosClient.post.mockResolvedValueOnce({
         data: {
@@ -417,7 +429,10 @@ describe('DartAIService Unit Tests', () => {
 
       const task = await dartAIService.createTaskFromGitHubIssue(githubIssue)
 
-      expect(mockAxiosClient.post).toHaveBeenCalledWith('/v0/spaces/default/tasks', expectedTaskData)
+      expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/github-issue', {
+        issue: githubIssue,
+        spaceId: 'default',
+      })
       expect(task.title).toContain('#456')
       expect(task.title).toContain('Bug in authentication')
       expect(task.metadata).toMatchObject({
@@ -436,11 +451,10 @@ describe('DartAIService Unit Tests', () => {
         labels: ['security', 'critical', 'high'],
       }
 
-      const expectedTaskData: CreateDartAITaskRequest = {
+      const createdTask = {
+        ...mockTask,
         title: '[GitHub #789] Critical security vulnerability',
-        description: 'SQL injection found in user auth',
-        status: 'todo',
-        priority: 'high', // 'high' из labels
+        priority: 'high',
         tags: ['security', 'critical', 'high'],
         metadata: {
           github_issue: 789,
@@ -448,8 +462,6 @@ describe('DartAIService Unit Tests', () => {
           source: 'github',
         },
       }
-
-      const createdTask = { ...mockTask, ...expectedTaskData }
 
       mockAxiosClient.post.mockResolvedValueOnce({
         data: {
@@ -460,7 +472,10 @@ describe('DartAIService Unit Tests', () => {
 
       const task = await dartAIService.createTaskFromGitHubIssue(githubIssue, 'security-space')
 
-      expect(mockAxiosClient.post).toHaveBeenCalledWith('/v0/spaces/security-space/tasks', expectedTaskData)
+      expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/github-issue', {
+        issue: githubIssue,
+        spaceId: 'security-space',
+      })
       expect(task.priority).toBe('high')
       expect(task.tags).toEqual(['security', 'critical', 'high'])
     })
@@ -473,19 +488,16 @@ describe('DartAIService Unit Tests', () => {
         { id: 'ext-2', title: 'External Task 2', description: 'Desc 2', status: 'in_progress' },
       ]
 
-      // Mock getting existing tasks (empty)
-      mockAxiosClient.get.mockResolvedValueOnce({
-        data: { success: true, data: { tasks: [] } },
-      })
-
-      // Mock creating first task
+      // Mock bulk sync response
       mockAxiosClient.post.mockResolvedValueOnce({
-        data: { success: true, data: { ...mockTask, title: 'External Task 1' } },
-      })
-
-      // Mock creating second task
-      mockAxiosClient.post.mockResolvedValueOnce({
-        data: { success: true, data: { ...mockTask, title: 'External Task 2' } },
+        data: {
+          success: true,
+          data: {
+            created: 2,
+            updated: 0,
+            errors: [],
+          },
+        },
       })
 
       const result = await dartAIService.syncWithExternalSystem(externalTasks)
@@ -493,23 +505,27 @@ describe('DartAIService Unit Tests', () => {
       expect(result.created).toBe(2)
       expect(result.updated).toBe(0)
       expect(result.errors).toHaveLength(0)
-      expect(mockAxiosClient.post).toHaveBeenCalledTimes(2)
+      expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/bulk-sync', {
+        tasks: externalTasks,
+        spaceId: 'default',
+      })
     })
 
     it('should sync external tasks and update existing ones', async () => {
-      const existingTask = { ...mockTask, metadata: { external_id: 'ext-1' } }
       const externalTasks = [
         { id: 'ext-1', title: 'Updated External Task', description: 'Updated desc', status: 'done' },
       ]
 
-      // Mock getting existing tasks
-      mockAxiosClient.get.mockResolvedValueOnce({
-        data: { success: true, data: { tasks: [existingTask] } },
-      })
-
-      // Mock updating task
-      mockAxiosClient.put.mockResolvedValueOnce({
-        data: { success: true, data: { ...existingTask, title: 'Updated External Task' } },
+      // Mock bulk sync response
+      mockAxiosClient.post.mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            created: 0,
+            updated: 1,
+            errors: [],
+          },
+        },
       })
 
       const result = await dartAIService.syncWithExternalSystem(externalTasks)
@@ -517,10 +533,9 @@ describe('DartAIService Unit Tests', () => {
       expect(result.created).toBe(0)
       expect(result.updated).toBe(1)
       expect(result.errors).toHaveLength(0)
-      expect(mockAxiosClient.put).toHaveBeenCalledWith(`/v0/spaces/default/tasks/${existingTask.id}`, {
-        title: 'Updated External Task',
-        description: 'Updated desc',
-        status: 'done',
+      expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/bulk-sync', {
+        tasks: externalTasks,
+        spaceId: 'default',
       })
     })
 
@@ -529,25 +544,15 @@ describe('DartAIService Unit Tests', () => {
         { id: 'ext-error', title: 'Error Task', status: 'todo' },
       ]
 
-      // Mock getting existing tasks
-      mockAxiosClient.get.mockResolvedValueOnce({
-        data: { success: true, data: { tasks: [] } },
+      // Mock bulk sync error
+      mockAxiosClient.post.mockRejectedValueOnce(new Error('Sync failed'))
+
+      await expect(dartAIService.syncWithExternalSystem(externalTasks)).rejects.toThrow('Sync failed')
+
+      expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/bulk-sync', {
+        tasks: externalTasks,
+        spaceId: 'default',
       })
-
-      // Mock create task error
-      mockAxiosClient.post.mockRejectedValueOnce(new Error('Creation failed'))
-
-      const result = await dartAIService.syncWithExternalSystem(externalTasks)
-
-      expect(result.created).toBe(0)
-      expect(result.updated).toBe(0)
-      expect(result.errors).toHaveLength(1)
-      expect(result.errors[0].task).toEqual(externalTasks[0])
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        '❌ [Dart AI] Sync error for task:',
-        externalTasks[0],
-        expect.any(Error)
-      )
     })
   })
 
@@ -559,7 +564,7 @@ describe('DartAIService Unit Tests', () => {
           response: { status: 401, data: { error: 'Invalid token' } },
         })
 
-        await expect(dartAIService.getTasks()).rejects.toThrow('Invalid API key or unauthorized access')
+        await expect(dartAIService.getTasks()).rejects.toThrow('Unauthorized access to Dart AI service')
       })
 
       it('should handle 404 not found', async () => {
@@ -586,7 +591,7 @@ describe('DartAIService Unit Tests', () => {
           response: { status: 500, data: { error: 'Server crashed' } },
         })
 
-        await expect(dartAIService.getTasks()).rejects.toThrow('Dart AI server error')
+        await expect(dartAIService.getTasks()).rejects.toThrow('Server error')
       })
 
       it('should handle network errors', async () => {
@@ -596,7 +601,7 @@ describe('DartAIService Unit Tests', () => {
           message: 'Network timeout',
         })
 
-        await expect(dartAIService.getTasks()).rejects.toThrow('Network error: Unable to reach Dart AI API')
+        await expect(dartAIService.getTasks()).rejects.toThrow('Network error: Unable to reach server')
       })
 
       it('should handle request setup errors', async () => {
@@ -622,18 +627,13 @@ describe('DartAIService Unit Tests', () => {
     })
 
     describe('Configuration Errors', () => {
-      it('should throw error for all operations when not configured', async () => {
-        delete process.env.DART_AI_API_KEY
-        const unconfiguredService = new DartAIService()
+      it('should work with fallback URL when ORIGIN not configured', async () => {
+        delete process.env.ORIGIN
+        const serviceWithFallback = new DartAIService()
 
-        await expect(unconfiguredService.getSpaces()).rejects.toThrow('Dart AI API key not configured')
-        await expect(unconfiguredService.getTasks()).rejects.toThrow('Dart AI API key not configured')
-        await expect(unconfiguredService.getTask('test')).rejects.toThrow('Dart AI API key not configured')
-        await expect(unconfiguredService.createTask({ title: 'Test' })).rejects.toThrow('Dart AI API key not configured')
-        await expect(unconfiguredService.updateTask('test', {})).rejects.toThrow('Dart AI API key not configured')
-        await expect(unconfiguredService.deleteTask('test')).rejects.toThrow('Dart AI API key not configured')
+        expect(serviceWithFallback.isConfigured()).toBe(true)
 
-        process.env.DART_AI_API_KEY = testApiKey
+        process.env.ORIGIN = testServerUrl
       })
     })
   })
@@ -643,57 +643,57 @@ describe('DartAIService Unit Tests', () => {
       const successResponse = { data: { success: true, data: mockTask } }
 
       // Test GET methods
-      mockAxiosClient.get.mockResolvedValueOnce({ data: { success: true, data: { spaces: [] } } })
+      mockAxiosClient.get.mockResolvedValueOnce({ data: { success: true, data: [] } })
       await dartAIService.getSpaces()
-      expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces')
+      expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/spaces')
 
-      mockAxiosClient.get.mockResolvedValueOnce({ data: { success: true, data: { tasks: [] } } })
+      mockAxiosClient.get.mockResolvedValueOnce({ data: { success: true, data: [] } })
       await dartAIService.getTasks()
-      expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces/default/tasks')
+      expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/tasks/default')
 
       mockAxiosClient.get.mockResolvedValueOnce(successResponse)
       await dartAIService.getTask('test')
-      expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces/default/tasks/test')
+      expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/tasks/default/test')
 
       // Test POST method
       mockAxiosClient.post.mockResolvedValueOnce(successResponse)
       await dartAIService.createTask({ title: 'Test' })
-      expect(mockAxiosClient.post).toHaveBeenCalledWith('/v0/spaces/default/tasks', { title: 'Test' })
+      expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/tasks/default', { title: 'Test' })
 
       // Test PUT method
       mockAxiosClient.put.mockResolvedValueOnce(successResponse)
       await dartAIService.updateTask('test', { status: 'done' })
-      expect(mockAxiosClient.put).toHaveBeenCalledWith('/v0/spaces/default/tasks/test', { status: 'done' })
+      expect(mockAxiosClient.put).toHaveBeenCalledWith('/api/dart-ai/tasks/default/test', { status: 'done' })
 
       // Test DELETE method
       mockAxiosClient.delete.mockResolvedValueOnce({ data: { success: true, data: { deleted: true } } })
       await dartAIService.deleteTask('test')
-      expect(mockAxiosClient.delete).toHaveBeenCalledWith('/v0/spaces/default/tasks/test')
+      expect(mockAxiosClient.delete).toHaveBeenCalledWith('/api/dart-ai/tasks/default/test')
     })
 
     it('should use correct space IDs in requests', async () => {
       const customSpaceId = 'my-custom-space'
       const successResponse = { data: { success: true, data: mockTask } }
 
-      mockAxiosClient.get.mockResolvedValue({ data: { success: true, data: { tasks: [] } } })
+      mockAxiosClient.get.mockResolvedValue({ data: { success: true, data: [] } })
       mockAxiosClient.post.mockResolvedValue(successResponse)
       mockAxiosClient.put.mockResolvedValue(successResponse)
       mockAxiosClient.delete.mockResolvedValue({ data: { success: true, data: { deleted: true } } })
 
       await dartAIService.getTasks(customSpaceId)
-      expect(mockAxiosClient.get).toHaveBeenCalledWith(`/v0/spaces/${customSpaceId}/tasks`)
+      expect(mockAxiosClient.get).toHaveBeenCalledWith(`/api/dart-ai/tasks/${customSpaceId}`)
 
       await dartAIService.getTask('test', customSpaceId)
-      expect(mockAxiosClient.get).toHaveBeenCalledWith(`/v0/spaces/${customSpaceId}/tasks/test`)
+      expect(mockAxiosClient.get).toHaveBeenCalledWith(`/api/dart-ai/tasks/${customSpaceId}/test`)
 
       await dartAIService.createTask({ title: 'Test' }, customSpaceId)
-      expect(mockAxiosClient.post).toHaveBeenCalledWith(`/v0/spaces/${customSpaceId}/tasks`, { title: 'Test' })
+      expect(mockAxiosClient.post).toHaveBeenCalledWith(`/api/dart-ai/tasks/${customSpaceId}`, { title: 'Test' })
 
       await dartAIService.updateTask('test', { status: 'done' }, customSpaceId)
-      expect(mockAxiosClient.put).toHaveBeenCalledWith(`/v0/spaces/${customSpaceId}/tasks/test`, { status: 'done' })
+      expect(mockAxiosClient.put).toHaveBeenCalledWith(`/api/dart-ai/tasks/${customSpaceId}/test`, { status: 'done' })
 
       await dartAIService.deleteTask('test', customSpaceId)
-      expect(mockAxiosClient.delete).toHaveBeenCalledWith(`/v0/spaces/${customSpaceId}/tasks/test`)
+      expect(mockAxiosClient.delete).toHaveBeenCalledWith(`/api/dart-ai/tasks/${customSpaceId}/test`)
     })
   })
 })

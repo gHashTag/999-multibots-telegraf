@@ -12,10 +12,10 @@ import {
 
 // Mock переменных окружения для тестов
 const originalEnv = process.env
-const testApiKey = 'test_dart_ai_api_key_12345'
+const testServerUrl = 'http://localhost:2999'
 
 beforeAll(() => {
-  process.env.DART_AI_API_KEY = testApiKey
+  process.env.ORIGIN = testServerUrl
 })
 
 afterAll(() => {
@@ -58,6 +58,27 @@ mock.module('../../src/helpers/centralizedLanguage', () => ({
 
 mock.module('../../src/utils/logger', () => ({
   logger: mockLogger,
+}))
+
+// Mock config module
+mock.module('../../src/config', () => ({
+  ORIGIN: testServerUrl,
+  SUPABASE_URL: 'https://test-project.supabase.co',
+  SUPABASE_SERVICE_KEY: 'test-service-key',
+  SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
+  isSupabaseConfigured: true,
+}))
+
+// Mock Supabase library to prevent initialization errors
+mock.module('@supabase/supabase-js', () => ({
+  createClient: mock(() => ({
+    from: mock(() => ({
+      select: mock(() => ({
+        data: [],
+        error: null,
+      })),
+    })),
+  })),
 }))
 
 // Тестовые данные
@@ -139,9 +160,8 @@ describe('Dart AI Integration Tests', () => {
 
     it('should create HTTP client with correct configuration', () => {
       expect(mockAxiosCreate).toHaveBeenCalledWith({
-        baseURL: 'https://api.dart.ai',
+        baseURL: testServerUrl,
         headers: {
-          'Authorization': `Bearer ${testApiKey}`,
           'Content-Type': 'application/json',
         },
         timeout: 30000,
@@ -154,13 +174,13 @@ describe('Dart AI Integration Tests', () => {
       mockAxiosClient.get.mockResolvedValueOnce({
         data: {
           success: true,
-          data: { spaces: mockDartAISpaces },
+          data: mockDartAISpaces,
         },
       })
 
       const spaces = await dartAIService.getSpaces()
 
-      expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces')
+      expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/spaces')
       expect(spaces).toEqual(mockDartAISpaces)
       expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Fetching user spaces')
       expect(mockLogger.info).toHaveBeenCalledWith('✅ [Dart AI] Found 2 spaces')
@@ -175,7 +195,7 @@ describe('Dart AI Integration Tests', () => {
         },
       })
 
-      await expect(dartAIService.getSpaces()).rejects.toThrow('Invalid API key or unauthorized access')
+      await expect(dartAIService.getSpaces()).rejects.toThrow('Unauthorized access to Dart AI service')
     })
   })
 
@@ -184,13 +204,13 @@ describe('Dart AI Integration Tests', () => {
       mockAxiosClient.get.mockResolvedValueOnce({
         data: {
           success: true,
-          data: { tasks: [mockDartAITask] },
+          data: [mockDartAITask],
         },
       })
 
       const tasks = await dartAIService.getTasks('default')
 
-      expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces/default/tasks')
+      expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/tasks/default')
       expect(tasks).toEqual([mockDartAITask])
       expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Fetching tasks from space: default')
       expect(mockLogger.info).toHaveBeenCalledWith('✅ [Dart AI] Found 1 tasks')
@@ -206,7 +226,7 @@ describe('Dart AI Integration Tests', () => {
 
       const task = await dartAIService.getTask('test-task-123')
 
-      expect(mockAxiosClient.get).toHaveBeenCalledWith('/v0/spaces/default/tasks/test-task-123')
+      expect(mockAxiosClient.get).toHaveBeenCalledWith('/api/dart-ai/tasks/default/test-task-123')
       expect(task).toEqual(mockDartAITask)
       expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Fetching task: test-task-123')
       expect(mockLogger.info).toHaveBeenCalledWith('✅ [Dart AI] Task found: Test Task')
@@ -230,7 +250,7 @@ describe('Dart AI Integration Tests', () => {
 
       const task = await dartAIService.createTask(createTaskData)
 
-      expect(mockAxiosClient.post).toHaveBeenCalledWith('/v0/spaces/default/tasks', createTaskData)
+      expect(mockAxiosClient.post).toHaveBeenCalledWith('/api/dart-ai/tasks/default', createTaskData)
       expect(task.title).toBe(createTaskData.title)
       expect(task.priority).toBe(createTaskData.priority)
       expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Creating task: New Test Task')
@@ -253,7 +273,7 @@ describe('Dart AI Integration Tests', () => {
 
       const task = await dartAIService.updateTask('test-task-123', updateData)
 
-      expect(mockAxiosClient.put).toHaveBeenCalledWith('/v0/spaces/default/tasks/test-task-123', updateData)
+      expect(mockAxiosClient.put).toHaveBeenCalledWith('/api/dart-ai/tasks/default/test-task-123', updateData)
       expect(task.status).toBe('done')
       expect(task.description).toBe('Updated task description')
       expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Updating task: test-task-123')
@@ -269,7 +289,7 @@ describe('Dart AI Integration Tests', () => {
 
       const result = await dartAIService.deleteTask('test-task-123')
 
-      expect(mockAxiosClient.delete).toHaveBeenCalledWith('/v0/spaces/default/tasks/test-task-123')
+      expect(mockAxiosClient.delete).toHaveBeenCalledWith('/api/dart-ai/tasks/default/test-task-123')
       expect(result).toBe(true)
       expect(mockLogger.info).toHaveBeenCalledWith('🎯 [Dart AI] Deleting task: test-task-123')
       expect(mockLogger.info).toHaveBeenCalledWith('✅ [Dart AI] Task deleted: test-task-123')
@@ -289,7 +309,7 @@ describe('Dart AI Integration Tests', () => {
 
       const task = await dartAIService.updateTaskStatus('test-task-123', 'in_progress')
 
-      expect(mockAxiosClient.put).toHaveBeenCalledWith('/v0/spaces/default/tasks/test-task-123', {
+      expect(mockAxiosClient.put).toHaveBeenCalledWith('/api/dart-ai/tasks/default/test-task-123', {
         status: 'in_progress',
       })
       expect(task.status).toBe('in_progress')
@@ -307,7 +327,7 @@ describe('Dart AI Integration Tests', () => {
 
       const task = await dartAIService.updateTaskPriority('test-task-123', 'critical')
 
-      expect(mockAxiosClient.put).toHaveBeenCalledWith('/v0/spaces/default/tasks/test-task-123', {
+      expect(mockAxiosClient.put).toHaveBeenCalledWith('/api/dart-ai/tasks/default/test-task-123', {
         priority: 'critical',
       })
       expect(task.priority).toBe('critical')
@@ -365,7 +385,7 @@ describe('Dart AI Integration Tests', () => {
         message: 'Network Error',
       })
 
-      await expect(dartAIService.getTasks()).rejects.toThrow('Network error: Unable to reach Dart AI API')
+      await expect(dartAIService.getTasks()).rejects.toThrow('Network error: Unable to reach server')
     })
 
     it('should handle rate limiting', async () => {
@@ -389,7 +409,7 @@ describe('Dart AI Integration Tests', () => {
         },
       })
 
-      await expect(dartAIService.getTasks()).rejects.toThrow('Dart AI server error')
+      await expect(dartAIService.getTasks()).rejects.toThrow('Server error')
     })
   })
 
@@ -407,7 +427,7 @@ describe('Dart AI Integration Tests', () => {
       mockAxiosClient.get.mockResolvedValueOnce({
         data: {
           success: true,
-          data: { spaces: mockDartAISpaces },
+          data: mockDartAISpaces,
         },
       })
 
@@ -506,11 +526,7 @@ describe('Dart AI Integration Tests', () => {
       )
     })
 
-    it('should handle error when API key not configured', async () => {
-      // Временно убираем API ключ
-      const originalApiKey = process.env.DART_AI_API_KEY
-      delete process.env.DART_AI_API_KEY
-
+    it('should handle API server error', async () => {
       const ctx = makeMockContext()
       ctx.message = {
         message_id: 1,
@@ -520,17 +536,16 @@ describe('Dart AI Integration Tests', () => {
         from: ctx.from,
       }
 
-      const unconfiguredService = new DartAIService()
-      expect(unconfiguredService.isConfigured()).toBe(false)
+      mockAxiosClient.get.mockRejectedValueOnce({
+        isAxiosError: true,
+        response: { status: 500, data: { error: 'Server error' } },
+      })
 
       await handleDartAICommand(ctx)
 
       expect(ctx.reply).toHaveBeenCalledWith(
-        '❌ Dart AI не настроен. Требуется переменная окружения DART_AI_API_KEY'
+        expect.stringContaining('❌ Ошибка получения пространств:')
       )
-
-      // Восстанавливаем API ключ
-      process.env.DART_AI_API_KEY = originalApiKey
     })
   })
 })
