@@ -325,19 +325,8 @@ textToVideoWizard.enter(async (ctx) => {
     timestamp: new Date().toISOString()
   })
   
-  // 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отправляем приветственное сообщение сразу
-  // чтобы инициировать первый шаг wizard'а
-  const isRu = ctx.session?.language === 'ru' || ctx.from?.language_code === 'ru'
-  
-  console.log('🎬 [WIZARD] Sending welcome message to trigger first step...')
-  
-  await ctx.reply(
-    isRu 
-      ? '🎥 Добро пожаловать в генератор видео из текста!\n\nВыберите модель и формат:'
-      : '🎥 Welcome to text-to-video generator!\n\nChoose model and format:'
-  )
-  
-  console.log('🎬 [WIZARD] Welcome message sent, wizard should proceed to first step')
+  // ИСПРАВЛЕНИЕ: убираем лишнее сообщение, wizard сам покажет кнопки в первом шаге
+  console.log('🎬 [WIZARD] Wizard entered, first step will show model selection buttons')
 })
 
 // Обработчик выхода из wizard
