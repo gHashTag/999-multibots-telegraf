@@ -21,6 +21,8 @@ import { setupInteractiveStats } from './commands/interactiveStatsCommand'
 import {
   handleAddBalanceCommand,
   handleCheckBalanceCommand,
+  handleDartAICommand,
+  handleCreateDartAITaskFromGithub,
 } from './handlers/adminCommands'
 // Импортируем команду анализа расходов
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
@@ -564,6 +566,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // 👑 АДМИНСКИЕ КОМАНДЫ
     bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
     bot.command('checkbalance', requireAdmin(), handleCheckBalanceCommand)
+    // 🎯 DART AI TASK MANAGER
+    bot.command('dartai', requireAdmin(), handleDartAICommand)
+    bot.command('dartai_github', requireAdmin(), handleCreateDartAITaskFromGithub)
 
     // 🤖 АВТОФИКСЕР КОМАНДЫ
     setupAutoFixerCommands(bot)

@@ -5,6 +5,12 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
+// Экспортируем команды Dart AI
+export { 
+  handleDartAICommand, 
+  handleCreateDartAITaskFromGithub 
+} from './dartAIAdminCommands'
+
 // Список админов (можно вынести в конфиг)
 const ADMIN_IDS = [144022504, 1254048880, 352374518, 1852726961] // Ваши админ ID
 
