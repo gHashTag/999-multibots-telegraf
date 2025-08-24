@@ -33,7 +33,25 @@ export async function handleTextToVideoDirect(
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
   const is_ru = isRussianFromState(ctx)
-  const bot_name = ctx.botInfo?.username || 'unknown_bot'
+  
+  // Получаем bot_name с проверкой доступности бота
+  let bot_name = ctx.botInfo?.username || 'neuro_blogger_bot'
+  
+  // Проверяем, что бот существует и доступен, если нет - используем fallback
+  try {
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName(bot_name)
+    if (!botResult.bot) {
+      logger.warn(`[handleTextToVideoDirect] Bot ${bot_name} not found, using fallback`, {
+        original_bot_name: bot_name,
+        fallback: 'neuro_blogger_bot'
+      })
+      bot_name = 'neuro_blogger_bot'
+    }
+  } catch (error) {
+    logger.error(`[handleTextToVideoDirect] Error checking bot availability`, { error, bot_name })
+    bot_name = 'neuro_blogger_bot'
+  }
 
   // Получаем корректную длительность для модели
   const validDuration = getValidDuration(modelId, duration)
