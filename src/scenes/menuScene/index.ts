@@ -25,8 +25,25 @@ import { getBotNameByToken } from '@/core/bot'
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
 
-  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MENUSCENE
+  // 🚨 КРИТИЧЕСКАЯ ПРОВЕРКА: НЕ обрабатываем если пользователь УЖЕ в другой сцене!
+  const currentSceneId = ctx.scene.current?.id
   const telegramId = ctx.from?.id?.toString()
+  
+  if (currentSceneId !== ModeEnum.MainMenu) {
+    console.log(`🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`, {
+      telegramId,
+      currentSceneId,
+      mainMenuId: ModeEnum.MainMenu
+    })
+    return // НЕ обрабатываем, если пользователь в другой сцене
+  }
+
+  console.log(`✅ [menuCommandStep] User is in main menu scene, processing menuCommand`, {
+    telegramId,
+    currentSceneId
+  })
+
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MENUSCENE
   logger.info(`[menuCommandStep] 🎭 SCENE STARTED:`, {
     telegramId,
     sessionLanguage: ctx.session?.userLanguage,
@@ -81,7 +98,9 @@ const menuCommandStep = async (ctx: MyContext) => {
       translationKey = 'digitalAvatar' // Для STARS и остальных
     }
     logger.info(
-      `[menuCommandStep] Subscription: ${newSubscription || 'None'}. Using translation key: '${translationKey}'`
+      `[menuCommandStep] Subscription: ${
+        newSubscription || 'None'
+      }. Using translation key: '${translationKey}'`
     )
 
     // --- Get Translation using the determined key ---
@@ -131,11 +150,17 @@ const menuCommandStep = async (ctx: MyContext) => {
       translation.trim() !== ''
     ) {
       logger.info(
-        `[menuCommandStep] Sending DB message: "${message.substring(0, 50)}...", Photo URL: ${photo_url}`
+        `[menuCommandStep] Sending DB message: "${message.substring(
+          0,
+          50
+        )}...", Photo URL: ${photo_url}`
       )
     } else {
       logger.info(
-        `[menuCommandStep] Sending FALLBACK message: "${(isRu ? '🏠 Главное меню\\nВыберите нужный раздел 👇' : '🏠 Main Menu\\nSelect the section 👇').substring(0, 50)}...", Photo URL: null`
+        `[menuCommandStep] Sending FALLBACK message: "${(isRu
+          ? '🏠 Главное меню\\nВыберите нужный раздел 👇'
+          : '🏠 Main Menu\\nSelect the section 👇'
+        ).substring(0, 50)}...", Photo URL: null`
       )
     }
 
@@ -477,8 +502,26 @@ const menuNextStep = async (ctx: MyContext) => {
       return // Позволяем глобальным обработчикам команд обработать это
     }
 
+    // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ вызываем handleMenu, если пользователь уже в другой сцене
+    // Проблема: после входа в wizard, пользователь получает ответ первого шага, 
+    // но menuScene продолжает обрабатывать это как новую команду
+    const currentSceneId = ctx.scene.current?.id
+    console.log('🎯 URGENT DEBUG: menuNextStep called!', {
+      currentSceneId,
+      text: text.substring(0, 50),
+      telegramId: ctx.from?.id
+    })
+    
+    if (currentSceneId !== ModeEnum.MainMenu) {
+      logger.info(
+        `[menuNextStep] User is in different scene (${currentSceneId}), NOT calling handleMenu`,
+        { telegramId: ctx.from?.id, currentSceneId, text: text.substring(0, 50) }
+      )
+      return // НЕ обрабатываем, если пользователь в другой сцене
+    }
+
     logger.info(
-      `[menuNextStep] Forwarding text message to handleMenu for potential button match: ${text}`
+      `[menuNextStep] User still in menuScene, forwarding to handleMenu: ${text}`
     )
     await handleMenu(ctx)
   } else {
