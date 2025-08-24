@@ -22,8 +22,8 @@ export class DartAIService {
   private readonly defaultSpace = 'default'
 
   constructor() {
-    // ПРАВИЛЬНЫЙ продакшн URL (другой агент дал неверный!)
-    this.baseUrl = 'https://ai-server-production-production-8e2d.up.railway.app'
+    // ПРАВИЛЬНЫЙ продакшн URL (из deploy.yml)
+    this.baseUrl = 'https://999-multibots-u14194.vm.elestio.app'
   }
 
   /**
