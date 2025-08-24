@@ -130,14 +130,14 @@ function parseModelSelection(buttonText: string): {
 
     // УПРОЩЕННЫЙ парсинг по ключевым словам
     if (buttonText.includes('Veo 3 Fast')) {
-      return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 }
+      return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
     }
     if (buttonText.includes('Veo 3')) {
-      return { modelId: 'kie-veo-3', aspectRatio, duration: 8, cost: 202 }
+      return { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
     }
     if (buttonText.includes('Runway Aleph')) {
       return {
-        modelId: 'kie-runway-aleph',
+        modelId: 'runway-aleph',
         aspectRatio,
         duration: 6,
         cost: 182,
@@ -366,6 +366,15 @@ textToVideoWizard.enter(async ctx => {
     // Initialize cursor to step 0 (as expected by tests)
     console.log('🎬 [WIZARD] Setting wizard cursor to step 0')
     ctx.wizard.selectStep(0)
+    
+    // КРИТИЧЕСКИ ВАЖНО: Вызываем первый шаг вручную!
+    console.log('🎬 [WIZARD] Manually calling first step...')
+    const firstStep = textToVideoWizard.steps[0]
+    if (typeof firstStep === 'function') {
+      await firstStep(ctx, () => Promise.resolve())
+    } else {
+      console.error('🎬 [WIZARD] First step is not a function!')
+    }
   } catch (error) {
     console.error('🎬 [WIZARD] Error initializing wizard session:', error)
     logger.error('[TextToVideoWizard] Session initialization error', {
