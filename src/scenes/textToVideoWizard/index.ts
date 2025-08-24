@@ -5,15 +5,6 @@ import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
-import { 
-  safeParseTextMessage, 
-  safeParseModelConfig,
-  ParsedModelSelectionSchema,
-  PromptSchema,
-  VideoGenerationParamsSchema,
-  type ParsedModelSelection,
-  type VideoGenerationParams
-} from './schemas'
 
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
 
@@ -100,62 +91,43 @@ function createModelButton(modelId: string, aspectRatio: string, isRu: boolean):
   }
 }
 
-// Функция парсинга выбранной модели из кнопки с ZOD-ВАЛИДАЦИЕЙ
-function parseModelSelection(buttonText: string): ParsedModelSelection | null {
+// Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
+function parseModelSelection(buttonText: string): { modelId: string, aspectRatio: string, duration?: number, cost: number } | null {
   try {
-    console.log('🎬 [ZOD-PARSE] Parsing button text:', buttonText)
+    console.log('🎬 [PARSE] Parsing button text:', buttonText)
     
     // Определяем соотношение сторон по иконке
     const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
     
-    // Создаем сырые данные для валидации
-    let rawSelection = {
-      modelId: 'veo-3-fast', // fallback
-      aspectRatio,
-      duration: 8,
-      cost: 40
-    }
-    
     // УПРОЩЕННЫЙ парсинг по ключевым словам
     if (buttonText.includes('Veo 3 Fast')) {
-      rawSelection = { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
+      return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
     }
-    else if (buttonText.includes('Veo 3')) {
-      rawSelection = { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
+    if (buttonText.includes('Veo 3')) {
+      return { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
     }
-    else if (buttonText.includes('Runway Aleph')) {
-      rawSelection = { modelId: 'runway-aleph', aspectRatio, duration: 6, cost: 182 }
+    if (buttonText.includes('Runway Aleph')) {
+      return { modelId: 'runway-aleph', aspectRatio, duration: 6, cost: 182 }
     }
-    else if (buttonText.includes('Kling v1.6 Pro')) {
-      rawSelection = { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
+    if (buttonText.includes('Kling v1.6 Pro')) {
+      return { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
     }
-    else if (buttonText.includes('Minimax')) {
-      rawSelection = { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
+    if (buttonText.includes('Minimax')) {
+      return { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
     }
-    else if (buttonText.includes('Hunyuan Video Fast')) {
-      rawSelection = { modelId: 'hunyuan-video-fast', aspectRatio, duration: 5, cost: 25 }
+    if (buttonText.includes('Hunyuan Video Fast')) {
+      return { modelId: 'hunyuan-video-fast', aspectRatio, duration: 5, cost: 25 }
     }
-    else if (buttonText.includes('Wan-2.1')) {
-      rawSelection = { modelId: 'wan-text-to-video', aspectRatio, duration: 5, cost: 20 }
-    }
-    else {
-      console.warn('🎬 [ZOD-PARSE] No match found for button text:', buttonText)
-      // Используем fallback выше
+    if (buttonText.includes('Wan-2.1')) {
+      return { modelId: 'wan-text-to-video', aspectRatio, duration: 5, cost: 20 }
     }
     
-    // ZOD ВАЛИДАЦИЯ
-    const parsedResult = ParsedModelSelectionSchema.safeParse(rawSelection)
-    if (!parsedResult.success) {
-      console.error('🎬 [ZOD-PARSE] Validation failed:', parsedResult.error.issues)
-      return null
-    }
-    
-    console.log('✅ [ZOD-PARSE] Successfully parsed and validated:', parsedResult.data)
-    return parsedResult.data
+    console.warn('🎬 [PARSE] No match found for button text:', buttonText)
+    return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
     
   } catch (error) {
-    console.error('🎬 [ZOD-PARSE] Error parsing button text:', buttonText, error)
-    return null
+    console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
+    return { modelId: 'veo-3-fast', aspectRatio: '9:16', duration: 8, cost: 40 } // safe fallback
   }
 }
 
@@ -180,7 +152,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         .filter(([modelId]) => [
           'veo-3-fast', 'veo-3', 'runway-aleph',
           'kling-v1.6-pro', 'minimax', 'hunyuan-video-fast', 'wan-text-to-video'
-        ].includes(modelId))
+        ].includes(modelId)) // Оставляем только основные модели
       
       console.log('🎬 [WIZARD] Step 1: Filtered text models:', textModels.map(([id, config]) => ({ id, title: config.title })))
       
@@ -200,17 +172,60 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
-      console.log('🎬 [WIZARD] Step 1: Keyboard created')
+      console.log('🎬 [WIZARD] Step 1: Keyboard created with', keyboardRows.length, 'rows')
+      console.log('🎬 [WIZARD] Step 1: First few keyboard rows:', JSON.stringify(keyboardRows.slice(0, 3), null, 2))
 
-      await ctx.reply(
-        isRu 
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Добавляем детальную обработку ошибок для ctx.reply
+      try {
+        console.log('🎬 [WIZARD] Step 1: Attempting to send reply to user:', ctx.from?.id)
+        console.log('🎬 [WIZARD] Step 1: Context check:', {
+          hasCtx: !!ctx,
+          hasReply: !!ctx.reply,
+          hasFrom: !!ctx.from,
+          userId: ctx.from?.id,
+          chatId: ctx.chat?.id,
+          chatType: ctx.chat?.type
+        })
+        
+        const replyText = isRu 
           ? `🎥 Выберите модель и формат видео:\n\n📱 — 9:16 (вертикально)\n🖥️ — 16:9 (горизонтально)\n\n⭐ Цена в Telegram Stars`
-          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`,
-        keyboard
-      )
-      
-      console.log('🎬 [WIZARD] Step 1: Reply sent, moving to next step')
-      return ctx.wizard.next()
+          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`
+        
+        console.log('🎬 [WIZARD] Step 1: About to send reply...')
+        
+        const replyResult = await ctx.reply(replyText, keyboard)
+        
+        console.log('🎬 [WIZARD] Step 1: ✅ Reply sent successfully! Message ID:', replyResult.message_id)
+        console.log('🎬 [WIZARD] Step 1: Moving to next step...')
+        return ctx.wizard.next()
+        
+      } catch (replyError) {
+        console.error('🎬 [WIZARD] Step 1: ❌ CRITICAL ERROR - Failed to send reply:', replyError)
+        logger.error('[TextToVideoWizard] Critical error sending keyboard reply', {
+          error: replyError instanceof Error ? replyError.message : 'Unknown error',
+          stack: replyError instanceof Error ? replyError.stack : undefined,
+          userId: ctx.from?.id,
+          chatId: ctx.chat?.id,
+          keyboardRowsCount: keyboardRows.length
+        })
+        
+        // Пытаемся отправить простое сообщение об ошибке без клавиатуры
+        try {
+          console.log('🎬 [WIZARD] Step 1: Trying fallback simple reply...')
+          await ctx.reply(
+            isRu 
+              ? '❌ Произошла ошибка при загрузке меню. Попробуйте /start'
+              : '❌ Menu loading error. Try /start'
+          )
+          console.log('🎬 [WIZARD] Step 1: Fallback reply sent')
+        } catch (fallbackError) {
+          console.error('🎬 [WIZARD] Step 1: ❌ Even fallback reply failed:', fallbackError)
+        }
+        
+        // Выходим из wizard при ошибке
+        console.log('🎬 [WIZARD] Step 1: Leaving wizard due to reply error')
+        return ctx.scene.leave()
+      }
       
     } catch (error) {
       console.error('🎬 [WIZARD] Step 1 ERROR:', error)
@@ -254,17 +269,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       if (!selectedText.includes('🚀') && !selectedText.includes('⭐') && !selectedText.includes('🎯') && !selectedText.includes('💨') && !selectedText.includes('Veo') && !selectedText.includes('Kling') && !selectedText.includes('Minimax')) {
         console.log('🎬 [WIZARD] Step 2: Processing as prompt')
         
-        // ZOD ВАЛИДАЦИЯ ПРОМПТА
-        const promptValidation = PromptSchema.safeParse(selectedText.trim())
-        if (!promptValidation.success) {
-          console.error('🎬 [ZOD-PROMPT] Validation failed:', promptValidation.error.issues)
-          const errorMessage = promptValidation.error.issues[0]?.message || 'Invalid prompt'
-          await ctx.reply(isRu ? 'Описание некорректное: ' + errorMessage : 'Invalid description: ' + errorMessage)
+        const prompt = selectedText.trim()
+        
+        if (!prompt || prompt.length < 3) {
+          await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
           return
         }
-        
-        const prompt = promptValidation.data
-        console.log('✅ [ZOD-PROMPT] Prompt validated successfully:', prompt)
 
         // Получаем сохраненные параметры
         const selectedModel = ctx.session.selectedVideoModel || 'veo-3-fast'
@@ -348,8 +358,11 @@ textToVideoWizard.enter(async (ctx) => {
     timestamp: new Date().toISOString()
   })
   
-  // ИСПРАВЛЕНИЕ: убираем лишнее сообщение, wizard сам покажет кнопки в первом шаге
-  console.log('🎬 [WIZARD] Wizard entered, first step will show model selection buttons')
+  // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ устанавливаем шаг вручную! 
+  // Telegraf автоматически запускает первый шаг при входе в wizard
+  // Ручное установление шага мешает автоматическому выполнению
+  console.log('🎬 [WIZARD] Letting Telegraf handle first step execution automatically...')
+  console.log('🎬 [WIZARD] Wizard entered, first step should execute now')
 })
 
 // Обработчик выхода из wizard
