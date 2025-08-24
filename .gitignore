@@ -98,6 +98,18 @@ service-account.json
 *.crt
 *.cer
 
+# GitHub Secrets и другие секретные файлы
+.gitsecrets
+.secrets.baseline
+**/secrets/**
+**/.secrets/**
+private.key
+public.key
+id_rsa
+id_rsa.pub
+id_dsa
+id_dsa.pub
+
 # API ключи и токены (на всякий случай)
 api_keys.json
 tokens.json

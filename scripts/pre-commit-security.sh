@@ -23,18 +23,11 @@ DANGEROUS_PATTERNS=(
     "postgres://[^:]*:[^@]*@"                  # PostgreSQL with credentials
 )
 
-# Известные скомпрометированные секреты (должны быть заблокированы!)
+# Примеры паттернов для блокировки (вместо реальных секретов)
+# НИКОГДА НЕ ДОБАВЛЯЙТЕ СЮДА РЕАЛЬНЫЕ СЕКРЕТЫ!
 COMPROMISED_SECRETS=(
-    "***REMOVED_OPENAI_KEY***"
-    "***REMOVED_BOT_TOKEN***"  
-    "***REMOVED_BOT_TOKEN***"
-    "***REMOVED_BOT_TOKEN***"
-    "***REMOVED_BOT_TOKEN***"
-    "***REMOVED_BOT_TOKEN***"
-    "***REMOVED_BOT_TOKEN***" 
-    "***REMOVED_BOT_TOKEN***"
-    "***REMOVED_BOT_TOKEN***"
-    "***REMOVED_BOT_TOKEN***"
+    # Здесь должны быть только шаблоны для примера
+    # Не добавляйте сюда реальные секреты!
 )
 
 # Безопасные исключения (примеры, которые разрешены)

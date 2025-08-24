@@ -66,18 +66,13 @@ backup_dir="../$(basename $(pwd))_backup_$(date +%Y%m%d_%H%M%S)"
 cp -r . "$backup_dir"
 echo -e "${GREEN}✅ Backup создан: $backup_dir${NC}"
 
-# Скомпрометированные секреты для замены
+# Примеры секретов для замены (используйте свои реальные секреты)
+# НИКОГДА НЕ КОММИТЬТЕ РЕАЛЬНЫЕ СЕКРЕТЫ В ЭТОТ ФАЙЛ!
 declare -A SECRETS_TO_CLEAN=(
-    ["***REMOVED_OPENAI_KEY***"]="***REMOVED_OPENAI_KEY***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
-    ["***REMOVED_BOT_TOKEN***"]="***REMOVED_BOT_TOKEN***"
+    # Примеры плейсхолдеров - замените на свои реальные секреты
+    # ["YOUR_ACTUAL_SECRET_HERE"]="***REMOVED_SECRET_TYPE***"
+    # ["YOUR_BOT_TOKEN_HERE"]="***REMOVED_BOT_TOKEN***"
+    # ["YOUR_API_KEY_HERE"]="***REMOVED_API_KEY***"
 )
 
 echo -e "${YELLOW}🧹 Начинаю очистку git истории...${NC}"
