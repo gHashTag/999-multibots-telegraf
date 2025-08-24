@@ -434,8 +434,14 @@ Object.keys(FLUX_MODES).forEach(modeKey => {
 
           await ctx.editMessageText(
             isRu
-              ? `✅ *Режим:* ${modeTitle}\n🎬 *Ракурс:* ${angleLabel}\n\n📷 Отправьте ${mode.images_required === 1 ? 'изображение' : 'первое изображение'}:`
-              : `✅ *Mode:* ${modeTitle}\n🎬 *Angle:* ${angleLabel}\n\n📷 Send ${mode.images_required === 1 ? 'an image' : 'the first image'}:`,
+              ? `✅ *Режим:* ${modeTitle}\n🎬 *Ракурс:* ${angleLabel}\n\n📷 Отправьте ${
+                  mode.images_required === 1
+                    ? 'изображение'
+                    : 'первое изображение'
+                }:`
+              : `✅ *Mode:* ${modeTitle}\n🎬 *Angle:* ${angleLabel}\n\n📷 Send ${
+                  mode.images_required === 1 ? 'an image' : 'the first image'
+                }:`,
             {
               parse_mode: 'Markdown',
               reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
@@ -473,8 +479,14 @@ Object.keys(FLUX_MODES).forEach(modeKey => {
 
         await ctx.editMessageText(
           isRu
-            ? `✅ *Режим:* ${modeTitle}\n🎬 *Ракурс:* Автовыбор (адаптивный)\n\n📷 Отправьте ${mode.images_required === 1 ? 'изображение' : 'первое изображение'}:`
-            : `✅ *Mode:* ${modeTitle}\n🎬 *Angle:* Auto Select (adaptive)\n\n📷 Send ${mode.images_required === 1 ? 'an image' : 'the first image'}:`,
+            ? `✅ *Режим:* ${modeTitle}\n🎬 *Ракурс:* Автовыбор (адаптивный)\n\n📷 Отправьте ${
+                mode.images_required === 1
+                  ? 'изображение'
+                  : 'первое изображение'
+              }:`
+            : `✅ *Mode:* ${modeTitle}\n🎬 *Angle:* Auto Select (adaptive)\n\n📷 Send ${
+                mode.images_required === 1 ? 'an image' : 'the first image'
+              }:`,
           {
             parse_mode: 'Markdown',
             reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
@@ -559,8 +571,12 @@ const handleModelSelection = async (
 
   await ctx.editMessageText(
     isRu
-      ? `✅ *Выбрана модель:* FLUX Kontext ${modelType.toUpperCase()} (${model.costPerImage}⭐)\n\n📷 Теперь отправьте изображение:`
-      : `✅ *Selected model:* FLUX Kontext ${modelType.toUpperCase()} (${model.costPerImage}⭐)\n\n📷 Now send an image:`,
+      ? `✅ *Выбрана модель:* FLUX Kontext ${modelType.toUpperCase()} (${
+          model.costPerImage
+        }⭐)\n\n📷 Теперь отправьте изображение:`
+      : `✅ *Selected model:* FLUX Kontext ${modelType.toUpperCase()} (${
+          model.costPerImage
+        }⭐)\n\n📷 Now send an image:`,
     {
       parse_mode: 'Markdown',
       reply_markup: Markup.inlineKeyboard([
@@ -793,8 +809,12 @@ const requestPrompt = async (ctx: MyContext) => {
 
   await ctx.reply(
     isRu
-      ? `📝 *Опишите изменения:*\n\nТеперь опишите, что вы хотите изменить или как обработать изображение${mode ? ` в режиме "${isRu ? mode.title_ru : mode.title_en}"` : ''}.${promptExamples}\n\n🌐 *Для лучших результатов пишите на английском языке*`
-      : `📝 *Describe changes:*\n\nNow describe what you want to change or how to process the image${mode ? ` in "${isRu ? mode.title_ru : mode.title_en}" mode` : ''}.${promptExamples}\n\n🌐 *For best results, write in English*`,
+      ? `📝 *Опишите изменения:*\n\nТеперь опишите, что вы хотите изменить или как обработать изображение${
+          mode ? ` в режиме "${isRu ? mode.title_ru : mode.title_en}"` : ''
+        }.${promptExamples}\n\n🌐 *Для лучших результатов пишите на английском языке*`
+      : `📝 *Describe changes:*\n\nNow describe what you want to change or how to process the image${
+          mode ? ` in "${isRu ? mode.title_ru : mode.title_en}" mode` : ''
+        }.${promptExamples}\n\n🌐 *For best results, write in English*`,
     {
       parse_mode: 'Markdown',
       reply_markup: Markup.inlineKeyboard([
@@ -1320,7 +1340,9 @@ const handleCameraSetting = async (
 
   await ctx.editMessageText(
     isRu
-      ? `✅ *Выбрана настройка камеры:* ${settingDescription?.ru || settingValue}
+      ? `✅ *Выбрана настройка камеры:* ${
+          settingDescription?.ru || settingValue
+        }
 
 🎬 Отличный выбор! Эта настройка будет применена к вашему изображению.
 

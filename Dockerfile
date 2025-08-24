@@ -4,7 +4,7 @@ FROM node:20-alpine as builder
 WORKDIR /app
 #
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Убедимся, что tsc-alias установлен глобально для сборки
 RUN npm install -g tsc-alias
@@ -53,7 +53,7 @@ RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
 COPY package*.json ./
 
 # При установке пропускаем скрипт prepare, который запускает husky install
-RUN npm install --omit=dev --ignore-scripts
+RUN npm install --omit=dev --ignore-scripts --legacy-peer-deps
 
 # Копируем только собранные файлы из этапа сборки
 COPY --from=builder /app/dist ./dist/
