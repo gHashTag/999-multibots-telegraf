@@ -5,6 +5,15 @@ import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { 
+  safeParseTextMessage, 
+  safeParseModelConfig,
+  ParsedModelSelectionSchema,
+  PromptSchema,
+  VideoGenerationParamsSchema,
+  type ParsedModelSelection,
+  type VideoGenerationParams
+} from './schemas'
 
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
 
@@ -91,53 +100,62 @@ function createModelButton(modelId: string, aspectRatio: string, isRu: boolean):
   }
 }
 
-// Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
-function parseModelSelection(buttonText: string): {
-  modelId: string
-  aspectRatio: string
-  duration?: number
-  cost: number
-} | null {
+// Функция парсинга выбранной модели из кнопки с ZOD-ВАЛИДАЦИЕЙ
+function parseModelSelection(buttonText: string): ParsedModelSelection | null {
   try {
-    console.log('🎬 [PARSE] Parsing button text:', buttonText)
+    console.log('🎬 [ZOD-PARSE] Parsing button text:', buttonText)
     
     // Определяем соотношение сторон по иконке
     const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
     
+    // Создаем сырые данные для валидации
+    let rawSelection = {
+      modelId: 'veo-3-fast', // fallback
+      aspectRatio,
+      duration: 8,
+      cost: 40
+    }
+    
     // УПРОЩЕННЫЙ парсинг по ключевым словам
     if (buttonText.includes('Veo 3 Fast')) {
-      return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
+      rawSelection = { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
     }
-    if (buttonText.includes('Veo 3')) {
-      return { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
+    else if (buttonText.includes('Veo 3')) {
+      rawSelection = { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
     }
-    if (buttonText.includes('Runway Aleph')) {
-      return {
-        modelId: 'runway-aleph',
-        aspectRatio,
-        duration: 6,
-        cost: 182,
-      }
+    else if (buttonText.includes('Runway Aleph')) {
+      rawSelection = { modelId: 'runway-aleph', aspectRatio, duration: 6, cost: 182 }
     }
-    if (buttonText.includes('Kling v1.6 Pro')) {
-      return { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
+    else if (buttonText.includes('Kling v1.6 Pro')) {
+      rawSelection = { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
     }
-    if (buttonText.includes('Minimax')) {
-      return { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
+    else if (buttonText.includes('Minimax')) {
+      rawSelection = { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
     }
-    if (buttonText.includes('Hunyuan Video Fast')) {
-      return { modelId: 'hunyuan-video-fast', aspectRatio, duration: 5, cost: 25 }
+    else if (buttonText.includes('Hunyuan Video Fast')) {
+      rawSelection = { modelId: 'hunyuan-video-fast', aspectRatio, duration: 5, cost: 25 }
     }
-    if (buttonText.includes('Wan-2.1')) {
-      return { modelId: 'wan-text-to-video', aspectRatio, duration: 5, cost: 20 }
+    else if (buttonText.includes('Wan-2.1')) {
+      rawSelection = { modelId: 'wan-text-to-video', aspectRatio, duration: 5, cost: 20 }
+    }
+    else {
+      console.warn('🎬 [ZOD-PARSE] No match found for button text:', buttonText)
+      // Используем fallback выше
     }
     
-    console.warn('🎬 [PARSE] No match found for button text:', buttonText)
-    return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
+    // ZOD ВАЛИДАЦИЯ
+    const parsedResult = ParsedModelSelectionSchema.safeParse(rawSelection)
+    if (!parsedResult.success) {
+      console.error('🎬 [ZOD-PARSE] Validation failed:', parsedResult.error.issues)
+      return null
+    }
+    
+    console.log('✅ [ZOD-PARSE] Successfully parsed and validated:', parsedResult.data)
+    return parsedResult.data
     
   } catch (error) {
-    console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
-    return { modelId: 'veo-3-fast', aspectRatio: '9:16', duration: 8, cost: 40 } // safe fallback
+    console.error('🎬 [ZOD-PARSE] Error parsing button text:', buttonText, error)
+    return null
   }
 }
 
@@ -236,12 +254,17 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       if (!selectedText.includes('🚀') && !selectedText.includes('⭐') && !selectedText.includes('🎯') && !selectedText.includes('💨') && !selectedText.includes('Veo') && !selectedText.includes('Kling') && !selectedText.includes('Minimax')) {
         console.log('🎬 [WIZARD] Step 2: Processing as prompt')
         
-        const prompt = selectedText.trim()
-        
-        if (!prompt || prompt.length < 3) {
-          await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
+        // ZOD ВАЛИДАЦИЯ ПРОМПТА
+        const promptValidation = PromptSchema.safeParse(selectedText.trim())
+        if (!promptValidation.success) {
+          console.error('🎬 [ZOD-PROMPT] Validation failed:', promptValidation.error.issues)
+          const errorMessage = promptValidation.error.issues[0]?.message || 'Invalid prompt'
+          await ctx.reply(isRu ? 'Описание некорректное: ' + errorMessage : 'Invalid description: ' + errorMessage)
           return
         }
+        
+        const prompt = promptValidation.data
+        console.log('✅ [ZOD-PROMPT] Prompt validated successfully:', prompt)
 
         // Получаем сохраненные параметры
         const selectedModel = ctx.session.selectedVideoModel || 'veo-3-fast'
