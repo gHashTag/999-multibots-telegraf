@@ -41,38 +41,96 @@ const createMarvelPromptByGender = (
   // Детальные промпты для каждого героя с уникальными атрибутами
   const heroPrompts: Record<string, string> = {
     // МУЖСКИЕ ГЕРОИ - БЕЗОПАСНЫЕ, НО УЗНАВАЕМЫЕ ПРОМПТЫ
-    'Человек-паук': `${baseSettings} A charismatic ${gender === 'male' ? 'man' : 'woman'} in red and blue athletic outfit with web-like patterns. ${gender === 'male' ? 'Athletic build' : 'Athletic silhouette'}. Stylish clear glasses. Dynamic pose with hands positioned as if casting webs. Background with urban cityscape elements and geometric web patterns in blue and red colors. Superhero aesthetic with confident expression and energetic atmosphere.`,
+    'Человек-паук': `${baseSettings} A charismatic ${
+      gender === 'male' ? 'man' : 'woman'
+    } in red and blue athletic outfit with web-like patterns. ${
+      gender === 'male' ? 'Athletic build' : 'Athletic silhouette'
+    }. Stylish clear glasses. Dynamic pose with hands positioned as if casting webs. Background with urban cityscape elements and geometric web patterns in blue and red colors. Superhero aesthetic with confident expression and energetic atmosphere.`,
 
-    'Железный человек': `${baseSettings} A confident ${gender === 'male' ? 'man' : 'woman'} in sleek red and gold high-tech styled outfit. ${gender === 'male' ? 'Strong jawline' : 'Elegant features'}. Circular glowing element on chest area. One hand raised with glowing palm effect. Background with technological elements and holographic displays in blue and gold. Modern tech aesthetic with sharp, clean lines.`,
+    'Железный человек': `${baseSettings} A confident ${
+      gender === 'male' ? 'man' : 'woman'
+    } in sleek red and gold high-tech styled outfit. ${
+      gender === 'male' ? 'Strong jawline' : 'Elegant features'
+    }. Circular glowing element on chest area. One hand raised with glowing palm effect. Background with technological elements and holographic displays in blue and gold. Modern tech aesthetic with sharp, clean lines.`,
 
-    'Капитан Америка': `${baseSettings} A heroic ${gender === 'male' ? 'man' : 'woman'} in blue outfit with white star emblem. ${gender === 'male' ? 'Strong patriotic stance' : 'Confident patriotic pose'}. Holding a circular shield-like prop. Red, white and blue color palette throughout. Background with patriotic elements and geometric patterns. Classic heroic lighting with strong shadows and highlights.`,
+    'Капитан Америка': `${baseSettings} A heroic ${
+      gender === 'male' ? 'man' : 'woman'
+    } in blue outfit with white star emblem. ${
+      gender === 'male' ? 'Strong patriotic stance' : 'Confident patriotic pose'
+    }. Holding a circular shield-like prop. Red, white and blue color palette throughout. Background with patriotic elements and geometric patterns. Classic heroic lighting with strong shadows and highlights.`,
 
-    Тор: `${baseSettings} A mighty ${gender === 'male' ? 'man' : 'woman'} in Nordic-inspired outfit with flowing cape. ${gender === 'male' ? 'Powerful build' : 'Regal presence'}. Long flowing hair with golden highlights. Holding a hammer-like prop with lightning-inspired lighting effects. Background with stormy sky elements and Norse-style geometric patterns. Dramatic lighting with electric blue accents.`,
+    Тор: `${baseSettings} A mighty ${
+      gender === 'male' ? 'man' : 'woman'
+    } in Nordic-inspired outfit with flowing cape. ${
+      gender === 'male' ? 'Powerful build' : 'Regal presence'
+    }. Long flowing hair with golden highlights. Holding a hammer-like prop with lightning-inspired lighting effects. Background with stormy sky elements and Norse-style geometric patterns. Dramatic lighting with electric blue accents.`,
 
-    'Доктор Стрэндж': `${baseSettings} A mystical ${gender === 'male' ? 'man' : 'woman'} in elegant dark blue outfit with golden trim and mystical symbols. ${gender === 'male' ? 'Distinguished goatee' : 'Mystical elegance'}. Hands positioned in magical gestures with orange and golden light effects. Floating geometric mandalas and mystical symbols in background. Rich colors with deep blues, golds, and warm orange magical energy.`,
+    'Доктор Стрэндж': `${baseSettings} A mystical ${
+      gender === 'male' ? 'man' : 'woman'
+    } in elegant dark blue outfit with golden trim and mystical symbols. ${
+      gender === 'male' ? 'Distinguished goatee' : 'Mystical elegance'
+    }. Hands positioned in magical gestures with orange and golden light effects. Floating geometric mandalas and mystical symbols in background. Rich colors with deep blues, golds, and warm orange magical energy.`,
 
-    'Соколиный глаз': `${baseSettings} A skilled ${gender === 'male' ? 'man' : 'woman'} in tactical purple and black outfit with precision gear. ${gender === 'male' ? 'Sharp focused expression' : 'Precise archer stance'}. Holding a bow-like prop with arrows visible. Target-like patterns in background with purple and silver accents. Urban rooftop setting with precise lighting and clean composition.`,
+    'Соколиный глаз': `${baseSettings} A skilled ${
+      gender === 'male' ? 'man' : 'woman'
+    } in tactical purple and black outfit with precision gear. ${
+      gender === 'male' ? 'Sharp focused expression' : 'Precise archer stance'
+    }. Holding a bow-like prop with arrows visible. Target-like patterns in background with purple and silver accents. Urban rooftop setting with precise lighting and clean composition.`,
 
-    'Звёздный лорд': `${baseSettings} A charismatic ${gender === 'male' ? 'man' : 'woman'} in stylish red leather jacket with tech elements. ${gender === 'male' ? 'Confident smirk' : 'Adventure-ready pose'}. Retro-futuristic headphones around neck. Holding dual energy blaster props. Background with cosmic elements and 80s-inspired neon colors. Mix of retro and space aesthetics with pink, blue, and gold lighting.`,
+    'Звёздный лорд': `${baseSettings} A charismatic ${
+      gender === 'male' ? 'man' : 'woman'
+    } in stylish red leather jacket with tech elements. ${
+      gender === 'male' ? 'Confident smirk' : 'Adventure-ready pose'
+    }. Retro-futuristic headphones around neck. Holding dual energy blaster props. Background with cosmic elements and 80s-inspired neon colors. Mix of retro and space aesthetics with pink, blue, and gold lighting.`,
 
     // ЖЕНСКИЕ ГЕРОИ - БЕЗОПАСНЫЕ, НО УЗНАВАЕМЫЕ ПРОМПТЫ
-    'Капитан Марвел': `${baseSettings} A powerful ${gender === 'male' ? 'man' : 'woman'} in cosmic-themed outfit with red, blue and gold colors. ${gender === 'male' ? 'Cosmic power stance' : 'Strong cosmic warrior pose'}. Hands glowing with golden energy effects. Short practical hair with golden highlights. Background with cosmic elements and star patterns. Dramatic lighting with golden energy flowing around the figure.`,
+    'Капитан Марвел': `${baseSettings} A powerful ${
+      gender === 'male' ? 'man' : 'woman'
+    } in cosmic-themed outfit with red, blue and gold colors. ${
+      gender === 'male' ? 'Cosmic power stance' : 'Strong cosmic warrior pose'
+    }. Hands glowing with golden energy effects. Short practical hair with golden highlights. Background with cosmic elements and star patterns. Dramatic lighting with golden energy flowing around the figure.`,
 
-    'Скарлет Витч': `${baseSettings} A mystical ${gender === 'male' ? 'man' : 'woman'} in elegant red outfit with flowing cape and mystical accessories. ${gender === 'male' ? 'Mystical commanding presence' : 'Graceful mystical pose'}. Hands surrounded by crimson energy effects and floating particles. Long flowing hair with red highlights. Background with magical symbols and red energy patterns. Dramatic lighting with warm reds and mystical atmosphere.`,
+    'Скарлет Витч': `${baseSettings} A mystical ${
+      gender === 'male' ? 'man' : 'woman'
+    } in elegant red outfit with flowing cape and mystical accessories. ${
+      gender === 'male'
+        ? 'Mystical commanding presence'
+        : 'Graceful mystical pose'
+    }. Hands surrounded by crimson energy effects and floating particles. Long flowing hair with red highlights. Background with magical symbols and red energy patterns. Dramatic lighting with warm reds and mystical atmosphere.`,
 
-    'Алая ведьма': `${baseSettings} A magical ${gender === 'male' ? 'man' : 'woman'} in dark red mystical robes with intricate golden patterns. ${gender === 'male' ? 'Powerful sorcerer stance' : 'Enchanting magical pose'}. Hands creating swirling red energy with magical particles. Detailed mystical jewelry and accessories. Background with ancient magical symbols and swirling red energy. Rich deep colors with crimson and gold magical effects.`,
+    'Алая ведьма': `${baseSettings} A magical ${
+      gender === 'male' ? 'man' : 'woman'
+    } in dark red mystical robes with intricate golden patterns. ${
+      gender === 'male' ? 'Powerful sorcerer stance' : 'Enchanting magical pose'
+    }. Hands creating swirling red energy with magical particles. Detailed mystical jewelry and accessories. Background with ancient magical symbols and swirling red energy. Rich deep colors with crimson and gold magical effects.`,
 
-    Гамора: `${baseSettings} A fierce ${gender === 'male' ? 'man' : 'woman'} in tactical black and silver outfit with cosmic warrior elements. ${gender === 'male' ? 'Battle-ready stance' : 'Warrior goddess pose'}. Holding dual blade-like props. Short practical hair with subtle green highlights. Background with cosmic battlefield elements and purple-pink nebula effects. Dramatic sci-fi lighting with sharp contrasts.`,
+    Гамора: `${baseSettings} A fierce ${
+      gender === 'male' ? 'man' : 'woman'
+    } in tactical black and silver outfit with cosmic warrior elements. ${
+      gender === 'male' ? 'Battle-ready stance' : 'Warrior goddess pose'
+    }. Holding dual blade-like props. Short practical hair with subtle green highlights. Background with cosmic battlefield elements and purple-pink nebula effects. Dramatic sci-fi lighting with sharp contrasts.`,
 
-    Шури: `${baseSettings} A brilliant ${gender === 'male' ? 'man' : 'woman'} in advanced tech outfit with purple and gold accents inspired by African patterns. ${gender === 'male' ? 'Genius inventor pose' : 'Tech princess stance'}. Hands interacting with holographic interfaces and tech gadgets. Modern braided hairstyle with tech accessories. Background with futuristic lab elements and purple holographic displays. Clean tech aesthetic with purple and gold lighting.`,
+    Шури: `${baseSettings} A brilliant ${
+      gender === 'male' ? 'man' : 'woman'
+    } in advanced tech outfit with purple and gold accents inspired by African patterns. ${
+      gender === 'male' ? 'Genius inventor pose' : 'Tech princess stance'
+    }. Hands interacting with holographic interfaces and tech gadgets. Modern braided hairstyle with tech accessories. Background with futuristic lab elements and purple holographic displays. Clean tech aesthetic with purple and gold lighting.`,
 
-    Валькирия: `${baseSettings} A noble ${gender === 'male' ? 'man' : 'woman'} in warrior outfit with blue and silver colors and flowing cape. ${gender === 'male' ? 'Asgardian warrior stance' : 'Noble warrior queen pose'}. Holding a sword-like prop with regal bearing. Hair in warrior braids with metallic accessories. Background with Asgardian palace elements and golden architectural details. Regal lighting with blue and gold royal colors.`,
+    Валькирия: `${baseSettings} A noble ${
+      gender === 'male' ? 'man' : 'woman'
+    } in warrior outfit with blue and silver colors and flowing cape. ${
+      gender === 'male'
+        ? 'Asgardian warrior stance'
+        : 'Noble warrior queen pose'
+    }. Holding a sword-like prop with regal bearing. Hair in warrior braids with metallic accessories. Background with Asgardian palace elements and golden architectural details. Regal lighting with blue and gold royal colors.`,
   }
 
   // Если промпт для героя не найден, используем общий
   return (
     heroPrompts[heroName] ||
-    `${baseSettings} A confident ${gender === 'male' ? 'man' : 'woman'} in modern stylish outfit inspired by ${heroName}. Professional studio lighting with bright, warm tones. Clean background with subtle color effects matching ${heroName}'s signature palette. The person wears fashionable glasses and has a charismatic expression. High-quality portrait photography with premium aesthetic.`
+    `${baseSettings} A confident ${
+      gender === 'male' ? 'man' : 'woman'
+    } in modern stylish outfit inspired by ${heroName}. Professional studio lighting with bright, warm tones. Clean background with subtle color effects matching ${heroName}'s signature palette. The person wears fashionable glasses and has a charismatic expression. High-quality portrait photography with premium aesthetic.`
   )
 }
 
@@ -142,7 +200,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
         await ctx.telegram.sendMessage(
           inviteCode,
-          `🔗 Новый пользователь @${username} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${count + 1}`
+          `🔗 Новый пользователь @${username} зарегистрировался по вашей ссылке.\n🆔 Уровень: ${
+            count + 1
+          }`
         )
 
         logger.info(
@@ -513,12 +573,16 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     try {
       await ctx.reply(
         isRu
-          ? `🤖 <b>Демонстрация AI-возможностей</b>\n\n🎯 Сейчас я покажу вам как наш бот трансформирует людей!\n\n💡 <b>Выберите пример для демонстрации:</b>\nЭто лишь небольшая часть того, что умеет наш бот\n\n🌟 <b>Популярные примеры для ${gender === 'male' ? 'мужчин' : 'женщин'}:</b>\n${primaryHeroes
+          ? `🤖 <b>Демонстрация AI-возможностей</b>\n\n🎯 Сейчас я покажу вам как наш бот трансформирует людей!\n\n💡 <b>Выберите пример для демонстрации:</b>\nЭто лишь небольшая часть того, что умеет наш бот\n\n🌟 <b>Популярные примеры для ${
+              gender === 'male' ? 'мужчин' : 'женщин'
+            }:</b>\n${primaryHeroes
               .map(hero => `• Стиль "${hero}"`)
               .join(
                 '\n'
               )}\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: FLUX Kontext Max</b>`
-          : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\nThis is just a small part of what our bot can do\n\n🌟 <b>Popular examples for ${gender === 'male' ? 'men' : 'women'}:</b>\n${primaryHeroes
+          : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\nThis is just a small part of what our bot can do\n\n🌟 <b>Popular examples for ${
+              gender === 'male' ? 'men' : 'women'
+            }:</b>\n${primaryHeroes
               .map(hero => `• "${hero}" style`)
               .join(
                 '\n'
@@ -710,32 +774,32 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     const heroDisplayName = isRu
       ? selectedHero
       : selectedHero === 'Человек-паук'
-        ? 'Spider-Man'
-        : selectedHero === 'Железный человек'
-          ? 'Iron Man'
-          : selectedHero === 'Капитан Америка'
-            ? 'Captain America'
-            : selectedHero === 'Тор'
-              ? 'Thor'
-              : selectedHero === 'Доктор Стрэндж'
-                ? 'Doctor Strange'
-                : selectedHero === 'Соколиный глаз'
-                  ? 'Hawkeye'
-                  : selectedHero === 'Звёздный лорд'
-                    ? 'Star Lord'
-                    : selectedHero === 'Капитан Марвел'
-                      ? 'Captain Marvel'
-                      : selectedHero === 'Скарлет Витч'
-                        ? 'Scarlet Witch'
-                        : selectedHero === 'Алая ведьма'
-                          ? 'Wanda Maximoff'
-                          : selectedHero === 'Гамора'
-                            ? 'Gamora'
-                            : selectedHero === 'Шури'
-                              ? 'Shuri'
-                              : selectedHero === 'Валькирия'
-                                ? 'Valkyrie'
-                                : selectedHero
+      ? 'Spider-Man'
+      : selectedHero === 'Железный человек'
+      ? 'Iron Man'
+      : selectedHero === 'Капитан Америка'
+      ? 'Captain America'
+      : selectedHero === 'Тор'
+      ? 'Thor'
+      : selectedHero === 'Доктор Стрэндж'
+      ? 'Doctor Strange'
+      : selectedHero === 'Соколиный глаз'
+      ? 'Hawkeye'
+      : selectedHero === 'Звёздный лорд'
+      ? 'Star Lord'
+      : selectedHero === 'Капитан Марвел'
+      ? 'Captain Marvel'
+      : selectedHero === 'Скарлет Витч'
+      ? 'Scarlet Witch'
+      : selectedHero === 'Алая ведьма'
+      ? 'Wanda Maximoff'
+      : selectedHero === 'Гамора'
+      ? 'Gamora'
+      : selectedHero === 'Шури'
+      ? 'Shuri'
+      : selectedHero === 'Валькирия'
+      ? 'Valkyrie'
+      : selectedHero
 
     // Сообщение перед генерацией
     await ctx.reply(

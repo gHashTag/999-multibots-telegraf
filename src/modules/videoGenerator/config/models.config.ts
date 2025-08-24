@@ -233,9 +233,9 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
   },
 
-  // Kie.ai модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
-  'kie-veo-3-fast': {
-    id: 'kie-veo-3-fast',
+
+  'veo-3-fast': {
+    id: 'veo-3-fast',
     title: 'Veo 3 Fast',
     inputType: ['text', 'image'],
     description:
@@ -253,8 +253,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
     aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
   },
-  'kie-veo-3': {
-    id: 'kie-veo-3',
+  'veo-3': {
+    id: 'veo-3',
     title: 'Veo 3',
     inputType: ['text'],
     description:
@@ -271,8 +271,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
     aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
   },
-  'kie-runway-aleph': {
-    id: 'kie-runway-aleph',
+  'runway-aleph': {
+    id: 'runway-aleph',
     title: 'Runway Aleph',
     inputType: ['text', 'image'],
     description:

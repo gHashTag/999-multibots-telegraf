@@ -272,7 +272,11 @@ function createExpensesSheet(data: UserReportData) {
     ...data.outcomes.map(payment => [
       new Date(payment.payment_date).toLocaleDateString('ru-RU'),
       Math.round((payment.stars || 0) * 100) / 100,
-      `${getServiceEmoji(payment.service_type || 'unknown')} ${getServiceDisplayTitle((payment.service_type || 'unknown') as UserService)}`,
+      `${getServiceEmoji(
+        payment.service_type || 'unknown'
+      )} ${getServiceDisplayTitle(
+        (payment.service_type || 'unknown') as UserService
+      )}`,
       payment.description || '',
     ]),
   ]
@@ -306,7 +310,9 @@ function createServicesSheet(data: UserReportData) {
           : 0
 
       return [
-        `${getServiceEmoji(service)} ${getServiceDisplayTitle(service as UserService)}`,
+        `${getServiceEmoji(service)} ${getServiceDisplayTitle(
+          service as UserService
+        )}`,
         Math.round(stats.stars * 100) / 100,
         stats.count,
         `${percentage}%`,
@@ -359,13 +365,17 @@ function createHistorySheet(data: UserReportData) {
       Math.round((payment.stars || 0) * 100) / 100,
       payment.operationType === 'income'
         ? getPaymentMethodDisplay(payment)
-        : `${getServiceEmoji(payment.service_type || 'unknown')} ${getServiceDisplayTitle((payment.service_type || 'unknown') as UserService)}`,
+        : `${getServiceEmoji(
+            payment.service_type || 'unknown'
+          )} ${getServiceDisplayTitle(
+            (payment.service_type || 'unknown') as UserService
+          )}`,
       payment.description || '',
       payment.category === 'real'
         ? '💎 Реальные'
         : payment.category === 'bonus'
-          ? '🎁 Бонусы'
-          : '💸 Траты',
+        ? '🎁 Бонусы'
+        : '💸 Траты',
     ]),
   ]
 

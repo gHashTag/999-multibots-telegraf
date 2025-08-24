@@ -2,6 +2,7 @@ import { isDev } from './config'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
+// Test CI/CD pipeline: проверка работы автоматической сборки после очистки веток
 setupSafeConsoleLogging()
 
 console.log(`--- Bot Logic ---`)
@@ -303,7 +304,7 @@ async function initializeBots() {
         } else {
           // Используем webhook режим
           console.log(`🔗 Запуск бота ${botInfo.username} в webhook режиме`)
-          
+
           // Формируем правильный путь для вебхука, используя имя бота
           const webhookPath = `/${botInfo.username}` // Используем имя бота как путь
 
@@ -320,8 +321,10 @@ async function initializeBots() {
               'successful_payment' as any,
             ],
           })
-          console.log(`🚀 Бот ${botInfo.username} запущен в webhook режиме на порту ${currentPort}`)
-          
+          console.log(
+            `🚀 Бот ${botInfo.username} запущен в webhook режиме на порту ${currentPort}`
+          )
+
           await new Promise(resolve => setTimeout(resolve, 2000))
           currentPort++
         }
