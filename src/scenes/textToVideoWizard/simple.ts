@@ -231,6 +231,28 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     )
 
     try {
+      // Получаем bot_name и проверяем его доступность
+      const bot_name = ctx.botInfo?.username || 'unknown_bot'
+      
+      // Проверяем, что бот существует и настроен правильно
+      const { getBotByName } = await import('@/core/bot')
+      const botResult = getBotByName(bot_name)
+      if (!botResult.bot || botResult.error) {
+        const errorMsg = isRu 
+          ? `❌ Произошла ошибка.\n\nБот "${bot_name}" не найден или не настроен правильно.\n\nОбратитесь в техподдержку.`
+          : `❌ An error occurred.\n\nBot "${bot_name}" not found or not configured properly.\n\nPlease contact support.`
+        
+        logger.error(`[simpleTextToVideoWizard] Bot configuration error`, {
+          bot_name,
+          error: botResult.error,
+          telegram_id: ctx.from?.id.toString(),
+          username: ctx.from?.username
+        })
+        
+        await ctx.reply(errorMsg)
+        return ctx.scene.leave()
+      }
+
       // Импортируем функцию генерации видео
       const { generateTextToVideo } = await import(
         '@/services/generateTextToVideo'
@@ -244,7 +266,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
         telegram_id: ctx.from?.id.toString() || '',
         username: ctx.from?.username || 'unknown',
         is_ru: isRu,
-        bot_name: ctx.botInfo?.username || 'unknown_bot',
+        bot_name,
       })
 
       if (response.success && response.videoUrl) {
