@@ -11,7 +11,7 @@ import {
 
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
 
-// Функция для расчета стоимости в звездах из конфига (БЕЗОПАСНАЯ)
+// Функция для расчета стоимости в звездах из конфига
 function calculateStarsFromConfig(modelId: string, duration?: number): number {
   try {
     const config = VIDEO_MODELS_CONFIG[modelId]
@@ -22,13 +22,13 @@ function calculateStarsFromConfig(modelId: string, duration?: number): number {
 
     let price = config.basePrice
 
-    // Для Kling модели - цена за секунду
+    // Для моделей с ценой за секунду
     if (modelId.includes('kling') && duration && duration > 0) {
       price = price * duration
     }
 
-    // Упрощенная конвертация в звезды: price * 100 (примерно)
-    const stars = Math.max(1, Math.floor(price * 100))
+    // Конвертация в звезды: (price * 5 / 0.016) * 1.5
+    const stars = Math.floor(((price * 5) / 0.016) * 1.5)
 
     console.log(
       '🎬 [CALC] Model:',
@@ -51,7 +51,7 @@ function calculateStarsFromConfig(modelId: string, duration?: number): number {
   }
 }
 
-// Функция создания кнопки с правильной ценой и длительностью (БЕЗОПАСНАЯ)
+// Функция создания кнопки с правильной ценой из конфига
 function createModelButton(
   modelId: string,
   aspectRatio: string,
@@ -66,43 +66,21 @@ function createModelButton(
 
     const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
 
-    // УПРОЩЕННЫЕ длительности и цены
-    let durationText = ''
-    let stars = 40 // по умолчанию
-
-    switch (modelId) {
-      case 'kie-veo-3-fast':
-        durationText = ' | 8s'
-        stars = 40
-        break
-      case 'kie-veo-3':
-        durationText = ' | 8s'
-        stars = 202
-        break
-      case 'kie-runway-aleph':
-        durationText = ' | 6s'
-        stars = 182
-        break
-      case 'kling-v1.6-pro':
-        durationText = ' | ~10s'
-        stars = 60
-        break
-      case 'minimax':
-        durationText = ' | 6s'
-        stars = 50
-        break
-      case 'hunyuan-video-fast':
-        durationText = ' | 5s'
-        stars = 25
-        break
-      case 'wan-text-to-video':
-        durationText = ' | 5s'
-        stars = 20
-        break
-      default:
-        stars = calculateStarsFromConfig(modelId)
-        break
+    // Используем цены из конфига
+    let price = config.basePrice
+    if (config.priceByResolution) {
+      // Для моделей с разными разрешениями используем минимальную цену
+      price = Math.min(...Object.values(config.priceByResolution))
     }
+
+    const stars = Math.floor(((price * 5) / 0.016) * 1.5)
+
+    // Определяем длительность из описания или API конфига
+    let durationText = ''
+    if (config.description.includes('8 сек')) durationText = ' | 8s'
+    else if (config.description.includes('6 сек')) durationText = ' | 6s'
+    else if (config.description.includes('5 сек')) durationText = ' | 5s'
+    else if (config.api.input.duration) durationText = ` | ${config.api.input.duration}s`
 
     return `${config.title}${durationText} | ${aspectIcon} (${stars}⭐)`
   } catch (error) {
@@ -115,7 +93,7 @@ function createModelButton(
   }
 }
 
-// Функция парсинга выбранной модели из кнопки (УПРОЩЕННАЯ И БЕЗОПАСНАЯ)
+// Функция парсинга выбранной модели из кнопки
 function parseModelSelection(buttonText: string): {
   modelId: string
   aspectRatio: string
@@ -128,50 +106,36 @@ function parseModelSelection(buttonText: string): {
     // Определяем соотношение сторон по иконке
     const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
 
-    // УПРОЩЕННЫЙ парсинг по ключевым словам
-    if (buttonText.includes('Veo 3 Fast')) {
-      return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
-    }
-    if (buttonText.includes('Veo 3')) {
-      return { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
-    }
-    if (buttonText.includes('Runway Aleph')) {
-      return {
-        modelId: 'runway-aleph',
-        aspectRatio,
-        duration: 6,
-        cost: 182,
+    // Парсим по названию модели из конфига
+    const foundModel = Object.entries(VIDEO_MODELS_CONFIG).find(([_, config]) => 
+      buttonText.includes(config.title)
+    )
+
+    if (foundModel) {
+      const [modelId, config] = foundModel
+      let price = config.basePrice
+      if (config.priceByResolution) {
+        price = Math.min(...Object.values(config.priceByResolution))
       }
-    }
-    if (buttonText.includes('Kling v1.6 Pro')) {
-      return { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
-    }
-    if (buttonText.includes('Minimax')) {
-      return { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
-    }
-    if (buttonText.includes('Hunyuan Video Fast')) {
-      return {
-        modelId: 'hunyuan-video-fast',
-        aspectRatio,
-        duration: 5,
-        cost: 25,
-      }
-    }
-    if (buttonText.includes('Wan-2.1')) {
-      return {
-        modelId: 'wan-text-to-video',
-        aspectRatio,
-        duration: 5,
-        cost: 20,
-      }
+      
+      const stars = Math.floor(((price * 5) / 0.016) * 1.5)
+      
+      // Определяем длительность
+      let duration: number | undefined
+      if (config.api.input.duration) duration = config.api.input.duration
+      else if (config.description.includes('8 сек')) duration = 8
+      else if (config.description.includes('6 сек')) duration = 6
+      else if (config.description.includes('5 сек')) duration = 5
+
+      return { modelId, aspectRatio, duration, cost: stars }
     }
 
     console.warn('🎬 [PARSE] No match found for button text:', buttonText)
-    return { modelId: 'kie-veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
+    return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
   } catch (error) {
     console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
     return {
-      modelId: 'kie-veo-3-fast',
+      modelId: 'veo-3-fast',
       aspectRatio: '9:16',
       duration: 8,
       cost: 40,
@@ -210,13 +174,25 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      // Создаем кнопки с горизонтальными слева, вертикальными справа
       const keyboardRows: string[][] = []
-      // Создаем кнопки по 2 в ряд (для каждого соотношения сторон)
+      
+      // Собираем все кнопки по типам
+      const horizontalButtons: string[] = [] // 16:9 кнопки (слева)
+      const verticalButtons: string[] = []   // 9:16 кнопки (справа)
+      
       textModels.forEach(([modelId, config]) => {
-        const button9x16 = createModelButton(modelId, '9:16', isRu)
-        const button16x9 = createModelButton(modelId, '16:9', isRu)
-        keyboardRows.push([button9x16, button16x9])
+        horizontalButtons.push(createModelButton(modelId, '16:9', isRu))
+        verticalButtons.push(createModelButton(modelId, '9:16', isRu))
       })
+      
+      // Создаем ряды: горизонтальные слева, вертикальные справа
+      for (let i = 0; i < Math.max(horizontalButtons.length, verticalButtons.length); i++) {
+        const row: string[] = []
+        if (horizontalButtons[i]) row.push(horizontalButtons[i])
+        if (verticalButtons[i]) row.push(verticalButtons[i])
+        if (row.length > 0) keyboardRows.push(row)
+      }
 
       // Кнопка назад
       keyboardRows.push([isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'])
@@ -224,8 +200,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(
         isRu
-          ? `🎥 Выберите модель и формат видео:\n\n📱 — 9:16 (вертикально)\n🖥️ — 16:9 (горизонтально)\n\n⭐ Цена в Telegram Stars`
-          : `🎥 Choose model and video format:\n\n📱 — 9:16 (vertical)\n🖥️ — 16:9 (horizontal)\n\n⭐ Price in Telegram Stars`,
+          ? `🎥 Выберите модель и формат видео:\n\n🖥️ Горизонтальные (16:9) — слева\n📱 Вертикальные (9:16) — справа\n\n⭐ Цена в Telegram Stars`
+          : `🎥 Choose model and video format:\n\n🖥️ Horizontal (16:9) — left\n📱 Vertical (9:16) — right\n\n⭐ Price in Telegram Stars`,
         keyboard
       )
 
