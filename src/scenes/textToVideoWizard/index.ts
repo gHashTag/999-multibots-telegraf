@@ -46,41 +46,35 @@ function createModelButton(modelId: string, aspectRatio: string, isRu: boolean):
     
     const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
     
-    // УПРОЩЕННЫЕ длительности и цены
+    // Динамический расчет цены из конфига
+    let stars = Math.floor(((config.basePrice * 5) / 0.016) * 1.5)
     let durationText = ''
-    let stars = 40 // по умолчанию
     
+    // Определяем длительность для каждой модели
     switch(modelId) {
       case 'veo-3-fast':
-        durationText = ' | 8s'
-        stars = 40
-        break
       case 'veo-3':
-        durationText = ' | 8s'  
-        stars = 202
+        durationText = ' | 8s'
         break
       case 'runway-aleph':
         durationText = ' | 6s'
-        stars = 182
         break
       case 'kling-v1.6-pro':
+      case 'kling-v1.6-standard':
         durationText = ' | ~10s'
-        stars = 60
         break
       case 'minimax':
+      case 'haiper-video-2':
         durationText = ' | 6s'
-        stars = 50
         break
       case 'hunyuan-video-fast':
-        durationText = ' | 5s'
-        stars = 25
-        break
       case 'wan-text-to-video':
+      case 'wan-2.2-t2v-fast':
+      case 'seedance-1-pro':
         durationText = ' | 5s'
-        stars = 20
         break
       default:
-        stars = calculateStarsFromConfig(modelId)
+        durationText = ' | 6s' // default
         break
     }
     
@@ -99,27 +93,46 @@ function parseModelSelection(buttonText: string): { modelId: string, aspectRatio
     // Определяем соотношение сторон по иконке
     const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
     
-    // УПРОЩЕННЫЙ парсинг по ключевым словам
-    if (buttonText.includes('Veo 3 Fast')) {
-      return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 }
-    }
-    if (buttonText.includes('Veo 3')) {
-      return { modelId: 'veo-3', aspectRatio, duration: 8, cost: 202 }
-    }
-    if (buttonText.includes('Runway Aleph')) {
-      return { modelId: 'runway-aleph', aspectRatio, duration: 6, cost: 182 }
-    }
-    if (buttonText.includes('Kling v1.6 Pro')) {
-      return { modelId: 'kling-v1.6-pro', aspectRatio, duration: 10, cost: 60 }
-    }
-    if (buttonText.includes('Minimax')) {
-      return { modelId: 'minimax', aspectRatio, duration: 6, cost: 50 }
-    }
-    if (buttonText.includes('Hunyuan Video Fast')) {
-      return { modelId: 'hunyuan-video-fast', aspectRatio, duration: 5, cost: 25 }
-    }
-    if (buttonText.includes('Wan-2.1')) {
-      return { modelId: 'wan-text-to-video', aspectRatio, duration: 5, cost: 20 }
+    // Динамический парсинг по конфигу моделей
+    for (const [modelId, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
+      if (config.inputType.includes('text') && buttonText.includes(config.title)) {
+        const cost = Math.floor(((config.basePrice * 5) / 0.016) * 1.5)
+        let duration
+        
+        // Определяем длительность для каждой модели
+        switch(modelId) {
+          case 'veo-3-fast':
+          case 'veo-3':
+            duration = 8
+            break
+          case 'runway-aleph':
+            duration = 6
+            break
+          case 'kling-v1.6-pro':
+          case 'kling-v1.6-standard':
+            duration = 10
+            break
+          case 'minimax':
+            duration = 6
+            break
+          case 'hunyuan-video-fast':
+          case 'wan-text-to-video':
+          case 'wan-2.2-t2v-fast':
+            duration = 5
+            break
+          case 'haiper-video-2':
+            duration = 6
+            break
+          case 'seedance-1-pro':
+            duration = 5
+            break
+          default:
+            duration = 6 // default
+            break
+        }
+        
+        return { modelId, aspectRatio, duration, cost }
+      }
     }
     
     console.warn('🎬 [PARSE] No match found for button text:', buttonText)
@@ -149,10 +162,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Отбираем только text-to-video модели
       const textModels = Object.entries(VIDEO_MODELS_CONFIG)
         .filter(([_, config]) => config.inputType.includes('text'))
-        .filter(([modelId]) => [
-          'veo-3-fast', 'veo-3', 'runway-aleph',
-          'kling-v1.6-pro', 'minimax', 'hunyuan-video-fast', 'wan-text-to-video'
-        ].includes(modelId)) // Оставляем только основные модели
       
       console.log('🎬 [WIZARD] Step 1: Filtered text models:', textModels.map(([id, config]) => ({ id, title: config.title })))
       
