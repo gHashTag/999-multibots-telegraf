@@ -5,6 +5,15 @@ import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import {
+  validateTextToVideoSession,
+  validateVideoModel,
+  validateTextToVideoRequest,
+  TEXT_TO_VIDEO_CONSTANTS,
+  TextToVideoSessionSchema,
+  VideoModelSchema,
+} from '@/interfaces/zod/textToVideo.zod'
+import { z } from 'zod'
 
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
 
@@ -187,6 +196,20 @@ const textToVideoStep1 = async (ctx: MyContext) => {
         ctx.from?.id
       )
 
+      // Инициализируем сессию с валидацией
+      const validatedSession = validateTextToVideoSession({
+        step: 'model_selection',
+        startTime: Date.now(),
+        wizardCursor: 0,
+      })
+      ctx.session = {
+        ...ctx.session,
+        ...validatedSession
+      }
+      
+      console.log('🎬 [WIZARD] Step 1: Session initialized with ZOD validation')
+      console.log('🎬 [WIZARD] Step 1: Validated session:', validatedSession)
+
       console.log('🎬 [WIZARD] Step 1: About to detect language...')
       const isRu = isRussianFromState(ctx)
       console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
@@ -262,8 +285,21 @@ const textToVideoStep1 = async (ctx: MyContext) => {
       )
 
       console.log('🎬 [WIZARD] Step 1: ✅ REPLY SENT SUCCESSFULLY! Moving to next step...')
-      console.log('🎬 [WIZARD] Step 1: Current wizard cursor:', ctx.wizard.cursor)
+      console.log('🎬 [WIZARD] Step 1: Current wizard cursor before next():', ctx.wizard.cursor)
       console.log('🎬 [WIZARD] Step 1: Current scene:', ctx.scene.current?.id)
+      
+      // Обновляем сессию для следующего шага
+      const updatedSession = validateTextToVideoSession({
+        ...ctx.session,
+        step: 'prompt_input',
+        wizardCursor: 1,
+      })
+      ctx.session = {
+        ...ctx.session,
+        ...updatedSession
+      }
+      
+      console.log('🎬 [WIZARD] Step 1: Session updated for next step:', updatedSession)
       console.log('🎬 [WIZARD] Step 1: 🏁 STEP 1 COMPLETED SUCCESSFULLY!')
       // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ВОЗВРАЩАЕМ ctx.wizard.next()!
       return ctx.wizard.next()
@@ -284,6 +320,7 @@ const textToVideoStep2 = async (ctx: MyContext) => {
       '🎬 [WIZARD] Step 2: Processing message for user:',
       ctx.from?.id
     )
+    console.log('🎬 [WIZARD] Step 2: Current wizard cursor:', ctx.wizard.cursor)
 
     const isRu = isRussianFromState(ctx)
 
@@ -305,10 +342,24 @@ const textToVideoStep2 = async (ctx: MyContext) => {
     if (parsedModel) {
       console.log('🎬 [WIZARD] Step 2: Model selected:', parsedModel)
       
-      // Сохраняем выбранную модель в сессию
-      ctx.session.selectedModel = parsedModel.modelId
-      ctx.session.aspect_ratio = parsedModel.aspectRatio
-      ctx.session.selectedVideoCost = parsedModel.cost
+      // Валидируем выбранную модель
+      const validatedModel = validateVideoModel(parsedModel)
+      
+      // Обновляем сессию с валидацией
+      const updatedSession = validateTextToVideoSession({
+        ...ctx.session,
+        step: 'prompt_input',
+        selectedModel: validatedModel.modelId,
+        aspect_ratio: validatedModel.aspectRatio,
+        selectedVideoCost: validatedModel.cost,
+        wizardCursor: 2,
+      })
+      ctx.session = {
+        ...ctx.session,
+        ...updatedSession
+      }
+      
+      console.log('🎬 [WIZARD] Step 2: Model validated and session updated:', updatedSession)
       
       // Просим ввести промпт
       await ctx.reply(
@@ -365,6 +416,7 @@ const textToVideoStep3 = async (ctx: MyContext) => {
       '🎬 [WIZARD] Step 3: Processing prompt for user:',
       ctx.from?.id
     )
+    console.log('🎬 [WIZARD] Step 3: Current wizard cursor:', ctx.wizard.cursor)
 
     const isRu = isRussianFromState(ctx)
 
@@ -380,40 +432,79 @@ const textToVideoStep3 = async (ctx: MyContext) => {
 
     const prompt = ctx.message.text.trim()
 
-    if (!prompt || prompt.length < 3) {
+    if (!prompt || prompt.length < TEXT_TO_VIDEO_CONSTANTS.MIN_PROMPT_LENGTH) {
       await ctx.reply(
         isRu ? 'Описание слишком короткое.' : 'Description is too short.'
       )
       return
     }
 
-    // Получаем сохраненные параметры
-    const selectedModel = ctx.session.selectedModel || 'kie-veo-3-fast'
-    const aspectRatio = ctx.session.aspect_ratio || '9:16'
+    if (prompt.length > TEXT_TO_VIDEO_CONSTANTS.MAX_PROMPT_LENGTH) {
+      await ctx.reply(
+        isRu ? 'Описание слишком длинное.' : 'Description is too long.'
+      )
+      return
+    }
+
+    // Получаем сохраненные параметры и валидируем их
+    const selectedModel = ctx.session.selectedModel || TEXT_TO_VIDEO_CONSTANTS.DEFAULT_MODEL
+    const aspectRatio = ctx.session.aspect_ratio || TEXT_TO_VIDEO_CONSTANTS.DEFAULT_ASPECT_RATIO
     const cost = ctx.session.selectedVideoCost || 40
 
-    console.log('🎬 [WIZARD] Step 3: Starting generation with params:', {
-      selectedModel,
-      aspectRatio,
-      cost,
-    })
+    try {
+      // Валидируем запрос генерации
+      const validatedRequest = validateTextToVideoRequest({
+        prompt,
+        modelId: selectedModel,
+        aspectRatio,
+        user_id: ctx.from?.id?.toString() || '',
+      })
+      
+      console.log('🎬 [WIZARD] Step 3: Request validated:', validatedRequest)
+      console.log('🎬 [WIZARD] Step 3: Starting generation with params:', {
+        selectedModel,
+        aspectRatio,
+        cost,
+      })
 
-    // Генерируем видео
-    await ctx.reply(
-      isRu
-        ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
-        : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
-    )
+      // Обновляем сессию для финального шага
+      const updatedSession = validateTextToVideoSession({
+        ...ctx.session,
+        step: 'processing',
+        prompt,
+        wizardCursor: 2,
+      })
+      ctx.session = {
+        ...ctx.session,
+        ...updatedSession
+      }
 
-    const videoModelId = selectedModel as VideoModelId
-    await handleTextToVideoDirect(
-      ctx,
-      prompt,
-      videoModelId,
-      undefined, // duration
-      aspectRatio
-    )
-    console.log('🎬 [WIZARD] Video generation success!')
+      // Генерируем видео
+      await ctx.reply(
+        isRu
+          ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+          : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+      )
+
+      const videoModelId = selectedModel as VideoModelId
+      await handleTextToVideoDirect(
+        ctx,
+        prompt,
+        videoModelId,
+        undefined, // duration
+        aspectRatio
+      )
+      console.log('🎬 [WIZARD] Video generation success!')
+      
+    } catch (validationError) {
+      console.error('🎬 [WIZARD] Step 3: Validation error:', validationError)
+      await ctx.reply(
+        isRu 
+          ? '❌ Ошибка валидации данных. Попробуйте еще раз.'
+          : '❌ Data validation error. Please try again.'
+      )
+      return ctx.scene.leave()
+    }
 
     return ctx.scene.leave()
   } catch (error) {
@@ -445,15 +536,37 @@ textToVideoWizard.enter(async ctx => {
   console.log('🎬 [WIZARD] Scene ID:', ctx.scene.current?.id)
   console.log('🎬 [WIZARD] Current step:', ctx.wizard?.cursor)
 
-  logger.info('[TextToVideoWizard] Wizard entered successfully', {
-    telegramId: ctx.from?.id,
-    sceneId: ctx.scene.current?.id,
-    currentStep: ctx.wizard?.cursor,
-    timestamp: new Date().toISOString(),
-  })
+  try {
+    // Инициализируем сессию с ZOD валидацией при входе в wizard
+    const initialSession = validateTextToVideoSession({
+      step: 'model_selection',
+      startTime: Date.now(),
+      wizardCursor: 0,
+    })
+    ctx.session = {
+      ...ctx.session,
+      ...initialSession
+    }
+    
+    console.log('🎬 [WIZARD] Initial session validated and set:', initialSession)
+    
+    logger.info('[TextToVideoWizard] Wizard entered successfully', {
+      telegramId: ctx.from?.id,
+      sceneId: ctx.scene.current?.id,
+      currentStep: ctx.wizard?.cursor,
+      sessionStep: initialSession.step,
+      timestamp: new Date().toISOString(),
+    })
 
-  // Let Telegraf handle the first step automatically - don't manually call it
-  console.log('🎬 [WIZARD] Wizard entered, Telegraf will handle first step automatically')
+    // Let Telegraf handle the first step automatically - don't manually call it
+    console.log('🎬 [WIZARD] Wizard entered, Telegraf will handle first step automatically')
+  } catch (error) {
+    console.error('🎬 [WIZARD] Error initializing wizard session:', error)
+    logger.error('[TextToVideoWizard] Session initialization error', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
 })
 
 // Обработчик выхода из wizard
