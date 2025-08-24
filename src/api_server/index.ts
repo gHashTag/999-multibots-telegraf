@@ -2,6 +2,7 @@ import express from 'express'
 import healthRouter from './routes/health.routes'
 import robokassaRouter from './routes/robokassa.routes'
 import githubAutoFixerRouter from './routes/github-autofixer.routes'
+import dartAIRouter from './routes/dart-ai.routes'
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
@@ -31,6 +32,9 @@ export function startApiServer(): void {
 
   // Регистрируем маршруты для GitHub AutoFixer
   app.use('/api', githubAutoFixerRouter)
+
+  // Регистрируем маршруты для Dart AI Task Manager
+  app.use('/api', dartAIRouter)
 
   // Интеграция Inngest с API (актуальная сигнатура serve)
   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
