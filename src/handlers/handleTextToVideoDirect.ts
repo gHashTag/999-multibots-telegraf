@@ -33,7 +33,44 @@ export async function handleTextToVideoDirect(
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
   const is_ru = isRussianFromState(ctx)
+  
+  // Получаем bot_name и проверяем его доступность
   const bot_name = ctx.botInfo?.username || 'unknown_bot'
+  
+  // Проверяем, что бот существует и настроен правильно
+  try {
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName(bot_name)
+    if (!botResult.bot || botResult.error) {
+      const errorMsg = is_ru 
+        ? `❌ Произошла ошибка.\n\nБот "${bot_name}" не найден или не настроен правильно.\n\nОбратитесь в техподдержку.`
+        : `❌ An error occurred.\n\nBot "${bot_name}" not found or not configured properly.\n\nPlease contact support.`
+      
+      logger.error(`[handleTextToVideoDirect] Bot configuration error`, {
+        bot_name,
+        error: botResult.error,
+        telegram_id,
+        username
+      })
+      
+      await ctx.reply(errorMsg)
+      return
+    }
+  } catch (error) {
+    const errorMsg = is_ru 
+      ? `❌ Произошла системная ошибка.\n\nОбратитесь в техподдержку.`
+      : `❌ A system error occurred.\n\nPlease contact support.`
+    
+    logger.error(`[handleTextToVideoDirect] Critical bot system error`, { 
+      error, 
+      bot_name, 
+      telegram_id, 
+      username 
+    })
+    
+    await ctx.reply(errorMsg)
+    return
+  }
 
   // Получаем корректную длительность для модели
   const validDuration = getValidDuration(modelId, duration)
@@ -65,8 +102,12 @@ export async function handleTextToVideoDirect(
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(
     is_ru
-      ? `⏳ Начинаю генерацию видео...\n\n🤖 Модель: ${modelName}\n${validDuration ? `⏱️ Длительность: ${validDuration} сек\n` : ''}💰 Стоимость: ${price} ⭐\n\nЭто может занять несколько минут.`
-      : `⏳ Starting video generation...\n\n🤖 Model: ${modelName}\n${validDuration ? `⏱️ Duration: ${validDuration} sec\n` : ''}💰 Cost: ${price} ⭐\n\nThis may take a few minutes.`,
+      ? `⏳ Начинаю генерацию видео...\n\n🤖 Модель: ${modelName}\n${
+          validDuration ? `⏱️ Длительность: ${validDuration} сек\n` : ''
+        }💰 Стоимость: ${price} ⭐\n\nЭто может занять несколько минут.`
+      : `⏳ Starting video generation...\n\n🤖 Model: ${modelName}\n${
+          validDuration ? `⏱️ Duration: ${validDuration} sec\n` : ''
+        }💰 Cost: ${price} ⭐\n\nThis may take a few minutes.`,
     {
       reply_markup: {
         inline_keyboard: [
@@ -205,7 +246,7 @@ async function monitorVideoGeneration(
           ctx,
           statusResponse.videoUrl,
           ctx.session.videoPrompt || '',
-          (ctx.session.videoModelId as VideoModelId) || 'kie-veo-3-fast',
+          (ctx.session.videoModelId as VideoModelId) || 'veo-3-fast',
           ctx.session.videoDuration,
           messageId
         )
@@ -301,7 +342,9 @@ async function handleVideoReady(
         `🎬 ${prompt}\n\n` +
         `🤖 ${is_ru ? 'Модель' : 'Model'}: ${modelName}\n` +
         (duration
-          ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${is_ru ? 'сек' : 'sec'}\n`
+          ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${
+              is_ru ? 'сек' : 'sec'
+            }\n`
           : '') +
         `⚡ ${is_ru ? 'Сгенерировано через' : 'Generated with'} AI`,
       parse_mode: 'Markdown',
@@ -389,7 +432,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx,
         statusResponse.videoUrl,
         ctx.session.videoPrompt || '',
-        (ctx.session.videoModelId as VideoModelId) || 'kie-veo-3-fast',
+        (ctx.session.videoModelId as VideoModelId) || 'veo-3-fast',
         ctx.session.videoDuration,
         ctx.session.videoMessageId || 0
       )

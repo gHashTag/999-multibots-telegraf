@@ -21,7 +21,7 @@ interface PendingMessage {
  */
 export class NotificationHandler {
   private bot: Telegraf<MyContext>
-  private isProcessing: boolean = false
+  private isProcessing = false
 
   constructor(bot: Telegraf<MyContext>) {
     this.bot = bot

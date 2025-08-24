@@ -1,8 +1,15 @@
 import { jest, describe, beforeEach, it, expect } from '@jest/globals'
 import makeMockContext from '../utils/mockTelegrafContext'
-import { checkBalanceSceneEnterHandler, ModeEnum, modeCosts } from '../../src/scenes/checkBalanceScene'
+import {
+  checkBalanceSceneEnterHandler,
+  ModeEnum,
+  modeCosts,
+} from '../../src/scenes/checkBalanceScene'
 import { getUserBalance } from '@/core/supabase'
-import { sendBalanceMessage, sendInsufficientStarsMessage } from '@/price/helpers'
+import {
+  sendBalanceMessage,
+  sendInsufficientStarsMessage,
+} from '@/price/helpers'
 
 // Мокаем зависимости
 jest.mock('@/core/supabase', () => ({
@@ -23,7 +30,10 @@ describe('checkBalanceSceneEnterHandler', () => {
   })
 
   it('enters next scene when cost is 0', async () => {
-    const ctx = makeMockContext({}, { session: { data: '', mode: ModeEnum.Avatar } })
+    const ctx = makeMockContext(
+      {},
+      { session: { data: '', mode: ModeEnum.Avatar } }
+    )
     ;(getUserBalance as jest.Mock).mockResolvedValueOnce(100)
     await checkBalanceSceneEnterHandler(ctx)
     expect(sendBalanceMessage).not.toHaveBeenCalled()
@@ -49,7 +59,11 @@ describe('checkBalanceSceneEnterHandler', () => {
     ;(getUserBalance as jest.Mock).mockResolvedValueOnce(cost - 1)
     await checkBalanceSceneEnterHandler(ctx)
     expect(sendBalanceMessage).toHaveBeenCalledWith(ctx, cost - 1, cost, true)
-    expect(sendInsufficientStarsMessage).toHaveBeenCalledWith(ctx, cost - 1, true)
+    expect(sendInsufficientStarsMessage).toHaveBeenCalledWith(
+      ctx,
+      cost - 1,
+      true
+    )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 })

@@ -29,6 +29,8 @@ import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
 // Импортируем AutoFixer команды
 import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
+// Импортируем админ middleware
+import { requireAdmin } from './middleware/adminOnly'
 // Импортируем сцену handleTextMessage
 // import { handleTextMessage } from './handlers/handleTextMessage' // ❌ ИСПРАВЛЕНО: не используется как сцена
 
@@ -167,7 +169,9 @@ const sendGroupCommandReply = async (ctx: MyContext) => {
     await ctx.reply(message)
   } catch (e) {
     logger.error(
-      `Error replying to command in group for ${ctx.botInfo?.username || 'unknown bot'}:`,
+      `Error replying to command in group for ${
+        ctx.botInfo?.username || 'unknown bot'
+      }:`,
       {
         error: e instanceof Error ? e.message : String(e),
         chatId: ctx.chat?.id,
@@ -558,8 +562,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     setupInteractiveStats(bot)
 
     // 👑 АДМИНСКИЕ КОМАНДЫ
-    bot.command('addbalance', handleAddBalanceCommand)
-    bot.command('checkbalance', handleCheckBalanceCommand)
+    bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
+    bot.command('checkbalance', requireAdmin(), handleCheckBalanceCommand)
 
     // 🤖 АВТОФИКСЕР КОМАНДЫ
     setupAutoFixerCommands(bot)
@@ -567,8 +571,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // 📊 КОМАНДА АНАЛИЗА РАСХОДОВ
     bot.use(expenseAnalysisCommand)
 
-    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ
-    bot.command('test_payment_message', async ctx => {
+    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ (ТОЛЬКО ДЛЯ АДМИНОВ)
+    bot.command('test_payment_message', requireAdmin(), async ctx => {
       if (ctx.chat.type !== 'private') {
         return sendGroupCommandReply(ctx)
       }
@@ -629,8 +633,8 @@ If not, continue on your own and click the "I myself" button`
                     url: channelId.startsWith('@')
                       ? `https://t.me/${channelId.slice(1)}`
                       : channelId.startsWith('http')
-                        ? channelId
-                        : `https://t.me/${channelId}`,
+                      ? channelId
+                      : `https://t.me/${channelId}`,
                   },
                 ],
                 [
@@ -662,8 +666,8 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ АПСКЕЙЛЕРА
-    bot.command('test_upscale', async ctx => {
+    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ АПСКЕЙЛЕРА (ТОЛЬКО ДЛЯ АДМИНОВ)
+    bot.command('test_upscale', requireAdmin(), async ctx => {
       if (ctx.chat.type !== 'private') {
         return sendGroupCommandReply(ctx)
       }
