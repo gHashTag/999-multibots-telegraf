@@ -8,22 +8,20 @@
 
 ## 🔍 ОБНАРУЖЕННЫЕ ПРОБЛЕМЫ
 
-### ❌ Скомпрометированные секреты в git истории:
+### ❌ Обнаруженные проблемы безопасности:
 
-###***REMOVED***:
-- `***REMOVED_OPENAI_KEY***` ❌ АКТИВЕН
-  - **Действие:** Немедленно отозвать в https://platform.openai.com/api-keys
+#### Примеры типов секретов для поиска:
 
-#### Telegram Bot Tokens:
-- `***REMOVED_BOT_TOKEN***` ❌ АКТИВЕН
-- `***REMOVED_BOT_TOKEN***` ❌ АКТИВЕН
-- `***REMOVED_BOT_TOKEN***` ❌ АКТИВЕН
-- `***REMOVED_BOT_TOKEN***` ❌ АКТИВЕН
-- `***REMOVED_BOT_TOKEN***` ❌ АКТИВЕН
-- `***REMOVED_BOT_TOKEN***` ❌ АКТИВЕН
-- `***REMOVED_BOT_TOKEN***` ❌ АКТИВЕН
-- `***REMOVED_BOT_TOKEN***` ❌ ТЕСТОВЫЙ
-- `***REMOVED_BOT_TOKEN***` ❌ ТЕСТОВЫЙ
+**OpenAI API Keys:**
+- Формат: `sk-[a-zA-Z0-9]{48}` 
+- **Действие:** Проверить и отозвать на https://platform.openai.com/api-keys
+
+**Telegram Bot Tokens:**
+- Формат: `***REMOVED***`
+- **Действие:** Отозвать через @BotFather командой /revoke
+
+ℹ️ **ВАЖНО:** Все конкретные значения секретов удалены из этого файла в целях безопасности.
+Для поиска секретов в вашей истории используйте скрипт `./scripts/security-scan.sh`
 
 ---
 
@@ -35,9 +33,9 @@
 
 **OpenAI:**
 1. Зайти на https://platform.openai.com/api-keys
-2. Найти ключ `***REMOVED_OPENAI_KEY***`
-3. Нажать "Delete" или "Revoke"
-4. Создать новый ключ
+2. Найти все активные ключи
+3. Нажать "Delete" или "Revoke" для каждого
+4. Создать новые ключи
 5. Сохранить в безопасном месте (НЕ В КОДЕ!)
 
 **Telegram боты (для каждого бота):**
@@ -114,8 +112,8 @@ pip install git-filter-repo
 ./scripts/security-scan.sh
 
 # Проверяем историю на оставшиеся секреты
-git log --all -S "sk-tpLAH" --oneline || echo "Не найдены"
-git log --all -S "7655182164" --oneline || echo "Не найдены"
+# Пример: git log --all -S "ЧАСТЬ_СЕКРЕТА" --oneline
+./scripts/security-scan.sh
 ```
 
 ### ЭТАП 4: ОБНОВЛЕНИЕ УДАЛЕННОГО РЕПОЗИТОРИЯ (ДЕНЬ 2)

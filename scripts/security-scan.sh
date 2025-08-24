@@ -69,10 +69,10 @@ echo -e "\n${YELLOW}🔄 Проверка git истории на секреты
 
 # Список известных скомпрометированных секретов
 COMPROMISED_SECRETS=(
-    "***REMOVED_OPENAI_KEY***"
-    "***REMOVED_BOT_TOKEN***"
-    "***REMOVED_BOT_TOKEN***" 
-    "***REMOVED_BOT_TOKEN***"
+    "sk-EXAMPLE_OPENAI_API_KEY_PLACEHOLDER"
+    "1234567890:EXAMPLE_BOT_TOKEN_PLACEHOLDER_1"
+    "0987654321:EXAMPLE_BOT_TOKEN_PLACEHOLDER_2" 
+    "1111111111:EXAMPLE_BOT_TOKEN_PLACEHOLDER_3"
 )
 
 for secret in "${COMPROMISED_SECRETS[@]}"; do

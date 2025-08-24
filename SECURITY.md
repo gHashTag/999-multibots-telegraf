@@ -35,13 +35,13 @@
 **Требуется немедленная замена:**
 
 #### Telegram Bot Tokens:
-- `***REMOVED_BOT_TOKEN***` ❌ СКОМПРОМЕТИРОВАН
-- `***REMOVED_BOT_TOKEN***` ❌ СКОМПРОМЕТИРОВАН
-- `***REMOVED_BOT_TOKEN***` ❌ СКОМПРОМЕТИРОВАН
-- И еще ~6 других bot токенов
+- `1234567890:EXAMPLE_BOT_TOKEN_PLACEHOLDER` ❌ ПРИМЕР
+- `0987654321:EXAMPLE_BOT_TOKEN_PLACEHOLDER` ❌ ПРИМЕР
+- `1111111111:EXAMPLE_BOT_TOKEN_PLACEHOLDER` ❌ ПРИМЕР
+- И другие bot токены (удалены из соображений безопасности)
 
 #### OpenAI API Key:
-- `***REMOVED_OPENAI_KEY***` ❌ СКОМПРОМЕТИРОВАН
+- `sk-EXAMPLE_OPENAI_API_KEY_PLACEHOLDER` ❌ ПРИМЕР
 
 **КАК ЗАМЕНИТЬ:**
 
@@ -69,8 +69,8 @@ pip install git-filter-repo
 git filter-repo --invert-paths --path-glob '**/secrets*' --path-glob '**/.env*' --force
 
 # Очистить конкретные строки с секретами  
-git filter-repo --replace-text <(echo '***REMOVED_OPENAI_KEY***=>***REMOVED***')
-git filter-repo --replace-text <(echo '***REMOVED_BOT_TOKEN***=>***REMOVED***')
+git filter-repo --replace-text <(echo 'ACTUAL_SECRET_HERE=>***REMOVED***')
+git filter-repo --replace-text <(echo 'ANOTHER_SECRET_HERE=>***REMOVED***')
 
 # Force push во все ветки (ОПАСНО!)
 git push --all --force
