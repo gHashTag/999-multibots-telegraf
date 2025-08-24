@@ -22,8 +22,8 @@ export class DartAIService {
   private readonly defaultSpace = 'default'
 
   constructor() {
-    // Используем наш API сервер вместо прямого обращения к Dart AI
-    this.baseUrl = ORIGIN || 'http://localhost:2999'
+    // Используем внешний API сервер на Railway (НЕ локальный!)
+    this.baseUrl = 'https://ai-server-production-production-8e2d.up.railway.app'
   }
 
   /**
