@@ -3,12 +3,10 @@ import { ModelUrl, UserModel, ModelTraining } from '@/interfaces'
 
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import {
-  getActiveUserModelsByType,
+  getLatestUserModel,
   getReferalsCountAndUserData,
   getUserData,
 } from '@/core/supabase'
-// ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
-import { getActiveUserModelsByTypeForHaim } from '@/core/supabase/getActiveUserModelsByTypeForHaim'
 import {
   levels,
   mainMenu,
@@ -20,8 +18,6 @@ import { Scenes } from 'telegraf'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import logger from '@/utils/logger'
-// ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
-import { getBotNameByToken } from '@/core/bot'
 
 interface NeuroPhotoWizardSession extends Scenes.WizardSessionData {
   userModels?: ModelTraining[]
@@ -47,129 +43,22 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     }),
   })
 
-  // Начало конверсации - получаем модели пользователя
+  // Начало конверсации - проверяем модель пользователя
   try {
-    const isRussian = ctx.from?.language_code === 'ru'
-
-    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
-    const botToken = ctx.telegram.token
-    const { bot_name } = getBotNameByToken(botToken)
-    logger.debug('Bot determined', { telegramId, botName: bot_name })
-
-    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
-    let userModels: ModelTraining[] | null = null
-
-    if (bot_name === 'HaimGroupMedia_bot') {
-      logger.debug('Using extended function for HaimGroupMedia_bot', { telegramId })
-      userModels = await getActiveUserModelsByTypeForHaim(
-        Number(telegramId),
-        'replicate',
-        bot_name
-      )
-    } else {
-      logger.debug('Using standard function for regular bot', { telegramId })
-      userModels = await getActiveUserModelsByType(
-        Number(telegramId),
-        'replicate'
-      )
-    }
-
-    const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
-
-    if (!userModels || userModels.length === 0) {
-      logger.warn('No user models found', { telegramId })
-      logger.info({
-        message: 'No user models found',
-        telegramId,
-      })
-
-      await ctx.reply(
-        isRussian
-          ? `❌ У вас нет обученных моделей для нейрофото.
-
-Используйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото с вашим лицом.`
-          : `❌ You don't have any trained models for neurophotos.
-
-Use the '🤖 Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face.`,
-        { parse_mode: 'HTML' }
-      )
-      return ctx.scene.leave()
-    } else if (userModels.length === 1) {
-      // Если модель одна - используем её сразу
-      ctx.session.userModel = userModels[0] as any
-      logger.debug('Single model selected automatically', { 
-        telegramId, 
-        modelName: userModels[0].model_name 
-      })
-      logger.info({
-        message: 'Single model found, proceeding directly',
-        telegramId,
-        modelName: userModels[0].model_name,
-      })
-    } else {
-      // Если моделей несколько - показываем выбор
-      ;(ctx.scene.state as NeuroPhotoWizardSession).userModels = userModels
-      
-      logger.debug('Multiple models found, showing selection', { 
-        telegramId, 
-        modelsCount: userModels.length 
-      })
-      logger.info({
-        message: 'Multiple models found, showing selection interface',
-        telegramId,
-        modelsCount: userModels.length,
-      })
-
-      const modelButtons = userModels.map((model, index) => {
-        let buttonText = `${index + 1}. `
-        const dateString = new Date(model.created_at).toLocaleDateString(
-          isRussian ? 'ru-RU' : 'en-US'
-        )
-
-        if (isRussian) {
-          buttonText += `${model.model_name || `Модель ${dateString}`}`
-          if (model.steps && model.steps > 0) {
-            buttonText += `, ${model.steps} шагов`
-          }
-        } else {
-          buttonText += `${model.model_name || `Model ${dateString}`}`
-          if (model.steps && model.steps > 0) {
-            buttonText += `, ${model.steps} steps`
-          }
-        }
-
-        return [
-          { text: buttonText, callback_data: `select_neuro_model_${model.id}` },
-        ]
-      })
-
-      await ctx.reply(
-        isRussian
-          ? `🎨 <b>Выберите модель для создания нейрофото:</b>`
-          : `🎨 <b>Select a model to create neural photo:</b>`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: modelButtons,
-          },
-        }
-      )
-      return // Ждем выбора модели
-    }
-
-    // Если есть модель (одна или выбрана) - продолжаем
+    // Проверяем, есть ли модель в сессии
     if (
       !ctx.session.userModel ||
       !ctx.session.userModel.model_url ||
       !ctx.session.userModel.trigger_word
     ) {
-      logger.error('Model data incomplete', { telegramId })
-      logger.error({
-        message: 'User model incomplete after selection',
+      logger.warn('No user model found in session', { telegramId })
+      logger.info({
+        message: 'User model missing in session',
         telegramId,
-        userModel: ctx.session.userModel ? 'exists_but_incomplete' : 'missing',
+        sessionData: JSON.stringify(ctx.session),
       })
 
+      const isRussian = ctx.from?.language_code === 'ru'
       await ctx.reply(
         isRussian
           ? `⚠️ У вас нет доступной модели для нейрофото.
@@ -182,7 +71,7 @@ Create your model or use other bot functions.`,
     }
 
     // Если модель есть, логируем информацию
-    logger.debug('User model found', {
+    logger.debug('User model found in session', {
       telegramId,
       modelUrl: ctx.session.userModel.model_url,
       triggerWord: ctx.session.userModel.trigger_word,
@@ -208,7 +97,7 @@ Create your model or use other bot functions.`,
         action: 'skip_to_prompt_step',
       })
 
-      ctx.wizard.next()
+      ctx.wizard.next() // Используем next() вместо selectStep для более надежного перехода
       return await neuroPhotoPromptStep(ctx)
     }
 
@@ -219,6 +108,7 @@ Create your model or use other bot functions.`,
       message: 'Scene ready to receive prompt',
       telegramId,
     })
+    logger.debug('Ready to receive prompt', { telegramId })
 
     // Проверяем, есть ли текст в сообщении пользователя
     if (
@@ -248,7 +138,7 @@ Create your model or use other bot functions.`,
         prompt: ctx.session.prompt,
       })
 
-      // Переходим к шагу промпта
+      // Переходим к шагу промпта через next()
       ctx.wizard.next()
       return await neuroPhotoPromptStep(ctx)
     } else if (
@@ -256,6 +146,7 @@ Create your model or use other bot functions.`,
       'text' in ctx.message &&
       ctx.message.text === '📸 Нейрофото'
     ) {
+      // Это команда меню - не обрабатываем как промпт
       logger.debug('Menu command received, waiting for next message', {
         telegramId,
         text: ctx.message.text,
@@ -275,6 +166,7 @@ Create your model or use other bot functions.`,
       action: 'send_welcome_message',
     })
 
+    const isRussian = ctx.from?.language_code === 'ru'
     await ctx.reply(
       isRussian
         ? `🎨 <b>Создание Hейрофото</b>
@@ -299,6 +191,7 @@ Describe what you want to depict. For example:
       }
     )
 
+    // Остаемся на том же шаге, ожидая ввод промпта
     logger.debug('Waiting for user prompt input', { telegramId })
     logger.info({
       message: 'Waiting for prompt from user',
@@ -518,6 +411,12 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       userId: userId.toString(),
     })
 
+    logger.info('Starting image generation', {
+      telegramId,
+      fullPrompt,
+      userId: userId.toString(),
+    })
+
     // Отправляем сообщение о начале генерации
     const processingMessage = await ctx.reply(
       isRu
@@ -579,6 +478,8 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         result: 'success',
       })
 
+      logger.info('Image generation completed successfully', { telegramId })
+
       ctx.wizard.next()
       return neuroPhotoButtonStep(ctx)
     } catch (generateError) {
@@ -612,6 +513,14 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         stack: generateError instanceof Error ? generateError.stack : undefined,
       })
 
+      logger.error('Image generation error', {
+        telegramId,
+        error:
+          generateError instanceof Error
+            ? generateError.message
+            : String(generateError),
+      })
+
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при генерации изображения. Пожалуйста, попробуйте другой промпт или повторите попытку позже.'
@@ -628,6 +537,11 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       telegramId,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    logger.error('Critical error in neuroPhotoPromptStep', {
+      telegramId,
+      error: error instanceof Error ? error.message : String(error),
     })
 
     await ctx.reply(
@@ -648,6 +562,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         '⏳ [NeuroPhoto] Попытка запустить генерацию, пока предыдущая еще выполняется',
       telegramId: ctx.from?.id?.toString(),
     })
+    // Можно добавить ctx.reply() с уведомлением пользователю
+    // await ctx.reply(isRu ? '⏳ Генерация уже выполняется...' : '⏳ Generation already in progress...')
     return // Игнорируем запрос
   }
   // ---<
@@ -876,96 +792,6 @@ export const neuroPhotoWizard = new Scenes.WizardScene<MyContext>(
   neuroPhotoButtonStep
 )
 
-// Обработчик выбора модели
-neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
-  if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
-    const message =
-      ctx.from?.language_code === 'ru'
-        ? 'Произошла ошибка ответа от кнопки'
-        : 'Button callback error'
-    return ctx.answerCbQuery(message)
-  }
-  const callbackData = ctx.callbackQuery.data
-  const isRu = ctx.from?.language_code === 'ru'
-
-  await ctx.answerCbQuery()
-
-  if (callbackData.startsWith('select_neuro_model_')) {
-    const modelId = callbackData.replace('select_neuro_model_', '')
-    const telegramId = ctx.from?.id?.toString() || 'unknown'
-
-    try {
-      await ctx
-        .deleteMessage(ctx.callbackQuery.message?.message_id)
-        .catch(e => logger.error('Error deleting message with buttons', { telegramId, error: e }))
-
-      const userModelsFromState = (ctx.scene.state as NeuroPhotoWizardSession)
-        .userModels
-      if (!userModelsFromState) {
-        logger.error('userModels not found in scene state for model selection', { telegramId })
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при выборе модели. Попробуйте начать заново.'
-            : '❌ An error occurred while selecting the model. Please try again.'
-        )
-        return ctx.scene.leave()
-      }
-
-      // Обрабатываем общие модели (с префиксом shared_)
-      let actualModelId = modelId
-      if (modelId.startsWith('shared_')) {
-        actualModelId = modelId.replace('shared_', '')
-      }
-
-      const selectedModel = userModelsFromState?.find(
-        m => String(m.id) === String(modelId) || String(m.id) === String(actualModelId)
-      )
-
-      if (selectedModel) {
-        // Если это общая модель, используем оригинальный ID для запросов к Replicate
-        if (modelId.startsWith('shared_')) {
-          const originalModel = { ...selectedModel }
-          originalModel.id = actualModelId
-          ctx.session.userModel = originalModel as any
-          logger.info('Using shared model for team member', { 
-            telegramId, 
-            modelName: selectedModel.model_name,
-            originalId: actualModelId 
-          })
-        } else {
-          ctx.session.userModel = selectedModel as any
-          logger.info('Model selected by user', { 
-            telegramId, 
-            modelName: selectedModel.model_name 
-          })
-        }
-
-        // Переходим к следующему шагу - ввод промпта
-        ctx.wizard.selectStep(0) // Возвращаемся к первому шагу, который теперь покажет инструкцию
-        return neuroPhotoConversationStep(ctx)
-      } else {
-        logger.error('Selected model not found', { 
-          telegramId, 
-          selectedModelId: modelId 
-        })
-        await ctx.reply(
-          isRu
-            ? '❌ Выбранная модель не найдена. Попробуйте еще раз.'
-            : '❌ Selected model not found. Please try again.'
-        )
-        return ctx.scene.leave()
-      }
-    } catch (error) {
-      logger.error('Error processing neuro model selection', { 
-        telegramId, 
-        error: error instanceof Error ? error.message : String(error) 
-      })
-      await sendGenericErrorMessage(ctx, isRu, error)
-      return ctx.scene.leave()
-    }
-  }
-})
-
 // Middleware для всех сообщений - перехватывает и логгирует
 neuroPhotoWizard.use(async (ctx, next) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -1062,8 +888,83 @@ neuroPhotoWizard.enter(async ctx => {
   ctx.session.neuroPhotoInitialized = false
   ctx.session.prompt = undefined
 
-  // Запускаем первый шаг сцены
-  return await neuroPhotoConversationStep(ctx)
+  // Загружаем модель пользователя из базы данных - это КРИТИЧНО для работы сцены
+  try {
+    if (!ctx.from?.id) {
+      throw new Error('ID пользователя не найден')
+    }
+
+    const userId = ctx.from.id
+    logger.debug('Loading user model from database', { telegramId, userId })
+
+    // Получаем модель из базы данных
+    const userModel = await getLatestUserModel(Number(userId), 'replicate')
+    logger.debug('User model loaded from database', {
+      telegramId,
+      userId,
+      userModel: JSON.stringify(userModel),
+    })
+
+    if (!userModel) {
+      logger.warn('User model not found in database', { telegramId, userId })
+      logger.warn({
+        message: 'User model not found in database',
+        telegramId,
+      })
+
+      const isRussian = ctx.from.language_code === 'ru'
+      await ctx.reply(
+        isRussian
+          ? `⚠️ У вас нет доступной модели для нейрофото.
+Создайте свою модель или воспользуйтесь другими функциями бота.`
+          : `⚠️ You don't have an available model for neural photos.
+Create your model or use other bot functions.`,
+        { parse_mode: 'HTML' }
+      )
+      return await ctx.scene.leave()
+    }
+
+    logger.debug('User model retrieved from database', {
+      telegramId,
+      model: JSON.stringify(userModel),
+    })
+
+    // Сохраняем модель в сессии - без этого ничего не будет работать
+    ctx.session.userModel = userModel as any
+
+    logger.debug('User model saved to session', {
+      telegramId,
+      modelUrl: userModel.model_url,
+      triggerWord: userModel.trigger_word,
+    })
+    logger.info({
+      message: 'User model loaded from database',
+      telegramId,
+      modelData: JSON.stringify(userModel),
+    })
+
+    // Запускаем первый шаг сцены
+    return await neuroPhotoConversationStep(ctx)
+  } catch (error) {
+    logger.error('Critical error loading user model', {
+      telegramId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    logger.error({
+      message: 'Critical error loading model',
+      telegramId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+
+    const isRussian = ctx.from?.language_code === 'ru'
+    await ctx.reply(
+      isRussian
+        ? `❌ Произошла ошибка при загрузке вашей модели. Пожалуйста, попробуйте позже.`
+        : `❌ An error occurred while loading your model. Please try again later.`
+    )
+
+    return await ctx.scene.leave()
+  }
 })
 
 // Обработчик для всех текстовых сообщений
