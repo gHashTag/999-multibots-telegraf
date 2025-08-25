@@ -187,6 +187,7 @@ Use the '🤖 Digital avatar body' command in the main menu to create your AI mo
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: modelButtons,
+            // Не показываем обычную клавиатуру, только inline кнопки
           },
         }
       )
@@ -978,6 +979,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
         }
 
         // Переходим к показу инструкций - модель уже выбрана
+        // Модель выбрана, продолжаем к вводу промпта
         return neuroPhotoConversationStep(ctx)
       } else {
         logger.error('Selected model not found', { 
