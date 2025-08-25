@@ -74,6 +74,20 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       )
     }
 
+    logger.info({
+      message: 'Models loaded from database',
+      telegramId,
+      modelsCount: userModels?.length || 0,
+      botName: bot_name,
+      modelsData: userModels?.map(m => ({ 
+        id: m.id, 
+        name: m.model_name || 'NO_NAME', 
+        created_at: m.created_at,
+        status: m.status,
+        steps: m.steps
+      })) || []
+    })
+
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
     if (!userModels || userModels.length === 0) {
@@ -99,12 +113,16 @@ Use the '🤖 Digital avatar body' command in the main menu to create your AI mo
       ctx.session.userModel = userModels[0] as any
       logger.debug('Single model selected automatically', { 
         telegramId, 
-        modelName: userModels[0].model_name 
+        modelName: userModels[0].model_name,
+        modelId: userModels[0].id,
+        modelUrl: userModels[0].model_url,
+        triggerWord: userModels[0].trigger_word
       })
       logger.info({
         message: 'Single model found, proceeding directly',
         telegramId,
         modelName: userModels[0].model_name,
+        modelId: userModels[0].id
       })
     } else {
       // Если моделей несколько - показываем выбор
@@ -112,12 +130,18 @@ Use the '🤖 Digital avatar body' command in the main menu to create your AI mo
       
       logger.debug('Multiple models found, showing selection', { 
         telegramId, 
-        modelsCount: userModels.length 
+        modelsCount: userModels.length,
+        models: userModels.map(m => ({ id: m.id, name: m.model_name, created_at: m.created_at }))
       })
       logger.info({
         message: 'Multiple models found, showing selection interface',
         telegramId,
         modelsCount: userModels.length,
+        modelsInfo: userModels.map(m => ({ 
+          id: m.id, 
+          name: m.model_name || 'no name', 
+          created_at: m.created_at 
+        }))
       })
 
       const modelButtons = userModels.map((model, index) => {
@@ -126,17 +150,29 @@ Use the '🤖 Digital avatar body' command in the main menu to create your AI mo
           isRussian ? 'ru-RU' : 'en-US'
         )
 
-        if (isRussian) {
-          buttonText += `${model.model_name || `Модель ${dateString}`}`
-          if (model.steps && model.steps > 0) {
-            buttonText += `, ${model.steps} шагов`
-          }
+        // Если нет имени модели - показываем дату
+        let modelDisplayName = ''
+        if (model.model_name && model.model_name.trim() !== '') {
+          modelDisplayName = model.model_name
         } else {
-          buttonText += `${model.model_name || `Model ${dateString}`}`
-          if (model.steps && model.steps > 0) {
-            buttonText += `, ${model.steps} steps`
-          }
+          modelDisplayName = isRussian ? `Модель ${dateString}` : `Model ${dateString}`
         }
+
+        buttonText += modelDisplayName
+        
+        // Добавляем количество шагов если есть
+        if (model.steps && model.steps > 0) {
+          buttonText += isRussian ? `, ${model.steps} шагов` : `, ${model.steps} steps`
+        }
+
+        logger.debug('Model button created', {
+          telegramId,
+          modelId: model.id,
+          originalName: model.model_name,
+          displayName: modelDisplayName,
+          buttonText,
+          steps: model.steps
+        })
 
         return [
           { text: buttonText, callback_data: `select_neuro_model_${model.id}` },
@@ -685,7 +721,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         buttonText: text,
       })
       ctx.session.prompt = undefined
-      ctx.wizard.selectStep(0)
+      // Начинаем сначала - сбрасываем состояние
+      ctx.session.neuroPhotoInitialized = false
       return neuroPhotoConversationStep(ctx)
     }
 
@@ -940,8 +977,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
           })
         }
 
-        // Переходим к следующему шагу - ввод промпта
-        ctx.wizard.selectStep(0) // Возвращаемся к первому шагу, который теперь покажет инструкцию
+        // Переходим к показу инструкций - модель уже выбрана
         return neuroPhotoConversationStep(ctx)
       } else {
         logger.error('Selected model not found', { 
@@ -1055,14 +1091,11 @@ neuroPhotoWizard.enter(async ctx => {
     }),
   })
 
-  // Явно устанавливаем шаг 0 в сцене - это критично для правильной работы
-  ctx.wizard.selectStep(0)
-
   // Сбрасываем состояние сцены при входе
   ctx.session.neuroPhotoInitialized = false
   ctx.session.prompt = undefined
 
-  // Запускаем первый шаг сцены
+  // Запускаем первый шаг сцены напрямую (wizard контекст еще не инициализирован)
   return await neuroPhotoConversationStep(ctx)
 })
 
