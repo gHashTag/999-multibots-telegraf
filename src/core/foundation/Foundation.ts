@@ -187,9 +187,9 @@ export class Foundation {
           images: [],
           targetUserId: 0,
           userModel: {
-            type: 'text',
-            text: '',
-            status: 'new',
+            model_name: '',
+            trigger_word: '',
+            model_url: 'demo/v1:latest',
           }
         }
       }
