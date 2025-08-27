@@ -1,4 +1,4 @@
-import Replicate from 'replicate'
+const Replicate = require('replicate')
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import { logger } from '@/utils/logger'
 
@@ -41,7 +41,7 @@ export async function generateKlingLipSync(
   telegramId: string,
   videoUrl: string,
   audioUrl: string,
-  isRu: boolean = true
+  isRu = true
 ): Promise<KlingLipSyncResult> {
   try {
     logger.info('🎬 Начинаем генерацию Kling LipSync', {

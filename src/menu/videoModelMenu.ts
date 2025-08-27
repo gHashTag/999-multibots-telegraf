@@ -53,8 +53,8 @@ export const videoModelKeyboard = (
       ? levels[104].title_ru
       : levels[104].title_en
     : isRu
-      ? '🏠 Главное меню'
-      : '🏠 Main menu' // Резервный текст
+    ? '🏠 Главное меню'
+    : '🏠 Main menu' // Резервный текст
 
   rows.push(
     [helpButtonText, cancelButtonText], // Ряд 1: Справка, Отмена

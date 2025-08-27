@@ -188,13 +188,44 @@ export function getServiceEmoji(serviceName: string): string {
     video_standard: UserService.TextToVideo,
     video_wan: UserService.TextToVideo,
     neurovideo: UserService.TextToVideo,
+    video_generation: UserService.TextToVideo,
+    generate_video: UserService.TextToVideo,
+    'text-to-video': UserService.TextToVideo,
+    text2video: UserService.TextToVideo,
+    
+    // Image to video варианты
+    'image-to-video': UserService.ImageToVideo,
+    image2video: UserService.ImageToVideo,
+    img2video: UserService.ImageToVideo,
 
     // Старые сервисы изображений
     image_generation: UserService.NeuroPhoto,
     image_analysis: UserService.ImageToPrompt,
+    generate_image: UserService.NeuroPhoto,
+    'text-to-image': UserService.TextToImage,
+    text2image: UserService.TextToImage,
+    'image-to-prompt': UserService.ImageToPrompt,
+    image2prompt: UserService.ImageToPrompt,
+    analyze_image: UserService.ImageToPrompt,
 
     // Старые сервисы аватаров
     model_training: UserService.DigitalAvatarBody,
+    train_model: UserService.DigitalAvatarBody,
+    neuro_train_lora_debit: UserService.DigitalAvatarBody,
+    lora_training: UserService.DigitalAvatarBody,
+    avatar_training: UserService.DigitalAvatarBody,
+    digital_avatar: UserService.DigitalAvatarBody,
+    
+    // Аудио сервисы
+    'text-to-speech': UserService.TextToSpeech,
+    text2speech: UserService.TextToSpeech,
+    tts: UserService.TextToSpeech,
+    'voice-to-text': UserService.VoiceToText,
+    voice2text: UserService.VoiceToText,
+    stt: UserService.VoiceToText,
+    'lip-sync': UserService.LipSync,
+    lipsync: UserService.LipSync,
+    lip_synchronization: UserService.LipSync,
 
     // Системные операции
     system: UserService.PaymentOperation,
@@ -206,7 +237,13 @@ export function getServiceEmoji(serviceName: string): string {
     subscription_scene: UserService.PaymentOperation,
     top_up_balance: UserService.PaymentOperation,
     subscribe: UserService.PaymentOperation,
+    promo: UserService.PaymentOperation,
+    bonus: UserService.PaymentOperation,
+    refund: UserService.PaymentOperation,
     unknown: UserService.Unknown,
+    null: UserService.Unknown,
+    undefined: UserService.Unknown,
+    '': UserService.Unknown,
   }
 
   const mappedService = legacyMapping[normalizedName]
@@ -253,7 +290,7 @@ export function getServiceCategory(
 export function getServiceDisplayTitle(
   service: UserService,
   description?: string,
-  isRu: boolean = true
+  isRu = true
 ): string {
   // Если это платежная операция, пытаемся определить более точное название
   if (service === UserService.PaymentOperation && description) {

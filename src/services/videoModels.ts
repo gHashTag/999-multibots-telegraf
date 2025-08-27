@@ -68,30 +68,30 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
   },
 
   // Kie.ai модели с конкурентными ценами
-  'kie-veo-3-fast': {
-    id: 'kie-veo-3-fast',
+  'veo-3-fast': {
+    id: 'veo-3-fast',
     name: 'Veo 3 Fast',
     nameRu: 'Veo 3 Fast',
     priceFixed: 40,
     inputTypes: ['text', 'image'],
   },
-  'kie-veo-3': {
-    id: 'kie-veo-3',
+  'veo-3': {
+    id: 'veo-3',
     name: 'Veo 3',
     nameRu: 'Veo 3',
     priceFixed: 202,
     inputTypes: ['text'],
   },
-  'kie-runway-aleph': {
-    id: 'kie-runway-aleph',
+  'runway-aleph': {
+    id: 'runway-aleph',
     name: 'Runway Aleph',
     nameRu: 'Runway Aleph',
     pricePerSecond:
-      KIE_AI_MODELS_PRICING['kie-runway-aleph'].pricePerSecondUSD!,
+      KIE_AI_MODELS_PRICING['runway-aleph'].pricePerSecondUSD!,
     supportedDurations:
-      KIE_AI_MODELS_PRICING['kie-runway-aleph'].supportedDurations!,
-    defaultDuration: KIE_AI_MODELS_PRICING['kie-runway-aleph'].defaultDuration!,
-    maxDuration: KIE_AI_MODELS_PRICING['kie-runway-aleph'].maxDuration,
+      KIE_AI_MODELS_PRICING['runway-aleph'].supportedDurations!,
+    defaultDuration: KIE_AI_MODELS_PRICING['runway-aleph'].defaultDuration!,
+    maxDuration: KIE_AI_MODELS_PRICING['runway-aleph'].maxDuration,
     inputTypes: ['text', 'image'],
   },
 }
@@ -122,7 +122,7 @@ export function getModelPriceInStars(
     const finalDuration = duration || model.defaultDuration || 4
 
     // Для Kie.ai моделей используем специальную функцию расчета
-    if (modelId.startsWith('kie-')) {
+    if (['veo-3-fast', 'veo-3', 'runway-aleph'].includes(modelId)) {
       return calculateKieAiPriceInStars(modelId, finalDuration)
     }
 
@@ -204,7 +204,7 @@ export function getImageToVideoModels(): VideoModelInfo[] {
 export function formatModelInfo(
   modelId: VideoModelId,
   duration?: number,
-  is_ru: boolean = false
+  is_ru = false
 ): string {
   const model = VIDEO_MODELS[modelId]
   if (!model) return 'Unknown model'

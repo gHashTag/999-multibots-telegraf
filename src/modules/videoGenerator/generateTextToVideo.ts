@@ -211,7 +211,7 @@ export async function generateTextToVideo(
       isVeo3Family:
         modelConfig.id === 'veo-3' ||
         modelConfig.id === 'veo-3-fast' ||
-        modelConfig.id.startsWith('kie-'),
+        modelConfig.id === 'runway-aleph',
     })
 
     const replicateResult = await replicate.run(finalReplicateModelId as any, {
