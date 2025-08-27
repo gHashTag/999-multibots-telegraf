@@ -123,7 +123,7 @@ export class Foundation {
     // Перехватчик ошибок бота
     bot.catch(async (err, ctx) => {
       logger.error('Bot error caught', { 
-        error: err.message,
+        error: err instanceof Error ? err.message : String(err),
         telegramId: ctx.from?.id,
         updateType: ctx.updateType,
       })
@@ -181,7 +181,17 @@ export class Foundation {
     bot.use(async (ctx, next) => {
       if (!ctx.session) {
         logger.warn('Session not initialized', { telegramId: ctx.from?.id })
-        ctx.session = {}
+        ctx.session = {
+          cursor: 0,
+          mode: null,
+          images: [],
+          targetUserId: 0,
+          userModel: {
+            type: 'text',
+            text: '',
+            status: 'new',
+          }
+        }
       }
       await next()
     })
