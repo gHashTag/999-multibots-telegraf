@@ -1,5 +1,12 @@
 
 # Worktrees - временные ветки для разработки
+worktrees/**
+.worktrees/**
+
+# Git worktree specific
+.git/worktrees/
+
+# Worktrees - временные ветки для разработки
 worktrees/
 .worktrees/
 
