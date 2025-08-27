@@ -256,3 +256,40 @@ temp_*/
 # !.claude/README.md  
 # !.claude/hooks/*.sh
 # !.claude/activate-hooks.sh
+
+# Security and secrets files
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*_credentials_*
+*_secrets_*
+*_keys_*
+.secrets/
+.secrets.*
+credentials.json
+service-account.json
+id_rsa*
+id_dsa*
+known_hosts
+authorized_keys
+*.keystore
+*.gpg
+*.asc
+config.local.*
+local.config.*
+*.local.json
+*.local.yaml
+*.local.yml
+*.env.backup
+*.env.bak
+*.env.old
+
+# Security scan results
+security-report.json
+vulnerability-report.json
+audit-results.json
+secrets-scan.json
+.secrets.baseline
