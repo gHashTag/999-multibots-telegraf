@@ -5,7 +5,7 @@
  */
 
 import { Telegraf } from 'telegraf'
-import { MyContext } from '@/interfaces'
+import { MyContext, MySession } from '@/interfaces'
 import { configManager } from './ConfigManager'
 import { menuSystem } from './MenuSystem'
 import { languageManager } from './LanguageManager'
@@ -37,7 +37,10 @@ export class Foundation {
    * ГЛАВНАЯ ФУНКЦИЯ: Инициализация всей системы
    * Вызывается ОДИН РАЗ при старте бота
    */
-  public async initialize(bot: Telegraf<MyContext>, config: FoundationConfig = {}): Promise<void> {
+  public async initialize(
+    bot: Telegraf<MyContext>,
+    config: FoundationConfig = {}
+  ): Promise<void> {
     if (this.initialized) {
       logger.warn('Foundation already initialized')
       return
@@ -78,8 +81,8 @@ export class Foundation {
       this.initialized = true
       logger.info('Foundation initialization completed successfully')
     } catch (error) {
-      logger.error('Foundation initialization failed', { 
-        error: error instanceof Error ? error.message : String(error) 
+      logger.error('Foundation initialization failed', {
+        error: error instanceof Error ? error.message : String(error),
       })
       throw new Error(`Foundation initialization failed: ${error}`)
     }
@@ -106,28 +109,45 @@ export class Foundation {
   /**
    * Инициализация системы обработки ошибок
    */
-  private async initializeErrorHandling(bot: Telegraf<MyContext>): Promise<void> {
+  private async initializeErrorHandling(
+    bot: Telegraf<MyContext>
+  ): Promise<void> {
     logger.info('Initializing ErrorHandler...')
 
     // Глобальный перехватчик необработанных ошибок
-    process.on('uncaughtException', (error) => {
-      logger.error('Uncaught Exception', { error: error.message, stack: error.stack })
-      errorHandler.handleError(error, null, ErrorType.UNKNOWN, { action: 'uncaughtException' })
+    process.on('uncaughtException', error => {
+      logger.error('Uncaught Exception', {
+        error: error.message,
+        stack: error.stack,
+      })
+      errorHandler.handleError(error, null, ErrorType.UNKNOWN, {
+        action: 'uncaughtException',
+      })
     })
 
     process.on('unhandledRejection', (reason, promise) => {
-      logger.error('Unhandled Rejection', { reason: String(reason), promise: String(promise) })
-      errorHandler.handleError(new Error(String(reason)), null, ErrorType.UNKNOWN, { action: 'unhandledRejection' })
+      logger.error('Unhandled Rejection', {
+        reason: String(reason),
+        promise: String(promise),
+      })
+      errorHandler.handleError(
+        new Error(String(reason)),
+        null,
+        ErrorType.UNKNOWN,
+        { action: 'unhandledRejection' }
+      )
     })
 
     // Перехватчик ошибок бота
-    bot.catch(async (err, ctx) => {
-      logger.error('Bot error caught', { 
-        error: err.message,
+    bot.catch(async (err: any, ctx) => {
+      logger.error('Bot error caught', {
+        error: err instanceof Error ? err.message : String(err),
         telegramId: ctx.from?.id,
         updateType: ctx.updateType,
       })
-      await errorHandler.handleError(err, ctx, ErrorType.UNKNOWN, { action: 'bot_error' })
+      await errorHandler.handleError(err, ctx, ErrorType.UNKNOWN, {
+        action: 'bot_error',
+      })
     })
 
     logger.info('ErrorHandler initialized successfully')
@@ -181,7 +201,20 @@ export class Foundation {
     bot.use(async (ctx, next) => {
       if (!ctx.session) {
         logger.warn('Session not initialized', { telegramId: ctx.from?.id })
-        ctx.session = {}
+        // Initialize with required properties
+        ctx.session = {
+          cursor: 0,
+          mode: 'chat',
+          images: [],
+          targetUserId: null,
+          userModel: {
+            model_name: '',
+            trigger_word: '',
+            model_url: '',
+            baseModel: null,
+            additionalModels: [],
+          },
+        } as MySession
       }
       await next()
     })
@@ -265,7 +298,8 @@ export class Foundation {
 
     try {
       // Проверяем ConfigManager
-      systems.configManager = configManager.get('isDev') !== undefined ? 'ok' : 'error'
+      systems.configManager =
+        configManager.get('isDev') !== undefined ? 'ok' : 'error'
 
       // Проверяем MenuSystem
       systems.menuSystem = menuSystem.isInitialized() ? 'ok' : 'error'
@@ -297,7 +331,10 @@ export class Foundation {
 export const foundation = Foundation.getInstance()
 
 // Функция для быстрой инициализации (для совместимости)
-export const initializeFoundation = async (bot: Telegraf<MyContext>, config?: FoundationConfig) => {
+export const initializeFoundation = async (
+  bot: Telegraf<MyContext>,
+  config?: FoundationConfig
+) => {
   await foundation.initialize(bot, config)
 }
 
@@ -305,6 +342,8 @@ export const initializeFoundation = async (bot: Telegraf<MyContext>, config?: Fo
 export const isFoundationReady = () => foundation.isInitialized()
 export const requireFoundation = () => {
   if (!foundation.isInitialized()) {
-    throw new Error('Foundation not initialized. Call initializeFoundation() first.')
+    throw new Error(
+      'Foundation not initialized. Call initializeFoundation() first.'
+    )
   }
 }

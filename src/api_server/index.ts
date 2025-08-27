@@ -4,8 +4,8 @@ import robokassaRouter from './routes/robokassa.routes'
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
-// Определяем порт. Берем из process.env.PORT, если есть, иначе 2999.
-const PORT = process.env.PORT || '2999'
+// Определяем порт. Берем из process.env.PORT, если есть, иначе 1980 (для соответствия docker-compose).
+const PORT = process.env.PORT || '1980'
 
 export function startApiServer(): void {
   const app: any = express()
@@ -33,9 +33,15 @@ export function startApiServer(): void {
   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
   app.use('/api/inngest', inngestHandler)
 
-  // Запуск сервера
+  // Запуск основного сервера
   app.listen(PORT, () => {
     console.log(`[API] Server started on port ${PORT}`)
+  })
+
+  // Запуск дублирующего сервера для обратного прокси на порту 8080
+  const PROXY_PORT = process.env.PROXY_PORT || '8080'
+  app.listen(PROXY_PORT, () => {
+    console.log(`[API] Proxy server started on port ${PROXY_PORT}`)
   })
 }
 
