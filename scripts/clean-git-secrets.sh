@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# ⚠️ DANGER: Git History Cleanup Script
-# THIS WILL REWRITE THE ENTIRE REPOSITORY HISTORY!
-# Usage: ./scripts/clean-git-secrets.sh
-
+# Exit on any error
 set -e
 
 # Colors for output
@@ -81,32 +78,32 @@ clean_history() {
     # Patterns to search and replace
     PATTERNS=(
         # API Keys
-        's/[a-zA-Z0-9]{"api_key":"[a-zA-Z0-9]+"}/"api_key":"[REDACTED]"/g'
-        's/[a-zA-Z0-9]{"apikey":"[a-zA-Z0-9]+"}/"apikey":"[REDACTED]"/g'
-        's/api[_-]key["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/api_key=[REDACTED]/g'
+        's/[a-zA-Z0-9]{"api_key":"[a-zA-Z0-9]+"}/{"api_key":"[REDACTED]"}/g'
+        's/[a-zA-Z0-9]{"apikey":"[a-zA-Z0-9]+"}/{"apikey":"[REDACTED]"}/g'
+        's/api[_-]key["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/api_key=[REDACTED]/g'
         
         # Auth Tokens
-        's/auth[_-]token["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/auth_token=[REDACTED]/g'
-        's/bearer[_-]token["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/bearer_token=[REDACTED]/g'
+        's/auth[_-]token["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/auth_token=[REDACTED]/g'
+        's/bearer[_-]token["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/bearer_token=[REDACTED]/g'
         
         # Passwords
-        's/password["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/password=[REDACTED]/g'
-        's/passwd["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/passwd=[REDACTED]/g'
+        's/password["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/password=[REDACTED]/g'
+        's/passwd["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/passwd=[REDACTED]/g'
         
         # AWS
-        's/aws[_-]access[_-]key[_-]id["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/aws_access_key_id=[REDACTED]/g'
-        's/aws[_-]secret[_-]access[_-]key["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/aws_secret_access_key=[REDACTED]/g'
+        's/aws[_-]access[_-]key[_-]id["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/aws_access_key_id=[REDACTED]/g'
+        's/aws[_-]secret[_-]access[_-]key["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/aws_secret_access_key=[REDACTED]/g'
         
         # Database
-        's/db[_-]password["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/db_password=[REDACTED]/g'
-        's/database[_-]url["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/database_url=[REDACTED]/g'
+        's/db[_-]password["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/db_password=[REDACTED]/g'
+        's/database[_-]url["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/database_url=[REDACTED]/g'
         
         # JWT
-        's/jwt[_-]secret["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/jwt_secret=[REDACTED]/g'
-        's/jwt[_-]token["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/jwt_token=[REDACTED]/g'
+        's/jwt[_-]secret["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/jwt_secret=[REDACTED]/g'
+        's/jwt[_-]token["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/jwt_token=[REDACTED]/g'
         
         # Private Keys
-        's/private[_-]key["\s]*[:=]\s*["'"'"']\([^"'"'"']*\)["'"'"']/private_key=[REDACTED]/g'
+        's/private[_-]key["\s]*[:=]\s*["'\'']\([^"'\'']*\)["'\'']/private_key=[REDACTED]/g'
         's/-----BEGIN PRIVATE KEY-----[^-]*-----END PRIVATE KEY-----/[PRIVATE_KEY_REDACTED]/g'
         's/-----BEGIN RSA PRIVATE KEY-----[^-]*-----END RSA PRIVATE KEY-----/[RSA_KEY_REDACTED]/g'
     )
@@ -157,12 +154,12 @@ verify_cleaning() {
     
     # Patterns to check for
     PATTERNS=(
-        "api[_-]key['\"]?\s*[:=]\s*['\"]\S+['\"]"
-        "token['\"]?\s*[:=]\s*['\"]\S+['\"]"
-        "password['\"]?\s*[:=]\s*['\"]\S+['\"]"
-        "secret['\"]?\s*[:=]\s*['\"]\S+['\"]"
-        "private[_-]key['\"]?\s*[:=]\s*['\"]\S+['\"]"
-        "client[_-]secret['\"]?\s*[:=]\s*['\"]\S+['\"]"
+        "api[_-]key['\"]?\s*[:=]\s*['\"]\\S+['\"]"
+        "token['\"]?\s*[:=]\s*['\"]\\S+['\"]"
+        "password['\"]?\s*[:=]\s*['\"]\\S+['\"]"
+        "secret['\"]?\s*[:=]\s*['\"]\\S+['\"]"
+        "private[_-]key['\"]?\s*[:=]\s*['\"]\\S+['\"]"
+        "client[_-]secret['\"]?\s*[:=]\s*['\"]\\S+['\"]"
     )
     
     SECRETS_FOUND=0
