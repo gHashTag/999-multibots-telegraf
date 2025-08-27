@@ -77,7 +77,7 @@ const getCachedResult = (key: string): LipSyncResult | null => {
 const setCachedResult = (
   key: string,
   result: LipSyncResult,
-  expirationHours: number = 24
+  expirationHours = 24
 ): void => {
   cache.set(key, {
     data: result,

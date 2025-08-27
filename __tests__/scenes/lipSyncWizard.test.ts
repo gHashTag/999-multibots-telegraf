@@ -26,10 +26,9 @@ describe('lipSyncWizard', () => {
     // @ts-ignore
     const step0 = lipSyncWizard.steps[0]
     await step0(ctx)
-    expect(ctx.reply).toHaveBeenCalledWith(
-      'Отправьте видео или URL видео',
-      { reply_markup: { remove_keyboard: true } }
-    )
+    expect(ctx.reply).toHaveBeenCalledWith('Отправьте видео или URL видео', {
+      reply_markup: { remove_keyboard: true },
+    })
     expect(ctx.wizard.next).toHaveBeenCalled()
   })
 
@@ -37,7 +36,9 @@ describe('lipSyncWizard', () => {
     ctx.from.language_code = 'en'
     const video = { file_id: 'f1' }
     ctx.message = { video }
-    ctx.telegram.getFile = jest.fn().mockResolvedValue({ file_size: 999999999, file_path: 'p' })
+    ctx.telegram.getFile = jest
+      .fn()
+      .mockResolvedValue({ file_size: 999999999, file_path: 'p' })
     // @ts-ignore
     const step1 = lipSyncWizard.steps[1]
     await step1(ctx)
@@ -76,13 +77,22 @@ describe('lipSyncWizard', () => {
     ctx.session = { videoUrl: 'v' }
     const voice = { file_id: 'f2' }
     ctx.message = { voice }
-    ctx.telegram.getFile = jest.fn().mockResolvedValue({ file_size: 100, file_path: 'path' })
+    ctx.telegram.getFile = jest
+      .fn()
+      .mockResolvedValue({ file_size: 100, file_path: 'path' })
     // @ts-ignore
     const step2 = lipSyncWizard.steps[2]
     await step2(ctx)
     expect(ctx.session.audioUrl).toBe('https://api.telegram.org/file/botT/path')
-    expect(generateLipSync).toHaveBeenCalledWith('v', 'https://api.telegram.org/file/botT/path', '5', undefined)
-    expect(ctx.reply).toHaveBeenCalledWith('🎥 Видео отправлено на обработку. Ждите результата')
+    expect(generateLipSync).toHaveBeenCalledWith(
+      'v',
+      'https://api.telegram.org/file/botT/path',
+      '5',
+      undefined
+    )
+    expect(ctx.reply).toHaveBeenCalledWith(
+      '🎥 Видео отправлено на обработку. Ждите результата'
+    )
     expect(ctx.scene.leave).toHaveBeenCalled()
   })
 })

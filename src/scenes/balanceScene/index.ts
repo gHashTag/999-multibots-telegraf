@@ -10,11 +10,16 @@ import {
 } from '@/utils/serviceMapping'
 import { generateUserExcelReport } from '@/utils/excelReportGenerator'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import {
+  getUserBalanceStatsOptimized,
+  OptimizedBalanceStats,
+} from '@/core/supabase/getUserBalanceStatsOptimized'
 
 /**
  * Функция для получения детализации трат пользователя
+ * @deprecated Используется только как fallback, если оптимизированная функция недоступна
  */
-async function getUserSpendingDetails(userId: string) {
+async function getUserSpendingDetailsFallback(userId: string) {
   // Получаем все транзакции пользователя
   const { data: payments, error } = await supabase
     .from('payments_v2')
@@ -116,6 +121,42 @@ async function getUserSpendingDetails(userId: string) {
   }
 }
 
+/**
+ * Преобразует оптимизированные данные в формат для отображения
+ */
+function convertOptimizedStatsToDisplayFormat(stats: OptimizedBalanceStats) {
+  return {
+    totalRealIncomeStars: stats.total_real_income,
+    totalBonusStars: stats.total_bonus_income,
+    totalOutcomeStars: stats.total_outcome,
+    currentBalance: stats.current_balance,
+    allServices: stats.services_breakdown.map(s => [
+      s.service,
+      { count: s.count, stars: s.total_stars },
+    ] as [string, { count: number; stars: number }]),
+    recentOutcomes: stats.recent_expenses.map(e => ({
+      payment_date: e.date,
+      stars: e.stars,
+      service_type: e.service,
+      description: e.description,
+    })),
+    recentTopUps: stats.recent_topups.map(t => ({
+      payment_date: t.date,
+      stars: t.stars,
+      amount: t.amount,
+      currency: t.currency,
+      payment_method: t.payment_method,
+    })),
+    totalTransactions: stats.total_transactions,
+    hasBonuses: stats.total_bonus_income > 0,
+    rublesStars: stats.payment_methods.rubles.stars,
+    rublesAmount: stats.payment_methods.rubles.amount,
+    telegramStars: stats.payment_methods.telegram_stars.stars,
+    hasRublesPayments: stats.payment_methods.rubles.count > 0,
+    hasTelegramPayments: stats.payment_methods.telegram_stars.count > 0,
+  }
+}
+
 export const balanceScene = new Scenes.WizardScene<MyContext>(
   'balanceScene',
   async (ctx: MyContext) => {
@@ -124,9 +165,14 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       const isRu = isRussianFromState(ctx)
       const userId = ctx.from?.id.toString() || ''
 
-      // Получаем баланс и детализацию
+      // Получаем баланс и детализацию через оптимизированную функцию
       const balance = await getUserBalance(userId)
-      const spendingDetails = await getUserSpendingDetails(userId)
+      
+      // Пробуем получить данные через оптимизированную функцию
+      const optimizedStats = await getUserBalanceStatsOptimized(userId)
+      const spendingDetails = optimizedStats
+        ? convertOptimizedStatsToDisplayFormat(optimizedStats)
+        : await getUserSpendingDetailsFallback(userId)
 
       if (!spendingDetails) {
         // Если нет данных о тратах, показываем простой баланс
@@ -239,7 +285,9 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
             message += `   ${index + 1}. ${serviceEmoji} ${serviceTitle}:\n`
             message += `      💰 ${serviceStars}⭐ (${percentage}%)\n`
-            message += `      🔢 ${stats.count} ${isRu ? 'операций' : 'operations'}\n\n`
+            message += `      🔢 ${stats.count} ${
+              isRu ? 'операций' : 'operations'
+            }\n\n`
           })
         }
 
@@ -305,7 +353,9 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
               isRu
             )
 
-            message += `   ${index + 1}. 📉 ${date}: ${stars}⭐ - ${serviceEmoji} ${serviceTitle}\n`
+            message += `   ${
+              index + 1
+            }. 📉 ${date}: ${stars}⭐ - ${serviceEmoji} ${serviceTitle}\n`
           })
         }
 
@@ -374,7 +424,9 @@ balanceScene.action('download_excel_report', async (ctx: MyContext) => {
       .eq('telegram_id', userId)
       .single()
 
-    const filename = `financial_report_${userInfo?.username || userId}_${new Date().toISOString().split('T')[0]}.xlsx`
+    const filename = `financial_report_${userInfo?.username || userId}_${
+      new Date().toISOString().split('T')[0]
+    }.xlsx`
 
     // Отправляем файл
     await ctx.replyWithDocument(
