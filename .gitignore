@@ -98,18 +98,6 @@ service-account.json
 *.crt
 *.cer
 
-# GitHub Secrets и другие секретные файлы
-.gitsecrets
-.secrets.baseline
-**/secrets/**
-**/.secrets/**
-private.key
-public.key
-id_rsa
-id_rsa.pub
-id_dsa
-id_dsa.pub
-
 # API ключи и токены (на всякий случай)
 api_keys.json
 tokens.json
@@ -307,7 +295,7 @@ temp_*/
 # !.claude/hooks/*.sh
 # !.claude/activate-hooks.sh
 
-# Security and secrets files
+# 🔐 SECURITY: Дополнительная защита
 # Логи с потенциальными секретами
 *.log
 debug.log
@@ -322,45 +310,38 @@ access.log
 core.*
 *.stackdump
 
-# Security files
-*.key
-*.pem
-*.p12
-*.pfx
-*.cer
-*.crt
-*_credentials_*
-*_secrets_*
-*_keys_*
-.secrets/
-.secrets.*
-credentials.json
-service-account.json
-id_rsa*
-id_dsa*
-known_hosts
-authorized_keys
-*.keystore
-*.gpg
-*.asc
+# Файлы конфигурации с секретами
 config.local.*
 local.config.*
 *.local.json
 *.local.yaml
 *.local.yml
-*.env.backup
-*.env.bak
-*.env.old
 
-# Database files
+# SSH ключи
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+known_hosts
+authorized_keys
+
+# GPG ключи  
+*.gpg
+*.asc
+
+# Wallet файлы
+*.wallet
+*.keystore
+
+# Database файлы с секретами
 *.db-journal
 *.sqlite-wal
 *.sqlite-shm
 
-# Jupyter notebook checkpoints
+# Jupyter notebook checkpoints (могут содержать секреты)
 .ipynb_checkpoints/
 
-# Security scan results
+# 🛡️ Security scan results
 security-report.json
 vulnerability-report.json
 audit-results.json
