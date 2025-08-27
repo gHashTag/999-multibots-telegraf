@@ -1,7 +1,7 @@
 # Git History Cleanup Plan
 
 ## Overview
-This document outlines the plan for cleaning up any sensitive information that may have been accidentally committed to the git history.
+This document outlines the plan for cleaning up any sensitive information from the git history.
 
 ## Step 1: Pre-cleanup Preparation
 
