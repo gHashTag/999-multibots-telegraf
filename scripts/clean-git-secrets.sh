@@ -154,12 +154,12 @@ verify_cleaning() {
     
     # Patterns to check for
     PATTERNS=(
-        "api[_-]key['\"]?\s*[:=]\s*['\"]\\S+['\"]"
-        "token['\"]?\s*[:=]\s*['\"]\\S+['\"]"
-        "password['\"]?\s*[:=]\s*['\"]\\S+['\"]"
-        "secret['\"]?\s*[:=]\s*['\"]\\S+['\"]"
-        "private[_-]key['\"]?\s*[:=]\s*['\"]\\S+['\"]"
-        "client[_-]secret['\"]?\s*[:=]\s*['\"]\\S+['\"]"
+        "api[_-]key['\"]?\s*[:=]\s*['\"]\S+['\"]"
+        "token['\"]?\s*[:=]\s*['\"]\S+['\"]"
+        "password['\"]?\s*[:=]\s*['\"]\S+['\"]"
+        "secret['\"]?\s*[:=]\s*['\"]\S+['\"]"
+        "private[_-]key['\"]?\s*[:=]\s*['\"]\S+['\"]"
+        "client[_-]secret['\"]?\s*[:=]\s*['\"]\S+['\"]"
     )
     
     SECRETS_FOUND=0

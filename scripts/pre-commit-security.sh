@@ -4,13 +4,12 @@
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 echo -e "${YELLOW}🔍 Running pre-commit security checks...${NC}"
 
 # List of patterns to check
-patterns=(
+PATTERNS=(
     "api[_-]key[=\"'][\w\-]{16,}"
     "sk-[\w\-]{32,}"
     "ghp_[\w\-]{36,}"
@@ -22,7 +21,7 @@ patterns=(
 )
 
 # Files to exclude from checking
-excluded_files=(
+EXCLUDED_FILES=(
     ".env.example"
     "*.test.ts"
     "*.spec.ts"
@@ -33,7 +32,7 @@ excluded_files=(
 )
 
 # Create exclude pattern for git diff
-exclude_pattern=$(printf "|%s" "${excluded_files[@]}")
+exclude_pattern=$(printf "|%s" "${EXCLUDED_FILES[@]}")
 exclude_pattern=${exclude_pattern:1}
 
 # Get staged files
@@ -47,7 +46,7 @@ fi
 found_secrets=false
 
 for file in $staged_files; do
-    for pattern in "${patterns[@]}"; do
+    for pattern in "${PATTERNS[@]}"; do
         if git diff --cached "$file" | grep -E "$pattern" > /dev/null; then
             if [ "$found_secrets" = false ]; then
                 echo -e "${RED}❌ Found potential secrets in:${NC}"
