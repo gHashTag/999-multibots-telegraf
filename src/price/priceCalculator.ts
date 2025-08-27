@@ -89,7 +89,9 @@ export function formatCost(
     if (showDollars) result += ` / $${cost.dollars.toFixed(2)}`
     return result
   }
-  return `${cost.steps} steps - ${cost.stars.toFixed(0)}⭐ / $${cost.dollars.toFixed(2)}`
+  return `${cost.steps} steps - ${cost.stars.toFixed(
+    0
+  )}⭐ / $${cost.dollars.toFixed(2)}`
 }
 
 export function generateCostMessage(

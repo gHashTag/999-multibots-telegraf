@@ -33,10 +33,14 @@ if (loadResult.error) {
   }
 } else {
   console.log(
-    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${Object.keys(loadResult.parsed).length}`
+    `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${
+      Object.keys(loadResult.parsed).length
+    }`
   )
   console.log(
-    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'}`
+    `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${
+      loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'
+    }`
   )
 }
 
@@ -45,8 +49,21 @@ if (!process.env.NODE_ENV) {
   console.log("[CONFIG] NODE_ENV was not set, setting to 'development'")
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
 }
-export const isDev = process.env.NODE_ENV === 'development'
+
+// 🔧 ИСПРАВЛЕНИЕ: Принудительный development режим через FORCE_DEV_MODE или TEST_BOT_NAME
+const forceDevMode = process.env.FORCE_DEV_MODE === 'true'
+const hasTestBot = !!process.env.TEST_BOT_NAME
+if (forceDevMode) {
+  console.log('[CONFIG] FORCE_DEV_MODE=true detected, overriding to development mode')
+  ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
+} else if (hasTestBot) {
+  console.log(`[CONFIG] TEST_BOT_NAME=${process.env.TEST_BOT_NAME} detected, overriding to development mode`)
+  ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
+}
+
+export const isDev = process.env.NODE_ENV === 'development' || forceDevMode || hasTestBot
 console.log(`[CONFIG] isDev flag set to: ${isDev}`)
+console.log(`[CONFIG] forceDevMode: ${forceDevMode}`)
 
 console.log(`[CONFIG] NODE_ENV is set to: ${process.env.NODE_ENV}`)
 console.log('--- End Debugging .env loading --- ')
@@ -107,18 +124,28 @@ export const {
   INNGEST_SIGNING_KEY,
   ROBOKASSA_PASSWORD_1,
   ROBOKASSA_PASSWORD_2,
+  SERVER_API_URL,
+  USE_PRODUCTION_API,
 } = process.env
 
-// API_URL для AI сервера - в разработке используем локальный AI сервер
-export const API_URL = isDev ? AI_SERVER_LOCAL_URL : API_SERVER_URL
+// API_URL для AI сервера - логика переключения между локальным и продакшн сервером
+const forceProductionAPI = USE_PRODUCTION_API === 'true'
+export const API_URL = forceProductionAPI 
+  ? API_SERVER_URL // 🚀 Принудительно используем продакшн Railway сервер
+  : isDev 
+    ? (LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL) // 🛠️ В dev режиме - локальный/ngrok
+    : API_SERVER_URL // 📦 В production режиме - всегда продакшн сервер
 
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
 const BASE_PAYMENT_URL = isDev
-  ? API_SERVER_URL || 'https://ai-server-u14194.vm.elestio.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
+  ? API_SERVER_URL ||
+    process.env.SERVER_API_URL ||
+    'https://ai-server-production-production-8e2d.up.railway.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
-    'https://ai-server-u14194.vm.elestio.app'
+    process.env.SERVER_API_URL ||
+    'https://ai-server-production-production-8e2d.up.railway.app'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 
@@ -131,11 +158,16 @@ console.log('🚨 [CONFIG DEBUG] URL CONFIGURATION LOADED:')
 console.log(`🚨 [CONFIG DEBUG] isDev: ${isDev}`)
 console.log(`🚨 [CONFIG DEBUG] LOCAL_SERVER_URL: ${LOCAL_SERVER_URL}`)
 console.log(`🚨 [CONFIG DEBUG] API_SERVER_URL: ${API_SERVER_URL}`)
+console.log(`🚨 [CONFIG DEBUG] USE_PRODUCTION_API: ${USE_PRODUCTION_API}`)
+console.log(`🚨 [CONFIG DEBUG] forceProductionAPI: ${forceProductionAPI}`)
 console.log(`🚨 [CONFIG DEBUG] FINAL API_URL: ${API_URL}`)
+console.log(`🚨 [CONFIG DEBUG] SUPABASE_URL: ${SUPABASE_URL}`)
+console.log(`🚨 [CONFIG DEBUG] SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY ? '***SET***' : 'UNDEFINED'}`)
 console.log('🚨 [CONFIG DEBUG] =====================================')
 
 // Парсинг ADMIN_IDS в массив чисел
-const adminIdsString = process.env.ADMIN_IDS || ''
+const adminIdsString = process.env.ADMIN_IDS || process.env.ADMIN_TELEGRAM_ID || ''
+console.log('[CONFIG DEBUG] Raw ADMIN_IDS value:', adminIdsString)
 export const ADMIN_IDS_ARRAY: number[] = adminIdsString
   .split(',') // Разделяем строку по запятым
   .map(id => parseInt(id.trim(), 10)) // Преобразуем каждую часть в число

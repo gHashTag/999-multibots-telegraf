@@ -1,4 +1,4 @@
-import Replicate from 'replicate'
+const Replicate = require('replicate')
 import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
@@ -26,7 +26,7 @@ import {
 /**
  * Создает Replicate клиент
  */
-const createReplicateClient = (): Replicate => {
+const createReplicateClient = (): typeof Replicate => {
   console.log('🔍 [createReplicateClient] Checking API token...')
   console.log(
     '🔍 [createReplicateClient] Token exists:',

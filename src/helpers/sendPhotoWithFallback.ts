@@ -28,7 +28,11 @@ export async function sendPhotoWithFallback(
     }
 
     logger.info(
-      `[sendPhotoWithFallback] Image validation passed. Size: ${validation.size ? (validation.size / 1024 / 1024).toFixed(2) + 'MB' : 'unknown'}, Type: ${validation.contentType}`
+      `[sendPhotoWithFallback] Image validation passed. Size: ${
+        validation.size
+          ? (validation.size / 1024 / 1024).toFixed(2) + 'MB'
+          : 'unknown'
+      }, Type: ${validation.contentType}`
     )
 
     try {
@@ -40,7 +44,9 @@ export async function sendPhotoWithFallback(
       return true
     } catch (urlError) {
       logger.warn(
-        `[sendPhotoWithFallback] Failed to send photo via URL: ${photoUrl}. Error: ${urlError instanceof Error ? urlError.message : 'Unknown error'}. Trying buffer upload...`
+        `[sendPhotoWithFallback] Failed to send photo via URL: ${photoUrl}. Error: ${
+          urlError instanceof Error ? urlError.message : 'Unknown error'
+        }. Trying buffer upload...`
       )
 
       // Fallback: загружаем изображение и отправляем через Buffer
@@ -73,14 +79,18 @@ export async function sendPhotoWithFallback(
         return true
       } catch (bufferError) {
         logger.error(
-          `[sendPhotoWithFallback] Buffer upload also failed: ${bufferError instanceof Error ? bufferError.message : 'Unknown error'}`
+          `[sendPhotoWithFallback] Buffer upload also failed: ${
+            bufferError instanceof Error ? bufferError.message : 'Unknown error'
+          }`
         )
         return false
       }
     }
   } catch (error) {
     logger.error(
-      `[sendPhotoWithFallback] Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `[sendPhotoWithFallback] Unexpected error: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
     )
     return false
   }

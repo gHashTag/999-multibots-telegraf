@@ -1,0 +1,98 @@
+name: 🤖 Claude Assistant Reminder
+
+on:
+  pull_request:
+    types: [opened]
+  issues:
+    types: [opened]
+
+jobs:
+  claude-reminder:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.body, 'Claude Code') || contains(github.event.pull_request.title, 'claude') || contains(github.event.issue.body, 'Claude') || contains(github.actor, 'claude')
+    
+    steps:
+      - name: 🤖 Check for AI Assistant and Send Reminder
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isPR = context.eventName === 'pull_request';
+            const issueNumber = isPR ? context.payload.pull_request.number : context.payload.issue.number;
+            const body = isPR ? context.payload.pull_request.body : context.payload.issue.body;
+            const title = isPR ? context.payload.pull_request.title : context.payload.issue.title;
+            
+            // AI indicators
+            const aiIndicators = [
+              'claude code',
+              'generated with claude',
+              'co-authored-by: claude',
+              'claude ai',
+              'chatgpt',
+              'gpt-',
+              'ai assistant',
+              '🤖'
+            ];
+            
+            const content = (title + ' ' + (body || '')).toLowerCase();
+            const isAiGenerated = aiIndicators.some(indicator => content.includes(indicator));
+            
+            if (isAiGenerated) {
+              const reminderMessage = `
+            🤖 **AI Assistant Detected!**
+            
+            Hi there! It looks like this ${isPR ? 'pull request' : 'issue'} was created with AI assistance (Claude Code, ChatGPT, etc.). That's awesome! 🚀
+            
+            ## 📋 Important Reminder for AI Assistants:
+            
+            ### 🔄 **ONE TASK = ONE PR Rule**
+            - ✅ **Each new task** → Create new branch + new PR
+            - ❌ **Don't reuse** old/closed PRs for new tasks  
+            - ✅ **Keep PRs focused** on a single feature/fix
+            
+            ### 🏷️ **Branch Naming Convention**
+            Make sure your branch follows our pattern:
+            - \`feat/description\` - for new features
+            - \`fix/description\` - for bug fixes
+            - \`docs/description\` - for documentation
+            - \`chore/description\` - for maintenance
+            
+            ### ✨ **Why This Matters:**
+            - 🧹 Keeps git history clean
+            - 👀 Makes code review easier
+            - 📊 Enables proper tracking
+            - 🚀 Speeds up the development process
+            
+            ### 🎯 **Quick Workflow Reminder:**
+            \`\`\`bash
+            # For each NEW task:
+            git checkout main
+            git pull origin main
+            git checkout -b feat/new-task-name
+            # Do your work
+            git push -u origin feat/new-task-name
+            gh pr create --title "feat: new task" --base main
+            \`\`\`
+            
+            ---
+            
+            ${isPR ? 
+              '**For this PR:** If this represents a genuinely new task, you\'re all set! If this should be part of another PR, please consider consolidating.' :
+              '**For this issue:** Thanks for the detailed report! When you create a PR to address this, remember to follow the workflow above.'
+            }
+            
+            Keep up the great work! Your AI-assisted contributions are valuable. 🌟
+            
+            *This is an automated reminder to help maintain our repository standards.*
+              `.trim();
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: reminderMessage
+              });
+              
+              core.info('✅ AI Assistant reminder posted');
+            } else {
+              core.info('ℹ️ No AI indicators detected, skipping reminder');
+            }

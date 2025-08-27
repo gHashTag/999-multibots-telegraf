@@ -65,6 +65,7 @@ export enum ModeEnum {
   CreateUserScene = 'create_user_scene',
   InstagramScrapingWizard = 'instagram_scraping_wizard',
   InstagramParserScene = 'instagram_parser_scene',
+  InstagramParserWizard = 'instagram_parser_wizard',
   MorphingWizard = 'morphing_wizard',
 
   // ⚠️ УСТАРЕВШИЕ/НЕИСПОЛЬЗУЕМЫЕ (оставляем для совместимости)
