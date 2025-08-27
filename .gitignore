@@ -1,6 +1,8 @@
+
 # Worktrees - временные ветки для разработки
 worktrees/
 .worktrees/
+
 
 # Logs
 logs
@@ -311,7 +313,7 @@ temp_*/
 # !.claude/hooks/*.sh
 # !.claude/activate-hooks.sh
 
-# 🔐 SECURITY: Дополнительная защита
+# Security and secrets files
 # Логи с потенциальными секретами
 *.log
 debug.log
@@ -326,38 +328,45 @@ access.log
 core.*
 *.stackdump
 
-# Файлы конфигурации с секретами
+# Security files
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*_credentials_*
+*_secrets_*
+*_keys_*
+.secrets/
+.secrets.*
+credentials.json
+service-account.json
+id_rsa*
+id_dsa*
+known_hosts
+authorized_keys
+*.keystore
+*.gpg
+*.asc
 config.local.*
 local.config.*
 *.local.json
 *.local.yaml
 *.local.yml
+*.env.backup
+*.env.bak
+*.env.old
 
-# SSH ключи
-id_rsa
-id_rsa.pub
-id_ed25519
-id_ed25519.pub
-known_hosts
-authorized_keys
-
-# GPG ключи  
-*.gpg
-*.asc
-
-# Wallet файлы
-*.wallet
-*.keystore
-
-# Database файлы с секретами
+# Database files
 *.db-journal
 *.sqlite-wal
 *.sqlite-shm
 
-# Jupyter notebook checkpoints (могут содержать секреты)
+# Jupyter notebook checkpoints
 .ipynb_checkpoints/
 
-# 🛡️ Security scan results
+# Security scan results
 security-report.json
 vulnerability-report.json
 audit-results.json

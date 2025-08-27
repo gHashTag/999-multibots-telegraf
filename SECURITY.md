@@ -1,147 +1,66 @@
-# 🔐 БЕЗОПАСНОСТЬ ПРОЕКТА
+# Security Policy
 
-## ⚠️ КРИТИЧЕСКАЯ ИНФОРМАЦИЯ О БЕЗОПАСНОСТИ
+## Reporting a Vulnerability
 
-### 🚨 ОБНАРУЖЕННЫЕ ПРОБЛЕМЫ БЕЗОПАСНОСТИ
+If you discover a security vulnerability in this project, please follow these steps:
 
-**Статус:** ❌ КРИТИЧЕСКИЕ УЯЗВИМОСТИ ОБНАРУЖЕНЫ
-**Дата аудита:** 2025-08-23
-**Аудитор:** Claude Code Security Scanner
+1. **DO NOT** create a public GitHub issue for the vulnerability.
+2. Email the details to security@example.com or dm @gHashTag on Telegram
+3. Include the following information:
+   - Type of vulnerability
+   - Full path of source file(s) related to the vulnerability
+   - Any special configuration required to reproduce the issue
+   - Step-by-step instructions to reproduce the issue
 
-#### 📋 Выявленные проблемы:
+## Security Controls
 
-1. **Секреты в истории Git:**
-   - ✅ Найдены реальные BOT_TOKEN в коммитах
-   - ✅ Найдены реальные OPENAI_API_KEY в коммитах  
-   - ✅ Найдены другие API ключи в истории
+### Access Control
+- All API endpoints are protected with authentication
+- Bot tokens and API keys are stored as environment variables
+- Sensitive operations require admin privileges 
 
-2. **Проблемные файлы:**
-   - `docs/DEV_ENVIRONMENT_READY.md` - содержит частичные токены
-   - `LIPSYNC_SETUP_GUIDE.md` - показывает формат реальных токенов
+### Data Protection
+- All secrets are stored encrypted at rest
+- Communication uses HTTPS/TLS
+- Sensitive data is not logged
+- Regular security scans are performed
 
-## 🛡️ ПЛАН ИСПРАВЛЕНИЯ БЕЗОПАСНОСТИ
+### Code Security
+- Dependencies are regularly updated
+- Security advisories are monitored
+- Code undergoes security review before deployment
+- Pre-commit hooks check for secrets
 
-### 1. НЕМЕДЛЕННЫЕ ДЕЙСТВИЯ (В ПРОЦЕССЕ)
+### Infrastructure Security  
+- Production systems are hardened
+- Access logs are maintained
+- Regular backups are performed
+- Infrastructure as code is security reviewed
 
-- [x] Создан `.env.example` с безопасными примерами
-- [ ] Обновлен `.gitignore` для защиты от будущих утечек  
-- [ ] Очистка проблемных файлов от секретов
-- [ ] Создание скрипта для валидации безопасности
+## Security Practices
 
-### 2. КРИТИЧЕСКИ ВАЖНО - СМЕНИТЬ ВСЕ КЛЮЧИ
+### Secret Management
+- No secrets in code/git history
+- Secrets rotation policy
+- Access to secrets is logged
+- Secure secret distribution process
 
-⚠️ **ВСЕ НАЙДЕННЫЕ В GIT ИСТОРИИ КЛЮЧИ СКОМПРОМЕТИРОВАНЫ!**
+### Secure Development
+- Security training for developers
+- Code review focuses on security
+- Static analysis tools
+- Security testing in CI/CD
 
-**Требуется немедленная замена:**
+### Incident Response
+1. Immediate assessment
+2. Contain the issue
+3. Fix vulnerabilities
+4. Post-mortem analysis
+5. Security improvements
 
-#### Telegram Bot Tokens:
-- `1234567890:EXAMPLE_BOT_TOKEN_PLACEHOLDER` ❌ ПРИМЕР
-- `0987654321:EXAMPLE_BOT_TOKEN_PLACEHOLDER` ❌ ПРИМЕР
-- `1111111111:EXAMPLE_BOT_TOKEN_PLACEHOLDER` ❌ ПРИМЕР
-- И другие bot токены (удалены из соображений безопасности)
-
-#### OpenAI API Key:
-- `sk-EXAMPLE_OPENAI_API_KEY_PLACEHOLDER` ❌ ПРИМЕР
-
-**КАК ЗАМЕНИТЬ:**
-
-1. **Telegram боты:**
-   - Зайти к @BotFather  
-   - Использовать `/revoke` для каждого бота
-   - Создать новые токены
-   - Обновить в переменных окружения
-
-2. **OpenAI:**
-   - Зайти в https://platform.openai.com/api-keys
-   - Отозвать скомпрометированный ключ
-   - Создать новый API ключ
-   - Обновить в `.env`
-
-### 3. ОЧИСТКА GIT ИСТОРИИ
-
-**⚠️ ВНИМАНИЕ:** Это изменит всю историю репозитория!
-
-```bash
-# Использовать git-filter-repo для полной очистки
-pip install git-filter-repo
-
-# Удалить все файлы с секретами из истории
-git filter-repo --invert-paths --path-glob '**/secrets*' --path-glob '**/.env*' --force
-
-# Очистить конкретные строки с секретами  
-git filter-repo --replace-text <(echo 'ACTUAL_SECRET_HERE=>***REMOVED***')
-git filter-repo --replace-text <(echo 'ANOTHER_SECRET_HERE=>***REMOVED***')
-
-# Force push во все ветки (ОПАСНО!)
-git push --all --force
-git push --tags --force
-```
-
-### 4. УСИЛЕНИЕ БЕЗОПАСНОСТИ
-
-#### 4.1 Обновленный .gitignore:
-```gitignore
-# Секретные файлы
-.env
-.env.*
-!.env.example
-secrets.json
-config/secrets/
-*.pem
-*.key
-*.p12
-*.pfx
-
-# Временные файлы с секретами  
-temp_secrets_*
-backup_keys_*
-*_credentials_*
-```
-
-#### 4.2 Pre-commit хуки:
-```bash
-# Установка detect-secrets
-pip install detect-secrets
-
-# Инициализация
-detect-secrets scan --baseline .secrets.baseline
-
-# Pre-commit хук  
-detect-secrets audit .secrets.baseline
-```
-
-#### 4.3 CI/CD сканирование:
-- Добавить trufflehog для поиска секретов
-- Добавить gitleaks в GitHub Actions
-- Блокировать коммиты с подозрительным контентом
-
-## 🔒 РЕКОМЕНДАЦИИ ПО БЕЗОПАСНОСТИ
-
-### ДЛЯ РАЗРАБОТЧИКОВ:
-
-1. **НИКОГДА не коммитить секреты**
-2. **Использовать только .env.example** для примеров  
-3. **Проверять коммиты** перед push
-4. **Использовать разные ключи** для dev/prod
-5. **Регулярно ротировать** API ключи
-
-### ДЛЯ ПРОДАКШЕНА:
-
-1. **Переменные окружения** вместо файлов
-2. **AWS Secrets Manager** или аналоги
-3. **Мониторинг доступа** к секретам
-4. **Автоматическая ротация** ключей
-5. **Аудит безопасности** каждые 3 месяца
-
-## 📞 КОНТАКТЫ ПРИ ИНЦИДЕНТАХ
-
-При обнаружении утечки секретов:
-
-1. **Немедленно отозвать** скомпрометированные ключи
-2. **Уведомить команду** о инциденте
-3. **Проанализировать логи** на предмет злоупотреблений
-4. **Обновить план безопасности**
-
----
-
-**⚠️ Эти рекомендации критически важны для безопасности проекта!**
+### Security Updates
+Security patches will be released:
+- Critical: Within 24 hours
+- High: Within 48 hours
+- Medium: Within 1 week
+- Low: Next release cycle
