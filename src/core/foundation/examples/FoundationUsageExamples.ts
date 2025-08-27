@@ -348,8 +348,8 @@ export class HealthCheckService {
 
   private static async checkDatabase(): Promise<'ok' | 'error'> {
     try {
-      const { supabaseClient } = await import('@/core/supabase/client')
-      const { data, error } = await supabaseClient.from('users').select('id').limit(1)
+      const { supabase } = await import('@/core/supabase/client')
+      const { data, error } = await supabase.from('users').select('id').limit(1)
       return error ? 'error' : 'ok'
     } catch {
       return 'error'
