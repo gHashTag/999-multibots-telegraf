@@ -20,12 +20,12 @@ export class NewAIService {
   async generateContent(ctx: MyContext, prompt: string): Promise<void> {
     const telegramId = ctx.from?.id?.toString() || ''
     const isRu = isRussianFromState(ctx) // Быстрое определение языка
-    
+
     try {
       // ✅ Правильное получение конфигурации
       const apiUrl = configManager.getApiServerUrl()
       const secretKey = configManager.get<string>('secretApiKey')
-      
+
       // ✅ Правильное логирование
       const { logger } = await import('@/utils/logger')
       logger.info('AI service request started', {
@@ -49,14 +49,13 @@ export class NewAIService {
       }
 
       const result = await response.json()
-      
+
       // ✅ Успешный ответ пользователю
       await ctx.reply(
-        isRu 
+        isRu
           ? `✅ Контент сгенерирован: ${result.content}`
           : `✅ Content generated: ${result.content}`
       )
-
     } catch (error) {
       // ✅ Правильная обработка ошибок
       await errorHandler.handleError(error, ctx, ErrorType.API_INTEGRATION, {
@@ -80,13 +79,13 @@ export function registerNewMenuAction() {
     requiresSubscription: true,
     customHandler: async (ctx: MyContext) => {
       const isRu = isRussianFromState(ctx)
-      
+
       await ctx.reply(
         isRu
           ? '🎨 Добро пожаловать в новую функцию!'
           : '🎨 Welcome to the new feature!'
       )
-      
+
       // Переход в специальную сцену
       if (ctx.scene.current) {
         await ctx.scene.leave()
@@ -103,11 +102,11 @@ export function registerNewMenuAction() {
 export class FileProcessor {
   async processImage(ctx: MyContext, fileId: string): Promise<void> {
     const telegramId = ctx.from?.id?.toString() || ''
-    
+
     try {
       // ✅ Получение файла через Telegram API
       const fileInfo = await ctx.telegram.getFile(fileId)
-      
+
       if (!fileInfo.file_path) {
         throw new Error('File path not available')
       }
@@ -115,16 +114,15 @@ export class FileProcessor {
       // ✅ Загрузка файла
       const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${fileInfo.file_path}`
       const response = await fetch(fileUrl)
-      
+
       if (!response.ok) {
         throw new Error(`Failed to download file: ${response.status}`)
       }
 
       const buffer = await response.arrayBuffer()
-      
+
       // ✅ Обработка файла
       await this.processImageBuffer(buffer, ctx)
-      
     } catch (error) {
       // ✅ Специализированная обработка ошибок файлов
       await errorHandler.handleError(error, ctx, ErrorType.FILE_PROCESSING, {
@@ -134,15 +132,18 @@ export class FileProcessor {
     }
   }
 
-  private async processImageBuffer(buffer: ArrayBuffer, ctx: MyContext): Promise<void> {
+  private async processImageBuffer(
+    buffer: ArrayBuffer,
+    ctx: MyContext
+  ): Promise<void> {
     // Логика обработки изображения
     const isRu = isRussianFromState(ctx)
-    
+
     // Имитация обработки
     await new Promise(resolve => setTimeout(resolve, 2000))
-    
+
     await ctx.reply(
-      isRu 
+      isRu
         ? '✅ Изображение обработано успешно!'
         : '✅ Image processed successfully!'
     )
@@ -157,42 +158,44 @@ export class SubscriptionService {
   /**
    * Пример проверки подписки с правильной обработкой ошибок
    */
-  async checkAndProcessSubscription(ctx: MyContext, serviceName: string): Promise<boolean> {
+  async checkAndProcessSubscription(
+    ctx: MyContext,
+    serviceName: string
+  ): Promise<boolean> {
     const telegramId = ctx.from?.id?.toString() || ''
-    
+
     try {
       // ✅ Получение данных пользователя
       const { getReferalsCountAndUserData } = await import('@/core/supabase')
       const userData = await getReferalsCountAndUserData(telegramId)
-      
+
       if (!userData.subscriptionType || userData.subscriptionType === 'STARS') {
         // ✅ Правильное уведомление о необходимости подписки
         const languageData = await languageManager.getUserLanguage(ctx)
-        
+
         const message = languageData.isRussian
           ? `💫 Для использования "${serviceName}" необходима подписка.\n\nНажмите "Оформить подписку" в главном меню.`
           : `💫 Subscription required to use "${serviceName}".\n\nPress "Subscribe" in the main menu.`
-        
+
         await ctx.reply(message)
-        
+
         // Переход к подписке
         if (ctx.scene.current) {
           await ctx.scene.leave()
         }
         await ctx.scene.enter('subscription_scene')
-        
+
         return false
       }
 
       return true
-      
     } catch (error) {
       // ✅ Специализированная обработка ошибок подписки
       await errorHandler.handleError(error, ctx, ErrorType.SUBSCRIPTION, {
         action: 'check_subscription',
         data: { serviceName, telegramId },
       })
-      
+
       return false
     }
   }
@@ -207,38 +210,43 @@ import { Scenes } from 'telegraf'
 export class NewFeatureScene extends Scenes.BaseScene<MyContext> {
   constructor() {
     super('new_feature_scene')
-    
+
     // ✅ Правильная обработка входа в сцену
-    this.enter(async (ctx) => {
+    this.enter(async ctx => {
       try {
         const languageData = await languageManager.getUserLanguage(ctx)
-        
+
         const message = languageData.isRussian
           ? '🎨 Добро пожаловать в новую функцию!\n\nОтправьте текст для обработки:'
           : '🎨 Welcome to the new feature!\n\nSend text to process:'
-        
+
         await ctx.reply(message, {
           reply_markup: {
             keyboard: [
               [languageData.isRussian ? '🏠 Главное меню' : '🏠 Main menu'],
-              [languageData.isRussian ? 'Отмена' : 'Cancel']
+              [languageData.isRussian ? 'Отмена' : 'Cancel'],
             ],
             resize_keyboard: true,
           },
         })
-        
       } catch (error) {
-        await errorHandler.handleSceneTransitionError(error, ctx, 'new_feature_scene')
+        await errorHandler.handleSceneTransitionError(
+          error,
+          ctx,
+          'new_feature_scene'
+        )
       }
     })
 
     // ✅ Обработка текстовых сообщений в сцене
-    this.on('text', async (ctx) => {
+    this.on('text', async ctx => {
       try {
         const text = ctx.message.text
-        
+
         // Проверка на команды выхода
-        if (['🏠 Главное меню', '🏠 Main menu', 'Отмена', 'Cancel'].includes(text)) {
+        if (
+          ['🏠 Главное меню', '🏠 Main menu', 'Отмена', 'Cancel'].includes(text)
+        ) {
           await ctx.scene.leave()
           await ctx.scene.enter('main_menu')
           return
@@ -246,7 +254,6 @@ export class NewFeatureScene extends Scenes.BaseScene<MyContext> {
 
         // Обработка пользовательского ввода
         await this.processUserInput(ctx, text)
-        
       } catch (error) {
         await errorHandler.handleError(error, ctx, ErrorType.VALIDATION, {
           action: 'process_scene_input',
@@ -258,18 +265,16 @@ export class NewFeatureScene extends Scenes.BaseScene<MyContext> {
 
   private async processUserInput(ctx: MyContext, text: string): Promise<void> {
     const isRu = isRussianFromState(ctx)
-    
+
     // Показываем прогресс
     const progressMessage = await ctx.reply(
-      isRu 
-        ? '⏳ Обрабатываем ваш запрос...'
-        : '⏳ Processing your request...'
+      isRu ? '⏳ Обрабатываем ваш запрос...' : '⏳ Processing your request...'
     )
 
     try {
       // Имитация обработки
       await new Promise(resolve => setTimeout(resolve, 3000))
-      
+
       // Успешный результат
       await ctx.telegram.editMessageText(
         ctx.chat!.id,
@@ -286,7 +291,6 @@ export class NewFeatureScene extends Scenes.BaseScene<MyContext> {
           ? 'Что дальше?\n\n💬 Отправьте еще текст или вернитесь в главное меню'
           : 'What next?\n\n💬 Send more text or return to main menu'
       )
-      
     } catch (error) {
       // Обновляем сообщение прогресса
       await ctx.telegram.editMessageText(
@@ -297,7 +301,7 @@ export class NewFeatureScene extends Scenes.BaseScene<MyContext> {
           ? '❌ Произошла ошибка при обработке'
           : '❌ An error occurred during processing'
       )
-      
+
       // Обрабатываем ошибку
       throw error
     }
@@ -321,7 +325,7 @@ export class HealthCheckService {
       // ✅ Используем built-in health check Foundation
       const { foundation } = await import('../Foundation')
       const health = await foundation.healthCheck()
-      
+
       // ✅ Добавляем дополнительные проверки
       const additionalChecks = {
         database: await this.checkDatabase(),
@@ -336,7 +340,6 @@ export class HealthCheckService {
           ...additionalChecks,
         },
       }
-      
     } catch (error) {
       return {
         status: 'unhealthy',
@@ -348,7 +351,8 @@ export class HealthCheckService {
 
   private static async checkDatabase(): Promise<'ok' | 'error'> {
     try {
-      const { client } = await import('@/core/supabase/client')
+      const clientModule = await import('@/core/supabase/client')
+      const client = clientModule
       const { data, error } = await client.from('users').select('id').limit(1)
       return error ? 'error' : 'ok'
     } catch {
@@ -371,8 +375,10 @@ export class HealthCheckService {
       // Проверка через любой бот токен
       const botToken = configManager.get('botTokens')?.[0]
       if (!botToken) return 'error'
-      
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/getMe`)
+
+      const response = await fetch(
+        `https://api.telegram.org/bot${botToken}/getMe`
+      )
       return response.ok ? 'ok' : 'error'
     } catch {
       return 'error'
@@ -388,7 +394,7 @@ export function createCustomMiddleware() {
   return async (ctx: MyContext, next: () => Promise<void>) => {
     const startTime = Date.now()
     const telegramId = ctx.from?.id?.toString()
-    
+
     try {
       // ✅ Логирование входящего запроса
       const { logger } = await import('@/utils/logger')
@@ -406,14 +412,12 @@ export function createCustomMiddleware() {
 
       // Продолжаем выполнение
       await next()
-
     } catch (error) {
       // ✅ Правильная обработка ошибок middleware
       await errorHandler.handleError(error, ctx, ErrorType.UNKNOWN, {
         action: 'custom_middleware',
         data: { telegramId, updateType: ctx.updateType },
       })
-      
     } finally {
       // ✅ Логирование времени выполнения
       const duration = Date.now() - startTime
