@@ -17,7 +17,9 @@ describe('inviteEnter', () => {
   })
 
   it('sends invitation text and link, then enters menuScene', async () => {
-    ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValueOnce({ count: 7 })
+    ;(getReferalsCountAndUserData as jest.Mock).mockResolvedValueOnce({
+      count: 7,
+    })
     await inviteEnter(ctx)
     // Первый ответ: интро текст с количеством рефералов
     expect(ctx.reply).toHaveBeenNthCalledWith(
@@ -35,7 +37,9 @@ describe('inviteEnter', () => {
   })
 
   it('handles error by notifying user', async () => {
-    ;(getReferalsCountAndUserData as jest.Mock).mockRejectedValueOnce(new Error('err'))
+    ;(getReferalsCountAndUserData as jest.Mock).mockRejectedValueOnce(
+      new Error('err')
+    )
     await inviteEnter(ctx)
     expect(ctx.reply).toHaveBeenCalledWith(
       'Произошла ошибка при получении данных о рефералах. Пожалуйста, попробуйте позже.'

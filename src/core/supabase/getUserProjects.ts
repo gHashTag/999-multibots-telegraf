@@ -132,7 +132,9 @@ export const getUserProjects = async (
       )
 
       logger.info(
-        `[getUserProjects] Admin access: Found ${projects?.length || 0} total projects`,
+        `[getUserProjects] Admin access: Found ${
+          projects?.length || 0
+        } total projects`,
         {
           projectNames: projects?.map(p => p.name) || [],
         }
