@@ -63,7 +63,7 @@ export class LanguageManager {
         languageData = dbLanguage
         // Сохраняем в сессию для следующих запросов
         if (ctx.session) {
-          ctx.session.userLanguage = dbLanguage.languageCode
+          ctx.session.userLanguage = dbLanguage.languageCode as 'ru' | 'en'
         }
         logger.debug('Language determined from database', { telegramId, ...languageData })
       }
@@ -81,7 +81,7 @@ export class LanguageManager {
         // Сохраняем в БД и сессию
         await this.saveLanguageToDatabase(telegramId, languageData.languageCode)
         if (ctx.session) {
-          ctx.session.userLanguage = languageData.languageCode
+          ctx.session.userLanguage = languageData.languageCode as 'ru' | 'en'
         }
         logger.debug('Language determined from Telegram', { telegramId, telegramLanguage, ...languageData })
       }
@@ -135,7 +135,7 @@ export class LanguageManager {
 
     // Сохраняем в сессию
     if (ctx.session) {
-      ctx.session.userLanguage = languageCode
+      ctx.session.userLanguage = languageCode as 'ru' | 'en'
     }
 
     // Обновляем кеш
@@ -178,8 +178,8 @@ export class LanguageManager {
    */
   private async getLanguageFromDatabase(telegramId: string): Promise<LanguageData | null> {
     try {
-      const { getUserLanguage } = await import('@/core/supabase/getUserLanguage')
-      const dbLanguage = await getUserLanguage({ from: { id: parseInt(telegramId) } } as any)
+      const { getUserLanguageFromDB } = await import('@/core/supabase/getUserLanguage')
+      const dbLanguage = await getUserLanguageFromDB(telegramId)
       
       if (dbLanguage) {
         const isRussian = dbLanguage === 'ru'
@@ -205,7 +205,7 @@ export class LanguageManager {
   private async saveLanguageToDatabase(telegramId: string, languageCode: string): Promise<void> {
     try {
       const { updateUserLanguage } = await import('@/core/supabase/updateUserLanguage')
-      await updateUserLanguage(parseInt(telegramId), languageCode)
+      await updateUserLanguage(parseInt(telegramId), languageCode as 'ru' | 'en')
     } catch (error) {
       logger.error('Error saving language to database', { 
         telegramId, 
