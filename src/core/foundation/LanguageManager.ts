@@ -54,7 +54,10 @@ export class LanguageManager {
         languageCode: ctx.session.userLanguage,
         source: 'session',
       }
-      logger.debug('Language determined from session', { telegramId, ...languageData })
+      logger.debug('Language determined from session', {
+        telegramId,
+        ...languageData,
+      })
     }
     // 2. Приоритет: Database (если нет в сессии)
     else {
@@ -65,25 +68,35 @@ export class LanguageManager {
         if (ctx.session) {
           ctx.session.userLanguage = dbLanguage.languageCode as 'ru' | 'en'
         }
-        logger.debug('Language determined from database', { telegramId, ...languageData })
+        logger.debug('Language determined from database', {
+          telegramId,
+          ...languageData,
+        })
       }
       // 3. Приоритет: Telegram (если нет в БД)
       else {
         const telegramLanguage = ctx.from?.language_code
-        const isRussian = telegramLanguage === 'ru' || telegramLanguage?.startsWith('ru-') || false
-        
+        const isRussian =
+          telegramLanguage === 'ru' ||
+          telegramLanguage?.startsWith('ru-') ||
+          false
+
         languageData = {
           isRussian,
           languageCode: isRussian ? 'ru' : 'en',
           source: 'telegram',
         }
-        
+
         // Сохраняем в БД и сессию
         await this.saveLanguageToDatabase(telegramId, languageData.languageCode)
         if (ctx.session) {
           ctx.session.userLanguage = languageData.languageCode as 'ru' | 'en'
         }
-        logger.debug('Language determined from Telegram', { telegramId, telegramLanguage, ...languageData })
+        logger.debug('Language determined from Telegram', {
+          telegramId,
+          telegramLanguage,
+          ...languageData,
+        })
       }
     }
 
@@ -113,13 +126,18 @@ export class LanguageManager {
 
     // 2. Проверяем Telegram
     const telegramLanguage = ctx.from?.language_code
-    return telegramLanguage === 'ru' || telegramLanguage?.startsWith('ru-') || false
+    return (
+      telegramLanguage === 'ru' || telegramLanguage?.startsWith('ru-') || false
+    )
   }
 
   /**
    * Изменение языка пользователя
    */
-  public async setUserLanguage(ctx: MyContext, languageCode: string): Promise<void> {
+  public async setUserLanguage(
+    ctx: MyContext,
+    languageCode: string
+  ): Promise<void> {
     const telegramId = ctx.from?.id?.toString()
     if (!telegramId) return
 
@@ -176,9 +194,13 @@ export class LanguageManager {
   /**
    * Получение языка из базы данных
    */
-  private async getLanguageFromDatabase(telegramId: string): Promise<LanguageData | null> {
+  private async getLanguageFromDatabase(
+    telegramId: string
+  ): Promise<LanguageData | null> {
     try {
-      const { getUserLanguageFromDB } = await import('@/core/supabase/getUserLanguage')
+      const { getUserLanguageFromDB } = await import(
+        '@/core/supabase/getUserLanguage'
+      )
       const dbLanguage = await getUserLanguageFromDB(telegramId)
       
       if (dbLanguage) {
@@ -190,9 +212,9 @@ export class LanguageManager {
         }
       }
     } catch (error) {
-      logger.error('Error getting language from database', { 
-        telegramId, 
-        error: error instanceof Error ? error.message : String(error)
+      logger.error('Error getting language from database', {
+        telegramId,
+        error: error instanceof Error ? error.message : String(error),
       })
     }
 
@@ -202,15 +224,20 @@ export class LanguageManager {
   /**
    * Сохранение языка в базу данных
    */
-  private async saveLanguageToDatabase(telegramId: string, languageCode: string): Promise<void> {
+  private async saveLanguageToDatabase(
+    telegramId: string,
+    languageCode: string
+  ): Promise<void> {
     try {
-      const { updateUserLanguage } = await import('@/core/supabase/updateUserLanguage')
+      const { updateUserLanguage } = await import(
+        '@/core/supabase/updateUserLanguage'
+      )
       await updateUserLanguage(parseInt(telegramId), languageCode as 'ru' | 'en')
     } catch (error) {
-      logger.error('Error saving language to database', { 
-        telegramId, 
+      logger.error('Error saving language to database', {
+        telegramId,
         languageCode,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
     }
   }
@@ -257,7 +284,9 @@ export const isRussianFromState = (ctx: MyContext): boolean => {
   return languageManager.isRussianFromState(ctx)
 }
 
-export const getUserLanguageData = async (ctx: MyContext): Promise<LanguageData> => {
+export const getUserLanguageData = async (
+  ctx: MyContext
+): Promise<LanguageData> => {
   return await languageManager.getUserLanguage(ctx)
 }
 
