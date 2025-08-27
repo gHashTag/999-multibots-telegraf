@@ -1,3 +1,7 @@
+# Worktrees - временные ветки для разработки
+worktrees/
+.worktrees/
+
 # Logs
 logs
 *.log
