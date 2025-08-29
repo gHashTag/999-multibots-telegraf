@@ -124,6 +124,17 @@ export async function handleTextToVideoDirect(
 
   try {
     // Запускаем генерацию видео
+    logger.info('[handleTextToVideoDirect] 🚀 Calling generateTextToVideo with params:', {
+      prompt: prompt.substring(0, 100),
+      videoModel: modelId,
+      duration: validDuration,
+      aspectRatio: aspectRatio,
+      telegram_id,
+      username,
+      is_ru,
+      bot_name,
+    })
+    
     const response = await generateTextToVideo({
       prompt,
       videoModel: modelId,
@@ -133,6 +144,14 @@ export async function handleTextToVideoDirect(
       username,
       is_ru,
       bot_name,
+    })
+
+    logger.info('[handleTextToVideoDirect] 📦 Response from generateTextToVideo:', {
+      success: response.success,
+      hasVideoUrl: !!response.videoUrl,
+      hasJobId: !!response.jobId,
+      message: response.message,
+      error: response.error,
     })
 
     if (!response.success) {
@@ -316,6 +335,14 @@ async function handleVideoReady(
   const is_ru = isRussianFromState(ctx)
   const telegram_id = ctx.from?.id.toString() || ''
 
+  logger.info('[handleVideoReady] 🎬 Starting to send video to user', {
+    videoUrl,
+    prompt: prompt.substring(0, 50),
+    modelId,
+    duration,
+    telegram_id,
+  })
+
   try {
     // Используем оригинальный URL видео с сервера
     const uploadedUrl = videoUrl
@@ -335,6 +362,11 @@ async function handleVideoReady(
     // Получаем информацию о модели для подписи
     const modelInfo = VIDEO_MODELS[modelId]
     const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
+
+    logger.info('[handleVideoReady] 📤 Sending video via Telegram...', {
+      uploadedUrl,
+      modelName,
+    })
 
     // Отправляем видео пользователю
     await ctx.replyWithVideo(Input.fromURL(uploadedUrl || videoUrl), {

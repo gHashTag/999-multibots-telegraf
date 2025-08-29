@@ -87,24 +87,34 @@ export async function generateTextToVideo(
 
   try {
     // Используем API_URL который учитывает USE_PRODUCTION_API флаг
-    logger.info('URL Selection Debug', {
+    logger.info('🔍 [generateTextToVideo] URL Selection Debug', {
       API_URL,
       isDev,
+      prompt: prompt.substring(0, 50),
+      videoModel,
+      duration,
+      aspectRatio,
     })
 
     const baseUrl = API_URL
 
-    // 🔧 ВРЕМЕННАЯ ЗАГЛУШКА: Если сервер недоступен, возвращаем mock результат
-    // TODO: Убрать после восстановления работы AI сервера
+    // 🔧 КРИТИЧНО: Проверка конфигурации сервера
     if (!baseUrl || baseUrl === 'undefined') {
-      logger.warn(
-        'No valid server URL found, using mock response for development'
+      logger.error(
+        '❌ [generateTextToVideo] CRITICAL: No valid server URL found! Check .env configuration!',
+        {
+          API_URL,
+          isDev,
+          envCheck: {
+            API_SERVER_URL: process.env.API_SERVER_URL,
+            LOCAL_SERVER_URL: process.env.LOCAL_SERVER_URL,
+            USE_PRODUCTION_API: process.env.USE_PRODUCTION_API,
+          }
+        }
       )
       return {
-        success: true,
-        message: 'Mock: Video generation started',
-        videoUrl:
-          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
+        success: false,
+        error: 'Server URL not configured. Please check .env file.',
       }
     }
 
@@ -172,6 +182,15 @@ export async function generateTextToVideo(
     )
 
     // Отправляем запрос на сервер
+    logger.info('🚀 [generateTextToVideo] Sending HTTP POST request to server...', {
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-secret-key': SECRET_API_KEY ? '***HIDDEN***' : 'NOT SET',
+      },
+      bodySize: JSON.stringify(requestBody).length,
+    })
+    
     const response = await axios.post<TextToVideoResponse>(url, requestBody, {
       headers: {
         'Content-Type': 'application/json',
@@ -181,7 +200,9 @@ export async function generateTextToVideo(
     })
 
     // Логирование успешного ответа
-    logger.info('Text-to-video generation response received', {
+    logger.info('✅ [generateTextToVideo] Response received from server', {
+      status: response.status,
+      statusText: response.statusText,
       data: response.data,
       success: response.data.success,
       hasVideoUrl: !!response.data.videoUrl,
