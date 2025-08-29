@@ -51,6 +51,60 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   })
 
+  // ОБРАБОТЧИК ДЛЯ КНОПКИ "НАЗАД В МЕНЮ"
+  bot.hears(['⬅️ Назад в меню', '⬅️ Back to Menu'], async ctx => {
+    logger.info('GLOBAL HEARS: Back to menu button pressed', {
+      telegramId: ctx.from?.id,
+      text: ctx.message?.text,
+    })
+
+    try {
+      // Покидаем текущую сцену если есть
+      if (ctx.scene) {
+        await ctx.scene.leave()
+      }
+
+      // Получаем настройки пользователя
+      const is_ru = isRussianFromState(ctx)
+      const telegram_id = ctx.from?.id?.toString()
+      
+      if (!telegram_id) {
+        await ctx.reply(
+          is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
+        )
+        return
+      }
+
+      // Получаем данные пользователя для определения подписки
+      const userData = await getUserData(telegram_id)
+      const subscription = userData?.subscription || SubscriptionType.STARS
+      
+      // Показываем главное меню
+      const menuKeyboard = await mainMenu({
+        isRu: is_ru,
+        subscription,
+        ctx,
+      })
+      
+      await ctx.reply(
+        is_ru ? '📋 Главное меню:' : '📋 Main menu:',
+        menuKeyboard
+      )
+      
+      logger.info('Successfully returned to main menu', {
+        telegramId: telegram_id,
+      })
+    } catch (error) {
+      logger.error('Error returning to main menu:', error)
+      const is_ru = isRussianFromState(ctx)
+      await ctx.reply(
+        is_ru 
+          ? '❌ Произошла ошибка при возврате в меню. Попробуйте команду /start'
+          : '❌ Error returning to menu. Please try /start command'
+      )
+    }
+  })
+
   // ОБРАБОТЧИК ДЛЯ УВЕЛИЧЕНИЯ КАЧЕСТВА НЕЙРОФОТО (keyboard кнопка с бэкенда)
   bot.hears(['⬆️ Увеличить качество', '⬆️ Upscale Quality'], async ctx => {
     logger.info('GLOBAL HEARS: Neurophoto upscale quality requested', {
