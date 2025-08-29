@@ -347,3 +347,4 @@ vulnerability-report.json
 audit-results.json
 secrets-scan.json
 .secrets.baseline
+.env

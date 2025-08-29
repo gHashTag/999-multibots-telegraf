@@ -237,10 +237,10 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'veo3_fast': {
     id: 'veo3_fast',
     title: 'VEO3 Fast',
-    inputType: ['text'],
+    inputType: ['text', 'image'],
     description:
-      '🚀 БЫСТРО: 8 сек, быстрая генерация (2-3 мин) - 200⭐',
-    basePrice: 0.40, // $0.05 * 8 сек = $0.40 USD за 8 секунд
+      '🚀 БЫСТРО: 8 сек, быстрая генерация (2-3 мин) - 40⭐',
+    basePrice: 0.0853, // Для 40 звезд
     api: {
       model: 'veo3_fast',
       input: {
@@ -257,8 +257,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     title: 'VEO3 Standard',
     inputType: ['text'],
     description:
-      '⭐ ПРЕМИУМ: 10 сек, высокое качество (5-10 мин) - 750⭐',
-    basePrice: 1.50, // $0.15 * 10 сек = $1.50 USD за 10 секунд
+      '⭐ ПРЕМИУМ: 10 сек, высокое качество (5-10 мин) - 202⭐',
+    basePrice: 0.431, // Для 202 звезд
     api: {
       model: 'veo3',
       input: {
@@ -271,12 +271,12 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     aspectRatioOptions: ['16:9', '9:16', '1:1'], // Поддерживаемые форматы
     durationOptions: [5, 10, 15, 20, 25, 30], // Поддерживаемые длительности
     priceByDuration: {
-      5: 0.75,   // $0.15 * 5 = $0.75
-      10: 1.50,  // $0.15 * 10 = $1.50
-      15: 2.25,  // $0.15 * 15 = $2.25
-      20: 3.00,  // $0.15 * 20 = $3.00
-      25: 3.75,  // $0.15 * 25 = $3.75
-      30: 4.50,  // $0.15 * 30 = $4.50
+      5: 0.215,   // Для 101 звезды
+      10: 0.431,  // Для 202 звезд
+      15: 0.646,  // Для 303 звезд
+      20: 0.862,  // Для 404 звезд
+      25: 1.077,  // Для 505 звезд
+      30: 1.293,  // Для 606 звезд
     },
   },
   'runway-aleph': {
