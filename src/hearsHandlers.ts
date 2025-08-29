@@ -75,9 +75,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         return
       }
 
-      // Получаем данные пользователя для определения подписки
-      const userData = await getUserData(telegram_id)
-      const subscription = userData?.subscription || SubscriptionType.STARS
+      // Получаем данные пользователя для определения подписки  
+      const subscription = SubscriptionType.STARS // Default to STARS subscription
       
       // Показываем главное меню
       const menuKeyboard = await mainMenu({
@@ -192,6 +191,61 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       await ctx.scene.enter(ModeEnum.Help)
     } catch (error) {
       logger.error('Error in Справка hears:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
+  // Обработчик для кнопки "Проверить статус" видео
+  bot.hears(['🔄 Проверить статус', '🔄 Check Status'], async ctx => {
+    logger.info('GLOBAL HEARS: Check Status', {
+      telegramId: ctx.from?.id,
+      jobId: ctx.session.videoJobId,
+    })
+    try {
+      const is_ru = isRussianFromState(ctx)
+      const jobId = ctx.session.videoJobId
+      
+      if (!jobId) {
+        await ctx.reply(
+          is_ru 
+            ? '❌ Нет активной генерации видео.' 
+            : '❌ No active video generation.'
+        )
+        return
+      }
+      
+      await ctx.reply(
+        is_ru
+          ? `🔍 Ваш Job ID: ${jobId}\n\n⚠️ К сожалению, автоматическая проверка статуса временно недоступна. Видео генерируется на сервере. Пожалуйста, попробуйте позже или обратитесь в поддержку с этим Job ID.`
+          : `🔍 Your Job ID: ${jobId}\n\n⚠️ Unfortunately, automatic status checking is temporarily unavailable. The video is being generated on the server. Please try again later or contact support with this Job ID.`
+      )
+    } catch (error) {
+      logger.error('Error in Check Status handler:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+    }
+  })
+
+  // Обработчик для кнопки "Связаться с поддержкой"
+  bot.hears(['📞 Связаться с поддержкой', '📞 Contact Support'], async ctx => {
+    logger.info('GLOBAL HEARS: Contact Support', {
+      telegramId: ctx.from?.id,
+      jobId: ctx.session.videoJobId,
+    })
+    try {
+      const is_ru = isRussianFromState(ctx)
+      const jobId = ctx.session.videoJobId
+      
+      const supportMessage = is_ru
+        ? `📞 Для связи с поддержкой:\n\n1. Напишите администратору: @support\n2. Укажите ваш Job ID: ${jobId || 'не указан'}\n3. Опишите проблему\n\n⏱️ Время ответа: обычно в течение 24 часов`
+        : `📞 To contact support:\n\n1. Message the admin: @support\n2. Provide your Job ID: ${jobId || 'not available'}\n3. Describe your issue\n\n⏱️ Response time: usually within 24 hours`
+      
+      await ctx.reply(supportMessage)
+    } catch (error) {
+      logger.error('Error in Contact Support handler:', {
         error,
         telegramId: ctx.from?.id,
       })

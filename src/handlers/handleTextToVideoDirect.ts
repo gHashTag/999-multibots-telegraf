@@ -18,6 +18,7 @@ import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
 import { uploadTelegramFileLocal } from '@/helpers/uploadTelegramFileLocal'
+import axios from 'axios'
 
 /**
  * Handler для генерации видео из текста через прямую интеграцию с сервером
@@ -190,18 +191,59 @@ export async function handleTextToVideoDirect(
       ctx.session.videoDuration = validDuration
       ctx.session.videoMessageId = processingMessage.message_id
 
-      // ✅ Включаем мониторинг статуса - endpoint реализован
-      monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
+      // ⚠️ ВРЕМЕННО ОТКЛЮЧЕНО: Сервер не поддерживает status endpoints
+      // TODO: Включить когда сервер добавит поддержку status endpoints
+      logger.warn('[handleTextToVideoDirect] ⚠️ Status monitoring disabled - server does not support status endpoints yet', {
+        jobId: response.jobId,
+        modelId,
+      })
+      
+      // Для VEO3 моделей показываем специальное сообщение
+      const isVeoModel = ['veo3', 'veo3_fast'].includes(modelId)
+      const estimatedTime = modelId === 'veo3_fast' 
+        ? '2-3 минуты' 
+        : modelId === 'veo3' 
+        ? '5-10 минут' 
+        : '3-5 минут'
+      
       if (ctx && ctx.telegram && ctx.chat) {
         await ctx.telegram.editMessageText(
           ctx.chat.id,
           processingMessage.message_id,
           undefined,
           is_ru
-            ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
-            : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+            ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏱️ Примерное время: ${estimatedTime}\n\n⚠️ Важно: Видео генерируется на сервере. К сожалению, автоматическая отправка временно недоступна. Пожалуйста, попробуйте через несколько минут или обратитесь в поддержку с указанием Job ID.`
+            : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏱️ Estimated time: ${estimatedTime}\n\n⚠️ Important: Video is being generated on the server. Unfortunately, automatic delivery is temporarily unavailable. Please try again in a few minutes or contact support with your Job ID.`
         )
       }
+      
+      // Показываем кнопки для повторной попытки
+      const keyboard = {
+        keyboard: [
+          [
+            is_ru
+              ? '🔄 Проверить статус'
+              : '🔄 Check Status',
+          ],
+          [
+            is_ru
+              ? '📞 Связаться с поддержкой'
+              : '📞 Contact Support',
+          ],
+          [is_ru ? '🏠 Главное меню' : '🏠 Main Menu'],
+        ],
+        resize_keyboard: true,
+      }
+
+      await ctx.reply(
+        is_ru
+          ? 'Используйте кнопки ниже для проверки статуса или обращения в поддержку.'
+          : 'Use the buttons below to check status or contact support.',
+        { reply_markup: keyboard }
+      )
+      
+      // НЕ включаем мониторинг, так как endpoints не существуют
+      // monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
     } else {
       // Если нет jobId, но генерация запущена, показываем сообщение
       logger.info(
@@ -256,16 +298,40 @@ async function monitorVideoGeneration(
     attempts++
 
     try {
-      const statusResponse = await checkVideoGenerationStatus(jobId, is_ru)
+      const modelId = (ctx.session.videoModelId as VideoModelId) || 'veo3_fast'
+      
+      logger.info('[monitorVideoGeneration] 🔄 Checking video status', {
+        jobId,
+        modelId,
+        attempt: attempts,
+        maxAttempts,
+      })
+      
+      const statusResponse = await checkVideoGenerationStatus(jobId, is_ru, modelId)
+
+      logger.info('[monitorVideoGeneration] 📊 Status response', {
+        jobId,
+        success: statusResponse.success,
+        hasVideoUrl: !!statusResponse.videoUrl,
+        error: statusResponse.error,
+        attempt: attempts,
+      })
 
       if (statusResponse.success && statusResponse.videoUrl) {
         // Видео готово
         clearInterval(checkInterval)
+        
+        logger.info('[monitorVideoGeneration] ✅ Video ready, calling handleVideoReady', {
+          jobId,
+          videoUrl: statusResponse.videoUrl,
+          modelId,
+        })
+        
         await handleVideoReady(
           ctx,
           statusResponse.videoUrl,
           ctx.session.videoPrompt || '',
-          (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
+          modelId,
           ctx.session.videoDuration,
           messageId
         )
@@ -363,12 +429,40 @@ async function handleVideoReady(
     const modelInfo = VIDEO_MODELS[modelId]
     const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
 
-    logger.info('[handleVideoReady] 📤 Sending video via Telegram...', {
+    logger.info('[handleVideoReady] 📤 Attempting to send video via Telegram...', {
       uploadedUrl,
       modelName,
+      hasContext: !!ctx,
+      hasTelegram: !!ctx?.telegram,
+      hasChat: !!ctx?.chat,
+      chatId: ctx?.chat?.id,
     })
 
+    // Проверяем доступность URL перед отправкой
+    try {
+      const urlCheck = await axios.head(uploadedUrl || videoUrl, {
+        timeout: 5000,
+        validateStatus: (status) => status < 500,
+      })
+      
+      logger.info('[handleVideoReady] 🔗 Video URL check', {
+        url: uploadedUrl || videoUrl,
+        status: urlCheck.status,
+        contentType: urlCheck.headers['content-type'],
+        contentLength: urlCheck.headers['content-length'],
+      })
+    } catch (urlError) {
+      logger.error('[handleVideoReady] ❌ Video URL not accessible', {
+        url: uploadedUrl || videoUrl,
+        error: urlError instanceof Error ? urlError.message : 'Unknown error',
+      })
+    }
+
     // Отправляем видео пользователю
+    logger.info('[handleVideoReady] 🚀 Calling ctx.replyWithVideo...', {
+      url: uploadedUrl || videoUrl,
+    })
+    
     await ctx.replyWithVideo(Input.fromURL(uploadedUrl || videoUrl), {
       caption:
         `🎬 ${prompt}\n\n` +
@@ -381,6 +475,8 @@ async function handleVideoReady(
         `⚡ ${is_ru ? 'Сгенерировано через' : 'Generated with'} AI`,
       parse_mode: 'Markdown',
     })
+    
+    logger.info('[handleVideoReady] ✅ Video sent successfully via Telegram')
 
     // Списываем баланс
     const price = getModelPriceInStars(modelId, duration)

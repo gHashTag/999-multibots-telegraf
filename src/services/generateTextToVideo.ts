@@ -36,6 +36,7 @@ interface TextToVideoResponse {
   jobId?: string
   message?: string
   error?: string
+  status?: 'pending' | 'processing' | 'completed' | 'failed'
 }
 
 /**
@@ -309,12 +310,26 @@ export async function generateTextToVideo(
  */
 export async function checkVideoGenerationStatus(
   jobId: string,
-  is_ru: boolean
+  is_ru: boolean,
+  modelId?: VideoModelId
 ): Promise<TextToVideoResponse> {
   try {
     const baseUrl = API_URL
 
-    const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
+    // Определяем правильный endpoint для проверки статуса в зависимости от модели
+    const isVeoModel = modelId && ['veo3', 'veo3_fast'].includes(modelId)
+    const statusEndpoint = isVeoModel 
+      ? `/generate/veo3-video/status/${jobId}`
+      : `/generate/text-to-video/status/${jobId}`
+    
+    const url = `${baseUrl}${statusEndpoint}`
+
+    logger.info('🔍 [checkVideoGenerationStatus] Checking status', {
+      jobId,
+      modelId,
+      isVeoModel,
+      url,
+    })
 
     const response = await axios.get<TextToVideoResponse>(url, {
       headers: {
@@ -322,18 +337,25 @@ export async function checkVideoGenerationStatus(
       },
     })
 
-    logger.info('Video generation status check', {
+    logger.info('✅ [checkVideoGenerationStatus] Status response', {
       jobId,
       success: response.data.success,
       hasVideoUrl: !!response.data.videoUrl,
+      videoUrl: response.data.videoUrl,
+      status: response.data.status,
+      message: response.data.message,
+      error: response.data.error,
     })
 
     return response.data
   } catch (error) {
     if (isAxiosError(error)) {
-      logger.error('Error checking video generation status', {
+      logger.error('❌ [checkVideoGenerationStatus] Error checking status', {
         jobId,
-        error: error.response?.data || error.message,
+        modelId,
+        errorCode: error.response?.status,
+        errorData: error.response?.data,
+        errorMessage: error.message,
       })
     }
 
