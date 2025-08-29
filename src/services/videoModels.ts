@@ -67,19 +67,24 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     inputTypes: ['text', 'image'],
   },
 
-  // Kie.ai модели с конкурентными ценами
-  'veo-3-fast': {
-    id: 'veo-3-fast',
-    name: 'Veo 3 Fast',
-    nameRu: 'Veo 3 Fast',
-    priceFixed: 40,
-    inputTypes: ['text', 'image'],
+  // Google VEO3 модели через KIE.AI
+  'veo3_fast': {
+    id: 'veo3_fast',
+    name: 'VEO3 Fast',
+    nameRu: 'VEO3 Быстрая',
+    pricePerSecond: 0.05, // $0.05 за секунду
+    supportedDurations: [8], // Только 8 секунд
+    defaultDuration: 8,
+    inputTypes: ['text'],
   },
-  'veo-3': {
-    id: 'veo-3',
-    name: 'Veo 3',
-    nameRu: 'Veo 3',
-    priceFixed: 202,
+  'veo3': {
+    id: 'veo3',
+    name: 'VEO3 Standard',
+    nameRu: 'VEO3 Стандарт',
+    pricePerSecond: 0.15, // $0.15 за секунду
+    supportedDurations: [5, 10, 15, 20, 25, 30], // От 5 до 30 секунд
+    defaultDuration: 10,
+    maxDuration: 30,
     inputTypes: ['text'],
   },
   'runway-aleph': {
@@ -122,7 +127,7 @@ export function getModelPriceInStars(
     const finalDuration = duration || model.defaultDuration || 4
 
     // Для Kie.ai моделей используем специальную функцию расчета
-    if (['veo-3-fast', 'veo-3', 'runway-aleph'].includes(modelId)) {
+    if (['veo3_fast', 'veo3', 'runway-aleph'].includes(modelId)) {
       return calculateKieAiPriceInStars(modelId, finalDuration)
     }
 

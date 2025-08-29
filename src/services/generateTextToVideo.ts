@@ -15,8 +15,8 @@ export type VideoModelId =
   | 'wan-text-to-video'
   | 'minimax'
   // Kie.ai модели
-  | 'veo-3-fast'
-  | 'veo-3'
+  | 'veo3_fast'
+  | 'veo3'
   | 'runway-aleph'
 
 interface TextToVideoRequest {
@@ -108,18 +108,29 @@ export async function generateTextToVideo(
       }
     }
 
-    const url = `${baseUrl}/generate/text-to-video`
+    // Определяем endpoint в зависимости от модели
+    const endpoint = ['veo3', 'veo3_fast'].includes(videoModel) 
+      ? '/generate/veo3-video' 
+      : '/generate/text-to-video'
+    
+    const url = `${baseUrl}${endpoint}`
 
-    logger.info('Sending request to API server', { url, baseUrl })
+    logger.info('Sending request to API server', { url, baseUrl, endpoint, videoModel })
 
     // Формируем тело запроса
     const requestBody: any = {
       prompt,
-      videoModel,
       telegram_id,
       username,
       is_ru,
       bot_name,
+    }
+
+    // Для VEO3 моделей добавляем model вместо videoModel
+    if (['veo3', 'veo3_fast'].includes(videoModel)) {
+      requestBody.model = videoModel
+    } else {
+      requestBody.videoModel = videoModel
     }
 
     // Добавляем aspectRatio если указан
@@ -140,11 +151,8 @@ export async function generateTextToVideo(
     // Добавляем duration для Veo и Kie.ai моделей
     if (
       [
-        'veo-3',
-        'veo-3-fast',
-        'veo-2',
-        'veo-3-fast',
-        'veo-3',
+        'veo3',
+        'veo3_fast',
         'runway-aleph',
       ].includes(videoModel) &&
       duration

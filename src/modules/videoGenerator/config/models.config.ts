@@ -234,42 +234,50 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   },
 
 
-  'veo-3-fast': {
-    id: 'veo-3-fast',
-    title: 'Veo 3 Fast',
-    inputType: ['text', 'image'],
-    description:
-      '🚀 БЫСТРО: 8 сек, 720p, быстрый режим - 40⭐ (экономия до 87%)',
-    basePrice: 0.64, // $0.64 USD за 8 секунд = 40 звезд
-    api: {
-      model: 'google/veo-3-fast',
-      input: {
-        duration: 8, // Фиксированная длительность 8 секунд
-        aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
-      },
-    },
-    imageKey: 'image',
-    canMorph: false,
-    aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
-  },
-  'veo-3': {
-    id: 'veo-3',
-    title: 'Veo 3',
+  'veo3_fast': {
+    id: 'veo3_fast',
+    title: 'VEO3 Fast',
     inputType: ['text'],
     description:
-      '⭐ ПРЕМИУМ: 8 сек, 1080p, премиум качество - 202⭐ (экономия до 37%)',
-    basePrice: 3.23, // $3.23 USD за 8 секунд = 202 звезды
+      '🚀 БЫСТРО: 8 сек, быстрая генерация (2-3 мин) - 200⭐',
+    basePrice: 0.40, // $0.05 * 8 сек = $0.40 USD за 8 секунд
     api: {
-      model: 'google/veo-3',
+      model: 'veo3_fast',
       input: {
         duration: 8, // Фиксированная длительность 8 секунд
         aspect_ratio: (userAspect: string) =>
-          userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
+          userAspect === '9:16' ? '9:16' : userAspect === '1:1' ? '1:1' : '16:9', // Поддержка 9:16, 16:9 и 1:1
       },
     },
     canMorph: false,
-    aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
+    aspectRatioOptions: ['16:9', '9:16', '1:1'], // Поддерживаемые форматы
+  },
+  'veo3': {
+    id: 'veo3',
+    title: 'VEO3 Standard',
+    inputType: ['text'],
+    description:
+      '⭐ ПРЕМИУМ: 10 сек, высокое качество (5-10 мин) - 750⭐',
+    basePrice: 1.50, // $0.15 * 10 сек = $1.50 USD за 10 секунд
+    api: {
+      model: 'veo3',
+      input: {
+        duration: 10, // Длительность по умолчанию 10 секунд
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? '9:16' : userAspect === '1:1' ? '1:1' : '16:9', // Поддержка 9:16, 16:9 и 1:1
+      },
+    },
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16', '1:1'], // Поддерживаемые форматы
+    durationOptions: [5, 10, 15, 20, 25, 30], // Поддерживаемые длительности
+    priceByDuration: {
+      5: 0.75,   // $0.15 * 5 = $0.75
+      10: 1.50,  // $0.15 * 10 = $1.50
+      15: 2.25,  // $0.15 * 15 = $2.25
+      20: 3.00,  // $0.15 * 20 = $3.00
+      25: 3.75,  // $0.15 * 25 = $3.75
+      30: 4.50,  // $0.15 * 30 = $4.50
+    },
   },
   'runway-aleph': {
     id: 'runway-aleph',

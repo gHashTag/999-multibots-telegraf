@@ -393,8 +393,8 @@ export class KieAiProvider {
 
   private calculateVideoCost(model: string, duration: number): number {
     const pricing: Record<string, number> = {
-      'veo-3-fast': 0.05, // $0.05 per second
-      'veo-3': 0.25, // $0.25 per second
+      'veo3_fast': 0.05, // $0.05 per second для VEO3 FAST
+      'veo3': 0.15, // $0.15 per second для VEO3 Standard
       'runway-aleph': 0.3, // $0.30 per second
     }
 

@@ -118,15 +118,15 @@ export function calculateVideoPriceInStars(
 // ============================================
 
 export const VEO_MODELS_PRICING: Record<string, DynamicVideoPrice> = {
-  'veo-3': {
-    pricePerSecondUSD: 0.4,
-    supportedDurations: [2, 4, 6, 8],
-    defaultDuration: 8,
+  'veo3': {
+    pricePerSecondUSD: 0.15, // $0.15 за секунду для стандартной модели
+    supportedDurations: [5, 10, 15, 20, 25, 30], // От 5 до 30 секунд
+    defaultDuration: 10,
   },
-  'veo-3-fast': {
-    pricePerSecondUSD: 0.3,
-    supportedDurations: [2, 4, 6, 8],
-    defaultDuration: 4,
+  'veo3_fast': {
+    pricePerSecondUSD: 0.05, // $0.05 за секунду для быстрой модели
+    supportedDurations: [8], // Только 8 секунд (фиксированная длительность)
+    defaultDuration: 8,
   },
   'veo-2': {
     pricePerSecondUSD: 0.3,
@@ -149,18 +149,18 @@ export interface KieAiModelPrice {
 }
 
 export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
-  // Видео модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
-  'veo-3-fast': {
-    pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек (конкурентно с +8.1% наценкой)
-    supportedDurations: [8], // VEO FAST поддерживает только 8 секунд
+  // Google VEO3 модели через KIE.AI API
+  'veo3_fast': {
+    pricePerSecondUSD: 0.05, // $0.05 за секунду для быстрой модели 
+    supportedDurations: [8], // VEO3 FAST поддерживает только 8 секунд (фиксированная длительность)
     defaultDuration: 8,
     maxDuration: 8,
   },
-  'veo-3': {
-    pricePerSecondUSD: 0.404, // 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек (конкурентно с +8.1% наценкой)
-    supportedDurations: [2, 4, 6, 8, 10],
-    defaultDuration: 8,
-    maxDuration: 10,
+  'veo3': {
+    pricePerSecondUSD: 0.15, // $0.15 за секунду для стандартной модели
+    supportedDurations: [5, 10, 15, 20, 25, 30], // От 5 до 30 секунд
+    defaultDuration: 10,
+    maxDuration: 30,
   },
   'runway-aleph': {
     pricePerSecondUSD: 0.485, // 182⭐ за 6 сек = $2.912 за 6 сек = $0.485/сек (конкурентно с +8.1% наценкой)
@@ -219,12 +219,15 @@ export function calculateKieAiPriceInStars(
     const finalDuration = duration || model.defaultDuration || 5
     totalCostUSD = model.pricePerSecondUSD * finalDuration
 
-    // Для конкурентных видео моделей возвращаем точную цену в звёздах без дополнительной наценки
+    // Для VEO3 моделей применяем стандартную наценку
     if (
-      modelId === 'veo-3-fast' ||
-      modelId === 'veo-3' ||
-      modelId === 'runway-aleph'
+      modelId === 'veo3_fast' ||
+      modelId === 'veo3'
     ) {
+      return usdToStars(totalCostUSD) // Используем стандартную наценку 1.5x
+    }
+    // Для Runway Aleph возвращаем без наценки
+    if (modelId === 'runway-aleph') {
       return Math.floor(totalCostUSD / STAR_COST_USD)
     }
   }
