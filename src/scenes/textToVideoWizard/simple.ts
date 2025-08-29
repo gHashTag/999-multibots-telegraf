@@ -64,14 +64,14 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Определяем выбранную модель
-    let selectedModel = 'veo-3-fast' // по умолчанию
+    let selectedModel = 'veo3_fast' // по умолчанию
     let cost = 40
 
     if (selectedText.includes('Veo 3 Fast')) {
-      selectedModel = 'veo-3-fast'
+      selectedModel = 'veo3_fast'
       cost = 40
     } else if (selectedText.includes('Veo 3')) {
-      selectedModel = 'veo-3'
+      selectedModel = 'veo3'
       cost = 80
     } else if (selectedText.includes('Kling')) {
       selectedModel = 'kling-v1.6-pro'
@@ -205,7 +205,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Получаем данные из сессии
-    const selectedModel = ctx.session.selectedVideoModel || 'veo-3-fast'
+    const selectedModel = ctx.session.selectedVideoModel || 'veo3_fast'
     const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
     const cost = ctx.session.selectedVideoCost || 40
 

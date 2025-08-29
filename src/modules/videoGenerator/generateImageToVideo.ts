@@ -199,7 +199,7 @@ export const generateImageToVideo = async (
       }
 
       // Специальная обработка для Google Veo 3 моделей (поддерживают image-to-video)
-      if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
+      if (modelConfig.id === 'veo3' || modelConfig.id === 'veo3_fast') {
         modelInput = {
           prompt,
           image: imageUrl,

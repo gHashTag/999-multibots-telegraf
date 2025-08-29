@@ -69,7 +69,7 @@ export async function generateTextToVideo(
 
     // Специальная обработка для Google Veo 3
     let modelInput: any
-    if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
+    if (modelConfig.id === 'veo3' || modelConfig.id === 'veo3_fast') {
       const finalDuration =
         selectedDuration || modelConfig.api.input.duration_seconds || 8
       modelInput = {
@@ -189,7 +189,7 @@ export async function generateTextToVideo(
     // Для Kie.ai моделей используем обычный Replicate, но с измененным именем модели
     let finalReplicateModelId = replicateModelId
     if (modelConfig.id.startsWith('kie-')) {
-      // Извлекаем базовое имя модели (например, 'veo-3-fast' из 'kie-veo-3-fast')
+      // Извлекаем базовое имя модели (например, 'veo3_fast' из 'kie-veo-3-fast')
       const baseModel = modelConfig.id.replace('kie-', '')
       // Сервер будет обрабатывать эти модели как обычные, но с маппингом на Kie.ai
       finalReplicateModelId = modelConfig.api.model
@@ -209,8 +209,8 @@ export async function generateTextToVideo(
       replicateModelId: finalReplicateModelId,
       modelInput,
       isVeo3Family:
-        modelConfig.id === 'veo-3' ||
-        modelConfig.id === 'veo-3-fast' ||
+        modelConfig.id === 'veo3' ||
+        modelConfig.id === 'veo3_fast' ||
         modelConfig.id === 'runway-aleph',
     })
 

@@ -56,16 +56,16 @@ export class UniversalProviderManager {
     // Video models
     const videoModels: ModelInfo[] = [
       {
-        id: 'veo-3-fast',
-        name: 'Google Veo 3 Fast',
+        id: 'veo3_fast',
+        name: 'Google VEO3 Fast',
         type: 'video',
         provider: 'Kie.ai',
-        description: 'Fast video generation with Google Veo 3',
+        description: 'Fast video generation with Google VEO3',
         pricePerUnit: 0.05, // per second
         supportedFeatures: ['text-to-video', 'image-to-video'],
       },
       {
-        id: 'veo-3',
+        id: 'veo3',
         name: 'Google Veo 3 Quality',
         type: 'video',
         provider: 'Kie.ai',

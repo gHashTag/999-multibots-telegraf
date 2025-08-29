@@ -21,16 +21,16 @@ export function calculateFinalPrice(
   }
 
   // ФИКСИРОВАННЫЕ ЦЕНЫ для наших Veo моделей
-  if (modelKey === 'veo-3-fast') {
-    logger.info('calculateFinalPrice: Using fixed price for Veo 3 Fast', {
+  if (modelKey === 'veo3_fast') {
+    logger.info('calculateFinalPrice: Using fixed price for VEO3 Fast', {
       modelKey,
       fixedPriceInStars: 40,
     })
     return 40
   }
 
-  if (modelKey === 'veo-3') {
-    logger.info('calculateFinalPrice: Using fixed price for Veo 3', {
+  if (modelKey === 'veo3') {
+    logger.info('calculateFinalPrice: Using fixed price for VEO3 Standard', {
       modelKey,
       fixedPriceInStars: 202,
     })
