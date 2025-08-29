@@ -237,20 +237,6 @@ export async function generateTextToVideo(
         responseData: error.response?.data,
       })
 
-      // 🔧 ВРЕМЕННАЯ ЗАГЛУШКА: Если сервер недоступен (ENOTFOUND, ECONNREFUSED), возвращаем mock
-      // TODO: Убрать после восстановления работы AI сервера
-      if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-        logger.warn('Server unavailable, falling back to mock response', {
-          code: error.code,
-          message: error.message,
-        })
-        return {
-          success: true,
-          message: 'Mock: Video generation completed (server unavailable)',
-          videoUrl:
-            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
-        }
-      }
 
       // Специальная обработка известных ошибок
       if (error.response?.status === 429) {

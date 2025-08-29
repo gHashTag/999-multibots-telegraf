@@ -88,12 +88,6 @@ export async function handleTextToVideoDirect(
     }
   )
 
-  // Проверка подписки
-  const hasSubscription = await checkSubscriptionGuard(ctx, 'NeuroVideo')
-  if (!hasSubscription) {
-    // checkSubscriptionGuard уже отправил сообщение, просто возвращаемся
-    return
-  }
 
   // Получаем информацию о модели
   const modelInfo = VIDEO_MODELS[modelId]
