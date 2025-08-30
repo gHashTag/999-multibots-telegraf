@@ -11,8 +11,8 @@ const botNameToTokenEnvMap: Record<string, string> = {
   Gaia_Kamskaia_bot: 'BOT_TOKEN_7',
   Kaya_easy_art_bot: 'BOT_TOKEN_8',
   AI_STARS_bot: 'BOT_TOKEN_9',
-  ai_koshey_bot: 'BOT_TOKEN_TEST_1', // Тестовый бот 1
-  clip_maker_neuro_bot: 'BOT_TOKEN_TEST_2', // Тестовый бот 2
+  ai_koshey_bot: 'BOT_TOKEN_TEST_2', // Тестовый бот 2
+  clip_maker_neuro_bot: 'BOT_TOKEN_TEST_1', // Тестовый бот 1
   // Добавьте других ботов по мере необходимости
 }
 
