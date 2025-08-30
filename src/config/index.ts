@@ -133,7 +133,7 @@ const forceProductionAPI = USE_PRODUCTION_API === 'true'
 export const API_URL = forceProductionAPI 
   ? API_SERVER_URL // 🚀 Принудительно используем продакшн Railway сервер
   : isDev 
-    ? (LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL) // 🛠️ В dev режиме - локальный/ngrok
+    ? (LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL || API_SERVER_URL) // 🛠️ В dev режиме - локальный/ngrok или продакшн
     : API_SERVER_URL // 📦 В production режиме - всегда продакшн сервер
 
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa

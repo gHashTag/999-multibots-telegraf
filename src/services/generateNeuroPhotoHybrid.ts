@@ -28,6 +28,16 @@ export async function generateNeuroPhotoHybrid(
   botName: string,
   explicitAspectRatio?: string | null
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  console.log('🚀 [HYBRID] generateNeuroPhotoHybrid ВХОД в функцию')
+  console.log('🚀 [HYBRID] Параметры:', {
+    prompt: prompt.substring(0, 50) + '...',
+    model_url,
+    numImages,
+    telegram_id,
+    botName,
+    explicitAspectRatio
+  })
+  
   logger.info({
     message: '🔄 [HYBRID] Начало гибридной генерации neuro_photo',
     telegram_id,
@@ -39,16 +49,21 @@ export async function generateNeuroPhotoHybrid(
 
   // Валидация входных данных
   if (!ctx.session.prompt) {
+    console.error('❌ [HYBRID] Prompt not found in session')
     throw new Error('Prompt not found')
   }
 
   if (!ctx.session.userModel) {
+    console.error('❌ [HYBRID] User model not found in session')
     throw new Error('User model not found')
   }
 
   if (!numImages || numImages <= 0) {
+    console.error('❌ [HYBRID] Invalid number of images:', numImages)
     throw new Error('Invalid number of images')
   }
+
+  console.log('✅ [HYBRID] Валидация входных данных пройдена')
 
   // Рассчитываем точную стоимость (БЕЗ ОКРУГЛЕНИЯ!)
   const costResult = calculateModeCost({
@@ -132,6 +147,53 @@ export async function generateNeuroPhotoHybrid(
         server_error: response.data.error,
       })
       throw new Error(`Server error: ${response.data.error}`)
+    }
+
+    // Отправляем фотографии пользователю если они есть в ответе
+    if (response.data.urls && Array.isArray(response.data.urls)) {
+      logger.info({
+        message: '📸 [HYBRID] Отправка фотографий пользователю',
+        telegram_id,
+        urls_count: response.data.urls.length,
+      })
+
+      for (const url of response.data.urls) {
+        try {
+          const caption = isRussianFromState(ctx)
+            ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${exactCostPerImage} ⭐`
+            : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${exactCostPerImage} ⭐`
+
+          await ctx.telegram.sendPhoto(telegram_id, { url }, {
+            caption,
+            reply_markup: {
+              keyboard: [
+                [
+                  { text: isRussianFromState(ctx) ? '🆕 Новый промпт' : '🆕 New prompt' },
+                  { text: isRussianFromState(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+                ],
+                [
+                  { text: isRussianFromState(ctx) ? '📐 Изменить размер' : '📐 Change size' },
+                  { text: isRussianFromState(ctx) ? '🏠 Главное меню' : '🏠 Main menu' },
+                ],
+              ],
+              resize_keyboard: true,
+            },
+          })
+
+          logger.info({
+            message: '✅ [HYBRID] Фотография отправлена',
+            telegram_id,
+            url,
+          })
+        } catch (sendError) {
+          logger.error({
+            message: '❌ [HYBRID] Ошибка при отправке фотографии',
+            telegram_id,
+            url,
+            error: sendError,
+          })
+        }
+      }
     }
 
     return response.data
