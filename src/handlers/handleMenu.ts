@@ -618,6 +618,106 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
         )
       },
+      [isRu ? levels[109].title_ru : levels[109].title_en]: async () => {
+        logger.info({
+          message: '🔍 [handleMenu] Переход к Instagram парсеру',
+          telegramId,
+          function: 'handleMenu',
+          action: 'instagram_parser',
+          nextScene: 'instagram_parser_scene',
+        })
+        console.log('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
+        
+        // Проверяем доступ к парсингу
+        const userId = ctx.from?.id?.toString()
+        const botToken = ctx.telegram.token
+        
+        if (!userId) {
+          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+          return
+        }
+        
+        const parsingAccess = getParsingAccess(userId, botToken)
+        
+        if (!parsingAccess.hasAccess) {
+          logger.warn('Instagram parsing access denied via competitor monitoring button', {
+            telegramId,
+            userId,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ У вас нет доступа к Instagram парсингу.'
+              : '❌ You do not have access to Instagram parsing.'
+          )
+          return
+        }
+        
+        logger.info('✅ Instagram parsing access granted via competitor monitoring', {
+          telegramId,
+          userId,
+          parsingAccess
+        })
+        
+        // Переходим в Instagram parser scene
+        ctx.session.mode = ModeEnum.InstagramParserScene
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
+        )
+        await ctx.scene.enter(ModeEnum.InstagramParserScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
+        )
+      },
+      [isRu ? '🔍 Парсинг' : '🔍 Parsing']: async () => {
+        logger.info({
+          message: '🔍 [handleMenu] Переход к Instagram парсеру (админская кнопка)',
+          telegramId,
+          function: 'handleMenu',
+          action: 'instagram_parser_admin',
+          nextScene: 'instagram_parser_scene',
+        })
+        console.log('CASE: 🔍 Парсинг (админская кнопка)')
+        
+        // Проверяем доступ к парсингу
+        const userId = ctx.from?.id?.toString()
+        const botToken = ctx.telegram.token
+        
+        if (!userId) {
+          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+          return
+        }
+        
+        const parsingAccess = getParsingAccess(userId, botToken)
+        
+        if (!parsingAccess.hasAccess) {
+          logger.warn('Instagram parsing access denied via parsing button', {
+            telegramId,
+            userId,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ У вас нет доступа к Instagram парсингу.'
+              : '❌ You do not have access to Instagram parsing.'
+          )
+          return
+        }
+        
+        logger.info('✅ Instagram parsing access granted via parsing button', {
+          telegramId,
+          userId,
+          parsingAccess
+        })
+        
+        // Переходим в Instagram parser scene
+        ctx.session.mode = ModeEnum.InstagramParserScene
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
+        )
+        await ctx.scene.enter(ModeEnum.InstagramParserScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
+        )
+      },
       ['/support']: async () => {
         logger.info({
           message: '❓ [handleMenu] Переход к помощи',
