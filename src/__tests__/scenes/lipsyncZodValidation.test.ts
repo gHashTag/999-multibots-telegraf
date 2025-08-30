@@ -94,12 +94,12 @@ describe('LipSync Zod Validation', () => {
           file_id: 'BAADBAADrwADBREAAUmcOUPKjjQ-Ag',
           file_size: 1024
         },
-        bot_token: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+        bot_token: 'test_token_mock_123456789'
       }
       
       const result = MediaInputSchema.parse(mediaInput)
       expect(result.type).toBe('telegram_file')
-      expect(result.bot_token).toBe('123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11')
+      expect(result.bot_token).toBe('test_token_mock_123456789')
     })
   })
   
@@ -265,7 +265,7 @@ describe('LipSync Zod Validation', () => {
           file_size: 5 * 1024 * 1024,
           file_path: 'videos/video_123.mp4'
         },
-        bot_token: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+        bot_token: 'test_token_mock_123456789'
       }
       
       expect(() => validateVideoInput(videoInput)).not.toThrow()
@@ -278,7 +278,7 @@ describe('LipSync Zod Validation', () => {
           file_id: 'AwADBAADrwADBREAAUmcOUPKjjQ-Ag',
           file_size: 256 * 1024
         },
-        bot_token: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+        bot_token: 'test_token_mock_123456789'
       }
       
       expect(() => validateAudioInput(audioInput)).not.toThrow()

@@ -623,6 +623,21 @@ export async function generateNeuroPhotoDirect(
             telegram_id,
           })
 
+          // СОХРАНЯЕМ URL последнего нейрофото в сессии для upscaler'а
+          // Это должно происходить ВСЕГДА после успешной генерации, независимо от отправки
+          if (ctx.session) {
+            ctx.session.lastNeuroPhotoImageUrl = imageUrl
+            ctx.session.lastNeuroPhotoPrompt = prompt
+            
+            logger.info({
+              message: '💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler',
+              description: 'Neurophoto URL saved in session for upscaler',
+              telegram_id,
+              savedUrl: imageUrl.substring(0, 50) + '...',
+              savedPrompt: prompt.substring(0, 50) + '...',
+            })
+          }
+
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
           try {
             if (!options?.disable_telegram_sending) {
@@ -650,12 +665,6 @@ export async function generateNeuroPhotoDirect(
                     createNeuroPhotoResultKeyboard(is_ru).reply_markup,
                 }
               )
-
-              // Сохраняем URL последнего нейрофото в сессии для upscaler'а
-              if (ctx.session) {
-                ctx.session.lastNeuroPhotoImageUrl = imageUrl
-                ctx.session.lastNeuroPhotoPrompt = prompt
-              }
 
               logger.info({
                 message: '📸 [DIRECT] Изображение отправлено пользователю',
