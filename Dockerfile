@@ -69,8 +69,15 @@ COPY .env.* ./
 # Создаем пустой .env файл на всякий случай (entrypoint его наполнит, если нужно)
 RUN touch .env
 
+# Создаём директорию для скриптов
+RUN mkdir -p /app/scripts
+
+# Копируем скрипт установки вебхуков
+COPY scripts/setup-webhooks-correct.js /app/scripts/
+RUN chmod +x /app/scripts/setup-webhooks-correct.js
+
 # Копируем entrypoint скрипт
-COPY scripts/docker-entrypoint.sh ./
+COPY docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Экспортируем порт для API и боты
@@ -78,6 +85,3 @@ EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010 2999
 
 # Используем наш entrypoint скрипт для подготовки окружения
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-
-# Запускаем приложение
-CMD ["node", "dist/bot.js"]
