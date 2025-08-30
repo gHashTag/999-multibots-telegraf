@@ -925,11 +925,18 @@ export const handleMenu = async (ctx: MyContext) => {
     // Проверяем callback для мониторинга конкурентов
     if (callbackData === 'add_new_competitor') {
       console.log('➕ [handleMenu] add_new_competitor callback')
+      logger.info('[handleMenu] add_new_competitor callback triggered', {
+        telegramId,
+        userId: ctx.from?.id,
+        sessionBefore: ctx.session
+      })
+      
       const isRu = isRussianFromState(ctx)
       
       // Проверяем права администратора
       const userId = ctx.from?.id?.toString()
       if (!userId || !adminIds.includes(userId)) {
+        logger.warn('[handleMenu] User not admin, denying access', { userId, adminIds })
         await ctx.answerCbQuery()
         await ctx.reply(
           isRu
@@ -939,9 +946,15 @@ export const handleMenu = async (ctx: MyContext) => {
         return
       }
       
-      await ctx.answerCbQuery()
+      await ctx.answerCbQuery('✅')
+      console.log('Before importing promptForCompetitorUsername')
       const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
+      console.log('After importing, before calling promptForCompetitorUsername')
       await promptForCompetitorUsername(ctx, isRu)
+      console.log('After calling promptForCompetitorUsername, session:', ctx.session)
+      logger.info('[handleMenu] add_new_competitor callback completed', {
+        sessionAfter: ctx.session
+      })
       return
     }
 

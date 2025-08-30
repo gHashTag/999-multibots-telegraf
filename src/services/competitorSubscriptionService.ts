@@ -89,6 +89,12 @@ export async function promptForCompetitorUsername(
   ctx: MyContext,
   isRu: boolean
 ): Promise<void> {
+  logger.info('[promptForCompetitorUsername] Called', {
+    userId: ctx.from?.id,
+    isRu,
+    sessionBefore: ctx.session
+  })
+  
   const message = isRu
     ? `🔍 Мониторинг конкурентов Instagram
 
@@ -111,11 +117,24 @@ export async function promptForCompetitorUsername(
 
   // Сохраняем состояние "ожидания ввода конкурента" в сессии
   if (!ctx.session.competitorMonitoring) {
+    logger.info('[promptForCompetitorUsername] Creating competitorMonitoring object in session')
     ctx.session.competitorMonitoring = {}
   }
   ctx.session.competitorMonitoring.waitingForUsername = true
+  
+  logger.info('[promptForCompetitorUsername] Set waitingForUsername = true', {
+    sessionAfter: ctx.session
+  })
 
-  await ctx.reply(message)
+  try {
+    await ctx.reply(message)
+    logger.info('[promptForCompetitorUsername] Message sent successfully')
+  } catch (error) {
+    logger.error('[promptForCompetitorUsername] Failed to send message', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+    throw error
+  }
 }
 
 async function showExistingSubscriptions(
