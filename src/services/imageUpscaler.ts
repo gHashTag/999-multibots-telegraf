@@ -50,6 +50,18 @@ export const upscaleImage = async (
   params: ImageUpscalerParams
 ): Promise<GenerationResult> => {
   const { imageUrl, telegram_id, username, is_ru, ctx, originalPrompt } = params
+  
+  // Немедленное логирование при входе в функцию
+  logger.info('⚡ UPSCALE_IMAGE FUNCTION CALLED', {
+    telegram_id,
+    username,
+    imageUrl: imageUrl ? imageUrl.substring(0, 100) + '...' : 'NO_IMAGE_URL',
+    originalPrompt: originalPrompt || 'NO_PROMPT',
+    is_ru,
+    timestamp: new Date().toISOString(),
+  })
+  
+  console.log('🔵 UPSCALE_IMAGE CALLED FOR USER:', telegram_id)
 
   // Стоимость upscaling - обновленная цена $0.04 с наценкой 50%
   const clarityUpscalerCostUSD = 0.04
@@ -77,6 +89,9 @@ export const upscaleImage = async (
     }
 
     // Отправка сообщения о начале upscaling
+    logger.info('📨 Sending initial upscaling message', { telegram_id })
+    console.log('🟡 SENDING INITIAL MESSAGE TO:', telegram_id)
+    
     await ctx.telegram.sendMessage(
       telegram_id,
       is_ru
@@ -86,6 +101,9 @@ export const upscaleImage = async (
         reply_markup: { remove_keyboard: true },
       }
     )
+    
+    logger.info('✅ Initial message sent successfully', { telegram_id })
+    console.log('🟢 INITIAL MESSAGE SENT TO:', telegram_id)
 
     logger.info(`Image upscaling started`, {
       model: 'philz1337x/clarity-upscaler',
