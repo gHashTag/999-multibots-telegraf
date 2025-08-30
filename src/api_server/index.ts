@@ -6,7 +6,12 @@ import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
 // Определяем порт. Берем из process.env.PORT, если есть, иначе 2999 (для соответствия docker-compose).
+<<<<<<< HEAD
 const PORT = process.env.PORT || '2999'
+=======
+// ПРИНУДИТЕЛЬНО используем 2999 для API сервера
+const PORT = '2999'
+>>>>>>> main
 
 export function startApiServer(): void {
   const app: any = express()
