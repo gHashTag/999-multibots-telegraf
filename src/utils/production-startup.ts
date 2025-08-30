@@ -169,6 +169,7 @@ export class ProductionStartupManager {
     const webhookConfig = {
       domain: this.config.webhookDomain.replace(/^https?:\/\//, ''), // Remove protocol prefix
       path: this.config.webhookPath,
+      port: 3000, // Default port for webhooks
       protocol: this.config.webhookProtocol,
       retryAttempts: 3,
       retryDelay: 2000

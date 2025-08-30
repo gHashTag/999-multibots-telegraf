@@ -523,8 +523,8 @@ Examples:
   }
 }
 
-// Main execution
-if (import.meta.main) {
+// Main execution - only run if this file is executed directly
+if (typeof process !== 'undefined' && process.argv.length > 2 && process.argv[1].endsWith('env-validator.ts')) {
   const cli = new EnvironmentValidatorCLI()
   cli.run(process.argv.slice(2)).catch(error => {
     console.error('❌ CLI Error:', error)

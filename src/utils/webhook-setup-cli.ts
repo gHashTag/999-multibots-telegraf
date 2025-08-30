@@ -64,6 +64,7 @@ async function setupWebhooksFromEnv(): Promise<void> {
   const webhookConfig = {
     domain: webhookDomain.replace(/^https?:\/\//, ''),
     path: webhookPath,
+    port: 3000, // Default port for webhooks
     retryAttempts: 3,
     retryDelay: 2000
   }
