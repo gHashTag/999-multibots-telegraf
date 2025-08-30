@@ -129,6 +129,12 @@ export async function promptForCompetitorUsername(
   try {
     await ctx.reply(message)
     logger.info('[promptForCompetitorUsername] Message sent successfully')
+    
+    // Выходим из текущей сцены, чтобы обработчик текста мог работать правильно
+    if (ctx.scene && ctx.scene.current) {
+      logger.info('[promptForCompetitorUsername] Leaving current scene to enable text input handling')
+      await ctx.scene.leave()
+    }
   } catch (error) {
     logger.error('[promptForCompetitorUsername] Failed to send message', {
       error: error instanceof Error ? error.message : String(error)
