@@ -16,12 +16,11 @@ import {
   sendPhotoDescriptionRequest,
 } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
-// ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
-import { isRussianFromState } from '@/helpers/centralizedLanguage'
 // ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
 import { getBotNameByToken } from '@/core/bot'
 
@@ -211,6 +210,9 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     // Сохраняем промпт в сессии для дальнейшего использования
     ctx.session.prompt = promptText
     
+    // Получаем язык пользователя
+    const isRu = isRussianFromState(ctx)
+    
     // Показываем кнопки выбора количества изображений
     const buttonsPrompt = isRu
       ? '🎨 Выберите количество изображений:'
@@ -234,7 +236,8 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           .resize()
           .oneTime()
 
-    await sendPhotoDescriptionRequest(ctx, buttonsPrompt, keyboard.reply_markup)
+    // Отправляем сообщение с кнопками выбора количества
+    await ctx.reply(buttonsPrompt, keyboard)
     ctx.wizard.next()
     return
   }
