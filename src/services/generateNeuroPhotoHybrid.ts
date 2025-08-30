@@ -11,6 +11,39 @@ import { logger } from '@/utils/logger'
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
+import { Markup } from 'telegraf'
+
+// Создание клавиатуры для результатов нейрофотографий с кнопкой Upscale
+const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(
+        is_ru ? '🆕 Новый промпт' : '🆕 New prompt',
+        'new_neurophoto_prompt'
+      ),
+      Markup.button.callback(
+        is_ru ? '📐 Изменить размер' : '📐 Change size',
+        'change_size'
+      ),
+    ],
+    [
+      Markup.button.callback(
+        is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
+        'improve_prompt'
+      ),
+      Markup.button.callback(
+        is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale Quality',
+        'upscale_neurophoto_image'
+      ),
+    ],
+    [
+      Markup.button.callback(
+        is_ru ? '🏠 Главное меню' : '🏠 Main menu',
+        'go_main_menu'
+      ),
+    ],
+  ])
+}
 
 /**
  * Гибридная функция для генерации neuro_photo:
@@ -159,17 +192,35 @@ export async function generateNeuroPhotoHybrid(
 
       // СОХРАНЯЕМ последний URL в сессии для upscaler'а
       // Берем последний URL из массива, так как это будет последняя отправленная фотография
-      if (response.data.urls.length > 0 && ctx.session) {
+      if (response.data.urls && response.data.urls.length > 0) {
         const lastUrl = response.data.urls[response.data.urls.length - 1]
-        ctx.session.lastNeuroPhotoImageUrl = lastUrl
-        ctx.session.lastNeuroPhotoPrompt = prompt
-        
-        logger.info({
-          message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
-          description: 'Neurophoto URL saved in session for upscaler',
+        if (ctx.session) {
+          ctx.session.lastNeuroPhotoImageUrl = lastUrl
+          ctx.session.lastNeuroPhotoPrompt = prompt
+          
+          logger.info({
+            message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
+            description: 'Neurophoto URL saved in session for upscaler',
+            telegram_id,
+            savedUrl: lastUrl.substring(0, 50) + '...',
+            savedPrompt: prompt.substring(0, 50) + '...',
+            sessionExists: true,
+            urlsCount: response.data.urls.length,
+          })
+        } else {
+          logger.error({
+            message: '❌ [HYBRID] Сессия не найдена, не удалось сохранить URL для upscaler',
+            description: 'Session not found, cannot save URL for upscaler',
+            telegram_id,
+          })
+        }
+      } else {
+        logger.warn({
+          message: '⚠️ [HYBRID] Нет URLs в ответе сервера для сохранения в сессию',
+          description: 'No URLs in server response to save in session',
           telegram_id,
-          savedUrl: lastUrl.substring(0, 50) + '...',
-          savedPrompt: prompt.substring(0, 50) + '...',
+          hasUrls: !!response.data.urls,
+          urlsLength: response.data.urls?.length || 0,
         })
       }
 
@@ -181,19 +232,7 @@ export async function generateNeuroPhotoHybrid(
 
           await ctx.telegram.sendPhoto(telegram_id, { url }, {
             caption,
-            reply_markup: {
-              keyboard: [
-                [
-                  { text: isRussianFromState(ctx) ? '🆕 Новый промпт' : '🆕 New prompt' },
-                  { text: isRussianFromState(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
-                ],
-                [
-                  { text: isRussianFromState(ctx) ? '📐 Изменить размер' : '📐 Change size' },
-                  { text: isRussianFromState(ctx) ? '🏠 Главное меню' : '🏠 Main menu' },
-                ],
-              ],
-              resize_keyboard: true,
-            },
+            reply_markup: createNeuroPhotoResultKeyboard(isRussianFromState(ctx)).reply_markup,
           })
 
           logger.info({
