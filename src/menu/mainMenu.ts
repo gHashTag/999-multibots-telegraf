@@ -347,8 +347,7 @@ export async function mainMenu({
   if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
     adminSpecificButtons.push(
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2'),
-      Markup.button.text(isRu ? '🔍 Парсинг' : '🔍 Parsing') // 🤫 Только для админов
+      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
     )
     console.log('[mainMenu LOG] Added admin buttons.')
   }
