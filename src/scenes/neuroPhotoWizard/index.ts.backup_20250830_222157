@@ -162,15 +162,6 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
   if (ctx.message && 'text' in ctx.message) {
     const promptText = ctx.message.text.trim()
     console.log(`CASE: Введен промпт: ${promptText}`)
-    
-    // Проверяем, не является ли текст командой выбора количества (1-10)
-    const numMatch = promptText.match(/^([1-9]|10|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟)$/)
-    if (numMatch) {
-      // Если это число, переходим к следующему шагу для обработки
-      ctx.wizard.next()
-      return neuroPhotoButtonStep(ctx)
-    }
-    
     if (promptText.length < 3) {
       // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
       const isRu = isRussianFromState(ctx)
@@ -216,9 +207,8 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       `[neuroPhotoWizard PromptStep] Determined gender for prompt: ${genderPromptPart}`
     )
 
-    // Сохраняем промпт и пол в сессии
+    // Сохраняем промпт в сессии для дальнейшего использования
     ctx.session.prompt = promptText
-    ctx.session.genderPromptPart = genderPromptPart
     
     // Получаем язык пользователя
     const isRu = isRussianFromState(ctx)
@@ -228,13 +218,23 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       ? '🎨 Выберите количество изображений:'
       : '🎨 Choose the number of images:'
       
-    const keyboard = Markup.keyboard([
-      ['1', '2', '3', '4', '5'],
-      ['6', '7', '8', '9', '10'],
-      [isRu ? '🏠 Главное меню' : '🏠 Main menu']
-    ])
-      .resize()
-      .oneTime()
+    const keyboard = isRu
+      ? Markup.keyboard([
+          ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'],
+          ['⬆️ Улучшить промпт', '🆕 Новый промпт'],
+          ['📐 Изменить размер'],
+          ['🏠 Главное меню']
+        ])
+          .resize()
+          .oneTime()
+      : Markup.keyboard([
+          ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'],
+          ['⬆️ Improve prompt', '🆕 New prompt'],
+          ['📐 Change size'],
+          ['🏠 Main menu']
+        ])
+          .resize()
+          .oneTime()
 
     // Отправляем сообщение с кнопками выбора количества
     await ctx.reply(buttonsPrompt, keyboard)
@@ -246,37 +246,37 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 const neuroPhotoButtonStep = async (ctx: MyContext) => {
   console.log('CASE 3: neuroPhotoButtonStep')
   if (ctx.message && 'text' in ctx.message) {
-    const text = ctx.message.text.trim()
+    const text = ctx.message.text
     console.log(`CASE: Нажата кнопка ${text}`)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
 
-    // Проверка на главное меню
-    if (text === '🏠 Главное меню' || text === '🏠 Main menu') {
+    if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {
+      console.log('CASE: Новый промпт - возврат к началу сцены')
+      ctx.session.prompt = undefined
+      ctx.wizard.selectStep(0)
+      return neuroPhotoConversationStep(ctx)
+    }
+
+    if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
+      console.log('CASE: Улучшить промпт')
+      await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
+      return
+    }
+
+    if (text === '📐 Изменить размер' || text === '📐 Change size') {
+      console.log('CASE: Изменить размер')
+      await ctx.scene.enter(ModeEnum.SizeWizard)
+      return
+    }
+
+    if (text === levels[104].title_ru || text === levels[104].title_en) {
       console.log('CASE: Главное меню')
       await handleMenu(ctx)
-      return ctx.scene.leave()
+      return
     }
 
-    // Проверяем, является ли текст числом от 1 до 10
-    let numImages = 0
-    
-    // Проверка на простые числа 1-10
-    if (text.match(/^([1-9]|10)$/)) {
-      numImages = parseInt(text)
-    }
-    // Проверка на эмодзи числа
-    else if (text === '1️⃣') numImages = 1
-    else if (text === '2️⃣') numImages = 2
-    else if (text === '3️⃣') numImages = 3
-    else if (text === '4️⃣') numImages = 4
-    else if (text === '5️⃣') numImages = 5
-    else if (text === '6️⃣') numImages = 6
-    else if (text === '7️⃣') numImages = 7
-    else if (text === '8️⃣') numImages = 8
-    else if (text === '9️⃣') numImages = 9
-    else if (text === '🔟') numImages = 10
-
+    const numImages = parseInt(text[0])
     const prompt = ctx.session.prompt
     const userId = ctx.from?.id
 
@@ -289,27 +289,25 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
           ? '❌ Произошла ошибка: данные для генерации не найдены. Попробуйте начать заново.'
           : '❌ Error: generation data not found. Please start over.'
       )
+      // handleMenu сам определит язык и подписку
       await handleMenu(ctx)
-      return ctx.scene.leave()
+      return
     }
 
-    if (numImages >= 1 && numImages <= 10) {
-      // Генерируем изображения
+    const generate = async (num: number) => {
+      // ИСПРАВЛЕНИЕ: Формируем правильный промпт с учетом пола
       const trigger_word = ctx.session.userModel.trigger_word as string
-      
-      // Используем пол из сессии или получаем заново
-      let genderPromptPart = ctx.session.genderPromptPart || 'person'
-      if (!ctx.session.genderPromptPart) {
-        const userData = await getUserData(userId?.toString() ?? '')
-        if (userData?.gender === 'female') {
-          genderPromptPart = 'female'
-        } else if (userData?.gender === 'male') {
-          genderPromptPart = 'male'
-        }
+
+      const userData = await getUserData(userId?.toString() ?? '')
+      let genderPromptPart = 'person'
+      if (userData?.gender === 'female') {
+        genderPromptPart = 'female'
+      } else if (userData?.gender === 'male') {
+        genderPromptPart = 'male'
       }
 
       console.log(
-        `[neuroPhotoWizard ButtonStep] Generating ${numImages} images with gender: ${genderPromptPart}`
+        `[neuroPhotoWizard ButtonStep] Determined gender for prompt: ${genderPromptPart}`
       )
 
       const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
@@ -319,34 +317,34 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       await generateNeuroPhotoHybrid(
         fullPrompt,
         ctx.session.userModel.model_url as any,
-        numImages,
+        num,
         userId?.toString() ?? '',
         ctx,
         ctx.botInfo?.username
       )
-      
+    }
+
+    if (numImages >= 1 && numImages <= 10) {
+      await generate(numImages)
+      return ctx.scene.leave()
+    } else if (text === '🔟') {
+      // Handle the special case for 10 emoji
+      await generate(10)
       return ctx.scene.leave()
     } else {
       console.log(
-        `CASE: Неизвестный ввод в neuroPhotoButtonStep: "${text}", показ главного меню`
+        'CASE: Неизвестный ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
       )
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, выберите количество от 1 до 10'
-          : '❌ Please choose a number from 1 to 10'
-      )
+      // handleMenu сам определит язык и подписку
+      await handleMenu(ctx)
       return
     }
   } else {
     console.log(
-      'CASE: Нетекстовый ввод в neuroPhotoButtonStep'
+      'CASE: Нетекстовый или отсутствующий ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
     )
-    const isRu = isRussianFromState(ctx)
-    await ctx.reply(
-      isRu
-        ? '❌ Пожалуйста, выберите количество изображений'
-        : '❌ Please choose the number of images'
-    )
+    // handleMenu сам определит язык и подписку
+    await handleMenu(ctx)
     return
   }
 }
