@@ -1195,3 +1195,144 @@ neuroPhotoWizard.command('cancel', async ctx => {
 
   return await ctx.scene.leave()
 })
+
+// Обработчик выбора модели
+neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
+  if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+    const message =
+      ctx.from?.language_code === 'ru'
+        ? 'Произошла ошибка ответа от кнопки'
+        : 'Button callback error'
+    return ctx.answerCbQuery(message)
+  }
+  const callbackData = ctx.callbackQuery.data
+  const isRu = ctx.from?.language_code === 'ru'
+  const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+  logger.debug('Callback query received', {
+    telegramId,
+    callbackData,
+    messageId: ctx.callbackQuery.message?.message_id,
+  })
+
+  await ctx.answerCbQuery()
+
+  if (callbackData.startsWith('select_neuro_model_')) {
+    const modelId = callbackData.replace('select_neuro_model_', '')
+    logger.debug('Processing model selection', { telegramId, modelId })
+
+    try {
+      // Удаляем сообщение с кнопками
+      await ctx.deleteMessage(ctx.callbackQuery.message?.message_id).catch(e =>
+        logger.error('Error deleting message with buttons', {
+          telegramId,
+          error: e,
+        })
+      )
+
+      const userModelsFromState = (ctx.scene.state as NeuroPhotoWizardSession)
+        .userModels
+      if (!userModelsFromState) {
+        logger.error(
+          'userModels not found in scene state for model selection',
+          { telegramId }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при выборе модели. Попробуйте начать заново.'
+            : '❌ An error occurred while selecting the model. Please try again.'
+        )
+        return ctx.scene.leave()
+      }
+
+      // Обрабатываем общие модели (с префиксом shared_)
+      let actualModelId = modelId
+      if (modelId.startsWith('shared_')) {
+        actualModelId = modelId.replace('shared_', '')
+      }
+
+      const selectedModel = userModelsFromState?.find(
+        m =>
+          String(m.id) === String(modelId) ||
+          String(m.id) === String(actualModelId)
+      )
+
+      if (selectedModel) {
+        // Если это общая модель, используем оригинальный ID для запросов к Replicate
+        if (modelId.startsWith('shared_')) {
+          const originalModel = { ...selectedModel }
+          originalModel.id = actualModelId
+          ctx.session.userModel = originalModel as any
+          logger.info('Using shared model for team member', {
+            telegramId,
+            modelName: selectedModel.model_name,
+            originalId: actualModelId,
+          })
+        } else {
+          ctx.session.userModel = selectedModel as any
+          logger.info('Model selected by user', {
+            telegramId,
+            modelName: selectedModel.model_name,
+          })
+        }
+
+        // Показываем инструкции для ввода промпта
+        const isRussian = ctx.from?.language_code === 'ru'
+        await ctx.reply(
+          isRussian
+            ? `🎨 <b>Создание Hейрофото</b>
+
+Опишите <b>НА АНГЛИЙСКОМ ЯЗЫКЕ</b>, что вы хотите изобразить. Например:
+- portrait of a girl in anime style
+- man in a space suit
+- fantastic landscape with dragons
+
+<i>Нейросеть создаст изображение на основе вашего запроса с использованием вашей персональной модели. Для лучших результатов используйте английский язык!</i>`
+            : `🎨 <b>Creating Neural Photo</b>
+
+Describe what you want to depict. For example:
+- anime-style portrait of a girl
+- cat in a space suit
+- fantastic landscape with dragons
+
+<i>The neural network will create an image based on your request using your personal model.</i>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: createHelpCancelKeyboard(isRussian).reply_markup,
+          }
+        )
+
+        // Отмечаем, что сцена инициализирована
+        ctx.session.neuroPhotoInitialized = true
+        logger.debug('Model selection completed, ready for prompt input', {
+          telegramId,
+        })
+      } else {
+        logger.error('Selected model not found', {
+          telegramId,
+          selectedModelId: modelId,
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Выбранная модель не найдена. Попробуйте еще раз.'
+            : '❌ Selected model not found. Please try again.'
+        )
+        return ctx.scene.leave()
+      }
+    } catch (error) {
+      logger.error('Error processing neuro model selection', {
+        telegramId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await sendGenericErrorMessage(ctx, isRu, error)
+      return ctx.scene.leave()
+    }
+  } else if (callbackData === 'cancel_model_selection') {
+    logger.debug('Model selection cancelled', { telegramId })
+    await ctx.deleteMessage(ctx.callbackQuery.message?.message_id)
+    await ctx.reply(
+      isRu ? '❌ Выбор модели отменен.' : '❌ Model selection cancelled.'
+    )
+    return ctx.scene.leave()
+  }
+})
