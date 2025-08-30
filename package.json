@@ -33,7 +33,13 @@
     "docker:push": "chmod +x scripts/build-and-push.sh && ./scripts/build-and-push.sh --push",
     "health:check": "chmod +x scripts/health-monitor.sh && ./scripts/health-monitor.sh check",
     "health:monitor": "chmod +x scripts/health-monitor.sh && ./scripts/health-monitor.sh monitor",
-    "health:rollback": "chmod +x scripts/health-monitor.sh && ./scripts/health-monitor.sh rollback"
+    "health:rollback": "chmod +x scripts/health-monitor.sh && ./scripts/health-monitor.sh rollback",
+    "deploy:manual": "chmod +x scripts/manual-deploy.sh && ./scripts/manual-deploy.sh",
+    "deploy:check": "chmod +x scripts/manual-deploy.sh && ./scripts/manual-deploy.sh --check",
+    "webhook:server": "node scripts/webhook-deploy-server.js",
+    "security:scan": "chmod +x scripts/security-token-guard.sh && ./scripts/security-token-guard.sh",
+    "security:history": "chmod +x scripts/git-history-security-scan.sh && ./scripts/git-history-security-scan.sh",
+    "security:full": "npm run security:scan && npm run security:history"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

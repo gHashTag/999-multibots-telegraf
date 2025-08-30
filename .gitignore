@@ -96,6 +96,11 @@ web_modules/
 .env.production.local
 .env.local
 .env.*
+.env.backup
+.env.bak
+.env.old
+.env.orig
+.env.example.backup
 
 # 🔐 SECURITY: Дополнительные файлы с секретами
 secrets/

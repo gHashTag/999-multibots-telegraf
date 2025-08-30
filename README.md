@@ -41,6 +41,29 @@
 
 Подробнее: [docs/LOGGING.md](docs/LOGGING.md)
 
+## 📚 Документация
+
+Полная документация проекта организована в папке [docs/](docs/):
+
+### 🚀 Быстрый старт
+- [Настройка среды разработки](docs/DEVELOPMENT/DEV_ENVIRONMENT_SETUP.md)
+- [Автоматизированное развертывание](docs/DEPLOYMENT/AUTOMATED_DEPLOYMENT.md)
+- [Архитектура системы](docs/DEVELOPMENT/ARCHITECTURE.md)
+
+### 🔒 Безопасность
+- [Принципы безопасности](docs/SECURITY/SECURITY.md)
+- [Тестирование API интеграции](docs/SECURITY/API_INTEGRATION_TEST_REPORT.md)
+
+### ⚡ Функции
+- [Интеграция автофиксера](docs/FEATURES/AUTOFIXER_INTEGRATION.md)
+- [LipSync инструкции](docs/FEATURES/LIPSYNC_ADMIN_ONLY_INSTRUCTIONS.md)
+
+### 📋 Планирование
+- [Дорожная карта проекта](docs/ROADMAP.md)
+- [Руководство по участию](docs/DEVELOPMENT/CONTRIBUTING.md)
+
+**📖 Полная документация**: [docs/README.md](docs/README.md)
+
 ## 🤖 Workflow для AI-ассистентов
 
 ### ⚠️ КРИТИЧЕСКИ ВАЖНО: Правило "Одна задача = один PR"
