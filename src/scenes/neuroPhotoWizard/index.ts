@@ -208,17 +208,33 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       `[neuroPhotoWizard PromptStep] Determined gender for prompt: ${genderPromptPart}`
     )
 
-    const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+    // Сохраняем промпт в сессии для дальнейшего использования
+    ctx.session.prompt = promptText
+    
+    // Показываем кнопки выбора количества изображений
+    const buttonsPrompt = isRu
+      ? '🎨 Выберите количество изображений:'
+      : '🎨 Choose the number of images:'
+      
+    const keyboard = isRu
+      ? Markup.keyboard([
+          ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'],
+          ['⬆️ Улучшить промпт', '🆕 Новый промпт'],
+          ['📐 Изменить размер'],
+          ['🏠 Главное меню']
+        ])
+          .resize()
+          .oneTime()
+      : Markup.keyboard([
+          ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'],
+          ['⬆️ Improve prompt', '🆕 New prompt'],
+          ['📐 Change size'],
+          ['🏠 Main menu']
+        ])
+          .resize()
+          .oneTime()
 
-    const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
-    await generateNeuroPhotoHybrid(
-      fullPrompt,
-      model_url as any,
-      1,
-      userId?.toString() ?? '',
-      ctx,
-      ctx.botInfo?.username
-    )
+    await sendPhotoDescriptionRequest(ctx, buttonsPrompt, keyboard.reply_markup)
     ctx.wizard.next()
     return
   }
@@ -305,8 +321,12 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       )
     }
 
-    if (numImages >= 1 && numImages <= 4) {
+    if (numImages >= 1 && numImages <= 10) {
       await generate(numImages)
+      return ctx.scene.leave()
+    } else if (text === '🔟') {
+      // Handle the special case for 10 emoji
+      await generate(10)
       return ctx.scene.leave()
     } else {
       console.log(
