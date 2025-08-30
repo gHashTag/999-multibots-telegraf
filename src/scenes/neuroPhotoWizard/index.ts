@@ -372,7 +372,8 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   await ctx.answerCbQuery()
 
   if (callbackData === 'cancel_neuro_photo') {
-    await ctx.reply(isRu ? 'Отменено' : 'Cancelled')
+    await ctx.reply(isRu ? "Отменено. Возвращаю в главное меню." : "Cancelled. Returning to main menu.")
+    await handleMenu(ctx)
     return ctx.scene.leave()
   } else if (callbackData.startsWith('select_neuro_model_')) {
     let modelId = callbackData.replace('select_neuro_model_', '')
