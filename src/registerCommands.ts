@@ -1211,6 +1211,9 @@ If not, continue on your own and click the "I myself" button`
     bot.action('upscale_neurophoto_image', async ctx => {
       logger.info('GLOBAL ACTION: upscale_neurophoto_image', {
         telegramId: ctx.from?.id,
+        sessionExists: !!ctx.session,
+        lastNeuroPhotoImageUrl: ctx.session?.lastNeuroPhotoImageUrl?.substring(0, 50),
+        lastNeuroPhotoPrompt: ctx.session?.lastNeuroPhotoPrompt?.substring(0, 50),
       })
       try {
         await ctx.answerCbQuery()
@@ -1221,6 +1224,7 @@ If not, continue on your own and click the "I myself" button`
         const is_ru = isRussianFromState(ctx)
 
         if (!telegram_id) {
+          logger.error('No telegram_id found in upscale_neurophoto_image action')
           await ctx.reply(
             is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
           )
@@ -1229,6 +1233,10 @@ If not, continue on your own and click the "I myself" button`
 
         // Проверяем, есть ли сохраненное изображение для upscaling
         if (!ctx.session?.lastNeuroPhotoImageUrl) {
+          logger.warn('No lastNeuroPhotoImageUrl in session', {
+            telegramId: telegram_id,
+            sessionData: JSON.stringify(ctx.session || {}),
+          })
           await ctx.reply(
             is_ru
               ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте нейрофото.'

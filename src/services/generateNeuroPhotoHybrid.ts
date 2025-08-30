@@ -157,6 +157,22 @@ export async function generateNeuroPhotoHybrid(
         urls_count: response.data.urls.length,
       })
 
+      // СОХРАНЯЕМ последний URL в сессии для upscaler'а
+      // Берем последний URL из массива, так как это будет последняя отправленная фотография
+      if (response.data.urls.length > 0 && ctx.session) {
+        const lastUrl = response.data.urls[response.data.urls.length - 1]
+        ctx.session.lastNeuroPhotoImageUrl = lastUrl
+        ctx.session.lastNeuroPhotoPrompt = prompt
+        
+        logger.info({
+          message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
+          description: 'Neurophoto URL saved in session for upscaler',
+          telegram_id,
+          savedUrl: lastUrl.substring(0, 50) + '...',
+          savedPrompt: prompt.substring(0, 50) + '...',
+        })
+      }
+
       for (const url of response.data.urls) {
         try {
           const caption = isRussianFromState(ctx)
