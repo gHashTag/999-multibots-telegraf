@@ -123,7 +123,6 @@ async function testWebhookUrl(url: string): Promise<void> {
     })
 
     console.log(`📡 Response status: ${response.status}`)
-    console.log(`📡 Response headers:`, Object.fromEntries([...response.headers]))
     
     if (response.ok) {
       console.log('✅ Webhook URL is accessible')
