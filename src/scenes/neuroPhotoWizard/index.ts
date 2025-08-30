@@ -4,6 +4,7 @@ import { ModelUrl, UserModel, ModelTraining } from '@/interfaces'
 import { generateNeuroImage } from '@/services/generateNeuroImage'
 import {
   getLatestUserModel,
+  getActiveUserModelsByType,
   getReferalsCountAndUserData,
   getUserData,
 } from '@/core/supabase'
@@ -43,31 +44,107 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     }),
   })
 
-  // Начало конверсации - проверяем модель пользователя
+  // Начало конверсации - проверяем модели пользователя
   try {
-    // Проверяем, есть ли модель в сессии
-    if (
-      !ctx.session.userModel ||
-      !ctx.session.userModel.model_url ||
-      !ctx.session.userModel.trigger_word
-    ) {
-      logger.warn('No user model found in session', { telegramId })
+    // Проверяем, есть ли модели в сессии или в состоянии сцены
+    const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
+    const hasSingleModel =
+      ctx.session.userModel &&
+      ctx.session.userModel.model_url &&
+      ctx.session.userModel.trigger_word
+    const hasMultipleModels = userModels && userModels.length > 0
+
+    if (!hasSingleModel && !hasMultipleModels) {
+      logger.warn('No user models found in session or scene state', {
+        telegramId,
+      })
       logger.info({
-        message: 'User model missing in session',
+        message: 'User models missing in session and scene state',
         telegramId,
         sessionData: JSON.stringify(ctx.session),
+        sceneState: JSON.stringify(ctx.scene.state),
       })
 
       const isRussian = ctx.from?.language_code === 'ru'
       await ctx.reply(
         isRussian
-          ? `⚠️ У вас нет доступной модели для нейрофото.
+          ? `⚠️ У вас нет доступных моделей для нейрофото.
 Создайте свою модель или воспользуйтесь другими функциями бота.`
-          : `⚠️ You don't have an available model for neural photos.
+          : `⚠️ You don't have available models for neural photos.
 Create your model or use other bot functions.`,
         { parse_mode: 'HTML' }
       )
       return await ctx.scene.leave()
+    }
+
+    // Если есть несколько моделей, показываем выбор
+    if (hasMultipleModels && userModels && userModels.length > 1) {
+      logger.debug('Multiple models found, showing selection', {
+        telegramId,
+        modelsCount: userModels.length,
+        models: userModels.map(m => ({
+          id: m.id,
+          name: m.model_name,
+          created_at: m.created_at,
+        })),
+      })
+      logger.info({
+        message: 'Multiple models found, showing selection interface',
+        telegramId,
+        modelsCount: userModels.length,
+        modelsInfo: userModels.map(m => ({
+          id: m.id,
+          name: m.model_name || 'no name',
+          created_at: m.created_at,
+        })),
+      })
+
+      const isRussian = ctx.from?.language_code === 'ru'
+
+      // Создаем кнопки для выбора модели
+      const modelButtons = userModels.map((model, index) => {
+        const dateString = model.created_at
+          ? new Date(model.created_at).toLocaleDateString('ru-RU', {
+              day: '2-digit',
+              month: '2-digit',
+              year: '2-digit',
+            })
+          : 'неизвестная дата'
+
+        let buttonText = `${index + 1}. ${model.model_name || `Модель ${dateString}`}`
+        if (model.steps && model.steps > 0) {
+          buttonText += `, ${model.steps} шагов`
+        }
+
+        return [
+          { text: buttonText, callback_data: `select_neuro_model_${model.id}` },
+        ]
+      })
+
+      // Добавляем кнопку отмены
+      modelButtons.push([
+        {
+          text: isRussian ? '❌ Отмена' : '❌ Cancel',
+          callback_data: 'cancel_model_selection',
+        },
+      ])
+
+      await ctx.reply(
+        isRussian
+          ? `🎨 <b>Выберите модель для нейрофото</b>
+
+У вас есть ${userModels.length} обученных моделей. Выберите ту, которую хотите использовать:`
+          : `🎨 <b>Select a model for neural photo</b>
+
+You have ${userModels.length} trained models. Choose the one you want to use:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: modelButtons,
+          },
+        }
+      )
+      return
     }
 
     // Если модель есть, логируем информацию
@@ -897,51 +974,83 @@ neuroPhotoWizard.enter(async ctx => {
     const userId = ctx.from.id
     logger.debug('Loading user model from database', { telegramId, userId })
 
-    // Получаем модель из базы данных
-    const userModel = await getLatestUserModel(Number(userId), 'replicate')
-    logger.debug('User model loaded from database', {
+    // Получаем все модели пользователя из базы данных
+    const userModels = await getActiveUserModelsByType(
+      Number(userId),
+      'replicate'
+    )
+    logger.debug('User models loaded from database', {
       telegramId,
       userId,
-      userModel: JSON.stringify(userModel),
+      modelsCount: userModels?.length || 0,
+      userModels: JSON.stringify(userModels),
     })
 
-    if (!userModel) {
-      logger.warn('User model not found in database', { telegramId, userId })
+    if (!userModels || userModels.length === 0) {
+      logger.warn('No user models found in database', { telegramId, userId })
       logger.warn({
-        message: 'User model not found in database',
+        message: 'No user models found in database',
         telegramId,
       })
 
       const isRussian = ctx.from.language_code === 'ru'
       await ctx.reply(
         isRussian
-          ? `⚠️ У вас нет доступной модели для нейрофото.
+          ? `⚠️ У вас нет доступных моделей для нейрофото.
 Создайте свою модель или воспользуйтесь другими функциями бота.`
-          : `⚠️ You don't have an available model for neural photos.
+          : `⚠️ You don't have available models for neural photos.
 Create your model or use other bot functions.`,
         { parse_mode: 'HTML' }
       )
       return await ctx.scene.leave()
     }
 
-    logger.debug('User model retrieved from database', {
+    logger.debug('User models retrieved from database', {
       telegramId,
-      model: JSON.stringify(userModel),
+      modelsCount: userModels.length,
+      models: JSON.stringify(userModels),
     })
 
-    // Сохраняем модель в сессии - без этого ничего не будет работать
-    ctx.session.userModel = userModel as any
+    // Если модель одна - используем её сразу
+    if (userModels.length === 1) {
+      ctx.session.userModel = userModels[0] as any
+      logger.debug('Single model selected automatically', {
+        telegramId,
+        modelName: userModels[0].model_name,
+        modelId: userModels[0].id,
+        modelUrl: userModels[0].model_url,
+        triggerWord: userModels[0].trigger_word,
+      })
+      logger.info({
+        message: 'Single model found, proceeding directly',
+        telegramId,
+        modelName: userModels[0].model_name,
+        modelId: userModels[0].id,
+      })
+    } else {
+      // Если моделей несколько - показываем выбор
+      ;(ctx.scene.state as NeuroPhotoWizardSession).userModels = userModels
 
-    logger.debug('User model saved to session', {
-      telegramId,
-      modelUrl: userModel.model_url,
-      triggerWord: userModel.trigger_word,
-    })
-    logger.info({
-      message: 'User model loaded from database',
-      telegramId,
-      modelData: JSON.stringify(userModel),
-    })
+      logger.debug('Multiple models found, showing selection', {
+        telegramId,
+        modelsCount: userModels.length,
+        models: userModels.map(m => ({
+          id: m.id,
+          name: m.model_name,
+          created_at: m.created_at,
+        })),
+      })
+      logger.info({
+        message: 'Multiple models found, showing selection interface',
+        telegramId,
+        modelsCount: userModels.length,
+        modelsInfo: userModels.map(m => ({
+          id: m.id,
+          name: m.model_name || 'no name',
+          created_at: m.created_at,
+        })),
+      })
+    }
 
     // Запускаем первый шаг сцены
     return await neuroPhotoConversationStep(ctx)

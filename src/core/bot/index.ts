@@ -66,8 +66,8 @@ export const BOT_NAMES: Record<BotName, string> = {
   ['Kaya_easy_art_bot']: process.env.BOT_TOKEN_8,
   ['AI_STARS_bot']: process.env.BOT_TOKEN_9,
   ['HaimGroupMedia_bot']: process.env.BOT_TOKEN_10,
-  ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
-  ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
+  ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_2, // Используем TEST_2 для ai_koshey_bot
+  ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_1, // Используем TEST_1 для clip_maker_neuro_bot
   ['TestNeurocoder_bot']: process.env.BOT_TOKEN_TEST_3,
 } as const
 

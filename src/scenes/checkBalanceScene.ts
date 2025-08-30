@@ -809,9 +809,13 @@ export const enterTargetScene = async (
       })
       try {
         // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
-        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard'
+        )
         await ctx.scene.leave()
-        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video'
+        )
         await ctx.scene.enter('text_to_video')
         console.log(
           '🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene'
@@ -844,6 +848,63 @@ export const enterTargetScene = async (
         // Попробуем fallback в основную сцену
         await ctx.reply(
           '❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.'
+        )
+      }
+      return
+    }
+
+    // Специальная логика для NeuroPhoto сцены
+    if (mode === ModeEnum.NeuroPhoto) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: NeuroPhoto mode detected, entering neuroPhotoWizard scene'
+      )
+      logger.info({
+        message: `[EnterTargetSceneWrapper] NeuroPhoto режим - переход в neuroPhotoWizard`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      try {
+        // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Leaving current scene before entering neuroPhotoWizard'
+        )
+        await ctx.scene.leave()
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Left current scene, now entering neuroPhotoWizard'
+        )
+        await ctx.scene.enter(ModeEnum.NeuroPhoto)
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Successfully entered neuroPhotoWizard scene'
+        )
+        logger.info({
+          message: `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену neuroPhotoWizard`,
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        })
+      } catch (sceneEnterError) {
+        console.error(
+          '❌ [DEBUG] enterTargetScene: ERROR entering neuroPhotoWizard scene:',
+          sceneEnterError
+        )
+        logger.error({
+          message: `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену neuroPhotoWizard`,
+          telegramId,
+          mode,
+          error:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.message
+              : String(sceneEnterError),
+          stack:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.stack
+              : undefined,
+          function: 'enterTargetSceneWrapper',
+        })
+        // Попробуем fallback в основную сцену
+        await ctx.reply(
+          '❌ Произошла ошибка при входе в сцену нейрофото. Попробуйте еще раз.'
         )
       }
       return
