@@ -1,0 +1,146 @@
+version: '3.8'
+
+services:
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      args:
+        - NODE_ENV=production
+    image: 999-agents-telegraf:latest
+    container_name: 999-multibots
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - TZ=UTC
+    env_file:
+      - .env
+    ports:
+      - "2999:2999"   # Health check
+      - "3000:3000"   # API server
+      - "3001:3001"   # Bot 1
+      - "3002:3002"   # Bot 2
+      - "3003:3003"   # Bot 3
+      - "3004:3004"   # Bot 4
+      - "3005:3005"   # Bot 5
+      - "3006:3006"   # Bot 6
+      - "3007:3007"   # Bot 7
+      - "3008:3008"   # Bot 8
+      - "3009:3009"   # Bot 9
+      - "3010:3010"   # Bot 10
+    volumes:
+      - app_logs:/app/logs
+      - app_data:/app/data
+    networks:
+      - bot_network
+    healthcheck:
+      test: ["/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - nginx
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bots.rule=PathPrefix(`/webhook`)"
+      - "traefik.http.services.bots.loadbalancer.server.port=3000"
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: bot-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-config:/etc/nginx/conf.d:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - bot_network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=false"
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: bot-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - bot_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # Monitoring with Prometheus (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: bot-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - bot_network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    profiles:
+      - monitoring
+
+  # Log aggregation with Loki (optional)
+  loki:
+    image: grafana/loki:latest
+    container_name: bot-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+      - ./monitoring/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    networks:
+      - bot_network
+    command: -config.file=/etc/loki/local-config.yaml
+    profiles:
+      - monitoring
+
+volumes:
+  app_logs:
+    driver: local
+  app_data:
+    driver: local
+  nginx_logs:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  loki_data:
+    driver: local
+
+networks:
+  bot_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
