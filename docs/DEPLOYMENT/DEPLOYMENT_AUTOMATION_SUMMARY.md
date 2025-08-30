@@ -176,7 +176,7 @@ npm run deploy:production
 
 ### **Container Status**: ✅ Running
 - **6 bots active** on ports 3001-3006
-- **API server** running on port 1980 (fixed nginx configuration)
+- **API server** running on port 2999 (fixed nginx configuration)
 - **Environment**: `NODE_ENV=production`
 - **Domain**: `http://test-render-farm.ru` (HTTP protocol confirmed working)
 
