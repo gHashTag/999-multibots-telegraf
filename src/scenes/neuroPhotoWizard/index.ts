@@ -173,8 +173,10 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       return
     }
 
+    console.log('🔍 [DEBUG] Проверка длины промпта пройдена')
     ctx.session.prompt = promptText
     const userId = ctx.from?.id
+    console.log(`🔍 [DEBUG] UserId: ${userId}`)
 
     if (!ctx.session.userModel || !ctx.session.userModel.model_url) {
       console.error(
@@ -192,8 +194,11 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       return
     }
 
+    console.log('🔍 [DEBUG] userModel найден в сессии')
     const model_url = ctx.session.userModel.model_url as string
     const trigger_word = ctx.session.userModel.trigger_word as string
+    console.log(`🔍 [DEBUG] model_url: ${model_url}`)
+    console.log(`🔍 [DEBUG] trigger_word: ${trigger_word}`)
 
     const userData = await getUserData(userId?.toString() ?? '')
     let genderPromptPart = 'person'
@@ -210,18 +215,33 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
 
     const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
+    console.log(`🔍 [DEBUG] fullPrompt сформирован: ${fullPrompt.substring(0, 100)}...`)
     
-    // ГЕНЕРИРУЕМ СРАЗУ 1 ИЗОБРАЖЕНИЕ КАК БЫЛО РАНЬШЕ!
-    await generateNeuroPhotoHybrid(
-      fullPrompt,
-      model_url as any,
-      1,
-      userId?.toString() ?? '',
-      ctx,
-      ctx.botInfo?.username
-    )
+    console.log('🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid')
+    try {
+      // ГЕНЕРИРУЕМ СРАЗУ 1 ИЗОБРАЖЕНИЕ КАК БЫЛО РАНЬШЕ!
+      const result = await generateNeuroPhotoHybrid(
+        fullPrompt,
+        model_url as any,
+        1,
+        userId?.toString() ?? '',
+        ctx,
+        ctx.botInfo?.username
+      )
+      console.log('✅ [DEBUG] generateNeuroPhotoHybrid завершен успешно:', result)
+    } catch (error) {
+      console.error('❌ [DEBUG] Ошибка в generateNeuroPhotoHybrid:', error)
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при генерации изображения. Попробуйте позже.'
+          : '❌ Error occurred during image generation. Please try again later.'
+      )
+      return
+    }
     
     // После генерации переходим к следующему шагу (для обработки кнопок типа "Новый промпт")
+    console.log('🔄 [DEBUG] Переходим к следующему шагу wizard')
     ctx.wizard.next()
     return
   }
