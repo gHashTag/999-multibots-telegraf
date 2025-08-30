@@ -22,7 +22,18 @@
     "build:production": "bun install && bun run build:nocheck",
     "check:build": "./scripts/check-build-health.sh",
     "check:quick": "./scripts/quick-build-check.sh",
-    "check:merge": "./scripts/pre-merge-check.sh"
+    "check:merge": "./scripts/pre-merge-check.sh",
+    "deploy:production": "chmod +x scripts/deploy-production.sh && ./scripts/deploy-production.sh",
+    "webhook:setup": "bun run src/utils/webhook-setup-cli.ts",
+    "webhook:verify": "bun run src/utils/webhook-verify-cli.ts",
+    "env:validate": "bun run src/utils/env-validator.ts validate",
+    "env:template": "bun run src/utils/env-validator.ts template",
+    "env:audit": "bun run src/utils/env-validator.ts audit",
+    "docker:build": "chmod +x scripts/build-and-push.sh && ./scripts/build-and-push.sh",
+    "docker:push": "chmod +x scripts/build-and-push.sh && ./scripts/build-and-push.sh --push",
+    "health:check": "chmod +x scripts/health-monitor.sh && ./scripts/health-monitor.sh check",
+    "health:monitor": "chmod +x scripts/health-monitor.sh && ./scripts/health-monitor.sh monitor",
+    "health:rollback": "chmod +x scripts/health-monitor.sh && ./scripts/health-monitor.sh rollback"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
