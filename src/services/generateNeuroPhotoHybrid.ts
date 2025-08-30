@@ -134,6 +134,53 @@ export async function generateNeuroPhotoHybrid(
       throw new Error(`Server error: ${response.data.error}`)
     }
 
+    // Отправляем фотографии пользователю если они есть в ответе
+    if (response.data.urls && Array.isArray(response.data.urls)) {
+      logger.info({
+        message: '📸 [HYBRID] Отправка фотографий пользователю',
+        telegram_id,
+        urls_count: response.data.urls.length,
+      })
+
+      for (const url of response.data.urls) {
+        try {
+          const caption = isRussianFromState(ctx)
+            ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${exactCostPerImage} ⭐`
+            : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${exactCostPerImage} ⭐`
+
+          await ctx.telegram.sendPhoto(telegram_id, { url }, {
+            caption,
+            reply_markup: {
+              keyboard: [
+                [
+                  { text: isRussianFromState(ctx) ? '🆕 Новый промпт' : '🆕 New prompt' },
+                  { text: isRussianFromState(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+                ],
+                [
+                  { text: isRussianFromState(ctx) ? '📐 Изменить размер' : '📐 Change size' },
+                  { text: isRussianFromState(ctx) ? '🏠 Главное меню' : '🏠 Main menu' },
+                ],
+              ],
+              resize_keyboard: true,
+            },
+          })
+
+          logger.info({
+            message: '✅ [HYBRID] Фотография отправлена',
+            telegram_id,
+            url,
+          })
+        } catch (sendError) {
+          logger.error({
+            message: '❌ [HYBRID] Ошибка при отправке фотографии',
+            telegram_id,
+            url,
+            error: sendError,
+          })
+        }
+      }
+    }
+
     return response.data
   } catch (error) {
     // Логируем ошибку сервера
