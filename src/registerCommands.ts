@@ -1253,8 +1253,17 @@ If not, continue on your own and click the "I myself" button`
         )
 
         // Импортируем и запускаем локальный upscaler (тот же что и для отдельного upscaler'а)
+        logger.info('🔴 BEFORE UPSCALE_IMAGE CALL', {
+          telegram_id,
+          username,
+          imageUrl: ctx.session.lastNeuroPhotoImageUrl,
+          prompt: ctx.session.lastNeuroPhotoPrompt,
+          is_ru,
+        })
+        console.log('🔴 CALLING UPSCALE_IMAGE FOR:', telegram_id)
+        
         const { upscaleImage } = await import('./services/imageUpscaler')
-        await upscaleImage({
+        const result = await upscaleImage({
           imageUrl: ctx.session.lastNeuroPhotoImageUrl,
           telegram_id,
           username,
@@ -1263,6 +1272,12 @@ If not, continue on your own and click the "I myself" button`
           originalPrompt:
             ctx.session.lastNeuroPhotoPrompt || 'Neurophoto upscale',
         })
+        
+        logger.info('🟢 AFTER UPSCALE_IMAGE CALL', {
+          telegram_id,
+          result: result ? 'Success' : 'No result',
+        })
+        console.log('🟢 UPSCALE_IMAGE COMPLETED FOR:', telegram_id)
       } catch (error) {
         logger.error('Error in upscale_neurophoto_image action:', {
           error,
