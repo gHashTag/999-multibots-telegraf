@@ -28,6 +28,16 @@ export async function generateNeuroPhotoHybrid(
   botName: string,
   explicitAspectRatio?: string | null
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  console.log('🚀 [HYBRID] generateNeuroPhotoHybrid ВХОД в функцию')
+  console.log('🚀 [HYBRID] Параметры:', {
+    prompt: prompt.substring(0, 50) + '...',
+    model_url,
+    numImages,
+    telegram_id,
+    botName,
+    explicitAspectRatio
+  })
+  
   logger.info({
     message: '🔄 [HYBRID] Начало гибридной генерации neuro_photo',
     telegram_id,
@@ -39,16 +49,21 @@ export async function generateNeuroPhotoHybrid(
 
   // Валидация входных данных
   if (!ctx.session.prompt) {
+    console.error('❌ [HYBRID] Prompt not found in session')
     throw new Error('Prompt not found')
   }
 
   if (!ctx.session.userModel) {
+    console.error('❌ [HYBRID] User model not found in session')
     throw new Error('User model not found')
   }
 
   if (!numImages || numImages <= 0) {
+    console.error('❌ [HYBRID] Invalid number of images:', numImages)
     throw new Error('Invalid number of images')
   }
+
+  console.log('✅ [HYBRID] Валидация входных данных пройдена')
 
   // Рассчитываем точную стоимость (БЕЗ ОКРУГЛЕНИЯ!)
   const costResult = calculateModeCost({
