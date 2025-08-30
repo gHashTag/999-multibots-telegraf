@@ -1,3 +1,16 @@
 {
-  "*.ts": ["eslint --fix"]
+  "*.ts": [
+    "eslint --fix",
+    "bash -c './scripts/security-token-guard.sh'"
+  ],
+  "*.js": [
+    "eslint --fix",
+    "bash -c './scripts/security-token-guard.sh'"
+  ],
+  "*.json": [
+    "bash -c './scripts/security-token-guard.sh'"
+  ],
+  "*.md": [
+    "bash -c './scripts/security-token-guard.sh'"
+  ]
 }
