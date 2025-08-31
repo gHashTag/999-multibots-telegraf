@@ -11,19 +11,11 @@ export const functions = [
 const config = {
   name: 'telegram-bot-client',
   id: 'telegram-bot-client',
-  // Подключение к нашему Inngest Dev Server
-  baseUrl:
-    process.env.NODE_ENV === 'development'
-      ? 'http://localhost:8288' // Наш dev server
-      : (process.env.SERVER_API_URL ||
-          'https://ai-server-production-production-8e2d.up.railway.app') +
-        '/api/inngest', // Продакшн сервер
+  // Всегда используем Inngest Cloud API для отправки событий
+  baseUrl: process.env.INNGEST_URL || 'https://api.inngest.com',
   isDev: process.env.NODE_ENV === 'development',
-  // Event key только для production
-  eventKey:
-    process.env.NODE_ENV === 'production'
-      ? process.env.INNGEST_EVENT_KEY
-      : undefined,
+  // Event key нужен всегда для отправки событий в Inngest Cloud
+  eventKey: process.env.INNGEST_EVENT_KEY,
 }
 
 console.log('🔥 [DEBUG] Inngest client configuration:', {
