@@ -3,6 +3,7 @@ import { logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { API_URL } from '@/config'
+import { inngest } from '@/inngest_app/client'
 import {
   CompetitorSubscription,
   CreateSubscriptionRequest,
@@ -137,9 +138,19 @@ export class CompetitorMonitoringApiService {
         delivery_format: deliveryFormat,
       }
 
+      const fullUrl = `${this.apiUrl}/api/competitor-subscriptions`
+      
+      logger.info('[Competitor Monitoring API] Making POST request', {
+        url: fullUrl,
+        data: subscriptionData,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
       // Используем готовый backend API endpoint
       const response = await axios.post(
-        `${this.apiUrl}/api/competitor-subscriptions`,
+        fullUrl,
         subscriptionData,
         {
           timeout: 15000,
@@ -148,6 +159,11 @@ export class CompetitorMonitoringApiService {
           },
         }
       )
+      
+      logger.info('[Competitor Monitoring API] Response received', {
+        status: response.status,
+        data: response.data
+      })
 
       if (response.data.success && response.data.subscription) {
         logger.info(
@@ -159,7 +175,60 @@ export class CompetitorMonitoringApiService {
           }
         )
 
-        // Backend автоматически запустит парсинг через Inngest cron
+        // Запускаем парсинг немедленно через Inngest
+        try {
+          logger.info('[Competitor Monitoring API] Triggering immediate parsing via Inngest', {
+            subscriptionId: response.data.subscription.id,
+            competitorUsername
+          })
+          
+          // Создаём событие для Inngest
+          const inngestEvent = {
+            name: 'instagram/competitor.parse',
+            data: {
+              subscription_id: response.data.subscription.id,
+              user_telegram_id: userTelegramId,
+              bot_name: 'telegram_bot',
+              competitor_username: competitorUsername.replace('@', ''),
+              max_reels: maxReels,
+              min_views: minViews,
+              max_age_days: maxAgeDays,
+              debug_session_id: `competitor-${userTelegramId}-${Date.now()}`
+            },
+            // ID для дедупликации
+            id: `competitor-parse-${response.data.subscription.id}-${Date.now()}`
+          }
+          
+          logger.info('[Competitor Monitoring API] Sending Inngest event', {
+            eventName: inngestEvent.name,
+            eventId: inngestEvent.id,
+            data: inngestEvent.data
+          })
+          
+          console.log('🔥 [DEBUG] Sending Inngest event:', JSON.stringify(inngestEvent, null, 2))
+          console.log('🔥 [DEBUG] Inngest config:', {
+            hasEventKey: !!process.env.INNGEST_EVENT_KEY,
+            inngestUrl: process.env.INNGEST_URL || 'https://api.inngest.com',
+            nodeEnv: process.env.NODE_ENV
+          })
+          
+          const sendResult = await inngest.send(inngestEvent)
+          
+          console.log('🔥 [DEBUG] Inngest send result:', sendResult)
+          
+          logger.info('[Competitor Monitoring API] Inngest event sent successfully', {
+            sendResult,
+            subscriptionId: response.data.subscription.id
+          })
+        } catch (parseError) {
+          // Не блокируем создание подписки, если не удалось запустить парсинг
+          logger.error('[Competitor Monitoring API] Failed to trigger Inngest parsing', {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+            subscriptionId: response.data.subscription.id
+          })
+        }
+
+        // Backend также запустит парсинг через Inngest cron
         const successMessage = isRu
           ? `✅ Подписка на мониторинг @${competitorUsername} создана!
 
@@ -175,8 +244,8 @@ export class CompetitorMonitoringApiService {
                 : 'Архив'
             }
 
-🚀 Парсинг запустится автоматически каждые 24 часа в 08:00 UTC
-📬 Первые результаты придут в течение 24 часов`
+🚀 Парсинг запущен! Первые результаты придут в течение нескольких минут
+📅 Далее парсинг будет выполняться автоматически каждые 24 часа`
           : `✅ Monitoring subscription for @${competitorUsername} created!
 
 📊 **Monitoring Settings:**
@@ -185,8 +254,8 @@ export class CompetitorMonitoringApiService {
 📅 Content age: up to ${maxAgeDays} days
 📦 Delivery format: ${deliveryFormat}
 
-🚀 Parsing will start automatically every 24 hours at 08:00 UTC
-📬 First results will arrive within 24 hours`
+🚀 Parsing started! First results will arrive within a few minutes
+📅 Further parsing will run automatically every 24 hours`
 
         return {
           success: true,
