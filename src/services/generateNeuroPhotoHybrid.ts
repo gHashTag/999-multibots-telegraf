@@ -182,8 +182,9 @@ export async function generateNeuroPhotoHybrid(
       throw new Error(`Server error: ${response.data.error}`)
     }
 
-    // Отправляем фотографии пользователю если они есть в ответе
-    if (response.data.urls && Array.isArray(response.data.urls)) {
+    // Проверяем тип ответа от сервера
+    if (response.data.urls && Array.isArray(response.data.urls) && response.data.urls.length > 0) {
+      // СЦЕНАРИЙ 1: Сервер вернул готовые изображения
       logger.info({
         message: '📸 [HYBRID] Отправка фотографий пользователю',
         telegram_id,
@@ -191,39 +192,23 @@ export async function generateNeuroPhotoHybrid(
       })
 
       // СОХРАНЯЕМ последний URL в сессии для upscaler'а
-      // Берем последний URL из массива, так как это будет последняя отправленная фотография
-      if (response.data.urls && response.data.urls.length > 0) {
-        const lastUrl = response.data.urls[response.data.urls.length - 1]
-        if (ctx.session) {
-          ctx.session.lastNeuroPhotoImageUrl = lastUrl
-          ctx.session.lastNeuroPhotoPrompt = prompt
-          
-          logger.info({
-            message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
-            description: 'Neurophoto URL saved in session for upscaler',
-            telegram_id,
-            savedUrl: lastUrl.substring(0, 50) + '...',
-            savedPrompt: prompt.substring(0, 50) + '...',
-            sessionExists: true,
-            urlsCount: response.data.urls.length,
-          })
-        } else {
-          logger.error({
-            message: '❌ [HYBRID] Сессия не найдена, не удалось сохранить URL для upscaler',
-            description: 'Session not found, cannot save URL for upscaler',
-            telegram_id,
-          })
-        }
-      } else {
-        logger.warn({
-          message: '⚠️ [HYBRID] Нет URLs в ответе сервера для сохранения в сессию',
-          description: 'No URLs in server response to save in session',
+      const lastUrl = response.data.urls[response.data.urls.length - 1]
+      if (ctx.session) {
+        ctx.session.lastNeuroPhotoImageUrl = lastUrl
+        ctx.session.lastNeuroPhotoPrompt = prompt
+        
+        logger.info({
+          message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
+          description: 'Neurophoto URL saved in session for upscaler',
           telegram_id,
-          hasUrls: !!response.data.urls,
-          urlsLength: response.data.urls?.length || 0,
+          savedUrl: lastUrl.substring(0, 50) + '...',
+          savedPrompt: prompt.substring(0, 50) + '...',
+          sessionExists: true,
+          urlsCount: response.data.urls.length,
         })
       }
 
+      // Отправляем все фотографии с клавиатурой
       for (const url of response.data.urls) {
         try {
           const caption = isRussianFromState(ctx)
@@ -249,9 +234,38 @@ export async function generateNeuroPhotoHybrid(
           })
         }
       }
+      
+      return response.data
+      
+    } else if (response.data.jobId) {
+      // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
+      logger.info({
+        message: '⏳ [HYBRID] Сервер вернул jobId, переключаемся на План Б для немедленной генерации',
+        telegram_id,
+        jobId: response.data.jobId,
+        reason: 'No polling mechanism implemented for async results',
+      })
+      
+      // Уведомляем пользователя о начале генерации
+      await ctx.reply(
+        isRussianFromState(ctx)
+          ? '⏳ Генерация запущена. Обрабатываем изображение локально...'
+          : '⏳ Generation started. Processing image locally...'
+      )
+      
+      // Переключаемся на План Б для немедленной генерации
+      throw new Error('Async job returned - switching to Plan B for immediate generation')
+      
+    } else {
+      // СЦЕНАРИЙ 3: Неожиданный формат ответа
+      logger.error({
+        message: '❌ [HYBRID] Неожиданный формат ответа от сервера',
+        telegram_id,
+        responseData: JSON.stringify(response.data).substring(0, 200),
+      })
+      
+      throw new Error('Unexpected response format from server')
     }
-
-    return response.data
   } catch (error) {
     // Логируем ошибку сервера
     if (isAxiosError(error)) {
