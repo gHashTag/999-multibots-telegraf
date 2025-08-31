@@ -1,0 +1,508 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateNeuroPhotoHybrid = generateNeuroPhotoHybrid;
+const tslib_1 = require("tslib");
+const axios_1 = tslib_1.__importStar(require("axios"));
+const config_1 = require("../config");
+const centralizedLanguage_1 = require("../helpers/centralizedLanguage");
+const logger_1 = require("../utils/logger");
+const generateNeuroPhotoDirect_1 = require("./generateNeuroPhotoDirect");
+const modelsCost_1 = require("../price/helpers/modelsCost");
+const modes_1 = require("../interfaces/modes");
+const telegraf_1 = require("telegraf");
+// Создание клавиатуры для результатов нейрофотографий с кнопкой Upscale
+const createNeuroPhotoResultKeyboard = (is_ru) => {
+    return telegraf_1.Markup.inlineKeyboard([
+        [
+            telegraf_1.Markup.button.callback(is_ru ? '🆕 Новый промпт' : '🆕 New prompt', 'new_neurophoto_prompt'),
+            telegraf_1.Markup.button.callback(is_ru ? '📐 Изменить размер' : '📐 Change size', 'change_size'),
+        ],
+        [
+            telegraf_1.Markup.button.callback(is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt', 'improve_prompt'),
+            telegraf_1.Markup.button.callback(is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale Quality', 'upscale_neurophoto_image'),
+        ],
+        [
+            telegraf_1.Markup.button.callback(is_ru ? '🏠 Главное меню' : '🏠 Main menu', 'go_main_menu'),
+        ],
+    ]);
+};
+/**
+ * Проверка статуса генерации нейрофото на сервере
+ * @param jobId - ID задачи на сервере
+ * @param is_ru - язык пользователя
+ */
+async function checkNeuroPhotoGenerationStatus(jobId, is_ru) {
+    try {
+        const url = `${config_1.API_SERVER_URL}/generate/neuro-photo/status/${jobId}`;
+        logger_1.logger.info({
+            message: '📊 [STATUS CHECK] Проверка статуса генерации',
+            jobId,
+            url,
+        });
+        const response = await axios_1.default.get(url, {
+            headers: {
+                'x-secret-key': config_1.SECRET_API_KEY,
+            },
+            timeout: 5000, // 5 секунд таймаут для проверки статуса
+        });
+        logger_1.logger.info({
+            message: '📊 [STATUS CHECK] Ответ сервера',
+            jobId,
+            status: response.data.status,
+            hasUrls: !!response.data.urls,
+            urlsCount: response.data.urls?.length || 0,
+        });
+        if (response.data.status === 'completed' && response.data.urls) {
+            return {
+                success: true,
+                urls: response.data.urls,
+            };
+        }
+        else if (response.data.status === 'failed') {
+            return {
+                success: false,
+                error: response.data.error || (is_ru ? 'Генерация не удалась' : 'Generation failed'),
+            };
+        }
+        else {
+            // Статус 'pending' или 'processing'
+            return {
+                success: true,
+                status: response.data.status,
+            };
+        }
+    }
+    catch (error) {
+        if ((0, axios_1.isAxiosError)(error)) {
+            // Если endpoint не существует (404), возвращаем специальный статус
+            if (error.response?.status === 404) {
+                logger_1.logger.warn({
+                    message: '⚠️ [STATUS CHECK] Endpoint не реализован на сервере',
+                    jobId,
+                    error: 'Endpoint not found',
+                });
+                return {
+                    success: false,
+                    error: 'status_check_not_implemented',
+                };
+            }
+            logger_1.logger.error({
+                message: '❌ [STATUS CHECK] Ошибка при проверке статуса',
+                jobId,
+                error: error.message,
+                status: error.response?.status,
+            });
+        }
+        return {
+            success: false,
+            error: is_ru ? 'Ошибка проверки статуса' : 'Status check error',
+        };
+    }
+}
+/**
+ * Мониторинг статуса генерации нейрофото
+ * Сначала пытается получить результат через polling,
+ * если endpoint не реализован - переключается на План Б через 10 секунд
+ */
+async function monitorNeuroPhotoGeneration(ctx, jobId, messageId, prompt, costPerImage, model_url, aspectRatio) {
+    const telegram_id = ctx.from?.id.toString() || '';
+    const is_ru = (0, centralizedLanguage_1.isRussianFromState)(ctx);
+    const maxAttempts = 30; // 2.5 минуты максимум (30 * 5 сек)
+    let attempts = 0;
+    let fallbackToPlanB = false;
+    logger_1.logger.info({
+        message: '🔄 [MONITOR] Начат мониторинг генерации',
+        telegram_id,
+        jobId,
+    });
+    const checkInterval = setInterval(async () => {
+        attempts++;
+        try {
+            // Проверяем статус на сервере
+            const statusResponse = await checkNeuroPhotoGenerationStatus(jobId, is_ru);
+            if (statusResponse.error === 'status_check_not_implemented') {
+                // Endpoint не реализован, переключаемся на План Б
+                clearInterval(checkInterval);
+                fallbackToPlanB = true;
+                logger_1.logger.info({
+                    message: '⚡ [MONITOR] Status endpoint не реализован, переключаемся на План Б',
+                    telegram_id,
+                    jobId,
+                });
+                // Обновляем сообщение
+                await ctx.telegram.editMessageText(ctx.chat.id, messageId, undefined, is_ru
+                    ? '⚡ Обрабатываем изображение локально для быстрого результата...'
+                    : '⚡ Processing image locally for faster results...');
+                // ПЛАН Б ОТКЛЮЧЕН по запросу пользователя
+                clearInterval(checkInterval);
+                await ctx.telegram.deleteMessage(ctx.chat.id, messageId).catch(() => {});
+                return;
+                // Запускаем План Б
+                const localResult = await (0, generateNeuroPhotoDirect_1.generateNeuroPhotoDirect)(prompt, model_url || 'black-forest-labs/flux-1.1-pro', 1, // Всегда 1 изображение для Плана Б
+                telegram_id, ctx, ctx.botInfo?.username || 'unknown_bot', aspectRatio || '1:1', {
+                    disable_telegram_sending: false,
+                    bypass_payment_check: false,
+                });
+                // Удаляем сообщение о статусе
+                await ctx.telegram.deleteMessage(ctx.chat.id, messageId).catch(() => { });
+                if (localResult && localResult.success) {
+                    logger_1.logger.info({
+                        message: '✅ [MONITOR] План Б успешно выполнен',
+                        telegram_id,
+                    });
+                }
+                return;
+            }
+            if (statusResponse.success && statusResponse.urls) {
+                // Изображения готовы!
+                clearInterval(checkInterval);
+                logger_1.logger.info({
+                    message: '✅ [MONITOR] Изображения получены с сервера',
+                    telegram_id,
+                    jobId,
+                    urlsCount: statusResponse.urls.length,
+                });
+                // Удаляем сообщение о статусе
+                await ctx.telegram.deleteMessage(ctx.chat.id, messageId).catch(() => { });
+                // Сохраняем последний URL в сессии для upscaler'а
+                const lastUrl = statusResponse.urls[statusResponse.urls.length - 1];
+                if (ctx.session) {
+                    ctx.session.lastNeuroPhotoImageUrl = lastUrl;
+                    ctx.session.lastNeuroPhotoPrompt = prompt;
+                    logger_1.logger.info({
+                        message: '💾 [MONITOR] URL сохранен в сессии для upscaler',
+                        telegram_id,
+                        savedUrl: lastUrl.substring(0, 50) + '...',
+                    });
+                }
+                // Отправляем все фотографии с клавиатурой
+                for (const url of statusResponse.urls) {
+                    try {
+                        const caption = is_ru
+                            ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${costPerImage} ⭐`
+                            : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${costPerImage} ⭐`;
+                        await ctx.telegram.sendPhoto(telegram_id, { url }, {
+                            caption,
+                            reply_markup: createNeuroPhotoResultKeyboard(is_ru).reply_markup,
+                        });
+                        logger_1.logger.info({
+                            message: '✅ [MONITOR] Фотография отправлена',
+                            telegram_id,
+                            url,
+                        });
+                    }
+                    catch (sendError) {
+                        logger_1.logger.error({
+                            message: '❌ [MONITOR] Ошибка при отправке фотографии',
+                            telegram_id,
+                            url,
+                            error: sendError,
+                        });
+                    }
+                }
+            }
+            else if (!statusResponse.success && statusResponse.error !== 'status_check_not_implemented') {
+                // Ошибка генерации
+                clearInterval(checkInterval);
+                await ctx.telegram.editMessageText(ctx.chat.id, messageId, undefined, is_ru
+                    ? `❌ Ошибка генерации: ${statusResponse.error}`
+                    : `❌ Generation error: ${statusResponse.error}`);
+            }
+            else if (attempts >= maxAttempts) {
+                // Таймаут - переключаемся на План Б
+                clearInterval(checkInterval);
+                logger_1.logger.info({
+                    message: '⏱️ [MONITOR] Таймаут ожидания, переключаемся на План Б',
+                    telegram_id,
+                    jobId,
+                    attempts,
+                });
+                await ctx.telegram.editMessageText(ctx.chat.id, messageId, undefined, is_ru
+                    ? '⏱️ Генерация на сервере заняла слишком много времени. Обрабатываем локально...'
+                    : '⏱️ Server generation took too long. Processing locally...');
+                // ПЛАН Б ОТКЛЮЧЕН по запросу пользователя
+                clearInterval(checkInterval);
+                await ctx.telegram.deleteMessage(ctx.chat.id, messageId).catch(() => {});
+                return;
+                // Запускаем План Б
+                const localResult = await (0, generateNeuroPhotoDirect_1.generateNeuroPhotoDirect)(prompt, model_url || 'black-forest-labs/flux-1.1-pro', 1, telegram_id, ctx, ctx.botInfo?.username || 'unknown_bot', aspectRatio || '1:1', {
+                    disable_telegram_sending: false,
+                    bypass_payment_check: false,
+                });
+                await ctx.telegram.deleteMessage(ctx.chat.id, messageId).catch(() => { });
+                if (localResult && localResult.success) {
+                    logger_1.logger.info({
+                        message: '✅ [MONITOR] План Б выполнен после таймаута',
+                        telegram_id,
+                    });
+                }
+            }
+            // Если status === 'processing' или 'pending', продолжаем проверку
+        }
+        catch (error) {
+            clearInterval(checkInterval);
+            logger_1.logger.error('[monitorNeuroPhotoGeneration] Error:', error);
+            await ctx.telegram.editMessageText(ctx.chat.id, messageId, undefined, is_ru
+                ? '❌ Ошибка при генерации. Попробуйте еще раз.'
+                : '❌ Generation error. Please try again.');
+        }
+    }, 5000); // Проверяем каждые 5 секунд, как в видео генерации
+}
+/**
+ * Гибридная функция для генерации neuro_photo:
+ * План А: Отправляет запрос на сервер (предотвращает множественные генерации)
+ * План Б: Если сервер недоступен, использует локальную обработку
+ *
+ * ИСПРАВЛЯЕТ ПРОБЛЕМУ ОКРУГЛЕНИЯ: передает точную цену 7.5⭐ на сервер
+ */
+async function generateNeuroPhotoHybrid(prompt, model_url, numImages, telegram_id, ctx, botName, explicitAspectRatio) {
+    console.log('🚀 [HYBRID] generateNeuroPhotoHybrid ВХОД в функцию');
+    console.log('🚀 [HYBRID] Параметры:', {
+        prompt: prompt.substring(0, 50) + '...',
+        model_url,
+        numImages,
+        telegram_id,
+        botName,
+        explicitAspectRatio
+    });
+    logger_1.logger.info({
+        message: '🔄 [HYBRID] Начало гибридной генерации neuro_photo',
+        telegram_id,
+        numImages,
+        prompt: prompt.substring(0, 50) + '...',
+        model_url,
+        botName,
+    });
+    // Валидация входных данных
+    if (!ctx.session.prompt) {
+        console.error('❌ [HYBRID] Prompt not found in session');
+        throw new Error('Prompt not found');
+    }
+    if (!ctx.session.userModel) {
+        console.error('❌ [HYBRID] User model not found in session');
+        throw new Error('User model not found');
+    }
+    if (!numImages || numImages <= 0) {
+        console.error('❌ [HYBRID] Invalid number of images:', numImages);
+        throw new Error('Invalid number of images');
+    }
+    console.log('✅ [HYBRID] Валидация входных данных пройдена');
+    // Рассчитываем точную стоимость (БЕЗ ОКРУГЛЕНИЯ!)
+    const costResult = (0, modelsCost_1.calculateModeCost)({
+        mode: modes_1.ModeEnum.NeuroPhoto,
+        steps: numImages,
+    });
+    const exactCostPerImage = Number(costResult.stars); // 7.5⭐
+    const exactTotalCost = exactCostPerImage * numImages;
+    logger_1.logger.info({
+        message: '💰 [HYBRID] Рассчитана точная стоимость',
+        exactCostPerImage,
+        exactTotalCost,
+        numImages,
+    });
+    // ПЛАН А: Попытка отправки на сервер с точной ценой
+    try {
+        logger_1.logger.info({
+            message: '🌐 [HYBRID] План А: Отправка запроса на сервер',
+            telegram_id,
+        });
+        await ctx.telegram.sendChatAction(ctx.chat.id, 'typing');
+        const url = `${config_1.API_SERVER_URL}/generate/neuro-photo`;
+        const serverPayload = {
+            prompt,
+            model_url,
+            num_images: numImages,
+            telegram_id,
+            username: ctx.from?.username,
+            is_ru: (0, centralizedLanguage_1.isRussianFromState)(ctx),
+            bot_name: botName,
+            // КРИТИЧНО: Передаем точную стоимость на сервер
+            exact_cost_per_image: exactCostPerImage, // 7.5⭐
+            exact_total_cost: exactTotalCost,
+            // Дополнительные данные для сервера
+            user_model: ctx.session.userModel,
+            aspect_ratio: explicitAspectRatio,
+        };
+        logger_1.logger.info({
+            message: '📤 [HYBRID] Отправка данных на сервер',
+            url,
+            exact_cost_per_image: exactCostPerImage,
+            exact_total_cost: exactTotalCost,
+        });
+        const response = await axios_1.default.post(url, serverPayload, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-secret-key': config_1.SECRET_API_KEY,
+            },
+            timeout: 30000, // 30 секунд таймаут
+        });
+        logger_1.logger.info({
+            message: '✅ [HYBRID] План А успешен - сервер ответил',
+            telegram_id,
+            response_status: response.status,
+            response_data: JSON.stringify(response.data),
+        });
+        // Проверяем содержимое ответа сервера
+        if (!response.data) {
+            logger_1.logger.error({
+                message: '❌ [HYBRID] Сервер вернул пустой ответ',
+                telegram_id,
+                response_status: response.status,
+            });
+            throw new Error('Server returned empty response');
+        }
+        // Проверяем, есть ли ошибка в ответе сервера
+        if (response.data.error) {
+            logger_1.logger.error({
+                message: '❌ [HYBRID] Сервер вернул ошибку',
+                telegram_id,
+                server_error: response.data.error,
+            });
+            throw new Error(`Server error: ${response.data.error}`);
+        }
+        // Проверяем тип ответа от сервера
+        if (response.data.urls && Array.isArray(response.data.urls) && response.data.urls.length > 0) {
+            // СЦЕНАРИЙ 1: Сервер вернул готовые изображения
+            logger_1.logger.info({
+                message: '📸 [HYBRID] Отправка фотографий пользователю',
+                telegram_id,
+                urls_count: response.data.urls.length,
+            });
+            // СОХРАНЯЕМ последний URL в сессии для upscaler'а
+            const lastUrl = response.data.urls[response.data.urls.length - 1];
+            if (ctx.session) {
+                ctx.session.lastNeuroPhotoImageUrl = lastUrl;
+                ctx.session.lastNeuroPhotoPrompt = prompt;
+                logger_1.logger.info({
+                    message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
+                    description: 'Neurophoto URL saved in session for upscaler',
+                    telegram_id,
+                    savedUrl: lastUrl.substring(0, 50) + '...',
+                    savedPrompt: prompt.substring(0, 50) + '...',
+                    sessionExists: true,
+                    urlsCount: response.data.urls.length,
+                });
+            }
+            // Отправляем все фотографии с клавиатурой
+            for (const url of response.data.urls) {
+                try {
+                    const caption = (0, centralizedLanguage_1.isRussianFromState)(ctx)
+                        ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${exactCostPerImage} ⭐`
+                        : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${exactCostPerImage} ⭐`;
+                    await ctx.telegram.sendPhoto(telegram_id, { url }, {
+                        caption,
+                        reply_markup: createNeuroPhotoResultKeyboard((0, centralizedLanguage_1.isRussianFromState)(ctx)).reply_markup,
+                    });
+                    logger_1.logger.info({
+                        message: '✅ [HYBRID] Фотография отправлена',
+                        telegram_id,
+                        url,
+                    });
+                }
+                catch (sendError) {
+                    logger_1.logger.error({
+                        message: '❌ [HYBRID] Ошибка при отправке фотографии',
+                        telegram_id,
+                        url,
+                        error: sendError,
+                    });
+                }
+            }
+            return response.data;
+        }
+        else if (response.data.jobId) {
+            // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
+            logger_1.logger.info({
+                message: '✅ [HYBRID] План А успешен - сервер принял задачу',
+                telegram_id,
+                jobId: response.data.jobId,
+            });
+            // Уведомляем пользователя о начале генерации
+            const processingMessage = await ctx.reply((0, centralizedLanguage_1.isRussianFromState)(ctx)
+                ? '✨ Генерация запущена на сервере!\n\n⏳ Проверяем статус генерации...'
+                : '✨ Generation started on server!\n\n⏳ Checking generation status...');
+            // Запускаем мониторинг (который через 10 сек переключится на План Б)
+            monitorNeuroPhotoGeneration(ctx, response.data.jobId, processingMessage.message_id, prompt, exactCostPerImage, model_url, explicitAspectRatio);
+            return response.data;
+        }
+        else {
+            // СЦЕНАРИЙ 3: Неожиданный формат ответа
+            logger_1.logger.error({
+                message: '❌ [HYBRID] Неожиданный формат ответа от сервера',
+                telegram_id,
+                responseData: JSON.stringify(response.data).substring(0, 200),
+            });
+            throw new Error('Unexpected response format from server');
+        }
+    }
+    catch (error) {
+        // Логируем ошибку сервера
+        if ((0, axios_1.isAxiosError)(error)) {
+            logger_1.logger.warn({
+                message: '⚠️ [HYBRID] План А неудачен - ошибка сервера',
+                telegram_id,
+                error_status: error.response?.status,
+                error_message: error.response?.data?.error || error.message,
+                error_code: error.code,
+            });
+            // Специальная обработка NSFW
+            if (error.response?.data?.error?.includes('NSFW')) {
+                await ctx.reply((0, centralizedLanguage_1.isRussianFromState)(ctx)
+                    ? 'Извините, генерация изображения не удалась из-за обнаружения неподходящего контента.'
+                    : 'Sorry, image generation failed due to inappropriate content detection.');
+                return null;
+            }
+        }
+        else {
+            logger_1.logger.warn({
+                message: '⚠️ [HYBRID] План А неудачен - неизвестная ошибка',
+                telegram_id,
+                error: String(error),
+            });
+        }
+        // ПЛАН Б ОТКЛЮЧЕН по запросу пользователя
+        logger_1.logger.info({
+            message: "⚠️ [HYBRID] План Б отключен, возвращаем ошибку",
+            telegram_id,
+        });
+        throw new Error("Server unavailable and Plan B is disabled");
+        // ПЛАН Б: Локальная обработка
+        logger_1.logger.info({
+            message: '🔄 [HYBRID] Переключение на План Б: локальная обработка',
+            telegram_id,
+        });
+        try {
+            const localResult = await (0, generateNeuroPhotoDirect_1.generateNeuroPhotoDirect)(prompt, model_url, numImages, telegram_id, ctx, botName, explicitAspectRatio, {
+                disable_telegram_sending: false, // Разрешаем отправку сообщений
+                bypass_payment_check: false, // НЕ обходим проверку баланса
+            });
+            if (localResult && localResult.success) {
+                logger_1.logger.info({
+                    message: '✅ [HYBRID] План Б успешен - локальная обработка завершена',
+                    telegram_id,
+                });
+            }
+            else {
+                logger_1.logger.error({
+                    message: '❌ [HYBRID] План Б неудачен - локальная обработка провалилась',
+                    telegram_id,
+                });
+            }
+            return localResult;
+        }
+        catch (localError) {
+            logger_1.logger.error({
+                message: '❌ [HYBRID] Критическая ошибка - оба плана провалились',
+                telegram_id,
+                server_error: String(error),
+                local_error: String(localError),
+            });
+            // Отправляем сообщение об ошибке пользователю
+            await ctx.reply((0, centralizedLanguage_1.isRussianFromState)(ctx)
+                ? 'Произошла ошибка при генерации изображения. Пожалуйста, попробуйте позже.'
+                : 'An error occurred during image generation. Please try again later.');
+            return null;
+        }
+    }
+}
+//# sourceMappingURL=generateNeuroPhotoHybrid.js.map
