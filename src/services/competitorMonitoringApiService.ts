@@ -205,7 +205,16 @@ export class CompetitorMonitoringApiService {
             data: inngestEvent.data
           })
           
+          console.log('🔥 [DEBUG] Sending Inngest event:', JSON.stringify(inngestEvent, null, 2))
+          console.log('🔥 [DEBUG] Inngest config:', {
+            hasEventKey: !!process.env.INNGEST_EVENT_KEY,
+            inngestUrl: process.env.INNGEST_URL || 'https://api.inngest.com',
+            nodeEnv: process.env.NODE_ENV
+          })
+          
           const sendResult = await inngest.send(inngestEvent)
+          
+          console.log('🔥 [DEBUG] Inngest send result:', sendResult)
           
           logger.info('[Competitor Monitoring API] Inngest event sent successfully', {
             sendResult,
