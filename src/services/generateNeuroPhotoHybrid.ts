@@ -12,6 +12,7 @@ import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
+import { ModelUrl } from '@/interfaces'
 
 // Создание клавиатуры для результатов нейрофотографий с кнопкой Upscale
 const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
@@ -43,6 +44,87 @@ const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
       ),
     ],
   ])
+}
+
+/**
+ * Мониторинг статуса генерации нейрофото
+ * Пока реализовано как заглушка с автопереключением на План Б
+ * TODO: Дождаться реализации webhook или polling endpoint на сервере
+ */
+async function monitorNeuroPhotoGeneration(
+  ctx: MyContext,
+  jobId: string,
+  messageId: number,
+  prompt: string,
+  costPerImage: number
+): Promise<void> {
+  const telegram_id = ctx.from?.id.toString() || ''
+  const is_ru = isRussianFromState(ctx)
+  
+  logger.info({
+    message: '🔄 [MONITOR] Начат мониторинг генерации',
+    telegram_id,
+    jobId,
+  })
+  
+  // Пока сервер не поддерживает webhook/polling, 
+  // ждем 10 секунд и переключаемся на План Б
+  setTimeout(async () => {
+    try {
+      logger.info({
+        message: '⚡ [MONITOR] Переключаемся на План Б для быстрой генерации',
+        telegram_id,
+        jobId,
+        reason: 'Webhook/polling not implemented yet',
+      })
+      
+      // Обновляем сообщение
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '⚡ Обрабатываем изображение локально для быстрого результата...'
+          : '⚡ Processing image locally for faster results...'
+      )
+      
+      // Запускаем План Б (локальную генерацию)
+      const localResult = await generateNeuroPhotoDirect(
+        prompt,
+        ctx.session?.neuroPhotoModelUrl || ModelUrl.FLUX_GENERAL,
+        1, // Всегда 1 изображение для Плана Б
+        telegram_id,
+        ctx,
+        ctx.botInfo?.username || 'unknown_bot',
+        ctx.session?.neuroPhotoAspectRatio || '1:1',
+        {
+          disable_telegram_sending: false, // Отправляем результат пользователю
+          bypass_payment_check: false, // Не обходим оплату
+        }
+      )
+      
+      // Удаляем сообщение о статусе
+      await ctx.telegram.deleteMessage(ctx.chat.id, messageId).catch(() => {})
+      
+      if (localResult && localResult.success) {
+        logger.info({
+          message: '✅ [MONITOR] План Б успешно выполнен',
+          telegram_id,
+        })
+      }
+    } catch (error) {
+      logger.error('[monitorNeuroPhotoGeneration] Error:', error)
+      
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '❌ Ошибка при генерации. Попробуйте еще раз.'
+          : '❌ Generation error. Please try again.'
+      )
+    }
+  }, 10000) // Ждем 10 секунд и запускаем План Б
 }
 
 /**
@@ -182,8 +264,9 @@ export async function generateNeuroPhotoHybrid(
       throw new Error(`Server error: ${response.data.error}`)
     }
 
-    // Отправляем фотографии пользователю если они есть в ответе
-    if (response.data.urls && Array.isArray(response.data.urls)) {
+    // Проверяем тип ответа от сервера
+    if (response.data.urls && Array.isArray(response.data.urls) && response.data.urls.length > 0) {
+      // СЦЕНАРИЙ 1: Сервер вернул готовые изображения
       logger.info({
         message: '📸 [HYBRID] Отправка фотографий пользователю',
         telegram_id,
@@ -191,39 +274,23 @@ export async function generateNeuroPhotoHybrid(
       })
 
       // СОХРАНЯЕМ последний URL в сессии для upscaler'а
-      // Берем последний URL из массива, так как это будет последняя отправленная фотография
-      if (response.data.urls && response.data.urls.length > 0) {
-        const lastUrl = response.data.urls[response.data.urls.length - 1]
-        if (ctx.session) {
-          ctx.session.lastNeuroPhotoImageUrl = lastUrl
-          ctx.session.lastNeuroPhotoPrompt = prompt
-          
-          logger.info({
-            message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
-            description: 'Neurophoto URL saved in session for upscaler',
-            telegram_id,
-            savedUrl: lastUrl.substring(0, 50) + '...',
-            savedPrompt: prompt.substring(0, 50) + '...',
-            sessionExists: true,
-            urlsCount: response.data.urls.length,
-          })
-        } else {
-          logger.error({
-            message: '❌ [HYBRID] Сессия не найдена, не удалось сохранить URL для upscaler',
-            description: 'Session not found, cannot save URL for upscaler',
-            telegram_id,
-          })
-        }
-      } else {
-        logger.warn({
-          message: '⚠️ [HYBRID] Нет URLs в ответе сервера для сохранения в сессию',
-          description: 'No URLs in server response to save in session',
+      const lastUrl = response.data.urls[response.data.urls.length - 1]
+      if (ctx.session) {
+        ctx.session.lastNeuroPhotoImageUrl = lastUrl
+        ctx.session.lastNeuroPhotoPrompt = prompt
+        
+        logger.info({
+          message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
+          description: 'Neurophoto URL saved in session for upscaler',
           telegram_id,
-          hasUrls: !!response.data.urls,
-          urlsLength: response.data.urls?.length || 0,
+          savedUrl: lastUrl.substring(0, 50) + '...',
+          savedPrompt: prompt.substring(0, 50) + '...',
+          sessionExists: true,
+          urlsCount: response.data.urls.length,
         })
       }
 
+      // Отправляем все фотографии с клавиатурой
       for (const url of response.data.urls) {
         try {
           const caption = isRussianFromState(ctx)
@@ -249,9 +316,45 @@ export async function generateNeuroPhotoHybrid(
           })
         }
       }
+      
+      return response.data
+      
+    } else if (response.data.jobId) {
+      // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
+      logger.info({
+        message: '✅ [HYBRID] План А успешен - сервер принял задачу',
+        telegram_id,
+        jobId: response.data.jobId,
+      })
+      
+      // Уведомляем пользователя о начале генерации
+      const processingMessage = await ctx.reply(
+        isRussianFromState(ctx)
+          ? '✨ Генерация запущена на сервере!\n\n⏳ Через 10 секунд переключимся на локальную обработку для быстрого результата...'
+          : '✨ Generation started on server!\n\n⏳ In 10 seconds we\'ll switch to local processing for faster results...'
+      )
+      
+      // Запускаем мониторинг (который через 10 сек переключится на План Б)
+      monitorNeuroPhotoGeneration(
+        ctx,
+        response.data.jobId,
+        processingMessage.message_id,
+        prompt,
+        exactCostPerImage
+      )
+      
+      return response.data
+      
+    } else {
+      // СЦЕНАРИЙ 3: Неожиданный формат ответа
+      logger.error({
+        message: '❌ [HYBRID] Неожиданный формат ответа от сервера',
+        telegram_id,
+        responseData: JSON.stringify(response.data).substring(0, 200),
+      })
+      
+      throw new Error('Unexpected response format from server')
     }
-
-    return response.data
   } catch (error) {
     // Логируем ошибку сервера
     if (isAxiosError(error)) {
