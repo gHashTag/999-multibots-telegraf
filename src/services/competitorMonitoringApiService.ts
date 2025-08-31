@@ -141,6 +141,39 @@ export class CompetitorMonitoringApiService {
           subscriptionId: response.data.subscription.id
         })
 
+        // Запускаем парсинг сразу после создания подписки
+        try {
+          logger.info('[Competitor Monitoring API] Triggering immediate parsing', {
+            subscriptionId: response.data.subscription.id,
+            competitorUsername
+          })
+          
+          // Простой POST запрос на сервер для запуска парсинга
+          const parseResponse = await axios.post(
+            `${this.apiUrl}/api/competitor-subscriptions/${response.data.subscription.id}/parse`,
+            {
+              user_telegram_id: userTelegramId,
+              bot_name: 'telegram_bot'
+            },
+            {
+              timeout: 15000,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          )
+          
+          logger.info('[Competitor Monitoring API] Parse triggered', {
+            status: parseResponse.status,
+            data: parseResponse.data
+          })
+        } catch (parseError) {
+          logger.error('[Competitor Monitoring API] Failed to trigger parsing', {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+            subscriptionId: response.data.subscription.id
+          })
+        }
+
         // Backend автоматически запускает парсинг после создания подписки
         const successMessage = isRu
           ? `✅ Подписка на мониторинг @${competitorUsername} создана!
