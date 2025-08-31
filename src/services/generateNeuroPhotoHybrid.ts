@@ -135,7 +135,9 @@ async function monitorNeuroPhotoGeneration(
   jobId: string,
   messageId: number,
   prompt: string,
-  costPerImage: number
+  costPerImage: number,
+  model_url: ModelUrl,
+  aspectRatio?: string | null
 ): Promise<void> {
   const telegram_id = ctx.from?.id.toString() || ''
   const is_ru = isRussianFromState(ctx)
@@ -180,12 +182,12 @@ async function monitorNeuroPhotoGeneration(
         // Запускаем План Б
         const localResult = await generateNeuroPhotoDirect(
           prompt,
-          ctx.session?.neuroPhotoModelUrl || ModelUrl.FLUX_GENERAL,
+          model_url || ('black-forest-labs/flux-1.1-pro' as ModelUrl),
           1, // Всегда 1 изображение для Плана Б
           telegram_id,
           ctx,
           ctx.botInfo?.username || 'unknown_bot',
-          ctx.session?.neuroPhotoAspectRatio || '1:1',
+          aspectRatio || '1:1',
           {
             disable_telegram_sending: false,
             bypass_payment_check: false,
@@ -292,12 +294,12 @@ async function monitorNeuroPhotoGeneration(
         // Запускаем План Б
         const localResult = await generateNeuroPhotoDirect(
           prompt,
-          ctx.session?.neuroPhotoModelUrl || ModelUrl.FLUX_GENERAL,
+          model_url || ('black-forest-labs/flux-1.1-pro' as ModelUrl),
           1,
           telegram_id,
           ctx,
           ctx.botInfo?.username || 'unknown_bot',
-          ctx.session?.neuroPhotoAspectRatio || '1:1',
+          aspectRatio || '1:1',
           {
             disable_telegram_sending: false,
             bypass_payment_check: false,
@@ -543,7 +545,9 @@ export async function generateNeuroPhotoHybrid(
         response.data.jobId,
         processingMessage.message_id,
         prompt,
-        exactCostPerImage
+        exactCostPerImage,
+        model_url,
+        explicitAspectRatio
       )
       
       return response.data
