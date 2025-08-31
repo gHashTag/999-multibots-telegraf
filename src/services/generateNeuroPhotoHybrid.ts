@@ -12,6 +12,7 @@ import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
+import { ModelUrl } from '@/interfaces'
 
 // Создание клавиатуры для результатов нейрофотографий с кнопкой Upscale
 const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
@@ -43,6 +44,87 @@ const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
       ),
     ],
   ])
+}
+
+/**
+ * Мониторинг статуса генерации нейрофото
+ * Пока реализовано как заглушка с автопереключением на План Б
+ * TODO: Дождаться реализации webhook или polling endpoint на сервере
+ */
+async function monitorNeuroPhotoGeneration(
+  ctx: MyContext,
+  jobId: string,
+  messageId: number,
+  prompt: string,
+  costPerImage: number
+): Promise<void> {
+  const telegram_id = ctx.from?.id.toString() || ''
+  const is_ru = isRussianFromState(ctx)
+  
+  logger.info({
+    message: '🔄 [MONITOR] Начат мониторинг генерации',
+    telegram_id,
+    jobId,
+  })
+  
+  // Пока сервер не поддерживает webhook/polling, 
+  // ждем 10 секунд и переключаемся на План Б
+  setTimeout(async () => {
+    try {
+      logger.info({
+        message: '⚡ [MONITOR] Переключаемся на План Б для быстрой генерации',
+        telegram_id,
+        jobId,
+        reason: 'Webhook/polling not implemented yet',
+      })
+      
+      // Обновляем сообщение
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '⚡ Обрабатываем изображение локально для быстрого результата...'
+          : '⚡ Processing image locally for faster results...'
+      )
+      
+      // Запускаем План Б (локальную генерацию)
+      const localResult = await generateNeuroPhotoDirect(
+        prompt,
+        ctx.session?.neuroPhotoModelUrl || ModelUrl.FLUX_GENERAL,
+        1, // Всегда 1 изображение для Плана Б
+        telegram_id,
+        ctx,
+        ctx.botInfo?.username || 'unknown_bot',
+        ctx.session?.neuroPhotoAspectRatio || '1:1',
+        {
+          disable_telegram_sending: false, // Отправляем результат пользователю
+          bypass_payment_check: false, // Не обходим оплату
+        }
+      )
+      
+      // Удаляем сообщение о статусе
+      await ctx.telegram.deleteMessage(ctx.chat.id, messageId).catch(() => {})
+      
+      if (localResult && localResult.success) {
+        logger.info({
+          message: '✅ [MONITOR] План Б успешно выполнен',
+          telegram_id,
+        })
+      }
+    } catch (error) {
+      logger.error('[monitorNeuroPhotoGeneration] Error:', error)
+      
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '❌ Ошибка при генерации. Попробуйте еще раз.'
+          : '❌ Generation error. Please try again.'
+      )
+    }
+  }, 10000) // Ждем 10 секунд и запускаем План Б
 }
 
 /**
@@ -240,21 +322,28 @@ export async function generateNeuroPhotoHybrid(
     } else if (response.data.jobId) {
       // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
       logger.info({
-        message: '⏳ [HYBRID] Сервер вернул jobId, переключаемся на План Б для немедленной генерации',
+        message: '✅ [HYBRID] План А успешен - сервер принял задачу',
         telegram_id,
         jobId: response.data.jobId,
-        reason: 'No polling mechanism implemented for async results',
       })
       
       // Уведомляем пользователя о начале генерации
-      await ctx.reply(
+      const processingMessage = await ctx.reply(
         isRussianFromState(ctx)
-          ? '⏳ Генерация запущена. Обрабатываем изображение локально...'
-          : '⏳ Generation started. Processing image locally...'
+          ? '✨ Генерация запущена на сервере!\n\n⏳ Через 10 секунд переключимся на локальную обработку для быстрого результата...'
+          : '✨ Generation started on server!\n\n⏳ In 10 seconds we\'ll switch to local processing for faster results...'
       )
       
-      // Переключаемся на План Б для немедленной генерации
-      throw new Error('Async job returned - switching to Plan B for immediate generation')
+      // Запускаем мониторинг (который через 10 сек переключится на План Б)
+      monitorNeuroPhotoGeneration(
+        ctx,
+        response.data.jobId,
+        processingMessage.message_id,
+        prompt,
+        exactCostPerImage
+      )
+      
+      return response.data
       
     } else {
       // СЦЕНАРИЙ 3: Неожиданный формат ответа
