@@ -14,7 +14,7 @@ const path = require('path');
 const app = express();
 const PORT = 9000;
 const SECRET = process.env.GITHUB_WEBHOOK_SECRET || 'your-webhook-secret';
-const REPO_PATH = '/root/999-agents-vibecoder';
+const REPO_PATH = '/root/999-agents-telegraf';
 
 // Middleware
 app.use(express.json());

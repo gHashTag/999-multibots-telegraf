@@ -50,6 +50,18 @@ export const upscaleImage = async (
   params: ImageUpscalerParams
 ): Promise<GenerationResult> => {
   const { imageUrl, telegram_id, username, is_ru, ctx, originalPrompt } = params
+  
+  // Немедленное логирование при входе в функцию
+  logger.info('⚡ UPSCALE_IMAGE FUNCTION CALLED', {
+    telegram_id,
+    username,
+    imageUrl: imageUrl ? imageUrl.substring(0, 100) + '...' : 'NO_IMAGE_URL',
+    originalPrompt: originalPrompt || 'NO_PROMPT',
+    is_ru,
+    timestamp: new Date().toISOString(),
+  })
+  
+  console.log('🔵 UPSCALE_IMAGE CALLED FOR USER:', telegram_id)
 
   // Стоимость upscaling - обновленная цена $0.04 с наценкой 50%
   const clarityUpscalerCostUSD = 0.04
@@ -77,6 +89,9 @@ export const upscaleImage = async (
     }
 
     // Отправка сообщения о начале upscaling
+    logger.info('📨 Sending initial upscaling message', { telegram_id })
+    console.log('🟡 SENDING INITIAL MESSAGE TO:', telegram_id)
+    
     await ctx.telegram.sendMessage(
       telegram_id,
       is_ru
@@ -86,6 +101,9 @@ export const upscaleImage = async (
         reply_markup: { remove_keyboard: true },
       }
     )
+    
+    logger.info('✅ Initial message sent successfully', { telegram_id })
+    console.log('🟢 INITIAL MESSAGE SENT TO:', telegram_id)
 
     logger.info(`Image upscaling started`, {
       model: 'philz1337x/clarity-upscaler',
@@ -101,6 +119,12 @@ export const upscaleImage = async (
     }
 
     // Генерация upscaled изображения
+    logger.info('Starting Replicate API call', {
+      telegram_id,
+      model: 'philz1337x/clarity-upscaler',
+      inputParams,
+    })
+    
     const output: ApiResponse = (await replicate.run(
       'philz1337x/clarity-upscaler:dfad41707589d68ecdccd1dfa600d55a208f9310748e44bfe35b4a6291453d5e',
       {
@@ -108,7 +132,19 @@ export const upscaleImage = async (
       }
     )) as ApiResponse
 
+    logger.info('Replicate API response received', {
+      telegram_id,
+      outputType: typeof output,
+      outputLength: Array.isArray(output) ? output.length : 'not array',
+      outputSample: JSON.stringify(output).substring(0, 200),
+    })
+
     const upscaledImageUrl = await processApiResponse(output)
+    
+    logger.info('Processed API response', {
+      telegram_id,
+      upscaledImageUrl: upscaledImageUrl ? upscaledImageUrl.substring(0, 100) + '...' : 'null',
+    })
 
     // Сохранение локально
     logger.info('Starting local file save', { telegram_id, upscaledImageUrl })
@@ -148,26 +184,46 @@ export const upscaleImage = async (
     })
 
     // Отправка результата с простой клавиатурой
-    logger.info('Sending photo to Telegram', { telegram_id })
-    await ctx.telegram.sendPhoto(
+    logger.info('Sending photo to Telegram', { 
       telegram_id,
-      {
-        source: fs.createReadStream(imageLocalPath),
-      },
-      {
-        caption: is_ru
-          ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${
-              originalPrompt
-                ? `\n📝 Исходное изображение: ${originalPrompt}`
-                : ''
-            }`
-          : `⬆️ Photo quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n✨ Quality: High resolution\n💎 Cost: ${upscaleCost} ⭐${
-              originalPrompt ? `\n📝 Original image: ${originalPrompt}` : ''
-            }`,
-        reply_markup: createUpscalerResultKeyboard(is_ru).reply_markup,
-      }
-    )
-    logger.info('Photo sent successfully', { telegram_id })
+      fileExists: fs.existsSync(imageLocalPath),
+      fileSize: fs.existsSync(imageLocalPath) ? fs.statSync(imageLocalPath).size : 0,
+    })
+    
+    try {
+      const sendPhotoResult = await ctx.telegram.sendPhoto(
+        telegram_id,
+        {
+          source: fs.createReadStream(imageLocalPath),
+        },
+        {
+          caption: is_ru
+            ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${
+                originalPrompt
+                  ? `\n📝 Исходное изображение: ${originalPrompt}`
+                  : ''
+              }`
+            : `⬆️ Photo quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n✨ Quality: High resolution\n💎 Cost: ${upscaleCost} ⭐${
+                originalPrompt ? `\n📝 Original image: ${originalPrompt}` : ''
+              }`,
+          reply_markup: createUpscalerResultKeyboard(is_ru).reply_markup,
+        }
+      )
+      
+      logger.info('Photo sent successfully', { 
+        telegram_id,
+        messageId: sendPhotoResult.message_id,
+        chatId: sendPhotoResult.chat.id,
+      })
+    } catch (sendError) {
+      logger.error('Failed to send photo to Telegram', {
+        telegram_id,
+        error: sendError instanceof Error ? sendError.message : 'Unknown send error',
+        errorStack: sendError instanceof Error ? sendError.stack : undefined,
+        imageLocalPath,
+      })
+      throw sendError
+    }
 
     // Pulse для аналитики
     await pulse(
