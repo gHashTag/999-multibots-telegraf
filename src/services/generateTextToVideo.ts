@@ -42,6 +42,42 @@ interface TextToVideoResponse {
  * Генерация видео из текстового промпта через API сервера
  * Поддерживает все модели согласно документации
  */
+// Функция для отправки уведомления админу
+async function notifyAdminAboutServerIssue(
+  error: string,
+  telegram_id: string,
+  videoModel: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+    
+    if (!botResult.bot) return
+    
+    const errorMessage = `🚨 **SERVER DOWN ALERT**\n\n` +
+      `📍 План Б активирован для Veo генерации\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🎬 Model: ${videoModel}\n` +
+      `❌ Error: ${error}\n` +
+      `🔄 Используется прямой Kie.ai API\n\n` +
+      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+    
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
+        parse_mode: 'Markdown'
+      })
+    }
+    
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
+      adminIds,
+      error
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+  }
+}
+
 export async function generateTextToVideo(
   params: TextToVideoRequest
 ): Promise<TextToVideoResponse> {
@@ -90,29 +126,64 @@ export async function generateTextToVideo(
     const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
     
     if (isVeoModel) {
-      // Проверяем наличие KIE_AI_API_KEY
-      const hasKieApiKey = !!process.env.KIE_AI_API_KEY
+      // ПЛАН А: Сначала пробуем через наш сервер
+      logger.info('[PLAN A] Trying server first for Veo model', {
+        videoModel,
+        serverUrl: API_URL
+      })
       
-      if (!hasKieApiKey) {
-        // Временный mock-режим для Veo моделей
-        logger.warn('KIE_AI_API_KEY not found, using mock video for Veo models', {
-          videoModel,
-          aspectRatio,
-          duration
+      try {
+        const baseUrl = API_URL
+        
+        // Проверяем доступность сервера (пропускаем localhost для тестов)
+        if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {
+          const url = `${baseUrl}/api/v1/veo/generate`
+          
+          const requestBody = {
+            model: videoModel === 'veo-3-fast' ? 'veo3_fast' : 
+                   videoModel === 'veo-3' ? 'veo3' : 'runway_aleph',
+            prompt,
+            aspectRatio: aspectRatio || '9:16',
+            enableFallback: false,
+            enableTranslation: true,
+            telegram_id,
+            username,
+            is_ru,
+            bot_name,
+          }
+          
+          const response = await axios.post(url, requestBody, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-secret-key': SECRET_API_KEY,
+            },
+            timeout: 10000, // 10 секунд таймаут для проверки сервера
+          })
+          
+          logger.info('[PLAN A] Server response received', {
+            status: response.status,
+            success: response.data.success
+          })
+          
+          // Если сервер ответил успешно, возвращаем результат
+          if (response.data.success) {
+            return response.data
+          }
+        }
+      } catch (serverError) {
+        // Сервер недоступен, переключаемся на План Б
+        const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
+        logger.warn('[PLAN A] Server failed, switching to PLAN B', {
+          error: errorMessage,
+          videoModel
         })
         
-        // Имитируем задержку генерации
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        
-        return {
-          success: true,
-          videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-          message: `[MOCK] Veo model ${videoModel} would generate video with prompt: "${prompt.substring(0, 50)}..." in ${aspectRatio} aspect ratio`
-        }
+        // Уведомляем админа о проблеме с сервером
+        await notifyAdminAboutServerIssue(errorMessage, telegram_id, videoModel)
       }
       
-      // Используем прямую интеграцию с Kie.ai для Veo моделей
-      logger.info('Using Kie.ai provider for Veo model', {
+      // ПЛАН Б: Используем прямую интеграцию с Kie.ai
+      logger.info('[PLAN B] Using direct Kie.ai API', {
         videoModel,
         aspectRatio,
         duration
@@ -133,16 +204,33 @@ export async function generateTextToVideo(
         aspectRatio: kieAspectRatio || '9:16',
       })
       
-      if (kieResponse.success && kieResponse.data?.videoUrl) {
-        return {
-          success: true,
-          videoUrl: kieResponse.data.videoUrl,
+      logger.info('[PLAN B] Kie.ai response:', {
+        success: kieResponse.success,
+        hasData: !!kieResponse.data,
+        hasVideoUrl: !!kieResponse.data?.videoUrl,
+        hasTaskId: !!kieResponse.data?.taskId,
+        error: kieResponse.error
+      })
+      
+      if (kieResponse.success) {
+        if (kieResponse.data?.videoUrl) {
+          return {
+            success: true,
+            videoUrl: kieResponse.data.videoUrl,
+          }
+        } else if (kieResponse.data?.taskId) {
+          // Если есть taskId, но нет videoUrl - видео еще генерируется
+          return {
+            success: true,
+            jobId: kieResponse.data.taskId,
+            message: 'Video generation started (Plan B)',
+          }
         }
-      } else {
-        return {
-          success: false,
-          error: kieResponse.error || 'Failed to generate video',
-        }
+      }
+      
+      return {
+        success: false,
+        error: kieResponse.error || 'Failed to generate video',
       }
     }
     
@@ -164,7 +252,7 @@ export async function generateTextToVideo(
         success: true,
         message: 'Mock: Video generation started',
         videoUrl:
-          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
+          'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
       }
     }
 
@@ -270,7 +358,7 @@ export async function generateTextToVideo(
           success: true,
           message: 'Mock: Video generation completed (server unavailable)',
           videoUrl:
-            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
+            'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
         }
       }
 
@@ -335,8 +423,39 @@ export async function checkVideoGenerationStatus(
   is_ru: boolean
 ): Promise<TextToVideoResponse> {
   try {
+    // Проверяем, это taskId от Kie.ai или jobId от другого сервиса
+    // taskId от Kie.ai всегда 32 символа без дефисов
+    const isKieTaskId = jobId.length === 32 && !jobId.includes('-')
+    
+    if (isKieTaskId) {
+      // Используем KieAiProvider для проверки статуса
+      const { KieAiProvider } = await import('./video-providers/KieAiProvider')
+      const kieProvider = new KieAiProvider()
+      const result = await kieProvider.checkVideoStatus(jobId)
+      
+      if (result.success && result.data?.videoUrl) {
+        return {
+          success: true,
+          videoUrl: result.data.videoUrl,
+        }
+      } else if (result.success && !result.data?.videoUrl) {
+        // Еще генерируется
+        return {
+          success: false,
+          error: is_ru
+            ? 'Видео еще генерируется...'
+            : 'Video is still being generated...',
+        }
+      } else {
+        return {
+          success: false,
+          error: result.error || (is_ru ? 'Ошибка генерации' : 'Generation error'),
+        }
+      }
+    }
+    
+    // Старый код для обычных серверов
     const baseUrl = API_URL
-
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 
     const response = await axios.get<TextToVideoResponse>(url, {
