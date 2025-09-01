@@ -42,6 +42,42 @@ interface TextToVideoResponse {
  * Генерация видео из текстового промпта через API сервера
  * Поддерживает все модели согласно документации
  */
+// Функция для отправки уведомления админу
+async function notifyAdminAboutServerIssue(
+  error: string,
+  telegram_id: string,
+  videoModel: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+    
+    if (!botResult.bot) return
+    
+    const errorMessage = `🚨 **SERVER DOWN ALERT**\n\n` +
+      `📍 План Б активирован для Veo генерации\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🎬 Model: ${videoModel}\n` +
+      `❌ Error: ${error}\n` +
+      `🔄 Используется прямой Kie.ai API\n\n` +
+      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+    
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
+        parse_mode: 'Markdown'
+      })
+    }
+    
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
+      adminIds,
+      error
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+  }
+}
+
 export async function generateTextToVideo(
   params: TextToVideoRequest
 ): Promise<TextToVideoResponse> {
@@ -90,8 +126,64 @@ export async function generateTextToVideo(
     const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
     
     if (isVeoModel) {
-      // Используем прямую интеграцию с Kie.ai для Veo моделей
-      logger.info('Using Kie.ai provider for Veo model', {
+      // ПЛАН А: Сначала пробуем через наш сервер
+      logger.info('[PLAN A] Trying server first for Veo model', {
+        videoModel,
+        serverUrl: API_URL
+      })
+      
+      try {
+        const baseUrl = API_URL
+        
+        // Проверяем доступность сервера (пропускаем localhost для тестов)
+        if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {
+          const url = `${baseUrl}/api/v1/veo/generate`
+          
+          const requestBody = {
+            model: videoModel === 'veo-3-fast' ? 'veo3_fast' : 
+                   videoModel === 'veo-3' ? 'veo3' : 'runway_aleph',
+            prompt,
+            aspectRatio: aspectRatio || '9:16',
+            enableFallback: false,
+            enableTranslation: true,
+            telegram_id,
+            username,
+            is_ru,
+            bot_name,
+          }
+          
+          const response = await axios.post(url, requestBody, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-secret-key': SECRET_API_KEY,
+            },
+            timeout: 10000, // 10 секунд таймаут для проверки сервера
+          })
+          
+          logger.info('[PLAN A] Server response received', {
+            status: response.status,
+            success: response.data.success
+          })
+          
+          // Если сервер ответил успешно, возвращаем результат
+          if (response.data.success) {
+            return response.data
+          }
+        }
+      } catch (serverError) {
+        // Сервер недоступен, переключаемся на План Б
+        const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
+        logger.warn('[PLAN A] Server failed, switching to PLAN B', {
+          error: errorMessage,
+          videoModel
+        })
+        
+        // Уведомляем админа о проблеме с сервером
+        await notifyAdminAboutServerIssue(errorMessage, telegram_id, videoModel)
+      }
+      
+      // ПЛАН Б: Используем прямую интеграцию с Kie.ai
+      logger.info('[PLAN B] Using direct Kie.ai API', {
         videoModel,
         aspectRatio,
         duration
@@ -112,7 +204,7 @@ export async function generateTextToVideo(
         aspectRatio: kieAspectRatio || '9:16',
       })
       
-      logger.info('[Veo3] Kie.ai response:', {
+      logger.info('[PLAN B] Kie.ai response:', {
         success: kieResponse.success,
         hasData: !!kieResponse.data,
         hasVideoUrl: !!kieResponse.data?.videoUrl,
@@ -131,7 +223,7 @@ export async function generateTextToVideo(
           return {
             success: true,
             jobId: kieResponse.data.taskId,
-            message: 'Video generation started',
+            message: 'Video generation started (Plan B)',
           }
         }
       }
