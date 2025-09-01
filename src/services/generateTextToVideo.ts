@@ -90,27 +90,6 @@ export async function generateTextToVideo(
     const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
     
     if (isVeoModel) {
-      // Проверяем наличие KIE_AI_API_KEY
-      const hasKieApiKey = !!process.env.KIE_AI_API_KEY
-      
-      if (!hasKieApiKey) {
-        // Временный mock-режим для Veo моделей
-        logger.warn('KIE_AI_API_KEY not found, using mock video for Veo models', {
-          videoModel,
-          aspectRatio,
-          duration
-        })
-        
-        // Имитируем задержку генерации
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        
-        return {
-          success: true,
-          videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4',
-          message: `[MOCK] Veo model ${videoModel} would generate video with prompt: "${prompt.substring(0, 50)}..." in ${aspectRatio} aspect ratio`
-        }
-      }
-      
       // Используем прямую интеграцию с Kie.ai для Veo моделей
       logger.info('Using Kie.ai provider for Veo model', {
         videoModel,
@@ -133,16 +112,33 @@ export async function generateTextToVideo(
         aspectRatio: kieAspectRatio || '9:16',
       })
       
-      if (kieResponse.success && kieResponse.data?.videoUrl) {
-        return {
-          success: true,
-          videoUrl: kieResponse.data.videoUrl,
+      logger.info('[Veo3] Kie.ai response:', {
+        success: kieResponse.success,
+        hasData: !!kieResponse.data,
+        hasVideoUrl: !!kieResponse.data?.videoUrl,
+        hasTaskId: !!kieResponse.data?.taskId,
+        error: kieResponse.error
+      })
+      
+      if (kieResponse.success) {
+        if (kieResponse.data?.videoUrl) {
+          return {
+            success: true,
+            videoUrl: kieResponse.data.videoUrl,
+          }
+        } else if (kieResponse.data?.taskId) {
+          // Если есть taskId, но нет videoUrl - видео еще генерируется
+          return {
+            success: true,
+            jobId: kieResponse.data.taskId,
+            message: 'Video generation started',
+          }
         }
-      } else {
-        return {
-          success: false,
-          error: kieResponse.error || 'Failed to generate video',
-        }
+      }
+      
+      return {
+        success: false,
+        error: kieResponse.error || 'Failed to generate video',
       }
     }
     
@@ -335,8 +331,39 @@ export async function checkVideoGenerationStatus(
   is_ru: boolean
 ): Promise<TextToVideoResponse> {
   try {
+    // Проверяем, это taskId от Kie.ai или jobId от другого сервиса
+    // taskId от Kie.ai всегда 32 символа без дефисов
+    const isKieTaskId = jobId.length === 32 && !jobId.includes('-')
+    
+    if (isKieTaskId) {
+      // Используем KieAiProvider для проверки статуса
+      const { KieAiProvider } = await import('./video-providers/KieAiProvider')
+      const kieProvider = new KieAiProvider()
+      const result = await kieProvider.checkVideoStatus(jobId)
+      
+      if (result.success && result.data?.videoUrl) {
+        return {
+          success: true,
+          videoUrl: result.data.videoUrl,
+        }
+      } else if (result.success && !result.data?.videoUrl) {
+        // Еще генерируется
+        return {
+          success: false,
+          error: is_ru
+            ? 'Видео еще генерируется...'
+            : 'Video is still being generated...',
+        }
+      } else {
+        return {
+          success: false,
+          error: result.error || (is_ru ? 'Ошибка генерации' : 'Generation error'),
+        }
+      }
+    }
+    
+    // Старый код для обычных серверов
     const baseUrl = API_URL
-
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 
     const response = await axios.get<TextToVideoResponse>(url, {
