@@ -143,14 +143,24 @@ export class CompetitorMonitoringApiService {
 
         // Запускаем парсинг сразу после создания подписки
         try {
+          const parseUrl = `${this.apiUrl}/api/competitor-subscriptions/${response.data.subscription.id}/parse`
+          
+          console.log('🚀 [PARSE REQUEST] Triggering immediate parsing')
+          console.log('🔗 [PARSE REQUEST] Full URL:', parseUrl)
+          console.log('📦 [PARSE REQUEST] Request body:', {
+            user_telegram_id: userTelegramId,
+            bot_name: 'telegram_bot'
+          })
+          
           logger.info('[Competitor Monitoring API] Triggering immediate parsing', {
             subscriptionId: response.data.subscription.id,
-            competitorUsername
+            competitorUsername,
+            parseUrl
           })
           
           // Простой POST запрос на сервер для запуска парсинга
           const parseResponse = await axios.post(
-            `${this.apiUrl}/api/competitor-subscriptions/${response.data.subscription.id}/parse`,
+            parseUrl,
             {
               user_telegram_id: userTelegramId,
               bot_name: 'telegram_bot'
@@ -163,14 +173,19 @@ export class CompetitorMonitoringApiService {
             }
           )
           
-          logger.info('[Competitor Monitoring API] Parse triggered', {
+          console.log('✅ [PARSE REQUEST] Response status:', parseResponse.status)
+          console.log('✅ [PARSE REQUEST] Response data:', parseResponse.data)
+          
+          logger.info('[Competitor Monitoring API] Parse triggered successfully', {
             status: parseResponse.status,
             data: parseResponse.data
           })
         } catch (parseError) {
+          console.error('❌ [PARSE REQUEST] Failed to trigger parsing:', parseError)
           logger.error('[Competitor Monitoring API] Failed to trigger parsing', {
             error: parseError instanceof Error ? parseError.message : String(parseError),
-            subscriptionId: response.data.subscription.id
+            subscriptionId: response.data.subscription.id,
+            parseUrl: `${this.apiUrl}/api/competitor-subscriptions/${response.data.subscription.id}/parse`
           })
         }
 
