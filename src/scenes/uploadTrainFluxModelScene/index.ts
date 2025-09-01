@@ -142,7 +142,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
     )
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)
-    //await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu, error)
   } finally {
     await ctx.scene.leave()
   }
