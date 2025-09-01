@@ -5,6 +5,7 @@ import { SECRET_API_KEY, LOCAL_SERVER_URL, API_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 interface ModelTrainingRequest {
   filePath: string
+  zipUrl?: string
   triggerWord: string
   modelName: string
   telegram_id: string
@@ -44,7 +45,12 @@ export async function createModelTraining(
     const formData = new FormData()
     formData.append('type', 'model')
     formData.append('telegram_id', requestData.telegram_id)
-    formData.append('zipUrl', fs.createReadStream(requestData.filePath))
+    // Если есть URL, отправляем URL, иначе отправляем файл
+    if (requestData.zipUrl) {
+      formData.append('zipUrl', requestData.zipUrl)
+    } else {
+      formData.append('zipUrl', fs.createReadStream(requestData.filePath))
+    }
     formData.append('triggerWord', requestData.triggerWord)
     formData.append('modelName', requestData.modelName)
     formData.append('steps', requestData.steps.toString())
