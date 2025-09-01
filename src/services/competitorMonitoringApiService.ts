@@ -141,30 +141,40 @@ export class CompetitorMonitoringApiService {
           subscriptionId: response.data.subscription.id
         })
 
-        // Запускаем парсинг сразу после создания подписки
+        // Запускаем парсинг через Inngest
         try {
-          const parseUrl = `${this.apiUrl}/api/competitor-subscriptions/${response.data.subscription.id}/parse`
+          const inngestUrl = `${this.apiUrl}/api/inngest`
           
-          console.log('🚀 [PARSE REQUEST] Triggering immediate parsing')
-          console.log('🔗 [PARSE REQUEST] Full URL:', parseUrl)
-          console.log('📦 [PARSE REQUEST] Request body:', {
-            user_telegram_id: userTelegramId,
-            bot_name: 'telegram_bot'
-          })
+          // Формируем правильный запрос для Instagram Scraper
+          const inngestEvent = {
+            name: "instagram/scrape",
+            data: {
+              username_or_hashtag: competitorUsername.replace('@', ''),
+              project_id: 1, // TODO: Получить правильный project_id из базы или конфига
+              source_type: "competitor",
+              max_reels: maxReels,
+              min_views: minViews,
+              max_age_days: maxAgeDays,
+              requester_telegram_id: userTelegramId,
+              bot_name: 'telegram_bot'
+            }
+          }
           
-          logger.info('[Competitor Monitoring API] Triggering immediate parsing', {
+          console.log('🚀 [INNGEST] Triggering Instagram scraping')
+          console.log('🔗 [INNGEST] URL:', inngestUrl)
+          console.log('📦 [INNGEST] Event:', JSON.stringify(inngestEvent, null, 2))
+          
+          logger.info('[Competitor Monitoring API] Triggering Instagram scraping via Inngest', {
             subscriptionId: response.data.subscription.id,
             competitorUsername,
-            parseUrl
+            inngestUrl,
+            event: inngestEvent
           })
           
-          // Простой POST запрос на сервер для запуска парсинга
+          // Отправляем событие в Inngest
           const parseResponse = await axios.post(
-            parseUrl,
-            {
-              user_telegram_id: userTelegramId,
-              bot_name: 'telegram_bot'
-            },
+            inngestUrl,
+            inngestEvent,
             {
               timeout: 15000,
               headers: {
@@ -173,19 +183,19 @@ export class CompetitorMonitoringApiService {
             }
           )
           
-          console.log('✅ [PARSE REQUEST] Response status:', parseResponse.status)
-          console.log('✅ [PARSE REQUEST] Response data:', parseResponse.data)
+          console.log('✅ [INNGEST] Response status:', parseResponse.status)
+          console.log('✅ [INNGEST] Response data:', parseResponse.data)
           
-          logger.info('[Competitor Monitoring API] Parse triggered successfully', {
+          logger.info('[Competitor Monitoring API] Instagram scraping triggered successfully', {
             status: parseResponse.status,
             data: parseResponse.data
           })
         } catch (parseError) {
-          console.error('❌ [PARSE REQUEST] Failed to trigger parsing:', parseError)
-          logger.error('[Competitor Monitoring API] Failed to trigger parsing', {
+          console.error('❌ [INNGEST] Failed to trigger scraping:', parseError)
+          logger.error('[Competitor Monitoring API] Failed to trigger Instagram scraping', {
             error: parseError instanceof Error ? parseError.message : String(parseError),
             subscriptionId: response.data.subscription.id,
-            parseUrl: `${this.apiUrl}/api/competitor-subscriptions/${response.data.subscription.id}/parse`
+            inngestUrl: `${this.apiUrl}/api/inngest`
           })
         }
 
