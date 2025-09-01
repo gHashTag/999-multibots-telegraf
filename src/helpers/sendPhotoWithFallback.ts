@@ -18,6 +18,12 @@ export async function sendPhotoWithFallback(
   try {
     logger.info(`[sendPhotoWithFallback] Attempting to send photo: ${photoUrl}`)
 
+    // Check if this is a Telegram file URL - these must be uploaded via buffer
+    if (photoUrl.includes("api.telegram.org/file/bot")) {
+      logger.info(`[sendPhotoWithFallback] Detected Telegram file URL, using buffer method directly`)
+      throw new Error("Telegram file URLs require buffer upload")
+    }
+
     // Сначала пробуем валидацию
     const validation = await validateImageUrl(photoUrl)
     if (!validation.isValid) {
