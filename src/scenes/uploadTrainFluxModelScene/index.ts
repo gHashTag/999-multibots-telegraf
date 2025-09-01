@@ -24,40 +24,44 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const zipPath = await createImagesZip(ctx.session.images)
     console.log('ZIP created at:', zipPath)
 
-    // Формируем URL для ZIP-файла, используя API_URL из конфигурации или локальный Nginx URL
+    // 🔧 ИСПРАВЛЕНИЕ: Используем правильный путь для ai-server
+    // AI-server ожидает файлы в /uploads/{telegram_id}/{type}/ структуре
     const zipFileName = zipPath.split('/').pop() || `training_${Date.now()}.zip`
-    const filesBaseUrl = `${API_URL}/files/`
-
-    const zipUrl = `${filesBaseUrl}${zipFileName}`
+    const telegramId = ctx.session.targetUserId.toString()
+    const type = 'model' // тип для модели
+    
+    // Формируем URL в формате, который ожидает ai-server
+    const uploadsBaseUrl = `${API_URL}/uploads/${telegramId}/${type}/`
+    const zipUrl = `${uploadsBaseUrl}${zipFileName}`
     console.log('Generated ZIP URL for training:', zipUrl)
 
-    // Определяем целевую директорию на сервере, которая соответствует /etc/nginx/html/files/
-    // Предполагаем, что в контейнере Docker эта директория доступна
-    const serverFilesDir = '/etc/nginx/html/files/'
-    const targetFilePath = path.join(serverFilesDir, zipFileName)
+    // Определяем целевую директорию на сервере, которая соответствует структуре ai-server
+    const serverUploadsDir = '/etc/nginx/html/uploads/'
+    const userUploadsDir = path.join(serverUploadsDir, telegramId, type)
+    const targetFilePath = path.join(userUploadsDir, zipFileName)
     console.log('Target server file path for ZIP:', targetFilePath)
 
     // Проверяем, существует ли директория, и создаем её, если нет
     try {
-      if (!fs.existsSync(serverFilesDir)) {
-        console.log('Creating server files directory:', serverFilesDir)
-        fs.mkdirSync(serverFilesDir, { recursive: true })
+      if (!fs.existsSync(userUploadsDir)) {
+        console.log('Creating server uploads directory:', userUploadsDir)
+        fs.mkdirSync(userUploadsDir, { recursive: true })
       }
       // Проверяем права доступа к директории
-      fs.access(serverFilesDir, fs.constants.W_OK, err => {
+      fs.access(userUploadsDir, fs.constants.W_OK, err => {
         if (err) {
           console.error(
             'No write access to directory:',
-            serverFilesDir,
+            userUploadsDir,
             'Error:',
             err
           )
         } else {
-          console.log('Write access confirmed for directory:', serverFilesDir)
+          console.log('Write access confirmed for directory:', userUploadsDir)
         }
       })
     } catch (error) {
-      console.error('Error creating server files directory:', error)
+      console.error('Error creating server uploads directory:', error)
       throw new Error(`Failed to create server directory: ${error.message}`)
     }
 
@@ -84,8 +88,8 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     // Проверяем, существует ли файл в целевой директории
     if (!fs.existsSync(targetFilePath)) {
-      console.error('ZIP file not found in server directory:', targetFilePath)
-      throw new Error('ZIP file was not copied to server directory')
+      console.error('ZIP file not found in server uploads directory:', targetFilePath)
+      throw new Error('ZIP file was not copied to server uploads directory')
     }
 
     await ensureSupabaseAuth()
