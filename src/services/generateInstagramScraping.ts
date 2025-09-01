@@ -102,7 +102,7 @@ export async function generateInstagramScraping(
     )
 
     const inngestEvent = {
-      name: 'instagram/scraper-v2',
+      name: 'instagram/scraper',
       data: eventData,
       user: {
         external_id: telegram_id, // Для отслеживания пользователя (шифруется)
