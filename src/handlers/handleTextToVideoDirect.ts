@@ -238,10 +238,25 @@ async function monitorVideoGeneration(
 
     try {
       const statusResponse = await checkVideoGenerationStatus(jobId, is_ru)
+      
+      // Детальное логирование ответа от сервера
+      logger.info('[monitorVideoGeneration] Status check response:', {
+        jobId,
+        success: statusResponse.success,
+        hasVideoUrl: !!statusResponse.videoUrl,
+        videoUrl: statusResponse.videoUrl || 'NO_URL',
+        error: statusResponse.error,
+        attempts
+      })
 
       if (statusResponse.success && statusResponse.videoUrl) {
         // Видео готово
         clearInterval(checkInterval)
+        logger.info('[monitorVideoGeneration] Video ready, calling handleVideoReady:', {
+          videoUrl: statusResponse.videoUrl,
+          jobId
+        })
+        
         await handleVideoReady(
           ctx,
           statusResponse.videoUrl,
@@ -316,6 +331,39 @@ async function handleVideoReady(
   const is_ru = isRussianFromState(ctx)
   const telegram_id = ctx.from?.id.toString() || ''
 
+  // Детальное логирование входных параметров
+  logger.info('[handleVideoReady] Starting with params:', {
+    videoUrl,
+    videoUrlType: typeof videoUrl,
+    videoUrlValue: videoUrl || 'UNDEFINED',
+    prompt,
+    modelId,
+    duration,
+    messageId,
+    telegram_id
+  })
+
+  // Проверка на undefined или пустой URL
+  if (!videoUrl || videoUrl === 'undefined' || videoUrl === '') {
+    logger.error('[handleVideoReady] Invalid videoUrl received:', {
+      videoUrl,
+      videoUrlType: typeof videoUrl,
+      telegram_id
+    })
+    
+    if (ctx && ctx.telegram && ctx.chat) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        messageId,
+        undefined,
+        is_ru
+          ? '❌ Ошибка: получен некорректный URL видео. Попробуйте еще раз.'
+          : '❌ Error: received invalid video URL. Please try again.'
+      )
+    }
+    return
+  }
+
   try {
     // Используем оригинальный URL видео с сервера
     const uploadedUrl = videoUrl
@@ -336,8 +384,15 @@ async function handleVideoReady(
     const modelInfo = VIDEO_MODELS[modelId]
     const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
 
+    // Логирование перед отправкой видео
+    logger.info('[handleVideoReady] Attempting to send video:', {
+      uploadedUrl,
+      finalUrl: uploadedUrl || videoUrl,
+      telegram_id
+    })
+
     // Отправляем видео пользователю
-    await ctx.replyWithVideo(Input.fromURL(uploadedUrl || videoUrl), {
+    await ctx.replyWithVideo(Input.fromURL(uploadedUrl), {
       caption:
         `🎬 ${prompt}\n\n` +
         `🤖 ${is_ru ? 'Модель' : 'Model'}: ${modelName}\n` +

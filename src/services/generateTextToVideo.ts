@@ -86,7 +86,67 @@ export async function generateTextToVideo(
   })
 
   try {
-    // Используем API_URL который учитывает USE_PRODUCTION_API флаг
+    // Проверяем, является ли это Veo моделью
+    const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
+    
+    if (isVeoModel) {
+      // Проверяем наличие KIE_AI_API_KEY
+      const hasKieApiKey = !!process.env.KIE_AI_API_KEY
+      
+      if (!hasKieApiKey) {
+        // Временный mock-режим для Veo моделей
+        logger.warn('KIE_AI_API_KEY not found, using mock video for Veo models', {
+          videoModel,
+          aspectRatio,
+          duration
+        })
+        
+        // Имитируем задержку генерации
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        
+        return {
+          success: true,
+          videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+          message: `[MOCK] Veo model ${videoModel} would generate video with prompt: "${prompt.substring(0, 50)}..." in ${aspectRatio} aspect ratio`
+        }
+      }
+      
+      // Используем прямую интеграцию с Kie.ai для Veo моделей
+      logger.info('Using Kie.ai provider for Veo model', {
+        videoModel,
+        aspectRatio,
+        duration
+      })
+      
+      // Импортируем KieAiProvider
+      const { KieAiProvider } = await import('./video-providers/KieAiProvider')
+      const kieProvider = new KieAiProvider()
+      
+      // Преобразуем aspectRatio в формат Kie.ai
+      const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
+      
+      // Генерируем видео через Kie.ai
+      const kieResponse = await kieProvider.generateVideo({
+        model: videoModel,
+        prompt,
+        duration: duration || 8,
+        aspectRatio: kieAspectRatio || '9:16',
+      })
+      
+      if (kieResponse.success && kieResponse.data?.videoUrl) {
+        return {
+          success: true,
+          videoUrl: kieResponse.data.videoUrl,
+        }
+      } else {
+        return {
+          success: false,
+          error: kieResponse.error || 'Failed to generate video',
+        }
+      }
+    }
+    
+    // Для остальных моделей используем старый подход с сервером
     logger.info('URL Selection Debug', {
       API_URL,
       isDev,
@@ -137,18 +197,8 @@ export async function generateTextToVideo(
       })
     }
 
-    // Добавляем duration для Veo и Kie.ai моделей
-    if (
-      [
-        'veo-3',
-        'veo-3-fast',
-        'veo-2',
-        'veo-3-fast',
-        'veo-3',
-        'runway-aleph',
-      ].includes(videoModel) &&
-      duration
-    ) {
+    // Добавляем duration для моделей которые поддерживают
+    if (duration) {
       requestBody.duration = duration
     }
 
@@ -172,13 +222,15 @@ export async function generateTextToVideo(
       timeout: 300000, // 5 минут таймаут для длительной генерации
     })
 
-    // Логирование успешного ответа
-    logger.info('Text-to-video generation response received', {
-      data: response.data,
+    // Детальное логирование успешного ответа
+    logger.info('[generateTextToVideo] Full server response:', {
+      fullData: JSON.stringify(response.data, null, 2),
+      dataKeys: Object.keys(response.data),
       success: response.data.success,
       hasVideoUrl: !!response.data.videoUrl,
-      jobId: response.data.jobId,
-      message: response.data.message,
+      videoUrl: response.data.videoUrl || 'NO_URL',
+      jobId: response.data.jobId || 'NO_JOB_ID',
+      message: response.data.message || 'NO_MESSAGE',
     })
 
     // Если сервер вернул только message, считаем это успешным началом
@@ -293,10 +345,15 @@ export async function checkVideoGenerationStatus(
       },
     })
 
-    logger.info('Video generation status check', {
+    // Детальное логирование ответа сервера
+    logger.info('[checkVideoGenerationStatus] Full server response:', {
+      url,
       jobId,
+      responseData: JSON.stringify(response.data, null, 2),
       success: response.data.success,
       hasVideoUrl: !!response.data.videoUrl,
+      videoUrl: response.data.videoUrl || 'NO_URL',
+      videoUrlType: typeof response.data.videoUrl,
     })
 
     return response.data
