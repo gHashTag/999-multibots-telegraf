@@ -106,7 +106,7 @@ export async function generateTextToVideo(
         
         return {
           success: true,
-          videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+          videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4',
           message: `[MOCK] Veo model ${videoModel} would generate video with prompt: "${prompt.substring(0, 50)}..." in ${aspectRatio} aspect ratio`
         }
       }
@@ -164,7 +164,7 @@ export async function generateTextToVideo(
         success: true,
         message: 'Mock: Video generation started',
         videoUrl:
-          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
+          'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
       }
     }
 
@@ -270,7 +270,7 @@ export async function generateTextToVideo(
           success: true,
           message: 'Mock: Video generation completed (server unavailable)',
           videoUrl:
-            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
+            'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
         }
       }
 
