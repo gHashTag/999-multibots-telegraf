@@ -5,8 +5,8 @@ import githubAutoFixerRouter from './routes/github-autofixer.routes'
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
-// Определяем порт. Берем из process.env.PORT, если есть, иначе 1980 (для соответствия docker-compose).
-const PORT = process.env.PORT || '1980'
+// Определяем порт. Берем из process.env.PORT, если есть, иначе 2999 (для соответствия docker-compose).
+const PORT = process.env.PORT || '2999'
 
 export function startApiServer(): void {
   const app: any = express()

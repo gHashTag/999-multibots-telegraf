@@ -14,7 +14,7 @@ export async function generateImageFromPrompt(
   negative_prompt?: string,
   size?: string
 ): Promise<string> {
-  console.log('Генерация изображения:', {
+  console.log("Генерация изображения:", {
     prompt,
     userId,
     style,
@@ -22,6 +22,33 @@ export async function generateImageFromPrompt(
     size,
   })
 
-  // Заглушка - возвращаем фиктивный URL
-  return 'https://example.com/generated_image.png'
+  const AI_SERVER_URL = process.env.SERVER_API_URL || "https://ai-server-production-production-8e2d.up.railway.app"
+  
+  try {
+    const requestData = {
+      prompt,
+      user_id: userId,
+      ...(style && { style }),
+      ...(negative_prompt && { negative_prompt }),
+      ...(size && { size })
+    }
+
+    const response = await fetch(`${AI_SERVER_URL}/api/generation/text-to-image`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestData)
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.image_url || data.url || "https://example.com/generated_image.png"
+  } catch (error) {
+    console.error("Ошибка генерации изображения:", error)
+    throw error
+  }
 }
