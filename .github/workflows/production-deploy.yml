@@ -47,6 +47,11 @@ jobs:
       - name: Build application
         run: npm run build || echo "Build completed"
 
+      - name: Create empty .env file for Docker build
+        run: |
+          echo "# Environment variables are provided at runtime" > .env
+          echo "NODE_ENV=production" >> .env
+
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
