@@ -147,16 +147,17 @@ export class CompetitorMonitoringApiService {
           
           // Формируем правильный запрос для Instagram Scraper
           const inngestEvent = {
-            name: "instagram/scrape",
+            name: "instagram/scraper",
             data: {
-              username_or_hashtag: competitorUsername.replace('@', ''),
-              project_id: 1, // TODO: Получить правильный project_id из базы или конфига
-              source_type: "competitor",
-              max_reels: maxReels,
-              min_views: minViews,
-              max_age_days: maxAgeDays,
+              username_or_id: competitorUsername.replace('@', ''),
+              project_id: parseInt(userTelegramId), // Используем telegram_id как project_id
+              max_users: 1, // Парсим одного пользователя
+              max_reels_per_user: maxReels,
+              scrape_reels: true,
               requester_telegram_id: userTelegramId,
-              bot_name: 'telegram_bot'
+              username: ctx.from?.username || 'unknown',
+              bot_name: 'telegram_bot',
+              language: isRu ? 'ru' : 'en'
             }
           }
           
