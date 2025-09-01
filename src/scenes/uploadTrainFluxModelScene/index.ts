@@ -126,6 +126,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
     await createModelTraining(
       {
         filePath: zipPath,
+        zipUrl: zipUrl,
         triggerWord,
         modelName: ctx.session.modelName,
         steps: ctx.session.steps,
