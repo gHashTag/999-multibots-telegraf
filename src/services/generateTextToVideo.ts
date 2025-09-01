@@ -172,13 +172,15 @@ export async function generateTextToVideo(
       timeout: 300000, // 5 минут таймаут для длительной генерации
     })
 
-    // Логирование успешного ответа
-    logger.info('Text-to-video generation response received', {
-      data: response.data,
+    // Детальное логирование успешного ответа
+    logger.info('[generateTextToVideo] Full server response:', {
+      fullData: JSON.stringify(response.data, null, 2),
+      dataKeys: Object.keys(response.data),
       success: response.data.success,
       hasVideoUrl: !!response.data.videoUrl,
-      jobId: response.data.jobId,
-      message: response.data.message,
+      videoUrl: response.data.videoUrl || 'NO_URL',
+      jobId: response.data.jobId || 'NO_JOB_ID',
+      message: response.data.message || 'NO_MESSAGE',
     })
 
     // Если сервер вернул только message, считаем это успешным началом
@@ -293,10 +295,15 @@ export async function checkVideoGenerationStatus(
       },
     })
 
-    logger.info('Video generation status check', {
+    // Детальное логирование ответа сервера
+    logger.info('[checkVideoGenerationStatus] Full server response:', {
+      url,
       jobId,
+      responseData: JSON.stringify(response.data, null, 2),
       success: response.data.success,
       hasVideoUrl: !!response.data.videoUrl,
+      videoUrl: response.data.videoUrl || 'NO_URL',
+      videoUrlType: typeof response.data.videoUrl,
     })
 
     return response.data
