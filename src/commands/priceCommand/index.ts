@@ -94,7 +94,9 @@ export const handlePriceCommand = async (ctx: MyContext) => {
       }
       // Стоимость звезды в рублях показываем только если не NeurostylistShtogrina_bot
       const currentRate = await SYSTEM_CONFIG.getRubRate()
-      starCostInfoRu = `\n    <b>💵 Стоимость 1 ⭐️:</b> ${(SYSTEM_CONFIG.starCost * currentRate).toFixed(2)} руб`
+      starCostInfoRu = `\n    <b>💵 Стоимость 1 ⭐️:</b> ${(
+        SYSTEM_CONFIG.starCost * currentRate
+      ).toFixed(2)} руб`
     }
 
     const message = isRu
@@ -104,12 +106,18 @@ export const handlePriceCommand = async (ctx: MyContext) => {
         v1: ${trainingCostV1}
         v2: ${trainingCostV2}
     - ✍️ Генерация промпта: ${getCost(modeCosts[ModeEnum.ImageToPrompt])}
-    - 🖼️ Генерация изображения: от ${minImageCost.toFixed(2)} до ${maxImageCost.toFixed(2)}
+    - 🖼️ Генерация изображения: от ${minImageCost.toFixed(
+      2
+    )} до ${maxImageCost.toFixed(2)}
     - 🤖 Нейро-генерация изображения: ${getCost(modeCosts[ModeEnum.NeuroPhoto])}
     - 🎤 Создание голоса: ${getCost(modeCosts[ModeEnum.Voice])}
     - 🗣️ Текст в речь: ${getCost(modeCosts[ModeEnum.TextToSpeech])}
-    - 🎥 Текст в видео: от ${minTextToVideoCost.toFixed(2)} до ${maxTextToVideoCost.toFixed(2)}
-    - 📽️ Изображение в видео: от ${minImageToVideoCost.toFixed(2)} до ${maxImageToVideoCost.toFixed(2)}
+    - 🎥 Текст в видео: от ${minTextToVideoCost.toFixed(
+      2
+    )} до ${maxTextToVideoCost.toFixed(2)}
+    - 📽️ Изображение в видео: от ${minImageToVideoCost.toFixed(
+      2
+    )} до ${maxImageToVideoCost.toFixed(2)}
 ${subscriptionInfoRu}
     ${starCostInfoRu}    
     `
@@ -119,12 +127,18 @@ ${subscriptionInfoRu}
         v1: ${trainingCostV1}
         v2: ${trainingCostV2}
     - ✍️ Prompt generation: ${getCost(modeCosts[ModeEnum.ImageToPrompt])}
-    - 🖼️ Image generation: from ${minImageCost.toFixed(2)} to ${maxImageCost.toFixed(2)}
+    - 🖼️ Image generation: from ${minImageCost.toFixed(
+      2
+    )} to ${maxImageCost.toFixed(2)}
     - 🤖 Neuro-image generation: ${getCost(modeCosts[ModeEnum.NeuroPhoto])}
     - 🎤 Voice creation: ${getCost(modeCosts[ModeEnum.Voice])}
     - 🗣️ Text to speech: ${getCost(modeCosts[ModeEnum.TextToSpeech])}
-    - 🎥 Text to video: from ${minTextToVideoCost.toFixed(2)} to ${maxTextToVideoCost.toFixed(2)}
-    - 📽️ Image to video: from ${minImageToVideoCost.toFixed(2)} to ${maxImageToVideoCost.toFixed(2)}
+    - 🎥 Text to video: from ${minTextToVideoCost.toFixed(
+      2
+    )} to ${maxTextToVideoCost.toFixed(2)}
+    - 📽️ Image to video: from ${minImageToVideoCost.toFixed(
+      2
+    )} to ${maxImageToVideoCost.toFixed(2)}
 
     <b>💵 Star cost (1 ⭐️):</b> ${SYSTEM_CONFIG.starCost.toFixed(3)} $
     `

@@ -332,6 +332,15 @@ checkBalanceScene.enter(async ctx => {
     console.log('🚀 [DEBUG] Step 2: Getting mode...')
     const mode = ctx.session.mode as ModeEnum
     console.log('🚀 [DEBUG] Step 2 DONE, mode:', mode)
+    console.log('🚀 [DEBUG] Step 2: mode typeof:', typeof mode)
+    console.log(
+      '🚀 [DEBUG] Step 2: ModeEnum.TextToVideo:',
+      ModeEnum.TextToVideo
+    )
+    console.log(
+      '🚀 [DEBUG] Step 2: mode === ModeEnum.TextToVideo:',
+      mode === ModeEnum.TextToVideo
+    )
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     console.log('🚀 [DEBUG] Step 3: Getting language...')
@@ -388,6 +397,8 @@ checkBalanceScene.enter(async ctx => {
           ? '❌ Не удалось найти ваш профиль. Пожалуйста, перезапустите бота командой /start.'
           : '❌ Could not find your profile. Please restart the bot with /start.'
       )
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       return ctx.scene.enter(ModeEnum.StartScene) // Выход, если пользователь не существует
     }
 
@@ -402,6 +413,8 @@ checkBalanceScene.enter(async ctx => {
         mode,
         result: 'redirect_to_start',
       })
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       return ctx.scene.enter(ModeEnum.StartScene)
     } else {
       logger.info({
@@ -533,6 +546,38 @@ checkBalanceScene.enter(async ctx => {
     })
     return ctx.scene.leave()
   }
+})
+
+// Добавляем обработчик текстовых сообщений для отладки
+checkBalanceScene.on('text', async ctx => {
+  console.log(
+    '📝 [DEBUG] checkBalanceScene: Received text message:',
+    ctx.message.text
+  )
+  const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+  logger.info({
+    message:
+      '📝 [CheckBalanceScene] Получено текстовое сообщение в checkBalanceScene',
+    telegramId,
+    text: ctx.message.text,
+    function: 'checkBalanceScene.text',
+    sessionMode: ctx.session?.mode,
+    note: 'checkBalanceScene не должна обрабатывать текст - возможно, пользователь застрял в этой сцене',
+  })
+
+  // Показываем пользователю, что его сообщение получено, но сцена не готова его обрабатывать
+  await ctx.reply('⏳ Обрабатываю ваш запрос...')
+
+  // Проверяем текущую сцену
+  console.log(
+    '📝 [DEBUG] checkBalanceScene.text: Current scene:',
+    ctx.scene.current?.id
+  )
+  console.log(
+    '📝 [DEBUG] checkBalanceScene.text: Session mode:',
+    ctx.session?.mode
+  )
 })
 
 /**
@@ -711,6 +756,8 @@ export const enterTargetScene = async (
         mode,
         function: 'enterTargetSceneWrapper',
       })
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       await ctx.scene.enter('flux_kontext_scene')
       return
     }
@@ -726,6 +773,8 @@ export const enterTargetScene = async (
         mode,
         function: 'enterTargetSceneWrapper',
       })
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       await ctx.scene.enter(ModeEnum.ImageUpscaler)
       return
     }
@@ -741,7 +790,62 @@ export const enterTargetScene = async (
         mode,
         function: 'enterTargetSceneWrapper',
       })
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
       await ctx.scene.enter('video_transcription')
+      return
+    }
+
+    // Специальная логика для TextToVideo сцены
+    if (mode === ModeEnum.TextToVideo) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: TextToVideo mode detected, entering text_to_video scene'
+      )
+      logger.info({
+        message: `[EnterTargetSceneWrapper] TextToVideo режим - переход в text_to_video`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      try {
+        // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
+        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        await ctx.scene.leave()
+        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video')
+        await ctx.scene.enter('text_to_video')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene'
+        )
+        logger.info({
+          message: `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену text_to_video`,
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        })
+      } catch (sceneEnterError) {
+        console.error(
+          '❌ [DEBUG] enterTargetScene: ERROR entering text_to_video scene:',
+          sceneEnterError
+        )
+        logger.error({
+          message: `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену text_to_video`,
+          telegramId,
+          mode,
+          error:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.message
+              : String(sceneEnterError),
+          stack:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.stack
+              : undefined,
+          function: 'enterTargetSceneWrapper',
+        })
+        // Попробуем fallback в основную сцену
+        await ctx.reply(
+          '❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.'
+        )
+      }
       return
     }
 
@@ -761,15 +865,58 @@ export const enterTargetScene = async (
       '🎯 [DEBUG] enterTargetScene: About to call ctx.scene.enter with mode:',
       mode
     )
-    // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
-    await ctx.scene.enter(mode, {
-      ...(ctx.scene.state || {}),
-      cost, // Можно передать стоимость в стейт сцены
-      // Дополнительные данные, если нужны для целевой сцены
+
+    logger.info({
+      message: `🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: ${mode}`,
+      telegramId,
+      mode,
+      currentScene: ctx.scene.current?.id || 'unknown',
+      function: 'enterTargetSceneWrapper',
+      step: 'calling_scene_enter',
     })
-    console.log(
-      '🎯 [DEBUG] enterTargetScene: ctx.scene.enter completed successfully'
-    )
+
+    try {
+      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
+      await ctx.scene.leave()
+      // Не присваиваем результат, т.к. ctx.scene.enter ничего не возвращает
+      await ctx.scene.enter(mode, {
+        ...(ctx.scene.state || {}),
+        cost, // Можно передать стоимость в стейт сцены
+        // Дополнительные данные, если нужны для целевой сцены
+      })
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: ctx.scene.enter completed successfully'
+      )
+
+      logger.info({
+        message: `✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: ${mode}`,
+        telegramId,
+        mode,
+        newScene: ctx.scene.current?.id || 'unknown',
+        function: 'enterTargetSceneWrapper',
+        step: 'scene_enter_completed',
+      })
+    } catch (sceneEnterError) {
+      console.error(
+        '❌ [DEBUG] enterTargetScene: Error in ctx.scene.enter:',
+        sceneEnterError
+      )
+
+      logger.error({
+        message: `❌ [EnterTargetSceneWrapper] ОШИБКА в ctx.scene.enter для режима: ${mode}`,
+        telegramId,
+        mode,
+        error:
+          sceneEnterError instanceof Error
+            ? sceneEnterError.message
+            : String(sceneEnterError),
+        stack:
+          sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
+        function: 'enterTargetSceneWrapper',
+        step: 'scene_enter_error',
+      })
+      throw sceneEnterError
+    }
 
     logger.info({
       message: `[EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену ${mode} выполнен`,

@@ -154,14 +154,18 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     ctx.session.triggerWord = `${username.toLowerCase()}`
 
     const replyMessage = isRu
-      ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+      ? `✅ Пол ${
+          gender === GENDER_MALE ? 'Мужской' : 'Женский'
+        } сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
    - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+      : `✅ Gender ${
+          gender === GENDER_MALE ? 'Male' : 'Female'
+        } saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
    - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
    - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
    - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
@@ -169,14 +173,18 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
 
     const fullReplyMessage = isRu
-      ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+      ? `✅ Пол ${
+          gender === GENDER_MALE ? 'Мужской' : 'Женский'
+        } сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
    - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+      : `✅ Gender ${
+          gender === GENDER_MALE ? 'Male' : 'Female'
+        } saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
    - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
    - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
    - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
@@ -211,8 +219,12 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         // Check if images array exists
         await ctx.reply(
           isRu
-            ? `📸 Необходимо минимум 10 изображений. Сейчас: ${ctx.session.images?.length || 0}`
-            : `📸 Minimum 10 images required. Current: ${ctx.session.images?.length || 0}`
+            ? `📸 Необходимо минимум 10 изображений. Сейчас: ${
+                ctx.session.images?.length || 0
+              }`
+            : `📸 Minimum 10 images required. Current: ${
+                ctx.session.images?.length || 0
+              }`
         )
         return
       }
@@ -267,7 +279,9 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
 
       ctx.session.images.push({
         buffer: Buffer.from(buffer),
-        filename: `a_photo_of_${ctx.session.username}x${ctx.session.images.length + 1}.jpg`,
+        filename: `a_photo_of_${ctx.session.username}x${
+          ctx.session.images.length + 1
+        }.jpg`,
       })
 
       await ctx.reply(

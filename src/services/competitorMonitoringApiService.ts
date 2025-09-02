@@ -141,7 +141,66 @@ export class CompetitorMonitoringApiService {
           subscriptionId: response.data.subscription.id
         })
 
-        // Backend автоматически запустит парсинг через Inngest cron
+        // Запускаем парсинг через Inngest
+        try {
+          const inngestUrl = `${this.apiUrl}/api/inngest`
+          
+          // Формируем правильный запрос для Instagram Scraper
+          const inngestEvent = {
+            name: "instagram/scraper",
+            data: {
+              username_or_id: competitorUsername.replace('@', ''),
+              project_id: parseInt(userTelegramId), // Используем telegram_id как project_id
+              max_users: 1, // Парсим одного пользователя
+              max_reels_per_user: maxReels,
+              scrape_reels: true,
+              requester_telegram_id: userTelegramId,
+              username: ctx.from?.username || 'unknown',
+              bot_name: 'telegram_bot',
+              language: isRu ? 'ru' : 'en'
+            }
+          }
+          
+          console.log('🚀 [INNGEST] Triggering Instagram scraping')
+          console.log('🔗 [INNGEST] URL:', inngestUrl)
+          console.log('📦 [INNGEST] Event:', JSON.stringify(inngestEvent, null, 2))
+          
+          logger.info('[Competitor Monitoring API] Triggering Instagram scraping via Inngest', {
+            subscriptionId: response.data.subscription.id,
+            competitorUsername,
+            inngestUrl,
+            event: inngestEvent
+          })
+          
+          // Отправляем событие в Inngest
+          const parseResponse = await axios.post(
+            inngestUrl,
+            inngestEvent,
+            {
+              timeout: 15000,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          )
+          
+          console.log('✅ [INNGEST] Response status:', parseResponse.status)
+          console.log('✅ [INNGEST] Response data:', parseResponse.data)
+          
+          logger.info('[Competitor Monitoring API] Instagram scraping triggered successfully', {
+            status: parseResponse.status,
+            data: parseResponse.data
+          })
+        } catch (parseError) {
+          console.error('❌ [INNGEST] Failed to trigger scraping:', parseError)
+          logger.error('[Competitor Monitoring API] Failed to trigger Instagram scraping', {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+            subscriptionId: response.data.subscription.id,
+            inngestUrl: `${this.apiUrl}/api/inngest`
+          })
+        }
+
+        // Backend автоматически запускает парсинг после создания подписки
         const successMessage = isRu
           ? `✅ Подписка на мониторинг @${competitorUsername} создана!
 
@@ -151,8 +210,8 @@ export class CompetitorMonitoringApiService {
 📅 Возраст контента: до ${maxAgeDays} дней
 📦 Формат доставки: ${deliveryFormat === 'digest' ? 'Дайджест' : deliveryFormat === 'individual' ? 'Отдельные сообщения' : 'Архив'}
 
-🚀 Парсинг запустится автоматически каждые 24 часа в 08:00 UTC
-📬 Первые результаты придут в течение 24 часов`
+🚀 Парсинг запущен! Первые результаты придут в течение нескольких минут
+📅 Далее парсинг будет выполняться автоматически каждые 24 часа`
           : `✅ Monitoring subscription for @${competitorUsername} created!
 
 📊 **Monitoring Settings:**
@@ -161,8 +220,8 @@ export class CompetitorMonitoringApiService {
 📅 Content age: up to ${maxAgeDays} days
 📦 Delivery format: ${deliveryFormat}
 
-🚀 Parsing will start automatically every 24 hours at 08:00 UTC
-📬 First results will arrive within 24 hours`
+🚀 Parsing started! First results will arrive within a few minutes
+📅 Further parsing will run automatically every 24 hours`
 
         return {
           success: true,

@@ -1,10 +1,11 @@
 import express from 'express'
 import healthRouter from './routes/health.routes'
 import robokassaRouter from './routes/robokassa.routes'
+import githubAutoFixerRouter from './routes/github-autofixer.routes'
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
-// Определяем порт. Берем из process.env.PORT, если есть, иначе 2999.
+// Определяем порт. Берем из process.env.PORT, если есть, иначе 2999 (для соответствия docker-compose).
 const PORT = process.env.PORT || '2999'
 
 export function startApiServer(): void {
@@ -28,14 +29,22 @@ export function startApiServer(): void {
   // Регистрируем маршруты для Robokassa webhook
   app.use('/api', robokassaRouter)
 
-  // Интеграция Inngest с API для версии 2.7.2
-  // Используем type assertion, чтобы избежать ошибок типизации
+  // Регистрируем маршруты для GitHub AutoFixer
+  app.use('/api', githubAutoFixerRouter)
+
+  // Интеграция Inngest с API (актуальная сигнатура serve)
   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
   app.use('/api/inngest', inngestHandler)
 
-  // Запуск сервера
+  // Запуск основного сервера
   app.listen(PORT, () => {
     console.log(`[API] Server started on port ${PORT}`)
+  })
+
+  // Запуск дублирующего сервера для обратного прокси на порту 8080
+  const PROXY_PORT = process.env.PROXY_PORT || '8080'
+  app.listen(PROXY_PORT, () => {
+    console.log(`[API] Proxy server started on port ${PROXY_PORT}`)
   })
 }
 

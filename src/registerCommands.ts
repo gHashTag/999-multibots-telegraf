@@ -9,6 +9,8 @@ import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
+// Импортируем обработчик статуса видео
+import { handleVideoStatusUpdate } from './handlers/handleTextToVideoDirect'
 import { sendMediaToPulse } from './helpers/pulse'
 // Импортируем обработчик команды hello_world
 import { handleHelloWorld } from './commands/handleHelloWorld'
@@ -24,6 +26,11 @@ import {
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 // Импортируем FLUX Kontext команду
 import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
+// Импортируем AutoFixer команды
+import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
+import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
+// Импортируем админ middleware
+import { requireAdmin } from './middleware/adminOnly'
 // Импортируем сцену handleTextMessage
 // import { handleTextMessage } from './handlers/handleTextMessage' // ❌ ИСПРАВЛЕНО: не используется как сцена
 
@@ -70,6 +77,7 @@ import {
   avatarTransformScene,
   instagramScrapingWizard,
   instagramParserScene,
+  instagramParserWizard,
   morphingWizard,
 } from './scenes'
 
@@ -142,8 +150,8 @@ export const stage = new Scenes.Stage<MyContext>([
   createUserScene,
   neuroCoderScene,
   instagramScrapingWizard,
+  autoFixerConfigScene,
   instagramParserScene,
-  // handleTextMessage, // ❌ ИСПРАВЛЕНО: убираем из stage сцен - это должен быть middleware, не сцена!
 ])
 
 // Проверяем зарегистрированные сцены
@@ -161,7 +169,9 @@ const sendGroupCommandReply = async (ctx: MyContext) => {
     await ctx.reply(message)
   } catch (e) {
     logger.error(
-      `Error replying to command in group for ${ctx.botInfo?.username || 'unknown bot'}:`,
+      `Error replying to command in group for ${
+        ctx.botInfo?.username || 'unknown bot'
+      }:`,
       {
         error: e instanceof Error ? e.message : String(e),
         chatId: ctx.chat?.id,
@@ -552,14 +562,17 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     setupInteractiveStats(bot)
 
     // 👑 АДМИНСКИЕ КОМАНДЫ
-    bot.command('addbalance', handleAddBalanceCommand)
-    bot.command('checkbalance', handleCheckBalanceCommand)
+    bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
+    bot.command('checkbalance', requireAdmin(), handleCheckBalanceCommand)
+
+    // 🤖 АВТОФИКСЕР КОМАНДЫ
+    setupAutoFixerCommands(bot)
 
     // 📊 КОМАНДА АНАЛИЗА РАСХОДОВ
     bot.use(expenseAnalysisCommand)
 
-    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ
-    bot.command('test_payment_message', async ctx => {
+    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ (ТОЛЬКО ДЛЯ АДМИНОВ)
+    bot.command('test_payment_message', requireAdmin(), async ctx => {
       if (ctx.chat.type !== 'private') {
         return sendGroupCommandReply(ctx)
       }
@@ -620,8 +633,8 @@ If not, continue on your own and click the "I myself" button`
                     url: channelId.startsWith('@')
                       ? `https://t.me/${channelId.slice(1)}`
                       : channelId.startsWith('http')
-                        ? channelId
-                        : `https://t.me/${channelId}`,
+                      ? channelId
+                      : `https://t.me/${channelId}`,
                   },
                 ],
                 [
@@ -653,8 +666,8 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ АПСКЕЙЛЕРА
-    bot.command('test_upscale', async ctx => {
+    // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ АПСКЕЙЛЕРА (ТОЛЬКО ДЛЯ АДМИНОВ)
+    bot.command('test_upscale', requireAdmin(), async ctx => {
       if (ctx.chat.type !== 'private') {
         return sendGroupCommandReply(ctx)
       }
@@ -1198,6 +1211,9 @@ If not, continue on your own and click the "I myself" button`
     bot.action('upscale_neurophoto_image', async ctx => {
       logger.info('GLOBAL ACTION: upscale_neurophoto_image', {
         telegramId: ctx.from?.id,
+        sessionExists: !!ctx.session,
+        lastNeuroPhotoImageUrl: ctx.session?.lastNeuroPhotoImageUrl?.substring(0, 50),
+        lastNeuroPhotoPrompt: ctx.session?.lastNeuroPhotoPrompt?.substring(0, 50),
       })
       try {
         await ctx.answerCbQuery()
@@ -1208,6 +1224,7 @@ If not, continue on your own and click the "I myself" button`
         const is_ru = isRussianFromState(ctx)
 
         if (!telegram_id) {
+          logger.error('No telegram_id found in upscale_neurophoto_image action')
           await ctx.reply(
             is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
           )
@@ -1216,6 +1233,10 @@ If not, continue on your own and click the "I myself" button`
 
         // Проверяем, есть ли сохраненное изображение для upscaling
         if (!ctx.session?.lastNeuroPhotoImageUrl) {
+          logger.warn('No lastNeuroPhotoImageUrl in session', {
+            telegramId: telegram_id,
+            sessionData: JSON.stringify(ctx.session || {}),
+          })
           await ctx.reply(
             is_ru
               ? '❌ Нет изображения для увеличения качества. Сначала сгенерируйте нейрофото.'
@@ -1232,8 +1253,17 @@ If not, continue on your own and click the "I myself" button`
         )
 
         // Импортируем и запускаем локальный upscaler (тот же что и для отдельного upscaler'а)
+        logger.info('🔴 BEFORE UPSCALE_IMAGE CALL', {
+          telegram_id,
+          username,
+          imageUrl: ctx.session.lastNeuroPhotoImageUrl,
+          prompt: ctx.session.lastNeuroPhotoPrompt,
+          is_ru,
+        })
+        console.log('🔴 CALLING UPSCALE_IMAGE FOR:', telegram_id)
+        
         const { upscaleImage } = await import('./services/imageUpscaler')
-        await upscaleImage({
+        const result = await upscaleImage({
           imageUrl: ctx.session.lastNeuroPhotoImageUrl,
           telegram_id,
           username,
@@ -1242,6 +1272,12 @@ If not, continue on your own and click the "I myself" button`
           originalPrompt:
             ctx.session.lastNeuroPhotoPrompt || 'Neurophoto upscale',
         })
+        
+        logger.info('🟢 AFTER UPSCALE_IMAGE CALL', {
+          telegram_id,
+          result: result ? 'Success' : 'No result',
+        })
+        console.log('🟢 UPSCALE_IMAGE COMPLETED FOR:', telegram_id)
       } catch (error) {
         logger.error('Error in upscale_neurophoto_image action:', {
           error,
@@ -1541,6 +1577,22 @@ If not, continue on your own and click the "I myself" button`
         } catch (replyError) {
           console.error('❌ Failed to send error message:', replyError)
         }
+      }
+    })
+
+    // Callback handler для обновления статуса видео генерации
+    bot.action('update_video_status', async ctx => {
+      logger.info('🔄 GLOBAL ACTION: update_video_status', {
+        telegramId: ctx.from?.id,
+      })
+      
+      try {
+        await handleVideoStatusUpdate(ctx)
+      } catch (error) {
+        logger.error('Error in update_video_status action:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
       }
     })
 

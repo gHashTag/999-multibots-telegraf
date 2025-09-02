@@ -18,6 +18,12 @@ export async function sendPhotoWithFallback(
   try {
     logger.info(`[sendPhotoWithFallback] Attempting to send photo: ${photoUrl}`)
 
+    // Check if this is a Telegram file URL - these must be uploaded via buffer
+    if (photoUrl.includes("api.telegram.org/file/bot")) {
+      logger.info(`[sendPhotoWithFallback] Detected Telegram file URL, using buffer method directly`)
+      throw new Error("Telegram file URLs require buffer upload")
+    }
+
     // Сначала пробуем валидацию
     const validation = await validateImageUrl(photoUrl)
     if (!validation.isValid) {
@@ -28,7 +34,11 @@ export async function sendPhotoWithFallback(
     }
 
     logger.info(
-      `[sendPhotoWithFallback] Image validation passed. Size: ${validation.size ? (validation.size / 1024 / 1024).toFixed(2) + 'MB' : 'unknown'}, Type: ${validation.contentType}`
+      `[sendPhotoWithFallback] Image validation passed. Size: ${
+        validation.size
+          ? (validation.size / 1024 / 1024).toFixed(2) + 'MB'
+          : 'unknown'
+      }, Type: ${validation.contentType}`
     )
 
     try {
@@ -40,7 +50,9 @@ export async function sendPhotoWithFallback(
       return true
     } catch (urlError) {
       logger.warn(
-        `[sendPhotoWithFallback] Failed to send photo via URL: ${photoUrl}. Error: ${urlError instanceof Error ? urlError.message : 'Unknown error'}. Trying buffer upload...`
+        `[sendPhotoWithFallback] Failed to send photo via URL: ${photoUrl}. Error: ${
+          urlError instanceof Error ? urlError.message : 'Unknown error'
+        }. Trying buffer upload...`
       )
 
       // Fallback: загружаем изображение и отправляем через Buffer
@@ -73,14 +85,18 @@ export async function sendPhotoWithFallback(
         return true
       } catch (bufferError) {
         logger.error(
-          `[sendPhotoWithFallback] Buffer upload also failed: ${bufferError instanceof Error ? bufferError.message : 'Unknown error'}`
+          `[sendPhotoWithFallback] Buffer upload also failed: ${
+            bufferError instanceof Error ? bufferError.message : 'Unknown error'
+          }`
         )
         return false
       }
     }
   } catch (error) {
     logger.error(
-      `[sendPhotoWithFallback] Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `[sendPhotoWithFallback] Unexpected error: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
     )
     return false
   }

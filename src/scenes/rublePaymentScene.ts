@@ -3,7 +3,10 @@ import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleSelectRubAmount } from '@/handlers'
-import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
+import {
+  rubTopUpOptions,
+  getDynamicRubTopUpOptions,
+} from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
 import { MERCHANT_LOGIN, ROBOKASSA_PASSWORD_1 } from '@/config'
 import { setPayments } from '@/core/supabase'
@@ -228,8 +231,9 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       }
     )
 
-    // Специальная обработка для админской тестовой кнопки "1 рубль"
-    let selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
+    // Получаем актуальные пакеты с динамическим курсом
+    const dynamicOptions = await getDynamicRubTopUpOptions()
+    let selectedOption = dynamicOptions.find(o => o.amountRub === amountRub)
 
     // Если это админский тест на 1 рубль, создаем специальный объект
     if (!selectedOption && amountRub === 1) {
@@ -280,11 +284,19 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
 
     const invId = Math.floor(Math.random() * 1000000)
     const description = isRu
-      ? `Пополнение баланса на ${stars} звезд${amountRub === 1 ? ' (Админ-тест)' : ''}`
-      : `Balance top-up for ${stars} stars${amountRub === 1 ? ' (Admin Test)' : ''}`
+      ? `Пополнение баланса на ${stars} звезд${
+          amountRub === 1 ? ' (Админ-тест)' : ''
+        }`
+      : `Balance top-up for ${stars} stars${
+          amountRub === 1 ? ' (Admin Test)' : ''
+        }`
 
     logger.info(
-      `[${ModeEnum.RublePaymentScene}] Generating Robokassa URL for ${amountRub} RUB (${stars} stars)${amountRub === 1 ? ' [ADMIN TEST]' : ''}`,
+      `[${
+        ModeEnum.RublePaymentScene
+      }] Generating Robokassa URL for ${amountRub} RUB (${stars} stars)${
+        amountRub === 1 ? ' [ADMIN TEST]' : ''
+      }`,
       {
         telegram_id: userId,
         amount: amountRub,
@@ -319,7 +331,11 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
     })
 
     logger.info(
-      `[${ModeEnum.RublePaymentScene}] PENDING BALANCE top-up payment saved for InvId: ${invId}${amountRub === 1 ? ' [ADMIN TEST]' : ''}`,
+      `[${
+        ModeEnum.RublePaymentScene
+      }] PENDING BALANCE top-up payment saved for InvId: ${invId}${
+        amountRub === 1 ? ' [ADMIN TEST]' : ''
+      }`,
       {
         telegram_id: userId,
         invId: invId,
@@ -340,8 +356,12 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
 
     await ctx.reply(
       isRu
-        ? `✅ <b>Счет создан${amountRub === 1 ? ' (Админ-тест)' : ''}</b>\nСумма: ${amountRub} ₽ (${stars} ⭐️)\n\nНажмите кнопку ниже для перехода к оплате через Robokassa.`
-        : `✅ <b>Invoice created${amountRub === 1 ? ' (Admin Test)' : ''}</b>\nAmount: ${amountRub} RUB (${stars} ⭐️)\n\nClick the button below to proceed with payment via Robokassa.`,
+        ? `✅ <b>Счет создан${
+            amountRub === 1 ? ' (Админ-тест)' : ''
+          }</b>\nСумма: ${amountRub} ₽ (${stars} ⭐️)\n\nНажмите кнопку ниже для перехода к оплате через Robokassa.`
+        : `✅ <b>Invoice created${
+            amountRub === 1 ? ' (Admin Test)' : ''
+          }</b>\nAmount: ${amountRub} RUB (${stars} ⭐️)\n\nClick the button below to proceed with payment via Robokassa.`,
       {
         reply_markup: {
           inline_keyboard: inlineKeyboard,
@@ -350,7 +370,11 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       }
     )
     logger.info(
-      `[${ModeEnum.RublePaymentScene}] Robokassa invoice message sent to user ${userId}${amountRub === 1 ? ' [ADMIN TEST]' : ''}`
+      `[${
+        ModeEnum.RublePaymentScene
+      }] Robokassa invoice message sent to user ${userId}${
+        amountRub === 1 ? ' [ADMIN TEST]' : ''
+      }`
     )
   } catch (error: any) {
     logger.error(
@@ -468,8 +492,12 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
 
     await ctx.reply(
       isRu
-        ? `✅ <b>Админ-тест: Счет на подписку ${subscriptionType} создан</b>\nТестовая сумма: ${testAmount} ₽ (вместо обычных ${Math.floor(originalStars * 2.3)} ₽)\n\n🧪 Это тестовый платеж для проверки системы.\n\nНажмите кнопку ниже для перехода к оплате.`
-        : `✅ <b>Admin Test: Invoice for subscription ${subscriptionType} created</b>\nTest amount: ${testAmount} RUB (instead of usual ${Math.floor(originalStars * 2.3)} RUB)\n\n🧪 This is a test payment for system verification.\n\nClick the button below to proceed with payment.`,
+        ? `✅ <b>Админ-тест: Счет на подписку ${subscriptionType} создан</b>\nТестовая сумма: ${testAmount} ₽ (вместо обычных ${Math.floor(
+            originalStars * 2.3
+          )} ₽)\n\n🧪 Это тестовый платеж для проверки системы.\n\nНажмите кнопку ниже для перехода к оплате.`
+        : `✅ <b>Admin Test: Invoice for subscription ${subscriptionType} created</b>\nTest amount: ${testAmount} RUB (instead of usual ${Math.floor(
+            originalStars * 2.3
+          )} RUB)\n\n🧪 This is a test payment for system verification.\n\nClick the button below to proceed with payment.`,
       {
         reply_markup: {
           inline_keyboard: inlineKeyboard,

@@ -305,7 +305,13 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: ModeEnum.CheckBalanceScene,
         })
         console.log('CASE: 🎬 Видео из текста')
+        
+        // ✅ Добавляем немедленную обратную связь пользователю
+        await ctx.reply(isRu ? '🎬 Загружаем генератор видео...' : '🎬 Loading video generator...')
+        
+        console.log('🎬 [handleMenu] SETTING MODE TO:', ModeEnum.TextToVideo)
         ctx.session.mode = ModeEnum.TextToVideo
+        console.log('🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:', ctx.session.mode)
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
@@ -316,13 +322,13 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
         logger.info({
-          message: '🖼️ [handleMenu] Переход к генерации изображений',
+          message: '🖼️ [handleMenu] Переход к тексту в фото',
           telegramId,
           function: 'handleMenu',
           action: 'text_to_image',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        console.log('CASE: 🖼️ Генерация изображений')
+        console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
@@ -468,23 +474,53 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[109].title_ru : levels[109].title_en]: async () => {
         logger.info({
-          message: '🔍 [handleMenu] Переход к мониторингу конкурентов',
+          message: '🔍 [handleMenu] Переход к Instagram парсеру',
           telegramId,
           function: 'handleMenu',
-          action: 'competitor_monitoring',
+          action: 'instagram_parser',
+          nextScene: 'instagram_parser_scene',
         })
-        console.log('CASE: 🔍 Мониторинг конкурентов')
+        console.log('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
         
-        // Вызываем функцию мониторинга конкурентов
-        await handleCompetitorMonitoring(ctx)
+        // Проверяем доступ к парсингу
+        const userId = ctx.from?.id?.toString()
+        const botToken = ctx.telegram.token
         
-        // После обработки мониторинга остаемся в текущей сцене
-        // Это позволит пользователю вводить username, если он нужен
-        logger.info({
-          message: '✅ [handleMenu] Завершен вызов handleCompetitorMonitoring',
+        if (!userId) {
+          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
+          return
+        }
+        
+        const parsingAccess = getParsingAccess(userId, botToken)
+        
+        if (!parsingAccess.hasAccess) {
+          logger.warn('Instagram parsing access denied via competitor monitoring button', {
+            telegramId,
+            userId,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ У вас нет доступа к Instagram парсингу.'
+              : '❌ You do not have access to Instagram parsing.'
+          )
+          return
+        }
+        
+        logger.info('✅ Instagram parsing access granted via competitor monitoring', {
           telegramId,
-          function: 'handleMenu',
+          userId,
+          parsingAccess
         })
+        
+        // Переходим в Instagram parser scene
+        ctx.session.mode = ModeEnum.InstagramParserScene
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
+        )
+        await ctx.scene.enter(ModeEnum.InstagramParserScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
+        )
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
@@ -668,59 +704,6 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
         )
       },
-      // Instagram parser button handler
-      [isRu ? levels[109]?.title_ru : levels[109]?.title_en]: async () => {
-        if (!levels[109]) return // Проверка на существование уровня
-
-        logger.info({
-          message: '📱 [handleMenu] Переход к Instagram парсеру',
-          telegramId,
-          function: 'handleMenu',
-          action: 'instagram_parser',
-          nextScene: 'instagram_parser_scene',
-        })
-        console.log('CASE: 📱 Instagram Парсер')
-
-        // Проверяем доступ к парсингу
-        const userId = ctx.from?.id?.toString()
-        const botToken = ctx.telegram.token
-
-        if (!userId) {
-          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
-          return
-        }
-
-        const parsingAccess = getParsingAccess(userId, botToken)
-
-        if (!parsingAccess.hasAccess) {
-          logger.warn('Instagram parsing access denied via button', {
-            telegramId,
-            userId,
-          })
-          await ctx.reply(
-            isRu
-              ? '❌ У вас нет доступа к функции парсинга Instagram.'
-              : "❌ You don't have access to Instagram parsing feature."
-          )
-          return
-        }
-
-        logger.info('Instagram parser access granted via button', {
-          telegramId,
-          userId,
-          allowedProjects: parsingAccess.allowedProjects,
-        })
-
-        // Переходим в Instagram parser scene
-        ctx.session.mode = ModeEnum.InstagramParserScene
-        console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
-        )
-        await ctx.scene.enter(ModeEnum.InstagramParserScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
-        )
-      },
       // УБРАН КОНФЛИКТУЮЩИЙ ОБРАБОТЧИК /start - команды обрабатываются только в registerCommands.ts
       Отмена: async () => {
         // Исправленный обработчик для 'Отмена'
@@ -892,11 +875,18 @@ export const handleMenu = async (ctx: MyContext) => {
     // Проверяем callback для мониторинга конкурентов
     if (callbackData === 'add_new_competitor') {
       console.log('➕ [handleMenu] add_new_competitor callback')
+      logger.info('[handleMenu] add_new_competitor callback triggered', {
+        telegramId,
+        userId: ctx.from?.id,
+        sessionBefore: ctx.session
+      })
+      
       const isRu = isRussianFromState(ctx)
       
       // Проверяем права администратора
       const userId = ctx.from?.id?.toString()
       if (!userId || !adminIds.includes(userId)) {
+        logger.warn('[handleMenu] User not admin, denying access', { userId, adminIds })
         await ctx.answerCbQuery()
         await ctx.reply(
           isRu
@@ -906,9 +896,15 @@ export const handleMenu = async (ctx: MyContext) => {
         return
       }
       
-      await ctx.answerCbQuery()
+      await ctx.answerCbQuery('✅')
+      console.log('Before importing promptForCompetitorUsername')
       const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
+      console.log('After importing, before calling promptForCompetitorUsername')
       await promptForCompetitorUsername(ctx, isRu)
+      console.log('After calling promptForCompetitorUsername, session:', ctx.session)
+      logger.info('[handleMenu] add_new_competitor callback completed', {
+        sessionAfter: ctx.session
+      })
       return
     }
 

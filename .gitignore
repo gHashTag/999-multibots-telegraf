@@ -1,3 +1,20 @@
+
+# Worktrees - временные ветки для разработки
+worktrees/**
+.worktrees/**
+
+# Git worktree specific
+.git/worktrees/
+
+# Worktrees - временные ветки для разработки
+worktrees/
+.worktrees/
+
+
+# Git Worktrees - временные ветки для разработки
+worktrees/**/*
+!worktrees/.gitkeep
+
 # Logs
 logs
 *.log
@@ -79,6 +96,61 @@ web_modules/
 .env.production.local
 .env.local
 .env.*
+.env.backup
+.env.bak
+.env.old
+.env.orig
+.env.example.backup
+
+# 🔐 SECURITY: Дополнительные файлы с секретами
+secrets/
+secrets.json
+secrets.yaml
+secrets.yml
+config/secrets/
+.secrets
+.secrets.*
+credentials.json
+auth.json
+service-account.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# GitHub Secrets и другие секретные файлы
+.gitsecrets
+.secrets.baseline
+**/secrets/**
+**/.secrets/**
+private.key
+public.key
+id_rsa
+id_rsa.pub
+id_dsa
+id_dsa.pub
+
+# API ключи и токены (на всякий случай)
+api_keys.json
+tokens.json
+*_credentials_*
+*_secrets_*
+*_keys_*
+backup_keys_*
+temp_secrets_*
+
+# Резервные копии .env файлов
+.env.backup
+.env.bak
+.env.old
+.env.orig
+
+# Файлы с паролями
+passwords.txt
+.htpasswd
+.passwd
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -242,3 +314,77 @@ recalculate-exact-price.js
 # Temporary video directories
 ready_morphing_videos/
 temp_*/
+
+# Claude Code Security Hooks
+.claude/logs/
+.claude/*.log
+.claude/SECURITY_ALERT.txt
+.claude/COMPLETION_BLOCKED.txt
+.claude/activation-summary.txt
+.claude/task-completion-summary.md
+
+# Keep important Claude Code files (explicitly not ignored):
+# !.claude/settings.json
+# !.claude/README.md  
+# !.claude/hooks/*.sh
+# !.claude/activate-hooks.sh
+
+# Security and secrets files
+# Логи с потенциальными секретами
+*.log
+debug.log
+error.log
+security.log
+audit.log
+access.log
+
+# Дампы памяти и дебаг файлы
+*.dump
+*.dmp
+core.*
+*.stackdump
+
+# Security files
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*_credentials_*
+*_secrets_*
+*_keys_*
+.secrets/
+.secrets.*
+credentials.json
+service-account.json
+id_rsa*
+id_dsa*
+known_hosts
+authorized_keys
+*.keystore
+*.gpg
+*.asc
+config.local.*
+local.config.*
+*.local.json
+*.local.yaml
+*.local.yml
+*.env.backup
+*.env.bak
+*.env.old
+
+# Database files
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Security scan results
+security-report.json
+vulnerability-report.json
+audit-results.json
+secrets-scan.json
+.secrets.baseline

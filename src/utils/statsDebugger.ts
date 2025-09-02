@@ -78,7 +78,9 @@ export async function debugBotStats(
   } catch (error) {
     logger.error('❌ Stats debugging failed:', error)
     debugInfo.recommendations.push(
-      `Критическая ошибка при диагностике: ${error instanceof Error ? error.message : String(error)}`
+      `Критическая ошибка при диагностике: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     return debugInfo
   }
@@ -162,7 +164,9 @@ async function checkSqlFunctions(debugInfo: StatsDebugInfo): Promise<void> {
   } catch (error) {
     logger.error('get_user_balance exception:', error)
     debugInfo.recommendations.push(
-      `Исключение в get_user_balance: ${error instanceof Error ? error.message : String(error)}`
+      `Исключение в get_user_balance: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
   }
 
@@ -187,7 +191,9 @@ async function checkSqlFunctions(debugInfo: StatsDebugInfo): Promise<void> {
   } catch (error) {
     logger.error('get_user_balance_stats exception:', error)
     debugInfo.recommendations.push(
-      `Исключение в get_user_balance_stats: ${error instanceof Error ? error.message : String(error)}`
+      `Исключение в get_user_balance_stats: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
   }
 
@@ -348,7 +354,9 @@ export async function quickStatsHealthCheck(): Promise<{
     return { healthy, issues, summary }
   } catch (error) {
     issues.push(
-      `Критическая ошибка проверки: ${error instanceof Error ? error.message : String(error)}`
+      `Критическая ошибка проверки: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     return {
       healthy: false,
@@ -422,7 +430,9 @@ export async function generateStatsReport(): Promise<{
     return report
   } catch (error) {
     report.issues.push(
-      `Ошибка генерации отчета: ${error instanceof Error ? error.message : String(error)}`
+      `Ошибка генерации отчета: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     )
     return report
   }
