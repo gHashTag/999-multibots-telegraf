@@ -408,10 +408,16 @@ async function handleVideoReady(
       telegram_id
     })
 
+    // Ограничиваем длину промпта для подписи (Telegram лимит 1024 символа)
+    const MAX_CAPTION_LENGTH = 900 // Оставляем место для других элементов подписи
+    const truncatedPrompt = prompt.length > MAX_CAPTION_LENGTH 
+      ? prompt.substring(0, MAX_CAPTION_LENGTH) + '...'
+      : prompt
+    
     // Отправляем видео пользователю
     await ctx.replyWithVideo(Input.fromURL(uploadedUrl), {
       caption:
-        `🎬 ${prompt}\n\n` +
+        `🎬 ${truncatedPrompt}\n\n` +
         `🤖 ${is_ru ? 'Модель' : 'Model'}: ${modelName}\n` +
         (duration
           ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${
