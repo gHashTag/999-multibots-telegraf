@@ -186,7 +186,9 @@ export async function generateTextToVideo(
       logger.info('[PLAN B] Using direct Kie.ai API', {
         videoModel,
         aspectRatio,
-        duration
+        duration,
+        telegram_id,
+        username
       })
       
       // Импортируем KieAiProvider
@@ -196,6 +198,13 @@ export async function generateTextToVideo(
       // Преобразуем aspectRatio в формат Kie.ai
       const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
       
+      logger.info('[PLAN B] Calling Kie.ai generateVideo with params:', {
+        model: videoModel,
+        prompt: prompt.substring(0, 100),
+        duration: duration || 8,
+        aspectRatio: kieAspectRatio || '9:16'
+      })
+      
       // Генерируем видео через Kie.ai
       const kieResponse = await kieProvider.generateVideo({
         model: videoModel,
@@ -204,11 +213,12 @@ export async function generateTextToVideo(
         aspectRatio: kieAspectRatio || '9:16',
       })
       
-      logger.info('[PLAN B] Kie.ai response:', {
+      logger.info('[PLAN B] Kie.ai response received:', {
         success: kieResponse.success,
         hasData: !!kieResponse.data,
         hasVideoUrl: !!kieResponse.data?.videoUrl,
         hasTaskId: !!kieResponse.data?.taskId,
+        taskId: kieResponse.data?.taskId,
         error: kieResponse.error
       })
       
@@ -427,11 +437,25 @@ export async function checkVideoGenerationStatus(
     // taskId от Kie.ai всегда 32 символа без дефисов
     const isKieTaskId = jobId.length === 32 && !jobId.includes('-')
     
+    logger.info('[checkVideoGenerationStatus] Checking status for:', {
+      jobId,
+      isKieTaskId,
+      jobIdLength: jobId.length
+    })
+    
     if (isKieTaskId) {
       // Используем KieAiProvider для проверки статуса
+      logger.info('[checkVideoGenerationStatus] Using Kie.ai provider to check status')
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
       const result = await kieProvider.checkVideoStatus(jobId)
+      
+      logger.info('[checkVideoGenerationStatus] Kie.ai status result:', {
+        success: result.success,
+        hasData: !!result.data,
+        hasVideoUrl: !!result.data?.videoUrl,
+        error: result.error
+      })
       
       if (result.success && result.data?.videoUrl) {
         return {
@@ -439,10 +463,10 @@ export async function checkVideoGenerationStatus(
           videoUrl: result.data.videoUrl,
         }
       } else if (result.success && !result.data?.videoUrl) {
-        // Еще генерируется
+        // Еще генерируется - возвращаем как успешный статус, но без URL
         return {
-          success: false,
-          error: is_ru
+          success: true,
+          message: is_ru
             ? 'Видео еще генерируется...'
             : 'Video is still being generated...',
         }
