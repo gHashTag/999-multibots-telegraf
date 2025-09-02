@@ -329,6 +329,24 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const prompt = message.text.trim()
       console.log('🎬 [WIZARD] Step 3: Received prompt:', prompt)
 
+      // Обработка JSON промптов - извлекаем description если это JSON
+      let processedPrompt = prompt
+      if (prompt.includes('"description"') && (prompt.startsWith('{') || prompt.includes('{'))) {
+        try {
+          // Пытаемся найти и извлечь description из JSON
+          const descriptionMatch = prompt.match(/"description"\s*:\s*"([^"]+)"/);
+          if (descriptionMatch && descriptionMatch[1]) {
+            processedPrompt = descriptionMatch[1]
+            console.log('🎬 [WIZARD] Extracted description from JSON:', processedPrompt)
+          }
+        } catch (e) {
+          console.log('🎬 [WIZARD] Failed to parse JSON, using as-is')
+        }
+      }
+      
+      // Используем обработанный промпт далее
+      prompt = processedPrompt
+
       // Назад в меню
       if (prompt.includes('Назад') || prompt.includes('Back')) {
         console.log('🎬 [WIZARD] Step 3: Going back to menu')
