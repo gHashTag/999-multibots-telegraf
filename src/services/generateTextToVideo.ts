@@ -60,7 +60,7 @@ async function notifyAdminAboutServerIssue(
       `👤 User: ${telegram_id}\n` +
       `🎬 Model: ${videoModel}\n` +
       `❌ Error: ${error}\n` +
-      `🔄 Используется прямой Kie.ai API\n\n` +
+      `🔄 Используется прямой API Veo 3\n\n` +
       `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
     
     for (const adminId of adminIds) {
@@ -213,8 +213,8 @@ export async function generateTextToVideo(
         await notifyAdminAboutServerIssue(errorMessage, telegram_id, videoModel)
       }
       
-      // ПЛАН Б: Используем прямую интеграцию с Kie.ai
-      logger.info('[PLAN B] Using direct Kie.ai API', {
+      // ПЛАН Б: Используем прямую интеграцию с API Veo 3
+      logger.info('[PLAN B] Using direct Veo 3 API', {
         videoModel,
         aspectRatio,
         duration,
@@ -229,7 +229,7 @@ export async function generateTextToVideo(
       // Преобразуем aspectRatio в формат Kie.ai
       const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
       
-      logger.info('[PLAN B] Calling Kie.ai generateVideo with params:', {
+      logger.info('[PLAN B] Calling Veo 3 generateVideo with params:', {
         model: videoModel,
         promptLength: prompt.length, // Логируем длину вместо обрезки
         duration: duration || 8,
@@ -244,7 +244,7 @@ export async function generateTextToVideo(
         aspectRatio: kieAspectRatio || '9:16',
       })
       
-      logger.info('[PLAN B] Kie.ai response received:', {
+      logger.info('[PLAN B] Veo 3 API response received:', {
         success: kieResponse.success,
         hasData: !!kieResponse.data,
         hasVideoUrl: !!kieResponse.data?.videoUrl,
@@ -476,12 +476,12 @@ export async function checkVideoGenerationStatus(
     
     if (isKieTaskId) {
       // Используем KieAiProvider для проверки статуса
-      logger.info('[checkVideoGenerationStatus] Using Kie.ai provider to check status')
+      logger.info('[checkVideoGenerationStatus] Using Veo 3 provider to check status')
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
       const result = await kieProvider.checkVideoStatus(jobId)
       
-      logger.info('[checkVideoGenerationStatus] Kie.ai status result:', {
+      logger.info('[checkVideoGenerationStatus] Veo 3 status result:', {
         success: result.success,
         hasData: !!result.data,
         hasVideoUrl: !!result.data?.videoUrl,
