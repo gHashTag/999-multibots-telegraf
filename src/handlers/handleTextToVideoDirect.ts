@@ -272,8 +272,16 @@ async function monitorVideoGeneration(
         delete ctx.session.videoModelId
         delete ctx.session.videoDuration
         delete ctx.session.videoMessageId
-      } else if (!statusResponse.success) {
-        // Ошибка генерации
+      } else if (statusResponse.success && !statusResponse.videoUrl) {
+        // Видео еще генерируется, продолжаем ждать
+        logger.info('[monitorVideoGeneration] Video still generating, continue polling', {
+          jobId,
+          attempts,
+          message: statusResponse.message
+        })
+        // Ничего не делаем, просто продолжаем цикл проверки
+      } else if (!statusResponse.success && statusResponse.error) {
+        // Реальная ошибка генерации
         clearInterval(checkInterval)
         if (ctx && ctx.telegram && ctx.chat) {
           await ctx.telegram.editMessageText(
@@ -285,7 +293,10 @@ async function monitorVideoGeneration(
               : `❌ Generation error: ${statusResponse.error}`
           )
         }
-      } else if (attempts >= maxAttempts) {
+      }
+      
+      // Проверка таймаута после всех других проверок
+      if (attempts >= maxAttempts) {
         // Таймаут
         clearInterval(checkInterval)
         if (ctx && ctx.telegram && ctx.chat) {
@@ -298,6 +309,12 @@ async function monitorVideoGeneration(
               : '⏱️ Video generation took too long. Please try again later.'
           )
         }
+        // Очищаем сессию при таймауте
+        delete ctx.session.videoJobId
+        delete ctx.session.videoPrompt
+        delete ctx.session.videoModelId
+        delete ctx.session.videoDuration
+        delete ctx.session.videoMessageId
       }
     } catch (error) {
       clearInterval(checkInterval)
