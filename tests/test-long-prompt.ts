@@ -6,7 +6,12 @@ import path from 'path'
 // Загружаем переменные окружения
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
 
-const API_KEY = process.env.KIE_AI_API_KEY || 'f52f224a92970aa6b7c7780104a00f71'
+const API_KEY = process.env.KIE_AI_API_KEY
+if (!API_KEY) {
+  console.error('❌ ERROR: KIE_AI_API_KEY not found in environment variables')
+  console.error('   Please set KIE_AI_API_KEY in your .env file')
+  process.exit(1)
+}
 
 // Длинный промпт для тестирования
 const LONG_PROMPT = `Fixed wide shot on a sleek matte-black desk surface. A subtle pulsing glow in neon blue begins to form at the center of the frame, gradually intensifying. Suddenly, holographic fragments burst upward, assembling into a floating 3D logo. The logo rotates slowly, revealing intricate details and depth. As it completes a full rotation, the entire structure shatters into thousands of luminous particles that drift upward and fade, leaving only a soft afterglow that dims to black. The camera remains perfectly still throughout, emphasizing the logo's dramatic emergence and dissolution. Professional studio lighting, ultra-sharp focus, 8K quality, cinematic atmosphere with subtle lens flares and depth of field effects.`
