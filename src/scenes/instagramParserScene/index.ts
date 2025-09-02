@@ -79,19 +79,40 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
       if (action === 'my_stats') {
         await ctx.answerCbQuery()
         await showStats(ctx)
-        return
+        return ctx.wizard.selectStep(0) // Остаёмся на первом шаге для обработки следующих действий
       }
 
       if (action === 'help') {
         await ctx.answerCbQuery()
         await showHelp(ctx)
-        return
+        return ctx.wizard.selectStep(0) // Остаёмся на первом шаге для обработки следующих действий
       }
 
       if (action === 'exit') {
         await ctx.answerCbQuery()
         await ctx.editMessageText(isRu ? '👋 До встречи!' : '👋 See you!')
         return ctx.scene.leave()
+      }
+      
+      // Обработка кнопки "Назад" из статистики или помощи
+      if (action === 'back_to_menu') {
+        await ctx.answerCbQuery()
+        // Показываем главное меню
+        const menuText = isRu
+          ? '🎬 Instagram Парсер\n\n📱 Собирайте рилсы конкурентов и по хештегам\n⚡ Быстро и эффективно\n\nВыберите действие:'
+          : '🎬 Instagram Parser\n\n📱 Collect competitor reels and by hashtags\n⚡ Fast and efficient\n\nChoose action:'
+
+        await ctx.editMessageText(
+          menuText,
+          Markup.inlineKeyboard([
+            [Markup.button.callback(isRu ? '👤 Парсинг конкурента' : '👤 Parse competitor', 'parse_competitor')],
+            [Markup.button.callback(isRu ? '#️⃣ Парсинг по хештегу' : '#️⃣ Parse by hashtag', 'parse_hashtag')],
+            [Markup.button.callback(isRu ? '📊 Моя статистика' : '📊 My statistics', 'my_stats')],
+            [Markup.button.callback(isRu ? '❓ Помощь' : '❓ Help', 'help')],
+            [Markup.button.callback(isRu ? '❌ Выход' : '❌ Exit', 'exit')],
+          ])
+        )
+        return ctx.wizard.selectStep(0) // Остаёмся на первом шаге
       }
     } else {
       // Показываем главное меню при входе
@@ -214,6 +235,18 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
       }
 
       // Обработка служебных кнопок
+      if (action === 'restart') {
+        await ctx.answerCbQuery()
+        ;(ctx.wizard as any).state = {}
+        return ctx.wizard.selectStep(0)
+      }
+
+      if (action === 'main_menu') {
+        await ctx.answerCbQuery()
+        await ctx.scene.enter('menuScene')
+        return
+      }
+
       if (action === 'top_up') {
         await ctx.answerCbQuery()
         await ctx.scene.enter('payment_scene')
@@ -384,18 +417,4 @@ async function showHelp(ctx: MyContext) {
 }
 
 // ========== ОБРАБОТЧИКИ ACTION ==========
-instagramParserScene.action('back_to_menu', async ctx => {
-  await ctx.answerCbQuery()
-  return ctx.wizard.selectStep(0)
-})
-
-instagramParserScene.action('restart', async ctx => {
-  await ctx.answerCbQuery()
-  ;(ctx.wizard as any).state = {}
-  return ctx.wizard.selectStep(0)
-})
-
-instagramParserScene.action('main_menu', async ctx => {
-  await ctx.answerCbQuery()
-  await ctx.scene.enter('menuScene')
-})
+// Все обработчики перенесены в основной код wizard сцены для корректной работы
