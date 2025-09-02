@@ -153,6 +153,22 @@ export async function generateTextToVideo(
             bot_name,
           }
           
+          // ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЗАПРОСА НА СЕРВЕР
+          logger.info('[PLAN A] ТОЧНЫЙ ЗАПРОС НА СЕРВЕР:', {
+            url,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-secret-key': SECRET_API_KEY ? 'PRESENT' : 'MISSING',
+            },
+            requestBody: {
+              ...requestBody,
+              prompt: `[PROMPT LENGTH: ${prompt.length} chars]`, // Не логируем полный промпт для безопасности
+            },
+            serverBaseUrl: baseUrl,
+            fullPrompt: prompt, // Логируем полный промпт для диагностики
+          })
+          
           const response = await axios.post(url, requestBody, {
             headers: {
               'Content-Type': 'application/json',
@@ -174,6 +190,20 @@ export async function generateTextToVideo(
       } catch (serverError) {
         // Сервер недоступен, переключаемся на План Б
         const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
+        
+        // ДЕТАЛЬНАЯ ДИАГНОСТИКА ОШИБКИ СЕРВЕРА
+        if (isAxiosError(serverError)) {
+          logger.error('[PLAN A] ДЕТАЛИ ОШИБКИ СЕРВЕРА:', {
+            status: serverError.response?.status,
+            statusText: serverError.response?.statusText,
+            data: serverError.response?.data,
+            url: serverError.config?.url,
+            code: serverError.code,
+            message: serverError.message,
+            fullError: JSON.stringify(serverError.response?.data || {}, null, 2)
+          })
+        }
+        
         logger.warn('[PLAN A] Server failed, switching to PLAN B', {
           error: errorMessage,
           videoModel
