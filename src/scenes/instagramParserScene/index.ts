@@ -323,23 +323,38 @@ async function showStats(ctx: MyContext) {
   if (!userId) return
 
   try {
-    // Получаем статистику из БД
-    const { data: stats } = await supabaseAdmin
-      .from('instagram_scrapings')
+    // Получаем статистику из БД - из правильной таблицы instagram_apify_reels
+    const { data: reels, error: reelsError } = await supabaseAdmin
+      .from('instagram_apify_reels')
       .select('*')
       .eq('telegram_id', userId.toString())
+      .order('created_at', { ascending: false })
 
-    const total_parsings = stats?.length || 0
-    const total_reels =
-      stats?.reduce((sum, s) => sum + (s.reels_count || 0), 0) || 0
-    const total_cost = stats?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0
+    if (reelsError) {
+      logger.error('Error fetching Instagram stats', { error: reelsError, userId })
+    }
 
-    // Последние парсинги
-    const recent = stats?.slice(-3).reverse() || []
-    const recentText = recent
+    // Группируем по источникам для подсчёта парсингов
+    const sourcesMap = new Map()
+    reels?.forEach(reel => {
+      const key = `${reel.source_type || 'competitor'}:${reel.source_username || reel.owner_username || 'unknown'}`
+      if (!sourcesMap.has(key)) {
+        sourcesMap.set(key, { count: 0, type: reel.source_type || 'competitor', username: reel.source_username || reel.owner_username || 'unknown' })
+      }
+      sourcesMap.get(key).count++
+    })
+
+    const total_parsings = sourcesMap.size // Количество уникальных источников
+    const total_reels = reels?.length || 0
+    // Приблизительная стоимость (3 звезды за 10 рилсов)
+    const total_cost = Math.ceil(total_reels / 10) * 3
+
+    // Последние источники парсинга
+    const recentSources = Array.from(sourcesMap.values()).slice(0, 3)
+    const recentText = recentSources
       .map(
         s =>
-          `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${s.reels_count} ${isRu ? 'рилсов' : 'reels'}`
+          `${s.type === 'hashtag' ? '#' : '@'}${s.username} - ${s.count} ${isRu ? 'рилсов' : 'reels'}`
       )
       .join('\n')
 
@@ -349,12 +364,12 @@ async function showStats(ctx: MyContext) {
             `📈 Всего парсингов: ${total_parsings}\n` +
             `🎬 Всего рилсов: ${total_reels}\n` +
             `💰 Потрачено звезд: ${total_cost} ⭐\n` +
-            (recent.length > 0 ? `\n📝 Последние парсинги:\n${recentText}` : '')
+            (recentSources.length > 0 ? `\n📝 Последние парсинги:\n${recentText}` : '')
         : `📊 Your Instagram parser statistics\n\n` +
             `📈 Total parsings: ${total_parsings}\n` +
             `🎬 Total reels: ${total_reels}\n` +
             `💰 Stars spent: ${total_cost} ⭐\n` +
-            (recent.length > 0 ? `\n📝 Recent parsings:\n${recentText}` : ''),
+            (recentSources.length > 0 ? `\n📝 Recent parsings:\n${recentText}` : ''),
       Markup.inlineKeyboard([
         [Markup.button.callback(isRu ? '⬅️ Назад' : '⬅️ Back', 'back_to_menu')],
       ])
