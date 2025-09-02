@@ -30,26 +30,8 @@ import { getParsingAccess } from './menu/mainMenu'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
-  // 🚨 ЭКСТРЕННЫЙ ОБРАБОТЧИК ПОДПИСКИ - САМЫЙ ПЕРВЫЙ!
-  // Перехватывает ЛЮБОЙ текст содержащий "подписк" или "Subscribe"
-  bot.hears(/подписк|Subscribe/i, async ctx => {
-    console.log(
-      '🚨 EMERGENCY SUBSCRIPTION HANDLER TRIGGERED!',
-      ctx.message?.text
-    )
-    try {
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.SubscriptionScene
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      console.log(
-        '✅ Successfully entered subscription scene via emergency handler'
-      )
-      return // Важно! Не продолжаем обработку
-    } catch (error) {
-      console.error('❌ Emergency subscription handler error:', error)
-      await ctx.reply('Переходим к оформлению подписки...')
-    }
-  })
+  // Удаляем экстренный обработчик подписки - он перехватывает слишком много команд
+  // Обработка подписки происходит через конкретные кнопки в registerCommands.ts
 
   // ОБРАБОТЧИК ДЛЯ УВЕЛИЧЕНИЯ КАЧЕСТВА НЕЙРОФОТО (keyboard кнопка с бэкенда)
   bot.hears(['⬆️ Увеличить качество', '⬆️ Upscale Quality'], async ctx => {
