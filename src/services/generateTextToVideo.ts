@@ -109,9 +109,10 @@ export async function generateTextToVideo(
     throw new Error('Bot name is required')
   }
 
-  // Логирование начала генерации
+  // Логирование начала генерации - отправляем ПОЛНЫЙ промпт в логи
   logger.info('ASPECT RATIO CHECK - Starting text-to-video generation', {
-    prompt: prompt.substring(0, 100), // Логируем только начало промпта
+    prompt: prompt, // Логируем полный промпт без обрезки
+    promptLength: prompt.length,
     videoModel,
     duration,
     aspectRatio: aspectRatio,
@@ -200,7 +201,7 @@ export async function generateTextToVideo(
       
       logger.info('[PLAN B] Calling Kie.ai generateVideo with params:', {
         model: videoModel,
-        prompt: prompt.substring(0, 100),
+        promptLength: prompt.length, // Логируем длину вместо обрезки
         duration: duration || 8,
         aspectRatio: kieAspectRatio || '9:16'
       })

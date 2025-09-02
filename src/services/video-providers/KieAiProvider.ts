@@ -226,11 +226,19 @@ export class KieAiProvider {
     
     const requestData: any = {
       model: kieModel,
-      prompt,
+      prompt, // Отправляем ПОЛНЫЙ промпт без обрезки
       aspectRatio: aspectRatio,
       enableFallback: false,
       enableTranslation: true,
     }
+    
+    // Логируем полный промпт для отладки
+    logger.info('[KieAiProvider] Sending full prompt to Kie.ai:', {
+      model: kieModel,
+      promptLength: prompt.length,
+      aspectRatio: aspectRatio,
+      fullPrompt: prompt // Отправляем полный промпт в логи
+    })
 
     if (imageUrl) {
       requestData.image_url = imageUrl
