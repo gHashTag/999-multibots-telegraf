@@ -213,6 +213,30 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           )
 
           if (result?.success) {
+            // Сохраняем запись о парсинге для статистики
+            try {
+              const { error: saveError } = await supabaseAdmin
+                .from('instagram_scrapings')
+                .insert({
+                  telegram_id: userId.toString(),
+                  user_id: userId.toString(),
+                  target: state.target,
+                  source_type: state.type,
+                  reels_count: count,
+                  cost: cost,
+                  status: 'pending',
+                  bot_name: ctx.botInfo?.username || 'telegram_bot',
+                  created_at: new Date().toISOString()
+                })
+              
+              if (saveError) {
+                logger.error('Failed to save scraping record', { error: saveError, userId })
+              } else {
+                logger.info('Scraping record saved for statistics', { userId, target: state.target })
+              }
+            } catch (err) {
+              logger.error('Error saving scraping record', { error: err, userId })
+            }
             await ctx.editMessageText(
               isRu
                 ? `✅ Парсинг запущен!\n\n🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Количество: ${count} рилсов\n💰 Списано: ${cost} ⭐\n\n📬 Результаты придут автоматически через 3-10 минут`
@@ -323,17 +347,89 @@ async function showStats(ctx: MyContext) {
   if (!userId) return
 
   try {
-    // Получаем статистику из БД - из правильной таблицы instagram_apify_reels
-    const { data: reels, error: reelsError } = await supabaseAdmin
+    logger.info('📊 [STATS] Fetching Instagram stats', { 
+      userId, 
+      userIdString: userId.toString(),
+      table: 'instagram_apify_reels' 
+    })
+
+    // Проверим обе таблицы для статистики
+    
+    // 1. Проверяем instagram_apify_reels (новые данные от Apify)
+    const { data: apifyReels, error: apifyError } = await supabaseAdmin
       .from('instagram_apify_reels')
+      .select('*')
+      .or(`telegram_id.eq.${userId.toString()},telegram_id.eq.${userId}`)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    
+    logger.info('📊 [STATS] instagram_apify_reels query', { 
+      userId,
+      count: apifyReels?.length || 0,
+      error: apifyError
+    })
+
+    // 2. Проверяем instagram_scrapings (старые записи о парсингах)
+    const { data: scrapings, error: scrapingsError } = await supabaseAdmin
+      .from('instagram_scrapings')
       .select('*')
       .eq('telegram_id', userId.toString())
       .order('created_at', { ascending: false })
+      .limit(100)
+    
+    logger.info('📊 [STATS] instagram_scrapings query', { 
+      userId,
+      count: scrapings?.length || 0,
+      error: scrapingsError
+    })
 
-    if (reelsError) {
-      logger.error('Error fetching Instagram stats', { error: reelsError, userId })
+    // Используем данные из обеих таблиц
+    const reels = apifyReels || []
+    const hasScrapings = scrapings && scrapings.length > 0
+
+    logger.info('📊 [STATS] Combined results', { 
+      userId,
+      apifyReelsCount: apifyReels?.length || 0,
+      scrapingsCount: scrapings?.length || 0,
+      firstApifyReel: apifyReels?.[0] || 'no data',
+      firstScraping: scrapings?.[0] || 'no data'
+    })
+
+    // Если есть данные в instagram_scrapings, используем их
+    if (hasScrapings) {
+      const total_parsings = scrapings.length
+      const total_reels = scrapings.reduce((sum, s) => sum + (s.reels_count || 0), 0)
+      const total_cost = scrapings.reduce((sum, s) => sum + (s.cost || 0), 0)
+      
+      // Последние парсинги
+      const recent = scrapings.slice(0, 3)
+      const recentText = recent
+        .map(
+          s =>
+            `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${s.reels_count} ${isRu ? 'рилсов' : 'reels'}`
+        )
+        .join('\n')
+      
+      await ctx.editMessageText(
+        isRu
+          ? `📊 Ваша статистика Instagram парсера\n\n` +
+              `📈 Всего парсингов: ${total_parsings}\n` +
+              `🎬 Всего рилсов: ${total_reels}\n` +
+              `💰 Потрачено звезд: ${total_cost} ⭐\n` +
+              (recent.length > 0 ? `\n📝 Последние парсинги:\n${recentText}` : '')
+          : `📊 Your Instagram parser statistics\n\n` +
+              `📈 Total parsings: ${total_parsings}\n` +
+              `🎬 Total reels: ${total_reels}\n` +
+              `💰 Stars spent: ${total_cost} ⭐\n` +
+              (recent.length > 0 ? `\n📝 Recent parsings:\n${recentText}` : ''),
+        Markup.inlineKeyboard([
+          [Markup.button.callback(isRu ? '⬅️ Назад' : '⬅️ Back', 'back_to_menu')],
+        ])
+      )
+      return
     }
-
+    
+    // Если данных в instagram_scrapings нет, проверяем instagram_apify_reels
     // Группируем по источникам для подсчёта парсингов
     const sourcesMap = new Map()
     reels?.forEach(reel => {
