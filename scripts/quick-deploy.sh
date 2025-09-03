@@ -42,10 +42,17 @@ check_git_status() {
         warning "Есть несохраненные изменения в Git!"
         git status --short
         echo
-        read -p "Продолжить деплой? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            error "Деплой отменен"
+        
+        log "Автоматически коммичу изменения..."
+        git add .
+        git commit -m "Auto-commit before deployment: $(date '+%Y-%m-%d %H:%M:%S')" || true
+        success "Изменения автоматически закоммичены"
+        
+        # Автоматически пушим если есть remote
+        if git remote -v | grep -q origin; then
+            log "Автоматически пушу изменения..."
+            git push origin $(git rev-parse --abbrev-ref HEAD) || true
+            success "Изменения запушены"
         fi
     else
         success "Git чистый, можно деплоить"

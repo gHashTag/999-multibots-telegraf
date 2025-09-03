@@ -18,6 +18,67 @@ NC='\033[0m'
 CONTAINER_NAME="999-multibots"
 IMAGE_NAME="999-agents-vibecoder_app"
 
+# Автоматическое обновление саб-модулей
+auto_update_submodules() {
+    log "🔄 Автоматическое обновление саб-модулей..."
+    
+    # Переходим в корневую директорию проекта
+    cd /root/999-agents-vibecoder
+    
+    # Автоматически коммитим все изменения в bot-farm если есть
+    if [ -d "services/bot-farm" ]; then
+        cd services/bot-farm
+        if [ -n "$(git status --porcelain)" ]; then
+            log "Автоматически коммичу изменения в bot-farm..."
+            git add .
+            git commit -m "Auto-commit: $(date '+%Y-%m-%d %H:%M:%S') - Automated deployment changes" || true
+            success "Изменения в bot-farm закоммичены"
+        fi
+        cd /root/999-agents-vibecoder
+    fi
+    
+    # Переключаемся на production
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$current_branch" != "production" ]; then
+        git checkout production
+    fi
+    
+    # Обновляем remote и ветку
+    git fetch origin
+    git pull origin production
+    
+    # Обновляем саб-модули
+    git submodule update --remote
+    
+    # Переходим в каждый саб-модуль и переключаемся на production/main
+    for submodule in services/ai-server services/bot-farm services/web; do
+        if [ -d "$submodule" ]; then
+            cd "$submodule"
+            # Пытаемся переключиться на production, если не получается - на main
+            git checkout production 2>/dev/null || git checkout main
+            git pull origin production 2>/dev/null || git pull origin main
+            cd /root/999-agents-vibecoder
+        fi
+    done
+    
+    # Автоматически коммитим обновления саб-модулей
+    if [ -n "$(git status --porcelain)" ]; then
+        git add services/ai-server services/bot-farm services/web
+        git commit -m "Auto-update submodules: $(date '+%Y-%m-%d %H:%M:%S')" || true
+        success "Обновления саб-модулей закоммичены"
+    fi
+    
+    # Автоматически пушим изменения
+    log "Автоматически пушу изменения..."
+    git push origin production || true
+    success "Изменения запушены в production"
+    
+    # Возвращаемся в bot-farm
+    cd services/bot-farm
+    
+    success "🔄 Автоматическое обновление завершено!"
+}
+
 log() {
     echo -e "${BLUE}[$(date '+%H:%M:%S')]${NC} $1"
 }
@@ -175,6 +236,9 @@ handle_choice() {
 
 # Основной цикл
 main() {
+    # Автоматически обновляем саб-модули при каждом запуске
+    auto_update_submodules
+    
     while true; do
         show_menu
         show_current_status
