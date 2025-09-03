@@ -6,7 +6,7 @@ console.log('🚀 RAILWAY FIX: Starting HTTP bot farm...')
 
 const isProduction = process.env.NODE_ENV === 'production'
 const port = process.env.PORT || 3000
-const testBotName = process.env.TEST_BOT_NAME || 'test_bot'
+const testBotName = process.env.TEST_BOT_NAME || 'clip_maker_neuro_bot'
 
 console.log(`🌐 Mode: ${isProduction ? 'PRODUCTION (All bots)' : `TEST (${testBotName})`}`)
 console.log(`🌐 Port: ${port}`)
