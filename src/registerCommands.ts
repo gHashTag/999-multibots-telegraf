@@ -30,7 +30,7 @@ import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
 import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
 // Импортируем админ middleware
-import { requireAdmin } from './middleware/adminOnly'
+import { requireAdmin, isAdmin } from './middleware/adminOnly'
 // Импортируем сцену handleTextMessage
 // import { handleTextMessage } from './handlers/handleTextMessage' // ❌ ИСПРАВЛЕНО: не используется как сцена
 
@@ -561,27 +561,64 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
     setupInteractiveStats(bot)
 
-    // 👑 АДМИНСКИЕ КОМАНДЫ
+    // 👑 АДМИНСКИЕ КОМАНДЫ - ЕДИНАЯ СИСТЕМА
+    
+    // Главная админская панель
+    bot.command('admin', requireAdmin(), async ctx => {
+      const { handleAdminCommand } = await import('./commands/adminCommands')
+      await handleAdminCommand(ctx)
+    })
+    
+    // Управление пользователем
+    bot.command('admin_user', requireAdmin(), async ctx => {
+      const { handleAdminUserCommand } = await import('./commands/adminCommands')
+      await handleAdminUserCommand(ctx)
+    })
+    
+    // Быстрое добавление звезд
+    bot.command('add_stars', requireAdmin(), async ctx => {
+      const { handleQuickAddStarsCommand } = await import('./commands/adminCommands')
+      await handleQuickAddStarsCommand(ctx)
+    })
+    
+    // Быстрая установка подписки
+    bot.command('set_subscription', requireAdmin(), async ctx => {
+      const { handleQuickSubscriptionCommand } = await import('./commands/adminCommands')
+      await handleQuickSubscriptionCommand(ctx)
+    })
+    
+    // Статистика системы
+    bot.command('admin_stats', requireAdmin(), async ctx => {
+      const { handleAdminStatsCommand } = await import('./commands/adminCommands')
+      await handleAdminStatsCommand(ctx)
+    })
+    
+    // Старые команды для совместимости
     bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
     bot.command('checkbalance', requireAdmin(), handleCheckBalanceCommand)
     
-    // Команда для продления подписки пользователю 7007992081
-    bot.command('extend_7007992081', async ctx => {
-      const { extendUserSubscriptionCommand } = await import('./commands/extendUserSubscription')
-      await extendUserSubscriptionCommand(ctx)
+    // Специальные команды для пользователя 7007992081 (для обратной совместимости)
+    bot.command('extend_7007992081', requireAdmin(), async ctx => {
+      const { handleQuickSubscriptionCommand } = await import('./commands/adminCommands')
+      // Эмулируем вызов команды /set_subscription
+      const fakeMessage = { ...ctx.message, text: '/set_subscription 7007992081 NEUROVIDEO 30' } as any
+      const fakeCtx = { ...ctx, message: fakeMessage }
+      await handleQuickSubscriptionCommand(fakeCtx as unknown as MyContext)
     })
     
-    // Команда для обновления подписки на NEUROVIDEO (полный доступ)
-    bot.command('upgrade_7007992081', async ctx => {
-      const { upgradeUserToNeurovideoCommand } = await import('./commands/extendUserSubscription')
-      await upgradeUserToNeurovideoCommand(ctx)
+    bot.command('upgrade_7007992081', requireAdmin(), async ctx => {
+      const { handleQuickSubscriptionCommand } = await import('./commands/adminCommands')
+      const fakeMessage = { ...ctx.message, text: '/set_subscription 7007992081 NEUROVIDEO 30' } as any
+      const fakeCtx = { ...ctx, message: fakeMessage }
+      await handleQuickSubscriptionCommand(fakeCtx as unknown as MyContext)
     })
     
-    // Универсальная команда для продления подписок
-    bot.command('extend_subscription', async ctx => {
-      const { extendSubscriptionUniversal } = await import('./commands/extendUserSubscription')
-      await extendSubscriptionUniversal(ctx)
-    })
+    // Регистрируем обработчики callback кнопок для админки
+    ;(async () => {
+      const { setupAdminCallbacks, setupAdditionalCallbacks } = await import('./commands/adminCommands')
+      setupAdminCallbacks(bot)
+      setupAdditionalCallbacks(bot)
+    })()
 
     // 🤖 АВТОФИКСЕР КОМАНДЫ
     setupAutoFixerCommands(bot)
@@ -1023,6 +1060,18 @@ If not, continue on your own and click the "I myself" button`
     })
 
     // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
+    
+    // Обработчик текстовых сообщений для админских операций
+    bot.on('text', async (ctx, next) => {
+      // Проверяем, является ли пользователь админом
+      const userId = ctx.from?.id
+      if (userId && isAdmin(userId)) {
+        const { handleAdminTextInput } = await import('./commands/adminCommands')
+        const handled = await handleAdminTextInput(ctx)
+        if (handled) return // Если сообщение обработано админской системой, не передаем дальше
+      }
+      return next()
+    })
 
     // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
     bot.action('go_main_menu', async ctx => {
