@@ -31,12 +31,12 @@ export async function adminRenewSubscription(
       reason: reason || 'Administrative renewal',
       duration_days,
       renewal_timestamp: new Date().toISOString(),
-      category: 'ADMIN_RENEWAL',
+      category: 'REAL', // Используем существующую категорию
     }
 
     const result = await directPaymentProcessor({
       telegram_id,
-      amount: 0, // Административное продление бесплатное
+      amount: 1, // Минимальная сумма для корректной записи транзакции (будет помечена как административная)
       type: 'MONEY_INCOME',
       description: `Administrative subscription renewal: ${subscription_type}`,
       bot_name,
@@ -44,6 +44,7 @@ export async function adminRenewSubscription(
       inv_id: `admin-renewal-${subscription_type}-${Date.now()}`,
       metadata,
       subscription_type,
+      bypass_payment_check: true, // Пропускаем проверку баланса для админских операций
     })
 
     if (result.success) {

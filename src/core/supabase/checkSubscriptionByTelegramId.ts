@@ -9,11 +9,12 @@ export const checkSubscriptionByTelegramId = async (
   id: string
 ): Promise<string> => {
   try {
-    // Получаем последнюю запись о платеже пользователя
+    // Получаем последнюю запись о платеже пользователя с подпиской
     const { data, error } = await supabase
       .from('payments_v2')
-      .select('id, created_at, subscription, level')
+      .select('id, created_at, subscription_type')
       .eq('telegram_id', id)
+      .not('subscription_type', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -39,8 +40,8 @@ export const checkSubscriptionByTelegramId = async (
       return 'unsubscribed'
     }
 
-    // Возвращаем уровень подписки
-    return data.level
+    // Возвращаем тип подписки
+    return data.subscription_type || 'unsubscribed'
   } catch (err) {
     console.error('Непредвиденная ошибка при проверке подписки:', err)
     return 'unsubscribed'

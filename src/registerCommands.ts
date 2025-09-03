@@ -564,6 +564,18 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // 👑 АДМИНСКИЕ КОМАНДЫ
     bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
     bot.command('checkbalance', requireAdmin(), handleCheckBalanceCommand)
+    
+    // Команда для продления подписки пользователю 7007992081
+    bot.command('extend_7007992081', async ctx => {
+      const { extendUserSubscriptionCommand } = await import('./commands/extendUserSubscription')
+      await extendUserSubscriptionCommand(ctx)
+    })
+    
+    // Универсальная команда для продления подписок
+    bot.command('extend_subscription', async ctx => {
+      const { extendSubscriptionUniversal } = await import('./commands/extendUserSubscription')
+      await extendSubscriptionUniversal(ctx)
+    })
 
     // 🤖 АВТОФИКСЕР КОМАНДЫ
     setupAutoFixerCommands(bot)
