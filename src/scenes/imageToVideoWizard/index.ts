@@ -1238,6 +1238,9 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
 }
 
 // --- Wizard Definition --- //
+// Экспортируем простую версию wizard
+export { simpleImageToVideoWizard } from './simple'
+
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo, // Scene ID
 
