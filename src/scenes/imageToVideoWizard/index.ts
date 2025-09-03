@@ -1037,6 +1037,11 @@ handleAspectRatioSelection.on('text', async ctx => {
   // Handle text-based aspect ratio selection
   if (text === '📺 Горизонтальное (16:9)' || text === '📺 Horizontal (16:9)') {
     ctx.session.selectedAspectRatio = '16:9'
+    logger.info('[I2V Wizard] Aspect ratio set to 16:9 via text button', {
+      telegramId: ctx.from?.id,
+      selectedAspectRatio: '16:9',
+      videoModel: ctx.session.videoModel,
+    })
     const textAspectRatioChosen = isRu
       ? '✅ Выбрано соотношение сторон: 📺 16:9 (горизонтальное)'
       : '✅ Selected aspect ratio: 📺 16:9 (horizontal)'
@@ -1054,6 +1059,11 @@ handleAspectRatioSelection.on('text', async ctx => {
   
   if (text === '📱 Вертикальное (9:16)' || text === '📱 Vertical (9:16)') {
     ctx.session.selectedAspectRatio = '9:16'
+    logger.info('[I2V Wizard] Aspect ratio set to 9:16 via text button', {
+      telegramId: ctx.from?.id,
+      selectedAspectRatio: '9:16',
+      videoModel: ctx.session.videoModel,
+    })
     const textAspectRatioChosen = isRu
       ? '✅ Выбрано соотношение сторон: 📱 9:16 (вертикальное)'
       : '✅ Selected aspect ratio: 📱 9:16 (vertical)'
@@ -1146,6 +1156,7 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
       isMorphing: is_morphing ?? false,
       imageAUrl,
       imageBUrl,
+      selectedAspectRatio: ctx.session.selectedAspectRatio, // Добавляем логирование aspect ratio
     })
 
     // Call generateImageToVideo - this will be modified later

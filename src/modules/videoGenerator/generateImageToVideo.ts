@@ -198,25 +198,100 @@ export const generateImageToVideo = async (
         )
       }
 
-      // Специальная обработка для Google Veo 3 моделей (поддерживают image-to-video)
+      // Специальная обработка для Google Veo 3 моделей (используем План А/Б)
       if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
-        modelInput = {
-          prompt,
-          image: imageUrl,
-          duration_seconds: modelConfig.api.input.duration_seconds || 8,
-          aspect_ratio: userAspectRatio,
-          enable_audio: modelConfig.api.input.enable_audio || true,
-        }
-        // Добавляем prompt_optimizer только если он есть в конфиге
-        if (modelConfig.api.input.prompt_optimizer) {
-          modelInput.prompt_optimizer = true
-        }
-        logger.info(`[I2V BG] ${modelConfig.title} model input prepared:`, {
+        // Используем Plan A/B систему для Veo моделей
+        logger.info(`[I2V BG] Using Plan A/B for ${modelConfig.title}`, {
           telegramId,
           modelId: modelConfig.id,
+          aspectRatio: userAspectRatio,
           hasImage: !!imageUrl,
-          fullInput: modelInput,
         })
+        
+        // Импортируем и используем новую функцию с Plan A/B
+        const { generateImageToVideo: generateI2VWithPlanAB } = await import('@/services/generateImageToVideo')
+        
+        const planABResponse = await generateI2VWithPlanAB({
+          imageUrl,
+          prompt,
+          videoModel: modelConfig.id,
+          aspectRatio: userAspectRatio, // Используем правильное название параметра
+          duration: modelConfig.api.input.duration_seconds || 8,
+          telegram_id: telegramId,
+          username,
+          is_ru: isRu,
+          bot_name: botName,
+        })
+        
+        if (!planABResponse.success) {
+          throw new Error(planABResponse.error || 'Plan A/B failed for Veo model')
+        }
+        
+        // Если получили videoUrl сразу
+        if (planABResponse.videoUrl) {
+          const videoUrl = planABResponse.videoUrl
+          const videoBuffer = await downloadFileHelper(videoUrl)
+          logger.info('[I2V BG] Video downloaded from Plan A/B', { telegramId, url: videoUrl })
+          
+          const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+          await mkdir(dirPath, { recursive: true })
+          const timestamp = Date.now()
+          const uniqueFilename = `${timestamp}_video.mp4`
+          localVideoPath = path.join(dirPath, uniqueFilename)
+          const u8 = new Uint8Array(videoBuffer)
+          await writeFile(localVideoPath, u8)
+          logger.info('[I2V BG] Video saved locally from Plan A/B', {
+            telegramId,
+            path: localVideoPath,
+          })
+          
+          await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+          logger.info('[I2V BG] Video info saved to DB', { telegramId })
+          
+          const caption = isRu
+            ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+            : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+          
+          await telegramInstance.sendVideo(
+            chatId,
+            { source: localVideoPath },
+            { caption }
+          )
+          
+          // Добавляем финальные кнопки
+          logger.info('[I2V BG] Sending final buttons to user', { telegramId })
+          
+          const keyboard = Markup.keyboard([
+            [
+              isRu
+                ? '✨ Создать еще (Изображение в Видео)'
+                : '✨ Create More (Image to Video)',
+            ],
+            [
+              isRu
+                ? '🖼 Выбрать другую модель (Видео)'
+                : '🖼 Select Another Model (Video)',
+            ],
+            [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+          ]).resize()
+          
+          await telegramInstance.sendMessage(
+            chatId,
+            isRu
+              ? 'Ваше видео готово! Что дальше?'
+              : 'Your video is ready! What next?',
+            keyboard
+          )
+          return // Выходим из функции, так как видео уже отправлено
+        }
+        
+        // Если получили jobId, нужно дождаться завершения
+        if (planABResponse.jobId) {
+          // TODO: Implement polling logic for jobId
+          throw new Error('Job polling not implemented yet for Plan A/B')
+        }
+        
+        throw new Error('No video URL or job ID received from Plan A/B')
       }
       // Специальная обработка для Seedance-1-Pro моделей
       else if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
