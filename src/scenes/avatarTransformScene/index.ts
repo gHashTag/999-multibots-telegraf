@@ -832,7 +832,25 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         selectedHero,
         gender,
         promptLength: prompt.length,
+        contextExists: !!ctx,
+        contextTelegramExists: !!ctx?.telegram,
       })
+
+      // Проверяем наличие контекста перед вызовом
+      if (!ctx || !ctx.telegram) {
+        logger.error('[AvatarTransformScene] Context is missing before generateFluxKontext', {
+          telegramId,
+          ctxExists: !!ctx,
+          ctxTelegramExists: !!ctx?.telegram,
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка контекста. Попробуйте еще раз через /start'
+            : '❌ Context error. Please try again via /start'
+        )
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
+      }
 
       await generateFluxKontext({
         prompt,
