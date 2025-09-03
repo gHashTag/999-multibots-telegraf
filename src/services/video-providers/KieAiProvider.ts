@@ -119,11 +119,11 @@ export class KieAiProvider {
 
       const processingTime = Date.now() - startTime
 
-      logger.info(`🎬 Kie.ai API request successful`, {
+      logger.info(`🎬 Veo 3 API request successful`, {
         endpoint,
         processingTime,
         model: data.model,
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
       })
 
       return { ...response.data, processingTime }
@@ -134,7 +134,7 @@ export class KieAiProvider {
       ) {
         const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff
         logger.warn(
-          `🔄 Retrying Kie.ai request in ${delay}ms (attempt ${
+          `🔄 Retrying Veo 3 API request in ${delay}ms (attempt ${
             retryCount + 1
           }/${this.maxRetries})`
         )
@@ -161,11 +161,11 @@ export class KieAiProvider {
     const errorCode = error.response?.status
     const errorMessage = error.response?.data || error.message
 
-    logger.error(`❌ Kie.ai API error`, {
+    logger.error(`❌ Veo 3 API error`, {
       endpoint,
       errorCode,
       errorMessage,
-      provider: 'Kie.ai',
+      provider: 'Veo 3 API',
     })
   }
 
@@ -190,7 +190,7 @@ export class KieAiProvider {
 
       return { credits: apiResponse.data }
     } catch (error) {
-      logger.error('Failed to get Kie.ai account balance', { error })
+      logger.error('Failed to get Veo 3 API account balance', { error })
       throw error
     }
   }
@@ -200,7 +200,7 @@ export class KieAiProvider {
       return {
         success: false,
         cost: { usd: 0, stars: 0 },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model: request.model,
         error: 'KIE_AI_API_KEY is required for video generation',
       }
@@ -226,11 +226,19 @@ export class KieAiProvider {
     
     const requestData: any = {
       model: kieModel,
-      prompt,
+      prompt, // Отправляем ПОЛНЫЙ промпт без обрезки
       aspectRatio: aspectRatio,
       enableFallback: false,
       enableTranslation: true,
     }
+    
+    // Логируем полный промпт для отладки
+    logger.info('[KieAiProvider] Sending full prompt to Veo 3 API:', {
+      model: kieModel,
+      promptLength: prompt.length,
+      aspectRatio: aspectRatio,
+      fullPrompt: prompt // Отправляем полный промпт в логи
+    })
 
     if (imageUrl) {
       requestData.image_url = imageUrl
@@ -274,7 +282,7 @@ export class KieAiProvider {
           usd: costUSD,
           stars: costStars,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         processingTime: response.processingTime,
       }
@@ -285,7 +293,7 @@ export class KieAiProvider {
           usd: 0,
           stars: 0,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         error: error instanceof Error ? error.message : 'Unknown error',
       }
@@ -339,7 +347,7 @@ export class KieAiProvider {
           usd: costUSD,
           stars: costStars,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         processingTime: response.processingTime,
       }
@@ -350,7 +358,7 @@ export class KieAiProvider {
           usd: 0,
           stars: 0,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         error: error instanceof Error ? error.message : 'Unknown error',
       }
@@ -389,7 +397,7 @@ export class KieAiProvider {
             taskId: taskId,
           },
           cost: { usd: 0, stars: 0 },
-          provider: 'Kie.ai',
+          provider: 'Veo 3 API',
           model: 'veo-3',
         }
       } else if (data.successFlag === 0) {
@@ -402,7 +410,7 @@ export class KieAiProvider {
             taskId: taskId,
           },
           cost: { usd: 0, stars: 0 },
-          provider: 'Kie.ai',
+          provider: 'Veo 3 API',
           model: 'veo-3',
         }
       } else {
@@ -412,7 +420,7 @@ export class KieAiProvider {
       return {
         success: false,
         cost: { usd: 0, stars: 0 },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model: 'veo-3',
         error: error instanceof Error ? error.message : 'Unknown error',
       }
@@ -463,7 +471,7 @@ export class KieAiProvider {
           usd: costUSD,
           stars: costStars,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         processingTime: response.processingTime,
       }
@@ -474,7 +482,7 @@ export class KieAiProvider {
           usd: 0,
           stars: 0,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         error: error instanceof Error ? error.message : 'Unknown error',
       }

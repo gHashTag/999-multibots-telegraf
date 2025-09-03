@@ -326,8 +326,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      const prompt = message.text.trim()
+      let prompt = message.text.trim()
       console.log('🎬 [WIZARD] Step 3: Received prompt:', prompt)
+      // ОТПРАВЛЯЕМ КАК ЕСТЬ - модель Veo поддерживает JSON формат!
 
       // Назад в меню
       if (prompt.includes('Назад') || prompt.includes('Back')) {
@@ -341,10 +342,11 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      if (prompt.length > TEXT_TO_VIDEO_CONSTANTS.MAX_PROMPT_LENGTH) {
-        await ctx.reply(isRu ? 'Описание слишком длинное.' : 'Description is too long.')
-        return
-      }
+      // Убрано ограничение на длину промпта - отправляем полностью в Kie.ai
+      // if (prompt.length > TEXT_TO_VIDEO_CONSTANTS.MAX_PROMPT_LENGTH) {
+      //   await ctx.reply(isRu ? 'Описание слишком длинное.' : 'Description is too long.')
+      //   return
+      // }
 
       // Получаем параметры из сессии
       const selectedModel = ctx.session.selectedVideoModel
@@ -363,11 +365,11 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         selectedModel, aspectRatio, cost, duration
       })
 
-      // Генерируем видео
+      // Генерируем видео - показываем ПОЛНЫЙ промпт пользователю
       await ctx.reply(
         isRu
-          ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
-          : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt.substring(0, 100)}`
+          ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
+          : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
       )
 
       const videoModelId = selectedModel as VideoModelId

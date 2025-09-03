@@ -70,12 +70,8 @@ RUN touch .env
 # Создаём директорию для скриптов
 RUN mkdir -p /app/scripts
 
-# Копируем скрипт установки вебхуков
-COPY scripts/setup-webhooks-correct.js /app/scripts/
-RUN chmod +x /app/scripts/setup-webhooks-correct.js
-
-# Копируем entrypoint скрипт
-COPY docker-entrypoint.sh /app/
+# Копируем entrypoint скрипт (ВАЖНО!)
+COPY scripts/docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Экспортируем порт для API и боты

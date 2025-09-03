@@ -24,69 +24,9 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const zipPath = await createImagesZip(ctx.session.images)
     console.log('ZIP created at:', zipPath)
 
-    // Формируем URL для ZIP-файла, используя API_URL из конфигурации или локальный Nginx URL
-    const zipFileName = zipPath.split('/').pop() || `training_${Date.now()}.zip`
-    const filesBaseUrl = `${API_URL}/files/`
-
-    const zipUrl = `${filesBaseUrl}${zipFileName}`
-    console.log('Generated ZIP URL for training:', zipUrl)
-
-    // Определяем целевую директорию на сервере, которая соответствует /etc/nginx/html/files/
-    // Предполагаем, что в контейнере Docker эта директория доступна
-    const serverFilesDir = '/etc/nginx/html/files/'
-    const targetFilePath = path.join(serverFilesDir, zipFileName)
-    console.log('Target server file path for ZIP:', targetFilePath)
-
-    // Проверяем, существует ли директория, и создаем её, если нет
-    try {
-      if (!fs.existsSync(serverFilesDir)) {
-        console.log('Creating server files directory:', serverFilesDir)
-        fs.mkdirSync(serverFilesDir, { recursive: true })
-      }
-      // Проверяем права доступа к директории
-      fs.access(serverFilesDir, fs.constants.W_OK, err => {
-        if (err) {
-          console.error(
-            'No write access to directory:',
-            serverFilesDir,
-            'Error:',
-            err
-          )
-        } else {
-          console.log('Write access confirmed for directory:', serverFilesDir)
-        }
-      })
-    } catch (error) {
-      console.error('Error creating server files directory:', error)
-      throw new Error(`Failed to create server directory: ${error.message}`)
-    }
-
-    // Копируем ZIP-файл в целевую директорию на сервере
-    try {
-      console.log('Copying ZIP file to server directory...')
-      fs.copyFileSync(zipPath, targetFilePath)
-      console.log('ZIP file copied to server directory:', targetFilePath)
-
-      // Дополнительное логирование прав файла
-      try {
-        const stats = fs.statSync(targetFilePath)
-        console.log('File stats after copy:', JSON.stringify(stats, null, 2))
-        console.log(
-          `File permissions after copy (octal): ${stats.mode.toString(8)}`
-        )
-      } catch (statError) {
-        console.error('Error getting file stats after copy:', statError)
-      }
-    } catch (error) {
-      console.error('Error copying ZIP file to server directory:', error)
-      throw new Error(`Failed to copy ZIP file to server: ${error.message}`)
-    }
-
-    // Проверяем, существует ли файл в целевой директории
-    if (!fs.existsSync(targetFilePath)) {
-      console.error('ZIP file not found in server directory:', targetFilePath)
-      throw new Error('ZIP file was not copied to server directory')
-    }
+    // ✅ Файл будет отправлен напрямую через FormData в ai-server
+    // AI-server multer сохранит его в правильную структуру /uploads/{telegram_id}/{type}/
+    console.log('ZIP file ready for upload to ai-server:', zipPath)
 
     await ensureSupabaseAuth()
 
@@ -126,7 +66,6 @@ uploadTrainFluxModelScene.enter(async ctx => {
     await createModelTraining(
       {
         filePath: zipPath,
-        zipUrl: zipUrl,
         triggerWord,
         modelName: ctx.session.modelName,
         steps: ctx.session.steps,
@@ -139,7 +78,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
     )
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)
-    //await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu, error)
   } finally {
     await ctx.scene.leave()
   }
