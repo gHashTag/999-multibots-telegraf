@@ -31,100 +31,128 @@ const MORPHING_MODEL_KEY = 'kling-v1.6-pro' // Constant for the morphing model
 
 // OLD askModelStep removed - now using simple function in wizard definition
 
-// Step 1: Handle Model Selection (Standard Flow)
+// Step 1: Handle Model and Aspect Ratio Selection
 const handleModelSelection = new Composer<MyContext>()
 handleModelSelection.on('text', async ctx => {
-  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
   const selectedButtonText = ctx.message?.text
 
-  logger.info('[I2V Wizard] handleModelSelection triggered', {
+  logger.info('[I2V Wizard] handleModelSelection with aspect ratio', {
     telegramId: ctx.from?.id,
     selectedButtonText,
     wizardStep: (ctx.wizard.state as any)?.step || 'unknown',
   })
 
-  // 🛡️ Проверяем, что мы действительно в режиме выбора модели I2V
-  // Игнорируем сообщения, которые выглядят как команды из других контекстов
-  const ignoredPatterns = [
-    /^🆕/, // Новый промпт
-    /^📐/, // Изменить размер
-    /^⬆️/, // Увеличить качество/Улучшить промпт
-    /^🏠/, // Главное меню
-    /^💎/, // Пополнить баланс
-    /^🤑/, // Баланс
-  ]
-
-  if (
-    selectedButtonText &&
-    ignoredPatterns.some(pattern => pattern.test(selectedButtonText))
-  ) {
-    logger.warn('[I2V Wizard] Ignoring non-model button text', {
-      telegramId: ctx.from?.id,
-      ignoredText: selectedButtonText,
-    })
-    // Не обрабатываем это сообщение в контексте I2V Wizard
+  if (!selectedButtonText) {
+    const text = isRu
+      ? '👇 Пожалуйста, выберите формат и модель из кнопок ниже.'
+      : '👇 Please select format and model from the buttons below.'
+    await ctx.reply(text)
     return
   }
 
-  if (!selectedButtonText) {
-    // HARDCODED TEXT
-    const text = isRu
-      ? '👇 Пожалуйста, выберите модель, нажав одну из кнопок внизу.'
-      : '👇 Please select a model by pressing one of the buttons below.'
-    await ctx.reply(text)
-    return // Stay on this step
-  }
-
-  // Handle Help/Cancel first
-  const isCancel = await handleHelpCancel(ctx)
-  if (isCancel) {
+  // Handle Back button
+  if (selectedButtonText.includes('Назад') || selectedButtonText.includes('Back')) {
+    await ctx.reply(isRu ? '↩️ Отменено' : '↩️ Cancelled', Markup.removeKeyboard())
     return ctx.scene.leave()
   }
 
-  // Find model key by button text
-  let foundModelKey: VideoModelKey | null = null
-  for (const [key, config] of Object.entries(VIDEO_MODELS_CONFIG)) {
-    const finalPriceInStars = calculateFinalPrice(key)
-    const expectedButtonText = `${config.title} (${finalPriceInStars} ⭐)`
-    if (expectedButtonText === selectedButtonText) {
-      foundModelKey = key as VideoModelKey
-      break
-    }
+  // Parse the selection - format includes aspect ratio and model
+  let selectedModel = 'veo-3-fast'
+  let aspectRatio = '9:16'
+  let cost = 40
+
+  if (selectedButtonText.includes('9:16')) {
+    aspectRatio = '9:16'
+  } else if (selectedButtonText.includes('16:9')) {
+    aspectRatio = '16:9'
   }
 
-  if (!foundModelKey) {
-    logger.warn('[I2V Wizard] Could not map button text to model key:', {
-      telegramId: ctx.from?.id,
-      selectedButtonText,
-      availableModels: Object.keys(VIDEO_MODELS_CONFIG),
-    })
-
-    // Let's also log what the expected button texts are
-    const expectedTexts = Object.entries(VIDEO_MODELS_CONFIG).map(
-      ([key, config]) => {
-        const finalPriceInStars = calculateFinalPrice(key)
-        return `${config.title} (${finalPriceInStars} ⭐)`
-      }
-    )
-    logger.warn('[I2V Wizard] Expected button texts:', { expectedTexts })
-
-    // HARDCODED TEXT
-    const text = isRu
-      ? '👇 Пожалуйста, выберите модель из предложенных кнопок ВНИЗУ.'
-      : '👇 Please select a model using the provided buttons BELOW.'
-    await ctx.reply(text)
-    return // Stay on this step
+  if (selectedButtonText.includes('Veo 3 Fast')) {
+    selectedModel = 'veo-3-fast'
+    cost = 40
+  } else if (selectedButtonText.includes('Veo 3') && !selectedButtonText.includes('Fast')) {
+    selectedModel = 'veo-3'
+    cost = 80
   }
 
-  logger.info('[I2V Wizard] Model found successfully:', {
+  logger.info('[I2V Wizard] Model and aspect ratio selected', {
     telegramId: ctx.from?.id,
-    selectedButtonText,
-    foundModelKey,
+    selectedModel,
+    aspectRatio,
+    cost,
   })
 
+  // Check balance first
+  if (!ctx.from) {
+    logger.error('imageToVideoWizard: Could not identify user')
+    await sendGenericErrorMessage(ctx, isRu)
+    return ctx.scene.leave()
+  }
+
+  const telegram_id = ctx.from.id.toString()
+  const userDetails: UserDetailsResult = await getUserDetailsSubscription(telegram_id)
+  const currentBalance = userDetails?.stars || 0
+
+  if (!(currentBalance >= cost)) {
+    logger.info(
+      `Insufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs: ${cost}`
+    )
+    const text = isRu
+      ? `😕 Недостаточно звезд (${cost} ★). Баланс: ${Math.floor(currentBalance)} ★.`
+      : `😕 Insufficient stars (${cost} ★). Balance: ${Math.floor(currentBalance)} ★.`
+    await ctx.reply(text)
+    return ctx.scene.leave()
+  }
+
+  // Save selected parameters to session
+  ctx.session.videoModel = selectedModel
+  ctx.session.paymentAmount = cost
+  ctx.session.selectedAspectRatio = aspectRatio
+  ctx.session.is_morphing = false
+
+  const aspectText = aspectRatio === '9:16' 
+    ? (isRu ? 'Вертикальное' : 'Vertical')
+    : (isRu ? 'Горизонтальное' : 'Horizontal')
+  
+  const modelTitle = selectedModel === 'veo-3-fast' ? 'Veo 3 Fast' : 'Veo 3'
+
+  logger.info('[I2V Wizard] Selection saved to session:', {
+    telegramId: ctx.from?.id,
+    selectedModel,
+    aspectRatio,
+    cost,
+  })
+
+  // Show confirmation and ask for image
+  const textModelChosen = isRu
+    ? `✅ Выбрано:\n📹 Модель: ${modelTitle}\n📐 Формат: ${aspectText} (${aspectRatio})\n💰 Стоимость: ${cost} ⭐`
+    : `✅ Selected:\n📹 Model: ${modelTitle}\n📐 Format: ${aspectText} (${aspectRatio})\n💰 Cost: ${cost} ⭐`
+  await ctx.reply(textModelChosen, Markup.removeKeyboard())
+
+  // Request image
+  const textRequestImage = isRu
+    ? '🖼️ Теперь отправьте изображение для генерации видео:'
+    : '🖼️ Now send an image for video generation:'
+  await ctx.reply(textRequestImage)
+
+  // Jump to image handling step
+  return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
+})
+
+// Fallback for non-text messages
+handleModelSelection.use(async ctx => {
+  const isRu = isRussianFromState(ctx)
+  const text = isRu
+    ? '👇 Пожалуйста, выберите формат и модель кнопкой.'
+    : '👇 Please select format and model using a button.'
+  await ctx.reply(text)
+})
+
+// Remove old Kling-specific logic since we focus on Veo models
+/* REMOVED: Old Kling-specific logic
   // --- Check if Kling model is selected --- Restore this logic
-  if (foundModelKey.startsWith('kling-')) {
+  if (foundModelKey && foundModelKey.startsWith('kling-')) {
     logger.info('[I2V Wizard] Kling model selected', {
       telegramId: ctx.from?.id,
       model: foundModelKey,
@@ -333,6 +361,7 @@ handleModelSelection.use(async ctx => {
     : '👇 Please select a model using a button.'
   await ctx.reply(text)
 })
+*/
 
 // Step 2: Handle Kling Mode Selection (Callback Query)
 const handleKlingModeSelection = new Composer<MyContext>()
@@ -1238,31 +1267,24 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
 }
 
 // --- Wizard Definition --- //
-// Экспортируем простую версию wizard
-export { simpleImageToVideoWizard } from './simple'
-
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo, // Scene ID
 
-  // Шаг 0: Вход и выбор модели - ПРОСТАЯ ФУНКЦИЯ КАК В TEXTTOVIDOEOWIZARD
+  // Шаг 0: Вход с выбором соотношения сторон сразу
   async ctx => {
-    console.log('🎬 [DEBUG] askModelStep (simple function) CALLED!')
+    console.log('🎬 [I2V] Step 0: Entry with aspect ratio selection')
 
     try {
       const isRu = isRussianFromState(ctx)
-      console.log(
-        '🎬 [DEBUG] Language determined:',
-        isRu ? 'Russian' : 'English'
-      )
-
-      logger.info('[I2V Wizard] Step 0 entered', {
+      
+      logger.info('[I2V Wizard] Step 0 entered with aspect ratio', {
         telegramId: ctx.from?.id,
         currentAction: ctx.session.current_action,
       })
 
       // Check morphing mode
       if (ctx.session.current_action === 'morphing') {
-        console.log('🎬 [DEBUG] Morphing mode detected')
+        console.log('🎬 [I2V] Morphing mode detected')
         ctx.session.videoModel = MORPHING_MODEL_KEY
         ctx.session.is_morphing = true
         const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
@@ -1274,26 +1296,28 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(morphingInfoText)
         return ctx.wizard.selectStep(4)
       } else {
-        console.log('🎬 [DEBUG] Standard flow: creating keyboard...')
-        // Standard flow: show model selection
-        const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-        console.log('🎬 [DEBUG] Keyboard created successfully')
+        console.log('🎬 [I2V] Standard flow with aspect ratio selection')
+        
+        // Сначала показываем выбор соотношения сторон с моделями Veo
+        const aspectKeyboard = Markup.keyboard([
+          ['📱 Вертикальное 9:16 | Veo 3 Fast (40⭐)'],
+          ['🖥️ Горизонтальное 16:9 | Veo 3 Fast (40⭐)'],
+          ['📱 Вертикальное 9:16 | Veo 3 (80⭐)'],
+          ['🖥️ Горизонтальное 16:9 | Veo 3 (80⭐)'],
+          [isRu ? '⬅️ Назад в меню' : '⬅️ Back to menu']
+        ]).resize()
 
         const text = isRu
-          ? '🤔 Выберите модель для генерации видео:'
-          : '🤔 Choose a model for video generation:'
+          ? '🎬 Выберите формат и модель для генерации видео из изображения:'
+          : '🎬 Choose format and model for image to video generation:'
 
-        console.log('🎬 [DEBUG] About to send reply with keyboard...')
-        await ctx.reply(text, {
-          reply_markup: keyboardMarkup.reply_markup,
-        })
-        console.log('🎬 [DEBUG] Reply sent successfully!')
-
-        console.log('🎬 [DEBUG] Step 0 - Moving to next step')
+        await ctx.reply(text, aspectKeyboard)
+        
+        console.log('🎬 [I2V] Aspect ratio menu sent, moving to next step')
         return ctx.wizard.next()
       }
     } catch (error) {
-      console.error('🎬 [ERROR] Error in askModelStep:', error)
+      console.error('🎬 [ERROR] Error in Step 0:', error)
       logger.error('[I2V Wizard] Error in Step 0', {
         error,
         telegramId: ctx.from?.id,
