@@ -46,6 +46,7 @@ import {
   sizeWizard,
   textToImageWizard,
   imageToVideoWizard,
+  simpleImageToVideoWizard,
   cancelPredictionsWizard,
   trainFluxModelWizard,
   uploadTrainFluxModelScene,
@@ -120,6 +121,7 @@ export const stage = new Scenes.Stage<MyContext>([
   textToImageWizard,
   textToVideoWizard,
   imageToVideoWizard,
+  simpleImageToVideoWizard,
   imageToPromptWizard,
   imageUpscalerWizard,
   improvePromptWizard,
@@ -989,7 +991,8 @@ If not, continue on your own and click the "I myself" button`
 
         await ctx.scene.leave()
         ctx.session.mode = ModeEnum.ImageToVideo
-        await ctx.scene.enter(ModeEnum.ImageToVideo)
+        // Используем простой wizard для Image to Video
+        await ctx.scene.enter('simple_image_to_video')
       } catch (error) {
         logger.error('Error in image_to_video_selection hears:', {
           error,
@@ -1431,7 +1434,8 @@ If not, continue on your own and click the "I myself" button`
 
         await ctx.scene.leave()
         ctx.session.mode = ModeEnum.ImageToVideo
-        await ctx.scene.enter(ModeEnum.ImageToVideo)
+        // Используем простой wizard для Image to Video
+        await ctx.scene.enter('simple_image_to_video')
 
         await ctx.reply(
           isRu
