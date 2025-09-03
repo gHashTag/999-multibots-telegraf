@@ -571,6 +571,12 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       await extendUserSubscriptionCommand(ctx)
     })
     
+    // Команда для обновления подписки на NEUROVIDEO (полный доступ)
+    bot.command('upgrade_7007992081', async ctx => {
+      const { upgradeUserToNeurovideoCommand } = await import('./commands/extendUserSubscription')
+      await upgradeUserToNeurovideoCommand(ctx)
+    })
+    
     // Универсальная команда для продления подписок
     bot.command('extend_subscription', async ctx => {
       const { extendSubscriptionUniversal } = await import('./commands/extendUserSubscription')

@@ -7,6 +7,182 @@ import { logger } from '@/utils/logger'
 import { isRussian } from '@/helpers'
 
 /**
+ * Команда для обновления подписки пользователю на NEUROVIDEO (полный доступ)
+ * Доступна только администраторам
+ */
+export async function upgradeUserToNeurovideoCommand(ctx: MyContext) {
+  const isRu = isRussian(ctx)
+  const adminId = ctx.from?.id
+  
+  // Проверяем, что команду вызывает администратор
+  const adminIds = process.env.ADMIN_IDS
+    ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim(), 10))
+    : []
+  
+  if (!adminId || !adminIds.includes(adminId)) {
+    await ctx.reply(
+      isRu 
+        ? '❌ У вас нет прав для выполнения этой команды'
+        : '❌ You do not have permission to execute this command'
+    )
+    return
+  }
+
+  // Целевой пользователь для обновления подписки
+  const targetUserId = '7007992081'
+  
+  try {
+    logger.info('🎬 [UpgradeToNeurovideo] Starting subscription upgrade to NEUROVIDEO', {
+      targetUserId,
+      adminId,
+      botName: ctx.botInfo?.username
+    })
+
+    // Проверяем, существует ли пользователь
+    const user = await getUserByTelegramId(targetUserId)
+    if (!user) {
+      await ctx.reply(
+        isRu
+          ? `❌ Пользователь с ID ${targetUserId} не найден в системе`
+          : `❌ User with ID ${targetUserId} not found in the system`
+      )
+      return
+    }
+
+    // Обновляем подписку на NEUROVIDEO (полный доступ)
+    const result = await adminRenewSubscription({
+      telegram_id: targetUserId,
+      subscription_type: SubscriptionType.NEUROVIDEO,
+      duration_days: 30,
+      bot_name: ctx.botInfo?.username || 'unknown_bot',
+      reason: 'Обновление на NEUROVIDEO для полного доступа ко всем функциям'
+    })
+
+    if (result.success) {
+      logger.info('✅ [UpgradeToNeurovideo] Subscription upgraded successfully', {
+        targetUserId,
+        subscriptionType: SubscriptionType.NEUROVIDEO,
+        durationDays: 30
+      })
+
+      // Отправляем уведомление администратору
+      await ctx.reply(
+        isRu
+          ? `✅ Подписка пользователя ${targetUserId} обновлена на NEUROVIDEO!
+
+📊 Детали:
+• ID пользователя: ${targetUserId}
+• Имя: ${user.first_name || 'Не указано'} ${user.last_name || ''}
+• Username: @${user.username || 'не указан'}
+• Тип подписки: NEUROVIDEO (Полный доступ)
+• Период: 30 дней
+
+🎉 Теперь доступны ВСЕ функции:
+✅ FLUX Kontext
+✅ Мозг аватара
+✅ Чат с аватаром
+✅ Голос аватара
+✅ Текст в голос
+✅ Видео генерация
+✅ И все остальные функции!`
+          : `✅ User ${targetUserId} subscription upgraded to NEUROVIDEO!
+
+📊 Details:
+• User ID: ${targetUserId}
+• Name: ${user.first_name || 'Not specified'} ${user.last_name || ''}
+• Username: @${user.username || 'not specified'}
+• Subscription type: NEUROVIDEO (Full Access)
+• Period: 30 days
+
+🎉 Now ALL features are available!`
+      )
+
+      // Отправляем уведомление пользователю
+      try {
+        await ctx.telegram.sendMessage(
+          targetUserId,
+          isRu
+            ? `🎉 Ваша подписка обновлена на NEUROVIDEO!
+
+Теперь вам доступны ВСЕ функции бота без ограничений:
+
+✅ FLUX Kontext - продвинутое редактирование изображений
+✅ Мозг аватара - создание интеллектуальных аватаров
+✅ Чат с аватаром - общение с AI-персонажами
+✅ Голос аватара - озвучивание персонажей
+✅ Текст в голос - профессиональная озвучка
+✅ Видео генерация - создание видео из текста и изображений
+✅ И многое другое!
+
+Приятного использования! 💫`
+            : `🎉 Your subscription has been upgraded to NEUROVIDEO!
+
+Now you have access to ALL bot features without restrictions:
+
+✅ FLUX Kontext - advanced image editing
+✅ Avatar Brain - create intelligent avatars
+✅ Chat with Avatar - communicate with AI characters
+✅ Avatar Voice - character voicing
+✅ Text to Speech - professional voiceover
+✅ Video Generation - create videos from text and images
+✅ And much more!
+
+Enjoy! 💫`
+        )
+        
+        await ctx.reply(
+          isRu
+            ? '✉️ Уведомление отправлено пользователю'
+            : '✉️ Notification sent to user'
+        )
+      } catch (notifyError) {
+        logger.error('❌ [UpgradeToNeurovideo] Error sending notification to user', {
+          targetUserId,
+          error: notifyError instanceof Error ? notifyError.message : 'Unknown error'
+        })
+        
+        await ctx.reply(
+          isRu
+            ? '⚠️ Подписка обновлена, но не удалось отправить уведомление пользователю'
+            : '⚠️ Subscription upgraded, but failed to send notification to user'
+        )
+      }
+    } else {
+      logger.error('❌ [UpgradeToNeurovideo] Failed to upgrade subscription', {
+        targetUserId,
+        error: result.error
+      })
+
+      await ctx.reply(
+        isRu
+          ? `❌ Не удалось обновить подписку для пользователя ${targetUserId}
+
+Ошибка: ${result.error || 'Неизвестная ошибка'}`
+          : `❌ Failed to upgrade subscription for user ${targetUserId}
+
+Error: ${result.error || 'Unknown error'}`
+      )
+    }
+  } catch (error) {
+    logger.error('❌ [UpgradeToNeurovideo] Exception in upgradeUserToNeurovideoCommand', {
+      targetUserId,
+      adminId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+
+    await ctx.reply(
+      isRu
+        ? `❌ Произошла ошибка при обновлении подписки: ${
+            error instanceof Error ? error.message : 'Неизвестная ошибка'
+          }`
+        : `❌ An error occurred while upgrading subscription: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`
+    )
+  }
+}
+
+/**
  * Команда для продления подписки пользователю
  * Доступна только администраторам
  */
