@@ -1270,14 +1270,14 @@ async function startGenerateImageToVideoInBackground(ctx: MyContext) {
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo, // Scene ID
 
-  // Шаг 0: Вход с выбором соотношения сторон сразу
+  // Шаг 0: Вход и выбор модели из всех доступных
   async ctx => {
-    console.log('🎬 [I2V] Step 0: Entry with aspect ratio selection')
+    console.log('🎬 [I2V] Step 0: Model selection from all available models')
 
     try {
       const isRu = isRussianFromState(ctx)
       
-      logger.info('[I2V Wizard] Step 0 entered with aspect ratio', {
+      logger.info('[I2V Wizard] Step 0 entered', {
         telegramId: ctx.from?.id,
         currentAction: ctx.session.current_action,
       })
@@ -1296,24 +1296,20 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(morphingInfoText)
         return ctx.wizard.selectStep(4)
       } else {
-        console.log('🎬 [I2V] Standard flow with aspect ratio selection')
+        console.log('🎬 [I2V] Standard flow: showing all available models')
         
-        // Сначала показываем выбор соотношения сторон с моделями Veo
-        const aspectKeyboard = Markup.keyboard([
-          ['📱 Вертикальное 9:16 | Veo 3 Fast (40⭐)'],
-          ['🖥️ Горизонтальное 16:9 | Veo 3 Fast (40⭐)'],
-          ['📱 Вертикальное 9:16 | Veo 3 (80⭐)'],
-          ['🖥️ Горизонтальное 16:9 | Veo 3 (80⭐)'],
-          [isRu ? '⬅️ Назад в меню' : '⬅️ Back to menu']
-        ]).resize()
+        // Показываем все доступные модели для Image to Video
+        const keyboardMarkup = videoModelKeyboard(isRu, 'image')
 
         const text = isRu
-          ? '🎬 Выберите формат и модель для генерации видео из изображения:'
-          : '🎬 Choose format and model for image to video generation:'
+          ? '🤔 Выберите модель для генерации видео из изображения:'
+          : '🤔 Choose a model for image to video generation:'
 
-        await ctx.reply(text, aspectKeyboard)
+        await ctx.reply(text, {
+          reply_markup: keyboardMarkup.reply_markup,
+        })
         
-        console.log('🎬 [I2V] Aspect ratio menu sent, moving to next step')
+        console.log('🎬 [I2V] Model selection menu sent, moving to next step')
         return ctx.wizard.next()
       }
     } catch (error) {
