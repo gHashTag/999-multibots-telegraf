@@ -8,6 +8,7 @@ import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.conf
 import {
   TEXT_TO_VIDEO_CONSTANTS,
 } from '@/interfaces/zod/textToVideo.zod'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
 
@@ -223,8 +224,11 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         if (row.length > 0) keyboardRows.push(row)
       }
 
-      // Кнопка назад
-      keyboardRows.push([isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'])
+      // Кнопки назад и отмена
+      keyboardRows.push([
+        isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
+        isRu ? 'Отмена' : 'Cancel'
+      ])
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
       await ctx.reply(
@@ -252,6 +256,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     
     try {
       const isRu = isRussianFromState(ctx)
+      
+      // Проверяем отмену/справку
+      const isCancel = await handleHelpCancel(ctx)
+      if (isCancel) {
+        return ctx.scene.leave()
+      }
+      
       const message = ctx.message
 
       if (!message || !('text' in message)) {
@@ -316,6 +327,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     
     try {
       const isRu = isRussianFromState(ctx)
+      
+      // Проверяем отмену/справку
+      const isCancel = await handleHelpCancel(ctx)
+      if (isCancel) {
+        return ctx.scene.leave()
+      }
+      
       const message = ctx.message
 
       if (!message || !('text' in message)) {
