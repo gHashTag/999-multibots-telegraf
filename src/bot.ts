@@ -121,6 +121,10 @@ async function initializeBots() {
       .map(([, value]) => value)
       .filter(Boolean) as string[]
 
+    if (process.env.TEST_BOT_TOKEN && !potentialTokens.includes(process.env.TEST_BOT_TOKEN)) {
+      potentialTokens.unshift(process.env.TEST_BOT_TOKEN)
+    }
+
     let bot: Telegraf<MyContext> | null = null
     let foundBotInfo: Awaited<
       ReturnType<Telegraf<MyContext>['telegram']['getMe']>
