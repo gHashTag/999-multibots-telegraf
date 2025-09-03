@@ -144,16 +144,35 @@ export const generateFluxKontext = async (
     // Отправка сообщения о начале редактирования с обработкой ошибок
     try {
       console.log('🔥 [CRITICAL] Calling ctx.telegram.sendMessage...')
-
-      await ctx.telegram.sendMessage(
+      console.log('🔥 [CRITICAL] ctx object:', {
+        ctxExists: !!ctx,
+        ctxTelegramExists: !!ctx?.telegram,
+        ctxTelegramType: typeof ctx?.telegram,
         telegram_id,
-        is_ru
-          ? '✨ Редактирую изображение с помощью FLUX Kontext...'
-          : '✨ Editing image with FLUX Kontext...',
-        {
-          reply_markup: { remove_keyboard: true },
-        }
-      )
+      })
+
+      // Проверяем наличие ctx и ctx.telegram
+      if (!ctx || !ctx.telegram) {
+        console.error('🚨 [CRITICAL] Context or telegram is undefined!', {
+          ctxExists: !!ctx,
+          ctxTelegramExists: !!ctx?.telegram,
+          telegram_id,
+        })
+        // Пропускаем отправку сообщения если контекст недоступен
+        logger.warn('[generateFluxKontext] Skipping status message - context unavailable', {
+          telegram_id,
+        })
+      } else {
+        await ctx.telegram.sendMessage(
+          telegram_id,
+          is_ru
+            ? '✨ Редактирую изображение с помощью FLUX Kontext...'
+            : '✨ Editing image with FLUX Kontext...',
+          {
+            reply_markup: { remove_keyboard: true },
+          }
+        )
+      }
 
       console.log('🔥 [CRITICAL] Status message sent successfully!')
 
@@ -331,6 +350,28 @@ export const generateFluxKontext = async (
     // Отправка отредактированного изображения с обработкой ошибок
     try {
       console.log('🔥 [CRITICAL] Calling ctx.telegram.sendPhoto now...')
+      console.log('🔥 [CRITICAL] Photo send context check:', {
+        ctxExists: !!ctx,
+        ctxTelegramExists: !!ctx?.telegram,
+        telegram_id,
+        imageLocalPath,
+        fileExists: fs.existsSync(imageLocalPath),
+      })
+
+      // Проверяем наличие ctx и ctx.telegram
+      if (!ctx || !ctx.telegram) {
+        console.error('🚨 [CRITICAL] Context or telegram is undefined for photo send!', {
+          ctxExists: !!ctx,
+          ctxTelegramExists: !!ctx?.telegram,
+          telegram_id,
+        })
+        logger.error('[generateFluxKontext] Cannot send photo - context unavailable', {
+          telegram_id,
+          imageLocalPath,
+        })
+        // Не можем отправить фото без контекста
+        throw new Error('Context unavailable for sending photo')
+      }
 
       // Укорачиваем промпт для подписи (Telegram лимит: 1024 символа)
       const maxPromptLength = 600 // Оставляем больше места для рекламы бота
@@ -463,7 +504,15 @@ export const generateFluxKontext = async (
       }
     }
 
-    params.ctx.telegram.sendMessage(params.telegram_id, errorMessageToUser)
+    // Проверяем наличие контекста перед отправкой сообщения об ошибке
+    if (params.ctx && params.ctx.telegram) {
+      await params.ctx.telegram.sendMessage(params.telegram_id, errorMessageToUser)
+    } else {
+      console.error('🚨 [CRITICAL] Cannot send error message - context unavailable', {
+        telegram_id: params.telegram_id,
+        errorMessage: errorMessageToUser,
+      })
+    }
     throw error
   }
 }
@@ -572,25 +621,31 @@ export const generateAdvancedFluxKontext = async (
       (is_ru ? 'Стандартное редактирование' : 'Standard Edit')
 
     // Отправка сообщения о начале обработки
-    await ctx.telegram.sendMessage(
-      telegram_id,
-      is_ru
-        ? `✨ Обрабатываю изображение в режиме "${modeName}"...\n\n💎 Стоимость: ${cost} ⭐${
-            cost > originalCost
-              ? ` (базовая ${originalCost}⭐ + наценка ${
-                  cost - originalCost
-                }⭐)`
-              : ''
-          }`
-        : `✨ Processing image in "${modeName}" mode...\n\n💎 Cost: ${cost} ⭐${
-            cost > originalCost
-              ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)`
-              : ''
-          }`,
-      {
-        reply_markup: { remove_keyboard: true },
-      }
-    )
+    if (ctx && ctx.telegram) {
+      await ctx.telegram.sendMessage(
+        telegram_id,
+        is_ru
+          ? `✨ Обрабатываю изображение в режиме "${modeName}"...\n\n💎 Стоимость: ${cost} ⭐${
+              cost > originalCost
+                ? ` (базовая ${originalCost}⭐ + наценка ${
+                    cost - originalCost
+                  }⭐)`
+                : ''
+            }`
+          : `✨ Processing image in "${modeName}" mode...\n\n💎 Cost: ${cost} ⭐${
+              cost > originalCost
+                ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)`
+                : ''
+            }`,
+        {
+          reply_markup: { remove_keyboard: true },
+        }
+      )
+    } else {
+      logger.warn('[generateAdvancedFluxKontext] Cannot send status message - context unavailable', {
+        telegram_id,
+      })
+    }
 
     // Подготовка параметров в зависимости от режима
     const inputParams: any = {
@@ -681,6 +736,14 @@ export const generateAdvancedFluxKontext = async (
     ])
 
     // Отправка результата
+    if (!ctx || !ctx.telegram) {
+      logger.error('[generateAdvancedFluxKontext] Cannot send photo - context unavailable', {
+        telegram_id,
+        imageLocalPath,
+      })
+      throw new Error('Context unavailable for sending photo')
+    }
+
     await ctx.telegram.sendPhoto(
       telegram_id,
       {
@@ -813,13 +876,20 @@ export const generateAdvancedFluxKontext = async (
       }
     }
 
-    await params.ctx.telegram.sendMessage(
-      params.telegram_id,
-      errorMessageToUser,
-      {
-        reply_markup: replyMarkup,
-      }
-    )
+    if (params.ctx && params.ctx.telegram) {
+      await params.ctx.telegram.sendMessage(
+        params.telegram_id,
+        errorMessageToUser,
+        {
+          reply_markup: replyMarkup,
+        }
+      )
+    } else {
+      logger.error('[generateAdvancedFluxKontext] Cannot send error message - context unavailable', {
+        telegram_id: params.telegram_id,
+        errorMessage: errorMessageToUser,
+      })
+    }
 
     throw error
   }
@@ -890,15 +960,21 @@ export const upscaleFluxKontextImage = async (params: {
     }
 
     // Отправка сообщения о начале upscaling
-    await ctx.telegram.sendMessage(
-      telegram_id,
-      is_ru
-        ? `⬆️ Увеличиваю качество изображения с помощью Clarity Upscaler...\n\n🎯 Режим: Максимальное сохранение оригинала\n💎 Стоимость: ${upscaleCost} ⭐`
-        : `⬆️ Upscaling image quality with Clarity Upscaler...\n\n🎯 Mode: Maximum original preservation\n💎 Cost: ${upscaleCost} ⭐`,
-      {
-        reply_markup: { remove_keyboard: true },
-      }
-    )
+    if (ctx && ctx.telegram) {
+      await ctx.telegram.sendMessage(
+        telegram_id,
+        is_ru
+          ? `⬆️ Увеличиваю качество изображения с помощью Clarity Upscaler...\n\n🎯 Режим: Максимальное сохранение оригинала\n💎 Стоимость: ${upscaleCost} ⭐`
+          : `⬆️ Upscaling image quality with Clarity Upscaler...\n\n🎯 Mode: Maximum original preservation\n💎 Cost: ${upscaleCost} ⭐`,
+        {
+          reply_markup: { remove_keyboard: true },
+        }
+      )
+    } else {
+      logger.warn('[upscaleFluxKontextImage] Cannot send status message - context unavailable', {
+        telegram_id,
+      })
+    }
 
     logger.info(`Image upscaling started`, {
       model: 'philz1337x/clarity-upscaler',
@@ -948,6 +1024,14 @@ export const upscaleFluxKontextImage = async (params: {
     }
 
     // Отправка upscaled изображения (используем уже сохраненный локальный файл)
+    if (!ctx || !ctx.telegram) {
+      logger.error('[upscaleFluxKontextImage] Cannot send photo - context unavailable', {
+        telegram_id,
+        imageLocalPath,
+      })
+      throw new Error('Context unavailable for sending photo')
+    }
+
     await ctx.telegram.sendPhoto(
       telegram_id,
       {
@@ -1047,13 +1131,20 @@ export const upscaleFluxKontextImage = async (params: {
       }
     }
 
-    await params.ctx.telegram.sendMessage(
-      params.telegram_id,
-      errorMessageToUser,
-      {
-        reply_markup: { remove_keyboard: true },
-      }
-    )
+    if (params.ctx && params.ctx.telegram) {
+      await params.ctx.telegram.sendMessage(
+        params.telegram_id,
+        errorMessageToUser,
+        {
+          reply_markup: { remove_keyboard: true },
+        }
+      )
+    } else {
+      logger.error('[upscaleFluxKontextImage] Cannot send error message - context unavailable', {
+        telegram_id: params.telegram_id,
+        errorMessage: errorMessageToUser,
+      })
+    }
 
     throw error
   }
