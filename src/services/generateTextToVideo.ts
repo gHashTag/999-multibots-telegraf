@@ -60,7 +60,7 @@ async function notifyAdminAboutServerIssue(
       `👤 User: ${telegram_id}\n` +
       `🎬 Model: ${videoModel}\n` +
       `❌ Error: ${error}\n` +
-      `🔄 Используется прямой Kie.ai API\n\n` +
+      `🔄 Используется прямой API Veo 3\n\n` +
       `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
     
     for (const adminId of adminIds) {
@@ -109,9 +109,10 @@ export async function generateTextToVideo(
     throw new Error('Bot name is required')
   }
 
-  // Логирование начала генерации
+  // Логирование начала генерации - отправляем ПОЛНЫЙ промпт в логи
   logger.info('ASPECT RATIO CHECK - Starting text-to-video generation', {
-    prompt: prompt.substring(0, 100), // Логируем только начало промпта
+    prompt: prompt, // Логируем полный промпт без обрезки
+    promptLength: prompt.length,
     videoModel,
     duration,
     aspectRatio: aspectRatio,
@@ -152,6 +153,22 @@ export async function generateTextToVideo(
             bot_name,
           }
           
+          // ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЗАПРОСА НА СЕРВЕР
+          logger.info('[PLAN A] ТОЧНЫЙ ЗАПРОС НА СЕРВЕР:', {
+            url,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-secret-key': SECRET_API_KEY ? 'PRESENT' : 'MISSING',
+            },
+            requestBody: {
+              ...requestBody,
+              prompt: `[PROMPT LENGTH: ${prompt.length} chars]`, // Не логируем полный промпт для безопасности
+            },
+            serverBaseUrl: baseUrl,
+            fullPrompt: prompt, // Логируем полный промпт для диагностики
+          })
+          
           const response = await axios.post(url, requestBody, {
             headers: {
               'Content-Type': 'application/json',
@@ -173,6 +190,20 @@ export async function generateTextToVideo(
       } catch (serverError) {
         // Сервер недоступен, переключаемся на План Б
         const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
+        
+        // ДЕТАЛЬНАЯ ДИАГНОСТИКА ОШИБКИ СЕРВЕРА
+        if (isAxiosError(serverError)) {
+          logger.error('[PLAN A] ДЕТАЛИ ОШИБКИ СЕРВЕРА:', {
+            status: serverError.response?.status,
+            statusText: serverError.response?.statusText,
+            data: serverError.response?.data,
+            url: serverError.config?.url,
+            code: serverError.code,
+            message: serverError.message,
+            fullError: JSON.stringify(serverError.response?.data || {}, null, 2)
+          })
+        }
+        
         logger.warn('[PLAN A] Server failed, switching to PLAN B', {
           error: errorMessage,
           videoModel
@@ -182,11 +213,13 @@ export async function generateTextToVideo(
         await notifyAdminAboutServerIssue(errorMessage, telegram_id, videoModel)
       }
       
-      // ПЛАН Б: Используем прямую интеграцию с Kie.ai
-      logger.info('[PLAN B] Using direct Kie.ai API', {
+      // ПЛАН Б: Используем прямую интеграцию с API Veo 3
+      logger.info('[PLAN B] Using direct Veo 3 API', {
         videoModel,
         aspectRatio,
-        duration
+        duration,
+        telegram_id,
+        username
       })
       
       // Импортируем KieAiProvider
@@ -196,6 +229,13 @@ export async function generateTextToVideo(
       // Преобразуем aspectRatio в формат Kie.ai
       const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
       
+      logger.info('[PLAN B] Calling Veo 3 generateVideo with params:', {
+        model: videoModel,
+        promptLength: prompt.length, // Логируем длину вместо обрезки
+        duration: duration || 8,
+        aspectRatio: kieAspectRatio || '9:16'
+      })
+      
       // Генерируем видео через Kie.ai
       const kieResponse = await kieProvider.generateVideo({
         model: videoModel,
@@ -204,11 +244,12 @@ export async function generateTextToVideo(
         aspectRatio: kieAspectRatio || '9:16',
       })
       
-      logger.info('[PLAN B] Kie.ai response:', {
+      logger.info('[PLAN B] Veo 3 API response received:', {
         success: kieResponse.success,
         hasData: !!kieResponse.data,
         hasVideoUrl: !!kieResponse.data?.videoUrl,
         hasTaskId: !!kieResponse.data?.taskId,
+        taskId: kieResponse.data?.taskId,
         error: kieResponse.error
       })
       
@@ -427,11 +468,25 @@ export async function checkVideoGenerationStatus(
     // taskId от Kie.ai всегда 32 символа без дефисов
     const isKieTaskId = jobId.length === 32 && !jobId.includes('-')
     
+    logger.info('[checkVideoGenerationStatus] Checking status for:', {
+      jobId,
+      isKieTaskId,
+      jobIdLength: jobId.length
+    })
+    
     if (isKieTaskId) {
       // Используем KieAiProvider для проверки статуса
+      logger.info('[checkVideoGenerationStatus] Using Veo 3 provider to check status')
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
       const result = await kieProvider.checkVideoStatus(jobId)
+      
+      logger.info('[checkVideoGenerationStatus] Veo 3 status result:', {
+        success: result.success,
+        hasData: !!result.data,
+        hasVideoUrl: !!result.data?.videoUrl,
+        error: result.error
+      })
       
       if (result.success && result.data?.videoUrl) {
         return {
@@ -439,10 +494,10 @@ export async function checkVideoGenerationStatus(
           videoUrl: result.data.videoUrl,
         }
       } else if (result.success && !result.data?.videoUrl) {
-        // Еще генерируется
+        // Еще генерируется - возвращаем как успешный статус, но без URL
         return {
-          success: false,
-          error: is_ru
+          success: true,
+          message: is_ru
             ? 'Видео еще генерируется...'
             : 'Video is still being generated...',
         }

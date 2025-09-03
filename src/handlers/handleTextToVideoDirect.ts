@@ -272,8 +272,16 @@ async function monitorVideoGeneration(
         delete ctx.session.videoModelId
         delete ctx.session.videoDuration
         delete ctx.session.videoMessageId
-      } else if (!statusResponse.success) {
-        // Ошибка генерации
+      } else if (statusResponse.success && !statusResponse.videoUrl) {
+        // Видео еще генерируется, продолжаем ждать
+        logger.info('[monitorVideoGeneration] Video still generating, continue polling', {
+          jobId,
+          attempts,
+          message: statusResponse.message
+        })
+        // Ничего не делаем, просто продолжаем цикл проверки
+      } else if (!statusResponse.success && statusResponse.error) {
+        // Реальная ошибка генерации
         clearInterval(checkInterval)
         if (ctx && ctx.telegram && ctx.chat) {
           await ctx.telegram.editMessageText(
@@ -285,7 +293,10 @@ async function monitorVideoGeneration(
               : `❌ Generation error: ${statusResponse.error}`
           )
         }
-      } else if (attempts >= maxAttempts) {
+      }
+      
+      // Проверка таймаута после всех других проверок
+      if (attempts >= maxAttempts) {
         // Таймаут
         clearInterval(checkInterval)
         if (ctx && ctx.telegram && ctx.chat) {
@@ -298,6 +309,12 @@ async function monitorVideoGeneration(
               : '⏱️ Video generation took too long. Please try again later.'
           )
         }
+        // Очищаем сессию при таймауте
+        delete ctx.session.videoJobId
+        delete ctx.session.videoPrompt
+        delete ctx.session.videoModelId
+        delete ctx.session.videoDuration
+        delete ctx.session.videoMessageId
       }
     } catch (error) {
       clearInterval(checkInterval)
@@ -391,10 +408,9 @@ async function handleVideoReady(
       telegram_id
     })
 
-    // Отправляем видео пользователю
+    // Отправляем видео с минимальной подписью
     await ctx.replyWithVideo(Input.fromURL(uploadedUrl), {
       caption:
-        `🎬 ${prompt}\n\n` +
         `🤖 ${is_ru ? 'Модель' : 'Model'}: ${modelName}\n` +
         (duration
           ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${
@@ -404,6 +420,39 @@ async function handleVideoReady(
         `⚡ ${is_ru ? 'Сгенерировано через' : 'Generated with'} AI`,
       parse_mode: 'Markdown',
     })
+
+    // Отправляем полный промпт отдельным сообщением
+    // Проверяем, нужно ли разбить промпт на несколько сообщений (лимит Telegram 4096 символов)
+    const MAX_MESSAGE_LENGTH = 4000 // Оставляем запас для форматирования
+    const promptHeader = is_ru ? '📝 Ваш запрос:\n\n' : '📝 Your prompt:\n\n'
+    const fullPromptMessage = promptHeader + prompt
+    
+    if (fullPromptMessage.length > MAX_MESSAGE_LENGTH) {
+      // Разбиваем на несколько сообщений, если очень длинный
+      const chunks = []
+      let currentChunk = promptHeader
+      const words = prompt.split(' ')
+      
+      for (const word of words) {
+        if ((currentChunk + ' ' + word).length > MAX_MESSAGE_LENGTH) {
+          chunks.push(currentChunk)
+          currentChunk = word
+        } else {
+          currentChunk += (currentChunk === promptHeader ? '' : ' ') + word
+        }
+      }
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk)
+      }
+      
+      // Отправляем каждый чанк
+      for (const chunk of chunks) {
+        await ctx.reply(chunk)
+      }
+    } else {
+      // Отправляем одним сообщением
+      await ctx.reply(fullPromptMessage)
+    }
 
     // Списываем баланс
     const price = getModelPriceInStars(modelId, duration)
