@@ -1,1341 +1,470 @@
-import { Composer, Scenes, Markup, Telegraf } from 'telegraf'
-import {
-  generateImageToVideo,
-  type VideoModelConfig,
-} from '@/modules/videoGenerator'
-import { MyContext, MySession } from '@/interfaces'
-import {
-  createHelpCancelKeyboard,
-  sendGenericErrorMessage,
-  videoModelKeyboard,
-} from '@/menu'
-// ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
+import { Scenes, Markup } from 'telegraf'
+import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { ModeEnum } from '@/interfaces/modes'
-import { handleHelpCancel } from '@/handlers'
-import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
-import { createAspectRatioKeyboard } from '@/modules/videoGenerator/helpers/keyboard'
 import { logger } from '@/utils/logger'
-import { calculateFinalPrice } from '@/price/helpers'
+import { ModeEnum } from '@/interfaces/modes'
 
-import {
-  getUserDetailsSubscription,
-  UserDetailsResult,
-} from '@/core/supabase/getUserDetailsSubscription'
+// Simple wizard without callbacks - exactly like Text to Video
+export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
+  ModeEnum.ImageToVideo,
 
-// Определяем тип ключей конфига
-type VideoModelKey = keyof typeof VIDEO_MODELS_CONFIG
-const MORPHING_MODEL_KEY = 'kling-v1.6-pro' // Constant for the morphing model
-
-// --- Wizard Steps --- //
-
-// OLD askModelStep removed - now using simple function in wizard definition
-
-// Step 1: Handle Model and Aspect Ratio Selection
-const handleModelSelection = new Composer<MyContext>()
-handleModelSelection.on('text', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  const selectedButtonText = ctx.message?.text
-
-  logger.info('[I2V Wizard] handleModelSelection with aspect ratio', {
-    telegramId: ctx.from?.id,
-    selectedButtonText,
-    wizardStep: (ctx.wizard.state as any)?.step || 'unknown',
-  })
-
-  if (!selectedButtonText) {
-    const text = isRu
-      ? '👇 Пожалуйста, выберите формат и модель из кнопок ниже.'
-      : '👇 Please select format and model from the buttons below.'
-    await ctx.reply(text)
-    return
-  }
-
-  // Handle Back button
-  if (selectedButtonText.includes('Назад') || selectedButtonText.includes('Back')) {
-    await ctx.reply(isRu ? '↩️ Отменено' : '↩️ Cancelled', Markup.removeKeyboard())
-    return ctx.scene.leave()
-  }
-
-  // Parse the selection - format includes aspect ratio and model
-  let selectedModel = 'veo-3-fast'
-  let aspectRatio = '9:16'
-  let cost = 40
-
-  if (selectedButtonText.includes('9:16')) {
-    aspectRatio = '9:16'
-  } else if (selectedButtonText.includes('16:9')) {
-    aspectRatio = '16:9'
-  }
-
-  if (selectedButtonText.includes('Veo 3 Fast')) {
-    selectedModel = 'veo-3-fast'
-    cost = 40
-  } else if (selectedButtonText.includes('Veo 3') && !selectedButtonText.includes('Fast')) {
-    selectedModel = 'veo-3'
-    cost = 80
-  }
-
-  logger.info('[I2V Wizard] Model and aspect ratio selected', {
-    telegramId: ctx.from?.id,
-    selectedModel,
-    aspectRatio,
-    cost,
-  })
-
-  // Check balance first
-  if (!ctx.from) {
-    logger.error('imageToVideoWizard: Could not identify user')
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
-  }
-
-  const telegram_id = ctx.from.id.toString()
-  const userDetails: UserDetailsResult = await getUserDetailsSubscription(telegram_id)
-  const currentBalance = userDetails?.stars || 0
-
-  if (!(currentBalance >= cost)) {
-    logger.info(
-      `Insufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs: ${cost}`
-    )
-    const text = isRu
-      ? `😕 Недостаточно звезд (${cost} ★). Баланс: ${Math.floor(currentBalance)} ★.`
-      : `😕 Insufficient stars (${cost} ★). Balance: ${Math.floor(currentBalance)} ★.`
-    await ctx.reply(text)
-    return ctx.scene.leave()
-  }
-
-  // Save selected parameters to session
-  ctx.session.videoModel = selectedModel
-  ctx.session.paymentAmount = cost
-  ctx.session.selectedAspectRatio = aspectRatio
-  ctx.session.is_morphing = false
-
-  const aspectText = aspectRatio === '9:16' 
-    ? (isRu ? 'Вертикальное' : 'Vertical')
-    : (isRu ? 'Горизонтальное' : 'Horizontal')
-  
-  const modelTitle = selectedModel === 'veo-3-fast' ? 'Veo 3 Fast' : 'Veo 3'
-
-  logger.info('[I2V Wizard] Selection saved to session:', {
-    telegramId: ctx.from?.id,
-    selectedModel,
-    aspectRatio,
-    cost,
-  })
-
-  // Show confirmation and ask for image
-  const textModelChosen = isRu
-    ? `✅ Выбрано:\n📹 Модель: ${modelTitle}\n📐 Формат: ${aspectText} (${aspectRatio})\n💰 Стоимость: ${cost} ⭐`
-    : `✅ Selected:\n📹 Model: ${modelTitle}\n📐 Format: ${aspectText} (${aspectRatio})\n💰 Cost: ${cost} ⭐`
-  await ctx.reply(textModelChosen, Markup.removeKeyboard())
-
-  // Request image
-  const textRequestImage = isRu
-    ? '🖼️ Теперь отправьте изображение для генерации видео:'
-    : '🖼️ Now send an image for video generation:'
-  await ctx.reply(textRequestImage)
-
-  // Jump to image handling step
-  return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
-})
-
-// Fallback for non-text messages
-handleModelSelection.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  const text = isRu
-    ? '👇 Пожалуйста, выберите формат и модель кнопкой.'
-    : '👇 Please select format and model using a button.'
-  await ctx.reply(text)
-})
-
-// Remove old Kling-specific logic since we focus on Veo models
-/* REMOVED: Old Kling-specific logic
-  // --- Check if Kling model is selected --- Restore this logic
-  if (foundModelKey && foundModelKey.startsWith('kling-')) {
-    logger.info('[I2V Wizard] Kling model selected', {
+  // ШАГ 1: Выбор модели
+  async ctx => {
+    console.log('🎬 [I2V] Step 1: Model selection started')
+    logger.info('[ImageToVideoWizard] Step 1: Model selection', {
       telegramId: ctx.from?.id,
-      model: foundModelKey,
+      step: ctx.wizard.cursor,
     })
-    ctx.session.videoModel = foundModelKey // Store the selected Kling model key for now
 
-    // --- Check if Kling v2.0 is selected before showing mode buttons ---
-    const selectedModelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
-    const canMorph = selectedModelConfig?.canMorph ?? false // Default to false if config missing
+    const isRu = isRussianFromState(ctx)
 
-    // Ask for mode: Standard or Morphing - Only show Morphing if canMorph is true
-    const buttons = [
-      Markup.button.callback(
-        isRu ? '🎬 Стандарт' : '🎬 Standard',
-        'kling_standard'
-      ),
-    ]
+    // Простая клавиатура с основными моделями
+    const keyboard = Markup.keyboard([
+      ['Veo 3 Fast (40 ⭐)', 'Veo 3 (80 ⭐)'],
+      ['Kling v1.6 Pro (60 ⭐)', 'Minimax (50 ⭐)'],
+      ['Seedance Pro 480p (23 ⭐)', 'Seedance Pro 1080p (117 ⭐)'],
+      ['WAN 2.2 I2V Fast (70 ⭐)'],
+      ['⬅️ Назад в меню'],
+    ]).resize()
 
-    if (canMorph) {
-      buttons.push(
-        Markup.button.callback(
-          isRu ? '✨ Морфинг' : '✨ Morphing',
-          'kling_morphing'
-        )
+    await ctx.reply(
+      isRu
+        ? '🎥 Выберите модель для генерации видео из изображения:'
+        : '🎥 Select a model for image to video generation:',
+      keyboard
+    )
+
+    return ctx.wizard.next()
+  },
+
+  // ШАГ 2: Обработка выбора модели и выбор соотношения сторон
+  async ctx => {
+    console.log('🎬 [I2V] Step 2: Model processing and aspect ratio')
+    logger.info('[ImageToVideoWizard] Step 2: Processing model choice', {
+      telegramId: ctx.from?.id,
+      step: ctx.wizard.cursor,
+      messageText:
+        ctx.message && 'text' in ctx.message ? ctx.message.text : 'NO_TEXT',
+    })
+
+    const isRu = isRussianFromState(ctx)
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? 'Выберите модель из кнопок выше.'
+          : 'Select a model from the buttons above.'
       )
+      return
     }
 
-    const inlineKeyboard = Markup.inlineKeyboard(buttons)
-    // -----------------------------------------------------------------
+    const selectedText = ctx.message.text
 
-    // HARDCODED TEXT
-    const text = isRu
-      ? '🎬 Выберите режим для Kling модели:'
-      : '🎬 Select mode for the Kling model:'
-    // Send ONLY the inline keyboard for now to ensure it appears
-    await ctx.replyWithHTML(text, inlineKeyboard)
-    return ctx.wizard.selectStep(3) // Go to handleKlingModeSelection (step index 3)
-  } else if (foundModelKey === 'seedance-1-pro') {
-    // --- Check if Seedance model is selected ---
-    logger.info('[I2V Wizard] Seedance model selected', {
-      telegramId: ctx.from?.id,
-      model: foundModelKey,
-    })
-    ctx.session.videoModel = foundModelKey // Store the selected Seedance model key
-
-    // Ask for resolution: 480p or 1080p
-    const buttons = [
-      Markup.button.callback(
-        isRu ? '📺 480p (23 ⭐)' : '📺 480p (23 ⭐)',
-        'seedance_480p'
-      ),
-      Markup.button.callback(
-        isRu ? '🔥 1080p (117 ⭐)' : '🔥 1080p (117 ⭐)',
-        'seedance_1080p'
-      ),
-    ]
-
-    const inlineKeyboard = Markup.inlineKeyboard(buttons)
-
-    const text = isRu
-      ? '🎬 Выберите разрешение для Seedance Pro:'
-      : '🎬 Select resolution for Seedance Pro:'
-    await ctx.replyWithHTML(text, inlineKeyboard)
-    return ctx.wizard.next() // Go to handleSeedanceResolutionSelection
-  } else if (foundModelKey === 'wan-2.2-i2v-fast') {
-    // --- Check if WAN 2.2 I2V Fast model is selected ---
-    logger.info('[I2V Wizard] WAN 2.2 I2V Fast model selected', {
-      telegramId: ctx.from?.id,
-      model: foundModelKey,
-    })
-
-    // Store the selected WAN model key with explicit logging
-    ctx.session.videoModel = foundModelKey
-    logger.info('[I2V Wizard] WAN videoModel set in session', {
-      telegramId: ctx.from?.id,
-      sessionVideoModel: ctx.session.videoModel,
-      foundModelKey,
-    })
-
-    // Ask for resolution: 480p, 720p, 1080p for WAN
-    const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
-    const buttons =
-      modelConfig.resolutionOptions?.map(resolution => {
-        const price =
-          modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
-        const finalPrice = Math.floor(((price * 5) / 0.016) * 1.5) // Формула расчета звезд (50% наценка)
-        return Markup.button.callback(
-          isRu
-            ? `${resolution.toUpperCase()} (${finalPrice} ⭐)`
-            : `${resolution.toUpperCase()} (${finalPrice} ⭐)`,
-          `wan_i2v_${resolution}`
-        )
-      }) || []
-
-    const inlineKeyboard = Markup.inlineKeyboard(buttons)
-
-    const text = isRu
-      ? `🎬 Выберите разрешение для ${modelConfig.title}:`
-      : `🎬 Select resolution for ${modelConfig.title}:`
-    await ctx.replyWithHTML(text, inlineKeyboard)
-
-    logger.info(
-      '[I2V Wizard] WAN resolution selection UI shown, jumping to step 6',
-      {
-        telegramId: ctx.from?.id,
-        currentStep: (ctx.wizard.state as any)?.step || 'unknown',
-        targetStep: 6,
-      }
-    )
-
-    return ctx.wizard.selectStep(6) // Go to handleWanResolutionSelection (после Seedance handlers)
-  } else {
-    // --- Logic for NON-Kling models (Standard Flow) ---
-    logger.info('[I2V Wizard] Non-Kling model selected', {
-      telegramId: ctx.from?.id,
-      model: foundModelKey,
-    })
-    if (!ctx.from) {
-      logger.error('imageToVideoWizard: Could not identify user')
-      await sendGenericErrorMessage(ctx, isRu) // Keep generic error
+    // Обработка кнопки "Назад"
+    if (selectedText.includes('Назад') || selectedText.includes('Back')) {
+      await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
       return ctx.scene.leave()
     }
 
-    const telegram_id = ctx.from.id.toString()
-    const finalPriceInStars = calculateFinalPrice(foundModelKey)
-    const userDetails: UserDetailsResult = await getUserDetailsSubscription(
-      telegram_id
-    )
+    // Определяем выбранную модель и стоимость
+    let selectedModel = 'veo-3-fast' // по умолчанию
+    let cost = 40
+    let showAspectRatio = false // флаг для показа выбора соотношения сторон
+
+    if (selectedText.includes('Veo 3 Fast')) {
+      selectedModel = 'veo-3-fast'
+      cost = 40
+      showAspectRatio = true // Veo модели поддерживают выбор соотношения
+    } else if (selectedText.includes('Veo 3') && !selectedText.includes('Fast')) {
+      selectedModel = 'veo-3'
+      cost = 80
+      showAspectRatio = true // Veo модели поддерживают выбор соотношения
+    } else if (selectedText.includes('Kling')) {
+      selectedModel = 'kling-v1.6-pro'
+      cost = 60
+    } else if (selectedText.includes('Minimax')) {
+      selectedModel = 'minimax'
+      cost = 50
+      showAspectRatio = true // Minimax поддерживает выбор соотношения
+    } else if (selectedText.includes('Seedance') && selectedText.includes('480p')) {
+      selectedModel = 'seedance-1-pro'
+      cost = 23
+      ctx.session.selectedResolution = '480p'
+    } else if (selectedText.includes('Seedance') && selectedText.includes('1080p')) {
+      selectedModel = 'seedance-1-pro'
+      cost = 117
+      ctx.session.selectedResolution = '1080p'
+    } else if (selectedText.includes('WAN')) {
+      selectedModel = 'wan-2.2-i2v-fast'
+      cost = 70
+      ctx.session.selectedResolution = '720p' // по умолчанию для WAN
+    }
+
+    // Проверка баланса
+    const telegram_id = ctx.from?.id?.toString()
+    if (!telegram_id) {
+      await ctx.reply(
+        isRu 
+          ? '❌ Не удалось определить пользователя.'
+          : '❌ Could not identify user.'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Получаем баланс пользователя
+    const { getUserDetailsSubscription } = await import('@/core/supabase/getUserDetailsSubscription')
+    const userDetails = await getUserDetailsSubscription(telegram_id)
     const currentBalance = userDetails?.stars || 0
 
-    if (!(currentBalance >= finalPriceInStars)) {
+    if (currentBalance < cost) {
       logger.info(
-        `Insufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
+        `Insufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs: ${cost}`
       )
-      // HARDCODED TEXT
-      const text = isRu
-        ? `😕 Недостаточно звезд (${finalPriceInStars} ★). Баланс: ${Math.floor(
-            currentBalance
-          )} ★.`
-        : `😕 Insufficient stars (${finalPriceInStars} ★). Balance: ${Math.floor(
-            currentBalance
-          )} ★.`
-      await ctx.reply(text)
-
-      // Reshow model selection
-      const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-      // HARDCODED TEXT
-      const textSelectAnother = isRu
-        ? '🤔 Выберите другую модель:'
-        : '🤔 Choose another model:'
-      await ctx.reply(textSelectAnother, {
-        reply_markup: keyboardMarkup.reply_markup,
-      })
-      return ctx.wizard.selectStep(ctx.wizard.cursor - 1) // Go back to model selection
-    }
-
-    logger.info(
-      `Sufficient balance for ${telegram_id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}.`
-    )
-    ctx.session.videoModel = foundModelKey
-    ctx.session.paymentAmount = finalPriceInStars
-    ctx.session.is_morphing = false // Ensure flag is false for standard
-
-    const selectedModelTitle =
-      VIDEO_MODELS_CONFIG[foundModelKey]?.title || foundModelKey
-
-    // HARDCODED TEXT
-    const textModelChosen = isRu
-      ? `✅ Вы выбрали: ${selectedModelTitle}.`
-      : `✅ You chose: ${selectedModelTitle}.`
-    await ctx.reply(textModelChosen, Markup.removeKeyboard())
-
-    // Check if model supports aspect ratio selection (Kie.ai models)
-    const modelConfig = VIDEO_MODELS_CONFIG[foundModelKey]
-    if (
-      modelConfig.aspectRatioOptions &&
-      modelConfig.aspectRatioOptions.length > 0
-    ) {
-      // Show aspect ratio selection for Kie.ai models
-      const aspectRatioKeyboard = createAspectRatioKeyboard(foundModelKey, isRu)
-      const text = isRu
-        ? '📐 Выберите соотношение сторон видео:'
-        : '📐 Select video aspect ratio:'
-      await ctx.reply(text, aspectRatioKeyboard)
-      return ctx.wizard.selectStep(8) // Go to handleAspectRatioSelection (new step 8)
-    } else {
-      // No aspect ratio selection needed, go directly to image request
-      // HARDCODED TEXT
-      const textRequestImage = isRu
-        ? '🖼️ Теперь отправьте изображение для генерации видео'
-        : '🖼️ Now send an image for video generation'
-      await ctx.reply(textRequestImage, {
-        reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-      })
-      // Jump to handleStandardImage (step index 5)
-      return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
-    }
-  }
-})
-// Fallback for non-text messages in this step
-handleModelSelection.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  // HARDCODED TEXT
-  const text = isRu
-    ? '👇 Пожалуйста, выберите модель кнопкой.'
-    : '👇 Please select a model using a button.'
-  await ctx.reply(text)
-})
-*/
-
-// Step 2: Handle Kling Mode Selection (Callback Query)
-const handleKlingModeSelection = new Composer<MyContext>()
-handleKlingModeSelection.action('kling_standard', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  await ctx.answerCbQuery()
-  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
-
-  const modelKey = ctx.session.videoModel as VideoModelKey // Should be a Kling key
-  if (!modelKey || !modelKey.startsWith('kling-')) {
-    logger.error('[I2V Wizard] Invalid/missing Kling model key in session', {
-      modelKey,
-    })
-    await sendGenericErrorMessage(ctx, isRu) // Keep generic error
-    return ctx.scene.leave()
-  }
-
-  const finalPriceInStars = calculateFinalPrice(modelKey)
-  const userDetails: UserDetailsResult = await getUserDetailsSubscription(
-    String(ctx.from?.id)
-  )
-  const currentBalance = userDetails?.stars || 0
-
-  if (!(currentBalance >= finalPriceInStars)) {
-    logger.info(
-      `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
-    )
-    // HARDCODED TEXT
-    const textInsufficient = isRu
-      ? `😕 Недостаточно звезд (${finalPriceInStars} ★). Баланс: ${Math.floor(
-          currentBalance
-        )} ★.`
-      : `😕 Insufficient stars (${finalPriceInStars} ★). Balance: ${Math.floor(
-          currentBalance
-        )} ★.`
-    await ctx.reply(textInsufficient)
-
-    // Reshow model selection
-    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-    // HARDCODED TEXT
-    const textSelectAnother = isRu
-      ? '🤔 Выберите другую модель:'
-      : '🤔 Choose another model:'
-    await ctx.reply(textSelectAnother, {
-      reply_markup: keyboardMarkup.reply_markup,
-    })
-    return ctx.wizard.selectStep(0)
-  }
-
-  // Standard Kling flow
-  ctx.session.is_morphing = false
-  ctx.session.paymentAmount = finalPriceInStars
-
-  const selectedModelTitle = VIDEO_MODELS_CONFIG[modelKey]?.title || modelKey
-  // HARDCODED TEXT
-  const textModelChosen = isRu
-    ? `✅ Режим: Стандарт. Модель: ${selectedModelTitle}.`
-    : `✅ Mode: Standard. Model: ${selectedModelTitle}.`
-  await ctx.reply(textModelChosen)
-
-  // HARDCODED TEXT
-  const textRequestImage = isRu
-    ? '🖼️ Теперь отправьте изображение для генерации видео'
-    : '🖼️ Now send an image for video generation'
-  await ctx.reply(textRequestImage, {
-    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-  })
-  // Jump to handleStandardImage (step index 5)
-  return ctx.wizard.selectStep(5) // Explicitly set step index 5
-})
-
-handleKlingModeSelection.action('kling_morphing', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  await ctx.answerCbQuery()
-  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
-
-  const modelKey = ctx.session.videoModel as VideoModelKey // Should be a Kling key
-  if (!modelKey || !modelKey.startsWith('kling-')) {
-    logger.error(
-      '[I2V Wizard] Invalid/missing Kling model key in session for morphing',
-      { modelKey }
-    )
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
-  }
-
-  const finalPriceInStars = calculateFinalPrice(modelKey)
-  const userDetails: UserDetailsResult = await getUserDetailsSubscription(
-    String(ctx.from?.id)
-  )
-  const currentBalance = userDetails?.stars || 0
-
-  if (!(currentBalance >= finalPriceInStars)) {
-    const textInsufficient = isRu
-      ? `😕 Недостаточно звезд для морфинга (${finalPriceInStars} ★). Баланс: ${Math.floor(
-          currentBalance
-        )} ★.`
-      : `😕 Insufficient stars for morphing (${finalPriceInStars} ★). Balance: ${Math.floor(
-          currentBalance
-        )} ★.`
-    await ctx.reply(textInsufficient)
-
-    // Reshow model selection
-    const keyboardMarkup = videoModelKeyboard(isRu, 'morph')
-    const textSelectAnother = isRu
-      ? '🤔 Выберите другую модель:'
-      : '🤔 Choose another model:'
-    await ctx.reply(textSelectAnother, {
-      reply_markup: keyboardMarkup.reply_markup,
-    })
-    return ctx.wizard.selectStep(0)
-  }
-
-  // Morphing Kling flow
-  ctx.session.is_morphing = true
-  ctx.session.paymentAmount = finalPriceInStars
-
-  const selectedModelTitle = VIDEO_MODELS_CONFIG[modelKey]?.title || modelKey
-  // HARDCODED TEXT
-  const textModeChosen = isRu
-    ? `✅ Режим: Морфинг. Модель: ${selectedModelTitle}.`
-    : `✅ Mode: Morphing. Model: ${selectedModelTitle}.`
-  await ctx.reply(textModeChosen)
-
-  // HARDCODED TEXT
-  const textRequestImageA = isRu
-    ? '🖼️ Отправьте ПЕРВОЕ изображение для морфинга'
-    : '🖼️ Send the FIRST image for morphing'
-  await ctx.reply(textRequestImageA, {
-    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-  })
-  // Jump to handleMorphingImageA (step index 4)
-  return ctx.wizard.selectStep(4) // Explicitly set step index 4
-})
-
-// Error handler for unhandled callback queries
-handleKlingModeSelection.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  logger.warn(
-    '[I2V Wizard] Unexpected action in handleKlingModeSelection:',
-    ctx.callbackQuery
-  )
-  await ctx.answerCbQuery()
-  await sendGenericErrorMessage(ctx, isRu)
-  return ctx.scene.leave()
-})
-
-// Step 2.5: Handle Seedance Resolution Selection (Callback Query)
-const handleSeedanceResolutionSelection = new Composer<MyContext>()
-handleSeedanceResolutionSelection.action('seedance_480p', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  await ctx.answerCbQuery()
-  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
-
-  const modelKey = ctx.session.videoModel as VideoModelKey
-  if (!modelKey || modelKey !== 'seedance-1-pro') {
-    logger.error('[I2V Wizard] Invalid/missing Seedance model key in session', {
-      modelKey,
-    })
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
-  }
-
-  // Set resolution and calculate price
-  ctx.session.selectedResolution = '480p'
-  const finalPriceInStars = 23 // 0.03 * 5 seconds * 150 multiplier (approximately)
-
-  const userDetails: UserDetailsResult = await getUserDetailsSubscription(
-    String(ctx.from?.id)
-  )
-  const currentBalance = userDetails?.stars || 0
-
-  if (!(currentBalance >= finalPriceInStars)) {
-    logger.info(
-      `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
-    )
-    const textInsufficient = isRu
-      ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(
-          currentBalance
-        )} ⭐.`
-      : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(
-          currentBalance
-        )} ⭐.`
-    await ctx.reply(textInsufficient)
-
-    // Reshow model selection
-    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-    const textSelectAnother = isRu
-      ? '🤔 Выберите другую модель:'
-      : '🤔 Choose another model:'
-    await ctx.reply(textSelectAnother, {
-      reply_markup: keyboardMarkup.reply_markup,
-    })
-    return ctx.wizard.selectStep(0)
-  }
-
-  ctx.session.paymentAmount = finalPriceInStars
-  ctx.session.is_morphing = false
-
-  const textResolutionChosen = isRu
-    ? `✅ Выбрано: Seedance Pro 480p (${finalPriceInStars} ⭐).`
-    : `✅ Selected: Seedance Pro 480p (${finalPriceInStars} ⭐).`
-  await ctx.reply(textResolutionChosen)
-
-  const textRequestImage = isRu
-    ? '🖼️ Теперь отправьте изображение для генерации видео'
-    : '🖼️ Now send an image for video generation'
-  await ctx.reply(textRequestImage, {
-    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-  })
-  return ctx.wizard.selectStep(5) // Jump to handleStandardImage
-})
-
-handleSeedanceResolutionSelection.action('seedance_1080p', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  await ctx.answerCbQuery()
-  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
-
-  const modelKey = ctx.session.videoModel as VideoModelKey
-  if (!modelKey || modelKey !== 'seedance-1-pro') {
-    logger.error('[I2V Wizard] Invalid/missing Seedance model key in session', {
-      modelKey,
-    })
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
-  }
-
-  // Set resolution and calculate price
-  ctx.session.selectedResolution = '1080p'
-  const finalPriceInStars = 117 // 0.15 * 5 seconds * 150 multiplier (approximately)
-
-  const userDetails: UserDetailsResult = await getUserDetailsSubscription(
-    String(ctx.from?.id)
-  )
-  const currentBalance = userDetails?.stars || 0
-
-  if (!(currentBalance >= finalPriceInStars)) {
-    logger.info(
-      `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
-    )
-    const textInsufficient = isRu
-      ? `😕 Недостаточно звезд (${finalPriceInStars} ⭐). Баланс: ${Math.floor(
-          currentBalance
-        )} ⭐.`
-      : `😕 Insufficient stars (${finalPriceInStars} ⭐). Balance: ${Math.floor(
-          currentBalance
-        )} ⭐.`
-    await ctx.reply(textInsufficient)
-
-    // Reshow model selection
-    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-    const textSelectAnother = isRu
-      ? '🤔 Выберите другую модель:'
-      : '🤔 Choose another model:'
-    await ctx.reply(textSelectAnother, {
-      reply_markup: keyboardMarkup.reply_markup,
-    })
-    return ctx.wizard.selectStep(0)
-  }
-
-  ctx.session.paymentAmount = finalPriceInStars
-  ctx.session.is_morphing = false
-
-  const textResolutionChosen = isRu
-    ? `✅ Выбрано: Seedance Pro 1080p (${finalPriceInStars} ⭐).`
-    : `✅ Selected: Seedance Pro 1080p (${finalPriceInStars} ⭐).`
-  await ctx.reply(textResolutionChosen)
-
-  const textRequestImage = isRu
-    ? '🖼️ Теперь отправьте изображение для генерации видео'
-    : '🖼️ Now send an image for video generation'
-  await ctx.reply(textRequestImage, {
-    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-  })
-  return ctx.wizard.selectStep(5) // Jump to handleStandardImage
-})
-
-// Error handler for unhandled callback queries in Seedance resolution selection
-handleSeedanceResolutionSelection.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  logger.warn(
-    '[I2V Wizard] Unexpected action in handleSeedanceResolutionSelection:',
-    ctx.callbackQuery
-  )
-  await ctx.answerCbQuery()
-  await sendGenericErrorMessage(ctx, isRu)
-  return ctx.scene.leave()
-})
-
-// Step 6.5: Handle WAN Resolution Selection (Callback Query)
-const handleWanResolutionSelection = new Composer<MyContext>()
-handleWanResolutionSelection.action(/^wan_i2v_/, async ctx => {
-  const isRu = isRussianFromState(ctx)
-
-  logger.info('[I2V Wizard] WAN resolution callback triggered', {
-    telegramId: ctx.from?.id,
-    callbackData: 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '',
-    sessionVideoModel: ctx.session.videoModel,
-    wizardStep: (ctx.wizard.state as any)?.step || 'unknown',
-  })
-
-  await ctx.answerCbQuery()
-  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
-
-  const modelKey = ctx.session.videoModel as VideoModelKey
-  if (!modelKey || modelKey !== 'wan-2.2-i2v-fast') {
-    logger.error('[I2V Wizard] Invalid/missing WAN model key in session', {
-      telegramId: ctx.from?.id,
-      modelKey,
-      sessionKeys: Object.keys(ctx.session),
-    })
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
-  }
-
-  // Extract resolution from callback data: "wan_i2v_720p" -> "720p"
-  const callbackData = 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : ''
-  const resolution = callbackData.replace('wan_i2v_', '')
-
-  if (!resolution) {
-    logger.error('[I2V Wizard] Invalid resolution in callback data', {
-      callbackData,
-    })
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
-  }
-
-  // Set resolution and calculate price
-  ctx.session.selectedResolution = resolution
-  const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
-  const price =
-    modelConfig.priceByResolution?.[resolution] || modelConfig.basePrice
-  const finalPriceInStars = Math.floor(((price * 5) / 0.016) * 1.5)
-
-  logger.info('[I2V Wizard] WAN resolution selected:', {
-    telegramId: ctx.from?.id,
-    modelKey,
-    resolution,
-    price,
-    finalPriceInStars,
-  })
-
-  const userDetails: UserDetailsResult = await getUserDetailsSubscription(
-    String(ctx.from?.id)
-  )
-  const currentBalance = userDetails?.stars || 0
-
-  if (!(currentBalance >= finalPriceInStars)) {
-    logger.info(
-      `Insufficient balance for ${ctx.from?.id}. Has: ${currentBalance}, Needs (final): ${finalPriceInStars}`
-    )
-    const textInsufficient = isRu
-      ? `😕 Недостаточно звезд для ${resolution.toUpperCase()} (${finalPriceInStars} ⭐). Баланс: ${Math.floor(
-          currentBalance
-        )} ⭐.`
-      : `😕 Insufficient stars for ${resolution.toUpperCase()} (${finalPriceInStars} ⭐). Balance: ${Math.floor(
-          currentBalance
-        )} ⭐.`
-    await ctx.reply(textInsufficient)
-
-    // Reshow model selection
-    const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-    const textSelectAnother = isRu
-      ? '🤔 Выберите другую модель:'
-      : '🤔 Choose another model:'
-    await ctx.reply(textSelectAnother, {
-      reply_markup: keyboardMarkup.reply_markup,
-    })
-    return ctx.wizard.selectStep(0)
-  }
-
-  ctx.session.paymentAmount = finalPriceInStars
-  ctx.session.is_morphing = false
-
-  const textResolutionChosen = isRu
-    ? `✅ Выбрано: ${
-        modelConfig.title
-      } ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
-    : `✅ Selected: ${
-        modelConfig.title
-      } ${resolution.toUpperCase()} (${finalPriceInStars} ⭐).`
-  await ctx.reply(textResolutionChosen)
-
-  const textRequestImage = isRu
-    ? '📷 Отправьте изображение для создания видео:'
-    : '📷 Send an image to create video:'
-  await ctx.reply(textRequestImage)
-
-  logger.info(
-    '[I2V Wizard] WAN resolution selection completed, jumping to step 5',
-    {
-      telegramId: ctx.from?.id,
-      selectedResolution: resolution,
-      finalPrice: finalPriceInStars,
-      currentStep: (ctx.wizard.state as any)?.step || 'unknown',
-      targetStep: 5,
-    }
-  )
-
-  return ctx.wizard.selectStep(5) // Jump to handleStandardImage
-})
-
-// Error handler for unhandled callback queries in WAN resolution selection
-handleWanResolutionSelection.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  logger.warn(
-    '[I2V Wizard] Unexpected action in handleWanResolutionSelection:',
-    ctx.callbackQuery
-  )
-
-  // Only answer callback query if it's actually a callback query
-  if ('callback_query' in ctx.update && ctx.update.callback_query) {
-    await ctx.answerCbQuery()
-  }
-
-  await sendGenericErrorMessage(ctx, isRu)
-  return ctx.scene.leave()
-})
-
-// Step 3: Handle Morph Image A
-const handleMorphImageA = new Composer<MyContext>()
-handleMorphImageA.on('photo', async ctx => {
-  const isRu = isRussianFromState(ctx)
-
-  // Check if it's actually a photo message FIRST
-  if (!ctx.message || !ctx.message.photo) {
-    // Check for text message for Help/Cancel
-    if (ctx.message && 'text' in ctx.message) {
-      const isCancel = await handleHelpCancel(ctx)
-      if (isCancel) {
-        return ctx.scene.leave()
-      }
-    }
-    // If not cancel and not photo, ask for photo
-    // HARDCODED TEXT
-    const text = isRu
-      ? '🧐 Кажется, это не фото. Пожалуйста, отправьте ПЕРВОЕ изображение.'
-      : "🧐 That doesn't seem to be a photo. Please send the FIRST image."
-    await ctx.reply(text)
-    return // Stay on this step
-  }
-
-  // Now we know it's a photo message
-  const photo = ctx.message.photo.pop() // Get the highest resolution
-  if (!photo) {
-    // HARDCODED TEXT
-    const text = isRu
-      ? '❌ Не удалось получить фото А.'
-      : '❌ Failed to get photo A.'
-    await ctx.reply(text)
-    return // Stay on this step
-  }
-
-  const fileLink = await ctx.telegram.getFileLink(photo.file_id)
-  ctx.session.imageAUrl = fileLink.href
-  logger.info('[I2V Wizard] Received Image A for morphing', {
-    telegramId: ctx.from?.id,
-    url: fileLink.href,
-  })
-
-  // HARDCODED TEXT
-  const textRequestImageB = isRu
-    ? '🖼️ Отлично! Теперь отправьте ВТОРОЕ изображение для морфинга (Image B)'
-    : '🖼️ Great! Now send the SECOND image for morphing (Image B)'
-  // Remove cancel keyboard for the second image to avoid clutter
-  await ctx.reply(textRequestImageB, Markup.removeKeyboard()) // Remove keyboard here
-  return ctx.wizard.next() // Go to handleMorphImageB (step index 5) - Check this index!
-})
-// Fallback for non-photo messages in this step
-handleMorphImageA.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  // Handle Help/Cancel first
-  const isCancel = await handleHelpCancel(ctx)
-  if (isCancel) {
-    return ctx.scene.leave()
-  }
-  // HARDCODED TEXT
-  const text = isRu
-    ? '🖼️ Пожалуйста, отправьте ПЕРВОЕ изображение.'
-    : '🖼️ Please send the FIRST image.'
-  await ctx.reply(text)
-})
-
-// Step 4: Handle Morph Image B OR Standard Image
-const handleMorphImageBOrStandardImage = new Composer<MyContext>()
-handleMorphImageBOrStandardImage.on('photo', async ctx => {
-  const isRu = isRussianFromState(ctx)
-
-  // Check if it's actually a photo message FIRST
-  if (!ctx.message || !ctx.message.photo) {
-    // Check for text message for Help/Cancel
-    if (ctx.message && 'text' in ctx.message) {
-      const isCancel = await handleHelpCancel(ctx)
-      if (isCancel) {
-        return ctx.scene.leave()
-      }
-    }
-    // If not cancel and not photo, ask for photo
-    // HARDCODED TEXT
-    const text = isRu
-      ? ctx.session.is_morphing
-        ? '🧐 Кажется, это не фото. Пожалуйста, отправьте ВТОРОЕ изображение.'
-        : '🧐 Кажется, это не фото. Пожалуйста, отправьте изображение.'
-      : ctx.session.is_morphing
-      ? "🧐 That doesn't seem to be a photo. Please send the SECOND image."
-      : "🧐 That doesn't seem to be a photo. Please send an image."
-    await ctx.reply(text)
-    return // Stay on this step
-  }
-
-  // Now we know it's a photo message
-  const photo = ctx.message.photo.pop() // Get the highest resolution
-  if (!photo) {
-    // HARDCODED TEXT
-    const text = isRu
-      ? '❌ Не удалось получить фото.'
-      : '❌ Failed to get photo.'
-    await ctx.reply(text)
-    return // Stay on this step
-  }
-
-  const fileLink = await ctx.telegram.getFileLink(photo.file_id)
-
-  if (ctx.session.is_morphing) {
-    // This is Image B for morphing
-    ctx.session.imageBUrl = fileLink.href
-    logger.info('[I2V Wizard] Received Image B for morphing', {
-      telegramId: ctx.from?.id,
-      url: fileLink.href,
-    })
-    // HARDCODED TEXT
-    const textRequestPrompt = isRu
-      ? '📝 Теперь введите промпт (описание), что должно происходить в видео:'
-      : '📝 Now enter a prompt (description) of what should happen in the video:'
-    await ctx.reply(textRequestPrompt, {
-      reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-    })
-    return ctx.wizard.selectStep(7) // Go to handlePrompt (step 7)
-  } else {
-    // This is the image for standard generation
-    ctx.session.imageUrl = fileLink.href
-    logger.info('[I2V Wizard] Received Image for standard generation', {
-      telegramId: ctx.from?.id,
-      url: fileLink.href,
-    })
-    // HARDCODED TEXT
-    const textRequestPrompt = isRu
-      ? '📝 Теперь введите промпт (описание), что должно происходить в видео:'
-      : '📝 Now enter a prompt (description) of what should happen in the video:'
-    await ctx.reply(textRequestPrompt, {
-      reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-    })
-    return ctx.wizard.selectStep(7) // Go to handlePrompt (step 7)
-  }
-})
-// Fallback for non-photo messages in this step
-handleMorphImageBOrStandardImage.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  // Handle Help/Cancel first
-  const isCancel = await handleHelpCancel(ctx)
-  if (isCancel) {
-    return ctx.scene.leave()
-  }
-  // HARDCODED TEXT
-  const text = isRu
-    ? ctx.session.is_morphing
-      ? '🖼️ Пожалуйста, отправьте ВТОРОЕ изображение.'
-      : '🖼️ Пожалуйста, отправьте изображение.'
-    : ctx.session.is_morphing
-    ? '🖼️ Please send the SECOND image.'
-    : '🖼️ Please send an image.'
-  await ctx.reply(text)
-})
-
-// Step 5: Handle Prompt
-const handlePrompt = new Composer<MyContext>()
-handlePrompt.on('text', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  const prompt = ctx.message?.text
-
-  // Handle Help/Cancel first
-  const isCancel = await handleHelpCancel(ctx)
-  if (isCancel) {
-    return ctx.scene.leave()
-  }
-
-  // --- Added: Command Check ---
-  if (prompt?.startsWith('/')) {
-    logger.info('[I2V Wizard] Command received instead of prompt, ignoring.', {
-      telegramId: ctx.from?.id,
-      command: prompt,
-    })
-    const text = isRu
-      ? '❗️ Пожалуйста, введите текстовое описание (промпт), а не команду. Для выхода используйте /cancel.'
-      : '❗️ Please enter a text description (prompt), not a command. Use /cancel to exit.'
-    await ctx.reply(text)
-    return // Stay on this step
-  }
-  // --- End Added Check ---
-
-  if (!prompt) {
-    // HARDCODED TEXT
-    const text = isRu
-      ? '✍️ Пожалуйста, введите текстовый промпт.'
-      : '✍️ Please enter a text prompt.'
-    await ctx.reply(text)
-    return // Stay on this step
-  }
-
-  ctx.session.prompt = prompt
-  logger.info('[I2V Wizard] Received prompt', {
-    telegramId: ctx.from?.id,
-    prompt,
-  })
-
-  // --- Modified: Start Background Generation ---
-  // Send confirmation message
-  const textStart = isRu
-    ? '✅ Запрос принят! Начинаю генерацию видео... Это может занять некоторое время. О результате сообщу отдельно.'
-    : '✅ Request accepted! Starting video generation... This might take a while. I will notify you separately about the result.'
-  await ctx.reply(textStart, Markup.removeKeyboard())
-
-  // Start the generation in the background (no await)
-  startGenerateImageToVideoInBackground(ctx)
-
-  // Leave the scene immediately after starting the background task
-  return ctx.scene.leave()
-  // --- End Modification ---
-})
-// Fallback for non-text messages
-handlePrompt.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  // HARDCODED TEXT
-  const text = isRu
-    ? '✍️ Пожалуйста, введите промпт текстом.'
-    : '✍️ Please enter the prompt as text.'
-  await ctx.reply(text)
-})
-
-// Step 8: Handle Aspect Ratio Selection (Callback Query)
-const handleAspectRatioSelection = new Composer<MyContext>()
-handleAspectRatioSelection.action(/^aspect_/, async ctx => {
-  const isRu = isRussianFromState(ctx)
-  await ctx.answerCbQuery()
-  await ctx.editMessageReplyMarkup(undefined) // Remove inline keyboard
-
-  const callbackData = 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : ''
-  const parts = callbackData.split('_') // aspect_modelKey_aspectRatio
-  if (parts.length !== 3) {
-    logger.error('[I2V Wizard] Invalid aspect ratio callback data', {
-      callbackData,
-    })
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
-  }
-
-  const selectedAspectRatio = parts[2] // e.g., "9:16" or "16:9"
-  ctx.session.selectedAspectRatio = selectedAspectRatio
-
-  logger.info('[I2V Wizard] Aspect ratio selected', {
-    telegramId: ctx.from?.id,
-    selectedAspectRatio,
-  })
-
-  const aspectRatioText = isRu
-    ? selectedAspectRatio === '9:16'
-      ? '📱 9:16 (вертикальное)'
-      : '📺 16:9 (горизонтальное)'
-    : selectedAspectRatio === '9:16'
-    ? '📱 9:16 (vertical)'
-    : '📺 16:9 (horizontal)'
-
-  const textAspectRatioChosen = isRu
-    ? `✅ Выбрано соотношение сторон: ${aspectRatioText}`
-    : `✅ Selected aspect ratio: ${aspectRatioText}`
-  await ctx.reply(textAspectRatioChosen)
-
-  // Now ask for image
-  const textRequestImage = isRu
-    ? '🖼️ Теперь отправьте изображение для генерации видео'
-    : '🖼️ Now send an image for video generation'
-  await ctx.reply(textRequestImage, {
-    reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-  })
-  return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
-})
-
-// Handle text messages during aspect ratio selection
-handleAspectRatioSelection.on('text', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  const text = ctx.message.text
-  
-  // Handle "Back to menu" button
-  if (text === '⬅️ Назад в меню' || text === '⬅️ Back to Menu') {
-    await ctx.reply(
-      isRu ? '↩️ Отменено' : '↩️ Cancelled',
-      Markup.removeKeyboard()
-    )
-    return ctx.scene.leave()
-  }
-  
-  // Handle text-based aspect ratio selection
-  if (text === '📺 Горизонтальное (16:9)' || text === '📺 Horizontal (16:9)') {
-    ctx.session.selectedAspectRatio = '16:9'
-    logger.info('[I2V Wizard] Aspect ratio set to 16:9 via text button', {
-      telegramId: ctx.from?.id,
-      selectedAspectRatio: '16:9',
-      videoModel: ctx.session.videoModel,
-    })
-    const textAspectRatioChosen = isRu
-      ? '✅ Выбрано соотношение сторон: 📺 16:9 (горизонтальное)'
-      : '✅ Selected aspect ratio: 📺 16:9 (horizontal)'
-    await ctx.reply(textAspectRatioChosen)
-    
-    // Now ask for image
-    const textRequestImage = isRu
-      ? '🖼️ Теперь отправьте изображение для генерации видео'
-      : '🖼️ Now send an image for video generation'
-    await ctx.reply(textRequestImage, {
-      reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-    })
-    return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
-  }
-  
-  if (text === '📱 Вертикальное (9:16)' || text === '📱 Vertical (9:16)') {
-    ctx.session.selectedAspectRatio = '9:16'
-    logger.info('[I2V Wizard] Aspect ratio set to 9:16 via text button', {
-      telegramId: ctx.from?.id,
-      selectedAspectRatio: '9:16',
-      videoModel: ctx.session.videoModel,
-    })
-    const textAspectRatioChosen = isRu
-      ? '✅ Выбрано соотношение сторон: 📱 9:16 (вертикальное)'
-      : '✅ Selected aspect ratio: 📱 9:16 (vertical)'
-    await ctx.reply(textAspectRatioChosen)
-    
-    // Now ask for image
-    const textRequestImage = isRu
-      ? '🖼️ Теперь отправьте изображение для генерации видео'
-      : '🖼️ Now send an image for video generation'
-    await ctx.reply(textRequestImage, {
-      reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
-    })
-    return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
-  }
-  
-  // For other text messages, show help
-  const helpText = isRu
-    ? '📐 Пожалуйста, выберите соотношение сторон, нажав на одну из кнопок выше'
-    : '📐 Please select aspect ratio by clicking one of the buttons above'
-  await ctx.reply(helpText)
-})
-
-// Error handler for unhandled callback queries in aspect ratio selection
-handleAspectRatioSelection.use(async ctx => {
-  const isRu = isRussianFromState(ctx)
-  
-  // Only answer callback query if it actually exists
-  if (ctx.callbackQuery) {
-    logger.warn(
-      '[I2V Wizard] Unexpected callback in handleAspectRatioSelection:',
-      ctx.callbackQuery
-    )
-    await ctx.answerCbQuery()
-    await sendGenericErrorMessage(ctx, isRu)
-    return ctx.scene.leave()
-  }
-  
-  // For other types of updates, just log and ignore
-  logger.debug('[I2V Wizard] Unhandled update in handleAspectRatioSelection')
-})
-
-// --- New Function to Start Generation in Background ---
-async function startGenerateImageToVideoInBackground(ctx: MyContext) {
-  const isRu = isRussianFromState(ctx)
-  const { videoModel, is_morphing, imageAUrl, imageBUrl, imageUrl, prompt } =
-    ctx.session
-  const telegram_id = ctx.from?.id.toString()
-  const username = ctx.from?.username || 'unknown'
-  const botInfo = await ctx.telegram.getMe()
-  const bot_name = botInfo.username
-
-  if (!videoModel || !telegram_id || !bot_name || !ctx.from?.id) {
-    logger.error(
-      '[I2V Wizard BG] Missing essential data in session for submission',
-      { session: ctx.session }
-    )
-    // We can't easily send an error back to the user here as the original interaction finished
-    // Log the error thoroughly
-    return
-  }
-
-  // Validate required fields based on mode
-  let validationError = null
-  if (is_morphing) {
-    if (!imageAUrl || !imageBUrl || !prompt) {
-      validationError = '[I2V Wizard BG] Missing morphing data for submission'
-      logger.error(validationError, { imageAUrl, imageBUrl, prompt })
-    }
-  } else {
-    if (!imageUrl || !prompt) {
-      validationError = '[I2V Wizard BG] Missing standard data for submission'
-      logger.error(validationError, { imageUrl, prompt })
-    }
-  }
-
-  if (validationError) {
-    // Log the error, can't easily notify the user at this point
-    return
-  }
-
-  try {
-    logger.info('[I2V Wizard BG] Starting background generation job', {
-      modelId: videoModel,
-      telegram_id: ctx.from.id,
-      username: ctx.from.username,
-      isRu,
-      botName: ctx.botInfo.username,
-      imageUrl, // Log all relevant data
-      prompt,
-      isMorphing: is_morphing ?? false,
-      imageAUrl,
-      imageBUrl,
-      selectedAspectRatio: ctx.session.selectedAspectRatio, // Добавляем логирование aspect ratio
-    })
-
-    // Call generateImageToVideo - this will be modified later
-    // to handle the background execution and result sending
-    // For now, just call it. The key is NO AWAIT here on this specific call
-    // if generateImageToVideo itself becomes fully async internally.
-    // If generateImageToVideo still has awaits for replicate, etc.,
-    // we need to wrap this call itself, e.g., `Promise.resolve().then(() => generateImageToVideo(...))`
-    // or use a dedicated job queue if we had one.
-    // Let's assume for now `generateImageToVideo` will be refactored to handle its own async nature.
-    // We pass necessary context for sending the final message.
-
-    // IMPORTANT: generateImageToVideo signature will change in the next step!
-    // It will need ctx.telegram and ctx.from.id to send the result back.
-    // We pass them now in preparation.
-    generateImageToVideo(
-      String(ctx.from.id),
-      ctx.from.username ?? 'unknown',
-      isRu,
-      ctx.botInfo.username,
-      videoModel,
-      imageUrl, // Pass imageUrl directly
-      prompt!, // Prompt is validated to exist
-      is_morphing ?? false,
-      imageAUrl, // Pass imageAUrl directly
-      imageBUrl, // Pass imageBUrl directly
-      ctx.telegram, // Pass telegram instance
-      ctx.from.id, // Pass chat id (which is the user id for private chat)
-      ctx.session.selectedResolution, // Pass selected resolution for Seedance
-      ctx.session.selectedAspectRatio // Pass selected aspect ratio for Kie.ai models
-    ).catch(bgError => {
-      // Catch errors specifically from the background execution of generateImageToVideo
-      logger.error(
-        '[I2V Wizard BG] Error during generateImageToVideo execution',
-        {
-          error: bgError,
-          telegram_id: ctx.from?.id,
-        }
-      )
-      // Attempt to notify user about the background failure
-      ctx.telegram
-        .sendMessage(
-          ctx.from!.id,
-          isRu
-            ? '❌ Произошла фоновая ошибка при генерации вашего видео.'
-            : '❌ A background error occurred during your video generation.'
-        )
-        .catch(sendError => {
-          logger.error(
-            '[I2V Wizard BG] Failed to send background error notification',
-            { sendError, telegram_id: ctx.from?.id }
-          )
-        })
-    })
-
-    logger.info('[I2V Wizard BG] Background generation initiated', {
-      telegram_id: ctx.from.id,
-    })
-  } catch (error) {
-    logger.error('[I2V Wizard BG] Error setting up background generation', {
-      error,
-      telegram_id,
-    })
-    // Attempt to notify user about the setup failure
-    try {
-      await ctx.telegram.sendMessage(
-        ctx.from!.id,
+      await ctx.reply(
         isRu
-          ? '❌ Не удалось запустить фоновую генерацию видео.'
-          : '❌ Failed to start background video generation.'
+          ? `😕 Недостаточно звезд (${cost} ⭐). Баланс: ${Math.floor(currentBalance)} ⭐.`
+          : `😕 Insufficient stars (${cost} ⭐). Balance: ${Math.floor(currentBalance)} ⭐.`
       )
-    } catch (sendError) {
-      logger.error('[I2V Wizard BG] Failed to send setup error notification', {
-        sendError,
-        telegram_id,
-      })
+      return ctx.scene.leave()
     }
-  }
-}
 
-// --- Wizard Definition --- //
-export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
-  ModeEnum.ImageToVideo, // Scene ID
+    // Сохраняем в сессии
+    ctx.session.selectedVideoModel = selectedModel
+    ctx.session.selectedVideoCost = cost
 
-  // Шаг 0: Вход и выбор модели из всех доступных
-  async ctx => {
-    console.log('🎬 [I2V] Step 0: Model selection from all available models')
+    logger.info('[ImageToVideoWizard] Model selected', {
+      telegramId: ctx.from?.id,
+      selectedModel,
+      cost,
+    })
 
-    try {
-      const isRu = isRussianFromState(ctx)
-      
-      logger.info('[I2V Wizard] Step 0 entered', {
-        telegramId: ctx.from?.id,
-        currentAction: ctx.session.current_action,
-      })
+    // Если модель поддерживает выбор соотношения сторон - показываем его
+    if (showAspectRatio) {
+      const aspectKeyboard = Markup.keyboard([
+        ['📱 Вертикальное (9:16)', '🖥️ Горизонтальное (16:9)'],
+        ['⬅️ Назад'],
+      ]).resize()
 
-      // Check morphing mode
-      if (ctx.session.current_action === 'morphing') {
-        console.log('🎬 [I2V] Morphing mode detected')
-        ctx.session.videoModel = MORPHING_MODEL_KEY
-        ctx.session.is_morphing = true
-        const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
+      await ctx.reply(
+        isRu
+          ? `✅ Выбрана модель: ${selectedText}\n📱 Выберите соотношение сторон:`
+          : `✅ Selected model: ${selectedText}\n📱 Select aspect ratio:`,
+        aspectKeyboard
+      )
 
-        const morphingInfoText = isRu
-          ? `🌀 Режим морфинга активирован!\n🤖 Модель: ${VIDEO_MODELS_CONFIG[MORPHING_MODEL_KEY].title}\n💰 Стоимость: ${finalPriceInStars} ⭐\n\n📷 Сначала загрузите первое изображение (A):`
-          : `🌀 Morphing mode activated!\n🤖 Model: ${VIDEO_MODELS_CONFIG[MORPHING_MODEL_KEY].title}\n💰 Cost: ${finalPriceInStars} ⭐\n\n📷 First, upload the first image (A):`
+      return ctx.wizard.next()
+    } else {
+      // Для моделей без выбора соотношения сторон - сразу переходим к загрузке изображения
+      ctx.session.selectedAspectRatio = '16:9' // по умолчанию
 
-        await ctx.reply(morphingInfoText)
-        return ctx.wizard.selectStep(4)
-      } else {
-        console.log('🎬 [I2V] Standard flow: showing all available models')
-        
-        // Показываем все доступные модели для Image to Video
-        const keyboardMarkup = videoModelKeyboard(isRu, 'image')
+      await ctx.reply(
+        isRu
+          ? `✅ Выбрана модель: ${selectedText}\n\n🖼️ Теперь отправьте изображение:`
+          : `✅ Selected model: ${selectedText}\n\n🖼️ Now send an image:`,
+        Markup.removeKeyboard()
+      )
 
-        const text = isRu
-          ? '🤔 Выберите модель для генерации видео из изображения:'
-          : '🤔 Choose a model for image to video generation:'
-
-        await ctx.reply(text, {
-          reply_markup: keyboardMarkup.reply_markup,
-        })
-        
-        console.log('🎬 [I2V] Model selection menu sent, moving to next step')
-        return ctx.wizard.next()
-      }
-    } catch (error) {
-      console.error('🎬 [ERROR] Error in Step 0:', error)
-      logger.error('[I2V Wizard] Error in Step 0', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-      throw error
+      return ctx.wizard.selectStep(3) // Пропускаем шаг выбора соотношения, переходим к загрузке изображения
     }
   },
 
-  handleModelSelection, // Step 1: Handle standard model selection / Kling choice / Seedance choice / WAN choice
-  handleSeedanceResolutionSelection, // Step 2: Handle Seedance resolution selection (480p/1080p)
-  handleKlingModeSelection, // Step 3: Handle Kling mode (standard/morphing) action
-  handleMorphImageA, // Step 4: Handle Image A for morphing
-  handleMorphImageBOrStandardImage, // Step 5: Handle Image B (morph) OR Standard Image
-  handleWanResolutionSelection, // Step 6: Handle WAN resolution selection (480p/720p/1080p)
-  handlePrompt, // Step 7: Handle Prompt (now starts background task and leaves)
-  handleAspectRatioSelection // Step 8: Handle Aspect Ratio Selection for Kie.ai models
+  // ШАГ 3: Обработка соотношения сторон
+  async ctx => {
+    console.log('🎬 [I2V] Step 3: Aspect ratio processing')
+    logger.info('[ImageToVideoWizard] Step 3: Processing aspect ratio', {
+      telegramId: ctx.from?.id,
+      step: ctx.wizard.cursor,
+      messageText:
+        ctx.message && 'text' in ctx.message ? ctx.message.text : 'NO_TEXT',
+    })
+
+    const isRu = isRussianFromState(ctx)
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? 'Выберите соотношение сторон из кнопок выше.'
+          : 'Select aspect ratio from the buttons above.'
+      )
+      return
+    }
+
+    const selectedText = ctx.message.text
+
+    // Обработка кнопки "Назад"
+    if (selectedText.includes('Назад') || selectedText.includes('Back')) {
+      return ctx.wizard.back()
+    }
+
+    // Определяем соотношение сторон
+    let aspectRatio = '9:16' // по умолчанию вертикальное
+    if (
+      selectedText.includes('16:9') ||
+      selectedText.includes('Горизонтальное') ||
+      selectedText.includes('Horizontal')
+    ) {
+      aspectRatio = '16:9'
+    }
+
+    // Сохраняем в сессии
+    ctx.session.selectedAspectRatio = aspectRatio
+
+    logger.info('[ImageToVideoWizard] Aspect ratio selected', {
+      telegramId: ctx.from?.id,
+      aspectRatio,
+    })
+
+    // Переходим к загрузке изображения
+    await ctx.reply(
+      isRu
+        ? `✅ Выбрано: ${
+            aspectRatio === '9:16'
+              ? 'Вертикальное (9:16)'
+              : 'Горизонтальное (16:9)'
+          }\n\n🖼️ Теперь отправьте изображение для генерации видео:`
+        : `✅ Selected: ${
+            aspectRatio === '9:16' ? 'Vertical (9:16)' : 'Horizontal (16:9)'
+          }\n\n🖼️ Now send an image for video generation:`,
+      Markup.removeKeyboard()
+    )
+
+    return ctx.wizard.next()
+  },
+
+  // ШАГ 4: Получение изображения
+  async ctx => {
+    console.log('🎬 [I2V] Step 4: Image processing')
+    logger.info('[ImageToVideoWizard] Step 4: Processing image', {
+      telegramId: ctx.from?.id,
+      step: ctx.wizard.cursor,
+    })
+
+    const isRu = isRussianFromState(ctx)
+
+    // Проверяем, что это фото
+    if (!ctx.message || !('photo' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, отправьте изображение (фото).'
+          : 'Please send an image (photo).'
+      )
+      return
+    }
+
+    const photo = ctx.message.photo[ctx.message.photo.length - 1]
+    if (!photo) {
+      await ctx.reply(
+        isRu
+          ? 'Не удалось получить изображение. Попробуйте еще раз.'
+          : 'Failed to get the image. Please try again.'
+      )
+      return
+    }
+
+    // Получаем ссылку на файл
+    const fileLink = await ctx.telegram.getFileLink(photo.file_id)
+    ctx.session.imageUrl = fileLink.href
+
+    logger.info('[ImageToVideoWizard] Image received', {
+      telegramId: ctx.from?.id,
+      imageUrl: fileLink.href,
+    })
+
+    // Запрашиваем промпт
+    await ctx.reply(
+      isRu
+        ? '💭 Теперь введите описание видео (промпт):'
+        : '💭 Now enter your video description (prompt):'
+    )
+
+    return ctx.wizard.next()
+  },
+
+  // ШАГ 5: Получение промпта и генерация
+  async ctx => {
+    console.log('🎬 [I2V] Step 5: Prompt processing and generation')
+    logger.info('[ImageToVideoWizard] Step 5: Processing prompt', {
+      telegramId: ctx.from?.id,
+      step: ctx.wizard.cursor,
+      messageText:
+        ctx.message && 'text' in ctx.message
+          ? ctx.message.text?.substring(0, 50)
+          : 'NO_TEXT',
+    })
+
+    const isRu = isRussianFromState(ctx)
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? 'Пожалуйста, введите описание видео текстом.'
+          : 'Please enter video description as text.'
+      )
+      return
+    }
+
+    const prompt = ctx.message.text.trim()
+
+    if (!prompt || prompt.length < 3) {
+      await ctx.reply(
+        isRu
+          ? 'Описание слишком короткое. Пожалуйста, введите более подробное описание.'
+          : 'Description is too short. Please enter a more detailed description.'
+      )
+      return
+    }
+
+    // Получаем данные из сессии
+    const selectedModel = ctx.session.selectedVideoModel || 'veo-3-fast'
+    const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
+    const cost = ctx.session.selectedVideoCost || 40
+    const imageUrl = ctx.session.imageUrl
+    const selectedResolution = ctx.session.selectedResolution
+
+    if (!imageUrl) {
+      logger.error('[ImageToVideoWizard] Missing image URL in session', {
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка: изображение не найдено. Попробуйте начать сначала.'
+          : '❌ Error: image not found. Please try starting over.'
+      )
+      return ctx.scene.leave()
+    }
+
+    logger.info('[ImageToVideoWizard] Starting video generation', {
+      telegramId: ctx.from?.id,
+      selectedModel,
+      aspectRatio,
+      cost,
+      imageUrl,
+      prompt: prompt.substring(0, 50),
+      selectedResolution,
+    })
+
+    // Начинаем генерацию
+    await ctx.reply(
+      isRu
+        ? `🎬 Генерируем видео...\n\n📋 Модель: ${selectedModel}\n📱 Соотношение: ${aspectRatio}\n💰 Стоимость: ${cost} ⭐\n🖼️ Изображение загружено\n💭 Промпт: ${prompt.substring(
+            0,
+            100
+          )}${prompt.length > 100 ? '...' : ''}`
+        : `🎬 Generating video...\n\n📋 Model: ${selectedModel}\n📱 Aspect ratio: ${aspectRatio}\n💰 Cost: ${cost} ⭐\n🖼️ Image uploaded\n💭 Prompt: ${prompt.substring(
+            0,
+            100
+          )}${prompt.length > 100 ? '...' : ''}`
+    )
+
+    try {
+      // Получаем bot_name и проверяем его доступность
+      const bot_name = ctx.botInfo?.username || 'unknown_bot'
+      
+      // Проверяем, что бот существует и настроен правильно
+      const { getBotByName } = await import('@/core/bot')
+      const botResult = getBotByName(bot_name)
+      if (!botResult.bot || botResult.error) {
+        const errorMsg = isRu 
+          ? `❌ Произошла ошибка.\n\nБот "${bot_name}" не найден или не настроен правильно.\n\nОбратитесь в техподдержку.`
+          : `❌ An error occurred.\n\nBot "${bot_name}" not found or not configured properly.\n\nPlease contact support.`
+        
+        logger.error(`[imageToVideoWizard] Bot configuration error`, {
+          bot_name,
+          error: botResult.error,
+          telegram_id: ctx.from?.id.toString(),
+          username: ctx.from?.username
+        })
+        
+        await ctx.reply(errorMsg)
+        return ctx.scene.leave()
+      }
+
+      // Импортируем функцию генерации видео
+      const { generateImageToVideo } = await import(
+        '@/modules/videoGenerator'
+      )
+
+      // Генерируем видео (используем background версию, но ждем результат)
+      await generateImageToVideo(
+        ctx.from?.id.toString() || '',
+        ctx.from?.username || 'unknown',
+        isRu,
+        bot_name,
+        selectedModel,
+        imageUrl,
+        prompt,
+        false, // not morphing
+        undefined, // imageAUrl
+        undefined, // imageBUrl
+        ctx.telegram,
+        ctx.from.id,
+        selectedResolution, // передаем разрешение для Seedance и WAN
+        aspectRatio // передаем соотношение сторон
+      )
+
+      // Функция generateImageToVideo сама отправляет видео пользователю
+      // Поэтому здесь мы просто подтверждаем, что генерация началась
+      logger.info('[ImageToVideoWizard] Video generation started', {
+        telegramId: ctx.from?.id,
+        selectedModel,
+        aspectRatio,
+        cost,
+      })
+    } catch (error) {
+      logger.error('[ImageToVideoWizard] Generation error', {
+        telegramId: ctx.from?.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при генерации видео. Попробуйте позже.'
+          : '❌ Error occurred during video generation. Please try again later.'
+      )
+    }
+
+    // Выходим из wizard'a
+    return ctx.scene.leave()
+  }
 )
 
-// Add HELP and CANCEL handlers to the scene
-imageToVideoWizard.help(handleHelpCancel)
-imageToVideoWizard.command('cancel', handleHelpCancel)
+// Добавляем обработчик входа в сцену
+imageToVideoWizard.enter(async ctx => {
+  console.log('🎬 [I2V] Wizard entered! User:', ctx.from?.id)
+  logger.info('[ImageToVideoWizard] Wizard entered', {
+    telegramId: ctx.from?.id,
+    step: ctx.wizard?.cursor,
+  })
+  
+  // ОКАЗЫВАЕТСЯ TELEGRAF НЕ ВЫЗЫВАЕТ ПЕРВЫЙ ШАГ АВТОМАТИЧЕСКИ!
+  // НУЖНО ВЫЗЫВАТЬ ЕГО ВРУЧНУЮ, НО БЕЗ ДВОЙНОГО ВЫЗОВА
+  console.log('🎬 [I2V] Manually executing first step since Telegraf doesnt do it automatically...')
+  
+  try {
+    // Проверяем что это первый вход (cursor = undefined)
+    if (ctx.wizard.cursor === undefined) {
+      console.log('🎬 [I2V] Fresh wizard entry, executing first step...')
+      const firstStepHandler = (ctx.wizard as any).steps[0]
+      if (typeof firstStepHandler === 'function') {
+        await firstStepHandler(ctx)
+        console.log('🎬 [I2V] ✅ First step executed successfully from .enter()')
+      } else {
+        console.error('🎬 [I2V] ❌ First step handler is not a function:', typeof firstStepHandler)
+      }
+    } else {
+      console.log('🎬 [I2V] Wizard already has cursor:', ctx.wizard.cursor, '- NOT executing first step')
+    }
+  } catch (error) {
+    console.error('🎬 [I2V] ❌ ERROR executing first step from .enter():', error)
+  }
+})
 
-logger.info(
-  '⚡️ ImageToVideo Wizard Scene initialized with Morphing logic and localized texts - Refactored for background generation'
-)
+// Добавляем обработчик выхода
+imageToVideoWizard.leave(async ctx => {
+  console.log('🎬 [I2V] Wizard left! User:', ctx.from?.id)
+  logger.info('[ImageToVideoWizard] Wizard left', {
+    telegramId: ctx.from?.id,
+  })
+})
+
+export default imageToVideoWizard
