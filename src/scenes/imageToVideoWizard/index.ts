@@ -5,6 +5,7 @@ import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleImageToVideoDirect } from '../../handlers/handleImageToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 
@@ -160,6 +161,12 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     try {
       const isRu = isRussianFromState(ctx)
 
+      // Проверяем отмену/справку
+      const isCancel = await handleHelpCancel(ctx)
+      if (isCancel) {
+        return ctx.scene.leave()
+      }
+
       // Проверяем, что это фото
       if (!ctx.message || !('photo' in ctx.message)) {
         await ctx.reply(
@@ -215,8 +222,11 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         if (row.length > 0) keyboardRows.push(row)
       }
 
-      // Кнопка назад
-      keyboardRows.push([isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'])
+      // Кнопки назад и отмена
+      keyboardRows.push([
+        isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
+        isRu ? 'Отмена' : 'Cancel'
+      ])
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
       await ctx.reply(
@@ -244,6 +254,13 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     
     try {
       const isRu = isRussianFromState(ctx)
+      
+      // Проверяем отмену/справку
+      const isCancel = await handleHelpCancel(ctx)
+      if (isCancel) {
+        return ctx.scene.leave()
+      }
+      
       const message = ctx.message
 
       if (!message || !('text' in message)) {
@@ -307,6 +324,13 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     
     try {
       const isRu = isRussianFromState(ctx)
+      
+      // Проверяем отмену/справку
+      const isCancel = await handleHelpCancel(ctx)
+      if (isCancel) {
+        return ctx.scene.leave()
+      }
+      
       const message = ctx.message
 
       if (!message || !('text' in message)) {
