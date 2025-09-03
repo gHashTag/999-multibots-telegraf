@@ -1020,16 +1020,79 @@ handleAspectRatioSelection.action(/^aspect_/, async ctx => {
   return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
 })
 
+// Handle text messages during aspect ratio selection
+handleAspectRatioSelection.on('text', async ctx => {
+  const isRu = isRussianFromState(ctx)
+  const text = ctx.message.text
+  
+  // Handle "Back to menu" button
+  if (text === '⬅️ Назад в меню' || text === '⬅️ Back to Menu') {
+    await ctx.reply(
+      isRu ? '↩️ Отменено' : '↩️ Cancelled',
+      Markup.removeKeyboard()
+    )
+    return ctx.scene.leave()
+  }
+  
+  // Handle text-based aspect ratio selection
+  if (text === '📺 Горизонтальное (16:9)' || text === '📺 Horizontal (16:9)') {
+    ctx.session.selectedAspectRatio = '16:9'
+    const textAspectRatioChosen = isRu
+      ? '✅ Выбрано соотношение сторон: 📺 16:9 (горизонтальное)'
+      : '✅ Selected aspect ratio: 📺 16:9 (horizontal)'
+    await ctx.reply(textAspectRatioChosen)
+    
+    // Now ask for image
+    const textRequestImage = isRu
+      ? '🖼️ Теперь отправьте изображение для генерации видео'
+      : '🖼️ Now send an image for video generation'
+    await ctx.reply(textRequestImage, {
+      reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+    })
+    return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
+  }
+  
+  if (text === '📱 Вертикальное (9:16)' || text === '📱 Vertical (9:16)') {
+    ctx.session.selectedAspectRatio = '9:16'
+    const textAspectRatioChosen = isRu
+      ? '✅ Выбрано соотношение сторон: 📱 9:16 (вертикальное)'
+      : '✅ Selected aspect ratio: 📱 9:16 (vertical)'
+    await ctx.reply(textAspectRatioChosen)
+    
+    // Now ask for image
+    const textRequestImage = isRu
+      ? '🖼️ Теперь отправьте изображение для генерации видео'
+      : '🖼️ Now send an image for video generation'
+    await ctx.reply(textRequestImage, {
+      reply_markup: createHelpCancelKeyboard(isRu).reply_markup,
+    })
+    return ctx.wizard.selectStep(5) // Go to handleMorphImageBOrStandardImage
+  }
+  
+  // For other text messages, show help
+  const helpText = isRu
+    ? '📐 Пожалуйста, выберите соотношение сторон, нажав на одну из кнопок выше'
+    : '📐 Please select aspect ratio by clicking one of the buttons above'
+  await ctx.reply(helpText)
+})
+
 // Error handler for unhandled callback queries in aspect ratio selection
 handleAspectRatioSelection.use(async ctx => {
   const isRu = isRussianFromState(ctx)
-  logger.warn(
-    '[I2V Wizard] Unexpected action in handleAspectRatioSelection:',
-    ctx.callbackQuery
-  )
-  await ctx.answerCbQuery()
-  await sendGenericErrorMessage(ctx, isRu)
-  return ctx.scene.leave()
+  
+  // Only answer callback query if it actually exists
+  if (ctx.callbackQuery) {
+    logger.warn(
+      '[I2V Wizard] Unexpected callback in handleAspectRatioSelection:',
+      ctx.callbackQuery
+    )
+    await ctx.answerCbQuery()
+    await sendGenericErrorMessage(ctx, isRu)
+    return ctx.scene.leave()
+  }
+  
+  // For other types of updates, just log and ignore
+  logger.debug('[I2V Wizard] Unhandled update in handleAspectRatioSelection')
 })
 
 // --- New Function to Start Generation in Background ---
