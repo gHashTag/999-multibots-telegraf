@@ -19,6 +19,45 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Markup } from 'telegraf'
+import axios from 'axios'
+import { isAxiosError } from 'axios'
+import { API_URL, SECRET_API_KEY } from '@/config'
+
+// Функция для отправки уведомления админу
+async function notifyAdminAboutServerIssue(
+  error: string,
+  telegram_id: string,
+  videoModel: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+    
+    if (!botResult.bot) return
+    
+    const errorMessage = `🚨 **SERVER DOWN ALERT (I2V)**\n\n` +
+      `📍 План Б АКТИВИРОВАН для Image to Video\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🎬 Model: ${videoModel}\n` +
+      `❌ Server Error: ${error}\n` +
+      `✅ Используется прямой API Veo 3 (Plan B)\n\n` +
+      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+    
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
+        parse_mode: 'Markdown'
+      })
+    }
+    
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
+      adminIds,
+      error
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+  }
+}
 
 export const generateImageToVideo = async (
   telegramId: string,
@@ -200,99 +239,312 @@ export const generateImageToVideo = async (
 
       // Специальная обработка для Google Veo 3 моделей (используем План А/Б)
       if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
-        // Используем Plan A/B систему для Veo моделей
-        logger.info(`[I2V BG] Using Plan A/B for ${modelConfig.title}`, {
+        // Флаг для переключения планов: true = План А (сервер), false = План Б (локальный)
+        const USE_PLAN_A = process.env.USE_PLAN_A === 'true' // По умолчанию false (План Б), только если явно установлено 'true'
+
+        logger.info(`[I2V BG] Veo model detected, using Plan A/B system`, {
           telegramId,
           modelId: modelConfig.id,
           aspectRatio: userAspectRatio,
           hasImage: !!imageUrl,
         })
-        
-        // Импортируем и используем новую функцию с Plan A/B
-        const { generateImageToVideo: generateI2VWithPlanAB } = await import('@/services/generateImageToVideo')
-        
-        const planABResponse = await generateI2VWithPlanAB({
-          imageUrl,
-          prompt,
-          videoModel: modelConfig.id,
-          aspectRatio: userAspectRatio, // Используем правильное название параметра
-          duration: modelConfig.api.input.duration_seconds || 8,
-          telegram_id: telegramId,
-          username,
-          is_ru: isRu,
-          bot_name: botName,
-        })
-        
-        if (!planABResponse.success) {
-          throw new Error(planABResponse.error || 'Plan A/B failed for Veo model')
-        }
-        
-        // Если получили videoUrl сразу
-        if (planABResponse.videoUrl) {
-          const videoUrl = planABResponse.videoUrl
-          const videoBuffer = await downloadFileHelper(videoUrl)
-          logger.info('[I2V BG] Video downloaded from Plan A/B', { telegramId, url: videoUrl })
+
+        // ПЛАН А: Сначала пробуем через наш сервер
+        if (USE_PLAN_A) {
+          logger.info('[PLAN A] Trying server first for Veo model', {
+            modelId: modelConfig.id,
+            serverUrl: API_URL
+          })
+
+          try {
+          const baseUrl = API_URL
           
-          const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
-          await mkdir(dirPath, { recursive: true })
-          const timestamp = Date.now()
-          const uniqueFilename = `${timestamp}_video.mp4`
-          localVideoPath = path.join(dirPath, uniqueFilename)
-          const u8 = new Uint8Array(videoBuffer)
-          await writeFile(localVideoPath, u8)
-          logger.info('[I2V BG] Video saved locally from Plan A/B', {
-            telegramId,
-            path: localVideoPath,
+          // Проверяем доступность сервера (пропускаем localhost для тестов)
+          if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {
+            const url = `${baseUrl}/api/v1/veo/generate`
+            
+            const requestBody = {
+              model: modelConfig.id === 'veo-3-fast' ? 'veo3_fast' : 'veo3',
+              prompt: prompt || '',
+              imageUrl: imageUrl,
+              aspectRatio: userAspectRatio || '9:16',
+              enableFallback: false,
+              enableTranslation: true,
+              telegram_id: telegramId,
+              username: username || 'unknown',
+              is_ru: isRu || false,
+              bot_name: botName || 'unknown',
+            }
+            
+            logger.info('[PLAN A] ТОЧНЫЙ ЗАПРОС НА СЕРВЕР:', {
+              url,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-secret-key': SECRET_API_KEY ? 'PRESENT' : 'MISSING',
+              },
+              requestBody: {
+                ...requestBody,
+                prompt: `[PROMPT LENGTH: ${prompt?.length || 0} chars]`,
+                imageUrl: imageUrl ? 'PRESENT' : 'MISSING',
+              },
+              serverBaseUrl: baseUrl,
+            })
+            
+            const response = await axios.post(url, requestBody, {
+              headers: {
+                'Content-Type': 'application/json',
+                'x-secret-key': SECRET_API_KEY,
+              },
+              timeout: 10000, // 10 секунд таймаут для проверки сервера
+            })
+            
+            logger.info('[PLAN A] Server response received', {
+              status: response.status,
+              success: response.data.success,
+              hasJobId: !!response.data.jobId,
+              hasVideoUrl: !!response.data.videoUrl,
+            })
+            
+            // Если сервер ответил успешно с videoUrl - обрабатываем видео
+            if (response.data.success && response.data.videoUrl) {
+              logger.info('[PLAN A] Server returned video URL - processing video', {
+                telegramId,
+                videoUrl: response.data.videoUrl
+              })
+
+              // Скачиваем видео с сервера
+              const videoUrl = response.data.videoUrl
+              const videoBuffer = await downloadFileHelper(videoUrl)
+              logger.info('[PLAN A] Video downloaded from server', { telegramId, url: videoUrl })
+
+              // Сохраняем видео локально
+              const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+              await mkdir(dirPath, { recursive: true })
+              const timestamp = Date.now()
+              const uniqueFilename = `${timestamp}_server_video.mp4`
+              localVideoPath = path.join(dirPath, uniqueFilename)
+              const u8 = new Uint8Array(videoBuffer)
+              await writeFile(localVideoPath, u8)
+              logger.info('[PLAN A] Video saved locally from server', {
+                telegramId,
+                path: localVideoPath,
+              })
+
+              // Сохраняем информацию о видео в БД
+              await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+              logger.info('[PLAN A] Video info saved to DB from server', { telegramId })
+
+              // Отправляем видео пользователю
+              const caption = isRu
+                ? `✨ Ваше видео (${modelConfig.title}) готово через сервер!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+                : `✨ Your video (${modelConfig.title}) is ready via server!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+
+              await telegramInstance.sendVideo(
+                chatId,
+                { source: localVideoPath },
+                { caption }
+              )
+
+              // Добавляем финальные кнопки
+              logger.info('[PLAN A] Sending final buttons to user after server video', { telegramId })
+
+              const keyboard = Markup.keyboard([
+                [
+                  isRu
+                    ? '✨ Создать еще (Изображение в Видео)'
+                    : '✨ Create More (Image to Video)',
+                ],
+                [
+                  isRu
+                    ? '🖼 Выбрать другую модель (Видео)'
+                    : '🖼 Select Another Model (Video)',
+                ],
+                [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+              ]).resize()
+
+              await telegramInstance.sendMessage(
+                chatId,
+                isRu
+                  ? 'Ваше видео готово через сервер! Что дальше?'
+                  : 'Your video is ready via server! What next?',
+                keyboard
+              )
+              return // Выходим из функции, так как видео уже отправлено
+            }
+
+            // Если сервер ответил success но без videoUrl - переходим к плану Б
+            if (response.data.success && !response.data.videoUrl) {
+              logger.warn('[PLAN A] Server success but no videoUrl - switching to PLAN B', {
+                telegramId,
+                hasJobId: !!response.data.jobId
+              })
+              // Продолжаем к плану Б
+            }
+          }
+        } catch (serverError) {
+          // Сервер недоступен, переключаемся на План Б
+          const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
+          
+          // ДЕТАЛЬНАЯ ДИАГНОСТИКА ОШИБКИ СЕРВЕРА
+          if (isAxiosError(serverError)) {
+            logger.error('[PLAN A] ДЕТАЛИ ОШИБКИ СЕРВЕРА:', {
+              status: serverError.response?.status,
+              statusText: serverError.response?.statusText,
+              data: serverError.response?.data,
+              url: serverError.config?.url,
+              code: serverError.code,
+              message: serverError.message,
+              fullError: JSON.stringify(serverError.response?.data || {}, null, 2)
+            })
+          }
+          
+          logger.warn('[PLAN A] Server failed, switching to PLAN B', {
+            error: errorMessage,
+            modelId: modelConfig.id
           })
           
-          await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
-          logger.info('[I2V BG] Video info saved to DB', { telegramId })
-          
-          const caption = isRu
-            ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
-            : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
-          
-          await telegramInstance.sendVideo(
-            chatId,
-            { source: localVideoPath },
-            { caption }
-          )
-          
-          // Добавляем финальные кнопки
-          logger.info('[I2V BG] Sending final buttons to user', { telegramId })
-          
-          const keyboard = Markup.keyboard([
-            [
+          // Уведомляем админа о проблеме с сервером
+          await notifyAdminAboutServerIssue(errorMessage, telegramId, modelConfig.id)
+        }
+        } else {
+          // План А отключен, сразу переходим к Плану Б
+          logger.info('[PLAN A] Skipped - going directly to PLAN B', {
+            modelId: modelConfig.id
+          })
+        }
+
+        // ПЛАН Б: Используем прямую интеграцию с API Veo 3
+        logger.info('[PLAN B] Using direct Veo 3 API', {
+          modelId: modelConfig.id,
+          aspectRatio: userAspectRatio,
+          hasImage: !!imageUrl,
+          telegramId,
+          username
+        })
+
+        // Уведомляем пользователя о переходе к Плану Б
+        await telegramInstance.sendMessage(
+          chatId,
+          isRu
+            ? '🔄 План Б: Использую прямой API Veo 3...'
+            : '🔄 Plan B: Using direct Veo 3 API...'
+        )
+        
+        // Импортируем KieAiProvider
+        const { KieAiProvider } = await import('@/services/video-providers/KieAiProvider')
+        const kieProvider = new KieAiProvider()
+        
+        // Преобразуем aspectRatio в формат Kie.ai
+        const kieAspectRatio = userAspectRatio as '16:9' | '9:16' | '1:1' | undefined
+        
+        logger.info('[PLAN B] Calling Veo 3 generateVideo with params:', {
+          model: modelConfig.id,
+          promptLength: prompt?.length || 0,
+          aspectRatio: kieAspectRatio || '9:16',
+          hasImage: !!imageUrl
+        })
+
+        // Уведомляем пользователя о начале генерации видео через План Б
+        await telegramInstance.sendMessage(
+          chatId,
+          isRu
+            ? `🎬 План Б: Генерирую видео через ${modelConfig.title}...`
+            : `🎬 Plan B: Generating video via ${modelConfig.title}...`
+        )
+        
+        // Генерируем видео через Kie.ai
+        const kieResponse = await kieProvider.generateVideo({
+          model: modelConfig.id,
+          prompt: prompt || '',
+          aspectRatio: kieAspectRatio || '9:16',
+          imageUrl: imageUrl,
+        })
+        
+        logger.info('[PLAN B] Veo 3 API response received:', {
+          success: kieResponse.success,
+          hasData: !!kieResponse.data,
+          hasVideoUrl: !!kieResponse.data?.videoUrl,
+          hasTaskId: !!kieResponse.data?.taskId,
+          taskId: kieResponse.data?.taskId,
+          error: kieResponse.error
+        })
+        
+        if (kieResponse.success) {
+          if (kieResponse.data?.videoUrl) {
+            // Видео готово сразу - обрабатываем его
+            const videoUrl = kieResponse.data.videoUrl
+            const videoBuffer = await downloadFileHelper(videoUrl)
+            logger.info('[I2V BG] Video downloaded from Plan B', { telegramId, url: videoUrl })
+            
+            const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+            await mkdir(dirPath, { recursive: true })
+            const timestamp = Date.now()
+            const uniqueFilename = `${timestamp}_video.mp4`
+            localVideoPath = path.join(dirPath, uniqueFilename)
+            const u8 = new Uint8Array(videoBuffer)
+            await writeFile(localVideoPath, u8)
+            logger.info('[I2V BG] Video saved locally from Plan B', {
+              telegramId,
+              path: localVideoPath,
+            })
+            
+            await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+            logger.info('[I2V BG] Video info saved to DB', { telegramId })
+            
+            const caption = isRu
+              ? `✨ Ваше видео (${modelConfig.title}) готово через План Б!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+              : `✨ Your video (${modelConfig.title}) is ready via Plan B!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+            
+            await telegramInstance.sendVideo(
+              chatId,
+              { source: localVideoPath },
+              { caption }
+            )
+            
+            // Добавляем финальные кнопки
+            logger.info('[I2V BG] Sending final buttons to user', { telegramId })
+            
+            const keyboard = Markup.keyboard([
+              [
+                isRu
+                  ? '✨ Создать еще (Изображение в Видео)'
+                  : '✨ Create More (Image to Video)',
+              ],
+              [
+                isRu
+                  ? '🖼 Выбрать другую модель (Видео)'
+                  : '🖼 Select Another Model (Video)',
+              ],
+              [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+            ]).resize()
+            
+            await telegramInstance.sendMessage(
+              chatId,
               isRu
-                ? '✨ Создать еще (Изображение в Видео)'
-                : '✨ Create More (Image to Video)',
-            ],
-            [
-              isRu
-                ? '🖼 Выбрать другую модель (Видео)'
-                : '🖼 Select Another Model (Video)',
-            ],
-            [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
-          ]).resize()
-          
-          await telegramInstance.sendMessage(
-            chatId,
-            isRu
-              ? 'Ваше видео готово! Что дальше?'
-              : 'Your video is ready! What next?',
-            keyboard
-          )
-          return // Выходим из функции, так как видео уже отправлено
+                ? 'Ваше видео готово! Что дальше?'
+                : 'Your video is ready! What next?',
+              keyboard
+            )
+            return // Выходим из функции, так как видео уже отправлено
+          } else if (kieResponse.data?.taskId) {
+            // Если есть taskId, но нет videoUrl - видео еще генерируется
+            // TODO: Implement job polling logic for taskId
+            logger.warn('[I2V BG] Plan B returned taskId, but job polling not implemented yet', {
+              telegramId,
+              taskId: kieResponse.data.taskId
+            })
+            throw new Error('Job polling not implemented yet for Plan B')
+          }
         }
         
-        // Если получили jobId, нужно дождаться завершения
-        if (planABResponse.jobId) {
-          // TODO: Implement polling logic for jobId
-          throw new Error('Job polling not implemented yet for Plan A/B')
-        }
-        
-        throw new Error('No video URL or job ID received from Plan A/B')
+        // Если Plan B не сработал, продолжаем с обычным Replicate API
+        logger.warn('[I2V BG] Plan B failed, falling back to standard Replicate API', {
+          telegramId,
+          error: kieResponse.error
+        })
       }
+      
       // Специальная обработка для Seedance-1-Pro моделей
       else if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
         modelInput = {
