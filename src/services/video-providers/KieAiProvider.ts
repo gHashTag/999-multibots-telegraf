@@ -230,6 +230,8 @@ export class KieAiProvider {
       aspectRatio: aspectRatio,
       enableFallback: false,
       enableTranslation: true,
+      // Добавляем callbackUrl для webhook уведомлений
+      callBackUrl: `${process.env.BASE_WEBHOOK_URL || 'https://your-domain.com'}/api/webhooks/kie-ai-callback`,
     }
     
     // Логируем полный промпт для отладки
@@ -260,6 +262,8 @@ export class KieAiProvider {
       aspectRatio: requestData.aspectRatio,
       enableFallback: requestData.enableFallback,
       enableTranslation: requestData.enableTranslation,
+      hasCallbackUrl: !!requestData.callBackUrl,
+      callbackUrl: requestData.callBackUrl,
       requestKeys: Object.keys(requestData)
     })
 
@@ -400,6 +404,7 @@ export class KieAiProvider {
         msg: response.data.msg,
         successFlag: response.data.data?.successFlag,
         hasResultUrls: !!response.data.data?.response?.resultUrls,
+        fullResponse: response.data,
       })
 
       if (response.data.code !== 200) {
@@ -407,20 +412,35 @@ export class KieAiProvider {
       }
 
       const data = response.data.data
-      if (data.successFlag === 1 && data.response?.resultUrls?.[0]) {
-        return {
-          success: true,
-          data: {
-            videoUrl: data.response.resultUrls[0],
-            duration: 8, // Default duration
-            taskId: taskId,
-          },
-          cost: { usd: 0, stars: 0 },
-          provider: 'Veo 3 API',
-          model: 'veo-3',
+
+      // Проверяем различные форматы ответа
+      if (data.successFlag === 1) {
+        // Видео готово - проверяем разные форматы URL
+        const videoUrl = data.response?.resultUrls?.[0] ||
+                        data.response?.result_url ||
+                        data.resultUrls?.[0] ||
+                        data.result_url
+
+        if (videoUrl) {
+          logger.info('[KieAiProvider] Video is ready!', { taskId, videoUrl })
+          return {
+            success: true,
+            data: {
+              videoUrl: videoUrl,
+              duration: data.response?.duration || data.duration || 8,
+              taskId: taskId,
+            },
+            cost: { usd: 0, stars: 0 },
+            provider: 'Veo 3 API',
+            model: 'veo-3',
+          }
+        } else {
+          logger.warn('[KieAiProvider] Video marked as ready but no URL found', { taskId, data })
+          throw new Error('Video marked as ready but no video URL provided')
         }
       } else if (data.successFlag === 0) {
         // Still processing
+        logger.info('[KieAiProvider] Video still processing', { taskId })
         return {
           success: true,
           data: {
@@ -432,10 +452,27 @@ export class KieAiProvider {
           provider: 'Veo 3 API',
           model: 'veo-3',
         }
+      } else if (data.successFlag === 2) {
+        // Ошибка генерации
+        logger.error('[KieAiProvider] Video generation failed', { taskId, data })
+        throw new Error(data.errorMessage || data.response?.errorMessage || 'Video generation failed')
       } else {
-        throw new Error(data.errorMessage || 'Video generation failed')
+        logger.warn('[KieAiProvider] Unknown successFlag value', { taskId, successFlag: data.successFlag })
+        // Продолжаем polling для неизвестных статусов
+        return {
+          success: true,
+          data: {
+            videoUrl: undefined,
+            duration: 8,
+            taskId: taskId,
+          },
+          cost: { usd: 0, stars: 0 },
+          provider: 'Veo 3 API',
+          model: 'veo-3',
+        }
       }
     } catch (error) {
+      logger.error('[KieAiProvider] Error checking video status', { taskId, error })
       return {
         success: false,
         cost: { usd: 0, stars: 0 },
