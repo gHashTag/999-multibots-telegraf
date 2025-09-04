@@ -60,6 +60,43 @@ async function notifyAdminAboutServerIssue(
   }
 }
 
+async function notifyAdminAboutPlanBSuccess(
+  telegram_id: string,
+  videoModel: string,
+  taskId: string,
+  videoUrl: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+
+    if (!botResult.bot) return
+
+    const successMessage = `✅ **PLAN B SUCCESS (I2V)**\n\n` +
+      `📍 Видео успешно сгенерировано через Plan B\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🎬 Model: ${videoModel}\n` +
+      `🔗 Task ID: ${taskId}\n` +
+      `🎥 Video URL: ${videoUrl.substring(0, 50)}...\n\n` +
+      `✅ Fallback механизм работает корректно`
+
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, successMessage, {
+        parse_mode: 'Markdown'
+      })
+    }
+
+    logger.info('[ADMIN NOTIFICATION] Plan B success reported to admins', {
+      adminIds,
+      telegram_id,
+      taskId
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins about Plan B success', notifyError)
+  }
+}
+
 export const generateImageToVideo = async (
   telegramId: string,
   username: string,
@@ -575,8 +612,15 @@ export const generateImageToVideo = async (
             logger.info('[I2V BG] Video info saved to DB', { telegramId })
             
             const caption = isRu
-              ? `✨ Ваше видео (${modelConfig.title}) готово через План Б!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
-              : `✨ Your video (${modelConfig.title}) is ready via Plan B!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+              ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+              : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+
+            // Логируем для админа, что видео было создано через Plan B
+            logger.info('[M-Admin] 🎬 Video successfully generated via Plan B', {
+              telegramId,
+              modelId: modelConfig.id,
+              videoUrl: videoUrl.substring(0, 100) + '...'
+            })
             
             await telegramInstance.sendVideo(
               chatId,
@@ -665,6 +709,9 @@ export const generateImageToVideo = async (
                     generationTime: attempts * pollingInterval / 1000 + ' seconds'
                   })
 
+                  // Уведомляем админа об успешном завершении Plan B
+                  await notifyAdminAboutPlanBSuccess(telegramId, modelConfig.id, taskId, statusResponse.data.videoUrl)
+
                   // Скачиваем и обрабатываем видео
                   const videoUrl = statusResponse.data.videoUrl
                   const videoBuffer = await downloadFileHelper(videoUrl)
@@ -717,8 +764,19 @@ export const generateImageToVideo = async (
 
                   // Отправляем видео пользователю
                   const caption = isRu
-                    ? `✨ Ваше видео (${modelConfig.title}) готово через План Б!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
-                    : `✨ Your video (${modelConfig.title}) is ready via Plan B!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+                    ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+                    : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+
+                  // Логируем для админа, что видео было создано через Plan B polling
+                  logger.info('[M-Admin] 🎬 Video successfully generated via Plan B polling', {
+                    telegramId,
+                    modelId: modelConfig.id,
+                    taskId,
+                    videoUrl: videoUrl.substring(0, 100) + '...'
+                  })
+
+                  // Уведомляем админа об успешном завершении Plan B polling
+                  await notifyAdminAboutPlanBSuccess(telegramId, modelConfig.id, taskId, videoUrl)
 
                   await telegramInstance.sendVideo(
                     chatId,
@@ -746,8 +804,8 @@ export const generateImageToVideo = async (
                   await telegramInstance.sendMessage(
                     chatId,
                     isRu
-                      ? 'Ваше видео готово через План Б! Что дальше?'
-                      : 'Your video is ready via Plan B! What next?',
+                      ? 'Ваше видео готово! Что дальше?'
+                      : 'Your video is ready! What next?',
                     keyboard
                   )
                   return // Выходим из функции, так как видео уже отправлено
@@ -757,12 +815,12 @@ export const generateImageToVideo = async (
                 if (attempts % 15 === 0 && attempts > 0) {
                   const progressPercent = Math.round((attempts / maxPollingAttempts) * 100)
                   const progressMessage = isRu
-                    ? `⏳ Видео генерируется через План Б... (${progressPercent}%)`
-                    : `⏳ Video is being generated via Plan B... (${progressPercent}%)`
+                    ? `⏳ Видео генерируется... (${progressPercent}%)`
+                    : `⏳ Video is being generated... (${progressPercent}%)`
 
                   if (progressMessage !== lastProgressMessage) {
-                    // M-Admin: Прогресс генерации видео
-                    logger.info('[M-Admin] ⏳ Video generation progress', {
+                    // M-Admin: Прогресс генерации видео через Plan B
+                    logger.info('[M-Admin] ⏳ Video generation progress (Plan B)', {
                       telegramId,
                       taskId,
                       attempt: attempts,
