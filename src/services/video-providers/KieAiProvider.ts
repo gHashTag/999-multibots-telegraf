@@ -34,6 +34,7 @@ interface KieAiVideoResponse {
   model: string
   processingTime?: number
   error?: string
+  errorCode?: string | number
 }
 
 interface KieAiImageRequest {
@@ -514,6 +515,19 @@ export class KieAiProvider {
         // Ошибка генерации
         logger.error('[KieAiProvider] Video generation failed', { taskId, data })
         throw new Error(data.errorMessage || data.response?.errorMessage || 'Video generation failed')
+      } else if (data.successFlag === 3) {
+        // Ошибка генерации (например, unsafe image upload)
+        const errorMessage = data.errorMessage || 'Unknown generation error'
+        const errorCode = data.errorCode || 'UNKNOWN_ERROR'
+        
+        logger.error('[KieAiProvider] Video generation failed with error flag 3', {
+          taskId,
+          errorCode,
+          errorMessage,
+          successFlag: data.successFlag,
+        })
+
+        throw new Error(`Video generation failed: ${errorMessage} (Code: ${errorCode})`)
       } else {
         logger.warn('[KieAiProvider] Unknown successFlag value', { taskId, successFlag: data.successFlag })
         // Продолжаем polling для неизвестных статусов
