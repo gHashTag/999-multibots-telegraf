@@ -373,31 +373,24 @@ export async function mainMenu({
 
   const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом (Подписка)
 
-  if (currentSubscription === SubscriptionType.STARS) {
-    console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
-    // Для STARS добавляем Пригласить друга и Техподдержку
-    const inviteButton = Markup.button.text(
-      isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
-    )
-    bottomRowButtons.push([inviteButton, supportButton])
-  } else {
-    console.log(
-      `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
-    )
-    const balanceButton = Markup.button.text(
-      isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
-    )
-    const topUpButton = Markup.button.text(
-      isRu ? levels[100].title_ru : levels[100].title_en // "💎 Пополнить баланс"
-    )
-    const inviteButton = Markup.button.text(
-      isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
-    )
-    // Баланс и Пополнить идут в основные ряды
-    buttonRows.push([balanceButton, topUpButton])
-    // Пригласить и Поддержка идут в предпоследний ряд
-    bottomRowButtons.push([inviteButton, supportButton])
-  }
+  // Добавляем кнопки "Баланс" и "Пополнить баланс" для всех пользователей
+  const balanceButton = Markup.button.text(
+    isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
+  )
+  const topUpButton = Markup.button.text(
+    isRu ? levels[100].title_ru : levels[100].title_en // "💎 Пополнить баланс"
+  )
+  const inviteButton = Markup.button.text(
+    isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
+  )
+
+  console.log(`[mainMenu LOG] Adding balance and top-up buttons for subscription: ${currentSubscription}`)
+
+  // Баланс и Пополнить идут в основные ряды для всех пользователей
+  buttonRows.push([balanceButton, topUpButton])
+
+  // Пригласить и Поддержка идут в предпоследний ряд
+  bottomRowButtons.push([inviteButton, supportButton])
 
   // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
   bottomRowButtons.push([languageButton])

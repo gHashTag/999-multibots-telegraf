@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import https from 'https'
 import { promisify } from 'util'
 import { pipeline } from 'stream'
 import axios from 'axios'
@@ -252,6 +253,9 @@ class VideoTranscriptionService {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
+        httpsAgent: new https.Agent({
+          rejectUnauthorized: false, // Игнорируем SSL ошибки для Instagram
+        }),
       })
 
       console.log(`📋 Response headers:`, {

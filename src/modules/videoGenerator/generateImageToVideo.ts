@@ -84,6 +84,18 @@ export const generateImageToVideo = async (
   let newBalanceForNotification: number | undefined
 
   try {
+    // Усекаем длинный промпт, чтобы избежать ошибок Telegram "message too long"
+    const maxPromptLength = 2000 // Безопасный лимит для промпта
+    let processedPrompt = prompt
+    if (processedPrompt && processedPrompt.length > maxPromptLength) {
+      processedPrompt = processedPrompt.substring(0, maxPromptLength) + '...'
+      logger.warn('[I2V BG] Prompt truncated due to length', {
+        telegramId,
+        originalLength: prompt.length,
+        truncatedLength: processedPrompt.length
+      })
+    }
+
     const modelConfig = VIDEO_MODELS_CONFIG[modelId]
     if (!modelConfig) {
       logger.error(
@@ -104,7 +116,7 @@ export const generateImageToVideo = async (
       telegramId,
       isMorphing,
       hasImageUrl: !!imageUrl,
-      hasPrompt: !!prompt,
+      hasPrompt: !!processedPrompt,
       hasImageA: !!imageAUrl,
       hasImageB: !!imageBUrl,
     })
@@ -128,7 +140,7 @@ export const generateImageToVideo = async (
       }
       logger.info('[I2V BG] Morphing mode validated', { telegramId })
     } else {
-      if (!imageUrl || !prompt) {
+      if (!imageUrl || !processedPrompt) {
         await telegramInstance.sendMessage(
           chatId,
           '❌ Ошибка: Изображение и промпт обязательны для стандартного режима.'
@@ -212,7 +224,7 @@ export const generateImageToVideo = async (
           ...modelConfig.api.input,
           [modelConfig.imageKey]: imageAUrl,
           end_image: imageBUrl,
-          prompt: prompt || '',
+          prompt: processedPrompt || '',
         }
         logger.info('[I2V BG] Prepared Replicate input for Kling morphing', {
           telegramId,
@@ -223,7 +235,7 @@ export const generateImageToVideo = async (
           ...modelConfig.api.input,
           image_a: imageAUrl,
           image_b: imageBUrl,
-          prompt: prompt || '',
+          prompt: processedPrompt || '',
         }
         logger.info('[I2V BG] Prepared Replicate input for generic morphing', {
           telegramId,
@@ -231,7 +243,7 @@ export const generateImageToVideo = async (
         })
       }
     } else {
-      if (!imageUrl || !prompt || !modelConfig.imageKey) {
+      if (!imageUrl || !processedPrompt || !modelConfig.imageKey) {
         logger.error('[I2V BG] Internal validation failed (standard mode)', {
           telegramId,
         })
@@ -268,7 +280,7 @@ export const generateImageToVideo = async (
             
             const requestBody = {
               model: modelConfig.id === 'veo-3-fast' ? 'veo3_fast' : 'veo3',
-              prompt: prompt || '',
+              prompt: processedPrompt || '',
               imageUrl: imageUrl,
               aspectRatio: userAspectRatio || '9:16',
               enableFallback: false,
@@ -288,7 +300,7 @@ export const generateImageToVideo = async (
               },
               requestBody: {
                 ...requestBody,
-                prompt: `[PROMPT LENGTH: ${prompt?.length || 0} chars]`,
+                prompt: `[PROMPT LENGTH: ${processedPrompt?.length || 0} chars]`,
                 imageUrl: imageUrl ? 'PRESENT' : 'MISSING',
               },
               serverBaseUrl: baseUrl,
@@ -337,6 +349,30 @@ export const generateImageToVideo = async (
               // Сохраняем информацию о видео в БД
               await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
               logger.info('[PLAN A] Video info saved to DB from server', { telegramId })
+
+              // Снимаем деньги ТОЛЬКО после успешного получения видео
+              const deductSuccess = await deductBalanceAfterSuccess(
+                telegramId,
+                modelId,
+                botName,
+                balanceResult.paymentAmount || 0,
+                'image_to_video'
+              )
+
+              if (!deductSuccess) {
+                logger.error('[PLAN A] Failed to deduct payment after successful video generation', {
+                  telegramId,
+                  modelId,
+                  paymentAmount: balanceResult.paymentAmount
+                })
+                // Все равно отправляем видео, но логируем ошибку
+              } else {
+                logger.info('[PLAN A] Payment deducted after successful video generation', {
+                  telegramId,
+                  modelId,
+                  paymentAmount: balanceResult.paymentAmount
+                })
+              }
 
               // Отправляем видео пользователю
               const caption = isRu
@@ -443,7 +479,7 @@ export const generateImageToVideo = async (
         
         logger.info('[PLAN B] Calling Veo 3 generateVideo with params:', {
           model: modelConfig.id,
-          promptLength: prompt?.length || 0,
+          promptLength: processedPrompt?.length || 0,
           aspectRatio: kieAspectRatio || '9:16',
           hasImage: !!imageUrl
         })
@@ -453,7 +489,7 @@ export const generateImageToVideo = async (
           telegramId,
           modelId: modelConfig.id,
           modelTitle: modelConfig.title,
-          prompt: prompt?.substring(0, 100) + '...',
+          prompt: processedPrompt?.substring(0, 100) + '...',
           aspectRatio: kieAspectRatio,
           hasImage: !!imageUrl
         })
@@ -463,7 +499,7 @@ export const generateImageToVideo = async (
           logger.error('[PLAN B] CRITICAL ERROR: No image URL provided for image-to-video generation', {
             telegramId,
             modelId: modelConfig.id,
-            prompt: prompt || 'no prompt'
+            prompt: processedPrompt || 'no prompt'
           })
 
           await telegramInstance.sendMessage(
@@ -494,7 +530,7 @@ export const generateImageToVideo = async (
         // Генерируем видео через Kie.ai
         logger.info('[PLAN B] Sending request to Kie.ai:', {
           model: modelConfig.id,
-          prompt: prompt ? `${prompt.substring(0, 100)}...` : 'no prompt',
+          prompt: processedPrompt ? `${processedPrompt.substring(0, 100)}...` : 'no prompt',
           aspectRatio: kieAspectRatio || '9:16',
           hasImageUrl: !!imageUrl,
           imageUrl: imageUrl ? `${imageUrl.substring(0, 100)}...` : 'no image',
@@ -502,7 +538,7 @@ export const generateImageToVideo = async (
 
         const kieResponse = await kieProvider.generateVideo({
           model: modelConfig.id,
-          prompt: prompt || '',
+          prompt: processedPrompt || '',
           aspectRatio: kieAspectRatio || '9:16',
           imageUrl: imageUrl,
         })
@@ -801,7 +837,7 @@ export const generateImageToVideo = async (
       else if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
         modelInput = {
           ...modelConfig.api.input, // ИСПРАВЛЕНИЕ: Включаем базовые параметры API
-          prompt,
+          prompt: processedPrompt,
           resolution: selectedResolution, // ИСПРАВЛЕНО: используем 'resolution' вместо 'target_resolution'
           [modelConfig.imageKey]: imageUrl,
         }
@@ -840,7 +876,7 @@ export const generateImageToVideo = async (
 
         modelInput = {
           ...modelConfig.api.input,
-          prompt,
+          prompt: processedPrompt,
           target_resolution: wanResolution, // WAN использует специфичный формат
           [modelConfig.imageKey]: imageUrl,
         }
@@ -857,7 +893,7 @@ export const generateImageToVideo = async (
         // Стандартная обработка для остальных моделей
         modelInput = {
           ...modelConfig.api.input,
-          prompt,
+          prompt: processedPrompt,
           aspect_ratio: userAspectRatio,
           [modelConfig.imageKey]: imageUrl,
         }
@@ -996,12 +1032,16 @@ export const generateImageToVideo = async (
       : ' Funds have been refunded to your balance.'
 
     try {
-      await telegramInstance.sendMessage(
-        chatId,
-        isRu
+      const fullErrorMessage = isRu
           ? `❌ Ошибка генерации видео: ${errorMessage}${refundMessage}`
           : `❌ Video generation error: ${errorMessage}${refundMessage}`
-      )
+
+      // Усекаем сообщение, если оно слишком длинное для Telegram (4096 символов)
+      const truncatedMessage = fullErrorMessage.length > 4000
+        ? fullErrorMessage.substring(0, 4000) + '...'
+        : fullErrorMessage
+
+      await telegramInstance.sendMessage(chatId, truncatedMessage)
     } catch (sendError: any) {
       logger.error('[I2V BG] Failed to send error message to user', {
         originalError: error?.message,

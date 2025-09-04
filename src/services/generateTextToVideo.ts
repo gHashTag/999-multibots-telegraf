@@ -533,9 +533,51 @@ export async function checkVideoGenerationStatus(
     return response.data
   } catch (error) {
     if (isAxiosError(error)) {
-      logger.error('Error checking video generation status', {
+      const statusCode = error.response?.status
+      const errorData = error.response?.data
+
+      // Специальная обработка для 404 ошибки (job not found)
+      if (statusCode === 404 || errorData?.message?.includes('not found') || errorData?.message?.includes('Video job not found')) {
+        logger.warn('[checkVideoGenerationStatus] Video job not found - may have expired or been deleted', {
+          jobId,
+          statusCode,
+          errorMessage: errorData?.message || error.message
+        })
+
+        return {
+          success: false,
+          error: is_ru
+            ? 'Задача генерации видео не найдена. Возможно, она была удалена или истек срок хранения.'
+            : 'Video generation task not found. It may have been deleted or expired.',
+        }
+      }
+
+      // Обработка других HTTP ошибок
+      if (statusCode >= 500) {
+        logger.error('[checkVideoGenerationStatus] Server error while checking video status', {
+          jobId,
+          statusCode,
+          error: errorData || error.message,
+        })
+
+        return {
+          success: false,
+          error: is_ru
+            ? 'Ошибка сервера при проверке статуса видео. Попробуйте позже.'
+            : 'Server error while checking video status. Please try again later.',
+        }
+      }
+
+      logger.error('[checkVideoGenerationStatus] HTTP error while checking video status', {
         jobId,
-        error: error.response?.data || error.message,
+        statusCode,
+        error: errorData || error.message,
+      })
+    } else {
+      // Обработка не-HTTP ошибок
+      logger.error('[checkVideoGenerationStatus] Non-HTTP error while checking video status', {
+        jobId,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     }
 

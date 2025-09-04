@@ -140,6 +140,7 @@ export interface MySessionData extends Scenes.WizardSessionData {
   triggerWord?: string
   steps?: number
   memory?: Memory
+  lastStartCommand?: number // Timestamp of last /start command to prevent spam
 
   __scenes: Record<string, unknown>
 }
