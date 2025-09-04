@@ -231,7 +231,7 @@ export class KieAiProvider {
       enableFallback: false,
       enableTranslation: true,
       // Добавляем callbackUrl для webhook уведомлений
-      callBackUrl: `${process.env.BASE_WEBHOOK_URL || 'https://ai-server-production-production-8e2d.up.railway.app'}/api/webhooks/kie-ai-callback`,
+      callBackUrl: 'https://ai-server-production-production-8e2d.up.railway.app/api/webhooks/kie-ai-callback',
     }
     
     // Логируем полный промпт для отладки
