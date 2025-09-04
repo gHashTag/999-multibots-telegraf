@@ -544,8 +544,8 @@ export const generateImageToVideo = async (
 
             // Реализуем polling для Kie.ai API
             const taskId = kieResponse.data.taskId
-            const maxPollingAttempts = 3 
-            const pollingInterval = 1000 
+            const maxPollingAttempts = 60 // 60 попыток = ~2 минуты (2 сек * 60)
+            const pollingInterval = 2000 // 2 секунды между проверками 
 
             let attempts = 0
             let lastProgressMessage = ''
@@ -694,8 +694,8 @@ export const generateImageToVideo = async (
             await telegramInstance.sendMessage(
               chatId,
               isRu
-                ? `❌ Видео не удалось сгенерировать в отведенное время через План Б. Попробуйте еще раз.`
-                : `❌ Video generation timed out via Plan B. Please try again.`
+                ? `❌ Видео не удалось сгенерировать в отведенное время через План Б (2 мин). Попробуйте еще раз или используйте другую модель.`
+                : `❌ Video generation timed out via Plan B (2 min). Please try again or use a different model.`
             )
 
             throw new Error('Plan B polling timeout - video generation failed')
