@@ -231,7 +231,7 @@ export class KieAiProvider {
       enableFallback: false,
       enableTranslation: true,
       // Добавляем callbackUrl для webhook уведомлений
-      callBackUrl: `${process.env.BASE_WEBHOOK_URL || 'https://your-domain.com'}/api/webhooks/kie-ai-callback`,
+      callBackUrl: `${process.env.BASE_WEBHOOK_URL || 'https://ai-server-production-production-8e2d.up.railway.app'}/api/webhooks/kie-ai-callback`,
     }
     
     // Логируем полный промпт для отладки
@@ -243,10 +243,10 @@ export class KieAiProvider {
     })
 
     if (imageUrl) {
-      requestData.image_url = imageUrl
+      requestData.imageUrls = [imageUrl]  // Массив согласно документации Kie.ai API
       logger.info('[KieAiProvider] Image URL added to request:', {
-        imageUrlLength: imageUrl.length,
-        imageUrl: imageUrl.substring(0, 100) + '...'
+        imageUrlsCount: requestData.imageUrls.length,
+        firstImageUrl: imageUrl.substring(0, 100) + '...'
       })
     } else {
       logger.warn('[KieAiProvider] No image URL provided for image-to-video generation')
@@ -257,8 +257,9 @@ export class KieAiProvider {
       model: kieModel,
       hasPrompt: !!requestData.prompt,
       promptLength: requestData.prompt?.length || 0,
-      hasImageUrl: !!requestData.image_url,
-      imageUrlLength: requestData.image_url?.length || 0,
+      hasImageUrls: !!requestData.imageUrls && requestData.imageUrls.length > 0,
+      imageUrlsCount: requestData.imageUrls?.length || 0,
+      firstImageUrl: requestData.imageUrls?.[0]?.substring(0, 100) + '...' || 'none',
       aspectRatio: requestData.aspectRatio,
       enableFallback: requestData.enableFallback,
       enableTranslation: requestData.enableTranslation,
