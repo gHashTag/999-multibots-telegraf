@@ -239,7 +239,9 @@ export class KieAiProvider {
       model: kieModel,
       promptLength: prompt.length,
       aspectRatio: aspectRatio,
-      fullPrompt: prompt // Отправляем полный промпт в логи
+      fullPrompt: prompt, // Отправляем полный промпт в логи
+      hasImageUrl: !!imageUrl,
+      imageUrlValue: imageUrl || 'no image provided'
     })
 
     if (imageUrl) {
