@@ -10,6 +10,7 @@ import { handleTechSupport } from '@/commands/handleTechSupport'
 import { handleRestartVideoGeneration } from './handleVideoRestart'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
+import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 // ✅ Обновляем импорты для новых функций языка
 // ✅ НОВАЯ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ЯЗЫКОВ (БЕЗ ЗАПРОСОВ К БД!)
 import {
@@ -532,32 +533,112 @@ export const handleMenu = async (ctx: MyContext) => {
           message: '💎 [handleMenu] Переход к пополнению баланса',
           telegramId,
           function: 'handleMenu',
-          action: 'topup_balance',
-          nextScene: ModeEnum.PaymentScene,
+          action: 'topup_balance_attempt',
         })
         console.log('CASE: 💎 Пополнить баланс')
-        ctx.session.mode = ModeEnum.PaymentScene
 
-        // Очищаем/инициализируем selectedPayment для контекста пополнения баланса
-        ctx.session.selectedPayment = {
-          amount: 0, // Сумма будет определена в payment_scene
-          stars: 0, // Количество звезд будет определено в payment_scene
-          subscription: null, // Явно указываем, что это не покупка подписки
-          type: PaymentType.MONEY_INCOME, // Тип операции - пополнение
-        }
-        logger.info(
-          '[handleMenu] Initialized ctx.session.selectedPayment for top-up',
-          {
+        // Проверяем подписку пользователя перед пополнением баланса
+        try {
+          const userDetails = await getUserDetailsSubscription(telegramId)
+
+          logger.info('[handleMenu] Subscription check for top-up', {
             telegramId,
-            selectedPayment: ctx.session.selectedPayment,
-          }
-        )
+            hasActiveSubscription: userDetails.isSubscriptionActive,
+            subscriptionType: userDetails.subscriptionType,
+            stars: userDetails.stars,
+          })
 
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
-        await ctx.scene.enter(ModeEnum.PaymentScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
-        )
+          // Если у пользователя есть активная подписка - разрешаем пополнение баланса
+          if (userDetails.isSubscriptionActive && userDetails.subscriptionType) {
+            logger.info('[handleMenu] User has active subscription - proceeding to top-up', {
+              telegramId,
+              subscriptionType: userDetails.subscriptionType,
+            })
+
+            ctx.session.mode = ModeEnum.PaymentScene
+
+            // Очищаем/инициализируем selectedPayment для контекста пополнения баланса
+            ctx.session.selectedPayment = {
+              amount: 0, // Сумма будет определена в payment_scene
+              stars: 0, // Количество звезд будет определено в payment_scene
+              subscription: null, // Явно указываем, что это не покупка подписки
+              type: PaymentType.MONEY_INCOME, // Тип операции - пополнение
+            }
+            logger.info(
+              '[handleMenu] Initialized ctx.session.selectedPayment for top-up',
+              {
+                telegramId,
+                selectedPayment: ctx.session.selectedPayment,
+              }
+            )
+
+            console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
+            await ctx.scene.enter(ModeEnum.PaymentScene)
+            console.log(
+              `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
+            )
+          } else {
+            // Если подписки нет - предлагаем купить подписку
+            logger.info('[handleMenu] User has no active subscription - offering subscription purchase', {
+              telegramId,
+              stars: userDetails.stars,
+            })
+
+            const message = isRu
+              ? '💎 Для пополнения баланса требуется активная подписка.\n\n' +
+                'Выберите подписку для доступа к пополнению баланса и всем функциям:'
+              : '💎 Active subscription is required to top up balance.\n\n' +
+                'Choose a subscription to access balance top-up and all features:'
+
+            const keyboard = Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                  'subscription_menu'
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                  'main_menu'
+                ),
+              ],
+            ])
+
+            await ctx.reply(message, { reply_markup: keyboard.reply_markup })
+          }
+        } catch (error) {
+          logger.error('[handleMenu] Error checking subscription for top-up', {
+            telegramId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+
+          // В случае ошибки - все равно предлагаем купить подписку
+          const message = isRu
+            ? '❌ Произошла ошибка при проверке подписки.\n\n' +
+              'Для пополнения баланса требуется активная подписка.\n' +
+              'Выберите подписку для доступа ко всем функциям:'
+            : '❌ Error checking subscription.\n\n' +
+              'Active subscription is required to top up balance.\n' +
+              'Choose a subscription to access all features:'
+
+          const keyboard = Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                'subscription_menu'
+              ),
+            ],
+            [
+              Markup.button.callback(
+                isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                'main_menu'
+              ),
+            ],
+          ])
+
+          await ctx.reply(message, { reply_markup: keyboard.reply_markup })
+        }
       },
       [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         logger.info({

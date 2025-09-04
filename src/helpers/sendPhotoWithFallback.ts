@@ -21,7 +21,31 @@ export async function sendPhotoWithFallback(
     // Check if this is a Telegram file URL - these must be uploaded via buffer
     if (photoUrl.includes("api.telegram.org/file/bot")) {
       logger.info(`[sendPhotoWithFallback] Detected Telegram file URL, using buffer method directly`)
-      throw new Error("Telegram file URLs require buffer upload")
+
+      // Try to download and upload as buffer
+      try {
+        logger.info(`[sendPhotoWithFallback] Downloading Telegram file for buffer upload: ${photoUrl}`)
+
+        const response = await fetch(photoUrl)
+        if (!response.ok) {
+          logger.error(`[sendPhotoWithFallback] Failed to download Telegram file: HTTP ${response.status}`)
+          return false
+        }
+
+        const buffer = await response.arrayBuffer()
+        const imageBuffer = Buffer.from(buffer)
+
+        logger.info(`[sendPhotoWithFallback] Downloaded ${imageBuffer.length} bytes from Telegram, attempting buffer upload`)
+
+        // Отправляем через Buffer
+        await ctx.replyWithPhoto({ source: imageBuffer }, options)
+
+        logger.info(`[sendPhotoWithFallback] Successfully sent Telegram photo via buffer upload: ${photoUrl}`)
+        return true
+      } catch (telegramError) {
+        logger.error(`[sendPhotoWithFallback] Telegram file buffer upload failed: ${telegramError instanceof Error ? telegramError.message : 'Unknown error'}`)
+        return false
+      }
     }
 
     // Сначала пробуем валидацию

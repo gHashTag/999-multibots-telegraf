@@ -241,6 +241,24 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         chatType: ctx.chat.type,
       })
 
+      // Защита от спама команд /start
+      const now = Date.now()
+      const lastStartTime = (ctx.session as any).lastStartCommand || 0
+      const timeDiff = now - lastStartTime
+      const minInterval = 2000 // 2 секунды минимум между командами /start
+
+      if (timeDiff < minInterval) {
+        console.log('🚫 [START COMMAND] Start command spam detected, ignoring', {
+          telegramId,
+          timeDiff,
+          lastStartTime: new Date(lastStartTime).toISOString(),
+        })
+        return
+      }
+
+      // Обновляем время последней команды /start
+      (ctx.session as any).lastStartCommand = now
+
       try {
         // При старте всегда сбрасываем сессию
         ctx.session = { ...defaultSession }
@@ -1590,6 +1608,49 @@ If not, continue on your own and click the "I myself" button`
         await handleVideoStatusUpdate(ctx)
       } catch (error) {
         logger.error('Error in update_video_status action:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+      }
+    })
+
+    // ОБРАБОТЧИКИ ДЛЯ КНОПОК ПОПОЛНЕНИЯ БАЛАНСА
+    bot.action('subscription_menu', async ctx => {
+      logger.info('💫 GLOBAL ACTION: subscription_menu from top-up', {
+        telegramId: ctx.from?.id,
+      })
+
+      try {
+        await ctx.answerCbQuery()
+        // Удаляем сообщение с предложением купить подписку
+        await ctx.deleteMessage().catch(() => {
+          // Игнорируем ошибку если сообщение уже удалено
+        })
+        // Переходим в сцену подписки
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      } catch (error) {
+        logger.error('Error in subscription_menu action:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+      }
+    })
+
+    bot.action('main_menu', async ctx => {
+      logger.info('🏠 GLOBAL ACTION: main_menu from top-up', {
+        telegramId: ctx.from?.id,
+      })
+
+      try {
+        await ctx.answerCbQuery()
+        // Удаляем сообщение с предложением купить подписку
+        await ctx.deleteMessage().catch(() => {
+          // Игнорируем ошибку если сообщение уже удалено
+        })
+        // Переходим в главное меню
+        await ctx.scene.enter(ModeEnum.MainMenu)
+      } catch (error) {
+        logger.error('Error in main_menu action:', {
           error,
           telegramId: ctx.from?.id,
         })

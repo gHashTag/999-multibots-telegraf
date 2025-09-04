@@ -234,7 +234,15 @@ export class KieAiProvider {
     // Преобразуем название модели в формат Kie.ai
     let kieModel = model
     if (model === 'veo-3-fast') {
-      kieModel = 'veo3_fast'
+      // Для image-to-video используем veo3 вместо veo3_fast
+      // veo3_fast может не поддерживать image-to-video
+      kieModel = imageUrl ? 'veo3' : 'veo3_fast'
+      logger.info('[KieAiProvider] Model selection for image-to-video:', {
+        originalModel: model,
+        selectedModel: kieModel,
+        hasImage: !!imageUrl,
+        reason: imageUrl ? 'Using veo3 for image-to-video support' : 'Using veo3_fast for text-to-video'
+      })
     } else if (model === 'veo-3') {
       kieModel = 'veo3'
     } else if (model === 'runway-aleph') {
@@ -262,10 +270,32 @@ export class KieAiProvider {
     })
 
     if (imageUrl) {
-      requestData.imageUrls = [imageUrl]  // Массив согласно документации Kie.ai API
-      logger.info('[KieAiProvider] Image URL added to request:', {
+      // Пробуем разные форматы для Kie.ai API
+      requestData.imageUrls = [imageUrl]
+
+      // Для imageKey пробуем извлечь file_id из Telegram URL
+      let imageKey = imageUrl
+      if (imageUrl.includes('telegram.org')) {
+        // Извлекаем file_id из Telegram URL
+        const urlParts = imageUrl.split('/')
+        const fileName = urlParts[urlParts.length - 1]
+        if (fileName && fileName.includes('.')) {
+          imageKey = fileName.split('.')[0] // Берем только file_id без расширения
+        }
+      } else {
+        // Для других URL используем последний сегмент пути
+        const urlParts = imageUrl.split('/')
+        imageKey = urlParts[urlParts.length - 1]?.split('.')[0] || imageUrl
+      }
+
+      requestData.imageKey = imageKey
+
+      logger.info('[KieAiProvider] Image parameters added to request:', {
         imageUrlsCount: requestData.imageUrls.length,
-        firstImageUrl: imageUrl.substring(0, 100) + '...'
+        firstImageUrl: imageUrl.substring(0, 100) + '...',
+        imageKey: imageKey,
+        extractedFromTelegram: imageUrl.includes('telegram.org'),
+        usingDualFormat: true
       })
     } else {
       logger.warn('[KieAiProvider] No image URL provided for image-to-video generation')
@@ -279,6 +309,8 @@ export class KieAiProvider {
       hasImageUrls: !!requestData.imageUrls && requestData.imageUrls.length > 0,
       imageUrlsCount: requestData.imageUrls?.length || 0,
       firstImageUrl: requestData.imageUrls?.[0]?.substring(0, 100) + '...' || 'none',
+      hasImageKey: !!requestData.imageKey,
+      imageKey: requestData.imageKey || 'none',
       aspectRatio: requestData.aspectRatio,
       enableFallback: requestData.enableFallback,
       enableTranslation: requestData.enableTranslation,
