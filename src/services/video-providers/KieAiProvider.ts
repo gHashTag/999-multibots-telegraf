@@ -214,6 +214,23 @@ export class KieAiProvider {
       imageUrl,
     } = request
 
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Для image-to-video ОБЯЗАТЕЛЬНО наличие изображения
+    if (!imageUrl) {
+      logger.error('[KieAiProvider] CRITICAL: No image URL provided for image-to-video generation', {
+        model,
+        prompt: prompt.substring(0, 100) + '...',
+        aspectRatio
+      })
+
+      return {
+        success: false,
+        cost: { usd: 0, stars: 0 },
+        provider: 'Veo 3 API',
+        model: model,
+        error: 'Image URL is required for image-to-video generation',
+      }
+    }
+
     // Преобразуем название модели в формат Kie.ai
     let kieModel = model
     if (model === 'veo-3-fast') {
@@ -231,7 +248,7 @@ export class KieAiProvider {
       enableFallback: false,
       enableTranslation: true,
       // Добавляем callbackUrl для webhook уведомлений
-      callBackUrl: 'https://ai-server-production-production-8e2d.up.railway.app/api/webhooks/kie-ai-callback',
+      callBackUrl: 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback',
     }
     
     // Логируем полный промпт для отладки
