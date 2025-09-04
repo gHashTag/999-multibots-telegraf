@@ -242,7 +242,26 @@ export class KieAiProvider {
 
     if (imageUrl) {
       requestData.image_url = imageUrl
+      logger.info('[KieAiProvider] Image URL added to request:', {
+        imageUrlLength: imageUrl.length,
+        imageUrl: imageUrl.substring(0, 100) + '...'
+      })
+    } else {
+      logger.warn('[KieAiProvider] No image URL provided for image-to-video generation')
     }
+
+    // Логируем полный request перед отправкой
+    logger.info('[KieAiProvider] Full request data to Kie.ai API:', {
+      model: kieModel,
+      hasPrompt: !!requestData.prompt,
+      promptLength: requestData.prompt?.length || 0,
+      hasImageUrl: !!requestData.image_url,
+      imageUrlLength: requestData.image_url?.length || 0,
+      aspectRatio: requestData.aspectRatio,
+      enableFallback: requestData.enableFallback,
+      enableTranslation: requestData.enableTranslation,
+      requestKeys: Object.keys(requestData)
+    })
 
     try {
       const response = await this.makeRequest<any>(

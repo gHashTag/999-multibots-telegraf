@@ -251,12 +251,12 @@ export const generateImageToVideo = async (
 
         // ПЛАН А: Сначала пробуем через наш сервер
         if (USE_PLAN_A) {
-          logger.info('[PLAN A] Trying server first for Veo model', {
-            modelId: modelConfig.id,
-            serverUrl: API_URL
-          })
-
-          try {
+        logger.info('[PLAN A] Trying server first for Veo model', {
+          modelId: modelConfig.id,
+          serverUrl: API_URL
+        })
+        
+        try {
           const baseUrl = API_URL
           
           // Проверяем доступность сервера (пропускаем localhost для тестов)
@@ -413,7 +413,7 @@ export const generateImageToVideo = async (
             modelId: modelConfig.id
           })
         }
-
+        
         // ПЛАН Б: Используем прямую интеграцию с API Veo 3
         logger.info('[PLAN B] Using direct Veo 3 API', {
           modelId: modelConfig.id,
@@ -454,6 +454,14 @@ export const generateImageToVideo = async (
         )
         
         // Генерируем видео через Kie.ai
+        logger.info('[PLAN B] Sending request to Kie.ai:', {
+          model: modelConfig.id,
+          prompt: prompt ? `${prompt.substring(0, 100)}...` : 'no prompt',
+          aspectRatio: kieAspectRatio || '9:16',
+          hasImageUrl: !!imageUrl,
+          imageUrl: imageUrl ? `${imageUrl.substring(0, 100)}...` : 'no image',
+        })
+
         const kieResponse = await kieProvider.generateVideo({
           model: modelConfig.id,
           prompt: prompt || '',
@@ -536,8 +544,8 @@ export const generateImageToVideo = async (
 
             // Реализуем polling для Kie.ai API
             const taskId = kieResponse.data.taskId
-            const maxPollingAttempts = 30 // 30 попыток = ~5 минут (10 сек * 30)
-            const pollingInterval = 10000 // 10 секунд между проверками
+            const maxPollingAttempts = 3 
+            const pollingInterval = 1000 
 
             let attempts = 0
             let lastProgressMessage = ''
