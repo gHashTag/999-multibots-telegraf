@@ -19,6 +19,7 @@ const handleApiHealth = (req: any, res: any): void => {
 
 // Регистрация маршрутов
 router.get('/', handleRoot)
+router.get('/health', handleApiHealth)  // Для Docker health check
 router.get('/api/health', handleApiHealth)
 
 export default router
