@@ -249,6 +249,11 @@ export class KieAiProvider {
       kieModel = 'runway_aleph'
     }
     
+    // Формируем правильный callback URL
+    const callbackUrl = process.env.BASE_WEBHOOK_URL
+      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
+      : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
+
     const requestData: any = {
       model: kieModel,
       prompt, // Отправляем ПОЛНЫЙ промпт без обрезки
@@ -256,7 +261,7 @@ export class KieAiProvider {
       enableFallback: false,
       enableTranslation: true,
       // Добавляем callbackUrl для webhook уведомлений
-      callBackUrl: 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback',
+      callBackUrl: callbackUrl,
     }
     
     // Логируем полный промпт для отладки
@@ -266,7 +271,8 @@ export class KieAiProvider {
       aspectRatio: aspectRatio,
       fullPrompt: prompt, // Отправляем полный промпт в логи
       hasImageUrl: !!imageUrl,
-      imageUrlValue: imageUrl || 'no image provided'
+      imageUrlValue: imageUrl || 'no image provided',
+      callbackUrl: callbackUrl // Логируем callback URL
     })
 
     if (imageUrl) {

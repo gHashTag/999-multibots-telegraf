@@ -78,6 +78,43 @@ async function notifyAdminAboutServerIssue(
   }
 }
 
+async function notifyAdminAboutPlanBSuccess(
+  telegram_id: string,
+  videoModel: string,
+  taskId: string,
+  videoUrl: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+
+    if (!botResult.bot) return
+
+    const successMessage = `✅ **PLAN B SUCCESS**\n\n` +
+      `📍 Видео успешно сгенерировано через Plan B\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🎬 Model: ${videoModel}\n` +
+      `🔗 Task ID: ${taskId}\n` +
+      `🎥 Video URL: ${videoUrl.substring(0, 50)}...\n\n` +
+      `✅ Fallback механизм работает корректно`
+
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, successMessage, {
+        parse_mode: 'Markdown'
+      })
+    }
+
+    logger.info('[ADMIN NOTIFICATION] Plan B success reported to admins', {
+      adminIds,
+      telegram_id,
+      taskId
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins about Plan B success', notifyError)
+  }
+}
+
 export async function generateTextToVideo(
   params: TextToVideoRequest
 ): Promise<TextToVideoResponse> {
@@ -264,7 +301,7 @@ export async function generateTextToVideo(
           return {
             success: true,
             jobId: kieResponse.data.taskId,
-            message: 'Video generation started (Plan B)',
+            message: 'Video generation started',
           }
         }
       }

@@ -229,7 +229,7 @@ export async function generateImageToVideo(
           return {
             success: true,
             jobId: kieResponse.data.taskId,
-            message: 'Video generation started (Plan B)',
+            message: 'Video generation started',
           }
         }
       }
