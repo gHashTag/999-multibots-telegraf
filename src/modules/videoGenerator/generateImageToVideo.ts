@@ -529,12 +529,168 @@ export const generateImageToVideo = async (
             return // Выходим из функции, так как видео уже отправлено
           } else if (kieResponse.data?.taskId) {
             // Если есть taskId, но нет videoUrl - видео еще генерируется
-            // TODO: Implement job polling logic for taskId
-            logger.warn('[I2V BG] Plan B returned taskId, but job polling not implemented yet', {
+            logger.info('[I2V BG] Plan B: Starting job polling for taskId', {
               telegramId,
               taskId: kieResponse.data.taskId
             })
-            throw new Error('Job polling not implemented yet for Plan B')
+
+            // Реализуем polling для Kie.ai API
+            const taskId = kieResponse.data.taskId
+            const maxPollingAttempts = 30 // 30 попыток = ~5 минут (10 сек * 30)
+            const pollingInterval = 10000 // 10 секунд между проверками
+
+            let attempts = 0
+            let lastProgressMessage = ''
+
+            while (attempts < maxPollingAttempts) {
+              attempts++
+
+              try {
+                // Проверяем статус задачи
+                const statusResponse = await kieProvider.checkVideoStatus(taskId)
+
+                logger.info(`[I2V BG] Plan B polling attempt ${attempts}/${maxPollingAttempts}`, {
+                  telegramId,
+                  taskId,
+                  success: statusResponse.success,
+                  hasVideoUrl: !!statusResponse.data?.videoUrl,
+                  error: statusResponse.error
+                })
+
+                if (statusResponse.success && statusResponse.data?.videoUrl) {
+                  // Видео готово! Обрабатываем результат
+                  logger.info('[I2V BG] Plan B: Video is ready!', {
+                    telegramId,
+                    taskId,
+                    videoUrl: statusResponse.data.videoUrl
+                  })
+
+                  // Отправляем финальное уведомление о готовности
+                  await telegramInstance.sendMessage(
+                    chatId,
+                    isRu
+                      ? `✅ Видео готово через План Б!`
+                      : `✅ Video is ready via Plan B!`
+                  )
+
+                  // Скачиваем и обрабатываем видео
+                  const videoUrl = statusResponse.data.videoUrl
+                  const videoBuffer = await downloadFileHelper(videoUrl)
+                  logger.info('[I2V BG] Video downloaded from Plan B polling', { telegramId, url: videoUrl })
+
+                  // Сохраняем видео локально
+                  const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+                  await mkdir(dirPath, { recursive: true })
+                  const timestamp = Date.now()
+                  const uniqueFilename = `${timestamp}_plan_b_polling.mp4`
+                  localVideoPath = path.join(dirPath, uniqueFilename)
+                  const u8 = new Uint8Array(videoBuffer)
+                  await writeFile(localVideoPath, u8)
+                  logger.info('[I2V BG] Video saved locally from Plan B polling', {
+                    telegramId,
+                    path: localVideoPath,
+                  })
+
+                  // Сохраняем информацию о видео в БД
+                  await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+                  logger.info('[I2V BG] Video info saved to DB from Plan B polling', { telegramId })
+
+                  // Отправляем видео пользователю
+                  const caption = isRu
+                    ? `✨ Ваше видео (${modelConfig.title}) готово через План Б!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+                    : `✨ Your video (${modelConfig.title}) is ready via Plan B!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+
+                  await telegramInstance.sendVideo(
+                    chatId,
+                    { source: localVideoPath },
+                    { caption }
+                  )
+
+                  // Добавляем финальные кнопки
+                  logger.info('[I2V BG] Sending final buttons after Plan B polling', { telegramId })
+
+                  const keyboard = Markup.keyboard([
+                    [
+                      isRu
+                        ? '✨ Создать еще (Изображение в Видео)'
+                        : '✨ Create More (Image to Video)',
+                    ],
+                    [
+                      isRu
+                        ? '🖼 Выбрать другую модель (Видео)'
+                        : '🖼 Select Another Model (Video)',
+                    ],
+                    [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+                  ]).resize()
+
+                  await telegramInstance.sendMessage(
+                    chatId,
+                    isRu
+                      ? 'Ваше видео готово через План Б! Что дальше?'
+                      : 'Your video is ready via Plan B! What next?',
+                    keyboard
+                  )
+                  return // Выходим из функции, так как видео уже отправлено
+                }
+
+                // Отправляем уведомление о прогрессе каждые 3 попытки
+                if (attempts % 3 === 0) {
+                  const progressMessage = isRu
+                    ? `⏳ Видео генерируется через План Б... (${Math.round((attempts / maxPollingAttempts) * 100)}%)`
+                    : `⏳ Video is being generated via Plan B... (${Math.round((attempts / maxPollingAttempts) * 100)}%)`
+
+                  if (progressMessage !== lastProgressMessage) {
+                    await telegramInstance.sendMessage(chatId, progressMessage)
+                    lastProgressMessage = progressMessage
+                  }
+                }
+
+                // Ждем перед следующей проверкой
+                if (attempts < maxPollingAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, pollingInterval))
+                }
+
+              } catch (pollError) {
+                logger.error('[I2V BG] Plan B polling error', {
+                  telegramId,
+                  taskId,
+                  attempt: attempts,
+                  error: pollError instanceof Error ? pollError.message : 'Unknown polling error'
+                })
+
+                // При ошибке polling'а отправляем уведомление и переходим к следующей попытке
+                if (attempts % 5 === 0) { // Каждые 5 попыток отправляем уведомление об ошибке
+                  await telegramInstance.sendMessage(
+                    chatId,
+                    isRu
+                      ? `⚠️ Временная ошибка проверки статуса видео. Продолжаю попытки...`
+                      : `⚠️ Temporary error checking video status. Continuing attempts...`
+                  )
+                }
+
+                // Ждем перед следующей попыткой даже при ошибке
+                if (attempts < maxPollingAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, pollingInterval))
+                }
+              }
+            }
+
+            // Если после всех попыток видео не готово
+            logger.error('[I2V BG] Plan B polling timeout - video not ready', {
+              telegramId,
+              taskId,
+              attempts,
+              maxPollingAttempts
+            })
+
+            await telegramInstance.sendMessage(
+              chatId,
+              isRu
+                ? `❌ Видео не удалось сгенерировать в отведенное время через План Б. Попробуйте еще раз.`
+                : `❌ Video generation timed out via Plan B. Please try again.`
+            )
+
+            throw new Error('Plan B polling timeout - video generation failed')
           }
         }
         
