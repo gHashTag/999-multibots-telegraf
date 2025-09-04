@@ -550,6 +550,14 @@ export const generateImageToVideo = async (
             let attempts = 0
             let lastProgressMessage = ''
 
+            // Отправляем начальное уведомление о начале генерации
+            await telegramInstance.sendMessage(
+              chatId,
+              isRu
+                ? `🎬 План Б: Генерирую видео через Kie.ai... (Это займет до 5 минут)`
+                : `🎬 Plan B: Generating video via Kie.ai... (This may take up to 5 minutes)`
+            )
+
             while (attempts < maxPollingAttempts) {
               attempts++
 
@@ -641,11 +649,12 @@ export const generateImageToVideo = async (
                   return // Выходим из функции, так как видео уже отправлено
                 }
 
-                // Отправляем уведомление о прогрессе каждые 3 попытки
-                if (attempts % 3 === 0) {
+                // Отправляем уведомление о прогрессе каждые 15 попыток (30 секунд)
+                if (attempts % 15 === 0 && attempts > 0) {
+                  const progressPercent = Math.round((attempts / maxPollingAttempts) * 100)
                   const progressMessage = isRu
-                    ? `⏳ Видео генерируется через План Б... (${Math.round((attempts / maxPollingAttempts) * 100)}%)`
-                    : `⏳ Video is being generated via Plan B... (${Math.round((attempts / maxPollingAttempts) * 100)}%)`
+                    ? `⏳ Видео генерируется через План Б... (${progressPercent}%)`
+                    : `⏳ Video is being generated via Plan B... (${progressPercent}%)`
 
                   if (progressMessage !== lastProgressMessage) {
                     await telegramInstance.sendMessage(chatId, progressMessage)
