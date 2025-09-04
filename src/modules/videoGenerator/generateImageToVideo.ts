@@ -704,13 +704,43 @@ export const generateImageToVideo = async (
                     attempts
                   })
 
+                  // Создаем клавиатуру для ошибки
+                  const errorKeyboard = Markup.keyboard([
+                    [
+                      isRu
+                        ? '🎬 Попробовать снова'
+                        : '🎬 Try Again',
+                    ],
+                    [
+                      isRu
+                        ? '🏠 Главное меню'
+                        : '🏠 Main Menu',
+                    ],
+                  ])
+                    .resize()
+                    .oneTime()
+
                   // Уведомляем пользователя об ошибке
-                  await ctx.reply(
-                    isRu
-                      ? `❌ Ошибка генерации видео: ${errorMessage}\n\nПопробуйте другое изображение или измените промпт.`
-                      : `❌ Video generation error: ${errorMessage}\n\nTry a different image or modify the prompt.`,
-                    keyboard
-                  )
+                  const { getBotByName } = await import('@/core/bot')
+                  const botResult = getBotByName('neuro_blogger_bot')
+                  
+                  if (botResult.bot) {
+                    const errorMessage = isRu
+                      ? `❌ Ошибка генерации видео: ${statusResponse.error || 'Unknown generation error'}\n\n${
+                          statusResponse.error?.includes('English prompts') 
+                            ? '🔤 Пожалуйста, используйте английский язык для промпта.\n💰 Деньги НЕ были списаны.'
+                            : 'Попробуйте другое изображение или измените промпт.'
+                        }`
+                      : `❌ Video generation error: ${statusResponse.error || 'Unknown generation error'}\n\n${
+                          statusResponse.error?.includes('English prompts')
+                            ? '🔤 Please use English language for prompts.\n💰 No money was charged.'
+                            : 'Try a different image or modify the prompt.'
+                        }`
+                    
+                    await botResult.bot.telegram.sendMessage(telegramId, errorMessage, {
+                      reply_markup: errorKeyboard.reply_markup
+                    })
+                  }
                   return // Выходим из функции
                 }
 

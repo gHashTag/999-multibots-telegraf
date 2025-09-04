@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { isFeatureAvailable } from '../subscriptionInfo'
-import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { SubscriptionType } from '../../interfaces/subscription.interface'
 
 describe('SubscriptionInfo Tests', () => {
   describe('Feature Availability for NEUROTESTER', () => {
