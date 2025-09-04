@@ -375,7 +375,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       if (!selectedModel) {
         console.log('🎬 [WIZARD] Step 3: No model selected - returning to step 1')
         await ctx.reply(isRu ? 'Модель не выбрана. Начинаем заново.' : 'No model selected. Starting over.')
-        ctx.wizard.selectStep(0)
+        if (ctx.wizard && ctx.wizard.selectStep) {
+          ctx.wizard.selectStep(0)
+        }
         return
       }
 
@@ -431,7 +433,11 @@ textToVideoWizard.enter(async ctx => {
 
     // Initialize cursor to step 0 (as expected by tests)
     console.log('🎬 [WIZARD] Setting wizard cursor to step 0')
-    ctx.wizard.selectStep(0)
+    if (ctx.wizard && ctx.wizard.selectStep) {
+      ctx.wizard.selectStep(0)
+    } else {
+      console.error('🎬 [WIZARD] ctx.wizard or selectStep is undefined!')
+    }
     
     // КРИТИЧЕСКИ ВАЖНО: Вызываем первый шаг вручную!
     console.log('🎬 [WIZARD] Manually calling first step...')
