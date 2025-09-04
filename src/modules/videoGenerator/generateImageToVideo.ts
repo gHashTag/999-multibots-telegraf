@@ -692,6 +692,28 @@ export const generateImageToVideo = async (
                   error: statusResponse.error
                 })
 
+                // Проверяем на ошибки генерации
+                if (!statusResponse.success) {
+                  // Ошибка генерации (например, unsafe image upload)
+                  const errorMessage = statusResponse.error || 'Unknown generation error'
+                  
+                  logger.error('[I2V BG] Plan B: Video generation failed', {
+                    telegramId,
+                    taskId,
+                    error: errorMessage,
+                    attempts
+                  })
+
+                  // Уведомляем пользователя об ошибке
+                  await ctx.reply(
+                    isRu
+                      ? `❌ Ошибка генерации видео: ${errorMessage}\n\nПопробуйте другое изображение или измените промпт.`
+                      : `❌ Video generation error: ${errorMessage}\n\nTry a different image or modify the prompt.`,
+                    keyboard
+                  )
+                  return // Выходим из функции
+                }
+
                 if (statusResponse.success && statusResponse.data?.videoUrl) {
                   // Видео готово! Обрабатываем результат
                   logger.info('[I2V BG] Plan B: Video is ready!', {
