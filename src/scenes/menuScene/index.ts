@@ -21,6 +21,7 @@ import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getParsingAccess } from '@/menu/mainMenu'
 import { getBotNameByToken } from '@/core/bot'
+import { createMiniAppKeyboard } from '@/menu/miniAppButton'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -167,16 +168,17 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (photo_url) {
       // Специальная обработка для digitalAvatar - добавляем inline кнопки даже с фото
       if (translationKey === 'digitalAvatar') {
-        const inlineKeyboard = {
-          inline_keyboard: [
-            [
-              {
-                text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
-                callback_data: 'go_to_subscription_scene',
-              },
-            ],
+        // Create mini app button
+        const miniAppKeyboard = createMiniAppKeyboard(isRu, [
+          [
+            {
+              text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+              callback_data: 'go_to_subscription_scene',
+            },
           ],
-        }
+        ])
+        
+        const inlineKeyboard = miniAppKeyboard.reply_markup
 
         // Пробуем отправить фото с fallback
         const photoSent = await sendPhotoWithFallback(ctx, photo_url, {
@@ -211,16 +213,17 @@ const menuCommandStep = async (ctx: MyContext) => {
 
         // Специальная обработка для digitalAvatar - добавляем inline кнопки
         if (translationKey === 'digitalAvatar') {
-          const inlineKeyboard = {
-            inline_keyboard: [
-              [
-                {
-                  text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
-                  callback_data: 'go_to_subscription_scene',
-                },
-              ],
+          // Create mini app button
+          const miniAppKeyboard = createMiniAppKeyboard(isRu, [
+            [
+              {
+                text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                callback_data: 'go_to_subscription_scene',
+              },
             ],
-          }
+          ])
+          
+          const inlineKeyboard = miniAppKeyboard.reply_markup
 
           // Отправляем сообщение с inline кнопками
           await ctx.reply(message, {

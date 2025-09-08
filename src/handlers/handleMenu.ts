@@ -523,6 +523,35 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
         )
       },
+      [isRu ? levels[110].title_ru : levels[110].title_en]: async () => {
+        logger.info({
+          message: '🎬 [handleMenu] Переход к AI Reels',
+          telegramId,
+          function: 'handleMenu',
+          action: 'ai_reels',
+          nextScene: ModeEnum.CheckBalanceScene,
+        })
+        console.log('CASE: 🎬 AI Reels')
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед входом в AI Reels
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          '🎬 AI Reels'
+        )
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        // Устанавливаем режим AIReels и идем через checkBalanceScene
+        ctx.session.mode = ModeEnum.AIReels
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        )
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену checkBalanceScene для AI Reels`
+        )
+      },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
       //   ctx.session.mode = 'video_in_url'
