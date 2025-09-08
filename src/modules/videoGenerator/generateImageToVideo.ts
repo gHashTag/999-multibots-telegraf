@@ -429,13 +429,8 @@ export const generateImageToVideo = async (
               const keyboard = Markup.keyboard([
                 [
                   isRu
-                    ? '✨ Создать еще (Изображение в Видео)'
-                    : '✨ Create More (Image to Video)',
-                ],
-                [
-                  isRu
-                    ? '🖼 Выбрать другую модель (Видео)'
-                    : '🖼 Select Another Model (Video)',
+                    ? '🎬 Новый промт'
+                    : '🎬 New Prompt',
                 ],
                 [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
               ]).resize()
@@ -443,8 +438,8 @@ export const generateImageToVideo = async (
               await telegramInstance.sendMessage(
                 chatId,
                 isRu
-                  ? 'Ваше видео готово через сервер! Что дальше?'
-                  : 'Your video is ready via server! What next?',
+                  ? 'Ваше видео готово! Что дальше?'
+                  : 'Your video is ready! What next?',
                 keyboard
               )
               return // Выходим из функции, так как видео уже отправлено
@@ -635,13 +630,8 @@ export const generateImageToVideo = async (
             const keyboard = Markup.keyboard([
               [
                 isRu
-                  ? '✨ Создать еще (Изображение в Видео)'
-                  : '✨ Create More (Image to Video)',
-              ],
-              [
-                isRu
-                  ? '🖼 Выбрать другую модель (Видео)'
-                  : '🖼 Select Another Model (Video)',
+                  ? '🎬 Новый промт'
+                  : '🎬 New Prompt',
               ],
               [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
             ]).resize()
@@ -843,13 +833,8 @@ export const generateImageToVideo = async (
                   const keyboard = Markup.keyboard([
                     [
                       isRu
-                        ? '✨ Создать еще (Изображение в Видео)'
-                        : '✨ Create More (Image to Video)',
-                    ],
-                    [
-                      isRu
-                        ? '🖼 Выбрать другую модель (Видео)'
-                        : '🖼 Select Another Model (Video)',
+                        ? '🎬 Новый промт'
+                        : '🎬 New Prompt',
                     ],
                     [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
                   ]).resize()
@@ -1114,13 +1099,8 @@ export const generateImageToVideo = async (
     const keyboard = Markup.keyboard([
       [
         isRu
-          ? '✨ Создать еще (Изображение в Видео)'
-          : '✨ Create More (Image to Video)',
-      ],
-      [
-        isRu
-          ? '🖼 Выбрать другую модель (Видео)'
-          : '🖼 Select Another Model (Video)',
+          ? '🎬 Новый промт'
+          : '🎬 New Prompt',
       ],
       [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
     ]).resize()

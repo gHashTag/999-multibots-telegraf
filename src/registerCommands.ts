@@ -1022,6 +1022,42 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
+    // Обработчик для кнопки "Новый промт" после генерации видео
+    bot.hears(['🎬 Новый промт', '🎬 New Prompt'], async ctx => {
+      logger.info('HEARS: new_prompt_video', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        const isRu = isRussianFromState(ctx)
+        
+        // Проверяем, откуда пришел пользователь (из какого режима)
+        const lastMode = ctx.session.mode
+        
+        if (lastMode === ModeEnum.ImageToVideo) {
+          // Если был в режиме Image-to-Video, возвращаем туда
+          await ctx.scene.leave()
+          ctx.session.mode = ModeEnum.ImageToVideo
+          await ctx.scene.enter(ModeEnum.ImageToVideo)
+        } else {
+          // По умолчанию переходим в Text-to-Video
+          await ctx.scene.leave()
+          ctx.session.mode = ModeEnum.TextToVideo
+          await ctx.scene.enter(ModeEnum.TextToVideo)
+        }
+      } catch (error) {
+        logger.error('Error in new_prompt_video hears:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        const isRuError = isRussianFromState(ctx)
+        await ctx.reply(
+          isRuError
+            ? '❌ Произошла ошибка. Попробуйте выбрать режим из главного меню.'
+            : '❌ An error occurred. Please select a mode from the main menu.'
+        )
+      }
+    })
+
     // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
 
     // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
