@@ -14,7 +14,8 @@ export const createMiniAppButton = (
   text?: string,
   isRu: boolean = true
 ): InlineKeyboardButton.WebAppButton => {
-  const tmaUrl = process.env.TMA_RENDER_URL || 'ui-tunnel-production.up.railway.app'
+  // Use the correct production URL
+  const tmaUrl = process.env.TMA_RENDER_URL || 'https://ui-production-57b7.up.railway.app/login'
   
   // Ensure the URL has proper protocol
   const webAppUrl = tmaUrl.startsWith('http') ? tmaUrl : `https://${tmaUrl}`
