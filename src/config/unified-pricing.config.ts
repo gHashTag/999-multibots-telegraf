@@ -151,13 +151,13 @@ export interface KieAiModelPrice {
 export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
   // Видео модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
   'veo-3-fast': {
-    pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек (конкурентно с +8.1% наценкой)
+    pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек
     supportedDurations: [8], // VEO FAST поддерживает только 8 секунд
     defaultDuration: 8,
     maxDuration: 8,
   },
   'veo-3': {
-    pricePerSecondUSD: 0.404, // 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек (конкурентно с +8.1% наценкой)
+    pricePerSecondUSD: 0.16, // 80⭐ за 8 сек = $1.28 за 8 сек = $0.16/сек (ФИКСИРОВАННАЯ ЦЕНА)
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 8,
     maxDuration: 10,
