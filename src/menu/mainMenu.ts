@@ -138,10 +138,11 @@ export const levels: Record<number, Level> = {
     title_en: '🔍 Competitor Monitoring',
     admin_only: true, // Скрыто для обычных пользователей - только для администраторов
   },
-  // AI Reels generation button - creates Instagram-style reels with AI
+  // AI Reels generation button - creates Instagram-style reels with AI (admin only)
   110: {
     title_ru: '🎬 AI Reels',
     title_en: '🎬 AI Reels',
+    admin_only: true, // Доступно только администраторам
   },
 }
 
