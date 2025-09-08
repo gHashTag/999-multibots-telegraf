@@ -431,8 +431,6 @@ class VideoTranscriptionService {
                   videoPath: finalVideoPath,
                   metadata: {
                     language: 'ru',
-                    model: 'whisper-large-v3',
-                    service: 'replicate',
                   },
                 }
               } else if (statusResponse.data?.status === 'failed') {

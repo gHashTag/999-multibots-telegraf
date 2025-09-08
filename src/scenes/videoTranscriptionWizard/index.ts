@@ -144,7 +144,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         const costInStars = 3 // Стоимость транскрипции
         const paymentResult = await directPaymentProcessor({
           telegram_id: ctx.from.id.toString(),
-          stars: costInStars,
+          amount: costInStars,
+          type: 'MONEY_OUTCOME',
+          description: 'Транскрибация видео',
+          bot_name: ctx.botInfo.username || 'clip_maker_neuro_bot',
           service_type: PaidServiceEnum.VideoTranscription,
           metadata: {
             isFromUrl,
@@ -157,14 +160,14 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           logger.info('[VideoTranscription] Payment processed successfully', {
             telegramId: ctx.from.id,
             cost: costInStars,
-            newBalance: paymentResult.newBalance,
+            newBalance: paymentResult.balanceChange?.after,
           })
 
           // Отправляем сообщение о стоимости и балансе
           await ctx.reply(
             isRu
-              ? `💰 Стоимость: ${costInStars} ⭐\nВаш баланс: ${paymentResult.newBalance} ⭐`
-              : `💰 Cost: ${costInStars} ⭐\nYour balance: ${paymentResult.newBalance} ⭐`
+              ? `💰 Стоимость: ${costInStars} ⭐\nВаш баланс: ${paymentResult.balanceChange?.after || 0} ⭐`
+              : `💰 Cost: ${costInStars} ⭐\nYour balance: ${paymentResult.balanceChange?.after || 0} ⭐`
           )
         } else {
           logger.error('[VideoTranscription] Payment processing failed', {
@@ -295,14 +298,6 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
               : `📝 <b>Text for copying:</b>\n\n<code>${displayText}</code>`,
             { parse_mode: 'HTML' }
           )
-          
-          // Отправляем отдельное сообщение с кликабельной ссылкой на бота
-          await ctx.reply(
-            isRu
-              ? `\n🤖 Транскрибация сделана в боте <a href="https://t.me/${ctx.botInfo.username}">@${ctx.botInfo.username}</a>\n✨ Попробуйте и вы — быстро и точно!`
-              : `\n🤖 Transcription made by <a href="https://t.me/${ctx.botInfo.username}">@${ctx.botInfo.username}</a>\n✨ Try it yourself - fast and accurate!`,
-            { parse_mode: 'HTML' }
-          )
 
           logger.info('[VideoTranscription] Text sent successfully', {
             telegramId: ctx.from.id,
@@ -318,13 +313,6 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
             isRu
               ? `📝 Текст из видео:\n\n${transcriptionResult.text}`
               : `📝 Text from video:\n\n${transcriptionResult.text}`
-          )
-          
-          // Отправляем отдельное сообщение с ссылкой на бота (без HTML)
-          await ctx.reply(
-            isRu
-              ? `🤖 Транскрибация сделана в боте @${ctx.botInfo.username}\n✨ Попробуйте и вы — быстро и точно!`
-              : `🤖 Transcription made by @${ctx.botInfo.username}\n✨ Try it yourself - fast and accurate!`
           )
         }
       } else {
@@ -348,14 +336,6 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           isRu
             ? `📝 <b>Текст для копирования:</b>\n\n<code>${displayText}</code>`
             : `📝 <b>Text for copying:</b>\n\n<code>${displayText}</code>`,
-          { parse_mode: 'HTML' }
-        )
-        
-        // Отправляем отдельное сообщение с кликабельной ссылкой на бота
-        await ctx.reply(
-          isRu
-            ? `\n🤖 Транскрибация сделана в боте <a href="https://t.me/${ctx.botInfo.username}">@${ctx.botInfo.username}</a>\n✨ Попробуйте и вы — быстро и точно!`
-            : `\n🤖 Transcription made by <a href="https://t.me/${ctx.botInfo.username}">@${ctx.botInfo.username}</a>\n✨ Try it yourself - fast and accurate!`,
           { parse_mode: 'HTML' }
         )
       }
