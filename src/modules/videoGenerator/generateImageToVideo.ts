@@ -663,7 +663,7 @@ export const generateImageToVideo = async (
 
             // Реализуем polling для Kie.ai API
             const taskId = kieResponse.data.taskId
-            const maxPollingAttempts = 150 // 150 попыток = ~5 минут (2 сек * 150)
+            const maxPollingAttempts = 300 // 300 попыток = ~10 минут (2 сек * 300) - увеличено для VEO 3
             const pollingInterval = 2000 // 2 секунды между проверками 
 
             let attempts = 0
@@ -675,7 +675,7 @@ export const generateImageToVideo = async (
               taskId,
               maxPollingAttempts,
               pollingInterval,
-              estimatedTime: '~5 minutes'
+              estimatedTime: '~10 minutes'
             })
 
             while (attempts < maxPollingAttempts) {
@@ -932,6 +932,19 @@ export const generateImageToVideo = async (
               totalTime: attempts * pollingInterval / 1000 + ' seconds',
               reason: 'Maximum polling attempts exceeded'
             })
+
+            // Уведомляем пользователя о превышении времени ожидания
+            const timeoutMessage = isRu
+              ? `⏱️ Превышено время ожидания генерации видео (${attempts * pollingInterval / 1000} секунд).\n\n` +
+                `🔄 Видео все еще генерируется. Task ID: ${taskId}\n` +
+                `💡 Попробуйте проверить статус позже или создайте новое видео.\n` +
+                `💰 Деньги НЕ были списаны.`
+              : `⏱️ Video generation timeout exceeded (${attempts * pollingInterval / 1000} seconds).\n\n` +
+                `🔄 Video is still being generated. Task ID: ${taskId}\n` +
+                `💡 Try checking status later or create a new video.\n` +
+                `💰 No money was charged.`
+
+            await telegramInstance.sendMessage(chatId, timeoutMessage)
 
             throw new Error('Plan B polling timeout - video generation failed')
           }
