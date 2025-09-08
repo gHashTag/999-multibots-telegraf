@@ -220,7 +220,7 @@ export class KieAiProvider {
 
     // Преобразуем название модели в формат Kie.ai
     let kieModel = model
-    if (model === 'veo-3-fast') {
+    if (model === 'veo3_fast') {
       // ВСЕГДА используем veo3_fast для Veo 3 Fast (и для text-to-video, и для image-to-video)
       kieModel = 'veo3_fast'
       logger.info('[KieAiProvider] Veo 3 Fast selected:', {
@@ -230,7 +230,7 @@ export class KieAiProvider {
         mode: imageUrl ? 'image-to-video' : 'text-to-video',
         expectedCost: '40 stars'
       })
-    } else if (model === 'veo-3') {
+    } else if (model === 'veo3') {
       // Для обычной Veo 3 используем veo3
       kieModel = 'veo3'
       logger.info('[KieAiProvider] Veo 3 selected:', {
@@ -495,7 +495,7 @@ export class KieAiProvider {
             },
             cost: { usd: 0, stars: 0 },
             provider: 'Veo 3 API',
-            model: 'veo-3',
+            model: 'veo3',
           }
         } else {
           logger.warn('[KieAiProvider] Video marked as ready but no URL found', { taskId, data })
@@ -513,7 +513,7 @@ export class KieAiProvider {
           },
           cost: { usd: 0, stars: 0 },
           provider: 'Veo 3 API',
-          model: 'veo-3',
+          model: 'veo3',
         }
       } else if (data.successFlag === 2) {
         // Ошибка генерации
@@ -531,7 +531,7 @@ export class KieAiProvider {
           },
           cost: { usd: 0, stars: 0 },
           provider: 'Veo 3 API',
-          model: 'veo-3',
+          model: 'veo3',
         }
       }
     } catch (error) {
@@ -540,7 +540,7 @@ export class KieAiProvider {
         success: false,
         cost: { usd: 0, stars: 0 },
         provider: 'Veo 3 API',
-        model: 'veo-3',
+        model: 'veo3',
         error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
@@ -610,8 +610,8 @@ export class KieAiProvider {
 
   private calculateVideoCost(model: string, duration: number): number {
     const pricing: Record<string, number> = {
-      'veo-3-fast': 0.08, // $0.08 per second = 40⭐ for 8 seconds
-      'veo-3': 0.24, // $0.24 per second = 120⭐ for 8 seconds (FIXED PRICE)
+      'veo3_fast': 0.08, // $0.08 per second = 40⭐ for 8 seconds
+      'veo3': 0.24, // $0.24 per second = 120⭐ for 8 seconds (FIXED PRICE)
       'runway-aleph': 0.3, // $0.30 per second
     }
 
