@@ -127,15 +127,8 @@ class VideoTranscriptionService {
           downloadResult.videoPath
         )
 
-        // Clean up the temporary file
-        try {
-          fs.unlinkSync(downloadResult.videoPath)
-          console.log(
-            `🗑️ Cleaned up temporary file: ${downloadResult.videoPath}`
-          )
-        } catch (cleanupError) {
-          console.warn('⚠️ Failed to clean up temporary file:', cleanupError)
-        }
+        // Don't clean up the file here - it will be cleaned up by the wizard after sending
+        // The wizard needs the file to send it to the user
       } else if (downloadResult.videoUrl) {
         // If we have a direct URL
         transcriptionResult = await this.transcribeVideoFromUrl(
@@ -518,13 +511,9 @@ class VideoTranscriptionService {
       const tempPath = await this.downloadVideoFile(videoUrl)
       const result = await this.transcribeVideoFile(tempPath)
 
-      // Clean up
-      try {
-        fs.unlinkSync(tempPath)
-      } catch (cleanupError) {
-        console.warn('⚠️ Failed to clean up temporary file:', cleanupError)
-      }
-
+      // Don't clean up here - the file path in result.videoPath needs to be available for sending
+      // The wizard will clean up after sending the video to the user
+      
       return result
     } catch (error) {
       return {
