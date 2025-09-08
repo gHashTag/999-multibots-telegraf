@@ -138,6 +138,11 @@ export const levels: Record<number, Level> = {
     title_en: '🔍 Competitor Monitoring',
     admin_only: true, // Скрыто для обычных пользователей - только для администраторов
   },
+  // AI Reels generation button - creates Instagram-style reels with AI
+  110: {
+    title_ru: '🎬 AI Reels',
+    title_en: '🎬 AI Reels',
+  },
 }
 
 // Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
