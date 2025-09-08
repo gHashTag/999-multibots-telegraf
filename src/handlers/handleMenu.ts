@@ -525,32 +525,49 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[110].title_ru : levels[110].title_en]: async () => {
         logger.info({
-          message: '🎬 [handleMenu] Переход к AI Reels',
+          message: '🎬 [handleMenu] AI Reels - открытие miniApp',
           telegramId,
           function: 'handleMenu',
-          action: 'ai_reels',
-          nextScene: ModeEnum.CheckBalanceScene,
+          action: 'ai_reels_miniapp',
         })
-        console.log('CASE: 🎬 AI Reels')
+        console.log('CASE: 🎬 AI Reels - Mini App')
 
-        // ✅ ЗАЩИТА: Проверяем подписку перед входом в AI Reels
-        const hasSubscription = await checkSubscriptionGuard(
-          ctx,
-          '🎬 AI Reels'
-        )
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
+        // Проверяем права администратора
+        const userId = ctx.from?.id?.toString()
+        if (!userId || !adminIds.includes(userId)) {
+          logger.warn('[handleMenu] AI Reels access denied - not admin', {
+            telegramId,
+            userId,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ У вас нет доступа к AI Reels. Функция доступна только администраторам.'
+              : '❌ You do not have access to AI Reels. This feature is admin only.'
+          )
+          return
         }
 
-        // Устанавливаем режим AIReels и идем через checkBalanceScene
-        ctx.session.mode = ModeEnum.AIReels
-        console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+        // Импортируем функцию создания miniApp кнопки
+        const { createMiniAppKeyboard } = await import('@/menu/miniAppButton')
+        
+        // Создаем keyboard с miniApp кнопкой
+        const miniAppKeyboard = createMiniAppKeyboard(isRu)
+        
+        // Отправляем сообщение с miniApp кнопкой
+        await ctx.reply(
+          isRu 
+            ? `🎬 <b>AI Reels Creator</b>\n\n🎨 Откройте приложение для создания профессиональных Reels с помощью AI!\n\n✨ Возможности:\n• Генерация вирусных сценариев\n• Создание видео в формате 9:16\n• Готовые шаблоны для разных ниш\n• Профессиональная обработка`
+            : `🎬 <b>AI Reels Creator</b>\n\n🎨 Open the app to create professional Reels with AI!\n\n✨ Features:\n• Viral script generation\n• 9:16 video creation\n• Ready templates for different niches\n• Professional processing`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: miniAppKeyboard.reply_markup
+          }
         )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену checkBalanceScene для AI Reels`
-        )
+        
+        logger.info('[handleMenu] AI Reels miniApp button sent', {
+          telegramId,
+          userId,
+        })
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')

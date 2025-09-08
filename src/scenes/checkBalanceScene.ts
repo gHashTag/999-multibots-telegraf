@@ -138,7 +138,6 @@ export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {
   [ModeEnum.FluxKontext]: 0, // Цена рассчитывается динамически в зависимости от выбранной модели (Pro/Max)
   [ModeEnum.LipSync]: calculateFinalStarCostFromDollars(0.14), // Kling Lip-Sync: $0.014/sec * 10sec
   [ModeEnum.VoiceToText]: calculateFinalStarCostFromDollars(0.08),
-  [ModeEnum.AIReels]: 0, // Цена рассчитывается динамически при генерации видео
 }
 
 export type CostValue = number | ((steps: number) => number)
@@ -795,22 +794,6 @@ export const enterTargetScene = async (
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
       await ctx.scene.enter('video_transcription')
-      return
-    }
-    // Специальная логика для AIReels - направляем в aiReelsWizard сцену
-    if (mode === ModeEnum.AIReels) {
-      console.log(
-        '🎯 [DEBUG] enterTargetScene: AIReels mode detected, entering ai_reels scene'
-      )
-      logger.info({
-        message: `[EnterTargetSceneWrapper] AIReels режим - переход в aiReelsWizard`,
-        telegramId,
-        mode,
-        function: 'enterTargetSceneWrapper',
-      })
-      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.AIReels)
       return
     }
 

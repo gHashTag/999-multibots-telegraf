@@ -79,7 +79,6 @@ import {
   instagramParserScene,
   instagramParserWizard,
   morphingWizard,
-  aiReelsWizard,
 } from './scenes'
 
 import { defaultSession } from './store'
@@ -138,7 +137,6 @@ export const stage = new Scenes.Stage<MyContext>([
   videoTranscriptionWizard,
   lipSyncWizard,
   avatarTransformScene,
-  aiReelsWizard,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
   new Scenes.WizardScene(
     ModeEnum.ChatWithAvatar,
