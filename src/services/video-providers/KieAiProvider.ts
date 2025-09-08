@@ -221,18 +221,25 @@ export class KieAiProvider {
     // Преобразуем название модели в формат Kie.ai
     let kieModel = model
     if (model === 'veo-3-fast') {
-      // Для text-to-video используем veo3_fast
-      // Для image-to-video используем veo3 (так как veo3_fast может не поддерживать)
-      kieModel = imageUrl ? 'veo3' : 'veo3_fast'
-      logger.info('[KieAiProvider] Model selection:', {
+      // ВСЕГДА используем veo3_fast для Veo 3 Fast (и для text-to-video, и для image-to-video)
+      kieModel = 'veo3_fast'
+      logger.info('[KieAiProvider] Veo 3 Fast selected:', {
         originalModel: model,
         selectedModel: kieModel,
         hasImage: !!imageUrl,
         mode: imageUrl ? 'image-to-video' : 'text-to-video',
-        reason: imageUrl ? 'Using veo3 for image-to-video support' : 'Using veo3_fast for text-to-video'
+        expectedCost: '40 stars'
       })
     } else if (model === 'veo-3') {
+      // Для обычной Veo 3 используем veo3
       kieModel = 'veo3'
+      logger.info('[KieAiProvider] Veo 3 selected:', {
+        originalModel: model,
+        selectedModel: kieModel,
+        hasImage: !!imageUrl,
+        mode: imageUrl ? 'image-to-video' : 'text-to-video',
+        expectedCost: '80 stars'
+      })
     } else if (model === 'runway-aleph') {
       kieModel = 'runway_aleph'
     }
@@ -323,6 +330,15 @@ export class KieAiProvider {
       // Calculate cost based on model and duration
       const costUSD = this.calculateVideoCost(model, duration)
       const costStars = this.usdToStars(costUSD)
+      
+      logger.info('[KieAiProvider] Cost calculation:', {
+        model,
+        kieModel,
+        duration,
+        costUSD,
+        costStars,
+        pricePerSecond: costUSD / duration
+      })
 
       logger.info('[KieAiProvider] Veo generate response:', {
         responseKeys: Object.keys(response),
