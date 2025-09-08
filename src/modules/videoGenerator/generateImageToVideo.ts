@@ -292,7 +292,8 @@ export const generateImageToVideo = async (
       // Специальная обработка для Google Veo 3 моделей (используем План А/Б)
       if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
         // Флаг для переключения планов: true = План А (сервер), false = План Б (локальный)
-        const USE_PLAN_A = process.env.USE_PLAN_A !== 'false' // По умолчанию true (План А), только если явно установлено 'false'
+        // ВРЕМЕННО: Всегда используем План Б по запросу
+        const USE_PLAN_A = false // Принудительно используем План Б
 
         logger.info(`[I2V BG] Veo model detected, using Plan A/B system`, {
           telegramId,
