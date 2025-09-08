@@ -630,10 +630,9 @@ export class KieAiProvider {
   private usdToStars(usdCost: number): number {
     // Using the markup from unified-pricing.config.ts
     const STAR_COST_USD = 0.016
-    const MARKUP_MULTIPLIER = 1.5
-
-    const starsBeforeMarkup = usdCost / STAR_COST_USD
-    const starsWithMarkup = starsBeforeMarkup * MARKUP_MULTIPLIER
-    return Math.floor(starsWithMarkup)
+    // NO MARKUP for Veo models - fixed prices already include everything
+    // For Veo models we use direct conversion without markup
+    const starsWithoutMarkup = usdCost / STAR_COST_USD
+    return Math.floor(starsWithoutMarkup)
   }
 }
