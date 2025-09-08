@@ -372,6 +372,40 @@ class VideoTranscriptionService {
       formData.append('language', 'ru') // Russian language
       formData.append('response_format', 'json')
 
+      // Try Deepgram first if available
+      if (process.env.DEEPGRAM_API_KEY) {
+        try {
+          const audioBuffer = fs.readFileSync(finalVideoPath)
+          const deepgramResponse = await axios.post(
+            'https://api.deepgram.com/v1/listen?model=general&language=ru&punctuate=true',
+            audioBuffer,
+            {
+              headers: {
+                'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}`,
+                'Content-Type': this.getMimeType(finalVideoPath),
+              },
+              timeout: 300000,
+            }
+          )
+          
+          if (deepgramResponse.data?.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
+            console.log(`✅ Transcription completed with Deepgram`)
+            return {
+              success: true,
+              text: deepgramResponse.data.results.channels[0].alternatives[0].transcript.trim(),
+              videoPath: finalVideoPath,
+              metadata: {
+                language: 'ru',
+                duration: deepgramResponse.data.metadata?.duration,
+              },
+            }
+          }
+        } catch (deepgramError) {
+          console.log(`⚠️ Deepgram failed, falling back to OpenAI:`, deepgramError.message)
+        }
+      }
+
+      // Fallback to OpenAI
       const response = await axios.post(
         'https://api.openai.com/v1/audio/transcriptions',
         formData,
@@ -379,6 +413,7 @@ class VideoTranscriptionService {
           headers: {
             Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
             ...formData.getHeaders(),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           },
           timeout: 300000, // 5 minutes timeout for transcription
         }
