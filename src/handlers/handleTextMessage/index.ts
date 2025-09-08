@@ -236,6 +236,9 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
 
       const modelToUse = userModel || 'deepseek-chat'
 
+      // Показываем индикатор "печатает..." перед вызовом AI
+      await ctx.sendChatAction('typing')
+
       const response = await answerAi(
         modelToUse,
         userData,
