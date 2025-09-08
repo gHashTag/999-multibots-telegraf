@@ -157,7 +157,7 @@ export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
     maxDuration: 8,
   },
   'veo-3': {
-    pricePerSecondUSD: 0.16, // 80⭐ за 8 сек = $1.28 за 8 сек = $0.16/сек (ФИКСИРОВАННАЯ ЦЕНА)
+    pricePerSecondUSD: 0.24, // 120⭐ за 8 сек = $1.92 за 8 сек = $0.24/сек (ФИКСИРОВАННАЯ ЦЕНА)
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 8,
     maxDuration: 10,

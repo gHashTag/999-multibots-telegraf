@@ -19,7 +19,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // Простая клавиатура с основными моделями
     const keyboard = Markup.keyboard([
-      ['Veo 3 Fast (40 ⭐)', 'Veo 3 (80 ⭐)'],
+      ['Veo 3 Fast (40 ⭐)', 'Veo 3 (120 ⭐)'],
       ['Kling v1.6 Pro (60 ⭐)', 'Minimax (50 ⭐)'],
       ['⬅️ Назад в меню'],
     ]).resize()
@@ -72,7 +72,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
       cost = 40
     } else if (selectedText.includes('Veo 3')) {
       selectedModel = 'veo-3'
-      cost = 80
+      cost = 120
     } else if (selectedText.includes('Kling')) {
       selectedModel = 'kling-v1.6-pro'
       cost = 60
