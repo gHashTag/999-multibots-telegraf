@@ -14,6 +14,7 @@ import {
   ServiceUsageDetail,
 } from '@/core/supabase/getUserBalance'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { adminSubscriptionCommand, handleAdminSubscriptionCallback } from './adminSubscriptionCommand'
 import { getOwnedBots } from '@/core/supabase/getOwnedBots'
 import { supabase } from '@/core/supabase'
 import { Context } from 'telegraf'
@@ -247,6 +248,15 @@ export function setupStatsCommand(bot: Telegraf<MyContext>): void {
   bot.command('user_spending', userSpendingCommand) // Команда для просмотра трат пользователей (только для админов)
   bot.command('find_user', findUserCommand) // Команда для поиска пользователей (только для админов)
   bot.command('admin_help', adminHelpCommand) // Справка по админским командам
+  bot.command('admin_sub', adminSubscriptionCommand) // Управление подписками пользователей (только для админов)
+  
+  // Добавляем обработчик callback кнопок для admin subscription
+  bot.on('callback_query', async (ctx, next) => {
+    const handled = await handleAdminSubscriptionCallback(ctx)
+    if (!handled) {
+      return next()
+    }
+  })
 }
 
 /**
@@ -2289,6 +2299,12 @@ export async function adminHelpCommand(ctx: MyContext): Promise<void> {
 1. <code>/stats MetaMuse_Manifest_bot --detailed</code>
 2. <code>/stats MetaMuse_Manifest_bot --excel</code>
 3. <code>/debug_stats MetaMuse_Manifest_bot</code>
+
+🔧 <b>Управление подписками пользователей:</b>
+<code>/admin_sub check 321330903</code> - проверить статус подписки
+<code>/admin_sub refresh 321330903</code> - принудительно обновить сессию
+<code>/admin_sub override 321330903 NEUROVIDEO</code> - создать подписку вручную
+<code>/admin_sub diagnose 321330903</code> - полная диагностика
 
 🔐 <b>Ваш уровень доступа:</b>
 ${
