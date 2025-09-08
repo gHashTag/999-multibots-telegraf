@@ -238,7 +238,7 @@ export class KieAiProvider {
         selectedModel: kieModel,
         hasImage: !!imageUrl,
         mode: imageUrl ? 'image-to-video' : 'text-to-video',
-        expectedCost: '80 stars'
+        expectedCost: '120 stars'
       })
     } else if (model === 'runway-aleph') {
       kieModel = 'runway_aleph'
@@ -611,7 +611,7 @@ export class KieAiProvider {
   private calculateVideoCost(model: string, duration: number): number {
     const pricing: Record<string, number> = {
       'veo-3-fast': 0.08, // $0.08 per second = 40⭐ for 8 seconds
-      'veo-3': 0.16, // $0.16 per second = 80⭐ for 8 seconds (FIXED PRICE)
+      'veo-3': 0.24, // $0.24 per second = 120⭐ for 8 seconds (FIXED PRICE)
       'runway-aleph': 0.3, // $0.30 per second
     }
 

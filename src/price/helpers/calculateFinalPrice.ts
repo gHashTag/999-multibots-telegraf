@@ -32,9 +32,9 @@ export function calculateFinalPrice(
   if (modelKey === 'veo-3') {
     logger.info('calculateFinalPrice: Using fixed price for Veo 3', {
       modelKey,
-      fixedPriceInStars: 80,
+      fixedPriceInStars: 120,
     })
-    return 80
+    return 120
   }
 
   // --- Новый порядок расчета (с учетом цены за секунду и разрешения) ---
