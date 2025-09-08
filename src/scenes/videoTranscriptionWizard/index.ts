@@ -13,6 +13,8 @@ import {
 import { levels } from '@/menu/mainMenu'
 import path from 'path'
 import fs from 'fs'
+import { directPaymentProcessor } from '@/core/supabase/directPayment'
+import { PaidServiceEnum } from '@/interfaces/paidServices'
 
 export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
   'video_transcription',
@@ -137,6 +139,46 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
+      // Списываем стоимость транскрипции
+      try {
+        const costInStars = 3 // Стоимость транскрипции
+        const paymentResult = await directPaymentProcessor({
+          telegram_id: ctx.from.id.toString(),
+          stars: costInStars,
+          service_type: PaidServiceEnum.VideoTranscription,
+          metadata: {
+            isFromUrl,
+            videoUrl: isFromUrl ? videoUrl : undefined,
+            textLength: transcriptionResult.text.length,
+          },
+        })
+
+        if (paymentResult.success) {
+          logger.info('[VideoTranscription] Payment processed successfully', {
+            telegramId: ctx.from.id,
+            cost: costInStars,
+            newBalance: paymentResult.newBalance,
+          })
+
+          // Отправляем сообщение о стоимости и балансе
+          await ctx.reply(
+            isRu
+              ? `💰 Стоимость: ${costInStars} ⭐\nВаш баланс: ${paymentResult.newBalance} ⭐`
+              : `💰 Cost: ${costInStars} ⭐\nYour balance: ${paymentResult.newBalance} ⭐`
+          )
+        } else {
+          logger.error('[VideoTranscription] Payment processing failed', {
+            telegramId: ctx.from.id,
+            error: paymentResult.error,
+          })
+        }
+      } catch (paymentError) {
+        logger.error('[VideoTranscription] Error processing payment', {
+          telegramId: ctx.from.id,
+          error: paymentError.message,
+        })
+      }
+
       // Отправляем результат
       const caption = isRu
         ? `📺 Транскрибация завершена!\n\n📝 Текст из видео:\n\n${transcriptionResult.text}`
@@ -151,10 +193,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
             : false,
         })
 
-        // Для URL отправляем скачанное видео с кратким описанием
+        // Для URL отправляем скачанное видео с кратким описанием и рекламой бота
         const shortCaption = isRu
-          ? `📺 Транскрибация завершена!\n\n🔗 Оригинал: ${videoUrl}`
-          : `📺 Transcription completed!\n\n🔗 Original: ${videoUrl}`
+          ? `📺 Транскрибация завершена!\n\n🔗 Оригинал: ${videoUrl}\n\n🤖 Сделано в боте @${ctx.botInfo.username}\n✨ Попробуйте и вы — быстро и точно!`
+          : `📺 Transcription completed!\n\n🔗 Original: ${videoUrl}\n\n🤖 Made by @${ctx.botInfo.username}\n✨ Try it yourself - fast and accurate!`
 
         // Отправляем скачанное видео (если путь есть в результате)
         if (
@@ -286,10 +328,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           )
         }
       } else {
-        // Для загруженного файла отправляем оригинальное видео с кратким описанием
+        // Для загруженного файла отправляем оригинальное видео с рекламой бота
         const shortCaption = isRu
-          ? `📺 Транскрибация завершена!`
-          : `📺 Transcription completed!`
+          ? `📺 Транскрибация завершена!\n\n🤖 Сделано в боте @${ctx.botInfo.username}\n✨ Попробуйте и вы — быстро и точно!`
+          : `📺 Transcription completed!\n\n🤖 Made by @${ctx.botInfo.username}\n✨ Try it yourself - fast and accurate!`
 
         await ctx.replyWithVideo(videoUrl, {
           caption: shortCaption,
