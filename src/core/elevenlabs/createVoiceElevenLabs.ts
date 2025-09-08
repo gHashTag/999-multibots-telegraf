@@ -112,7 +112,12 @@ export async function createVoiceElevenLabs({
       headers: {
         ...form.getHeaders(),
         'xi-api-key': elevenLabsApiKey,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
       },
+      timeout: 30000, // 30 seconds timeout
+      maxRedirects: 5,
     })
     logger.info('[createVoiceElevenLabs] Axios POST to ElevenLabs finished.', {
       username,
@@ -144,13 +149,50 @@ export async function createVoiceElevenLabs({
       })
       throw new ElevenLabsVoiceLimitError(error.response.data.detail.message)
     } else if (axios.isAxiosError(error)) {
+      // Check for Cloudflare challenge (403 with HTML response)
+      if (error.response?.status === 403 && 
+          typeof error.response?.data === 'string' && 
+          error.response.data.includes('Just a moment')) {
+        logger.error('[createVoiceElevenLabs] Cloudflare challenge detected. IP might be blocked.', {
+          username,
+          status: 403,
+        })
+        throw new Error(
+          'ElevenLabs API временно недоступен (Cloudflare защита). Попробуйте позже или обратитесь в поддержку.'
+        )
+      }
+      
+      // Check for rate limiting
+      if (error.response?.status === 429) {
+        logger.error('[createVoiceElevenLabs] Rate limit exceeded.', {
+          username,
+          status: 429,
+        })
+        throw new Error(
+          'Превышен лимит запросов к ElevenLabs. Попробуйте через несколько минут.'
+        )
+      }
+      
+      // Check for invalid API key
+      if (error.response?.status === 401) {
+        logger.error('[createVoiceElevenLabs] Invalid API key.', {
+          username,
+          status: 401,
+        })
+        throw new Error(
+          'Недействительный API ключ ElevenLabs. Обратитесь в поддержку.'
+        )
+      }
+      
       logger.error('[createVoiceElevenLabs] Axios error.', {
         username,
         message: error.message,
         status: error.response?.status,
-        data: error.response?.data,
+        data: typeof error.response?.data === 'string' 
+          ? error.response.data.substring(0, 500) 
+          : error.response?.data,
       })
-      throw new Error(`ElevenLabs API request failed: ${error.message}`)
+      throw new Error(`ElevenLabs API недоступен (${error.response?.status || error.message}). Попробуйте позже.`)
     } else {
       logger.error('[createVoiceElevenLabs] Generic error.', {
         username,
