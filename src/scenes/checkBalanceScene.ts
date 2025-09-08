@@ -444,7 +444,8 @@ checkBalanceScene.enter(async ctx => {
     })
 
     // Шаг 6: Показываем баланс и стоимость, если функция платная
-    if (costValue > 0) {
+    // Исключение для VideoTranscription - баланс показывается после транскрипции
+    if (costValue > 0 && mode !== ModeEnum.VideoTranscription) {
       logger.info({
         message: `[CheckBalanceScene] Отображение информации о балансе для платной функции`,
         telegramId,
