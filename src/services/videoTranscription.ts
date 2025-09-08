@@ -454,39 +454,6 @@ class VideoTranscriptionService {
         }
       }
 
-      // Try Deepgram if available
-      if (process.env.DEEPGRAM_API_KEY) {
-        try {
-          const audioBuffer = fs.readFileSync(finalVideoPath)
-          const deepgramResponse = await axios.post(
-            'https://api.deepgram.com/v1/listen?model=general&language=ru&punctuate=true',
-            audioBuffer,
-            {
-              headers: {
-                'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}`,
-                'Content-Type': this.getMimeType(finalVideoPath),
-              },
-              timeout: 300000,
-            }
-          )
-          
-          if (deepgramResponse.data?.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
-            console.log(`✅ Transcription completed with Deepgram`)
-            return {
-              success: true,
-              text: deepgramResponse.data.results.channels[0].alternatives[0].transcript.trim(),
-              videoPath: finalVideoPath,
-              metadata: {
-                language: 'ru',
-                duration: deepgramResponse.data.metadata?.duration,
-                service: 'deepgram',
-              },
-            }
-          }
-        } catch (deepgramError) {
-          console.log(`⚠️ Deepgram failed, falling back to OpenAI:`, deepgramError.message)
-        }
-      }
 
       // Fallback to OpenAI
       const response = await axios.post(
