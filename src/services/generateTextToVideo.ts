@@ -164,99 +164,11 @@ export async function generateTextToVideo(
     const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
     
     if (isVeoModel) {
-      // ПЛАН А: Сначала пробуем через наш сервер
-      logger.info('[PLAN A] Trying server first for Veo model', {
+      // ПЛАН Б: Для Veo моделей используем прямую интеграцию с Kie.ai
+      // НЕ используем сервер, так как там нет поддержки этих моделей через Replicate
+      logger.info('[PLAN B] Using Kie.ai directly for Veo model', {
         videoModel,
-        serverUrl: API_URL
-      })
-      
-      try {
-        const baseUrl = API_URL
-        
-        // Проверяем доступность сервера (пропускаем localhost для тестов)
-        if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {
-          const url = `${baseUrl}/api/v1/veo/generate`
-          
-          const requestBody = {
-            model: videoModel === 'veo-3-fast' ? 'veo3_fast' : 
-                   videoModel === 'veo-3' ? 'veo3' : 'runway_aleph',
-            prompt,
-            aspectRatio: aspectRatio || '9:16',
-            enableFallback: false,
-            enableTranslation: true,
-            telegram_id,
-            username,
-            is_ru,
-            bot_name,
-          }
-          
-          // ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЗАПРОСА НА СЕРВЕР
-          logger.info('[PLAN A] ТОЧНЫЙ ЗАПРОС НА СЕРВЕР:', {
-            url,
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-secret-key': SECRET_API_KEY ? 'PRESENT' : 'MISSING',
-            },
-            requestBody: {
-              ...requestBody,
-              prompt: `[PROMPT LENGTH: ${prompt.length} chars]`, // Не логируем полный промпт для безопасности
-            },
-            serverBaseUrl: baseUrl,
-            fullPrompt: prompt, // Логируем полный промпт для диагностики
-          })
-          
-          const response = await axios.post(url, requestBody, {
-            headers: {
-              'Content-Type': 'application/json',
-              'x-secret-key': SECRET_API_KEY,
-            },
-            timeout: 10000, // 10 секунд таймаут для проверки сервера
-          })
-          
-          logger.info('[PLAN A] Server response received', {
-            status: response.status,
-            success: response.data.success
-          })
-          
-          // Если сервер ответил успешно, возвращаем результат
-          if (response.data.success) {
-            return response.data
-          }
-        }
-      } catch (serverError) {
-        // Сервер недоступен, переключаемся на План Б
-        const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
-        
-        // ДЕТАЛЬНАЯ ДИАГНОСТИКА ОШИБКИ СЕРВЕРА
-        if (isAxiosError(serverError)) {
-          logger.error('[PLAN A] ДЕТАЛИ ОШИБКИ СЕРВЕРА:', {
-            status: serverError.response?.status,
-            statusText: serverError.response?.statusText,
-            data: serverError.response?.data,
-            url: serverError.config?.url,
-            code: serverError.code,
-            message: serverError.message,
-            fullError: JSON.stringify(serverError.response?.data || {}, null, 2)
-          })
-        }
-        
-        logger.warn('[PLAN A] Server failed, switching to PLAN B', {
-          error: errorMessage,
-          videoModel
-        })
-        
-        // Уведомляем админа о проблеме с сервером
-        await notifyAdminAboutServerIssue(errorMessage, telegram_id, videoModel)
-      }
-      
-      // ПЛАН Б: Используем прямую интеграцию с API Veo 3
-      logger.info('[PLAN B] Using direct Veo 3 API', {
-        videoModel,
-        aspectRatio,
-        duration,
-        telegram_id,
-        username
+        reason: 'Veo models are not available on Replicate, using Kie.ai API directly'
       })
       
       // Импортируем KieAiProvider

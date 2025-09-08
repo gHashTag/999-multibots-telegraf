@@ -215,32 +215,20 @@ export class KieAiProvider {
     } = request
 
     // КРИТИЧЕСКАЯ ПРОВЕРКА: Для image-to-video ОБЯЗАТЕЛЬНО наличие изображения
-    if (!imageUrl) {
-      logger.error('[KieAiProvider] CRITICAL: No image URL provided for image-to-video generation', {
-        model,
-        prompt: prompt.substring(0, 100) + '...',
-        aspectRatio
-      })
-
-      return {
-        success: false,
-        cost: { usd: 0, stars: 0 },
-        provider: 'Veo 3 API',
-        model: model,
-        error: 'Image URL is required for image-to-video generation',
-      }
-    }
+    // НО veo-3-fast и veo-3 поддерживают text-to-video!
+    // Удаляем эту проверку, так как она блокирует text-to-video
 
     // Преобразуем название модели в формат Kie.ai
     let kieModel = model
     if (model === 'veo-3-fast') {
-      // Для image-to-video используем veo3 вместо veo3_fast
-      // veo3_fast может не поддерживать image-to-video
+      // Для text-to-video используем veo3_fast
+      // Для image-to-video используем veo3 (так как veo3_fast может не поддерживать)
       kieModel = imageUrl ? 'veo3' : 'veo3_fast'
-      logger.info('[KieAiProvider] Model selection for image-to-video:', {
+      logger.info('[KieAiProvider] Model selection:', {
         originalModel: model,
         selectedModel: kieModel,
         hasImage: !!imageUrl,
+        mode: imageUrl ? 'image-to-video' : 'text-to-video',
         reason: imageUrl ? 'Using veo3 for image-to-video support' : 'Using veo3_fast for text-to-video'
       })
     } else if (model === 'veo-3') {
@@ -269,12 +257,13 @@ export class KieAiProvider {
       model: kieModel,
       promptLength: prompt.length,
       aspectRatio: aspectRatio,
-      fullPrompt: prompt, // Отправляем полный промпт в логи
+      mode: imageUrl ? 'image-to-video' : 'text-to-video',
       hasImageUrl: !!imageUrl,
       imageUrlValue: imageUrl || 'no image provided',
       callbackUrl: callbackUrl // Логируем callback URL
     })
 
+    // Только добавляем изображение если оно есть (для image-to-video)
     if (imageUrl) {
       // Пробуем разные форматы для Kie.ai API
       requestData.imageUrls = [imageUrl]
@@ -304,7 +293,7 @@ export class KieAiProvider {
         usingDualFormat: true
       })
     } else {
-      logger.warn('[KieAiProvider] No image URL provided for image-to-video generation')
+      logger.info('[KieAiProvider] Text-to-video mode - no image needed')
     }
 
     // Логируем полный request перед отправкой
