@@ -100,8 +100,8 @@ export async function generateNanoBanana({
     
     const statusMessage = await ctx.reply(
       is_ru
-        ? '🎨 Генерирую ваш образ через Google Nano Banana...\\n⏱ Это займет 10-20 секунд'
-        : '🎨 Generating your image via Google Nano Banana...\\n⏱ This will take 10-20 seconds',
+        ? '🎨 Генерирую ваш образ через Google Nano Banana\\.\\.\\.\\n⏱ Это займет 10\\-20 секунд'
+        : '🎨 Generating your image via Google Nano Banana\\.\\.\\.\\n⏱ This will take 10\\-20 seconds',
       { parse_mode: 'MarkdownV2' }
     )
     
@@ -209,8 +209,8 @@ export async function generateNanoBanana({
 
     await ctx.reply(
       is_ru
-        ? '❌ Произошла ошибка при генерации. Попробуйте позже.'
-        : '❌ An error occurred during generation. Please try later.',
+        ? '❌ Произошла ошибка при генерации\\. Попробуйте позже\\.'
+        : '❌ An error occurred during generation\\. Please try later\\.',
       { parse_mode: 'MarkdownV2' }
     )
 
