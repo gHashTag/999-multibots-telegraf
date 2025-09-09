@@ -8,7 +8,7 @@ import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
 import { getBotNameByToken } from '@/core/bot'
-import { generateGeminiImage } from '@/services/generateGeminiImage'
+import { generateFluxKontext } from '@/services/generateFluxKontext'
 import { createMiniAppKeyboard } from '@/menu/miniAppButton'
 
 // Герои для выбора (по полу)
@@ -593,14 +593,14 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               .map(hero => `• Стиль "${hero}"`)
               .join(
                 '\n'
-              )}\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: Google Gemini 2.5 Flash (нано банана)</b>`
+              )}\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: FLUX Kontext Max</b>`
           : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\nThis is just a small part of what our bot can do\n\n🌟 <b>Popular examples for ${
               gender === 'male' ? 'men' : 'women'
             }:</b>\n${primaryHeroes
               .map(hero => `• "${hero}" style`)
               .join(
                 '\n'
-              )}\n\n💰 <b>In full version ANY styles available!</b>\n🚀 <b>Technology: Google Gemini 2.5 Flash (nano banana)</b>`,
+              )}\n\n💰 <b>In full version ANY styles available!</b>\n🚀 <b>Technology: FLUX Kontext Max</b>`,
         {
           parse_mode: 'HTML',
           reply_markup: {
@@ -866,21 +866,14 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         return ctx.scene.enter(ModeEnum.MainMenu)
       }
 
-      // Генерируем изображение с помощью Google Gemini 2.5 Flash
-      const generatedImageUrl = await generateGeminiImage({
+      await generateFluxKontext({
         prompt,
-        userId: Number(telegramId),
-        language: isRu ? 'ru' : 'en',
-        aspectRatio: '9:16',
-        inputImageUrl: userPhotoUrl, // Передаем фото пользователя для трансформации
-      })
-
-      // Отправляем сгенерированное изображение пользователю
-      await ctx.replyWithPhoto(generatedImageUrl, {
-        caption: isRu 
-          ? `✨ <b>Ваша трансформация готова!</b>\n\n🎭 Стиль: ${selectedHero}\n🚀 Технология: Google Gemini 2.5 Flash`
-          : `✨ <b>Your transformation is ready!</b>\n\n🎭 Style: ${selectedHero}\n🚀 Technology: Google Gemini 2.5 Flash`,
-        parse_mode: 'HTML'
+        inputImageUrl: userPhotoUrl,
+        modelType: 'max',
+        telegram_id: telegramId,
+        username: ctx.from?.username || 'unknown',
+        is_ru: isRu,
+        ctx,
       })
 
       // 🛡️ ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ (после успешной генерации)
