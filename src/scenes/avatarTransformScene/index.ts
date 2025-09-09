@@ -8,7 +8,8 @@ import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
 import { getBotNameByToken } from '@/core/bot'
-import { generateNanoBanana } from '@/services/generateNanoBanana'
+// Используем KIE.AI вместо Replicate для Nano Banana
+import { generateNanoBananaKie } from '@/services/generateNanoBananaKie'
 import { createMiniAppKeyboard } from '@/menu/miniAppButton'
 
 // Герои для выбора (по полу)
@@ -167,7 +168,7 @@ const createMarvelPromptByGender = (
 
     'Илья Муромец': `${baseSettings} A mighty ${
       gender === 'male' ? 'warrior' : 'warrior woman'
-    } in ancient Russian armor with chainmail and helmet. Powerful build. Holding a massive sword and shield. Epic heroic pose. Background with Russian steppe landscape and dramatic storm clouds. Heroic lighting with strong contrasts.`,
+    } in Viktor Vasnetsov epic style. Ancient Rus chainmail armor with Orthodox cross, conical helmet, massive sword Kladenets. Mounted on black horse. Russian steppe, distant monastery. Romantic realism oil painting style, dramatic lighting.`,
 
     'Добрыня Никитич': `${baseSettings} A brave ${
       gender === 'male' ? 'knight' : 'female warrior'
@@ -1142,14 +1143,54 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         hasImageUrl: !!userPhotoUrl,
       })
       
-      const result = await generateNanoBanana({
-        telegram_id: telegramId,
-        promptText: prompt,
-        inputImageUrl: userPhotoUrl,
-        ctx,
-        username: ctx.from?.username || 'unknown',
-        is_ru: isRu,
-      })
+      // Пробуем KIE.AI, если не работает - fallback на Replicate
+      let result: string | null = null
+      
+      try {
+        console.log('🎨 Trying KIE.AI first...', { telegramId })
+        result = await generateNanoBananaKie({
+          telegram_id: telegramId,
+          promptText: prompt,
+          inputImageUrl: userPhotoUrl,
+          ctx,
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+        })
+        
+        if (result) {
+          console.log('✅ KIE.AI generation successful!', { telegramId, result: !!result })
+        }
+      } catch (kieError) {
+        console.log('⚠️ KIE.AI failed, trying Replicate fallback...', {
+          telegramId,
+          kieError: kieError instanceof Error ? kieError.message : 'Unknown'
+        })
+        
+        // Fallback на оригинальный Replicate
+        try {
+          const { generateNanoBanana } = await import('@/services/generateNanoBanana')
+          console.log('🔄 Calling Replicate fallback...', { telegramId })
+          result = await generateNanoBanana({
+            telegram_id: telegramId,
+            promptText: prompt,
+            inputImageUrl: userPhotoUrl,
+            ctx,
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+          })
+          
+          if (result) {
+            console.log('✅ Replicate fallback successful!', { telegramId, result: !!result })
+          }
+        } catch (replicateError) {
+          console.error('❌ Both KIE.AI and Replicate failed!', {
+            telegramId,
+            kieError: kieError instanceof Error ? kieError.message : 'Unknown',
+            replicateError: replicateError instanceof Error ? replicateError.message : 'Unknown'
+          })
+          throw replicateError
+        }
+      }
       
       console.log('🎯🎯🎯 [AvatarTransformScene] AFTER generateNanoBanana 🎯🎯🎯', {
         telegramId,

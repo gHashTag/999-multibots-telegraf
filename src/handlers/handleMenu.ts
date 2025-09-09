@@ -30,6 +30,16 @@ logger.info('[handleMenu] adminIds from env:', adminIds)
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
+  
+  // ВАЖНО: Не обрабатываем команды
+  if (ctx.message && 'text' in ctx.message && ctx.message.text?.startsWith('/')) {
+    logger.info('handleMenu skipping command', {
+      telegramId,
+      command: ctx.message.text,
+    })
+    return
+  }
+  
   logger.info({
     message: '🚀 [handleMenu] Обработка команды меню',
     telegramId,
