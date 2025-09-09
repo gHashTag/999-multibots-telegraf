@@ -11,63 +11,29 @@ import { getBotNameByToken } from '@/core/bot'
 import { generateGeminiImage } from '@/services/generateGeminiImage'
 import { createMiniAppKeyboard } from '@/menu/miniAppButton'
 
-// Герои для выбора (по полу) - теперь со славянскими и советскими персонажами!
-const HEROES_COLLECTION = {
+// Герои для выбора (по полу)
+const MARVEL_HEROES = {
   male: [
-    // Славянские и сказочные персонажи
-    'Иван-царевич',
-    'Добрыня Никитич',
-    'Илья Муромец',
-    'Кощей Бессмертный',
-    'Леший',
-    // Советские мультяшки
-    'Чебурашка',
-    'Крокодил Гена',
-    'Кот Матроскин',
-    'Кот Леопольд',
-    'Почтальон Печкин',
-    'Дядя Фёдор',
-    'Карлсон',
-    'Волк Ну погоди',
-    'Медведь Винни Пух',
-    // Marvel герои
     'Человек-паук',
     'Железный человек',
     'Капитан Америка',
     'Тор',
-    'Доктор Стрэндж',
-    'Соколиный глаз',
-    'Звёздный лорд',
+    'Доктор Стрэндж', // ✅ ЗАМЕНИЛ "Чёрная вдова" на позитивного героя
+    'Соколиный глаз', // ✅ НОВЫЙ СТИЛЬ
+    'Звёздный лорд', // ✅ НОВЫЙ СТИЛЬ
   ],
   female: [
-    // Славянские и сказочные персонажи
-    'Баба Яга',
-    'Василиса Прекрасная',
-    'Снегурочка',
-    'Жар-птица',
-    'Русалка',
-    // Советские мультяшки
-    'Шапокляк',
-    'Маша и Медведь',
-    'Алёнушка',
-    'Мальвина',
-    'Красная Шапочка',
-    'Герда',
-    'Умка',
-    'Принцесса Лебедь',
-    'Золушка',
-    // Marvel героини
     'Капитан Марвел',
     'Скарлет Витч',
     'Алая ведьма',
-    'Гамора',
-    'Шури',
-    'Валькирия',
+    'Гамора', // ✅ НОВЫЙ СТИЛЬ
+    'Шури', // ✅ НОВЫЙ СТИЛЬ
+    'Валькирия', // ✅ НОВЫЙ СТИЛЬ
   ],
 }
 
 // Функция для создания детального промпта с конкретным героем
-const createHeroPromptByGender = (
+const createMarvelPromptByGender = (
   gender: 'male' | 'female',
   heroName: string
 ): string => {
@@ -158,176 +124,6 @@ const createHeroPromptByGender = (
         ? 'Asgardian warrior stance'
         : 'Noble warrior queen pose'
     }. Holding a sword-like prop with regal bearing. Hair in warrior braids with metallic accessories. Background with Asgardian palace elements and golden architectural details. Regal lighting with blue and gold royal colors.`,
-
-    // СЛАВЯНСКИЕ СКАЗОЧНЫЕ ПЕРСОНАЖИ - ДЕТАЛЬНЫЕ ПРОМПТЫ
-    'Иван-царевич': `${baseSettings} A noble ${
-      gender === 'male' ? 'young man' : 'young woman'
-    } in traditional Russian royal attire with rich red caftan embroidered with golden patterns. ${
-      gender === 'male' ? 'Princely bearing' : 'Royal grace'
-    }. Wearing ornate crown with precious stones. Holding ceremonial sword with jeweled handle. Background with Russian palace interior, orthodox church domes. Rich warm lighting with gold and red tones, fairy tale atmosphere.`,
-
-    'Добрыня Никитич': `${baseSettings} A mighty ${
-      gender === 'male' ? 'warrior' : 'warrior maiden'
-    } in ancient Russian bogatyr armor with chainmail and helmet. ${
-      gender === 'male' ? 'Heroic muscular build' : 'Strong warrior presence'
-    }. Large shield with Slavic symbols and mighty sword. Sitting on powerful horse. Background with Russian steppes and fortress walls. Epic heroic lighting with dramatic shadows.`,
-
-    'Илья Муромец': `${baseSettings} A legendary ${
-      gender === 'male' ? 'strongman' : 'strong woman'
-    } in heavy bogatyr armor with fur cloak. ${
-      gender === 'male' ? 'Massive powerful build' : 'Powerful heroic stance'
-    }. Holding giant mace and shield. Long beard or braided hair. Background with ancient Russian forest and pathway. Heroic dramatic lighting with forest atmosphere.`,
-
-    'Кощей Бессмертный': `${baseSettings} A mystical ${
-      gender === 'male' ? 'sorcerer' : 'sorceress'
-    } in dark ornate robes with skeletal motifs and crown of bones. ${
-      gender === 'male' ? 'Gaunt immortal appearance' : 'Dark mystical presence'
-    }. Holding magical staff with glowing crystal. Surrounded by dark magical energy. Background with dark castle and treasure chests. Eerie green and purple lighting with mystical fog.`,
-
-    'Леший': `${baseSettings} A forest ${
-      gender === 'male' ? 'spirit' : 'spirit maiden'
-    } with bark-like skin texture and clothing made of leaves and moss. ${
-      gender === 'male' ? 'Wild forest guardian look' : 'Nature spirit appearance'
-    }. Hair intertwined with branches and leaves. Eyes glowing with green forest magic. Background with deep ancient forest, twisted trees. Mystical forest lighting with green tones.`,
-
-    'Баба Яга': `${baseSettings} A mystical ${
-      gender === 'male' ? 'wizard' : 'witch'
-    } in traditional Russian folk outfit with embroidered shawl and many necklaces. ${
-      gender === 'male' ? 'Wise ancient look' : 'Mysterious witch appearance'
-    }. Holding wooden mortar and pestle. Wild grey hair with herbs. Background with chicken-legged hut and dark forest. Mystical lighting with warm firelight and shadows.`,
-
-    'Василиса Прекрасная': `${baseSettings} A beautiful ${
-      gender === 'male' ? 'prince' : 'princess'
-    } in elegant Russian sarafan with gold embroidery and kokoshnik headdress. ${
-      gender === 'male' ? 'Noble elegant bearing' : 'Graceful royal beauty'
-    }. Holding magical glowing doll. Long braided hair with ribbons. Background with Russian palace garden and flowers. Soft romantic lighting with warm golden hour tones.`,
-
-    'Снегурочка': `${baseSettings} A winter ${
-      gender === 'male' ? 'prince' : 'maiden'
-    } in ice-blue fur-trimmed coat with snowflake patterns and crystal crown. ${
-      gender === 'male' ? 'Frost prince appearance' : 'Snow maiden beauty'
-    }. Skin with subtle frost effect. Hair like spun silver with ice crystals. Background with winter forest and ice palace. Cool blue lighting with sparkling snow effects.`,
-
-    'Жар-птица': `${baseSettings} A radiant ${
-      gender === 'male' ? 'phoenix warrior' : 'phoenix maiden'
-    } in outfit with fiery feather patterns in gold, orange and red. ${
-      gender === 'male' ? 'Fiery warrior stance' : 'Graceful fire bird pose'
-    }. Hair like flames with golden highlights. Arms spread like wings with fire effects. Background with magical garden and golden apples. Warm fiery lighting with golden magical glow.`,
-
-    'Русалка': `${baseSettings} A mystical ${
-      gender === 'male' ? 'water spirit' : 'mermaid'
-    } with long flowing hair adorned with water lilies and pearls. ${
-      gender === 'male' ? 'Aquatic warrior look' : 'Ethereal water maiden beauty'
-    }. Wearing flowing garments that shimmer like water. Skin with subtle scales effect. Background with moonlit lake and willow trees. Cool aquatic lighting with moonlight reflections.`,
-
-    // СОВЕТСКИЕ МУЛЬТЯШНЫЕ ПЕРСОНАЖИ - ДЕТАЛЬНЫЕ ПРОМПТЫ
-    'Чебурашка': `${baseSettings} A cute ${
-      gender === 'male' ? 'young man' : 'young woman'
-    } in fuzzy brown sweater with big round ears headband accessory. ${
-      gender === 'male' ? 'Friendly innocent look' : 'Sweet innocent appearance'
-    }. Large expressive eyes with childlike wonder. Holding orange or small suitcase prop. Background with toy store or train station. Warm nostalgic lighting with soft focus.`,
-
-    'Крокодил Гена': `${baseSettings} A friendly ${
-      gender === 'male' ? 'gentleman' : 'lady'
-    } in vintage green suit with red bow tie and harmonica. ${
-      gender === 'male' ? 'Distinguished friendly appearance' : 'Elegant friendly look'
-    }. Wearing vintage hat. Holding accordion or harmonica. Background with zoo or city park bench. Warm afternoon lighting with nostalgic atmosphere.`,
-
-    'Кот Матроскин': `${baseSettings} A practical ${
-      gender === 'male' ? 'young man' : 'young woman'
-    } in striped sailor shirt and knitted vest. ${
-      gender === 'male' ? 'Smart practical look' : 'Clever homemaker appearance'
-    }. Holding milk jug or knitting needles. Cat ear headband accessory. Background with rural house interior, Russian stove. Cozy warm lighting with homey atmosphere.`,
-
-    'Кот Леопольд': `${baseSettings} A kind ${
-      gender === 'male' ? 'gentleman' : 'lady'
-    } in blue bow tie and yellow vest with peaceful expression. ${
-      gender === 'male' ? 'Patient kind appearance' : 'Gentle peaceful look'
-    }. Round glasses and friendly smile. Making peace gesture with hands. Background with suburban house and garden. Bright cheerful lighting with sunny atmosphere.`,
-
-    'Почтальон Печкин': `${baseSettings} A stern ${
-      gender === 'male' ? 'postman' : 'postwoman'
-    } in vintage postal uniform with cap and messenger bag. ${
-      gender === 'male' ? 'Official serious look' : 'Strict official appearance'
-    }. Holding letters and bicycle handlebar. Thick mustache or strict hairstyle. Background with rural post office and bicycle. Natural daylight with documentary style.`,
-
-    'Дядя Фёдор': `${baseSettings} A independent ${
-      gender === 'male' ? 'young boy' : 'young girl'
-    } in simple sweater and cap with backpack. ${
-      gender === 'male' ? 'Serious mature child look' : 'Independent young appearance'
-    }. Holding sandwich or letter. Thoughtful expression beyond years. Background with rural house and vegetable garden. Natural outdoor lighting with countryside atmosphere.`,
-
-    'Карлсон': `${baseSettings} A mischievous ${
-      gender === 'male' ? 'man' : 'woman'
-    } in green shorts, checkered shirt with propeller backpack prop. ${
-      gender === 'male' ? 'Plump jolly appearance' : 'Cheerful playful look'
-    }. Red hair and rosy cheeks. Holding jar of jam. Background with rooftop and chimneys of Stockholm. Playful lighting with sunset over city.`,
-
-    'Волк Ну погоди': `${baseSettings} A roguish ${
-      gender === 'male' ? 'bad boy' : 'bad girl'
-    } in black leather jacket and torn jeans with cigarette prop. ${
-      gender === 'male' ? 'Cool rebel look' : 'Rebellious rocker appearance'
-    }. Slicked back hair. Making rock gesture. Background with amusement park or construction site. Dramatic lighting with rock concert vibe.`,
-
-    'Медведь Винни Пух': `${baseSettings} A thoughtful ${
-      gender === 'male' ? 'philosopher' : 'dreamer'
-    } in simple red shirt with honey pot prop. ${
-      gender === 'male' ? 'Round friendly build' : 'Cozy friendly appearance'
-    }. Thoughtful expression while holding head. Honey on face. Background with forest clearing and bee hive tree. Warm forest lighting with honey golden tones.`,
-
-    'Шапокляк': `${baseSettings} An elegant ${
-      gender === 'male' ? 'gentleman villain' : 'mischievous lady'
-    } in vintage black dress and hat with handbag. ${
-      gender === 'male' ? 'Dapper villain look' : 'Sophisticated troublemaker appearance'
-    }. Holding vintage umbrella. Pet rat accessory. Background with city street and vintage car. Film noir lighting with dramatic shadows.`,
-
-    'Маша и Медведь': `${baseSettings} An energetic ${
-      gender === 'male' ? 'young boy' : 'young girl'
-    } in pink hooded dress or Russian folk outfit. ${
-      gender === 'male' ? 'Hyperactive child energy' : 'Mischievous child appearance'
-    }. Big expressive eyes. Holding lollipop or butterfly net. Background with forest house and garden. Bright cartoon-like lighting with vibrant colors.`,
-
-    'Алёнушка': `${baseSettings} A gentle ${
-      gender === 'male' ? 'young shepherd' : 'young maiden'
-    } in simple Russian peasant dress with headscarf. ${
-      gender === 'male' ? 'Kind pastoral look' : 'Sweet innocent beauty'
-    }. Sitting by pond edge. Melancholic thoughtful expression. Background with pond, willow trees and meadow. Soft pastoral lighting with impressionist style.`,
-
-    'Мальвина': `${baseSettings} A refined ${
-      gender === 'male' ? 'young gentleman' : 'young lady'
-    } with bright blue hair styled in curls with blue bow. ${
-      gender === 'male' ? 'Theatrical elegant look' : 'Doll-like perfect appearance'
-    }. Wearing frilly blue dress. Holding teacup or mirror. Background with theatrical stage or puppet theater. Soft theatrical lighting with pastel tones.`,
-
-    'Красная Шапочка': `${baseSettings} An innocent ${
-      gender === 'male' ? 'young boy' : 'young girl'
-    } in bright red hooded cape over peasant dress. ${
-      gender === 'male' ? 'Brave child appearance' : 'Sweet innocent look'
-    }. Carrying wicker basket with pies. Walking through forest path. Background with forest path and grandmother's house. Fairy tale lighting with dappled sunlight.`,
-
-    'Герда': `${baseSettings} A brave ${
-      gender === 'male' ? 'young boy' : 'young girl'
-    } in warm winter coat with fur trim and knitted mittens. ${
-      gender === 'male' ? 'Determined traveler look' : 'Courageous journey appearance'
-    }. Rosy cheeks from cold. Holding lantern or roses. Background with snowy landscape and ice palace. Cold blue lighting with warm lantern glow.`,
-
-    'Умка': `${baseSettings} A playful ${
-      gender === 'male' ? 'young man' : 'young woman'
-    } in white fluffy polar bear costume with hood. ${
-      gender === 'male' ? 'Polar explorer look' : 'Arctic princess appearance'
-    }. Innocent curious expression. Playing in snow. Background with Arctic ice floes and northern lights. Cool Arctic lighting with aurora borealis effects.`,
-
-    'Принцесса Лебедь': `${baseSettings} An elegant ${
-      gender === 'male' ? 'swan prince' : 'swan princess'
-    } in white flowing gown with feather details and crown. ${
-      gender === 'male' ? 'Noble swan transformation' : 'Graceful swan beauty'
-    }. Swan-like neck posture. White feather accessories. Background with moonlit lake and castle. Ethereal moonlight with swan lake atmosphere.`,
-
-    'Золушка': `${baseSettings} A transformed ${
-      gender === 'male' ? 'prince' : 'princess'
-    } in sparkling ball gown or suit with glass slipper prop. ${
-      gender === 'male' ? 'Rags to riches transformation' : 'Magical transformation beauty'
-    }. Before/after transformation visible. Holding glass slipper. Background with palace ballroom and pumpkin carriage. Magical lighting with sparkles and midnight clock.`,
   }
 
   // Если промпт для героя не найден, используем общий
@@ -738,57 +534,27 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Создаем кнопки для выбора героев ТОЛЬКО для выбранного пола
-    const primaryHeroes = HEROES_COLLECTION[gender]
+    const primaryHeroes = MARVEL_HEROES[gender]
 
     // 🌍 ЛОКАЛИЗАЦИЯ КНОПОК ДЛЯ ГЕРОЕВ
     const getHeroButtonText = (heroName: string) => {
       const heroTranslations: Record<string, { ru: string; en: string }> = {
-        // Славянские мужские персонажи
-        'Иван-царевич': { ru: '🎯 Иван-царевич', en: '🎯 Ivan Tsarevich' },
-        'Добрыня Никитич': { ru: '⚔️ Добрыня Никитич', en: '⚔️ Dobrynya Nikitich' },
-        'Илья Муромец': { ru: '🛡️ Илья Муромец', en: '🛡️ Ilya Muromets' },
-        'Кощей Бессмертный': { ru: '💀 Кощей Бессмертный', en: '💀 Koschei the Deathless' },
-        'Леший': { ru: '🌲 Леший', en: '🌲 Leshy' },
-        // Славянские женские персонажи
-        'Баба Яга': { ru: '🧿 Баба Яга', en: '🧿 Baba Yaga' },
-        'Василиса Прекрасная': { ru: '👸 Василиса Прекрасная', en: '👸 Vasilisa the Beautiful' },
-        'Снегурочка': { ru: '❄️ Снегурочка', en: '❄️ Snow Maiden' },
-        'Жар-птица': { ru: '🔥 Жар-птица', en: '🔥 Firebird' },
-        'Русалка': { ru: '🧜‍♀️ Русалка', en: '🧜‍♀️ Rusalka' },
-        // Советские мультяшки - мужские
-        'Чебурашка': { ru: '🐻 Чебурашка', en: '🐻 Cheburashka' },
-        'Крокодил Гена': { ru: '🐊 Крокодил Гена', en: '🐊 Crocodile Gena' },
-        'Кот Матроскин': { ru: '🐱 Кот Матроскин', en: '🐱 Cat Matroskin' },
-        'Кот Леопольд': { ru: '😺 Кот Леопольд', en: '😺 Cat Leopold' },
-        'Почтальон Печкин': { ru: '📮 Почтальон Печкин', en: '📮 Postman Pechkin' },
-        'Дядя Фёдор': { ru: '👦 Дядя Фёдор', en: '👦 Uncle Fyodor' },
-        'Карлсон': { ru: '🚁 Карлсон', en: '🚁 Karlsson' },
-        'Волк Ну погоди': { ru: '🐺 Волк Ну погоди', en: '🐺 Wolf Nu Pogodi' },
-        'Медведь Винни Пух': { ru: '🍯 Винни Пух', en: '🍯 Winnie Pooh' },
-        // Советские мультяшки - женские
-        'Шапокляк': { ru: '👜 Шапокляк', en: '👜 Shapoklyak' },
-        'Маша и Медведь': { ru: '🎀 Маша', en: '🎀 Masha' },
-        'Алёнушка': { ru: '💫 Алёнушка', en: '💫 Alyonushka' },
-        'Мальвина': { ru: '💙 Мальвина', en: '💙 Malvina' },
-        'Красная Шапочка': { ru: '🔴 Красная Шапочка', en: '🔴 Red Riding Hood' },
-        'Герда': { ru: '❄️ Герда', en: '❄️ Gerda' },
-        'Умка': { ru: '🐻‍❄️ Умка', en: '🐻‍❄️ Umka' },
-        'Принцесса Лебедь': { ru: '🦢 Принцесса Лебедь', en: '🦢 Swan Princess' },
-        'Золушка': { ru: '👠 Золушка', en: '👠 Cinderella' },
-        // Marvel герои
-        'Человек-паук': { ru: '🕸️ Человек-паук', en: '🕸️ Spider-Man' },
-        'Железный человек': { ru: '🤖 Железный человек', en: '🤖 Iron Man' },
-        'Капитан Америка': { ru: '🇺🇸 Капитан Америка', en: '🇺🇸 Captain America' },
-        'Тор': { ru: '⚡ Тор', en: '⚡ Thor' },
-        'Доктор Стрэндж': { ru: '🎩 Доктор Стрэндж', en: '🎩 Doctor Strange' },
-        'Соколиный глаз': { ru: '🏹 Соколиный глаз', en: '🏹 Hawkeye' },
-        'Звёздный лорд': { ru: '🌟 Звёздный лорд', en: '🌟 Star Lord' },
+        'Человек-паук': { ru: '🎨 Человек-паук', en: '🎨 Spider-Man' },
+        'Железный человек': { ru: '🎨 Железный человек', en: '🎨 Iron Man' },
+        'Капитан Америка': {
+          ru: '🎨 Капитан Америка',
+          en: '🎨 Captain America',
+        },
+        Тор: { ru: '🎨 Тор', en: '🎨 Thor' },
+        'Доктор Стрэндж': { ru: '🎨 Доктор Стрэндж', en: '🎨 Doctor Strange' },
+        'Соколиный глаз': { ru: '🎨 Соколиный глаз', en: '🎨 Hawkeye' },
+        'Звёздный лорд': { ru: '🎨 Звёздный лорд', en: '🎨 Star Lord' },
         'Капитан Марвел': { ru: '✨ Капитан Марвел', en: '✨ Captain Marvel' },
-        'Скарлет Витч': { ru: '🔮 Скарлет Витч', en: '🔮 Scarlet Witch' },
-        'Алая ведьма': { ru: '❤️ Алая ведьма', en: '❤️ Wanda Maximoff' },
-        'Гамора': { ru: '🗡️ Гамора', en: '🗡️ Gamora' },
-        'Шури': { ru: '💜 Шури', en: '💜 Shuri' },
-        'Валькирия': { ru: '👑 Валькирия', en: '👑 Valkyrie' },
+        'Скарлет Витч': { ru: '✨ Скарлет Витч', en: '✨ Scarlet Witch' },
+        'Алая ведьма': { ru: '✨ Алая ведьма', en: '✨ Wanda Maximoff' },
+        Гамора: { ru: '✨ Гамора', en: '✨ Gamora' },
+        Шури: { ru: '✨ Шури', en: '✨ Shuri' },
+        Валькирия: { ru: '✨ Валькирия', en: '✨ Valkyrie' },
       }
 
       const translation = heroTranslations[heroName]
@@ -1073,7 +839,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         return ctx.scene.enter(ModeEnum.MainMenu)
       }
 
-      const prompt = createHeroPromptByGender(gender, selectedHero)
+      const prompt = createMarvelPromptByGender(gender, selectedHero)
 
       logger.info('[AvatarTransformScene] Starting image generation', {
         telegramId,
