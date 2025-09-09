@@ -8,27 +8,62 @@ import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
 import { getBotNameByToken } from '@/core/bot'
-import { generateFluxKontext } from '@/services/generateFluxKontext'
+import { generateNanoBanana } from '@/services/generateNanoBanana'
 import { createMiniAppKeyboard } from '@/menu/miniAppButton'
 
 // Герои для выбора (по полу)
 const MARVEL_HEROES = {
   male: [
+    // Marvel герои
     'Человек-паук',
     'Железный человек',
     'Капитан Америка',
     'Тор',
-    'Доктор Стрэндж', // ✅ ЗАМЕНИЛ "Чёрная вдова" на позитивного героя
-    'Соколиный глаз', // ✅ НОВЫЙ СТИЛЬ
-    'Звёздный лорд', // ✅ НОВЫЙ СТИЛЬ
+    'Доктор Стрэндж',
+    'Соколиный глаз',
+    'Звёздный лорд',
+    // Славянские сказочные герои
+    'Иван-царевич',
+    'Илья Муромец',
+    'Добрыня Никитич',
+    'Алёша Попович',
+    'Кощей Бессмертный',
+    'Серый Волк',
+    'Емеля',
+    // Советские мультперсонажи
+    'Чебурашка',
+    'Крокодил Гена',
+    'Кот Матроскин',
+    'Дядя Фёдор',
+    'Почтальон Печкин',
+    'Винни-Пух',
+    'Карлсон',
+    'Буратино',
   ],
   female: [
+    // Marvel героини
     'Капитан Марвел',
     'Скарлет Витч',
     'Алая ведьма',
-    'Гамора', // ✅ НОВЫЙ СТИЛЬ
-    'Шури', // ✅ НОВЫЙ СТИЛЬ
-    'Валькирия', // ✅ НОВЫЙ СТИЛЬ
+    'Гамора',
+    'Шури',
+    'Валькирия',
+    // Славянские сказочные героини
+    'Василиса Прекрасная',
+    'Баба Яга',
+    'Снегурочка',
+    'Марья Моревна',
+    'Алёнушка',
+    'Жар-птица',
+    'Царевна-лягушка',
+    // Советские мультперсонажи
+    'Шапокляк',
+    'Мальвина',
+    'Красная Шапочка',
+    'Золушка',
+    'Снежная Королева',
+    'Алиса',
+    'Пеппи Длинныйчулок',
   ],
 }
 
@@ -124,6 +159,126 @@ const createMarvelPromptByGender = (
         ? 'Asgardian warrior stance'
         : 'Noble warrior queen pose'
     }. Holding a sword-like prop with regal bearing. Hair in warrior braids with metallic accessories. Background with Asgardian palace elements and golden architectural details. Regal lighting with blue and gold royal colors.`,
+
+    // СЛАВЯНСКИЕ СКАЗОЧНЫЕ ГЕРОИ
+    'Иван-царевич': `${baseSettings} A noble ${
+      gender === 'male' ? 'young prince' : 'princess'
+    } in traditional Russian royal outfit with red and gold embroidery. Rich velvet caftan with golden patterns. Fur-trimmed hat or crown. Holding a decorative sword. Background with Russian palace elements, birch trees, and golden onion domes. Warm fairytale lighting with red and gold accents.`,
+
+    'Илья Муромец': `${baseSettings} A mighty ${
+      gender === 'male' ? 'warrior' : 'warrior woman'
+    } in ancient Russian armor with chainmail and helmet. Powerful build. Holding a massive sword and shield. Epic heroic pose. Background with Russian steppe landscape and dramatic storm clouds. Heroic lighting with strong contrasts.`,
+
+    'Добрыня Никитич': `${baseSettings} A brave ${
+      gender === 'male' ? 'knight' : 'female warrior'
+    } in golden Russian armor with dragon motifs. Noble stance with spear and round shield. Blonde hair and kind expression. Background with defeated dragon silhouette and Russian countryside. Golden hour lighting with warm tones.`,
+
+    'Алёша Попович': `${baseSettings} A clever ${
+      gender === 'male' ? 'young warrior' : 'warrior maiden'
+    } in light Russian armor with playful elements. Mischievous smile. Holding a bow and arrows. Agile pose suggesting quick wit. Background with Russian village and church domes. Bright, cheerful lighting.`,
+
+    'Кощей Бессмертный': `${baseSettings} A mystical ${
+      gender === 'male' ? 'immortal sorcerer' : 'immortal sorceress'
+    } in dark ornate robes with bone and skull motifs. Tall, thin silhouette. Glowing green eyes. Holding a magical staff with crystal. Background with dark castle and treasure chests. Eerie green and purple lighting with magical effects.`,
+
+    'Серый Волк': `${baseSettings} A wise ${
+      gender === 'male' ? 'man' : 'woman'
+    } in wolf-themed outfit with grey fur elements. Wolf ears accessory. Silver and grey color palette. Loyal and protective stance. Background with moonlit forest and wolf pack silhouettes. Cool blue moonlight with silver accents.`,
+
+    'Емеля': `${baseSettings} A lucky ${
+      gender === 'male' ? 'young man' : 'young woman'
+    } in simple Russian peasant clothes sitting on a decorative stove-throne. Relaxed, carefree pose. Holding a magical pike fish. Background with Russian village and magical sparkles. Warm, cozy lighting with magical golden particles.`,
+
+    // СОВЕТСКИЕ МУЛЬТПЕРСОНАЖИ
+    'Чебурашка': `${baseSettings} A cute ${
+      gender === 'male' ? 'person' : 'person'
+    } in brown furry costume with huge round ears. Big innocent eyes. Orange vest. Holding a small orange. Background with toy store and colorful boxes. Soft, warm lighting with nostalgic feel.`,
+
+    'Крокодил Гена': `${baseSettings} A friendly ${
+      gender === 'male' ? 'man' : 'woman'
+    } in green suit with crocodile-themed accessories. Red bow tie. Holding an accordion. Kind smile. Background with zoo entrance and balloons. Cheerful daylight with bright colors.`,
+
+    'Кот Матроскин': `${baseSettings} A smart ${
+      gender === 'male' ? 'person' : 'person'
+    } in striped sailor shirt with cat ears headband. Practical expression. Holding a milk jug. Background with Russian village house and garden. Sunny countryside lighting.`,
+
+    'Дядя Фёдор': `${baseSettings} A responsible ${
+      gender === 'male' ? 'young boy' : 'young girl'
+    } in simple Soviet-era clothes with backpack. Serious but kind expression. Holding a sandwich. Background with Prostokvashino village. Natural daylight with pastoral atmosphere.`,
+
+    'Почтальон Печкин': `${baseSettings} A strict ${
+      gender === 'male' ? 'postman' : 'postwoman'
+    } in Soviet postal uniform with cap. Holding a bicycle and mail bag. Suspicious expression with raised eyebrow. Background with rural post office. Official lighting with blue uniform tones.`,
+
+    'Винни-Пух': `${baseSettings} A thoughtful ${
+      gender === 'male' ? 'person' : 'person'
+    } in brown bear costume. Round, friendly appearance. Holding a honey pot. Contemplative expression. Background with forest and beehive tree. Warm honey-colored lighting.`,
+
+    'Карлсон': `${baseSettings} A mischievous ${
+      gender === 'male' ? 'man' : 'woman'
+    } in checkered shirt with propeller backpack prop. Plump, cheerful appearance. Holding jam jar. Background with Stockholm rooftops and chimney. Playful lighting with blue sky.`,
+
+    'Буратино': `${baseSettings} A curious ${
+      gender === 'male' ? 'boy' : 'girl'
+    } in striped cap and red shirt with wooden texture elements. Long nose prosthetic. Holding a golden key. Background with puppet theater stage. Theatrical lighting with warm spotlights.`,
+
+    // СЛАВЯНСКИЕ СКАЗОЧНЫЕ ГЕРОИНИ
+    'Василиса Прекрасная': `${baseSettings} A beautiful ${
+      gender === 'male' ? 'prince' : 'princess'
+    } in ornate Russian sarafan with golden embroidery. Long braided hair with ribbon. Pearl kokoshnik headdress. Holding a magical doll. Background with Russian palace and flowering garden. Soft fairytale lighting with pink and gold.`,
+
+    'Баба Яга': `${baseSettings} A mystical ${
+      gender === 'male' ? 'wizard' : 'witch'
+    } in tattered robes with forest elements. Wild grey hair. Holding a broom and mortar. Mischievous grin. Background with chicken leg hut and dark forest. Mysterious lighting with green and purple magic.`,
+
+    'Снегурочка': `${baseSettings} A gentle ${
+      gender === 'male' ? 'snow prince' : 'snow maiden'
+    } in white and blue fur-trimmed outfit with snowflake patterns. Ice crown or kokoshnik. Pale, ethereal appearance. Background with winter forest and falling snow. Cool blue lighting with crystalline sparkles.`,
+
+    'Марья Моревна': `${baseSettings} A fierce ${
+      gender === 'male' ? 'warrior prince' : 'warrior princess'
+    } in ornate battle armor with Russian motifs. Determined expression. Holding sword and shield. Background with battlefield and captured Koschei. Dramatic heroic lighting.`,
+
+    'Алёнушка': `${baseSettings} A gentle ${
+      gender === 'male' ? 'young man' : 'young maiden'
+    } in simple Russian peasant dress. Sad but beautiful expression. Sitting by a pond. Background with birch trees and water lilies. Soft, melancholic lighting with green nature tones.`,
+
+    'Жар-птица': `${baseSettings} A radiant ${
+      gender === 'male' ? 'person' : 'person'
+    } in fiery phoenix-themed outfit with feather patterns. Golden and orange colors. Glowing effects around hands. Background with magical garden and golden apples. Brilliant fire-colored lighting.`,
+
+    'Царевна-лягушка': `${baseSettings} A wise ${
+      gender === 'male' ? 'prince' : 'princess'
+    } in green royal dress with amphibian motifs. Crown with lily pad design. Holding an arrow. Background with pond and palace. Magical transformation lighting with green sparkles.`,
+
+    // СОВЕТСКИЕ МУЛЬТПЕРСОНАЖИ (ЖЕНСКИЕ)
+    'Шапокляк': `${baseSettings} A mischievous ${
+      gender === 'male' ? 'elderly gentleman' : 'elderly lady'
+    } in Victorian black dress with vintage hat. Holding a small handbag with toy rat. Sly expression. Background with city street and lamp posts. Film noir lighting with dramatic shadows.`,
+
+    'Мальвина': `${baseSettings} A graceful ${
+      gender === 'male' ? 'person' : 'person'
+    } in blue ball gown with puffy sleeves. Blue hair with bow. Porcelain doll-like makeup. Holding a pointer stick. Background with puppet theater and school board. Soft theatrical lighting.`,
+
+    'Красная Шапочка': `${baseSettings} A brave ${
+      gender === 'male' ? 'young man' : 'young girl'
+    } in red hooded cape over peasant dress. Holding a basket with pies. Innocent but clever expression. Background with forest path and grandmother's house. Storybook lighting with red accents.`,
+
+    'Золушка': `${baseSettings} A elegant ${
+      gender === 'male' ? 'prince' : 'princess'
+    } in sparkling ball gown with glass slipper props. Transformation from simple to glamorous. Background with pumpkin carriage and palace. Magical midnight lighting with sparkles.`,
+
+    'Снежная Королева': `${baseSettings} A regal ${
+      gender === 'male' ? 'ice king' : 'ice queen'
+    } in crystalline ice dress with fur trim. Ice crown with icicle points. Cold, majestic expression. Background with ice palace and northern lights. Icy blue lighting with frost effects.`,
+
+    'Алиса': `${baseSettings} A curious ${
+      gender === 'male' ? 'young man' : 'young girl'
+    } in blue dress with white apron. Blonde hair with black headband. Holding playing cards or teacup. Background with Wonderland elements and chess pieces. Whimsical lighting with surreal colors.`,
+
+    'Пеппи Длинныйчулок': `${baseSettings} A playful ${
+      gender === 'male' ? 'person' : 'girl'
+    } with red braided pigtails sticking out horizontally. Mismatched colorful socks. Freckles. Super strong pose. Background with Villa Villekulla and monkey. Bright, energetic lighting.`,
   }
 
   // Если промпт для героя не найден, используем общий
@@ -539,22 +694,51 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // 🌍 ЛОКАЛИЗАЦИЯ КНОПОК ДЛЯ ГЕРОЕВ
     const getHeroButtonText = (heroName: string) => {
       const heroTranslations: Record<string, { ru: string; en: string }> = {
-        'Человек-паук': { ru: '🎨 Человек-паук', en: '🎨 Spider-Man' },
-        'Железный человек': { ru: '🎨 Железный человек', en: '🎨 Iron Man' },
-        'Капитан Америка': {
-          ru: '🎨 Капитан Америка',
-          en: '🎨 Captain America',
-        },
-        Тор: { ru: '🎨 Тор', en: '🎨 Thor' },
-        'Доктор Стрэндж': { ru: '🎨 Доктор Стрэндж', en: '🎨 Doctor Strange' },
-        'Соколиный глаз': { ru: '🎨 Соколиный глаз', en: '🎨 Hawkeye' },
-        'Звёздный лорд': { ru: '🎨 Звёздный лорд', en: '🎨 Star Lord' },
-        'Капитан Марвел': { ru: '✨ Капитан Марвел', en: '✨ Captain Marvel' },
-        'Скарлет Витч': { ru: '✨ Скарлет Витч', en: '✨ Scarlet Witch' },
-        'Алая ведьма': { ru: '✨ Алая ведьма', en: '✨ Wanda Maximoff' },
-        Гамора: { ru: '✨ Гамора', en: '✨ Gamora' },
-        Шури: { ru: '✨ Шури', en: '✨ Shuri' },
-        Валькирия: { ru: '✨ Валькирия', en: '✨ Valkyrie' },
+        // Marvel герои - уникальные эмодзи
+        'Человек-паук': { ru: '🕷️ Человек-паук', en: '🕷️ Spider-Man' },
+        'Железный человек': { ru: '🤖 Железный человек', en: '🤖 Iron Man' },
+        'Капитан Америка': { ru: '🇦🇲 Капитан Америка', en: '🇦🇲 Captain America' },
+        'Тор': { ru: '⚡ Тор', en: '⚡ Thor' },
+        'Доктор Стрэндж': { ru: '🧿 Доктор Стрэндж', en: '🧿 Doctor Strange' },
+        'Соколиный глаз': { ru: '🏹 Соколиный глаз', en: '🏹 Hawkeye' },
+        'Звёздный лорд': { ru: '🚀 Звёздный лорд', en: '🚀 Star Lord' },
+        'Капитан Марвел': { ru: '⭐ Капитан Марвел', en: '⭐ Captain Marvel' },
+        'Скарлет Витч': { ru: '🔮 Скарлет Витч', en: '🔮 Scarlet Witch' },
+        'Алая ведьма': { ru: '🌹 Алая ведьма', en: '🌹 Wanda Maximoff' },
+        'Гамора': { ru: '🗡️ Гамора', en: '🗡️ Gamora' },
+        'Шури': { ru: '💙 Шури', en: '💙 Shuri' },
+        'Валькирия': { ru: '⚔️ Валькирия', en: '⚔️ Valkyrie' },
+        // Славянские сказочные герои
+        'Иван-царевич': { ru: '🤴 Иван-царевич', en: '🤴 Ivan Tsarevich' },
+        'Илья Муромец': { ru: '🛡️ Илья Муромец', en: '🛡️ Ilya Muromets' },
+        'Добрыня Никитич': { ru: '💉 Добрыня Никитич', en: '💉 Dobrynya Nikitich' },
+        'Алёша Попович': { ru: '🎯 Алёша Попович', en: '🎯 Alyosha Popovich' },
+        'Кощей Бессмертный': { ru: '💀 Кощей Бессмертный', en: '💀 Koschei' },
+        'Серый Волк': { ru: '🐺 Серый Волк', en: '🐺 Grey Wolf' },
+        'Емеля': { ru: '🎣 Емеля', en: '🎣 Emelya' },
+        'Василиса Прекрасная': { ru: '👸 Василиса Прекрасная', en: '👸 Vasilisa' },
+        'Баба Яга': { ru: '🧿 Баба Яга', en: '🧿 Baba Yaga' },
+        'Снегурочка': { ru: '❄️ Снегурочка', en: '❄️ Snow Maiden' },
+        'Марья Моревна': { ru: '💂 Марья Моревна', en: '💂 Marya Morevna' },
+        'Алёнушка': { ru: '🌾 Алёнушка', en: '🌾 Alyonushka' },
+        'Жар-птица': { ru: '🔥 Жар-птица', en: '🔥 Firebird' },
+        'Царевна-лягушка': { ru: '🐸 Царевна-лягушка', en: '🐸 Frog Princess' },
+        // Советские мультперсонажи
+        'Чебурашка': { ru: '🐵 Чебурашка', en: '🐵 Cheburashka' },
+        'Крокодил Гена': { ru: '🐊 Крокодил Гена', en: '🐊 Gena' },
+        'Кот Матроскин': { ru: '🐱 Кот Матроскин', en: '🐱 Matroskin' },
+        'Дядя Фёдор': { ru: '👦 Дядя Фёдор', en: '👦 Uncle Fyodor' },
+        'Почтальон Печкин': { ru: '📬 Почтальон Печкин', en: '📬 Pechkin' },
+        'Винни-Пух': { ru: '🐻 Винни-Пух', en: '🐻 Winnie Pooh' },
+        'Карлсон': { ru: '🎀 Карлсон', en: '🎀 Karlsson' },
+        'Буратино': { ru: '🪀 Буратино', en: '🪀 Buratino' },
+        'Шапокляк': { ru: '🎩 Шапокляк', en: '🎩 Shapoklyak' },
+        'Мальвина': { ru: '👩‍🎨 Мальвина', en: '👩‍🎨 Malvina' },
+        'Красная Шапочка': { ru: '🧧 Красная Шапочка', en: '🧧 Red Hood' },
+        'Золушка': { ru: '👠 Золушка', en: '👠 Cinderella' },
+        'Снежная Королева': { ru: '🌨️ Снежная Королева', en: '🌨️ Snow Queen' },
+        'Алиса': { ru: '🎀 Алиса', en: '🎀 Alice' },
+        'Пеппи Длинныйчулок': { ru: '🦾 Пеппи Длинныйчулок', en: '🦾 Pippi' },
       }
 
       const translation = heroTranslations[heroName]
@@ -698,41 +882,111 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       })
     } else {
       // 🔍 ПАРСИНГ ВЫБРАННОГО ГЕРОЯ ИЗ ЛОКАЛИЗОВАННЫХ КНОПОК
-      // Маппинг кнопок к именам героев
+      // Маппинг кнопок к именам героев (с уникальными эмодзи)
       const buttonToHeroMap: Record<string, string> = {
-        // Русские кнопки
-        '🎨 Человек-паук': 'Человек-паук',
-        '🎨 Железный человек': 'Железный человек',
-        '🎨 Капитан Америка': 'Капитан Америка',
-        '🎨 Тор': 'Тор',
-        '🎨 Доктор Стрэндж': 'Доктор Стрэндж',
-        '🎨 Соколиный глаз': 'Соколиный глаз',
-        '🎨 Звёздный лорд': 'Звёздный лорд',
-        // Английские кнопки
-        '🎨 Spider-Man': 'Человек-паук',
-        '🎨 Iron Man': 'Железный человек',
-        '🎨 Captain America': 'Капитан Америка',
-        '🎨 Thor': 'Тор',
-        '🎨 Doctor Strange': 'Доктор Стрэндж',
-        '🎨 Hawkeye': 'Соколиный глаз',
-        '🎨 Star Lord': 'Звёздный лорд',
-        // ЖЕНСКИЕ ГЕРОИ - Русские кнопки
-        '✨ Капитан Марвел': 'Капитан Марвел',
-        '✨ Скарлет Витч': 'Скарлет Витч',
-        '✨ Алая ведьма': 'Алая ведьма',
-        '✨ Гамора': 'Гамора',
-        '✨ Шури': 'Шури',
-        '✨ Валькирия': 'Валькирия',
-        // ЖЕНСКИЕ ГЕРОИ - Английские кнопки
-        '✨ Captain Marvel': 'Капитан Марвел',
-        '✨ Scarlet Witch': 'Скарлет Витч',
-        '✨ Wanda Maximoff': 'Алая ведьма',
-        '✨ Gamora': 'Гамора',
-        '✨ Shuri': 'Шури',
-        '✨ Valkyrie': 'Валькирия',
+        // Marvel - Русские кнопки (уникальные эмодзи)
+        '🕷️ Человек-паук': 'Человек-паук',
+        '🤖 Железный человек': 'Железный человек',
+        '🇦🇲 Капитан Америка': 'Капитан Америка',
+        '⚡ Тор': 'Тор',
+        '🧿 Доктор Стрэндж': 'Доктор Стрэндж',
+        '🏹 Соколиный глаз': 'Соколиный глаз',
+        '🚀 Звёздный лорд': 'Звёздный лорд',
+        // Marvel - Английские кнопки
+        '🕷️ Spider-Man': 'Человек-паук',
+        '🤖 Iron Man': 'Железный человек',
+        '🇦🇲 Captain America': 'Капитан Америка',
+        '⚡ Thor': 'Тор',
+        '🧿 Doctor Strange': 'Доктор Стрэндж',
+        '🏹 Hawkeye': 'Соколиный глаз',
+        '🚀 Star Lord': 'Звёздный лорд',
+        // Marvel женские - Русские кнопки
+        '⭐ Капитан Марвел': 'Капитан Марвел',
+        '🔮 Скарлет Витч': 'Скарлет Витч',
+        '🌹 Алая ведьма': 'Алая ведьма',
+        '🗡️ Гамора': 'Гамора',
+        '💙 Шури': 'Шури',
+        '⚔️ Валькирия': 'Валькирия',
+        // Marvel женские - Английские кнопки
+        '⭐ Captain Marvel': 'Капитан Марвел',
+        '🔮 Scarlet Witch': 'Скарлет Витч',
+        '🌹 Wanda Maximoff': 'Алая ведьма',
+        '🗡️ Gamora': 'Гамора',
+        '💙 Shuri': 'Шури',
+        '⚔️ Valkyrie': 'Валькирия',
+        // Славянские сказочные - Русские
+        '🤴 Иван-царевич': 'Иван-царевич',
+        '🛡️ Илья Муромец': 'Илья Муромец',
+        '💉 Добрыня Никитич': 'Добрыня Никитич',
+        '🎯 Алёша Попович': 'Алёша Попович',
+        '💀 Кощей Бессмертный': 'Кощей Бессмертный',
+        '🐺 Серый Волк': 'Серый Волк',
+        '🎣 Емеля': 'Емеля',
+        '👸 Василиса Прекрасная': 'Василиса Прекрасная',
+        '🧿 Баба Яга': 'Баба Яга',
+        '❄️ Снегурочка': 'Снегурочка',
+        '💂 Марья Моревна': 'Марья Моревна',
+        '🌾 Алёнушка': 'Алёнушка',
+        '🔥 Жар-птица': 'Жар-птица',
+        '🐸 Царевна-лягушка': 'Царевна-лягушка',
+        // Славянские сказочные - Английские
+        '🤴 Ivan Tsarevich': 'Иван-царевич',
+        '🛡️ Ilya Muromets': 'Илья Муромец',
+        '💉 Dobrynya Nikitich': 'Добрыня Никитич',
+        '🎯 Alyosha Popovich': 'Алёша Попович',
+        '💀 Koschei': 'Кощей Бессмертный',
+        '🐺 Grey Wolf': 'Серый Волк',
+        '🎣 Emelya': 'Емеля',
+        '👸 Vasilisa': 'Василиса Прекрасная',
+        '🧿 Baba Yaga': 'Баба Яга',
+        '❄️ Snow Maiden': 'Снегурочка',
+        '💂 Marya Morevna': 'Марья Моревна',
+        '🌾 Alyonushka': 'Алёнушка',
+        '🔥 Firebird': 'Жар-птица',
+        '🐸 Frog Princess': 'Царевна-лягушка',
+        // Советские мультперсонажи - Русские
+        '🐵 Чебурашка': 'Чебурашка',
+        '🐊 Крокодил Гена': 'Крокодил Гена',
+        '🐱 Кот Матроскин': 'Кот Матроскин',
+        '👦 Дядя Фёдор': 'Дядя Фёдор',
+        '📬 Почтальон Печкин': 'Почтальон Печкин',
+        '🐻 Винни-Пух': 'Винни-Пух',
+        '🎀 Карлсон': 'Карлсон',
+        '🪀 Буратино': 'Буратино',
+        '🎩 Шапокляк': 'Шапокляк',
+        '👩‍🎨 Мальвина': 'Мальвина',
+        '🧧 Красная Шапочка': 'Красная Шапочка',
+        '👠 Золушка': 'Золушка',
+        '🌨️ Снежная Королева': 'Снежная Королева',
+        '🎀 Алиса': 'Алиса',
+        '🦾 Пеппи Длинныйчулок': 'Пеппи Длинныйчулок',
+        // Советские мультперсонажи - Английские
+        '🐵 Cheburashka': 'Чебурашка',
+        '🐊 Gena': 'Крокодил Гена',
+        '🐱 Matroskin': 'Кот Матроскин',
+        '👦 Uncle Fyodor': 'Дядя Фёдор',
+        '📬 Pechkin': 'Почтальон Печкин',
+        '🐻 Winnie Pooh': 'Винни-Пух',
+        '🎀 Karlsson': 'Карлсон',
+        '🪀 Buratino': 'Буратино',
+        '🎩 Shapoklyak': 'Шапокляк',
+        '👩‍🎨 Malvina': 'Мальвина',
+        '🧧 Red Hood': 'Красная Шапочка',
+        '👠 Cinderella': 'Золушка',
+        '🌨️ Snow Queen': 'Снежная Королева',
+        '🎀 Alice': 'Алиса',
+        '🦾 Pippi': 'Пеппи Длинныйчулок',
       }
 
       selectedHero = buttonToHeroMap[receivedText]
+      
+      // 🔍 Логируем результат маппинга
+      logger.info('[AvatarTransformScene] Button mapping check', {
+        telegramId,
+        receivedText,
+        mappedHero: selectedHero,
+        isInMap: !!buttonToHeroMap[receivedText],
+      })
 
       if (!selectedHero) {
         logger.warn('[AvatarTransformScene] Invalid hero selection', {
@@ -840,6 +1094,14 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       }
 
       const prompt = createMarvelPromptByGender(gender, selectedHero)
+      
+      logger.info('[AvatarTransformScene] Prompt generated for hero', {
+        telegramId,
+        selectedHero,
+        gender,
+        promptLength: prompt?.length,
+        promptPreview: prompt?.substring(0, 150),
+      })
 
       logger.info('[AvatarTransformScene] Starting image generation', {
         telegramId,
@@ -852,7 +1114,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       // Проверяем наличие контекста перед вызовом
       if (!ctx || !ctx.telegram) {
-        logger.error('[AvatarTransformScene] Context is missing before generateFluxKontext', {
+        logger.error('[AvatarTransformScene] Context is missing before generateNanoBanana', {
           telegramId,
           ctxExists: !!ctx,
           ctxTelegramExists: !!ctx?.telegram,
@@ -866,14 +1128,37 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         return ctx.scene.enter(ModeEnum.MainMenu)
       }
 
-      await generateFluxKontext({
-        prompt,
-        inputImageUrl: userPhotoUrl,
-        modelType: 'max',
+      // 🌟 Используем Google Nano Banana для трансформации
+      console.log('🔥🔥🔥 [AvatarTransformScene] BEFORE CALLING generateNanoBanana 🔥🔥🔥', {
+        telegramId,
+        promptLength: prompt?.length,
+        hasImageUrl: !!userPhotoUrl,
+        selectedHero,
+      })
+      
+      logger.info('[AvatarTransformScene] Calling generateNanoBanana', {
+        telegramId,
+        promptLength: prompt?.length,
+        hasImageUrl: !!userPhotoUrl,
+      })
+      
+      const result = await generateNanoBanana({
         telegram_id: telegramId,
+        promptText: prompt,
+        inputImageUrl: userPhotoUrl,
+        ctx,
         username: ctx.from?.username || 'unknown',
         is_ru: isRu,
-        ctx,
+      })
+      
+      console.log('🎯🎯🎯 [AvatarTransformScene] AFTER generateNanoBanana 🎯🎯🎯', {
+        telegramId,
+        resultReceived: !!result,
+      })
+      
+      logger.info('[AvatarTransformScene] Nano Banana generation completed', {
+        telegramId,
+        success: !!result,
       })
 
       // 🛡️ ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ (после успешной генерации)
