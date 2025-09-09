@@ -14,7 +14,10 @@ import {
   ServiceUsageDetail,
 } from '@/core/supabase/getUserBalance'
 import { ADMIN_IDS_ARRAY } from '@/config'
-import { adminSubscriptionCommand, handleAdminSubscriptionCallback } from './adminSubscriptionCommand'
+import {
+  adminSubscriptionCommand,
+  handleAdminSubscriptionCallback,
+} from './adminSubscriptionCommand'
 import { getOwnedBots } from '@/core/supabase/getOwnedBots'
 import { supabase } from '@/core/supabase'
 import { Context } from 'telegraf'
@@ -249,7 +252,7 @@ export function setupStatsCommand(bot: Telegraf<MyContext>): void {
   bot.command('find_user', findUserCommand) // Команда для поиска пользователей (только для админов)
   bot.command('admin_help', adminHelpCommand) // Справка по админским командам
   bot.command('admin_sub', adminSubscriptionCommand) // Управление подписками пользователей (только для админов)
-  
+
   // Добавляем обработчик callback кнопок для admin subscription
   bot.on('callback_query', async (ctx, next) => {
     const handled = await handleAdminSubscriptionCallback(ctx)
@@ -2060,8 +2063,8 @@ export async function userSpendingCommand(ctx: MyContext): Promise<void> {
         payment.type === 'MONEY_INCOME'
           ? '📈'
           : payment.type === 'MONEY_OUTCOME'
-          ? '📉'
-          : '🔄'
+            ? '📉'
+            : '🔄'
       const categoryInfo = payment.category ? ` (${payment.category})` : ''
       message += `   ${index + 1}. ${typeEmoji} ${date}: ${
         payment.stars || 0

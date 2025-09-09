@@ -86,8 +86,7 @@ describe('generateNanoBanana', () => {
 
     expect(result).toBeNull()
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Недостаточно звезд'),
-      { parse_mode: 'MarkdownV2' }
+      expect.stringContaining('Недостаточно звезд')
     )
     expect(mockReplicate.run).not.toHaveBeenCalled()
   })
@@ -109,8 +108,7 @@ describe('generateNanoBanana', () => {
     })
 
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Generating your image via Google Nano Banana'),
-      { parse_mode: 'MarkdownV2' }
+      expect.stringContaining('Generating your image via Google Nano Banana')
     )
   })
 
@@ -132,8 +130,7 @@ describe('generateNanoBanana', () => {
 
     expect(result).toBeNull()
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Произошла ошибка при генерации'),
-      { parse_mode: 'MarkdownV2' }
+      expect.stringContaining('Произошла ошибка при генерации')
     )
   })
 
@@ -198,8 +195,7 @@ describe('generateNanoBanana', () => {
 
     expect(result).toBeNull()
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('Произошла ошибка'),
-      { parse_mode: 'MarkdownV2' }
+      expect.stringContaining('Произошла ошибка')
     )
   })
 })

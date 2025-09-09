@@ -100,9 +100,8 @@ export async function generateNanoBanana({
     
     const statusMessage = await ctx.reply(
       is_ru
-        ? '🎨 Генерирую ваш образ через Google Nano Banana\\.\\.\\.\\n⏱ Это займет 10\\-20 секунд'
-        : '🎨 Generating your image via Google Nano Banana\\.\\.\\.\\n⏱ This will take 10\\-20 seconds',
-      { parse_mode: 'MarkdownV2' }
+        ? '🎨 Генерирую ваш образ через Google Nano Banana...\n\n⏱ Это займет 10-20 секунд'
+        : '🎨 Generating your image via Google Nano Banana...\n\n⏱ This will take 10-20 seconds'
     )
     
     console.log('✅✅✅ [generateNanoBanana] Status message sent!', { 
@@ -123,15 +122,32 @@ export async function generateNanoBanana({
 
     // Вызываем модель Nano Banana
     // Модель принимает массив изображений, но мы используем одно
+    console.log('🎨🎨🎨 [generateNanoBanana] Calling Replicate.run...', {
+      telegram_id,
+      model: 'google/nano-banana',
+      inputImageUrl: inputImageUrl.substring(0, 100) + '...',
+    })
+    
+    // Добавляем указание на формат 9:16 в промпт
+    const enhancedPrompt = `${promptText} The image must be in 9:16 vertical portrait format for Instagram stories.`
+    
     const output = await replicate.run(
       "google/nano-banana",
       {
         input: {
-          prompt: promptText,
+          prompt: enhancedPrompt,
           image_input: [inputImageUrl]
         }
       }
     )
+    
+    console.log('🖼️🖼️🖼️ [generateNanoBanana] Replicate output received:', {
+      telegram_id,
+      outputType: typeof output,
+      isArray: Array.isArray(output),
+      outputValue: output,
+      outputStringified: JSON.stringify(output).substring(0, 500),
+    })
 
     // Получаем URL результата
     let imageUrl: string | null = null
@@ -139,18 +155,37 @@ export async function generateNanoBanana({
     if (output && typeof output === 'object' && 'url' in output) {
       // Если output имеет метод url()
       imageUrl = (output as any).url?.() || null
+      console.log('📍 Case 1: output.url() =', imageUrl)
     } else if (typeof output === 'string') {
       // Если output - это строка с URL
       imageUrl = output
+      console.log('📍 Case 2: string output =', imageUrl)
     } else if (Array.isArray(output) && output.length > 0) {
       // Если output - массив URL
       imageUrl = output[0]
+      console.log('📍 Case 3: array[0] =', imageUrl)
+    } else if (output && typeof output === 'object') {
+      // Проверяем другие возможные структуры
+      console.log('📍 Case 4: Checking object structure...')
+      // Может быть output.output или output.prediction
+      imageUrl = (output as any).output || (output as any).prediction || null
+      console.log('📍 Case 4: extracted =', imageUrl)
     }
 
     if (!imageUrl) {
+      console.error('❌❌❌ [generateNanoBanana] No image URL found in response!', {
+        telegram_id,
+        output,
+        outputKeys: output ? Object.keys(output) : null,
+      })
       throw new Error('No image URL in Nano Banana response')
     }
 
+    console.log('✨✨✨ [generateNanoBanana] IMAGE URL FOUND!', {
+      telegram_id,
+      imageUrl,
+    })
+    
     logger.info('[generateNanoBanana] Image generated successfully', {
       telegram_id,
       imageUrl: imageUrl.substring(0, 50) + '...',
@@ -163,14 +198,46 @@ export async function generateNanoBanana({
       logger.warn('[generateNanoBanana] Failed to delete status message', { err })
     }
 
-    // Отправляем изображение пользователю
-    const caption = is_ru
-      ? `✨ *Ваш образ готов!*\\n\\n🎨 Создано с помощью Google Nano Banana\\n💫 Потрачено: ${costPerImage}⭐\\n\\n_Создайте еще образы через_ /start`
-      : `✨ *Your image is ready!*\\n\\n🎨 Created with Google Nano Banana\\n💫 Spent: ${costPerImage}⭐\\n\\n_Create more images via_ /start`
+    console.log('📮📮📮 [generateNanoBanana] Preparing to send photo...', {
+      telegram_id,
+      imageUrl,
+    })
 
-    await sendPhotoWithFallback(ctx, imageUrl, {
-      caption,
-      parse_mode: 'MarkdownV2'
+    // Отправляем изображение пользователю с рекламой бота
+    const botUsername = ctx.botInfo?.username || 'clip_maker_neuro_bot'
+    const caption = is_ru
+      ? `✨ Ваш образ готов!\n\n🎨 Создано с помощью Google Nano Banana\n💫 Потрачено: ${costPerImage}⭐\n\nСоздайте еще образы через /start\n\n🤖 Сделано в боте @${botUsername}`
+      : `✨ Your image is ready!\n\n🎨 Created with Google Nano Banana\n💫 Spent: ${costPerImage}⭐\n\nCreate more images via /start\n\n🤖 Made with @${botUsername} bot`
+
+    console.log('🚀 [generateNanoBanana] About to call sendPhotoWithFallback', {
+      telegram_id,
+      imageUrl,
+      captionLength: caption.length,
+      ctxExists: !!ctx,
+      ctxReplyWithPhotoExists: !!ctx?.replyWithPhoto,
+    })
+
+    const sendResult = await sendPhotoWithFallback(ctx, imageUrl, {
+      caption
+    })
+    
+    console.log('🎯 [generateNanoBanana] sendPhotoWithFallback result:', {
+      telegram_id,
+      sendResult,
+      imageUrl,
+    })
+    
+    if (!sendResult) {
+      console.error('❌ [generateNanoBanana] Failed to send photo!', {
+        telegram_id,
+        imageUrl,
+      })
+      throw new Error('Failed to send photo to user')
+    }
+    
+    console.log('📬📬📬 [generateNanoBanana] Photo sent successfully!', {
+      telegram_id,
+      imageUrl,
     })
 
     return imageUrl
@@ -190,7 +257,7 @@ export async function generateNanoBanana({
     // Отправляем сообщение администратору об ошибке
     try {
       const adminIds = process.env.ADMIN_IDS?.split(',') || []
-      const adminMessage = `🚨 *Ошибка в generateNanoBanana*
+      const adminMessage = `🚨 Ошибка в generateNanoBanana
 
 👤 User: ${telegram_id} (@${username})
 ❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}
@@ -199,9 +266,7 @@ export async function generateNanoBanana({
 Проверьте логи для деталей.`
 
       for (const adminId of adminIds) {
-        await ctx.telegram.sendMessage(adminId, adminMessage, {
-          parse_mode: 'Markdown'
-        }).catch(err => console.error('Failed to notify admin:', err))
+        await ctx.telegram.sendMessage(adminId, adminMessage).catch(err => console.error('Failed to notify admin:', err))
       }
     } catch (notifyError) {
       console.error('Failed to send admin notification:', notifyError)

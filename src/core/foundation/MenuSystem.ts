@@ -271,8 +271,14 @@ export class MenuSystem {
    */
   private setupBotHandlers(bot: Telegraf<MyContext>): void {
     // УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК для всех кнопок меню
-    bot.on('text', async (ctx) => {
+    bot.on('text', async (ctx, next) => {
       const text = ctx.message.text
+
+      // ВАЖНО: Пропускаем команды - они обрабатываются до этого обработчика
+      if (text.startsWith('/')) {
+        await next()
+        return
+      }
 
       // Проверяем, является ли это действием меню
       if (menuActionHandler.isMenuAction(text)) {
@@ -281,6 +287,7 @@ export class MenuSystem {
       }
 
       // Если не кнопка меню, то передаем дальше (в другие обработчики)
+      await next()
     })
 
     // Экстренный обработчик подписки
