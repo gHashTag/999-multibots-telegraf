@@ -44,12 +44,23 @@ export async function generateNanoBanana({
     const costPerImage = 12
 
     // Проверяем баланс и списываем звезды
+    console.log('🔵🔵🔵 [generateNanoBanana] Calling processBalanceOperation...', {
+      telegram_id,
+      costPerImage,
+    })
+    
     const balanceCheck = await processBalanceOperation({
       telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
       paymentAmount: costPerImage,
       is_ru,
       bot_name: ctx.botInfo?.username,
       ctx,
+    })
+    
+    console.log('🟢🟢🟢 [generateNanoBanana] Balance check result:', {
+      telegram_id,
+      balanceCheckSuccess: balanceCheck?.success,
+      balanceCheckResult: balanceCheck,
     })
 
     if (!balanceCheck.success) {
@@ -67,13 +78,37 @@ export async function generateNanoBanana({
       return null
     }
 
+    console.log('💚💚💚 [generateNanoBanana] Balance check passed! Continuing...', {
+      telegram_id,
+      balanceCheckSuccess: balanceCheck.success,
+      ctxExists: !!ctx,
+      ctxReplyExists: !!ctx?.reply,
+    })
+
+    // Проверка контекста
+    if (!ctx || !ctx.reply) {
+      console.error('❌❌❌ [generateNanoBanana] Context lost after balance check!', {
+        telegram_id,
+        ctxExists: !!ctx,
+        ctxReplyExists: !!ctx?.reply,
+      })
+      throw new Error('Context lost after balance check')
+    }
+
     // Отправляем статус
+    console.log('📤📤📤 [generateNanoBanana] Sending status message...', { telegram_id })
+    
     const statusMessage = await ctx.reply(
       is_ru
         ? '🎨 Генерирую ваш образ через Google Nano Banana...\\n⏱ Это займет 10-20 секунд'
         : '🎨 Generating your image via Google Nano Banana...\\n⏱ This will take 10-20 seconds',
       { parse_mode: 'MarkdownV2' }
     )
+    
+    console.log('✅✅✅ [generateNanoBanana] Status message sent!', { 
+      telegram_id,
+      messageId: statusMessage.message_id,
+    })
 
     // Инициализируем Replicate
     const replicate = new Replicate({
@@ -140,10 +175,37 @@ export async function generateNanoBanana({
 
     return imageUrl
   } catch (error) {
+    console.error('🔴🔴🔴 [generateNanoBanana] CRITICAL ERROR:', {
+      telegram_id,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorStack: error instanceof Error ? error.stack : undefined,
+      errorDetails: error,
+    })
+    
     logger.error('[generateNanoBanana] Generation failed', {
       telegram_id,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
+
+    // Отправляем сообщение администратору об ошибке
+    try {
+      const adminIds = process.env.ADMIN_IDS?.split(',') || []
+      const adminMessage = `🚨 *Ошибка в generateNanoBanana*
+
+👤 User: ${telegram_id} (@${username})
+❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}
+🎯 Prompt: ${promptText.substring(0, 100)}...
+
+Проверьте логи для деталей.`
+
+      for (const adminId of adminIds) {
+        await ctx.telegram.sendMessage(adminId, adminMessage, {
+          parse_mode: 'Markdown'
+        }).catch(err => console.error('Failed to notify admin:', err))
+      }
+    } catch (notifyError) {
+      console.error('Failed to send admin notification:', notifyError)
+    }
 
     await ctx.reply(
       is_ru
