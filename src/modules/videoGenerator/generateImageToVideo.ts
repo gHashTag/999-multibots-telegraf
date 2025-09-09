@@ -23,6 +23,7 @@ import { Markup } from 'telegraf'
 import axios from 'axios'
 import { isAxiosError } from 'axios'
 import { API_URL, SECRET_API_KEY } from '@/config'
+import { safeSendMessage, markUserAsBlocked } from '@/utils/blockedUsersCheck'
 
 // Функция для отправки уведомления админу
 async function notifyAdminAboutServerIssue(
@@ -37,17 +38,27 @@ async function notifyAdminAboutServerIssue(
     
     if (!botResult.bot) return
     
-    const errorMessage = `🚨 **SERVER DOWN ALERT (I2V)**\n\n` +
+    // Экранируем специальные символы для HTML
+    const escapeHtml = (text: string) => {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;')
+    }
+    
+    const errorMessage = `🚨 <b>SERVER DOWN ALERT (I2V)</b>\n\n` +
       `📍 План Б АКТИВИРОВАН для Image to Video\n` +
-      `👤 User: ${telegram_id}\n` +
-      `🎬 Model: ${videoModel}\n` +
-      `❌ Server Error: ${error}\n` +
+      `👤 User: ${escapeHtml(telegram_id)}\n` +
+      `🎬 Model: ${escapeHtml(videoModel)}\n` +
+      `❌ Server Error: ${escapeHtml(error)}\n` +
       `✅ Используется прямой API Veo 3 (Plan B)\n\n` +
       `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
     
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
-        parse_mode: 'Markdown'
+        parse_mode: 'HTML'
       })
     }
     
@@ -73,17 +84,27 @@ async function notifyAdminAboutPlanBSuccess(
 
     if (!botResult.bot) return
 
-    const successMessage = `✅ **PLAN B SUCCESS (I2V)**\n\n` +
+    // Экранируем специальные символы для HTML
+    const escapeHtml = (text: string) => {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;')
+    }
+    
+    const successMessage = `✅ <b>PLAN B SUCCESS (I2V)</b>\n\n` +
       `📍 Видео успешно сгенерировано через Plan B\n` +
-      `👤 User: ${telegram_id}\n` +
-      `🎬 Model: ${videoModel}\n` +
-      `🔗 Task ID: ${taskId}\n` +
-      `🎥 Video URL: ${videoUrl.substring(0, 50)}...\n\n` +
+      `👤 User: ${escapeHtml(telegram_id)}\n` +
+      `🎬 Model: ${escapeHtml(videoModel)}\n` +
+      `🔗 Task ID: ${escapeHtml(taskId)}\n` +
+      `🎥 Video URL: ${escapeHtml(videoUrl.substring(0, 50))}...\n\n` +
       `✅ Fallback механизм работает корректно`
 
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, successMessage, {
-        parse_mode: 'Markdown'
+        parse_mode: 'HTML'
       })
     }
 
@@ -728,9 +749,21 @@ export const generateImageToVideo = async (
                             : 'Try a different image or modify the prompt.'
                         }`
                     
-                    await botResult.bot.telegram.sendMessage(telegramId, errorMessage, {
-                      reply_markup: errorKeyboard.reply_markup
-                    })
+                    // Используем безопасную отправку с проверкой блокировки
+                    const sent = await safeSendMessage(
+                      { telegram: botResult.bot.telegram } as any,
+                      telegramId,
+                      errorMessage,
+                      { reply_markup: errorKeyboard.reply_markup }
+                    )
+                    
+                    if (!sent) {
+                      logger.info('[I2V BG] User has blocked the bot, stopping polling', {
+                        telegramId,
+                        taskId
+                      })
+                      return // Прекращаем попытки если пользователь заблокировал бота
+                    }
                   }
                   return // Выходим из функции
                 }
@@ -874,7 +907,23 @@ export const generateImageToVideo = async (
                   await new Promise(resolve => setTimeout(resolve, pollingInterval))
                 }
 
-              } catch (pollError) {
+              } catch (pollError: any) {
+                // Проверяем, заблокировал ли пользователь бота
+                if (pollError?.message?.includes('bot was blocked') || 
+                    pollError?.message?.includes('Forbidden') ||
+                    pollError?.response?.error_code === 403) {
+                  
+                  markUserAsBlocked(telegramId)
+                  logger.info('[I2V BG] User blocked bot, stopping polling', {
+                    telegramId,
+                    taskId,
+                    attempt: attempts
+                  })
+                  
+                  // Прекращаем polling для заблокированного пользователя
+                  return
+                }
+                
                 logger.error('[I2V BG] Plan B polling error', {
                   telegramId,
                   taskId,
