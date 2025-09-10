@@ -505,7 +505,7 @@ async function handleVideoReady(
         username: ctx.from?.username,
         language: is_ru ? 'ru' : 'en',
         serviceType: modelName,
-        prompt: originalPrompt,
+        prompt: prompt,
         botName: 'HaimGroupMedia_bot',
         additionalInfo: {
           'Model': modelName,
