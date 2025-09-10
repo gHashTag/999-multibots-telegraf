@@ -444,6 +444,34 @@ export const generateImageToVideo = async (
                 { caption }
               )
 
+              // Отправляем видео в pulse канал (Plan A)
+              try {
+                const { sendMediaToPulse } = await import('@/helpers/pulse')
+                await sendMediaToPulse({
+                  mediaType: 'video',
+                  mediaSource: videoUrl,
+                  telegramId: telegramId,
+                  username: username,
+                  language: isRu ? 'ru' : 'en',
+                  serviceType: modelConfig.title,
+                  prompt: processedPrompt || '',
+                  botName: botName,
+                  additionalInfo: {
+                    'Model': modelConfig.title,
+                    'Price': `${paymentAmountForNotification} stars`,
+                    'Generation Type': 'Image to Video (Plan A)'
+                  }
+                })
+                
+                logger.info('[PLAN A] Video sent to pulse channel', {
+                  telegramId,
+                  modelId: modelConfig.id,
+                  videoUrl
+                })
+              } catch (pulseError) {
+                logger.error('[PLAN A] Error sending to pulse channel:', pulseError)
+              }
+
               // Добавляем финальные кнопки
               logger.info('[PLAN A] Sending final buttons to user after server video', { telegramId })
 
@@ -644,6 +672,34 @@ export const generateImageToVideo = async (
               { source: localVideoPath },
               { caption }
             )
+            
+            // Отправляем видео в pulse канал (Plan B - direct)
+            try {
+              const { sendMediaToPulse } = await import('@/helpers/pulse')
+              await sendMediaToPulse({
+                mediaType: 'video',
+                mediaSource: videoUrl,
+                telegramId: telegramId,
+                username: username,
+                language: isRu ? 'ru' : 'en',
+                serviceType: modelConfig.title,
+                prompt: processedPrompt || '',
+                botName: botName,
+                additionalInfo: {
+                  'Model': modelConfig.title,
+                  'Price': `${paymentAmountForNotification} stars`,
+                  'Generation Type': 'Image to Video (Plan B - Direct)'
+                }
+              })
+              
+              logger.info('[PLAN B] Video sent to pulse channel (direct)', {
+                telegramId,
+                modelId: modelConfig.id,
+                videoUrl
+              })
+            } catch (pulseError) {
+              logger.error('[PLAN B] Error sending to pulse channel:', pulseError)
+            }
             
             // Добавляем финальные кнопки
             logger.info('[I2V BG] Sending final buttons to user', { telegramId })
@@ -859,6 +915,37 @@ export const generateImageToVideo = async (
                     { source: localVideoPath },
                     { caption }
                   )
+
+                  // Отправляем видео в pulse канал (Plan B - polling)
+                  try {
+                    const { sendMediaToPulse } = await import('@/helpers/pulse')
+                    await sendMediaToPulse({
+                      mediaType: 'video',
+                      mediaSource: videoUrl,
+                      telegramId: telegramId,
+                      username: username,
+                      language: isRu ? 'ru' : 'en',
+                      serviceType: modelConfig.title,
+                      prompt: processedPrompt || '',
+                      botName: botName,
+                      additionalInfo: {
+                        'Model': modelConfig.title,
+                        'Price': `${paymentAmountForNotification} stars`,
+                        'Generation Type': 'Image to Video (Plan B - Polling)',
+                        'Task ID': taskId,
+                        'Polling Attempts': attempts.toString()
+                      }
+                    })
+                    
+                    logger.info('[PLAN B] Video sent to pulse channel (polling)', {
+                      telegramId,
+                      modelId: modelConfig.id,
+                      taskId,
+                      videoUrl
+                    })
+                  } catch (pulseError) {
+                    logger.error('[PLAN B] Error sending to pulse channel (polling):', pulseError)
+                  }
 
                   // Добавляем финальные кнопки
                   logger.info('[I2V BG] Sending final buttons after Plan B polling', { telegramId })
@@ -1141,6 +1228,34 @@ export const generateImageToVideo = async (
       { source: localVideoPath },
       { caption }
     )
+
+    // Отправляем видео в pulse канал (Standard Replicate)
+    try {
+      const { sendMediaToPulse } = await import('@/helpers/pulse')
+      await sendMediaToPulse({
+        mediaType: 'video',
+        mediaSource: videoUrl,
+        telegramId: telegramId,
+        username: username,
+        language: isRu ? 'ru' : 'en',
+        serviceType: modelConfig.title,
+        prompt: processedPrompt || '',
+        botName: botName,
+        additionalInfo: {
+          'Model': modelConfig.title,
+          'Price': `${paymentAmountForNotification} stars`,
+          'Generation Type': 'Image to Video (Standard Replicate)'
+        }
+      })
+      
+      logger.info('[I2V BG] Video sent to pulse channel (standard)', {
+        telegramId,
+        modelId: modelConfig.id,
+        videoUrl
+      })
+    } catch (pulseError) {
+      logger.error('[I2V BG] Error sending to pulse channel (standard):', pulseError)
+    }
 
     // Добавляем финальные кнопки после успешной генерации видео
     logger.info('[I2V BG] Sending final buttons to user', { telegramId })
