@@ -10,7 +10,6 @@ import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed
 import { getBotNameByToken } from '@/core/bot'
 // Используем KIE.AI вместо Replicate для Nano Banana
 import { generateNanoBananaKie } from '@/services/generateNanoBananaKie'
-import { createMiniAppKeyboard } from '@/menu/miniAppButton'
 
 // Герои для выбора (по полу)
 const MARVEL_HEROES = {
@@ -466,19 +465,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       try {
         // 🎨 ПОКАЗЫВАЕМ ПРЕВЬЮ АВАТАРКИ ПОЛЬЗОВАТЕЛЯ
-        // First send message with mini app inline button
-        const miniAppKeyboard = createMiniAppKeyboard(isRu)
-        await ctx.reply(
-          isRu 
-            ? `🎨 <b>Приложение для создания видео</b>\n\n🎬 Откройте наше приложение для создания профессиональных видео с AI!`
-            : `🎨 <b>Video Creation App</b>\n\n🎬 Open our app to create professional videos with AI!`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: miniAppKeyboard.reply_markup
-          }
-        )
-        
-        // Then send the main message with avatar transformation
+        // Send the main message with avatar transformation directly (removed mini app promotion)
         const photoSent = await sendPhotoWithFallback(ctx, userPhotoUrl, {
           caption: isRu
             ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото (из профиля или загруженное) и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
