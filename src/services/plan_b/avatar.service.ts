@@ -65,7 +65,7 @@ export const avatarService = {
         .from('avatars')
         .select('*')
         .eq('telegram_id', telegram_id)
-        .single()
+        .maybeSingle() // ✅ Changed from .single() to .maybeSingle()
 
       if (error) {
         logger.error('❌ Ошибка при получении данных владельца:', {
@@ -76,7 +76,8 @@ export const avatarService = {
         return null
       }
 
-      return data as Avatar
+      // ✅ .maybeSingle() returns null when no records found, no error
+      return data as Avatar | null
     } catch (err) {
       logger.error('❌ Непредвиденная ошибка при получении данных владельца:', {
         description: 'Unexpected error fetching avatar data',

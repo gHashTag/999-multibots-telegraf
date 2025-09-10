@@ -92,6 +92,120 @@ This is a multi-bot Telegram system built with Node.js/TypeScript that manages m
 - Admin notification system for critical errors
 - Safe console logging to prevent Buffer exposure
 
+## Admin Management Instructions
+
+### Adding New Admin User (Quick Reference)
+
+To add a new user as admin with specific subscription and stars balance:
+
+1. **Find the user in database:**
+   ```bash
+   ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "
+   const { supabase } = require(\"./dist/core/supabase/index.js\");
+   // Check if user exists and get their current status
+   supabase.from(\"users\").select(\"*\").eq(\"telegram_id\", \"USER_ID\").single()
+   "'
+   ```
+
+2. **Set subscription type:**
+   ```bash
+   # Update user subscription (NEUROVIDEO, PREMIUM, NEUROPHOTO, etc.)
+   supabase.from(\"users\").update({
+     subscription: \"NEUROVIDEO\", 
+     updated_at: new Date().toISOString()
+   }).eq(\"telegram_id\", \"USER_ID\")
+   ```
+
+3. **Add stars balance:**
+   ```bash
+   # Add stars with correct payment structure
+   supabase.from(\"payments_v2\").insert({
+     telegram_id: \"USER_ID\",
+     type: \"MONEY_INCOME\",
+     description: \"Admin stars grant\",
+     stars: 1000,
+     amount: 0,
+     currency: \"STARS\",
+     status: \"COMPLETED\",
+     bot_name: \"BOT_NAME\"
+   })
+   ```
+
+4. **Add to admin list:**
+   ```bash
+   # Update .env file on server
+   ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder && 
+   cp .env .env.backup && 
+   sed -i "s/ADMIN_IDS=.*/ADMIN_IDS=144022504,1254048880,352374518,1852726961,7669741878,NEW_USER_ID/" .env'
+   ```
+
+5. **Rebuild and restart Docker:**
+   ```bash
+   ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder && 
+   docker-compose down && docker-compose up -d --build'
+   ```
+
+### Example Complete Command:
+```bash
+# For user 5794004227 with NEUROVIDEO subscription and 1000 stars:
+# 1. Set subscription: NEUROVIDEO
+# 2. Add 1000 stars with type MONEY_INCOME
+# 3. Add to ADMIN_IDS: ,5794004227
+# 4. Rebuild container
+```
+
+### Available Subscription Types:
+- `NEUROVIDEO` - Video generation access
+- `PREMIUM` - Full access to all features
+- `NEUROPHOTO` - Photo generation access
+- `stars` - Basic stars-based access
+
+### Payment Types for Stars:
+- `MONEY_INCOME` - Positive balance addition (recommended for admin grants)
+- `MONEY_OUTCOME` - Deduction from balance (for service usage)
+- Required fields: `status: "COMPLETED"`, `currency: "STARS"`
+
+### Quick Stars Addition (One-Command Solution)
+
+**Fast command to add stars to any user:**
+```bash
+# Replace USER_ID and AMOUNT with actual values
+ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "
+const { supabase } = require(\"./dist/core/supabase/index.js\");
+async function addStars() {
+  const { data, error } = await supabase.from(\"payments_v2\").insert({
+    telegram_id: \"USER_ID\",
+    type: \"MONEY_INCOME\",
+    description: \"Admin stars grant\",
+    stars: AMOUNT,
+    amount: 0,
+    currency: \"STARS\",
+    status: \"COMPLETED\",
+    bot_name: \"HaimGroupMedia_bot\"
+  }).select();
+  if (error) console.error(\"❌ Error:\", error);
+  else console.log(\"✅ Added \" + AMOUNT + \" stars to user USER_ID\");
+  process.exit(0);
+}
+addStars();
+"'
+```
+
+**Examples:**
+```bash
+# Add 1000 stars to user 5794004227
+ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "const { supabase } = require(\"./dist/core/supabase/index.js\"); async function addStars() { const { data, error } = await supabase.from(\"payments_v2\").insert({telegram_id: \"5794004227\", type: \"MONEY_INCOME\", description: \"Admin stars grant\", stars: 1000, amount: 0, currency: \"STARS\", status: \"COMPLETED\", bot_name: \"HaimGroupMedia_bot\"}).select(); if (error) console.error(\"❌ Error:\", error); else console.log(\"✅ Added 1000 stars\"); process.exit(0); } addStars();"'
+
+# Add 10000 stars to user 5794004227
+ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "const { supabase } = require(\"./dist/core/supabase/index.js\"); async function addStars() { const { data, error } = await supabase.from(\"payments_v2\").insert({telegram_id: \"5794004227\", type: \"MONEY_INCOME\", description: \"Admin stars grant\", stars: 10000, amount: 0, currency: \"STARS\", status: \"COMPLETED\", bot_name: \"HaimGroupMedia_bot\"}).select(); if (error) console.error(\"❌ Error:\", error); else console.log(\"✅ Added 10000 stars\"); process.exit(0); } addStars();"'
+```
+
+**Ultra-Fast Template (Copy-Paste Ready):**
+```bash
+# Just replace USER_ID and AMOUNT in this one line:
+ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "const{supabase}=require(\"./dist/core/supabase/index.js\");(async()=>{const{error}=await supabase.from(\"payments_v2\").insert({telegram_id:\"USER_ID\",type:\"MONEY_INCOME\",description:\"Admin stars grant\",stars:AMOUNT,amount:0,currency:\"STARS\",status:\"COMPLETED\",bot_name:\"HaimGroupMedia_bot\"});console.log(error?\"❌ Error:\"+error.message:\"✅ Added AMOUNT stars to USER_ID\");process.exit(0)})();"'
+```
+
 ## Environment Setup
 
 ### Required Environment Variables

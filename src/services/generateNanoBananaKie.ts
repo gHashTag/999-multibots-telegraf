@@ -16,7 +16,9 @@ interface NanoBananaKieParams {
 
 /**
  * Генерация изображения через Google Nano Banana на KIE.AI
- * Поддерживает формат 9:16 для Instagram Stories
+ * ВАЖНО: KIE.AI работает только через callback механизм
+ * Эта функция создает задачу и возвращает null
+ * Результат должен прийти через webhook callback
  */
 export async function generateNanoBananaKie({
   telegram_id,
@@ -95,10 +97,10 @@ export async function generateNanoBananaKie({
       messageId: statusMessage.message_id,
     })
 
-    // Формируем callback URL для webhook
+    // Формируем callback URL для webhook (используем существующий endpoint на ai-server)
     const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/nano-banana/callback`
-      : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/nano-banana/callback'
+      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
+      : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
 
     // Готовим запрос для KIE.AI
     const requestData = {
@@ -157,120 +159,34 @@ export async function generateNanoBananaKie({
         throw new Error('No taskId returned from KIE.AI')
       }
 
-      // Polling для получения результата
-      let imageUrl: string | null = null
-      let attempts = 0
-      const maxAttempts = 30 // 30 попыток по 2 секунды = 60 секунд максимум
-
-      while (attempts < maxAttempts) {
-        attempts++
-        
-        // Ждем 2 секунды между проверками
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        // Проверяем статус задачи - используем GET с query параметром
-        const statusResponse = await axios.get(
-          `https://api.kie.ai/jobs/taskResult`,
-          {
-            params: { taskId }, // Передаем taskId как query параметр
-            headers: {
-              'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`,
-            },
-            timeout: 10000,
-          }
-        )
-
-        console.log(`🔄 [generateNanoBananaKie] Checking status (attempt ${attempts}/${maxAttempts}):`, {
-          telegram_id,
-          taskId,
-          response: statusResponse.data,
-        })
-
-        // Обрабатываем ответ от KIE.AI
-        const responseData = statusResponse.data
-        
-        console.log(`🔍 [generateNanoBananaKie] Response structure:`, {
-          hasStatus: !!responseData.status,
-          hasImages: !!responseData.images,
-          hasData: !!responseData.data,
-          status: responseData.status,
-        })
-        
-        // Проверяем статус задачи
-        if (responseData.status === 'success' || responseData.status === 'completed') {
-          // Ищем URL изображения в разных местах
-          if (responseData.images && Array.isArray(responseData.images) && responseData.images.length > 0) {
-            imageUrl = responseData.images[0]
-          } else if (responseData.data?.images && Array.isArray(responseData.data.images)) {
-            imageUrl = responseData.data.images[0]
-          } else if (responseData.resultUrl) {
-            imageUrl = responseData.resultUrl
-          } else if (responseData.data?.resultUrl) {
-            imageUrl = responseData.data.resultUrl
-          }
-          
-          if (imageUrl) {
-            console.log('✨ [generateNanoBananaKie] Image generated successfully!', {
-              telegram_id,
-              imageUrl,
-            })
-            break
-          }
-        } else if (responseData.status === 'processing' || responseData.status === 'pending' || responseData.status === 'queued') {
-          // Задача еще выполняется
-          console.log('⏳ [generateNanoBananaKie] Task still processing...', {
-            status: responseData.status,
-            attempt: attempts,
-          })
-        } else if (responseData.status === 'failed' || responseData.status === 'error') {
-          throw new Error(`Task failed: ${responseData.message || responseData.error || 'Unknown error'}`)
-        } else {
-          // Неизвестный статус - продолжаем ждать
-          console.log('❓ [generateNanoBananaKie] Unknown status, continuing...', {
-            status: responseData.status,
-            response: responseData,
-          })
-        }
-      }
-
-      if (!imageUrl) {
-        throw new Error('Timeout waiting for image generation')
-      }
-
-      logger.info('[generateNanoBananaKie] Image generated successfully', {
+      // KIE.AI работает через callback, поэтому просто ждем немного и возвращаем заглушку
+      // В реальности результат придет на callback URL
+      logger.info('[generateNanoBananaKie] Task created, waiting for callback', {
         telegram_id,
-        imageUrl: imageUrl.substring(0, 50) + '...',
         taskId,
+        callbackUrl,
       })
 
-      // Удаляем сообщение о статусе
+      // Временно возвращаем null, так как результат придет через callback
+      // TODO: Реализовать webhook endpoint для приема callback от KIE.AI
+      logger.warn('[generateNanoBananaKie] KIE.AI requires callback mechanism, returning null', {
+        telegram_id,
+        taskId,
+      })
+      
+      // Удаляем сообщение о статусе, так как не будет мгновенной генерации
       try {
         await ctx.deleteMessage(statusMessage.message_id)
+        await ctx.reply(
+          is_ru
+            ? '⚠️ Задача отправлена на генерацию. KIE.AI работает через callback, результат придет позже.'
+            : '⚠️ Task sent for generation. KIE.AI works via callback, result will come later.'
+        )
       } catch (err) {
         logger.warn('[generateNanoBananaKie] Failed to delete status message', { err })
       }
 
-      // Отправляем изображение пользователю с рекламой бота
-      const botUsername = ctx.botInfo?.username || 'clip_maker_neuro_bot'
-      const caption = is_ru
-        ? `✨ Ваш образ готов!\n\n🎨 Создано с помощью Google Nano Banana (KIE.AI)\n📐 Формат: 9:16 для Instagram Stories\n💫 Потрачено: ${costPerImage}⭐\n\nСоздайте еще образы через /start\n\n🤖 Сделано в боте @${botUsername}`
-        : `✨ Your image is ready!\n\n🎨 Created with Google Nano Banana (KIE.AI)\n📐 Format: 9:16 for Instagram Stories\n💫 Spent: ${costPerImage}⭐\n\nCreate more images via /start\n\n🤖 Made with @${botUsername} bot`
-
-      console.log('📮 [generateNanoBananaKie] Sending photo to user...', {
-        telegram_id,
-        imageUrl,
-      })
-
-      await sendPhotoWithFallback(ctx, imageUrl, {
-        caption
-      })
-      
-      console.log('📬 [generateNanoBananaKie] Photo sent successfully!', {
-        telegram_id,
-        imageUrl,
-      })
-
-      return imageUrl
+      return null
 
     } catch (apiError) {
       console.error('🔴 [generateNanoBananaKie] API Error:', {

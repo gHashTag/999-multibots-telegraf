@@ -494,6 +494,35 @@ async function handleVideoReady(
       modelId,
       price,
     })
+
+    // Отправляем видео в pulse канал
+    try {
+      const { sendMediaToPulse } = await import('@/helpers/pulse')
+      await sendMediaToPulse({
+        mediaType: 'video',
+        mediaSource: uploadedUrl,
+        telegramId: telegram_id,
+        username: ctx.from?.username,
+        language: is_ru ? 'ru' : 'en',
+        serviceType: modelName,
+        prompt: originalPrompt,
+        botName: 'HaimGroupMedia_bot',
+        additionalInfo: {
+          'Model': modelName,
+          'Duration': duration ? `${duration} sec` : 'N/A',
+          'Price': `${price} stars`
+        }
+      })
+      
+      logger.info('[handleVideoReady] Video sent to pulse channel', {
+        telegram_id,
+        modelId,
+        uploadedUrl
+      })
+    } catch (pulseError) {
+      logger.error('[handleVideoReady] Error sending to pulse channel:', pulseError)
+      // Не прерываем выполнение, если pulse не сработал
+    }
   } catch (error) {
     logger.error('[handleVideoReady] Error sending video:', error)
 
