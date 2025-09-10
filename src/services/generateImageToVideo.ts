@@ -99,7 +99,7 @@ export async function generateImageToVideo(
 
   try {
     // Проверяем, является ли это Veo моделью
-    const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
+    const isVeoModel = ['veo3', 'veo3_fast', 'runway-aleph'].includes(videoModel)
     
     if (isVeoModel) {
       // ПЛАН А: Сначала пробуем через наш сервер
@@ -116,8 +116,8 @@ export async function generateImageToVideo(
           const url = `${baseUrl}/api/v1/veo/generate/image-to-video`
           
           const requestBody = {
-            model: videoModel === 'veo-3-fast' ? 'veo3_fast' : 
-                   videoModel === 'veo-3' ? 'veo3' : 'runway_aleph',
+            model: videoModel === 'veo3_fast' ? 'veo3_fast' : 
+                   videoModel === 'veo3' ? 'veo3' : 'runway_aleph',
             imageUrl,
             prompt,
             aspectRatio: aspectRatio || '9:16', // camelCase для Kie.ai

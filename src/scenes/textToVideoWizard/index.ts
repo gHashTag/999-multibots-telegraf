@@ -70,10 +70,10 @@ function createModelButton(
     // Используем договоренные цены вместо расчета по базовой цене
     let stars: number
     switch (modelId) {
-      case 'veo-3-fast':
+      case 'veo3_fast':
         stars = 40
         break
-      case 'veo-3':
+      case 'veo3':
         stars = 202
         break
       case 'runway-aleph':
@@ -131,10 +131,10 @@ function parseModelSelection(buttonText: string): {
       // Используем договоренные цены
       let stars: number
       switch (modelId) {
-        case 'veo-3-fast':
+        case 'veo3_fast':
           stars = 40
           break
-        case 'veo-3':
+        case 'veo3':
           stars = 202
           break
         case 'runway-aleph':
@@ -161,11 +161,11 @@ function parseModelSelection(buttonText: string): {
     }
 
     console.warn('🎬 [PARSE] No match found for button text:', buttonText)
-    return { modelId: 'veo-3-fast', aspectRatio, duration: 8, cost: 40 } // fallback
+    return { modelId: 'veo3_fast', aspectRatio, duration: 8, cost: 40 } // fallback
   } catch (error) {
     console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
     return {
-      modelId: 'veo-3-fast',
+      modelId: 'veo3_fast',
       aspectRatio: '9:16',
       duration: 8,
       cost: 40,

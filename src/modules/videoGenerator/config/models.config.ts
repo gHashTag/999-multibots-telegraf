@@ -234,15 +234,15 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   },
 
 
-  'veo-3-fast': {
-    id: 'veo-3-fast',
+  'veo3_fast': {
+    id: 'veo3_fast',
     title: 'Veo 3 Fast',
     inputType: ['text', 'image'],
     description:
       '🚀 БЫСТРО: 8 сек, 720p, быстрый режим - 40⭐ (экономия до 87%)',
     basePrice: 0.64, // $0.64 USD за 8 секунд = 40 звезд
     api: {
-      model: 'google/veo-3-fast',
+      model: 'google/veo3_fast',
       input: {
         duration: 8, // Фиксированная длительность 8 секунд
         aspect_ratio: (userAspect: string) =>
@@ -253,8 +253,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
     aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
   },
-  'veo-3': {
-    id: 'veo-3',
+  'veo3': {
+    id: 'veo3',
     title: 'Veo 3',
     inputType: ['text'],
     description:
