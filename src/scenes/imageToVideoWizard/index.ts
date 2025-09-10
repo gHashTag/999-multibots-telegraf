@@ -22,11 +22,11 @@ function createImageToVideoButton(
   let durationText = ''
   
   switch (modelId) {
-    case 'veo-3-fast':
+    case 'veo3_fast':
       stars = 40
       durationText = ' | 8s'
       break
-    case 'veo-3':
+    case 'veo3':
       stars = 80
       durationText = ' | 8s'
       break
@@ -53,8 +53,8 @@ function createImageToVideoButton(
   }
 
   const modelNames: Record<string, string> = {
-    'veo-3-fast': 'Veo 3 Fast',
-    'veo-3': 'Veo 3',
+    'veo3_fast': 'Veo 3 Fast',
+    'veo3': 'Veo 3',
     'kling-v1.6-pro': 'Kling v1.6 Pro',
     'minimax': 'Minimax',
     'seedance-1-pro': aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p',
@@ -79,16 +79,16 @@ function parseImageToVideoSelection(buttonText: string): {
     const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
 
     // Парсим по названию модели
-    let modelId = 'veo-3-fast' // default
+    let modelId = 'veo3_fast' // default
     let cost = 40
     let duration = 8
 
     if (buttonText.includes('Veo 3 Fast')) {
-      modelId = 'veo-3-fast'
+      modelId = 'veo3_fast'
       cost = 40
       duration = 8
     } else if (buttonText.includes('Veo 3') && !buttonText.includes('Fast')) {
-      modelId = 'veo-3'
+      modelId = 'veo3'
       cost = 80
       duration = 8
     } else if (buttonText.includes('Kling')) {
@@ -113,7 +113,7 @@ function parseImageToVideoSelection(buttonText: string): {
   } catch (error) {
     console.error('🎬 [I2V PARSE] Error parsing button text:', buttonText, error)
     return {
-      modelId: 'veo-3-fast',
+      modelId: 'veo3_fast',
       aspectRatio: '9:16',
       duration: 8,
       cost: 40,
@@ -195,8 +195,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       // Создаем кнопки выбора модели (аналогично Text to Video)
       const supportedModels = [
-        'veo-3-fast',
-        'veo-3', 
+        'veo3_fast',
+        'veo3', 
         'kling-v1.6-pro',
         'minimax',
         'seedance-1-pro',

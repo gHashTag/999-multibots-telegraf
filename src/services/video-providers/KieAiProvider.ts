@@ -215,7 +215,7 @@ export class KieAiProvider {
     } = request
 
     // КРИТИЧЕСКАЯ ПРОВЕРКА: Для image-to-video ОБЯЗАТЕЛЬНО наличие изображения
-    // НО veo-3-fast и veo-3 поддерживают text-to-video!
+    // НО veo3_fast и veo-3 поддерживают text-to-video!
     // Удаляем эту проверку, так как она блокирует text-to-video
 
     // Преобразуем название модели в формат Kie.ai
@@ -253,7 +253,7 @@ export class KieAiProvider {
       model: kieModel,
       prompt, // Отправляем ПОЛНЫЙ промпт без обрезки
       aspectRatio: aspectRatio,
-      enableFallback: false,
+      enableFallback: true,
       enableTranslation: true,
       // Добавляем callbackUrl для webhook уведомлений
       callBackUrl: callbackUrl,
@@ -515,6 +515,10 @@ export class KieAiProvider {
           provider: 'Veo 3 API',
           model: 'veo3',
         }
+      } else if (data.successFlag === 3) {
+        // Ошибка политики контента Google
+        logger.error('[KieAiProvider] Video generation rejected by content policy', { taskId, errorCode: data.errorCode, errorMessage: data.errorMessage });
+        throw new Error(data.errorMessage || 'Content rejected by Google policy. Please try different prompt or image.');
       } else if (data.successFlag === 2) {
         // Ошибка генерации
         logger.error('[KieAiProvider] Video generation failed', { taskId, data })

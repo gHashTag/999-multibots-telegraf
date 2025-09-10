@@ -15,8 +15,8 @@ export type VideoModelId =
   | 'wan-text-to-video'
   | 'minimax'
   // Kie.ai модели
-  | 'veo-3-fast'
-  | 'veo-3'
+  | 'veo3_fast'
+  | 'veo3'
   | 'runway-aleph'
 
 interface TextToVideoRequest {
@@ -161,7 +161,7 @@ export async function generateTextToVideo(
 
   try {
     // Проверяем, является ли это Veo моделью
-    const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
+    const isVeoModel = ['veo3', 'veo3_fast', 'runway-aleph'].includes(videoModel)
     
     if (isVeoModel) {
       // ПЛАН Б: Для Veo моделей используем прямую интеграцию с Kie.ai

@@ -84,10 +84,10 @@ export async function handleImageToVideoDirect(
   // Определяем цену модели для Image to Video
   const getImageToVideoPrice = (modelId: string, aspectRatio?: string): number => {
     switch (modelId) {
-      case 'veo-3-fast':
+      case 'veo3_fast':
         return 40
-      case 'veo-3':
-        return 80
+      case "veo3":
+        return 120
       case 'kling-v1.6-pro':
         return 60
       case 'minimax':
@@ -103,8 +103,8 @@ export async function handleImageToVideoDirect(
 
   const getModelDisplayName = (modelId: string, is_ru: boolean, aspectRatio?: string): string => {
     const names: Record<string, string> = {
-      'veo-3-fast': 'Veo 3 Fast',
-      'veo-3': 'Veo 3',
+      'veo3_fast': 'Veo 3 Fast',
+      'veo3': 'Veo 3',
       'kling-v1.6-pro': 'Kling v1.6 Pro',
       'minimax': 'Minimax',
       'seedance-1-pro': aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p',

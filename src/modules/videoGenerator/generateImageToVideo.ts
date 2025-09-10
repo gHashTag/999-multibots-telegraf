@@ -311,7 +311,7 @@ export const generateImageToVideo = async (
       }
 
       // Специальная обработка для Google Veo 3 моделей (используем План А/Б)
-      if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
+      if (modelConfig.id === 'veo3' || modelConfig.id === 'veo3_fast') {
         // Флаг для переключения планов: true = План А (сервер), false = План Б (локальный)
         // ВРЕМЕННО: Всегда используем План Б по запросу
         const USE_PLAN_A = false // Принудительно используем План Б
@@ -338,7 +338,7 @@ export const generateImageToVideo = async (
             const url = `${baseUrl}/api/v1/veo/generate`
             
             const requestBody = {
-              model: modelConfig.id === 'veo-3-fast' ? 'veo3_fast' : 'veo3',
+              model: modelConfig.id === 'veo3_fast' ? 'veo3_fast' : 'veo3',
               prompt: processedPrompt || '',
               imageUrl: imageUrl,
               aspectRatio: userAspectRatio || '9:16',
