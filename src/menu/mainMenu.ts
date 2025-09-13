@@ -144,6 +144,11 @@ export const levels: Record<number, Level> = {
     title_en: '🎬 AI Reels',
     admin_only: true, // Доступно только администраторам
   },
+  // AI Heroes transformation - Transform into superheroes from different universes
+  111: {
+    title_ru: '🦸‍♂️ Ай герои',
+    title_en: '🦸‍♂️ AI Heroes',
+  },
 }
 
 // Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config

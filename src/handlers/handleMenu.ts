@@ -579,6 +579,25 @@ export const handleMenu = async (ctx: MyContext) => {
           userId,
         })
       },
+      [isRu ? levels[111].title_ru : levels[111].title_en]: async () => {
+        logger.info({
+          message: '🦸‍♂️ [handleMenu] Переход к AI Heroes',
+          telegramId,
+          function: 'handleMenu',
+          action: 'ai_heroes',
+          nextScene: ModeEnum.AIHeroes,
+        })
+        console.log('CASE: 🦸‍♂️ AI Heroes')
+
+        // AI Heroes доступны бесплатно для всех пользователей
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.AIHeroes}`
+        )
+        await ctx.scene.enter(ModeEnum.AIHeroes)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.AIHeroes}`
+        )
+      },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
       //   ctx.session.mode = 'video_in_url'

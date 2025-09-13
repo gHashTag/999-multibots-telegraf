@@ -235,7 +235,6 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   translationCache?: Record<string, TranslationEntry[]> | null
   neuroPhotoInProgress?: boolean
   userModel: UserModel
-  selectedModel?: string
   videoModel?: string
   translations?: Translation[]
   buttons?: TranslationButton[]
@@ -296,8 +295,13 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }
 
   // Avatar transformation fields
+  selectedModel?: 'flux-kontext' | 'seedream4' | 'nano-banana' // Выбранная AI модель для трансформации
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
   selectedHero?: string // Выбранный герой Marvel для трансформации
+
+  // AI Heroes transformation fields
+  aiHeroGender?: 'male' | 'female' // Выбранный пол для AI Heroes трансформации
+  aiHeroImageUrl?: string // URL фото пользователя для AI Heroes трансформации
 
   // Morphing fields
   morphingType?: 'loop' | 'linear' // Тип морфинга

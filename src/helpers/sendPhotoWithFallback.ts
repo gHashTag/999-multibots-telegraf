@@ -24,6 +24,16 @@ export async function sendPhotoWithFallback(
   })
 
   try {
+    // Добавляем проверку на null/undefined для photoUrl
+    if (!photoUrl || typeof photoUrl !== 'string') {
+      console.error('❌ [sendPhotoWithFallback] Invalid photoUrl:', {
+        telegramId,
+        photoUrl,
+        typeOfPhotoUrl: typeof photoUrl
+      })
+      return false
+    }
+
     logger.info(`[sendPhotoWithFallback] Attempting to send photo: ${photoUrl}`)
 
     // Check if this is a Telegram file URL - these must be uploaded via buffer

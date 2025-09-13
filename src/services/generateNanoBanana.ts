@@ -1,10 +1,395 @@
+import { z } from 'zod'
 import { logger } from '@/utils/logger'
 import { processBalanceOperation } from '@/price/helpers/processBalanceOperation'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
+import { refundUser } from '@/price/helpers/refundUser'
 import { MyContext } from '@/interfaces'
+import { GenerationResult } from '@/interfaces'
+import { savePrompt } from '@/core/supabase'
+import {
+  getUserByTelegramIdString,
+  updateUserLevelPlusOne,
+} from '@/core/supabase'
+import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import Replicate from 'replicate'
+import { 
+  NanoBananaInputSchema, 
+  NanoBananaResponseSchema, 
+  NanoBananaInput,
+  NanoBananaResponse,
+  NANO_BANANA_AVATAR_CONFIG,
+  NANO_BANANA_PROMPT_TEMPLATES,
+  extractImageUrlFromReplicateResponse
+} from '@/schemas/nanoBanana.schema'
 
-interface NanoBananaParams {
+// Service parameters interface
+export interface NanoBananaServiceParams {
+  telegram_id: string | number
+  promptText: string
+  inputImageUrl: string | string[]
+  ctx: MyContext
+  username?: string
+  is_ru?: boolean
+  output_format?: 'jpg' | 'png'
+  promptStyle?: 'headshot' | 'fullBody' | 'artistic'
+}
+
+// Nano Banana model configuration
+const NANO_BANANA_MODEL = {
+  key: 'google/nano-banana',
+  costPerImage: 12, // Cost in stars
+  name: 'Google Nano Banana',
+  description_en: 'Google Nano Banana - Advanced image editing powered by Gemini 2.5',
+  description_ru: 'Google Nano Banana - Продвинутое редактирование изображений на базе Gemini 2.5'
+}
+
+/**
+ * Enhanced Nano Banana generation service with Zod validation
+ * Генерация изображения через Google Nano Banana (Replicate)
+ * Трансформирует входное изображение в стиле персонажа
+ */
+export async function generateNanoBanana(
+  params: NanoBananaServiceParams
+): Promise<string | null> {
+  try {
+    console.log('🍌 [NanoBanana] Service called with params:', {
+      telegram_id: params.telegram_id,
+      promptLength: params.promptText?.length,
+      hasInputImage: !!params.inputImageUrl,
+      promptStyle: params.promptStyle,
+      username: params.username,
+      is_ru: params.is_ru,
+    })
+    
+    const {
+      telegram_id,
+      promptText,
+      inputImageUrl,
+      ctx,
+      username,
+      is_ru = true,
+      output_format = 'png',
+      promptStyle = 'headshot'
+    } = params
+
+    // Prepare input images array
+    const imageInputArray = Array.isArray(inputImageUrl) 
+      ? inputImageUrl 
+      : [inputImageUrl]
+
+    // Validate and prepare input for Nano Banana API
+    const nanoBananaInput: NanoBananaInput = {
+      prompt: promptText,
+      image_input: imageInputArray,
+      output_format
+    }
+
+    // Validate input with Zod schema
+    const validatedInput = NanoBananaInputSchema.parse(nanoBananaInput)
+    
+    console.log('🍌 [NanoBanana] Input validated successfully:', {
+      telegram_id,
+      validatedInput: {
+        prompt: validatedInput.prompt.substring(0, 50) + '...',
+        imageCount: validatedInput.image_input.length,
+        output_format: validatedInput.output_format
+      }
+    })
+
+    // Check user existence and level
+    const userExists = await getUserByTelegramIdString(String(telegram_id))
+    if (!userExists) {
+      throw new Error(`User with ID ${telegram_id} does not exist.`)
+    }
+
+    const level = userExists.level
+    if (level === 10) {
+      await updateUserLevelPlusOne(String(telegram_id), level)
+    }
+
+    // Проверяем баланс и списываем звезды
+    console.log('🔵 [NanoBanana] Processing balance operation...', {
+      telegram_id,
+      costPerImage: NANO_BANANA_MODEL.costPerImage,
+    })
+    
+    const balanceCheck = await processBalanceOperation({
+      telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+      paymentAmount: NANO_BANANA_MODEL.costPerImage,
+      is_ru,
+      bot_name: ctx.botInfo?.username,
+      ctx,
+    })
+    
+    console.log('🟢 [NanoBanana] Balance check result:', {
+      telegram_id,
+      balanceCheckSuccess: balanceCheck?.success,
+    })
+
+    if (!balanceCheck.success) {
+      logger.warn('[NanoBanana] Insufficient balance', {
+        telegram_id,
+        required: NANO_BANANA_MODEL.costPerImage,
+      })
+      
+      await ctx.reply(
+        is_ru
+          ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${NANO_BANANA_MODEL.costPerImage}⭐\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
+          : `❌ Insufficient stars for generation\\n\\nRequired: ${NANO_BANANA_MODEL.costPerImage}⭐\\nYour balance: ${balanceCheck.currentBalance || 0}⭐\\n\\nTop up via /start → 💎 Top up balance`,
+        { parse_mode: 'MarkdownV2' }
+      )
+      return null
+    }
+
+    // Отправляем статус
+    console.log('📤 [NanoBanana] Sending status message...', { telegram_id })
+    
+    const statusMessage = await ctx.reply(
+      is_ru
+        ? '🍌 Генерирую ваш образ через Google Nano Banana...\n\n⏱ Это займет 10-20 секунд'
+        : '🍌 Generating your image via Google Nano Banana...\n\n⏱ This will take 10-20 seconds'
+    )
+    
+    console.log('✅ [NanoBanana] Status message sent!', { 
+      telegram_id,
+      messageId: statusMessage.message_id,
+    })
+
+    // Enhance prompt based on style
+    const enhancedPrompt = NANO_BANANA_PROMPT_TEMPLATES[promptStyle](validatedInput.prompt)
+    
+    // Initialize Replicate client
+    const replicate = new Replicate({
+      auth: process.env.REPLICATE_API_TOKEN,
+    })
+
+    logger.info('[NanoBanana] Starting generation', {
+      telegram_id,
+      model: NANO_BANANA_MODEL.key,
+      originalPrompt: validatedInput.prompt.substring(0, 50),
+      enhancedPrompt: enhancedPrompt.substring(0, 150),
+      imageCount: validatedInput.image_input.length,
+    })
+
+    // Call Nano Banana model
+    console.log('🍌 [NanoBanana] Calling Replicate.run...', {
+      telegram_id,
+      model: NANO_BANANA_MODEL.key,
+      inputImageCount: validatedInput.image_input.length,
+    })
+    
+    const output = await replicate.run(
+      NANO_BANANA_MODEL.key as any,
+      {
+        input: {
+          prompt: enhancedPrompt,
+          image_input: validatedInput.image_input,
+          output_format: validatedInput.output_format
+        }
+      }
+    )
+    
+    console.log('🖼️ [NanoBanana] Replicate output received:', {
+      telegram_id,
+      outputType: typeof output,
+      isArray: Array.isArray(output),
+      outputValue: output,
+    })
+
+    // Extract image URL using schema utility
+    const imageUrl = extractImageUrlFromReplicateResponse(output)
+
+    if (!imageUrl) {
+      console.error('❌ [NanoBanana] No image URL found in response!', {
+        telegram_id,
+        output,
+      })
+      throw new Error('No image URL in Nano Banana response')
+    }
+
+    console.log('✨ [NanoBanana] Image URL extracted successfully!', {
+      telegram_id,
+      imageUrl: imageUrl.substring(0, 50) + '...',
+    })
+
+    // Create validated response object
+    const processedOutput: NanoBananaResponse = {
+      image: imageUrl,
+      metadata: {
+        prompt: validatedInput.prompt,
+        input_images_count: validatedInput.image_input.length,
+        output_format: validatedInput.output_format
+      }
+    }
+
+    // Validate the response with Zod schema
+    const validatedResponse = NanoBananaResponseSchema.parse(processedOutput)
+    
+    logger.info('[NanoBanana] Response validated successfully', {
+      telegram_id,
+      imageUrl: validatedResponse.image.substring(0, 50) + '...',
+    })
+
+    // Delete status message
+    try {
+      await ctx.deleteMessage(statusMessage.message_id)
+    } catch (err) {
+      logger.warn('[NanoBanana] Failed to delete status message', { err })
+    }
+
+    // Save prompt to database
+    let promptId: number
+    try {
+      promptId = await savePrompt(
+        validatedInput.prompt,
+        NANO_BANANA_MODEL.name,
+        imageUrl,
+        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id
+      )
+
+      console.log('🍌 [NanoBanana] Prompt saved to database:', {
+        telegram_id,
+        promptId
+      })
+    } catch (saveError) {
+      console.error('🚨 [NanoBanana] Failed to save prompt:', saveError)
+      // Continue execution, but log the error
+      promptId = 0
+    }
+
+    console.log('📮 [NanoBanana] Preparing to send photo...', {
+      telegram_id,
+      imageUrl: imageUrl.substring(0, 50) + '...',
+    })
+
+    // Send image to user with information
+    const botUsername = ctx.botInfo?.username || 'clip_maker_neuro_bot'
+    const caption = is_ru
+      ? `✨ Ваш образ готов!\n\n🍌 Создано с помощью Google Nano Banana\n💫 Потрачено: ${NANO_BANANA_MODEL.costPerImage}⭐\n🎨 Изображений: ${validatedInput.image_input.length}\n\nСоздайте еще образы через /start\n\n🤖 Сделано в боте @${botUsername}`
+      : `✨ Your image is ready!\n\n🍌 Created with Google Nano Banana\n💫 Spent: ${NANO_BANANA_MODEL.costPerImage}⭐\n🎨 Images: ${validatedInput.image_input.length}\n\nCreate more images via /start\n\n🤖 Made with @${botUsername} bot`
+
+    console.log('🚀 [NanoBanana] About to call sendPhotoWithFallback', {
+      telegram_id,
+      imageUrl: imageUrl.substring(0, 50) + '...',
+      captionLength: caption.length,
+    })
+
+    const sendResult = await sendPhotoWithFallback(ctx, imageUrl, {
+      caption
+    })
+    
+    console.log('🎯 [NanoBanana] sendPhotoWithFallback result:', {
+      telegram_id,
+      sendResult,
+    })
+    
+    if (!sendResult) {
+      console.error('❌ [NanoBanana] Failed to send photo!', {
+        telegram_id,
+        imageUrl: imageUrl.substring(0, 50) + '...',
+      })
+      throw new Error('Failed to send photo to user')
+    }
+    
+    console.log('📬 [NanoBanana] Photo sent successfully!', {
+      telegram_id,
+    })
+
+    // Send to pulse channel
+    try {
+      console.log('🔵 [NanoBanana] Attempting pulse channel send...', {
+        telegram_id,
+        imageUrl: imageUrl.substring(0, 50) + '...'
+      })
+      
+      const { sendMediaToPulse } = await import('@/helpers/pulse')
+      await sendMediaToPulse({
+        mediaType: 'photo',
+        mediaSource: imageUrl,
+        telegramId: telegram_id,
+        username: username,
+        language: is_ru ? 'ru' : 'en',
+        serviceType: 'Google Nano Banana',
+        prompt: validatedInput.prompt,
+        botName: ctx.botInfo?.username || 'unknown',
+        additionalInfo: {
+          'Model': NANO_BANANA_MODEL.name,
+          'Input Images': validatedInput.image_input.length.toString(),
+          'Output Format': validatedInput.output_format,
+          'Price': `${NANO_BANANA_MODEL.costPerImage} stars`,
+          'Type': 'Avatar Transform (Lead Magnet)'
+        }
+      })
+      
+      console.log('✅ [NanoBanana] Pulse channel send SUCCESS!', {
+        telegram_id,
+      })
+      
+      logger.info('[NanoBanana] Photo sent to pulse channel', {
+        telegram_id,
+        imageUrl
+      })
+    } catch (pulseError) {
+      console.error('❌ [NanoBanana] Pulse channel ERROR:', {
+        telegram_id,
+        error: pulseError?.message || pulseError
+      })
+      logger.error('[NanoBanana] Error sending to pulse channel:', pulseError)
+    }
+
+    return imageUrl
+
+  } catch (error) {
+    console.error('🔴 [NanoBanana] CRITICAL ERROR:', {
+      telegram_id: params.telegram_id,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorStack: error instanceof Error ? error.stack : undefined,
+    })
+    
+    logger.error('[NanoBanana] Generation failed', {
+      telegram_id: params.telegram_id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+
+    // Send error message to user
+    const errorMessage = params.is_ru
+      ? '❌ Произошла ошибка при генерации. Попробуйте позже.'
+      : '❌ An error occurred during generation. Please try later.'
+
+    await params.ctx.reply(errorMessage)
+
+    // Refund user
+    await refundUser(params.ctx, NANO_BANANA_MODEL.costPerImage)
+
+    // Send notification to admins
+    try {
+      const adminIds = process.env.ADMIN_IDS?.split(',') || []
+      const adminMessage = `🚨 Ошибка в generateNanoBanana
+
+👤 User: ${params.telegram_id} (@${params.username})
+❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}
+🎯 Prompt: ${params.promptText.substring(0, 100)}...
+
+Проверьте логи для деталей.`
+
+      for (const adminId of adminIds) {
+        await params.ctx.telegram.sendMessage(adminId, adminMessage).catch(err => 
+          console.error('Failed to notify admin:', err)
+        )
+      }
+    } catch (notifyError) {
+      console.error('Failed to send admin notification:', notifyError)
+    }
+
+    return null
+  }
+}
+
+/**
+ * Compatibility function to maintain backward compatibility
+ * with existing NanoBanana interface
+ */
+export interface NanoBananaParams {
   telegram_id: string | number
   promptText: string
   inputImageUrl: string
@@ -13,272 +398,11 @@ interface NanoBananaParams {
   is_ru?: boolean
 }
 
-/**
- * Генерация изображения через Google Nano Banana (Replicate)
- * Трансформирует входное изображение в стиле персонажа
- */
-export async function generateNanoBanana({
-  telegram_id,
-  promptText,
-  inputImageUrl,
-  ctx,
-  username,
-  is_ru = true,
-}: NanoBananaParams): Promise<string | null> {
-  try {
-    console.log('🚀🚀🚀 [generateNanoBanana] FUNCTION CALLED! 🚀🚀🚀', {
-      telegram_id,
-      promptLength: promptText?.length,
-      hasInputImage: !!inputImageUrl,
-      username,
-    })
-    
-    logger.info('[generateNanoBanana] Starting generation', {
-      telegram_id,
-      promptLength: promptText.length,
-      inputImageUrl,
-      username,
-    })
-
-    // Цена за одну генерацию (как было для FLUX Kontext Max)
-    const costPerImage = 12
-
-    // Проверяем баланс и списываем звезды
-    console.log('🔵🔵🔵 [generateNanoBanana] Calling processBalanceOperation...', {
-      telegram_id,
-      costPerImage,
-    })
-    
-    const balanceCheck = await processBalanceOperation({
-      telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
-      paymentAmount: costPerImage,
-      is_ru,
-      bot_name: ctx.botInfo?.username,
-      ctx,
-    })
-    
-    console.log('🟢🟢🟢 [generateNanoBanana] Balance check result:', {
-      telegram_id,
-      balanceCheckSuccess: balanceCheck?.success,
-      balanceCheckResult: balanceCheck,
-    })
-
-    if (!balanceCheck.success) {
-      logger.warn('[generateNanoBanana] Insufficient balance', {
-        telegram_id,
-        required: costPerImage,
-      })
-      
-      await ctx.reply(
-        is_ru
-          ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${costPerImage}⭐\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
-          : `❌ Insufficient stars for generation\\n\\nRequired: ${costPerImage}⭐\\nYour balance: ${balanceCheck.currentBalance || 0}⭐\\n\\nTop up via /start → 💎 Top up balance`,
-        { parse_mode: 'MarkdownV2' }
-      )
-      return null
-    }
-
-    console.log('💚💚💚 [generateNanoBanana] Balance check passed! Continuing...', {
-      telegram_id,
-      balanceCheckSuccess: balanceCheck.success,
-      ctxExists: !!ctx,
-      ctxReplyExists: !!ctx?.reply,
-    })
-
-    // Проверка контекста
-    if (!ctx || !ctx.reply) {
-      console.error('❌❌❌ [generateNanoBanana] Context lost after balance check!', {
-        telegram_id,
-        ctxExists: !!ctx,
-        ctxReplyExists: !!ctx?.reply,
-      })
-      throw new Error('Context lost after balance check')
-    }
-
-    // Отправляем статус
-    console.log('📤📤📤 [generateNanoBanana] Sending status message...', { telegram_id })
-    
-    const statusMessage = await ctx.reply(
-      is_ru
-        ? '🎨 Генерирую ваш образ через Google Nano Banana...\n\n⏱ Это займет 10-20 секунд'
-        : '🎨 Generating your image via Google Nano Banana...\n\n⏱ This will take 10-20 seconds'
-    )
-    
-    console.log('✅✅✅ [generateNanoBanana] Status message sent!', { 
-      telegram_id,
-      messageId: statusMessage.message_id,
-    })
-
-    // Инициализируем Replicate
-    const replicate = new Replicate({
-      auth: process.env.REPLICATE_API_TOKEN,
-    })
-
-    logger.info('[generateNanoBanana] Calling Replicate API', {
-      telegram_id,
-      model: 'google/nano-banana',
-      prompt: promptText.substring(0, 100),
-    })
-
-    // Вызываем модель Nano Banana
-    // Модель принимает массив изображений, но мы используем одно
-    console.log('🎨🎨🎨 [generateNanoBanana] Calling Replicate.run...', {
-      telegram_id,
-      model: 'google/nano-banana',
-      inputImageUrl: inputImageUrl.substring(0, 100) + '...',
-    })
-    
-    // Добавляем указание на формат 9:16 в промпт
-    const enhancedPrompt = `${promptText} The image must be in 9:16 vertical portrait format for Instagram stories.`
-    
-    const output = await replicate.run(
-      "google/nano-banana",
-      {
-        input: {
-          prompt: enhancedPrompt,
-          image_input: [inputImageUrl]
-        }
-      }
-    )
-    
-    console.log('🖼️🖼️🖼️ [generateNanoBanana] Replicate output received:', {
-      telegram_id,
-      outputType: typeof output,
-      isArray: Array.isArray(output),
-      outputValue: output,
-      outputStringified: JSON.stringify(output).substring(0, 500),
-    })
-
-    // Получаем URL результата
-    let imageUrl: string | null = null
-    
-    if (output && typeof output === 'object' && 'url' in output) {
-      // Если output имеет метод url()
-      imageUrl = (output as any).url?.() || null
-      console.log('📍 Case 1: output.url() =', imageUrl)
-    } else if (typeof output === 'string') {
-      // Если output - это строка с URL
-      imageUrl = output
-      console.log('📍 Case 2: string output =', imageUrl)
-    } else if (Array.isArray(output) && output.length > 0) {
-      // Если output - массив URL
-      imageUrl = output[0]
-      console.log('📍 Case 3: array[0] =', imageUrl)
-    } else if (output && typeof output === 'object') {
-      // Проверяем другие возможные структуры
-      console.log('📍 Case 4: Checking object structure...')
-      // Может быть output.output или output.prediction
-      imageUrl = (output as any).output || (output as any).prediction || null
-      console.log('📍 Case 4: extracted =', imageUrl)
-    }
-
-    if (!imageUrl) {
-      console.error('❌❌❌ [generateNanoBanana] No image URL found in response!', {
-        telegram_id,
-        output,
-        outputKeys: output ? Object.keys(output) : null,
-      })
-      throw new Error('No image URL in Nano Banana response')
-    }
-
-    console.log('✨✨✨ [generateNanoBanana] IMAGE URL FOUND!', {
-      telegram_id,
-      imageUrl,
-    })
-    
-    logger.info('[generateNanoBanana] Image generated successfully', {
-      telegram_id,
-      imageUrl: imageUrl.substring(0, 50) + '...',
-    })
-
-    // Удаляем сообщение о статусе
-    try {
-      await ctx.deleteMessage(statusMessage.message_id)
-    } catch (err) {
-      logger.warn('[generateNanoBanana] Failed to delete status message', { err })
-    }
-
-    console.log('📮📮📮 [generateNanoBanana] Preparing to send photo...', {
-      telegram_id,
-      imageUrl,
-    })
-
-    // Отправляем изображение пользователю с рекламой бота
-    const botUsername = ctx.botInfo?.username || 'clip_maker_neuro_bot'
-    const caption = is_ru
-      ? `✨ Ваш образ готов!\n\n🎨 Создано с помощью Google Nano Banana\n💫 Потрачено: ${costPerImage}⭐\n\nСоздайте еще образы через /start\n\n🤖 Сделано в боте @${botUsername}`
-      : `✨ Your image is ready!\n\n🎨 Created with Google Nano Banana\n💫 Spent: ${costPerImage}⭐\n\nCreate more images via /start\n\n🤖 Made with @${botUsername} bot`
-
-    console.log('🚀 [generateNanoBanana] About to call sendPhotoWithFallback', {
-      telegram_id,
-      imageUrl,
-      captionLength: caption.length,
-      ctxExists: !!ctx,
-      ctxReplyWithPhotoExists: !!ctx?.replyWithPhoto,
-    })
-
-    const sendResult = await sendPhotoWithFallback(ctx, imageUrl, {
-      caption
-    })
-    
-    console.log('🎯 [generateNanoBanana] sendPhotoWithFallback result:', {
-      telegram_id,
-      sendResult,
-      imageUrl,
-    })
-    
-    if (!sendResult) {
-      console.error('❌ [generateNanoBanana] Failed to send photo!', {
-        telegram_id,
-        imageUrl,
-      })
-      throw new Error('Failed to send photo to user')
-    }
-    
-    console.log('📬📬📬 [generateNanoBanana] Photo sent successfully!', {
-      telegram_id,
-      imageUrl,
-    })
-
-    return imageUrl
-  } catch (error) {
-    console.error('🔴🔴🔴 [generateNanoBanana] CRITICAL ERROR:', {
-      telegram_id,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      errorStack: error instanceof Error ? error.stack : undefined,
-      errorDetails: error,
-    })
-    
-    logger.error('[generateNanoBanana] Generation failed', {
-      telegram_id,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
-
-    // Отправляем сообщение администратору об ошибке
-    try {
-      const adminIds = process.env.ADMIN_IDS?.split(',') || []
-      const adminMessage = `🚨 Ошибка в generateNanoBanana
-
-👤 User: ${telegram_id} (@${username})
-❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}
-🎯 Prompt: ${promptText.substring(0, 100)}...
-
-Проверьте логи для деталей.`
-
-      for (const adminId of adminIds) {
-        await ctx.telegram.sendMessage(adminId, adminMessage).catch(err => console.error('Failed to notify admin:', err))
-      }
-    } catch (notifyError) {
-      console.error('Failed to send admin notification:', notifyError)
-    }
-
-    await ctx.reply(
-      is_ru
-        ? '❌ Произошла ошибка при генерации\\. Попробуйте позже\\.'
-        : '❌ An error occurred during generation\\. Please try later\\.',
-      { parse_mode: 'MarkdownV2' }
-    )
-
-    return null
-  }
+export const generateNanoBananaLegacy = async (
+  params: NanoBananaParams
+): Promise<string | null> => {
+  return generateNanoBanana({
+    ...params,
+    promptStyle: 'headshot' // Default to headshot for backward compatibility
+  })
 }
