@@ -428,11 +428,11 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'Maniacal grinning pose' : 'Chaotic villain stance'
     }. Purple suit with green accents. Wild, green-tinted hair. Playing cards scattered around. Dramatic makeup with exaggerated smile. Background with carnival chaos and purple/green lighting. Theatrical lighting with purple and green colors. Chaotic villain aesthetic with unpredictable energy.`,
 
-    'Шазам': `${baseSettings} A youthful ${
+    'Шазам': `${baseSettings} A powerful ${
       gender === 'male' ? 'hero' : 'heroine'
     } in red and gold superhero outfit with lightning motifs. ${
-      gender === 'male' ? 'Enthusiastic hero stance' : 'Confident young warrior pose'
-    }. Red suit with golden accents and lightning bolt emblem. White cape with golden trim. Enthusiastic, youthful expression. Hands glowing with magical lightning energy. Background with temple columns and lightning strikes. Bright magical lighting with gold and red colors. Youthful champion aesthetic with divine power.`,
+      gender === 'male' ? 'Confident heroic stance' : 'Strong warrior pose'
+    }. Red suit with golden accents and lightning bolt emblem. White cape with golden trim. Maintain original facial features and natural age appearance. Hands glowing with magical lightning energy. Background with temple columns and lightning strikes. Bright magical lighting with gold and red colors. Heroic champion aesthetic with divine power, preserving the person's face and maturity.`,
 
     // ANIME & MANGA HEROES - TOP POPULAR MISSING
     'Гоку': `${baseSettings} A powerful ${
