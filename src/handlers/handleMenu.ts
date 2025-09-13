@@ -581,21 +581,22 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[111].title_ru : levels[111].title_en]: async () => {
         logger.info({
-          message: '🦸‍♂️ [handleMenu] Переход к AI Heroes',
+          message: '🦸‍♂️ [handleMenu] Переход к AI Heroes Transform',
           telegramId,
           function: 'handleMenu',
-          action: 'ai_heroes',
-          nextScene: ModeEnum.AIHeroes,
+          action: 'ai_heroes_transform',
+          nextScene: 'avatarTransformScene',
         })
-        console.log('CASE: 🦸‍♂️ AI Heroes')
+        console.log('CASE: 🦸‍♂️ AI Heroes - Launching Avatar Transform')
 
-        // AI Heroes доступны бесплатно для всех пользователей
+        // AI Heroes используют avatar transform scene для трансформации
+        ctx.session.mode = ModeEnum.AvatarTransform
         console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.AIHeroes}`
+          `🔄 [handleMenu] Вход в сцену avatarTransformScene`
         )
-        await ctx.scene.enter(ModeEnum.AIHeroes)
+        await ctx.scene.enter('avatarTransformScene')
         console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.AIHeroes}`
+          `✅ [handleMenu] Завершен вход в сцену avatarTransformScene`
         )
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
