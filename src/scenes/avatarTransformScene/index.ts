@@ -8,62 +8,186 @@ import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
 import { getBotNameByToken } from '@/core/bot'
-// Используем KIE.AI вместо Replicate для Nano Banana
-import { generateNanoBananaKie } from '@/services/generateNanoBananaKie'
+// Импортируем все модели для генерации с fallback логикой
+import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
+import { generateSeeDream4 } from '@/services/generateSeeDream4'
+import { generateNanoBanana } from '@/services/generateNanoBanana'
+// Legacy fallback
+import { generateFluxKontext } from '@/services/generateFluxKontext'
 
-// Герои для выбора (по полу)
-const MARVEL_HEROES = {
+// 🦸‍♂️ AI HEROES - Расширенный список супергероев из разных традиций  
+const AI_HEROES = {
   male: [
-    // Marvel герои
+    // Marvel Universe (Самые популярные)
     'Человек-паук',
-    'Железный человек',
+    'Железный человек', 
     'Капитан Америка',
     'Тор',
+    'Халк',
     'Доктор Стрэндж',
-    'Соколиный глаз',
+    'Дэдпул',
+    'Росомаха',
+    'Человек-муравей',
+    'Блэк Пантер',
+    'Локи',
+    'Веном',
+    'Карающий',
+    'Призрачный гонщик',
+    'Зимний солдат',
     'Звёздный лорд',
-    // Славянские сказочные герои
-    'Иван-царевич',
+    
+    // DC Universe
+    'Супермен',
+    'Бэтмен',
+    'Флэш',
+    'Зелёный фонарь',
+    'Аквамен',
+    'Киборг',
+    'Шазам',
+    'Зелёная стрела',
+    'Джокер',
+    'Найтвинг',
+    'Дэфстроук',
+    
+    // Anime & Manga (Популярные)
+    'Гоку',
+    'Наруто',
+    'Луффи',
+    'Ичиго',
+    'Саитама',
+    'Эдвард Элрик',
+    'Лайт Ягами',
+    'Какаши',
+    'Сасукэ',
+    'Вегета',
+    'Пикколо',
+    'Натсу',
+    'Эрен Йегер',
+    'Леви Аккерман',
+    
+    // Slavic & Mythology
     'Илья Муромец',
     'Добрыня Никитич',
-    'Алёша Попович',
-    'Кощей Бессмертный',
-    'Серый Волк',
-    'Емеля',
-    // Советские мультперсонажи
-    'Чебурашка',
-    'Крокодил Гена',
-    'Кот Матроскин',
-    'Дядя Фёдор',
-    'Почтальон Печкин',
-    'Винни-Пух',
-    'Карлсон',
-    'Буратино',
+    'Алеша Попович',
+    'Перун',
+    'Святогор',
+    
+    // Games & Movies (Культовые)
+    'Кратос',
+    'Геральт из Ривии',
+    'Мастер Чиф',
+    'Данте',
+    'Субзиро',
+    'Скорпион',
+    'Рю',
+    'Кен',
+    'Соник',
+    'Марио',
+    'Линк',
+    'Клауд Страйф',
+    'Сефирот',
+    'Джон Уик',
+    'Терминатор',
+    'Хищник',
+    'Спаун',
+    'Альтаир',
+    'Эцио',
+    'Алекс Мерсер'
   ],
   female: [
-    // Marvel героини
+    // Marvel Universe
     'Капитан Марвел',
-    'Скарлет Витч',
-    'Алая ведьма',
-    'Гамора',
+    'Скарлет Витч', 
+    'Чёрная вдова',
+    'Гвен Стейси',
     'Шури',
     'Валькирия',
-    // Славянские сказочные героини
+    'Шторм',
+    'Джин Грей',
+    'Роуг',
+    'Китти Прайд',
+    'Псайлок',
+    'Мистик',
+    'Эмма Фрост',
+    'Гамора',
+    'Небула',
+    'Капитан Картер',
+    
+    // DC Universe
+    'Чудо-женщина',
+    'Харли Квинн',
+    'Супергёрл',
+    'Бэтгерл',
+    'Кэтвумен',
+    'Ядовитый плющ',
+    'Рейвен',
+    'Старфайр',
+    'Мера',
+    'Хищные птицы',
+    'Черная канарейка',
+    'Джессика Круз',
+    
+    // Anime & Manga
+    'Сейлор Мун',
+    'Мику Хацунэ',
+    'Сакура Харуно',
+    'Хината Хьюга',
+    'Цунадэ',
+    'Булма',
+    '18-й андроид',
+    'Эрза Скарлет',
+    'Микаса Аккерман',
+    'Рей Аянами',
+    'Асука Лэнгли',
+    'Фэй Валентайн',
+    'Нами',
+    'Nico Robin',
+    'Риас Гремори',
+    'Zero Two',
+    
+    // Star Wars
+    'Рэй Скайуокер',
+    'Принцесса Лея',
+    'Ахсока Тано',
+    'Падме Амидала',
+    'Джайна Соло',
+    
+    // Games & Movies
+    'Лара Крофт',
+    'Чун Ли',
+    'Соня Блейд',
+    'Китана',
+    'Джейд',
+    'Милина',
+    'Трисс Меригольд',
+    'Йеннифэр',
+    'Элли',
+    'Джилл Валентайн',
+    'Ада Вонг',
+    'Селин',
+    'Алиса Абернати',
+    'Принцесса Зельда',
+    'Самус Аран',
+    'Байонетта',
+    'Каратэ',
+    'Тифа Локхарт',
+    'Аэрис',
+    
+    // Slavic & Mythology
     'Василиса Прекрасная',
-    'Баба Яга',
     'Снегурочка',
-    'Марья Моревна',
-    'Алёнушка',
     'Жар-птица',
-    'Царевна-лягушка',
-    // Советские мультперсонажи
-    'Шапокляк',
+    'Берегиня',
+    'Русалка',
     'Мальвина',
-    'Красная Шапочка',
-    'Золушка',
-    'Снежная Королева',
-    'Алиса',
-    'Пеппи Длинныйчулок',
+    
+    // Disney & Animation
+    'Эльза',
+    'Анна',
+    'Мулан',
+    'Покахонтас',
+    'Мерида',
+    'Моана'
   ],
 }
 
@@ -118,6 +242,36 @@ const createMarvelPromptByGender = (
     } in stylish red leather jacket with tech elements. ${
       gender === 'male' ? 'Confident smirk' : 'Adventure-ready pose'
     }. Retro-futuristic headphones around neck. Holding dual energy blaster props. Background with cosmic elements and 80s-inspired neon colors. Mix of retro and space aesthetics with pink, blue, and gold lighting.`,
+
+    'Дэдпул': `${baseSettings} A charismatic ${
+      gender === 'male' ? 'man' : 'woman'
+    } in red and black tactical outfit with mask-like eye elements. ${
+      gender === 'male' ? 'Confident action pose' : 'Dynamic combat stance'
+    }. Dual katana swords crossed on back. Black tactical accessories and belt with pouches. Hands in characteristic finger-gun pose. Background with urban rooftop elements and dramatic lighting with red and black color scheme. Anti-hero aesthetic with edgy, rebellious atmosphere.`,
+
+    'Халк': `${baseSettings} A powerful ${
+      gender === 'male' ? 'man' : 'woman'
+    } in purple and green athletic outfit with torn fabric effects. ${
+      gender === 'male' ? 'Massive muscular build' : 'Strong powerful frame'
+    }. Green body paint or lighting effects. Clenched fists in rage pose. Wild, messy hair. Background with destruction effects and green energy. Dramatic lighting with green and purple colors. Incredible strength aesthetic with intense, fierce expression.`,
+
+    'Росомаха': `${baseSettings} A rugged ${
+      gender === 'male' ? 'man' : 'woman'
+    } in brown and yellow leather outfit with animal-like elements. ${
+      gender === 'male' ? 'Wild, fierce expression' : 'Fierce warrior stance'
+    }. Metal claws props extending from knuckles. Dark wild hair in distinctive style. Leather jacket with fur collar. Background with forest and wilderness elements. Dramatic lighting with golden and brown tones. Wild, animalistic aesthetic with savage intensity.`,
+
+    'Веном': `${baseSettings} A menacing ${
+      gender === 'male' ? 'man' : 'woman'
+    } in black symbiote-inspired outfit with organic textures. ${
+      gender === 'male' ? 'Predatory alien stance' : 'Symbiotic hunter pose'
+    }. Black outfit with white spider emblem. Organic, flowing fabric that seems alive. Sharp, angular design elements. Aggressive pose with clawed hands. Background with dark urban environment and alien effects. Dark lighting with black and white contrasts. Alien symbiote aesthetic with threatening presence.`,
+
+    'Локи': `${baseSettings} A mischievous ${
+      gender === 'male' ? 'god' : 'goddess'
+    } in elegant green and gold Asgardian outfit with flowing cape. ${
+      gender === 'male' ? 'Cunning trickster stance' : 'Regal deceptive pose'
+    }. Ornate horned helmet with curved golden horns. Green leather and gold armor with intricate Norse patterns. Scepter with glowing blue gem. Long black hair styled elegantly. Background with Asgardian palace and magical energy. Dramatic lighting with green and gold colors. Trickster god aesthetic with charismatic malevolence.`,
 
     // ЖЕНСКИЕ ГЕРОИ - БЕЗОПАСНЫЕ, НО УЗНАВАЕМЫЕ ПРОМПТЫ
     'Капитан Марвел': `${baseSettings} A powerful ${
@@ -189,116 +343,672 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'young man' : 'young woman'
     } in simple Russian peasant clothes sitting on a decorative stove-throne. Relaxed, carefree pose. Holding a magical pike fish. Background with Russian village and magical sparkles. Warm, cozy lighting with magical golden particles.`,
 
-    // СОВЕТСКИЕ МУЛЬТПЕРСОНАЖИ
-    'Чебурашка': `${baseSettings} A cute ${
-      gender === 'male' ? 'person' : 'person'
-    } in brown furry costume with huge round ears. Big innocent eyes. Orange vest. Holding a small orange. Background with toy store and colorful boxes. Soft, warm lighting with nostalgic feel.`,
-
-    'Крокодил Гена': `${baseSettings} A friendly ${
+    // СОВРЕМЕННЫЕ ГЕРОИ
+    'Киборг': `${baseSettings} A futuristic ${
       gender === 'male' ? 'man' : 'woman'
-    } in green suit with crocodile-themed accessories. Red bow tie. Holding an accordion. Kind smile. Background with zoo entrance and balloons. Cheerful daylight with bright colors.`,
-
-    'Кот Матроскин': `${baseSettings} A smart ${
-      gender === 'male' ? 'person' : 'person'
-    } in striped sailor shirt with cat ears headband. Practical expression. Holding a milk jug. Background with Russian village house and garden. Sunny countryside lighting.`,
-
-    'Дядя Фёдор': `${baseSettings} A responsible ${
-      gender === 'male' ? 'young boy' : 'young girl'
-    } in simple Soviet-era clothes with backpack. Serious but kind expression. Holding a sandwich. Background with Prostokvashino village. Natural daylight with pastoral atmosphere.`,
-
-    'Почтальон Печкин': `${baseSettings} A strict ${
-      gender === 'male' ? 'postman' : 'postwoman'
-    } in Soviet postal uniform with cap. Holding a bicycle and mail bag. Suspicious expression with raised eyebrow. Background with rural post office. Official lighting with blue uniform tones.`,
-
-    'Винни-Пух': `${baseSettings} A thoughtful ${
-      gender === 'male' ? 'person' : 'person'
-    } in brown bear costume. Round, friendly appearance. Holding a honey pot. Contemplative expression. Background with forest and beehive tree. Warm honey-colored lighting.`,
-
-    'Карлсон': `${baseSettings} A mischievous ${
-      gender === 'male' ? 'man' : 'woman'
-    } in checkered shirt with propeller backpack prop. Plump, cheerful appearance. Holding jam jar. Background with Stockholm rooftops and chimney. Playful lighting with blue sky.`,
-
-    'Буратино': `${baseSettings} A curious ${
-      gender === 'male' ? 'boy' : 'girl'
-    } in striped cap and red shirt with wooden texture elements. Long nose prosthetic. Holding a golden key. Background with puppet theater stage. Theatrical lighting with warm spotlights.`,
+    } in high-tech cybernetic outfit with metallic silver and blue elements. ${
+      gender === 'male' ? 'Strong cybernetic build' : 'Sleek cybernetic silhouette'
+    }. Glowing blue LED accents on arms and chest. One eye with subtle tech enhancement glow. Confident stance with technological pose. Background with futuristic cityscape and holographic displays. Cool blue and silver lighting with tech atmospheric effects.`,
 
     // СЛАВЯНСКИЕ СКАЗОЧНЫЕ ГЕРОИНИ
     'Василиса Прекрасная': `${baseSettings} A beautiful ${
       gender === 'male' ? 'prince' : 'princess'
-    } in ornate Russian sarafan with golden embroidery. Long braided hair with ribbon. Pearl kokoshnik headdress. Holding a magical doll. Background with Russian palace and flowering garden. Soft fairytale lighting with pink and gold.`,
+    } in magnificent royal blue sarafan with intricate golden thread embroidery depicting firebirds and flowers. Floor-length dress with wide sleeves. Long blonde hair in elaborate thick braid with red silk ribbon. Ornate pearl-encrusted kokoshnik headdress with hanging pearls framing face. Delicate golden jewelry - earrings and necklaces. Holding small magical wooden doll (helping doll) with painted face. Graceful, serene expression with bright blue eyes. Background: opulent Russian boyar palace with carved wooden decorations, blooming rose garden, golden onion domes visible in distance. Soft romantic fairytale lighting with pink sunset glow and golden highlights.`,
 
     'Баба Яга': `${baseSettings} A mystical ${
       gender === 'male' ? 'wizard' : 'witch'
-    } in tattered robes with forest elements. Wild grey hair. Holding a broom and mortar. Mischievous grin. Background with chicken leg hut and dark forest. Mysterious lighting with green and purple magic.`,
+    } in tattered brown and grey robes made of forest materials - moss, bark, dried leaves. Wild long grey hair with twigs braided in. Natural elderly human face with wrinkles and mischievous expression, cunning grin. Hunched posture with gnarled wooden walking stick. Holding traditional Russian broom made of birch twigs and stone mortar (stupa). Necklace of small bones and forest trinkets. Background: iconic hut standing on giant chicken legs, dark enchanted forest with glowing mushrooms, twisted ancient trees, ravens perched on branches. Mysterious lighting with green and purple magical mist, moonbeams filtering through fog.`,
 
     'Снегурочка': `${baseSettings} A gentle ${
       gender === 'male' ? 'snow prince' : 'snow maiden'
-    } in white and blue fur-trimmed outfit with snowflake patterns. Ice crown or kokoshnik. Pale, ethereal appearance. Background with winter forest and falling snow. Cool blue lighting with crystalline sparkles.`,
+    } in flowing white and silver dress with snowflake patterns. White ermine fur trim on sleeves and hem. Long platinum blonde hair almost white, decorated with snowflake ornaments. Ethereal ice-crystal kokoshnik crown with hanging crystal beads. Natural human face with pale skin and bright ice-blue eyes. Delicate silver jewelry with crystal gems. Graceful pose with arms extended. Background: winter wonderland with snow-covered pine forest, crystal ice palace with spires, northern lights aurora borealis in sky. Cool blue and silver lighting with crystalline sparkles and frost effects everywhere.`,
 
     'Марья Моревна': `${baseSettings} A fierce ${
       gender === 'male' ? 'warrior prince' : 'warrior princess'
-    } in ornate battle armor with Russian motifs. Determined expression. Holding sword and shield. Background with battlefield and captured Koschei. Dramatic heroic lighting.`,
+    } in ornate Russian battle armor with traditional motifs - double-headed eagles, orthodox crosses, Slavic patterns. Silver chainmail under decorated breastplate. Long dark hair in warrior braid with metal ornaments. Red cloak with golden trim flowing behind. Determined fierce expression with steel-grey eyes. Holding traditional Russian sword (kladenets) with ornate handle and round shield with royal coat of arms. High leather boots with metal studs. Battle-ready stance. Background: medieval Russian battlefield with army banners, defeated dark sorcerer Koschei in chains, ancient fortress walls, ravens circling overhead. Dramatic golden hour lighting with storm clouds, heroic atmosphere with rays of sunlight breaking through.`,
 
     'Алёнушка': `${baseSettings} A gentle ${
       gender === 'male' ? 'young man' : 'young maiden'
-    } in simple Russian peasant dress. Sad but beautiful expression. Sitting by a pond. Background with birch trees and water lilies. Soft, melancholic lighting with green nature tones.`,
+    } in simple but beautiful Russian peasant dress - white linen shirt with puffed sleeves, blue sarafan with floral embroidery. Long brown hair in single braid with wildflower crown. Sad but beautiful expression with large expressive brown eyes, tears barely visible. Bare feet dangling in pond water. Sitting on large stone by water's edge. Holding dried herbs or wildflowers. Delicate features with rosy cheeks despite melancholy. Background: serene Russian countryside pond with white water lilies, silver birch trees with hanging branches, wooden bridge in distance, dragonflies hovering over water. Soft melancholic lighting with green nature tones, late afternoon golden light filtering through leaves.`,
 
     'Жар-птица': `${baseSettings} A radiant ${
       gender === 'male' ? 'person' : 'person'
-    } in fiery phoenix-themed outfit with feather patterns. Golden and orange colors. Glowing effects around hands. Background with magical garden and golden apples. Brilliant fire-colored lighting.`,
+    } in magnificent outfit made of real fire-colored feathers - deep reds, bright oranges, golden yellows. Feathered wings attached to arms that seem to glow from within. Crown of flame-shaped feathers rising from head. Golden beak-like mask over nose. Body suit covered in iridescent feathers that shift colors like real fire. Glowing golden skin with warm light emanating from within. Arms raised with magical golden sparks and flames dancing around fingers. Majestic poses suggesting flight. Background: magical garden with golden apple trees bearing glowing fruit, ornate Russian palace in background, other magical firebirds flying in sky. Brilliant warm lighting with actual fire effects, golden hour glow, magical sparkles everywhere.`,
 
     'Царевна-лягушка': `${baseSettings} A wise ${
       gender === 'male' ? 'prince' : 'princess'
-    } in green royal dress with amphibian motifs. Crown with lily pad design. Holding an arrow. Background with pond and palace. Magical transformation lighting with green sparkles.`,
-
-    // СОВЕТСКИЕ МУЛЬТПЕРСОНАЖИ (ЖЕНСКИЕ)
-    'Шапокляк': `${baseSettings} A mischievous ${
-      gender === 'male' ? 'elderly gentleman' : 'elderly lady'
-    } in Victorian black dress with vintage hat. Holding a small handbag with toy rat. Sly expression. Background with city street and lamp posts. Film noir lighting with dramatic shadows.`,
+    } in elegant emerald green royal gown with lily pad patterns and water ripple textures, pearl accents like dewdrops. Intricate crown designed like lotus flowers and lily pads with small gems. Long dark hair with aquatic flowers braided in. Natural human face with wise, mystical expression and large green eyes. Subtle green theatrical makeup. Holding ornate silver arrow with fletching and decorative tip. Graceful pose near water. Small decorative frog companions sitting nearby. Background: magical pond with giant lily pads, lotus flowers, ornate Russian palace in background, swans swimming, reflection of full moon on water surface. Magical lighting with green sparkles, moonbeams, ethereal mist rising from water.`,
 
     'Мальвина': `${baseSettings} A graceful ${
       gender === 'male' ? 'person' : 'person'
-    } in blue ball gown with puffy sleeves. Blue hair with bow. Porcelain doll-like makeup. Holding a pointer stick. Background with puppet theater and school board. Soft theatrical lighting.`,
+    } in magnificent powder blue Victorian ball gown with enormous puffy sleeves, corseted waist, and full layered skirt. Bright sky-blue curly hair in elaborate ringlets with large pink satin bow. Natural human face with porcelain doll-like perfect makeup - rosy round cheeks, red cupid's bow lips, long dark eyelashes. Holding wooden pointer stick with authority. White lace gloves and blue dancing shoes. Perfect posture with chin raised elegantly. Background: puppet theater stage with red velvet curtains, wooden school desk with chalkboard showing alphabet, vintage schoolroom with inkwell and quill pens. Soft theatrical lighting with warm golden spotlights, elegant ballroom atmosphere.`,
 
     'Красная Шапочка': `${baseSettings} A brave ${
       gender === 'male' ? 'young man' : 'young girl'
-    } in red hooded cape over peasant dress. Holding a basket with pies. Innocent but clever expression. Background with forest path and grandmother's house. Storybook lighting with red accents.`,
+    } in iconic bright red hooded cape lined with white fur, flowing behind. Blue peasant dress with white apron and puffed sleeves. Blonde hair in braids peeking from hood. Rosy cheeks and bright blue innocent eyes. Carrying wicker basket with checkered cloth cover, baked goods visible inside - pies, bread rolls, bottles of milk and honey. White knee-high stockings and brown leather shoes. Innocent but intelligent expression with slight concern. Background: enchanted forest path with tall pine and oak trees, grandmother's cottage with chimney smoke in distance, wildflowers along path, hidden wolf eyes glowing from bushes. Classic fairy tale storybook lighting with dappled sunlight through leaves, warm golden atmosphere with mysterious shadows.`,
 
     'Золушка': `${baseSettings} A elegant ${
       gender === 'male' ? 'prince' : 'princess'
-    } in sparkling ball gown with glass slipper props. Transformation from simple to glamorous. Background with pumpkin carriage and palace. Magical midnight lighting with sparkles.`,
+    } in magnificent transformation from rags to riches. Sparkly silver and blue ball gown with layers of tulle and silk, corseted bodice with intricate beadwork. Long blonde hair in elaborate updo with tiara. Single crystal glass slipper on foot, other foot bare showing elegant arch. Fairy godmother's magic wand nearby with sparkles. Delicate features with kind blue eyes and gentle smile. Pearl necklace and earrings. Graceful dancing pose with arms extended. Background: opulent palace ballroom with crystal chandeliers, golden pumpkin carriage with white horses waiting outside, magical sparkles and stars everywhere, clock showing almost midnight. Magical transformation lighting with gold and silver sparkles, dreamy blue moonlight, enchanted atmosphere.`,
 
     'Снежная Королева': `${baseSettings} A regal ${
       gender === 'male' ? 'ice king' : 'ice queen'
-    } in crystalline ice dress with fur trim. Ice crown with icicle points. Cold, majestic expression. Background with ice palace and northern lights. Icy blue lighting with frost effects.`,
+    } in stunning crystalline ice dress that seems carved from single glacier, with sharp geometric patterns and frost textures. Floor-length cape of white ermine fur with icicle trim. Elaborate ice crown with tall sharp points like icicles, embedded with diamonds and crystals. Platinum white hair in elegant updo with ice crystal ornaments. Pale skin with slight blue undertone, frost patterns on cheeks. Cold, piercing ice-blue eyes with no warmth. Long white gloves reaching to elbows. Regal, commanding posture with one hand holding ice scepter. Background: magnificent ice palace with crystal spires reaching toward sky, throne made of ice and snow, northern lights (aurora borealis) dancing in night sky, snow-covered landscape stretching to horizon. Icy blue and silver lighting with crystal reflections, frost effects on everything, magical winter wonderland atmosphere.`,
 
     'Алиса': `${baseSettings} A curious ${
       gender === 'male' ? 'young man' : 'young girl'
-    } in blue dress with white apron. Blonde hair with black headband. Holding playing cards or teacup. Background with Wonderland elements and chess pieces. Whimsical lighting with surreal colors.`,
+    } in classic Victorian blue dress with white pinafore apron, puffed sleeves and high collar. Long blonde hair with black velvet headband or hair ribbon. White stockings and black Mary Jane shoes. Bright curious blue eyes with wonder-filled expression. Holding ornate playing cards (Queens and Kings) that seem to move magically, or delicate porcelain teacup with floral pattern. White lace gloves. Adventurous pose as if stepping through mirror or falling. Background: fantastical Wonderland with oversized mushrooms, giant chess pieces (red and white), roses being painted red, Mad Hatter's tea party table with floating teacups, white rabbit with pocket watch running by, Cheshire Cat's grin floating in air. Whimsical surreal lighting with impossible colors, dreamlike atmosphere with magical sparkles and swirling mists.`,
 
     'Пеппи Длинныйчулок': `${baseSettings} A playful ${
       gender === 'male' ? 'person' : 'girl'
-    } with red braided pigtails sticking out horizontally. Mismatched colorful socks. Freckles. Super strong pose. Background with Villa Villekulla and monkey. Bright, energetic lighting.`,
+    } with iconic bright red hair in two tight braids sticking straight out horizontally from head like handles. Countless freckles covering face and arms. Wearing mismatched knee-high striped stockings - one red and white, one blue and yellow. Blue dress with patches and buttons missing. Superhuman strength pose - lifting something impossibly heavy above head with one arm. Gap-toothed mischievous grin. Dirty fingernails from adventures. Worn brown shoes, one lace missing. Small pet monkey (Mr. Nilsson) sitting on shoulder. Background: colorful Villa Villekulla house with crooked chimney and bright painted walls, overgrown garden with fruit trees, small Swedish town in background, adventure props scattered around - ropes, treasure chest, pirate flag. Bright energetic daylight with saturated colors, playful adventure atmosphere with golden sunshine.`,
+
+    // DC UNIVERSE HEROES - TOP POPULAR MISSING
+    'Супермен': `${baseSettings} A heroic ${
+      gender === 'male' ? 'man' : 'woman'
+    } in blue and red suit with cape flowing behind. ${
+      gender === 'male' ? 'Strong heroic stance' : 'Noble superhero pose'
+    }. Red cape billowing dramatically. "S" shield emblem on chest. Strong jaw and confident expression. Arms crossed or hands on hips in classic hero pose. Background with city skyline and clouds. Bright, heroic lighting with blue and red colors. Classic superhero aesthetic with inspiring presence.`,
+
+    'Бэтмен': `${baseSettings} A mysterious ${
+      gender === 'male' ? 'man' : 'woman'
+    } in dark grey and black tactical outfit with cape. ${
+      gender === 'male' ? 'Dark brooding stance' : 'Stealthy vigilante pose'
+    }. Flowing black cape with bat-like design. Utility belt with various gadgets. Mask covering eyes with pointed ears. Background with Gotham city night skyline and gargoyles. Dark, moody lighting with blue and black shadows. Gothic vigilante aesthetic with intimidating presence.`,
+
+    'Флэш': `${baseSettings} A fast ${
+      gender === 'male' ? 'man' : 'woman'
+    } in sleek red suit with lightning bolt accents. ${
+      gender === 'male' ? 'Dynamic running pose' : 'Speed-ready athletic stance'
+    }. Lightning bolt emblem on chest. Red suit with yellow/gold accents. Motion blur effects around figure. Speed force energy crackling around body. Background with city street and speed trail effects. Electric lighting with red and yellow colors. Super-speed aesthetic with energetic movement.`,
+
+    'Джокер': `${baseSettings} A charismatic ${
+      gender === 'male' ? 'man' : 'woman'
+    } in purple suit with chaotic elements. ${
+      gender === 'male' ? 'Maniacal grinning pose' : 'Chaotic villain stance'
+    }. Purple suit with green accents. Wild, green-tinted hair. Playing cards scattered around. Dramatic makeup with exaggerated smile. Background with carnival chaos and purple/green lighting. Theatrical lighting with purple and green colors. Chaotic villain aesthetic with unpredictable energy.`,
+
+    'Шазам': `${baseSettings} A youthful ${
+      gender === 'male' ? 'hero' : 'heroine'
+    } in red and gold superhero outfit with lightning motifs. ${
+      gender === 'male' ? 'Enthusiastic hero stance' : 'Confident young warrior pose'
+    }. Red suit with golden accents and lightning bolt emblem. White cape with golden trim. Enthusiastic, youthful expression. Hands glowing with magical lightning energy. Background with temple columns and lightning strikes. Bright magical lighting with gold and red colors. Youthful champion aesthetic with divine power.`,
+
+    // ANIME & MANGA HEROES - TOP POPULAR MISSING
+    'Гоку': `${baseSettings} A powerful ${
+      gender === 'male' ? 'martial artist' : 'warrior'
+    } in orange and blue martial arts gi with symbols. ${
+      gender === 'male' ? 'Fighting stance ready for battle' : 'Powerful combat pose'
+    }. Spiky black hair defying gravity. Orange gi with blue shirt underneath. Weighted boots and wristbands. Golden aura energy radiating around body. Confident battle-ready expression. Background with mountains and energy blasts. Bright, energetic lighting with golden ki energy effects. Dragon Ball aesthetic with powerful martial arts atmosphere.`,
+
+    'Наруто': `${baseSettings} A determined ${
+      gender === 'male' ? 'ninja' : 'kunoichi'
+    } in bright orange and black ninja outfit with spiral patterns. ${
+      gender === 'male' ? 'Ninja action pose' : 'Shinobi ready stance'
+    }. Spiky blonde hair with unique style. Orange jumpsuit with black accents. Ninja headband with leaf village symbol. Hand signs for jutsu casting. Blue eyes with determination. Background with Japanese village and cherry blossoms. Bright anime lighting with orange and blue colors. Ninja aesthetic with spirited energy.`,
+
+    'Луффи': `${baseSettings} A cheerful ${
+      gender === 'male' ? 'pirate captain' : 'pirate'
+    } in red vest and blue shorts with straw hat. ${
+      gender === 'male' ? 'Carefree adventure pose' : 'Spirited pirate stance'
+    }. Iconic straw hat with red ribbon. Red cardigan vest left open. Blue denim shorts. Rubber stretching arm extended dramatically. Wide grin and enthusiastic expression. Background with pirate ship and ocean waves. Bright adventure lighting with red and blue colors. One Piece pirate aesthetic with boundless energy.`,
+
+    'Ичиго': `${baseSettings} A fierce ${
+      gender === 'male' ? 'soul reaper' : 'shinigami'
+    } in black shihakusho with orange accents. ${
+      gender === 'male' ? 'Sword-ready battle stance' : 'Spiritual warrior pose'
+    }. Spiky orange hair in unique style. Black soul reaper robes with white trim. Large spiritual sword (zanpakuto) in hand. Orange spiritual energy (reiatsu) flowing around body. Serious, determined expression. Background with spirit world and floating petals. Dramatic lighting with orange and black colors. Bleach aesthetic with supernatural power.`,
+
+    'Эдвард Элрик': `${baseSettings} A brilliant ${
+      gender === 'male' ? 'alchemist' : 'alchemist'
+    } in red coat with alchemical symbols. ${
+      gender === 'male' ? 'Alchemical transmutation pose' : 'Determined scientist stance'
+    }. Distinctive red coat with flame symbol. Long blonde hair in braid. Automail prosthetic arm visible. Hands performing alchemical transmutation. Blue electrical alchemy energy crackling. Confident but serious expression. Background with alchemical circles and laboratory equipment. Mystical lighting with blue alchemy energy. Fullmetal Alchemist aesthetic with scientific magic.`,
+
+    // ================= MARVEL HEROES (MISSING) =================
+    'Человек-муравей': `${baseSettings} A skilled ${
+      gender === 'male' ? 'man' : 'woman'
+    } in high-tech red and silver micro-suit with insect-inspired design. ${
+      gender === 'male' ? 'Strategic shrinking pose' : 'Miniaturization stance'
+    }. Helmet with specialized visor and communication equipment. Size-manipulation effects around body with shrinking/growing visual elements. Advanced technological accessories and utility belt. Background with molecular and size-scale effects. Dynamic lighting with red and silver tech colors. Quantum realm aesthetic with size-manipulation powers.`,
+
+    'Блэк Пантер': `${baseSettings} A regal ${
+      gender === 'male' ? 'king' : 'queen'
+    } in sleek black vibranium suit with African-inspired patterns. ${
+      gender === 'male' ? 'Wakandan royal stance' : 'Panther warrior pose'
+    }. Cat-like mask with glowing white eyes. Silver tech elements and tribal geometric patterns. Retractable claws on fingertips. Background with Wakandan technology and African savanna. Purple and silver lighting with vibranium energy effects. Black Panther aesthetic with royal African heritage.`,
+
+    'Карающий': `${baseSettings} A vigilante ${
+      gender === 'male' ? 'man' : 'woman'
+    } in tactical black outfit with distinctive white skull emblem. ${
+      gender === 'male' ? 'Justice-seeking stance' : 'Vigilante warrior pose'
+    }. Military-grade tactical gear with ammunition belts and holsters. Dark expression under skull face paint or mask. Various weapons and tactical equipment visible. Background with urban nighttime setting and justice themes. Dark dramatic lighting with high contrast black and white. Punisher aesthetic with gritty vigilante atmosphere.`,
+
+    'Призрачный гонщик': `${baseSettings} A supernatural ${
+      gender === 'male' ? 'rider' : 'rider'
+    } in leather jacket with flame effects and chains. ${
+      gender === 'male' ? 'Hellfire vengeance pose' : 'Spirit of vengeance stance'
+    }. Flaming skull head effect or flame-inspired helmet. Leather motorcycle jacket with spikes and chains. Hellfire effects surrounding the figure. Chain weapon or flaming motorcycle elements. Background with supernatural flames and gothic elements. Dramatic orange and red fire lighting. Ghost Rider aesthetic with supernatural hellfire powers.`,
+
+    'Зимний солдат': `${baseSettings} A tactical ${
+      gender === 'male' ? 'soldier' : 'operative'
+    } in dark military gear with metal prosthetic arm. ${
+      gender === 'male' ? 'Assassin ready stance' : 'Tactical operative pose'
+    }. Distinctive silver/black metal prosthetic arm with red star. Military tactical outfit with strategic padding and gear. Long dark hair and intense expression. Sniper rifle or tactical weapons visible. Background with winter/Soviet elements. Cool blue and metallic lighting. Winter Soldier aesthetic with military precision.`,
+
+    'Чёрная вдова': `${baseSettings} A skilled ${
+      gender === 'male' ? 'spy' : 'spy'
+    } in sleek black tactical suit with red accents. ${
+      gender === 'male' ? 'Espionage ready stance' : 'Black widow pose'
+    }. Form-fitting black outfit with red belt and accessories. Dual pistols or widow's bite weapons. Strategic red hair styling. Martial arts combat pose. Background with spy/espionage elements and urban setting. Dark lighting with red accent highlights. Black Widow aesthetic with espionage expertise.`,
+
+    'Гвен Стейси': `${baseSettings} A heroic ${
+      gender === 'male' ? 'spider-hero' : 'spider-woman'
+    } in white and pink spider suit with hood design. ${
+      gender === 'male' ? 'Web-slinging stance' : 'Spider-Gwen pose'
+    }. White suit with pink/purple spider emblem and web patterns. Hooded mask design with large white eye lenses. Ballet shoes or web-shooters on wrists. Dynamic web-swinging pose. Background with alternate dimension cityscape. Pink and white lighting with web effects. Spider-Gwen aesthetic with punk rock style.`,
+
+    'Шторм': `${baseSettings} A powerful ${
+      gender === 'male' ? 'weather master' : 'storm goddess'
+    } in flowing white outfit with weather-control elements. ${
+      gender === 'male' ? 'Elemental command pose' : 'Storm goddess stance'
+    }. White flowing cape and outfit with silver accents. White/silver hair flowing with wind effects. Glowing white eyes with lightning energy. Lightning bolts and storm clouds surrounding figure. Background with tempest and weather phenomena. Dramatic blue and white lightning effects. Storm aesthetic with weather mastery powers.`,
+
+    'Джин Грей': `${baseSettings} A powerful ${
+      gender === 'male' ? 'telepath' : 'psychic'
+    } in dark outfit with phoenix-inspired elements. ${
+      gender === 'male' ? 'Psychic power stance' : 'Phoenix force pose'
+    }. Green and gold outfit with X-Men styling. Red/auburn hair with fiery highlights. Telekinetic energy effects around hands and body. Phoenix firebird silhouette in background. Psychic energy aura and floating debris. Background with cosmic/psychic realm elements. Orange and gold psychic lighting. Jean Grey aesthetic with Phoenix power.`,
+
+    'Роуг': `${baseSettings} A strong ${
+      gender === 'male' ? 'mutant' : 'mutant'
+    } in green and yellow X-Men outfit with distinctive white-striped hair. ${
+      gender === 'male' ? 'Power-absorbing stance' : 'Southern belle warrior pose'
+    }. Green bodysuit with yellow accents and X-Men insignia. White streak through brown hair. Long gloves covering hands (power-dampening). Flight-ready pose with confident expression. Background with X-Men mansion and training facility. Green and yellow team lighting. Rogue aesthetic with power-absorption abilities.`,
+
+    'Китти Прайд': `${baseSettings} A young ${
+      gender === 'male' ? 'mutant' : 'mutant'
+    } in blue and yellow X-Men training outfit. ${
+      gender === 'male' ? 'Phasing power stance' : 'Shadowcat pose'
+    }. Blue bodysuit with yellow X-Men accents. Short brown hair in practical style. Phasing effects showing partial transparency. Computer equipment or technological elements nearby. Youthful but determined expression. Background with X-Men academy and high-tech elements. Blue and yellow team lighting. Kitty Pryde aesthetic with phasing powers.`,
+
+    'Псайлок': `${baseSettings} A mysterious ${
+      gender === 'male' ? 'ninja' : 'ninja'
+    } in purple bodysuit with psychic blade effects. ${
+      gender === 'male' ? 'Psychic warrior stance' : 'Psylocke combat pose'
+    }. Form-fitting purple outfit with armor elements. Long dark hair with headband or hair accessories. Psychic energy blade extending from hand. Martial arts combat pose with ninja elements. Background with Japanese/mystical elements. Purple psychic energy lighting. Psylocke aesthetic with psychic ninja powers.`,
+
+    'Мистик': `${baseSettings} A shapeshifting ${
+      gender === 'male' ? 'mutant' : 'mutant'
+    } with blue skin and shape-changing abilities. ${
+      gender === 'male' ? 'Transformation stance' : 'Mystique pose'
+    }. Blue-scaled skin texture with yellow eyes. Minimal but strategic clothing. Shape-shifting effects showing transformation. Red/orange hair in distinctive style. Predatory and dangerous expression. Background with multiple identity silhouettes. Blue and yellow lighting with mystical effects. Mystique aesthetic with shapeshifting powers.`,
+
+    'Эмма Фрост': `${baseSettings} A telepathic ${
+      gender === 'male' ? 'telepath' : 'telepath'
+    } in elegant white outfit with diamond-form capabilities. ${
+      gender === 'male' ? 'Diamond form stance' : 'White Queen pose'
+    }. White business outfit or X-Men costume. Platinum blonde hair in sophisticated style. Diamond crystalline skin transformation effects. Psychic energy aura around head and hands. Elegant but powerful posture. Background with luxury and psychic energy elements. White and crystalline lighting. Emma Frost aesthetic with diamond form and telepathy.`,
+
+    'Небула': `${baseSettings} A cybernetic ${
+      gender === 'male' ? 'warrior' : 'warrior'
+    } in blue and silver cyborg outfit with mechanical elements. ${
+      gender === 'male' ? 'Cyborg combat stance' : 'Nebula warrior pose'
+    }. Blue skin with visible cybernetic implants and prosthetics. Bald head with mechanical skull elements. High-tech weapons and gadgets. Cybernetic eye and facial modifications. Background with cosmic space and technology. Blue and silver metallic lighting. Nebula aesthetic with cyborg technology.`,
+
+    'Капитан Картер': `${baseSettings} A heroic ${
+      gender === 'male' ? 'super-soldier' : 'super-soldier'
+    } in Union Jack-themed outfit with shield. ${
+      gender === 'male' ? 'British hero stance' : 'Captain Carter pose'
+    }. Red, white, and blue outfit with British flag elements. Round shield with Union Jack design. 1940s military-inspired uniform with modern touches. Strong, determined expression with period-appropriate hair. Background with WWII-era British elements. Patriotic red, white, and blue lighting. Captain Carter aesthetic with British super-soldier theme.`,
+
+    // ================= DC UNIVERSE HEROES (MISSING) =================
+    'Зелёный фонарь': `${baseSettings} A cosmic ${
+      gender === 'male' ? 'lantern' : 'lantern'
+    } in green and black space corps uniform. ${
+      gender === 'male' ? 'Willpower manifestation stance' : 'Green Lantern pose'
+    }. Green bodysuit with black accents and lantern corps insignia. Power ring creating green energy constructs. Green energy aura surrounding the figure. Various green light constructs (weapons, shields, tools). Background with space sector and cosmic elements. Bright green lantern lighting. Green Lantern aesthetic with willpower energy.`,
+
+    'Аквамен': `${baseSettings} A regal ${
+      gender === 'male' ? 'ocean king' : 'ocean queen'
+    } in orange and green Atlantean royal armor. ${
+      gender === 'male' ? 'King of seas stance' : 'Atlantean royalty pose'
+    }. Golden trident with five prongs and mystical powers. Orange and green scaled armor with Atlantean designs. Long flowing hair with oceanic elements. Aquatic creatures swimming nearby. Background with underwater Atlantis kingdom. Blue-green oceanic lighting with water effects. Aquaman aesthetic with oceanic monarchy.`,
+
+    'Зелёная стрела': `${baseSettings} A skilled ${
+      gender === 'male' ? 'archer' : 'archer'
+    } in green hood and tactical archery gear. ${
+      gender === 'male' ? 'Master archer stance' : 'Green Arrow pose'
+    }. Green hooded outfit with practical archery equipment. Compound bow with specialized arrows. Quiver full of trick arrows with various effects. Precise aiming pose with focused expression. Background with urban cityscape and rooftops. Green and brown tactical lighting. Green Arrow aesthetic with archery expertise.`,
+
+    'Найтвинг': `${baseSettings} A acrobatic ${
+      gender === 'male' ? 'hero' : 'hero'
+    } in blue and black costume with bird motifs. ${
+      gender === 'male' ? 'Acrobatic combat stance' : 'Nightwing pose'
+    }. Blue bodysuit with black accents and stylized bird emblem. Dual escrima sticks or batons in hands. Athletic build with acrobatic flexibility. Domino mask covering eyes. Background with Blüdhaven cityscape at night. Blue and black dramatic lighting. Nightwing aesthetic with acrobatic skills.`,
+
+    'Дэфстроук': `${baseSettings} A tactical ${
+      gender === 'male' ? 'mercenary' : 'mercenary'
+    } in orange and blue military armor. ${
+      gender === 'male' ? 'Master tactician stance' : 'Deathstroke combat pose'
+    }. Orange and blue tactical armor with military design. Single-eye mask with targeting elements. Various weapons including sword, guns, and grenades. Enhanced physical capabilities pose. Background with military/mercenary elements. Orange and steel blue tactical lighting. Deathstroke aesthetic with military precision.`,
+
+    'Чудо-женщина': `${baseSettings} A powerful ${
+      gender === 'male' ? 'Amazon warrior' : 'Amazon warrior'
+    } in red, gold and blue Amazonian armor. ${
+      gender === 'male' ? 'Divine warrior stance' : 'Wonder Woman pose'
+    }. Golden lasso of truth coiled at side or in hand. Indestructible silver bracelets on wrists. Tiara with red star centerpiece. Red and gold armor with Amazonian designs. Background with Themyscira island and Greek elements. Golden divine lighting with truth energy. Wonder Woman aesthetic with Amazonian heritage.`,
+
+    'Харли Квинн': `${baseSettings} A chaotic ${
+      gender === 'male' ? 'jester' : 'jester'
+    } in colorful harlequin outfit with playful weapons. ${
+      gender === 'male' ? 'Chaotic fun stance' : 'Harley Quinn pose'
+    }. Red and blue jester costume with diamond patterns. Twin-tailed hair in blonde and colored highlights. Baseball bat or oversized mallet as weapon. Playful but dangerous expression with jester makeup. Background with carnival/chaos elements and bright colors. Bright red and blue carnival lighting. Harley Quinn aesthetic with chaotic fun energy.`,
+
+    'Супергёрл': `${baseSettings} A youthful ${
+      gender === 'male' ? 'Kryptonian' : 'Kryptonian'
+    } in blue and red costume with cape and hope symbol. ${
+      gender === 'male' ? 'Super-powered flight stance' : 'Supergirl pose'
+    }. Blue bodysuit with red cape and S-shield emblem. Blonde hair flowing in wind with cape effects. Flying pose with one fist forward. Heat vision effect from eyes (optional). Background with Metropolis cityscape and sky. Bright blue and red heroic lighting. Supergirl aesthetic with Kryptonian powers.`,
+
+    'Бэтгерл': `${baseSettings} A skilled ${
+      gender === 'male' ? 'vigilante' : 'vigilante'
+    } in purple and yellow bat-themed costume. ${
+      gender === 'male' ? 'Bat-family stance' : 'Batgirl pose'
+    }. Purple bodysuit with yellow bat-symbol and utility belt. Flowing red hair visible under or around cowl. Grappling hook and various bat-gadgets. Athletic pose showing martial arts training. Background with Gotham City rooftops at night. Purple and yellow bat-lighting. Batgirl aesthetic with detective skills.`,
+
+    'Кэтвумен': `${baseSettings} A sleek ${
+      gender === 'male' ? 'cat burglar' : 'cat burglar'
+    } in black leather cat suit with feline elements. ${
+      gender === 'male' ? 'Cat-like prowling stance' : 'Catwoman pose'
+    }. Form-fitting black leather outfit with cat ears and tail. Whip coiled at side or in action pose. Cat-like mask covering eyes and nose. Clawed gloves for climbing and combat. Background with Gotham rooftops and jewelry heist elements. Dark purple and black cat lighting. Catwoman aesthetic with feline agility.`,
+
+    'Ядовитый плющ': `${baseSettings} A botanical ${
+      gender === 'male' ? 'eco-terrorist' : 'eco-terrorist'
+    } in green plant-themed outfit with nature powers. ${
+      gender === 'male' ? 'Plant control stance' : 'Poison Ivy pose'
+    }. Green bodysuit made of leaves and vines. Red hair with flower and leaf accessories. Plants and vines growing around and from the figure. Toxic kiss pose or plant manipulation gesture. Background with overgrown greenhouse and botanical elements. Green and red natural lighting. Poison Ivy aesthetic with plant control powers.`,
+
+    'Рейвен': `${baseSettings} A mystical ${
+      gender === 'male' ? 'half-demon' : 'half-demon'
+    } in dark blue hooded cloak with demonic elements. ${
+      gender === 'male' ? 'Dark magic stance' : 'Raven pose'
+    }. Dark blue hooded cloak covering most of body. Four glowing red eyes (demonic form) or normal eyes. Dark energy/shadow manipulation around hands. Levitating pose with mystical energy. Background with dark dimensions and mystical portals. Dark blue and red demonic lighting. Raven aesthetic with dark magic powers.`,
+
+    'Старфайр': `${baseSettings} A alien ${
+      gender === 'male' ? 'warrior' : 'princess'
+    } in purple outfit with energy projection abilities. ${
+      gender === 'male' ? 'Energy projection stance' : 'Starfire pose'
+    }. Purple bodysuit with alien design elements. Long red-orange hair flowing with energy. Green energy bolts firing from hands and eyes. Flight pose with energy trail effects. Joyful but powerful expression. Background with space and alien technology. Purple and green energy lighting. Starfire aesthetic with alien energy powers.`,
+
+    'Мера': `${baseSettings} A royal ${
+      gender === 'male' ? 'hydromancer' : 'hydromancer'
+    } in green and gold Atlantean royal outfit. ${
+      gender === 'male' ? 'Water control stance' : 'Mera pose'
+    }. Green and gold Atlantean armor with scale patterns. Red hair in elaborate royal style. Water manipulation effects around hands and body. Trident or hard-water constructs as weapons. Background with underwater palace and aquatic life. Blue-green oceanic lighting with water effects. Mera aesthetic with hydrokinetic powers.`,
+
+    'Хищные птицы': `${baseSettings} A team ${
+      gender === 'male' ? 'vigilante' : 'vigilante'
+    } representing multiple heroines in coordinated outfits. ${
+      gender === 'male' ? 'Team formation stance' : 'Birds of Prey pose'
+    }. Mix of purple, black, and colorful tactical outfits. Various weapons including bow, batons, and martial arts gear. Group dynamic with individual fighting styles shown. Background with Gotham City and team headquarters. Mixed lighting highlighting team coordination. Birds of Prey aesthetic with female empowerment.`,
+
+    'Черная канарейка': `${baseSettings} A sonic ${
+      gender === 'male' ? 'hero' : 'hero'
+    } in black leather outfit with sound wave elements. ${
+      gender === 'male' ? 'Sonic scream stance' : 'Black Canary pose'
+    }. Black leather jacket and tactical outfit. Blonde hair in dramatic wind-blown style. Sonic scream effects with visible sound waves. Hands positioned to channel sonic powers. Background with shattered glass and sound wave effects. Black and blue sonic lighting. Black Canary aesthetic with sonic powers.`,
+
+    'Джессика Круз': `${baseSettings} A determined ${
+      gender === 'male' ? 'Green Lantern' : 'Green Lantern'
+    } in green and black lantern corps uniform with anxiety elements. ${
+      gender === 'male' ? 'Overcoming fear stance' : 'Jessica Cruz pose'
+    }. Green lantern uniform with personal touches and design elements. Power ring creating protective constructs. Green energy showing both power and protective barriers. Determined expression overcoming internal struggles. Background with Earth sector and personal growth elements. Bright green willpower lighting. Jessica Cruz aesthetic with courage over fear.`,
+
+    // ================= ANIME HEROES (MISSING) =================
+    'Саитама': `${baseSettings} A bald ${
+      gender === 'male' ? 'hero' : 'hero'
+    } in simple yellow and red hero costume. ${
+      gender === 'male' ? 'One punch ready stance' : 'One Punch pose'
+    }. Completely bald head with simple facial features. Yellow jumpsuit with red gloves and cape. White cape flowing behind. Simple but confident pose. Understated but immense power aura. Background with city and hero association elements. Bright yellow and red heroic lighting. One Punch Man aesthetic with overwhelming simplicity.`,
+
+    'Лайт Ягами': `${baseSettings} A intelligent ${
+      gender === 'male' ? 'student' : 'student'
+    } in school uniform with notebook and sinister aura. ${
+      gender === 'male' ? 'Death Note writing stance' : 'Kira pose'
+    }. Japanese school uniform or casual intelligent clothing. Death Note book in hand with dramatic shadows. Intense calculating expression with hidden malice. Shinigami silhouette or death symbols in background. Background with Japanese urban setting and justice themes. Dark dramatic lighting with red accents. Death Note aesthetic with moral complexity.`,
+
+    'Какаши': `${baseSettings} A skilled ${
+      gender === 'male' ? 'ninja' : 'ninja'
+    } in gray ninja outfit with face mask and headband. ${
+      gender === 'male' ? 'Copy ninja stance' : 'Kakashi pose'
+    }. Gray ninja vest and dark pants with tactical gear. Face mask covering lower face with visible gray hair. Konoha ninja headband covering one eye. Lightning chakra effects around hand (Chidori). Background with Hidden Leaf Village and training grounds. Blue lightning and silver ninja lighting. Naruto aesthetic with ninja mastery.`,
+
+    'Сасукэ': `${baseSettings} A brooding ${
+      gender === 'male' ? 'ninja' : 'ninja'
+    } in dark blue outfit with Uchiha clan symbols. ${
+      gender === 'male' ? 'Sharingan power stance' : 'Sasuke pose'
+    }. Dark blue high-collared shirt and white shorts or pants. Sharingan eye effect with red swirling pattern. Lightning chakra crackling around body. Dark hair in distinctive spiky style. Background with Uchiha clan elements and lightning effects. Red and blue dramatic ninja lighting. Naruto aesthetic with clan heritage.`,
+
+    'Вегета': `${baseSettings} A proud ${
+      gender === 'male' ? 'Saiyan prince' : 'Saiyan princess'
+    } in royal blue and white Saiyan armor. ${
+      gender === 'male' ? 'Saiyan royal stance' : 'Vegeta pose'
+    }. Blue and white Saiyan battle armor with royal elements. Distinctive flame-shaped black hair. Crossed arms in arrogant pose or energy attack position. Golden ki energy aura surrounding figure. Background with space and Saiyan planet elements. Golden and blue Saiyan energy lighting. Dragon Ball Z aesthetic with Saiyan pride.`,
+
+    'Пикколо': `${baseSettings} A wise ${
+      gender === 'male' ? 'Namekian warrior' : 'Namekian warrior'
+    } in purple and white martial arts outfit. ${
+      gender === 'male' ? 'Namekian meditation stance' : 'Piccolo pose'
+    }. Green skin with pink muscle patches and Namekian features. Purple gi with white cape and turban. Weighted training clothes or meditation pose. Energy beam charging from fingertips. Background with martial arts dojo and Earth elements. Green and purple Namekian lighting. Dragon Ball Z aesthetic with warrior wisdom.`,
+
+    'Натсу': `${baseSettings} A energetic ${
+      gender === 'male' ? 'dragon slayer' : 'dragon slayer'
+    } in dragon-themed outfit with fire magic. ${
+      gender === 'male' ? 'Fire dragon stance' : 'Natsu pose'
+    }. Open vest showing dragon scale scarf and flame patterns. Pink/salmon hair in spiky style. Fire magic effects surrounding hands and body. Dragon slayer magical aura. Background with Fairy Tail guild and magical elements. Orange and red fire magic lighting. Fairy Tail aesthetic with dragon slayer magic.`,
+
+    'Эрен Йегер': `${baseSettings} A determined ${
+      gender === 'male' ? 'titan shifter' : 'titan shifter'
+    } in Survey Corps uniform with ODM gear. ${
+      gender === 'male' ? 'Titan transformation stance' : 'Eren pose'
+    }. Survey Corps green cloak and brown leather ODM gear. Titan transformation steam effects around body. Dual blades for titan combat. Intense expression with freedom-seeking eyes. Background with walls and titan battlefield. Green and brown military lighting with steam effects. Attack on Titan aesthetic with transformation power.`,
+
+    'Леви Аккерман': `${baseSettings} A skilled ${
+      gender === 'male' ? 'soldier' : 'soldier'
+    } in Survey Corps uniform with superior combat abilities. ${
+      gender === 'male' ? 'Humanity\'s strongest stance' : 'Levi pose'
+    }. Clean Survey Corps uniform with white cravat. ODM gear with spinning blade techniques. Short black hair in undercut style. Precise combat pose with dual blades. Background with urban titan combat zone. Steel blue and white precision lighting. Attack on Titan aesthetic with unmatched skill.`,
+
+    'Сейлор Мун': `${baseSettings} A magical ${
+      gender === 'male' ? 'guardian' : 'guardian'
+    } in sailor fuku with moon and celestial elements. ${
+      gender === 'male' ? 'Sailor guardian stance' : 'Sailor Moon pose'
+    }. Blue and red sailor outfit with moon tiara and accessories. Blonde hair in distinctive twin buns with long tails. Moon stick or crystal heart compact in hand. Magical girl transformation sparkles around body. Background with moon, stars, and magical elements. Pink and blue magical lighting. Sailor Moon aesthetic with lunar magic.`,
+
+    'Мику Хацунэ': `${baseSettings} A virtual ${
+      gender === 'male' ? 'idol' : 'idol'
+    } in turquoise outfit with digital/holographic elements. ${
+      gender === 'male' ? 'Digital performance stance' : 'Hatsune Miku pose'
+    }. Turquoise hair in distinctive twin-tail style. High-tech outfit with digital patterns and LED elements. Microphone or digital interface props. Holographic and digital effects surrounding figure. Background with concert stage and digital screens. Cyan and digital blue lighting effects. Vocaloid aesthetic with virtual idol performance.`,
+
+    'Сакура Харуно': `${baseSettings} A medical ${
+      gender === 'male' ? 'ninja' : 'ninja'
+    } in pink and red ninja outfit with medical elements. ${
+      gender === 'male' ? 'Medical ninjutsu stance' : 'Sakura pose'
+    }. Pink hair in practical ninja style. Red outfit with medical ninja accessories. Healing chakra glowing from hands in green energy. Super strength pose with ground-breaking effects. Background with Konoha hospital and cherry blossoms. Pink and green medical chakra lighting. Naruto aesthetic with medical specialization.`,
+
+    'Хината Хьюга': `${baseSettings} A gentle ${
+      gender === 'male' ? 'ninja' : 'ninja'
+    } in purple and cream Hyuga clan outfit. ${
+      gender === 'male' ? 'Byakugan activation stance' : 'Hinata pose'
+    }. Long dark hair in neat style with Hyuga clan elements. Purple and cream colored ninja outfit. Byakugan activated with pale eyes and visible veins. Gentle Fist martial arts pose. Background with Hyuga compound and traditional elements. Pale blue and purple Hyuga lighting. Naruto aesthetic with noble clan heritage.`,
+
+    'Цунадэ': `${baseSettings} A powerful ${
+      gender === 'male' ? 'medical ninja' : 'medical ninja'
+    } in green haori with gambling and medical elements. ${
+      gender === 'male' ? 'Fifth Hokage stance' : 'Tsunade pose'
+    }. Blonde hair in twin tails with green haori jacket. Medical ninja outfit with Hokage elements. Super strength chakra enhancement around fists. Healing jutsu effects or sake cup in hand. Background with Hokage office and medical facility. Green and gold medical lighting. Naruto aesthetic with legendary medical skills.`,
+
+    'Булма': `${baseSettings} A brilliant ${
+      gender === 'male' ? 'scientist' : 'scientist'
+    } in fashionable outfit with scientific gadgets. ${
+      gender === 'male' ? 'Genius inventor stance' : 'Bulma pose'
+    }. Stylish outfit changing colors (blue hair constant). Various scientific devices and dragon radar technology. Capsule Corp technology and inventions. Fashionable but practical scientist appearance. Background with laboratory and Capsule Corp elements. Blue and technological lighting. Dragon Ball aesthetic with scientific innovation.`,
+
+    '18-й андроид': `${baseSettings} A powerful ${
+      gender === 'male' ? 'android' : 'android'
+    } in casual outfit with mechanical enhancements. ${
+      gender === 'male' ? 'Android power stance' : 'Android 18 pose'
+    }. Casual denim and striped shirt with blonde hair. Subtle mechanical elements suggesting android nature. Energy blast effects from hands. Cool, emotionless expression with hidden humanity. Background with futuristic city and mechanical elements. Blue and silver android lighting. Dragon Ball Z aesthetic with artificial being power.`,
+
+    'Эрза Скарлет': `${baseSettings} A armored ${
+      gender === 'male' ? 'knight' : 'knight'
+    } in magical armor with weapon requip abilities. ${
+      gender === 'male' ? 'Armor requip stance' : 'Erza pose'
+    }. Various magical armors switching between different sets. Red hair in practical battle style. Multiple weapons appearing through requip magic. Serious warrior expression with tactical mind. Background with Fairy Tail guild and weapon storage. Red and silver armor lighting. Fairy Tail aesthetic with equipment magic.`,
+
+    'Микаса Аккерман': `${baseSettings} A dedicated ${
+      gender === 'male' ? 'soldier' : 'soldier'
+    } in Survey Corps uniform with exceptional combat skills. ${
+      gender === 'male' ? 'Elite soldier stance' : 'Mikasa pose'
+    }. Survey Corps green cloak and ODM gear in perfect condition. Dark hair in practical combat style. Red scarf flowing in wind. Dual blades with perfect combat form. Background with titan battlefield and Eren protection elements. Red and green military lighting. Attack on Titan aesthetic with unwavering loyalty.`,
+
+    'Рей Аянами': `${baseSettings} A mysterious ${
+      gender === 'male' ? 'EVA pilot' : 'EVA pilot'
+    } in school uniform or plug suit with ethereal elements. ${
+      gender === 'male' ? 'Enigmatic presence stance' : 'Rei pose'
+    }. Blue hair in short bob cut with red eyes. White and blue school uniform or EVA plug suit. Ethereal, emotionless expression with hidden depth. AT Field or angelic effects surrounding figure. Background with NERV facility and Angel elements. Blue and white ethereal lighting. Evangelion aesthetic with mysterious origins.`,
+
+    'Асука Лэнгли': `${baseSettings} A confident ${
+      gender === 'male' ? 'EVA pilot' : 'EVA pilot'
+    } in red plug suit with German elements. ${
+      gender === 'male' ? 'Competitive pilot stance' : 'Asuka pose'
+    }. Red hair in twin tails with hair clips. Red EVA plug suit with Unit-02 elements. Confident, competitive expression with pilot pride. Progressive knife or EVA combat effects. Background with EVA Unit-02 and German military elements. Red and orange confident lighting. Evangelion aesthetic with pilot superiority.`,
+
+    'Фэй Валентайн': `${baseSettings} A bounty ${
+      gender === 'male' ? 'hunter' : 'hunter'
+    } in yellow outfit with space cowboy elements. ${
+      gender === 'male' ? 'Space bounty stance' : 'Faye pose'
+    }. Yellow top and shorts with red jacket. Long purple hair with cigarette or drink. Blaster pistol and gambling elements. Seductive but dangerous pose with space cowboy attitude. Background with spaceship and casino elements. Yellow and purple jazz lighting. Cowboy Bebop aesthetic with space noir style.`,
+
+    'Нами': `${baseSettings} A skilled ${
+      gender === 'male' ? 'navigator' : 'navigator'
+    } in orange outfit with weather control abilities. ${
+      gender === 'male' ? 'Weather manipulation stance' : 'Nami pose'
+    }. Orange hair and outfit with nautical elements. Clima-Tact weather weapon creating storm effects. Navigation and treasure mapping tools. Confident navigator pose with weather magic. Background with ship navigation and treasure elements. Orange and blue weather lighting. One Piece aesthetic with navigation expertise.`,
+
+    'Nico Robin': `${baseSettings} A archaeological ${
+      gender === 'male' ? 'scholar' : 'scholar'
+    } in dark outfit with flower petal abilities. ${
+      gender === 'male' ? 'Archaeological stance' : 'Robin pose'
+    }. Black hair and dark sophisticated outfit. Flower-Flower Fruit effects with multiple arms sprouting. Ancient text or poneglyph elements. Calm, intellectual expression with dark past. Background with archaeological ruins and ancient knowledge. Purple and dark blue scholarly lighting. One Piece aesthetic with forbidden knowledge.`,
+
+    'Риас Гремори': `${baseSettings} A noble ${
+      gender === 'male' ? 'devil' : 'devil'
+    } in red and black devil outfit with aristocratic elements. ${
+      gender === 'male' ? 'High-class devil stance' : 'Rias pose'
+    }. Crimson red hair in elegant style. Red and black devil outfit with aristocratic design. Devil wings and magical circle effects. Confident noble expression with protective nature. Background with devil society and magic academy. Red and black noble lighting. High School DxD aesthetic with devil aristocracy.`,
+
+    'Zero Two': `${baseSettings} A mysterious ${
+      gender === 'male' ? 'klaxosaur hybrid' : 'klaxosaur hybrid'
+    } in white and red pilot suit with horn elements. ${
+      gender === 'male' ? 'Darling in the FranXX stance' : 'Zero Two pose'
+    }. Pink hair with distinctive red horns. White pilot suit with red accents and 002 designation. Playful but dangerous expression with fanged smile. FranXX mecha elements and Klaxosaur effects. Background with futuristic dystopia and mecha elements. Pink and red hybrid lighting. Darling in the FranXX aesthetic with hybrid nature.`,
+
+    // ================= SLAVIC/RUSSIAN HEROES (MISSING) =================
+    'Алеша Попович': `${baseSettings} A clever young ${gender === 'male' ? 'bogatyr' : 'warrior'} in light Russian chainmail with bow and arrows. Background with Russian countryside.`,
+    'Перун': `${baseSettings} A thunder ${gender === 'male' ? 'god' : 'goddess'} in golden Slavic armor with lightning hammer. Lightning effects and stormy sky.`,
+    'Святогор': `${baseSettings} A gigantic ${gender === 'male' ? 'bogatyr' : 'warrior'} in massive earth-colored armor. Mountain background with stone elements.`,
+    'Берегиня': `${baseSettings} A protective spirit in flowing water dress with nature elements. Russian river and forest background.`,
+    'Русалка': `${baseSettings} A water spirit in flowing aquatic dress with long hair. Russian river with willows and moonlight.`,
+
+    // ================= GAMES HEROES (MISSING) =================
+    'Кратос': `${baseSettings} A vengeful ${
+      gender === 'male' ? 'god slayer' : 'god slayer'
+    } in Spartan armor with godly weapons. ${
+      gender === 'male' ? 'God of War stance' : 'Kratos pose'
+    }. Red tattoo or body paint in swirling patterns. Blades of Chaos chained to forearms. Spartan warrior armor mixed with god-killing artifacts. Intense rage expression with scarred features. Background with Greek mythology and godly destruction. Red and bronze divine lighting. God of War aesthetic with mythological vengeance.`,
+
+    'Геральт из Ривии': `${baseSettings} A professional ${
+      gender === 'male' ? 'witcher' : 'witcher'
+    } in leather armor with monster hunting gear. ${
+      gender === 'male' ? 'Monster hunter stance' : 'Geralt pose'
+    }. White hair in distinctive witcher style. Dark leather armor with silver studs and witcher medallion. Silver and steel swords for monster and human enemies. Witcher signs magic effects around hands. Background with fantasy monsters and medieval elements. Silver and amber witcher lighting. The Witcher aesthetic with professional monster hunting.`,
+
+    'Мастер Чиф': `${baseSettings} A armored ${
+      gender === 'male' ? 'super soldier' : 'super soldier'
+    } in green MJOLNIR power armor. ${
+      gender === 'male' ? 'Spartan warrior stance' : 'Master Chief pose'
+    }. Green and orange MJOLNIR Mark VI power armor. Reflective golden visor hiding face. Assault rifle and Covenant energy weapons. Spartan augmentation enhanced physique. Background with Halo ring and Covenant technology. Green and orange UNSC lighting. Halo aesthetic with military sci-fi technology.`,
+
+    'Данте': `${baseSettings} A stylish ${
+      gender === 'male' ? 'devil hunter' : 'devil hunter'
+    } in red coat with demonic weapons. ${
+      gender === 'male' ? 'Devil hunter stance' : 'Dante pose'
+    }. Red leather trenchcoat with demonic heritage styling. White hair in stylish cut with dual pistols. Demonic sword and devil trigger transformation effects. Cocky confident expression with demon-fighting attitude. Background with gothic demons and stylish combat. Red and white stylish lighting. Devil May Cry aesthetic with demonic style.`,
+
+    'Субзиро': `${baseSettings} A cryomancer ${
+      gender === 'male' ? 'ninja' : 'ninja'
+    } in blue and black ice-themed outfit. ${
+      gender === 'male' ? 'Cryomancer stance' : 'Sub-Zero pose'
+    }. Blue and black ninja outfit with ice armor elements. Ice mask covering face with cold breath effects. Ice projectiles and freezing attacks. Cryomancer abilities creating ice and frost. Background with Lin Kuei temple and frozen elements. Blue and white ice lighting. Mortal Kombat aesthetic with ice powers.`,
+
+    'Скорпион': `${baseSettings} A vengeful ${
+      gender === 'male' ? 'specter' : 'specter'
+    } in yellow and black ninja outfit with flame elements. ${
+      gender === 'male' ? 'Hell specter stance' : 'Scorpion pose'
+    }. Yellow and black ninja outfit with skull motifs. Chain spear weapon with "Get over here!" pose. Hellfire effects and burning skull transformation. Vengeful spirit with flame-based attacks. Background with Netherrealm and hellish elements. Orange and yellow hellfire lighting. Mortal Kombat aesthetic with hellish vengeance.`,
+
+    'Рю': `${baseSettings} A disciplined ${
+      gender === 'male' ? 'martial artist' : 'martial artist'
+    } in white karate gi with fighting spirit. ${
+      gender === 'male' ? 'Hadoken stance' : 'Ryu pose'
+    }. White karate gi with red headband and belt. Hadoken energy ball charging between hands. Disciplined martial arts training pose. Shotokan karate fighting stance. Background with dojo and martial arts training. Blue and white ki energy lighting. Street Fighter aesthetic with martial arts mastery.`,
+
+    'Кен': `${baseSettings} A flashy ${
+      gender === 'male' ? 'martial artist' : 'martial artist'
+    } in red karate gi with flame techniques. ${
+      gender === 'male' ? 'Shoryuken stance' : 'Ken pose'
+    }. Red karate gi with blonde hair in ponytail. Flaming Shoryuken uppercut pose with fire effects. Flashy American martial arts style. Confident fighting stance with showmanship. Background with American urban setting. Red and orange flame lighting. Street Fighter aesthetic with American flair.`,
+
+    'Соник': `${baseSettings} A speedy ${
+      gender === 'male' ? 'hedgehog' : 'hedgehog'
+    } in blue with super speed elements. ${
+      gender === 'male' ? 'Super speed stance' : 'Sonic pose'
+    }. Blue hedgehog design with red shoes and white gloves. Speed blur effects and motion lines. Spin dash or running pose with attitude. Golden rings and speed boost elements. Background with Green Hill Zone and loop-de-loops. Blue and gold speed lighting. Sonic the Hedgehog aesthetic with super speed.`,
+
+    'Марио': `${baseSettings} A heroic ${
+      gender === 'male' ? 'plumber' : 'plumber'
+    } in red and blue plumber outfit with power-ups. ${
+      gender === 'male' ? 'Power-up jump stance' : 'Mario pose'
+    }. Red shirt, blue overalls, and distinctive red cap with M logo. Super Mushroom, Fire Flower, or Star power-up effects. Classic jumping pose with fist raised. Warp pipe and Super Mario world elements. Background with Mushroom Kingdom and castle. Red and blue heroic lighting. Super Mario aesthetic with power-up abilities.`,
+
+    'Линк': `${baseSettings} A courageous ${
+      gender === 'male' ? 'hero' : 'hero'
+    } in green tunic with Master Sword and shield. ${
+      gender === 'male' ? 'Hero of Hyrule stance' : 'Link pose'
+    }. Green tunic and cap with chainmail and leather accessories. Master Sword and Hylian Shield. Bow and arrows with various adventure gear. Triforce symbol glowing with courage energy. Background with Hyrule kingdom and adventure elements. Green and gold heroic lighting. Legend of Zelda aesthetic with heroic adventure.`,
+
+    'Клауд Страйф': `${baseSettings} A brooding ${
+      gender === 'male' ? 'SOLDIER' : 'SOLDIER'
+    } in dark outfit with massive sword. ${
+      gender === 'male' ? 'Buster Sword stance' : 'Cloud pose'
+    }. Spiky blonde hair in distinctive Cloud style. Dark SOLDIER outfit with shoulder armor and straps. Massive Buster Sword nearly as tall as wielder. Limit Break energy effects and materia magic. Background with Midgar city and Mako energy. Blue and green Mako lighting. Final Fantasy VII aesthetic with SOLDIER power.`,
+
+    'Сефирот': `${baseSettings} A ethereal ${
+      gender === 'male' ? 'SOLDIER' : 'SOLDIER'
+    } in black outfit with angelic elements. ${
+      gender === 'male' ? 'One-winged angel stance' : 'Sephiroth pose'
+    }. Long silver hair flowing dramatically. Black leather outfit with silver details. Masamune katana with impossible length. Single black wing and angelic/demonic aura. Background with burning Nibelheim and meteor. Silver and black dramatic lighting. Final Fantasy VII aesthetic with fallen angel power.`,
+
+    'Спаун': `${baseSettings} A hellish ${
+      gender === 'male' ? 'anti-hero' : 'anti-hero'
+    } in demonic armor with chains and cape. ${
+      gender === 'male' ? 'Hell-spawned stance' : 'Spawn pose'
+    }. Black and red demonic armor with skull motifs. Flowing red cape with mind of its own. Chains wrapping around body as weapons. Glowing green eyes and necroplasm energy. Background with hellish landscape and urban decay. Red and green hellish lighting. Spawn aesthetic with hellish supernatural power.`,
+
+    'Альтаир': `${baseSettings} A master ${
+      gender === 'male' ? 'assassin' : 'assassin'
+    } in white hooded robes with hidden blade. ${
+      gender === 'male' ? 'Eagle vision stance' : 'Altair pose'
+    }. White assassin robes with hood covering face. Hidden blade extending from wrist gauntlet. Eagle feathers and Assassin insignia details. Parkour pose on Middle Eastern architecture. Background with Jerusalem during Crusades. White and gold ancient lighting. Assassin's Creed aesthetic with stealth mastery.`,
+
+    'Эцио': `${baseSettings} A charismatic ${
+      gender === 'male' ? 'assassin' : 'assassin'
+    } in Renaissance Italian assassin robes. ${
+      gender === 'male' ? 'Renaissance master stance' : 'Ezio pose'
+    }. Ornate Italian Renaissance assassin outfit with family colors. Dual hidden blades and Renaissance weapons. Confident expression with Italian charm. Eagle vision and parkour abilities. Background with Renaissance Italian architecture. Rich brown and gold Renaissance lighting. Assassin's Creed aesthetic with Renaissance mastery.`,
+
+    'Лара Крофт': `${baseSettings} A adventurous ${
+      gender === 'male' ? 'archaeologist' : 'archaeologist'
+    } in practical expedition gear with dual pistols. ${
+      gender === 'male' ? 'Tomb raider stance' : 'Lara Croft pose'
+    }. Practical brown tank top and cargo pants. Dual pistols holstered at thighs. Rock climbing gear and archaeological tools. Athletic build with adventure-ready posture. Background with ancient tomb and treasure hunting. Brown and gold adventure lighting. Tomb Raider aesthetic with archaeological adventure.`,
+
+    'Чун Ли': `${baseSettings} A strong ${
+      gender === 'male' ? 'martial artist' : 'martial artist'
+    } in blue qipao with combat elements. ${
+      gender === 'male' ? 'Lightning legs stance' : 'Chun-Li pose'
+    }. Blue qipao dress with combat modifications and white boots. Ox horns hairstyle with hair ribbons. Lightning Legs kick technique with motion blur. ICPO police elements and justice themes. Background with Chinese architecture and fighting tournament. Blue and white lightning lighting. Street Fighter aesthetic with Chinese martial arts.`,
+
+    // Shortened for space efficiency - rare game characters
+    'Соня Блейд': `${baseSettings} A military ${gender === 'male' ? 'operative' : 'operative'} in green Special Forces outfit. Background with military base.`,
+    'Китана': `${baseSettings} A royal ${gender === 'male' ? 'assassin' : 'assassin'} in blue Edenian outfit with fan weapons. Royal palace background.`,
+    'Джейд': `${baseSettings} A loyal ${gender === 'male' ? 'bodyguard' : 'bodyguard'} in green Edenian outfit with staff weapons.`,
+    'Милина': `${baseSettings} A savage ${gender === 'male' ? 'clone' : 'clone'} in pink outfit with Tarkatan teeth and sai weapons.`,
+    'Трисс Меригольд': `${baseSettings} A sorceress in elegant blue robes with fire magic. Auburn hair and magical academy background.`,
+    'Йеннифэр': `${baseSettings} A powerful sorceress in black outfit with portal magic effects. Elegant style with magical authority.`,
+    'Элли': `${baseSettings} A survivor in post-apocalyptic gear with makeshift weapons. Overgrown ruins background.`,
+    'Джилл Валентайн': `${baseSettings} A S.T.A.R.S. operative in blue uniform with anti-bioweapon gear. Raccoon City background.`,
+    'Ада Вонг': `${baseSettings} A spy in elegant red dress with espionage gear. Corporate intrigue background.`,
+    'Принцесса Зельда': `${baseSettings} A wise ${gender === 'male' ? 'prince' : 'princess'} in royal Hylian dress with Triforce power. Hyrule Castle background.`,
+    'Самус Аран': `${baseSettings} A armored bounty hunter in orange Power Suit with arm cannon. Alien planet background.`,
+    'Байонетта': `${baseSettings} A stylish witch in black outfit with guns and magical hair. Clocktower background.`,
+    'Каратэ': `${baseSettings} A martial artist in white karate gi with colored belt. Traditional dojo background.`,
+    'Тифа Локхарт': `${baseSettings} A strong fighter in dark outfit with martial arts gloves. 7th Heaven bar background.`,
+    'Аэрис': `${baseSettings} A gentle flower seller in pink dress with healing magic. Flower field and church background.`,
+
+    // ================= MOVIES/TV HEROES (MISSING) =================
+    'Джон Уик': `${baseSettings} A professional assassin in black suit with tactical precision. Continental Hotel background.`,
+    'Терминатор': `${baseSettings} A cybernetic assassin in dark outfit with red glowing eyes. Post-apocalyptic background.`,
+    'Хищник': `${baseSettings} A alien hunter with bio-mask and cloaking technology. Jungle hunting ground background.`,
+    'Селин': `${baseSettings} A vampire death dealer in black leather with dual pistols. Gothic architecture background.`,
+    'Алиса Абернати': `${baseSettings} A enhanced survivor with T-virus abilities and tactical outfit. Umbrella Corp background.`,
+
+    // ================= STAR WARS HEROES (MISSING) =================
+    'Рэй Скайуокер': `${baseSettings} A powerful Jedi with lightsaber and Force abilities. Jakku desert background.`,
+    'Принцесса Лея': `${baseSettings} A rebel leader in white senatorial dress with blaster. Rebel alliance background.`,
+    'Ахсока Тano': `${baseSettings} A skilled former Jedi with dual white lightsabers. Clone Wars background.`,
+    'Падме Амидала': `${baseSettings} A elegant senator in Naboo royal dress. Galactic Senate background.`,
+    'Джайна Соло': `${baseSettings} A Jedi Master in robes with advanced lightsaber techniques. New Jedi Order background.`,
+
+    // ================= DISNEY/FAIRY TALES HEROES (MISSING) =================
+    'Эльза': `${baseSettings} A magical ice ${gender === 'male' ? 'king' : 'queen'} in crystalline dress with snow powers. Ice palace background.`,
+    'Анна': `${baseSettings} A spirited ${gender === 'male' ? 'prince' : 'princess'} in Arendelle royal outfit. Norwegian kingdom background.`,
+    'Мулан': `${baseSettings} A brave warrior in Chinese armor with family sword. Great Wall of China background.`,
+    'Покахонтас': `${baseSettings} A nature-connected tribal leader in Native American outfit. Virginia wilderness background.`,
+    'Мерида': `${baseSettings} A rebellious Scottish archer with bow and curly red hair. Scottish highlands background.`,
   }
 
-  // Если промпт для героя не найден, используем общий
-  return (
-    heroPrompts[heroName] ||
-    `${baseSettings} A confident ${
+  // 🚨 СТРОГАЯ ВАЛИДАЦИЯ: проверяем есть ли промпт для героя
+  const heroPrompt = heroPrompts[heroName]
+  
+  if (!heroPrompt) {
+    // 🔥 CRITICAL ERROR: Герой в списке, но промпта нет!
+    console.error(`🚨 [HERO VALIDATION ERROR] Hero "${heroName}" is in heroes list but has NO prompt!`, {
+      heroName,
+      gender,
+      availablePrompts: Object.keys(heroPrompts).length,
+      heroesListLength: maleHeroes.length + femaleHeroes.length
+    })
+    
+    // Возвращаем fallback с логированием
+    return `${baseSettings} A confident ${
       gender === 'male' ? 'man' : 'woman'
     } in modern stylish outfit inspired by ${heroName}. Professional studio lighting with bright, warm tones. Clean background with subtle color effects matching ${heroName}'s signature palette. The person wears fashionable glasses and has a charismatic expression. High-quality portrait photography with premium aesthetic.`
-  )
+  }
+  
+  // ✅ Промпт найден
+  console.log(`✅ [HERO VALIDATION] Hero "${heroName}" has valid prompt`, {
+    heroName,
+    gender,
+    promptLength: heroPrompt.length
+  })
+  
+  return heroPrompt
 }
 
 export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.AvatarTransform,
+  // Шаг 0: Объяснение AI Heroes + выбор пола
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
 
-    logger.info('[AvatarTransformScene] Starting avatar transformation', {
+    logger.info('[AvatarTransformScene] Starting explanation and gender selection', {
       telegramId,
-      step: 'initial',
+      step: 'explanation_and_gender',
     })
 
     // 🔗 ОБРАБОТКА РЕФЕРАЛЬНЫХ ССЫЛОК
@@ -411,7 +1121,6 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
 
       // Возвращаемся в главное меню
-      // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
       return ctx.scene.enter(ModeEnum.MainMenu)
     }
@@ -432,29 +1141,174 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
     }
 
-    try {
-      logger.info('[AvatarTransformScene] Getting user photo', {
+    // 🎯 ЛИДMАГНЕТ: Делаем первое использование БЕСПЛАТНЫМ
+    ctx.session.bypass_payment_check = true
+
+    logger.info(
+      '[AvatarTransformScene] Lead magnet enabled - FREE transformation',
+      {
         telegramId,
-        step: 'fetching_photo',
-      })
+        step: 'lead_magnet_enabled',
+      }
+    )
 
-      // 🎯 ЛИДMАГНЕТ: Делаем первое использование БЕСПЛАТНЫМ
-      ctx.session.bypass_payment_check = true
+    // Показываем объяснение AI Heroes + выбор пола
+    await ctx.reply(
+      isRu
+        ? `🎭 <b>ИИ ГЕРОИ - AI HEROES</b>\n\n🎨 Трансформируйтесь в любимого персонажа!\n\n🤖 <b>Наш ИИ превратит ваше фото в:</b>\n• Супергероев Marvel и DC\n• Персонажей аниме\n• Славянских героев\n• Игровых персонажей\n\n💫 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n🚀 <b>Полный доступ ко всем стилям - в подписке</b>\n\n👇 <b>Выберите пол для стиля персонажа:</b>`
+        : `🎭 <b>AI HEROES</b>\n\n🎨 Transform into your favorite character!\n\n🤖 <b>Our AI will turn your photo into:</b>\n• Marvel and DC superheroes\n• Anime characters\n• Slavic heroes\n• Game characters\n\n💫 <b>This is a FREE demonstration!</b>\n🚀 <b>Full access to all styles - with subscription</b>\n\n👇 <b>Choose gender for character style:</b>`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: Markup.keyboard([
+          [
+            isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male style',
+            isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style',
+          ],
+          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+        ]).resize().reply_markup,
+      }
+    )
 
-      logger.info(
-        '[AvatarTransformScene] Lead magnet enabled - FREE transformation',
+    return ctx.wizard.next()
+  },
+  // Шаг 1: Обработка выбора пола и показ выбора модели
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      return
+    }
+
+    const text = ctx.message.text
+
+    // Возврат в главное меню
+    if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+      await ctx.reply(
+        isRu
+          ? '👋 Возвращаемся в главное меню'
+          : '👋 Returning to main menu',
+        { reply_markup: { remove_keyboard: true } }
+      )
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Обработка выбора пола
+    let gender: 'male' | 'female' | null = null
+
+    if (text === (isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male style')) {
+      gender = 'male'
+      logger.info('[AvatarTransformScene] Male gender selected', { telegramId })
+    } else if (text === (isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style')) {
+      gender = 'female'
+      logger.info('[AvatarTransformScene] Female gender selected', { telegramId })
+    }
+
+    if (!gender) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, выберите один из предложенных вариантов'
+          : '❌ Please choose one of the suggested options'
+      )
+      return
+    }
+
+    // Сохраняем выбранный пол в сессии
+    ctx.session.selectedGender = gender
+
+    // Показываем выбор AI модели
+    await ctx.reply(
+      isRu
+        ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${gender === 'male' ? 'Мужской образ' : 'Женский образ'}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4 (ByteDance)</b>\n• Новейшая модель 2024\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
+        : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${gender === 'male' ? 'Male style' : 'Female style'}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4 (ByteDance)</b>\n• Latest 2024 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: Markup.keyboard([
+          [
+            isRu ? '🤖 FLUX Kontext Max (Google)' : '🤖 FLUX Kontext Max (Google)',
+            isRu ? '🎭 SeeDream-4 (ByteDance)' : '🎭 SeeDream-4 (ByteDance)',
+            isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
+          ],
+          [isRu ? '🔙 Назад' : '🔙 Back'],
+        ]).resize().reply_markup,
+      }
+    )
+
+    return ctx.wizard.next()
+  },
+  // Шаг 2: Обработка выбора модели и получение фото пользователя
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      return
+    }
+
+    const text = ctx.message.text
+
+    // Возврат к выбору пола
+    if (text === (isRu ? '🔙 Назад' : '🔙 Back')) {
+      // Очищаем выбранный пол из сессии
+      delete ctx.session.selectedGender
+      
+      // Показываем объяснение AI Heroes + выбор пола заново
+      await ctx.reply(
+        isRu
+          ? `🎭 <b>ИИ ГЕРОИ - AI HEROES</b>\n\n🎨 Трансформируйтесь в любимого персонажа!\n\n🤖 <b>Наш ИИ превратит ваше фото в:</b>\n• Супергероев Marvel и DC\n• Персонажей аниме\n• Славянских героев\n• Игровых персонажей\n\n💫 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n🚀 <b>Полный доступ ко всем стилям - в подписке</b>\n\n👇 <b>Выберите пол для стиля персонажа:</b>`
+          : `🎭 <b>AI HEROES</b>\n\n🎨 Transform into your favorite character!\n\n🤖 <b>Our AI will turn your photo into:</b>\n• Marvel and DC superheroes\n• Anime characters\n• Slavic heroes\n• Game characters\n\n💫 <b>This is a FREE demonstration!</b>\n🚀 <b>Full access to all styles - with subscription</b>\n\n👇 <b>Choose gender for character style:</b>`,
         {
-          telegramId,
-          step: 'lead_magnet_enabled',
+          parse_mode: 'HTML',
+          reply_markup: Markup.keyboard([
+            [
+              isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male style',
+              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style',
+            ],
+            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+          ]).resize().reply_markup,
         }
       )
+      
+      // Возвращаемся к шагу выбора пола (шаг 1, индекс 1)
+      ctx.wizard.selectStep(1)
+      return
+    }
 
+    // Обработка выбора модели
+    let selectedModel: 'flux-kontext' | 'seedream4' | 'nano-banana' | null = null
+
+    if (text === (isRu ? '🤖 FLUX Kontext Max (Google)' : '🤖 FLUX Kontext Max (Google)')) {
+      selectedModel = 'flux-kontext'
+      logger.info('[AvatarTransformScene] FLUX Kontext Max selected', { telegramId })
+    } else if (text === (isRu ? '🎭 SeeDream-4 (ByteDance)' : '🎭 SeeDream-4 (ByteDance)')) {
+      selectedModel = 'seedream4'
+      logger.info('[AvatarTransformScene] SeeDream-4 selected', { telegramId })
+    } else if (text === (isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)')) {
+      selectedModel = 'nano-banana'
+      logger.info('[AvatarTransformScene] Nano Banana selected', { telegramId })
+    }
+
+    if (!selectedModel) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, выберите одну из предложенных моделей'
+          : '❌ Please choose one of the suggested models'
+      )
+      return
+    }
+
+    // Сохраняем выбранную модель в сессии
+    ctx.session.selectedModel = selectedModel
+
+    logger.info('[AvatarTransformScene] Model selected, getting user photo', {
+      telegramId,
+      selectedModel,
+      step: 'fetching_photo',
+    })
+
+    try {
       // Получаем URL фотографии пользователя
-      logger.info('[AvatarTransformScene] Getting user photo...', {
-        telegramId,
-        step: 'getting_photo',
-      })
-
       const userPhotoUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
 
       logger.info('[AvatarTransformScene] Got user photo URL', {
@@ -463,20 +1317,28 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         step: 'photo_obtained',
       })
 
+      const modelDisplayName = selectedModel === 'flux-kontext' 
+        ? 'FLUX Kontext Max (Google)' 
+        : 'SeeDream-4 (ByteDance)'
+
+      const gender = ctx.session.selectedGender
+      const genderDisplay = gender === 'male' 
+        ? (isRu ? 'Мужской образ' : 'Male style')
+        : (isRu ? 'Женский образ' : 'Female style')
+
       try {
         // 🎨 ПОКАЗЫВАЕМ ПРЕВЬЮ АВАТАРКИ ПОЛЬЗОВАТЕЛЯ
-        // Send the main message with avatar transformation directly (removed mini app promotion)
         const photoSent = await sendPhotoWithFallback(ctx, userPhotoUrl, {
           caption: isRu
-            ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото (из профиля или загруженное) и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-            : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo (from profile or uploaded) and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
+            ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+            : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [
               isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
               isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
             ],
-            [isRu ? '⏩ Пропустить' : '⏩ Skip'],
+            [isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection'],
           ]).resize().reply_markup,
         })
 
@@ -488,8 +1350,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
           await ctx.reply(
             isRu
-              ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото (из профиля или загруженное) и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-              : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo (from profile or uploaded) and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
+              ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+              : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
             {
               parse_mode: 'HTML',
               reply_markup: Markup.keyboard([
@@ -497,7 +1359,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
                   isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
                   isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
                 ],
-                [isRu ? '⏩ Пропустить' : '⏩ Skip'],
+                [isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection'],
               ]).resize().reply_markup,
             }
           )
@@ -514,18 +1376,16 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         // Fallback: если не удалось отправить фото, показываем текстовое сообщение
         await ctx.reply(
           isRu
-            ? `🤖 <b>Добро пожаловать в AI-трансформацию!</b>\n\n👋 Привет! Я покажу вам мощь нашей AI-технологии!\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото (из профиля или загруженное) и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Профессиональная AI-генерация FLUX Kontext Max\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-            : `🤖 <b>Welcome to AI Transformation!</b>\n\n👋 Hello! I'll show you the power of our AI technology!\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo (from profile or uploaded) and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Professional AI generation FLUX Kontext Max\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
+            ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+            : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: Markup.keyboard([
               [
-                isRu
-                  ? '🎨 Создать магнетический образ'
-                  : '🎨 Create magnetic look',
-                isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo',
+                isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
+                isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
               ],
-              [isRu ? '⏩ Пропустить' : '⏩ Skip'],
+              [isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection'],
             ]).resize().reply_markup,
           }
         )
@@ -535,7 +1395,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       ctx.session.kontextImageUrl = userPhotoUrl
       return ctx.wizard.next()
     } catch (error) {
-      logger.error('[AvatarTransformScene] Error in initial step:', error)
+      logger.error('[AvatarTransformScene] Error in photo step:', error)
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при обработке фотографии\n\n🔄 Попробуйте позже или обратитесь в поддержку'
@@ -544,7 +1404,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
   },
-  // Шаг 2: Обработка выбора действия
+  // Шаг 3: Обработка выбора действия (мой аватар или загрузить фото)
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -555,17 +1415,37 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     const text = ctx.message.text
 
-    // Пользователь решил пропустить
-    if (text === (isRu ? '⏩ Пропустить' : '⏩ Skip')) {
+    // Возврат к выбору модели
+    if (text === (isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection')) {
+      // Очищаем выбранную модель из сессии
+      delete ctx.session.selectedModel
+      
+      const gender = ctx.session.selectedGender
+      const genderDisplay = gender === 'male' 
+        ? (isRu ? 'Мужской образ' : 'Male style')
+        : (isRu ? 'Женский образ' : 'Female style')
+      
+      // Показываем выбор AI модели заново
       await ctx.reply(
         isRu
-          ? '👋 Хорошо, возвращаемся в главное меню\n\n💡 Вы всегда можете вернуться к трансформации через /start'
-          : '👋 Okay, returning to main menu\n\n💡 You can always return to transformation via /start',
-        { reply_markup: { remove_keyboard: true } }
+          ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4 (ByteDance)</b>\n• Новейшая модель 2024\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
+          : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4 (ByteDance)</b>\n• Latest 2024 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: Markup.keyboard([
+            [
+              isRu ? '🤖 FLUX Kontext Max (Google)' : '🤖 FLUX Kontext Max (Google)',
+              isRu ? '🎭 SeeDream-4 (ByteDance)' : '🎭 SeeDream-4 (ByteDance)',
+              isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
+            ],
+            [isRu ? '🔙 Назад' : '🔙 Back'],
+          ]).resize().reply_markup,
+        }
       )
-      // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
-      await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.StartScene)
+      
+      // Возвращаемся к шагу выбора модели (шаг 2, индекс 2)
+      ctx.wizard.selectStep(2)
+      return
     }
 
     // Пользователь хочет использовать свой аватар
@@ -583,23 +1463,168 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      // Переходим к выбору пола
-      await ctx.reply(
-        isRu
-          ? `👤 <b>Выбор стиля для вашего образа</b>\n\n🧬 Для создания идеального образа мне нужно знать ваш пол, чтобы адаптировать стиль трансформации\n\n👇 Выберите подходящий вариант:`
-          : `👤 <b>Style selection for your look</b>\n\n🧬 To create the perfect look, I need to know your gender to adapt the transformation style\n\n👇 Choose the appropriate option:`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: Markup.keyboard([
-            [
-              isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
-              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
-            ],
-            [isRu ? '🔙 Назад' : '🔙 Back'],
-          ]).resize().reply_markup,
+      // У нас уже есть выбранный пол из шага 1, переходим к выбору героя
+      const gender = ctx.session.selectedGender
+      if (!gender) {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: не выбран пол. Начните заново'
+            : '❌ Error: gender not selected. Start over'
+        )
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
+      }
+
+      // Helper function to create rows with 2 buttons each
+      const createTwoButtonRows = (buttons: string[]): string[][] => {
+        const rows: string[][] = []
+        for (let i = 0; i < buttons.length; i += 2) {
+          rows.push(buttons.slice(i, i + 2))
         }
-      )
-      return ctx.wizard.next() // Переходим к шагу выбора пола
+        return rows
+      }
+
+      // Создаем кнопки для выбора героев ТОЛЬКО для выбранного пола
+      const primaryHeroes = AI_HEROES[gender]
+
+      // 🌍 ЛОКАЛИЗАЦИЯ КНОПОК ДЛЯ ГЕРОЕВ
+      const getHeroButtonText = (heroName: string) => {
+        const heroTranslations: Record<string, { ru: string; en: string }> = {
+          // Marvel герои - уникальные эмодзи
+          'Человек-паук': { ru: '🕷️ Человек-паук', en: '🕷️ Spider-Man' },
+          'Железный человек': { ru: '🤖 Железный человек', en: '🤖 Iron Man' },
+          'Капитан Америка': { ru: '🇦🇲 Капитан Америка', en: '🇦🇲 Captain America' },
+          'Тор': { ru: '⚡ Тор', en: '⚡ Thor' },
+          'Доктор Стрэндж': { ru: '🧿 Доктор Стрэндж', en: '🧿 Doctor Strange' },
+          'Соколиный глаз': { ru: '🏹 Соколиный глаз', en: '🏹 Hawkeye' },
+          'Звёздный лорд': { ru: '🚀 Звёздный лорд', en: '🚀 Star Lord' },
+          'Капитан Марвел': { ru: '⭐ Капитан Марвел', en: '⭐ Captain Marvel' },
+          'Скарлет Витч': { ru: '🔮 Скарлет Витч', en: '🔮 Scarlet Witch' },
+          'Алая ведьма': { ru: '🌹 Алая ведьма', en: '🌹 Wanda Maximoff' },
+          'Гамора': { ru: '🗡️ Гамора', en: '🗡️ Gamora' },
+          'Шури': { ru: '💙 Шури', en: '💙 Shuri' },
+          'Валькирия': { ru: '⚔️ Валькирия', en: '⚔️ Valkyrie' },
+          // Славянские сказочные герои
+          'Иван-царевич': { ru: '🤴 Иван-царевич', en: '🤴 Ivan Tsarevich' },
+          'Илья Муромец': { ru: '🛡️ Илья Муромец', en: '🛡️ Ilya Muromets' },
+          'Добрыня Никитич': { ru: '💉 Добрыня Никитич', en: '💉 Dobrynya Nikitich' },
+          'Алёша Попович': { ru: '🎯 Алёша Попович', en: '🎯 Alyosha Popovich' },
+          'Кощей Бессмертный': { ru: '💀 Кощей Бессмертный', en: '💀 Koschei' },
+          'Серый Волк': { ru: '🐺 Серый Волк', en: '🐺 Grey Wolf' },
+          'Емеля': { ru: '🎣 Емеля', en: '🎣 Emelya' },
+          'Василиса Прекрасная': { ru: '👸 Василиса Прекрасная', en: '👸 Vasilisa' },
+          'Баба Яга': { ru: '🏠 Баба Яга', en: '🏠 Baba Yaga' },
+          'Снегурочка': { ru: '❄️ Снегурочка', en: '❄️ Snow Maiden' },
+          'Марья Моревна': { ru: '💂 Марья Моревна', en: '💂 Marya Morevna' },
+          'Алёнушка': { ru: '🌾 Алёнушка', en: '🌾 Alyonushka' },
+          'Жар-птица': { ru: '🔥 Жар-птица', en: '🔥 Firebird' },
+          'Царевна-лягушка': { ru: '🐸 Царевна-лягушка', en: '🐸 Frog Princess' },
+          'Мальвина': { ru: '👩‍🎨 Мальвина', en: '👩‍🎨 Malvina' },
+          'Красная Шапочка': { ru: '🧧 Красная Шапочка', en: '🧧 Red Hood' },
+          'Золушка': { ru: '👠 Золушка', en: '👠 Cinderella' },
+          'Снежная Королева': { ru: '🌨️ Снежная Королева', en: '🌨️ Snow Queen' },
+          'Алиса': { ru: '🎀 Алиса', en: '🎀 Alice' },
+          'Пеппи Длинныйчулок': { ru: '🦾 Пеппи Длинныйчулок', en: '🦾 Pippi' },
+          'Карающий': { ru: '🎨 Карающий', en: '🎨 Punisher' },
+          // DC Universe
+          'Супермен': { ru: '🚀 Супермен', en: '🚀 Superman' },
+          'Бэтмен': { ru: '🦇 Бэтмен', en: '🦇 Batman' },
+          'Флэш': { ru: '⚡ Флэш', en: '⚡ Flash' },
+          'Чудо-женщина': { ru: '⭐ Чудо-женщина', en: '⭐ Wonder Woman' },
+          'Харли Квинн': { ru: '🎭 Харли Квинн', en: '🎭 Harley Quinn' },
+          'Джокер': { ru: '🃏 Джокер', en: '🃏 Joker' },
+          // Marvel дополнительные
+          'Халк': { ru: '💚 Халк', en: '💚 Hulk' },
+          'Дэдпул': { ru: '🔴 Дэдпул', en: '🔴 Deadpool' },
+          'Росомаха': { ru: '🦾 Росомаха', en: '🦾 Wolverine' },
+          'Чёрная вдова': { ru: '🕷️ Чёрная вдова', en: '🕷️ Black Widow' },
+          // Anime популярные
+          'Гоку': { ru: '🥋 Гоку', en: '🥋 Goku' },
+          'Наруто': { ru: '🍥 Наруто', en: '🍥 Naruto' },
+          'Луффи': { ru: '🎩 Луффи', en: '🎩 Luffy' },
+          'Сейлор Мун': { ru: '🌙 Сейлор Мун', en: '🌙 Sailor Moon' },
+          'Эдвард Элрик': { ru: '⚙️ Эдвард Элрик', en: '⚙️ Edward Elric' },
+          'Ичиго': { ru: '⚔️ Ичиго', en: '⚔️ Ichigo' },
+          'Саитама': { ru: '👊 Саитама', en: '👊 Saitama' },
+          'Лайт Ягами': { ru: '📓 Лайт Ягами', en: '📓 Light Yagami' },
+          'Какаши': { ru: '🐈 Какаши', en: '🐈 Kakashi' },
+          'Сасукэ': { ru: '⚡ Сасукэ', en: '⚡ Sasuke' },
+          'Вегета': { ru: '🔥 Вегета', en: '🔥 Vegeta' },
+          'Эрен Йегер': { ru: '🧿 Эрен Йегер', en: '🧿 Eren Yeager' },
+          'Леви Аккерман': { ru: '⚔️ Леви Аккерман', en: '⚔️ Levi Ackerman' },
+          // Games популярные
+          'Лара Крофт': { ru: '🗿 Лара Крофт', en: '🗿 Lara Croft' },
+          'Марио': { ru: '🍄 Марио', en: '🍄 Mario' },
+          'Соник': { ru: '💨 Соник', en: '💨 Sonic' },
+        }
+
+        const translation = heroTranslations[heroName]
+        if (translation) {
+          return isRu ? translation.ru : translation.en
+        }
+
+        // Фолбэк для неизвестных героев
+        const icon = gender === 'male' ? '🎨' : '✨'
+        return `${icon} ${heroName}`
+      }
+
+      const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
+
+      const heroButtons = [
+        ...createTwoButtonRows(heroButtonsList),
+        // Последний ряд - служебные кнопки
+        [
+          isRu ? '🎲 Случайный стиль' : '🎲 Random style',
+          isRu ? '🔙 Назад' : '🔙 Back',
+        ],
+      ]
+
+      logger.info('[AvatarTransformScene] Creating hero selection keyboard:', {
+        gender,
+        primaryHeroesCount: primaryHeroes.length,
+        buttonsStructure: heroButtons,
+      })
+
+      try {
+        await ctx.reply(
+          isRu
+            ? `🤖 <b>Демонстрация AI-возможностей</b>\n\n🎯 Сейчас я покажу вам как наш бот трансформирует людей!\n\n💡 <b>Выберите пример для демонстрации:</b>\nЭто лишь небольшая часть того, что умеет наш бот\n\n🌟 <b>Популярные примеры для ${
+                gender === 'male' ? 'мужчин' : 'женщин'
+              }:</b>\n${primaryHeroes
+                .slice(0, 10) // Показываем первые 10 героев в описании
+                .map(hero => `• Стиль "${hero}"`)
+                .join(
+                  '\n'
+                )}\n• и многие другие...\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: ${ctx.session.selectedModel === 'seedream4' ? 'SeeDream-4' : 'FLUX Kontext Max'}</b>`
+            : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\nThis is just a small part of what our bot can do\n\n🌟 <b>Popular examples for ${
+                gender === 'male' ? 'men' : 'women'
+              }:</b>\n${primaryHeroes
+                .slice(0, 10) // Показываем первые 10 героев в описании
+                .map(hero => `• "${hero}" style`)
+                .join(
+                  '\n'
+                )}\n• and many others...\n\n💰 <b>In full version ANY styles available!</b>\n🚀 <b>Technology: ${ctx.session.selectedModel === 'seedream4' ? 'SeeDream-4' : 'FLUX Kontext Max'}</b>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              keyboard: heroButtons,
+              resize_keyboard: true,
+              one_time_keyboard: false,
+            },
+          }
+        )
+
+        logger.info(
+          '[AvatarTransformScene] Hero selection message sent successfully!'
+        )
+      } catch (error) {
+        logger.error(
+          '[AvatarTransformScene] Failed to send hero selection message:',
+          error
+        )
+      }
+
+      return ctx.wizard.next() // Переходим к следующему шагу - выбору героя
     }
 
     // Пользователь хочет загрузить новое фото
@@ -615,185 +1640,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           : `📸 <b>Upload New Photo</b>\n\n💡 Send me the photo you would like to transform\n\n✨ <b>Recommendations:</b>\n• Clear face photo\n• Good lighting\n• Minimum 512x512 pixels`,
         { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
       )
-      return ctx.wizard.selectStep(4) // 🛠️ ИСПРАВЛЕНИЕ: Переходим к шагу загрузки фото (индекс 4)
+      return ctx.wizard.selectStep(5) // Переходим к шагу загрузки фото (индекс 5)
     }
-  },
-  // Шаг 3: Обработка выбора пола и показ кнопок героев
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString() || 'unknown'
-
-    if (!ctx.message || !('text' in ctx.message)) {
-      return
-    }
-
-    const text = ctx.message.text
-
-    // Назад к предыдущему шагу
-    if (text === (isRu ? '🔙 Назад' : '🔙 Back')) {
-      return ctx.wizard.back()
-    }
-
-    let gender: 'male' | 'female' | null = null
-
-    logger.info('[AvatarTransformScene] Processing gender selection', {
-      telegramId,
-      receivedText: text,
-      isRu,
-    })
-
-    if (text === (isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look')) {
-      gender = 'male'
-      logger.info('[AvatarTransformScene] Male gender selected')
-    } else if (text === (isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look')) {
-      gender = 'female'
-      logger.info('[AvatarTransformScene] Female gender selected')
-    }
-
-    if (!gender) {
-      logger.info('[AvatarTransformScene] No valid gender selected:', { text })
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, выберите один из предложенных вариантов'
-          : '❌ Please choose one of the suggested options'
-      )
-      return
-    }
-
-    logger.info('[AvatarTransformScene] Gender validated, proceeding:', {
-      gender,
-    })
-
-    // Сохраняем выбор пола в сессии
-    ctx.session.selectedGender = gender
-
-    // Helper function to create rows with 2 buttons each
-    const createTwoButtonRows = (buttons: string[]): string[][] => {
-      const rows: string[][] = []
-      for (let i = 0; i < buttons.length; i += 2) {
-        rows.push(buttons.slice(i, i + 2))
-      }
-      return rows
-    }
-
-    // Создаем кнопки для выбора героев ТОЛЬКО для выбранного пола
-    const primaryHeroes = MARVEL_HEROES[gender]
-
-    // 🌍 ЛОКАЛИЗАЦИЯ КНОПОК ДЛЯ ГЕРОЕВ
-    const getHeroButtonText = (heroName: string) => {
-      const heroTranslations: Record<string, { ru: string; en: string }> = {
-        // Marvel герои - уникальные эмодзи
-        'Человек-паук': { ru: '🕷️ Человек-паук', en: '🕷️ Spider-Man' },
-        'Железный человек': { ru: '🤖 Железный человек', en: '🤖 Iron Man' },
-        'Капитан Америка': { ru: '🇦🇲 Капитан Америка', en: '🇦🇲 Captain America' },
-        'Тор': { ru: '⚡ Тор', en: '⚡ Thor' },
-        'Доктор Стрэндж': { ru: '🧿 Доктор Стрэндж', en: '🧿 Doctor Strange' },
-        'Соколиный глаз': { ru: '🏹 Соколиный глаз', en: '🏹 Hawkeye' },
-        'Звёздный лорд': { ru: '🚀 Звёздный лорд', en: '🚀 Star Lord' },
-        'Капитан Марвел': { ru: '⭐ Капитан Марвел', en: '⭐ Captain Marvel' },
-        'Скарлет Витч': { ru: '🔮 Скарлет Витч', en: '🔮 Scarlet Witch' },
-        'Алая ведьма': { ru: '🌹 Алая ведьма', en: '🌹 Wanda Maximoff' },
-        'Гамора': { ru: '🗡️ Гамора', en: '🗡️ Gamora' },
-        'Шури': { ru: '💙 Шури', en: '💙 Shuri' },
-        'Валькирия': { ru: '⚔️ Валькирия', en: '⚔️ Valkyrie' },
-        // Славянские сказочные герои
-        'Иван-царевич': { ru: '🤴 Иван-царевич', en: '🤴 Ivan Tsarevich' },
-        'Илья Муромец': { ru: '🛡️ Илья Муромец', en: '🛡️ Ilya Muromets' },
-        'Добрыня Никитич': { ru: '💉 Добрыня Никитич', en: '💉 Dobrynya Nikitich' },
-        'Алёша Попович': { ru: '🎯 Алёша Попович', en: '🎯 Alyosha Popovich' },
-        'Кощей Бессмертный': { ru: '💀 Кощей Бессмертный', en: '💀 Koschei' },
-        'Серый Волк': { ru: '🐺 Серый Волк', en: '🐺 Grey Wolf' },
-        'Емеля': { ru: '🎣 Емеля', en: '🎣 Emelya' },
-        'Василиса Прекрасная': { ru: '👸 Василиса Прекрасная', en: '👸 Vasilisa' },
-        'Баба Яга': { ru: '🧿 Баба Яга', en: '🧿 Baba Yaga' },
-        'Снегурочка': { ru: '❄️ Снегурочка', en: '❄️ Snow Maiden' },
-        'Марья Моревна': { ru: '💂 Марья Моревна', en: '💂 Marya Morevna' },
-        'Алёнушка': { ru: '🌾 Алёнушка', en: '🌾 Alyonushka' },
-        'Жар-птица': { ru: '🔥 Жар-птица', en: '🔥 Firebird' },
-        'Царевна-лягушка': { ru: '🐸 Царевна-лягушка', en: '🐸 Frog Princess' },
-        // Советские мультперсонажи
-        'Чебурашка': { ru: '🐵 Чебурашка', en: '🐵 Cheburashka' },
-        'Крокодил Гена': { ru: '🐊 Крокодил Гена', en: '🐊 Gena' },
-        'Кот Матроскин': { ru: '🐱 Кот Матроскин', en: '🐱 Matroskin' },
-        'Дядя Фёдор': { ru: '👦 Дядя Фёдор', en: '👦 Uncle Fyodor' },
-        'Почтальон Печкин': { ru: '📬 Почтальон Печкин', en: '📬 Pechkin' },
-        'Винни-Пух': { ru: '🐻 Винни-Пух', en: '🐻 Winnie Pooh' },
-        'Карлсон': { ru: '🎀 Карлсон', en: '🎀 Karlsson' },
-        'Буратино': { ru: '🪀 Буратино', en: '🪀 Buratino' },
-        'Шапокляк': { ru: '🎩 Шапокляк', en: '🎩 Shapoklyak' },
-        'Мальвина': { ru: '👩‍🎨 Мальвина', en: '👩‍🎨 Malvina' },
-        'Красная Шапочка': { ru: '🧧 Красная Шапочка', en: '🧧 Red Hood' },
-        'Золушка': { ru: '👠 Золушка', en: '👠 Cinderella' },
-        'Снежная Королева': { ru: '🌨️ Снежная Королева', en: '🌨️ Snow Queen' },
-        'Алиса': { ru: '🎀 Алиса', en: '🎀 Alice' },
-        'Пеппи Длинныйчулок': { ru: '🦾 Пеппи Длинныйчулок', en: '🦾 Pippi' },
-      }
-
-      const translation = heroTranslations[heroName]
-      if (translation) {
-        return isRu ? translation.ru : translation.en
-      }
-
-      // Фолбэк для неизвестных героев
-      const icon = gender === 'male' ? '🎨' : '✨'
-      return `${icon} ${heroName}`
-    }
-
-    const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
-
-    const heroButtons = [
-      ...createTwoButtonRows(heroButtonsList),
-      // Последний ряд - служебные кнопки
-      [
-        isRu ? '🎲 Случайный стиль' : '🎲 Random style',
-        isRu ? '🔙 Назад' : '🔙 Back',
-      ],
-    ]
-
-    logger.info('[AvatarTransformScene] Creating hero selection keyboard:', {
-      gender,
-      primaryHeroesCount: primaryHeroes.length,
-      buttonsStructure: heroButtons,
-    })
-
-    try {
-      await ctx.reply(
-        isRu
-          ? `🤖 <b>Демонстрация AI-возможностей</b>\n\n🎯 Сейчас я покажу вам как наш бот трансформирует людей!\n\n💡 <b>Выберите пример для демонстрации:</b>\nЭто лишь небольшая часть того, что умеет наш бот\n\n🌟 <b>Популярные примеры для ${
-              gender === 'male' ? 'мужчин' : 'женщин'
-            }:</b>\n${primaryHeroes
-              .map(hero => `• Стиль "${hero}"`)
-              .join(
-                '\n'
-              )}\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: FLUX Kontext Max</b>`
-          : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\nThis is just a small part of what our bot can do\n\n🌟 <b>Popular examples for ${
-              gender === 'male' ? 'men' : 'women'
-            }:</b>\n${primaryHeroes
-              .map(hero => `• "${hero}" style`)
-              .join(
-                '\n'
-              )}\n\n💰 <b>In full version ANY styles available!</b>\n🚀 <b>Technology: FLUX Kontext Max</b>`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            keyboard: heroButtons,
-            resize_keyboard: true,
-            one_time_keyboard: false,
-          },
-        }
-      )
-
-      logger.info(
-        '[AvatarTransformScene] Hero selection message sent successfully!'
-      )
-    } catch (error) {
-      logger.error(
-        '[AvatarTransformScene] Failed to send hero selection message:',
-        error
-      )
-    }
-
-    return ctx.wizard.next() // Переходим к следующему шагу - выбору героя
   },
   // Шаг 4: Обработка выбора героя и генерация
   async ctx => {
@@ -825,32 +1673,79 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Проверяем кнопку "Назад"
     if (receivedText === (isRu ? '🔙 Назад' : '🔙 Back')) {
       logger.info(
-        '[AvatarTransformScene] Back button pressed, returning to gender selection',
+        '[AvatarTransformScene] Back button pressed, returning to action selection',
         {
           telegramId,
           currentStep: ctx.wizard.cursor,
         }
       )
 
-      // Показываем сообщение выбора пола заново
-      await ctx.reply(
-        isRu
-          ? `👤 <b>Выбор стиля для вашего образа</b>\n\n🧬 Для создания идеального образа мне нужно знать ваш пол, чтобы адаптировать стиль трансформации\n\n👇 Выберите подходящий вариант:`
-          : `👤 <b>Style selection for your look</b>\n\n🧬 To create the perfect look, I need to know your gender to adapt the transformation style\n\n👇 Choose the appropriate option:`,
-        {
+      const gender = ctx.session.selectedGender
+      const selectedModel = ctx.session.selectedModel
+      const modelDisplayName = selectedModel === 'flux-kontext' 
+        ? 'FLUX Kontext Max (Google)' 
+        : 'SeeDream-4 (ByteDance)'
+      const genderDisplay = gender === 'male' 
+        ? (isRu ? 'Мужской образ' : 'Male style')
+        : (isRu ? 'Женский образ' : 'Female style')
+
+      // Показываем сообщение выбора действия заново
+      const userPhotoUrl = ctx.session.kontextImageUrl
+
+      try {
+        // 🎨 ПОКАЗЫВАЕМ ПРЕВЬЮ АВАТАРКИ ПОЛЬЗОВАТЕЛЯ
+        const photoSent = await sendPhotoWithFallback(ctx, userPhotoUrl, {
+          caption: isRu
+            ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+            : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [
-              isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
-              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
+              isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
+              isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
             ],
-            [isRu ? '🔙 Назад' : '🔙 Back'],
+            [isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection'],
           ]).resize().reply_markup,
-        }
-      )
+        })
 
-      // Возвращаемся к выбору пола (индекс 2 = шаг 3)
-      ctx.wizard.selectStep(2)
+        // Если фото не удалось отправить, отправляем текстовое сообщение
+        if (!photoSent) {
+          await ctx.reply(
+            isRu
+              ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+              : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Markup.keyboard([
+                [
+                  isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
+                  isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
+                ],
+                [isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection'],
+              ]).resize().reply_markup,
+            }
+          )
+        }
+      } catch (photoError) {
+        await ctx.reply(
+          isRu
+            ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
+            : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Markup.keyboard([
+              [
+                isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
+                isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
+              ],
+              [isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection'],
+            ]).resize().reply_markup,
+          }
+        )
+      }
+
+      // Возвращаемся к выбору действия (шаг 3, индекс 3)
+      ctx.wizard.selectStep(3)
       return
     }
 
@@ -860,7 +1755,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // 🎲 Обработка случайного выбора
     if (receivedText === (isRu ? '🎲 Случайный стиль' : '🎲 Random style')) {
       // Случайный выбор из всех доступных героев
-      const allHeroes = [...MARVEL_HEROES.male, ...MARVEL_HEROES.female]
+      const allHeroes = [...AI_HEROES.male, ...AI_HEROES.female]
       const randomHero = allHeroes[Math.floor(Math.random() * allHeroes.length)]
       selectedHero = randomHero
 
@@ -926,44 +1821,95 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         '🐺 Grey Wolf': 'Серый Волк',
         '🎣 Emelya': 'Емеля',
         '👸 Vasilisa': 'Василиса Прекрасная',
-        '🧿 Baba Yaga': 'Баба Яга',
+        '🏠 Баба Яга': 'Баба Яга',
+        '🏠 Baba Yaga': 'Баба Яга',
         '❄️ Snow Maiden': 'Снегурочка',
         '💂 Marya Morevna': 'Марья Моревна',
         '🌾 Alyonushka': 'Алёнушка',
         '🔥 Firebird': 'Жар-птица',
         '🐸 Frog Princess': 'Царевна-лягушка',
-        // Советские мультперсонажи - Русские
-        '🐵 Чебурашка': 'Чебурашка',
-        '🐊 Крокодил Гена': 'Крокодил Гена',
-        '🐱 Кот Матроскин': 'Кот Матроскин',
-        '👦 Дядя Фёдор': 'Дядя Фёдор',
-        '📬 Почтальон Печкин': 'Почтальон Печкин',
-        '🐻 Винни-Пух': 'Винни-Пух',
-        '🎀 Карлсон': 'Карлсон',
-        '🪀 Буратино': 'Буратино',
-        '🎩 Шапокляк': 'Шапокляк',
         '👩‍🎨 Мальвина': 'Мальвина',
         '🧧 Красная Шапочка': 'Красная Шапочка',
         '👠 Золушка': 'Золушка',
         '🌨️ Снежная Королева': 'Снежная Королева',
         '🎀 Алиса': 'Алиса',
         '🦾 Пеппи Длинныйчулок': 'Пеппи Длинныйчулок',
-        // Советские мультперсонажи - Английские
-        '🐵 Cheburashka': 'Чебурашка',
-        '🐊 Gena': 'Крокодил Гена',
-        '🐱 Matroskin': 'Кот Матроскин',
-        '👦 Uncle Fyodor': 'Дядя Фёдор',
-        '📬 Pechkin': 'Почтальон Печкин',
-        '🐻 Winnie Pooh': 'Винни-Пух',
-        '🎀 Karlsson': 'Карлсон',
-        '🪀 Buratino': 'Буратино',
-        '🎩 Shapoklyak': 'Шапокляк',
         '👩‍🎨 Malvina': 'Мальвина',
         '🧧 Red Hood': 'Красная Шапочка',
         '👠 Cinderella': 'Золушка',
         '🌨️ Snow Queen': 'Снежная Королева',
         '🎀 Alice': 'Алиса',
         '🦾 Pippi': 'Пеппи Длинныйчулок',
+        '🎨 Карающий': 'Карающий',
+        '🎨 Punisher': 'Карающий',
+        // DC Universe
+        '🚀 Супермен': 'Супермен',
+        '🚀 Superman': 'Супермен',
+        '🦇 Бэтмен': 'Бэтмен',
+        '🦇 Batman': 'Бэтмен',
+        '⚡ Флэш': 'Флэш',
+        '⚡ Flash': 'Флэш',
+        '⭐ Чудо-женщина': 'Чудо-женщина',
+        '⭐ Wonder Woman': 'Чудо-женщина',
+        '🎭 Харли Квинн': 'Харли Квинн',
+        '🎭 Harley Quinn': 'Харли Квинн',
+        '🃏 Джокер': 'Джокер',
+        '🃏 Joker': 'Джокер',
+        // Marvel дополнительные
+        '💚 Халк': 'Халк',
+        '💚 Hulk': 'Халк',
+        '🔴 Дэдпул': 'Дэдпул',
+        '🔴 Deadpool': 'Дэдпул',
+        '🦾 Росомаха': 'Росомаха',
+        '🦾 Wolverine': 'Росомаха',
+        '🕷️ Чёрная вдова': 'Чёрная вдова',
+        '🕷️ Black Widow': 'Чёрная вдова',
+        // Anime популярные
+        '🥋 Гоку': 'Гоку',
+        '🥋 Goku': 'Гоку',
+        '🍥 Наруто': 'Наруто',
+        '🍥 Naruto': 'Наруто',
+        '🎩 Луффи': 'Луффи',
+        '🎩 Luffy': 'Луффи',
+        '🌙 Сейлор Мун': 'Сейлор Мун',
+        '🌙 Sailor Moon': 'Сейлор Мун',
+        '⚙️ Эдвард Элрик': 'Эдвард Элрик',
+        '⚙️ Edward Elric': 'Эдвард Элрик',
+        '⚔️ Ичиго': 'Ичиго',
+        '⚔️ Ichigo': 'Ичиго',
+        '👊 Саитама': 'Саитама',
+        '👊 Saitama': 'Саитама',
+        '📓 Лайт Ягами': 'Лайт Ягами',
+        '📓 Light Yagami': 'Лайт Ягами',
+        '🐈 Какаши': 'Какаши',
+        '🐈 Kakashi': 'Какаши',
+        '⚡ Сасукэ': 'Сасукэ',
+        '⚡ Sasuke': 'Сасукэ',
+        '🔥 Вегета': 'Вегета',
+        '🔥 Vegeta': 'Вегета',
+        '🧿 Эрен Йегер': 'Эрен Йегер',
+        '🧿 Eren Yeager': 'Эрен Йегер',
+        '⚔️ Леви Аккерман': 'Леви Аккерман',
+        '⚔️ Levi Ackerman': 'Леви Аккерман',
+        // Fallback для неизвестных героев (для мужских)
+        '🎨 Эдвард Элрик': 'Эдвард Элрик',
+        '🎨 Ичиго': 'Ичиго',
+        '🎨 Саитама': 'Саитама',
+        '🎨 Лайт Ягами': 'Лайт Ягами',
+        '🎨 Какаши': 'Какаши',
+        '🎨 Сасукэ': 'Сасукэ',
+        '🎨 Вегета': 'Вегета',
+        '🎨 Пикколо': 'Пикколо',
+        '🎨 Натсу': 'Натсу',
+        '🎨 Эрен Йегер': 'Эрен Йегер',
+        '🎨 Леви Аккерман': 'Леви Аккерман',
+        // Games популярные
+        '🗿 Лара Крофт': 'Лара Крофт',
+        '🗿 Lara Croft': 'Лара Крофт',
+        '🍄 Марио': 'Марио',
+        '🍄 Mario': 'Марио',
+        '💨 Соник': 'Соник',
+        '💨 Sonic': 'Соник',
       }
 
       selectedHero = buttonToHeroMap[receivedText]
@@ -1116,76 +2062,179 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         return ctx.scene.enter(ModeEnum.MainMenu)
       }
 
-      // 🌟 Используем Google Nano Banana для трансформации
-      console.log('🔥🔥🔥 [AvatarTransformScene] BEFORE CALLING generateNanoBanana 🔥🔥🔥', {
+      // 🌟 Используем выбранную модель для трансформации
+      const selectedModel = ctx.session.selectedModel || 'flux-kontext' // По умолчанию FLUX Kontext
+      
+      console.log('🔥🔥🔥 [AvatarTransformScene] BEFORE CALLING AI MODEL 🔥🔥🔥', {
         telegramId,
+        selectedModel,
         promptLength: prompt?.length,
         hasImageUrl: !!userPhotoUrl,
+        userPhotoUrl: userPhotoUrl ? userPhotoUrl.substring(0, 100) + '...' : 'NO_URL',
         selectedHero,
       })
       
-      logger.info('[AvatarTransformScene] Calling generateNanoBanana', {
+      logger.info('[AvatarTransformScene] Calling AI model', {
         telegramId,
+        selectedModel,
         promptLength: prompt?.length,
         hasImageUrl: !!userPhotoUrl,
       })
       
-      // Пробуем KIE.AI, если не работает - fallback на Replicate
+      // 🚀 COMPREHENSIVE AI GENERATION WITH FALLBACK LOGIC
       let result: string | null = null
+      let attemptedModels: string[] = []
       
-      try {
-        console.log('🎨 Trying KIE.AI first...', { telegramId })
-        result = await generateNanoBananaKie({
-          telegram_id: telegramId,
-          promptText: prompt,
-          inputImageUrl: userPhotoUrl,
-          ctx,
-          username: ctx.from?.username || 'unknown',
-          is_ru: isRu,
-        })
+      // Define the priority order for models with fallback
+      const modelPriority = selectedModel === 'seedream4' 
+        ? ['seedream4', 'flux-kontext', 'nano-banana']
+        : (selectedModel as string) === 'nano-banana'
+        ? ['nano-banana', 'flux-kontext', 'seedream4'] 
+        : ['flux-kontext', 'seedream4', 'nano-banana']
+      
+      console.log('🎯 Starting AI generation with fallback logic:', {
+        telegramId,
+        selectedModel,
+        modelPriority,
+      })
+      
+      for (const modelToTry of modelPriority) {
+        if (result) break // Success, no need to try other models
         
-        if (result) {
-          console.log('✅ KIE.AI generation successful!', { telegramId, result: !!result })
-        }
-      } catch (kieError) {
-        console.log('⚠️ KIE.AI failed, trying Replicate fallback...', {
-          telegramId,
-          kieError: kieError instanceof Error ? kieError.message : 'Unknown'
-        })
-        
-        // Fallback на оригинальный Replicate
         try {
-          const { generateNanoBanana } = await import('@/services/generateNanoBanana')
-          console.log('🔄 Calling Replicate fallback...', { telegramId })
-          result = await generateNanoBanana({
-            telegram_id: telegramId,
-            promptText: prompt,
-            inputImageUrl: userPhotoUrl,
-            ctx,
-            username: ctx.from?.username || 'unknown',
-            is_ru: isRu,
+          attemptedModels.push(modelToTry)
+          console.log(`🤖 Attempting generation with ${modelToTry}...`, { telegramId })
+          
+          if (modelToTry === 'seedream4') {
+            console.log('🎭 Using SeeDream-4...', { telegramId })
+            const seedreamResult = await generateSeeDream4({
+              telegram_id: telegramId,
+              prompt: prompt,
+              inputImageUrl: userPhotoUrl,
+              username: ctx.from?.username || 'unknown',
+              is_ru: isRu,
+              ctx,
+              size: '2K',
+              aspect_ratio: '9:16'
+            })
+            
+            if (seedreamResult?.image) {
+              result = 'success'
+              console.log('✅ SeeDream-4 generation successful!', { telegramId })
+              break
+            }
+            
+          } else if (modelToTry === 'nano-banana') {
+            console.log('🍌 Using Nano Banana...', { telegramId })
+            const nanoBananaResult = await generateNanoBanana({
+              telegram_id: telegramId,
+              promptText: prompt,
+              inputImageUrl: userPhotoUrl,
+              username: ctx.from?.username || 'unknown',
+              is_ru: isRu,
+              ctx,
+              promptStyle: 'headshot'
+            })
+            
+            if (nanoBananaResult) {
+              result = 'success'
+              console.log('✅ Nano Banana generation successful!', { telegramId })
+              break
+            }
+            
+          } else if (modelToTry === 'flux-kontext') {
+            console.log('🤖 Using FLUX Kontext Max...', { telegramId })
+            
+            try {
+              // Try new FLUX Kontext Max service first
+              const fluxMaxResult = await generateFluxKontextMax({
+                telegram_id: telegramId,
+                prompt: prompt,
+                inputImageUrl: userPhotoUrl,
+                username: ctx.from?.username || 'unknown',
+                is_ru: isRu,
+                ctx,
+                aspect_ratio: 'match_input_image'
+              })
+              
+              if (fluxMaxResult?.image) {
+                result = 'success'
+                console.log('✅ FLUX Kontext Max generation successful!', { telegramId })
+                break
+              }
+            } catch (fluxMaxError) {
+              console.log('⚠️ FLUX Kontext Max failed, trying legacy FLUX...', { telegramId })
+              
+              // Fallback to legacy FLUX service
+              const fluxLegacyResult = await generateFluxKontext({
+                telegram_id: telegramId,
+                prompt: prompt,
+                inputImageUrl: userPhotoUrl,
+                modelType: 'max',
+                username: ctx.from?.username || 'unknown',
+                is_ru: isRu,
+                ctx,
+              })
+              
+              if (fluxLegacyResult?.image) {
+                result = 'success'
+                console.log('✅ Legacy FLUX Kontext generation successful!', { telegramId })
+                break
+              }
+            }
+          }
+          
+        } catch (modelError) {
+          console.error(`❌ ${modelToTry} generation failed:`, {
+            telegramId,
+            modelError: modelError instanceof Error ? modelError.message : 'Unknown',
+            stack: modelError instanceof Error ? modelError.stack : undefined
           })
           
-          if (result) {
-            console.log('✅ Replicate fallback successful!', { telegramId, result: !!result })
-          }
-        } catch (replicateError) {
-          console.error('❌ Both KIE.AI and Replicate failed!', {
+          // Continue to next model in fallback chain
+          logger.warn(`[AvatarTransformScene] ${modelToTry} failed, trying next model`, {
             telegramId,
-            kieError: kieError instanceof Error ? kieError.message : 'Unknown',
-            replicateError: replicateError instanceof Error ? replicateError.message : 'Unknown'
+            error: modelError instanceof Error ? modelError.message : 'Unknown',
+            attemptedModels,
+            remainingModels: modelPriority.slice(modelPriority.indexOf(modelToTry) + 1)
           })
-          throw replicateError
         }
       }
       
-      console.log('🎯🎯🎯 [AvatarTransformScene] AFTER generateNanoBanana 🎯🎯🎯', {
+      // If all models failed
+      if (!result) {
+        console.error('🚨 ALL AI MODELS FAILED!', {
+          telegramId,
+          attemptedModels,
+          selectedModel
+        })
+        
+        logger.error('[AvatarTransformScene] All AI models failed', {
+          telegramId,
+          attemptedModels,
+          selectedModel
+        })
+        
+        await ctx.reply(
+          isRu
+            ? '❌ Извините, все AI модели временно недоступны. Попробуйте позже или обратитесь в поддержку.'
+            : '❌ Sorry, all AI models are temporarily unavailable. Please try later or contact support.',
+          { reply_markup: { remove_keyboard: true } }
+        )
+        
+        await ctx.scene.leave()
+        return
+      }
+      
+      console.log('🎯🎯🎯 [AvatarTransformScene] AFTER AI MODEL GENERATION 🎯🎯🎯', {
         telegramId,
+        selectedModel,
         resultReceived: !!result,
       })
       
-      logger.info('[AvatarTransformScene] Nano Banana generation completed', {
+      logger.info('[AvatarTransformScene] AI model generation completed', {
         telegramId,
+        selectedModel,
         success: !!result,
       })
 
@@ -1209,8 +2258,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // ВАЖНО: Полностью выходим из сцены, чтобы команда /start снова работала
       await ctx.scene.leave()
 
-      // ПЕРЕХОДИМ К STARTSCENE (приветствие + обучающее видео)
-      await ctx.scene.enter(ModeEnum.StartScene)
+      // ПЕРЕХОДИМ К ГЛАВНОМУ МЕНЮ (не StartScene)
+      await ctx.scene.enter(ModeEnum.MainMenu)
 
       logger.info(
         '[AvatarTransformScene] Successfully completed transformation and transitioned to StartScene',
@@ -1238,7 +2287,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.enter(ModeEnum.MainMenu)
     }
   },
-  // Шаг 4: Обработка загруженной фотографии (для случая когда пользователь загружает новое фото)
+  // Шаг 5: Обработка загруженной фотографии
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -1276,8 +2325,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      // Переходим к шагу выбора пола
-      return ctx.wizard.selectStep(2)
+      // Переходим к шагу выбора действия (шаг 3, индекс 3)
+      return ctx.wizard.selectStep(3)
     } catch (error) {
       logger.error(
         '[AvatarTransformScene] Error processing uploaded photo:',
