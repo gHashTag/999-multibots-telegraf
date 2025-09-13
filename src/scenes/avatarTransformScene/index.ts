@@ -2402,7 +2402,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               username: ctx.from?.username || 'unknown',
               is_ru: isRu,
               ctx,
-              size: '2K',
+              size: '1K',
               aspect_ratio: '9:16'
             })
             
