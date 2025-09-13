@@ -208,6 +208,7 @@ export const generateFluxKontext = async (
       inputParams: {
         prompt: prompt.substring(0, 100) + '...',
         input_image: inputImageUrl ? 'present' : 'missing',
+        input_image_preview: inputImageUrl ? inputImageUrl.substring(0, 150) + '...' : 'NO_INPUT_IMAGE',
       },
       telegram_id,
     })

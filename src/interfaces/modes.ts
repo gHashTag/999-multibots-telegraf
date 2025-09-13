@@ -22,6 +22,7 @@ export enum ModeEnum {
 
   // 🔧 СИСТЕМНЫЕ ОПЕРАЦИИ
   AvatarTransform = 'avatar_transform',
+  AIHeroes = 'ai_heroes',
   Subscribe = 'subscribe',
   TopUpBalance = 'top_up_balance',
   Avatar = 'avatar',
