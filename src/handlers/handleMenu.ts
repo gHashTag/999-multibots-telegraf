@@ -581,15 +581,15 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[111].title_ru : levels[111].title_en]: async () => {
         logger.info({
-          message: '🦸‍♂️ [handleMenu] Переход к AI Heroes Transform',
+          message: '🦸‍♂️ [handleMenu] Переход к ИИ Герои Transform',
           telegramId,
           function: 'handleMenu',
           action: 'ai_heroes_transform',
           nextScene: 'avatarTransformScene',
         })
-        console.log('CASE: 🦸‍♂️ AI Heroes - Launching Avatar Transform')
+        console.log('CASE: 🦸‍♂️ ИИ Герои - Launching Avatar Transform')
 
-        // AI Heroes используют avatar transform scene для трансформации
+        // ИИ Герои используют avatar transform scene для трансформации
         ctx.session.mode = ModeEnum.AvatarTransform
         console.log(
           `🔄 [handleMenu] Вход в сцену avatarTransformScene`

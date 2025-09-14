@@ -299,9 +299,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
   selectedHero?: string // Выбранный герой Marvel для трансформации
 
-  // AI Heroes transformation fields
-  aiHeroGender?: 'male' | 'female' // Выбранный пол для AI Heroes трансформации
-  aiHeroImageUrl?: string // URL фото пользователя для AI Heroes трансформации
+  // ИИ Герои transformation fields
+  aiHeroGender?: 'male' | 'female' // Выбранный пол для ИИ Герои трансформации
+  aiHeroImageUrl?: string // URL фото пользователя для ИИ Герои трансформации
 
   // Morphing fields
   morphingType?: 'loop' | 'linear' // Тип морфинга

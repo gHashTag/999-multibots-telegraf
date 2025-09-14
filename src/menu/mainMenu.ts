@@ -146,7 +146,7 @@ export const levels: Record<number, Level> = {
   },
   // AI Heroes transformation - Transform into superheroes from different universes
   111: {
-    title_ru: '🦸‍♂️ Ай герои',
+    title_ru: '🦸‍♂️ ИИ Герои',
     title_en: '🦸‍♂️ AI Heroes',
   },
 }
