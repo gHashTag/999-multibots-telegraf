@@ -1013,7 +1013,7 @@ const createMarvelPromptByGender = (
 
 export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.AvatarTransform,
-  // Шаг 0: Объяснение AI Heroes + выбор пола
+  // Шаг 0: Объяснение ИИ Герои + выбор пола
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -1164,7 +1164,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       }
     )
 
-    // Показываем объяснение AI Heroes + выбор пола
+    // Показываем объяснение ИИ Герои + выбор пола
     await ctx.reply(
       isRu
         ? `🎭 <b>ИИ ГЕРОИ - AI HEROES</b>\n\n🎨 Трансформируйтесь в любимого персонажа!\n\n🤖 <b>Наш ИИ превратит ваше фото в:</b>\n• Супергероев Marvel и DC\n• Персонажей аниме\n• Славянских героев\n• Игровых персонажей\n\n💫 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n🚀 <b>Полный доступ ко всем стилям - в подписке</b>\n\n👇 <b>Выберите пол для стиля персонажа:</b>`
@@ -1265,7 +1265,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // Очищаем выбранный пол из сессии
       delete ctx.session.selectedGender
       
-      // Показываем объяснение AI Heroes + выбор пола заново
+      // Показываем объяснение ИИ Герои + выбор пола заново
       await ctx.reply(
         isRu
           ? `🎭 <b>ИИ ГЕРОИ - AI HEROES</b>\n\n🎨 Трансформируйтесь в любимого персонажа!\n\n🤖 <b>Наш ИИ превратит ваше фото в:</b>\n• Супергероев Marvel и DC\n• Персонажей аниме\n• Славянских героев\n• Игровых персонажей\n\n💫 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n🚀 <b>Полный доступ ко всем стилям - в подписке</b>\n\n👇 <b>Выберите пол для стиля персонажа:</b>`
