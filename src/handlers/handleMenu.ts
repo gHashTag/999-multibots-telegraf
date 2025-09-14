@@ -594,7 +594,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(
           `🔄 [handleMenu] Вход в сцену avatarTransformScene`
         )
-        await ctx.scene.enter('avatarTransformScene')
+        await ctx.scene.enter('avatar_transform')
         console.log(
           `✅ [handleMenu] Завершен вход в сцену avatarTransformScene`
         )

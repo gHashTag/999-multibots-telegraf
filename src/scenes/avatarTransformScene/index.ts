@@ -816,6 +816,18 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'Darling in the FranXX stance' : 'Zero Two pose'
     }. Pink hair with distinctive red horns. White pilot suit with red accents and 002 designation. Playful but dangerous expression with fanged smile. FranXX mecha elements and Klaxosaur effects. Background with futuristic dystopia and mecha elements. Pink and red hybrid lighting. Darling in the FranXX aesthetic with hybrid nature.`,
 
+    'Нико Робин': `${baseSettings} A archaeological ${
+      gender === 'male' ? 'scholar' : 'scholar'
+    } in dark outfit with flower petal abilities. ${
+      gender === 'male' ? 'Archaeological stance' : 'Robin pose'
+    }. Black hair and dark sophisticated outfit. Flower-Flower Fruit effects with multiple arms sprouting. Ancient text or poneglyph elements. Calm, intellectual expression with dark past. Background with archaeological ruins and ancient knowledge. Purple and dark blue scholarly lighting. One Piece aesthetic with forbidden knowledge.`,
+
+    'Кая': `${baseSettings} A gentle village ${
+      gender === 'male' ? 'doctor' : 'doctor'
+    } in light medical outfit with healing elements. ${
+      gender === 'male' ? 'Caring healer stance' : 'Kaya pose'
+    }. Blonde hair in elegant style with kind expression. Light colored dress or medical outfit with nature elements. Healing herbs and medical tools around. Gentle caring expression with pure heart. Background with peaceful village and medical clinic. Soft green and white healing lighting. One Piece aesthetic with village doctor theme.`,
+
     // ================= SLAVIC/RUSSIAN HEROES (MISSING) =================
     'Алеша Попович': `${baseSettings} A clever young ${gender === 'male' ? 'bogatyr' : 'warrior'} in light Russian chainmail with bow and arrows. Background with Russian countryside.`,
     'Перун': `${baseSettings} A thunder ${gender === 'male' ? 'god' : 'goddess'} in golden Slavic armor with lightning hammer. Lightning effects and stormy sky.`,
