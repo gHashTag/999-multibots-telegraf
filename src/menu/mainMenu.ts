@@ -7,6 +7,7 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
 import { logger } from '@/utils/logger'
 import { getBotNameByToken } from '../core/bot'
+import { getGenerationStatusBadgeAsync } from '@/helpers/getGenerationLimitMessage'
 
 interface Level {
   title_ru: string
@@ -348,9 +349,28 @@ export async function mainMenu({
     `[mainMenu LOG] Determined availableLevels count: ${availableLevels.length}`
   )
 
-  const levelButtons = availableLevels.map(lvl =>
-    Markup.button.text(isRu ? lvl.title_ru : lvl.title_en)
-  )
+  // Создаем кнопки с учетом лимитов генераций для AI Heroes
+  const levelButtons = []
+  for (const lvl of availableLevels) {
+    let buttonText = isRu ? lvl.title_ru : lvl.title_en
+
+    // Если это AI Heroes (level 111), добавляем информацию о лимитах
+    if (lvl === levels[111] && telegramId) {
+      try {
+        const generationBadge = await getGenerationStatusBadgeAsync(telegramId, isRu)
+        if (generationBadge !== '🎮') {
+          buttonText += ` ${generationBadge}`
+        }
+      } catch (error) {
+        logger.warn('[mainMenu] Failed to get generation status for AI Heroes button', {
+          telegramId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+    }
+
+    levelButtons.push(Markup.button.text(buttonText))
+  }
 
   const adminSpecificButtons = []
 
