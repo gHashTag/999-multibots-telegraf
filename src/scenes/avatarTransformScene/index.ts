@@ -948,6 +948,12 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'Renaissance master stance' : 'Ezio pose'
     }. Ornate Italian Renaissance assassin outfit with family colors. Dual hidden blades and Renaissance weapons. Confident expression with Italian charm. Eagle vision and parkour abilities. Background with Renaissance Italian architecture. Rich brown and gold Renaissance lighting. Assassin's Creed aesthetic with Renaissance mastery.`,
 
+    'Алекс Мерсер': `${baseSettings} A powerful ${
+      gender === 'male' ? 'shapeshifter' : 'shapeshifter'
+    } in dark tactical outfit with biomass elements. ${
+      gender === 'male' ? 'Prototype stance' : 'Alex Mercer pose'
+    }. Black military jacket with viral veins glowing red. One arm morphing into biomass weapon. Dark hooded appearance with viral infection patterns. Athletic build with superhuman posture. Background with apocalyptic urban setting. Red and black viral lighting. Prototype aesthetic with shapeshifting mastery.`,
+
     'Лара Крофт': `${baseSettings} A adventurous ${
       gender === 'male' ? 'archaeologist' : 'archaeologist'
     } in practical expedition gear with dual pistols. ${
