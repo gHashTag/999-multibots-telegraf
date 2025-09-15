@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { Markup } from 'telegraf'
-import { levels } from '@/menu/mainMenu'
+import { levels, HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
 import { handlePriceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
@@ -542,12 +542,18 @@ export const handleMenu = async (ctx: MyContext) => {
         })
         console.log('CASE: 🎬 AI Reels - Mini App')
 
-        // Проверяем права администратора
+        // Проверяем права администратора или сотрудников Хаим Групп
         const userId = ctx.from?.id?.toString()
-        if (!userId || !adminIds.includes(userId)) {
-          logger.warn('[handleMenu] AI Reels access denied - not admin', {
+        const isMainAdmin = userId && adminIds.includes(userId)
+        const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+        const hasAccess = isMainAdmin || isHaimStaff
+
+        if (!hasAccess) {
+          logger.warn('[handleMenu] AI Reels access denied - not admin/staff', {
             telegramId,
             userId,
+            isMainAdmin,
+            isHaimStaff,
           })
           await ctx.reply(
             isRu
