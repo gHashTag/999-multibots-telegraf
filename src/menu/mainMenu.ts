@@ -317,25 +317,38 @@ export async function mainMenu({
   // Фильтруем только служебные кнопки и админские функции
   // Используем ADMIN_IDS_ARRAY для единой проверки (уже импортирован в начале файла)
   
+  // Проверяем доступ для админов и сотрудников Хаим Групп
+  const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+  const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+  const hasAdminAccess = isMainAdmin || isHaimStaff
+
+  console.log(`[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`)
+
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
     .filter(
-      level => !(level.admin_only && !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))))
+      level => {
+        const shouldInclude = !(level.admin_only && !hasAdminAccess)
+        if (level.admin_only) {
+          console.log(`[mainMenu DEBUG] Admin-only level ${level.title_ru}: hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`)
+        }
+        return shouldInclude
+      }
     )
 
-  // Добавляем кнопку мониторинга конкурентов только для администраторов
+  // Добавляем кнопку мониторинга конкурентов для админов и сотрудников Хаим Групп
   if (userId && levels[109]) {
-    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
-
-    if (isAdmin) {
+    if (hasAdminAccess) {
       // Добавляем кнопку мониторинга конкурентов для администраторов (теперь открывает парсер)
       if (!availableLevels.includes(levels[109])) {
         availableLevels.push(levels[109])
         logger.info(
-          '[mainMenu] Added competitor monitoring button for admin (opens parser)',
+          '[mainMenu] Added competitor monitoring button for admin/staff (opens parser)',
           {
             userId,
-            isAdmin: true,
+            isMainAdmin,
+            isHaimStaff,
+            hasAdminAccess: true,
           }
         )
       }
