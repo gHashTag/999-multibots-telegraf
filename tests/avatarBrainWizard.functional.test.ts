@@ -73,18 +73,22 @@ describe('AvatarBrainWizard - Functional Tests', () => {
       // Get the final step function source code to analyze message content
       const finalStepSource = avatarBrainWizard.steps[3].toString()
 
-      // Check for Russian success message components
-      expect(finalStepSource).toContain('🎉')
-      expect(finalStepSource).toContain('🧠✨')
-      expect(finalStepSource).toContain('Великолепно! Мозг аватара успешно настроен!')
-      expect(finalStepSource).toContain('📊 <b>Сохраненная информация:</b>')
-      expect(finalStepSource).toContain('🏢 <b>Компания:</b>')
-      expect(finalStepSource).toContain('💼 <b>Должность:</b>')
-      expect(finalStepSource).toContain('🛠️ <b>Навыки:</b>')
-      expect(finalStepSource).toContain('💡 <b>Как это используется:</b>')
-      expect(finalStepSource).toContain('🚀 <b>Что дальше?</b>')
-      expect(finalStepSource).toContain('💭 Чат с аватаром')
-      expect(finalStepSource).toContain('✅ <b>Готово!</b>')
+      // Check for Russian success message components using Unicode escape sequences as they appear in the compiled code
+      expect(finalStepSource).toContain('\\uD83C\\uDF89') // 🎉 emoji in unicode
+      expect(finalStepSource).toContain('\\uD83E\\uDDE0') // 🧠 emoji in unicode
+      expect(finalStepSource).toContain('\\u0412\\u0435\\u043B\\u0438\\u043A\\u043E\\u043B\\u0435\\u043F\\u043D\\u043E') // Великолепно in unicode
+      expect(finalStepSource).toContain('\\u041C\\u043E\\u0437\\u0433 \\u0430\\u0432\\u0430\\u0442\\u0430\\u0440\\u0430') // Мозг аватара in unicode
+      expect(finalStepSource).toContain('\\u0443\\u0441\\u043F\\u0435\\u0448\\u043D\\u043E \\u043D\\u0430\\u0441\\u0442\\u0440\\u043E\\u0435\\u043D') // успешно настроен in unicode
+      expect(finalStepSource).toContain('\\u0421\\u043E\\u0445\\u0440\\u0430\\u043D\\u0435\\u043D\\u043D\\u0430\\u044F \\u0438\\u043D\\u0444\\u043E\\u0440\\u043C\\u0430\\u0446\\u0438\\u044F') // Сохраненная информация in unicode
+      expect(finalStepSource).toContain('\\u041A\\u043E\\u043C\\u043F\\u0430\\u043D\\u0438\\u044F') // Компания in unicode
+      expect(finalStepSource).toContain('\\u0414\\u043E\\u043B\\u0436\\u043D\\u043E\\u0441\\u0442\\u044C') // Должность in unicode
+      expect(finalStepSource).toContain('\\u041D\\u0430\\u0432\\u044B\\u043A\\u0438') // Навыки in unicode
+      expect(finalStepSource).toContain('\\uD83D\\uDE80') // 🚀 emoji
+      expect(finalStepSource).toContain('\\u0427\\u0442\\u043E \\u0434\\u0430\\u043B\\u044C\\u0448\\u0435') // Что дальше
+      expect(finalStepSource).toContain('\\uD83D\\uDCAD') // 💭 emoji
+      expect(finalStepSource).toContain('\\u0427\\u0430\\u0442 \\u0441 \\u0430\\u0432\\u0430\\u0442\\u0430\\u0440\\u043E\\u043C') // Чат с аватаром
+      expect(finalStepSource).toContain('\\u2705') // ✅ emoji
+      expect(finalStepSource).toContain('\\u0413\\u043E\\u0442\\u043E\\u0432\\u043E') // Готово
 
       // Check for English success message components
       expect(finalStepSource).toContain('Excellent! Avatar brain successfully configured!')

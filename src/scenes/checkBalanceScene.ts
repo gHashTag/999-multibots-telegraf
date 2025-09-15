@@ -308,10 +308,7 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 // ==================================================================
 
 checkBalanceScene.enter(async ctx => {
-  console.log('🚀 [DEBUG] checkBalanceScene.enter STARTED!')
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log('🚀 [DEBUG] telegramId:', telegramId)
-  console.log('🚀 [DEBUG] session.mode:', ctx.session?.mode)
 
   logger.info({
     message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
@@ -321,31 +318,13 @@ checkBalanceScene.enter(async ctx => {
     sessionData: JSON.stringify(ctx.session || {}),
   })
 
-  console.log('💵 CASE: checkBalanceScene')
-
   try {
-    // Шаг 1: Получаем ID и режим
-    console.log('🚀 [DEBUG] Step 1: Getting user info...')
+    // Get user ID and mode
     const { telegramId: userId } = await getUserInfo(ctx)
-    console.log('🚀 [DEBUG] Step 1 DONE, userId:', userId)
-
-    console.log('🚀 [DEBUG] Step 2: Getting mode...')
     const mode = ctx.session.mode as ModeEnum
-    console.log('🚀 [DEBUG] Step 2 DONE, mode:', mode)
-    console.log('🚀 [DEBUG] Step 2: mode typeof:', typeof mode)
-    console.log(
-      '🚀 [DEBUG] Step 2: ModeEnum.TextToVideo:',
-      ModeEnum.TextToVideo
-    )
-    console.log(
-      '🚀 [DEBUG] Step 2: mode === ModeEnum.TextToVideo:',
-      mode === ModeEnum.TextToVideo
-    )
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    console.log('🚀 [DEBUG] Step 3: Getting language...')
     const isRu = isRussianFromState(ctx)
-    console.log('🚀 [DEBUG] Step 3 DONE, isRu:', isRu)
 
     logger.info({
       message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
@@ -604,7 +583,7 @@ export const enterTargetScene = async (
     cost
   )
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log('🎯 [DEBUG] enterTargetScene telegramId:', telegramId)
+  // Enter target scene based on user details
 
   logger.info({
     message: `[EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим ${mode}`,
