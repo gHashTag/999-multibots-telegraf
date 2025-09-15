@@ -7,6 +7,10 @@ import { ModeEnum } from '@/interfaces/modes'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
+// 🦸‍♂️ NEW GENERATION LIMITS SYSTEM
+import { checkSuperheroGenerationUsage } from '@/core/supabase/checkSuperheroGenerationUsage'
+import { incrementSuperheroGeneration } from '@/core/supabase/incrementSuperheroGeneration'
+import { getGenerationLimitMessage, getSuccessGenerationMessage } from '@/helpers/getGenerationLimitMessage'
 import { getBotNameByToken } from '@/core/bot'
 // Импортируем все модели для генерации с fallback логикой
 import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
@@ -142,6 +146,8 @@ const AI_HEROES = {
     'Фэй Валентайн',
     'Нами',
     'Nico Robin',
+    'Нико Робин',
+    'Кая',
     'Риас Гремори',
     'Zero Two',
     
@@ -219,11 +225,6 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'Strong patriotic stance' : 'Confident patriotic pose'
     }. Holding a circular shield-like prop. Red, white and blue color palette throughout. Background with patriotic elements and geometric patterns. Classic heroic lighting with strong shadows and highlights.`,
 
-    Тор: `${baseSettings} A mighty ${
-      gender === 'male' ? 'man' : 'woman'
-    } in Nordic-inspired outfit with flowing cape. ${
-      gender === 'male' ? 'Powerful build' : 'Regal presence'
-    }. Long flowing hair with golden highlights. Holding a hammer-like prop with lightning-inspired lighting effects. Background with stormy sky elements and Norse-style geometric patterns. Dramatic lighting with electric blue accents.`,
 
     'Доктор Стрэндж': `${baseSettings} A mystical ${
       gender === 'male' ? 'man' : 'woman'
@@ -254,6 +255,30 @@ const createMarvelPromptByGender = (
     } in purple and green athletic outfit with torn fabric effects. ${
       gender === 'male' ? 'Massive muscular build' : 'Strong powerful frame'
     }. Green body paint or lighting effects. Clenched fists in rage pose. Wild, messy hair. Background with destruction effects and green energy. Dramatic lighting with green and purple colors. Incredible strength aesthetic with intense, fierce expression.`,
+
+    'Тор': `${baseSettings} A mighty ${
+      gender === 'male' ? 'Norse god' : 'Norse goddess'
+    } in royal blue and silver Asgardian armor with cape. ${
+      gender === 'male' ? 'Godlike powerful stance' : 'Divine warrior pose'
+    }. Mystical hammer (Mjolnir) in hand with lightning effects. Blonde hair flowing with wind and power. Lightning bolts crackling around the figure. Red cape billowing dramatically. Background with stormy skies and Asgardian architecture. Blue and silver lightning effects with divine golden light. Thor aesthetic with Norse mythology power.`,
+
+    'Шури': `${baseSettings} A brilliant ${
+      gender === 'male' ? 'Wakandan inventor' : 'Wakandan princess'
+    } in sleek purple and silver tech outfit with African patterns. ${
+      gender === 'male' ? 'Tech genius stance' : 'Princess inventor pose'
+    }. Advanced Wakandan technology gauntlets on hands. Kimoyo beads glowing blue around wrists. Short natural hair in elegant style. Background with high-tech Wakandan laboratory and vibranium elements. Purple and blue tech lighting with African geometric patterns. Shuri aesthetic with technological innovation.`,
+
+    'Валькирия': `${baseSettings} A fierce ${
+      gender === 'male' ? 'Asgardian warrior' : 'Asgardian valkyrie'
+    } in white and blue armor with winged helmet. ${
+      gender === 'male' ? 'Elite warrior stance' : 'Valkyrie battle pose'
+    }. Distinctive winged helmet with silver and blue design. Dragonfang sword in hand with mystical energy. White and blue Asgardian armor with intricate patterns. Background with rainbow bridge and Asgardian warriors. White and blue divine lighting with rainbow bridge effects. Valkyrie aesthetic with Asgardian honor.`,
+
+    'Гамора': `${baseSettings} A deadly ${
+      gender === 'male' ? 'cosmic assassin' : 'cosmic assassin'
+    } in black and green tactical outfit with weapon harness. ${
+      gender === 'male' ? 'Master assassin stance' : 'Gamora warrior pose'
+    }. Green skin with intricate facial markings. Dual curved swords crossed on back. Black tactical outfit with green accents and armor plates. Long dark hair in warrior braids. Background with cosmic space and galaxy elements. Green and black assassin lighting with space atmosphere. Gamora aesthetic with cosmic deadliness.`,
 
     'Росомаха': `${baseSettings} A rugged ${
       gender === 'male' ? 'man' : 'woman'
@@ -294,25 +319,6 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'Powerful sorcerer stance' : 'Enchanting magical pose'
     }. Hands creating swirling red energy with magical particles. Detailed mystical jewelry and accessories. Background with ancient magical symbols and swirling red energy. Rich deep colors with crimson and gold magical effects.`,
 
-    Гамора: `${baseSettings} A fierce ${
-      gender === 'male' ? 'man' : 'woman'
-    } in tactical black and silver outfit with cosmic warrior elements. ${
-      gender === 'male' ? 'Battle-ready stance' : 'Warrior goddess pose'
-    }. Holding dual blade-like props. Short practical hair with subtle green highlights. Background with cosmic battlefield elements and purple-pink nebula effects. Dramatic sci-fi lighting with sharp contrasts.`,
-
-    Шури: `${baseSettings} A brilliant ${
-      gender === 'male' ? 'man' : 'woman'
-    } in advanced tech outfit with purple and gold accents inspired by African patterns. ${
-      gender === 'male' ? 'Genius inventor pose' : 'Tech princess stance'
-    }. Hands interacting with holographic interfaces and tech gadgets. Modern braided hairstyle with tech accessories. Background with futuristic lab elements and purple holographic displays. Clean tech aesthetic with purple and gold lighting.`,
-
-    Валькирия: `${baseSettings} A noble ${
-      gender === 'male' ? 'man' : 'woman'
-    } in warrior outfit with blue and silver colors and flowing cape. ${
-      gender === 'male'
-        ? 'Asgardian warrior stance'
-        : 'Noble warrior queen pose'
-    }. Holding a sword-like prop with regal bearing. Hair in warrior braids with metallic accessories. Background with Asgardian palace elements and golden architectural details. Regal lighting with blue and gold royal colors.`,
 
     // СЛАВЯНСКИЕ СКАЗОЧНЫЕ ГЕРОИ
     'Иван-царевич': `${baseSettings} A noble ${
@@ -1043,31 +1049,44 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       }
     }
 
-    // 🛡️ ПРОВЕРЯЕМ ЛИМИТ ИСПОЛЬЗОВАНИЯ ФУНКЦИИ
-    logger.info('[AvatarTransformScene] Checking usage limit', {
+    // 🛡️ ПРОВЕРЯЕМ ЛИМИТ ГЕНЕРАЦИЙ СУПЕРГЕРОЕВ (НОВАЯ СИСТЕМА)
+    logger.info('[AvatarTransformScene] Checking superhero generation limits', {
       telegramId,
-      step: 'checking_limit',
+      step: 'checking_generation_limits',
     })
 
-    // Получаем имя бота из контекста
-    const botName = ctx.botInfo?.username || 'AI_STARS_bot'
+    const generationCheck = await checkSuperheroGenerationUsage(telegramId)
 
-    const usageCheck = await checkAvatarTransformUsage(
+    logger.info('[AvatarTransformScene] Generation limit check result', {
+      telegramId,
+      canGenerate: generationCheck.canGenerate,
+      currentUsage: generationCheck.currentUsage,
+      maxUsage: generationCheck.maxUsage,
+      isAdmin: generationCheck.isAdmin,
+      hasUnlimitedAccess: generationCheck.hasUnlimitedAccess,
+      resetDate: generationCheck.resetDate,
+      reason: generationCheck.reason,
+      step: 'generation_limit_checked',
+    })
+
+    // 🔄 BACKWARD COMPATIBILITY: Также проверяем старую систему для создания пользователя
+    const botName = ctx.botInfo?.username || 'AI_STARS_bot'
+    const legacyUsageCheck = await checkAvatarTransformUsage(
       telegramId,
       inviteCode || undefined,
       botName
     )
 
-    logger.info('[AvatarTransformScene] Usage limit check result', {
+    logger.info('[AvatarTransformScene] Legacy usage check (for user creation)', {
       telegramId,
-      canUse: usageCheck.canUse,
-      isAdmin: usageCheck.isAdmin,
-      hasUsedBefore: usageCheck.hasUsedBefore,
-      step: 'limit_checked',
+      canUse: legacyUsageCheck.canUse,
+      isAdmin: legacyUsageCheck.isAdmin,
+      hasUsedBefore: legacyUsageCheck.hasUsedBefore,
+      step: 'legacy_check_completed',
     })
 
     // 📩 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ РЕФЕРЕРУ при первом использовании с реферальным кодом
-    if (inviteCode && usageCheck.canUse && !usageCheck.hasUsedBefore) {
+    if (inviteCode && legacyUsageCheck.canUse && !legacyUsageCheck.hasUsedBefore) {
       try {
         const username =
           ctx.from?.username || ctx.from?.first_name || telegramId
@@ -1108,44 +1127,75 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       }
     }
 
-    // Если пользователь не может использовать (уже использовал и не админ)
-    if (!usageCheck.canUse) {
+    // 🚫 ПРОВЕРЯЕМ ЛИМИТЫ ГЕНЕРАЦИИ (НОВАЯ СИСТЕМА)
+    if (!generationCheck.canGenerate) {
       logger.info(
-        '[AvatarTransformScene] User exceeded limit, showing subscription offer',
+        '[AvatarTransformScene] User exceeded generation limit, showing limit info',
         {
           telegramId,
-          hasUsedBefore: usageCheck.hasUsedBefore,
-          step: 'limit_exceeded',
+          currentUsage: generationCheck.currentUsage,
+          maxUsage: generationCheck.maxUsage,
+          resetDate: generationCheck.resetDate,
+          reason: generationCheck.reason,
+          step: 'generation_limit_exceeded',
         }
       )
 
-      await ctx.reply(
-        isRu
-          ? `🚫 <b>Лимит демонстрации исчерпан</b>\n\n😊 Вы уже использовали бесплатную AI-трансформацию!\n\n🎯 <b>Чтобы продолжить использование:</b>\n💰 Оформите подписку и получите:\n\n✨ <b>Безлимитные трансформации</b>\n🎨 <b>Сотни стилей на выбор</b>\n🖼️ <b>Все возможности бота</b>\n🚀 <b>Новые функции каждую неделю</b>\n\n💎 Используйте /start → 💫 Оформить подписку`
-          : `🚫 <b>Demo limit reached</b>\n\n😊 You've already used the free AI transformation!\n\n🎯 <b>To continue using:</b>\n💰 Get a subscription and receive:\n\n✨ <b>Unlimited transformations</b>\n🎨 <b>Hundreds of styles to choose</b>\n🖼️ <b>All bot capabilities</b>\n🚀 <b>New features every week</b>\n\n💎 Use /start → 💫 Subscribe`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: Markup.keyboard([
-            [isRu ? '💫 Оформить подписку' : '💫 Subscribe'],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
-          ]).resize().reply_markup,
-        }
+      // Формируем сообщение в зависимости от статуса пользователя
+      let limitMessage: string
+      let resetInfo: string = ''
+
+      if (generationCheck.resetDate) {
+        const resetDate = new Date(generationCheck.resetDate)
+        const resetDateString = resetDate.toLocaleDateString(isRu ? 'ru-RU' : 'en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+        resetInfo = isRu
+          ? `\n📅 Лимит сбросится: ${resetDateString}`
+          : `\n📅 Limit resets: ${resetDateString}`
+      }
+
+      // Используем новую helper функцию для формирования сообщения
+      limitMessage = getGenerationLimitMessage(
+        isRu,
+        generationCheck.hasUnlimitedAccess,
+        generationCheck.currentUsage,
+        generationCheck.maxUsage,
+        generationCheck.resetDate,
+        generationCheck.isAdmin,
+        generationCheck.reason?.includes('NEUROTESTER') ? 'NEUROTESTER' : undefined
       )
+
+      await ctx.reply(limitMessage, {
+        parse_mode: 'HTML',
+        reply_markup: Markup.keyboard([
+          [isRu ? '💫 Оформить подписку' : '💫 Subscribe'],
+          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+        ]).resize().reply_markup,
+      })
 
       // Возвращаемся в главное меню
       await ctx.scene.leave()
       return ctx.scene.enter(ModeEnum.MainMenu)
     }
 
-    // Логируем статус пользователя (админ или первое использование)
-    if (usageCheck.isAdmin) {
+    // Логируем статус пользователя и оставшиеся генерации
+    if (generationCheck.isAdmin) {
       logger.info('[AvatarTransformScene] Admin user - unlimited access', {
         telegramId,
         step: 'admin_access',
       })
+    } else if (generationCheck.hasUnlimitedAccess) {
+      logger.info('[AvatarTransformScene] User with unlimited access', {
+        telegramId,
+        reason: generationCheck.reason,
+        step: 'unlimited_access',
+      })
     } else {
       logger.info(
-        '[AvatarTransformScene] Regular user - first time usage allowed',
+        '[AvatarTransformScene] Regular user - generation allowed',
         {
           telegramId,
           step: 'first_usage',
@@ -2337,17 +2387,40 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         success: !!result,
       })
 
-      // 🛡️ ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ (после успешной генерации)
+      // 🛡️ ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ (НОВАЯ СИСТЕМА)
+      // Увеличиваем счетчик генераций супергероев
+      const incrementSuccess = await incrementSuperheroGeneration(telegramId)
+      if (incrementSuccess) {
+        logger.info('[AvatarTransformScene] Generation count incremented successfully', {
+          telegramId,
+          step: 'generation_incremented',
+        })
+      } else {
+        logger.warn('[AvatarTransformScene] Failed to increment generation count', {
+          telegramId,
+          step: 'generation_increment_failed',
+        })
+      }
+
+      // Также поддерживаем старую систему для совместимости
       await markAvatarTransformUsed(telegramId)
-      logger.info('[AvatarTransformScene] Usage marked for user', {
+      logger.info('[AvatarTransformScene] Legacy usage marked for user', {
         telegramId,
       })
 
-      // 🚀 ПЕРЕХОДИМ К ПРИВЕТСТВИЮ И ОБУЧАЮЩЕМУ ВИДЕО ПОСЛЕ ДЕМОНСТРАЦИИ
+      // 🆕 ПОЛУЧАЕМ ОБНОВЛЕННЫЙ СТАТУС ПОСЛЕ ИНКРЕМЕНТА
+      const updatedCheck = await checkSuperheroGenerationUsage(telegramId)
+
+      // 🚀 ПОКАЗЫВАЕМ СООБЩЕНИЕ ОБ УСПЕШНОЙ ГЕНЕРАЦИИ
+      const successMessage = getSuccessGenerationMessage(
+        isRu,
+        updatedCheck.hasUnlimitedAccess,
+        updatedCheck.currentUsage,
+        updatedCheck.maxUsage
+      )
+
       await ctx.reply(
-        isRu
-          ? `🎉 <b>Демо-трансформация завершена!</b>\n\n😊 Вам понравилось? Это лишь ОДНА из сотен возможностей нашего бота!\n\n🎓 Теперь посмотрите обучающее видео и узнайте больше о возможностях бота!`
-          : `🎉 <b>Demo transformation completed!</b>\n\n😊 Did you like it? This is just ONE of hundreds of our bot's capabilities!\n\n🎓 Now watch the educational video and learn more about the bot's features!`,
+        `🎉 <b>${isRu ? 'Трансформация завершена!' : 'Transformation completed!'}</b>\n\n${successMessage}\n\n🎓 ${isRu ? 'Теперь посмотрите обучающее видео и узнайте больше о возможностях бота!' : 'Now watch the educational video and learn more about the bot\'s features!'}`,
         {
           parse_mode: 'HTML',
           reply_markup: { remove_keyboard: true },
