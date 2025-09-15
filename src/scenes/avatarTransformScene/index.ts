@@ -145,7 +145,6 @@ const AI_HEROES = {
     'Асука Лэнгли',
     'Фэй Валентайн',
     'Нами',
-    'Nico Robin',
     'Нико Робин',
     'Кая',
     'Риас Гремори',
@@ -804,11 +803,6 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'Weather manipulation stance' : 'Nami pose'
     }. Orange hair and outfit with nautical elements. Clima-Tact weather weapon creating storm effects. Navigation and treasure mapping tools. Confident navigator pose with weather magic. Background with ship navigation and treasure elements. Orange and blue weather lighting. One Piece aesthetic with navigation expertise.`,
 
-    'Nico Robin': `${baseSettings} A archaeological ${
-      gender === 'male' ? 'scholar' : 'scholar'
-    } in dark outfit with flower petal abilities. ${
-      gender === 'male' ? 'Archaeological stance' : 'Robin pose'
-    }. Black hair and dark sophisticated outfit. Flower-Flower Fruit effects with multiple arms sprouting. Ancient text or poneglyph elements. Calm, intellectual expression with dark past. Background with archaeological ruins and ancient knowledge. Purple and dark blue scholarly lighting. One Piece aesthetic with forbidden knowledge.`,
 
     'Риас Гремори': `${baseSettings} A noble ${
       gender === 'male' ? 'devil' : 'devil'
@@ -2006,7 +2000,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         '🎨 Асука Лэнгли': 'Асука Лэнгли',
         '🎨 Фэй Валентайн': 'Фэй Валентайн',
         '🎨 Нами': 'Нами',
-        '🎨 Nico Robin': 'Nico Robin',
+        '🎨 Нико Робин': 'Нико Робин',
+        '🎨 Кая': 'Кая',
         '🎨 Риас Гремори': 'Риас Гремори',
         '🎨 Zero Two': 'Zero Two',
         '🎨 Алеша Попович': 'Алеша Попович',
