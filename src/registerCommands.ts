@@ -183,9 +183,7 @@ const sendGroupCommandReply = async (ctx: MyContext) => {
 }
 
 export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
-  console.log('🔧 [DEBUG] registerCommands FUNCTION ENTERED!')
-  console.log('🔧 [DEBUG] Registering commands - INSTAGRAM INCLUDED!')
-  logger.info('🔧 [DEBUG] Registering commands - INSTAGRAM INCLUDED!')
+  logger.info('Registering bot commands and handlers')
 
   try {
     // 1. Логгер для ВСЕХ входящих обновлений
@@ -206,8 +204,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
       // СПЕЦИАЛЬНЫЙ ЛОГ ДЛЯ /instagram
       if (messageText === '/instagram') {
-        console.log('🚨 [DEBUG] /instagram COMMAND DETECTED in RAW UPDATE!')
-        console.log('🚨 [DEBUG] About to pass to next middleware...')
+        // Instagram command detected, proceeding to handler
       }
 
       return next()

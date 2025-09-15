@@ -39,6 +39,7 @@ const AI_HEROES = {
     'Призрачный гонщик',
     'Зимний солдат',
     'Звёздный лорд',
+    'Соколиный глаз',
     
     // DC Universe
     'Супермен',
@@ -73,8 +74,13 @@ const AI_HEROES = {
     'Илья Муромец',
     'Добрыня Никитич',
     'Алеша Попович',
+    'Алёша Попович',
     'Перун',
     'Святогор',
+    'Иван-царевич',
+    'Кощей Бессмертный',
+    'Серый Волк',
+    'Емеля',
     
     // Games & Movies (Культовые)
     'Кратос',
@@ -102,6 +108,7 @@ const AI_HEROES = {
     // Marvel Universe
     'Капитан Марвел',
     'Скарлет Витч', 
+    'Алая ведьма',
     'Чёрная вдова',
     'Гвен Стейси',
     'Шури',
@@ -185,6 +192,10 @@ const AI_HEROES = {
     'Берегиня',
     'Русалка',
     'Мальвина',
+    'Баба Яга',
+    'Марья Моревна',
+    'Алёнушка',
+    'Царевна-лягушка',
     
     // Disney & Animation
     'Эльза',
@@ -192,7 +203,12 @@ const AI_HEROES = {
     'Мулан',
     'Покахонтас',
     'Мерида',
-    'Моана'
+    'Моана',
+    'Красная Шапочка',
+    'Золушка',
+    'Снежная Королева',
+    'Алиса',
+    'Пеппи Длинныйчулок'
   ],
 }
 
@@ -981,6 +997,12 @@ const createMarvelPromptByGender = (
     'Мулан': `${baseSettings} A brave warrior in Chinese armor with family sword. Great Wall of China background.`,
     'Покахонтас': `${baseSettings} A nature-connected tribal leader in Native American outfit. Virginia wilderness background.`,
     'Мерида': `${baseSettings} A rebellious Scottish archer with bow and curly red hair. Scottish highlands background.`,
+
+    'Моана': `${baseSettings} A brave ${
+      gender === 'male' ? 'ocean voyager' : 'Polynesian princess'
+    } in tropical island outfit with ocean-themed elements. ${
+      gender === 'male' ? 'Adventurous seafarer stance' : 'Moana pose'
+    }. Long curly dark hair flowing in ocean breeze. Tropical lei and island clothing. Heart of Te Fiti glowing in hand. Ocean waves responding to her call. Background with tropical Polynesian island, sailing boat, and ocean spirits. Bright tropical lighting with blue and gold ocean colors. Disney Moana aesthetic with oceanic magic.`,
   }
 
   // 🚨 СТРОГАЯ ВАЛИДАЦИЯ: проверяем есть ли промпт для героя
