@@ -7,8 +7,7 @@ import {
   getReferalsCountAndUserData,
   getUserData,
 } from '@/core/supabase'
-// ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
-import { getActiveUserModelsByTypeForHaim } from '@/core/supabase/getActiveUserModelsByTypeForHaim'
+// ✅ ИСПОЛЬЗУЕМ ТОЛЬКО СТАНДАРТНУЮ ФУНКЦИЮ - ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ
 import {
   levels,
   mainMenu,
@@ -44,20 +43,12 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
     let userModels: ModelTraining[] | null = null
 
-    if (bot_name === 'HaimGroupMedia_bot') {
-      console.log('🎯 Используем расширенную функцию для HaimGroupMedia_bot')
-      userModels = await getActiveUserModelsByTypeForHaim(
-        Number(telegramId),
-        'replicate',
-        bot_name
-      )
-    } else {
-      console.log('🔧 Используем стандартную функцию для обычного бота')
-      userModels = await getActiveUserModelsByType(
-        Number(telegramId),
-        'replicate'
-      )
-    }
+    // ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ: только таблица model_trainings
+    console.log('🎯 Используем стандартную функцию - единый источник правды из model_trainings')
+    userModels = await getActiveUserModelsByType(
+      Number(telegramId),
+      'replicate'
+    )
 
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
@@ -97,46 +88,29 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
           isRu ? 'ru-RU' : 'en-US'
         )
 
-        // ✅ ПРОВЕРЯЕМ, ЯВЛЯЕТСЯ ЛИ МОДЕЛЬ ОБЩЕЙ (ИМЕЕТ ПРЕФИКС shared_)
-        const isSharedModel = model.id.toString().startsWith('shared_')
-
+        // ✅ ЕДИНАЯ ЛОГИКА: Если есть имя модели - показываем его, иначе дату
         if (isRu) {
-          if (isSharedModel) {
-            // Для общих моделей используем уже модифицированное название
+          if (model.model_name && model.model_name.trim() !== '') {
             buttonText += model.model_name
+            if (model.steps && model.steps > 0) {
+              buttonText += ` (${model.steps} шагов)`
+            }
           } else {
-            // ✅ ПРИОРИТЕТ: Если есть имя модели - показываем его, иначе дату
-            if (model.model_name && model.model_name.trim() !== '') {
-              buttonText += model.model_name
-              if (model.steps && model.steps > 0) {
-                buttonText += ` (${model.steps} шагов)`
-              }
-            } else {
-              buttonText += `Модель ${dateString}`
-              if (model.steps && model.steps > 0) {
-                buttonText += `, ${model.steps} шагов`
-              }
+            buttonText += `Модель ${dateString}`
+            if (model.steps && model.steps > 0) {
+              buttonText += `, ${model.steps} шагов`
             }
           }
         } else {
-          if (isSharedModel) {
-            // Для общих моделей используем уже модифицированное название
-            buttonText += model.model_name.replace(
-              '(Общая модель команды)',
-              '(Team Shared Model)'
-            )
+          if (model.model_name && model.model_name.trim() !== '') {
+            buttonText += model.model_name
+            if (model.steps && model.steps > 0) {
+              buttonText += ` (${model.steps} steps)`
+            }
           } else {
-            // ✅ ПРИОРИТЕТ: Если есть имя модели - показываем его, иначе дату
-            if (model.model_name && model.model_name.trim() !== '') {
-              buttonText += model.model_name
-              if (model.steps && model.steps > 0) {
-                buttonText += ` (${model.steps} steps)`
-              }
-            } else {
-              buttonText += `Model ${dateString}`
-              if (model.steps && model.steps > 0) {
-                buttonText += `, ${model.steps} steps`
-              }
+            buttonText += `Model ${dateString}`
+            if (model.steps && model.steps > 0) {
+              buttonText += `, ${model.steps} steps`
             }
           }
         }
@@ -144,18 +118,10 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
         // ✅ ИСПРАВЛЕНИЕ: Укорачиваем callback_data для Telegram (лимит 64 байта)
         let callbackData = `select_model_${model.id}`
 
-        // Если callback_data слишком длинный, используем хеш или индекс
+        // Если callback_data слишком длинный, используем последние 8 символов ID
         if (callbackData.length > 60) {
-          // Для общих моделей используем короткие идентификаторы
-          if (model.id.toString().startsWith('shared_vyacheslav_')) {
-            callbackData = 'select_model_vyacheslav_shared'
-          } else if (model.id.toString().startsWith('shared_cocoage_')) {
-            callbackData = 'select_model_cocoage_shared'
-          } else {
-            // Для обычных моделей используем только последние 8 символов ID
-            const shortId = model.id.toString().slice(-8)
-            callbackData = `select_model_${shortId}`
-          }
+          const shortId = model.id.toString().slice(-8)
+          callbackData = `select_model_${shortId}`
         }
 
         return [
@@ -411,12 +377,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   } else if (callbackData.startsWith('select_model_')) {
     let modelId = callbackData.replace('select_model_', '')
 
-    // ✅ ОБРАБАТЫВАЕМ КОРОТКИЕ ИДЕНТИФИКАТОРЫ ОБЩИХ МОДЕЛЕЙ
-    if (modelId === 'vyacheslav_shared') {
-      modelId = 'shared_vyacheslav_ed2c6365-e782-4816-a1ef-1e26b79f6da0'
-    } else if (modelId === 'cocoage_shared') {
-      modelId = 'shared_cocoage_ed2c6365-e782-4816-a1ef-1e26b79f6da0'
-    }
+    // ✅ ЕДИНАЯ ЛОГИКА: обрабатываем только короткие ID (8 символов)
 
     const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
     let selectedModel = userModels?.find(
