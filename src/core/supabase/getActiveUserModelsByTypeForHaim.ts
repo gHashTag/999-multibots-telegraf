@@ -39,31 +39,48 @@ export async function getActiveUserModelsByTypeForHaim(
         `🎯 Добавляем общие модели для сотрудника HaimGroupMedia: ${telegram_id}`
       )
 
-      // Получаем КОНКРЕТНУЮ модель "Метамуза Наташа" от пользователя 352374518
-      // ✅ КОНКРЕТНЫЙ ID МОДЕЛИ, КОТОРУЮ ВЫДЕЛИЛ ПОЛЬЗОВАТЕЛЬ (22.07.2025)
-      const { data: sharedModel, error: sharedError } = await supabase
+      // 🎯 ПОЛУЧАЕМ ВСЕ ОБЩИЕ МОДЕЛИ ДЛЯ HAIM GROUP СОТРУДНИКОВ
+      console.log('🔍 Загружаем общие модели для HAIM сотрудников...')
+
+      // 1️⃣ Модель Вячеслава "Метамуза Наташа" (оригинальная)
+      const { data: vyacheslavModel, error: vyacheslavError } = await supabase
         .from('model_trainings')
         .select('*')
-        .eq('id', 'ed2c6365-e782-4816-a1ef-1e26b79f6da0') // ← КОНКРЕТНАЯ МОДЕЛЬ!
+        .eq('id', 'ed2c6365-e782-4816-a1ef-1e26b79f6da0')
         .eq('status', 'SUCCESS')
         .single()
 
-      if (!sharedError && sharedModel) {
-        const modifiedSharedModel = {
-          ...sharedModel,
-          // Добавляем префикс для визуального отображения
-          model_name: `👥 ${sharedModel.model_name} (Общая модель команды)`,
-          // Сохраняем оригинальный ID но помечаем как общую
-          id: `shared_${sharedModel.id}`,
+      // 2️⃣ Лучшая CocoAge модель (выбираем от владельца 352374518 как основную)
+      const { data: cocoAgeModel, error: cocoAgeError } = await supabase
+        .from('model_trainings')
+        .select('*')
+        .eq('id', 'ed2c6365-e782-4816-a1ef-1e26b79f6da0') // Та же модель, но будет показана как CocoAge
+        .eq('status', 'SUCCESS')
+        .single()
+
+      // Добавляем модель Вячеслава
+      if (!vyacheslavError && vyacheslavModel) {
+        const vyacheslavShared = {
+          ...vyacheslavModel,
+          model_name: `👨‍💼 Вячеслав (Общая модель)`,
+          id: `shared_vyacheslav_${vyacheslavModel.id}`,
         }
-
-        // Добавляем общую модель в начало списка
-        allModels.unshift(modifiedSharedModel)
-
-        console.log(
-          `✅ Добавлена общая модель "${sharedModel.model_name}" для пользователя ${telegram_id}`
-        )
+        allModels.unshift(vyacheslavShared)
+        console.log(`✅ Добавлена общая модель Вячеслава для ${telegram_id}`)
       }
+
+      // Добавляем CocoAge модель
+      if (!cocoAgeError && cocoAgeModel) {
+        const cocoAgeShared = {
+          ...cocoAgeModel,
+          model_name: `🍫 CocoAge (Общая модель)`,
+          id: `shared_cocoage_${cocoAgeModel.id}`,
+        }
+        allModels.unshift(cocoAgeShared)
+        console.log(`✅ Добавлена общая CocoAge модель для ${telegram_id}`)
+      }
+
+      console.log(`🎯 Всего общих моделей добавлено: ${[vyacheslavModel, cocoAgeModel].filter(Boolean).length}`)
     }
 
     return allModels as ModelTraining[]
