@@ -2505,24 +2505,81 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // Сохраняем новое фото в сессии
       ctx.session.kontextImageUrl = photoUrl
 
+      // Получаем пол из сессии
+      const gender = ctx.session.selectedGender
+      if (!gender) {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: пол не выбран. Начните заново с /start'
+            : '❌ Error: gender not selected. Start over with /start'
+        )
+        return
+      }
+
       await ctx.reply(
         isRu
-          ? '✅ *Фото получено!*\n\n🎨 Теперь выберите стиль для вашего образа:'
-          : '✅ *Photo received!*\n\n🎨 Now choose the style for your look:',
+          ? '✅ *Фото получено!*\n\n🎨 Теперь выберите героя для трансформации'
+          : '✅ *Photo received!*\n\n🎨 Now choose a hero for transformation'
+      )
+
+      // Показываем выбор героев сразу после загрузки фото
+      const primaryHeroes = gender === 'male' ? AI_HEROES.male.slice(0, 36) : AI_HEROES.female.slice(0, 36)
+
+      function createTwoButtonRows(heroes: string[]): string[][] {
+        const rows = []
+        for (let i = 0; i < heroes.length; i += 2) {
+          if (i + 1 < heroes.length) {
+            rows.push([heroes[i], heroes[i + 1]])
+          } else {
+            rows.push([heroes[i]])
+          }
+        }
+        return rows
+      }
+
+      function getHeroButtonText(heroName: string): string {
+        // Используем ту же логику, что и в основном коде
+        const heroTranslations: Record<string, { ru: string; en: string }> = {
+          'Человек-паук': { ru: '🕷️ Человек-паук', en: '🕷️ Spider-Man' },
+          'Железный человек': { ru: '🤖 Железный человек', en: '🤖 Iron Man' },
+          // ... (остальные переводы можно добавить по мере необходимости)
+        }
+
+        const translation = heroTranslations[heroName]
+        if (translation) {
+          return isRu ? translation.ru : translation.en
+        }
+
+        // Фолбэк для неизвестных героев
+        const icon = gender === 'male' ? '🎨' : '✨'
+        return `${icon} ${heroName}`
+      }
+
+      const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
+      const heroButtons = [
+        ...createTwoButtonRows(heroButtonsList),
+        [
+          isRu ? '🎲 Случайный стиль' : '🎲 Random style',
+          isRu ? '🔙 Назад' : '🔙 Back',
+        ],
+      ]
+
+      await ctx.reply(
+        isRu
+          ? `🤖 <b>Выберите героя для ${gender === 'male' ? 'мужской' : 'женской'} трансформации:</b>`
+          : `🤖 <b>Choose a hero for ${gender === 'male' ? 'male' : 'female'} transformation:</b>`,
         {
-          parse_mode: 'Markdown',
-          reply_markup: Markup.keyboard([
-            [
-              isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male look',
-              isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female look',
-            ],
-            [isRu ? '🔙 Назад' : '🔙 Back'],
-          ]).resize().reply_markup,
+          parse_mode: 'HTML',
+          reply_markup: {
+            keyboard: heroButtons,
+            resize_keyboard: true,
+            one_time_keyboard: false,
+          },
         }
       )
 
-      // Переходим к шагу выбора действия (шаг 2, индекс 2)
-      return ctx.wizard.selectStep(2)
+      // Переходим к шагу выбора героя (шаг 3, индекс 3)
+      return ctx.wizard.selectStep(3)
     } catch (error) {
       logger.error(
         '[AvatarTransformScene] Error processing uploaded photo:',
