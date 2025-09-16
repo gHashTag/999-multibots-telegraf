@@ -141,8 +141,25 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
           }
         }
 
+        // ✅ ИСПРАВЛЕНИЕ: Укорачиваем callback_data для Telegram (лимит 64 байта)
+        let callbackData = `select_model_${model.id}`
+
+        // Если callback_data слишком длинный, используем хеш или индекс
+        if (callbackData.length > 60) {
+          // Для общих моделей используем короткие идентификаторы
+          if (model.id.toString().startsWith('shared_vyacheslav_')) {
+            callbackData = 'select_model_vyacheslav_shared'
+          } else if (model.id.toString().startsWith('shared_cocoage_')) {
+            callbackData = 'select_model_cocoage_shared'
+          } else {
+            // Для обычных моделей используем только последние 8 символов ID
+            const shortId = model.id.toString().slice(-8)
+            callbackData = `select_model_${shortId}`
+          }
+        }
+
         return [
-          { text: buttonText, callback_data: `select_neuro_model_${model.id}` },
+          { text: buttonText, callback_data: callbackData },
         ]
       })
 
@@ -391,19 +408,27 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
     await ctx.reply(isRu ? "Отменено. Возвращаю в главное меню." : "Cancelled. Returning to main menu.")
     await handleMenu(ctx)
     return ctx.scene.leave()
-  } else if (callbackData.startsWith('select_neuro_model_')) {
-    let modelId = callbackData.replace('select_neuro_model_', '')
+  } else if (callbackData.startsWith('select_model_')) {
+    let modelId = callbackData.replace('select_model_', '')
 
-    // ✅ ОБРАБАТЫВАЕМ ОБЩИЕ МОДЕЛИ (УБИРАЕМ ПРЕФИКС shared_)
-    const isSharedModel = modelId.startsWith('shared_')
-    if (isSharedModel) {
-      modelId = modelId.replace('shared_', '')
+    // ✅ ОБРАБАТЫВАЕМ КОРОТКИЕ ИДЕНТИФИКАТОРЫ ОБЩИХ МОДЕЛЕЙ
+    if (modelId === 'vyacheslav_shared') {
+      modelId = 'shared_vyacheslav_ed2c6365-e782-4816-a1ef-1e26b79f6da0'
+    } else if (modelId === 'cocoage_shared') {
+      modelId = 'shared_cocoage_ed2c6365-e782-4816-a1ef-1e26b79f6da0'
     }
 
     const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
-    const selectedModel = userModels?.find(
+    let selectedModel = userModels?.find(
       (model) => model.id.toString() === modelId
     )
+
+    // Если не нашли по полному ID, ищем по короткому (последние 8 символов)
+    if (!selectedModel && modelId.length === 8) {
+      selectedModel = userModels?.find(
+        (model) => model.id.toString().endsWith(modelId)
+      )
+    }
 
     if (selectedModel) {
       ctx.session.userModel = selectedModel as UserModel
