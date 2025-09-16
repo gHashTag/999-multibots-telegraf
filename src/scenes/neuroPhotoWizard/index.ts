@@ -105,9 +105,17 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
             // Для общих моделей используем уже модифицированное название
             buttonText += model.model_name
           } else {
-            buttonText += `Модель ${dateString}`
-            if (model.steps && model.steps > 0) {
-              buttonText += `, ${model.steps} шагов`
+            // ✅ ПРИОРИТЕТ: Если есть имя модели - показываем его, иначе дату
+            if (model.model_name && model.model_name.trim() !== '') {
+              buttonText += model.model_name
+              if (model.steps && model.steps > 0) {
+                buttonText += ` (${model.steps} шагов)`
+              }
+            } else {
+              buttonText += `Модель ${dateString}`
+              if (model.steps && model.steps > 0) {
+                buttonText += `, ${model.steps} шагов`
+              }
             }
           }
         } else {
@@ -118,9 +126,17 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
               '(Team Shared Model)'
             )
           } else {
-            buttonText += `Model ${dateString}`
-            if (model.steps && model.steps > 0) {
-              buttonText += `, ${model.steps} steps`
+            // ✅ ПРИОРИТЕТ: Если есть имя модели - показываем его, иначе дату
+            if (model.model_name && model.model_name.trim() !== '') {
+              buttonText += model.model_name
+              if (model.steps && model.steps > 0) {
+                buttonText += ` (${model.steps} steps)`
+              }
+            } else {
+              buttonText += `Model ${dateString}`
+              if (model.steps && model.steps > 0) {
+                buttonText += `, ${model.steps} steps`
+              }
             }
           }
         }

@@ -382,3 +382,50 @@ This architecture supports high-scale operations with multiple AI services, comp
 - **Performance regression** detection
 
 This CI/CD implementation ensures zero-downtime deployments with comprehensive testing, security validation, and quality assurance at every step.
+## 🚀 АВТОМАТИЧЕСКОЕ РАЗВЕРТЫВАНИЕ В ПРОДАКШН
+
+### 🎯 КОМАНДА DEPLOY - АВТОМАТИЗИРУЕТ ВСЕ!
+
+```bash
+# 🚀 ОДНА КОМАНДА ДЛЯ ПОЛНОГО РАЗВЕРТЫВАНИЯ:
+npm run deploy
+```
+
+**Что делает команда `deploy`:**
+1. ✅ Автоматически коммитит изменения
+2. ✅ Пушит в production branch
+3. ✅ Подключается к продакшн серверу  
+4. ✅ Обновляет код через git pull
+5. ✅ Останавливает и удаляет старый контейнер
+6. ✅ **Принудительно пересобирает Docker БЕЗ кеша (--no-cache)**
+7. ✅ Запускает новый контейнер
+8. ✅ Проверяет статус и логи
+
+**📖 Полная документация:** [`docs/DEPLOY.md`](../DEPLOY.md)
+
+### 🚨 КРИТИЧЕСКИЕ ПРАВИЛА РАЗВЕРТЫВАНИЯ
+
+**🔥 ПРАВИЛО #1: ВСЕГДА ИСПОЛЬЗУЙТЕ `npm run deploy` ДЛЯ ИЗМЕНЕНИЙ КОДА**
+
+При изменении TypeScript/JavaScript кода НИКОГДА не используйте:
+- ❌ `docker restart 999-multibots` - НЕ применит изменения!
+- ❌ `docker build` без `--no-cache` - может использовать старый кеш!
+
+**✅ ПРАВИЛЬНО:**
+```bash
+npm run deploy  # Автоматически все сделает правильно
+```
+
+**✅ ИЛИ ручной способ на сервере:**
+```bash
+ssh -i ~/.ssh/selectel root@185.161.67.53
+cd /root/999-agents-telegraf
+git pull origin production
+docker stop 999-multibots
+docker rm 999-multibots
+docker build --no-cache -t 999-multibots .  # --no-cache ОБЯЗАТЕЛЬНО!
+docker run -d --name 999-multibots --restart=always -p 3001:3001 -v /root/999-agents-telegraf/.env:/app/.env:ro 999-multibots
+```
+
+**🎯 Помните:** Без принудительной пересборки Docker изменения TypeScript/JavaScript НЕ попадают в продакшн!
+

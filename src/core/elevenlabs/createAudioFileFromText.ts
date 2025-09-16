@@ -2,6 +2,9 @@ import path from 'path'
 import os from 'os'
 import fs, { createWriteStream } from 'fs'
 import { elevenlabs } from '.'
+import axios from 'axios'
+import { configManager } from '@/core/foundation/ConfigManager'
+import logger from '@/utils/logger'
 
 // Import supabase to clear invalid voice IDs
 import { supabase } from '@/core/supabase'
@@ -14,6 +17,88 @@ export class VoiceNotFoundError extends Error {
     )
     this.name = 'VoiceNotFoundError'
   }
+}
+
+/**
+ * Генерирует аудио через внутренний AI сервер (с fallback на прямой API)
+ */
+async function generateTTSViaAiServer({
+  text,
+  voice_id,
+}: {
+  text: string
+  voice_id: string
+}): Promise<string> {
+  const AI_SERVER_URL = configManager.getApiServerUrl()
+
+  logger.info('[generateTTSViaAiServer] Отправляем запрос на ai-server для TTS', {
+    voice_id,
+    textLength: text.length,
+    aiServerUrl: AI_SERVER_URL
+  })
+
+  // Пробуем разные возможные эндпоинты для ElevenLabs TTS
+  const endpoints = [
+    '/api/elevenlabs/tts',
+    '/api/voice/generate',
+    '/elevenlabs/text-to-speech',
+    '/api/v1/text-to-speech',
+    '/tts/generate',
+    '/proxy/elevenlabs/tts'
+  ]
+
+  let lastError: any = null
+
+  for (const endpoint of endpoints) {
+    try {
+      logger.info(`🔍 Пробуем эндпоинт: ${endpoint}`)
+
+      const response = await axios.post(`${AI_SERVER_URL}${endpoint}`, {
+        text,
+        voice_id,
+        model_id: 'eleven_turbo_v2_5'
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(process.env.AI_SERVER_API_KEY && {
+            'Authorization': `Bearer ${process.env.AI_SERVER_API_KEY}`
+          })
+        },
+        timeout: 60000,
+        responseType: 'stream'
+      })
+
+      if (response.status === 200) {
+        const outputPath = path.join(os.tmpdir(), `audio_${Date.now()}.mp3`)
+        const writer = fs.createWriteStream(outputPath)
+
+        response.data.pipe(writer)
+
+        return new Promise<string>((resolve, reject) => {
+          writer.on('error', reject)
+          writer.on('finish', () => {
+            logger.info(`✅ Аудио создано через ai-server (${endpoint})`, {
+              outputPath
+            })
+            resolve(outputPath)
+          })
+        })
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        logger.warn(`⚠️ Эндпоинт ${endpoint} не найден`)
+        continue
+      }
+      logger.error(`❌ Ошибка ${endpoint}:`, error)
+      lastError = error
+      continue
+    }
+  }
+
+  // Если ai-server недоступен, используем fallback на прямой API
+  logger.warn('⚠️ Все эндпоинты ai-server недоступны, используем fallback на прямой ElevenLabs API')
+  throw new Error('AI Server unavailable, fallback required')
 }
 
 export const createAudioFileFromText = async ({
@@ -41,8 +126,17 @@ export const createAudioFileFromText = async ({
   }
 
   try {
-    // Логируем попытку генерации
-    console.log('Generating audio stream using new method...')
+    // Сначала пытаемся через внутренний AI сервер
+    try {
+      return await generateTTSViaAiServer({ text, voice_id })
+    } catch (aiServerError) {
+      logger.warn('[createAudioFileFromText] AI Server недоступен, используем прямой API', {
+        error: aiServerError
+      })
+    }
+
+    // Fallback: прямой API (оригинальная логика)
+    console.log('Generating audio stream using direct API method...')
 
     const requestPayload = {
       voice: voice_id,
