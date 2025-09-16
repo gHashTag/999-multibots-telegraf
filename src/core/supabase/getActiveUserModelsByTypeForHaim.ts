@@ -73,7 +73,7 @@ export async function getActiveUserModelsByTypeForHaim(
       if (!cocoAgeError && cocoAgeModel) {
         const cocoAgeShared = {
           ...cocoAgeModel,
-          model_name: `🍫 CocoAge (Общая модель)`,
+          model_name: `🥥 CocoAge (Общая модель)`,
           id: `shared_cocoage_${cocoAgeModel.id}`,
         }
         allModels.unshift(cocoAgeShared)

@@ -429,3 +429,42 @@ docker run -d --name 999-multibots --restart=always -p 3001:3001 -v /root/999-ag
 
 **🎯 Помните:** Без принудительной пересборки Docker изменения TypeScript/JavaScript НЕ попадают в продакшн!
 
+## 👥 HAIM Group Staff Management
+
+### 🎯 Quick Reference
+Для управления сотрудниками HAIM Group с доступом к общим моделям:
+
+**📋 Добавление нового сотрудника:**
+1. Добавить Telegram ID в `HAIM_GROUP_STAFF_IDS` в `/src/menu/mainMenu.ts`
+2. Запустить скрипт: `docker exec 999-multibots node scripts/create-haim-models.js`
+3. Проверить создание моделей в базе данных
+
+**🗑️ Удаление сотрудника:**
+1. Убрать Telegram ID из `HAIM_GROUP_STAFF_IDS`
+2. (Опционально) Удалить модели из базы данных
+
+**📊 Проверка статуса:**
+```bash
+# Проверить модели пользователя
+docker exec 999-multibots node -e "
+const { getActiveUserModelsByTypeForHaim } = require('./dist/core/supabase/getActiveUserModelsByTypeForHaim.js');
+getActiveUserModelsByTypeForHaim(TELEGRAM_ID, 'replicate', 'HaimGroupMedia_bot').then(console.log);
+"
+```
+
+**📚 Полная документация:** [`docs/HAIM-GROUP-STAFF-MANAGEMENT.md`](../HAIM-GROUP-STAFF-MANAGEMENT.md)
+
+### 🤖 Текущие сотрудники HAIM Group:
+- `144022504` (@neuro_coder) - Главный админ
+- `289259562` (@Vyacheslav_Neklyudov) - Админ
+- `752224685` (@voskresenskaya13) - Админ
+- `7669741878` (@Arhustel) - Админ
+- `164609458` (@artemfisenko) - Админ
+- `1036512726` - Новый сотрудник
+
+### 🎨 Доступные общие модели:
+- **"Вячеслав"** - 2000 steps, replicate API
+- **"CocoAge"** - 2000 steps, replicate API
+
+**Система:** Каждый сотрудник получает личные копии общих моделей, которые отображаются с именами вместо дат.
+
