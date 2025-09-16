@@ -1354,8 +1354,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         }
       )
       
-      // Возвращаемся к шагу выбора пола (шаг 1, индекс 1)
-      ctx.wizard.selectStep(1)
+      // Возвращаемся к шагу выбора пола (шаг 0, индекс 0)
+      ctx.wizard.selectStep(0)
       return
     }
 
@@ -1488,7 +1488,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
   },
-  // Шаг 3: Обработка выбора действия (мой аватар или загрузить фото)
+  // Шаг 2: Обработка выбора действия (мой аватар или загрузить фото)
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -1527,8 +1527,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         }
       )
       
-      // Возвращаемся к шагу выбора модели (шаг 2, индекс 2)
-      ctx.wizard.selectStep(2)
+      // Возвращаемся к шагу выбора модели (шаг 1, индекс 1)
+      ctx.wizard.selectStep(1)
       return
     }
 
@@ -1724,10 +1724,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           : `📸 <b>Upload New Photo</b>\n\n💡 Send me the photo you would like to transform\n\n✨ <b>Recommendations:</b>\n• Clear face photo\n• Good lighting\n• Minimum 512x512 pixels`,
         { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
       )
-      return ctx.wizard.selectStep(5) // Переходим к шагу загрузки фото (индекс 5)
+      return ctx.wizard.selectStep(4) // Переходим к шагу загрузки фото (индекс 4)
     }
   },
-  // Шаг 4: Обработка выбора героя и генерация
+  // Шаг 3: Обработка выбора героя и генерация
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -1828,8 +1828,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         )
       }
 
-      // Возвращаемся к выбору действия (шаг 3, индекс 3)
-      ctx.wizard.selectStep(3)
+      // Возвращаемся к выбору действия (шаг 2, индекс 2)
+      ctx.wizard.selectStep(2)
       return
     }
 
@@ -2483,7 +2483,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.enter(ModeEnum.MainMenu)
     }
   },
-  // Шаг 5: Обработка загруженной фотографии
+  // Шаг 4: Обработка загруженной фотографии
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -2521,8 +2521,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      // Переходим к шагу выбора действия (шаг 3, индекс 3)
-      return ctx.wizard.selectStep(3)
+      // Переходим к шагу выбора действия (шаг 2, индекс 2)
+      return ctx.wizard.selectStep(2)
     } catch (error) {
       logger.error(
         '[AvatarTransformScene] Error processing uploaded photo:',
