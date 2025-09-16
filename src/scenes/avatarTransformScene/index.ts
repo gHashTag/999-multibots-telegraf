@@ -1647,9 +1647,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           return isRu ? translation.ru : translation.en
         }
 
-        // Фолбэк для неизвестных героев
-        const icon = gender === 'male' ? '🎨' : '✨'
-        return `${icon} ${heroName}`
+        // Фолбэк для неизвестных героев - всегда 🎨 для совместимости с button mapping
+        return `🎨 ${heroName}`
       }
 
       const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
@@ -2602,9 +2601,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           return isRu ? translation.ru : translation.en
         }
 
-        // Фолбэк для неизвестных героев
-        const icon = gender === 'male' ? '🎨' : '✨'
-        return `${icon} ${heroName}`
+        // Фолбэк для неизвестных героев - всегда 🎨 для совместимости с button mapping
+        return `🎨 ${heroName}`
       }
 
       const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
