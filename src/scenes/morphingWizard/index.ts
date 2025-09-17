@@ -121,7 +121,7 @@ const createProgressMessage = (images: any[], isRu: boolean): string => {
   }
 
   return isRu
-    ? `🌀 <b>Infinity Morphing - Загрузка изображений</b>
+    ? `🌀 <b>Infinity Морфинг - Загрузка изображений</b>
 
 📸 <b>Загружено:</b> ${count} из минимум 2 изображений
 📊 <b>Прогресс:</b> ${progressBar}
@@ -152,7 +152,7 @@ const createProgressKeyboard = (images: any[], isRu: boolean) => {
   if (canGenerate) {
     keyboard.push([
       Markup.button.callback(
-        isRu ? '✅ Создать Infinity Morphing' : '✅ Create Infinity Morphing',
+        isRu ? '✅ Создать Infinity Морфинг' : '✅ Create Infinity Morphing',
         'morphing_start_generation'
       ),
     ])
@@ -199,7 +199,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const welcomeMessage = isRu
-      ? `🌀 <b>Добро пожаловать в Infinity Morphing!</b>
+      ? `🌀 <b>Добро пожаловать в Infinity Морфинг!</b>
 
 ✨ Создавайте потрясающие видео переходы между изображениями
 📸 Загрузите минимум 2 изображения для начала
@@ -252,7 +252,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
       try {
         await ctx.reply(
           isRu
-            ? '🌀 Infinity Morphing - загрузите первое изображение:'
+            ? '🌀 Infinity Морфинг - загрузите первое изображение:'
             : '🌀 Infinity Morphing - upload first image:'
         )
       } catch (fallbackError) {
@@ -734,7 +734,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
       : '➡️ Linear (No Loop)'
 
     const costMessage = isRu
-      ? `💰 <b>Информация о стоимости Infinity Morphing:</b>
+      ? `💰 <b>Информация о стоимости Infinity Морфинг:</b>
 
 📸 <b>Изображений:</b> ${imagesCount}
 🎬 <b>Тип:</b> ${morphingTypeText}
@@ -745,7 +745,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 🤖 <b>Основная модель:</b> Kling v2.1 Pro (1080p HD качество)
 ⚠️ <b>Резервные модели:</b> При ошибках безопасности система попробует Kling v1.6 Standard/Pro, что может увеличить стоимость до $3-5 за клип. Это происходит автоматически для обхода фильтров с лицами.
 
-✨ Создаю потрясающий Infinity Morphing для вас...
+✨ Создаю потрясающий Infinity Морфинг для вас...
 ⏳ Может занять до 5 минут, ожидайте...`
       : `💰 <b>Infinity Morphing Cost Information:</b>
 
@@ -778,7 +778,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 
     // Уведомляем о запуске обработки
     const completionMessage = isRu
-      ? `🚀 Infinity Morphing запущен в обработку!
+      ? `🚀 Infinity Морфинг запущен в обработку!
 
 ⏳ Создание видео займет до 5 минут
 📱 Готовое видео будет отправлено вам автоматически
@@ -892,7 +892,7 @@ morphingWizard.action('morphing_cancel', async ctx => {
 
     await ctx.reply(
       isRu
-        ? '❌ Создание Infinity Morphing отменено. Возвращаюсь в главное меню.'
+        ? '❌ Создание Infinity Морфинг отменено. Возвращаюсь в главное меню.'
         : '❌ Infinity Morphing creation cancelled. Returning to main menu.'
     )
 
