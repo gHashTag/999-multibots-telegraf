@@ -22,6 +22,13 @@ import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 // ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
 import { getBotNameByToken } from '@/core/bot'
+// ✅ НОВЫЕ УТИЛИТЫ ДЛЯ БЕЗОПАСНОЙ РАБОТЫ С КНОПКАМИ
+import {
+  createSafeModelSelectionKeyboard,
+  handleModelSelectionCallback,
+  ModelButtonOptions
+} from '@/utils/modelButtonMapping'
+import { handleButtonError } from '@/utils/buttonMapping'
 
 interface NeuroPhotoWizardSession extends Scenes.WizardSessionData {
   userModels?: ModelTraining[]
@@ -82,72 +89,60 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     } else {
       ;(ctx.scene.state as NeuroPhotoWizardSession).userModels = userModels
 
-      const modelButtons = userModels.map((model, index) => {
-        let buttonText = `${index + 1}. `
-        const dateString = new Date(model.created_at).toLocaleDateString(
-          isRu ? 'ru-RU' : 'en-US'
+      try {
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ БЕЗОПАСНУЮ СИСТЕМУ КНОПОК
+        const buttonOptions: ModelButtonOptions = {
+          isRussian: isRu,
+          includeSteps: true,
+          includeDate: true,
+          maxTextLength: 50,
+          debug: true
+        }
+
+        const keyboardResult = createSafeModelSelectionKeyboard(
+          userModels,
+          'select_model',
+          buttonOptions
         )
 
-        // ✅ ЕДИНАЯ ЛОГИКА: Если есть имя модели - показываем его, иначе дату
-        if (isRu) {
-          if (model.model_name && model.model_name.trim() !== '') {
-            buttonText += model.model_name
-            if (model.steps && model.steps > 0) {
-              buttonText += ` (${model.steps} шагов)`
-            }
-          } else {
-            buttonText += `Модель ${dateString}`
-            if (model.steps && model.steps > 0) {
-              buttonText += `, ${model.steps} шагов`
-            }
+        if (!keyboardResult.isValid) {
+          console.error('Failed to create model selection keyboard:', keyboardResult.error)
+          await sendGenericErrorMessage(ctx, isRu, new Error(keyboardResult.error || 'Keyboard creation failed'))
+          return ctx.scene.leave()
+        }
+
+        // Заменяем стандартную кнопку отмены на neuro_photo специфическую
+        const keyboard = keyboardResult.keyboard.map(row =>
+          row.map(button =>
+            button.callback_data === 'cancel_model_selection'
+              ? { text: button.text, callback_data: 'cancel_neuro_photo' }
+              : button
+          )
+        )
+
+        await ctx.reply(
+          isRu
+            ? 'Выберите модель для генерации:'
+            : 'Select a model for generation:',
+          {
+            reply_markup: {
+              inline_keyboard: keyboard,
+            },
           }
-        } else {
-          if (model.model_name && model.model_name.trim() !== '') {
-            buttonText += model.model_name
-            if (model.steps && model.steps > 0) {
-              buttonText += ` (${model.steps} steps)`
-            }
-          } else {
-            buttonText += `Model ${dateString}`
-            if (model.steps && model.steps > 0) {
-              buttonText += `, ${model.steps} steps`
-            }
+        )
+        return
+      } catch (error) {
+        console.error('Error creating model selection keyboard:', error)
+        handleButtonError(
+          error instanceof Error ? error : new Error(String(error)),
+          'neuroPhoto model selection',
+          async () => {
+            await sendGenericErrorMessage(ctx, isRu, error instanceof Error ? error : new Error('Model selection failed'))
+            await ctx.scene.leave()
           }
-        }
-
-        // ✅ ИСПРАВЛЕНИЕ: Укорачиваем callback_data для Telegram (лимит 64 байта)
-        let callbackData = `select_model_${model.id}`
-
-        // Если callback_data слишком длинный, используем последние 8 символов ID
-        if (callbackData.length > 60) {
-          const shortId = model.id.toString().slice(-8)
-          callbackData = `select_model_${shortId}`
-        }
-
-        return [
-          { text: buttonText, callback_data: callbackData },
-        ]
-      })
-
-      // Добавляем кнопку отмены
-      modelButtons.push([
-        {
-          text: isRu ? 'Отмена' : 'Cancel',
-          callback_data: 'cancel_neuro_photo',
-        },
-      ])
-
-      await ctx.reply(
-        isRu
-          ? 'Выберите модель для генерации:'
-          : 'Select a model for generation:',
-        {
-          reply_markup: {
-            inline_keyboard: modelButtons,
-          },
-        }
-      )
-      return
+        )
+        return
+      }
     }
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep:', error)
@@ -364,48 +359,79 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       : 'Button callback error'
     return ctx.answerCbQuery(message)
   }
+
   const callbackData = ctx.callbackQuery.data
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
 
   await ctx.answerCbQuery()
 
-  if (callbackData === 'cancel_neuro_photo') {
-    await ctx.reply(isRu ? "Отменено. Возвращаю в главное меню." : "Cancelled. Returning to main menu.")
-    await handleMenu(ctx)
-    return ctx.scene.leave()
-  } else if (callbackData.startsWith('select_model_')) {
-    let modelId = callbackData.replace('select_model_', '')
+  try {
+    if (callbackData === 'cancel_neuro_photo') {
+      await ctx.reply(isRu ? "Отменено. Возвращаю в главное меню." : "Cancelled. Returning to main menu.")
+      await handleMenu(ctx)
+      return ctx.scene.leave()
+    } else if (callbackData.startsWith('select_model_')) {
+      const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
 
-    // ✅ ЕДИНАЯ ЛОГИКА: обрабатываем только короткие ID (8 символов)
+      if (!userModels || userModels.length === 0) {
+        console.error('No user models found in session state')
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка: модели не найдены в сессии.'
+            : '❌ Error: models not found in session.'
+        )
+        return
+      }
 
-    const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
-    let selectedModel = userModels?.find(
-      (model) => model.id.toString() === modelId
-    )
-
-    // Если не нашли по полному ID, ищем по короткому (последние 8 символов)
-    if (!selectedModel && modelId.length === 8) {
-      selectedModel = userModels?.find(
-        (model) => model.id.toString().endsWith(modelId)
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ БЕЗОПАСНУЮ СИСТЕМУ ОБРАБОТКИ CALLBACK
+      const result = handleModelSelectionCallback(
+        userModels,
+        callbackData,
+        'neuroPhoto wizard',
+        { isRussian: isRu, debug: true }
       )
-    }
 
-    if (selectedModel) {
-      ctx.session.userModel = selectedModel as UserModel
-      await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
-      const isCancel = await handleHelpCancel(ctx)
-      if (isCancel) {
+      if (!result.success) {
+        console.error('Model selection failed:', result.error)
+        await ctx.reply(
+          isRu
+            ? `❌ Ошибка выбора модели: ${result.error || 'Неизвестная ошибка'}`
+            : `❌ Model selection error: ${result.error || 'Unknown error'}`
+        )
+        return
+      }
+
+      if (result.shouldCancel) {
+        await ctx.reply(isRu ? "Отменено." : "Cancelled.")
+        await handleMenu(ctx)
         return ctx.scene.leave()
       }
-      ctx.wizard.next()
-    } else {
-      await ctx.reply(
-        isRu
-          ? '❌ Модель не найдена. Попробуйте снова.'
-          : '❌ Model not found. Please try again.'
-      )
+
+      if (result.model) {
+        console.log('Successfully selected model:', result.model.id)
+        ctx.session.userModel = result.model as UserModel
+        await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
+        const isCancel = await handleHelpCancel(ctx)
+        if (isCancel) {
+          return ctx.scene.leave()
+        }
+        ctx.wizard.next()
+      }
     }
+  } catch (error) {
+    console.error('Error in neuroPhoto callback handler:', error)
+    handleButtonError(
+      error instanceof Error ? error : new Error(String(error)),
+      'neuroPhoto callback handling',
+      async () => {
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при обработке выбора. Попробуйте снова.'
+            : '❌ Error processing selection. Please try again.'
+        )
+      }
+    )
   }
 })
 

@@ -42,19 +42,19 @@ export async function getActiveUserModelsByTypeForHaim(
       // 🎯 ПОЛУЧАЕМ ВСЕ ОБЩИЕ МОДЕЛИ ДЛЯ HAIM GROUP СОТРУДНИКОВ
       console.log('🔍 Загружаем общие модели для HAIM сотрудников...')
 
-      // 1️⃣ Модель Вячеслава "Метамуза Наташа" (оригинальная)
+      // 1️⃣ Модель Вячеслава Неклюдова
       const { data: vyacheslavModel, error: vyacheslavError } = await supabase
         .from('model_trainings')
         .select('*')
-        .eq('id', 'ed2c6365-e782-4816-a1ef-1e26b79f6da0')
+        .eq('id', 'cf5f2b0f-4b86-478c-b4c3-88ca77f95fbc')
         .eq('status', 'SUCCESS')
         .single()
 
-      // 2️⃣ Лучшая CocoAge модель (выбираем от владельца 352374518 как основную)
+      // 2️⃣ CocoAge модель
       const { data: cocoAgeModel, error: cocoAgeError } = await supabase
         .from('model_trainings')
         .select('*')
-        .eq('id', 'ed2c6365-e782-4816-a1ef-1e26b79f6da0') // Та же модель, но будет показана как CocoAge
+        .eq('id', 'ed2c6365-e782-4816-a1ef-1e26b79f6da0')
         .eq('status', 'SUCCESS')
         .single()
 
