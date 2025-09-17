@@ -634,12 +634,12 @@ async function generateSingleClipWithRetry(
       // Адаптируем параметры под разные модели Kling
       const input = { ...baseInput }
 
-      // ✅ НОВАЯ ЛОГИКА для v2.1: используем model_variant
+      // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА: используем mode для всех моделей Kling
       if (currentModel === 'kwaivgi/kling-v2.1') {
-        // Для v2.1 используем model_variant из конфигурации
+        // 🔥 ИСПРАВЛЕНИЕ: API требует mode='pro' даже для v2.1!
         const modelVariant = currentModelInfo.variant || 'standard'
-        input.model_variant = modelVariant
-        logger.info(`🆕 Using Kling v2.1 with variant: ${modelVariant}`)
+        input.mode = modelVariant === 'pro' ? 'pro' : 'std' // API использует mode, а не model_variant!
+        logger.info(`🆕 Using Kling v2.1 with mode: ${input.mode} (variant: ${modelVariant})`)
       } else {
         // Для старых моделей v1.6 используем старую логику mode
         if (currentModel.includes('pro')) {
@@ -727,26 +727,22 @@ async function generateSingleClipWithRetry(
             })
 
             const userErrorRu =
-              '🛡️ Ваши изображения были отклонены ВСЕМИ версиями Kling AI после 5 попыток на каждой модели.\n\n' +
+              '🛡️ Ваши изображения не подходят для создания Infinity Морфинга.\n\n' +
               '📋 Возможные причины:\n' +
               '• Изображения содержат лица людей\n' +
               '• Защищенный контент (персонажи, знаменитости)\n' +
               '• Автоматические фильтры безопасности\n\n' +
               '💡 Решение: Попробуйте использовать другие изображения (пейзажи, предметы, абстракции)\n' +
-              `🔄 Попробованы модели: ${FALLBACK_KLING_MODELS.map(
-                m => m.name
-              ).join(', ')}`
+              '🤖 Модель: Kling v2.1 Pro (новейшая версия)'
 
             const userErrorEn =
-              '🛡️ Your images were rejected by ALL Kling AI models after 5 attempts per model.\n\n' +
+              '🛡️ Your images are not suitable for creating Infinity Morphing.\n\n' +
               '📋 Possible reasons:\n' +
               '• Images contain human faces\n' +
               '• Protected content (characters, celebrities)\n' +
               '• Automatic security filters\n\n' +
               '💡 Solution: Try using different images (landscapes, objects, abstractions)\n' +
-              `🔄 Attempted models: ${FALLBACK_KLING_MODELS.map(
-                m => m.name
-              ).join(', ')}`
+              '🤖 Model: Kling v2.1 Pro (latest version)'
 
             throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
           }
@@ -773,16 +769,16 @@ async function generateSingleClipWithRetry(
       )
 
       const finalErrorRu =
-        `❌ Не удалось создать видео переход ${clipNumber}/${totalClips} после ${MAX_RETRIES} попыток.\n\n` +
-        `🔍 Детали ошибки: ${errorMessage}\n\n` +
+        `❌ Не удалось создать Infinity Морфинг после ${MAX_RETRIES} попыток.\n\n` +
+        `🤖 Модель: Kling v2.1 Pro (новейшая версия)\n` +
         `💡 Попробуйте:\n` +
         `• Использовать другие изображения\n` +
         `• Перезапустить процесс позже\n` +
         `• Обратиться в поддержку`
 
       const finalErrorEn =
-        `❌ Failed to create video transition ${clipNumber}/${totalClips} after ${MAX_RETRIES} attempts.\n\n` +
-        `🔍 Error details: ${errorMessage}\n\n` +
+        `❌ Failed to create Infinity Morphing after ${MAX_RETRIES} attempts.\n\n` +
+        `🤖 Model: Kling v2.1 Pro (latest version)\n` +
         `💡 Try to:\n` +
         `• Use different images\n` +
         `• Restart the process later\n` +
