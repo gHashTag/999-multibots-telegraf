@@ -78,8 +78,8 @@ export const levels: Record<number, Level> = {
   },
   // morphing
   13: {
-    title_ru: '🧬 Морфинг',
-    title_en: '🧬 Morphing',
+    title_ru: '🌀 Infinity Morphing',
+    title_en: '🌀 Infinity Morphing',
     // Доступно всем пользователям с подпиской
   },
   // lip_sync - новая Kling модель (временно только для админов)

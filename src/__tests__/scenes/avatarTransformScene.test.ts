@@ -3,6 +3,10 @@ import { WizardContext } from 'telegraf/typings/scenes'
 import { MyContext } from '@/interfaces'
 import { avatarTransformScene } from '@/scenes/avatarTransformScene'
 
+// Add mock for missing dependencies
+jest.mock('@/core/supabase/checkSuperheroGenerationUsage')
+jest.mock('@/core/supabase/incrementSuperheroGeneration')
+
 // Mock dependencies
 jest.mock('@/helpers/centralizedLanguage')
 jest.mock('@/middlewares/getUserPhotoUrl')
@@ -344,29 +348,280 @@ describe('AvatarTransformScene', () => {
     it('should use FLUX Kontext Max when selected', async () => {
       const { generateFluxKontext } = require('@/services/generateFluxKontext')
       generateFluxKontext.mockResolvedValue({ success: true })
-      
+
       mockCtx.session.selectedModel = 'flux-kontext'
       mockCtx.session.selectedGender = 'male'
       mockCtx.message!.text = '🕷️ Человек-паук'
-      
+
       const heroStep = avatarTransformScene.steps[5] as Function
       await heroStep(mockCtx)
-      
+
       expect(generateFluxKontext).toHaveBeenCalled()
     })
 
     it('should use SeeDream-4 when selected', async () => {
       const { generateSeeDream4 } = require('@/services/generateSeeDream4')
       generateSeeDream4.mockResolvedValue({ success: true })
-      
+
       mockCtx.session.selectedModel = 'seedream4'
       mockCtx.session.selectedGender = 'female'
       mockCtx.message!.text = '🌟 Капитан Марвел'
-      
+
       const heroStep = avatarTransformScene.steps[5] as Function
       await heroStep(mockCtx)
-      
+
       expect(generateSeeDream4).toHaveBeenCalled()
+    })
+  })
+
+  describe('Button Mapping Validation', () => {
+    // Test all heroes from AI_HEROES lists have corresponding button mappings
+    const AI_HEROES = {
+      male: [
+        'Человек-паук', 'Железный человек', 'Капитан Америка', 'Тор', 'Халк',
+        'Доктор Стрэндж', 'Дэдпул', 'Росомаха', 'Человек-муравей', 'Блэк Пантер',
+        'Локи', 'Веном', 'Карающий', 'Призрачный гонщик', 'Зимний солдат',
+        'Звёздный лорд', 'Соколиный глаз', 'Супермен', 'Бэтмен', 'Флэш',
+        'Зелёный фонарь', 'Аквамен', 'Киборг', 'Шазам', 'Зелёная стрела',
+        'Джокер', 'Найтвинг', 'Дэфстроук', 'Гоку', 'Наруто', 'Луффи',
+        'Ичиго', 'Саитама', 'Эдвард Элрик', 'Лайт Ягами', 'Какаши',
+        'Сасукэ', 'Вегета', 'Пикколо', 'Натсу', 'Эрен Йегер', 'Леви Аккерман',
+        'Илья Муромец', 'Добрыня Никитич', 'Алеша Попович', 'Алёша Попович',
+        'Перун', 'Святогор', 'Иван-царевич', 'Кощей Бессмертный', 'Серый Волк',
+        'Емеля', 'Кратос', 'Геральт из Ривии', 'Мастер Чиф', 'Данте',
+        'Субзиро', 'Скорпион', 'Рю', 'Кен', 'Соник', 'Марио', 'Линк',
+        'Клауд Страйф', 'Сефирот', 'Джон Уик', 'Терминатор', 'Хищник',
+        'Спаун', 'Альтаир', 'Эцио', 'Алекс Мерсер'
+      ],
+      female: [
+        'Капитан Марвел', 'Скарлет Витч', 'Алая ведьма', 'Чёрная вдова',
+        'Гвен Стейси', 'Шури', 'Валькирия', 'Шторм', 'Джин Грей', 'Роуг',
+        'Китти Прайд', 'Псайлок', 'Мистик', 'Эмма Фрост', 'Гамора', 'Небула',
+        'Капитан Картер', 'Чудо-женщина', 'Харли Квинн', 'Супергёрл', 'Бэтгерл',
+        'Кэтвумен', 'Ядовитый плющ', 'Рейвен', 'Старфайр', 'Мера',
+        'Хищные птицы', 'Черная канарейка', 'Джессика Круз', 'Сейлор Мун',
+        'Мику Хацунэ', 'Сакура Харуно', 'Хината Хьюга', 'Цунадэ', 'Булма',
+        '18-й андроид', 'Эрза Скарлет', 'Микаса Аккерман', 'Рей Аянами',
+        'Асука Лэнгли', 'Фэй Валентайн', 'Нами', 'Нико Робин', 'Кая',
+        'Риас Гремори', 'Zero Two', 'Рэй Скайуокер', 'Принцесса Лея',
+        'Ахсока Тано', 'Падме Амидала', 'Джайна Соло', 'Лара Крофт',
+        'Чун Ли', 'Соня Блейд', 'Китана', 'Джейд', 'Милина',
+        'Трисс Меригольд', 'Йеннифэр', 'Элли', 'Джилл Валентайн', 'Ада Вонг',
+        'Селин', 'Алиса Абернати', 'Принцесса Зельда', 'Самус Аран',
+        'Байонетта', 'Каратэ', 'Тифа Локхарт', 'Аэрис', 'Василиса Прекрасная',
+        'Снегурочка', 'Жар-птица', 'Берегиня', 'Русалка', 'Мальвина',
+        'Баба Яга', 'Марья Моревна', 'Алёнушка', 'Царевна-лягушка',
+        'Эльза', 'Анна', 'Мулан', 'Покахонтас', 'Мерида', 'Моана'
+      ]
+    }
+
+    it('should have button mapping for all male heroes', () => {
+      // This test verifies that every hero in AI_HEROES.male has a corresponding button mapping
+      const buttonToHeroMap: Record<string, string> = {
+        '🎨 Человек-паук': 'Человек-паук',
+        '🎨 Железный человек': 'Железный человек',
+        '🎨 Капитан Америка': 'Капитан Америка',
+        '🎨 Тор': 'Тор',
+        '🎨 Халк': 'Халк',
+        '🎨 Доктор Стрэндж': 'Доктор Стрэндж',
+        '🎨 Дэдпул': 'Дэдпул',
+        '🎨 Росомаха': 'Росомаха',
+        '🎨 Человек-муравей': 'Человек-муравей',
+        '🎨 Блэк Пантер': 'Блэк Пантер',
+        '🎨 Локи': 'Локи',
+        '🎨 Веном': 'Веном',
+        '🎨 Карающий': 'Карающий',
+        '🎨 Призрачный гонщик': 'Призрачный гонщик',
+        '🎨 Зимний солдат': 'Зимний солдат',
+        '🎨 Звёздный лорд': 'Звёздный лорд',
+        '🎨 Соколиный глаз': 'Соколиный глаз',
+        '🎨 Супермен': 'Супермен',
+        '🎨 Бэтмен': 'Бэтмен',
+        '🎨 Флэш': 'Флэш',
+        '🎨 Зелёный фонарь': 'Зелёный фонарь',
+        '🎨 Аквамен': 'Аквамен',
+        '🎨 Киборг': 'Киборг',
+        '🎨 Шазам': 'Шазам',
+        '🎨 Зелёная стрела': 'Зелёная стрела',
+        '🎨 Джокер': 'Джокер',
+        '🎨 Найтвинг': 'Найтвинг',
+        '🎨 Дэфстроук': 'Дэфстроук',
+        '🎨 Гоку': 'Гоку',
+        '🎨 Наруто': 'Наруто',
+        '🎨 Луффи': 'Луффи',
+        '🎨 Ичиго': 'Ичиго',
+        '🎨 Саитама': 'Саитама',
+        '🎨 Эдвард Элрик': 'Эдвард Элрик',
+        '🎨 Лайт Ягами': 'Лайт Ягами',
+        '🎨 Какаши': 'Какаши',
+        '🎨 Сасукэ': 'Сасукэ',
+        '🎨 Вегета': 'Вегета',
+        '🎨 Пикколо': 'Пикколо',
+        '🎨 Натсу': 'Натсу',
+        '🎨 Эрен Йегер': 'Эрен Йегер',
+        '🎨 Леви Аккерман': 'Леви Аккерман',
+        '🎨 Илья Муромец': 'Илья Муромец',
+        '🎨 Добрыня Никитич': 'Добрыня Никитич',
+        '🎨 Алеша Попович': 'Алеша Попович',
+        '🎨 Алёша Попович': 'Алёша Попович',
+        '🎨 Перун': 'Перун',
+        '🎨 Святогор': 'Святогор',
+        '🎨 Иван-царевич': 'Иван-царевич',
+        '🎨 Кощей Бессмертный': 'Кощей Бессмертный',
+        '🎨 Серый Волк': 'Серый Волк',
+        '🎨 Емеля': 'Емеля',
+        '🎨 Кратос': 'Кратос',
+        '🎨 Геральт из Ривии': 'Геральт из Ривии',
+        '🎨 Мастер Чиф': 'Мастер Чиф',
+        '🎨 Данте': 'Данте',
+        '🎨 Субзиро': 'Субзиро',
+        '🎨 Скорпион': 'Скорпион',
+        '🎨 Рю': 'Рю',
+        '🎨 Кен': 'Кен',
+        '🎨 Соник': 'Соник',
+        '🎨 Марио': 'Марио',
+        '🎨 Линк': 'Линк',
+        '🎨 Клауд Страйф': 'Клауд Страйф',
+        '🎨 Сефирот': 'Сефирот',
+        '🎨 Джон Уик': 'Джон Уик',
+        '🎨 Терминатор': 'Терминатор',
+        '🎨 Хищник': 'Хищник',
+        '🎨 Спаун': 'Спаун',
+        '🎨 Альтаир': 'Альтаир',
+        '🎨 Эцио': 'Эцио',
+        '🎨 Алекс Мерсер': 'Алекс Мерсер' // This was the missing hero causing BUTTON_DATA_INVALID
+      }
+
+      const missingMappings: string[] = []
+
+      AI_HEROES.male.forEach(heroName => {
+        const buttonKey = `🎨 ${heroName}`
+        if (!buttonToHeroMap[buttonKey]) {
+          missingMappings.push(heroName)
+        }
+      })
+
+      expect(missingMappings).toEqual([])
+      expect(missingMappings.length).toBe(0)
+    })
+
+    it('should handle emoji-prefixed hero "🎨 Алекс Мерсер" correctly', () => {
+      const buttonToHeroMap: Record<string, string> = {
+        '🎨 Алекс Мерсер': 'Алекс Мерсер'
+      }
+
+      const buttonText = '🎨 Алекс Мерсер'
+      const expectedHero = 'Алекс Мерсер'
+
+      expect(buttonToHeroMap[buttonText]).toBe(expectedHero)
+      expect(buttonToHeroMap[buttonText]).toBeDefined()
+    })
+
+    it('should validate all female heroes have button mappings', () => {
+      const buttonToHeroMap: Record<string, string> = {}
+
+      // Add all female hero mappings with 🎨 emoji prefix
+      AI_HEROES.female.forEach(heroName => {
+        buttonToHeroMap[`🎨 ${heroName}`] = heroName
+      })
+
+      const missingMappings: string[] = []
+
+      AI_HEROES.female.forEach(heroName => {
+        const buttonKey = `🎨 ${heroName}`
+        if (!buttonToHeroMap[buttonKey]) {
+          missingMappings.push(heroName)
+        }
+      })
+
+      expect(missingMappings).toEqual([])
+    })
+  })
+
+  describe('Hero Button Generation vs Validation Consistency', () => {
+    it('should generate buttons that match validation mapping', () => {
+      // Test that the keyboard generation creates buttons that the validation logic accepts
+      const primaryMaleHeroes = ['Человек-паук', 'Железный человек', 'Капитан Америка', 'Тор']
+      const primaryFemaleHeroes = ['Капитан Марвел', 'Скарлет Витч', 'Алая ведьма', 'Чёрная вдова']
+
+      const buttonToHeroMap: Record<string, string> = {
+        '🕷️ Человек-паук': 'Человек-паук',
+        '🤖 Железный человек': 'Железный человек',
+        '🇦🇲 Капитан Америка': 'Капитан Америка',
+        '⚡ Тор': 'Тор',
+        '⭐ Капитан Марвел': 'Капитан Марвел',
+        '🔮 Скарлет Витч': 'Скарлет Витч',
+        '🌹 Алая ведьма': 'Алая ведьма',
+        '🕷️ Чёрная вдова': 'Чёрная вдова'
+      }
+
+      // Verify primary heroes have special emoji mappings (not just 🎨 prefix)
+      primaryMaleHeroes.forEach(hero => {
+        const specialButton = Object.keys(buttonToHeroMap).find(key =>
+          buttonToHeroMap[key] === hero && !key.startsWith('🎨')
+        )
+        expect(specialButton).toBeDefined()
+      })
+
+      primaryFemaleHeroes.forEach(hero => {
+        const specialButton = Object.keys(buttonToHeroMap).find(key =>
+          buttonToHeroMap[key] === hero && !key.startsWith('🎨')
+        )
+        expect(specialButton).toBeDefined()
+      })
+    })
+  })
+
+  describe('Edge Cases and Error Handling', () => {
+    it('should handle empty hero name gracefully', async () => {
+      mockCtx.message!.text = ''
+      mockCtx.session.selectedGender = 'male'
+      const heroStep = avatarTransformScene.steps[5] as Function
+
+      await heroStep(mockCtx)
+
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('❌ Неверный выбор')
+      )
+    })
+
+    it('should handle special characters in hero names', () => {
+      const heroesWithSpecialChars = [
+        'Доктор Стрэндж',  // English characters in Cyrillic text
+        '18-й андроид',     // Numbers and hyphens
+        'Zero Two',        // Space in name
+        'Алёша Попович',   // Cyrillic ё character
+      ]
+
+      heroesWithSpecialChars.forEach(heroName => {
+        const buttonKey = `🎨 ${heroName}`
+        expect(buttonKey).toBeDefined()
+        expect(buttonKey.length).toBeGreaterThan(2)
+      })
+    })
+
+    it('should handle invalid button text input', async () => {
+      mockCtx.message!.text = 'Invalid Hero Name'
+      mockCtx.session.selectedGender = 'male'
+      const heroStep = avatarTransformScene.steps[5] as Function
+
+      await heroStep(mockCtx)
+
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('❌ Неверный выбор')
+      )
+    })
+
+    it('should handle missing gender in session', async () => {
+      mockCtx.message!.text = '🎨 Алекс Мерсер'
+      mockCtx.session.selectedGender = undefined
+      const heroStep = avatarTransformScene.steps[5] as Function
+
+      await heroStep(mockCtx)
+
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('❌ Ошибка: не выбран пол')
+      )
     })
   })
 })

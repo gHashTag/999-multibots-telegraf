@@ -15,10 +15,10 @@ import * as path from 'path'
 
 // ✅ КОНСТАНТЫ ДЛЯ МОДЕЛЕЙ МОРФИНГА
 const MORPHING_MODEL_KEYS = {
-  DEFAULT: 'kling-v2.1-standard', // Новая модель по умолчанию
+  DEFAULT: 'kling-v2.1-pro', // Новая модель по умолчанию - Pro для поддержки end_image
   FALLBACK_1: 'kling-v1.6-standard', // Фаллбэк 1
   FALLBACK_2: 'kling-v1.6-pro', // Фаллбэк 2
-  PREMIUM: 'kling-v2.1-pro' // Премиум версия
+  STANDARD: 'kling-v2.1-standard' // Standard версия (не поддерживает морфинг)
 } as const
 
 // ✅ ZIP архив больше не нужен - работаем напрямую с изображениями
@@ -121,23 +121,25 @@ const createProgressMessage = (images: any[], isRu: boolean): string => {
   }
 
   return isRu
-    ? `🧬 <b>Морфинг - Загрузка изображений</b>
+    ? `🌀 <b>Infinity Morphing - Загрузка изображений</b>
 
-📸 <b>Загружено:</b> ${count} из минимум 2 изображений  
+📸 <b>Загружено:</b> ${count} из минимум 2 изображений
 📊 <b>Прогресс:</b> ${progressBar}
 
 ${statusIcon} <b>${statusText}</b>${sequenceText}
 
 🎬 <b>Будет создано:</b> ${Math.max(0, count - 1)} видео переходов
+🤖 <b>Модель:</b> Kling v2.1 Pro (1080p HD качество)
 💡 <b>Совет:</b> Порядок загрузки = порядок склейки (без ограничений!)`
-    : `🧬 <b>Morphing - Image Upload</b>
+    : `🌀 <b>Infinity Morphing - Image Upload</b>
 
-📸 <b>Uploaded:</b> ${count} of minimum 2 images  
+📸 <b>Uploaded:</b> ${count} of minimum 2 images
 📊 <b>Progress:</b> ${progressBar}
 
 ${statusIcon} <b>${statusText}</b>${sequenceText}
 
 🎬 <b>Will create:</b> ${Math.max(0, count - 1)} video transitions
+🤖 <b>Model:</b> Kling v2.1 Pro (1080p HD quality)
 💡 <b>Tip:</b> Upload order = merge order (unlimited!)`
 }
 
@@ -150,7 +152,7 @@ const createProgressKeyboard = (images: any[], isRu: boolean) => {
   if (canGenerate) {
     keyboard.push([
       Markup.button.callback(
-        isRu ? '✅ Создать морфинг' : '✅ Create morphing',
+        isRu ? '✅ Создать Infinity Morphing' : '✅ Create Infinity Morphing',
         'morphing_start_generation'
       ),
     ])
@@ -197,22 +199,24 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const welcomeMessage = isRu
-      ? `🧬 <b>Добро пожаловать в Морфинг Студию!</b>
+      ? `🌀 <b>Добро пожаловать в Infinity Morphing!</b>
 
 ✨ Создавайте потрясающие видео переходы между изображениями
 📸 Загрузите минимум 2 изображения для начала
 🎯 Система создаст плавные переходы между всеми кадрами
 
+🤖 <b>Модели под капотом:</b> Kling v2.1 Pro (1080p HD)
 📋 <b>Важно:</b> Порядок загрузки = порядок склейки
 🔄 <b>Пример:</b> Фото 1→2→3 = переходы 1→2, 2→3
 
 <i>📤 Отправьте первое изображение:</i>`
-      : `🧬 <b>Welcome to Morphing Studio!</b>
+      : `🌀 <b>Welcome to Infinity Morphing!</b>
 
 ✨ Create stunning video transitions between images
 📸 Upload minimum 2 images to start
 🎯 System will create smooth transitions between all frames
 
+🤖 <b>Models under the hood:</b> Kling v2.1 Pro (1080p HD)
 📋 <b>Important:</b> Upload order = merge order
 🔄 <b>Example:</b> Photo 1→2→3 = transitions 1→2, 2→3
 
@@ -248,8 +252,8 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
       try {
         await ctx.reply(
           isRu
-            ? '🧬 Морфинг - загрузите первое изображение:'
-            : '🧬 Morphing - upload first image:'
+            ? '🌀 Infinity Morphing - загрузите первое изображение:'
+            : '🌀 Infinity Morphing - upload first image:'
         )
       } catch (fallbackError) {
         console.log(
@@ -730,29 +734,31 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
       : '➡️ Linear (No Loop)'
 
     const costMessage = isRu
-      ? `💰 <b>Информация о стоимости:</b>
+      ? `💰 <b>Информация о стоимости Infinity Morphing:</b>
 
-📸 <b>Изображений:</b> ${imagesCount}  
+📸 <b>Изображений:</b> ${imagesCount}
 🎬 <b>Тип:</b> ${morphingTypeText}
 🔄 <b>Видео переходов:</b> ${transitionsCount}
-💫 <b>Стоимость за переход:</b> ${finalPriceInStars}⭐  
+💫 <b>Стоимость за переход:</b> ${finalPriceInStars}⭐
 💎 <b>Общая стоимость:</b> ${totalCost}⭐
 
-⚠️ <b>ВАЖНО:</b> При ошибках безопасности система попробует альтернативные модели Kling (v1.6 Standard, v2.0), что может увеличить стоимость до $3-5 за клип. Это происходит автоматически для обхода фильтров с лицами.
+🤖 <b>Основная модель:</b> Kling v2.1 Pro (1080p HD качество)
+⚠️ <b>Резервные модели:</b> При ошибках безопасности система попробует Kling v1.6 Standard/Pro, что может увеличить стоимость до $3-5 за клип. Это происходит автоматически для обхода фильтров с лицами.
 
-✨ Создаю потрясающий морфинг для вас...
+✨ Создаю потрясающий Infinity Morphing для вас...
 ⏳ Может занять до 5 минут, ожидайте...`
-      : `💰 <b>Cost Information:</b>
+      : `💰 <b>Infinity Morphing Cost Information:</b>
 
-📸 <b>Images:</b> ${imagesCount}  
+📸 <b>Images:</b> ${imagesCount}
 🎬 <b>Type:</b> ${morphingTypeText}
 🔄 <b>Video transitions:</b> ${transitionsCount}
-💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐  
+💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐
 💎 <b>Total cost:</b> ${totalCost}⭐
 
-⚠️ <b>IMPORTANT:</b> If safety filters reject content, system will automatically try alternative Kling models (v1.6 Standard, v2.0), which may increase cost to $3-5 per clip. This happens automatically to bypass face filters.
+🤖 <b>Primary model:</b> Kling v2.1 Pro (1080p HD quality)
+⚠️ <b>Fallback models:</b> If safety filters reject content, system will automatically try Kling v1.6 Standard/Pro, which may increase cost to $3-5 per clip. This happens automatically to bypass face filters.
 
-✨ Creating amazing morphing for you...
+✨ Creating amazing Infinity Morphing for you...
 ⏳ This may take up to 5 minutes, please wait...`
 
     await ctx.editMessageText(costMessage, {
@@ -772,13 +778,13 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 
     // Уведомляем о запуске обработки
     const completionMessage = isRu
-      ? `🚀 Морфинг запущен в обработку! 
+      ? `🚀 Infinity Morphing запущен в обработку!
 
 ⏳ Создание видео займет до 5 минут
 📱 Готовое видео будет отправлено вам автоматически
 
 💡 <b>Примечание:</b> Если файл большой (>50МБ), вы получите ссылку на скачивание`
-      : `🚀 Morphing processing started! 
+      : `🚀 Infinity Morphing processing started!
 
 ⏳ Video creation will take up to 5 minutes
 📱 Finished video will be sent to you automatically
@@ -886,8 +892,8 @@ morphingWizard.action('morphing_cancel', async ctx => {
 
     await ctx.reply(
       isRu
-        ? '❌ Создание морфинга отменено. Возвращаюсь в главное меню.'
-        : '❌ Morphing creation cancelled. Returning to main menu.'
+        ? '❌ Создание Infinity Morphing отменено. Возвращаюсь в главное меню.'
+        : '❌ Infinity Morphing creation cancelled. Returning to main menu.'
     )
 
     console.log('❌ [MORPHING_CANCEL] Leaving scene...')
