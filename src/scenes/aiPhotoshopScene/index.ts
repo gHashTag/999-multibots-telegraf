@@ -196,6 +196,7 @@ aiPhotoshopScene.enter(async ctx => {
 🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (12⭐)
 🚀 *FLUX Kontext Max* - Профессиональное редактирование (8⭐)
 
+📸 *Или сразу отправьте фото для быстрой обработки через SeeDream-4*
 💡 *Каждая модель имеет уникальные возможности для создания потрясающих результатов*`
       : `Choose an AI model for processing:
 
@@ -203,6 +204,7 @@ aiPhotoshopScene.enter(async ctx => {
 🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (12⭐)
 🚀 *FLUX Kontext Max* - Professional editing (8⭐)
 
+📸 *Or send a photo directly for quick processing with SeeDream-4*
 💡 *Each model has unique capabilities for creating amazing results*`
 
     await ctx.reply(title + '\n\n' + description, {
@@ -354,7 +356,26 @@ aiPhotoshopScene.on('photo', async ctx => {
       model: ctx.session?.aiPhotoshopModel,
     })
 
-    if (!ctx.session?.awaitingAiPhotoshopImage) {
+    // Если пользователь отправил фото без выбора модели - используем SeeDream-4 по умолчанию
+    if (!ctx.session?.awaitingAiPhotoshopImage && !ctx.session?.aiPhotoshopModel) {
+      logger.info('🎨 AI Photoshop: Photo sent without model selection, using SeeDream-4 default', {
+        telegramId: ctx.from?.id,
+      })
+
+      // Устанавливаем значения по умолчанию
+      if (ctx.session) {
+        ctx.session.aiPhotoshopModel = 'seedream'
+        ctx.session.aiPhotoshopStyle = 'artistic'
+        ctx.session.awaitingAiPhotoshopImage = true
+        ctx.session.aiPhotoshopStep = 'processing'
+      }
+
+      await ctx.reply(
+        isRu
+          ? '✨ Отлично! Обрабатываю ваше фото с помощью SeeDream-4 в художественном стиле...'
+          : '✨ Great! Processing your photo with SeeDream-4 in artistic style...'
+      )
+    } else if (!ctx.session?.awaitingAiPhotoshopImage) {
       await ctx.reply(
         isRu
           ? '❌ Сначала выберите модель и стиль обработки.'
