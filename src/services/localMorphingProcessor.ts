@@ -98,19 +98,33 @@ interface ReplicateClient {
 const MAX_RETRIES = 5 // Максимум 5 попыток для каждого клипа
 const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
 
-// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (ТОЛЬКО 1.6 ВЕРСИИ!)
+// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (ОБНОВЛЕН ДЛЯ v2.1)
 const FALLBACK_KLING_MODELS = [
+  {
+    id: 'kwaivgi/kling-v2.1',
+    name: 'Kling v2.1 Standard',
+    variant: 'standard',
+    cost: 0.5, // $0.05 * 10 сек = $0.5 за клип (новая модель по умолчанию)
+    description: '720p, новейшая Kling v2.1 модель для морфинга',
+  },
+  {
+    id: 'kwaivgi/kling-v2.1',
+    name: 'Kling v2.1 Pro',
+    variant: 'pro',
+    cost: 0.9, // $0.09 * 10 сек = $0.9 за клип (премиум качество)
+    description: '1080p, премиум Kling v2.1 модель для морфинга',
+  },
   {
     id: 'kwaivgi/kling-v1.6-pro',
     name: 'Kling v1.6 Pro',
-    cost: 1.96, // ~$1.96 за 10-сек клип (лучшее качество для морфинга)
-    description: '1080p, основная модель для морфинга',
+    cost: 1.96, // ~$1.96 за 10-сек клип (фаллбэк)
+    description: '1080p, fallback модель для морфинга',
   },
   {
     id: 'kwaivgi/kling-v1.6-standard',
     name: 'Kling v1.6 Standard',
-    cost: 0.56, // ~$0.56 за 10-сек клип (запасная модель)
-    description: '720p, fallback модель если Pro отказалась',
+    cost: 0.56, // ~$0.56 за 10-сек клип (последний резерв)
+    description: '720p, последний резерв если v2.1 не работает',
   },
 ] as const
 
@@ -601,7 +615,8 @@ async function generateSingleClipWithRetry(
     prompt: string
     duration: number
     cfg_scale: number
-    mode?: string // ✅ Добавляем опциональное свойство mode
+    mode?: string // Для v1.6 моделей
+    model_variant?: string // ✅ Для v2.1 моделей
   } = {
     start_image: pair.start,
     end_image: pair.end,
@@ -617,12 +632,22 @@ async function generateSingleClipWithRetry(
 
       // Адаптируем параметры под разные модели Kling
       const input = { ...baseInput }
-      if (currentModel.includes('pro')) {
-        input.mode = 'pro'
-      } else if (currentModel.includes('standard')) {
-        input.mode = 'std' // standard mode
+
+      // ✅ НОВАЯ ЛОГИКА для v2.1: используем model_variant
+      if (currentModel === 'kwaivgi/kling-v2.1') {
+        // Для v2.1 используем model_variant из конфигурации
+        const modelVariant = currentModelInfo.variant || 'standard'
+        input.model_variant = modelVariant
+        logger.info(`🆕 Using Kling v2.1 with variant: ${modelVariant}`)
       } else {
-        input.mode = 'std' // по умолчанию standard для v1.6 и v2.0
+        // Для старых моделей v1.6 используем старую логику mode
+        if (currentModel.includes('pro')) {
+          input.mode = 'pro'
+        } else if (currentModel.includes('standard')) {
+          input.mode = 'std' // standard mode
+        } else {
+          input.mode = 'std' // по умолчанию standard для v1.6
+        }
       }
 
       logger.info(

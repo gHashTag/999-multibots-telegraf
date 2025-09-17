@@ -13,8 +13,13 @@ import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
 import * as path from 'path'
 
-// ✅ КОНСТАНТА ДЛЯ МОДЕЛИ МОРФИНГА (ПРЕМИУМ КАЧЕСТВО)
-const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
+// ✅ КОНСТАНТЫ ДЛЯ МОДЕЛЕЙ МОРФИНГА
+const MORPHING_MODEL_KEYS = {
+  DEFAULT: 'kling-v2.1-standard', // Новая модель по умолчанию
+  FALLBACK_1: 'kling-v1.6-standard', // Фаллбэк 1
+  FALLBACK_2: 'kling-v1.6-pro', // Фаллбэк 2
+  PREMIUM: 'kling-v2.1-pro' // Премиум версия
+} as const
 
 // ✅ ZIP архив больше не нужен - работаем напрямую с изображениями
 
@@ -678,12 +683,12 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     // ===== 💰 ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
     logger.info('[startMorphingGeneration] Processing balance for morphing', {
       telegramId: ctx.from?.id,
-      modelId: MORPHING_MODEL_KEY,
+      modelId: MORPHING_MODEL_KEYS.DEFAULT,
     })
 
     const balanceResult = await processBalanceVideoOperationHelper(
       String(ctx.from!.id),
-      MORPHING_MODEL_KEY,
+      MORPHING_MODEL_KEYS.DEFAULT,
       isRu,
       ctx.botInfo?.username || 'unknown_bot',
       'morphing'
@@ -713,7 +718,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     const transitionsCount = withLoop
       ? imagesCount // С лупом: 1→2, 2→3, 3→1 (включая возврат к первому)
       : imagesCount - 1 // Линейные переходы: 1→2, 2→3, 3→4 (без зацикливания)
-    const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
+    const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEYS.DEFAULT)
     const totalCost = finalPriceInStars * transitionsCount
 
     const morphingTypeText = isRu

@@ -153,6 +153,38 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     imageKey: 'start_image',
     canMorph: false,
   },
+  'kling-v2.1-standard': {
+    id: 'kling-v2.1-standard',
+    title: 'Kling v2.1 Standard',
+    inputType: ['image', 'morph'],
+    description:
+      'Kling v2.1 Standard 720p - улучшенная анимация с поддержкой морфинга (цена за секунду)',
+    basePrice: 0.05,
+    api: {
+      model: 'kwaivgi/kling-v2.1',
+      input: {
+        model_variant: 'standard'
+      },
+    },
+    imageKey: 'start_image',
+    canMorph: true,
+  },
+  'kling-v2.1-pro': {
+    id: 'kling-v2.1-pro',
+    title: 'Kling v2.1 Pro',
+    inputType: ['image', 'morph'],
+    description:
+      'Kling v2.1 Pro 1080p - премиум анимация с поддержкой морфинга (цена за секунду)',
+    basePrice: 0.09,
+    api: {
+      model: 'kwaivgi/kling-v2.1',
+      input: {
+        model_variant: 'pro'
+      },
+    },
+    imageKey: 'start_image',
+    canMorph: true,
+  },
   'hunyuan-video-fast': {
     id: 'hunyuan-video-fast',
     title: 'Hunyuan Video Fast',

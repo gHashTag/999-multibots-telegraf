@@ -20,7 +20,7 @@ export function calculateFinalPrice(
     return 0 // Или бросить ошибку?
   }
 
-  // ФИКСИРОВАННЫЕ ЦЕНЫ для наших Veo моделей
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для специальных моделей
   if (modelKey === 'veo3_fast') {
     logger.info('calculateFinalPrice: Using fixed price for Veo 3 Fast', {
       modelKey,
@@ -35,6 +35,33 @@ export function calculateFinalPrice(
       fixedPriceInStars: 120,
     })
     return 120
+  }
+
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для Kling v2.1 морфинга (С ПРАВИЛЬНОЙ НАЦЕНКОЙ 1.5x)
+  if (modelKey === 'kling-v2.1-standard') {
+    // Расчет: $0.05 * 10 сек = $0.5 → $0.5 * 1.5 наценка = $0.75 → $0.75 / 0.016 = 46.875 → 46⭐
+    const fixedPriceInStars = 46
+    logger.info('calculateFinalPrice: Using fixed price for Kling v2.1 Standard WITH MARKUP', {
+      modelKey,
+      baseCostUSD: 0.5,
+      markupMultiplier: 1.5,
+      finalCostWithMarkupUSD: 0.75,
+      fixedPriceInStars,
+    })
+    return fixedPriceInStars
+  }
+
+  if (modelKey === 'kling-v2.1-pro') {
+    // Расчет: $0.09 * 10 сек = $0.9 → $0.9 * 1.5 наценка = $1.35 → $1.35 / 0.016 = 84.375 → 84⭐
+    const fixedPriceInStars = 84
+    logger.info('calculateFinalPrice: Using fixed price for Kling v2.1 Pro WITH MARKUP', {
+      modelKey,
+      baseCostUSD: 0.9,
+      markupMultiplier: 1.5,
+      finalCostWithMarkupUSD: 1.35,
+      fixedPriceInStars,
+    })
+    return fixedPriceInStars
   }
 
   // --- Новый порядок расчета (с учетом цены за секунду и разрешения) ---
