@@ -478,8 +478,8 @@ export const generateImageToVideo = async (
               const keyboard = Markup.keyboard([
                 [
                   isRu
-                    ? '🎬 Новый промт'
-                    : '🎬 New Prompt',
+                    ? '🎬 Новое видео'
+                    : '🎬 New Video',
                 ],
                 [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
               ]).resize()
@@ -707,8 +707,8 @@ export const generateImageToVideo = async (
             const keyboard = Markup.keyboard([
               [
                 isRu
-                  ? '🎬 Новый промт'
-                  : '🎬 New Prompt',
+                  ? '🎬 Новое видео'
+                  : '🎬 New Video',
               ],
               [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
             ]).resize()
@@ -953,8 +953,8 @@ export const generateImageToVideo = async (
                   const keyboard = Markup.keyboard([
                     [
                       isRu
-                        ? '🎬 Новый промт'
-                        : '🎬 New Prompt',
+                        ? '🎬 Новое видео'
+                        : '🎬 New Video',
                     ],
                     [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
                   ]).resize()
@@ -1263,8 +1263,8 @@ export const generateImageToVideo = async (
     const keyboard = Markup.keyboard([
       [
         isRu
-          ? '🎬 Новый промт'
-          : '🎬 New Prompt',
+          ? '🎬 Новое видео'
+          : '🎬 New Video',
       ],
       [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
     ]).resize()

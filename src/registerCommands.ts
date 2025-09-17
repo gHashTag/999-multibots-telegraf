@@ -1019,7 +1019,7 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    // Обработчик для кнопки "Новый промт" после генерации видео
+    // Обработчик для кнопки "Новый промт" после генерации видео (для text-to-video)
     bot.hears(['🎬 Новый промт', '🎬 New Prompt'], async ctx => {
       logger.info('HEARS: new_prompt_video', {
         telegramId: ctx.from?.id,
@@ -1044,6 +1044,33 @@ If not, continue on your own and click the "I myself" button`
       } catch (error) {
         logger.error('Error in new_prompt_video hears:', {
           error,
+          telegramId: ctx.from?.id,
+        })
+        const isRuError = isRussianFromState(ctx)
+        await ctx.reply(
+          isRuError
+            ? '❌ Произошла ошибка. Попробуйте выбрать режим из главного меню.'
+            : '❌ An error occurred. Please select a mode from the main menu.'
+        )
+      }
+    })
+
+    // Обработчик для кнопки "Новое видео" после генерации image-to-video
+    bot.hears(['🎬 Новое видео', '🎬 New Video'], async ctx => {
+      logger.info('HEARS: new_video_i2v', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        const isRu = isRussianFromState(ctx)
+
+        // Переходим в режим Image-to-Video для создания нового видео
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.ImageToVideo
+        await ctx.scene.enter(ModeEnum.ImageToVideo)
+
+      } catch (error: any) {
+        logger.error('Error in new_video_i2v handler', {
+          error: error?.message,
           telegramId: ctx.from?.id,
         })
         const isRuError = isRussianFromState(ctx)
