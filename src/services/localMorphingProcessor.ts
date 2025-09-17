@@ -99,20 +99,21 @@ const MAX_RETRIES = 5 // Максимум 5 попыток для каждого
 const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
 
 // ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (ОБНОВЛЕН ДЛЯ v2.1)
+// 🔥 КРИТИЧЕСКИ ВАЖНО: Pro должна быть ПЕРВОЙ, так как Standard НЕ поддерживает end_image!
 const FALLBACK_KLING_MODELS = [
-  {
-    id: 'kwaivgi/kling-v2.1',
-    name: 'Kling v2.1 Standard',
-    variant: 'standard',
-    cost: 0.5, // $0.05 * 10 сек = $0.5 за клип (новая модель по умолчанию)
-    description: '720p, новейшая Kling v2.1 модель для морфинга',
-  },
   {
     id: 'kwaivgi/kling-v2.1',
     name: 'Kling v2.1 Pro',
     variant: 'pro',
     cost: 0.9, // $0.09 * 10 сек = $0.9 за клип (премиум качество)
     description: '1080p, премиум Kling v2.1 модель для морфинга',
+  },
+  {
+    id: 'kwaivgi/kling-v2.1',
+    name: 'Kling v2.1 Standard',
+    variant: 'standard',
+    cost: 0.5, // $0.05 * 10 сек = $0.5 за клип (НЕ поддерживает end_image!)
+    description: '720p, НЕ поддерживает морфинг с end_image - только для single image',
   },
   {
     id: 'kwaivgi/kling-v1.6-pro',
