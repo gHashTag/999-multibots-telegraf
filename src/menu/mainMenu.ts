@@ -78,7 +78,7 @@ export const levels: Record<number, Level> = {
   },
   // morphing
   13: {
-    title_ru: '🌀 Infinity Morphing',
+    title_ru: '🌀 Infinity Морфинг',
     title_en: '🌀 Infinity Morphing',
     // Доступно всем пользователям с подпиской
   },
