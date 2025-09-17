@@ -71,10 +71,10 @@ export const levels: Record<number, Level> = {
     title_ru: '🖼️ Генерация изображений',
     title_en: '🖼️ Generate Images',
   },
-  // flux_kontext
+  // ai_photoshop (formerly flux_kontext)
   12: {
-    title_ru: '🎨 FLUX Kontext',
-    title_en: '🎨 FLUX Kontext',
+    title_ru: '🎨 ИИ Фотошоп',
+    title_en: '🎨 AI Photoshop',
   },
   // morphing
   13: {

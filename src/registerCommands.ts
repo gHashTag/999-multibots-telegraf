@@ -74,6 +74,7 @@ import {
   uploadVideoScene,
   videoTranscriptionWizard,
   fluxKontextScene,
+  aiPhotoshopScene,
   avatarTransformScene,
   instagramScrapingWizard,
   instagramParserScene,
@@ -128,6 +129,7 @@ export const stage = new Scenes.Stage<MyContext>([
   uploadVideoScene,
   sizeWizard,
   fluxKontextScene,
+  aiPhotoshopScene,
   morphingWizard,
   new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
   new Scenes.WizardScene(

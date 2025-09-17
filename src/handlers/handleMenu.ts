@@ -351,32 +351,28 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
         logger.info({
-          message: '🎨 [handleMenu] Переход к FLUX Kontext',
+          message: '🎨 [handleMenu] Переход к ИИ Фотошоп',
           telegramId,
           function: 'handleMenu',
-          action: 'flux_kontext',
-          nextScene: ModeEnum.CheckBalanceScene,
+          action: 'ai_photoshop',
+          nextScene: 'ai_photoshop_scene',
         })
-        console.log('CASE: 🎨 FLUX Kontext')
+        console.log('CASE: 🎨 ИИ Фотошоп')
 
-        // ✅ ЗАЩИТА: Проверяем подписку перед входом в FLUX Kontext
+        // ✅ ЗАЩИТА: Проверяем подписку перед входом в ИИ Фотошоп
         const hasSubscription = await checkSubscriptionGuard(
           ctx,
-          '🎨 FLUX Kontext'
+          '🎨 ИИ Фотошоп'
         )
         if (!hasSubscription) {
           return // Пользователь перенаправлен в subscriptionScene
         }
 
-        // Устанавливаем режим FLUX Kontext и идем через checkBalanceScene
-        ctx.session.mode = ModeEnum.FluxKontext
-        console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
+        // Устанавливаем режим ИИ Фотошоп и переходим напрямую в ai_photoshop_scene
+        ctx.session.mode = 'ai_photoshop' as any
+        console.log(`🔄 [handleMenu] Вход в сцену ai_photoshop_scene`)
+        await ctx.scene.enter('ai_photoshop_scene')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ai_photoshop_scene`)
       },
       [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
         logger.info({

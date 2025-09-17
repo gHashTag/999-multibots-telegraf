@@ -321,6 +321,15 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   step?: 'video' | 'audio' | 'processing'
   startTime?: number
   requestId?: string
+
+  // AI Photoshop scene fields
+  aiPhotoshopModel?: 'seedream' | 'nano_banana' | 'flux_max'
+  aiPhotoshopStyle?: 'portrait' | 'artistic' | 'photorealistic' | 'fantasy' | 'cyberpunk' | 'vintage' | 'custom'
+  aiPhotoshopImage?: string
+  aiPhotoshopPrompt?: string
+  awaitingAiPhotoshopImage?: boolean
+  awaitingAiPhotoshopPrompt?: boolean
+  aiPhotoshopStep?: 'model_select' | 'style_select' | 'image_upload' | 'custom_prompt' | 'processing'
 }
 
 export interface MyContext extends Context {
