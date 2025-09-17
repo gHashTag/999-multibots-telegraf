@@ -1055,6 +1055,41 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
+    // ✅ ОБРАБОТЧИК ДЛЯ КНОПКИ МОРФИНГА
+    bot.hears([levels[13].title_ru, levels[13].title_en], async ctx => {
+      logger.info('HEARS: morphing_button', {
+        telegramId: ctx.from?.id,
+        messageText: ctx.message?.text,
+      })
+      try {
+        const isRu = isRussianFromState(ctx)
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед использованием Morphing
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          levels[13].title_ru // "🌀 Infinity Морфинг"
+        )
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        await ctx.scene.leave()
+        ctx.session.mode = ModeEnum.MorphingWizard
+        await ctx.scene.enter(ModeEnum.MorphingWizard)
+      } catch (error) {
+        logger.error('Error in morphing hears handler:', {
+          error: error instanceof Error ? error.message : String(error),
+          telegramId: ctx.from?.id,
+        })
+        const isRuError = isRussianFromState(ctx)
+        await ctx.reply(
+          isRuError
+            ? '❌ Произошла ошибка при переходе к созданию морфинга.'
+            : '❌ An error occurred while switching to morphing creation.'
+        )
+      }
+    })
+
     // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
 
     // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
