@@ -742,8 +742,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 💫 <b>Стоимость за переход:</b> ${finalPriceInStars}⭐
 💎 <b>Общая стоимость:</b> ${totalCost}⭐
 
-🤖 <b>Основная модель:</b> Kling v2.1 Pro (1080p HD качество)
-⚠️ <b>Резервные модели:</b> При ошибках безопасности система попробует Kling v1.6 Standard/Pro, что может увеличить стоимость до $3-5 за клип. Это происходит автоматически для обхода фильтров с лицами.
+🤖 <b>Модель:</b> Kling v2.1 Pro (1080p HD качество)
 
 ✨ Создаю потрясающий Infinity Морфинг для вас...
 ⏳ Может занять до 5 минут, ожидайте...`
@@ -755,8 +754,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐
 💎 <b>Total cost:</b> ${totalCost}⭐
 
-🤖 <b>Primary model:</b> Kling v2.1 Pro (1080p HD quality)
-⚠️ <b>Fallback models:</b> If safety filters reject content, system will automatically try Kling v1.6 Standard/Pro, which may increase cost to $3-5 per clip. This happens automatically to bypass face filters.
+🤖 <b>Model:</b> Kling v2.1 Pro (1080p HD quality)
 
 ✨ Creating amazing Infinity Morphing for you...
 ⏳ This may take up to 5 minutes, please wait...`
