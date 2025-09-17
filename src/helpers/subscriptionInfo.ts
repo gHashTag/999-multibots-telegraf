@@ -142,6 +142,15 @@ function findFeatureId(featureName: string): number | null {
     'ImageToVideo': FEATURE_IDS.IMAGE_TO_VIDEO,
     'NeuroPhoto': FEATURE_IDS.NEURO_PHOTO,
     'TextToImage': FEATURE_IDS.TEXT_TO_IMAGE,
+    // ✅ ИСПРАВЛЕНИЕ: Добавляем маппинг для морфинга
+    '🌀 Infinity Морфинг': FEATURE_IDS.MORPHING,
+    '🌀 Infinity Morphing': FEATURE_IDS.MORPHING,
+    'Infinity Морфинг': FEATURE_IDS.MORPHING,
+    'Infinity Morphing': FEATURE_IDS.MORPHING,
+    'Морфинг': FEATURE_IDS.MORPHING,
+    'Morphing': FEATURE_IDS.MORPHING,
+    '🧬 Морфинг': FEATURE_IDS.MORPHING,
+    '🧬 Morphing': FEATURE_IDS.MORPHING,
   }
 
   // Сначала проверяем специальную карту команд
