@@ -74,6 +74,11 @@ const AI_PHOTOSHOP_STYLES = {
     title_ru: '📻 Винтаж',
     title_en: '📻 Vintage',
     template: 'vintage style, retro aesthetic, classic composition, nostalgic mood'
+  },
+  figure_3d: {
+    title_ru: '🖨️ 3D Фигурка',
+    title_en: '🖨️ 3D Figure',
+    template: 'turn this photo into a character figure. Behind it, place a box with the character\'s image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible'
   }
 }
 
@@ -202,7 +207,7 @@ aiPhotoshopScene.enter(async ctx => {
 
 🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐)
 🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (12⭐)
-🚀 *FLUX Kontext Max* - Профессиональное редактирование (8⭐)
+🚀 *FLUX Kontext Max* - Профессиональное редактирование (5⭐)
 
 📸 *Или сразу отправьте фото для быстрой обработки через SeeDream-4*
 💡 *Каждая модель имеет уникальные возможности для создания потрясающих результатов*`
@@ -210,7 +215,7 @@ aiPhotoshopScene.enter(async ctx => {
 
 🎭 *SeeDream-4* - Image generation and transformation (15⭐)
 🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (12⭐)
-🚀 *FLUX Kontext Max* - Professional editing (8⭐)
+🚀 *FLUX Kontext Max* - Professional editing (5⭐)
 
 📸 *Or send a photo directly for quick processing with SeeDream-4*
 💡 *Each model has unique capabilities for creating amazing results*`
@@ -734,12 +739,12 @@ aiPhotoshopScene.action('ai_photoshop_back_to_models', async ctx => {
 
 🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐)
 🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (12⭐)
-🚀 *FLUX Kontext Max* - Профессиональное редактирование (8⭐)`
+🚀 *FLUX Kontext Max* - Профессиональное редактирование (5⭐)`
       : `Choose an AI model for processing:
 
 🎭 *SeeDream-4* - Image generation and transformation (15⭐)
 🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (12⭐)
-🚀 *FLUX Kontext Max* - Professional editing (8⭐)`
+🚀 *FLUX Kontext Max* - Professional editing (5⭐)`
 
     await ctx.editMessageText(title + '\n\n' + description, {
       parse_mode: 'Markdown',
