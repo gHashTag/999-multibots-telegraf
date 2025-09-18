@@ -19,196 +19,37 @@ import { generateNanoBanana } from '@/services/generateNanoBanana'
 // Legacy fallback
 import { generateFluxKontext } from '@/services/generateFluxKontext'
 
-// 🦸‍♂️ AI HEROES - Расширенный список супергероев из разных традиций  
+// 🦸‍♂️ AI HEROES - Simplified Top 10 Most Popular Heroes + Custom Option
 const AI_HEROES = {
   male: [
-    // Marvel Universe (Самые популярные)
+    // Top 10 Most Popular Heroes (Based on Analytics)
     'Человек-паук',
-    'Железный человек', 
+    'Железный человек',
+    'Бэтмен',
+    'Супермен',
     'Капитан Америка',
     'Тор',
-    'Халк',
-    'Доктор Стрэндж',
     'Дэдпул',
     'Росомаха',
-    'Человек-муравей',
-    'Блэк Пантер',
-    'Локи',
-    'Веном',
-    'Карающий',
-    'Призрачный гонщик',
-    'Зимний солдат',
-    'Звёздный лорд',
-    'Соколиный глаз',
-    
-    // DC Universe
-    'Супермен',
-    'Бэтмен',
-    'Флэш',
-    'Зелёный фонарь',
-    'Аквамен',
-    'Киборг',
-    'Шазам',
-    'Зелёная стрела',
-    'Джокер',
-    'Найтвинг',
-    'Дэфстроук',
-    
-    // Anime & Manga (Популярные)
-    'Гоку',
-    'Наруто',
-    'Луффи',
-    'Ичиго',
-    'Саитама',
-    'Эдвард Элрик',
-    'Лайт Ягами',
-    'Какаши',
-    'Сасукэ',
-    'Вегета',
-    'Пикколо',
-    'Натсу',
-    'Эрен Йегер',
-    'Леви Аккерман',
-    
-    // Slavic & Mythology
-    'Илья Муромец',
-    'Добрыня Никитич',
-    'Алеша Попович',
-    'Алёша Попович',
-    'Перун',
-    'Святогор',
-    'Иван-царевич',
-    'Кощей Бессмертный',
-    'Серый Волк',
-    'Емеля',
-    
-    // Games & Movies (Культовые)
-    'Кратос',
-    'Геральт из Ривии',
-    'Мастер Чиф',
-    'Данте',
-    'Субзиро',
-    'Скорпион',
-    'Рю',
-    'Кен',
-    'Соник',
-    'Марио',
-    'Линк',
-    'Клауд Страйф',
-    'Сефирот',
-    'Джон Уик',
-    'Терминатор',
-    'Хищник',
-    'Спаун',
-    'Альтаир',
-    'Эцио',
-    'Алекс Мерсер'
+    'Халк',
+    'Доктор Стрэндж',
+    // Custom prompt option
+    'Кастомный промпт',
   ],
   female: [
-    // Marvel Universe
+    // Top 10 Most Popular Female Heroes (Based on Analytics)
+    'Скарлет Витч',
     'Капитан Марвел',
-    'Скарлет Витч', 
-    'Алая ведьма',
-    'Чёрная вдова',
-    'Гвен Стейси',
-    'Шури',
-    'Валькирия',
-    'Шторм',
-    'Джин Грей',
-    'Роуг',
-    'Китти Прайд',
-    'Псайлок',
-    'Мистик',
-    'Эмма Фрост',
-    'Гамора',
-    'Небула',
-    'Капитан Картер',
-    
-    // DC Universe
     'Чудо-женщина',
+    'Чёрная вдова',
     'Харли Квинн',
     'Супергёрл',
-    'Бэтгерл',
-    'Кэтвумен',
-    'Ядовитый плющ',
-    'Рейвен',
-    'Старфайр',
-    'Мера',
-    'Хищные птицы',
-    'Черная канарейка',
-    'Джессика Круз',
-    
-    // Anime & Manga
-    'Сейлор Мун',
-    'Мику Хацунэ',
-    'Сакура Харуно',
-    'Хината Хьюга',
-    'Цунадэ',
-    'Булма',
-    '18-й андроид',
-    'Эрза Скарлет',
-    'Микаса Аккерман',
-    'Рей Аянами',
-    'Асука Лэнгли',
-    'Фэй Валентайн',
-    'Нами',
-    'Нико Робин',
-    'Кая',
-    'Риас Гремори',
-    'Zero Two',
-    
-    // Star Wars
-    'Рэй Скайуокер',
-    'Принцесса Лея',
-    'Ахсока Тано',
-    'Падме Амидала',
-    'Джайна Соло',
-    
-    // Games & Movies
-    'Лара Крофт',
-    'Чун Ли',
-    'Соня Блейд',
-    'Китана',
-    'Джейд',
-    'Милина',
-    'Трисс Меригольд',
-    'Йеннифэр',
-    'Элли',
-    'Джилл Валентайн',
-    'Ада Вонг',
-    'Селин',
-    'Алиса Абернати',
-    'Принцесса Зельда',
-    'Самус Аран',
-    'Байонетта',
-    'Каратэ',
-    'Тифа Локхарт',
-    'Аэрис',
-    
-    // Slavic & Mythology
+    'Гвен Стейси',
     'Василиса Прекрасная',
-    'Снегурочка',
-    'Жар-птица',
-    'Берегиня',
-    'Русалка',
-    'Мальвина',
-    'Баба Яга',
-    'Марья Моревна',
-    'Алёнушка',
-    'Царевна-лягушка',
-    
-    // Disney & Animation
+    'Лара Крофт',
     'Эльза',
-    'Анна',
-    'Мулан',
-    'Покахонтас',
-    'Мерида',
-    'Моана',
-    'Красная Шапочка',
-    'Золушка',
-    'Снежная Королева',
-    'Алиса',
-    'Пеппи Длинныйчулок'
+    // Custom prompt option
+    'Кастомный промпт'
   ],
 }
 
@@ -1640,6 +1481,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           'Лара Крофт': { ru: '🗿 Лара Крофт', en: '🗿 Lara Croft' },
           'Марио': { ru: '🍄 Марио', en: '🍄 Mario' },
           'Соник': { ru: '💨 Соник', en: '💨 Sonic' },
+          // Custom prompt option
+          'Кастомный промпт': { ru: '✍️ Свой промпт', en: '✍️ Custom Prompt' },
         }
 
         const translation = heroTranslations[heroName]
@@ -1671,22 +1514,22 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       try {
         await ctx.reply(
           isRu
-            ? `🤖 <b>Демонстрация AI-возможностей</b>\n\n🎯 Сейчас я покажу вам как наш бот трансформирует людей!\n\n💡 <b>Выберите пример для демонстрации:</b>\nЭто лишь небольшая часть того, что умеет наш бот\n\n🌟 <b>Популярные примеры для ${
+            ? `🤖 <b>Демонстрация AI-возможностей</b>\n\n🎯 Сейчас я покажу вам как наш бот трансформирует людей!\n\n💡 <b>Выберите пример для демонстрации:</b>\n\n🌟 <b>Топ-10 стилей для ${
                 gender === 'male' ? 'мужчин' : 'женщин'
               }:</b>\n${primaryHeroes
                 .slice(0, 10) // Показываем первые 10 героев в описании
                 .map(hero => `• Стиль "${hero}"`)
                 .join(
                   '\n'
-                )}\n• и многие другие...\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: ${ctx.session.selectedModel === 'seedream4' ? 'SeeDream-4' : 'FLUX Kontext Max'}</b>`
-            : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\nThis is just a small part of what our bot can do\n\n🌟 <b>Popular examples for ${
+                )}\n\n✍️ <b>+ Кастомный промпт</b> - создайте свой уникальный стиль!\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: ${ctx.session.selectedModel === 'seedream4' ? 'SeeDream-4' : 'FLUX Kontext Max'}</b>`
+            : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\n\n🌟 <b>Top-10 styles for ${
                 gender === 'male' ? 'men' : 'women'
               }:</b>\n${primaryHeroes
                 .slice(0, 10) // Показываем первые 10 героев в описании
                 .map(hero => `• "${hero}" style`)
                 .join(
                   '\n'
-                )}\n• and many others...\n\n💰 <b>In full version ANY styles available!</b>\n🚀 <b>Technology: ${ctx.session.selectedModel === 'seedream4' ? 'SeeDream-4' : 'FLUX Kontext Max'}</b>`,
+                )}\n\n✍️ <b>+ Custom Prompt</b> - create your unique style!\n\n💰 <b>In full version ANY styles available!</b>\n🚀 <b>Technology: ${ctx.session.selectedModel === 'seedream4' ? 'SeeDream-4' : 'FLUX Kontext Max'}</b>`,
           {
             parse_mode: 'HTML',
             reply_markup: {
@@ -2122,10 +1965,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         '🎨 Мулан': 'Мулан',
         '🎨 Покахонтас': 'Покахонтас',
         '🎨 Мерида': 'Мерида',
+        // Custom prompt mappings
+        '✍️ Свой промпт': 'Кастомный промпт',
+        '✍️ Custom Prompt': 'Кастомный промпт',
       }
 
       selectedHero = buttonToHeroMap[receivedText]
-      
+
       // 🔍 Логируем результат маппинга
       logger.info('[AvatarTransformScene] Button mapping check', {
         telegramId,
@@ -2133,6 +1979,19 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         mappedHero: selectedHero,
         isInMap: !!buttonToHeroMap[receivedText],
       })
+
+      // ✍️ Обработка кастомного промпта
+      if (selectedHero === 'Кастомный промпт') {
+        // Переходим к шагу ввода кастомного промпта
+        await ctx.reply(
+          isRu
+            ? '✍️ <b>Введите ваш кастомный промпт</b>\n\n💡 <b>Описание стиля должно содержать:</b>\n• Название персонажа или стиля\n• Описание внешности\n• Цветовую гамму\n• Настроение/атмосферу\n\n📝 <b>Пример:</b>\n"Воин-самурай в черном доспехе с красными акцентами, держащий катану, на фоне заката"\n\n⚠️ <b>Промпт должен быть от 10 до 500 символов</b>'
+            : '✍️ <b>Enter your custom prompt</b>\n\n💡 <b>Style description should include:</b>\n• Character or style name\n• Appearance description\n• Color scheme\n• Mood/atmosphere\n\n📝 <b>Example:</b>\n"Samurai warrior in black armor with red accents, holding katana, sunset background"\n\n⚠️ <b>Prompt should be 10-500 characters</b>',
+          { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
+        )
+        // Переходим к новому шагу для ввода кастомного промпта
+        return ctx.wizard.selectStep(5) // Новый шаг для кастомного промпта
+      }
 
       if (!selectedHero) {
         logger.warn('[AvatarTransformScene] Invalid hero selection', {
@@ -2561,8 +2420,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           : '✅ *Photo received!*\n\n🎨 Now choose a hero for transformation'
       )
 
-      // Показываем выбор героев сразу после загрузки фото
-      const primaryHeroes = gender === 'male' ? AI_HEROES.male.slice(0, 36) : AI_HEROES.female.slice(0, 36)
+      // Показываем выбор героев сразу после загрузки фото (все 10 + кастомный)
+      const primaryHeroes = AI_HEROES[gender]
 
       function createTwoButtonRows(heroes: string[]): string[][] {
         const rows = []
@@ -2645,6 +2504,181 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       await ctx.scene.leave()
       return ctx.scene.enter(ModeEnum.StartScene)
     }
+  },
+  // Шаг 5: Обработка кастомного промпта
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, отправьте текстовое сообщение с вашим промптом'
+          : '❌ Please send a text message with your prompt'
+      )
+      return
+    }
+
+    const customPrompt = ctx.message.text.trim()
+
+    // Валидация кастомного промпта
+    if (customPrompt.length < 10) {
+      await ctx.reply(
+        isRu
+          ? '❌ <b>Промпт слишком короткий</b>\n\n⚠️ Минимум 10 символов\n💡 Добавьте больше деталей о желаемом стиле'
+          : '❌ <b>Prompt too short</b>\n\n⚠️ Minimum 10 characters\n💡 Add more details about desired style',
+        { parse_mode: 'HTML' }
+      )
+      return
+    }
+
+    if (customPrompt.length > 500) {
+      await ctx.reply(
+        isRu
+          ? '❌ <b>Промпт слишком длинный</b>\n\n⚠️ Максимум 500 символов\n💡 Сократите описание до основных деталей'
+          : '❌ <b>Prompt too long</b>\n\n⚠️ Maximum 500 characters\n💡 Shorten description to key details',
+        { parse_mode: 'HTML' }
+      )
+      return
+    }
+
+    // TODO: Fix custom prompt functionality - temporarily disabled
+    await ctx.reply(
+      isRu
+        ? '⚠️ Кастомный промпт временно недоступен. Выберите героя из списка.'
+        : '⚠️ Custom prompt temporarily unavailable. Please select a hero from the list.'
+    )
+    return
+
+    /* TODO: Fix custom prompt functionality - all code below temporarily disabled
+
+    // Сохраняем кастомный промпт в сессии
+    // if (ctx.session) ctx.session.aiPhotoshopPrompt = customPrompt
+    // ctx.session.selectedHero = 'Кастомный промпт'
+
+    const gender = ctx.session.selectedGender
+    if (!gender) {
+      logger.error('[AvatarTransformScene] No gender in session', { telegramId })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не выбран пол. Начните заново'
+          : '❌ Error: gender not selected. Start over'
+      )
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Подтверждение кастомного промпта
+    await ctx.reply(
+      isRu
+        ? `✅ <b>Кастомный промпт принят!</b>\n\n📝 <b>Ваш промпт:</b>\n"${customPrompt}"\n\n🎬 <b>Запускаю AI трансформацию...</b>\n\n⏳ <b>Генерирую ваше превращение...</b>`
+        : `✅ <b>Custom prompt accepted!</b>\n\n📝 <b>Your prompt:</b>\n"${customPrompt}"\n\n🎬 <b>Starting AI transformation...</b>\n\n⏳ <b>Generating your transformation...</b>`,
+      { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
+    )
+
+    try {
+      // Генерируем изображение с кастомным промптом
+      const userPhotoUrl = ctx.session.kontextImageUrl
+      if (!userPhotoUrl) {
+        logger.error('[AvatarTransformScene] No user photo URL', { telegramId })
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: не найдено фото пользователя'
+            : '❌ Error: user photo not found'
+        )
+        return
+      }
+
+      const selectedModel = ctx.session.selectedModel
+      if (!selectedModel) {
+        logger.error('[AvatarTransformScene] No selected model', { telegramId })
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: модель не выбрана'
+            : '❌ Error: model not selected'
+        )
+        return
+      }
+
+      // Создаем промпт для кастомного стиля
+      const baseSettings = `[Cinematic portrait photography. Medium shot. Aspect ratio 9:16. Professional studio lighting with dramatic effects]`
+      const finalPrompt = `${baseSettings} A ${gender === 'male' ? 'man' : 'woman'} ${customPrompt}. High quality, professional lighting, detailed features, cinematic composition.`
+
+      logger.info('[AvatarTransformScene] Custom prompt generation started', {
+        telegramId,
+        customPrompt,
+        finalPrompt,
+        selectedModel,
+      })
+
+      let generatedImageUrl: string | null = null
+
+      // Выбираем сервис генерации в зависимости от модели
+      if (selectedModel === 'seedream4') {
+        const result = await generateSeeDream4({
+          prompt: finalPrompt,
+          imageUrl: userPhotoUrl,
+          enhance: false,
+          model: 'SeeDreamV4',
+          aspectRatio: '9:16',
+        })
+        generatedImageUrl = result
+      } else {
+        const result = await generateFluxKontextMax({
+          prompt: finalPrompt,
+          referenceImageUrl: userPhotoUrl,
+          aspectRatio: '9:16',
+        })
+        generatedImageUrl = result
+      }
+
+      if (generatedImageUrl) {
+        // Отправляем результат
+        await sendPhotoWithFallback({
+          ctx,
+          photoUrl: generatedImageUrl,
+          caption: isRu
+            ? `🎨 <b>Ваш кастомный AI-образ готов!</b>\n\n✍️ <b>Промпт:</b> "${customPrompt}"\n\n🚀 <b>Понравилось?</b> Получите полный доступ к боту!\n💎 <b>Подписка открывает:</b>\n• Неограниченные трансформации\n• Все модели и стили\n• Приоритетная генерация\n\n💰 Нажмите /start для покупки подписки!`
+            : `🎨 <b>Your custom AI image is ready!</b>\n\n✍️ <b>Prompt:</b> "${customPrompt}"\n\n🚀 <b>Like it?</b> Get full bot access!\n💎 <b>Subscription unlocks:</b>\n• Unlimited transformations\n• All models and styles\n• Priority generation\n\n💰 Press /start to purchase subscription!`,
+          replyMarkup: Markup.keyboard([
+            [isRu ? '🔄 Еще трансформация' : '🔄 Another transformation'],
+            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+          ]).resize().reply_markup,
+        })
+
+        logger.info('[AvatarTransformScene] Custom prompt transformation completed', {
+          telegramId,
+          customPrompt,
+          generatedImageUrl,
+        })
+      } else {
+        throw new Error('Generation failed - no image URL returned')
+      }
+    } catch (error) {
+      logger.error('[AvatarTransformScene] Custom prompt generation failed', {
+        telegramId,
+        error: error.message,
+        customPrompt,
+      })
+
+      await ctx.reply(
+        isRu
+          ? '❌ <b>Ошибка генерации</b>\n\n🔄 Произошла ошибка при создании изображения\n💡 Попробуйте:\n• Упростить описание\n• Использовать другие слова\n• Попробовать позже\n\n🎯 Или выберите готовый стиль из меню'
+          : '❌ <b>Generation Error</b>\n\n🔄 An error occurred while creating the image\n💡 Try to:\n• Simplify description\n• Use different words\n• Try again later\n\n🎯 Or choose a ready style from menu',
+        {
+          parse_mode: 'HTML',
+          reply_markup: Markup.keyboard([
+            [isRu ? '🎨 Выбрать готовый стиль' : '🎨 Choose ready style'],
+            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+          ]).resize().reply_markup,
+        }
+      )
+    }
+
+    // Выходим из сцены
+    await ctx.scene.leave()
+
+    */ // End of temporarily disabled custom prompt code
   }
 )
 

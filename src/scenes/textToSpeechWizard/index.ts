@@ -61,21 +61,24 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         }
         const voice_id = await getVoiceId(ctx.from.id.toString())
 
-        if (!voice_id) {
-          await ctx.reply(getCreateVoiceAvatarMessage(isRu))
-          ctx.scene.leave()
-          return
-        }
-
-        // Check if the voice still exists before attempting to generate audio
-        const voiceIsValid = await validateAndCleanVoiceId(
+        // 🔧 НОВАЯ ЛОГИКА: getVoiceId теперь всегда возвращает voice_id (fallback или пользовательский)
+        // Проверим валидность только если это не fallback голос
+        logger.info('[textToSpeechWizard] Voice ID obtained', {
           voice_id,
-          ctx.from.id.toString()
-        )
-        if (!voiceIsValid) {
-          await ctx.reply(getVoiceAvatarErrorMessage(isRu))
-          ctx.scene.leave()
-          return
+          telegram_id: ctx.from.id.toString()
+        })
+
+        // Если voice_id получен, проверяем его валидность только для пользовательских голосов
+        if (voice_id) {
+          const voiceIsValid = await validateAndCleanVoiceId(
+            voice_id,
+            ctx.from.id.toString()
+          )
+
+          if (!voiceIsValid) {
+            logger.warn('[textToSpeechWizard] Voice validation failed, but proceeding with fallback logic')
+            // Fallback логика теперь встроена в createAudioFileFromText, поэтому продолжаем
+          }
         }
 
         logger.info('[textToSpeechWizard] Calling createAudioFileFromText', {
