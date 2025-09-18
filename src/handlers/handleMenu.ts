@@ -963,6 +963,26 @@ export const handleMenu = async (ctx: MyContext) => {
       })
       console.log('CASE: handleMenuCommand.if', normalizedText)
       await actions[normalizedText]()
+    } else if (normalizedText.startsWith(isRu ? levels[111].title_ru : levels[111].title_en)) {
+      // ✅ ИСПРАВЛЕНИЕ: Обработка AI Heroes с любым badge (♾️, 🚫, или счетчиком)
+      logger.info({
+        message: `🦸‍♂️ [handleMenu] AI Heroes с badge обнаружен: "${normalizedText}"`,
+        telegramId,
+        function: 'handleMenu',
+        action: 'ai_heroes_transform_with_badge',
+        nextScene: 'avatarTransformScene',
+      })
+      console.log('CASE: 🦸‍♂️ ИИ Герои с badge - Launching Avatar Transform')
+
+      // ИИ Герои используют avatar transform scene для трансформации
+      ctx.session.mode = ModeEnum.AvatarTransform
+      console.log(
+        `🔄 [handleMenu] Вход в сцену avatarTransformScene`
+      )
+      await ctx.scene.enter('avatar_transform')
+      console.log(
+        `✅ [handleMenu] Завершен вход в сцену avatarTransformScene`
+      )
     } else {
       // Логика для необработанного текста (если нужна)
       logger.warn({
