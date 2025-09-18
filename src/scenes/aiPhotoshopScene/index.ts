@@ -2,6 +2,10 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '../../utils/logger'
+
+// Log when this module loads
+console.log('🔥🔥🔥 AI PHOTOSHOP MODULE LOADING NOW! 🔥🔥🔥');
+logger.info('🚨 AI Photoshop: Scene module loading...');
 import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
 import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
@@ -162,6 +166,11 @@ const createStyleSelectionKeyboard = (isRu: boolean) => {
 // Scene entry
 aiPhotoshopScene.enter(async ctx => {
   try {
+    logger.info('🚨 AI Photoshop: Entering scene', {
+      telegramId: ctx.from?.id,
+      sessionExists: !!ctx.session
+    })
+
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.from?.id) {
@@ -305,21 +314,37 @@ Object.keys(AI_PHOTOSHOP_STYLES).forEach(styleKey => {
 // Handle custom prompt selection
 aiPhotoshopScene.action('ai_photoshop_custom_prompt', async ctx => {
   try {
+    logger.info('🚨 AI Photoshop: Custom prompt button clicked!', {
+      telegramId: ctx.from?.id,
+      callbackData: (ctx.callbackQuery as any)?.data
+    })
+
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
     if (ctx.session) {
       ctx.session.aiPhotoshopStyle = 'custom'
-      ctx.session.aiPhotoshopStep = 'custom_prompt'
-      ctx.session.awaitingAiPhotoshopPrompt = true
+      ctx.session.aiPhotoshopStep = 'image_upload'
+      ctx.session.awaitingAiPhotoshopImage = true
+      ctx.session.awaitingAiPhotoshopPrompt = false
     }
+
+    logger.info('🎨 AI Photoshop: Custom prompt selected, state updated', {
+      telegramId: ctx.from?.id,
+      newState: {
+        aiPhotoshopStyle: 'custom',
+        aiPhotoshopStep: 'image_upload',
+        awaitingAiPhotoshopImage: true,
+        awaitingAiPhotoshopPrompt: false
+      }
+    })
 
     const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
 
     await ctx.editMessageText(
       isRu
-        ? `✅ *Модель:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Стиль:* Пользовательский\n\n📝 Опишите, как обработать изображение:\n\n💡 *Для лучших результатов пишите на английском языке*`
-        : `✅ *Model:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Style:* Custom\n\n📝 Describe how to process the image:\n\n💡 *For best results, write in English*`,
+        ? `✅ *Модель:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Стиль:* Пользовательский промпт\n\n📷 Отправьте изображение для обработки:\n\n💡 *После загрузки фото вы опишете, как его обработать*`
+        : `✅ *Model:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Style:* Custom prompt\n\n📷 Send an image for processing:\n\n💡 *After uploading the photo, you'll describe how to process it*`,
       {
         parse_mode: 'Markdown',
         reply_markup: Markup.inlineKeyboard([
@@ -408,9 +433,10 @@ aiPhotoshopScene.on('photo', async ctx => {
 
       await ctx.reply(
         isRu
-          ? '✅ Изображение получено!\n\n📝 Теперь опишите, как его обработать:'
-          : '✅ Image received!\n\n📝 Now describe how to process it:',
+          ? '✅ Изображение получено!\n\n📝 Теперь опишите, как его обработать:\n\n💡 *Для лучших результатов пишите на английском языке*'
+          : '✅ Image received!\n\n📝 Now describe how to process it:\n\n💡 *For best results, write in English*',
         {
+          parse_mode: 'Markdown',
           reply_markup: Markup.inlineKeyboard([
             [
               Markup.button.callback(
@@ -450,14 +476,64 @@ aiPhotoshopScene.on('text', async ctx => {
       return
     }
 
+    // Debug logging for session state
+    logger.info('🚨 AI Photoshop: Text message received', {
+      telegramId: ctx.from?.id,
+      text: messageText.substring(0, 20) + '...',
+      sessionState: {
+        awaitingAiPhotoshopPrompt: ctx.session?.awaitingAiPhotoshopPrompt,
+        aiPhotoshopStep: ctx.session?.aiPhotoshopStep,
+        hasImage: !!ctx.session?.aiPhotoshopImage,
+        aiPhotoshopStyle: ctx.session?.aiPhotoshopStyle,
+        aiPhotoshopModel: ctx.session?.aiPhotoshopModel
+      }
+    })
+
+    // STRICT validation: reject if ANY condition is not met
     if (!ctx.session?.awaitingAiPhotoshopPrompt) {
+      logger.error('🚨 AI Photoshop: REJECTED - not awaiting prompt', {
+        telegramId: ctx.from?.id,
+        awaitingAiPhotoshopPrompt: ctx.session?.awaitingAiPhotoshopPrompt
+      })
       await ctx.reply(
         isRu
-          ? '❌ Сначала выберите модель и загрузите изображение.'
-          : '❌ Please select a model and upload an image first.'
+          ? '❌ Сначала выберите модель, стиль и загрузите изображение.'
+          : '❌ Please select a model, style and upload an image first.'
       )
       return
     }
+
+    if (ctx.session?.aiPhotoshopStep !== 'custom_prompt') {
+      logger.error('🚨 AI Photoshop: REJECTED - wrong step', {
+        telegramId: ctx.from?.id,
+        currentStep: ctx.session?.aiPhotoshopStep,
+        expectedStep: 'custom_prompt'
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Сначала выберите модель, стиль и загрузите изображение.'
+          : '❌ Please select a model, style and upload an image first.'
+      )
+      return
+    }
+
+    if (!ctx.session?.aiPhotoshopImage) {
+      logger.error('🚨 AI Photoshop: REJECTED - no image', {
+        telegramId: ctx.from?.id,
+        hasImage: !!ctx.session?.aiPhotoshopImage
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Сначала загрузите изображение для обработки.'
+          : '❌ Please upload an image for processing first.'
+      )
+      return
+    }
+
+    logger.info('🚨 AI Photoshop: Text validation PASSED - proceeding with prompt', {
+      telegramId: ctx.from?.id,
+      validationStatus: 'ALL_CHECKS_PASSED'
+    })
 
     const prompt = ctx.message.text
 
