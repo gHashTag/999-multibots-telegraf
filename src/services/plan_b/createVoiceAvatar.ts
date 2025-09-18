@@ -62,11 +62,11 @@ export async function createVoiceAvatar(
       throw new Error('Ошибка при создании голоса')
     }
 
-    // Сохранение voiceId в таблицу users
+    // 🔧 ИСПРАВЛЕНИЕ: Сохранение voiceId по telegram_id вместо username для надежности
     const { error } = await supabase
       .from('users')
       .update({ voice_id_elevenlabs: voiceId })
-      .eq('username', username)
+      .eq('telegram_id', telegram_id)
 
     if (error) {
       console.error('Ошибка при сохранении voiceId в базу данных:', error)

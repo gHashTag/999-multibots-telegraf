@@ -152,6 +152,7 @@ export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 console.log('💳 [ROBOKASSA FIX] BASE_PAYMENT_URL:', BASE_PAYMENT_URL)
 console.log('💳 [ROBOKASSA FIX] UNIFIED_RESULT_URL:', UNIFIED_RESULT_URL)
 console.log('💳 [ROBOKASSA FIX] Original RESULT_URL2:', RESULT_URL2)
+console.log('🎤 [VOICE CONFIG] ELEVENLABS_API_KEY present:', !!ELEVENLABS_API_KEY)
 
 // 🚨 ОТЛАДКА: Логируем все URL для понимания проблемы кэширования
 console.log('🚨 [CONFIG DEBUG] URL CONFIGURATION LOADED:')
@@ -164,6 +165,26 @@ console.log(`🚨 [CONFIG DEBUG] FINAL API_URL: ${API_URL}`)
 console.log(`🚨 [CONFIG DEBUG] SUPABASE_URL: ${SUPABASE_URL}`)
 console.log(`🚨 [CONFIG DEBUG] SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY ? '***SET***' : 'UNDEFINED'}`)
 console.log('🚨 [CONFIG DEBUG] =====================================')
+
+// 🎤 DEFAULT VOICE IDS for ElevenLabs fallback
+export const DEFAULT_VOICE_IDS = {
+  // Popular ElevenLabs default voices that should always be available
+  RACHEL: 'EXAVITQu4vr4xnSDxMaL', // Rachel (English, default)
+  JOSH: 'TxGEqnHWrfWFTfGW9XjX',   // Josh (English, male)
+  ARIA: 'pMsXgVXv3BLzUgSXRplE',   // Aria (English, female)
+  ANTONI: 'ErXwobaYiN019PkySvjV', // Antoni (English, male)
+  ALICE: 'EmuBZcl4StXJQ6sqXm6H',  // Alice (English, female)
+  DOMI: 'AZnzlk1XvdvUeBnXmlld',   // Domi (English, female)
+  ELLI: 'MF3mGyEYCl7XYWbV9V6O',   // Elli (English, female)
+  FREYA: 'jsCqWAovK2LkecY7zXl4', // Freya (English, female)
+  MATILDA: 'XrExE9yKIg1WjnnlVkGX' // Matilda (English, female)
+}
+
+// Primary fallback voice (most stable)
+export const PRIMARY_FALLBACK_VOICE_ID = DEFAULT_VOICE_IDS.RACHEL
+
+console.log('🎤 [VOICE CONFIG] Default Voice IDs loaded:', Object.keys(DEFAULT_VOICE_IDS).length)
+console.log('🎤 [VOICE CONFIG] Primary Fallback Voice:', PRIMARY_FALLBACK_VOICE_ID)
 
 // Парсинг ADMIN_IDS в массив чисел
 const adminIdsString = process.env.ADMIN_IDS || process.env.ADMIN_TELEGRAM_ID || ''

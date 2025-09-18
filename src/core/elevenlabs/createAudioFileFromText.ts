@@ -8,6 +8,7 @@ import logger from '@/utils/logger'
 
 // Import supabase to clear invalid voice IDs
 import { supabase } from '@/core/supabase'
+import { getFallbackVoiceId } from '@/core/supabase/getVoiceId'
 
 // Custom error class for voice not found
 export class VoiceNotFoundError extends Error {
@@ -110,19 +111,25 @@ export const createAudioFileFromText = async ({
   voice_id: string
   telegram_id?: string
 }): Promise<string> => {
-  // Логируем входные данные
-  console.log('[TTS_BOT] Attempting to create audio with:', {
+  // 🔧 ENHANCED LOGGING: Улучшенное логирование входных данных
+  const logData = {
     voice_id,
     textLength: text.length,
     apiKeyPresent: !!process.env.ELEVENLABS_API_KEY,
     apiKeyPrefix: process.env.ELEVENLABS_API_KEY?.substring(0, 5),
-  })
+    telegram_id,
+    timestamp: new Date().toISOString()
+  }
+
+  console.log('[TTS_BOT] 🎤 Attempting to create audio with:', logData)
+  logger.info('[createAudioFileFromText] Starting TTS generation', logData)
 
   // Проверяем наличие API ключа
   if (!process.env.ELEVENLABS_API_KEY) {
     console.warn(
-      '[TTS_BOT] ELEVENLABS_API_KEY отсутствует, будет использован mock'
+      '[TTS_BOT] ⚠️ ELEVENLABS_API_KEY отсутствует, будет использован mock'
     )
+    logger.warn('[createAudioFileFromText] Missing API key, using mock mode')
   }
 
   try {
@@ -196,20 +203,33 @@ export const createAudioFileFromText = async ({
       })()
     })
   } catch (error: any) {
+    logger.error('[createAudioFileFromText] TTS generation failed', {
+      voice_id,
+      telegram_id,
+      error: error.message,
+      statusCode: error.statusCode,
+      stack: error.stack?.substring(0, 500) // Ограничиваем длину стека
+    })
+
     console.error(
-      '[TTS_BOT] Error in createAudioFileFromText (manual stream processing):',
+      '[TTS_BOT] ❌ Error in createAudioFileFromText (manual stream processing):',
       {
         message: error.message,
         statusCode: error.statusCode,
-        stack: error.stack,
+        voice_id,
+        telegram_id
       }
     )
 
-    // Check if it's a 404 error specifically for voice not found
+    // 🔧 ENHANCED ERROR HANDLING: Улучшенная обработка ошибок с fallback
     if (error.statusCode === 404 || error.status === 404) {
       console.error(
-        `[TTS_BOT] Voice ID ${voice_id} not found (404). Voice may have been deleted.`
+        `[TTS_BOT] ⚠️ Voice ID ${voice_id} not found (404). Attempting fallback...`
       )
+      logger.warn('[createAudioFileFromText] Voice not found, attempting fallback', {
+        originalVoiceId: voice_id,
+        telegram_id
+      })
 
       // Clear the invalid voice ID from database if telegram_id is provided
       if (telegram_id) {
@@ -219,23 +239,61 @@ export const createAudioFileFromText = async ({
             .update({ voice_id_elevenlabs: null })
             .eq('telegram_id', telegram_id)
           console.log(
-            `[TTS_BOT] Cleared invalid voice ID ${voice_id} for user ${telegram_id}`
+            `[TTS_BOT] ✅ Cleared invalid voice ID ${voice_id} for user ${telegram_id}`
           )
+          logger.info('[createAudioFileFromText] Cleared invalid voice ID', {
+            clearedVoiceId: voice_id,
+            telegram_id
+          })
         } catch (dbError) {
           console.error(
-            '[TTS_BOT] Error clearing invalid voice ID from database:',
+            '[TTS_BOT] ❌ Error clearing invalid voice ID from database:',
             dbError
           )
+          logger.error('[createAudioFileFromText] Failed to clear invalid voice ID', {
+            voice_id,
+            telegram_id,
+            dbError: dbError instanceof Error ? dbError.message : String(dbError)
+          })
         }
       }
 
-      throw new VoiceNotFoundError(voice_id)
+      // 🚀 FALLBACK ATTEMPT: Попытка с резервным голосом
+      try {
+        const fallbackVoiceId = getFallbackVoiceId()
+        console.log(`[TTS_BOT] 🔄 Attempting TTS with fallback voice: ${fallbackVoiceId}`)
+        logger.info('[createAudioFileFromText] Attempting fallback voice', {
+          fallbackVoiceId,
+          originalVoiceId: voice_id,
+          telegram_id
+        })
+
+        // Рекурсивный вызов с fallback voice_id
+        return await createAudioFileFromText({
+          text,
+          voice_id: fallbackVoiceId,
+          telegram_id
+        })
+      } catch (fallbackError) {
+        console.error('[TTS_BOT] ❌ Fallback voice also failed:', fallbackError)
+        logger.error('[createAudioFileFromText] Fallback voice failed', {
+          fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          telegram_id
+        })
+
+        // Если и fallback не работает, выбрасываем оригинальную ошибку
+        throw new VoiceNotFoundError(voice_id)
+      }
     }
 
-    throw new Error(
-      `[TTS_BOT] Failed to generate audio (manual stream processing): ${
-        error.message || 'Unknown error'
-      }`
-    )
+    // Для других типов ошибок
+    const errorMessage = `[TTS_BOT] Failed to generate audio: ${error.message || 'Unknown error'}`
+    logger.error('[createAudioFileFromText] Unhandled error type', {
+      errorType: error.constructor.name,
+      voice_id,
+      telegram_id
+    })
+
+    throw new Error(errorMessage)
   }
 }
