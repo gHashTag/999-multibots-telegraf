@@ -4,7 +4,6 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '../../utils/logger'
 
 // Log when this module loads
-console.log('🔥🔥🔥 AI PHOTOSHOP MODULE LOADING NOW! 🔥🔥🔥');
 logger.info('🚨 AI Photoshop: Scene module loading...');
 import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
@@ -37,7 +36,7 @@ const AI_PHOTOSHOP_MODELS = {
     title_en: '🚀 FLUX Kontext Max',
     description_ru: 'Black Forest Labs FLUX Kontext Max - Профессиональное редактирование',
     description_en: 'Black Forest Labs FLUX Kontext Max - Professional editing',
-    cost: 8, // stars
+    cost: 5, // stars - matching production generateFluxKontextMax.ts (0.03 USD)
     key: 'flux_max',
     supports_image_input: true,
     supports_text_only: false
