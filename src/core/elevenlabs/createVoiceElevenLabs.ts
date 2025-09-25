@@ -43,7 +43,7 @@ async function downloadVoiceMessage(fileUrl: string, downloadPath: string) {
     writer.on('error', err => {
       logger.error('[downloadVoiceMessage] Writer error event.', {
         fileUrl,
-        error: err,
+        error: err.message || String(err),
       })
       reject(err)
     })
@@ -64,7 +64,18 @@ async function createVoiceViaAiServer({
   fileUrl: string
   username: string
 }): Promise<string | null> {
-  const AI_SERVER_URL = configManager.getApiServerUrl()
+  let AI_SERVER_URL: string
+  try {
+    AI_SERVER_URL = configManager.getApiServerUrl()
+  } catch (error) {
+    logger.warn('[createVoiceViaAiServer] ConfigManager error, using environment fallback', {
+      error: error.message
+    })
+    AI_SERVER_URL = process.env.API_SERVER_URL || process.env.SERVER_API_URL
+    if (!AI_SERVER_URL) {
+      throw new Error('AI Server URL not available')
+    }
+  }
 
   logger.info('[createVoiceViaAiServer] Отправляем запрос на ai-server для создания голоса', {
     username,
@@ -274,15 +285,16 @@ export async function createVoiceElevenLabs({
         username,
         message: error.message,
         status: error.response?.status,
-        data: typeof error.response?.data === 'string' 
-          ? error.response.data.substring(0, 500) 
-          : error.response?.data,
+        statusText: error.response?.statusText,
+        data: typeof error.response?.data === 'string'
+          ? error.response.data.substring(0, 500)
+          : 'Response data present but not string',
       })
       throw new Error(`ElevenLabs API недоступен (${error.response?.status || error.message}). Попробуйте позже.`)
     } else {
       logger.error('[createVoiceElevenLabs] Generic error.', {
         username,
-        error,
+        error: error.message || String(error),
       })
       throw new Error(
         `An unexpected error occurred while creating voice: ${error.message}`

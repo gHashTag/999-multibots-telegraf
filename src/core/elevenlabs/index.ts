@@ -75,18 +75,28 @@ const createElevenLabsClient = () => {
         )
         console.log('[ElevenLabs] DEBUG: Looking for voice ID:', voiceId)
 
-        const voices = await client.voices.getAll()
+        const voicesResponse = await client.voices.getAll()
+        console.log('[ElevenLabs] DEBUG: Raw API response:', voicesResponse)
+
+        // Handle different possible response structures
+        const voicesList = voicesResponse?.voices || voicesResponse || []
         console.log(
           '[ElevenLabs] DEBUG: Found voices count:',
-          voices.voices.length
-        )
-        console.log(
-          '[ElevenLabs] DEBUG: Voice IDs in account:',
-          voices.voices.map((v: any) => v.voice_id)
+          Array.isArray(voicesList) ? voicesList.length : 'Not an array'
         )
 
-        const exists = voices.voices.some(
-          (voice: any) => voice.voice_id === voiceId
+        if (!Array.isArray(voicesList)) {
+          console.error('[ElevenLabs] ERROR: Voices response is not an array:', typeof voicesList)
+          return false
+        }
+
+        console.log(
+          '[ElevenLabs] DEBUG: Voice IDs in account:',
+          voicesList.map((v: any) => v.voice_id || v.id)
+        )
+
+        const exists = voicesList.some(
+          (voice: any) => (voice.voice_id || voice.id) === voiceId
         )
         console.log('[ElevenLabs] DEBUG: Voice exists?', exists)
 

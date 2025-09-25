@@ -1,0 +1,15 @@
+{
+  "id": "analyst-1758548386159",
+  "name": "agent-1758548386159",
+  "type": "analyst",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1758548386159,
+  "capabilities": [
+    "Data Analysis",
+    "Pattern Recognition",
+    "Reporting",
+    "Optimization"
+  ],
+  "createdAt": 1758548386159
+}

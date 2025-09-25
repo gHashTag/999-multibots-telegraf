@@ -16,6 +16,7 @@ import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { defaultSession } from '@/store'
 import { handleMenu } from '@/handlers/handleMenu'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
+import { shouldSkipOnboarding, shouldSkipOnboardingCached } from '@/helpers/getUserUsageCount'
 
 interface StartSceneState {
   initialDisplayDone?: boolean
@@ -36,6 +37,82 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const telegramId = ctx.from?.id?.toString() || 'unknown'
     const isRu = isRussianFromState(ctx)
     const currentBotName = ctx.botInfo.username
+
+    // ✅ OPTIMIZED LOGIC: High-performance user experience detection
+    // Uses cached analysis to minimize database load while maintaining accuracy
+    try {
+      const skipOnboarding = await shouldSkipOnboardingCached(telegramId, currentBotName)
+
+      if (skipOnboarding) {
+        logger.info({
+          message: `[StartScene] Experienced user detected via optimized check - redirecting to main menu`,
+          telegramId,
+          botName: currentBotName,
+          optimizationType: 'cached_analysis',
+          function: 'startScene.experiencedUserRedirect',
+        })
+
+        // Immediate redirect to main menu for experienced users
+        ctx.session.mode = ModeEnum.MainMenu
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
+      }
+
+      logger.info({
+        message: `[StartScene] New or inexperienced user detected via optimized check - proceeding with full onboarding`,
+        telegramId,
+        botName: currentBotName,
+        optimizationType: 'cached_analysis',
+        function: 'startScene.newUserOnboarding',
+      })
+    } catch (error) {
+      // Enhanced error handling with fallback to non-cached version
+      logger.warn({
+        message: `[StartScene] Error in optimized user experience check, attempting fallback`,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        telegramId,
+        botName: currentBotName,
+        function: 'startScene.optimizedCheckError',
+      })
+
+      // Fallback to non-cached version
+      try {
+        const skipOnboardingFallback = await shouldSkipOnboarding(telegramId, currentBotName)
+
+        if (skipOnboardingFallback) {
+          logger.info({
+            message: `[StartScene] Experienced user detected via fallback check - redirecting to main menu`,
+            telegramId,
+            botName: currentBotName,
+            optimizationType: 'fallback_analysis',
+            function: 'startScene.experiencedUserRedirect',
+          })
+
+          ctx.session.mode = ModeEnum.MainMenu
+          await ctx.scene.leave()
+          return ctx.scene.enter(ModeEnum.MainMenu)
+        }
+
+        logger.info({
+          message: `[StartScene] New user confirmed via fallback check - proceeding with onboarding`,
+          telegramId,
+          botName: currentBotName,
+          optimizationType: 'fallback_analysis',
+          function: 'startScene.newUserOnboarding',
+        })
+      } catch (fallbackError) {
+        // Ultimate fallback: proceed with normal flow for safety
+        logger.error({
+          message: `[StartScene] Both optimized and fallback checks failed - proceeding with normal flow for safety`,
+          originalError: error instanceof Error ? error.message : String(error),
+          fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          telegramId,
+          botName: currentBotName,
+          function: 'startScene.allChecksFailedFallback',
+        })
+      }
+    }
 
     // ✅ ИСПРАВЛЕНИЕ: Проверяем, является ли это ПРОМО-командой (не всеми командами с параметрами!)
     if (ctx.message && 'text' in ctx.message) {
@@ -485,6 +562,40 @@ Click "Training" and dive with us.
   async ctx => {
     const telegramId = ctx.from?.id?.toString() || 'unknown'
     const isRu = isRussianFromState(ctx)
+    const currentBotName = ctx.botInfo.username
+
+    // ✅ OPTIMIZED EDGE CASE PROTECTION: High-performance check for experienced users on step 2
+    // Uses cached analysis for minimal performance impact
+    try {
+      const skipOnboarding = await shouldSkipOnboardingCached(telegramId, currentBotName)
+
+      if (skipOnboarding) {
+        logger.info({
+          message: `[StartScene Step 2] Experienced user detected on step 2 via optimized check - redirecting to main menu`,
+          telegramId,
+          botName: currentBotName,
+          optimizationType: 'cached_analysis',
+          edgeCase: 'step2_experienced_user',
+          function: 'startScene.step2.experiencedUserRedirect',
+        })
+
+        ctx.session.mode = ModeEnum.MainMenu
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
+      }
+    } catch (error) {
+      logger.warn({
+        message: `[StartScene Step 2] Error in optimized user experience check - proceeding with normal flow`,
+        error: error instanceof Error ? error.message : String(error),
+        telegramId,
+        botName: currentBotName,
+        step: 'step2',
+        function: 'startScene.step2.optimizedCheckError',
+      })
+
+      // Note: No fallback needed in step 2 as it's just edge case protection
+      // If the check fails, we safely continue with normal step 2 flow
+    }
 
     if ('message' in ctx.update && 'text' in ctx.update.message) {
       const text = ctx.update.message.text
