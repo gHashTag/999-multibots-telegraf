@@ -7,6 +7,9 @@ import { ModeEnum } from '@/interfaces/modes'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
+// 🚨 HERO VALIDATION SYSTEM
+import { HeroValidationService } from '@/services/HeroValidationService'
+import type { HeroName } from '@/types/heroes'
 // 🦸‍♂️ NEW GENERATION LIMITS SYSTEM
 import { checkSuperheroGenerationUsage } from '@/core/supabase/checkSuperheroGenerationUsage'
 import { incrementSuperheroGeneration } from '@/core/supabase/incrementSuperheroGeneration'
@@ -147,6 +150,43 @@ const createMarvelPromptByGender = (
     } in black symbiote-inspired outfit with organic textures. ${
       gender === 'male' ? 'Predatory alien stance' : 'Symbiotic hunter pose'
     }. Black outfit with white spider emblem. Organic, flowing fabric that seems alive. Sharp, angular design elements. Aggressive pose with clawed hands. Background with dark urban environment and alien effects. Dark lighting with black and white contrasts. Alien symbiote aesthetic with threatening presence.`,
+
+    // 🚨 КРИТИЧЕСКИЕ ДОБАВЛЕННЫЕ ГЕРОИ
+    'Бэтмен': `${baseSettings} A mysterious ${
+      gender === 'male' ? 'vigilante' : 'vigilante'
+    } in sleek black tactical outfit with cape. ${
+      gender === 'male' ? 'Dark knight stance' : 'Gotham guardian pose'
+    }. Black armored suit with bat emblem on chest. Utility belt with tactical gear. Long flowing cape billowing dramatically. Pointed cowl with white eye lenses. Background with Gotham City skyline and dramatic shadows. Dark atmospheric lighting with blue and gray tones. Batman aesthetic with gothic architecture elements.`,
+
+    'Супермен': `${baseSettings} A heroic ${
+      gender === 'male' ? 'man' : 'woman'
+    } in iconic blue and red suit with cape. ${
+      gender === 'male' ? 'Man of steel stance' : 'Supergirl pose'
+    }. Bright blue suit with red cape flowing in wind. Distinctive S-shield emblem on chest. Red boots and belt. Confident superhero pose with hands on hips. Background with bright sky and Metropolis cityscape. Bright heroic lighting with blue and red colors. Classic Superman aesthetic with hope and strength.`,
+
+    'Чудо-женщина': `${baseSettings} A powerful ${
+      gender === 'male' ? 'Amazonian warrior' : 'Amazon princess'
+    } in golden and red warrior outfit with armor. ${
+      gender === 'male' ? 'Divine warrior stance' : 'Wonder Woman pose'
+    }. Golden eagle armor breastplate with red and blue elements. Golden tiara with red star. Indestructible bracelets on wrists. Lasso of Truth glowing golden at side. Long dark hair flowing with divine wind. Background with ancient Greek columns and divine light. Golden and red lighting with mythological elements. Wonder Woman aesthetic with Amazonian strength.`,
+
+    'Чёрная вдова': `${baseSettings} A skilled ${
+      gender === 'male' ? 'spy assassin' : 'spy assassin'
+    } in black tactical suit with red accents. ${
+      gender === 'male' ? 'Elite spy stance' : 'Black Widow pose'
+    }. Sleek black catsuit with red belt and accents. Widow's Bite bracelets glowing blue on wrists. Dual pistol holsters on thighs. Red hair in perfect spy style. Background with high-tech espionage equipment and city lights. Dramatic lighting with black and red spy aesthetic. Black Widow style with Russian spy elements.`,
+
+    'Харли Квинн': `${baseSettings} A chaotic ${
+      gender === 'male' ? 'anti-hero' : 'anti-hero'
+    } in colorful punk outfit with baseball bat. ${
+      gender === 'male' ? 'Chaotic jester stance' : 'Harley Quinn pose'
+    }. Red and blue pigtails with pink and blue hair tips. Colorful roller derby outfit with diamonds pattern. Baseball bat with "Good Night" written on it. Roller skates with bright colors. Background with carnival chaos and Gotham graffiti. Bright chaotic lighting with pink and blue neon colors. Harley Quinn aesthetic with punk rock rebellion.`,
+
+    'Супергёрл': `${baseSettings} A confident ${
+      gender === 'male' ? 'Kryptonian hero' : 'Kryptonian heroine'
+    } in blue and red suit with cape and skirt. ${
+      gender === 'male' ? 'Young Superman stance' : 'Supergirl pose'
+    }. Bright blue suit with red cape and red skirt. House of El S-shield on chest. Red boots and belt. Blonde hair flowing in heroic wind. Confident smile with hands on hips. Background with National City skyline and bright blue sky. Bright optimistic lighting with blue and red heroic colors. Supergirl aesthetic with youthful hope and strength.`,
 
     'Локи': `${baseSettings} A mischievous ${
       gender === 'male' ? 'god' : 'goddess'
@@ -2003,6 +2043,23 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             ? '❌ Неверный выбор. Пожалуйста, используйте кнопки.'
             : '❌ Invalid selection. Please use the buttons.'
         )
+        return
+      }
+
+      // 🚨 КРИТИЧЕСКАЯ ВАЛИДАЦИЯ ГЕРОЯ С TYPESCRIPT
+      const heroValidationResult = await HeroValidationService.safeHeroSelection(
+        ctx,
+        selectedHero,
+        ctx.session.selectedGender || 'male'
+      )
+
+      if (!heroValidationResult.success || heroValidationResult.shouldRedirect) {
+        logger.error('[AvatarTransformScene] Hero validation failed - redirecting user', {
+          telegramId,
+          selectedHero,
+          validationResult: heroValidationResult
+        })
+        // HeroValidationService уже обработал ошибку и перенаправил пользователя
         return
       }
 
