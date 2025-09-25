@@ -1,0 +1,14 @@
+{
+  "id": "code-analyzer-1758548382511",
+  "name": "agent-1758548382511",
+  "type": "code-analyzer",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1758548382511,
+  "capabilities": [
+    "Research",
+    "Analysis",
+    "Code Generation"
+  ],
+  "createdAt": 1758548382511
+}

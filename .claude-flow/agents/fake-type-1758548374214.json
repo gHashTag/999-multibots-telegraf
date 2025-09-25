@@ -1,0 +1,14 @@
+{
+  "id": "fake-type-1758548374214",
+  "name": "agent-1758548374214",
+  "type": "fake-type",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1758548374214,
+  "capabilities": [
+    "Research",
+    "Analysis",
+    "Code Generation"
+  ],
+  "createdAt": 1758548374214
+}

@@ -214,6 +214,20 @@ export async function getTranslation({
       )
     }
 
+    // ✅ ИСПРАВЛЕНИЕ: Добавляем дефолтные кнопки для ключа menu
+    if (key === 'menu' && buttons.length === 0) {
+      buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
+      logger.info(
+        `[getTranslation] Использованы дефолтные кнопки для ключа "${key}", язык: ${language_code}`,
+        {
+          telegramId,
+          key,
+          language_code,
+          buttonsCount: buttons.length,
+        }
+      )
+    }
+
     // ✅ ФИНАЛЬНОЕ ЛОГИРОВАНИЕ РЕЗУЛЬТАТА
     const result = {
       translation: data?.translation || '',

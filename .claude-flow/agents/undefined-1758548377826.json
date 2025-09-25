@@ -1,0 +1,14 @@
+{
+  "id": "undefined-1758548377826",
+  "name": "agent-1758548377826",
+  "type": "undefined",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1758548377826,
+  "capabilities": [
+    "Research",
+    "Analysis",
+    "Code Generation"
+  ],
+  "createdAt": 1758548377826
+}

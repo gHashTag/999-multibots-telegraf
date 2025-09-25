@@ -41,7 +41,11 @@
     "webhook:server": "node scripts/webhook-deploy-server.js",
     "security:scan": "chmod +x scripts/security-token-guard.sh && ./scripts/security-token-guard.sh",
     "security:history": "chmod +x scripts/git-history-security-scan.sh && ./scripts/git-history-security-scan.sh",
-    "security:full": "npm run security:scan && npm run security:history"
+    "security:full": "npm run security:scan && npm run security:history",
+    "report:financial": "npx tsx scripts/generateFinancialReport.ts",
+    "report:test": "npx tsx scripts/testExcelGenerator.ts",
+    "report:monthly": "npx tsx scripts/generateFinancialReport.ts -m",
+    "report:bot": "npx tsx scripts/generateFinancialReport.ts -b"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -59,6 +63,7 @@
     "archiver": "^7.0.0",
     "axios": "1.8.2",
     "bcrypt": "^5.1.1",
+    "commander": "^14.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "elevenlabs": "^0.16.1",
@@ -98,7 +103,7 @@
     "@types/jest": "^29.5.14",
     "@types/md5": "^2.3.5",
     "@types/multer": "^1.4.12",
-    "@types/node": "^24.3.0",
+    "@types/node": "^24.5.2",
     "@types/node-fetch": "^2.6.12",
     "@types/qs": "^6.9.18",
     "@types/uuid": "^10.0.0",

@@ -1,0 +1,14 @@
+{
+  "id": "nonexistent-1758548372813",
+  "name": "agent-1758548372813",
+  "type": "nonexistent",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1758548372813,
+  "capabilities": [
+    "Research",
+    "Analysis",
+    "Code Generation"
+  ],
+  "createdAt": 1758548372813
+}
