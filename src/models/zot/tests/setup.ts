@@ -33,7 +33,10 @@ beforeAll(async () => {
   process.env.ZOT_TEST_MODE = 'true';
 
   // Increase timeout for complex tests
-  jest.setTimeout(ZOT_TEST_CONFIG.defaultTimeout);
+  // @ts-ignore - jest is available in test environment
+  if (typeof jest !== 'undefined') {
+    jest.setTimeout(ZOT_TEST_CONFIG.defaultTimeout);
+  }
 });
 
 // Global teardown
