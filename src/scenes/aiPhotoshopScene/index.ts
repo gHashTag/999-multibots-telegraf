@@ -15,6 +15,7 @@ logger.info('🚨 AI Photoshop: Scene module loading...');
 import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
 import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
+import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
 // ✅ IMPORT MULTI-PHOTO SUPPORT FOR AI PHOTOSHOP
 import { detectMultiPhotoUpload, handleMultiPhotoNeurophoto, checkMultiPhotoEvents } from '@/handlers/multiPhotoHandler'
 import { getBotToken } from '@/handlers/getBotToken'
@@ -26,7 +27,7 @@ const AI_PHOTOSHOP_MODELS = {
     title_en: '🎭 SeeDream-4',
     description_ru: 'ByteDance SeeDream-4 - Продвинутая генерация и трансформация изображений',
     description_en: 'ByteDance SeeDream-4 - Advanced image generation and transformation',
-    cost: 15, // stars
+    cost: 5, // stars - Updated: Replicate actual price $0.03
     key: 'seedream',
     supports_image_input: true,
     supports_text_only: true,
@@ -38,7 +39,7 @@ const AI_PHOTOSHOP_MODELS = {
     title_en: '🍌 Nano Banana',
     description_ru: 'Google Nano Banana - ИИ редактирование на базе Gemini 2.5',
     description_en: 'Google Nano Banana - AI editing powered by Gemini 2.5',
-    cost: 12, // stars
+    cost: 7, // stars - Updated: Replicate actual price $0.039
     key: 'nano_banana',
     supports_image_input: true,
     supports_text_only: false,
@@ -50,11 +51,23 @@ const AI_PHOTOSHOP_MODELS = {
     title_en: '🚀 FLUX Kontext Max',
     description_ru: 'Black Forest Labs FLUX Kontext Max - Профессиональное редактирование',
     description_en: 'Black Forest Labs FLUX Kontext Max - Professional editing',
-    cost: 5, // stars - matching production generateFluxKontextMax.ts (0.03 USD)
+    cost: 13, // stars - Updated: Replicate actual price $0.08
     key: 'flux_max',
     supports_image_input: true,
     supports_text_only: false,
-    supports_multi_image: true, // ✅ NEW: Multi-image support
+    supports_multi_image: false, // ❌ FIXED: FLUX Max поддерживает только ОДНО изображение
+    max_images: 1
+  },
+  qwen_edit_plus: {
+    title_ru: '🎨 Qwen Image Edit Plus',
+    title_en: '🎨 Qwen Image Edit Plus',
+    description_ru: 'Qwen Image Edit Plus - Продвинутое редактирование множественных изображений',
+    description_en: 'Qwen Image Edit Plus - Advanced multi-image editing with improved consistency',
+    cost: 5, // stars - Replicate price $0.03
+    key: 'qwen_edit_plus',
+    supports_image_input: true,
+    supports_text_only: false,
+    supports_multi_image: true, // ✅ Multi-image support
     max_images: 10
   }
 }
@@ -229,9 +242,10 @@ aiPhotoshopScene.enter(async ctx => {
     const description = isRu
       ? `Выберите модель ИИ для обработки:
 
-🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐, до 10 фото)
-🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (12⭐, до 3 фото)
-🚀 *FLUX Kontext Max* - Профессиональное редактирование (5⭐, до 10 фото)
+🎭 *SeeDream-4* - Генерация и трансформация изображений (5⭐, до 10 фото)
+🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (7⭐, до 3 фото)
+🚀 *FLUX Kontext Max* - Профессиональное редактирование (13⭐, только 1 фото)
+🎨 *Qwen Image Edit Plus* - Продвинутое редактирование (5⭐, до 10 фото)
 
 📸 *Или сразу отправьте фото/альбом для быстрой обработки через SeeDream-4*
 💡 *Каждая модель поддерживает несколько фотографий одновременно!*
@@ -239,8 +253,9 @@ aiPhotoshopScene.enter(async ctx => {
       : `Choose an AI model for processing:
 
 🎭 *SeeDream-4* - Image generation and transformation (15⭐, up to 10 photos)
-🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (12⭐, up to 3 photos)
-🚀 *FLUX Kontext Max* - Professional editing (5⭐, up to 10 photos)
+🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (7⭐, up to 3 photos)
+🚀 *FLUX Kontext Max* - Professional editing (13⭐, single photo only)
+🎨 *Qwen Image Edit Plus* - Advanced multi-image editing (5⭐, up to 10 photos)
 
 📸 *Or send photos/album directly for quick processing with SeeDream-4*
 💡 *Each model supports multiple photos simultaneously!*
@@ -878,9 +893,10 @@ async function showAiPhotoshopModels(ctx: MyContext): Promise<void> {
   const description = isRu
     ? `Выберите модель ИИ для обработки:
 
-🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐, до 10 фото)
-🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (12⭐, до 3 фото)
-🚀 *FLUX Kontext Max* - Профессиональное редактирование (5⭐, до 10 фото)
+🎭 *SeeDream-4* - Генерация и трансформация изображений (5⭐, до 10 фото)
+🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (7⭐, до 3 фото)
+🚀 *FLUX Kontext Max* - Профессиональное редактирование (13⭐, только 1 фото)
+🎨 *Qwen Image Edit Plus* - Продвинутое редактирование (5⭐, до 10 фото)
 
 📸 *Или сразу отправьте фото/альбом для быстрой обработки через SeeDream-4*
 💡 *Каждая модель поддерживает несколько фотографий одновременно!*
@@ -888,8 +904,9 @@ async function showAiPhotoshopModels(ctx: MyContext): Promise<void> {
     : `Choose an AI model for processing:
 
 🎭 *SeeDream-4* - Image generation and transformation (15⭐, up to 10 photos)
-🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (12⭐, up to 3 photos)
-🚀 *FLUX Kontext Max* - Professional editing (5⭐, up to 10 photos)
+🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (7⭐, up to 3 photos)
+🚀 *FLUX Kontext Max* - Professional editing (13⭐, single photo only)
+🎨 *Qwen Image Edit Plus* - Advanced multi-image editing (5⭐, up to 10 photos)
 
 📸 *Or send photos/album directly for quick processing with SeeDream-4*
 💡 *Each model supports multiple photos simultaneously!*
@@ -1194,6 +1211,16 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       usingBuffers: !!(ctx.session?.morphingImages?.length),
     })
 
+    // ✅ ВАЛИДАЦИЯ: Проверяем поддержку multi-image для выбранной модели
+    if (isMultiPhoto && !currentModel?.supports_multi_image) {
+      const errorMessage = isRu
+        ? `❌ Модель ${currentModel.title_ru} поддерживает только одно изображение!\n\n🔄 Выберите другую модель:\n🎭 SeeDream-4 (до 10 фото)\n🍌 Nano Banana (до 3 фото)\n\nИли отправьте одно фото для FLUX Kontext Max.`
+        : `❌ ${currentModel.title_en} model supports only single image!\n\n🔄 Choose another model:\n🎭 SeeDream-4 (up to 10 photos)\n🍌 Nano Banana (up to 3 photos)\n\nOr send a single photo for FLUX Kontext Max.`
+
+      await ctx.reply(errorMessage)
+      return
+    }
+
     // Call appropriate service based on selected model
     let result: any = null
 
@@ -1277,6 +1304,30 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         })
         break
 
+      case 'qwen_edit_plus':
+        // ✅ GET SELECTED SIZE FROM SESSION LIKE OTHER MODELS
+        const qwenSelectedSize = ctx.session?.aiPhotoshopSize || '2K'
+
+        // Map size to aspect ratio (общий паттерн)
+        const sizeToAspectRatio: Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'> = {
+          '1K': '1:1',
+          '2K': '9:16',
+          '4K': '16:9',
+          'custom': '1:1'
+        }
+
+        result = await generateQwenImageEditPlus({
+          prompt: finalPrompt,
+          inputImageUrl: actualImageUrls, // Qwen supports multiple images
+          telegram_id: ctx.from.id.toString(),
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          aspect_ratio: sizeToAspectRatio[qwenSelectedSize as keyof typeof sizeToAspectRatio] || '9:16',
+          output_format: 'webp',
+          output_quality: 90
+        })
+        break
 
       default:
         throw new Error(`Unknown model: ${aiPhotoshopModel}`)

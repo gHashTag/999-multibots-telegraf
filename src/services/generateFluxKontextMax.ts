@@ -43,7 +43,7 @@ export interface FluxKontextMaxServiceParams {
 // FLUX Kontext Max model configuration
 const FLUX_KONTEXT_MAX_MODEL = {
   key: 'black-forest-labs/flux-kontext-max',
-  costPerImage: calculateFinalImageCostInStars(0.03),
+  costPerImage: calculateFinalImageCostInStars(0.08), // Updated: Replicate actual price $0.08
   name: 'FLUX Kontext Max',
   description_en: 'Black Forest Labs FLUX Kontext Max - Advanced image editing and transformation',
   description_ru: 'Black Forest Labs FLUX Kontext Max - Продвинутое редактирование и трансформация изображений'
