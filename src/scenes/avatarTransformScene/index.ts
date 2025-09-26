@@ -9,7 +9,7 @@ import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformU
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
 // 🚨 HERO VALIDATION SYSTEM
 import { HeroValidationService } from '@/services/HeroValidationService'
-import type { HeroName } from '@/types/heroes'
+import type { HeroName, Gender } from '@/types/heroes'
 // 🦸‍♂️ NEW GENERATION LIMITS SYSTEM
 import { checkSuperheroGenerationUsage } from '@/core/supabase/checkSuperheroGenerationUsage'
 import { incrementSuperheroGeneration } from '@/core/supabase/incrementSuperheroGeneration'

@@ -5,9 +5,9 @@
  * Обеспечивает типобезопасность и надёжность системы героев
  */
 
-import { logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
+import { logger } from '@/utils/logger'
 import {
   HeroName,
   Gender,
@@ -46,7 +46,7 @@ export class HeroValidationService {
       this.errorLog.push(errorDetails)
 
       // Системное логирование
-      logger.error(`🚨 [HERO VALIDATION ERROR] Hero validation failed`, {
+      console.error(`🚨 [HERO VALIDATION ERROR] Hero validation failed`, {
         heroName,
         error: result.error,
         userId,
@@ -58,7 +58,7 @@ export class HeroValidationService {
       // Отправляем метрики (если подключена аналитика)
       await this.sendValidationMetrics(errorDetails)
     } else {
-      logger.info(`✅ [HERO VALIDATION SUCCESS] Hero validated successfully`, {
+      console.log(`✅ [HERO VALIDATION SUCCESS] Hero validated successfully`, {
         heroName,
         userId,
         context
@@ -165,13 +165,13 @@ export class HeroValidationService {
         }
       }, 1000)
 
-      logger.info('🏠 [HERO VALIDATION] User redirected to main menu', {
+      console.log('🏠 [HERO VALIDATION] User redirected to main menu', {
         userId: ctx.from?.id?.toString(),
         timestamp: new Date().toISOString()
       })
 
     } catch (error) {
-      logger.error('🚨 [HERO VALIDATION] Failed to redirect to main menu', {
+      console.error('🚨 [HERO VALIDATION] Failed to redirect to main menu', {
         error,
         userId: ctx.from?.id?.toString()
       })
@@ -200,9 +200,9 @@ export class HeroValidationService {
       // Пример интеграции (раскомментировать при подключении аналитики):
       // await analytics.track(metrics)
 
-      logger.info('📊 [ANALYTICS] Hero validation error tracked', metrics)
+      console.log('📊 [ANALYTICS] Hero validation error tracked', metrics)
     } catch (error) {
-      logger.error('Failed to send validation metrics', { error })
+      console.error('Failed to send validation metrics', { error })
     }
   }
 

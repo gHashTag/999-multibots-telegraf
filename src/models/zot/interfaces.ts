@@ -167,7 +167,12 @@ export interface ZOTMonthlyFinancials {
   avgTransactionValue: number;
 
   /** Service usage breakdown */
-  serviceBreakdown: Record<ZOTServiceCategory, number>;
+  serviceBreakdown: Record<ZOTServiceCategory, {
+    transactions: number;
+    totalStars: number;
+    totalAmount: number;
+    avgCost: number;
+  }>;
 }
 
 /**
