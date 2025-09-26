@@ -45,7 +45,7 @@ export interface SeeDream4ServiceParams {
 // SeeDream-4 model configuration
 const SEEDREAM4_MODEL = {
   key: 'bytedance/seedream-4',
-  costPerImage: calculateFinalImageCostInStars(0.05),
+  costPerImage: calculateFinalImageCostInStars(0.03), // Updated: Replicate actual price $0.03
   name: 'SeeDream-4',
   description_en: 'ByteDance SeeDream-4 - Advanced image generation and transformation model',
   description_ru: 'ByteDance SeeDream-4 - Продвинутая модель генерации и трансформации изображений'
@@ -66,6 +66,10 @@ export const generateSeeDream4 = async (
     username: params.username,
     is_ru: params.is_ru,
   })
+
+  // Declare variables for wider scope
+  let imageCount = 1
+  let totalCost = SEEDREAM4_MODEL.costPerImage
 
   try {
     const {
@@ -148,11 +152,22 @@ export const generateSeeDream4 = async (
       await updateUserLevelPlusOne(telegram_id, level)
     }
 
-    // Process balance operation
+    // ✅ CRITICAL FIX: Calculate total cost based on number of images
+    imageCount = validatedInput.image_input?.length || 1
+    totalCost = SEEDREAM4_MODEL.costPerImage * imageCount
+
+    logger.info('SeeDream4 multi-image pricing calculation', {
+      telegram_id,
+      costPerImage: SEEDREAM4_MODEL.costPerImage,
+      imageCount,
+      totalCost
+    })
+
+    // Process balance operation with correct total cost
     const balanceCheck = await processBalanceOperation({
       ctx,
       telegram_id: Number(telegram_id),
-      paymentAmount: SEEDREAM4_MODEL.costPerImage,
+      paymentAmount: totalCost,
       is_ru,
     })
 
@@ -297,8 +312,8 @@ export const generateSeeDream4 = async (
 
       // Send success message with image
       const caption = is_ru
-        ? `✨ Изображение создано через SeeDream-4!\n\n🎨 Модель: ${SEEDREAM4_MODEL.name}\n💫 Размер: ${validatedInput.size}\n💰 Потрачено: ${SEEDREAM4_MODEL.costPerImage}⭐\n\n🤖 Создано ботом @${ctx.botInfo?.username || 'unknown'}`
-        : `✨ Image created with SeeDream-4!\n\n🎨 Model: ${SEEDREAM4_MODEL.name}\n💫 Size: ${validatedInput.size}\n💰 Spent: ${SEEDREAM4_MODEL.costPerImage}⭐\n\n🤖 Created by @${ctx.botInfo?.username || 'unknown'}`
+        ? `✨ Изображение создано через SeeDream-4!\n\n🎨 Модель: ${SEEDREAM4_MODEL.name}\n💫 Размер: ${validatedInput.size}\n🖼️ Изображений: ${imageCount}\n💰 Потрачено: ${totalCost}⭐\n\n🤖 Создано ботом @${ctx.botInfo?.username || 'unknown'}`
+        : `✨ Image created with SeeDream-4!\n\n🎨 Model: ${SEEDREAM4_MODEL.name}\n💫 Size: ${validatedInput.size}\n🖼️ Images: ${imageCount}\n💰 Spent: ${totalCost}⭐\n\n🤖 Created by @${ctx.botInfo?.username || 'unknown'}`
 
       // Send the image using local file
       await ctx.replyWithPhoto({ source: savedImagePath }, { caption })
@@ -343,7 +358,7 @@ export const generateSeeDream4 = async (
     } catch (saveError) {
       console.error('🚨 [SeeDream4] Failed to save prompt:', saveError)
       // Refund user if database save fails
-      await refundUser(ctx, SEEDREAM4_MODEL.costPerImage)
+      await refundUser(ctx, totalCost)
       throw new Error('Failed to save generation record')
     }
 
@@ -367,7 +382,7 @@ export const generateSeeDream4 = async (
     await params.ctx.reply(errorMessage)
 
     // Refund user
-    await refundUser(params.ctx, SEEDREAM4_MODEL.costPerImage)
+    await refundUser(params.ctx, totalCost)
 
     throw error
   }

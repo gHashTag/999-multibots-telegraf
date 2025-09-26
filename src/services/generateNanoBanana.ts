@@ -51,6 +51,10 @@ const NANO_BANANA_MODEL = {
 export async function generateNanoBanana(
   params: NanoBananaServiceParams
 ): Promise<string | null> {
+  // Declare variables for wider scope
+  let imageCount = 1
+  let totalCost = NANO_BANANA_MODEL.costPerImage
+
   try {
     console.log('🍌 [NanoBanana] Service called with params:', {
       telegram_id: params.telegram_id,
@@ -107,15 +111,21 @@ export async function generateNanoBanana(
       await updateUserLevelPlusOne(String(telegram_id), level)
     }
 
+    // ✅ CRITICAL FIX: Calculate total cost based on number of images
+    imageCount = validatedInput.image_input.length
+    totalCost = NANO_BANANA_MODEL.costPerImage * imageCount
+
     // Проверяем баланс и списываем звезды
     console.log('🔵 [NanoBanana] Processing balance operation...', {
       telegram_id,
       costPerImage: NANO_BANANA_MODEL.costPerImage,
+      imageCount,
+      totalCost
     })
-    
+
     const balanceCheck = await processBalanceOperation({
       telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
-      paymentAmount: NANO_BANANA_MODEL.costPerImage,
+      paymentAmount: totalCost,
       is_ru,
       bot_name: ctx.botInfo?.username,
       ctx,
@@ -129,13 +139,13 @@ export async function generateNanoBanana(
     if (!balanceCheck.success) {
       logger.warn('[NanoBanana] Insufficient balance', {
         telegram_id,
-        required: NANO_BANANA_MODEL.costPerImage,
+        required: totalCost,
       })
       
       await ctx.reply(
         is_ru
-          ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${NANO_BANANA_MODEL.costPerImage}⭐\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
-          : `❌ Insufficient stars for generation\\n\\nRequired: ${NANO_BANANA_MODEL.costPerImage}⭐\\nYour balance: ${balanceCheck.currentBalance || 0}⭐\\n\\nTop up via /start → 💎 Top up balance`,
+          ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
+          : `❌ Insufficient stars for generation\\n\\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\\nYour balance: ${balanceCheck.currentBalance || 0}⭐\\n\\nTop up via /start → 💎 Top up balance`,
         { parse_mode: 'MarkdownV2' }
       )
       return null
@@ -265,8 +275,8 @@ export async function generateNanoBanana(
     // Send image to user with information
     const botUsername = ctx.botInfo?.username || 'clip_maker_neuro_bot'
     const caption = is_ru
-      ? `✨ Ваш образ готов!\n\n🍌 Создано с помощью Google Nano Banana\n💫 Потрачено: ${NANO_BANANA_MODEL.costPerImage}⭐\n🎨 Изображений: ${validatedInput.image_input.length}\n\nСоздайте еще образы через /start\n\n🤖 Сделано в боте @${botUsername}`
-      : `✨ Your image is ready!\n\n🍌 Created with Google Nano Banana\n💫 Spent: ${NANO_BANANA_MODEL.costPerImage}⭐\n🎨 Images: ${validatedInput.image_input.length}\n\nCreate more images via /start\n\n🤖 Made with @${botUsername} bot`
+      ? `✨ Ваш образ готов!\n\n🍌 Создано с помощью Google Nano Banana\n💫 Потрачено: ${totalCost}⭐\n🎨 Изображений: ${validatedInput.image_input.length}\n\nСоздайте еще образы через /start\n\n🤖 Сделано в боте @${botUsername}`
+      : `✨ Your image is ready!\n\n🍌 Created with Google Nano Banana\n💫 Spent: ${totalCost}⭐\n🎨 Images: ${validatedInput.image_input.length}\n\nCreate more images via /start\n\n🤖 Made with @${botUsername} bot`
 
     console.log('🚀 [NanoBanana] About to call sendPhotoWithFallback', {
       telegram_id,
@@ -359,7 +369,7 @@ export async function generateNanoBanana(
     await params.ctx.reply(errorMessage)
 
     // Refund user
-    await refundUser(params.ctx, NANO_BANANA_MODEL.costPerImage)
+    await refundUser(params.ctx, totalCost)
 
     // Send notification to admins
     try {
