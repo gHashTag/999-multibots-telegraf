@@ -1255,7 +1255,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         result = await generateNanoBanana({
           telegram_id: ctx.from.id.toString(),
           promptText: finalPrompt,
-          inputImageUrl: actualImageUrls[0], // Nano Banana uses single image
+          inputImageUrl: actualImageUrls, // Nano Banana supports multiple images
           ctx,
           username: ctx.from.username || 'unknown',
           is_ru: isRu,
