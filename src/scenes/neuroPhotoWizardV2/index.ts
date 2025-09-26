@@ -119,13 +119,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
 
-    // ✅ ENHANCED MESSAGE FOR MULTI-PHOTO SUPPORT WITH BETTER VISIBILITY
-    await ctx.reply(
-      isRu
-        ? '🆕 <b>НОВАЯ ВОЗМОЖНОСТЬ!</b>\n\n📷 Теперь вы можете:\n• Отправить <b>одно фото</b> — обычное нейрофото\n• Отправить <b>несколько фото</b> (альбом) — серия нейрофото!\n\n✨ Поддерживаются модели: Flux-Kontext, Seedream4, Seedance-1-Pro'
-        : '🆕 <b>NEW FEATURE!</b>\n\n📷 Now you can:\n• Send <b>one photo</b> — regular neurophoto\n• Send <b>multiple photos</b> (album) — neurophoto series!\n\n✨ Supported models: Flux-Kontext, Seedream4, Seedance-1-Pro',
-      { parse_mode: 'HTML' }
-    )
+    // ✅ STANDARD MESSAGE - MULTI-PHOTO MOVED TO AI PHOTOSHOP
+    // Multi-photo functionality moved to AI Photoshop scene
 
     const isCancel = await handleHelpCancel(ctx)
     console.log('isCancel', isCancel)

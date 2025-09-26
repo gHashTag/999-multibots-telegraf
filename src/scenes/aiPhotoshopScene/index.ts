@@ -8,8 +8,10 @@ logger.info('🚨 AI Photoshop: Scene module loading...');
 import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
 import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
+// ✅ IMPORT MULTI-PHOTO SUPPORT FOR AI PHOTOSHOP
+import { detectMultiPhotoUpload, handleMultiPhotoNeurophoto, checkMultiPhotoEvents } from '@/handlers/multiPhotoHandler'
 
-// 🎨 AI PHOTOSHOP MODELS CONFIGURATION
+// 🎨 AI PHOTOSHOP MODELS CONFIGURATION WITH MULTI-IMAGE SUPPORT
 const AI_PHOTOSHOP_MODELS = {
   seedream: {
     title_ru: '🎭 SeeDream-4',
@@ -19,7 +21,9 @@ const AI_PHOTOSHOP_MODELS = {
     cost: 15, // stars
     key: 'seedream',
     supports_image_input: true,
-    supports_text_only: true
+    supports_text_only: true,
+    supports_multi_image: true, // ✅ NEW: Multi-image support
+    max_images: 5
   },
   nano_banana: {
     title_ru: '🍌 Nano Banana',
@@ -29,7 +33,9 @@ const AI_PHOTOSHOP_MODELS = {
     cost: 12, // stars
     key: 'nano_banana',
     supports_image_input: true,
-    supports_text_only: false
+    supports_text_only: false,
+    supports_multi_image: true, // ✅ NEW: Multi-image support
+    max_images: 3
   },
   flux_max: {
     title_ru: '🚀 FLUX Kontext Max',
@@ -39,7 +45,21 @@ const AI_PHOTOSHOP_MODELS = {
     cost: 5, // stars - matching production generateFluxKontextMax.ts (0.03 USD)
     key: 'flux_max',
     supports_image_input: true,
-    supports_text_only: false
+    supports_text_only: false,
+    supports_multi_image: true, // ✅ NEW: Multi-image support
+    max_images: 10
+  },
+  seedance: {
+    title_ru: '🎬 Seedance-1-Pro',
+    title_en: '🎬 Seedance-1-Pro',
+    description_ru: 'ByteDance Seedance-1-Pro - Профессиональное редактирование с множественными фото',
+    description_en: 'ByteDance Seedance-1-Pro - Professional editing with multiple photos',
+    cost: 15, // stars
+    key: 'seedance',
+    supports_image_input: true,
+    supports_text_only: true,
+    supports_multi_image: true, // ✅ NEW: Multi-image support
+    max_images: 8
   }
 }
 
@@ -176,6 +196,13 @@ aiPhotoshopScene.enter(async ctx => {
     })
 
     const isRu = isRussianFromState(ctx)
+
+    // ✅ CHECK FOR PENDING MULTI-PHOTO EVENTS IN AI PHOTOSHOP
+    const hasMultiPhotoEvent = await checkMultiPhotoEvents(ctx)
+    if (hasMultiPhotoEvent) {
+      logger.info('✅ AI Photoshop: Multi-photo event detected and handled')
+      return
+    }
 
     if (!ctx.from?.id) {
       await ctx.reply(
