@@ -327,6 +327,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   aiPhotoshopStyle?: 'portrait' | 'artistic' | 'photorealistic' | 'fantasy' | 'cyberpunk' | 'vintage' | 'custom'
   aiPhotoshopImage?: string
   aiPhotoshopPrompt?: string
+  aiPhotoshopSize?: '1K' | '2K' | '4K' | 'custom'
   awaitingAiPhotoshopImage?: boolean
   awaitingAiPhotoshopPrompt?: boolean
   aiPhotoshopStep?: 'model_select' | 'style_select' | 'image_upload' | 'custom_prompt' | 'processing'
