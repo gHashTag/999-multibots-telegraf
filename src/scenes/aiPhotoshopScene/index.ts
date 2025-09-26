@@ -621,6 +621,13 @@ aiPhotoshopScene.on('text', async ctx => {
         ctx.session.awaitingAiPhotoshopPrompt = false
         ctx.session.aiPhotoshopStep = 'image_upload'
         ctx.session.awaitingAiPhotoshopImage = true
+
+        logger.info('✅ AI Photoshop: Custom prompt saved successfully', {
+          telegramId: ctx.from?.id,
+          promptLength: prompt.length,
+          promptPreview: prompt.substring(0, 100) + '...',
+          step: ctx.session.aiPhotoshopStep
+        })
       }
 
       const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
@@ -1326,10 +1333,25 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     // Delete confirmation message
     await ctx.deleteMessage()
 
-    // Set up session for processing
+    // Сохраняем текущий prompt перед настройкой session
+    const currentPrompt = ctx.session.aiPhotoshopPrompt
+
+    logger.info('🔍 AI Photoshop: Session state before processing', {
+      telegramId: ctx.from?.id,
+      hasPrompt: !!currentPrompt,
+      promptLength: currentPrompt?.length || 0,
+      currentStep: ctx.session.aiPhotoshopStep,
+      currentStyle: ctx.session.aiPhotoshopStyle
+    })
+
+    // Set up session for processing, сохраняя prompt
     ctx.session.aiPhotoshopModel = 'seedream'
     ctx.session.aiPhotoshopStyle = 'artistic'
     ctx.session.aiPhotoshopStep = 'processing'
+    // ✅ КРИТИЧЕСКИ ВАЖНО: восстанавливаем prompt!
+    if (currentPrompt) {
+      ctx.session.aiPhotoshopPrompt = currentPrompt
+    }
 
     // Convert buffer images to URLs - need to upload to temporary storage or process directly
     const imageCount = ctx.session.morphingImages.length
@@ -1355,13 +1377,43 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     logger.info('🚀 AI Photoshop: Starting multi-image processing', {
       telegramId: ctx.from?.id,
       imageCount: ctx.session.morphingImages?.length,
-      hasPrompt: !!ctx.session.aiPhotoshopPrompt
+      hasPrompt: !!ctx.session.aiPhotoshopPrompt,
+      promptText: ctx.session.aiPhotoshopPrompt?.substring(0, 50) + '...',
+      sessionData: {
+        model: ctx.session.aiPhotoshopModel,
+        style: ctx.session.aiPhotoshopStyle,
+        step: ctx.session.aiPhotoshopStep
+      }
     })
+
+    // Проверяем наличие промпта с подробной диагностикой
+    if (!ctx.session.aiPhotoshopPrompt) {
+      logger.error('🚨 AI Photoshop: No prompt found in session', {
+        telegramId: ctx.from?.id,
+        sessionKeys: Object.keys(ctx.session || {}),
+        currentPromptValue: ctx.session.aiPhotoshopPrompt,
+        savedPrompt: currentPrompt,
+        session: {
+          aiPhotoshopModel: ctx.session.aiPhotoshopModel,
+          aiPhotoshopStyle: ctx.session.aiPhotoshopStyle,
+          aiPhotoshopStep: ctx.session.aiPhotoshopStep,
+          awaitingPrompt: ctx.session.awaitingAiPhotoshopPrompt,
+          awaitingImage: ctx.session.awaitingAiPhotoshopImage
+        }
+      })
+
+      await ctx.editMessageText(
+        isRu
+          ? '❌ Ошибка: промпт не найден. Попробуйте заново.'
+          : '❌ Error: prompt not found. Please try again.'
+      )
+      return
+    }
 
     await ctx.editMessageText(
       isRu
-        ? `🚀 Начинаю обработку ${ctx.session.morphingImages?.length} изображений...\n\n⏳ Это может занять несколько минут`
-        : `🚀 Starting to process ${ctx.session.morphingImages?.length} images...\n\n⏳ This may take several minutes`
+        ? `🚀 Начинаю обработку ${ctx.session.morphingImages?.length} изображений...\n\n⏳ Это может занять несколько минут\n\n📝 Промпт: "${ctx.session.aiPhotoshopPrompt}"`
+        : `🚀 Starting to process ${ctx.session.morphingImages?.length} images...\n\n⏳ This may take several minutes\n\n📝 Prompt: "${ctx.session.aiPhotoshopPrompt}"`
     )
 
     // Call the actual processing function
