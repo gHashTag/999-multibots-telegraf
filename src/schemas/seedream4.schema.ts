@@ -10,7 +10,7 @@ export const SeeDream4SizeSchema = z.enum(['1K', '2K', '4K', 'custom'])
 export const SeeDream4InputSchema = z.object({
   prompt: z
     .string()
-    .min(10, '🚨 Prompt must be at least 10 characters long')
+    .min(3, '🚨 Prompt must be at least 3 characters long')
     .max(2000, '🚨 Prompt too long')
     .refine(
       (prompt) => prompt.trim().length > 0,
@@ -72,15 +72,15 @@ export type SeeDream4Size = z.infer<typeof SeeDream4SizeSchema>
 export function getSeeDream4Dimensions(size: SeeDream4Size): { width: number; height: number } {
   switch (size) {
     case '1K':
-      return { width: 1024, height: 1024 }
+      return { width: 1024, height: 1536 } // 2:3 aspect ratio (portrait)
     case '2K':
-      return { width: 2048, height: 2048 }
+      return { width: 1365, height: 2048 } // 2:3 aspect ratio (portrait)
     case '4K':
-      return { width: 4096, height: 4096 }
+      return { width: 2731, height: 4096 } // 2:3 aspect ratio (portrait)
     case 'custom':
       throw new Error('Custom size requires explicit width and height')
     default:
-      return { width: 2048, height: 2048 }
+      return { width: 1365, height: 2048 }
   }
 }
 

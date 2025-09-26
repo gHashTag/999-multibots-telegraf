@@ -2,6 +2,13 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '../../utils/logger'
+import { saveFileLocally } from '@/helpers/saveFileLocally'
+import fs from 'fs'
+import path from 'path'
+import { promisify } from 'util'
+
+const writeFile = promisify(fs.writeFile)
+const mkdir = promisify(fs.mkdir)
 
 // Log when this module loads
 logger.info('🚨 AI Photoshop: Scene module loading...');
@@ -402,6 +409,10 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
 
     if (ctx.session) {
       ctx.session.aiPhotoshopSize = sizeMatch
+      // ✅ CRITICAL FIX: Preserve previously selected model and style
+      if (!ctx.session.aiPhotoshopModel) {
+        ctx.session.aiPhotoshopModel = 'seedream' // Default model if not set
+      }
       ctx.session.aiPhotoshopStep = 'image_upload'
       ctx.session.awaitingAiPhotoshopImage = true
     }
@@ -413,9 +424,9 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
     }
 
     const sizeDimensions = {
-      '1K': '1024×1024',
-      '2K': '2048×2048',
-      '4K': '4096×4096'
+      '1K': '1K',
+      '2K': '2K',
+      '4K': '4K'
     }
 
     await ctx.editMessageText(
@@ -466,19 +477,19 @@ aiPhotoshopScene.action('ai_photoshop_change_size', async ctx => {
           inline_keyboard: [
             [
               {
-                text: '1K (1024×1024) - 15⭐',
+                text: '1K - 15⭐',
                 callback_data: 'ai_photoshop_size_1K'
               }
             ],
             [
               {
-                text: '2K (2048×2048) - 20⭐',
+                text: '2K - 20⭐',
                 callback_data: 'ai_photoshop_size_2K'
               }
             ],
             [
               {
-                text: '4K (4096×4096) - 30⭐',
+                text: '4K - 30⭐',
                 callback_data: 'ai_photoshop_size_4K'
               }
             ],
@@ -753,19 +764,19 @@ aiPhotoshopScene.on('text', async ctx => {
               inline_keyboard: [
                 [
                   {
-                    text: '1K (1024×1024) - 15⭐',
+                    text: '1K - 15⭐',
                     callback_data: 'ai_photoshop_size_1K'
                   }
                 ],
                 [
                   {
-                    text: '2K (2048×2048) - 20⭐',
+                    text: '2K - 20⭐',
                     callback_data: 'ai_photoshop_size_2K'
                   }
                 ],
                 [
                   {
-                    text: '4K (4096×4096) - 30⭐',
+                    text: '4K - 30⭐',
                     callback_data: 'ai_photoshop_size_4K'
                   }
                 ],
@@ -918,7 +929,7 @@ const createAiPhotoshopProgressMessage = (images: any[], isRu: boolean): string 
     ? `🎨 <b>ИИ Фотошоп - Сбор изображений</b>\n\n📸 ${progressBar}\n\n✨ Отлично! Загружайте еще фотографии для пакетной обработки\n💡 Все модели поддерживают несколько изображений одновременно`
     : `🎨 <b>AI Photoshop - Collecting Images</b>\n\n📸 ${progressBar}\n\n✨ Great! Upload more photos for batch processing\n💡 All models support multiple images simultaneously`
 
-  if (count >= 2) {
+  if (count >= 1) {
     const actionMessage = isRu
       ? '\n\n🚀 <b>Готово к обработке!</b> Нажмите "Обработать" или загрузите еще фото'
       : '\n\n🚀 <b>Ready to process!</b> Click "Process" or upload more photos'
@@ -932,8 +943,8 @@ const createAiPhotoshopProgressMessage = (images: any[], isRu: boolean): string 
 const createAiPhotoshopProgressKeyboard = (images: any[], isRu: boolean) => {
   const keyboard = []
 
-  if (images.length >= 2) {
-    // Ready to process - show process button
+  if (images.length >= 1) {
+    // Ready to process - show process button (allow single image too)
     keyboard.push([{
       text: isRu ? '🎨 Обработать изображения' : '🎨 Process Images',
       callback_data: 'ai_photoshop_multi_process'
@@ -983,9 +994,8 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       }
 
       const botToken = getBotToken(ctx)
-      const response = await fetch(
-        `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
-      )
+      const telegramUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
+      const response = await fetch(telegramUrl)
       const buffer = Buffer.from(await response.arrayBuffer())
 
       // Add image with timestamp and order like Infinity Morphing
@@ -994,6 +1004,7 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
 
       ctx.session.morphingImages.push({
         buffer: Buffer.from(buffer),
+        url: telegramUrl, // ✅ Сохраняем оригинальный URL от Telegram
         filename: `ai_photoshop_image_${imageIndex}.jpg`,
         timestamp: currentTimestamp,
         originalOrder: imageIndex,
@@ -1082,6 +1093,13 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       model: aiPhotoshopModel,
       hasImage: !!aiPhotoshopImage,
       hasMorphingImages: ctx.session?.morphingImages?.length || 0,
+      sessionState: {
+        aiPhotoshopModel: ctx.session?.aiPhotoshopModel,
+        aiPhotoshopStyle: ctx.session?.aiPhotoshopStyle,
+        aiPhotoshopSize: ctx.session?.aiPhotoshopSize,
+        aiPhotoshopStep: ctx.session?.aiPhotoshopStep,
+        aiPhotoshopPrompt: !!ctx.session?.aiPhotoshopPrompt
+      }
     })
 
     await ctx.reply(
@@ -1126,20 +1144,16 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
     let isMultiPhoto = false
 
     if (ctx.session?.morphingImages?.length && ctx.session.morphingImages.length > 0) {
-      // Multi-photo via buffer approach - need to upload buffers to temporary storage
+      // Multi-photo via buffer approach - use the original Telegram file URLs from session
       isMultiPhoto = ctx.session.morphingImages.length > 1
 
-      // For now, we'll use a simpler approach - convert buffers to data URLs
-      // This is a temporary solution until we implement proper temporary file upload
-      logger.info('AI Photoshop: Converting buffers to data URLs', {
+      logger.info('AI Photoshop: Using original Telegram URLs from session', {
         telegramId: ctx.from.id,
-        bufferCount: ctx.session.morphingImages.length
+        imageCount: ctx.session.morphingImages.length
       })
 
-      actualImageUrls = ctx.session.morphingImages.map((img, index) => {
-        const base64 = img.buffer.toString('base64')
-        return `data:image/jpeg;base64,${base64}`
-      })
+      // Use the original URLs that were stored when the images were uploaded
+      actualImageUrls = ctx.session.morphingImages.map(img => img.url).filter(url => url)
     } else if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
       // Multi-photo via URL approach (from multiPhotoHandler)
       isMultiPhoto = true
@@ -1178,8 +1192,20 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           maxImages
         })
 
-        if (isMultiPhoto && currentModel?.supports_multi_image) {
-          // Use multi-photo version with array of images
+        // ✅ CRITICAL FIX: Handle multi-photo and merge prompts correctly
+        const isActualMultiPhoto = actualImageUrls.length > 1
+
+        logger.info('🎯 AI Photoshop: SeeDream-4 processing decision', {
+          telegramId: ctx.from.id,
+          isActualMultiPhoto,
+          imageCount: actualImageUrls.length,
+          prompt: finalPrompt.substring(0, 50) + '...',
+          size: selectedSize,
+          maxImages
+        })
+
+        if (isActualMultiPhoto && currentModel?.supports_multi_image) {
+          // Multi-photo processing with array
           result = await generateSeeDream4({
             prompt: finalPrompt,
             inputImageUrl: actualImageUrls, // Pass array for multi-photo
@@ -1187,12 +1213,12 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             username: ctx.from.username || 'unknown',
             is_ru: isRu,
             ctx,
-            size: selectedSize, // ✅ Use preserved size selection
+            size: selectedSize,
             max_images: maxImages,
             aspect_ratio: '9:16'
           })
         } else {
-          // Single photo processing
+          // Single photo processing (or first image if multiple)
           result = await generateSeeDream4({
             prompt: finalPrompt,
             inputImageUrl: actualImageUrls[0],
@@ -1200,8 +1226,8 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             username: ctx.from.username || 'unknown',
             is_ru: isRu,
             ctx,
-            size: selectedSize, // ✅ Use preserved size selection
-            max_images: 1,
+            size: selectedSize,
+            max_images: 1, // Single image processing
             aspect_ratio: '9:16'
           })
         }
@@ -1399,7 +1425,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
-    if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 2) {
+    if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 1) {
       await ctx.reply(
         isRu
           ? '❌ Недостаточно изображений для обработки'
@@ -1512,11 +1538,23 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
-    if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 2) {
+    // Check session state for multi-photo processing
+    logger.info('AI Photoshop: Multi-photo processing initiated', {
+      telegramId: ctx.from?.id,
+      imageCount: ctx.session.morphingImages?.length || 0,
+      hasModel: !!ctx.session.aiPhotoshopModel,
+      hasPrompt: !!ctx.session.aiPhotoshopPrompt
+    })
+
+    if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 1) {
+      logger.error('AI Photoshop: No images found for processing', {
+        telegramId: ctx.from?.id,
+        imageCount: ctx.session.morphingImages?.length || 0
+      })
       await ctx.reply(
         isRu
-          ? '❌ Недостаточно изображений для обработки'
-          : '❌ Not enough images for processing'
+          ? '❌ Недостаточно изображений для обработки. Попробуйте загрузить фото снова.'
+          : '❌ Not enough images for processing. Please try uploading photos again.'
       )
       return
     }
@@ -1551,6 +1589,11 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     // ✅ CRITICAL: Maintain the user's prompt!
     if (currentPrompt) {
       ctx.session.aiPhotoshopPrompt = currentPrompt
+      logger.info('✅ AI Photoshop: User prompt preserved', {
+        telegramId: ctx.from?.id,
+        prompt: currentPrompt,
+        promptLength: currentPrompt.length
+      })
     }
 
     // Convert buffer images to URLs - need to upload to temporary storage or process directly
@@ -1604,10 +1647,11 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
           fallbackPrompt: ctx.session.aiPhotoshopPrompt
         })
       } else {
-        // Ultimate fallback
-        ctx.session.aiPhotoshopPrompt = 'enhance this image'
-        logger.info('✅ AI Photoshop: Ultimate fallback prompt applied', {
+        // Ultimate fallback for multi-photo processing
+        ctx.session.aiPhotoshopPrompt = 'merge and enhance these images'
+        logger.info('✅ AI Photoshop: Multi-photo fallback prompt applied', {
           telegramId: ctx.from?.id,
+          imageCount: ctx.session.morphingImages?.length,
           ultimatePrompt: ctx.session.aiPhotoshopPrompt
         })
       }

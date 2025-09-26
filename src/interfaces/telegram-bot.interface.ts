@@ -186,6 +186,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   images: BufferType
   morphingImages?: {
     buffer: Buffer
+    url?: string // ✅ Оригинальный URL от Telegram для API вызовов
     filename: string
     timestamp?: number // ✅ Для правильной сортировки
     originalOrder?: number // ✅ Исходный порядок добавления
