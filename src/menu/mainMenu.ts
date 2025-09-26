@@ -23,8 +23,8 @@ export const levels: Record<number, Level> = {
   },
   // neuro_photo
   2: {
-    title_ru: '📸 Нейрофото',
-    title_en: '📸 NeuroPhoto',
+    title_ru: '📸 Нейрофото (1+ фото)',
+    title_en: '📸 NeuroPhoto (1+ photos)',
   },
   // image_to_prompt
   3: {

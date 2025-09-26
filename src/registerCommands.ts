@@ -33,6 +33,7 @@ import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scen
 import { requireAdmin } from './middleware/adminOnly'
 // ✅ ИМПОРТИРУЕМ MULTI-PHOTO ACTION HANDLERS
 import { registerMultiPhotoActions } from './handlers/multiPhotoActions'
+import { handleHelpCommand } from './commands/helpCommand'
 // Импортируем сцену handleTextMessage
 // import { handleTextMessage } from './handlers/handleTextMessage' // ❌ ИСПРАВЛЕНО: не используется как сцена
 
@@ -219,6 +220,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ
     registerPaymentActions(bot)
+
+    // 5. ✅ РЕГИСТРАЦИЯ HELP КОМАНДЫ
+    bot.command('help', handleHelpCommand)
 
     // 6. --- РЕГИСТРАЦИЯ ГЛОБАЛЬНЫХ КОМАНД ---
     // Команды должны быть зарегистрированы здесь, до hears и общего on('text')
