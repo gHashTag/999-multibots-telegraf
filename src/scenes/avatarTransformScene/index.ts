@@ -305,19 +305,6 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'person' : 'girl'
     } with iconic bright red hair in two tight braids sticking straight out horizontally from head like handles. Countless freckles covering face and arms. Wearing mismatched knee-high striped stockings - one red and white, one blue and yellow. Blue dress with patches and buttons missing. Superhuman strength pose - lifting something impossibly heavy above head with one arm. Gap-toothed mischievous grin. Dirty fingernails from adventures. Worn brown shoes, one lace missing. Small pet monkey (Mr. Nilsson) sitting on shoulder. Background: colorful Villa Villekulla house with crooked chimney and bright painted walls, overgrown garden with fruit trees, small Swedish town in background, adventure props scattered around - ropes, treasure chest, pirate flag. Bright energetic daylight with saturated colors, playful adventure atmosphere with golden sunshine.`,
 
-    // DC UNIVERSE HEROES - TOP POPULAR MISSING
-    'Супермен': `${baseSettings} A heroic ${
-      gender === 'male' ? 'man' : 'woman'
-    } in blue and red suit with cape flowing behind. ${
-      gender === 'male' ? 'Strong heroic stance' : 'Noble superhero pose'
-    }. Red cape billowing dramatically. "S" shield emblem on chest. Strong jaw and confident expression. Arms crossed or hands on hips in classic hero pose. Background with city skyline and clouds. Bright, heroic lighting with blue and red colors. Classic superhero aesthetic with inspiring presence.`,
-
-    'Бэтмен': `${baseSettings} A mysterious ${
-      gender === 'male' ? 'man' : 'woman'
-    } in dark grey and black tactical outfit with cape. ${
-      gender === 'male' ? 'Dark brooding stance' : 'Stealthy vigilante pose'
-    }. Flowing black cape with bat-like design. Utility belt with various gadgets. Mask covering eyes with pointed ears. Background with Gotham city night skyline and gargoyles. Dark, moody lighting with blue and black shadows. Gothic vigilante aesthetic with intimidating presence.`,
-
     'Флэш': `${baseSettings} A fast ${
       gender === 'male' ? 'man' : 'woman'
     } in sleek red suit with lightning bolt accents. ${
@@ -398,11 +385,6 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'Assassin ready stance' : 'Tactical operative pose'
     }. Distinctive silver/black metal prosthetic arm with red star. Military tactical outfit with strategic padding and gear. Long dark hair and intense expression. Sniper rifle or tactical weapons visible. Background with winter/Soviet elements. Cool blue and metallic lighting. Winter Soldier aesthetic with military precision.`,
 
-    'Чёрная вдова': `${baseSettings} A skilled ${
-      gender === 'male' ? 'spy' : 'spy'
-    } in sleek black tactical suit with red accents. ${
-      gender === 'male' ? 'Espionage ready stance' : 'Black widow pose'
-    }. Form-fitting black outfit with red belt and accessories. Dual pistols or widow's bite weapons. Strategic red hair styling. Martial arts combat pose. Background with spy/espionage elements and urban setting. Dark lighting with red accent highlights. Black Widow aesthetic with espionage expertise.`,
 
     'Гвен Стейси': `${baseSettings} A heroic ${
       gender === 'male' ? 'spider-hero' : 'spider-woman'
@@ -495,23 +477,6 @@ const createMarvelPromptByGender = (
       gender === 'male' ? 'Master tactician stance' : 'Deathstroke combat pose'
     }. Orange and blue tactical armor with military design. Single-eye mask with targeting elements. Various weapons including sword, guns, and grenades. Enhanced physical capabilities pose. Background with military/mercenary elements. Orange and steel blue tactical lighting. Deathstroke aesthetic with military precision.`,
 
-    'Чудо-женщина': `${baseSettings} A powerful ${
-      gender === 'male' ? 'Amazon warrior' : 'Amazon warrior'
-    } in red, gold and blue Amazonian armor. ${
-      gender === 'male' ? 'Divine warrior stance' : 'Wonder Woman pose'
-    }. Golden lasso of truth coiled at side or in hand. Indestructible silver bracelets on wrists. Tiara with red star centerpiece. Red and gold armor with Amazonian designs. Background with Themyscira island and Greek elements. Golden divine lighting with truth energy. Wonder Woman aesthetic with Amazonian heritage.`,
-
-    'Харли Квинн': `${baseSettings} A chaotic ${
-      gender === 'male' ? 'jester' : 'jester'
-    } in colorful harlequin outfit with playful weapons. ${
-      gender === 'male' ? 'Chaotic fun stance' : 'Harley Quinn pose'
-    }. Red and blue jester costume with diamond patterns. Twin-tailed hair in blonde and colored highlights. Baseball bat or oversized mallet as weapon. Playful but dangerous expression with jester makeup. Background with carnival/chaos elements and bright colors. Bright red and blue carnival lighting. Harley Quinn aesthetic with chaotic fun energy.`,
-
-    'Супергёрл': `${baseSettings} A youthful ${
-      gender === 'male' ? 'Kryptonian' : 'Kryptonian'
-    } in blue and red costume with cape and hope symbol. ${
-      gender === 'male' ? 'Super-powered flight stance' : 'Supergirl pose'
-    }. Blue bodysuit with red cape and S-shield emblem. Blonde hair flowing in wind with cape effects. Flying pose with one fist forward. Heat vision effect from eyes (optional). Background with Metropolis cityscape and sky. Bright blue and red heroic lighting. Supergirl aesthetic with Kryptonian powers.`,
 
     'Бэтгерл': `${baseSettings} A skilled ${
       gender === 'male' ? 'vigilante' : 'vigilante'
