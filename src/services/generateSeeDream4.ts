@@ -30,7 +30,7 @@ import {
 // Service parameters interface
 export interface SeeDream4ServiceParams {
   prompt: string
-  inputImageUrl?: string
+  inputImageUrl?: string | string[] // ✅ Support both single URL and array of URLs
   telegram_id: string
   username: string
   is_ru: boolean
@@ -82,6 +82,27 @@ export const generateSeeDream4 = async (
       aspect_ratio = '9:16'
     } = params
 
+    // ✅ PREPARE IMAGE INPUT - SUPPORT BOTH SINGLE URL AND ARRAYS
+    const prepareImageInput = (imageUrl?: string | string[]): string[] | undefined => {
+      if (!imageUrl) return undefined
+      if (Array.isArray(imageUrl)) {
+        console.log('🎨 [SeeDream4] Multi-image input detected:', {
+          telegram_id,
+          imageCount: imageUrl.length,
+          urls: imageUrl.map((url, i) => `${i + 1}: ${url.substring(0, 50)}...`)
+        })
+        return imageUrl.slice(0, 10) // Limit to max 10 images per schema
+      } else {
+        console.log('🎨 [SeeDream4] Single image input detected:', {
+          telegram_id,
+          url: imageUrl.substring(0, 50) + '...'
+        })
+        return [imageUrl]
+      }
+    }
+
+    const imageInput = prepareImageInput(inputImageUrl)
+
     // Validate and prepare input for SeeDream-4 API
     const seeDream4Input = {
       prompt,
@@ -92,7 +113,7 @@ export const generateSeeDream4 = async (
       username,
       is_ru,
       ...(width && height && size === 'custom' ? { width, height } : {}),
-      ...(inputImageUrl ? { image_input: [inputImageUrl] } : {})
+      ...(imageInput ? { image_input: imageInput } : {})
     }
 
     // 🛡️ СТРОГАЯ ВАЛИДАЦИЯ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ
@@ -115,7 +136,8 @@ export const generateSeeDream4 = async (
         prompt: validatedInput.prompt.substring(0, 50) + '...',
         size: validatedInput.size,
         max_images: validatedInput.max_images,
-        hasImageInput: !!validatedInput.image_input?.length
+        hasImageInput: !!validatedInput.image_input?.length,
+        imageInputCount: validatedInput.image_input?.length || 0
       }
     })
 
