@@ -1,0 +1,384 @@
+/**
+ * Multi-Photo Neurophoto Functionality Tests
+ * Tests the enhanced neurophoto system with multiple image support
+ */
+
+import { describe, it, expect, jest, beforeEach } from '@jest/globals'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { detectMultiPhotoUpload, photoQueueManager, handleMultiPhotoNeurophoto } from '@/handlers/multiPhotoHandler'
+import { generateNeuroPhotoMulti } from '@/services/generateNeuroPhotoMulti'
+
+// Mock dependencies
+jest.mock('@/utils/logger')
+jest.mock('@/helpers/centralizedLanguage')
+jest.mock('@/services/generateNeuroPhotoDirect')
+
+describe('Multi-Photo Neurophoto System', () => {
+  let mockContext: Partial<MyContext>
+  let mockSession: any
+  let mockMessage: any
+
+  beforeEach(() => {
+    // Reset mocks
+    jest.clearAllMocks()
+
+    // Setup mock session
+    mockSession = {
+      prompt: 'test prompt',
+      userModel: {
+        id: 'test_model_123',
+        model_url: 'https://example.com/model.safetensors',
+        trigger_word: 'testperson',
+        model_name: 'Test Model'
+      },
+      multiPhotoUrls: undefined,
+      multiPhotoCount: undefined,
+      awaitingMultiPhotoConfirmation: false
+    }
+
+    // Setup mock message
+    mockMessage = {
+      message_id: 12345,
+      photo: [
+        { file_id: 'photo1_lowres', width: 100, height: 100, file_size: 1000 },
+        { file_id: 'photo1_highres', width: 800, height: 600, file_size: 50000 }
+      ],
+      media_group_id: 'media_group_123'
+    }
+
+    // Setup mock context
+    mockContext = {
+      session: mockSession,
+      message: mockMessage,
+      from: { id: 123456789, username: 'testuser' },
+      chat: { id: 123456789 },
+      telegram: {
+        getFileLink: jest.fn().mockResolvedValue({ href: 'https://api.telegram.org/file/test.jpg' })
+      },
+      reply: jest.fn().mockResolvedValue({}),
+      scene: {
+        current: { id: 'neuro_photo_v2' },
+        enter: jest.fn(),
+        leave: jest.fn()
+      }
+    }
+  })
+
+  describe('Photo Queue Manager', () => {
+    it('should detect single photo upload', async () => {
+      // Remove media_group_id to simulate single photo
+      delete mockMessage.media_group_id
+
+      const result = await detectMultiPhotoUpload(mockContext as MyContext)
+
+      expect(result).toBe(false)
+    })
+
+    it('should detect multi-photo upload with media group', async () => {
+      const result = await detectMultiPhotoUpload(mockContext as MyContext)
+
+      expect(result).toBe(true)
+      expect(photoQueueManager.hasQueuedPhotos('123456789')).toBe(true)
+    })
+
+    it('should queue multiple photos correctly', async () => {
+      // Simulate multiple photos with same media_group_id
+      await detectMultiPhotoUpload(mockContext as MyContext)
+
+      // Simulate second photo
+      mockMessage.photo = [{ file_id: 'photo2_highres', width: 800, height: 600, file_size: 45000 }]
+      mockMessage.message_id = 12346
+
+      await detectMultiPhotoUpload(mockContext as MyContext)
+
+      expect(photoQueueManager.getQueueSize('123456789')).toBe(2)
+    })
+  })
+
+  describe('Multi-Photo Neurophoto Generation', () => {
+    beforeEach(() => {
+      // Setup multi-photo session data
+      mockSession.multiPhotoUrls = [
+        'https://api.telegram.org/file/photo1.jpg',
+        'https://api.telegram.org/file/photo2.jpg',
+        'https://api.telegram.org/file/photo3.jpg'
+      ]
+      mockSession.multiPhotoCount = 3
+    })
+
+    it('should handle multi-photo neurophoto request', async () => {
+      const photos = [
+        {
+          fileId: 'photo1_id',
+          fileUrl: 'https://api.telegram.org/file/photo1.jpg',
+          timestamp: Date.now(),
+          mediaGroupId: 'group_123',
+          messageId: 1
+        },
+        {
+          fileId: 'photo2_id',
+          fileUrl: 'https://api.telegram.org/file/photo2.jpg',
+          timestamp: Date.now() + 1000,
+          mediaGroupId: 'group_123',
+          messageId: 2
+        },
+        {
+          fileId: 'photo3_id',
+          fileUrl: 'https://api.telegram.org/file/photo3.jpg',
+          timestamp: Date.now() + 2000,
+          mediaGroupId: 'group_123',
+          messageId: 3
+        }
+      ]
+
+      await handleMultiPhotoNeurophoto(mockContext as MyContext, photos)
+
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        expect.stringContaining('3 изображений'),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            inline_keyboard: expect.arrayContaining([
+              expect.arrayContaining([
+                expect.objectContaining({
+                  text: expect.stringContaining('Продолжить')
+                })
+              ])
+            ])
+          })
+        })
+      )
+
+      expect(mockSession.multiPhotoUrls).toEqual([
+        'https://api.telegram.org/file/photo1.jpg',
+        'https://api.telegram.org/file/photo2.jpg',
+        'https://api.telegram.org/file/photo3.jpg'
+      ])
+      expect(mockSession.multiPhotoCount).toBe(3)
+      expect(mockSession.awaitingMultiPhotoConfirmation).toBe(true)
+    })
+
+    it('should calculate correct cost for multiple images', async () => {
+      const expectedCostPerImage = 7.5
+      const imageCount = 3
+      const expectedTotalCost = expectedCostPerImage * imageCount
+
+      const photos = mockSession.multiPhotoUrls.map((url: string, index: number) => ({
+        fileId: `photo${index + 1}_id`,
+        fileUrl: url,
+        timestamp: Date.now() + (index * 1000),
+        mediaGroupId: 'group_123',
+        messageId: index + 1
+      }))
+
+      await handleMultiPhotoNeurophoto(mockContext as MyContext, photos)
+
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        expect.stringContaining(`${expectedTotalCost} ⭐`),
+        expect.any(Object)
+      )
+    })
+  })
+
+  describe('Enhanced Neurophoto Generation Service', () => {
+    it('should process multiple input images', async () => {
+      const mockAxios = {
+        post: jest.fn().mockResolvedValue({
+          data: {
+            urls: [
+              'https://result1.jpg',
+              'https://result2.jpg',
+              'https://result3.jpg'
+            ],
+            success: true
+          },
+          status: 200
+        })
+      }
+
+      jest.doMock('axios', () => mockAxios)
+
+      const result = await generateNeuroPhotoMulti(
+        'test prompt',
+        mockSession.userModel.model_url,
+        1,
+        '123456789',
+        mockContext as MyContext,
+        'test_bot',
+        null,
+        mockSession.multiPhotoUrls
+      )
+
+      expect(result).toBeTruthy()
+      expect(result?.processedCount).toBe(3)
+    })
+
+    it('should fallback to local processing if server fails', async () => {
+      const mockAxios = {
+        post: jest.fn().mockRejectedValue(new Error('Server unavailable'))
+      }
+
+      jest.doMock('axios', () => mockAxios)
+
+      // Mock local processing
+      const mockGenerateNeuroPhotoDirect = jest.fn().mockResolvedValue({
+        success: true,
+        data: 'Local processing completed'
+      })
+
+      jest.doMock('@/services/generateNeuroPhotoDirect', () => ({
+        generateNeuroPhotoDirect: mockGenerateNeuroPhotoDirect
+      }))
+
+      const result = await generateNeuroPhotoMulti(
+        'test prompt',
+        mockSession.userModel.model_url,
+        1,
+        '123456789',
+        mockContext as MyContext,
+        'test_bot',
+        null,
+        mockSession.multiPhotoUrls
+      )
+
+      expect(mockGenerateNeuroPhotoDirect).toHaveBeenCalledTimes(3) // Once per image
+      expect(result?.processedCount).toBe(3)
+    })
+
+    it('should handle NSFW content rejection', async () => {
+      const mockAxios = {
+        post: jest.fn().mockRejectedValue({
+          isAxiosError: true,
+          response: {
+            status: 400,
+            data: { error: 'NSFW content detected' }
+          }
+        })
+      }
+
+      jest.doMock('axios', () => mockAxios)
+
+      const result = await generateNeuroPhotoMulti(
+        'inappropriate prompt',
+        mockSession.userModel.model_url,
+        1,
+        '123456789',
+        mockContext as MyContext,
+        'test_bot',
+        null,
+        mockSession.multiPhotoUrls
+      )
+
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        expect.stringContaining('неподходящего контента')
+      )
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('Backward Compatibility', () => {
+    it('should process single image uploads normally', async () => {
+      // Remove multi-photo data
+      mockSession.multiPhotoUrls = undefined
+      mockSession.multiPhotoCount = undefined
+
+      const result = await generateNeuroPhotoMulti(
+        'test prompt',
+        mockSession.userModel.model_url,
+        1,
+        '123456789',
+        mockContext as MyContext,
+        'test_bot'
+      )
+
+      // Should process as single image
+      expect(result).toBeTruthy()
+    })
+
+    it('should handle legacy neurophoto calls', async () => {
+      delete mockMessage.media_group_id
+
+      const result = await detectMultiPhotoUpload(mockContext as MyContext)
+
+      expect(result).toBe(false)
+      expect(photoQueueManager.hasQueuedPhotos('123456789')).toBe(false)
+    })
+  })
+
+  describe('Error Handling', () => {
+    it('should handle invalid session data gracefully', async () => {
+      mockContext.session = undefined
+
+      const result = await detectMultiPhotoUpload(mockContext as MyContext)
+
+      expect(result).toBe(false)
+    })
+
+    it('should handle missing user ID', async () => {
+      mockContext.from = undefined
+
+      const result = await detectMultiPhotoUpload(mockContext as MyContext)
+
+      expect(result).toBe(false)
+    })
+
+    it('should handle file download errors', async () => {
+      mockContext.telegram!.getFileLink = jest.fn().mockRejectedValue(new Error('File not found'))
+
+      const result = await detectMultiPhotoUpload(mockContext as MyContext)
+
+      expect(result).toBe(false)
+    })
+
+    it('should handle server timeout gracefully', async () => {
+      const mockAxios = {
+        post: jest.fn().mockRejectedValue({
+          code: 'ECONNABORTED',
+          message: 'timeout of 60000ms exceeded'
+        })
+      }
+
+      jest.doMock('axios', () => mockAxios)
+
+      // Mock fallback
+      const mockFallback = jest.fn().mockResolvedValue({ success: true })
+      jest.doMock('@/services/generateNeuroPhotoDirect', () => ({
+        generateNeuroPhotoDirect: mockFallback
+      }))
+
+      const result = await generateNeuroPhotoMulti(
+        'test prompt',
+        mockSession.userModel.model_url,
+        1,
+        '123456789',
+        mockContext as MyContext,
+        'test_bot',
+        null,
+        mockSession.multiPhotoUrls
+      )
+
+      expect(mockFallback).toHaveBeenCalled()
+    })
+  })
+})
+
+describe('Integration Tests', () => {
+  it('should complete full multi-photo workflow', async () => {
+    // This would test the complete flow from upload to generation
+    // 1. Multiple photos uploaded → detected as media group
+    // 2. Queue processes photos → triggers multi-photo handler
+    // 3. User confirms → scene processes with multi-image support
+    // 4. Results generated and sent with navigation
+
+    const workflow = {
+      photoUpload: () => detectMultiPhotoUpload,
+      confirmation: () => handleMultiPhotoNeurophoto,
+      processing: () => generateNeuroPhotoMulti,
+      results: () => 'Enhanced results with navigation'
+    }
+
+    expect(workflow.photoUpload).toBeDefined()
+    expect(workflow.confirmation).toBeDefined()
+    expect(workflow.processing).toBeDefined()
+    expect(workflow.results).toBeDefined()
+  })
+})

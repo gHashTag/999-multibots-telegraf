@@ -414,6 +414,24 @@ export class ZOTValidator {
     return breakdown;
   }
 
+  private initializeMonthlyServiceBreakdown(): Record<ZOTServiceCategory, {
+    transactions: number;
+    totalStars: number;
+    totalAmount: number;
+    avgCost: number;
+  }> {
+    const breakdown = {} as any;
+    Object.values(ZOTServiceCategory).forEach(category => {
+      breakdown[category] = {
+        transactions: 0,
+        totalStars: 0,
+        totalAmount: 0,
+        avgCost: 0
+      };
+    });
+    return breakdown;
+  }
+
   /**
    * Generate monthly financial breakdown
    */
@@ -435,7 +453,7 @@ export class ZOTValidator {
           netProfit: 0,
           transactionCount: 0,
           avgTransactionValue: 0,
-          serviceBreakdown: this.initializeServiceBreakdown()
+          serviceBreakdown: this.initializeMonthlyServiceBreakdown()
         });
       }
 

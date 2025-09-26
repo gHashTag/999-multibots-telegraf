@@ -31,6 +31,8 @@ import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
 // Импортируем админ middleware
 import { requireAdmin } from './middleware/adminOnly'
+// ✅ ИМПОРТИРУЕМ MULTI-PHOTO ACTION HANDLERS
+import { registerMultiPhotoActions } from './handlers/multiPhotoActions'
 // Импортируем сцену handleTextMessage
 // import { handleTextMessage } from './handlers/handleTextMessage' // ❌ ИСПРАВЛЕНО: не используется как сцена
 
@@ -1756,6 +1758,10 @@ If not, continue on your own and click the "I myself" button`
 
     // ВАЖНО: setupHearsHandlers и handleTextMessage теперь регистрируются в bot.ts
     // чтобы hears обработчики срабатывали до общего текстового обработчика
+
+    // ✅ РЕГИСТРИРУЕМ MULTI-PHOTO ACTION HANDLERS
+    logger.info('🔧 [MULTI-PHOTO] Registering multi-photo action handlers')
+    registerMultiPhotoActions(bot)
 
     console.log('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
     logger.info('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')

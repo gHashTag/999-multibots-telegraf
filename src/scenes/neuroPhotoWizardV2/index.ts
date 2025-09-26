@@ -2,6 +2,9 @@ import { MyContext } from '@/interfaces'
 import { UserModel } from '../../interfaces'
 
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
+// ✅ IMPORT MULTI-PHOTO SUPPORT
+import { generateNeuroPhotoMulti } from '@/services/generateNeuroPhotoMulti'
+import { detectMultiPhotoUpload, handleMultiPhotoNeurophoto, checkMultiPhotoEvents } from '@/handlers/multiPhotoHandler'
 import {
   getLatestUserModel,
   getReferalsCountAndUserData,
@@ -31,6 +34,13 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
   const isRu = isRussianFromState(ctx)
   try {
     console.log('CASE 1: neuroPhotoConversationV2')
+
+    // ✅ CHECK FOR PENDING MULTI-PHOTO EVENTS
+    const hasMultiPhotoEvent = await checkMultiPhotoEvents(ctx)
+    if (hasMultiPhotoEvent) {
+      console.log('✅ Multi-photo event detected, handled')
+      return
+    }
 
     const { telegramId } = await getUserInfo(ctx)
 
@@ -108,6 +118,14 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     ctx.session.userModel = modelToUse as UserModel
 
     await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
+
+    // ✅ ENHANCED MESSAGE FOR MULTI-PHOTO SUPPORT
+    await ctx.reply(
+      isRu
+        ? '📷 Вы можете отправить как одно фото, так и несколько изображений сразу (альбом) для создания серии нейрофото!'
+        : '📷 You can send either a single photo or multiple images at once (album) to create a neurophoto series!'
+    )
+
     const isCancel = await handleHelpCancel(ctx)
     console.log('isCancel', isCancel)
     if (isCancel) {
@@ -163,14 +181,38 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
         const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
 
-        await generateNeuroPhotoHybrid(
-          fullPrompt,
-          ctx.session.userModel.model_url as any,
-          1,
-          userId.toString(),
-          ctx,
-          ctx.botInfo?.username
-        )
+        // ✅ CHECK FOR MULTI-IMAGE PROCESSING
+        const multiPhotoUrls = ctx.session?.multiPhotoUrls
+        const multiPhotoCount = ctx.session?.multiPhotoCount
+
+        if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
+          console.log('🎨 Processing multi-image neurophoto series')
+          await generateNeuroPhotoMulti(
+            fullPrompt,
+            ctx.session.userModel.model_url as any,
+            multiPhotoCount,
+            userId.toString(),
+            ctx,
+            ctx.botInfo?.username,
+            undefined,
+            multiPhotoUrls // Pass multiple image URLs
+          )
+
+          // Clear multi-photo session data
+          ctx.session.multiPhotoUrls = undefined
+          ctx.session.multiPhotoCount = undefined
+          ctx.session.awaitingMultiPhotoConfirmation = false
+        } else {
+          console.log('🎨 Processing single neurophoto')
+          await generateNeuroPhotoHybrid(
+            fullPrompt,
+            ctx.session.userModel.model_url as any,
+            1,
+            userId.toString(),
+            ctx,
+            ctx.botInfo?.username
+          )
+        }
 
         ctx.wizard.next()
         return
@@ -256,14 +298,38 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
 
     const generate = async (num: number) => {
-      await generateNeuroPhotoHybrid(
-        fullPrompt,
-        ctx.session.userModel.model_url as any,
-        num,
-        userId.toString(),
-        ctx,
-        ctx.botInfo?.username
-      )
+      // ✅ CHECK FOR MULTI-IMAGE PROCESSING
+      const multiPhotoUrls = ctx.session?.multiPhotoUrls
+      const multiPhotoCount = ctx.session?.multiPhotoCount
+
+      if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
+        console.log(`🎨 Generating ${num} images for each of ${multiPhotoCount} input photos`)
+        await generateNeuroPhotoMulti(
+          fullPrompt,
+          ctx.session.userModel.model_url as any,
+          num,
+          userId.toString(),
+          ctx,
+          ctx.botInfo?.username,
+          undefined,
+          multiPhotoUrls // Pass multiple image URLs
+        )
+
+        // Clear multi-photo session data
+        ctx.session.multiPhotoUrls = undefined
+        ctx.session.multiPhotoCount = undefined
+        ctx.session.awaitingMultiPhotoConfirmation = false
+      } else {
+        console.log(`🎨 Generating ${num} single neurophoto(s)`)
+        await generateNeuroPhotoHybrid(
+          fullPrompt,
+          ctx.session.userModel.model_url as any,
+          num,
+          userId.toString(),
+          ctx,
+          ctx.botInfo?.username
+        )
+      }
     }
 
     if (numImages >= 1 && numImages <= 4) {

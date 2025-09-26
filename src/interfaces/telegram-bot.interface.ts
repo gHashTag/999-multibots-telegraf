@@ -330,9 +330,16 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   awaitingAiPhotoshopImage?: boolean
   awaitingAiPhotoshopPrompt?: boolean
   aiPhotoshopStep?: 'model_select' | 'style_select' | 'image_upload' | 'custom_prompt' | 'processing'
+
+  // Multi-photo neurophoto fields
+  multiPhotoUrls?: string[] // URLs of multiple input photos for neurophoto series
+  multiPhotoCount?: number // Number of photos in multi-photo session
+  awaitingMultiPhotoConfirmation?: boolean // Waiting for user confirmation to process multi-photos
+  multiPhotoProcessingIndex?: number // Current index being processed in multi-photo series
 }
 
 export interface MyContext extends Context {
+  match?: RegExpExecArray;
   session: MySession
   scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
   wizard: Scenes.WizardContextWizard<MyContext>

@@ -7,6 +7,7 @@ import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { message } from 'telegraf/filters'
+import { detectMultiPhotoUpload } from '@/handlers/multiPhotoHandler'
 
 export class PhotoHandler implements BaseHandler {
   private photoHandlers: PhotoHandlerConfig[] = []
@@ -74,7 +75,29 @@ export class PhotoHandler implements BaseHandler {
   }
 
   private initializePhotoHandlers(): void {
-    // FLUX Kontext image handler (highest priority)
+    // Multi-photo neurophoto handler (highest priority)
+    this.photoHandlers.push({
+      condition: (ctx) => {
+        // Check if this might be a multi-photo upload
+        return ctx.scene?.current?.id === 'neuro_photo_v2' ||
+               ctx.session?.awaitingMultiPhotoConfirmation ||
+               ('media_group_id' in ctx.message && !!ctx.message.media_group_id)
+      },
+      handler: async (ctx) => {
+        logger.info('PhotoHandler: Processing potential multi-photo upload')
+        const isMultiPhoto = await detectMultiPhotoUpload(ctx)
+
+        if (!isMultiPhoto) {
+          // Not a multi-photo, let other handlers process
+          return Promise.resolve()
+        }
+
+        logger.info('PhotoHandler: Multi-photo detected, processing...')
+      },
+      priority: 200
+    })
+
+    // FLUX Kontext image handler
     this.photoHandlers.push({
       condition: (ctx) => !!ctx.session?.awaitingFluxKontextImage,
       handler: async (ctx) => {
