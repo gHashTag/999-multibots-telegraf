@@ -1153,7 +1153,25 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       })
 
       // Use the original URLs that were stored when the images were uploaded
+      logger.info('🔍 AI Photoshop: Checking morphingImages URLs', {
+        telegramId: ctx.from.id,
+        morphingImagesCount: ctx.session.morphingImages.length,
+        sampleImage: ctx.session.morphingImages[0] ? {
+          hasBuffer: !!ctx.session.morphingImages[0].buffer,
+          hasUrl: !!ctx.session.morphingImages[0].url,
+          urlPreview: ctx.session.morphingImages[0].url ? ctx.session.morphingImages[0].url.substring(0, 100) + '...' : 'NO_URL',
+          filename: ctx.session.morphingImages[0].filename
+        } : 'NO_IMAGES'
+      })
+
       actualImageUrls = ctx.session.morphingImages.map(img => img.url).filter(url => url)
+
+      logger.info('🎯 AI Photoshop: URL extraction result', {
+        telegramId: ctx.from.id,
+        totalImages: ctx.session.morphingImages.length,
+        extractedUrls: actualImageUrls.length,
+        urlPreviews: actualImageUrls.map(url => url ? url.substring(0, 100) + '...' : 'EMPTY')
+      })
     } else if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
       // Multi-photo via URL approach (from multiPhotoHandler)
       isMultiPhoto = true
@@ -1538,12 +1556,22 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
-    // Check session state for multi-photo processing
-    logger.info('AI Photoshop: Multi-photo processing initiated', {
+    // 🚨 CRITICAL DEBUG: Log full session state
+    logger.info('🚨 AI Photoshop: Multi-photo processing initiated - FULL DEBUG', {
       telegramId: ctx.from?.id,
-      imageCount: ctx.session.morphingImages?.length || 0,
-      hasModel: !!ctx.session.aiPhotoshopModel,
-      hasPrompt: !!ctx.session.aiPhotoshopPrompt
+      sessionExists: !!ctx.session,
+      morphingImagesExists: !!ctx.session?.morphingImages,
+      morphingImagesCount: ctx.session?.morphingImages?.length || 0,
+      hasModel: !!ctx.session?.aiPhotoshopModel,
+      hasPrompt: !!ctx.session?.aiPhotoshopPrompt,
+      sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
+      morphingImagesPreview: ctx.session?.morphingImages?.map((img, index) => ({
+        index,
+        hasBuffer: !!img.buffer,
+        hasUrl: !!img.url,
+        bufferSize: img.buffer?.length || 0,
+        filename: img.filename
+      })) || []
     })
 
     if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 1) {
@@ -1560,7 +1588,11 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     }
 
     // Delete confirmation message
-    await ctx.deleteMessage()
+    try {
+      await ctx.deleteMessage()
+    } catch (error) {
+      logger.warn('Failed to delete confirmation message', { error: error.message })
+    }
 
     // ✅ CRITICAL FIX: Preserve ALL user selections from session
     const currentPrompt = ctx.session.aiPhotoshopPrompt
@@ -1600,21 +1632,26 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     const imageCount = ctx.session.morphingImages.length
 
     // Show processing message
-    const loadingMsg = await ctx.reply(
-      isRu
-        ? `🎨 Обрабатываю ${imageCount} изображений...\n⏳ Это может занять некоторое время`
-        : `🎨 Processing ${imageCount} images...\n⏳ This may take some time`,
-      {
-        reply_markup: {
-          inline_keyboard: [[
-            {
-              text: isRu ? '⏳ Обработка...' : '⏳ Processing...',
-              callback_data: 'loading_processing_indicator'
-            }
-          ]]
+    let loadingMsg
+    try {
+      loadingMsg = await ctx.reply(
+        isRu
+          ? `🎨 Обрабатываю ${imageCount} изображений...\n⏳ Это может занять некоторое время`
+          : `🎨 Processing ${imageCount} images...\n⏳ This may take some time`,
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              {
+                text: isRu ? '⏳ Обработка...' : '⏳ Processing...',
+                callback_data: 'loading_processing_indicator'
+              }
+            ]]
+          }
         }
-      }
-    )
+      )
+    } catch (error) {
+      logger.warn('Failed to send processing message', { error: error.message })
+    }
 
     // Process images using existing logic
     logger.info('🚀 AI Photoshop: Starting multi-image processing', {
@@ -1657,11 +1694,15 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
       }
     }
 
-    await ctx.editMessageText(
-      isRu
-        ? `🚀 Начинаю обработку ${ctx.session.morphingImages?.length} изображений...\n\n⏳ Это может занять несколько минут\n\n📝 Промпт: "${ctx.session.aiPhotoshopPrompt}"`
-        : `🚀 Starting to process ${ctx.session.morphingImages?.length} images...\n\n⏳ This may take several minutes\n\n📝 Prompt: "${ctx.session.aiPhotoshopPrompt}"`
-    )
+    try {
+      await ctx.editMessageText(
+        isRu
+          ? `🚀 Начинаю обработку ${ctx.session.morphingImages?.length} изображений...\n\n⏳ Это может занять несколько минут\n\n📝 Промпт: "${ctx.session.aiPhotoshopPrompt}"`
+          : `🚀 Starting to process ${ctx.session.morphingImages?.length} images...\n\n⏳ This may take several minutes\n\n📝 Prompt: "${ctx.session.aiPhotoshopPrompt}"`
+      )
+    } catch (error) {
+      logger.warn('Failed to edit message text', { error: error.message })
+    }
 
     // Call the actual processing function
     await processAiPhotoshopRequest(ctx, ctx.session.aiPhotoshopPrompt)
