@@ -24,7 +24,7 @@ const AI_PHOTOSHOP_MODELS = {
     supports_image_input: true,
     supports_text_only: true,
     supports_multi_image: true, // ✅ NEW: Multi-image support
-    max_images: 5
+    max_images: 10 // Updated from 5 to 10
   },
   nano_banana: {
     title_ru: '🍌 Nano Banana',
@@ -209,6 +209,7 @@ aiPhotoshopScene.enter(async ctx => {
       ctx.session.aiPhotoshopStyle = undefined
       ctx.session.aiPhotoshopImage = undefined
       ctx.session.aiPhotoshopPrompt = undefined
+      ctx.session.aiPhotoshopSize = undefined
       ctx.session.awaitingAiPhotoshopImage = false
       ctx.session.awaitingAiPhotoshopPrompt = false
       ctx.session.aiPhotoshopStep = 'model_select'
@@ -221,7 +222,7 @@ aiPhotoshopScene.enter(async ctx => {
     const description = isRu
       ? `Выберите модель ИИ для обработки:
 
-🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐, до 5 фото)
+🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐, до 10 фото)
 🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (12⭐, до 3 фото)
 🚀 *FLUX Kontext Max* - Профессиональное редактирование (5⭐, до 10 фото)
 
@@ -230,7 +231,7 @@ aiPhotoshopScene.enter(async ctx => {
 ✨ *Загружайте альбомы для пакетной обработки*`
       : `Choose an AI model for processing:
 
-🎭 *SeeDream-4* - Image generation and transformation (15⭐, up to 5 photos)
+🎭 *SeeDream-4* - Image generation and transformation (15⭐, up to 10 photos)
 🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (12⭐, up to 3 photos)
 🚀 *FLUX Kontext Max* - Professional editing (5⭐, up to 10 photos)
 
@@ -385,6 +386,115 @@ aiPhotoshopScene.action('ai_photoshop_custom_prompt', async ctx => {
     )
   } catch (error) {
     logger.error('Error handling custom prompt selection', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Handle size selection for SeeDream-4
+aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    const sizeMatch = ctx.match[1] as '1K' | '2K' | '4K'
+
+    if (ctx.session) {
+      ctx.session.aiPhotoshopSize = sizeMatch
+      ctx.session.aiPhotoshopStep = 'image_upload'
+      ctx.session.awaitingAiPhotoshopImage = true
+    }
+
+    const sizePrices = {
+      '1K': 15,
+      '2K': 20,
+      '4K': 30
+    }
+
+    const sizeDimensions = {
+      '1K': '1024×1024',
+      '2K': '2048×2048',
+      '4K': '4096×4096'
+    }
+
+    await ctx.editMessageText(
+      isRu
+        ? `✅ Размер выбран: ${sizeMatch} (${sizeDimensions[sizeMatch]})\n💰 Стоимость: ${sizePrices[sizeMatch]}⭐\n\n📷 Теперь загрузите фото или альбом изображений:`
+        : `✅ Size selected: ${sizeMatch} (${sizeDimensions[sizeMatch]})\n💰 Cost: ${sizePrices[sizeMatch]}⭐\n\n📷 Now upload a photo or album of images:`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: isRu ? '🔄 Изменить размер' : '🔄 Change Size',
+                callback_data: 'ai_photoshop_change_size'
+              }
+            ],
+            [
+              {
+                text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
+                callback_data: 'back_to_menu'
+              }
+            ]
+          ]
+        }
+      }
+    )
+
+  } catch (error) {
+    logger.error('Error handling AI Photoshop size selection', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+      size: ctx.match?.[1],
+    })
+  }
+})
+
+// Handle change size action
+aiPhotoshopScene.action('ai_photoshop_change_size', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.editMessageText(
+      isRu
+        ? `📏 Выберите размер изображения:`
+        : `📏 Choose image size:`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '1K (1024×1024) - 15⭐',
+                callback_data: 'ai_photoshop_size_1K'
+              }
+            ],
+            [
+              {
+                text: '2K (2048×2048) - 20⭐',
+                callback_data: 'ai_photoshop_size_2K'
+              }
+            ],
+            [
+              {
+                text: '4K (4096×4096) - 30⭐',
+                callback_data: 'ai_photoshop_size_4K'
+              }
+            ],
+            [
+              {
+                text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
+                callback_data: 'back_to_menu'
+              }
+            ]
+          ]
+        }
+      }
+    )
+
+  } catch (error) {
+    logger.error('Error handling change size action', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
@@ -632,26 +742,64 @@ aiPhotoshopScene.on('text', async ctx => {
 
       const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
 
-      await ctx.reply(
-        isRu
-          ? `✅ Промпт сохранен: "${prompt}"\n\n📷 Теперь отправьте изображение${model?.supports_multi_image ? ' (можно несколько)' : ''} для обработки:`
-          : `✅ Prompt saved: "${prompt}"\n\n📷 Now send an image${model?.supports_multi_image ? ' (multiple allowed)' : ''} for processing:`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                isRu ? 'Изменить промпт' : 'Change prompt',
-                'ai_photoshop_custom_prompt'
-              ),
-              Markup.button.callback(
-                isRu ? 'Отмена' : 'Cancel',
-                'ai_photoshop_cancel'
-              )
-            ]
-          ]).reply_markup
-        }
-      )
+      // Size selection for SeeDream-4 model
+      if (ctx.session.aiPhotoshopModel === 'seedream') {
+        await ctx.reply(
+          isRu
+            ? `✅ Промпт сохранен: "${prompt}"\n\n📏 Выберите размер изображения:`
+            : `✅ Prompt saved: "${prompt}"\n\n📏 Choose image size:`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '1K (1024×1024) - 15⭐',
+                    callback_data: 'ai_photoshop_size_1K'
+                  }
+                ],
+                [
+                  {
+                    text: '2K (2048×2048) - 20⭐',
+                    callback_data: 'ai_photoshop_size_2K'
+                  }
+                ],
+                [
+                  {
+                    text: '4K (4096×4096) - 30⭐',
+                    callback_data: 'ai_photoshop_size_4K'
+                  }
+                ],
+                [
+                  {
+                    text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
+                    callback_data: 'back_to_menu'
+                  }
+                ]
+              ]
+            }
+          }
+        )
+      } else {
+        // Direct to photo upload for other models
+        await ctx.reply(
+          isRu
+            ? `✅ Промпт сохранен: "${prompt}"\n\n📷 Теперь загрузите фото или альбом изображений:`
+            : `✅ Prompt saved: "${prompt}"\n\n📷 Now upload a photo or album of images:`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
+                    callback_data: 'back_to_menu'
+                  }
+                ]
+              ]
+            }
+          }
+        )
+        ctx.session.awaitingAiPhotoshopImage = true
+      }
       return
     }
 
@@ -719,7 +867,7 @@ async function showAiPhotoshopModels(ctx: MyContext): Promise<void> {
   const description = isRu
     ? `Выберите модель ИИ для обработки:
 
-🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐, до 5 фото)
+🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐, до 10 фото)
 🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (12⭐, до 3 фото)
 🚀 *FLUX Kontext Max* - Профессиональное редактирование (5⭐, до 10 фото)
 
@@ -728,7 +876,7 @@ async function showAiPhotoshopModels(ctx: MyContext): Promise<void> {
 ✨ *Загружайте альбомы для пакетной обработки*`
     : `Choose an AI model for processing:
 
-🎭 *SeeDream-4* - Image generation and transformation (15⭐, up to 5 photos)
+🎭 *SeeDream-4* - Image generation and transformation (15⭐, up to 10 photos)
 🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (12⭐, up to 3 photos)
 🚀 *FLUX Kontext Max* - Professional editing (5⭐, up to 10 photos)
 
@@ -1019,6 +1167,17 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
 
     switch (aiPhotoshopModel) {
       case 'seedream':
+        // ✅ CRITICAL FIX: Get selected size from session or use user's choice
+        const selectedSize = ctx.session?.aiPhotoshopSize || '1K'
+
+        logger.info('🎯 AI Photoshop: SeeDream processing with size', {
+          telegramId: ctx.from.id,
+          selectedSize,
+          isMultiPhoto,
+          imageCount: actualImageUrls.length,
+          maxImages
+        })
+
         if (isMultiPhoto && currentModel?.supports_multi_image) {
           // Use multi-photo version with array of images
           result = await generateSeeDream4({
@@ -1028,7 +1187,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             username: ctx.from.username || 'unknown',
             is_ru: isRu,
             ctx,
-            size: '2K',
+            size: selectedSize, // ✅ Use preserved size selection
             max_images: maxImages,
             aspect_ratio: '9:16'
           })
@@ -1041,7 +1200,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             username: ctx.from.username || 'unknown',
             is_ru: isRu,
             ctx,
-            size: '2K',
+            size: selectedSize, // ✅ Use preserved size selection
             max_images: 1,
             aspect_ratio: '9:16'
           })
@@ -1092,6 +1251,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       ctx.session.aiPhotoshopImage = undefined
       ctx.session.aiPhotoshopPrompt = undefined
       ctx.session.aiPhotoshopStep = undefined
+      ctx.session.aiPhotoshopSize = undefined
       ctx.session.awaitingAiPhotoshopImage = false
       ctx.session.awaitingAiPhotoshopPrompt = false
       // Clear multi-photo data
@@ -1123,6 +1283,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       ctx.session.aiPhotoshopImage = undefined
       ctx.session.aiPhotoshopPrompt = undefined
       ctx.session.aiPhotoshopStep = undefined
+      ctx.session.aiPhotoshopSize = undefined
     }
 
     // Exit scene on error
@@ -1250,11 +1411,40 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     // Delete progress message
     await ctx.deleteMessage()
 
+    // Calculate cost based on selected size or use default
+    const selectedSize = ctx.session.aiPhotoshopSize || '1K'
+    const sizePrices = {
+      '1K': 15,
+      '2K': 20,
+      '4K': 30
+    }
+    const costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || 15
+    const totalCost = costPerImage * ctx.session.morphingImages.length
+
+    // Preserve user's prompt and model selections
+    const currentModel = ctx.session.aiPhotoshopModel || 'seedream'
+    const currentStyle = ctx.session.aiPhotoshopStyle || 'artistic'
+    const currentPrompt = ctx.session.aiPhotoshopPrompt
+
+    const modelInfo = AI_PHOTOSHOP_MODELS[currentModel as keyof typeof AI_PHOTOSHOP_MODELS]
+    const modelTitle = isRu ? modelInfo?.title_ru : modelInfo?.title_en
+
+    let styleDisplay = ''
+    if (currentStyle === 'custom' && currentPrompt) {
+      styleDisplay = isRu ? `✍️ Пользовательский: "${currentPrompt.substring(0, 50)}${currentPrompt.length > 50 ? '...' : ''}"`
+                           : `✍️ Custom: "${currentPrompt.substring(0, 50)}${currentPrompt.length > 50 ? '...' : ''}"`
+    } else if (currentStyle && currentStyle !== 'custom') {
+      const styleInfo = AI_PHOTOSHOP_STYLES[currentStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+      styleDisplay = isRu ? styleInfo?.title_ru || 'Художественный' : styleInfo?.title_en || 'Artistic'
+    } else {
+      styleDisplay = isRu ? 'Художественный' : 'Artistic'
+    }
+
     // Show model/style selection for multi-photo
     await ctx.reply(
       isRu
-        ? `✨ Готово к обработке ${ctx.session.morphingImages.length} изображений!\n\n🎭 Модель: SeeDream-4 (по умолчанию)\n🎨 Стиль: Художественный\n💎 Стоимость: ${15 * ctx.session.morphingImages.length} ⭐`
-        : `✨ Ready to process ${ctx.session.morphingImages.length} images!\n\n🎭 Model: SeeDream-4 (default)\n🎨 Style: Artistic\n💎 Cost: ${15 * ctx.session.morphingImages.length} ⭐`,
+        ? `✨ Готово к обработке ${ctx.session.morphingImages.length} изображений!\n\n🎭 Модель: ${modelTitle}\n🎨 Стиль: ${styleDisplay}\n📏 Размер: ${selectedSize}\n💎 Стоимость: ${totalCost} ⭐ (${costPerImage}⭐ за фото)`
+        : `✨ Ready to process ${ctx.session.morphingImages.length} images!\n\n🎭 Model: ${modelTitle}\n🎨 Style: ${styleDisplay}\n📏 Size: ${selectedSize}\n💎 Cost: ${totalCost} ⭐ (${costPerImage}⭐ per photo)`,
       {
         reply_markup: {
           inline_keyboard: [
@@ -1293,6 +1483,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_restart', async ctx => {
     if (ctx.session) {
       ctx.session.morphingImages = []
       ctx.session.morphingProgressMessageId = undefined
+      ctx.session.aiPhotoshopSize = undefined
     }
 
     // Delete progress message
@@ -1333,22 +1524,31 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     // Delete confirmation message
     await ctx.deleteMessage()
 
-    // Сохраняем текущий prompt перед настройкой session
+    // ✅ CRITICAL FIX: Preserve ALL user selections from session
     const currentPrompt = ctx.session.aiPhotoshopPrompt
+    const currentModel = ctx.session.aiPhotoshopModel || 'seedream'
+    const currentStyle = ctx.session.aiPhotoshopStyle || 'artistic'
+    const currentSize = ctx.session.aiPhotoshopSize || '1K'
 
-    logger.info('🔍 AI Photoshop: Session state before processing', {
+    logger.info('🔍 AI Photoshop: Preserving session state before processing', {
       telegramId: ctx.from?.id,
-      hasPrompt: !!currentPrompt,
-      promptLength: currentPrompt?.length || 0,
-      currentStep: ctx.session.aiPhotoshopStep,
-      currentStyle: ctx.session.aiPhotoshopStyle
+      preservedData: {
+        prompt: currentPrompt?.substring(0, 50) + '...',
+        model: currentModel,
+        style: currentStyle,
+        size: currentSize,
+        hasPrompt: !!currentPrompt,
+        promptLength: currentPrompt?.length || 0
+      },
+      currentStep: ctx.session.aiPhotoshopStep
     })
 
-    // Set up session for processing, сохраняя prompt
-    ctx.session.aiPhotoshopModel = 'seedream'
-    ctx.session.aiPhotoshopStyle = 'artistic'
+    // ✅ CRITICAL: DON'T RESET - preserve user's choices!
+    ctx.session.aiPhotoshopModel = currentModel
+    ctx.session.aiPhotoshopStyle = currentStyle
+    ctx.session.aiPhotoshopSize = currentSize
     ctx.session.aiPhotoshopStep = 'processing'
-    // ✅ КРИТИЧЕСКИ ВАЖНО: восстанавливаем prompt!
+    // ✅ CRITICAL: Maintain the user's prompt!
     if (currentPrompt) {
       ctx.session.aiPhotoshopPrompt = currentPrompt
     }
@@ -1386,28 +1586,31 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
       }
     })
 
-    // Проверяем наличие промпта с подробной диагностикой
+    // ✅ ENHANCED PROMPT VALIDATION with automatic fallback
     if (!ctx.session.aiPhotoshopPrompt) {
-      logger.error('🚨 AI Photoshop: No prompt found in session', {
+      logger.warn('⚠️ AI Photoshop: No custom prompt found, using style-based fallback', {
         telegramId: ctx.from?.id,
-        sessionKeys: Object.keys(ctx.session || {}),
-        currentPromptValue: ctx.session.aiPhotoshopPrompt,
-        savedPrompt: currentPrompt,
-        session: {
-          aiPhotoshopModel: ctx.session.aiPhotoshopModel,
-          aiPhotoshopStyle: ctx.session.aiPhotoshopStyle,
-          aiPhotoshopStep: ctx.session.aiPhotoshopStep,
-          awaitingPrompt: ctx.session.awaitingAiPhotoshopPrompt,
-          awaitingImage: ctx.session.awaitingAiPhotoshopImage
-        }
+        currentStyle: ctx.session.aiPhotoshopStyle,
+        availableStyles: Object.keys(AI_PHOTOSHOP_STYLES)
       })
 
-      await ctx.editMessageText(
-        isRu
-          ? '❌ Ошибка: промпт не найден. Попробуйте заново.'
-          : '❌ Error: prompt not found. Please try again.'
-      )
-      return
+      // Use style-based prompt as fallback
+      if (ctx.session.aiPhotoshopStyle && ctx.session.aiPhotoshopStyle !== 'custom') {
+        const style = AI_PHOTOSHOP_STYLES[ctx.session.aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+        ctx.session.aiPhotoshopPrompt = style?.template || 'enhance this image'
+        logger.info('✅ AI Photoshop: Fallback prompt applied', {
+          telegramId: ctx.from?.id,
+          style: ctx.session.aiPhotoshopStyle,
+          fallbackPrompt: ctx.session.aiPhotoshopPrompt
+        })
+      } else {
+        // Ultimate fallback
+        ctx.session.aiPhotoshopPrompt = 'enhance this image'
+        logger.info('✅ AI Photoshop: Ultimate fallback prompt applied', {
+          telegramId: ctx.from?.id,
+          ultimatePrompt: ctx.session.aiPhotoshopPrompt
+        })
+      }
     }
 
     await ctx.editMessageText(
@@ -1447,6 +1650,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_cancel', async ctx => {
       ctx.session.aiPhotoshopModel = undefined
       ctx.session.aiPhotoshopStyle = undefined
       ctx.session.aiPhotoshopStep = undefined
+      ctx.session.aiPhotoshopSize = undefined
     }
 
     // Delete message
