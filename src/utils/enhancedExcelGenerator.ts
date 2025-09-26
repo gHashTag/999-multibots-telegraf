@@ -1,5 +1,8 @@
 import * as XLSX from 'xlsx'
-import { WorkBook, WorkSheet, Range, CellObject } from 'xlsx'
+type WorkBook = XLSX.WorkBook
+type WorkSheet = XLSX.WorkSheet
+type Range = XLSX.Range
+type CellObject = XLSX.CellObject
 import { BotFinancialSummary, calculateCurrentStarToRubleRate, getAllBotsFinancialSummary, generateMonthlySettlement } from './financialAnalysis'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
