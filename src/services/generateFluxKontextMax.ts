@@ -8,6 +8,7 @@ import { pulse } from '@/helpers/pulse'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
+  getAspectRatio,
 } from '@/core/supabase'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
@@ -74,15 +75,26 @@ export const generateFluxKontextMax = async (
       is_ru,
       ctx,
       seed,
-      aspect_ratio = 'match_input_image',
+      aspect_ratio,
       output_format = 'png',
       safety_tolerance = 2
     } = params
 
+    // ✅ Get centralized aspect_ratio from database
+    const dbAspectRatio = await getAspectRatio(Number(telegram_id))
+    const finalAspectRatio = dbAspectRatio || aspect_ratio || 'match_input_image'
+
+    logger.info('FLUX Max aspect_ratio resolved', {
+      telegram_id,
+      dbAspectRatio,
+      paramAspectRatio: aspect_ratio,
+      finalAspectRatio
+    })
+
     // Validate and prepare input for FLUX Kontext Max API
     const fluxInput: FluxKontextMaxInput = {
       prompt,
-      aspect_ratio,
+      aspect_ratio: finalAspectRatio,
       output_format,
       safety_tolerance,
       ...(inputImageUrl ? { input_image: inputImageUrl } : {}),

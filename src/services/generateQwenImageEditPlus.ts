@@ -8,6 +8,7 @@ import { pulse } from '@/helpers/pulse'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
+  getAspectRatio,
 } from '@/core/supabase'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
@@ -78,7 +79,7 @@ export const generateQwenImageEditPlus = async (
       is_ru,
       ctx,
       seed,
-      aspect_ratio = '1:1',
+      aspect_ratio,
       output_format = 'webp',
       output_quality = 90
     } = params
@@ -101,11 +102,22 @@ export const generateQwenImageEditPlus = async (
 
     const imageInput = prepareImageInput(inputImageUrl)
 
+    // ✅ Get centralized aspect_ratio from database
+    const dbAspectRatio = await getAspectRatio(Number(telegram_id))
+    const finalAspectRatio = dbAspectRatio || aspect_ratio || '1:1'
+
+    logger.info('QwenEditPlus aspect_ratio resolved', {
+      telegram_id,
+      dbAspectRatio,
+      paramAspectRatio: aspect_ratio,
+      finalAspectRatio
+    })
+
     // Validate and prepare input for Qwen API
     const qwenInput = {
       prompt,
       image: imageInput,
-      aspect_ratio,
+      aspect_ratio: finalAspectRatio,
       output_format,
       output_quality,
       ...(seed !== undefined ? { seed } : {})
