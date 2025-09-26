@@ -86,16 +86,14 @@ export const generateSeeDream4 = async (
     const prepareImageInput = (imageUrl?: string | string[]): string[] | undefined => {
       if (!imageUrl) return undefined
       if (Array.isArray(imageUrl)) {
-        console.log('🎨 [SeeDream4] Multi-image input detected:', {
+        logger.info('SeeDream4 multi-image input detected', {
           telegram_id,
-          imageCount: imageUrl.length,
-          urls: imageUrl.map((url, i) => `${i + 1}: ${url.substring(0, 50)}...`)
+          imageCount: imageUrl.length
         })
         return imageUrl.slice(0, 10) // Limit to max 10 images per schema
       } else {
-        console.log('🎨 [SeeDream4] Single image input detected:', {
-          telegram_id,
-          url: imageUrl.substring(0, 50) + '...'
+        logger.info('SeeDream4 single image input detected', {
+          telegram_id
         })
         return [imageUrl]
       }
@@ -120,25 +118,23 @@ export const generateSeeDream4 = async (
     const validation = validateSeeDream4Input(seeDream4Input)
     
     if (!validation.success) {
-      console.error('🚨 [SeeDream4] CRITICAL VALIDATION ERROR:', {
+      logger.error('SeeDream4 validation failed', {
         telegram_id,
         error: validation.error,
-        receivedInput: seeDream4Input
+        hasPrompt: !!seeDream4Input.prompt,
+        size: seeDream4Input.size
       })
       throw new Error(`SeeDream4 validation failed: ${validation.error}`)
     }
     
     const validatedInput = validation.data
     
-    console.log('🎭 [SeeDream4] Input validated successfully:', {
+    logger.info('SeeDream4 input validated', {
       telegram_id,
-      validatedInput: {
-        prompt: validatedInput.prompt.substring(0, 50) + '...',
-        size: validatedInput.size,
-        max_images: validatedInput.max_images,
-        hasImageInput: !!validatedInput.image_input?.length,
-        imageInputCount: validatedInput.image_input?.length || 0
-      }
+      size: validatedInput.size,
+      max_images: validatedInput.max_images,
+      hasImageInput: !!validatedInput.image_input?.length,
+      imageInputCount: validatedInput.image_input?.length || 0
     })
 
     // Check user existence and level
@@ -160,15 +156,15 @@ export const generateSeeDream4 = async (
       is_ru,
     })
 
-    console.log('🎭 [SeeDream4] Balance check completed:', {
+    logger.info('SeeDream4 balance check completed', {
       success: balanceCheck.success,
-      telegram_id,
+      telegram_id
     })
 
     if (!balanceCheck.success) {
-      console.error('🚨 [SeeDream4] Balance check failed:', {
+      logger.error('SeeDream4 balance check failed', {
         telegram_id,
-        balanceCheck,
+        success: balanceCheck.success
       })
       throw new Error('Not enough stars')
     }
@@ -201,7 +197,7 @@ export const generateSeeDream4 = async (
       ...(validatedInput.aspect_ratio ? { aspect_ratio: validatedInput.aspect_ratio } : {})
     }
 
-    console.log('🎭 [SeeDream4] Calling Replicate API:', {
+    logger.info('SeeDream4 calling Replicate API', {
       telegram_id,
       model: SEEDREAM4_MODEL.key,
       inputKeys: Object.keys(replicateInput)
@@ -211,7 +207,7 @@ export const generateSeeDream4 = async (
       input: replicateInput
     })
 
-    console.log('🎭 [SeeDream4] Replicate response received:', {
+    logger.info('SeeDream4 response received', {
       telegram_id,
       outputType: typeof output,
       isArray: Array.isArray(output),
