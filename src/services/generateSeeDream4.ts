@@ -8,6 +8,7 @@ import { pulse } from '@/helpers/pulse'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
+  getAspectRatio,
 } from '@/core/supabase'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
@@ -83,7 +84,7 @@ export const generateSeeDream4 = async (
       width,
       height,
       max_images = 1,
-      aspect_ratio = '9:16'
+      aspect_ratio
     } = params
 
     // ✅ PREPARE IMAGE INPUT - SUPPORT BOTH SINGLE URL AND ARRAYS
@@ -105,12 +106,23 @@ export const generateSeeDream4 = async (
 
     const imageInput = prepareImageInput(inputImageUrl)
 
+    // ✅ Get centralized aspect_ratio from database
+    const dbAspectRatio = await getAspectRatio(Number(telegram_id))
+    const finalAspectRatio = dbAspectRatio || aspect_ratio || '9:16'
+
+    logger.info('SeeDream4 aspect_ratio resolved', {
+      telegram_id,
+      dbAspectRatio,
+      paramAspectRatio: aspect_ratio,
+      finalAspectRatio
+    })
+
     // Validate and prepare input for SeeDream-4 API
     const seeDream4Input = {
       prompt,
       size,
       max_images,
-      aspect_ratio,
+      aspect_ratio: finalAspectRatio,
       telegram_id,
       username,
       is_ru,
@@ -209,7 +221,7 @@ export const generateSeeDream4 = async (
       }),
       max_images: validatedInput.max_images,
       ...(validatedInput.image_input ? { image_input: validatedInput.image_input } : {}),
-      ...(validatedInput.aspect_ratio ? { aspect_ratio: validatedInput.aspect_ratio } : {})
+      aspect_ratio: finalAspectRatio
     }
 
     logger.info('SeeDream4 calling Replicate API', {
