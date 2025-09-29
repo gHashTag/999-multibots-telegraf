@@ -1442,19 +1442,29 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
   }
 
   const recentPhoto = savedResults[savedResults.length - 1]
+
+  // ✅ NEW: Calculate total cost for "All Models" button
+  const totalCostAllModels = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+
   const title = isRu
     ? '🎨 *Продолжить работу с фотографиями*'
     : '🎨 *Continue working with photos*'
 
   const description = isRu
-    ? `✨ У вас есть ${savedResults.length} обработанных фото в галерее!\n\n🎯 *Диалоговый режим активен* - теперь вы можете:\n\n💬 *Просто написать текст для улучшения:*\n• "Добавь туда побольше атмосферы и девчонок"\n• "Сделай более яркие цвета"\n• "Добавь эффект дождя или снега"\n• "Измени стиль на винтажный"\n• "Убери фон, оставь только человека"\n• "Увеличить качество" или "upscale" для апскейлинга\n\n🔄 *Использовать кнопки для быстрых действий*\n⬆️ *Увеличить качество* фото с помощью Clarity Upscaler\n📸 *Добавить новое фото* для обработки\n📋 *Посмотреть всю галерею* (${savedResults.length} фото)\n\n🚀 *Продвинутые команды:*\n• "Увеличь контрастность на 20%"\n• "Добавь теплые тона"\n• "Сделай как в стиле Ван Гога"\n\n💡 *Совет:* Пишите простые команды - я понимаю естественный язык!`
-    : `✨ You have ${savedResults.length} processed photos in your gallery!\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text to improve:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n🔄 *Use buttons for quick actions*\n⬆️ *Upscale photo quality* with Clarity Upscaler\n📸 *Add new photo* to process\n📋 *View entire gallery* (${savedResults.length} photos)\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!`
+    ? `✨ У вас есть ${savedResults.length} обработанных фото в галерее!\n\n🎯 *Диалоговый режим активен* - теперь вы можете:\n\n💬 *Просто написать текст для улучшения:*\n• "Добавь туда побольше атмосферы и девчонок"\n• "Сделай более яркие цвета"\n• "Добавь эффект дождя или снега"\n• "Измени стиль на винтажный"\n• "Убери фон, оставь только человека"\n• "Увеличить качество" или "upscale" для апскейлинга\n\n🔄 *Использовать кнопки для быстрых действий*\n⬆️ *Увеличить качество* фото с помощью Clarity Upscaler\n🎯 *Все сразу* - генерация во ВСЕХ 4 моделях одновременно (${totalCostAllModels}⭐)\n📸 *Добавить новое фото* для обработки\n📋 *Посмотреть всю галерею* (${savedResults.length} фото)\n\n🚀 *Продвинутые команды:*\n• "Увеличь контрастность на 20%"\n• "Добавь теплые тона"\n• "Сделай как в стиле Ван Гога"\n\n💡 *Совет:* Пишите простые команды - я понимаю естественный язык!`
+    : `✨ You have ${savedResults.length} processed photos in your gallery!\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text to improve:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n🔄 *Use buttons for quick actions*\n⬆️ *Upscale photo quality* with Clarity Upscaler\n🎯 *All at once* - generate with ALL 4 models simultaneously (${totalCostAllModels}⭐)\n📸 *Add new photo* to process\n📋 *View entire gallery* (${savedResults.length} photos)\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!`
 
   const keyboard = Markup.inlineKeyboard([
     [
       Markup.button.callback(
         isRu ? '⬆️ Увеличить качество фото' : '⬆️ Upscale photo quality',
         'ai_photoshop_upscale_last'
+      )
+    ],
+    [
+      Markup.button.callback(
+        isRu ? `🎯 Все сразу (${totalCostAllModels}⭐)` : `🎯 All at once (${totalCostAllModels}⭐)`,
+        'ai_photoshop_generate_all_models'
       )
     ],
     [
@@ -2453,6 +2463,118 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
 
   } catch (error) {
     logger.error('Error in upscale last photo handler', { error })
+  }
+})
+
+// ✅ NEW: Generate all models simultaneously
+aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    const savedResults = ctx.session?.savedAiPhotoshopResults || []
+    if (savedResults.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Нет сохраненных фотографий для обработки всеми моделями.'
+          : '❌ No saved photos to process with all models.'
+      )
+      return
+    }
+
+    const lastPhoto = savedResults[savedResults.length - 1]
+    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+
+    // ✅ EXTENSIBLE: Get all available models dynamically
+    const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as Array<keyof typeof AI_PHOTOSHOP_MODELS>
+    const modelNames = availableModels.map(key =>
+      isRu ? AI_PHOTOSHOP_MODELS[key].title_ru : AI_PHOTOSHOP_MODELS[key].title_en
+    )
+
+    await ctx.reply(
+      isRu
+        ? `🎯 *Генерация во ВСЕХ моделях!*\n\n📸 Обрабатываю последнее фото во всех ${availableModels.length} моделях:\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n⏳ Это займет больше времени, но вы получите результаты от всех моделей для сравнения!`
+        : `🎯 *Generating with ALL models!*\n\n📸 Processing last photo with all ${availableModels.length} models:\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n⏳ This will take longer, but you'll get results from all models for comparison!`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[
+            {
+              text: isRu ? '⏳ Обработка всеми моделями...' : '⏳ Processing with all models...',
+              callback_data: 'loading_all_models_indicator'
+            }
+          ]]
+        }
+      }
+    )
+
+    // ✅ PROCESS WITH ALL MODELS SEQUENTIALLY
+    for (const modelKey of availableModels) {
+      const model = AI_PHOTOSHOP_MODELS[modelKey]
+      const modelTitle = isRu ? model.title_ru : model.title_en
+
+      try {
+        logger.info(`🎯 AI Photoshop: Processing with model ${modelKey}`, {
+          telegramId: ctx.from?.id,
+          model: modelKey,
+          modelTitle,
+          originalPrompt: lastPhoto.prompt
+        })
+
+        // Set up session for this model
+        if (ctx.session) {
+          ctx.session.aiPhotoshopModel = modelKey as any
+          ctx.session.aiPhotoshopPrompt = lastPhoto.prompt
+          ctx.session.aiPhotoshopImage = lastPhoto.url
+          ctx.session.aiPhotoshopStep = 'processing'
+          // Default size for SeeDream-4 model
+          if (modelKey === 'seedream') {
+            ctx.session.aiPhotoshopSize = lastPhoto.additionalInfo?.size || '1K'
+          }
+        }
+
+        // Process with current model
+        await processAiPhotoshopRequest(ctx, lastPhoto.prompt)
+
+        // Small delay between models to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 2000))
+
+      } catch (modelError) {
+        logger.error(`❌ AI Photoshop: Error processing with model ${modelKey}`, {
+          telegramId: ctx.from?.id,
+          model: modelKey,
+          error: modelError instanceof Error ? modelError.message : 'Unknown error'
+        })
+
+        await ctx.reply(
+          isRu
+            ? `❌ Ошибка при обработке моделью ${modelTitle}. Продолжаю с другими моделями...`
+            : `❌ Error processing with ${modelTitle}. Continuing with other models...`
+        )
+      }
+    }
+
+    // Show final results summary
+    await ctx.reply(
+      isRu
+        ? `✅ *Обработка всеми моделями завершена!*\n\n🎨 Проверьте результаты выше - теперь у вас есть варианты от всех ${availableModels.length} моделей для сравнения!\n\n💡 Используйте команды для дальнейшего улучшения любого результата.`
+        : `✅ *Processing with all models completed!*\n\n🎨 Check the results above - now you have variations from all ${availableModels.length} models for comparison!\n\n💡 Use commands to further improve any result.`,
+      {
+        parse_mode: 'Markdown'
+      }
+    )
+
+    // Show dialog interface again
+    await showDialogInterface(ctx)
+
+  } catch (error) {
+    logger.error('Error in generate all models handler', { error })
+    const isRu = isRussianFromState(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при генерации всеми моделями. Попробуйте еще раз.'
+        : '❌ Error occurred during generation with all models. Please try again.'
+    )
   }
 })
 

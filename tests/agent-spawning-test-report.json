@@ -1,12 +1,12 @@
 {
-  "timestamp": "2025-09-22T13:39:57.940Z",
+  "timestamp": "2025-09-29T09:52:06.263Z",
   "totalTests": 53,
   "successCount": 12,
   "errorCount": 6,
   "testsByCategory": {
     "general": [
       {
-        "timestamp": "2025-09-22T13:39:17.777Z",
+        "timestamp": "2025-09-29T09:51:26.276Z",
         "type": "start",
         "message": "Starting comprehensive agent spawning validation tests",
         "test": "general"
@@ -14,103 +14,103 @@
     ],
     "valid-agent-types": [
       {
-        "timestamp": "2025-09-22T13:39:17.777Z",
+        "timestamp": "2025-09-29T09:51:26.276Z",
         "type": "test",
         "message": "Testing valid agent types...",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:17.777Z",
+        "timestamp": "2025-09-29T09:51:26.276Z",
         "type": "test",
         "message": "Testing valid agent type: coordinator",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:19.610Z",
+        "timestamp": "2025-09-29T09:51:27.481Z",
         "type": "success",
         "message": "✅ Valid agent type 'coordinator' works correctly",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:19.610Z",
+        "timestamp": "2025-09-29T09:51:27.481Z",
         "type": "test",
         "message": "Testing valid agent type: researcher",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:21.171Z",
+        "timestamp": "2025-09-29T09:51:28.787Z",
         "type": "success",
         "message": "✅ Valid agent type 'researcher' works correctly",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:21.171Z",
+        "timestamp": "2025-09-29T09:51:28.787Z",
         "type": "test",
         "message": "Testing valid agent type: coder",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:22.547Z",
+        "timestamp": "2025-09-29T09:51:29.919Z",
         "type": "success",
         "message": "✅ Valid agent type 'coder' works correctly",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:22.547Z",
+        "timestamp": "2025-09-29T09:51:29.919Z",
         "type": "test",
         "message": "Testing valid agent type: analyst",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:24.154Z",
+        "timestamp": "2025-09-29T09:51:30.941Z",
         "type": "success",
         "message": "✅ Valid agent type 'analyst' works correctly",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:24.154Z",
+        "timestamp": "2025-09-29T09:51:30.941Z",
         "type": "test",
         "message": "Testing valid agent type: architect",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:25.432Z",
+        "timestamp": "2025-09-29T09:51:32.242Z",
         "type": "success",
         "message": "✅ Valid agent type 'architect' works correctly",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:25.432Z",
+        "timestamp": "2025-09-29T09:51:32.242Z",
         "type": "test",
         "message": "Testing valid agent type: tester",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:26.797Z",
+        "timestamp": "2025-09-29T09:51:33.633Z",
         "type": "success",
         "message": "✅ Valid agent type 'tester' works correctly",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:26.797Z",
+        "timestamp": "2025-09-29T09:51:33.633Z",
         "type": "test",
         "message": "Testing valid agent type: reviewer",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:28.088Z",
+        "timestamp": "2025-09-29T09:51:34.673Z",
         "type": "success",
         "message": "✅ Valid agent type 'reviewer' works correctly",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:28.088Z",
+        "timestamp": "2025-09-29T09:51:34.673Z",
         "type": "test",
         "message": "Testing valid agent type: optimizer",
         "test": "valid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:29.416Z",
+        "timestamp": "2025-09-29T09:51:35.781Z",
         "type": "success",
         "message": "✅ Valid agent type 'optimizer' works correctly",
         "test": "valid-agent-types"
@@ -118,79 +118,79 @@
     ],
     "invalid-agent-types": [
       {
-        "timestamp": "2025-09-22T13:39:30.417Z",
+        "timestamp": "2025-09-29T09:51:36.782Z",
         "type": "test",
         "message": "Testing invalid agent types for proper error handling...",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:30.417Z",
+        "timestamp": "2025-09-29T09:51:36.782Z",
         "type": "test",
         "message": "Testing invalid agent type: invalid-agent",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:31.613Z",
+        "timestamp": "2025-09-29T09:51:37.802Z",
         "type": "error",
         "message": "❌ Invalid agent type 'invalid-agent' should have been rejected",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:31.613Z",
+        "timestamp": "2025-09-29T09:51:37.802Z",
         "type": "test",
         "message": "Testing invalid agent type: nonexistent",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:32.831Z",
+        "timestamp": "2025-09-29T09:51:38.936Z",
         "type": "error",
         "message": "❌ Invalid agent type 'nonexistent' should have been rejected",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:32.831Z",
+        "timestamp": "2025-09-29T09:51:38.936Z",
         "type": "test",
         "message": "Testing invalid agent type: fake-type",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:34.233Z",
+        "timestamp": "2025-09-29T09:51:39.971Z",
         "type": "error",
         "message": "❌ Invalid agent type 'fake-type' should have been rejected",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:34.233Z",
+        "timestamp": "2025-09-29T09:51:39.971Z",
         "type": "test",
         "message": "Testing invalid agent type: ",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:35.423Z",
+        "timestamp": "2025-09-29T09:51:41.040Z",
         "type": "error",
         "message": "❌ Invalid agent type '' should have been rejected",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:35.423Z",
+        "timestamp": "2025-09-29T09:51:41.040Z",
         "type": "test",
         "message": "Testing invalid agent type: null",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:36.601Z",
+        "timestamp": "2025-09-29T09:51:42.401Z",
         "type": "error",
         "message": "❌ Invalid agent type 'null' should have been rejected",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:36.601Z",
+        "timestamp": "2025-09-29T09:51:42.401Z",
         "type": "test",
         "message": "Testing invalid agent type: undefined",
         "test": "invalid-agent-types"
       },
       {
-        "timestamp": "2025-09-22T13:39:37.843Z",
+        "timestamp": "2025-09-29T09:51:43.690Z",
         "type": "error",
         "message": "❌ Invalid agent type 'undefined' should have been rejected",
         "test": "invalid-agent-types"
@@ -198,55 +198,55 @@
     ],
     "edge-cases": [
       {
-        "timestamp": "2025-09-22T13:39:38.844Z",
+        "timestamp": "2025-09-29T09:51:44.691Z",
         "type": "test",
         "message": "Testing edge cases...",
         "test": "edge-cases"
       },
       {
-        "timestamp": "2025-09-22T13:39:38.844Z",
+        "timestamp": "2025-09-29T09:51:44.691Z",
         "type": "test",
         "message": "Testing edge case agent type: CODER",
         "test": "edge-cases"
       },
       {
-        "timestamp": "2025-09-22T13:39:40.093Z",
+        "timestamp": "2025-09-29T09:51:45.821Z",
         "type": "info",
         "message": "Edge case 'CODER' result: accepted",
         "test": "edge-cases"
       },
       {
-        "timestamp": "2025-09-22T13:39:40.093Z",
+        "timestamp": "2025-09-29T09:51:45.821Z",
         "type": "test",
         "message": "Testing edge case agent type: Researcher",
         "test": "edge-cases"
       },
       {
-        "timestamp": "2025-09-22T13:39:41.283Z",
+        "timestamp": "2025-09-29T09:51:47.065Z",
         "type": "info",
         "message": "Edge case 'Researcher' result: accepted",
         "test": "edge-cases"
       },
       {
-        "timestamp": "2025-09-22T13:39:41.283Z",
+        "timestamp": "2025-09-29T09:51:47.065Z",
         "type": "test",
         "message": "Testing edge case agent type: code-analyzer",
         "test": "edge-cases"
       },
       {
-        "timestamp": "2025-09-22T13:39:42.528Z",
+        "timestamp": "2025-09-29T09:51:48.678Z",
         "type": "info",
         "message": "Edge case 'code-analyzer' result: accepted",
         "test": "edge-cases"
       },
       {
-        "timestamp": "2025-09-22T13:39:42.528Z",
+        "timestamp": "2025-09-29T09:51:48.678Z",
         "type": "test",
         "message": "Testing edge case agent type: data-analyst",
         "test": "edge-cases"
       },
       {
-        "timestamp": "2025-09-22T13:39:43.971Z",
+        "timestamp": "2025-09-29T09:51:50.132Z",
         "type": "info",
         "message": "Edge case 'data-analyst' result: accepted",
         "test": "edge-cases"
@@ -254,31 +254,31 @@
     ],
     "bug-reproduction": [
       {
-        "timestamp": "2025-09-22T13:39:44.972Z",
+        "timestamp": "2025-09-29T09:51:51.133Z",
         "type": "test",
         "message": "Testing specific bug reproduction (analyst vs code-analyzer)...",
         "test": "bug-reproduction"
       },
       {
-        "timestamp": "2025-09-22T13:39:44.972Z",
+        "timestamp": "2025-09-29T09:51:51.133Z",
         "type": "test",
         "message": "Testing original problematic case: analyst agent",
         "test": "bug-reproduction"
       },
       {
-        "timestamp": "2025-09-22T13:39:46.175Z",
+        "timestamp": "2025-09-29T09:51:52.597Z",
         "type": "success",
         "message": "✅ analyst agent type now works correctly",
         "test": "bug-reproduction"
       },
       {
-        "timestamp": "2025-09-22T13:39:46.175Z",
+        "timestamp": "2025-09-29T09:51:52.597Z",
         "type": "test",
         "message": "Testing correct alternative: code-analyzer",
         "test": "bug-reproduction"
       },
       {
-        "timestamp": "2025-09-22T13:39:47.431Z",
+        "timestamp": "2025-09-29T09:51:55.323Z",
         "type": "success",
         "message": "✅ code-analyzer functionality works through coder type",
         "test": "bug-reproduction"
@@ -286,13 +286,13 @@
     ],
     "concurrent-spawning": [
       {
-        "timestamp": "2025-09-22T13:39:48.432Z",
+        "timestamp": "2025-09-29T09:51:56.325Z",
         "type": "test",
         "message": "Testing concurrent agent spawning...",
         "test": "concurrent-spawning"
       },
       {
-        "timestamp": "2025-09-22T13:39:50.328Z",
+        "timestamp": "2025-09-29T09:51:57.837Z",
         "type": "success",
         "message": "✅ Concurrent spawning: 3/3 agents spawned successfully",
         "test": "concurrent-spawning"
@@ -300,39 +300,39 @@
     ],
     "server-connection": [
       {
-        "timestamp": "2025-09-22T13:39:51.329Z",
+        "timestamp": "2025-09-29T09:51:58.838Z",
         "type": "test",
         "message": "Testing server connection resilience...",
         "test": "server-connection"
       },
       {
-        "timestamp": "2025-09-22T13:39:53.050Z",
+        "timestamp": "2025-09-29T09:52:00.193Z",
         "type": "info",
         "message": "Server status: responsive",
         "test": "server-connection"
       },
       {
-        "timestamp": "2025-09-22T13:39:53.298Z",
+        "timestamp": "2025-09-29T09:52:01.419Z",
         "type": "info",
-        "message": "Agent listing: failed",
+        "message": "Agent listing: working",
         "test": "server-connection"
       }
     ],
     "stress-test": [
       {
-        "timestamp": "2025-09-22T13:39:54.299Z",
+        "timestamp": "2025-09-29T09:52:02.421Z",
         "type": "test",
         "message": "Running stress tests...",
         "test": "stress-test"
       },
       {
-        "timestamp": "2025-09-22T13:39:56.939Z",
+        "timestamp": "2025-09-29T09:52:05.261Z",
         "type": "success",
         "message": "✅ Stress test: 5/5 rapid spawns successful",
         "test": "stress-test"
       },
       {
-        "timestamp": "2025-09-22T13:39:57.940Z",
+        "timestamp": "2025-09-29T09:52:06.263Z",
         "type": "report",
         "message": "Generating comprehensive test report...",
         "test": "stress-test"
