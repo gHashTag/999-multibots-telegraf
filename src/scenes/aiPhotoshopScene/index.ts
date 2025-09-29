@@ -5,6 +5,8 @@ import { logger } from '../../utils/logger'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import fs from 'fs'
 import path from 'path'
+// ✅ IMPORT AI PHOTOSHOP DIALOG SCHEMA FOR VALIDATION
+import { validateUserInput, UserInputTypeEnum, DialogStateEnum } from '@/schemas/aiPhotoshopDialog.schema'
 import { promisify } from 'util'
 
 const writeFile = promisify(fs.writeFile)
@@ -19,6 +21,8 @@ import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
 // ✅ IMPORT MULTI-PHOTO SUPPORT FOR AI PHOTOSHOP
 import { detectMultiPhotoUpload, handleMultiPhotoNeurophoto, checkMultiPhotoEvents } from '@/handlers/multiPhotoHandler'
 import { getBotToken } from '@/handlers/getBotToken'
+// ✅ IMPORT UPSCALER FOR DIALOG MODE
+import { upscaleImage } from '@/services/imageUpscaler'
 
 // 🎨 AI PHOTOSHOP MODELS CONFIGURATION WITH MULTI-IMAGE SUPPORT
 const AI_PHOTOSHOP_MODELS = {
@@ -223,16 +227,31 @@ aiPhotoshopScene.enter(async ctx => {
       return
     }
 
-    // Reset session state
-    if (ctx.session) {
-      ctx.session.aiPhotoshopModel = undefined
-      ctx.session.aiPhotoshopStyle = undefined
-      ctx.session.aiPhotoshopImage = undefined
-      ctx.session.aiPhotoshopPrompt = undefined
-      ctx.session.aiPhotoshopSize = undefined
-      ctx.session.awaitingAiPhotoshopImage = false
-      ctx.session.awaitingAiPhotoshopPrompt = false
-      ctx.session.aiPhotoshopStep = 'model_select'
+    // ✅ ENHANCED: Don't reset if we have saved photos (dialog mode)
+    const hasSavedPhotos = ctx.session?.savedAiPhotoshopResults?.length > 0
+
+    if (!hasSavedPhotos) {
+      // Reset session state only for new sessions
+      if (ctx.session) {
+        ctx.session.aiPhotoshopModel = undefined
+        ctx.session.aiPhotoshopStyle = undefined
+        ctx.session.aiPhotoshopImage = undefined
+        ctx.session.aiPhotoshopPrompt = undefined
+        ctx.session.aiPhotoshopSize = undefined
+        ctx.session.awaitingAiPhotoshopImage = false
+        ctx.session.awaitingAiPhotoshopPrompt = false
+        ctx.session.aiPhotoshopStep = 'model_select'
+        ctx.session.savedAiPhotoshopResults = []
+        ctx.session.dialogMode = false
+      }
+    } else {
+      // Continue in dialog mode with saved photos
+      logger.info('🎨 AI Photoshop: Continuing in dialog mode with saved photos', {
+        telegramId: ctx.from?.id,
+        savedPhotosCount: ctx.session?.savedAiPhotoshopResults?.length
+      })
+      await showDialogInterface(ctx)
+      return
     }
 
     const title = isRu
@@ -240,26 +259,44 @@ aiPhotoshopScene.enter(async ctx => {
       : '🎨 *AI Photoshop* - Advanced Image Processing'
 
     const description = isRu
-      ? `Выберите модель ИИ для обработки:
+      ? `🚀 *Добро пожаловать в ИИ Фотошоп!*
 
-🎭 *SeeDream-4* - Генерация и трансформация изображений (5⭐, до 10 фото)
-🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (7⭐, до 3 фото)
-🚀 *FLUX Kontext Max* - Профессиональное редактирование (13⭐, только 1 фото)
-🎨 *Qwen Image Edit Plus* - Продвинутое редактирование (5⭐, до 10 фото)
+🎯 *Что умеет бот:*
+• Обрабатывать одно фото или целые альбомы
+• Применять различные стили и эффекты
+• Улучшать фото по вашим текстовым описаниям
+• Сохранять все результаты в диалоговом режиме
 
-📸 *Или сразу отправьте фото/альбом для быстрой обработки через SeeDream-4*
-💡 *Каждая модель поддерживает несколько фотографий одновременно!*
-✨ *Загружайте альбомы для пакетной обработки*`
-      : `Choose an AI model for processing:
+📋 *Процесс работы:*
+1️⃣ Выберите модель ИИ → 2️⃣ Выберите стиль → 3️⃣ Загрузите фото → 4️⃣ Получите результат!
 
-🎭 *SeeDream-4* - Image generation and transformation (15⭐, up to 10 photos)
+⬇️ *Выберите модель ИИ для обработки:*
+
+🎭 *SeeDream-4* - Генерация и трансформация (5⭐, до 10 фото)
+🍌 *Nano Banana* - ИИ редактирование Gemini 2.5 (7⭐, до 3 фото)
+🚀 *FLUX Kontext Max* - Профессиональное (13⭐, 1 фото)
+🎨 *Qwen Image Edit Plus* - Продвинутое (5⭐, до 10 фото)
+
+💡 *Или просто отправьте фото сразу для обработки SeeDream-4!*`
+      : `🚀 *Welcome to AI Photoshop!*
+
+🎯 *What the bot can do:*
+• Process single photos or entire albums
+• Apply various styles and effects
+• Enhance photos based on your text descriptions
+• Save all results in dialog mode
+
+📋 *How it works:*
+1️⃣ Choose AI model → 2️⃣ Select style → 3️⃣ Upload photo → 4️⃣ Get result!
+
+⬇️ *Choose an AI model for processing:*
+
+🎭 *SeeDream-4* - Generation and transformation (5⭐, up to 10 photos)
 🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (7⭐, up to 3 photos)
-🚀 *FLUX Kontext Max* - Professional editing (13⭐, single photo only)
-🎨 *Qwen Image Edit Plus* - Advanced multi-image editing (5⭐, up to 10 photos)
+🚀 *FLUX Kontext Max* - Professional editing (13⭐, single photo)
+🎨 *Qwen Image Edit Plus* - Advanced editing (5⭐, up to 10 photos)
 
-📸 *Or send photos/album directly for quick processing with SeeDream-4*
-💡 *Each model supports multiple photos simultaneously!*
-✨ *Upload albums for batch processing*`
+💡 *Or just send a photo directly for SeeDream-4 processing!*`
 
     await ctx.reply(title + '\n\n' + description, {
       parse_mode: 'Markdown',
@@ -492,7 +529,7 @@ aiPhotoshopScene.action('ai_photoshop_change_size', async ctx => {
           inline_keyboard: [
             [
               {
-                text: '1K - 15⭐',
+                text: '1K - 5⭐',
                 callback_data: 'ai_photoshop_size_1K'
               }
             ],
@@ -595,7 +632,7 @@ aiPhotoshopScene.on('photo', async ctx => {
           ? '✨ Отлично! Обрабатываю ваше фото с помощью SeeDream-4 в художественном стиле...'
           : '✨ Great! Processing your photo with SeeDream-4 in artistic style...'
       )
-    } else if (!ctx.session?.awaitingAiPhotoshopImage) {
+    } else if (!ctx.session?.awaitingAiPhotoshopImage && !ctx.session?.awaitingAiPhotoshopPrompt) {
       await ctx.telegram.editMessageText(
         ctx.chat?.id,
         loadingMsg.message_id,
@@ -603,6 +640,17 @@ aiPhotoshopScene.on('photo', async ctx => {
         isRu
           ? '❌ Сначала выберите модель и стиль обработки.'
           : '❌ Please select a model and processing style first.'
+      )
+      return
+    } else if (ctx.session?.awaitingAiPhotoshopPrompt && ctx.session?.aiPhotoshopStyle === 'custom') {
+      // User sent photo while we were waiting for prompt - this is OK, but ask for prompt first
+      await ctx.telegram.editMessageText(
+        ctx.chat?.id,
+        loadingMsg.message_id,
+        undefined,
+        isRu
+          ? '✅ Фото получено! Но сначала опишите, как его обработать:\n\n📝 Напишите промпт для обработки фото:'
+          : '✅ Photo received! But first describe how to process it:\n\n📝 Write a prompt for photo processing:'
       )
       return
     }
@@ -620,9 +668,28 @@ aiPhotoshopScene.on('photo', async ctx => {
 
     const fileLink = await ctx.telegram.getFileLink(photo.file_id)
 
+    // Save the photo and handle different states
     if (ctx.session) {
       ctx.session.aiPhotoshopImage = fileLink.href
-      ctx.session.awaitingAiPhotoshopImage = false
+
+      // If we were waiting for prompt (user sent photo early), keep waiting for prompt
+      if (ctx.session.awaitingAiPhotoshopPrompt && ctx.session.aiPhotoshopStyle === 'custom') {
+        // Don't change awaitingAiPhotoshopPrompt - keep it true
+        ctx.session.awaitingAiPhotoshopImage = false
+
+        await ctx.telegram.editMessageText(
+          ctx.chat?.id,
+          loadingMsg.message_id,
+          undefined,
+          isRu
+            ? '✅ Фото сохранено! Теперь опишите, как его обработать:\n\n📝 Напишите промпт для обработки фото:'
+            : '✅ Photo saved! Now describe how to process it:\n\n📝 Write a prompt for photo processing:'
+        )
+        return
+      } else {
+        // Normal flow - photo received when expected
+        ctx.session.awaitingAiPhotoshopImage = false
+      }
     }
 
     // If style is custom, we need to wait for the prompt
@@ -710,9 +777,60 @@ aiPhotoshopScene.on('text', async ctx => {
       }
     })
 
-    // ✅ SMART VALIDATION: Allow custom prompt workflow and text with existing images
+    // ✅ ENHANCED: Support dialog mode for improving last photo
+    const isInDialogMode = ctx.session?.dialogMode && ctx.session?.savedAiPhotoshopResults?.length > 0
+
+    // ✅ NEW: Zod validation for dialog mode input
+    if (isInDialogMode && !ctx.session?.aiPhotoshopStep) {
+      try {
+        const inputValidation = validateUserInput({
+          inputId: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9),
+          type: 'text',
+          timestamp: new Date().toISOString(),
+          userId: ctx.from?.id?.toString() || '0',
+          content: {
+            text: messageText
+          },
+          sessionId: ctx.session?.sessionId || Date.now().toString(),
+          messageId: ctx.message.message_id,
+          chatId: ctx.chat?.id || 0,
+          isValid: true,
+          validationErrors: []
+        })
+
+        if (!inputValidation.success) {
+          logger.warn('🚨 AI Photoshop: Dialog input validation failed', {
+            telegramId: ctx.from?.id,
+            error: inputValidation.error,
+            text: messageText.substring(0, 50)
+          })
+
+          await ctx.reply(
+            isRu
+              ? '❌ Некорректный формат команды. Попробуйте написать простую команду типа "сделать ярче" или "добавить снег".'
+              : '❌ Invalid command format. Try writing a simple command like "make brighter" or "add snow".'
+          )
+          return
+        }
+
+        logger.info('✅ AI Photoshop: Dialog input validation passed', {
+          telegramId: ctx.from?.id,
+          inputId: inputValidation.data.inputId,
+          textLength: messageText.length
+        })
+      } catch (error) {
+        logger.error('🚨 AI Photoshop: Dialog validation error', {
+          telegramId: ctx.from?.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        // Continue with processing even if validation fails
+      }
+    }
+
+    // ✅ SMART VALIDATION: Allow custom prompt workflow, text with existing images, and dialog mode
     const allowTextInput = ctx.session?.awaitingAiPhotoshopPrompt ||
-                          (ctx.session?.aiPhotoshopImage || ctx.session?.morphingImages?.length)
+                          (ctx.session?.aiPhotoshopImage || ctx.session?.morphingImages?.length) ||
+                          isInDialogMode
 
     if (!allowTextInput) {
       logger.info('💡 AI Photoshop: Text input not ready - guiding user', {
@@ -720,6 +838,7 @@ aiPhotoshopScene.on('text', async ctx => {
         awaitingPrompt: ctx.session?.awaitingAiPhotoshopPrompt,
         hasImage: !!ctx.session?.aiPhotoshopImage,
         hasMorphingImages: !!ctx.session?.morphingImages?.length,
+        isInDialogMode,
         step: ctx.session?.aiPhotoshopStep
       })
 
@@ -772,7 +891,7 @@ aiPhotoshopScene.on('text', async ctx => {
               inline_keyboard: [
                 [
                   {
-                    text: '1K - 15⭐',
+                    text: '1K - 5⭐',
                     callback_data: 'ai_photoshop_size_1K'
                   }
                 ],
@@ -819,6 +938,110 @@ aiPhotoshopScene.on('text', async ctx => {
         )
         ctx.session.awaitingAiPhotoshopImage = true
       }
+      return
+    }
+
+    // ✅ NEW: Handle dialog mode - improve last photo with text prompt
+    if (isInDialogMode && !ctx.session?.aiPhotoshopStep) {
+      logger.info('🎨 AI Photoshop: Dialog mode - improving last photo', {
+        telegramId: ctx.from?.id,
+        savedResultsCount: ctx.session?.savedAiPhotoshopResults?.length,
+        promptText: messageText.substring(0, 50) + '...'
+      })
+
+      const lastResult = ctx.session.savedAiPhotoshopResults?.[ctx.session.savedAiPhotoshopResults.length - 1]
+
+      if (!lastResult) {
+        await ctx.reply(
+          isRu
+            ? '❌ Не найдены предыдущие результаты для улучшения.\n\n🎨 Начните заново с /aiphotoshop'
+            : '❌ No previous results found for improvement.\n\n🎨 Start over with /aiphotoshop'
+        )
+        return
+      }
+
+      // ✅ NEW: Check for Upscaler keywords
+      const upscalerKeywords = {
+        ru: ['upscale', 'апскейл', 'увеличить качество', 'улучшить качество', 'повысить разрешение', 'увеличить разрешение', 'сделать четче', 'четкость', 'разрешение'],
+        en: ['upscale', 'enhance quality', 'improve quality', 'increase resolution', 'enhance resolution', 'make sharper', 'sharpen', 'clarity', 'resolution']
+      }
+
+      const keywords = isRu ? upscalerKeywords.ru : upscalerKeywords.en
+      const isUpscaleRequest = keywords.some(keyword =>
+        messageText.toLowerCase().includes(keyword.toLowerCase())
+      )
+
+      if (isUpscaleRequest) {
+        logger.info('🔍 AI Photoshop: Upscaler request detected in dialog mode', {
+          telegramId: ctx.from?.id,
+          messageText: messageText.substring(0, 100),
+          lastResultUrl: lastResult.url || lastResult.imageUrl
+        })
+
+        await ctx.reply(
+          isRu
+            ? `⬆️ *Увеличиваю качество последнего фото!*\n\n🎯 Применяю Clarity Upscaler для улучшения разрешения...\n\n💎 Стоимость: 3 ⭐`
+            : `⬆️ *Upscaling last photo quality!*\n\n🎯 Applying Clarity Upscaler to enhance resolution...\n\n💎 Cost: 3 ⭐`,
+          {
+            parse_mode: 'Markdown'
+          }
+        )
+
+        try {
+          const imageUrl = typeof lastResult.imageUrl === 'string' ? lastResult.imageUrl : lastResult.url
+
+          await upscaleImage({
+            imageUrl,
+            telegram_id: String(ctx.from?.id),
+            username: ctx.from?.username || 'unknown_user',
+            is_ru: isRu,
+            ctx,
+            originalPrompt: lastResult.prompt || 'Dialog mode upscale'
+          })
+
+          // Show dialog interface again after upscaling
+          await showDialogInterface(ctx)
+          return
+        } catch (error) {
+          logger.error('🚨 AI Photoshop: Upscaler failed in dialog mode', {
+            telegramId: ctx.from?.id,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          })
+
+          await ctx.reply(
+            isRu
+              ? '❌ Произошла ошибка при увеличении качества. Попробуйте другую команду для улучшения фото.'
+              : '❌ Error occurred during upscaling. Try another command to improve the photo.'
+          )
+          return
+        }
+      }
+
+      // Set up session for processing with last result as image input
+      if (ctx.session) {
+        // ✅ FIX: Ensure imageUrl is a string URL, not an object
+        const imageUrl = typeof lastResult.imageUrl === 'string' ? lastResult.imageUrl : lastResult.url
+        ctx.session.aiPhotoshopImage = imageUrl
+        ctx.session.aiPhotoshopPrompt = messageText
+        ctx.session.aiPhotoshopModel = lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS
+        ctx.session.aiPhotoshopStep = 'processing'
+
+        // Use the same size as the previous result if it was SeeDream-4
+        if (lastResult.model === 'seedream' && lastResult.additionalInfo?.size) {
+          ctx.session.aiPhotoshopSize = lastResult.additionalInfo.size
+        }
+      }
+
+      await ctx.reply(
+        isRu
+          ? `✨ *Диалоговый режим активен!*\n\n🎯 Применяю улучшения к последнему фото:\n"${messageText}"\n\n🔄 Обрабатываю с помощью модели ${AI_PHOTOSHOP_MODELS[lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS]?.title_ru}...\n\n💡 *Совет:* После обработки вы сможете снова написать команду для дальнейших улучшений!`
+          : `✨ *Dialog mode is active!*\n\n🎯 Applying improvements to last photo:\n"${messageText}"\n\n🔄 Processing with ${AI_PHOTOSHOP_MODELS[lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS]?.title_en} model...\n\n💡 *Tip:* After processing, you can write another command for further improvements!`,
+        {
+          parse_mode: 'Markdown'
+        }
+      )
+
+      await processAiPhotoshopRequest(ctx, messageText)
       return
     }
 
@@ -896,7 +1119,7 @@ async function showAiPhotoshopModels(ctx: MyContext): Promise<void> {
 ✨ *Загружайте альбомы для пакетной обработки*`
     : `Choose an AI model for processing:
 
-🎭 *SeeDream-4* - Image generation and transformation (15⭐, up to 10 photos)
+🎭 *SeeDream-4* - Image generation and transformation (5⭐, up to 10 photos)
 🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (7⭐, up to 3 photos)
 🚀 *FLUX Kontext Max* - Professional editing (13⭐, single photo only)
 🎨 *Qwen Image Edit Plus* - Advanced multi-image editing (5⭐, up to 10 photos)
@@ -986,8 +1209,12 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
 
   const mediaGroupId = 'media_group_id' in ctx.message ? ctx.message.media_group_id : undefined
 
-  // If this is part of a media group, collect photos using buffer approach like Infinity Morphing
-  if (mediaGroupId) {
+  // ✅ ENHANCED: Collect photos if part of media group OR if photos are being sent sequentially
+  const shouldCollectPhoto = mediaGroupId ||
+    (ctx.session.morphingImages && ctx.session.morphingImages.length > 0 &&
+     Date.now() - (ctx.session.lastPhotoTimestamp || 0) < 60000) // 60 seconds window
+
+  if (shouldCollectPhoto) {
     try {
       const isRu = isRussianFromState(ctx)
 
@@ -1020,11 +1247,15 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
         originalOrder: imageIndex,
       })
 
+      // ✅ Save timestamp for sequential photo detection
+      ctx.session.lastPhotoTimestamp = Date.now()
+
       logger.info('🎨 AI Photoshop: Multi-photo collected', {
         userId,
-        mediaGroupId,
+        mediaGroupId: mediaGroupId || 'sequential',
         photoCount: ctx.session.morphingImages.length,
-        imageSize: buffer.length
+        imageSize: buffer.length,
+        isSequential: !mediaGroupId
       })
 
       // Create dynamic progress message like Infinity Morphing
@@ -1071,6 +1302,99 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
     }
   }
 
+  // ✅ NEW: Handle single photos that might be part of a sequence
+  // If user is actively adding photos (no existing collection or recent activity), start/continue collection
+  const isActivelyAddingPhotos = ctx.session?.awaitingAiPhotoshopImage ||
+    ctx.session?.aiPhotoshopStep === 'image_upload' ||
+    (ctx.session?.lastPhotoTimestamp && Date.now() - ctx.session.lastPhotoTimestamp < 60000)
+
+  if (isActivelyAddingPhotos) {
+    try {
+      const isRu = isRussianFromState(ctx)
+
+      // Initialize session data if not exists
+      if (!ctx.session.morphingImages) {
+        ctx.session.morphingImages = []
+      }
+
+      // Get file and convert to buffer
+      const file = await ctx.telegram.getFile(photo.file_id)
+      if (!file.file_path) {
+        logger.error('❌ AI Photoshop: No file path for sequential photo')
+        return false
+      }
+
+      const botToken = getBotToken(ctx)
+      const telegramUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
+      const response = await fetch(telegramUrl)
+      const buffer = Buffer.from(await response.arrayBuffer())
+
+      // Add image with timestamp and order
+      const imageIndex = ctx.session.morphingImages.length + 1
+      const currentTimestamp = Date.now() + imageIndex
+
+      ctx.session.morphingImages.push({
+        buffer: Buffer.from(buffer),
+        url: telegramUrl,
+        filename: `ai_photoshop_image_${imageIndex}.jpg`,
+        timestamp: currentTimestamp,
+        originalOrder: imageIndex,
+      })
+
+      // ✅ Save timestamp for sequential photo detection
+      ctx.session.lastPhotoTimestamp = Date.now()
+
+      logger.info('🎨 AI Photoshop: Sequential photo collected', {
+        userId,
+        photoCount: ctx.session.morphingImages.length,
+        imageSize: buffer.length,
+        isFirstPhoto: imageIndex === 1
+      })
+
+      // Create or update progress message
+      const progressMessage = createAiPhotoshopProgressMessage(ctx.session.morphingImages, isRu)
+      const keyboard = createAiPhotoshopProgressKeyboard(ctx.session.morphingImages, isRu)
+
+      // Update existing message or create new one
+      if (ctx.session.morphingProgressMessageId) {
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat?.id,
+            ctx.session.morphingProgressMessageId,
+            undefined,
+            progressMessage,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: keyboard.reply_markup,
+            }
+          )
+        } catch (editError) {
+          logger.warn('Failed to edit progress message for sequential photo', { editError })
+          // Create new message if editing fails
+          const sentMessage = await ctx.reply(progressMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard.reply_markup,
+          })
+          ctx.session.morphingProgressMessageId = sentMessage.message_id
+        }
+      } else {
+        const sentMessage = await ctx.reply(progressMessage, {
+          parse_mode: 'Markdown',
+          reply_markup: keyboard.reply_markup,
+        })
+        ctx.session.morphingProgressMessageId = sentMessage.message_id
+      }
+
+      return true // Photo collected successfully
+    } catch (error) {
+      logger.error('Error collecting sequential photo for AI Photoshop', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId
+      })
+      return false
+    }
+  }
+
   return false
 }
 
@@ -1079,6 +1403,121 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
  */
 async function handleAiPhotoshopMultiPhoto(ctx: MyContext): Promise<void> {
   // This function is now handled by callback handlers: ai_photoshop_multi_process
+}
+
+// ✅ NEW: Dialog interface for saved photos
+async function showDialogInterface(ctx: MyContext): Promise<void> {
+  const isRu = isRussianFromState(ctx)
+  const savedResults = ctx.session?.savedAiPhotoshopResults || []
+
+  if (savedResults.length === 0) {
+    await showAiPhotoshopModels(ctx)
+    return
+  }
+
+  const recentPhoto = savedResults[savedResults.length - 1]
+  const title = isRu
+    ? '🎨 *Продолжить работу с фотографиями*'
+    : '🎨 *Continue working with photos*'
+
+  const description = isRu
+    ? `✨ У вас есть ${savedResults.length} обработанных фото в галерее!\n\n🎯 *Диалоговый режим активен* - теперь вы можете:\n\n💬 *Просто написать текст для улучшения:*\n• "Добавь туда побольше атмосферы и девчонок"\n• "Сделай более яркие цвета"\n• "Добавь эффект дождя или снега"\n• "Измени стиль на винтажный"\n• "Убери фон, оставь только человека"\n• "Увеличить качество" или "upscale" для апскейлинга\n\n🔄 *Использовать кнопки для быстрых действий*\n⬆️ *Увеличить качество* фото с помощью Clarity Upscaler\n📸 *Добавить новое фото* для обработки\n📋 *Посмотреть всю галерею* (${savedResults.length} фото)\n\n🚀 *Продвинутые команды:*\n• "Увеличь контрастность на 20%"\n• "Добавь теплые тона"\n• "Сделай как в стиле Ван Гога"\n\n💡 *Совет:* Пишите простые команды - я понимаю естественный язык!`
+    : `✨ You have ${savedResults.length} processed photos in your gallery!\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text to improve:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n🔄 *Use buttons for quick actions*\n⬆️ *Upscale photo quality* with Clarity Upscaler\n📸 *Add new photo* to process\n📋 *View entire gallery* (${savedResults.length} photos)\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!`
+
+  const keyboard = Markup.inlineKeyboard([
+    [
+      Markup.button.callback(
+        isRu ? '⬆️ Увеличить качество фото' : '⬆️ Upscale photo quality',
+        'ai_photoshop_upscale_last'
+      )
+    ],
+    [
+      Markup.button.callback(
+        isRu ? '📸 Добавить новое фото' : '📸 Add new photo',
+        'ai_photoshop_add_new'
+      )
+    ],
+    [
+      Markup.button.callback(
+        isRu ? `📋 Показать все фото (${savedResults.length})` : `📋 Show all photos (${savedResults.length})`,
+        'ai_photoshop_show_all'
+      )
+    ],
+    [
+      Markup.button.callback(
+        isRu ? '🔄 Начать заново' : '🔄 Start over',
+        'ai_photoshop_restart'
+      ),
+      Markup.button.callback(
+        isRu ? '🚪 Главное меню' : '🚪 Main menu',
+        'ai_photoshop_exit_to_menu'
+      )
+    ]
+  ])
+
+  await ctx.reply(title + '\n\n' + description, {
+    parse_mode: 'Markdown',
+    reply_markup: keyboard.reply_markup
+  })
+
+  // Show the most recent photo
+  if (recentPhoto?.url) {
+    try {
+      await ctx.replyWithPhoto(recentPhoto.url, {
+        caption: isRu
+          ? `📸 Последнее фото (${recentPhoto.model})\n💬 "${recentPhoto.prompt}"`
+          : `📸 Latest photo (${recentPhoto.model})\n💬 "${recentPhoto.prompt}"`
+      })
+    } catch (error) {
+      logger.warn('Failed to show recent photo in dialog', { error })
+    }
+  }
+}
+
+// ✅ NEW: Save photo result function
+async function savePhotoResult(ctx: MyContext, imageUrl: string, model: string, prompt: string): Promise<void> {
+  if (!ctx.session) return
+
+  if (!ctx.session.savedAiPhotoshopResults) {
+    ctx.session.savedAiPhotoshopResults = []
+  }
+
+  const result = {
+    url: imageUrl,
+    imageUrl: imageUrl, // ✅ Compatibility with dialog mode logic
+    model,
+    prompt: prompt.substring(0, 200),
+    timestamp: new Date().toISOString(),
+    id: Date.now().toString(),
+    additionalInfo: {
+      size: ctx.session.aiPhotoshopSize,
+      originalImage: ctx.session.aiPhotoshopImage !== imageUrl ? ctx.session.aiPhotoshopImage : undefined,
+      isImprovement: ctx.session.savedAiPhotoshopResults && ctx.session.savedAiPhotoshopResults.length > 0,
+      fullPrompt: prompt // Keep full prompt for context
+    }
+  }
+
+  ctx.session.savedAiPhotoshopResults.push(result)
+
+  // ✅ ENHANCED: Automatically activate dialog mode after saving results
+  ctx.session.dialogMode = true
+
+  // ✅ NEW: Initialize sessionId if not exists for Zod validation
+  if (!ctx.session.sessionId) {
+    ctx.session.sessionId = Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9)
+  }
+
+  // Keep only last 10 results to prevent session bloat
+  if (ctx.session.savedAiPhotoshopResults.length > 10) {
+    ctx.session.savedAiPhotoshopResults = ctx.session.savedAiPhotoshopResults.slice(-10)
+  }
+
+  logger.info('🎨 AI Photoshop: Photo result saved', {
+    telegramId: ctx.from?.id,
+    totalSaved: ctx.session.savedAiPhotoshopResults.length,
+    model,
+    promptLength: prompt.length
+  })
 }
 
 // Function to process AI Photoshop request
@@ -1332,31 +1771,74 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       hasResult: !!result,
     })
 
-    // Clear session after successful processing
-    if (ctx.session) {
-      ctx.session.aiPhotoshopModel = undefined
-      ctx.session.aiPhotoshopStyle = undefined
-      ctx.session.aiPhotoshopImage = undefined
-      ctx.session.aiPhotoshopPrompt = undefined
-      ctx.session.aiPhotoshopStep = undefined
-      ctx.session.aiPhotoshopSize = undefined
-      ctx.session.awaitingAiPhotoshopImage = false
-      ctx.session.awaitingAiPhotoshopPrompt = false
-      // Clear multi-photo data
-      ctx.session.multiPhotoUrls = undefined
-      ctx.session.multiPhotoCount = undefined
-      ctx.session.awaitingMultiPhotoConfirmation = false
-      // Clear buffer-based images
-      ctx.session.morphingImages = undefined
-      ctx.session.morphingButtonsMessageId = undefined
-      ctx.session.morphingProgressMessageId = undefined
-    }
+    // ✅ ENHANCED: Save photo result and show dialog options
+    if (result) {
+      // ✅ FIX: Extract image URL from result object
+      const imageUrl = typeof result === 'string' ? result : result.image || result
+      await savePhotoResult(ctx, imageUrl, aiPhotoshopModel, finalPrompt)
 
-    // Exit scene after successful processing
-    logger.info('🎨 AI Photoshop: Leaving scene after successful processing', {
-      telegramId: ctx.from.id,
-    })
-    await ctx.scene.leave()
+      // Show continue/exit options after successful processing
+      const isRu = isRussianFromState(ctx)
+      const continueKeyboard = Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? '⬆️ Увеличить качество' : '⬆️ Upscale quality',
+            'ai_photoshop_upscale_last'
+          )
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '📸 Добавить фото' : '📸 Add photo',
+            'ai_photoshop_add_new'
+          )
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '🚪 Главное меню' : '🚪 Main menu',
+            'ai_photoshop_exit_to_menu'
+          )
+        ]
+      ])
+
+      await ctx.reply(
+        isRu
+          ? `✨ *Фото успешно обработано и сохранено!*\n\n🎯 *Диалоговый режим активен* - теперь вы можете:\n\n💬 *Просто написать текст для дальнейших улучшений:*\n• "Добавь туда побольше атмосферы и девчонок"\n• "Сделай более яркие цвета"\n• "Добавь эффект дождя или снега"\n• "Измени стиль на винтажный"\n• "Убери фон, оставь только человека"\n• "Увеличить качество" или "upscale" для апскейлинга\n\n⬆️ *Или нажмите кнопку для увеличения качества в 2 раза*\n📸 *Добавить новое фото для обработки*\n\n🚀 *Продвинутые команды:*\n• "Увеличь контрастность на 20%"\n• "Добавь теплые тона"\n• "Сделай как в стиле Ван Гога"\n\n💡 *Совет:* Пишите простые команды - я понимаю естественный язык!\n🎨 *Все фото сохраняются в галерее до выхода из сцены*`
+          : `✨ *Photo successfully processed and saved!*\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text for further improvements:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n⬆️ *Or click button to upscale quality 2x*\n📸 *Add new photo to process*\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!\n🎨 *All photos are saved in gallery until you exit the scene*`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: continueKeyboard.reply_markup
+        }
+      )
+
+      // Clear working session but keep saved results
+      if (ctx.session) {
+        ctx.session.aiPhotoshopModel = undefined
+        ctx.session.aiPhotoshopStyle = undefined
+        ctx.session.aiPhotoshopImage = undefined
+        ctx.session.aiPhotoshopPrompt = undefined
+        ctx.session.aiPhotoshopStep = undefined
+        ctx.session.aiPhotoshopSize = undefined
+        ctx.session.awaitingAiPhotoshopImage = false
+        ctx.session.awaitingAiPhotoshopPrompt = false
+        // Clear multi-photo data
+        ctx.session.multiPhotoUrls = undefined
+        ctx.session.multiPhotoCount = undefined
+        ctx.session.awaitingMultiPhotoConfirmation = false
+        // Clear buffer-based images
+        ctx.session.morphingImages = undefined
+        ctx.session.morphingButtonsMessageId = undefined
+        ctx.session.morphingProgressMessageId = undefined
+        // Keep savedAiPhotoshopResults and dialogMode
+      }
+
+      // Stay in scene for dialog mode instead of leaving
+      logger.info('🎨 AI Photoshop: Staying in scene for dialog mode', {
+        telegramId: ctx.from.id,
+      })
+    } else {
+      // If no result, exit scene
+      await ctx.scene.leave()
+    }
   } catch (error) {
     logger.error('Error in AI Photoshop processing', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -1364,7 +1846,33 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       model: aiPhotoshopModel,
     })
 
-    // Clear session on error
+    // ✅ ENHANCED ERROR HANDLING: Show user-friendly error with exit options
+    const isRu = isRussianFromState(ctx)
+    const errorKeyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback(
+          isRu ? '🔄 Попробовать снова' : '🔄 Try again',
+          'ai_photoshop_restart'
+        )
+      ],
+      [
+        Markup.button.callback(
+          isRu ? '🚪 Главное меню' : '🚪 Main menu',
+          'ai_photoshop_exit_to_menu'
+        )
+      ]
+    ])
+
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при обработке изображения.\n\n🔧 Попробуйте еще раз или вернитесь в главное меню.'
+        : '❌ An error occurred while processing the image.\n\n🔧 Please try again or return to the main menu.',
+      {
+        reply_markup: errorKeyboard.reply_markup
+      }
+    )
+
+    // Clear session on error but keep saved results
     if (ctx.session) {
       ctx.session.aiPhotoshopModel = undefined
       ctx.session.aiPhotoshopStyle = undefined
@@ -1372,13 +1880,13 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       ctx.session.aiPhotoshopPrompt = undefined
       ctx.session.aiPhotoshopStep = undefined
       ctx.session.aiPhotoshopSize = undefined
+      // Keep savedAiPhotoshopResults for recovery
     }
 
-    // Exit scene on error
-    logger.info('🎨 AI Photoshop: Leaving scene after error', {
+    // Stay in scene to allow recovery instead of leaving
+    logger.info('🎨 AI Photoshop: Staying in scene after error for recovery options', {
       telegramId: ctx.from?.id,
     })
-    await ctx.scene.leave()
   }
 }
 
@@ -1400,14 +1908,14 @@ aiPhotoshopScene.action('ai_photoshop_back_to_models', async ctx => {
     const description = isRu
       ? `Выберите модель ИИ для обработки:
 
-🎭 *SeeDream-4* - Генерация и трансформация изображений (15⭐)
-🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (12⭐)
-🚀 *FLUX Kontext Max* - Профессиональное редактирование (5⭐)`
+🎭 *SeeDream-4* - Генерация и трансформация изображений (5⭐)
+🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (7⭐)
+🚀 *FLUX Kontext Max* - Профессиональное редактирование (13⭐)`
       : `Choose an AI model for processing:
 
-🎭 *SeeDream-4* - Image generation and transformation (15⭐)
-🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (12⭐)
-🚀 *FLUX Kontext Max* - Professional editing (5⭐)`
+🎭 *SeeDream-4* - Image generation and transformation (5⭐)
+🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (7⭐)
+🚀 *FLUX Kontext Max* - Professional editing (13⭐)`
 
     await ctx.editMessageText(title + '\n\n' + description, {
       parse_mode: 'Markdown',
@@ -1502,11 +2010,11 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     // Calculate cost based on selected size or use default
     const selectedSize = ctx.session.aiPhotoshopSize || '1K'
     const sizePrices = {
-      '1K': 15,
-      '2K': 20,
-      '4K': 30
+      '1K': 5,
+      '2K': 25,
+      '4K': 35
     }
-    const costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || 15
+    const costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || 5
     const totalCost = costPerImage * ctx.session.morphingImages.length
 
     // Preserve user's prompt and model selections
@@ -1799,6 +2307,318 @@ aiPhotoshopScene.action('ai_photoshop_multi_cancel', async ctx => {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
+  }
+})
+
+// ✅ NEW DIALOG MODE ACTION HANDLERS
+
+// Improve last photo
+aiPhotoshopScene.action('ai_photoshop_improve_last', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    const savedResults = ctx.session?.savedAiPhotoshopResults || []
+    if (savedResults.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Нет сохраненных фотографий для улучшения.'
+          : '❌ No saved photos to improve.'
+      )
+      return
+    }
+
+    const lastPhoto = savedResults[savedResults.length - 1]
+
+    // Set up session for improvement
+    if (ctx.session) {
+      ctx.session.aiPhotoshopImage = lastPhoto.url
+      ctx.session.aiPhotoshopModel = (lastPhoto.model as 'seedream' | 'nano_banana' | 'flux_max' | 'qwen_edit_plus') || 'seedream'
+      ctx.session.aiPhotoshopStyle = 'custom'
+      ctx.session.aiPhotoshopStep = 'custom_prompt'
+      ctx.session.awaitingAiPhotoshopPrompt = true
+      ctx.session.awaitingAiPhotoshopImage = false
+    }
+
+    await ctx.editMessageText(
+      isRu
+        ? `🔄 *Улучшаем последнее фото!*\n\n📝 *Напишите, как изменить изображение:*\n\n💡 *Примеры команд:*\n• "сделать ярче и контрастнее"\n• "добавить снег и зимнюю атмосферу"\n• "изменить на винтажный стиль"\n• "убрать фон, оставить только человека"\n• "сделать как картину маслом"\n• "добавить закат на фоне"\n\n✍️ *Просто опишите желаемый результат:*`
+        : `🔄 *Improving the last photo!*\n\n📝 *Write how to modify the image:*\n\n💡 *Example commands:*\n• "make it brighter and more contrast"\n• "add snow and winter atmosphere"\n• "change to vintage style"\n• "remove background, keep only person"\n• "make it like an oil painting"\n• "add sunset in background"\n\n✍️ *Simply describe the desired result:*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: isRu ? '🚪 Главное меню' : '🚪 Main menu',
+                callback_data: 'ai_photoshop_exit_to_menu'
+              }
+            ]
+          ]
+        }
+      }
+    )
+
+  } catch (error) {
+    logger.error('Error in improve last photo handler', { error })
+  }
+})
+
+// ✅ NEW: Upscale last photo with Clarity Upscaler
+aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    const savedResults = ctx.session?.savedAiPhotoshopResults || []
+    if (savedResults.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Нет сохраненных фотографий для увеличения качества.'
+          : '❌ No saved photos to upscale.'
+      )
+      return
+    }
+
+    const lastPhoto = savedResults[savedResults.length - 1]
+    const imageUrl = typeof lastPhoto.imageUrl === 'string' ? lastPhoto.imageUrl : lastPhoto.url
+
+    await ctx.editMessageText(
+      isRu
+        ? `⬆️ *Увеличиваю качество последнего фото!*\n\n🎯 Применяю Clarity Upscaler для улучшения разрешения в 2 раза...\n\n💎 Стоимость: 3 ⭐`
+        : `⬆️ *Upscaling last photo quality!*\n\n🎯 Applying Clarity Upscaler to enhance resolution 2x...\n\n💎 Cost: 3 ⭐`,
+      {
+        parse_mode: 'Markdown'
+      }
+    )
+
+    try {
+      await upscaleImage({
+        imageUrl,
+        telegram_id: String(ctx.from?.id),
+        username: ctx.from?.username || 'unknown_user',
+        is_ru: isRu,
+        ctx,
+        originalPrompt: lastPhoto.prompt || 'Dialog mode button upscale'
+      })
+
+      // Show dialog interface again after upscaling
+      await showDialogInterface(ctx)
+
+    } catch (error) {
+      logger.error('🚨 AI Photoshop: Upscaler button failed', {
+        telegramId: ctx.from?.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при увеличении качества. Попробуйте позже.'
+          : '❌ Error occurred during upscaling. Please try again later.'
+      )
+    }
+
+  } catch (error) {
+    logger.error('Error in upscale last photo handler', { error })
+  }
+})
+
+// Add new photo
+aiPhotoshopScene.action('ai_photoshop_add_new', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Reset session for new photo
+    if (ctx.session) {
+      ctx.session.aiPhotoshopModel = undefined
+      ctx.session.aiPhotoshopStyle = undefined
+      ctx.session.aiPhotoshopImage = undefined
+      ctx.session.aiPhotoshopPrompt = undefined
+      ctx.session.aiPhotoshopSize = undefined
+      ctx.session.awaitingAiPhotoshopImage = false
+      ctx.session.awaitingAiPhotoshopPrompt = false
+      ctx.session.aiPhotoshopStep = 'model_select'
+    }
+
+    await ctx.editMessageText(
+      isRu
+        ? '📸 *Добавляем новое фото!*\n\n🎯 *Шаг 1 из 4:* Выберите модель ИИ\n\n📋 *Процесс добавления:*\n1️⃣ Выберите модель\n2️⃣ Выберите стиль обработки\n3️⃣ Загрузите фото\n4️⃣ Получите результат\n\n⬇️ *Выберите модель для обработки:*'
+        : '📸 *Adding a new photo!*\n\n🎯 *Step 1 of 4:* Choose AI model\n\n📋 *Adding process:*\n1️⃣ Choose model\n2️⃣ Select processing style\n3️⃣ Upload photo\n4️⃣ Get result\n\n⬇️ *Choose a model for processing:*',
+      {
+        reply_markup: createModelSelectionKeyboard(isRu).reply_markup
+      }
+    )
+
+  } catch (error) {
+    logger.error('Error in add new photo handler', { error })
+  }
+})
+
+// Show all photos
+aiPhotoshopScene.action('ai_photoshop_show_all', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    const savedResults = ctx.session?.savedAiPhotoshopResults || []
+    if (savedResults.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Нет сохраненных фотографий.'
+          : '❌ No saved photos.'
+      )
+      return
+    }
+
+    await ctx.editMessageText(
+      isRu
+        ? `📋 Ваши фотографии (${savedResults.length}):`
+        : `📋 Your photos (${savedResults.length}):`
+    )
+
+    // Send each photo with details
+    for (let i = 0; i < Math.min(savedResults.length, 5); i++) {
+      const photo = savedResults[savedResults.length - 1 - i] // Show newest first
+      try {
+        await ctx.replyWithPhoto(photo.url, {
+          caption: isRu
+            ? `${i + 1}. Модель: ${photo.model}\n💬 "${photo.prompt}"\n⏰ ${new Date(photo.timestamp).toLocaleString('ru')}`
+            : `${i + 1}. Model: ${photo.model}\n💬 "${photo.prompt}"\n⏰ ${new Date(photo.timestamp).toLocaleString('en')}`
+        })
+      } catch (error) {
+        logger.warn('Failed to send saved photo', { error, photoIndex: i })
+      }
+    }
+
+    if (savedResults.length > 5) {
+      await ctx.reply(
+        isRu
+          ? `... и еще ${savedResults.length - 5} фото`
+          : `... and ${savedResults.length - 5} more photos`
+      )
+    }
+
+    // Show dialog options again
+    await showDialogInterface(ctx)
+
+  } catch (error) {
+    logger.error('Error in show all photos handler', { error })
+  }
+})
+
+// Restart AI Photoshop
+aiPhotoshopScene.action('ai_photoshop_restart', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Clear all session data
+    if (ctx.session) {
+      ctx.session.aiPhotoshopModel = undefined
+      ctx.session.aiPhotoshopStyle = undefined
+      ctx.session.aiPhotoshopImage = undefined
+      ctx.session.aiPhotoshopPrompt = undefined
+      ctx.session.aiPhotoshopSize = undefined
+      ctx.session.awaitingAiPhotoshopImage = false
+      ctx.session.awaitingAiPhotoshopPrompt = false
+      ctx.session.aiPhotoshopStep = 'model_select'
+      ctx.session.savedAiPhotoshopResults = []
+      ctx.session.dialogMode = false
+      // Clear multi-photo data
+      ctx.session.morphingImages = undefined
+      ctx.session.morphingProgressMessageId = undefined
+      ctx.session.morphingButtonsMessageId = undefined
+    }
+
+    await ctx.editMessageText(
+      isRu
+        ? '🔄 Начинаем заново!\n\nВыберите модель ИИ для обработки:'
+        : '🔄 Starting over!\n\nChoose an AI model for processing:',
+      {
+        reply_markup: createModelSelectionKeyboard(isRu).reply_markup
+      }
+    )
+
+  } catch (error) {
+    logger.error('Error in restart handler', { error })
+  }
+})
+
+// Exit to main menu
+aiPhotoshopScene.action('ai_photoshop_exit_to_menu', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.reply(
+      isRu
+        ? '🚪 Возвращаюсь в главное меню.\n\n✨ Ваши фотографии сохранены для следующего раза!'
+        : '🚪 Returning to main menu.\n\n✨ Your photos are saved for next time!',
+      {
+        reply_markup: {
+          remove_keyboard: true
+        }
+      }
+    )
+
+    // Clear working session but keep saved results for next time
+    if (ctx.session) {
+      ctx.session.aiPhotoshopModel = undefined
+      ctx.session.aiPhotoshopStyle = undefined
+      ctx.session.aiPhotoshopImage = undefined
+      ctx.session.aiPhotoshopPrompt = undefined
+      ctx.session.aiPhotoshopSize = undefined
+      ctx.session.awaitingAiPhotoshopImage = false
+      ctx.session.awaitingAiPhotoshopPrompt = false
+      ctx.session.aiPhotoshopStep = undefined
+      // Keep savedAiPhotoshopResults and dialogMode for next entry
+    }
+
+    await ctx.scene.leave()
+    await ctx.scene.enter('main_menu')
+
+  } catch (error) {
+    logger.error('Error in exit to menu handler', { error })
+    // Fallback: force leave scene
+    await ctx.scene.leave()
+  }
+})
+
+// ✅ ENHANCED: Add universal exit command handler
+aiPhotoshopScene.command('menu', async ctx => {
+  try {
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.reply(
+      isRu
+        ? '🚪 Выходим из AI Photoshop...'
+        : '🚪 Exiting AI Photoshop...'
+    )
+
+    await ctx.scene.leave()
+    await ctx.scene.enter('main_menu')
+  } catch (error) {
+    logger.error('Error in menu command handler', { error })
+    await ctx.scene.leave()
+  }
+})
+
+aiPhotoshopScene.command('start', async ctx => {
+  try {
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.reply(
+      isRu
+        ? '🚪 Возвращаемся в главное меню...'
+        : '🚪 Returning to main menu...'
+    )
+
+    await ctx.scene.leave()
+    await ctx.scene.enter('start_scene')
+  } catch (error) {
+    logger.error('Error in start command handler', { error })
+    await ctx.scene.leave()
   }
 })
 

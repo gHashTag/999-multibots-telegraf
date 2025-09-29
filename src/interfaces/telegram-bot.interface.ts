@@ -333,6 +333,25 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   awaitingAiPhotoshopPrompt?: boolean
   aiPhotoshopStep?: 'model_select' | 'style_select' | 'image_upload' | 'custom_prompt' | 'processing'
 
+  // ✅ NEW: Dialog mode support for AI Photoshop
+  savedAiPhotoshopResults?: Array<{
+    url: string
+    imageUrl: string // ✅ Compatibility field for dialog mode logic
+    model: string
+    prompt: string
+    timestamp: string
+    id: string
+    additionalInfo?: {
+      size?: '1K' | '2K' | '4K' | 'custom'
+      originalImage?: string
+      isImprovement?: boolean
+      fullPrompt?: string
+    }
+  }>
+  dialogMode?: boolean
+  lastPhotoTimestamp?: number // ✅ For sequential photo detection in AI Photoshop
+  sessionId?: string // ✅ Session ID for Zod validation
+
   // Multi-photo neurophoto fields
   multiPhotoUrls?: string[] // URLs of multiple input photos for neurophoto series
   multiPhotoCount?: number // Number of photos in multi-photo session
