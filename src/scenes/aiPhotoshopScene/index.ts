@@ -710,30 +710,23 @@ aiPhotoshopScene.on('text', async ctx => {
       }
     })
 
-    // STRICT validation: reject if ANY condition is not met
-    if (!ctx.session?.awaitingAiPhotoshopPrompt) {
-      logger.error('🚨 AI Photoshop: REJECTED - not awaiting prompt', {
-        telegramId: ctx.from?.id,
-        awaitingAiPhotoshopPrompt: ctx.session?.awaitingAiPhotoshopPrompt
-      })
-      await ctx.reply(
-        isRu
-          ? '❌ Сначала выберите модель, стиль и загрузите изображение.'
-          : '❌ Please select a model, style and upload an image first.'
-      )
-      return
-    }
+    // ✅ SMART VALIDATION: Allow custom prompt workflow and text with existing images
+    const allowTextInput = ctx.session?.awaitingAiPhotoshopPrompt ||
+                          (ctx.session?.aiPhotoshopImage || ctx.session?.morphingImages?.length)
 
-    if (ctx.session?.aiPhotoshopStep !== 'custom_prompt') {
-      logger.error('🚨 AI Photoshop: REJECTED - wrong step', {
+    if (!allowTextInput) {
+      logger.info('💡 AI Photoshop: Text input not ready - guiding user', {
         telegramId: ctx.from?.id,
-        currentStep: ctx.session?.aiPhotoshopStep,
-        expectedStep: 'custom_prompt'
+        awaitingPrompt: ctx.session?.awaitingAiPhotoshopPrompt,
+        hasImage: !!ctx.session?.aiPhotoshopImage,
+        hasMorphingImages: !!ctx.session?.morphingImages?.length,
+        step: ctx.session?.aiPhotoshopStep
       })
+
       await ctx.reply(
         isRu
-          ? '❌ Сначала выберите модель, стиль и загрузите изображение.'
-          : '❌ Please select a model, style and upload an image first.'
+          ? '💡 Для ИИ Фотошопа сначала выберите модель и стиль:\n\n🎨 Используйте /aiphotoshop или кнопку "🎨 ИИ Фотошоп" в меню'
+          : '💡 For AI Photoshop, first select a model and style:\n\n🎨 Use /aiphotoshop or the "🎨 AI Photoshop" button in the menu'
       )
       return
     }

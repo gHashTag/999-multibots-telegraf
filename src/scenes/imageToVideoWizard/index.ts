@@ -129,7 +129,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   // ========== ШАГ 1: ЗАГРУЗКА ИЗОБРАЖЕНИЯ ==========
   async (ctx) => {
     console.log('🎬 [I2V WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard.cursor)
+    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
     
     try {
       const isRu = isRussianFromState(ctx)
@@ -143,7 +143,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
 
       console.log('🎬 [I2V WIZARD] Step 1: ✅ REPLY SENT! Moving to next step...')
-      ctx.wizard.next()
+      if (ctx.wizard && ctx.wizard.next) {
+        ctx.wizard.next()
+      }
       return
       
     } catch (error) {
@@ -156,7 +158,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   // ========== ШАГ 2: ОБРАБОТКА ИЗОБРАЖЕНИЯ И ВЫБОР МОДЕЛИ ==========
   async (ctx) => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 2 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard.cursor)
+    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
     
     try {
       const isRu = isRussianFromState(ctx)
@@ -237,7 +239,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
 
       console.log('🎬 [I2V WIZARD] Step 2: ✅ REPLY SENT! Moving to next step...')
-      ctx.wizard.next()
+      if (ctx.wizard && ctx.wizard.next) {
+        ctx.wizard.next()
+      }
       return
       
     } catch (error) {
@@ -250,7 +254,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   // ========== ШАГ 3: ВЫБОР МОДЕЛИ И ЗАПРОС ПРОМПТА ==========
   async (ctx) => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 3 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard.cursor)
+    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
     
     try {
       const isRu = isRussianFromState(ctx)
@@ -300,7 +304,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         )
         
         // Переходим к следующему шагу для ожидания промпта
-        ctx.wizard.next()
+        if (ctx.wizard && ctx.wizard.next) {
+          ctx.wizard.next()
+        }
         return
       }
 
@@ -320,7 +326,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   // ========== ШАГ 4: ОБРАБОТКА ПРОМПТА И ГЕНЕРАЦИЯ ==========
   async (ctx) => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 4 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard.cursor)
+    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
     
     try {
       const isRu = isRussianFromState(ctx)
