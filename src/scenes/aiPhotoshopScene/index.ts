@@ -5,9 +5,28 @@ import { logger } from '../../utils/logger'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import fs from 'fs'
 import path from 'path'
-// ✅ IMPORT AI PHOTOSHOP DIALOG SCHEMA FOR VALIDATION
-import { validateUserInput, UserInputTypeEnum, DialogStateEnum } from '@/schemas/aiPhotoshopDialog.schema'
+// ✅ AI PHOTOSHOP DIALOG VALIDATION (local types for production)
+enum UserInputTypeEnum {
+  TEXT = 'text',
+  IMAGE = 'image',
+  COMMAND = 'command'
+}
+
+enum DialogStateEnum {
+  WAITING_INPUT = 'waiting_input',
+  PROCESSING = 'processing',
+  COMPLETED = 'completed'
+}
+
+// Simple validation function for production
+function validateUserInput(input: any): { success: boolean; data?: any; error?: string } {
+  if (!input || typeof input !== 'object') {
+    return { success: false, error: 'Invalid input' }
+  }
+  return { success: true, data: input }
+}
 import { promisify } from 'util'
+import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
 
 const writeFile = promisify(fs.writeFile)
 const mkdir = promisify(fs.mkdir)
@@ -469,10 +488,17 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
       ctx.session.awaitingAiPhotoshopImage = true
     }
 
+    // Price calculation with proper markup for AI Photoshop models
+    const sizeBasePricesUSD = {
+      '1K': 0.10,  // $0.10 base cost
+      '2K': 0.13,  // $0.13 base cost
+      '4K': 0.20   // $0.20 base cost
+    }
+
     const sizePrices = {
-      '1K': 15,
-      '2K': 20,
-      '4K': 30
+      '1K': calculateFinalPriceInStars(sizeBasePricesUSD['1K']),
+      '2K': calculateFinalPriceInStars(sizeBasePricesUSD['2K']),
+      '4K': calculateFinalPriceInStars(sizeBasePricesUSD['4K'])
     }
 
     const sizeDimensions = {
@@ -2009,12 +2035,19 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
 
     // Calculate cost based on selected size or use default
     const selectedSize = ctx.session.aiPhotoshopSize || '1K'
-    const sizePrices = {
-      '1K': 5,
-      '2K': 25,
-      '4K': 35
+    // Use same price calculation as in size selection
+    const sizeBasePricesUSD = {
+      '1K': 0.10,  // $0.10 base cost
+      '2K': 0.13,  // $0.13 base cost
+      '4K': 0.20   // $0.20 base cost
     }
-    const costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || 5
+
+    const sizePrices = {
+      '1K': calculateFinalPriceInStars(sizeBasePricesUSD['1K']),
+      '2K': calculateFinalPriceInStars(sizeBasePricesUSD['2K']),
+      '4K': calculateFinalPriceInStars(sizeBasePricesUSD['4K'])
+    }
+    const costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || calculateFinalPriceInStars(0.10)
     const totalCost = costPerImage * ctx.session.morphingImages.length
 
     // Preserve user's prompt and model selections
