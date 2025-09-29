@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-09-29T14:42:14.279Z",
+  "totalTests": 8,
+  "passed": 8,
+  "failed": 0,
+  "successRate": "100.0%",
+  "results": [
+    {
+      "name": "Interface Type Definition",
+      "status": "PASS",
+      "details": "all_models type properly defined in aiPhotoshopModel interface"
+    },
+    {
+      "name": "Button Handler Registration",
+      "status": "PASS",
+      "details": "Button handler ai_photoshop_all_models_from_selector properly registered"
+    },
+    {
+      "name": "Text Handler Fix",
+      "status": "PASS",
+      "details": "CRITICAL FIX: Text handler properly checks for all_models mode, saves prompt, and returns early"
+    },
+    {
+      "name": "Photo Collection Logic",
+      "status": "PASS",
+      "details": "Photo collection properly configured for all_models mode"
+    },
+    {
+      "name": "Cost Calculation",
+      "status": "PASS",
+      "details": "DYNAMIC cost calculation properly implemented (5+7+13+5=30⭐) - extensible architecture"
+    },
+    {
+      "name": "Model Title Display",
+      "status": "PASS",
+      "details": "Model title properly displays \"🎯 Все модели сразу\" instead of undefined"
+    },
+    {
+      "name": "All Models Processing",
+      "status": "PASS",
+      "details": "All 4 models processing logic properly implemented with extensible architecture"
+    },
+    {
+      "name": "Logging Implementation",
+      "status": "PASS",
+      "details": "Comprehensive logging implemented: 3/3 key points logged"
+    }
+  ]
+}
