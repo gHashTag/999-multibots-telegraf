@@ -88,8 +88,23 @@ export async function generateNanoBanana(
       output_format
     }
 
-    // Validate input with Zod schema
-    const validatedInput = NanoBananaInputSchema.parse(nanoBananaInput)
+    // ✅ ENHANCED VALIDATION: Validate input with Zod schema and detailed error handling
+    let validatedInput: NanoBananaInput
+    try {
+      validatedInput = NanoBananaInputSchema.parse(nanoBananaInput)
+    } catch (validationError) {
+      console.error('🚨 [NanoBanana] Input validation failed:', {
+        telegram_id,
+        error: validationError instanceof Error ? validationError.message : 'Unknown validation error',
+        inputData: {
+          promptLength: nanoBananaInput.prompt?.length || 0,
+          imageInputCount: nanoBananaInput.image_input?.length || 0,
+          output_format: nanoBananaInput.output_format
+        }
+      })
+
+      throw new Error(`Input validation failed: ${validationError instanceof Error ? validationError.message : 'Invalid input format'}`)
+    }
     
     console.log('🍌 [NanoBanana] Input validated successfully:', {
       telegram_id,
@@ -111,9 +126,27 @@ export async function generateNanoBanana(
       await updateUserLevelPlusOne(String(telegram_id), level)
     }
 
-    // ✅ CRITICAL FIX: Calculate total cost based on number of images
+    // ✅ ENHANCED COST CALCULATION: Calculate total cost with validation
     imageCount = validatedInput.image_input.length
     totalCost = NANO_BANANA_MODEL.costPerImage * imageCount
+
+    console.log('💰 [NanoBanana] Cost calculation:', {
+      telegram_id,
+      imageCount,
+      costPerImage: NANO_BANANA_MODEL.costPerImage,
+      totalCost,
+      maxSupportedImages: 3 // Nano Banana limit
+    })
+
+    // Validate image count against Nano Banana limits
+    if (imageCount > 3) {
+      console.warn('⚠️ [NanoBanana] Too many images for model:', {
+        telegram_id,
+        imageCount,
+        maxSupported: 3
+      })
+      throw new Error(`Nano Banana supports maximum 3 images, but ${imageCount} were provided`)
+    }
 
     // Проверяем баланс и списываем звезды
     console.log('🔵 [NanoBanana] Processing balance operation...', {
@@ -181,23 +214,59 @@ export async function generateNanoBanana(
       imageCount: validatedInput.image_input.length,
     })
 
-    // Call Nano Banana model
+    // Call Nano Banana model with retry logic for reliability
     console.log('🍌 [NanoBanana] Calling Replicate.run...', {
       telegram_id,
       model: NANO_BANANA_MODEL.key,
       inputImageCount: validatedInput.image_input.length,
     })
-    
-    const output = await replicate.run(
-      NANO_BANANA_MODEL.key as any,
-      {
-        input: {
-          prompt: enhancedPrompt,
-          image_input: validatedInput.image_input,
-          output_format: validatedInput.output_format
+
+    const maxRetries = 2
+    let output: any = null
+    let lastError: Error | null = null
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 [NanoBanana] Attempt ${attempt}/${maxRetries}`, { telegram_id })
+
+        output = await replicate.run(
+          NANO_BANANA_MODEL.key as any,
+          {
+            input: {
+              prompt: enhancedPrompt,
+              image_input: validatedInput.image_input,
+              output_format: validatedInput.output_format
+            }
+          }
+        )
+
+        // Success - break out of retry loop
+        console.log(`✅ [NanoBanana] Success on attempt ${attempt}`, { telegram_id })
+        break
+
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error')
+        console.warn(`⚠️ [NanoBanana] Attempt ${attempt} failed:`, {
+          telegram_id,
+          error: lastError.message,
+          attemptsRemaining: maxRetries - attempt
+        })
+
+        // If this was the last attempt, we'll throw the error after the loop
+        if (attempt === maxRetries) {
+          console.error(`❌ [NanoBanana] All ${maxRetries} attempts failed`, { telegram_id })
+          break
         }
+
+        // Wait 1 second before retry to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
-    )
+    }
+
+    // If all retries failed, throw the last error
+    if (!output && lastError) {
+      throw lastError
+    }
     
     console.log('🖼️ [NanoBanana] Replicate output received:', {
       telegram_id,
@@ -383,9 +452,12 @@ export async function generateNanoBanana(
 Проверьте логи для деталей.`
 
       for (const adminId of adminIds) {
-        await params.ctx.telegram.sendMessage(adminId, adminMessage).catch(err => 
-          console.error('Failed to notify admin:', err)
-        )
+        await params.ctx.telegram.sendMessage(adminId, adminMessage).catch(err => {
+          // Only log errors that aren't "chat not found" (invalid admin IDs)
+          if (!err.message?.includes('chat not found')) {
+            console.error('Failed to notify admin:', err)
+          }
+        })
       }
     } catch (notifyError) {
       console.error('Failed to send admin notification:', notifyError)

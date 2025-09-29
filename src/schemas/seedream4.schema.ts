@@ -11,28 +11,34 @@ export const SeeDream4InputSchema = z.object({
   prompt: z
     .string()
     .min(3, '🚨 Prompt must be at least 3 characters long')
-    .max(2000, '🚨 Prompt too long')
+    .max(2000, '🚨 Prompt too long (max 2000 characters)')
     .refine(
       (prompt) => prompt.trim().length > 0,
       '🚨 Prompt cannot be empty or whitespace'
-    ),
+    )
+    .transform((prompt) => prompt.trim()), // Auto-trim whitespace
   size: SeeDream4SizeSchema.default('1K'),
   width: z.number().int().min(1024, '🚨 Width must be at least 1024px').max(4096, '🚨 Width cannot exceed 4096px').optional(),
   height: z.number().int().min(1024, '🚨 Height must be at least 1024px').max(4096, '🚨 Height cannot exceed 4096px').optional(),
   max_images: z.number().int().min(1, '🚨 Must generate at least 1 image').max(15, '🚨 Cannot generate more than 15 images').default(1),
-  image_input: z.array(z.string().url('🚨 Invalid image URL')).min(1).max(10, '🚨 Cannot process more than 10 images').optional(),
-  aspect_ratio: z.string().optional(),
-  
-  // 🛡️ USER VALIDATION FIELDS (не отправляются в API, но нужны для нашей системы)
+  image_input: z.array(
+    z.string().url('🚨 Invalid image URL').refine(
+      (url) => url.startsWith('http'),
+      '🚨 Image URL must start with http/https'
+    )
+  ).min(1, '🚨 At least one image required').max(10, '🚨 Cannot process more than 10 images').optional(),
+  aspect_ratio: z.string().regex(/^\d+:\d+$/, '🚨 Aspect ratio must be in format "width:height"').optional(),
+
+  // 🛡️ USER VALIDATION FIELDS (internal use only)
   telegram_id: z
     .string()
     .min(1, '🚨 Telegram ID required')
-    .refine((id) => /^\d+$/.test(id), '🚨 Invalid Telegram ID format')
+    .refine((id) => /^\d+$/.test(id), '🚨 Invalid Telegram ID format - must be numeric')
     .optional(),
-  username: z.string().optional(),
+  username: z.string().max(100, '🚨 Username too long').optional(),
   is_ru: z.boolean().optional(),
 }).strict().refine((data) => {
-  // If size is 'custom', width and height are required
+  // Custom size validation
   if (data.size === 'custom') {
     return data.width !== undefined && data.height !== undefined
   }
@@ -40,6 +46,15 @@ export const SeeDream4InputSchema = z.object({
 }, {
   message: "🚨 Width and height are required when size is 'custom'",
   path: ['width', 'height']
+}).refine((data) => {
+  // Image input validation for multi-image scenarios
+  if (data.image_input && data.image_input.length > 1 && data.max_images === 1) {
+    return false // Multiple images provided but max_images is 1
+  }
+  return true
+}, {
+  message: "🚨 Multiple images provided but max_images is set to 1",
+  path: ['max_images']
 })
 
 export const SeeDream4ResponseSchema = z.object({
@@ -84,7 +99,7 @@ export function getSeeDream4Dimensions(size: SeeDream4Size): { width: number; he
   }
 }
 
-// 🎯 СТРОГИЙ ВАЛИДАТОР С ЛОГИРОВАНИЕМ
+// 🎯 ENHANCED VALIDATOR WITH DETAILED LOGGING AND RECOVERY
 export function validateSeeDream4Input(input: unknown) {
   try {
     const validated = SeeDream4InputSchema.parse(input)
@@ -92,16 +107,49 @@ export function validateSeeDream4Input(input: unknown) {
       promptLength: validated.prompt.length,
       size: validated.size,
       hasImageInput: !!validated.image_input,
+      imageInputCount: validated.image_input?.length || 0,
       telegram_id: validated.telegram_id || 'not_provided',
-      max_images: validated.max_images
+      max_images: validated.max_images,
+      aspect_ratio: validated.aspect_ratio,
+      dimensions: validated.width && validated.height ? `${validated.width}x${validated.height}` : 'auto'
     })
     return { success: true, data: validated }
   } catch (error) {
+    const isZodError = error instanceof Error && error.name === 'ZodError'
+
     console.error('🚨 [SeeDream4] Input validation FAILED:', {
       error: error instanceof Error ? error.message : 'Unknown validation error',
-      receivedData: typeof input === 'object' ? JSON.stringify(input).slice(0, 200) : String(input)
+      errorType: isZodError ? 'ZOD_VALIDATION' : 'GENERAL_ERROR',
+      receivedData: typeof input === 'object' ?
+        JSON.stringify(input, null, 2).slice(0, 300) + '...' :
+        String(input),
+      inputType: typeof input,
+      hasPrompt: typeof input === 'object' && input !== null && 'prompt' in input,
+      hasTelegramId: typeof input === 'object' && input !== null && 'telegram_id' in input
     })
-    return { success: false, error }
+
+    // ✅ AUTO-RECOVERY: Try to provide helpful suggestions
+    if (isZodError && typeof input === 'object' && input !== null) {
+      const inputObj = input as Record<string, any>
+      const suggestions = []
+
+      if (!inputObj.prompt || typeof inputObj.prompt !== 'string') {
+        suggestions.push('Prompt is required and must be a string')
+      }
+      if (inputObj.prompt && inputObj.prompt.length < 3) {
+        suggestions.push('Prompt must be at least 3 characters long')
+      }
+      if (inputObj.size === 'custom' && (!inputObj.width || !inputObj.height)) {
+        suggestions.push('Width and height are required when size is "custom"')
+      }
+      if (inputObj.image_input && !Array.isArray(inputObj.image_input)) {
+        suggestions.push('image_input must be an array of URLs')
+      }
+
+      console.warn('💡 [SeeDream4] Validation suggestions:', suggestions)
+    }
+
+    return { success: false, error, suggestions: isZodError ? 'Check validation requirements' : undefined }
   }
 }
 
