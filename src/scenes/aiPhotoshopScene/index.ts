@@ -380,11 +380,29 @@ aiPhotoshopScene.action('ai_photoshop_all_models_from_selector', async ctx => {
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
+    // 🚨 CRITICAL DEBUG: Log button press
+    console.log('🎯🎯🎯 AI Photoshop: ALL_MODELS button pressed', {
+      telegramId: ctx.from?.id,
+      sessionExistsBefore: !!ctx.session,
+      sessionStateBefore: ctx.session ? {
+        aiPhotoshopModel: ctx.session.aiPhotoshopModel,
+        awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage
+      } : null
+    })
+
     // Set session to indicate multi-model processing
     if (ctx.session) {
       ctx.session.aiPhotoshopModel = 'all_models' as any
       ctx.session.aiPhotoshopStep = 'image_upload'
       ctx.session.awaitingAiPhotoshopImage = true
+
+      // 🚨 CRITICAL DEBUG: Log after setting
+      logger.info('🎯 AI Photoshop: Session UPDATED for ALL_MODELS', {
+        telegramId: ctx.from?.id,
+        aiPhotoshopModel: ctx.session.aiPhotoshopModel,
+        awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
+        aiPhotoshopStep: ctx.session.aiPhotoshopStep
+      })
     }
 
     const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
@@ -831,10 +849,66 @@ aiPhotoshopScene.on('photo', async ctx => {
 })
 
 // Handle text messages (custom prompts)
+// 🚨 DEDICATED FUNCTION: Handle all_models prompt BEFORE everything else
+async function handleAllModelsPrompt(ctx: MyContext, messageText: string): Promise<boolean> {
+  const isRu = isRussianFromState(ctx)
+
+  // Check if this is all_models prompt waiting state
+  if (ctx.session?.aiPhotoshopModel === 'all_models' && ctx.session?.awaitingAiPhotoshopPrompt) {
+    console.log('🎯🎯🎯 ALL_MODELS PROMPT DETECTED!', {
+      telegramId: ctx.from?.id,
+      prompt: messageText.substring(0, 50),
+      imageCount: ctx.session.morphingImages?.length || 0
+    })
+
+    // Save prompt and show confirmation
+    ctx.session.aiPhotoshopPrompt = messageText
+    ctx.session.awaitingAiPhotoshopPrompt = false
+
+    await ctx.reply(
+      isRu
+        ? `✅ Промпт получен: "${messageText}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n💎 Стоимость: ${(ctx.session.morphingImages?.length || 1) * 30}⭐`
+        : `✅ Prompt received: "${messageText}"\n\n🎯 Ready to process with all 4 models!\n\n💎 Cost: ${(ctx.session.morphingImages?.length || 1) * 30}⭐`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            {
+              text: isRu ? '🚀 Начать обработку всеми моделями' : '🚀 Start processing with all models',
+              callback_data: 'ai_photoshop_multi_confirm'
+            }
+          ], [
+            {
+              text: isRu ? '❌ Отмена' : '❌ Cancel',
+              callback_data: 'ai_photoshop_multi_cancel'
+            }
+          ]]
+        }
+      }
+    )
+    return true // Handled
+  }
+
+  return false // Not handled
+}
+
 aiPhotoshopScene.on('text', async ctx => {
   try {
-    const isRu = isRussianFromState(ctx)
+    // 🔥 ULTRA DEBUG: Always log text handler entry
+    console.log('🚨🚨🚨 TEXT HANDLER TRIGGERED!', {
+      telegramId: ctx.from?.id,
+      text: ctx.message.text.substring(0, 30),
+      timestamp: new Date().toISOString()
+    })
+
     const messageText = ctx.message.text
+
+    // 🚨 FIRST PRIORITY: Check for all_models prompt handling
+    if (await handleAllModelsPrompt(ctx, messageText)) {
+      console.log('🎯 ALL_MODELS prompt handled, returning early')
+      return
+    }
+
+    const isRu = isRussianFromState(ctx)
 
     // Skip commands
     if (messageText.startsWith('/')) {
@@ -1155,29 +1229,56 @@ aiPhotoshopScene.on('text', async ctx => {
       return
     }
 
+    // 🚨 CRITICAL DEBUG: Log session state
+    console.log('🔍🔍🔍 AI Photoshop: Text handler session state DEBUG', {
+      telegramId: ctx.from?.id,
+      promptReceived: prompt.substring(0, 30) + '...',
+      sessionExists: !!ctx.session,
+      aiPhotoshopModel: ctx.session?.aiPhotoshopModel,
+      awaitingAiPhotoshopPrompt: ctx.session?.awaitingAiPhotoshopPrompt,
+      morphingImagesCount: ctx.session?.morphingImages?.length || 0,
+      hasAnyAiPhotoshopData: !!(ctx.session?.aiPhotoshopModel || ctx.session?.aiPhotoshopImage)
+    })
+
     if (ctx.session) {
       ctx.session.aiPhotoshopPrompt = prompt
       ctx.session.awaitingAiPhotoshopPrompt = false
       ctx.session.aiPhotoshopStep = 'processing'
     }
 
-    // ✅ CRITICAL FIX: Check for 'all_models' mode BEFORE processing
-    if (ctx.session?.aiPhotoshopModel === 'all_models') {
+    // 🚨 ENHANCED CRITICAL FIX: Check for 'all_models' mode with multiple conditions
+    const isAllModelsMode = ctx.session?.aiPhotoshopModel === 'all_models' ||
+                           (ctx.session?.morphingImages?.length > 0 && ctx.session?.awaitingAiPhotoshopPrompt)
+
+    console.log('🚨🚨🚨 ALL_MODELS CHECK DEBUG:', {
+      telegramId: ctx.from?.id,
+      aiPhotoshopModel: ctx.session?.aiPhotoshopModel,
+      morphingImagesCount: ctx.session?.morphingImages?.length || 0,
+      awaitingPrompt: ctx.session?.awaitingAiPhotoshopPrompt,
+      isAllModelsMode,
+      promptReceived: prompt.substring(0, 30) + '...'
+    })
+
+    if (isAllModelsMode) {
       logger.info('🎯 AI Photoshop: All models mode detected in text handler - returning to confirmation', {
         telegramId: ctx.from?.id,
         promptReceived: prompt.substring(0, 30) + '...',
-        imageCount: ctx.session.morphingImages?.length || 0
+        imageCount: ctx.session?.morphingImages?.length || 0,
+        condition: 'ENHANCED_ALL_MODELS_CHECK'
       })
 
       // ✅ CRITICAL: Save prompt for all_models processing
-      ctx.session.aiPhotoshopPrompt = prompt
-      ctx.session.awaitingAiPhotoshopPrompt = false
+      if (ctx.session) {
+        ctx.session.aiPhotoshopPrompt = prompt
+        ctx.session.awaitingAiPhotoshopPrompt = false
+        ctx.session.aiPhotoshopModel = 'all_models' as any // Force set if missing
+      }
 
       // Show confirmation message for all_models mode
       await ctx.reply(
         isRu
-          ? `✅ Промпт получен: "${prompt}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n💎 Стоимость: ${(ctx.session.morphingImages?.length || 1) * 30}⭐`
-          : `✅ Prompt received: "${prompt}"\n\n🎯 Ready to process with all 4 models!\n\n💎 Cost: ${(ctx.session.morphingImages?.length || 1) * 30}⭐`,
+          ? `✅ Промпт получен: "${prompt}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n💎 Стоимость: ${(ctx.session?.morphingImages?.length || 1) * 30}⭐`
+          : `✅ Prompt received: "${prompt}"\n\n🎯 Ready to process with all 4 models!\n\n💎 Cost: ${(ctx.session?.morphingImages?.length || 1) * 30}⭐`,
         {
           reply_markup: {
             inline_keyboard: [[
@@ -1576,7 +1677,7 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
     [
       Markup.button.callback(
         isRu ? `🎯 Все сразу (${totalCostAllModels}⭐)` : `🎯 All at once (${totalCostAllModels}⭐)`,
-        'ai_photoshop_generate_all_models'
+        'ai_photoshop_all_models_from_selector'
       )
     ],
     [
@@ -1749,8 +1850,8 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           }
         }
 
-        // Process with current model
-        await processAiPhotoshopRequest(ctx, prompt)
+        // Process with current model (avoid recursion by calling individual processing directly)
+        await processSingleAiPhotoshopModel(ctx, prompt, modelKey)
 
         // Small delay between models to prevent rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -2110,6 +2211,165 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
   }
 }
 
+// ✅ NEW: Process single AI Photoshop model (non-recursive version for all_models processing)
+const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: string, modelKey: keyof typeof AI_PHOTOSHOP_MODELS) => {
+  const isRu = isRussianFromState(ctx)
+
+  try {
+    logger.info(`🎨 AI Photoshop: Processing single model ${modelKey}`, {
+      telegramId: ctx.from?.id,
+      model: modelKey,
+      hasCustomPrompt: !!customPrompt
+    })
+
+    // Get session data
+    const { aiPhotoshopImage, morphingImages } = ctx.session || {}
+
+    // Use either single image or first from morphingImages
+    const imageUrl = aiPhotoshopImage || (morphingImages && morphingImages.length > 0 ? morphingImages[0].url : null)
+
+    if (!imageUrl || !ctx.from?.id) {
+      logger.error(`Missing image for ${modelKey} processing`, {
+        telegramId: ctx.from?.id,
+        hasImage: !!imageUrl
+      })
+      return
+    }
+
+    // Prepare session temporarily for this specific model
+    const originalModel = ctx.session?.aiPhotoshopModel
+    if (ctx.session) {
+      ctx.session.aiPhotoshopModel = modelKey
+      ctx.session.aiPhotoshopPrompt = customPrompt
+      ctx.session.aiPhotoshopImage = imageUrl
+      if (!ctx.session.aiPhotoshopSize) {
+        ctx.session.aiPhotoshopSize = '1K'
+      }
+    }
+
+    // Get model config
+    const modelConfig = AI_PHOTOSHOP_MODELS[modelKey]
+    if (!modelConfig) {
+      logger.error(`Model config not found: ${modelKey}`)
+      return
+    }
+
+    const userId = ctx.from.id
+    const prompt = customPrompt || 'enhance this image'
+
+    // No processing message - just process silently
+    const modelTitle = isRu ? modelConfig.title_ru : modelConfig.title_en
+
+    // Process based on model type using existing imported functions
+    let result
+    if (modelKey === 'seedream') {
+      result = await generateSeeDream4({
+        prompt,
+        inputImageUrl: imageUrl,
+        telegram_id: userId.toString(),
+        username: ctx.from?.username || 'unknown',
+        is_ru: isRu,
+        ctx,
+        size: ctx.session?.aiPhotoshopSize || '2K',
+        max_images: 1,
+        aspect_ratio: 'match_input_image'
+      })
+    } else if (modelKey === 'nano_banana') {
+      result = await generateNanoBanana({
+        promptText: prompt,
+        inputImageUrl: imageUrl,
+        telegram_id: userId.toString(),
+        username: ctx.from?.username || 'unknown',
+        is_ru: isRu,
+        ctx,
+        promptStyle: 'artistic'
+      })
+    } else if (modelKey === 'flux_max') {
+      result = await generateFluxKontextMax({
+        prompt,
+        inputImageUrl: imageUrl,
+        telegram_id: userId.toString(),
+        username: ctx.from?.username || 'unknown',
+        is_ru: isRu,
+        ctx,
+        aspect_ratio: 'match_input_image',
+        output_format: 'png',
+        safety_tolerance: 2
+      })
+    } else if (modelKey === 'qwen_edit_plus') {
+      const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
+      const sizeToAspectRatio: Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'> = {
+        '1K': '9:16',
+        '2K': '9:16',
+        '4K': '16:9',
+        'custom': '9:16'
+      }
+
+      result = await generateQwenImageEditPlus({
+        prompt,
+        inputImageUrl: imageUrl,
+        telegram_id: userId.toString(),
+        username: ctx.from?.username || 'unknown',
+        is_ru: isRu,
+        ctx,
+        aspect_ratio: sizeToAspectRatio[selectedSize] || '1:1',
+        output_format: 'jpg',
+        output_quality: 90
+      })
+    }
+
+    // No processing message to delete
+
+    if (result?.success && result.imageUrl) {
+      // Save result for later reference
+      await savePhotoResult(ctx, result.imageUrl, modelKey, prompt)
+
+      // Send result with model name
+      await ctx.replyWithPhoto(result.imageUrl, {
+        caption: isRu
+          ? `✅ *${modelTitle}*\n\n📝 Промпт: "${prompt}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
+          : `✅ *${modelTitle}*\n\n📝 Prompt: "${prompt}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
+        parse_mode: 'Markdown'
+      })
+
+      logger.info(`✅ ${modelKey} processing completed successfully`, {
+        telegramId: ctx.from?.id,
+        model: modelKey
+      })
+    } else {
+      logger.error(`❌ ${modelKey} processing failed`, {
+        telegramId: ctx.from?.id,
+        model: modelKey,
+        error: result?.error || 'Unknown error'
+      })
+
+      await ctx.reply(
+        isRu
+          ? `❌ Ошибка обработки с ${modelTitle}: ${result?.error || 'Неизвестная ошибка'}`
+          : `❌ Processing error with ${modelTitle}: ${result?.error || 'Unknown error'}`
+      )
+    }
+
+    // Restore original session state
+    if (ctx.session) {
+      ctx.session.aiPhotoshopModel = originalModel
+    }
+
+  } catch (error) {
+    logger.error(`Error in processSingleAiPhotoshopModel for ${modelKey}`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+      model: modelKey
+    })
+
+    await ctx.reply(
+      isRu
+        ? `❌ Ошибка при обработке моделью ${modelKey}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+        : `❌ Error processing with ${modelKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
 // Navigation buttons
 aiPhotoshopScene.action('ai_photoshop_back_to_models', async ctx => {
   try {
@@ -2383,7 +2643,8 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
         Object.assign(ctx.session, {
           aiPhotoshopStep: 'custom_prompt',
           awaitingAiPhotoshopPrompt: true,
-          awaitingAiPhotoshopImage: false
+          awaitingAiPhotoshopImage: false,
+          aiPhotoshopModel: 'all_models' // 🚨 CRITICAL FIX: Ensure all_models is set!
         })
         return
       }
