@@ -1861,8 +1861,8 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             }
           }
 
-          // Use the standard processing function instead of the single model one
-          await processAiPhotoshopRequest(ctx, prompt)
+          // ✅ FIXED: Use processSingleAiPhotoshopModel to avoid recursion
+          await processSingleAiPhotoshopModel(ctx, prompt, modelKey, true)
 
           // Small delay between images
           await new Promise(resolve => setTimeout(resolve, 1000))
@@ -2672,52 +2672,9 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
             // Ignore deletion errors
           }
 
-          // ✅ FOR ALL_MODELS: Process with ALL 4 models and ALL images
-          logger.info('🎯 AI Photoshop: Starting ALL_MODELS specialized processing', {
-            telegramId: ctx.from?.id,
-            prompt: (ctx.session.aiPhotoshopPrompt || 'enhance this image').substring(0, 50) + '...',
-            imageCount: ctx.session.morphingImages?.length || 0
-          })
-
-          const prompt = ctx.session.aiPhotoshopPrompt || 'enhance this image'
-          const imagesToProcess = ctx.session.morphingImages || []
-          const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as (keyof typeof AI_PHOTOSHOP_MODELS)[]
-
-          // Process with each model sequentially, handling ALL images for each model
-          for (const modelKey of availableModels) {
-            logger.info(`🎯 Processing with ${modelKey} for ALL images`, {
-              telegramId: ctx.from?.id,
-              modelKey,
-              imageCount: imagesToProcess.length
-            })
-
-            // Get all image URLs for this model
-            const imageUrls = imagesToProcess.map(img => img.url).filter(Boolean)
-
-            // Temporarily set session for this specific processing
-            const originalModel = ctx.session.aiPhotoshopModel
-            ctx.session.aiPhotoshopModel = modelKey
-            ctx.session.aiPhotoshopPrompt = prompt
-
-            // Call the specialized single model processor for all images at once
-            for (const imageUrl of imageUrls) {
-              if (ctx.session) {
-                ctx.session.aiPhotoshopImage = imageUrl
-              }
-              await processSingleAiPhotoshopModel(ctx, prompt, modelKey, true)
-            }
-
-            // Restore session state
-            ctx.session.aiPhotoshopModel = originalModel
-          }
-
-          logger.info('🎯 AI Photoshop: ALL_MODELS processing completed', {
-            telegramId: ctx.from?.id,
-            modelsProcessed: availableModels.length,
-            imagesProcessed: imagesToProcess.length
-          })
-
-          return // ✅ CRITICAL: Exit immediately after all_models processing!
+          // ✅ ALL_MODELS: Use processAiPhotoshopRequest (it handles all_models internally)
+          await processAiPhotoshopRequest(ctx, ctx.session.aiPhotoshopPrompt)
+          return
         }
       }
 
