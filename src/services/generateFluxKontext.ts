@@ -32,6 +32,7 @@ export interface FluxKontextParams {
   username: string
   is_ru: boolean
   ctx: MyContext
+  aspect_ratio?: '1:1' | '16:9' | 'match_input_image'
 }
 
 // Новый интерфейс для продвинутого FLUX Kontext
@@ -200,7 +201,7 @@ export const generateFluxKontext = async (
     const inputParams = {
       prompt,
       input_image: inputImageUrl,
-      aspect_ratio: '9:16', // Формат для Instagram Stories
+      aspect_ratio: params.aspect_ratio || 'match_input_image', // Use parameter or default to match_input_image
     }
 
     console.log('🔥 [CRITICAL] About to call Replicate API:', {
