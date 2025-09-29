@@ -6,5 +6,237 @@
     "duration": 8.957042000000001,
     "timestamp": 1758909908514,
     "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139487464",
+    "type": "agent",
+    "success": true,
+    "duration": 6.640541000000013,
+    "timestamp": 1759139487470,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139488770",
+    "type": "agent",
+    "success": true,
+    "duration": 6.34658300000001,
+    "timestamp": 1759139488777,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139489903",
+    "type": "agent",
+    "success": true,
+    "duration": 5.493625000000009,
+    "timestamp": 1759139489909,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139490924",
+    "type": "agent",
+    "success": true,
+    "duration": 5.950375000000008,
+    "timestamp": 1759139490930,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139492224",
+    "type": "agent",
+    "success": true,
+    "duration": 6.014166999999986,
+    "timestamp": 1759139492230,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139493615",
+    "type": "agent",
+    "success": true,
+    "duration": 7.337874999999997,
+    "timestamp": 1759139493623,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139494658",
+    "type": "agent",
+    "success": true,
+    "duration": 6.131167000000005,
+    "timestamp": 1759139494664,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139495765",
+    "type": "agent",
+    "success": true,
+    "duration": 5.788083,
+    "timestamp": 1759139495771,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139497787",
+    "type": "agent",
+    "success": true,
+    "duration": 5.664625000000001,
+    "timestamp": 1759139497793,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139498921",
+    "type": "agent",
+    "success": true,
+    "duration": 5.356417000000022,
+    "timestamp": 1759139498927,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139499956",
+    "type": "agent",
+    "success": true,
+    "duration": 6.099540999999988,
+    "timestamp": 1759139499962,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139501024",
+    "type": "agent",
+    "success": true,
+    "duration": 6.334291000000007,
+    "timestamp": 1759139501031,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139502378",
+    "type": "agent",
+    "success": true,
+    "duration": 9.125584000000003,
+    "timestamp": 1759139502387,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139503673",
+    "type": "agent",
+    "success": true,
+    "duration": 5.5446660000000065,
+    "timestamp": 1759139503679,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139505806",
+    "type": "agent",
+    "success": true,
+    "duration": 5.850332999999978,
+    "timestamp": 1759139505812,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139507042",
+    "type": "agent",
+    "success": true,
+    "duration": 8.972667000000001,
+    "timestamp": 1759139507051,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139508563",
+    "type": "agent",
+    "success": true,
+    "duration": 25.74841699999996,
+    "timestamp": 1759139508589,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139510114",
+    "type": "agent",
+    "success": true,
+    "duration": 6.411790999999994,
+    "timestamp": 1759139510121,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139512571",
+    "type": "agent",
+    "success": true,
+    "duration": 9.316332999999986,
+    "timestamp": 1759139512580,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139514030",
+    "type": "agent",
+    "success": true,
+    "duration": 6.677999999999997,
+    "timestamp": 1759139514037,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139517601",
+    "type": "agent",
+    "success": true,
+    "duration": 8.389417000000009,
+    "timestamp": 1759139517610,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139517680",
+    "type": "agent",
+    "success": true,
+    "duration": 6.745291999999978,
+    "timestamp": 1759139517687,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139517821",
+    "type": "agent",
+    "success": true,
+    "duration": 5.8950419999999895,
+    "timestamp": 1759139517827,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-status-1759139519984",
+    "type": "status",
+    "success": true,
+    "duration": 198.810625,
+    "timestamp": 1759139520183,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139521354",
+    "type": "agent",
+    "success": true,
+    "duration": 51.851541999999995,
+    "timestamp": 1759139521405,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139525089",
+    "type": "agent",
+    "success": true,
+    "duration": 28.950957999999986,
+    "timestamp": 1759139525118,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139525136",
+    "type": "agent",
+    "success": true,
+    "duration": 22.82091700000001,
+    "timestamp": 1759139525159,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139525235",
+    "type": "agent",
+    "success": true,
+    "duration": 8.833250000000021,
+    "timestamp": 1759139525243,
+    "metadata": {}
+  },
+  {
+    "id": "cmd-agent-1759139525242",
+    "type": "agent",
+    "success": true,
+    "duration": 7.379333000000003,
+    "timestamp": 1759139525250,
+    "metadata": {}
   }
 ]

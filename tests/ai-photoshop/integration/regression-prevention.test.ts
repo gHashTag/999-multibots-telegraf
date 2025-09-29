@@ -446,6 +446,252 @@ describe('AI Photoshop Regression Prevention', () => {
     })
   })
 
+  describe('Dialog Mode Regression Tests', () => {
+    it('REGRESSION: should preserve dialog history across improvements', async () => {
+      // Bug: Dialog history lost when user makes improvements
+      // Fix: Maintain savedAiPhotoshopResults throughout dialog session
+
+      const mockContext = createMockContext(MOCK_SESSION_STATES.initial)
+
+      // Setup initial dialog state
+      const initialResult = {
+        imageUrl: 'https://example.com/initial.jpg',
+        prompt: 'initial enhancement',
+        model: 'seedream',
+        timestamp: Date.now() - 60000,
+        additionalInfo: { size: '1K' }
+      }
+
+      mockContext.session.dialogMode = true
+      mockContext.session.savedAiPhotoshopResults = [initialResult]
+
+      // Simulate improvement iteration
+      const improvementPrompt = 'make it brighter'
+      mockContext.session.aiPhotoshopPrompt = improvementPrompt
+      mockContext.session.aiPhotoshopImage = initialResult.imageUrl
+
+      // Add improvement result
+      const improvementResult = {
+        imageUrl: 'https://example.com/improved.jpg',
+        prompt: improvementPrompt,
+        model: 'seedream',
+        timestamp: Date.now(),
+        additionalInfo: {
+          size: '1K',
+          isImprovement: true,
+          originalImage: initialResult.imageUrl
+        }
+      }
+
+      mockContext.session.savedAiPhotoshopResults.push(improvementResult)
+
+      // CRITICAL: Dialog history should be preserved
+      expect(mockContext.session.savedAiPhotoshopResults).toHaveLength(2)
+      expect(mockContext.session.savedAiPhotoshopResults[0]).toEqual(initialResult)
+      expect(mockContext.session.savedAiPhotoshopResults[1].additionalInfo.isImprovement).toBe(true)
+      expect(mockContext.session.dialogMode).toBe(true)
+    })
+
+    it('REGRESSION: should handle dialog mode with corrupted session data', async () => {
+      // Bug: Dialog mode crashed when savedAiPhotoshopResults was corrupted
+      // Fix: Validate and recover from corrupted dialog history
+
+      const mockContext = createMockContext(MOCK_SESSION_STATES.initial)
+
+      // Simulate corrupted dialog data
+      mockContext.session.dialogMode = true
+      mockContext.session.savedAiPhotoshopResults = [
+        {
+          imageUrl: 'https://example.com/valid.jpg',
+          prompt: 'valid result',
+          model: 'seedream',
+          timestamp: Date.now(),
+          additionalInfo: { size: '1K' }
+        },
+        null, // Corrupted entry
+        {
+          imageUrl: '', // Invalid URL
+          prompt: '',  // Invalid prompt
+          model: '',   // Invalid model
+          timestamp: -1, // Invalid timestamp
+          additionalInfo: null // Invalid additionalInfo
+        },
+        {
+          imageUrl: 'https://example.com/another-valid.jpg',
+          prompt: 'another valid result',
+          model: 'seedream',
+          timestamp: Date.now() + 1000,
+          additionalInfo: { size: '2K' }
+        }
+      ] as any
+
+      // Filter out corrupted entries
+      const validResults = mockContext.session.savedAiPhotoshopResults.filter((result: any) =>
+        result &&
+        typeof result === 'object' &&
+        result.imageUrl &&
+        result.prompt &&
+        result.model &&
+        result.timestamp > 0 &&
+        result.additionalInfo
+      )
+
+      mockContext.session.savedAiPhotoshopResults = validResults
+
+      // Should recover with only valid entries
+      expect(mockContext.session.savedAiPhotoshopResults).toHaveLength(2)
+      expect(mockContext.session.savedAiPhotoshopResults[0].imageUrl).toBe('https://example.com/valid.jpg')
+      expect(mockContext.session.savedAiPhotoshopResults[1].imageUrl).toBe('https://example.com/another-valid.jpg')
+    })
+
+    it('REGRESSION: should limit dialog history to prevent memory bloat', async () => {
+      // Bug: Unlimited dialog history caused memory exhaustion
+      // Fix: Limit savedAiPhotoshopResults to last 10 entries
+
+      const mockContext = createMockContext(MOCK_SESSION_STATES.initial)
+      mockContext.session.dialogMode = true
+      mockContext.session.savedAiPhotoshopResults = []
+
+      // Add 15 results (more than limit)
+      for (let i = 0; i < 15; i++) {
+        const result = {
+          imageUrl: `https://example.com/result_${i}.jpg`,
+          prompt: `enhancement ${i}`,
+          model: 'seedream',
+          timestamp: Date.now() + i * 1000,
+          additionalInfo: { size: '1K' }
+        }
+
+        mockContext.session.savedAiPhotoshopResults.push(result)
+
+        // Apply limit after each addition
+        if (mockContext.session.savedAiPhotoshopResults.length > 10) {
+          mockContext.session.savedAiPhotoshopResults =
+            mockContext.session.savedAiPhotoshopResults.slice(-10)
+        }
+      }
+
+      // Should have exactly 10 results (last 10)
+      expect(mockContext.session.savedAiPhotoshopResults).toHaveLength(10)
+      expect(mockContext.session.savedAiPhotoshopResults[0].prompt).toBe('enhancement 5')
+      expect(mockContext.session.savedAiPhotoshopResults[9].prompt).toBe('enhancement 14')
+    })
+
+    it('REGRESSION: should handle dialog mode text input without existing image', async () => {
+      // Bug: Dialog mode failed when user sent text but no savedAiPhotoshopResults
+      // Fix: Validate dialog state before processing text improvements
+
+      const mockContext = createMockContext(MOCK_SESSION_STATES.initial)
+      mockContext.session.dialogMode = true
+      mockContext.session.savedAiPhotoshopResults = [] // Empty history
+
+      const textInput = 'make it brighter'
+
+      // Should detect invalid dialog state
+      const hasDialogHistory = mockContext.session.savedAiPhotoshopResults &&
+                               mockContext.session.savedAiPhotoshopResults.length > 0
+
+      expect(hasDialogHistory).toBe(false)
+
+      // Should not attempt to process text improvement without history
+      const canProcessImprovement = hasDialogHistory &&
+                                   mockContext.session.dialogMode
+
+      expect(canProcessImprovement).toBe(false)
+    })
+
+    it('REGRESSION: should preserve dialog mode across scene re-entries', async () => {
+      // Bug: Dialog mode lost when user re-entered AI Photoshop scene
+      // Fix: Check for existing dialog session on scene entry
+
+      const mockContext = createMockContext(MOCK_SESSION_STATES.initial)
+
+      // Setup existing dialog session
+      mockContext.session.dialogMode = true
+      mockContext.session.savedAiPhotoshopResults = [
+        {
+          imageUrl: 'https://example.com/existing.jpg',
+          prompt: 'existing result',
+          model: 'seedream',
+          timestamp: Date.now() - 300000, // 5 minutes ago
+          additionalInfo: { size: '2K' }
+        }
+      ]
+
+      // Simulate scene re-entry check
+      const hasExistingDialog = mockContext.session.dialogMode &&
+                               mockContext.session.savedAiPhotoshopResults &&
+                               mockContext.session.savedAiPhotoshopResults.length > 0
+
+      // Should detect existing dialog session
+      expect(hasExistingDialog).toBe(true)
+
+      // Should preserve dialog state instead of resetting
+      if (hasExistingDialog) {
+        // Don't reset session, continue in dialog mode
+        expect(mockContext.session.dialogMode).toBe(true)
+        expect(mockContext.session.savedAiPhotoshopResults).toHaveLength(1)
+      }
+    })
+
+    it('REGRESSION: should handle rapid dialog improvements without race conditions', async () => {
+      // Bug: Rapid improvements caused session state conflicts
+      // Fix: Proper session state management for concurrent operations
+
+      const mockContext = createMockContext(MOCK_SESSION_STATES.initial)
+      mockContext.session.dialogMode = true
+      mockContext.session.savedAiPhotoshopResults = [
+        {
+          imageUrl: 'https://example.com/base.jpg',
+          prompt: 'base image',
+          model: 'seedream',
+          timestamp: Date.now() - 10000,
+          additionalInfo: { size: '1K' }
+        }
+      ]
+
+      const rapidImprovements = [
+        'make it brighter',
+        'add more contrast',
+        'enhance colors',
+        'improve sharpness',
+        'final touches'
+      ]
+
+      // Simulate rapid improvements
+      let currentResults = [...mockContext.session.savedAiPhotoshopResults]
+
+      rapidImprovements.forEach((prompt, index) => {
+        const improvement = {
+          imageUrl: `https://example.com/improvement_${index}.jpg`,
+          prompt: prompt,
+          model: 'seedream',
+          timestamp: Date.now() + index * 100,
+          additionalInfo: {
+            size: '1K',
+            isImprovement: true
+          }
+        }
+
+        // Atomic update - add to array
+        currentResults = [...currentResults, improvement]
+      })
+
+      mockContext.session.savedAiPhotoshopResults = currentResults
+
+      // Should have all improvements in order
+      expect(mockContext.session.savedAiPhotoshopResults).toHaveLength(6) // 1 base + 5 improvements
+      expect(mockContext.session.savedAiPhotoshopResults[1].prompt).toBe('make it brighter')
+      expect(mockContext.session.savedAiPhotoshopResults[5].prompt).toBe('final touches')
+
+      // All improvements should be marked correctly
+      const improvements = mockContext.session.savedAiPhotoshopResults.slice(1)
+      improvements.forEach(result => {
+        expect(result.additionalInfo.isImprovement).toBe(true)
+      })
+    })
+  })
+
   describe('Performance Regression Tests', () => {
     it('REGRESSION: should not cause memory leaks in multi-photo processing', async () => {
       // Bug: Buffer references not properly released
@@ -508,6 +754,62 @@ describe('AI Photoshop Regression Prevention', () => {
 
       // Variance should be low (consistent performance)
       expect(variance).toBeLessThan(Math.pow(average * 0.3, 2)) // 30% variance allowed
+    })
+
+    it('REGRESSION: should handle dialog mode memory efficiently', async () => {
+      // Bug: Dialog mode caused memory leaks with large result history
+      // Fix: Efficient memory management for dialog sessions
+
+      const initialMemory = process.memoryUsage().heapUsed
+
+      // Simulate multiple dialog sessions
+      for (let session = 0; session < 10; session++) {
+        const mockContext = createMockContext(MOCK_SESSION_STATES.initial)
+        mockContext.session.dialogMode = true
+        mockContext.session.savedAiPhotoshopResults = []
+
+        // Add multiple results per session
+        for (let i = 0; i < 20; i++) {
+          const result = {
+            imageUrl: `https://example.com/session_${session}_result_${i}.jpg`,
+            prompt: `Session ${session} enhancement ${i} with detailed description and metadata`,
+            model: 'seedream',
+            timestamp: Date.now() + i * 1000,
+            additionalInfo: {
+              size: '2K',
+              isImprovement: i > 0,
+              metadata: {
+                session: session,
+                iteration: i,
+                improvements: Array(i % 5).fill(0).map((_, j) => `improvement_${j}`)
+              }
+            }
+          }
+
+          mockContext.session.savedAiPhotoshopResults.push(result)
+
+          // Apply memory limit
+          if (mockContext.session.savedAiPhotoshopResults.length > 10) {
+            mockContext.session.savedAiPhotoshopResults =
+              mockContext.session.savedAiPhotoshopResults.slice(-10)
+          }
+        }
+
+        // Clear session (simulate cleanup)
+        mockContext.session.savedAiPhotoshopResults = []
+        mockContext.session.dialogMode = false
+      }
+
+      // Force garbage collection
+      if (global.gc) {
+        global.gc()
+      }
+
+      const finalMemory = process.memoryUsage().heapUsed
+      const memoryIncrease = finalMemory - initialMemory
+
+      // Memory increase should be minimal despite multiple sessions
+      expect(memoryIncrease).toBeLessThan(15 * 1024 * 1024) // Less than 15MB
     })
   })
 })

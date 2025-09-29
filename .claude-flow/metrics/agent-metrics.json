@@ -1,1 +1,152 @@
-{}
+{
+  "analyst": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.00033399999998096064,
+    "actions": [
+      {
+        "id": "analyst-1759139490925",
+        "action": "spawn",
+        "duration": 0.00033399999998096064,
+        "success": true,
+        "timestamp": 1759139490928
+      }
+    ]
+  },
+  "architect": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.0002499999999940883,
+    "actions": [
+      {
+        "id": "architect-1759139492224",
+        "action": "spawn",
+        "duration": 0.0002499999999940883,
+        "success": true,
+        "timestamp": 1759139492228
+      }
+    ]
+  },
+  "tester": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.0002499999999940883,
+    "actions": [
+      {
+        "id": "tester-1759139493615",
+        "action": "spawn",
+        "duration": 0.0002499999999940883,
+        "success": true,
+        "timestamp": 1759139493622
+      }
+    ]
+  },
+  "reviewer": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.00041699999999877946,
+    "actions": [
+      {
+        "id": "reviewer-1759139494658",
+        "action": "spawn",
+        "duration": 0.00041699999999877946,
+        "success": true,
+        "timestamp": 1759139494663
+      }
+    ]
+  },
+  "optimizer": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.0002499999999940883,
+    "actions": [
+      {
+        "id": "optimizer-1759139495765",
+        "action": "spawn",
+        "duration": 0.0002499999999940883,
+        "success": true,
+        "timestamp": 1759139495769
+      }
+    ]
+  },
+  "invalid-agent": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.0003749999999911324,
+    "actions": [
+      {
+        "id": "invalid-agent-1759139497787",
+        "action": "spawn",
+        "duration": 0.0003749999999911324,
+        "success": true,
+        "timestamp": 1759139497791
+      }
+    ]
+  },
+  "fake-type": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.00041699999999877946,
+    "actions": [
+      {
+        "id": "fake-type-1759139499956",
+        "action": "spawn",
+        "duration": 0.00041699999999877946,
+        "success": true,
+        "timestamp": 1759139499961
+      }
+    ]
+  },
+  "undefined": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.0002920000000017353,
+    "actions": [
+      {
+        "id": "undefined-1759139503673",
+        "action": "spawn",
+        "duration": 0.0002920000000017353,
+        "success": true,
+        "timestamp": 1759139503678
+      }
+    ]
+  },
+  "coordinator": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.0002920000000017353,
+    "actions": [
+      {
+        "id": "coordinator-1759139517601",
+        "action": "spawn",
+        "duration": 0.0002920000000017353,
+        "success": true,
+        "timestamp": 1759139517608
+      }
+    ]
+  },
+  "researcher": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "totalDuration": 0.0002920000000017353,
+    "actions": [
+      {
+        "id": "researcher-1759139525136",
+        "action": "spawn",
+        "duration": 0.0002920000000017353,
+        "success": true,
+        "timestamp": 1759139525154
+      }
+    ]
+  }
+}

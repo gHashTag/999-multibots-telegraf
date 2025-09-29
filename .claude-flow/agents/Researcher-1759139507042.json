@@ -1,0 +1,14 @@
+{
+  "id": "Researcher-1759139507042",
+  "name": "agent-1759139507042",
+  "type": "Researcher",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1759139507042,
+  "capabilities": [
+    "Research",
+    "Analysis",
+    "Code Generation"
+  ],
+  "createdAt": 1759139507042
+}
