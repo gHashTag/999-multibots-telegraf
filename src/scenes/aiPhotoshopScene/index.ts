@@ -1728,7 +1728,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             ctx,
             size: selectedSize,
             max_images: maxImages,
-            aspect_ratio: '9:16'
+            aspect_ratio: 'match_input_image'
           })
         } else {
           // Single photo processing (or first image if multiple)
@@ -1741,7 +1741,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             ctx,
             size: selectedSize,
             max_images: 1, // Single image processing
-            aspect_ratio: '9:16'
+            aspect_ratio: 'match_input_image'
           })
         }
         break
@@ -1791,7 +1791,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           username: ctx.from.username || 'unknown',
           is_ru: isRu,
           ctx,
-          aspect_ratio: sizeToAspectRatio[qwenSelectedSize as keyof typeof sizeToAspectRatio] || '9:16',
+          aspect_ratio: sizeToAspectRatio[qwenSelectedSize as keyof typeof sizeToAspectRatio] || '1:1',
           output_format: 'webp',
           output_quality: 90
         })
@@ -2546,11 +2546,7 @@ aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
           error: modelError instanceof Error ? modelError.message : 'Unknown error'
         })
 
-        await ctx.reply(
-          isRu
-            ? `❌ Ошибка при обработке моделью ${modelTitle}. Продолжаю с другими моделями...`
-            : `❌ Error processing with ${modelTitle}. Continuing with other models...`
-        )
+        // Log error but don't spam user with individual error messages
       }
     }
 
