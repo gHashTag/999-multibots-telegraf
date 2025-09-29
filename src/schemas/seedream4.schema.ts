@@ -22,9 +22,24 @@ export const SeeDream4InputSchema = z.object({
   height: z.number().int().min(1024, '🚨 Height must be at least 1024px').max(4096, '🚨 Height cannot exceed 4096px').optional(),
   max_images: z.number().int().min(1, '🚨 Must generate at least 1 image').max(15, '🚨 Cannot generate more than 15 images').default(1),
   image_input: z.array(
-    z.string().url('🚨 Invalid image URL').refine(
-      (url) => url.startsWith('http'),
-      '🚨 Image URL must start with http/https'
+    z.string().refine(
+      (url) => {
+        // Support HTTP/HTTPS URLs
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          try {
+            new URL(url)
+            return true
+          } catch {
+            return false
+          }
+        }
+        // Support data URIs for images
+        if (url.startsWith('data:image/')) {
+          return true
+        }
+        return false
+      },
+      '🚨 Image URL must be valid HTTP/HTTPS URL or data URI'
     )
   ).min(1, '🚨 At least one image required').max(10, '🚨 Cannot process more than 10 images').optional(),
   aspect_ratio: z.string().regex(/^\d+:\d+$/, '🚨 Aspect ratio must be in format "width:height"').optional(),
