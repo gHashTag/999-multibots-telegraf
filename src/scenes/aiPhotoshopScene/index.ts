@@ -1830,28 +1830,43 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       }
     )
 
-    // Process with each model sequentially
+    // Process with each model sequentially, handling multiple images
     const prompt = customPrompt || 'enhance this image'
+    const imagesToProcess = ctx.session?.morphingImages || (ctx.session?.aiPhotoshopImage ? [{ url: ctx.session.aiPhotoshopImage }] : [])
+
+    logger.info(`🎨 AI Photoshop: Processing ${imagesToProcess.length} images with ${availableModels.length} models`, {
+      telegramId: ctx.from?.id,
+      imageCount: imagesToProcess.length,
+      modelCount: availableModels.length
+    })
+
     for (const modelKey of availableModels) {
       try {
         logger.info(`🎨 AI Photoshop: Processing with model ${modelKey}`, {
           telegramId: ctx.from?.id,
           model: modelKey,
-          currentStep: `${availableModels.indexOf(modelKey) + 1}/${availableModels.length}`
+          currentStep: `${availableModels.indexOf(modelKey) + 1}/${availableModels.length}`,
+          imageCount: imagesToProcess.length
         })
 
-        // Temporarily set session model to current model for processing
-        if (ctx.session) {
-          ctx.session.aiPhotoshopModel = modelKey
-          ctx.session.aiPhotoshopPrompt = prompt
-          // Preserve other session data that might be needed
-          if (!ctx.session.aiPhotoshopSize) {
-            ctx.session.aiPhotoshopSize = '1K'
+        // Process each image with current model
+        for (const imageData of imagesToProcess) {
+          // Temporarily set session for this specific processing
+          if (ctx.session) {
+            ctx.session.aiPhotoshopModel = modelKey
+            ctx.session.aiPhotoshopPrompt = prompt
+            ctx.session.aiPhotoshopImage = imageData.url
+            if (!ctx.session.aiPhotoshopSize) {
+              ctx.session.aiPhotoshopSize = '1K'
+            }
           }
-        }
 
-        // Process with current model (avoid recursion by calling individual processing directly)
-        await processSingleAiPhotoshopModel(ctx, prompt, modelKey)
+          // Use the standard processing function instead of the single model one
+          await processAiPhotoshopRequest(ctx, prompt)
+
+          // Small delay between images
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
 
         // Small delay between models to prevent rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -2098,38 +2113,40 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       const imageUrl = typeof result === 'string' ? result : result.image || result
       await savePhotoResult(ctx, imageUrl, aiPhotoshopModel, finalPrompt)
 
-      // Show continue/exit options after successful processing
-      const isRu = isRussianFromState(ctx)
-      const continueKeyboard = Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            isRu ? '⬆️ Увеличить качество' : '⬆️ Upscale quality',
-            'ai_photoshop_upscale_last'
-          )
-        ],
-        [
-          Markup.button.callback(
-            isRu ? '📸 Добавить фото' : '📸 Add photo',
-            'ai_photoshop_add_new'
-          )
-        ],
-        [
-          Markup.button.callback(
-            isRu ? '🚪 Главное меню' : '🚪 Main menu',
-            'ai_photoshop_exit_to_menu'
-          )
-        ]
-      ])
+      // Show continue/exit options after successful processing (ONLY for single model mode, not all_models)
+      if (aiPhotoshopModel && (aiPhotoshopModel as string) !== 'all_models') {
+        const isRu = isRussianFromState(ctx)
+        const continueKeyboard = Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '⬆️ Увеличить качество' : '⬆️ Upscale quality',
+              'ai_photoshop_upscale_last'
+            )
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '📸 Добавить фото' : '📸 Add photo',
+              'ai_photoshop_add_new'
+            )
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '🚪 Главное меню' : '🚪 Main menu',
+              'ai_photoshop_exit_to_menu'
+            )
+          ]
+        ])
 
-      await ctx.reply(
-        isRu
-          ? `✨ *Фото успешно обработано и сохранено!*\n\n🎯 *Диалоговый режим активен* - теперь вы можете:\n\n💬 *Просто написать текст для дальнейших улучшений:*\n• "Добавь туда побольше атмосферы и девчонок"\n• "Сделай более яркие цвета"\n• "Добавь эффект дождя или снега"\n• "Измени стиль на винтажный"\n• "Убери фон, оставь только человека"\n• "Увеличить качество" или "upscale" для апскейлинга\n\n⬆️ *Или нажмите кнопку для увеличения качества в 2 раза*\n📸 *Добавить новое фото для обработки*\n\n🚀 *Продвинутые команды:*\n• "Увеличь контрастность на 20%"\n• "Добавь теплые тона"\n• "Сделай как в стиле Ван Гога"\n\n💡 *Совет:* Пишите простые команды - я понимаю естественный язык!\n🎨 *Все фото сохраняются в галерее до выхода из сцены*`
-          : `✨ *Photo successfully processed and saved!*\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text for further improvements:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n⬆️ *Or click button to upscale quality 2x*\n📸 *Add new photo to process*\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!\n🎨 *All photos are saved in gallery until you exit the scene*`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: continueKeyboard.reply_markup
-        }
-      )
+        await ctx.reply(
+          isRu
+            ? `✨ *Фото успешно обработано и сохранено!*\n\n🎯 *Диалоговый режим активен* - теперь вы можете:\n\n💬 *Просто написать текст для дальнейших улучшений:*\n• "Добавь туда побольше атмосферы и девчонок"\n• "Сделай более яркие цвета"\n• "Добавь эффект дождя или снега"\n• "Измени стиль на винтажный"\n• "Убери фон, оставь только человека"\n• "Увеличить качество" или "upscale" для апскейлинга\n\n⬆️ *Или нажмите кнопку для увеличения качества в 2 раза*\n📸 *Добавить новое фото для обработки*\n\n🚀 *Продвинутые команды:*\n• "Увеличь контрастность на 20%"\n• "Добавь теплые тона"\n• "Сделай как в стиле Ван Гога"\n\n💡 *Совет:* Пишите простые команды - я понимаю естественный язык!\n🎨 *Все фото сохраняются в галерее до выхода из сцены*`
+            : `✨ *Photo successfully processed and saved!*\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text for further improvements:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n⬆️ *Or click button to upscale quality 2x*\n📸 *Add new photo to process*\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!\n🎨 *All photos are saved in gallery until you exit the scene*`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: continueKeyboard.reply_markup
+          }
+        )
+      }
 
       // Clear working session but keep saved results
       if (ctx.session) {
