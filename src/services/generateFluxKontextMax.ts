@@ -80,13 +80,34 @@ export const generateFluxKontextMax = async (
       safety_tolerance = 2
     } = params
 
-    // ✅ Get centralized aspect_ratio from database
+    // ✅ Get centralized aspect_ratio from database and map to FLUX-compatible values
     const dbAspectRatio = await getAspectRatio(Number(telegram_id))
-    const finalAspectRatio = dbAspectRatio || aspect_ratio || 'match_input_image'
+
+    // Map database aspect ratios to FLUX-compatible enum values
+    const mapToFluxAspectRatio = (ratio: string | null): '1:1' | '16:9' | 'match_input_image' => {
+      if (!ratio) return 'match_input_image'
+
+      switch (ratio) {
+        case '1:1':
+          return '1:1'
+        case '16:9':
+          return '16:9'
+        case '9:16':
+          return '16:9' // Map portrait to landscape for FLUX compatibility
+        case 'match_input_image':
+          return 'match_input_image'
+        default:
+          return 'match_input_image' // Default fallback
+      }
+    }
+
+    const mappedDbAspectRatio = dbAspectRatio ? mapToFluxAspectRatio(dbAspectRatio) : null
+    const finalAspectRatio = mappedDbAspectRatio || aspect_ratio || 'match_input_image'
 
     logger.info('FLUX Max aspect_ratio resolved', {
       telegram_id,
       dbAspectRatio,
+      mappedDbAspectRatio,
       paramAspectRatio: aspect_ratio,
       finalAspectRatio
     })
