@@ -14,21 +14,36 @@
 - **TypeScript компиляция**: ✅ УСПЕШНО (0 ошибок)
 - **Build процесс**: ✅ УСПЕШНО (dist файлы созданы)
 - **Линтинг**: ✅ ПРОШЕЛ
-- **Production деплой**: 🔄 В ПРОЦЕССЕ
+- **Production деплой**: ✅ ЗАВЕРШЕН (Container ID: 119456426b3a)
 - **Готовность к использованию**: ✅ ДА
 
 ## 🚨 ФИНАЛЬНОЕ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ
 
-### Проблема FLUX Kontext
-**Найдена и исправлена последняя ошибка**: `generateFluxKontext.ts` имел хардкод `aspect_ratio: '9:16'`
+### Проблема FLUX Kontext Max
+**Найдена и исправлена последняя ошибка**: `generateFluxKontextMax.ts` получал `'9:16'` из БД, но FLUX API поддерживает только `'1:1' | '16:9' | 'match_input_image'`
 
 **Исправление**:
 ```typescript
-// Добавлен параметр в интерфейс
-aspect_ratio?: '1:1' | '16:9' | 'match_input_image'
+// Добавлена функция маппинга aspect_ratio для совместимости с FLUX
+const mapToFluxAspectRatio = (ratio: string | null): '1:1' | '16:9' | 'match_input_image' => {
+  if (!ratio) return 'match_input_image'
 
-// Использование параметра вместо хардкода
-aspect_ratio: params.aspect_ratio || 'match_input_image'
+  switch (ratio) {
+    case '1:1':
+      return '1:1'
+    case '16:9':
+      return '16:9'
+    case '9:16':
+      return '16:9' // Map portrait to landscape for FLUX compatibility
+    case 'match_input_image':
+      return 'match_input_image'
+    default:
+      return 'match_input_image' // Default fallback
+  }
+}
+
+const mappedDbAspectRatio = dbAspectRatio ? mapToFluxAspectRatio(dbAspectRatio) : null
+const finalAspectRatio = mappedDbAspectRatio || aspect_ratio || 'match_input_image'
 ```
 
 ### 📋 Полный список исправлений
@@ -68,10 +83,11 @@ aspect_ratio: params.aspect_ratio || 'match_input_image'
 - **Решение**: Отдельная функция processSingleAiPhotoshopModel
 - **Результат**: Обработка всех 4 моделей
 
-#### 8. ✅ FLUX Aspect Ratio Fix (ФИНАЛЬНОЕ)
-- **Проблема**: Хардкод '9:16' в generateFluxKontext.ts
-- **Решение**: Параметризация aspect_ratio с default 'match_input_image'
-- **Результат**: Корректная работа FLUX Kontext Max
+#### 8. ✅ FLUX Kontext Max Aspect Ratio Fix (ФИНАЛЬНОЕ)
+- **Проблема**: БД возвращает '9:16', но FLUX API требует '1:1' | '16:9' | 'match_input_image'
+- **Решение**: Добавлена функция mapToFluxAspectRatio() для конвертации БД значений в FLUX-совместимые
+- **Результат**: Все aspect_ratio корректно обрабатываются, включая mapping '9:16' → '16:9'
+- **Статус**: ✅ ИСПРАВЛЕНО И РАЗВЕРНУТО В ПРОДАКШЕНЕ
 
 ## 🎯 АРХИТЕКТУРА РЕШЕНИЯ
 

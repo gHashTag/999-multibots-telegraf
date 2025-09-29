@@ -2343,11 +2343,7 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
         error: result?.error || 'Unknown error'
       })
 
-      await ctx.reply(
-        isRu
-          ? `❌ Ошибка обработки с ${modelTitle}: ${result?.error || 'Неизвестная ошибка'}`
-          : `❌ Processing error with ${modelTitle}: ${result?.error || 'Unknown error'}`
-      )
+      // Don't send error messages to user in multi-model processing - they're handled upstream
     }
 
     // Restore original session state
@@ -2362,11 +2358,7 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
       model: modelKey
     })
 
-    await ctx.reply(
-      isRu
-        ? `❌ Ошибка при обработке моделью ${modelKey}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
-        : `❌ Error processing with ${modelKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    // Don't send error messages to user in multi-model processing - they're handled upstream
   }
 }
 

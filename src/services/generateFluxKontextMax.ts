@@ -93,7 +93,8 @@ export const generateFluxKontextMax = async (
         case '16:9':
           return '16:9'
         case '9:16':
-          return '16:9' // Map portrait to landscape for FLUX compatibility
+          // For portrait format, use match_input_image to preserve portrait proportions
+          return inputImageUrl ? 'match_input_image' : '1:1'
         case 'match_input_image':
           return 'match_input_image'
         default:
