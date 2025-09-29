@@ -166,6 +166,15 @@ const createModelSelectionKeyboard = (isRu: boolean) => {
     keyboard.push(row)
   }
 
+  // ✅ Add "All at once" button
+  const totalCostAllModels = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+  keyboard.push([
+    Markup.button.callback(
+      isRu ? `🎯 Все сразу (${totalCostAllModels}⭐)` : `🎯 All at once (${totalCostAllModels}⭐)`,
+      'ai_photoshop_all_models_from_selector'
+    )
+  ])
+
   // Add cancel button
   keyboard.push([
     Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_photoshop_cancel')
@@ -363,6 +372,54 @@ Object.keys(AI_PHOTOSHOP_MODELS).forEach(modelKey => {
       })
     }
   })
+})
+
+// ✅ NEW: Handle "All at once" from model selector
+aiPhotoshopScene.action('ai_photoshop_all_models_from_selector', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Set session to indicate multi-model processing
+    if (ctx.session) {
+      ctx.session.aiPhotoshopModel = 'all_models' as any
+      ctx.session.aiPhotoshopStep = 'image_upload'
+      ctx.session.awaitingAiPhotoshopImage = true
+    }
+
+    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+    const modelNames = Object.values(AI_PHOTOSHOP_MODELS).map(model =>
+      isRu ? model.title_ru : model.title_en
+    )
+
+    await ctx.editMessageText(
+      isRu
+        ? `🎯 *Все модели сразу!*\n\n📸 *Загрузите изображение для обработки всеми ${modelNames.length} моделями:*\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n⬇️ *Отправьте фото для обработки:*`
+        : `🎯 *All models at once!*\n\n📸 *Upload an image to process with all ${modelNames.length} models:*\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n⬇️ *Send a photo for processing:*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              Markup.button.callback(
+                isRu ? 'Назад к моделям' : 'Back to models',
+                'ai_photoshop_back_to_models'
+              ),
+              Markup.button.callback(
+                isRu ? 'Отмена' : 'Cancel',
+                'ai_photoshop_cancel'
+              ),
+            ],
+          ]
+        }
+      }
+    )
+  } catch (error) {
+    logger.error('Error handling all models from selector', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
 })
 
 // Handle style selection
@@ -1104,6 +1161,42 @@ aiPhotoshopScene.on('text', async ctx => {
       ctx.session.aiPhotoshopStep = 'processing'
     }
 
+    // ✅ CRITICAL FIX: Check for 'all_models' mode BEFORE processing
+    if (ctx.session?.aiPhotoshopModel === 'all_models') {
+      logger.info('🎯 AI Photoshop: All models mode detected in text handler - returning to confirmation', {
+        telegramId: ctx.from?.id,
+        promptReceived: prompt.substring(0, 30) + '...',
+        imageCount: ctx.session.morphingImages?.length || 0
+      })
+
+      // ✅ CRITICAL: Save prompt for all_models processing
+      ctx.session.aiPhotoshopPrompt = prompt
+      ctx.session.awaitingAiPhotoshopPrompt = false
+
+      // Show confirmation message for all_models mode
+      await ctx.reply(
+        isRu
+          ? `✅ Промпт получен: "${prompt}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n💎 Стоимость: ${(ctx.session.morphingImages?.length || 1) * 30}⭐`
+          : `✅ Prompt received: "${prompt}"\n\n🎯 Ready to process with all 4 models!\n\n💎 Cost: ${(ctx.session.morphingImages?.length || 1) * 30}⭐`,
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              {
+                text: isRu ? '🚀 Начать обработку всеми моделями' : '🚀 Start processing with all models',
+                callback_data: 'ai_photoshop_multi_confirm'
+              }
+            ], [
+              {
+                text: isRu ? '❌ Отмена' : '❌ Cancel',
+                callback_data: 'ai_photoshop_multi_cancel'
+              }
+            ]]
+          }
+        }
+      )
+      return // CRITICAL: Do not call processAiPhotoshopRequest for all_models here!
+    }
+
     await ctx.reply(
       isRu
         ? '✅ Промпт получен! Начинаю обработку изображения...'
@@ -1180,18 +1273,34 @@ const createAiPhotoshopProgressBar = (current: number, length = 10): string => {
 }
 
 // ✅ Progress message for AI Photoshop multi-photo collection
-const createAiPhotoshopProgressMessage = (images: any[], isRu: boolean): string => {
+const createAiPhotoshopProgressMessage = (images: any[], isRu: boolean, isAllModelsMode: boolean = false): string => {
   const count = images.length
   const progressBar = createAiPhotoshopProgressBar(count)
 
+  // ✅ Special message for 'all_models' mode
+  if (isAllModelsMode) {
+    const baseMessage = isRu
+      ? `🎯 *ИИ Фотошоп - Все модели сразу*\n\n📸 ${progressBar}\n\n✨ Отлично! Загружайте еще фотографии\n💡 Каждое фото будет обработано всеми 4 моделями (30⭐ за фото)`
+      : `🎯 *AI Photoshop - All Models*\n\n📸 ${progressBar}\n\n✨ Great! Upload more photos\n💡 Each photo will be processed by all 4 models (30⭐ per photo)`
+
+    if (count >= 1) {
+      const actionMessage = isRu
+        ? '\n\n🚀 *Готово к обработке всеми моделями!* Нажмите "Обработать"'
+        : '\n\n🚀 *Ready to process with all models!* Click "Process"'
+      return baseMessage + actionMessage
+    }
+    return baseMessage
+  }
+
+  // ✅ Regular multi-photo message
   const baseMessage = isRu
-    ? `🎨 <b>ИИ Фотошоп - Сбор изображений</b>\n\n📸 ${progressBar}\n\n✨ Отлично! Загружайте еще фотографии для пакетной обработки\n💡 Все модели поддерживают несколько изображений одновременно`
-    : `🎨 <b>AI Photoshop - Collecting Images</b>\n\n📸 ${progressBar}\n\n✨ Great! Upload more photos for batch processing\n💡 All models support multiple images simultaneously`
+    ? `🎨 *ИИ Фотошоп - Сбор изображений*\n\n📸 ${progressBar}\n\n✨ Отлично! Загружайте еще фотографии для пакетной обработки\n💡 Все модели поддерживают несколько изображений одновременно`
+    : `🎨 *AI Photoshop - Collecting Images*\n\n📸 ${progressBar}\n\n✨ Great! Upload more photos for batch processing\n💡 All models support multiple images simultaneously`
 
   if (count >= 1) {
     const actionMessage = isRu
-      ? '\n\n🚀 <b>Готово к обработке!</b> Нажмите "Обработать" или загрузите еще фото'
-      : '\n\n🚀 <b>Ready to process!</b> Click "Process" or upload more photos'
+      ? '\n\n🚀 *Готово к обработке!* Нажмите "Обработать" или загрузите еще фото'
+      : '\n\n🚀 *Ready to process!* Click "Process" or upload more photos'
     return baseMessage + actionMessage
   }
 
@@ -1235,10 +1344,11 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
 
   const mediaGroupId = 'media_group_id' in ctx.message ? ctx.message.media_group_id : undefined
 
-  // ✅ ENHANCED: Collect photos if part of media group OR if photos are being sent sequentially
+  // ✅ ENHANCED: Collect photos if part of media group OR if photos are being sent sequentially OR in 'all_models' mode
   const shouldCollectPhoto = mediaGroupId ||
     (ctx.session.morphingImages && ctx.session.morphingImages.length > 0 &&
-     Date.now() - (ctx.session.lastPhotoTimestamp || 0) < 60000) // 60 seconds window
+     Date.now() - (ctx.session.lastPhotoTimestamp || 0) < 60000) || // 60 seconds window
+    (ctx.session?.aiPhotoshopModel === 'all_models' && ctx.session?.awaitingAiPhotoshopImage) // ✅ NEW: Collect photos in 'all_models' mode
 
   if (shouldCollectPhoto) {
     try {
@@ -1285,7 +1395,8 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       })
 
       // Create dynamic progress message like Infinity Morphing
-      const progressMessage = createAiPhotoshopProgressMessage(ctx.session.morphingImages, isRu)
+      const isAllModelsMode = ctx.session?.aiPhotoshopModel === 'all_models'
+      const progressMessage = createAiPhotoshopProgressMessage(ctx.session.morphingImages, isRu, isAllModelsMode)
       const keyboard = createAiPhotoshopProgressKeyboard(ctx.session.morphingImages, isRu)
 
       // Update existing message or create new one
@@ -1378,7 +1489,8 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       })
 
       // Create or update progress message
-      const progressMessage = createAiPhotoshopProgressMessage(ctx.session.morphingImages, isRu)
+      const isAllModelsMode = ctx.session?.aiPhotoshopModel === 'all_models'
+      const progressMessage = createAiPhotoshopProgressMessage(ctx.session.morphingImages, isRu, isAllModelsMode)
       const keyboard = createAiPhotoshopProgressKeyboard(ctx.session.morphingImages, isRu)
 
       // Update existing message or create new one
@@ -1592,6 +1704,78 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         ? '❌ Ошибка: недостаточно данных для обработки.'
         : '❌ Error: insufficient data for processing.'
     )
+    return
+  }
+
+  // ✅ NEW: Handle "all_models" case - process with all models simultaneously
+  if (aiPhotoshopModel === 'all_models') {
+    logger.info('🎯 AI Photoshop: Processing with ALL models from initial selector', {
+      telegramId: ctx.from?.id,
+      hasImage: !!aiPhotoshopImage
+    })
+
+    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+    const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as Array<keyof typeof AI_PHOTOSHOP_MODELS>
+    const modelNames = availableModels.map(key =>
+      isRu ? AI_PHOTOSHOP_MODELS[key].title_ru : AI_PHOTOSHOP_MODELS[key].title_en
+    )
+
+    await ctx.reply(
+      isRu
+        ? `🎯 *Генерация во ВСЕХ моделях!*\n\n📸 Обрабатываю ваше фото во всех ${availableModels.length} моделях:\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n⏳ Это займет больше времени, но вы получите результаты от всех моделей для сравнения!`
+        : `🎯 *Generating with ALL models!*\n\n📸 Processing your photo with all ${availableModels.length} models:\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n⏳ This will take longer, but you'll get results from all models for comparison!`,
+      {
+        parse_mode: 'Markdown'
+      }
+    )
+
+    // Process with each model sequentially
+    const prompt = customPrompt || 'enhance this image'
+    for (const modelKey of availableModels) {
+      try {
+        logger.info(`🎨 AI Photoshop: Processing with model ${modelKey}`, {
+          telegramId: ctx.from?.id,
+          model: modelKey,
+          currentStep: `${availableModels.indexOf(modelKey) + 1}/${availableModels.length}`
+        })
+
+        // Temporarily set session model to current model for processing
+        if (ctx.session) {
+          ctx.session.aiPhotoshopModel = modelKey
+          ctx.session.aiPhotoshopPrompt = prompt
+          // Preserve other session data that might be needed
+          if (!ctx.session.aiPhotoshopSize) {
+            ctx.session.aiPhotoshopSize = '1K'
+          }
+        }
+
+        // Process with current model
+        await processAiPhotoshopRequest(ctx, prompt)
+
+        // Small delay between models to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      } catch (modelError) {
+        logger.error(`❌ AI Photoshop: Error processing with model ${modelKey}`, {
+          telegramId: ctx.from?.id,
+          model: modelKey,
+          error: modelError instanceof Error ? modelError.message : 'Unknown error'
+        })
+        // Log error but don't spam user with individual error messages
+      }
+    }
+
+    // Show final results summary
+    await ctx.reply(
+      isRu
+        ? `✅ *Обработка всеми моделями завершена!*\n\n🎨 Проверьте результаты выше - теперь у вас есть варианты от всех ${availableModels.length} моделей для сравнения!\n\n💡 Используйте команды для дальнейшего улучшения любого результата.`
+        : `✅ *Processing with all models completed!*\n\n🎨 Check the results above - now you have variations from all ${availableModels.length} models for comparison!\n\n💡 Use commands to further improve any result.`,
+      {
+        parse_mode: 'Markdown'
+      }
+    )
+
+    // Show dialog interface
+    await showDialogInterface(ctx)
     return
   }
 
@@ -2057,16 +2241,33 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
       '2K': calculateFinalPriceInStars(sizeBasePricesUSD['2K']),
       '4K': calculateFinalPriceInStars(sizeBasePricesUSD['4K'])
     }
-    const costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || calculateFinalPriceInStars(0.10)
+
+    // Get current model selection first
+    const currentModel = ctx.session.aiPhotoshopModel || 'seedream'
+
+    // Calculate cost based on model selection
+    let costPerImage: number
+    if (currentModel === 'all_models') {
+      // All models mode: fixed cost of 30⭐ per image
+      costPerImage = 30
+    } else {
+      // Single model mode: use size-based pricing
+      costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || calculateFinalPriceInStars(0.10)
+    }
     const totalCost = costPerImage * ctx.session.morphingImages.length
 
     // Preserve user's prompt and model selections
-    const currentModel = ctx.session.aiPhotoshopModel || 'seedream'
     const currentStyle = ctx.session.aiPhotoshopStyle || 'artistic'
     const currentPrompt = ctx.session.aiPhotoshopPrompt
 
-    const modelInfo = AI_PHOTOSHOP_MODELS[currentModel as keyof typeof AI_PHOTOSHOP_MODELS]
-    const modelTitle = isRu ? modelInfo?.title_ru : modelInfo?.title_en
+    // Handle 'all_models' case specially
+    let modelTitle: string
+    if (currentModel === 'all_models') {
+      modelTitle = isRu ? '🎯 Все модели сразу' : '🎯 All models at once'
+    } else {
+      const modelInfo = AI_PHOTOSHOP_MODELS[currentModel as keyof typeof AI_PHOTOSHOP_MODELS]
+      modelTitle = isRu ? modelInfo?.title_ru : modelInfo?.title_en
+    }
 
     let styleDisplay = ''
     if (currentStyle === 'custom' && currentPrompt) {
@@ -2151,7 +2352,71 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
-    // 🚨 CRITICAL DEBUG: Log full session state
+    // ✅ HANDLE ALL_MODELS CASE - if aiPhotoshopModel is 'all_models', trigger multi-model processing
+    if (ctx.session?.aiPhotoshopModel === 'all_models') {
+      logger.info('🎯 AI Photoshop: ALL_MODELS processing detected, triggering multi-model generation', {
+        telegramId: ctx.from?.id,
+        imageCount: ctx.session.morphingImages?.length || 0
+      })
+
+      // Check if prompt is already provided for all_models
+      if (!ctx.session.aiPhotoshopPrompt) {
+        // Ask for prompt first for all_models mode
+        await ctx.editMessageText(
+          isRu
+            ? `🎯 <b>Все модели сразу</b>\n\n📝 Опишите, как обработать ваши ${ctx.session.morphingImages?.length || 0} изображений:\n\n💡 <i>Этот промпт будет использован для всех 4 моделей</i>`
+            : `🎯 <b>All models at once</b>\n\n📝 Describe how to process your ${ctx.session.morphingImages?.length || 0} images:\n\n💡 <i>This prompt will be used for all 4 models</i>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [[
+                {
+                  text: isRu ? '❌ Отмена' : '❌ Cancel',
+                  callback_data: 'ai_photoshop_multi_cancel'
+                }
+              ]]
+            }
+          }
+        )
+
+        // Set session state to await prompt for all_models
+        Object.assign(ctx.session, {
+          aiPhotoshopStep: 'custom_prompt',
+          awaitingAiPhotoshopPrompt: true,
+          awaitingAiPhotoshopImage: false
+        })
+        return
+      }
+
+      // Use the first image for all models processing (prompt already provided)
+      if (ctx.session.morphingImages && ctx.session.morphingImages.length > 0) {
+        const firstImage = ctx.session.morphingImages[0]
+        if (firstImage.url) {
+          // Set up session for all models processing
+          ctx.session.aiPhotoshopImage = firstImage.url
+
+          // Delete the current message and trigger all models processing
+          try {
+            await ctx.deleteMessage()
+          } catch (e) {
+            // Ignore deletion errors
+          }
+
+          // Call the processing function directly with user's prompt
+          await processAiPhotoshopRequest(ctx, ctx.session.aiPhotoshopPrompt || 'enhance this image')
+          return
+        }
+      }
+
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось найти изображение для обработки всеми моделями.'
+          : '❌ Error: could not find image for processing with all models.'
+      )
+      return
+    }
+
+    // 🚨 CRITICAL DEBUG: Log full session state for normal multi-photo processing
     logger.info('🚨 AI Photoshop: Multi-photo processing initiated - FULL DEBUG', {
       telegramId: ctx.from?.id,
       sessionExists: !!ctx.session,
