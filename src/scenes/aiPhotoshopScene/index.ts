@@ -1931,18 +1931,6 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
     reply_markup: keyboard.reply_markup
   })
 
-  // Show the most recent photo
-  if (recentPhoto?.url) {
-    try {
-      await ctx.replyWithPhoto(recentPhoto.url, {
-        caption: isRu
-          ? `📸 Последнее фото (${recentPhoto.model})\n💬 "${recentPhoto.prompt}"`
-          : `📸 Latest photo (${recentPhoto.model})\n💬 "${recentPhoto.prompt}"`
-      })
-    } catch (error) {
-      logger.warn('Failed to show recent photo in dialog', { error })
-    }
-  }
 }
 
 // ✅ NEW: Save photo result function
