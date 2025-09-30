@@ -68,6 +68,7 @@ export enum ModeEnum {
   InstagramParserScene = 'instagram_parser_scene',
   InstagramParserWizard = 'instagram_parser_wizard',
   MorphingWizard = 'morphing_wizard',
+  AiPhotoshop = 'ai_photoshop',
 
   // ⚠️ УСТАРЕВШИЕ/НЕИСПОЛЬЗУЕМЫЕ (оставляем для совместимости)
   /** @deprecated Не используется */
