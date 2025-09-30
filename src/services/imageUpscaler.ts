@@ -184,43 +184,77 @@ export const upscaleImage = async (
     })
 
     // Отправка результата с простой клавиатурой
-    logger.info('Sending photo to Telegram', { 
+    const fileSize = fs.existsSync(imageLocalPath) ? fs.statSync(imageLocalPath).size : 0
+    const MAX_PHOTO_SIZE = 10 * 1024 * 1024 // 10 MB limit for sendPhoto
+
+    logger.info('Sending photo to Telegram', {
       telegram_id,
       fileExists: fs.existsSync(imageLocalPath),
-      fileSize: fs.existsSync(imageLocalPath) ? fs.statSync(imageLocalPath).size : 0,
+      fileSize,
+      willSendAsDocument: fileSize > MAX_PHOTO_SIZE,
     })
-    
+
+    const caption = is_ru
+      ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${
+          originalPrompt
+            ? `\n📝 Исходное изображение: ${originalPrompt}`
+            : ''
+        }${fileSize > MAX_PHOTO_SIZE ? '\n\n📦 Файл отправлен как документ из-за большого размера' : ''}`
+      : `⬆️ Photo quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n✨ Quality: High resolution\n💎 Cost: ${upscaleCost} ⭐${
+          originalPrompt ? `\n📝 Original image: ${originalPrompt}` : ''
+        }${fileSize > MAX_PHOTO_SIZE ? '\n\n📦 Sent as document due to large file size' : ''}`
+
     try {
-      const sendPhotoResult = await ctx.telegram.sendPhoto(
-        telegram_id,
-        {
-          source: fs.createReadStream(imageLocalPath),
-        },
-        {
-          caption: is_ru
-            ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${
-                originalPrompt
-                  ? `\n📝 Исходное изображение: ${originalPrompt}`
-                  : ''
-              }`
-            : `⬆️ Photo quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n✨ Quality: High resolution\n💎 Cost: ${upscaleCost} ⭐${
-                originalPrompt ? `\n📝 Original image: ${originalPrompt}` : ''
-              }`,
-          reply_markup: createUpscalerResultKeyboard(is_ru).reply_markup,
-        }
-      )
-      
-      logger.info('Photo sent successfully', { 
-        telegram_id,
-        messageId: sendPhotoResult.message_id,
-        chatId: sendPhotoResult.chat.id,
-      })
+      // If file is too large for photo (>10 MB), send as document
+      if (fileSize > MAX_PHOTO_SIZE) {
+        logger.info('File size exceeds photo limit, sending as document', {
+          telegram_id,
+          fileSize,
+          maxPhotoSize: MAX_PHOTO_SIZE,
+        })
+
+        const sendDocumentResult = await ctx.telegram.sendDocument(
+          telegram_id,
+          {
+            source: fs.createReadStream(imageLocalPath),
+            filename: 'upscaled_photo.webp',
+          },
+          {
+            caption,
+            reply_markup: createUpscalerResultKeyboard(is_ru).reply_markup,
+          }
+        )
+
+        logger.info('Document sent successfully', {
+          telegram_id,
+          messageId: sendDocumentResult.message_id,
+          chatId: sendDocumentResult.chat.id,
+        })
+      } else {
+        const sendPhotoResult = await ctx.telegram.sendPhoto(
+          telegram_id,
+          {
+            source: fs.createReadStream(imageLocalPath),
+          },
+          {
+            caption,
+            reply_markup: createUpscalerResultKeyboard(is_ru).reply_markup,
+          }
+        )
+
+        logger.info('Photo sent successfully', {
+          telegram_id,
+          messageId: sendPhotoResult.message_id,
+          chatId: sendPhotoResult.chat.id,
+        })
+      }
     } catch (sendError) {
-      logger.error('Failed to send photo to Telegram', {
+      logger.error('Failed to send photo/document to Telegram', {
         telegram_id,
         error: sendError instanceof Error ? sendError.message : 'Unknown send error',
         errorStack: sendError instanceof Error ? sendError.stack : undefined,
         imageLocalPath,
+        fileSize,
       })
       throw sendError
     }
