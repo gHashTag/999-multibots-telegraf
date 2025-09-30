@@ -381,8 +381,14 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.StartScene) // Выход, если пользователь не существует
     }
 
-    // Шаг 4: ПРОВЕРКА ПОДПИСКИ
-    if (!userDetails.isSubscriptionActive) {
+    // Шаг 4: ПРОВЕРКА ПОДПИСКИ (кроме платных функций без требования подписки)
+    // 🎙️ TextToSpeech доступен БЕЗ подписки за звезды
+    const modesWithoutSubscriptionRequired = [
+      ModeEnum.TextToSpeech,
+      // Можно добавить другие режимы, доступные за звезды без подписки
+    ]
+
+    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
       logger.warn({
         message: `[CheckBalanceScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`,
         telegramId,
@@ -397,12 +403,13 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.StartScene)
     } else {
       logger.info({
-        message: `[CheckBalanceScene] Подписка активна для пользователя ${telegramId}. Тип: ${userDetails.subscriptionType}`,
+        message: `[CheckBalanceScene] Проверка подписки пройдена для режима ${mode}. ${userDetails.isSubscriptionActive ? `Тип подписки: ${userDetails.subscriptionType}` : 'Режим доступен без подписки'}`,
         telegramId,
         function: 'checkBalanceScene.enter',
         step: 'subscription_check_passed',
         subscriptionType: userDetails.subscriptionType,
         mode,
+        isSubscriptionRequired: !modesWithoutSubscriptionRequired.includes(mode),
       })
     }
 
@@ -623,7 +630,14 @@ export const enterTargetScene = async (
     console.log(
       '🎯 [DEBUG] enterTargetScene: Step B - Checking subscription...'
     )
-    if (!userDetails.isSubscriptionActive) {
+
+    // 🎙️ Режимы, доступные БЕЗ подписки за звезды
+    const modesWithoutSubscriptionRequired = [
+      ModeEnum.TextToSpeech,
+      // Можно добавить другие режимы
+    ]
+
+    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
       console.log(
         '🎯 [DEBUG] enterTargetScene: Subscription not active, returning...'
       )
@@ -638,7 +652,7 @@ export const enterTargetScene = async (
       return
     }
     console.log(
-      '🎯 [DEBUG] enterTargetScene: Step B DONE - Subscription is active'
+      `🎯 [DEBUG] enterTargetScene: Step B DONE - Subscription check passed ${userDetails.isSubscriptionActive ? '(active)' : '(not required for this mode)'}`
     )
 
     console.log('🎯 [DEBUG] enterTargetScene: Step C - Checking balance...')
