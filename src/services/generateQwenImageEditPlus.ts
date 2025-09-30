@@ -174,6 +174,7 @@ export const generateQwenImageEditPlus = async (
       telegram_id: Number(telegram_id),
       paymentAmount: totalCost,
       is_ru,
+      bot_name: ctx?.botInfo?.username,
     })
 
     logger.info('QwenEditPlus balance check completed', {

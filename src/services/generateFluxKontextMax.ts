@@ -154,6 +154,7 @@ export const generateFluxKontextMax = async (
       telegram_id: Number(telegram_id),
       paymentAmount: FLUX_KONTEXT_MAX_MODEL.costPerImage,
       is_ru,
+      bot_name: ctx?.botInfo?.username,
     })
 
     console.log('🤖 [FluxKontextMax] Balance check completed:', {

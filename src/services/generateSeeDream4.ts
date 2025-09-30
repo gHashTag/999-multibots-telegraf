@@ -181,6 +181,7 @@ export const generateSeeDream4 = async (
       telegram_id: Number(telegram_id),
       paymentAmount: totalCost,
       is_ru,
+      bot_name: ctx?.botInfo?.username,
     })
 
     logger.info('SeeDream4 balance check completed', {

@@ -127,11 +127,11 @@ export class MenuSystem {
         requiresSubscription: true,
       },
       {
-        titleRu: levels[12].title_ru, // '🎨 FLUX Kontext'
+        titleRu: levels[12].title_ru, // '🎨 ИИ Фотошоп'
         titleEn: levels[12].title_en,
-        mode: ModeEnum.FluxKontext,
+        mode: ModeEnum.AiPhotoshop,
         requiresSubscription: true,
-        sceneToEnter: 'flux_kontext_scene',
+        sceneToEnter: 'ai_photoshop_scene',
       },
       {
         titleRu: levels[107].title_ru, // '⬆️ Увеличить качество фото'

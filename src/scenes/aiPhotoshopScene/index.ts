@@ -43,6 +43,48 @@ import { getBotToken } from '@/handlers/getBotToken'
 // ✅ IMPORT UPSCALER FOR DIALOG MODE
 import { upscaleImage } from '@/services/imageUpscaler'
 
+// 🎬 CAMERA CONTROL SYSTEM (transferred from FLUX Kontext)
+export const AI_PHOTOSHOP_CAMERA_ANGLES = {
+  medium_shot: '[camera: medium shot, balanced composition, natural perspective]',
+  close_up: '[camera: close-up shot, intimate detail, emotional connection]',
+  extreme_close_up: '[camera: extreme close-up, fine detail focus, artistic impact]',
+  wide_shot: '[camera: wide shot, environmental context, spacious composition]',
+  high_angle: '[camera: high angle shot, looking down, vulnerable perspective]',
+  low_angle: '[camera: low angle shot, looking up, empowering perspective]',
+  dutch_angle: '[camera: dutch angle, dynamic tilt, creative composition]',
+  over_shoulder: '[camera: over-the-shoulder shot, intimate perspective]',
+  profile_shot: '[camera: profile shot, sculptural beauty, classic elegance]',
+  three_quarter: '[camera: three-quarter view, dimensional depth, natural pose]',
+  bird_eye: "[camera: bird's eye view, top-down perspective, unique angle]",
+  macro_beauty: '[camera: macro beauty shot, skin texture perfection, luxury detail]',
+}
+
+// 🖼️ FRAME COMPOSITION (Professional Photography)
+export const AI_PHOTOSHOP_FRAME_COMPOSITION = {
+  center_weighted: '[composition: center-weighted balance, professional stability]',
+  rule_thirds: '[composition: rule of thirds, dynamic balance, photographic standard]',
+  golden_ratio: '[composition: golden ratio portrait, mathematical beauty, perfect proportion]',
+  symmetrical: '[composition: symmetrical perfection, luxury brand precision, flawless geometry]',
+  negative_space: '[composition: negative space elegant, minimalist sophistication]',
+  leading_lines: '[composition: leading lines flow, premium visual journey, luxury storytelling]',
+}
+
+// ✨ PROFESSIONAL LIGHTING SETUPS
+export const AI_PHOTOSHOP_LIGHTING_SETUPS = {
+  soft_natural: '[lighting: soft natural light, gentle illumination, flattering glow]',
+  dramatic: '[lighting: dramatic lighting, high contrast, artistic shadows]',
+  golden_hour: '[lighting: golden hour warmth, magical illumination, perfect timing]',
+  studio: '[lighting: professional studio setup, perfect illumination, commercial quality]',
+  rembrandt: '[lighting: rembrandt lighting, classic portrait technique, artistic shadows]',
+  butterfly: '[lighting: butterfly lighting, glamour technique, facial contouring]',
+  split: '[lighting: split lighting, dramatic contrast, artistic division]',
+  rim: '[lighting: rim lighting, edge illumination, subject separation]',
+  candlelight: '[lighting: warm candlelight, intimate atmosphere, cozy ambiance]',
+  neon_noir: '[lighting: neon noir, urban atmosphere, cyberpunk aesthetic]',
+  morning: '[lighting: fresh morning light, clean illumination, new day energy]',
+  sunset: "[lighting: warm sunset glow, romantic illumination, day's end beauty]",
+}
+
 // 🎨 AI PHOTOSHOP MODELS CONFIGURATION WITH MULTI-IMAGE SUPPORT
 const AI_PHOTOSHOP_MODELS = {
   seedream: {
@@ -178,6 +220,172 @@ const createModelSelectionKeyboard = (isRu: boolean) => {
   // Add cancel button
   keyboard.push([
     Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_photoshop_cancel')
+  ])
+
+  return Markup.inlineKeyboard(keyboard)
+}
+
+// 🎬 Camera control functions (transferred from FLUX Kontext)
+const getCameraAngleLabel = (angle: string, isRu: boolean): string => {
+  const labels: Record<string, { ru: string; en: string }> = {
+    medium_shot: { ru: '🎥 Средний план', en: '🎥 Medium Shot' },
+    close_up: { ru: '🔍 Крупный план', en: '🔍 Close-up' },
+    extreme_close_up: { ru: '🔎 Сверхкрупный план', en: '🔎 Extreme Close-up' },
+    wide_shot: { ru: '🌐 Общий план', en: '🌐 Wide Shot' },
+    high_angle: { ru: '📐 Верхний ракурс', en: '📐 High Angle' },
+    low_angle: { ru: '📐 Нижний ракурс', en: '📐 Low Angle' },
+    dutch_angle: { ru: '🎭 Голландский угол', en: '🎭 Dutch Angle' },
+    over_shoulder: { ru: '👤 Через плечо', en: '👤 Over Shoulder' },
+    profile_shot: { ru: '👤 Профиль', en: '👤 Profile' },
+    three_quarter: { ru: '📐 Три четверти', en: '📐 Three Quarter' },
+    bird_eye: { ru: '🦅 Птичий взгляд', en: "🦅 Bird's Eye" },
+    macro_beauty: { ru: '💎 Макро красота', en: '💎 Macro Beauty' },
+  }
+
+  return labels[angle] ? (isRu ? labels[angle].ru : labels[angle].en) : angle
+}
+
+const getLightingLabel = (lighting: string, isRu: boolean): string => {
+  const labels: Record<string, { ru: string; en: string }> = {
+    soft_natural: { ru: '☀️ Мягкий свет', en: '☀️ Soft Natural' },
+    dramatic: { ru: '🎭 Драматично', en: '🎭 Dramatic' },
+    golden_hour: { ru: '🌅 Золотой час', en: '🌅 Golden Hour' },
+    studio: { ru: '🏢 Студийный', en: '🏢 Studio' },
+    rembrandt: { ru: '🎨 Рембрандт', en: '🎨 Rembrandt' },
+    butterfly: { ru: '🦋 Бабочка', en: '🦋 Butterfly' },
+    split: { ru: '🌗 Разделенный', en: '🌗 Split' },
+    rim: { ru: '💫 Контровой', en: '💫 Rim' },
+    candlelight: { ru: '🕯️ Свечи', en: '🕯️ Candlelight' },
+    neon_noir: { ru: '🌃 Неон нуар', en: '🌃 Neon Noir' },
+    morning: { ru: '🌄 Утренний', en: '🌄 Morning' },
+    sunset: { ru: '🌇 Закат', en: '🌇 Sunset' },
+  }
+
+  return labels[lighting] ? (isRu ? labels[lighting].ru : labels[lighting].en) : lighting
+}
+
+const getCompositionLabel = (composition: string, isRu: boolean): string => {
+  const labels: Record<string, { ru: string; en: string }> = {
+    center_weighted: { ru: '⚖️ Центровес', en: '⚖️ Center Weighted' },
+    rule_thirds: { ru: '📐 Правило третей', en: '📐 Rule of Thirds' },
+    golden_ratio: { ru: '🌟 Золотое сечение', en: '🌟 Golden Ratio' },
+    symmetrical: { ru: '🔄 Симметрия', en: '🔄 Symmetrical' },
+    negative_space: { ru: '🌌 Негативное пространство', en: '🌌 Negative Space' },
+    leading_lines: { ru: '📏 Направляющие линии', en: '📏 Leading Lines' },
+  }
+
+  return labels[composition] ? (isRu ? labels[composition].ru : labels[composition].en) : composition
+}
+
+// Function to create camera angle selection keyboard
+const createCameraAngleKeyboard = (isRu: boolean) => {
+  const keyboard = []
+  const angles = Object.keys(AI_PHOTOSHOP_CAMERA_ANGLES)
+
+  // Add camera angles 2 per row
+  for (let i = 0; i < angles.length; i += 2) {
+    const row = []
+
+    const angle1 = angles[i]
+    const angle1Label = getCameraAngleLabel(angle1, isRu)
+    row.push(
+      Markup.button.callback(angle1Label, `ai_photoshop_camera_${angle1}`)
+    )
+
+    if (i + 1 < angles.length) {
+      const angle2 = angles[i + 1]
+      const angle2Label = getCameraAngleLabel(angle2, isRu)
+      row.push(
+        Markup.button.callback(angle2Label, `ai_photoshop_camera_${angle2}`)
+      )
+    }
+
+    keyboard.push(row)
+  }
+
+  // Add control buttons
+  keyboard.push([
+    Markup.button.callback(
+      isRu ? '🎬 Автовыбор' : '🎬 Auto Select',
+      'ai_photoshop_camera_auto'
+    ),
+    Markup.button.callback(isRu ? 'Назад' : 'Back', 'ai_photoshop_back_to_main'),
+  ])
+
+  return Markup.inlineKeyboard(keyboard)
+}
+
+// Function to create lighting selection keyboard
+const createLightingKeyboard = (isRu: boolean) => {
+  const keyboard = []
+  const lightings = Object.keys(AI_PHOTOSHOP_LIGHTING_SETUPS)
+
+  // Add lightings 2 per row
+  for (let i = 0; i < lightings.length; i += 2) {
+    const row = []
+
+    const lighting1 = lightings[i]
+    const lighting1Label = getLightingLabel(lighting1, isRu)
+    row.push(
+      Markup.button.callback(lighting1Label, `ai_photoshop_lighting_${lighting1}`)
+    )
+
+    if (i + 1 < lightings.length) {
+      const lighting2 = lightings[i + 1]
+      const lighting2Label = getLightingLabel(lighting2, isRu)
+      row.push(
+        Markup.button.callback(lighting2Label, `ai_photoshop_lighting_${lighting2}`)
+      )
+    }
+
+    keyboard.push(row)
+  }
+
+  // Add control buttons
+  keyboard.push([
+    Markup.button.callback(
+      isRu ? '💡 Автовыбор' : '💡 Auto Select',
+      'ai_photoshop_lighting_auto'
+    ),
+    Markup.button.callback(isRu ? 'Назад' : 'Back', 'ai_photoshop_back_to_main'),
+  ])
+
+  return Markup.inlineKeyboard(keyboard)
+}
+
+// Function to create composition selection keyboard
+const createCompositionKeyboard = (isRu: boolean) => {
+  const keyboard = []
+  const compositions = Object.keys(AI_PHOTOSHOP_FRAME_COMPOSITION)
+
+  // Add compositions 2 per row
+  for (let i = 0; i < compositions.length; i += 2) {
+    const row = []
+
+    const composition1 = compositions[i]
+    const composition1Label = getCompositionLabel(composition1, isRu)
+    row.push(
+      Markup.button.callback(composition1Label, `ai_photoshop_composition_${composition1}`)
+    )
+
+    if (i + 1 < compositions.length) {
+      const composition2 = compositions[i + 1]
+      const composition2Label = getCompositionLabel(composition2, isRu)
+      row.push(
+        Markup.button.callback(composition2Label, `ai_photoshop_composition_${composition2}`)
+      )
+    }
+
+    keyboard.push(row)
+  }
+
+  // Add control buttons
+  keyboard.push([
+    Markup.button.callback(
+      isRu ? '📐 Автовыбор' : '📐 Auto Select',
+      'ai_photoshop_composition_auto'
+    ),
+    Markup.button.callback(isRu ? 'Назад' : 'Back', 'ai_photoshop_back_to_main'),
   ])
 
   return Markup.inlineKeyboard(keyboard)
@@ -1682,13 +1890,27 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
     ],
     [
       Markup.button.callback(
-        isRu ? '📸 Добавить новое фото' : '📸 Add new photo',
+        isRu ? '🎬 Ракурс камеры' : '🎬 Camera Angle',
+        'ai_photoshop_camera_menu'
+      ),
+      Markup.button.callback(
+        isRu ? '💡 Освещение' : '💡 Lighting',
+        'ai_photoshop_lighting_menu'
+      )
+    ],
+    [
+      Markup.button.callback(
+        isRu ? '📐 Композиция' : '📐 Composition',
+        'ai_photoshop_composition_menu'
+      ),
+      Markup.button.callback(
+        isRu ? '📸 Добавить фото' : '📸 Add photo',
         'ai_photoshop_add_new'
       )
     ],
     [
       Markup.button.callback(
-        isRu ? `📋 Показать все фото (${savedResults.length})` : `📋 Show all photos (${savedResults.length})`,
+        isRu ? `📋 Галерея (${savedResults.length})` : `📋 Gallery (${savedResults.length})`,
         'ai_photoshop_show_all'
       )
     ],
@@ -1849,24 +2071,29 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           imageCount: imagesToProcess.length
         })
 
-        // Process each image with current model
-        for (const imageData of imagesToProcess) {
-          // Temporarily set session for this specific processing
-          if (ctx.session) {
-            ctx.session.aiPhotoshopModel = modelKey
-            ctx.session.aiPhotoshopPrompt = prompt
-            ctx.session.aiPhotoshopImage = imageData.url
-            if (!ctx.session.aiPhotoshopSize) {
-              ctx.session.aiPhotoshopSize = '1K'
-            }
+        // ✅ CRITICAL FIX: Process ALL images with current model in ONE call
+        // Not in a loop - each model should get ALL images at once
+
+        // Prepare session for this model with ALL images
+        if (ctx.session) {
+          ctx.session.aiPhotoshopModel = modelKey
+          ctx.session.aiPhotoshopPrompt = prompt
+          // ✅ KEY FIX: Set session.morphingImages so the model gets ALL images
+          // Ensure proper type compatibility
+          ctx.session.morphingImages = imagesToProcess.map(img => ({
+            buffer: Buffer.alloc(0), // Empty buffer as placeholder
+            url: img.url,
+            filename: `image_${Date.now()}.jpg`,
+            timestamp: Date.now(),
+            originalOrder: 1
+          }))
+          if (!ctx.session.aiPhotoshopSize) {
+            ctx.session.aiPhotoshopSize = '1K'
           }
-
-          // ✅ FIXED: Use processSingleAiPhotoshopModel to avoid recursion
-          await processSingleAiPhotoshopModel(ctx, prompt, modelKey, true)
-
-          // Small delay between images
-          await new Promise(resolve => setTimeout(resolve, 1000))
         }
+
+        // ✅ CRITICAL: One call per model with ALL images, not per image
+        await processSingleAiPhotoshopModel(ctx, prompt, modelKey, true)
 
         // Small delay between models to prevent rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -1914,6 +2141,38 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       finalPrompt = style?.template || 'enhance this image'
     } else {
       finalPrompt = 'enhance this image'
+    }
+
+    // 🎬 ADD CAMERA CONTROL PROMPTS (transferred from FLUX Kontext)
+    const cameraEnhancements = []
+
+    // Add camera angle if selected
+    if (ctx.session?.aiPhotoshopCameraAngle) {
+      const cameraPrompt = AI_PHOTOSHOP_CAMERA_ANGLES[ctx.session.aiPhotoshopCameraAngle as keyof typeof AI_PHOTOSHOP_CAMERA_ANGLES]
+      if (cameraPrompt) {
+        cameraEnhancements.push(cameraPrompt)
+      }
+    }
+
+    // Add lighting if selected
+    if (ctx.session?.aiPhotoshopLighting) {
+      const lightingPrompt = AI_PHOTOSHOP_LIGHTING_SETUPS[ctx.session.aiPhotoshopLighting as keyof typeof AI_PHOTOSHOP_LIGHTING_SETUPS]
+      if (lightingPrompt) {
+        cameraEnhancements.push(lightingPrompt)
+      }
+    }
+
+    // Add composition if selected
+    if (ctx.session?.aiPhotoshopComposition) {
+      const compositionPrompt = AI_PHOTOSHOP_FRAME_COMPOSITION[ctx.session.aiPhotoshopComposition as keyof typeof AI_PHOTOSHOP_FRAME_COMPOSITION]
+      if (compositionPrompt) {
+        cameraEnhancements.push(compositionPrompt)
+      }
+    }
+
+    // Combine base prompt with camera enhancements
+    if (cameraEnhancements.length > 0) {
+      finalPrompt = `${finalPrompt} ${cameraEnhancements.join(' ')}`
     }
 
     logger.info('AI Photoshop enhanced prompt generated', {
@@ -2242,13 +2501,30 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
     // Get session data
     const { aiPhotoshopImage, morphingImages } = ctx.session || {}
 
-    // Use either single image or first from morphingImages
-    const imageUrl = aiPhotoshopImage || (morphingImages && morphingImages.length > 0 ? morphingImages[0].url : null)
+    // ✅ CRITICAL FIX: Get ALL images, not just the first one!
+    let imagesToProcess: string[] = []
 
-    if (!imageUrl || !ctx.from?.id) {
-      logger.error(`Missing image for ${modelKey} processing`, {
+    if (isAllModelsMode && morphingImages && morphingImages.length > 0) {
+      // ✅ ALL_MODELS режим: берем ВСЕ фотографии из morphingImages
+      imagesToProcess = morphingImages.map(img => img.url).filter(url => url)
+      logger.info(`🎨 ALL_MODELS: Processing ${imagesToProcess.length} images with ${modelKey}`, {
         telegramId: ctx.from?.id,
-        hasImage: !!imageUrl
+        imageCount: imagesToProcess.length,
+        model: modelKey
+      })
+    } else if (aiPhotoshopImage) {
+      // Обычный режим: одно изображение
+      imagesToProcess = [aiPhotoshopImage]
+    } else if (morphingImages && morphingImages.length > 0) {
+      // Fallback: первое изображение
+      imagesToProcess = [morphingImages[0].url]
+    }
+
+    if (imagesToProcess.length === 0 || !ctx.from?.id) {
+      logger.error(`Missing images for ${modelKey} processing`, {
+        telegramId: ctx.from?.id,
+        imageCount: imagesToProcess.length,
+        isAllModelsMode
       })
       return
     }
@@ -2258,7 +2534,7 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
     if (ctx.session) {
       ctx.session.aiPhotoshopModel = modelKey
       ctx.session.aiPhotoshopPrompt = customPrompt
-      ctx.session.aiPhotoshopImage = imageUrl
+      // ✅ НЕ устанавливаем aiPhotoshopImage - оставляем morphingImages как есть
       if (!ctx.session.aiPhotoshopSize) {
         ctx.session.aiPhotoshopSize = '1K'
       }
@@ -2277,90 +2553,216 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
     // No processing message - just process silently
     const modelTitle = isRu ? modelConfig.title_ru : modelConfig.title_en
 
-    // Process based on model type using existing imported functions
+    // ✅ CRITICAL FIX: For ALL_MODELS mode, process each model ONCE with ALL images
     let result
-    if (modelKey === 'seedream') {
-      result = await generateSeeDream4({
-        prompt,
-        inputImageUrl: imageUrl,
-        telegram_id: userId.toString(),
-        username: ctx.from?.username || 'unknown',
-        is_ru: isRu,
-        ctx,
-        size: ctx.session?.aiPhotoshopSize || '2K',
-        max_images: 1,
-        aspect_ratio: 'match_input_image'
-      })
-    } else if (modelKey === 'nano_banana') {
-      result = await generateNanoBanana({
-        promptText: prompt,
-        inputImageUrl: imageUrl,
-        telegram_id: userId.toString(),
-        username: ctx.from?.username || 'unknown',
-        is_ru: isRu,
-        ctx,
-        promptStyle: 'artistic'
-      })
-    } else if (modelKey === 'flux_max') {
-      result = await generateFluxKontextMax({
-        prompt,
-        inputImageUrl: imageUrl,
-        telegram_id: userId.toString(),
-        username: ctx.from?.username || 'unknown',
-        is_ru: isRu,
-        ctx,
-        aspect_ratio: 'match_input_image',
-        output_format: 'png',
-        safety_tolerance: 2
-      })
-    } else if (modelKey === 'qwen_edit_plus') {
-      const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
-      const sizeToAspectRatio: Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'> = {
-        '1K': '9:16',
-        '2K': '9:16',
-        '4K': '16:9',
-        'custom': '9:16'
-      }
 
-      result = await generateQwenImageEditPlus({
-        prompt,
-        inputImageUrl: imageUrl,
-        telegram_id: userId.toString(),
-        username: ctx.from?.username || 'unknown',
-        is_ru: isRu,
-        ctx,
-        aspect_ratio: sizeToAspectRatio[selectedSize] || '1:1',
-        output_format: 'jpg',
-        output_quality: 90
-      })
-    }
-
-    // No processing message to delete
-
-    if (result?.success && result.imageUrl) {
-      // Save result for later reference
-      await savePhotoResult(ctx, result.imageUrl, modelKey, prompt)
-
-      // Send result with model name
-      await ctx.replyWithPhoto(result.imageUrl, {
-        caption: isRu
-          ? `✅ *${modelTitle}*\n\n📝 Промпт: "${prompt}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
-          : `✅ *${modelTitle}*\n\n📝 Prompt: "${prompt}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
-        parse_mode: 'Markdown'
-      })
-
-      logger.info(`✅ ${modelKey} processing completed successfully`, {
+    if (isAllModelsMode) {
+      // 🚨 ALL_MODELS MODE: Each model processes ALL images in ONE call
+      logger.info(`🎨 ALL_MODELS: Processing ${imagesToProcess.length} images with ${modelKey} in ONE call`, {
         telegramId: ctx.from?.id,
+        imageCount: imagesToProcess.length,
         model: modelKey
       })
+
+      // Process based on model capabilities
+      if (modelKey === 'seedream') {
+        // SeeDream supports multiple images (up to 10)
+        result = await generateSeeDream4({
+          prompt,
+          inputImageUrl: imagesToProcess, // Pass array of ALL images
+          telegram_id: userId.toString(),
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          size: ctx.session?.aiPhotoshopSize || '1K',
+          max_images: Math.min(imagesToProcess.length, 10),
+          aspect_ratio: '9:16'
+        })
+      } else if (modelKey === 'nano_banana') {
+        // Nano Banana supports up to 3 images
+        const limitedImages = imagesToProcess.slice(0, 3)
+        result = await generateNanoBanana({
+          promptText: prompt,
+          inputImageUrl: limitedImages.length === 1 ? limitedImages[0] : limitedImages,
+          telegram_id: userId.toString(),
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          promptStyle: 'artistic'
+        })
+      } else if (modelKey === 'flux_max') {
+        // FLUX Max supports only 1 image
+        const firstImage = imagesToProcess[0]
+        result = await generateFluxKontextMax({
+          prompt,
+          inputImageUrl: firstImage,
+          telegram_id: userId.toString(),
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          aspect_ratio: 'match_input_image',
+          output_format: 'png',
+          safety_tolerance: 2
+        })
+      } else if (modelKey === 'qwen_edit_plus') {
+        // Qwen supports multiple images (up to 10)
+        const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
+        const sizeToAspectRatio: Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'> = {
+          '1K': '9:16',
+          '2K': '9:16',
+          '4K': '16:9',
+          'custom': '9:16'
+        }
+
+        result = await generateQwenImageEditPlus({
+          prompt,
+          inputImageUrl: imagesToProcess, // Pass array of ALL images
+          telegram_id: userId.toString(),
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          aspect_ratio: sizeToAspectRatio[selectedSize] || '1:1',
+          output_format: 'jpg',
+          output_quality: 90
+        })
+      }
+
+      // Save result for later reference (all_models mode)
+      if (result) {
+        const imageUrl = typeof result === 'string' ? result : result.image || result.imageUrl || result
+        if (imageUrl) {
+          await savePhotoResult(ctx, imageUrl, modelKey, prompt)
+        }
+      }
     } else {
-      logger.error(`❌ ${modelKey} processing failed`, {
+      // 🚨 NORMAL MODE: Process images individually for backward compatibility
+      const results = []
+
+      for (let i = 0; i < imagesToProcess.length; i++) {
+        const currentImageUrl = imagesToProcess[i]
+
+        logger.info(`🎨 Processing image ${i + 1}/${imagesToProcess.length} with ${modelKey}`, {
+          telegramId: ctx.from?.id,
+          imageIndex: i + 1,
+          totalImages: imagesToProcess.length,
+          model: modelKey
+        })
+
+        if (modelKey === 'seedream') {
+          result = await generateSeeDream4({
+            prompt,
+            inputImageUrl: currentImageUrl,
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
+            size: ctx.session?.aiPhotoshopSize || '1K',
+            max_images: 1,
+            aspect_ratio: '9:16'
+          })
+        } else if (modelKey === 'nano_banana') {
+          result = await generateNanoBanana({
+            promptText: prompt,
+            inputImageUrl: currentImageUrl,
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
+            promptStyle: 'artistic'
+          })
+        } else if (modelKey === 'flux_max') {
+          // FLUX Max supports only 1 image - always use first image
+          const firstImage = imagesToProcess[0]
+          result = await generateFluxKontextMax({
+            prompt,
+            inputImageUrl: firstImage,
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
+            aspect_ratio: 'match_input_image',
+            output_format: 'png',
+            safety_tolerance: 2
+          })
+        } else if (modelKey === 'qwen_edit_plus') {
+          const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
+          const sizeToAspectRatio: Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'> = {
+            '1K': '9:16',
+            '2K': '9:16',
+            '4K': '16:9',
+            'custom': '9:16'
+          }
+
+          result = await generateQwenImageEditPlus({
+            prompt,
+            inputImageUrl: currentImageUrl,
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
+            aspect_ratio: sizeToAspectRatio[selectedSize] || '1:1',
+            output_format: 'jpg',
+            output_quality: 90
+          })
+        }
+
+        // ✅ CRITICAL FIX: Collect results from all images
+        if (result?.success && result.imageUrl) {
+          results.push({
+            imageUrl: result.imageUrl,
+            imageIndex: i + 1,
+            success: true,
+            model: modelKey
+          })
+
+          // Save result for later reference
+          await savePhotoResult(ctx, result.imageUrl, modelKey, prompt)
+
+        // Send result with model name and image number
+        const imageInfo = imagesToProcess.length > 1
+          ? ` (${i + 1}/${imagesToProcess.length})`
+          : ''
+
+        await ctx.replyWithPhoto(result.imageUrl, {
+          caption: isRu
+            ? `✅ *${modelTitle}${imageInfo}*\n\n📝 Промпт: "${prompt}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
+            : `✅ *${modelTitle}${imageInfo}*\n\n📝 Prompt: "${prompt}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
+          parse_mode: 'Markdown'
+        })
+
+        logger.info(`✅ ${modelKey} image ${i + 1}/${imagesToProcess.length} completed successfully`, {
+          telegramId: ctx.from?.id,
+          model: modelKey,
+          imageIndex: i + 1
+        })
+      } else {
+        results.push({
+          imageIndex: i + 1,
+          success: false,
+          model: modelKey,
+          error: result?.error || 'Unknown error'
+        })
+
+        logger.error(`❌ ${modelKey} image ${i + 1}/${imagesToProcess.length} failed`, {
+          telegramId: ctx.from?.id,
+          model: modelKey,
+          imageIndex: i + 1,
+          error: result?.error || 'Unknown error'
+        })
+
+        // Don't send error messages to user in multi-model processing - they're handled upstream
+      }
+    }
+
+      // ✅ Log summary of all processed images (normal mode only)
+      const successCount = results.filter(r => r.success).length
+      logger.info(`🎯 ${modelKey} processing summary: ${successCount}/${imagesToProcess.length} images successful`, {
         telegramId: ctx.from?.id,
         model: modelKey,
-        error: result?.error || 'Unknown error'
+        totalImages: imagesToProcess.length,
+        successfulImages: successCount,
+        failedImages: imagesToProcess.length - successCount
       })
-
-      // Don't send error messages to user in multi-model processing - they're handled upstream
     }
 
     // Restore original session state
@@ -3305,6 +3707,263 @@ aiPhotoshopScene.command('start', async ctx => {
   } catch (error) {
     logger.error('Error in start command handler', { error })
     await ctx.scene.leave()
+  }
+})
+
+// 🎬 CAMERA CONTROL HANDLERS (transferred from FLUX Kontext)
+
+// Camera menu handler
+aiPhotoshopScene.action('ai_photoshop_camera_menu', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.editMessageText(
+      isRu
+        ? '🎬 *Выберите ракурс камеры для профессиональной съёмки:*\n\nВыбранный ракурс будет добавлен к вашему промпту для улучшения композиции фотографии.'
+        : '🎬 *Choose camera angle for professional shooting:*\n\nSelected angle will be added to your prompt to improve photo composition.',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createCameraAngleKeyboard(isRu).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error showing camera menu', { error })
+  }
+})
+
+// Lighting menu handler
+aiPhotoshopScene.action('ai_photoshop_lighting_menu', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.editMessageText(
+      isRu
+        ? '💡 *Выберите освещение для профессиональной фотографии:*\n\nТип освещения повлияет на атмосферу и качество вашего изображения.'
+        : '💡 *Choose lighting for professional photography:*\n\nLighting type will affect the atmosphere and quality of your image.',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createLightingKeyboard(isRu).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error showing lighting menu', { error })
+  }
+})
+
+// Composition menu handler
+aiPhotoshopScene.action('ai_photoshop_composition_menu', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.editMessageText(
+      isRu
+        ? '📐 *Выберите композицию кадра:*\n\nПравильная композиция поможет создать более гармоничное и профессиональное изображение.'
+        : '📐 *Choose frame composition:*\n\nProper composition will help create a more harmonious and professional image.',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createCompositionKeyboard(isRu).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error showing composition menu', { error })
+  }
+})
+
+// Camera angle selection handlers
+Object.keys(AI_PHOTOSHOP_CAMERA_ANGLES).forEach(angle => {
+  aiPhotoshopScene.action(`ai_photoshop_camera_${angle}`, async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      const isRu = isRussianFromState(ctx)
+
+      // Store camera angle in session
+      if (ctx.session) {
+        ctx.session.aiPhotoshopCameraAngle = angle as 'medium_shot' | 'close_up' | 'extreme_close_up' | 'wide_shot' | 'high_angle' | 'low_angle' | 'dutch_angle' | 'over_shoulder' | 'profile_shot' | 'three_quarter' | 'bird_eye' | 'macro_beauty'
+      }
+
+      const angleLabel = getCameraAngleLabel(angle, isRu)
+      const cameraPrompt = AI_PHOTOSHOP_CAMERA_ANGLES[angle as keyof typeof AI_PHOTOSHOP_CAMERA_ANGLES]
+
+      await ctx.editMessageText(
+        isRu
+          ? `✅ *Ракурс камеры выбран:* ${angleLabel}\n\n📝 Промпт добавлен: \`${cameraPrompt}\`\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
+          : `✅ *Camera angle selected:* ${angleLabel}\n\n📝 Prompt added: \`${cameraPrompt}\`\n\n💡 Now write text to process the photo or choose other settings.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createCameraAngleKeyboard(isRu).reply_markup,
+        }
+      )
+    } catch (error) {
+      logger.error('Error handling camera angle selection', { error, angle })
+    }
+  })
+})
+
+// Lighting selection handlers
+Object.keys(AI_PHOTOSHOP_LIGHTING_SETUPS).forEach(lighting => {
+  aiPhotoshopScene.action(`ai_photoshop_lighting_${lighting}`, async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      const isRu = isRussianFromState(ctx)
+
+      // Store lighting in session
+      if (ctx.session) {
+        ctx.session.aiPhotoshopLighting = lighting as 'soft_natural' | 'dramatic' | 'golden_hour' | 'studio' | 'rembrandt' | 'butterfly' | 'split' | 'rim' | 'candlelight' | 'neon_noir' | 'morning' | 'sunset'
+      }
+
+      const lightingLabel = getLightingLabel(lighting, isRu)
+      const lightingPrompt = AI_PHOTOSHOP_LIGHTING_SETUPS[lighting as keyof typeof AI_PHOTOSHOP_LIGHTING_SETUPS]
+
+      await ctx.editMessageText(
+        isRu
+          ? `✅ *Освещение выбрано:* ${lightingLabel}\n\n📝 Промпт добавлен: \`${lightingPrompt}\`\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
+          : `✅ *Lighting selected:* ${lightingLabel}\n\n📝 Prompt added: \`${lightingPrompt}\`\n\n💡 Now write text to process the photo or choose other settings.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createLightingKeyboard(isRu).reply_markup,
+        }
+      )
+    } catch (error) {
+      logger.error('Error handling lighting selection', { error, lighting })
+    }
+  })
+})
+
+// Composition selection handlers
+Object.keys(AI_PHOTOSHOP_FRAME_COMPOSITION).forEach(composition => {
+  aiPhotoshopScene.action(`ai_photoshop_composition_${composition}`, async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      const isRu = isRussianFromState(ctx)
+
+      // Store composition in session
+      if (ctx.session) {
+        ctx.session.aiPhotoshopComposition = composition as 'center_weighted' | 'rule_thirds' | 'golden_ratio' | 'symmetrical' | 'negative_space' | 'leading_lines'
+      }
+
+      const compositionLabel = getCompositionLabel(composition, isRu)
+      const compositionPrompt = AI_PHOTOSHOP_FRAME_COMPOSITION[composition as keyof typeof AI_PHOTOSHOP_FRAME_COMPOSITION]
+
+      await ctx.editMessageText(
+        isRu
+          ? `✅ *Композиция выбрана:* ${compositionLabel}\n\n📝 Промпт добавлен: \`${compositionPrompt}\`\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
+          : `✅ *Composition selected:* ${compositionLabel}\n\n📝 Prompt added: \`${compositionPrompt}\`\n\n💡 Now write text to process the photo or choose other settings.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createCompositionKeyboard(isRu).reply_markup,
+        }
+      )
+    } catch (error) {
+      logger.error('Error handling composition selection', { error, composition })
+    }
+  })
+})
+
+// Auto-select handlers
+aiPhotoshopScene.action('ai_photoshop_camera_auto', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Auto-select a popular camera angle
+    const autoAngle = 'medium_shot'
+    if (ctx.session) {
+      ctx.session.aiPhotoshopCameraAngle = autoAngle
+    }
+
+    const angleLabel = getCameraAngleLabel(autoAngle, isRu)
+    await ctx.editMessageText(
+      isRu
+        ? `✅ *Автовыбор ракурса:* ${angleLabel}\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
+        : `✅ *Auto-selected angle:* ${angleLabel}\n\n💡 Now write text to process the photo or choose other settings.`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createCameraAngleKeyboard(isRu).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error in camera auto-select', { error })
+  }
+})
+
+aiPhotoshopScene.action('ai_photoshop_lighting_auto', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Auto-select popular lighting
+    const autoLighting = 'soft_natural'
+    if (ctx.session) {
+      ctx.session.aiPhotoshopLighting = autoLighting
+    }
+
+    const lightingLabel = getLightingLabel(autoLighting, isRu)
+    await ctx.editMessageText(
+      isRu
+        ? `✅ *Автовыбор освещения:* ${lightingLabel}\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
+        : `✅ *Auto-selected lighting:* ${lightingLabel}\n\n💡 Now write text to process the photo or choose other settings.`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createLightingKeyboard(isRu).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error in lighting auto-select', { error })
+  }
+})
+
+aiPhotoshopScene.action('ai_photoshop_composition_auto', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Auto-select popular composition
+    const autoComposition = 'rule_thirds'
+    if (ctx.session) {
+      ctx.session.aiPhotoshopComposition = autoComposition
+    }
+
+    const compositionLabel = getCompositionLabel(autoComposition, isRu)
+    await ctx.editMessageText(
+      isRu
+        ? `✅ *Автовыбор композиции:* ${compositionLabel}\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
+        : `✅ *Auto-selected composition:* ${compositionLabel}\n\n💡 Now write text to process the photo or choose other settings.`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createCompositionKeyboard(isRu).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error in composition auto-select', { error })
+  }
+})
+
+// Back to main camera control handler
+aiPhotoshopScene.action('ai_photoshop_back_to_main', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Show dialog mode menu if we have saved results
+    if (ctx.session?.savedAiPhotoshopResults && ctx.session.savedAiPhotoshopResults.length > 0) {
+      await showDialogInterface(ctx)
+    } else {
+      // Show initial model selection
+      await ctx.editMessageText(
+        isRu
+          ? '🎨 *AI Photoshop* - профессиональное редактирование изображений с помощью ИИ\n\nВыберите модель ИИ для обработки:'
+          : '🎨 *AI Photoshop* - professional image editing with AI\n\nChoose AI model for processing:',
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
+        }
+      )
+    }
+  } catch (error) {
+    logger.error('Error going back to main', { error })
   }
 })
 
