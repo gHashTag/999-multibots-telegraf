@@ -601,11 +601,11 @@ aiPhotoshopScene.action('ai_photoshop_all_models_from_selector', async ctx => {
     // Set session to indicate multi-model processing
     if (ctx.session) {
       ctx.session.aiPhotoshopModel = 'all_models' as any
-      ctx.session.aiPhotoshopStep = 'image_upload'
-      ctx.session.awaitingAiPhotoshopImage = true
+      ctx.session.aiPhotoshopStep = 'quality_selection'
+      ctx.session.awaitingAiPhotoshopImage = false
 
       // 🚨 CRITICAL DEBUG: Log after setting
-      logger.info('🎯 AI Photoshop: Session UPDATED for ALL_MODELS', {
+      logger.info('🎯 AI Photoshop: Session UPDATED for ALL_MODELS quality selection', {
         telegramId: ctx.from?.id,
         aiPhotoshopModel: ctx.session.aiPhotoshopModel,
         awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
@@ -613,19 +613,43 @@ aiPhotoshopScene.action('ai_photoshop_all_models_from_selector', async ctx => {
       })
     }
 
-    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+    // ✅ Calculate costs for all quality levels
+    const baseCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
     const modelNames = Object.values(AI_PHOTOSHOP_MODELS).map(model =>
       isRu ? model.title_ru : model.title_en
     )
 
+    // Quality multipliers based on single model pricing
+    const quality1KCost = baseCost // 30⭐ (5+7+13+5)
+    const quality2KCost = baseCost * 4 // 120⭐ (20×4 vs 5×4)
+    const quality4KCost = baseCost * 6 // 180⭐ (30×4 vs 5×4)
+
     await ctx.editMessageText(
       isRu
-        ? `🎯 *Все модели сразу!*\n\n📸 *Загрузите изображение для обработки всеми ${modelNames.length} моделями:*\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n⬇️ *Отправьте фото для обработки:*`
-        : `🎯 *All models at once!*\n\n📸 *Upload an image to process with all ${modelNames.length} models:*\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n⬇️ *Send a photo for processing:*`,
+        ? `🎯 *Все модели сразу!*\n\n📊 *Выберите качество обработки для всех ${modelNames.length} моделей:*\n\n🔸 *Модели:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💰 *Стоимость зависит от качества:*\n🔹 1K качество - база\n🔸 2K качество - ×4 от базы\n🔹 4K качество - ×6 от базы\n\n⚡ *Выберите качество ниже:*`
+        : `🎯 *All models at once!*\n\n📊 *Choose quality for processing with all ${modelNames.length} models:*\n\n🔸 *Models:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💰 *Cost depends on quality:*\n🔹 1K quality - base\n🔸 2K quality - ×4 from base\n🔹 4K quality - ×6 from base\n\n⚡ *Select quality below:*`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
+            [
+              {
+                text: isRu ? `1K - ${quality1KCost}⭐` : `1K - ${quality1KCost}⭐`,
+                callback_data: 'ai_photoshop_all_models_size_1K'
+              }
+            ],
+            [
+              {
+                text: isRu ? `2K - ${quality2KCost}⭐` : `2K - ${quality2KCost}⭐`,
+                callback_data: 'ai_photoshop_all_models_size_2K'
+              }
+            ],
+            [
+              {
+                text: isRu ? `4K - ${quality4KCost}⭐` : `4K - ${quality4KCost}⭐`,
+                callback_data: 'ai_photoshop_all_models_size_4K'
+              }
+            ],
             [
               Markup.button.callback(
                 isRu ? 'Назад к моделям' : 'Back to models',
@@ -873,6 +897,92 @@ aiPhotoshopScene.action('ai_photoshop_change_size', async ctx => {
   }
 })
 
+// ✅ NEW: Handle size selection for "All Models" mode
+aiPhotoshopScene.action(/^ai_photoshop_all_models_size_(1K|2K|4K)$/, async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    const sizeMatch = ctx.match[1] as '1K' | '2K' | '4K'
+
+    if (ctx.session) {
+      ctx.session.aiPhotoshopSize = sizeMatch
+      ctx.session.aiPhotoshopModel = 'all_models' as any // Ensure model is set to all_models
+      ctx.session.aiPhotoshopStep = 'image_upload'
+      ctx.session.awaitingAiPhotoshopImage = true
+
+      logger.info('🎯 AI Photoshop: ALL_MODELS size selected', {
+        telegramId: ctx.from?.id,
+        selectedSize: sizeMatch,
+        aiPhotoshopModel: ctx.session.aiPhotoshopModel,
+        awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage
+      })
+    }
+
+    // Calculate costs based on selected quality
+    const baseCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+    const modelNames = Object.values(AI_PHOTOSHOP_MODELS).map(model =>
+      isRu ? model.title_ru : model.title_en
+    )
+
+    let totalCost: number
+    let qualityDesc: string
+
+    switch (sizeMatch) {
+      case '1K':
+        totalCost = baseCost // 30⭐
+        qualityDesc = isRu ? '1K качество (базовое)' : '1K quality (base)'
+        break
+      case '2K':
+        totalCost = baseCost * 4 // 120⭐
+        qualityDesc = isRu ? '2K качество (×4)' : '2K quality (×4)'
+        break
+      case '4K':
+        totalCost = baseCost * 6 // 180⭐
+        qualityDesc = isRu ? '4K качество (×6)' : '4K quality (×6)'
+        break
+      default:
+        totalCost = baseCost
+        qualityDesc = isRu ? '1K качество (базовое)' : '1K quality (base)'
+    }
+
+    await ctx.editMessageText(
+      isRu
+        ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📸 *Отправьте фото для обработки:*`
+        : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📸 *Send photo for processing:*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              Markup.button.callback(
+                isRu ? 'Изменить качество' : 'Change quality',
+                'ai_photoshop_all_models_from_selector'
+              )
+            ],
+            [
+              Markup.button.callback(
+                isRu ? 'Назад к моделям' : 'Back to models',
+                'ai_photoshop_back_to_models'
+              ),
+              Markup.button.callback(
+                isRu ? 'Отмена' : 'Cancel',
+                'ai_photoshop_cancel'
+              ),
+            ],
+          ]
+        }
+      }
+    )
+
+  } catch (error) {
+    logger.error('Error handling all models size selection', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
 // Handle photo upload with multi-photo support
 aiPhotoshopScene.on('photo', async ctx => {
   try {
@@ -1075,8 +1185,8 @@ async function handleAllModelsPrompt(ctx: MyContext, messageText: string): Promi
 
     await ctx.reply(
       isRu
-        ? `✅ Промпт получен: "${messageText}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n💎 Стоимость: ${(ctx.session.morphingImages?.length || 1) * 30}⭐`
-        : `✅ Prompt received: "${messageText}"\n\n🎯 Ready to process with all 4 models!\n\n💎 Cost: ${(ctx.session.morphingImages?.length || 1) * 30}⭐`,
+        ? `✅ Промпт получен: "${messageText}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n⚙️ Выберите качество для расчета стоимости`
+        : `✅ Prompt received: "${messageText}"\n\n🎯 Ready to process with all 4 models!\n\n⚙️ Select quality to calculate cost`,
       {
         reply_markup: {
           inline_keyboard: [[
@@ -1485,8 +1595,8 @@ aiPhotoshopScene.on('text', async ctx => {
       // Show confirmation message for all_models mode
       await ctx.reply(
         isRu
-          ? `✅ Промпт получен: "${prompt}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n💎 Стоимость: ${(ctx.session?.morphingImages?.length || 1) * 30}⭐`
-          : `✅ Prompt received: "${prompt}"\n\n🎯 Ready to process with all 4 models!\n\n💎 Cost: ${(ctx.session?.morphingImages?.length || 1) * 30}⭐`,
+          ? `✅ Промпт получен: "${prompt}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n⚙️ Выберите качество для расчета стоимости`
+          : `✅ Prompt received: "${prompt}"\n\n🎯 Ready to process with all 4 models!\n\n⚙️ Select quality to calculate cost`,
         {
           reply_markup: {
             inline_keyboard: [[
@@ -1589,8 +1699,8 @@ const createAiPhotoshopProgressMessage = (images: any[], isRu: boolean, isAllMod
   // ✅ Special message for 'all_models' mode
   if (isAllModelsMode) {
     const baseMessage = isRu
-      ? `🎯 *ИИ Фотошоп - Все модели сразу*\n\n📸 ${progressBar}\n\n✨ Отлично! Загружайте еще фотографии\n💡 Каждое фото будет обработано всеми 4 моделями (30⭐ за фото)`
-      : `🎯 *AI Photoshop - All Models*\n\n📸 ${progressBar}\n\n✨ Great! Upload more photos\n💡 Each photo will be processed by all 4 models (30⭐ per photo)`
+      ? `🎯 *ИИ Фотошоп - Все модели сразу*\n\n📸 ${progressBar}\n\n✨ Отлично! Загружайте еще фотографии\n💡 Каждое фото будет обработано всеми 4 моделями\n⚙️ Цена зависит от выбранного качества (1K/2K/4K)`
+      : `🎯 *AI Photoshop - All Models*\n\n📸 ${progressBar}\n\n✨ Great! Upload more photos\n💡 Each photo will be processed by all 4 models\n⚙️ Price depends on selected quality (1K/2K/4K)`
 
     if (count >= 1) {
       const actionMessage = isRu
@@ -2907,8 +3017,21 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     // Calculate cost based on model selection
     let costPerImage: number
     if (currentModel === 'all_models') {
-      // All models mode: fixed cost of 30⭐ per image
-      costPerImage = 30
+      // All models mode: dynamic cost based on selected quality
+      const baseCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0) // 30⭐
+      switch (selectedSize) {
+        case '1K':
+          costPerImage = baseCost // 30⭐
+          break
+        case '2K':
+          costPerImage = baseCost * 4 // 120⭐
+          break
+        case '4K':
+          costPerImage = baseCost * 6 // 180⭐
+          break
+        default:
+          costPerImage = baseCost // Default to 1K
+      }
     } else {
       // Single model mode: use size-based pricing
       costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || calculateFinalPriceInStars(0.10)
