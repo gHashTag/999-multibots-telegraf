@@ -133,7 +133,9 @@ export const createAudioFileFromText = async ({
   }
 
   try {
-    // Сначала пытаемся через внутренний AI сервер
+    // ВРЕМЕННО ОТКЛЮЧЕНО: Прямое использование ElevenLabs API вместо AI Server
+    // Причина: AI Server возвращает 401 и блокирует fallback на прямой API
+    /*
     try {
       return await generateTTSViaAiServer({ text, voice_id })
     } catch (aiServerError) {
@@ -141,22 +143,42 @@ export const createAudioFileFromText = async ({
         error: aiServerError
       })
     }
+    */
 
-    // Fallback: прямой API (оригинальная логика)
-    console.log('Generating audio stream using direct API method...')
+    // Используем прямой HTTP запрос вместо SDK
+    console.log('[createAudioFileFromText] Using direct HTTP request to ElevenLabs API...')
 
     const requestPayload = {
-      voice: voice_id,
       text: text,
       model_id: 'eleven_turbo_v2_5',
+      voice_settings: {
+        stability: 0.5,
+        similarity_boost: 0.75
+      }
     }
-    console.log(
-      '[TTS_BOT] Request Payload to elevenlabs.generate:',
-      requestPayload
+
+    console.log('[TTS_BOT] Sending HTTP request to ElevenLabs:', {
+      voice_id,
+      textLength: text.length,
+      model: 'eleven_turbo_v2_5'
+    })
+
+    // Прямой HTTP запрос
+    const response = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
+      requestPayload,
+      {
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
+        },
+        responseType: 'stream',
+        timeout: 60000
+      }
     )
 
-    // Используем метод .generate() и ожидаем Node.js ReadableStream
-    const audioStream = await elevenlabs.generate(requestPayload)
+    const audioStream = response.data
 
     console.log(
       '[TTS_BOT] Received audioStream object from elevenlabs.generate. Type:',

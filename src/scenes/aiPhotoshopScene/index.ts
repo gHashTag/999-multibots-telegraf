@@ -3960,6 +3960,18 @@ aiPhotoshopScene.action('ai_photoshop_continue_same', async ctx => {
 
     const lastResult = savedResults[savedResults.length - 1]
     const lastPrompt = lastResult.prompt || ''
+    const lastModel = lastResult.model
+
+    // ✅ CRITICAL FIX: Restore the saved model to session before processing
+    if (ctx.session) {
+      ctx.session.aiPhotoshopModel = lastModel as keyof typeof AI_PHOTOSHOP_MODELS
+    }
+
+    logger.info('AI Photoshop: Continue with same settings', {
+      telegramId: ctx.from?.id,
+      model: lastModel,
+      promptLength: lastPrompt.length
+    })
 
     // Re-trigger processing with same settings
     await ctx.reply(
