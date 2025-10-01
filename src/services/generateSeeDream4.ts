@@ -9,6 +9,7 @@ import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
   getAspectRatio,
+  getUserBalance,
 } from '@/core/supabase'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
@@ -175,26 +176,30 @@ export const generateSeeDream4 = async (
       totalCost
     })
 
-    // Process balance operation with correct total cost
-    const balanceCheck = await processBalanceOperation({
-      ctx,
-      telegram_id: Number(telegram_id),
-      paymentAmount: totalCost,
-      is_ru,
-      bot_name: ctx?.botInfo?.username,
+    // ✅ ТОЛЬКО ПРОВЕРКА БАЛАНСА БЕЗ СПИСАНИЯ
+    const currentBalance = await getUserBalance(telegram_id)
+
+    logger.info('SeeDream4 balance check', {
+      telegram_id,
+      currentBalance,
+      requiredCost: totalCost,
+      hasEnough: currentBalance >= totalCost
     })
 
-    logger.info('SeeDream4 balance check completed', {
-      success: balanceCheck.success,
-      telegram_id
-    })
+    if (currentBalance < totalCost) {
+      const message = is_ru
+        ? `❌ Недостаточно звезд на балансе.\n\n💰 Требуется: ${totalCost}⭐\n💎 У вас: ${currentBalance}⭐\n\n📱 Пополните баланс в главном меню.`
+        : `❌ Insufficient stars balance.\n\n💰 Required: ${totalCost}⭐\n💎 You have: ${currentBalance}⭐\n\n📱 Top up your balance in the main menu.`
 
-    if (!balanceCheck.success) {
-      logger.error('SeeDream4 balance check failed', {
+      await ctx.reply(message)
+
+      logger.error('SeeDream4 insufficient balance', {
         telegram_id,
-        success: balanceCheck.success
+        currentBalance,
+        requiredCost: totalCost
       })
-      throw new Error('Not enough stars')
+
+      throw new Error('Insufficient balance')
     }
 
     // Send status message
@@ -309,6 +314,30 @@ export const generateSeeDream4 = async (
       throw new Error('Failed to process generated image')
     }
 
+    // ✅ СПИСАНИЕ ЗВЕЗД ПОСЛЕ УСПЕШНОЙ ГЕНЕРАЦИИ
+    const balanceDeduction = await processBalanceOperation({
+      ctx,
+      telegram_id: Number(telegram_id),
+      paymentAmount: totalCost,
+      is_ru,
+      bot_name: ctx?.botInfo?.username,
+    })
+
+    logger.info('SeeDream4 stars deducted after success', {
+      telegram_id,
+      deductedAmount: totalCost,
+      newBalance: balanceDeduction.newBalance,
+      success: balanceDeduction.success
+    })
+
+    if (!balanceDeduction.success) {
+      logger.error('SeeDream4 failed to deduct stars after generation', {
+        telegram_id,
+        totalCost
+      })
+      // Не бросаем ошибку - изображение уже сгенерировано
+    }
+
     // Save prompt to database
     try {
       const promptId = await savePrompt(
@@ -370,8 +399,7 @@ export const generateSeeDream4 = async (
 
     } catch (saveError) {
       console.error('🚨 [SeeDream4] Failed to save prompt:', saveError)
-      // Refund user if database save fails
-      await refundUser(ctx, totalCost)
+      // ❌ НЕ ВОЗВРАЩАЕМ - звезды уже списаны после успешной генерации
       throw new Error('Failed to save generation record')
     }
 
@@ -394,8 +422,9 @@ export const generateSeeDream4 = async (
 
     await params.ctx.reply(errorMessage)
 
-    // Refund user
-    await refundUser(params.ctx, totalCost)
+    // ❌ НЕ ВОЗВРАЩАЕМ ЗВЕЗДЫ - списание происходит только после успешной генерации
+    // Если ошибка случилась ДО списания - звезды не были списаны
+    // Если ошибка после списания - изображение уже сгенерировано
 
     throw error
   }
