@@ -329,6 +329,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   aiPhotoshopImage?: string
   aiPhotoshopPrompt?: string
   aiPhotoshopSize?: '1K' | '2K' | '4K' | 'custom'
+  aiPhotoshopVariationsCount?: number
   awaitingAiPhotoshopImage?: boolean
   awaitingAiPhotoshopPrompt?: boolean
   aiPhotoshopStep?: 'model_select' | 'style_select' | 'image_upload' | 'custom_prompt' | 'processing' | 'quality_selection'

@@ -391,6 +391,44 @@ const createCompositionKeyboard = (isRu: boolean) => {
   return Markup.inlineKeyboard(keyboard)
 }
 
+// Function to create variations count selection keyboard
+const createVariationsKeyboard = (isRu: boolean) => {
+  const variations = [
+    { count: 1, label: '1' },
+    { count: 2, label: '2' },
+    { count: 3, label: '3' },
+    { count: 4, label: '4' },
+    { count: 10, label: '10' },
+    { count: 20, label: '20' },
+    { count: 30, label: '30' },
+    { count: 50, label: '50' }
+  ]
+
+  const keyboard = []
+
+  // Add variations 4 per row
+  for (let i = 0; i < variations.length; i += 4) {
+    const row = []
+    for (let j = 0; j < 4 && i + j < variations.length; j++) {
+      const variation = variations[i + j]
+      row.push(
+        Markup.button.callback(
+          `🔢 ${variation.label}`,
+          `ai_photoshop_variations_${variation.count}`
+        )
+      )
+    }
+    keyboard.push(row)
+  }
+
+  // Add back button
+  keyboard.push([
+    Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'ai_photoshop_back_to_main'),
+  ])
+
+  return Markup.inlineKeyboard(keyboard)
+}
+
 // Function to create aspect ratio selection keyboard
 const createAspectRatioKeyboard = (isRu: boolean) => {
   const aspectRatios = [
@@ -2075,6 +2113,12 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
       Markup.button.callback(
         isRu ? '📏 Соотношение сторон' : '📏 Aspect Ratio',
         'ai_photoshop_aspect_ratio_menu'
+      )
+    ],
+    [
+      Markup.button.callback(
+        isRu ? '🔢 Количество вариаций' : '🔢 Number of variations',
+        'ai_photoshop_variations_menu'
       )
     ],
     [
@@ -3987,6 +4031,28 @@ aiPhotoshopScene.action('ai_photoshop_continue_same', async ctx => {
   }
 })
 
+// Variations count menu handler
+aiPhotoshopScene.action('ai_photoshop_variations_menu', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    const currentCount = ctx.session?.aiPhotoshopVariationsCount || 1
+
+    await ctx.editMessageText(
+      isRu
+        ? `🔢 *Выберите количество вариаций для генерации:*\n\n📊 Текущее: ${currentCount}\n\n💡 Большее количество = больше разнообразия, но выше стоимость!`
+        : `🔢 *Choose number of variations to generate:*\n\n📊 Current: ${currentCount}\n\n💡 More variations = more diversity, but higher cost!`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createVariationsKeyboard(isRu).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error showing variations menu', { error })
+  }
+})
+
 // Aspect ratio menu handler
 aiPhotoshopScene.action('ai_photoshop_aspect_ratio_menu', async ctx => {
   try {
@@ -4093,6 +4159,40 @@ Object.keys(AI_PHOTOSHOP_FRAME_COMPOSITION).forEach(composition => {
       )
     } catch (error) {
       logger.error('Error handling composition selection', { error, composition })
+    }
+  })
+})
+
+// Variations count selection handlers
+const variationsHandlers = [1, 2, 3, 4, 10, 20, 30, 50]
+
+variationsHandlers.forEach(count => {
+  aiPhotoshopScene.action(`ai_photoshop_variations_${count}`, async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      const isRu = isRussianFromState(ctx)
+
+      // Store variations count in session
+      if (ctx.session) {
+        ctx.session.aiPhotoshopVariationsCount = count
+      }
+
+      logger.info('AI Photoshop: Variations count selected', {
+        telegramId: ctx.from?.id,
+        variationsCount: count
+      })
+
+      await ctx.editMessageText(
+        isRu
+          ? `✅ *Количество вариаций выбрано:* ${count}\n\n🔢 При следующей генерации будет создано ${count} ${count === 1 ? 'изображение' : count < 5 ? 'изображения' : 'изображений'}.\n\n💰 Стоимость будет умножена на ${count}.\n\n💡 Больше вариаций = больше разнообразия для выбора!`
+          : `✅ *Variations count selected:* ${count}\n\n🔢 Next generation will create ${count} image${count > 1 ? 's' : ''}.\n\n💰 Cost will be multiplied by ${count}.\n\n💡 More variations = more diversity to choose from!`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createVariationsKeyboard(isRu).reply_markup,
+        }
+      )
+    } catch (error) {
+      logger.error('Error handling variations selection', { error, count })
     }
   })
 })
