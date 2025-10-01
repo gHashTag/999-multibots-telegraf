@@ -347,6 +347,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     prompt: string
     timestamp: string
     id: string
+    wasAllModels?: boolean // ✅ Track if generated in all_models mode
     additionalInfo?: {
       size?: '1K' | '2K' | '4K' | 'custom'
       originalImage?: string

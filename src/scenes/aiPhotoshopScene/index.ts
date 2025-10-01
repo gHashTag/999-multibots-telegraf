@@ -2151,7 +2151,7 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
 }
 
 // ✅ NEW: Save photo result function
-async function savePhotoResult(ctx: MyContext, imageUrl: string, model: string, prompt: string): Promise<void> {
+async function savePhotoResult(ctx: MyContext, imageUrl: string, model: string, prompt: string, wasAllModels: boolean = false): Promise<void> {
   if (!ctx.session) return
 
   if (!ctx.session.savedAiPhotoshopResults) {
@@ -2165,6 +2165,7 @@ async function savePhotoResult(ctx: MyContext, imageUrl: string, model: string, 
     prompt: prompt.substring(0, 200),
     timestamp: new Date().toISOString(),
     id: Date.now().toString(),
+    wasAllModels, // ✅ NEW: Track if this was generated in all_models mode
     additionalInfo: {
       size: ctx.session.aiPhotoshopSize,
       originalImage: ctx.session.aiPhotoshopImage !== imageUrl ? ctx.session.aiPhotoshopImage : undefined,
@@ -2856,7 +2857,7 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
       if (result) {
         const imageUrl = typeof result === 'string' ? result : result.image || result.imageUrl || result
         if (imageUrl) {
-          await savePhotoResult(ctx, imageUrl, modelKey, prompt)
+          await savePhotoResult(ctx, imageUrl, modelKey, prompt, true) // ✅ Mark as all_models mode
         }
       }
     } else {
@@ -4024,9 +4025,12 @@ aiPhotoshopScene.action('ai_photoshop_continue_same', async ctx => {
 
     const lastResult = savedResults[savedResults.length - 1]
     const lastPrompt = lastResult.prompt || ''
-    const lastModel = lastResult.model
 
-    // ✅ CRITICAL FIX: Restore the saved model to session before processing
+    // ✅ CRITICAL FIX: Check if this was from all_models mode
+    const wasAllModels = lastResult.wasAllModels || false
+    const lastModel = wasAllModels ? 'all_models' : lastResult.model
+
+    // ✅ CRITICAL FIX: Restore the correct model mode to session
     if (ctx.session) {
       ctx.session.aiPhotoshopModel = lastModel as keyof typeof AI_PHOTOSHOP_MODELS
     }
@@ -4034,14 +4038,19 @@ aiPhotoshopScene.action('ai_photoshop_continue_same', async ctx => {
     logger.info('AI Photoshop: Continue with same settings', {
       telegramId: ctx.from?.id,
       model: lastModel,
+      wasAllModels,
       promptLength: lastPrompt.length
     })
+
+    const modelDisplay = wasAllModels
+      ? (isRu ? 'Все модели' : 'All models')
+      : lastResult.model
 
     // Re-trigger processing with same settings
     await ctx.reply(
       isRu
-        ? `🔄 Повторяю генерацию с настройками:\n📝 Промпт: ${lastPrompt}\n🤖 Модель: ${lastResult.model}\n\n⏳ Генерирую...`
-        : `🔄 Repeating generation with settings:\n📝 Prompt: ${lastPrompt}\n🤖 Model: ${lastResult.model}\n\n⏳ Generating...`
+        ? `🔄 Повторяю генерацию с настройками:\n📝 Промпт: ${lastPrompt}\n🤖 Модель: ${modelDisplay}\n\n⏳ Генерирую...`
+        : `🔄 Repeating generation with settings:\n📝 Prompt: ${lastPrompt}\n🤖 Model: ${modelDisplay}\n\n⏳ Generating...`
     )
 
     // Process with same prompt and settings
