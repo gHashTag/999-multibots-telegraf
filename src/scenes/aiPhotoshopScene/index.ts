@@ -2312,6 +2312,15 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       }
     }
 
+    // ✅ CRITICAL FIX: Restore aiPhotoshopModel back to 'all_models' after loop
+    if (ctx.session) {
+      ctx.session.aiPhotoshopModel = 'all_models'
+      logger.info('🔄 AI Photoshop: Restored model to all_models after processing', {
+        telegramId: ctx.from?.id,
+        restoredModel: 'all_models'
+      })
+    }
+
     // Show final results summary
     await ctx.reply(
       isRu
@@ -2456,6 +2465,15 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
     // Call appropriate service based on selected model
     let result: any = null
 
+    // ✅ Get variations count from session (default 1)
+    const variationsCount = ctx.session?.aiPhotoshopVariationsCount || 1
+
+    logger.info('AI Photoshop: Using variations count', {
+      telegramId: ctx.from.id,
+      variationsCount,
+      model: aiPhotoshopModel
+    })
+
     switch (aiPhotoshopModel) {
       case 'seedream':
         // ✅ CRITICAL FIX: Get selected size from session or use user's choice
@@ -2466,7 +2484,8 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           selectedSize,
           isMultiPhoto,
           imageCount: actualImageUrls.length,
-          maxImages
+          maxImages,
+          variationsCount
         })
 
         // ✅ CRITICAL FIX: Handle multi-photo and merge prompts correctly
@@ -2478,11 +2497,12 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           imageCount: actualImageUrls.length,
           prompt: finalPrompt.substring(0, 50) + '...',
           size: selectedSize,
-          maxImages
+          maxImages,
+          variationsCount
         })
 
         if (isActualMultiPhoto && currentModel?.supports_multi_image) {
-          // Multi-photo processing with array
+          // Multi-photo processing with array - variations N/A for multi-photo
           result = await generateSeeDream4({
             prompt: finalPrompt,
             inputImageUrl: actualImageUrls, // Pass array for multi-photo
@@ -2495,7 +2515,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             aspect_ratio: 'match_input_image'
           })
         } else {
-          // Single photo processing (or first image if multiple)
+          // Single photo processing (or first image if multiple) - APPLY VARIATIONS
           result = await generateSeeDream4({
             prompt: finalPrompt,
             inputImageUrl: actualImageUrls[0],
@@ -2504,7 +2524,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             is_ru: isRu,
             ctx,
             size: selectedSize,
-            max_images: 1, // Single image processing
+            max_images: variationsCount, // ✅ USE VARIATIONS COUNT
             aspect_ratio: 'match_input_image'
           })
         }
