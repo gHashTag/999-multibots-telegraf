@@ -391,6 +391,53 @@ const createCompositionKeyboard = (isRu: boolean) => {
   return Markup.inlineKeyboard(keyboard)
 }
 
+// Function to create aspect ratio selection keyboard
+const createAspectRatioKeyboard = (isRu: boolean) => {
+  const aspectRatios = [
+    { key: '1:1', labelRu: '🔲 1:1 (Квадрат)', labelEn: '🔲 1:1 (Square)' },
+    { key: '16:9', labelRu: '📺 16:9 (Широкий)', labelEn: '📺 16:9 (Wide)' },
+    { key: '9:16', labelRu: '📱 9:16 (Портрет)', labelEn: '📱 9:16 (Portrait)' },
+    { key: '4:3', labelRu: '🖼️ 4:3 (Стандарт)', labelEn: '🖼️ 4:3 (Standard)' },
+    { key: '3:4', labelRu: '🖼️ 3:4 (Портрет)', labelEn: '🖼️ 3:4 (Portrait)' },
+    { key: '21:9', labelRu: '🎬 21:9 (Кино)', labelEn: '🎬 21:9 (Cinema)' },
+    { key: '9:21', labelRu: '🎬 9:21 (Портрет)', labelEn: '🎬 9:21 (Portrait)' }
+  ]
+
+  const keyboard = []
+
+  // Add aspect ratios 2 per row
+  for (let i = 0; i < aspectRatios.length; i += 2) {
+    const row = []
+
+    const ratio1 = aspectRatios[i]
+    row.push(
+      Markup.button.callback(
+        isRu ? ratio1.labelRu : ratio1.labelEn,
+        `ai_photoshop_ratio_${ratio1.key.replace(':', '_')}`
+      )
+    )
+
+    if (i + 1 < aspectRatios.length) {
+      const ratio2 = aspectRatios[i + 1]
+      row.push(
+        Markup.button.callback(
+          isRu ? ratio2.labelRu : ratio2.labelEn,
+          `ai_photoshop_ratio_${ratio2.key.replace(':', '_')}`
+        )
+      )
+    }
+
+    keyboard.push(row)
+  }
+
+  // Add back button
+  keyboard.push([
+    Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'ai_photoshop_back_to_main'),
+  ])
+
+  return Markup.inlineKeyboard(keyboard)
+}
+
 // Function to create style selection keyboard
 const createStyleSelectionKeyboard = (isRu: boolean) => {
   const keyboard = []
@@ -445,6 +492,9 @@ aiPhotoshopScene.enter(async ctx => {
     })
 
     const isRu = isRussianFromState(ctx)
+
+    // ✅ СКРЫТЬ ГЛАВНОЕ МЕНЮ ПРИ ВХОДЕ В СЦЕНУ
+    // Пользователь не должен видеть кнопки главного меню во время работы с AI Photoshop
 
     // ✅ CHECK FOR PENDING MULTI-PHOTO EVENTS IN AI PHOTOSHOP
     const hasMultiPhotoEvent = await checkMultiPhotoEvents(ctx)
@@ -533,6 +583,9 @@ aiPhotoshopScene.enter(async ctx => {
 🎨 *Qwen Image Edit Plus* - Advanced editing (5⭐, up to 10 photos)
 
 💡 *Or just send a photo directly for SeeDream-4 processing!*`
+
+    // ✅ СКРЫТЬ ГЛАВНОЕ МЕНЮ ПЕРЕД ПОКАЗОМ INLINE КНОПОК
+    await ctx.reply('🎨', Markup.removeKeyboard())
 
     await ctx.reply(title + '\n\n' + description, {
       parse_mode: 'Markdown',
@@ -1988,6 +2041,12 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
   const keyboard = Markup.inlineKeyboard([
     [
       Markup.button.callback(
+        isRu ? '🔄 Продолжить с теми же настройками' : '🔄 Continue with same settings',
+        'ai_photoshop_continue_same'
+      )
+    ],
+    [
+      Markup.button.callback(
         isRu ? '⬆️ Увеличить качество фото' : '⬆️ Upscale photo quality',
         'ai_photoshop_upscale_last'
       )
@@ -2014,11 +2073,15 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
         'ai_photoshop_composition_menu'
       ),
       Markup.button.callback(
-        isRu ? '📸 Добавить фото' : '📸 Add photo',
-        'ai_photoshop_add_new'
+        isRu ? '📏 Соотношение сторон' : '📏 Aspect Ratio',
+        'ai_photoshop_aspect_ratio_menu'
       )
     ],
     [
+      Markup.button.callback(
+        isRu ? '📸 Добавить фото' : '📸 Add photo',
+        'ai_photoshop_add_new'
+      ),
       Markup.button.callback(
         isRu ? `📋 Галерея (${savedResults.length})` : `📋 Gallery (${savedResults.length})`,
         'ai_photoshop_show_all'
@@ -3883,6 +3946,55 @@ aiPhotoshopScene.action('ai_photoshop_composition_menu', async ctx => {
   }
 })
 
+// Continue with same settings handler
+aiPhotoshopScene.action('ai_photoshop_continue_same', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+    const savedResults = ctx.session?.savedAiPhotoshopResults || []
+
+    if (savedResults.length === 0) {
+      await ctx.reply(isRu ? '❌ Нет сохраненных результатов' : '❌ No saved results')
+      return
+    }
+
+    const lastResult = savedResults[savedResults.length - 1]
+    const lastPrompt = lastResult.prompt || ''
+
+    // Re-trigger processing with same settings
+    await ctx.reply(
+      isRu
+        ? `🔄 Повторяю генерацию с настройками:\n📝 Промпт: ${lastPrompt}\n🤖 Модель: ${lastResult.model}\n\n⏳ Генерирую...`
+        : `🔄 Repeating generation with settings:\n📝 Prompt: ${lastPrompt}\n🤖 Model: ${lastResult.model}\n\n⏳ Generating...`
+    )
+
+    // Process with same prompt and settings
+    await processAiPhotoshopRequest(ctx, lastPrompt)
+  } catch (error) {
+    logger.error('Error continuing with same settings', { error })
+  }
+})
+
+// Aspect ratio menu handler
+aiPhotoshopScene.action('ai_photoshop_aspect_ratio_menu', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    await ctx.editMessageText(
+      isRu
+        ? '📏 *Выберите соотношение сторон для следующей генерации:*\n\n🔲 Формат изображения будет применён при следующей обработке.'
+        : '📏 *Choose aspect ratio for next generation:*\n\n🔲 Image format will be applied on next processing.',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createAspectRatioKeyboard(isRu).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error showing aspect ratio menu', { error })
+  }
+})
+
 // Camera angle selection handlers
 Object.keys(AI_PHOTOSHOP_CAMERA_ANGLES).forEach(angle => {
   aiPhotoshopScene.action(`ai_photoshop_camera_${angle}`, async ctx => {
@@ -3969,6 +4081,43 @@ Object.keys(AI_PHOTOSHOP_FRAME_COMPOSITION).forEach(composition => {
       )
     } catch (error) {
       logger.error('Error handling composition selection', { error, composition })
+    }
+  })
+})
+
+// Aspect ratio selection handlers
+const aspectRatioHandlers = [
+  { key: '1_1', ratio: '1:1', labelRu: '🔲 1:1 (Квадрат)', labelEn: '🔲 1:1 (Square)', sizeKey: '1K' },
+  { key: '16_9', ratio: '16:9', labelRu: '📺 16:9 (Широкий)', labelEn: '📺 16:9 (Wide)', sizeKey: '4K' },
+  { key: '9_16', ratio: '9:16', labelRu: '📱 9:16 (Портрет)', labelEn: '📱 9:16 (Portrait)', sizeKey: '2K' },
+  { key: '4_3', ratio: '4:3', labelRu: '🖼️ 4:3 (Стандарт)', labelEn: '🖼️ 4:3 (Standard)', sizeKey: '1K' },
+  { key: '3_4', ratio: '3:4', labelRu: '🖼️ 3:4 (Портрет)', labelEn: '🖼️ 3:4 (Portrait)', sizeKey: '1K' },
+  { key: '21_9', ratio: '21:9', labelRu: '🎬 21:9 (Кино)', labelEn: '🎬 21:9 (Cinema)', sizeKey: '4K' },
+  { key: '9_21', ratio: '9:21', labelRu: '🎬 9:21 (Портрет)', labelEn: '🎬 9:21 (Portrait)', sizeKey: '2K' }
+]
+
+aspectRatioHandlers.forEach(({ key, ratio, labelRu, labelEn, sizeKey }) => {
+  aiPhotoshopScene.action(`ai_photoshop_ratio_${key}`, async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      const isRu = isRussianFromState(ctx)
+
+      // Store aspect ratio as size in session (matching the sizeToAspectRatio mapping)
+      if (ctx.session) {
+        ctx.session.aiPhotoshopSize = sizeKey as '1K' | '2K' | '4K' | 'custom'
+      }
+
+      await ctx.editMessageText(
+        isRu
+          ? `✅ *Соотношение сторон выбрано:* ${labelRu}\n\n📏 Размер установлен: ${sizeKey} (${ratio})\n\n💡 Это соотношение будет применено при следующей генерации.`
+          : `✅ *Aspect ratio selected:* ${labelEn}\n\n📏 Size set: ${sizeKey} (${ratio})\n\n💡 This ratio will be applied on next generation.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createAspectRatioKeyboard(isRu).reply_markup,
+        }
+      )
+    } catch (error) {
+      logger.error('Error handling aspect ratio selection', { error, ratio })
     }
   })
 })
