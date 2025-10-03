@@ -2564,19 +2564,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    // TODO: Fix custom prompt functionality - temporarily disabled
-    await ctx.reply(
-      isRu
-        ? '⚠️ Кастомный промпт временно недоступен. Выберите героя из списка.'
-        : '⚠️ Custom prompt temporarily unavailable. Please select a hero from the list.'
-    )
-    return
-
-    /* TODO: Fix custom prompt functionality - all code below temporarily disabled
-
+    // ✅ ИСПРАВЛЕНО: Восстанавливаем функционал кастомного промпта
     // Сохраняем кастомный промпт в сессии
-    // if (ctx.session) ctx.session.aiPhotoshopPrompt = customPrompt
-    // ctx.session.selectedHero = 'Кастомный промпт'
+    if (ctx.session) ctx.session.aiPhotoshopPrompt = customPrompt
+    ctx.session.selectedHero = 'Кастомный промпт'
 
     const gender = ctx.session.selectedGender
     if (!gender) {
@@ -2638,35 +2629,44 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // Выбираем сервис генерации в зависимости от модели
       if (selectedModel === 'seedream4') {
         const result = await generateSeeDream4({
+          telegram_id: telegramId,
           prompt: finalPrompt,
-          imageUrl: userPhotoUrl,
-          enhance: false,
-          model: 'SeeDreamV4',
-          aspectRatio: '9:16',
+          inputImageUrl: userPhotoUrl,
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+          ctx: ctx,
+          aspect_ratio: '9:16',
         })
-        generatedImageUrl = result
+        generatedImageUrl = typeof result.image === 'string' ? result.image : result.image.toString()
       } else {
         const result = await generateFluxKontextMax({
+          telegram_id: telegramId,
           prompt: finalPrompt,
-          referenceImageUrl: userPhotoUrl,
-          aspectRatio: '9:16',
+          inputImageUrl: userPhotoUrl,
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+          ctx: ctx,
+          aspect_ratio: '16:9',
         })
-        generatedImageUrl = result
+        generatedImageUrl = typeof result.image === 'string' ? result.image : result.image.toString()
       }
 
       if (generatedImageUrl) {
         // Отправляем результат
-        await sendPhotoWithFallback({
+        await sendPhotoWithFallback(
           ctx,
-          photoUrl: generatedImageUrl,
-          caption: isRu
-            ? `🎨 <b>Ваш кастомный AI-образ готов!</b>\n\n✍️ <b>Промпт:</b> "${customPrompt}"\n\n🚀 <b>Понравилось?</b> Получите полный доступ к боту!\n💎 <b>Подписка открывает:</b>\n• Неограниченные трансформации\n• Все модели и стили\n• Приоритетная генерация\n\n💰 Нажмите /start для покупки подписки!`
-            : `🎨 <b>Your custom AI image is ready!</b>\n\n✍️ <b>Prompt:</b> "${customPrompt}"\n\n🚀 <b>Like it?</b> Get full bot access!\n💎 <b>Subscription unlocks:</b>\n• Unlimited transformations\n• All models and styles\n• Priority generation\n\n💰 Press /start to purchase subscription!`,
-          replyMarkup: Markup.keyboard([
-            [isRu ? '🔄 Еще трансформация' : '🔄 Another transformation'],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
-          ]).resize().reply_markup,
-        })
+          generatedImageUrl,
+          {
+            caption: isRu
+              ? `🎨 <b>Ваш кастомный AI-образ готов!</b>\n\n✍️ <b>Промпт:</b> "${customPrompt}"\n\n🚀 <b>Понравилось?</b> Получите полный доступ к боту!\n💎 <b>Подписка открывает:</b>\n• Неограниченные трансформации\n• Все модели и стили\n• Приоритетная генерация\n\n💰 Нажмите /start для покупки подписки!`
+              : `🎨 <b>Your custom AI image is ready!</b>\n\n✍️ <b>Prompt:</b> "${customPrompt}"\n\n🚀 <b>Like it?</b> Get full bot access!\n💎 <b>Subscription unlocks:</b>\n• Unlimited transformations\n• All models and styles\n• Priority generation\n\n💰 Press /start to purchase subscription!`,
+            parse_mode: 'HTML',
+            reply_markup: Markup.keyboard([
+              [isRu ? '🔄 Еще трансформация' : '🔄 Another transformation'],
+              [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+            ]).resize().reply_markup,
+          }
+        )
 
         logger.info('[AvatarTransformScene] Custom prompt transformation completed', {
           telegramId,
@@ -2699,8 +2699,6 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Выходим из сцены
     await ctx.scene.leave()
-
-    */ // End of temporarily disabled custom prompt code
   }
 )
 

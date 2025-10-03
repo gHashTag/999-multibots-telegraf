@@ -98,15 +98,22 @@ interface ReplicateClient {
 const MAX_RETRIES = 5 // Максимум 5 попыток для каждого клипа
 const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
 
-// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (ОБНОВЛЕН ДЛЯ v2.1)
-// 🔥 КРИТИЧЕСКИ ВАЖНО: Pro должна быть ПЕРВОЙ, так как Standard НЕ поддерживает end_image!
+// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (ОБНОВЛЕН ДЛЯ v2.5 Turbo Pro - Sept 2025)
+// 🔥 КРИТИЧЕСКИ ВАЖНО: v2.5 Turbo Pro должна быть ПЕРВОЙ - самая свежая и производительная!
 const FALLBACK_KLING_MODELS = [
   {
+    id: 'kwaivgi/kling-v2.5-turbo-pro',
+    name: 'Kling v2.5 Turbo Pro',
+    variant: 'pro',
+    cost: 0.84, // $0.084 * 10 сек = $0.84 за клип (НОВИНКА - 30% дешевле v2.1!)
+    description: '1080p, LATEST Sept 2025 - improved motion & style consistency, 30% cheaper',
+  },
+  {
     id: 'kwaivgi/kling-v2.1',
-    name: 'Kling v2.1 Pro',
+    name: 'Kling v2.1 Master',
     variant: 'pro',
     cost: 0.9, // $0.09 * 10 сек = $0.9 за клип (премиум качество)
-    description: '1080p, премиум Kling v2.1 модель для морфинга',
+    description: '1080p, премиум Kling v2.1 модель для морфинга (fallback)',
   },
   {
     id: 'kwaivgi/kling-v2.1',
@@ -119,13 +126,13 @@ const FALLBACK_KLING_MODELS = [
     id: 'kwaivgi/kling-v1.6-pro',
     name: 'Kling v1.6 Pro',
     cost: 1.96, // ~$1.96 за 10-сек клип (фаллбэк)
-    description: '1080p, fallback модель для морфинга',
+    description: '1080p, DEPRECATED fallback модель для морфинга',
   },
   {
     id: 'kwaivgi/kling-v1.6-standard',
     name: 'Kling v1.6 Standard',
     cost: 0.56, // ~$0.56 за 10-сек клип (последний резерв)
-    description: '720p, последний резерв если v2.1 не работает',
+    description: '720p, DEPRECATED последний резерв если v2.1 не работает',
   },
 ] as const
 
