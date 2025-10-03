@@ -105,34 +105,22 @@ const FALLBACK_KLING_MODELS = [
     id: 'kwaivgi/kling-v2.5-turbo-pro',
     name: 'Kling v2.5 Turbo Pro',
     variant: 'pro',
-    cost: 0.84, // $0.084 * 10 сек = $0.84 за клип (НОВИНКА - 30% дешевле v2.1!)
-    description: '1080p, LATEST Sept 2025 - improved motion & style consistency, 30% cheaper',
+    cost: 0.84, // $0.084/сек * 10 сек = $0.84 за клип (экономия 6.7% vs v2.1)
+    description: '1080p, LATEST Sept 2025 - improved motion & style consistency',
   },
   {
     id: 'kwaivgi/kling-v2.1',
-    name: 'Kling v2.1 Master',
+    name: 'Kling v2.1 Pro',
     variant: 'pro',
-    cost: 0.9, // $0.09 * 10 сек = $0.9 за клип (премиум качество)
+    cost: 0.9, // $0.09/сек * 10 сек = $0.9 за клип (премиум качество)
     description: '1080p, премиум Kling v2.1 модель для морфинга (fallback)',
   },
   {
     id: 'kwaivgi/kling-v2.1',
     name: 'Kling v2.1 Standard',
     variant: 'standard',
-    cost: 0.5, // $0.05 * 10 сек = $0.5 за клип (НЕ поддерживает end_image!)
+    cost: 0.5, // $0.05/сек * 10 сек = $0.5 за клип (НЕ поддерживает end_image!)
     description: '720p, НЕ поддерживает морфинг с end_image - только для single image',
-  },
-  {
-    id: 'kwaivgi/kling-v1.6-pro',
-    name: 'Kling v1.6 Pro',
-    cost: 1.96, // ~$1.96 за 10-сек клип (фаллбэк)
-    description: '1080p, DEPRECATED fallback модель для морфинга',
-  },
-  {
-    id: 'kwaivgi/kling-v1.6-standard',
-    name: 'Kling v1.6 Standard',
-    cost: 0.56, // ~$0.56 за 10-сек клип (последний резерв)
-    description: '720p, DEPRECATED последний резерв если v2.1 не работает',
   },
 ] as const
 
