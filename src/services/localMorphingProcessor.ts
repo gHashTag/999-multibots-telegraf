@@ -122,6 +122,18 @@ const FALLBACK_KLING_MODELS = [
     cost: 0.5, // $0.05/сек * 10 сек = $0.5 за клип (НЕ поддерживает end_image!)
     description: '720p, НЕ поддерживает морфинг с end_image - только для single image',
   },
+  {
+    id: 'kwaivgi/kling-v1.6-pro',
+    name: 'Kling v1.6 Pro',
+    cost: 1.96, // ~$1.96 за 10-сек клип (старый fallback)
+    description: '1080p, старая резервная модель если v2.x не работает',
+  },
+  {
+    id: 'kwaivgi/kling-v1.6-standard',
+    name: 'Kling v1.6 Standard',
+    cost: 0.56, // ~$0.56 за 10-сек клип (последний резерв)
+    description: '720p, последний резерв если все остальные модели не работают',
+  },
 ] as const
 
 // ✅ CHECKPOINT SYSTEM (для возобновления процесса)
