@@ -353,7 +353,7 @@ export async function generateMorphing(
         serviceType: 'Morphing Loop (Kling)',
         additionalInfo: {
           image_count: requestData.imageCount.toString(),
-          model: 'kling-v1.6-pro',
+          model: 'kling-v2.5-turbo-pro',
           morphing_type: requestData.morphingType,
         },
       })
