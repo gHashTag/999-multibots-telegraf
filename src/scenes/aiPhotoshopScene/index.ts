@@ -35,7 +35,7 @@ const mkdir = promisify(fs.mkdir)
 logger.info('🚨 AI Photoshop: Scene module loading...');
 import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
-import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
+import { generateAdvancedFluxKontext } from '@/services/generateFluxKontext'
 import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
 // ✅ IMPORT MULTI-PHOTO SUPPORT FOR AI PHOTOSHOP
 import { detectMultiPhotoUpload, handleMultiPhotoNeurophoto, checkMultiPhotoEvents } from '@/handlers/multiPhotoHandler'
@@ -111,17 +111,17 @@ const AI_PHOTOSHOP_MODELS = {
     supports_multi_image: true, // ✅ NEW: Multi-image support
     max_images: 3
   },
-  flux_max: {
-    title_ru: '🚀 FLUX Kontext Max',
-    title_en: '🚀 FLUX Kontext Max',
-    description_ru: 'Black Forest Labs FLUX Kontext Max - Профессиональное редактирование',
-    description_en: 'Black Forest Labs FLUX Kontext Max - Professional editing',
-    cost: 13, // stars - Updated: Replicate actual price $0.08
-    key: 'flux_max',
+  flux_multi_kontext: {
+    title_ru: '🎯 FLUX Multi-Kontext',
+    title_en: '🎯 FLUX Multi-Kontext',
+    description_ru: 'FLUX Multi-Kontext Pro - Объединение двух изображений в единый композит',
+    description_en: 'FLUX Multi-Kontext Pro - Combine two images into seamless composite',
+    cost: 7, // stars - Replicate actual price $0.04
+    key: 'flux_multi_kontext',
     supports_image_input: true,
     supports_text_only: false,
-    supports_multi_image: false, // ❌ FIXED: FLUX Max поддерживает только ОДНО изображение
-    max_images: 1
+    supports_multi_image: true, // ✅ Поддерживает 2 изображения
+    max_images: 2
   },
   qwen_edit_plus: {
     title_ru: '🎨 Qwen Image Edit Plus',
@@ -2543,17 +2543,30 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         })
         break
 
-      case 'flux_max':
-        result = await generateFluxKontextMax({
+      case 'flux_multi_kontext':
+        // ✅ FLUX Multi-Kontext Pro - поддержка 2 изображений
+        if (actualImageUrls.length < 2) {
+          await ctx.reply(
+            isRu
+              ? '⚠️ FLUX Multi-Kontext требует 2 изображения. Пожалуйста, загрузите второе изображение.'
+              : '⚠️ FLUX Multi-Kontext requires 2 images. Please upload a second image.',
+            Markup.keyboard([
+              [isRu ? '🏠 Главное меню' : '🏠 Main Menu']
+            ]).resize()
+          )
+          return
+        }
+
+        result = await generateAdvancedFluxKontext({
           prompt: finalPrompt,
-          inputImageUrl: actualImageUrls[0], // FLUX Max uses single image
+          mode: 'multi',
+          imageA: actualImageUrls[0],
+          imageB: actualImageUrls[1],
+          modelType: 'pro',
           telegram_id: ctx.from.id.toString(),
           username: ctx.from.username || 'unknown',
           is_ru: isRu,
-          ctx,
-          aspect_ratio: 'match_input_image',
-          output_format: 'png',
-          safety_tolerance: 2
+          ctx
         })
         break
 
@@ -2792,6 +2805,9 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
 
       // Process based on model capabilities
       if (modelKey === 'seedream') {
+        // ✅ Get variations count from session (default 1)
+        const variationsCount = ctx.session?.aiPhotoshopVariationsCount || 1
+
         // SeeDream supports multiple images (up to 10)
         result = await generateSeeDream4({
           prompt,
@@ -2801,7 +2817,7 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
           is_ru: isRu,
           ctx,
           size: ctx.session?.aiPhotoshopSize || '1K',
-          max_images: Math.min(imagesToProcess.length, 10),
+          max_images: variationsCount, // ✅ USE VARIATIONS COUNT instead of image count
           aspect_ratio: '9:16'
         })
       } else if (modelKey === 'nano_banana') {
@@ -2815,20 +2831,6 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
           is_ru: isRu,
           ctx,
           promptStyle: 'artistic'
-        })
-      } else if (modelKey === 'flux_max') {
-        // FLUX Max supports only 1 image
-        const firstImage = imagesToProcess[0]
-        result = await generateFluxKontextMax({
-          prompt,
-          inputImageUrl: firstImage,
-          telegram_id: userId.toString(),
-          username: ctx.from?.username || 'unknown',
-          is_ru: isRu,
-          ctx,
-          aspect_ratio: 'match_input_image',
-          output_format: 'png',
-          safety_tolerance: 2
         })
       } else if (modelKey === 'qwen_edit_plus') {
         // Qwen supports multiple images (up to 10)
@@ -2875,6 +2877,9 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
         })
 
         if (modelKey === 'seedream') {
+          // ✅ Get variations count from session (default 1)
+          const variationsCount = ctx.session?.aiPhotoshopVariationsCount || 1
+
           result = await generateSeeDream4({
             prompt,
             inputImageUrl: currentImageUrl,
@@ -2883,7 +2888,7 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
             is_ru: isRu,
             ctx,
             size: ctx.session?.aiPhotoshopSize || '1K',
-            max_images: 1,
+            max_images: variationsCount, // ✅ USE VARIATIONS COUNT
             aspect_ratio: '9:16'
           })
         } else if (modelKey === 'nano_banana') {
@@ -2895,20 +2900,6 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
             is_ru: isRu,
             ctx,
             promptStyle: 'artistic'
-          })
-        } else if (modelKey === 'flux_max') {
-          // FLUX Max supports only 1 image - always use first image
-          const firstImage = imagesToProcess[0]
-          result = await generateFluxKontextMax({
-            prompt,
-            inputImageUrl: firstImage,
-            telegram_id: userId.toString(),
-            username: ctx.from?.username || 'unknown',
-            is_ru: isRu,
-            ctx,
-            aspect_ratio: 'match_input_image',
-            output_format: 'png',
-            safety_tolerance: 2
           })
         } else if (modelKey === 'qwen_edit_plus') {
           const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
@@ -3164,7 +3155,11 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
       // Single model mode: use size-based pricing
       costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || calculateFinalPriceInStars(0.10)
     }
-    const totalCost = costPerImage * ctx.session.morphingImages.length
+
+    // ✅ Get variations count for cost calculation and display
+    const variationsCount = ctx.session?.aiPhotoshopVariationsCount || 1
+    const variationsMultiplier = currentModel === 'seedream' ? variationsCount : 1
+    const totalCost = costPerImage * ctx.session.morphingImages.length * variationsMultiplier
 
     // Preserve user's prompt and model selections
     const currentStyle = ctx.session.aiPhotoshopStyle || 'artistic'
@@ -3189,12 +3184,15 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     } else {
       styleDisplay = isRu ? 'Художественный' : 'Artistic'
     }
+    const variationsInfo = currentModel === 'seedream'
+      ? (isRu ? `\n🔢 Вариаций: ${variationsCount}` : `\n🔢 Variations: ${variationsCount}`)
+      : (isRu ? `\n⚠️ Модель не поддерживает вариации` : `\n⚠️ Model doesn't support variations`)
 
     // Show model/style selection for multi-photo
     await ctx.reply(
       isRu
-        ? `✨ Готово к обработке ${ctx.session.morphingImages.length} изображений!\n\n🎭 Модель: ${modelTitle}\n🎨 Стиль: ${styleDisplay}\n📏 Размер: ${selectedSize}\n💎 Стоимость: ${totalCost} ⭐ (${costPerImage}⭐ за фото)`
-        : `✨ Ready to process ${ctx.session.morphingImages.length} images!\n\n🎭 Model: ${modelTitle}\n🎨 Style: ${styleDisplay}\n📏 Size: ${selectedSize}\n💎 Cost: ${totalCost} ⭐ (${costPerImage}⭐ per photo)`,
+        ? `✨ Готово к обработке ${ctx.session.morphingImages.length} изображений!\n\n🎭 Модель: ${modelTitle}\n🎨 Стиль: ${styleDisplay}\n📏 Размер: ${selectedSize}${variationsInfo}\n💎 Стоимость: ${totalCost} ⭐ (${costPerImage}⭐ за фото)`
+        : `✨ Ready to process ${ctx.session.morphingImages.length} images!\n\n🎭 Model: ${modelTitle}\n🎨 Style: ${styleDisplay}\n📏 Size: ${selectedSize}${variationsInfo}\n💎 Cost: ${totalCost} ⭐ (${costPerImage}⭐ per photo)`,
       {
         reply_markup: {
           inline_keyboard: [
@@ -3205,6 +3203,10 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
             [{
               text: isRu ? '⚙️ Выбрать модель' : '⚙️ Choose Model',
               callback_data: 'ai_photoshop_multi_choose_model'
+            }],
+            [{
+              text: isRu ? `🔢 Вариации (${variationsCount})` : `🔢 Variations (${variationsCount})`,
+              callback_data: 'ai_photoshop_variations_menu'
             }],
             [{
               text: isRu ? '❌ Отмена' : '❌ Cancel',
@@ -3552,7 +3554,7 @@ aiPhotoshopScene.action('ai_photoshop_improve_last', async ctx => {
     // Set up session for improvement
     if (ctx.session) {
       ctx.session.aiPhotoshopImage = lastPhoto.url
-      ctx.session.aiPhotoshopModel = (lastPhoto.model as 'seedream' | 'nano_banana' | 'flux_max' | 'qwen_edit_plus') || 'seedream'
+      ctx.session.aiPhotoshopModel = (lastPhoto.model as 'seedream' | 'nano_banana' | 'flux_multi_kontext' | 'qwen_edit_plus') || 'seedream'
       ctx.session.aiPhotoshopStyle = 'custom'
       ctx.session.aiPhotoshopStep = 'custom_prompt'
       ctx.session.awaitingAiPhotoshopPrompt = true
