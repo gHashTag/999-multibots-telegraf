@@ -24,8 +24,6 @@ import {
 } from './handlers/adminCommands'
 // Импортируем команду анализа расходов
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
-// Импортируем FLUX Kontext команду
-import { handleFluxKontextCommand } from './commands/fluxKontextCommand'
 // Импортируем AutoFixer команды
 import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
@@ -76,7 +74,6 @@ import {
   checkBalanceScene,
   uploadVideoScene,
   videoTranscriptionWizard,
-  fluxKontextScene,
   aiPhotoshopScene,
   avatarTransformScene,
   instagramScrapingWizard,
@@ -131,7 +128,6 @@ export const stage = new Scenes.Stage<MyContext>([
   uploadTrainFluxModelScene,
   uploadVideoScene,
   sizeWizard,
-  fluxKontextScene,
   aiPhotoshopScene,
   morphingWizard,
   new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
@@ -480,18 +476,18 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         return sendGroupCommandReply(ctx)
       }
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед использованием FLUX Kontext
+      // ✅ ЗАЩИТА: Проверяем подписку перед использованием AI Photoshop
       const hasSubscription = await checkSubscriptionGuard(ctx, '/kontext')
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
       }
 
-      logger.info('COMMAND /kontext: FLUX Kontext image editing started', {
+      logger.info('COMMAND /kontext: AI Photoshop (kontext alias) started', {
         telegramId: ctx.from?.id,
       })
 
       await ctx.scene.leave() // Выходим из текущей сцены
-      await handleFluxKontextCommand(ctx)
+      await ctx.scene.enter('ai_photoshop_scene')
     })
 
     console.log('🔧 [DEBUG] REGISTERING /instagram command handler NOW!')
@@ -1445,9 +1441,9 @@ If not, continue on your own and click the "I myself" button`
       })
       try {
         await ctx.answerCbQuery()
-        // Возвращаемся к продвинутой сцене FLUX Kontext
+        // Возвращаемся к AI Photoshop сцене
         await ctx.scene.leave()
-        await ctx.scene.enter('flux_kontext_scene')
+        await ctx.scene.enter('ai_photoshop_scene')
       } catch (error) {
         logger.error('Error in different_mode action:', {
           error,

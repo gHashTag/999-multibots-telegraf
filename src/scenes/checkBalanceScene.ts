@@ -739,20 +739,20 @@ export const enterTargetScene = async (
       mode
     )
 
-    // Специальная логика для FluxKontext - направляем в флюкс-контекст сцену
+    // Специальная логика для FluxKontext - направляем в AI Photoshop сцену
     if (mode === ModeEnum.FluxKontext) {
       console.log(
-        '🎯 [DEBUG] enterTargetScene: FluxKontext mode detected, entering flux_kontext_scene'
+        '🎯 [DEBUG] enterTargetScene: FluxKontext mode (legacy) detected, entering ai_photoshop_scene'
       )
       logger.info({
-        message: `[EnterTargetSceneWrapper] FluxKontext режим - переход в flux_kontext_scene`,
+        message: `[EnterTargetSceneWrapper] FluxKontext режим (legacy) - переход в ai_photoshop_scene`,
         telegramId,
         mode,
         function: 'enterTargetSceneWrapper',
       })
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
-      await ctx.scene.enter('flux_kontext_scene')
+      await ctx.scene.enter('ai_photoshop_scene')
       return
     }
 
