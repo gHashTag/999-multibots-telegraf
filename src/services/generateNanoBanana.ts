@@ -77,13 +77,22 @@ export async function generateNanoBanana(
     } = params
 
     // Prepare input images array
-    const imageInputArray = Array.isArray(inputImageUrl) 
-      ? inputImageUrl 
+    const imageInputArray = Array.isArray(inputImageUrl)
+      ? inputImageUrl
       : [inputImageUrl]
+
+    // 🚨 CRITICAL: Truncate prompt to 1000 chars to avoid validation errors
+    const MAX_PROMPT_LENGTH = 1000
+    let truncatedPrompt = promptText
+    if (promptText.length > MAX_PROMPT_LENGTH) {
+      console.log(`⚠️ [NanoBanana] Prompt too long (${promptText.length} chars), truncating to ${MAX_PROMPT_LENGTH}`)
+      // Truncate to 997 chars so that adding '...' results in exactly 1000
+      truncatedPrompt = promptText.substring(0, 997) + '...'
+    }
 
     // Validate and prepare input for Nano Banana API
     const nanoBananaInput: NanoBananaInput = {
-      prompt: promptText,
+      prompt: truncatedPrompt,
       image_input: imageInputArray,
       output_format
     }
