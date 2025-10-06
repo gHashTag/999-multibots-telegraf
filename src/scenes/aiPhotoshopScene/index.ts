@@ -9,17 +9,21 @@ import path from 'path'
 enum UserInputTypeEnum {
   TEXT = 'text',
   IMAGE = 'image',
-  COMMAND = 'command'
+  COMMAND = 'command',
 }
 
 enum DialogStateEnum {
   WAITING_INPUT = 'waiting_input',
   PROCESSING = 'processing',
-  COMPLETED = 'completed'
+  COMPLETED = 'completed',
 }
 
 // Simple validation function for production
-function validateUserInput(input: any): { success: boolean; data?: any; error?: string } {
+function validateUserInput(input: any): {
+  success: boolean
+  data?: any
+  error?: string
+} {
   if (!input || typeof input !== 'object') {
     return { success: false, error: 'Invalid input' }
   }
@@ -31,110 +35,216 @@ import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
 const writeFile = promisify(fs.writeFile)
 const mkdir = promisify(fs.mkdir)
 
+// 💎 ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ ДЛЯ ЦЕНООБРАЗОВАНИЯ AI PHOTOSHOP
+// ============================================================
+// Все цены в системе берутся ТОЛЬКО отсюда!
+// Изменения цен делать ТОЛЬКО здесь, чтобы они применились везде.
+
+const AI_PHOTOSHOP_PRICING = {
+  // 🎯 БАЗОВЫЕ USD ЦЕНЫ МОДЕЛЕЙ (себестоимость Replicate)
+  // Проверено на https://replicate.com/ - актуальные цены 2025
+  modelsUSD: {
+    seedream: 0.03,           // SeeDream-4 (ByteDance)
+    nano_banana: 0.039,       // Nano Banana (Google Gemini 2.5)
+    flux_multi_kontext: 0.03, // FLUX Multi-Kontext
+    qwen_edit_plus: 0.03,     // Qwen Image Edit Plus
+  },
+
+  // 💰 НАЦЕНКА для AI Photoshop (множитель)
+  // Купили за 100 → продали за 240 = наценка 140%
+  markup: 2.4, // 140% наценка (для достижения целевых цен 5+6+5+5=21⭐)
+
+  // 💎 ЦЕНЫ МОДЕЛЕЙ В ЗВЁЗДАХ (рассчитываются автоматически с наценкой)
+  get models() {
+    return {
+      seedream: calculateFinalPriceInStars(this.modelsUSD.seedream, 0.016, this.markup),              // $0.03 → 5⭐
+      nano_banana: calculateFinalPriceInStars(this.modelsUSD.nano_banana, 0.016, this.markup),        // $0.039 → 6⭐
+      flux_multi_kontext: calculateFinalPriceInStars(this.modelsUSD.flux_multi_kontext, 0.016, this.markup), // $0.03 → 5⭐
+      qwen_edit_plus: calculateFinalPriceInStars(this.modelsUSD.qwen_edit_plus, 0.016, this.markup),  // $0.03 → 5⭐
+    }
+  },
+
+  // Множители качества для режима ALL_MODELS
+  qualityMultipliers: {
+    '1K': 1,   // Базовое качество (без множителя)
+    '2K': 4,   // 2K = 4x от базовой цены
+    '4K': 6,   // 4K = 6x от базовой цены
+  },
+
+  // 📐 ЦЕНТРАЛИЗОВАННЫЕ ASPECT RATIO
+  // Все модели используют единый aspect ratio из этой настройки
+  defaultAspectRatio: '9:16' as '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21',
+
+  // Mapping размеров к aspect ratio (если нужно разное для разных размеров)
+  sizeToAspectRatio: {
+    '1K': '9:16',
+    '2K': '9:16',
+    '4K': '16:9',
+    custom: '9:16',
+  } as Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'>,
+
+  // Базовые USD цены для SINGLE MODEL режима (конвертируются в звёзды)
+  singleModelUSD: {
+    '1K': 0.10,  // $0.10 → ~5⭐
+    '2K': 0.40,  // $0.40 → ~20⭐
+    '4K': 0.60,  // $0.60 → ~30⭐
+  },
+
+  // Вспомогательные функции расчёта
+  getModelCost(modelKey: keyof typeof AI_PHOTOSHOP_PRICING.models): number {
+    return this.models[modelKey] || 5
+  },
+
+  getAllModelsCost(): number {
+    // Сумма всех моделей: 5+6+5+5 = 21⭐
+    return (Object.values(this.models) as number[]).reduce((sum, cost) => sum + cost, 0)
+  },
+
+  getAllModelsWithQuality(quality: '1K' | '2K' | '4K'): number {
+    const baseCost = this.getAllModelsCost()
+    const multiplier = this.qualityMultipliers[quality] || 1
+    return baseCost * multiplier
+  },
+
+  getSingleModelCost(quality: '1K' | '2K' | '4K'): number {
+    const usdPrice = this.singleModelUSD[quality] || 0.10
+    return calculateFinalPriceInStars(usdPrice)
+  },
+} as const
+
 // Log when this module loads
-logger.info('🚨 AI Photoshop: Scene module loading...');
+logger.info('🚨 AI Photoshop: Scene module loading...')
 import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
 import { generateAdvancedFluxKontext } from '@/services/generateFluxKontext'
 import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
 // ✅ IMPORT MULTI-PHOTO SUPPORT FOR AI PHOTOSHOP
-import { detectMultiPhotoUpload, handleMultiPhotoNeurophoto, checkMultiPhotoEvents } from '@/handlers/multiPhotoHandler'
+import {
+  detectMultiPhotoUpload,
+  handleMultiPhotoNeurophoto,
+  checkMultiPhotoEvents,
+} from '@/handlers/multiPhotoHandler'
 import { getBotToken } from '@/handlers/getBotToken'
 // ✅ IMPORT UPSCALER FOR DIALOG MODE
 import { upscaleImage } from '@/services/imageUpscaler'
 
 // 🎬 CAMERA CONTROL SYSTEM (transferred from FLUX Kontext)
 export const AI_PHOTOSHOP_CAMERA_ANGLES = {
-  medium_shot: '[camera: medium shot, balanced composition, natural perspective]',
+  medium_shot:
+    '[camera: medium shot, balanced composition, natural perspective]',
   close_up: '[camera: close-up shot, intimate detail, emotional connection]',
-  extreme_close_up: '[camera: extreme close-up, fine detail focus, artistic impact]',
+  extreme_close_up:
+    '[camera: extreme close-up, fine detail focus, artistic impact]',
   wide_shot: '[camera: wide shot, environmental context, spacious composition]',
   high_angle: '[camera: high angle shot, looking down, vulnerable perspective]',
   low_angle: '[camera: low angle shot, looking up, empowering perspective]',
   dutch_angle: '[camera: dutch angle, dynamic tilt, creative composition]',
   over_shoulder: '[camera: over-the-shoulder shot, intimate perspective]',
   profile_shot: '[camera: profile shot, sculptural beauty, classic elegance]',
-  three_quarter: '[camera: three-quarter view, dimensional depth, natural pose]',
+  three_quarter:
+    '[camera: three-quarter view, dimensional depth, natural pose]',
   bird_eye: "[camera: bird's eye view, top-down perspective, unique angle]",
-  macro_beauty: '[camera: macro beauty shot, skin texture perfection, luxury detail]',
+  macro_beauty:
+    '[camera: macro beauty shot, skin texture perfection, luxury detail]',
 }
 
 // 🖼️ FRAME COMPOSITION (Professional Photography)
 export const AI_PHOTOSHOP_FRAME_COMPOSITION = {
-  center_weighted: '[composition: center-weighted balance, professional stability]',
-  rule_thirds: '[composition: rule of thirds, dynamic balance, photographic standard]',
-  golden_ratio: '[composition: golden ratio portrait, mathematical beauty, perfect proportion]',
-  symmetrical: '[composition: symmetrical perfection, luxury brand precision, flawless geometry]',
-  negative_space: '[composition: negative space elegant, minimalist sophistication]',
-  leading_lines: '[composition: leading lines flow, premium visual journey, luxury storytelling]',
+  center_weighted:
+    '[composition: center-weighted balance, professional stability]',
+  rule_thirds:
+    '[composition: rule of thirds, dynamic balance, photographic standard]',
+  golden_ratio:
+    '[composition: golden ratio portrait, mathematical beauty, perfect proportion]',
+  symmetrical:
+    '[composition: symmetrical perfection, luxury brand precision, flawless geometry]',
+  negative_space:
+    '[composition: negative space elegant, minimalist sophistication]',
+  leading_lines:
+    '[composition: leading lines flow, premium visual journey, luxury storytelling]',
 }
 
 // ✨ PROFESSIONAL LIGHTING SETUPS
 export const AI_PHOTOSHOP_LIGHTING_SETUPS = {
-  soft_natural: '[lighting: soft natural light, gentle illumination, flattering glow]',
+  soft_natural:
+    '[lighting: soft natural light, gentle illumination, flattering glow]',
   dramatic: '[lighting: dramatic lighting, high contrast, artistic shadows]',
-  golden_hour: '[lighting: golden hour warmth, magical illumination, perfect timing]',
-  studio: '[lighting: professional studio setup, perfect illumination, commercial quality]',
-  rembrandt: '[lighting: rembrandt lighting, classic portrait technique, artistic shadows]',
-  butterfly: '[lighting: butterfly lighting, glamour technique, facial contouring]',
+  golden_hour:
+    '[lighting: golden hour warmth, magical illumination, perfect timing]',
+  studio:
+    '[lighting: professional studio setup, perfect illumination, commercial quality]',
+  rembrandt:
+    '[lighting: rembrandt lighting, classic portrait technique, artistic shadows]',
+  butterfly:
+    '[lighting: butterfly lighting, glamour technique, facial contouring]',
   split: '[lighting: split lighting, dramatic contrast, artistic division]',
   rim: '[lighting: rim lighting, edge illumination, subject separation]',
-  candlelight: '[lighting: warm candlelight, intimate atmosphere, cozy ambiance]',
+  candlelight:
+    '[lighting: warm candlelight, intimate atmosphere, cozy ambiance]',
   neon_noir: '[lighting: neon noir, urban atmosphere, cyberpunk aesthetic]',
-  morning: '[lighting: fresh morning light, clean illumination, new day energy]',
-  sunset: "[lighting: warm sunset glow, romantic illumination, day's end beauty]",
+  morning:
+    '[lighting: fresh morning light, clean illumination, new day energy]',
+  sunset:
+    "[lighting: warm sunset glow, romantic illumination, day's end beauty]",
 }
 
 // 🎨 AI PHOTOSHOP MODELS CONFIGURATION WITH MULTI-IMAGE SUPPORT
+// ✅ Цены берутся из AI_PHOTOSHOP_PRICING (единый источник правды)
 const AI_PHOTOSHOP_MODELS = {
   seedream: {
     title_ru: '🎭 SeeDream-4',
     title_en: '🎭 SeeDream-4',
-    description_ru: 'ByteDance SeeDream-4 - Продвинутая генерация и трансформация изображений',
-    description_en: 'ByteDance SeeDream-4 - Advanced image generation and transformation',
-    cost: 5, // stars - Updated: Replicate actual price $0.03
+    description_ru:
+      'ByteDance SeeDream-4 - Продвинутая генерация и трансформация изображений',
+    description_en:
+      'ByteDance SeeDream-4 - Advanced image generation and transformation',
+    cost: AI_PHOTOSHOP_PRICING.models.seedream, // ✅ Цена из централизованной конфигурации
     key: 'seedream',
     supports_image_input: true,
     supports_text_only: true,
     supports_multi_image: true, // ✅ NEW: Multi-image support
-    max_images: 10 // Updated from 5 to 10
+    max_images: 10, // Updated from 5 to 10
   },
   nano_banana: {
     title_ru: '🍌 Nano Banana',
     title_en: '🍌 Nano Banana',
     description_ru: 'Google Nano Banana - ИИ редактирование на базе Gemini 2.5',
     description_en: 'Google Nano Banana - AI editing powered by Gemini 2.5',
-    cost: 7, // stars - Updated: Replicate actual price $0.039
+    cost: AI_PHOTOSHOP_PRICING.models.nano_banana, // ✅ Цена из централизованной конфигурации
     key: 'nano_banana',
     supports_image_input: true,
     supports_text_only: false,
     supports_multi_image: true, // ✅ NEW: Multi-image support
-    max_images: 3
+    max_images: 3,
   },
   flux_multi_kontext: {
     title_ru: '🎯 FLUX Multi-Kontext',
     title_en: '🎯 FLUX Multi-Kontext',
-    description_ru: 'FLUX Multi-Kontext Pro - Объединение двух изображений в единый композит',
-    description_en: 'FLUX Multi-Kontext Pro - Combine two images into seamless composite',
-    cost: 7, // stars - Replicate actual price $0.04
+    description_ru:
+      'FLUX Multi-Kontext Pro - Объединение двух изображений в единый композит',
+    description_en:
+      'FLUX Multi-Kontext Pro - Combine two images into seamless composite',
+    cost: AI_PHOTOSHOP_PRICING.models.flux_multi_kontext, // ✅ Цена из централизованной конфигурации
     key: 'flux_multi_kontext',
     supports_image_input: true,
     supports_text_only: false,
     supports_multi_image: true, // ✅ Поддерживает 2 изображения
-    max_images: 2
+    max_images: 2,
   },
   qwen_edit_plus: {
     title_ru: '🎨 Qwen Image Edit Plus',
     title_en: '🎨 Qwen Image Edit Plus',
-    description_ru: 'Qwen Image Edit Plus - Продвинутое редактирование множественных изображений',
-    description_en: 'Qwen Image Edit Plus - Advanced multi-image editing with improved consistency',
-    cost: 5, // stars - Replicate price $0.03
+    description_ru:
+      'Qwen Image Edit Plus - Продвинутое редактирование множественных изображений',
+    description_en:
+      'Qwen Image Edit Plus - Advanced multi-image editing with improved consistency',
+    cost: AI_PHOTOSHOP_PRICING.models.qwen_edit_plus, // ✅ Цена из централизованной конфигурации
     key: 'qwen_edit_plus',
     supports_image_input: true,
     supports_text_only: false,
     supports_multi_image: true, // ✅ Multi-image support
-    max_images: 10
-  }
+    max_images: 10,
+  },
 }
 
 // 🎨 PROMPT TEMPLATES FOR DIFFERENT STYLES
@@ -142,42 +252,51 @@ const AI_PHOTOSHOP_STYLES = {
   portrait: {
     title_ru: '👤 Портрет',
     title_en: '👤 Portrait',
-    template: 'professional portrait, high quality, studio lighting, detailed face'
+    template:
+      'professional portrait, high quality, studio lighting, detailed face',
   },
   artistic: {
     title_ru: '🎨 Художественный',
     title_en: '🎨 Artistic',
-    template: 'artistic style, creative composition, vibrant colors, detailed artwork'
+    template:
+      'artistic style, creative composition, vibrant colors, detailed artwork',
   },
   photorealistic: {
     title_ru: '📸 Фотореализм',
     title_en: '📸 Photorealistic',
-    template: 'photorealistic, ultra detailed, high resolution, professional photography'
+    template:
+      'photorealistic, ultra detailed, high resolution, professional photography',
   },
   fantasy: {
     title_ru: '🧙‍♂️ Фэнтези',
     title_en: '🧙‍♂️ Fantasy',
-    template: 'fantasy style, magical atmosphere, mystical elements, epic composition'
+    template:
+      'fantasy style, magical atmosphere, mystical elements, epic composition',
   },
   cyberpunk: {
     title_ru: '🤖 Киберпанк',
     title_en: '🤖 Cyberpunk',
-    template: 'cyberpunk style, neon lights, futuristic, technological atmosphere'
+    template:
+      'cyberpunk style, neon lights, futuristic, technological atmosphere',
   },
   vintage: {
     title_ru: '📻 Винтаж',
     title_en: '📻 Vintage',
-    template: 'vintage style, retro aesthetic, classic composition, nostalgic mood'
+    template:
+      'vintage style, retro aesthetic, classic composition, nostalgic mood',
   },
   figure_3d: {
     title_ru: '🖨️ 3D Фигурка',
     title_en: '🖨️ 3D Figure',
-    template: 'turn this photo into a character figure. Behind it, place a box with the character\'s image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible'
-  }
+    template:
+      "turn this photo into a character figure. Behind it, place a box with the character's image printed on it, and a computer showing the Blender modeling process on its screen. In front of the box, add a round plastic base with the character figure standing on it. set the scene indoors if possible",
+  },
 }
 
 // Create the scene
-export const aiPhotoshopScene = new Scenes.BaseScene<MyContext>('ai_photoshop_scene')
+export const aiPhotoshopScene = new Scenes.BaseScene<MyContext>(
+  'ai_photoshop_scene'
+)
 
 // Function to create model selection keyboard
 const createModelSelectionKeyboard = (isRu: boolean) => {
@@ -209,17 +328,22 @@ const createModelSelectionKeyboard = (isRu: boolean) => {
   }
 
   // ✅ Add "All at once" button
-  const totalCostAllModels = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+  const totalCostAllModels = Object.values(AI_PHOTOSHOP_MODELS).reduce(
+    (sum, model) => sum + model.cost,
+    0
+  )
   keyboard.push([
     Markup.button.callback(
-      isRu ? `🎯 Все сразу (${totalCostAllModels}⭐)` : `🎯 All at once (${totalCostAllModels}⭐)`,
+      isRu
+        ? `🎯 Все сразу (${totalCostAllModels}⭐)`
+        : `🎯 All at once (${totalCostAllModels}⭐)`,
       'ai_photoshop_all_models_from_selector'
-    )
+    ),
   ])
 
   // Add cancel button
   keyboard.push([
-    Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_photoshop_cancel')
+    Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_photoshop_cancel'),
   ])
 
   return Markup.inlineKeyboard(keyboard)
@@ -261,7 +385,11 @@ const getLightingLabel = (lighting: string, isRu: boolean): string => {
     sunset: { ru: '🌇 Закат', en: '🌇 Sunset' },
   }
 
-  return labels[lighting] ? (isRu ? labels[lighting].ru : labels[lighting].en) : lighting
+  return labels[lighting]
+    ? isRu
+      ? labels[lighting].ru
+      : labels[lighting].en
+    : lighting
 }
 
 const getCompositionLabel = (composition: string, isRu: boolean): string => {
@@ -270,11 +398,18 @@ const getCompositionLabel = (composition: string, isRu: boolean): string => {
     rule_thirds: { ru: '📐 Правило третей', en: '📐 Rule of Thirds' },
     golden_ratio: { ru: '🌟 Золотое сечение', en: '🌟 Golden Ratio' },
     symmetrical: { ru: '🔄 Симметрия', en: '🔄 Symmetrical' },
-    negative_space: { ru: '🌌 Негативное пространство', en: '🌌 Negative Space' },
+    negative_space: {
+      ru: '🌌 Негативное пространство',
+      en: '🌌 Negative Space',
+    },
     leading_lines: { ru: '📏 Направляющие линии', en: '📏 Leading Lines' },
   }
 
-  return labels[composition] ? (isRu ? labels[composition].ru : labels[composition].en) : composition
+  return labels[composition]
+    ? isRu
+      ? labels[composition].ru
+      : labels[composition].en
+    : composition
 }
 
 // Function to create camera angle selection keyboard
@@ -309,7 +444,10 @@ const createCameraAngleKeyboard = (isRu: boolean) => {
       isRu ? '🎬 Автовыбор' : '🎬 Auto Select',
       'ai_photoshop_camera_auto'
     ),
-    Markup.button.callback(isRu ? 'Назад' : 'Back', 'ai_photoshop_back_to_main'),
+    Markup.button.callback(
+      isRu ? 'Назад' : 'Back',
+      'ai_photoshop_back_to_main'
+    ),
   ])
 
   return Markup.inlineKeyboard(keyboard)
@@ -327,14 +465,20 @@ const createLightingKeyboard = (isRu: boolean) => {
     const lighting1 = lightings[i]
     const lighting1Label = getLightingLabel(lighting1, isRu)
     row.push(
-      Markup.button.callback(lighting1Label, `ai_photoshop_lighting_${lighting1}`)
+      Markup.button.callback(
+        lighting1Label,
+        `ai_photoshop_lighting_${lighting1}`
+      )
     )
 
     if (i + 1 < lightings.length) {
       const lighting2 = lightings[i + 1]
       const lighting2Label = getLightingLabel(lighting2, isRu)
       row.push(
-        Markup.button.callback(lighting2Label, `ai_photoshop_lighting_${lighting2}`)
+        Markup.button.callback(
+          lighting2Label,
+          `ai_photoshop_lighting_${lighting2}`
+        )
       )
     }
 
@@ -347,7 +491,10 @@ const createLightingKeyboard = (isRu: boolean) => {
       isRu ? '💡 Автовыбор' : '💡 Auto Select',
       'ai_photoshop_lighting_auto'
     ),
-    Markup.button.callback(isRu ? 'Назад' : 'Back', 'ai_photoshop_back_to_main'),
+    Markup.button.callback(
+      isRu ? 'Назад' : 'Back',
+      'ai_photoshop_back_to_main'
+    ),
   ])
 
   return Markup.inlineKeyboard(keyboard)
@@ -365,14 +512,20 @@ const createCompositionKeyboard = (isRu: boolean) => {
     const composition1 = compositions[i]
     const composition1Label = getCompositionLabel(composition1, isRu)
     row.push(
-      Markup.button.callback(composition1Label, `ai_photoshop_composition_${composition1}`)
+      Markup.button.callback(
+        composition1Label,
+        `ai_photoshop_composition_${composition1}`
+      )
     )
 
     if (i + 1 < compositions.length) {
       const composition2 = compositions[i + 1]
       const composition2Label = getCompositionLabel(composition2, isRu)
       row.push(
-        Markup.button.callback(composition2Label, `ai_photoshop_composition_${composition2}`)
+        Markup.button.callback(
+          composition2Label,
+          `ai_photoshop_composition_${composition2}`
+        )
       )
     }
 
@@ -385,7 +538,10 @@ const createCompositionKeyboard = (isRu: boolean) => {
       isRu ? '📐 Автовыбор' : '📐 Auto Select',
       'ai_photoshop_composition_auto'
     ),
-    Markup.button.callback(isRu ? 'Назад' : 'Back', 'ai_photoshop_back_to_main'),
+    Markup.button.callback(
+      isRu ? 'Назад' : 'Back',
+      'ai_photoshop_back_to_main'
+    ),
   ])
 
   return Markup.inlineKeyboard(keyboard)
@@ -401,7 +557,7 @@ const createVariationsKeyboard = (isRu: boolean) => {
     { count: 10, label: '10' },
     { count: 20, label: '20' },
     { count: 30, label: '30' },
-    { count: 50, label: '50' }
+    { count: 50, label: '50' },
   ]
 
   const keyboard = []
@@ -423,7 +579,10 @@ const createVariationsKeyboard = (isRu: boolean) => {
 
   // Add back button
   keyboard.push([
-    Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'ai_photoshop_back_to_main'),
+    Markup.button.callback(
+      isRu ? '🔙 Назад' : '🔙 Back',
+      'ai_photoshop_back_to_main'
+    ),
   ])
 
   return Markup.inlineKeyboard(keyboard)
@@ -434,11 +593,19 @@ const createAspectRatioKeyboard = (isRu: boolean) => {
   const aspectRatios = [
     { key: '1:1', labelRu: '🔲 1:1 (Квадрат)', labelEn: '🔲 1:1 (Square)' },
     { key: '16:9', labelRu: '📺 16:9 (Широкий)', labelEn: '📺 16:9 (Wide)' },
-    { key: '9:16', labelRu: '📱 9:16 (Портрет)', labelEn: '📱 9:16 (Portrait)' },
+    {
+      key: '9:16',
+      labelRu: '📱 9:16 (Портрет)',
+      labelEn: '📱 9:16 (Portrait)',
+    },
     { key: '4:3', labelRu: '🖼️ 4:3 (Стандарт)', labelEn: '🖼️ 4:3 (Standard)' },
     { key: '3:4', labelRu: '🖼️ 3:4 (Портрет)', labelEn: '🖼️ 3:4 (Portrait)' },
     { key: '21:9', labelRu: '🎬 21:9 (Кино)', labelEn: '🎬 21:9 (Cinema)' },
-    { key: '9:21', labelRu: '🎬 9:21 (Портрет)', labelEn: '🎬 9:21 (Portrait)' }
+    {
+      key: '9:21',
+      labelRu: '🎬 9:21 (Портрет)',
+      labelEn: '🎬 9:21 (Portrait)',
+    },
   ]
 
   const keyboard = []
@@ -470,7 +637,10 @@ const createAspectRatioKeyboard = (isRu: boolean) => {
 
   // Add back button
   keyboard.push([
-    Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'ai_photoshop_back_to_main'),
+    Markup.button.callback(
+      isRu ? '🔙 Назад' : '🔙 Back',
+      'ai_photoshop_back_to_main'
+    ),
   ])
 
   return Markup.inlineKeyboard(keyboard)
@@ -510,12 +680,15 @@ const createStyleSelectionKeyboard = (isRu: boolean) => {
     Markup.button.callback(
       isRu ? '✍️ Свой промпт' : '✍️ Custom Prompt',
       'ai_photoshop_custom_prompt'
-    )
+    ),
   ])
 
   keyboard.push([
-    Markup.button.callback(isRu ? 'Назад' : 'Back', 'ai_photoshop_back_to_models'),
-    Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_photoshop_cancel')
+    Markup.button.callback(
+      isRu ? 'Назад' : 'Back',
+      'ai_photoshop_back_to_models'
+    ),
+    Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_photoshop_cancel'),
   ])
 
   return Markup.inlineKeyboard(keyboard)
@@ -526,7 +699,7 @@ aiPhotoshopScene.enter(async ctx => {
   try {
     logger.info('🚨 AI Photoshop: Entering scene', {
       telegramId: ctx.from?.id,
-      sessionExists: !!ctx.session
+      sessionExists: !!ctx.session,
     })
 
     const isRu = isRussianFromState(ctx)
@@ -570,10 +743,13 @@ aiPhotoshopScene.enter(async ctx => {
       }
     } else {
       // Continue in dialog mode with saved photos
-      logger.info('🎨 AI Photoshop: Continuing in dialog mode with saved photos', {
-        telegramId: ctx.from?.id,
-        savedPhotosCount: ctx.session?.savedAiPhotoshopResults?.length
-      })
+      logger.info(
+        '🎨 AI Photoshop: Continuing in dialog mode with saved photos',
+        {
+          telegramId: ctx.from?.id,
+          savedPhotosCount: ctx.session?.savedAiPhotoshopResults?.length,
+        }
+      )
       await showDialogInterface(ctx)
       return
     }
@@ -650,9 +826,12 @@ Object.keys(AI_PHOTOSHOP_MODELS).forEach(modelKey => {
         ctx.session.aiPhotoshopStep = 'style_select'
       }
 
-      const model = AI_PHOTOSHOP_MODELS[modelKey as keyof typeof AI_PHOTOSHOP_MODELS]
+      const model =
+        AI_PHOTOSHOP_MODELS[modelKey as keyof typeof AI_PHOTOSHOP_MODELS]
       const modelTitle = isRu ? model.title_ru : model.title_en
-      const modelDescription = isRu ? model.description_ru : model.description_en
+      const modelDescription = isRu
+        ? model.description_ru
+        : model.description_en
 
       await ctx.editMessageText(
         isRu
@@ -683,10 +862,12 @@ aiPhotoshopScene.action('ai_photoshop_all_models_from_selector', async ctx => {
     console.log('🎯🎯🎯 AI Photoshop: ALL_MODELS button pressed', {
       telegramId: ctx.from?.id,
       sessionExistsBefore: !!ctx.session,
-      sessionStateBefore: ctx.session ? {
-        aiPhotoshopModel: ctx.session.aiPhotoshopModel,
-        awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage
-      } : null
+      sessionStateBefore: ctx.session
+        ? {
+            aiPhotoshopModel: ctx.session.aiPhotoshopModel,
+            awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
+          }
+        : null,
     })
 
     // Set session to indicate multi-model processing
@@ -696,24 +877,27 @@ aiPhotoshopScene.action('ai_photoshop_all_models_from_selector', async ctx => {
       ctx.session.awaitingAiPhotoshopImage = false
 
       // 🚨 CRITICAL DEBUG: Log after setting
-      logger.info('🎯 AI Photoshop: Session UPDATED for ALL_MODELS quality selection', {
-        telegramId: ctx.from?.id,
-        aiPhotoshopModel: ctx.session.aiPhotoshopModel,
-        awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
-        aiPhotoshopStep: ctx.session.aiPhotoshopStep
-      })
+      logger.info(
+        '🎯 AI Photoshop: Session UPDATED for ALL_MODELS quality selection',
+        {
+          telegramId: ctx.from?.id,
+          aiPhotoshopModel: ctx.session.aiPhotoshopModel,
+          awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
+          aiPhotoshopStep: ctx.session.aiPhotoshopStep,
+        }
+      )
     }
 
-    // ✅ Calculate costs for all quality levels
-    const baseCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+    // ✅ Calculate costs using centralized pricing
+    const baseCost = AI_PHOTOSHOP_PRICING.getAllModelsCost() // Единый источник правды
     const modelNames = Object.values(AI_PHOTOSHOP_MODELS).map(model =>
       isRu ? model.title_ru : model.title_en
     )
 
-    // Quality multipliers based on single model pricing
-    const quality1KCost = baseCost // 30⭐ (5+7+13+5)
-    const quality2KCost = baseCost * 4 // 120⭐ (20×4 vs 5×4)
-    const quality4KCost = baseCost * 6 // 180⭐ (30×4 vs 5×4)
+    // Quality costs from centralized config
+    const quality1KCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('1K') // 24⭐
+    const quality2KCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('2K') // 96⭐
+    const quality4KCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('4K') // 144⭐
 
     await ctx.editMessageText(
       isRu
@@ -725,21 +909,27 @@ aiPhotoshopScene.action('ai_photoshop_all_models_from_selector', async ctx => {
           inline_keyboard: [
             [
               {
-                text: isRu ? `1K - ${quality1KCost}⭐` : `1K - ${quality1KCost}⭐`,
-                callback_data: 'ai_photoshop_all_models_size_1K'
-              }
+                text: isRu
+                  ? `1K - ${quality1KCost}⭐`
+                  : `1K - ${quality1KCost}⭐`,
+                callback_data: 'ai_photoshop_all_models_size_1K',
+              },
             ],
             [
               {
-                text: isRu ? `2K - ${quality2KCost}⭐` : `2K - ${quality2KCost}⭐`,
-                callback_data: 'ai_photoshop_all_models_size_2K'
-              }
+                text: isRu
+                  ? `2K - ${quality2KCost}⭐`
+                  : `2K - ${quality2KCost}⭐`,
+                callback_data: 'ai_photoshop_all_models_size_2K',
+              },
             ],
             [
               {
-                text: isRu ? `4K - ${quality4KCost}⭐` : `4K - ${quality4KCost}⭐`,
-                callback_data: 'ai_photoshop_all_models_size_4K'
-              }
+                text: isRu
+                  ? `4K - ${quality4KCost}⭐`
+                  : `4K - ${quality4KCost}⭐`,
+                callback_data: 'ai_photoshop_all_models_size_4K',
+              },
             ],
             [
               Markup.button.callback(
@@ -751,8 +941,8 @@ aiPhotoshopScene.action('ai_photoshop_all_models_from_selector', async ctx => {
                 'ai_photoshop_cancel'
               ),
             ],
-          ]
-        }
+          ],
+        },
       }
     )
   } catch (error) {
@@ -776,9 +966,13 @@ Object.keys(AI_PHOTOSHOP_STYLES).forEach(styleKey => {
         ctx.session.awaitingAiPhotoshopImage = true
       }
 
-      const style = AI_PHOTOSHOP_STYLES[styleKey as keyof typeof AI_PHOTOSHOP_STYLES]
+      const style =
+        AI_PHOTOSHOP_STYLES[styleKey as keyof typeof AI_PHOTOSHOP_STYLES]
       const styleTitle = isRu ? style.title_ru : style.title_en
-      const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+      const model =
+        AI_PHOTOSHOP_MODELS[
+          ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS
+        ]
 
       await ctx.editMessageText(
         isRu
@@ -815,7 +1009,7 @@ aiPhotoshopScene.action('ai_photoshop_custom_prompt', async ctx => {
   try {
     logger.info('🚨 AI Photoshop: Custom prompt button clicked!', {
       telegramId: ctx.from?.id,
-      callbackData: (ctx.callbackQuery as any)?.data
+      callbackData: (ctx.callbackQuery as any)?.data,
     })
 
     await ctx.answerCbQuery()
@@ -828,17 +1022,23 @@ aiPhotoshopScene.action('ai_photoshop_custom_prompt', async ctx => {
       ctx.session.awaitingAiPhotoshopPrompt = true
     }
 
-    logger.info('🎨 AI Photoshop: Custom prompt selected, requesting prompt first', {
-      telegramId: ctx.from?.id,
-      newState: {
-        aiPhotoshopStyle: 'custom',
-        aiPhotoshopStep: 'custom_prompt',
-        awaitingAiPhotoshopImage: false,
-        awaitingAiPhotoshopPrompt: true
+    logger.info(
+      '🎨 AI Photoshop: Custom prompt selected, requesting prompt first',
+      {
+        telegramId: ctx.from?.id,
+        newState: {
+          aiPhotoshopStyle: 'custom',
+          aiPhotoshopStep: 'custom_prompt',
+          awaitingAiPhotoshopImage: false,
+          awaitingAiPhotoshopPrompt: true,
+        },
       }
-    })
+    )
 
-    const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+    const model =
+      AI_PHOTOSHOP_MODELS[
+        ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS
+      ]
 
     await ctx.editMessageText(
       isRu
@@ -886,23 +1086,17 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
       ctx.session.awaitingAiPhotoshopImage = true
     }
 
-    // Price calculation with proper markup for AI Photoshop models
-    const sizeBasePricesUSD = {
-      '1K': 0.10,  // $0.10 base cost
-      '2K': 0.13,  // $0.13 base cost
-      '4K': 0.20   // $0.20 base cost
-    }
-
+    // ✅ Price calculation using centralized pricing
     const sizePrices = {
-      '1K': calculateFinalPriceInStars(sizeBasePricesUSD['1K']),
-      '2K': calculateFinalPriceInStars(sizeBasePricesUSD['2K']),
-      '4K': calculateFinalPriceInStars(sizeBasePricesUSD['4K'])
+      '1K': AI_PHOTOSHOP_PRICING.getSingleModelCost('1K'), // ✅ Единый источник
+      '2K': AI_PHOTOSHOP_PRICING.getSingleModelCost('2K'), // ✅ Единый источник
+      '4K': AI_PHOTOSHOP_PRICING.getSingleModelCost('4K'), // ✅ Единый источник
     }
 
     const sizeDimensions = {
       '1K': '1K',
       '2K': '2K',
-      '4K': '4K'
+      '4K': '4K',
     }
 
     await ctx.editMessageText(
@@ -915,20 +1109,19 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
             [
               {
                 text: isRu ? '🔄 Изменить размер' : '🔄 Change Size',
-                callback_data: 'ai_photoshop_change_size'
-              }
+                callback_data: 'ai_photoshop_change_size',
+              },
             ],
             [
               {
                 text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
-                callback_data: 'back_to_menu'
-              }
-            ]
-          ]
-        }
+                callback_data: 'back_to_menu',
+              },
+            ],
+          ],
+        },
       }
     )
-
   } catch (error) {
     logger.error('Error handling AI Photoshop size selection', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -945,41 +1138,38 @@ aiPhotoshopScene.action('ai_photoshop_change_size', async ctx => {
     const isRu = isRussianFromState(ctx)
 
     await ctx.editMessageText(
-      isRu
-        ? `📏 Выберите размер изображения:`
-        : `📏 Choose image size:`,
+      isRu ? `📏 Выберите размер изображения:` : `📏 Choose image size:`,
       {
         reply_markup: {
           inline_keyboard: [
             [
               {
                 text: '1K - 5⭐',
-                callback_data: 'ai_photoshop_size_1K'
-              }
+                callback_data: 'ai_photoshop_size_1K',
+              },
             ],
             [
               {
                 text: '2K - 20⭐',
-                callback_data: 'ai_photoshop_size_2K'
-              }
+                callback_data: 'ai_photoshop_size_2K',
+              },
             ],
             [
               {
                 text: '4K - 30⭐',
-                callback_data: 'ai_photoshop_size_4K'
-              }
+                callback_data: 'ai_photoshop_size_4K',
+              },
             ],
             [
               {
                 text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
-                callback_data: 'back_to_menu'
-              }
-            ]
-          ]
-        }
+                callback_data: 'back_to_menu',
+              },
+            ],
+          ],
+        },
       }
     )
-
   } catch (error) {
     logger.error('Error handling change size action', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -989,90 +1179,91 @@ aiPhotoshopScene.action('ai_photoshop_change_size', async ctx => {
 })
 
 // ✅ NEW: Handle size selection for "All Models" mode
-aiPhotoshopScene.action(/^ai_photoshop_all_models_size_(1K|2K|4K)$/, async ctx => {
-  try {
-    await ctx.answerCbQuery()
-    const isRu = isRussianFromState(ctx)
+aiPhotoshopScene.action(
+  /^ai_photoshop_all_models_size_(1K|2K|4K)$/,
+  async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      const isRu = isRussianFromState(ctx)
 
-    const sizeMatch = ctx.match[1] as '1K' | '2K' | '4K'
+      const sizeMatch = ctx.match[1] as '1K' | '2K' | '4K'
 
-    if (ctx.session) {
-      ctx.session.aiPhotoshopSize = sizeMatch
-      ctx.session.aiPhotoshopModel = 'all_models' as any // Ensure model is set to all_models
-      ctx.session.aiPhotoshopStep = 'image_upload'
-      ctx.session.awaitingAiPhotoshopImage = true
+      if (ctx.session) {
+        ctx.session.aiPhotoshopSize = sizeMatch
+        ctx.session.aiPhotoshopModel = 'all_models' as any // Ensure model is set to all_models
+        ctx.session.aiPhotoshopStep = 'image_upload'
+        ctx.session.awaitingAiPhotoshopImage = true
 
-      logger.info('🎯 AI Photoshop: ALL_MODELS size selected', {
+        logger.info('🎯 AI Photoshop: ALL_MODELS size selected', {
+          telegramId: ctx.from?.id,
+          selectedSize: sizeMatch,
+          aiPhotoshopModel: ctx.session.aiPhotoshopModel,
+          awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
+        })
+      }
+
+      // ✅ Calculate costs using centralized pricing
+      const modelNames = Object.values(AI_PHOTOSHOP_MODELS).map(model =>
+        isRu ? model.title_ru : model.title_en
+      )
+
+      let totalCost: number
+      let qualityDesc: string
+
+      switch (sizeMatch) {
+        case '1K':
+          totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('1K') // ✅ Единый источник
+          qualityDesc = isRu ? '1K качество (базовое)' : '1K quality (base)'
+          break
+        case '2K':
+          totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('2K') // ✅ Единый источник
+          qualityDesc = isRu ? '2K качество (×4)' : '2K quality (×4)'
+          break
+        case '4K':
+          totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('4K') // ✅ Единый источник
+          qualityDesc = isRu ? '4K качество (×6)' : '4K quality (×6)'
+          break
+        default:
+          totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('1K') // ✅ Единый источник
+          qualityDesc = isRu ? '1K качество (базовое)' : '1K quality (base)'
+      }
+
+      await ctx.editMessageText(
+        isRu
+          ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📸 *Отправьте фото для обработки:*`
+          : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📸 *Send photo for processing:*`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                Markup.button.callback(
+                  isRu ? 'Изменить качество' : 'Change quality',
+                  'ai_photoshop_all_models_from_selector'
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  isRu ? 'Назад к моделям' : 'Back to models',
+                  'ai_photoshop_back_to_models'
+                ),
+                Markup.button.callback(
+                  isRu ? 'Отмена' : 'Cancel',
+                  'ai_photoshop_cancel'
+                ),
+              ],
+            ],
+          },
+        }
+      )
+    } catch (error) {
+      logger.error('Error handling all models size selection', {
+        error: error instanceof Error ? error.message : 'Unknown error',
         telegramId: ctx.from?.id,
-        selectedSize: sizeMatch,
-        aiPhotoshopModel: ctx.session.aiPhotoshopModel,
-        awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage
       })
     }
-
-    // Calculate costs based on selected quality
-    const baseCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
-    const modelNames = Object.values(AI_PHOTOSHOP_MODELS).map(model =>
-      isRu ? model.title_ru : model.title_en
-    )
-
-    let totalCost: number
-    let qualityDesc: string
-
-    switch (sizeMatch) {
-      case '1K':
-        totalCost = baseCost // 30⭐
-        qualityDesc = isRu ? '1K качество (базовое)' : '1K quality (base)'
-        break
-      case '2K':
-        totalCost = baseCost * 4 // 120⭐
-        qualityDesc = isRu ? '2K качество (×4)' : '2K quality (×4)'
-        break
-      case '4K':
-        totalCost = baseCost * 6 // 180⭐
-        qualityDesc = isRu ? '4K качество (×6)' : '4K quality (×6)'
-        break
-      default:
-        totalCost = baseCost
-        qualityDesc = isRu ? '1K качество (базовое)' : '1K quality (base)'
-    }
-
-    await ctx.editMessageText(
-      isRu
-        ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📸 *Отправьте фото для обработки:*`
-        : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📸 *Send photo for processing:*`,
-      {
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              Markup.button.callback(
-                isRu ? 'Изменить качество' : 'Change quality',
-                'ai_photoshop_all_models_from_selector'
-              )
-            ],
-            [
-              Markup.button.callback(
-                isRu ? 'Назад к моделям' : 'Back to models',
-                'ai_photoshop_back_to_models'
-              ),
-              Markup.button.callback(
-                isRu ? 'Отмена' : 'Cancel',
-                'ai_photoshop_cancel'
-              ),
-            ],
-          ]
-        }
-      }
-    )
-
-  } catch (error) {
-    logger.error('Error handling all models size selection', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id,
-    })
   }
-})
+)
 
 // Handle photo upload with multi-photo support
 aiPhotoshopScene.on('photo', async ctx => {
@@ -1105,26 +1296,32 @@ aiPhotoshopScene.on('photo', async ctx => {
 
     // Show loading indicator like Infinity Morphing
     const loadingMsg = await ctx.reply(
-      isRu
-        ? '📸 Загружаю изображение...'
-        : '📸 Uploading image...',
+      isRu ? '📸 Загружаю изображение...' : '📸 Uploading image...',
       {
         reply_markup: {
-          inline_keyboard: [[
-            {
-              text: isRu ? '⏳ Загрузка...' : '⏳ Loading...',
-              callback_data: 'loading_indicator'
-            }
-          ]]
-        }
+          inline_keyboard: [
+            [
+              {
+                text: isRu ? '⏳ Загрузка...' : '⏳ Loading...',
+                callback_data: 'loading_indicator',
+              },
+            ],
+          ],
+        },
       }
     )
 
     // Если пользователь отправил фото без выбора модели - используем SeeDream-4 по умолчанию
-    if (!ctx.session?.awaitingAiPhotoshopImage && !ctx.session?.aiPhotoshopModel) {
-      logger.info('🎨 AI Photoshop: Photo sent without model selection, using SeeDream-4 default', {
-        telegramId: ctx.from?.id,
-      })
+    if (
+      !ctx.session?.awaitingAiPhotoshopImage &&
+      !ctx.session?.aiPhotoshopModel
+    ) {
+      logger.info(
+        '🎨 AI Photoshop: Photo sent without model selection, using SeeDream-4 default',
+        {
+          telegramId: ctx.from?.id,
+        }
+      )
 
       // Устанавливаем значения по умолчанию
       if (ctx.session) {
@@ -1142,7 +1339,10 @@ aiPhotoshopScene.on('photo', async ctx => {
           ? '✨ Отлично! Обрабатываю ваше фото с помощью SeeDream-4 в художественном стиле...'
           : '✨ Great! Processing your photo with SeeDream-4 in artistic style...'
       )
-    } else if (!ctx.session?.awaitingAiPhotoshopImage && !ctx.session?.awaitingAiPhotoshopPrompt) {
+    } else if (
+      !ctx.session?.awaitingAiPhotoshopImage &&
+      !ctx.session?.awaitingAiPhotoshopPrompt
+    ) {
       await ctx.telegram.editMessageText(
         ctx.chat?.id,
         loadingMsg.message_id,
@@ -1152,7 +1352,10 @@ aiPhotoshopScene.on('photo', async ctx => {
           : '❌ Please select a model and processing style first.'
       )
       return
-    } else if (ctx.session?.awaitingAiPhotoshopPrompt && ctx.session?.aiPhotoshopStyle === 'custom') {
+    } else if (
+      ctx.session?.awaitingAiPhotoshopPrompt &&
+      ctx.session?.aiPhotoshopStyle === 'custom'
+    ) {
       // User sent photo while we were waiting for prompt - this is OK, but ask for prompt first
       await ctx.telegram.editMessageText(
         ctx.chat?.id,
@@ -1183,7 +1386,10 @@ aiPhotoshopScene.on('photo', async ctx => {
       ctx.session.aiPhotoshopImage = fileLink.href
 
       // If we were waiting for prompt (user sent photo early), keep waiting for prompt
-      if (ctx.session.awaitingAiPhotoshopPrompt && ctx.session.aiPhotoshopStyle === 'custom') {
+      if (
+        ctx.session.awaitingAiPhotoshopPrompt &&
+        ctx.session.aiPhotoshopStyle === 'custom'
+      ) {
         // Don't change awaitingAiPhotoshopPrompt - keep it true
         ctx.session.awaitingAiPhotoshopImage = false
 
@@ -1219,13 +1425,15 @@ aiPhotoshopScene.on('photo', async ctx => {
         {
           parse_mode: 'Markdown',
           reply_markup: {
-            inline_keyboard: [[
-              {
-                text: isRu ? 'Отмена' : 'Cancel',
-                callback_data: 'ai_photoshop_cancel'
-              }
-            ]]
-          }
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? 'Отмена' : 'Cancel',
+                  callback_data: 'ai_photoshop_cancel',
+                },
+              ],
+            ],
+          },
         }
       )
     } else {
@@ -1259,15 +1467,21 @@ aiPhotoshopScene.on('photo', async ctx => {
 
 // Handle text messages (custom prompts)
 // 🚨 DEDICATED FUNCTION: Handle all_models prompt BEFORE everything else
-async function handleAllModelsPrompt(ctx: MyContext, messageText: string): Promise<boolean> {
+async function handleAllModelsPrompt(
+  ctx: MyContext,
+  messageText: string
+): Promise<boolean> {
   const isRu = isRussianFromState(ctx)
 
   // Check if this is all_models prompt waiting state
-  if (ctx.session?.aiPhotoshopModel === 'all_models' && ctx.session?.awaitingAiPhotoshopPrompt) {
+  if (
+    ctx.session?.aiPhotoshopModel === 'all_models' &&
+    ctx.session?.awaitingAiPhotoshopPrompt
+  ) {
     console.log('🎯🎯🎯 ALL_MODELS PROMPT DETECTED!', {
       telegramId: ctx.from?.id,
       prompt: messageText.substring(0, 50),
-      imageCount: ctx.session.morphingImages?.length || 0
+      imageCount: ctx.session.morphingImages?.length || 0,
     })
 
     // Save prompt and show confirmation
@@ -1280,18 +1494,23 @@ async function handleAllModelsPrompt(ctx: MyContext, messageText: string): Promi
         : `✅ Prompt received: "${messageText}"\n\n🎯 Ready to process with all 4 models!\n\n⚙️ Select quality to calculate cost`,
       {
         reply_markup: {
-          inline_keyboard: [[
-            {
-              text: isRu ? '🚀 Начать обработку всеми моделями' : '🚀 Start processing with all models',
-              callback_data: 'ai_photoshop_multi_confirm'
-            }
-          ], [
-            {
-              text: isRu ? '❌ Отмена' : '❌ Cancel',
-              callback_data: 'ai_photoshop_multi_cancel'
-            }
-          ]]
-        }
+          inline_keyboard: [
+            [
+              {
+                text: isRu
+                  ? '🚀 Начать обработку всеми моделями'
+                  : '🚀 Start processing with all models',
+                callback_data: 'ai_photoshop_multi_confirm',
+              },
+            ],
+            [
+              {
+                text: isRu ? '❌ Отмена' : '❌ Cancel',
+                callback_data: 'ai_photoshop_multi_cancel',
+              },
+            ],
+          ],
+        },
       }
     )
     return true // Handled
@@ -1306,7 +1525,7 @@ aiPhotoshopScene.on('text', async ctx => {
     console.log('🚨🚨🚨 TEXT HANDLER TRIGGERED!', {
       telegramId: ctx.from?.id,
       text: ctx.message.text.substring(0, 30),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
 
     const messageText = ctx.message.text
@@ -1339,36 +1558,41 @@ aiPhotoshopScene.on('text', async ctx => {
         aiPhotoshopStep: ctx.session?.aiPhotoshopStep,
         hasImage: !!ctx.session?.aiPhotoshopImage,
         aiPhotoshopStyle: ctx.session?.aiPhotoshopStyle,
-        aiPhotoshopModel: ctx.session?.aiPhotoshopModel
-      }
+        aiPhotoshopModel: ctx.session?.aiPhotoshopModel,
+      },
     })
 
     // ✅ ENHANCED: Support dialog mode for improving last photo
-    const isInDialogMode = ctx.session?.dialogMode && ctx.session?.savedAiPhotoshopResults?.length > 0
+    const isInDialogMode =
+      ctx.session?.dialogMode &&
+      ctx.session?.savedAiPhotoshopResults?.length > 0
 
     // ✅ NEW: Zod validation for dialog mode input
     if (isInDialogMode && !ctx.session?.aiPhotoshopStep) {
       try {
         const inputValidation = validateUserInput({
-          inputId: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9),
+          inputId:
+            Date.now().toString() +
+            '-' +
+            Math.random().toString(36).substr(2, 9),
           type: 'text',
           timestamp: new Date().toISOString(),
           userId: ctx.from?.id?.toString() || '0',
           content: {
-            text: messageText
+            text: messageText,
           },
           sessionId: ctx.session?.sessionId || Date.now().toString(),
           messageId: ctx.message.message_id,
           chatId: ctx.chat?.id || 0,
           isValid: true,
-          validationErrors: []
+          validationErrors: [],
         })
 
         if (!inputValidation.success) {
           logger.warn('🚨 AI Photoshop: Dialog input validation failed', {
             telegramId: ctx.from?.id,
             error: inputValidation.error,
-            text: messageText.substring(0, 50)
+            text: messageText.substring(0, 50),
           })
 
           await ctx.reply(
@@ -1382,21 +1606,23 @@ aiPhotoshopScene.on('text', async ctx => {
         logger.info('✅ AI Photoshop: Dialog input validation passed', {
           telegramId: ctx.from?.id,
           inputId: inputValidation.data.inputId,
-          textLength: messageText.length
+          textLength: messageText.length,
         })
       } catch (error) {
         logger.error('🚨 AI Photoshop: Dialog validation error', {
           telegramId: ctx.from?.id,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         })
         // Continue with processing even if validation fails
       }
     }
 
     // ✅ SMART VALIDATION: Allow custom prompt workflow, text with existing images, and dialog mode
-    const allowTextInput = ctx.session?.awaitingAiPhotoshopPrompt ||
-                          (ctx.session?.aiPhotoshopImage || ctx.session?.morphingImages?.length) ||
-                          isInDialogMode
+    const allowTextInput =
+      ctx.session?.awaitingAiPhotoshopPrompt ||
+      ctx.session?.aiPhotoshopImage ||
+      ctx.session?.morphingImages?.length ||
+      isInDialogMode
 
     if (!allowTextInput) {
       logger.info('💡 AI Photoshop: Text input not ready - guiding user', {
@@ -1405,7 +1631,7 @@ aiPhotoshopScene.on('text', async ctx => {
         hasImage: !!ctx.session?.aiPhotoshopImage,
         hasMorphingImages: !!ctx.session?.morphingImages?.length,
         isInDialogMode,
-        step: ctx.session?.aiPhotoshopStep
+        step: ctx.session?.aiPhotoshopStep,
       })
 
       await ctx.reply(
@@ -1420,13 +1646,17 @@ aiPhotoshopScene.on('text', async ctx => {
     if (ctx.session?.aiPhotoshopStep === 'custom_prompt') {
       logger.info('🎯 AI Photoshop: Processing custom prompt input', {
         telegramId: ctx.from?.id,
-        promptLength: ctx.message.text?.length
+        promptLength: ctx.message.text?.length,
       })
 
       const prompt = ctx.message.text
 
       if (!prompt || prompt.trim().length === 0) {
-        await ctx.reply(isRu ? '❌ Пустой промпт. Попробуйте еще раз.' : '❌ Empty prompt. Please try again.')
+        await ctx.reply(
+          isRu
+            ? '❌ Пустой промпт. Попробуйте еще раз.'
+            : '❌ Empty prompt. Please try again.'
+        )
         return
       }
 
@@ -1440,11 +1670,14 @@ aiPhotoshopScene.on('text', async ctx => {
           telegramId: ctx.from?.id,
           promptLength: prompt.length,
           promptPreview: prompt.substring(0, 100) + '...',
-          step: ctx.session.aiPhotoshopStep
+          step: ctx.session.aiPhotoshopStep,
         })
       }
 
-      const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+      const model =
+        AI_PHOTOSHOP_MODELS[
+          ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS
+        ]
 
       // Size selection for SeeDream-4 model
       if (ctx.session.aiPhotoshopModel === 'seedream') {
@@ -1458,29 +1691,29 @@ aiPhotoshopScene.on('text', async ctx => {
                 [
                   {
                     text: '1K - 5⭐',
-                    callback_data: 'ai_photoshop_size_1K'
-                  }
+                    callback_data: 'ai_photoshop_size_1K',
+                  },
                 ],
                 [
                   {
                     text: '2K - 20⭐',
-                    callback_data: 'ai_photoshop_size_2K'
-                  }
+                    callback_data: 'ai_photoshop_size_2K',
+                  },
                 ],
                 [
                   {
                     text: '4K - 30⭐',
-                    callback_data: 'ai_photoshop_size_4K'
-                  }
+                    callback_data: 'ai_photoshop_size_4K',
+                  },
                 ],
                 [
                   {
                     text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
-                    callback_data: 'back_to_menu'
-                  }
-                ]
-              ]
-            }
+                    callback_data: 'back_to_menu',
+                  },
+                ],
+              ],
+            },
           }
         )
       } else {
@@ -1495,11 +1728,11 @@ aiPhotoshopScene.on('text', async ctx => {
                 [
                   {
                     text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
-                    callback_data: 'back_to_menu'
-                  }
-                ]
-              ]
-            }
+                    callback_data: 'back_to_menu',
+                  },
+                ],
+              ],
+            },
           }
         )
         ctx.session.awaitingAiPhotoshopImage = true
@@ -1512,10 +1745,13 @@ aiPhotoshopScene.on('text', async ctx => {
       logger.info('🎨 AI Photoshop: Dialog mode - improving last photo', {
         telegramId: ctx.from?.id,
         savedResultsCount: ctx.session?.savedAiPhotoshopResults?.length,
-        promptText: messageText.substring(0, 50) + '...'
+        promptText: messageText.substring(0, 50) + '...',
       })
 
-      const lastResult = ctx.session.savedAiPhotoshopResults?.[ctx.session.savedAiPhotoshopResults.length - 1]
+      const lastResult =
+        ctx.session.savedAiPhotoshopResults?.[
+          ctx.session.savedAiPhotoshopResults.length - 1
+        ]
 
       if (!lastResult) {
         await ctx.reply(
@@ -1528,8 +1764,28 @@ aiPhotoshopScene.on('text', async ctx => {
 
       // ✅ NEW: Check for Upscaler keywords
       const upscalerKeywords = {
-        ru: ['upscale', 'апскейл', 'увеличить качество', 'улучшить качество', 'повысить разрешение', 'увеличить разрешение', 'сделать четче', 'четкость', 'разрешение'],
-        en: ['upscale', 'enhance quality', 'improve quality', 'increase resolution', 'enhance resolution', 'make sharper', 'sharpen', 'clarity', 'resolution']
+        ru: [
+          'upscale',
+          'апскейл',
+          'увеличить качество',
+          'улучшить качество',
+          'повысить разрешение',
+          'увеличить разрешение',
+          'сделать четче',
+          'четкость',
+          'разрешение',
+        ],
+        en: [
+          'upscale',
+          'enhance quality',
+          'improve quality',
+          'increase resolution',
+          'enhance resolution',
+          'make sharper',
+          'sharpen',
+          'clarity',
+          'resolution',
+        ],
       }
 
       const keywords = isRu ? upscalerKeywords.ru : upscalerKeywords.en
@@ -1538,23 +1794,29 @@ aiPhotoshopScene.on('text', async ctx => {
       )
 
       if (isUpscaleRequest) {
-        logger.info('🔍 AI Photoshop: Upscaler request detected in dialog mode', {
-          telegramId: ctx.from?.id,
-          messageText: messageText.substring(0, 100),
-          lastResultUrl: lastResult.url || lastResult.imageUrl
-        })
+        logger.info(
+          '🔍 AI Photoshop: Upscaler request detected in dialog mode',
+          {
+            telegramId: ctx.from?.id,
+            messageText: messageText.substring(0, 100),
+            lastResultUrl: lastResult.url || lastResult.imageUrl,
+          }
+        )
 
         await ctx.reply(
           isRu
             ? `⬆️ *Увеличиваю качество последнего фото!*\n\n🎯 Применяю Clarity Upscaler для улучшения разрешения...\n\n💎 Стоимость: 3 ⭐`
             : `⬆️ *Upscaling last photo quality!*\n\n🎯 Applying Clarity Upscaler to enhance resolution...\n\n💎 Cost: 3 ⭐`,
           {
-            parse_mode: 'Markdown'
+            parse_mode: 'Markdown',
           }
         )
 
         try {
-          const imageUrl = typeof lastResult.imageUrl === 'string' ? lastResult.imageUrl : lastResult.url
+          const imageUrl =
+            typeof lastResult.imageUrl === 'string'
+              ? lastResult.imageUrl
+              : lastResult.url
 
           await upscaleImage({
             imageUrl,
@@ -1562,7 +1824,7 @@ aiPhotoshopScene.on('text', async ctx => {
             username: ctx.from?.username || 'unknown_user',
             is_ru: isRu,
             ctx,
-            originalPrompt: lastResult.prompt || 'Dialog mode upscale'
+            originalPrompt: lastResult.prompt || 'Dialog mode upscale',
           })
 
           // Show dialog interface again after upscaling
@@ -1571,7 +1833,7 @@ aiPhotoshopScene.on('text', async ctx => {
         } catch (error) {
           logger.error('🚨 AI Photoshop: Upscaler failed in dialog mode', {
             telegramId: ctx.from?.id,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error instanceof Error ? error.message : 'Unknown error',
           })
 
           await ctx.reply(
@@ -1586,14 +1848,21 @@ aiPhotoshopScene.on('text', async ctx => {
       // Set up session for processing with last result as image input
       if (ctx.session) {
         // ✅ FIX: Ensure imageUrl is a string URL, not an object
-        const imageUrl = typeof lastResult.imageUrl === 'string' ? lastResult.imageUrl : lastResult.url
+        const imageUrl =
+          typeof lastResult.imageUrl === 'string'
+            ? lastResult.imageUrl
+            : lastResult.url
         ctx.session.aiPhotoshopImage = imageUrl
         ctx.session.aiPhotoshopPrompt = messageText
-        ctx.session.aiPhotoshopModel = lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS
+        ctx.session.aiPhotoshopModel =
+          lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS
         ctx.session.aiPhotoshopStep = 'processing'
 
         // Use the same size as the previous result if it was SeeDream-4
-        if (lastResult.model === 'seedream' && lastResult.additionalInfo?.size) {
+        if (
+          lastResult.model === 'seedream' &&
+          lastResult.additionalInfo?.size
+        ) {
           ctx.session.aiPhotoshopSize = lastResult.additionalInfo.size
         }
       }
@@ -1603,7 +1872,7 @@ aiPhotoshopScene.on('text', async ctx => {
           ? `✨ *Диалоговый режим активен!*\n\n🎯 Применяю улучшения к последнему фото:\n"${messageText}"\n\n🔄 Обрабатываю с помощью модели ${AI_PHOTOSHOP_MODELS[lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS]?.title_ru}...\n\n💡 *Совет:* После обработки вы сможете снова написать команду для дальнейших улучшений!`
           : `✨ *Dialog mode is active!*\n\n🎯 Applying improvements to last photo:\n"${messageText}"\n\n🔄 Processing with ${AI_PHOTOSHOP_MODELS[lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS]?.title_en} model...\n\n💡 *Tip:* After processing, you can write another command for further improvements!`,
         {
-          parse_mode: 'Markdown'
+          parse_mode: 'Markdown',
         }
       )
 
@@ -1612,11 +1881,14 @@ aiPhotoshopScene.on('text', async ctx => {
     }
 
     // For other steps, require image to be present
-    if (!ctx.session?.aiPhotoshopImage && !ctx.session?.morphingImages?.length) {
+    if (
+      !ctx.session?.aiPhotoshopImage &&
+      !ctx.session?.morphingImages?.length
+    ) {
       logger.error('🚨 AI Photoshop: REJECTED - no image', {
         telegramId: ctx.from?.id,
         hasImage: !!ctx.session?.aiPhotoshopImage,
-        hasMorphingImages: !!ctx.session?.morphingImages?.length
+        hasMorphingImages: !!ctx.session?.morphingImages?.length,
       })
       await ctx.reply(
         isRu
@@ -1626,10 +1898,13 @@ aiPhotoshopScene.on('text', async ctx => {
       return
     }
 
-    logger.info('🚨 AI Photoshop: Text validation PASSED - processing with existing image', {
-      telegramId: ctx.from?.id,
-      validationStatus: 'ALL_CHECKS_PASSED'
-    })
+    logger.info(
+      '🚨 AI Photoshop: Text validation PASSED - processing with existing image',
+      {
+        telegramId: ctx.from?.id,
+        validationStatus: 'ALL_CHECKS_PASSED',
+      }
+    )
 
     const prompt = ctx.message.text
 
@@ -1646,7 +1921,9 @@ aiPhotoshopScene.on('text', async ctx => {
       aiPhotoshopModel: ctx.session?.aiPhotoshopModel,
       awaitingAiPhotoshopPrompt: ctx.session?.awaitingAiPhotoshopPrompt,
       morphingImagesCount: ctx.session?.morphingImages?.length || 0,
-      hasAnyAiPhotoshopData: !!(ctx.session?.aiPhotoshopModel || ctx.session?.aiPhotoshopImage)
+      hasAnyAiPhotoshopData: !!(
+        ctx.session?.aiPhotoshopModel || ctx.session?.aiPhotoshopImage
+      ),
     })
 
     if (ctx.session) {
@@ -1656,8 +1933,10 @@ aiPhotoshopScene.on('text', async ctx => {
     }
 
     // 🚨 ENHANCED CRITICAL FIX: Check for 'all_models' mode with multiple conditions
-    const isAllModelsMode = ctx.session?.aiPhotoshopModel === 'all_models' ||
-                           (ctx.session?.morphingImages?.length > 0 && ctx.session?.awaitingAiPhotoshopPrompt)
+    const isAllModelsMode =
+      ctx.session?.aiPhotoshopModel === 'all_models' ||
+      (ctx.session?.morphingImages?.length > 0 &&
+        ctx.session?.awaitingAiPhotoshopPrompt)
 
     console.log('🚨🚨🚨 ALL_MODELS CHECK DEBUG:', {
       telegramId: ctx.from?.id,
@@ -1665,16 +1944,19 @@ aiPhotoshopScene.on('text', async ctx => {
       morphingImagesCount: ctx.session?.morphingImages?.length || 0,
       awaitingPrompt: ctx.session?.awaitingAiPhotoshopPrompt,
       isAllModelsMode,
-      promptReceived: prompt.substring(0, 30) + '...'
+      promptReceived: prompt.substring(0, 30) + '...',
     })
 
     if (isAllModelsMode) {
-      logger.info('🎯 AI Photoshop: All models mode detected in text handler - returning to confirmation', {
-        telegramId: ctx.from?.id,
-        promptReceived: prompt.substring(0, 30) + '...',
-        imageCount: ctx.session?.morphingImages?.length || 0,
-        condition: 'ENHANCED_ALL_MODELS_CHECK'
-      })
+      logger.info(
+        '🎯 AI Photoshop: All models mode detected in text handler - returning to confirmation',
+        {
+          telegramId: ctx.from?.id,
+          promptReceived: prompt.substring(0, 30) + '...',
+          imageCount: ctx.session?.morphingImages?.length || 0,
+          condition: 'ENHANCED_ALL_MODELS_CHECK',
+        }
+      )
 
       // ✅ CRITICAL: Save prompt for all_models processing
       if (ctx.session) {
@@ -1690,18 +1972,23 @@ aiPhotoshopScene.on('text', async ctx => {
           : `✅ Prompt received: "${prompt}"\n\n🎯 Ready to process with all 4 models!\n\n⚙️ Select quality to calculate cost`,
         {
           reply_markup: {
-            inline_keyboard: [[
-              {
-                text: isRu ? '🚀 Начать обработку всеми моделями' : '🚀 Start processing with all models',
-                callback_data: 'ai_photoshop_multi_confirm'
-              }
-            ], [
-              {
-                text: isRu ? '❌ Отмена' : '❌ Cancel',
-                callback_data: 'ai_photoshop_multi_cancel'
-              }
-            ]]
-          }
+            inline_keyboard: [
+              [
+                {
+                  text: isRu
+                    ? '🚀 Начать обработку всеми моделями'
+                    : '🚀 Start processing with all models',
+                  callback_data: 'ai_photoshop_multi_confirm',
+                },
+              ],
+              [
+                {
+                  text: isRu ? '❌ Отмена' : '❌ Cancel',
+                  callback_data: 'ai_photoshop_multi_cancel',
+                },
+              ],
+            ],
+          },
         }
       )
       return // CRITICAL: Do not call processAiPhotoshopRequest for all_models here!
@@ -1783,7 +2070,11 @@ const createAiPhotoshopProgressBar = (current: number, length = 10): string => {
 }
 
 // ✅ Progress message for AI Photoshop multi-photo collection
-const createAiPhotoshopProgressMessage = (images: any[], isRu: boolean, isAllModelsMode: boolean = false): string => {
+const createAiPhotoshopProgressMessage = (
+  images: any[],
+  isRu: boolean,
+  isAllModelsMode: boolean = false
+): string => {
   const count = images.length
   const progressBar = createAiPhotoshopProgressBar(count)
 
@@ -1823,17 +2114,21 @@ const createAiPhotoshopProgressKeyboard = (images: any[], isRu: boolean) => {
 
   if (images.length >= 1) {
     // Ready to process - show process button (allow single image too)
-    keyboard.push([{
-      text: isRu ? '🎨 Обработать изображения' : '🎨 Process Images',
-      callback_data: 'ai_photoshop_multi_process'
-    }])
+    keyboard.push([
+      {
+        text: isRu ? '🎨 Обработать изображения' : '🎨 Process Images',
+        callback_data: 'ai_photoshop_multi_process',
+      },
+    ])
   }
 
   // Always show restart option
-  keyboard.push([{
-    text: isRu ? '🔄 Начать заново' : '🔄 Start Over',
-    callback_data: 'ai_photoshop_multi_restart'
-  }])
+  keyboard.push([
+    {
+      text: isRu ? '🔄 Начать заново' : '🔄 Start Over',
+      callback_data: 'ai_photoshop_multi_restart',
+    },
+  ])
 
   return Markup.inlineKeyboard(keyboard)
 }
@@ -1852,13 +2147,17 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
   const photo = ctx.message.photo?.pop() // Get highest resolution
   if (!photo) return false
 
-  const mediaGroupId = 'media_group_id' in ctx.message ? ctx.message.media_group_id : undefined
+  const mediaGroupId =
+    'media_group_id' in ctx.message ? ctx.message.media_group_id : undefined
 
   // ✅ ENHANCED: Collect photos if part of media group OR if photos are being sent sequentially OR in 'all_models' mode
-  const shouldCollectPhoto = mediaGroupId ||
-    (ctx.session.morphingImages && ctx.session.morphingImages.length > 0 &&
-     Date.now() - (ctx.session.lastPhotoTimestamp || 0) < 60000) || // 60 seconds window
-    (ctx.session?.aiPhotoshopModel === 'all_models' && ctx.session?.awaitingAiPhotoshopImage) // ✅ NEW: Collect photos in 'all_models' mode
+  const shouldCollectPhoto =
+    mediaGroupId ||
+    (ctx.session.morphingImages &&
+      ctx.session.morphingImages.length > 0 &&
+      Date.now() - (ctx.session.lastPhotoTimestamp || 0) < 60000) || // 60 seconds window
+    (ctx.session?.aiPhotoshopModel === 'all_models' &&
+      ctx.session?.awaitingAiPhotoshopImage) // ✅ NEW: Collect photos in 'all_models' mode
 
   if (shouldCollectPhoto) {
     try {
@@ -1901,13 +2200,20 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
         mediaGroupId: mediaGroupId || 'sequential',
         photoCount: ctx.session.morphingImages.length,
         imageSize: buffer.length,
-        isSequential: !mediaGroupId
+        isSequential: !mediaGroupId,
       })
 
       // Create dynamic progress message like Infinity Morphing
       const isAllModelsMode = ctx.session?.aiPhotoshopModel === 'all_models'
-      const progressMessage = createAiPhotoshopProgressMessage(ctx.session.morphingImages, isRu, isAllModelsMode)
-      const keyboard = createAiPhotoshopProgressKeyboard(ctx.session.morphingImages, isRu)
+      const progressMessage = createAiPhotoshopProgressMessage(
+        ctx.session.morphingImages,
+        isRu,
+        isAllModelsMode
+      )
+      const keyboard = createAiPhotoshopProgressKeyboard(
+        ctx.session.morphingImages,
+        isRu
+      )
 
       // Update existing message or create new one
       if (ctx.session.morphingProgressMessageId) {
@@ -1943,7 +2249,7 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
     } catch (error) {
       logger.error('❌ AI Photoshop: Error collecting multi-photo', {
         userId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       return false
     }
@@ -1951,9 +2257,11 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
 
   // ✅ NEW: Handle single photos that might be part of a sequence
   // If user is actively adding photos (no existing collection or recent activity), start/continue collection
-  const isActivelyAddingPhotos = ctx.session?.awaitingAiPhotoshopImage ||
+  const isActivelyAddingPhotos =
+    ctx.session?.awaitingAiPhotoshopImage ||
     ctx.session?.aiPhotoshopStep === 'image_upload' ||
-    (ctx.session?.lastPhotoTimestamp && Date.now() - ctx.session.lastPhotoTimestamp < 60000)
+    (ctx.session?.lastPhotoTimestamp &&
+      Date.now() - ctx.session.lastPhotoTimestamp < 60000)
 
   if (isActivelyAddingPhotos) {
     try {
@@ -1995,13 +2303,20 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
         userId,
         photoCount: ctx.session.morphingImages.length,
         imageSize: buffer.length,
-        isFirstPhoto: imageIndex === 1
+        isFirstPhoto: imageIndex === 1,
       })
 
       // Create or update progress message
       const isAllModelsMode = ctx.session?.aiPhotoshopModel === 'all_models'
-      const progressMessage = createAiPhotoshopProgressMessage(ctx.session.morphingImages, isRu, isAllModelsMode)
-      const keyboard = createAiPhotoshopProgressKeyboard(ctx.session.morphingImages, isRu)
+      const progressMessage = createAiPhotoshopProgressMessage(
+        ctx.session.morphingImages,
+        isRu,
+        isAllModelsMode
+      )
+      const keyboard = createAiPhotoshopProgressKeyboard(
+        ctx.session.morphingImages,
+        isRu
+      )
 
       // Update existing message or create new one
       if (ctx.session.morphingProgressMessageId) {
@@ -2017,7 +2332,9 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
             }
           )
         } catch (editError) {
-          logger.warn('Failed to edit progress message for sequential photo', { editError })
+          logger.warn('Failed to edit progress message for sequential photo', {
+            editError,
+          })
           // Create new message if editing fails
           const sentMessage = await ctx.reply(progressMessage, {
             parse_mode: 'Markdown',
@@ -2037,7 +2354,7 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
     } catch (error) {
       logger.error('Error collecting sequential photo for AI Photoshop', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        userId
+        userId,
       })
       return false
     }
@@ -2066,7 +2383,10 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
   const recentPhoto = savedResults[savedResults.length - 1]
 
   // ✅ NEW: Calculate total cost for "All Models" button
-  const totalCostAllModels = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+  const totalCostAllModels = Object.values(AI_PHOTOSHOP_MODELS).reduce(
+    (sum, model) => sum + model.cost,
+    0
+  )
 
   const title = isRu
     ? '🎨 *Продолжить работу с фотографиями*'
@@ -2079,21 +2399,25 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
   const keyboard = Markup.inlineKeyboard([
     [
       Markup.button.callback(
-        isRu ? '🔄 Продолжить с теми же настройками' : '🔄 Continue with same settings',
+        isRu
+          ? '🔄 Продолжить с теми же настройками'
+          : '🔄 Continue with same settings',
         'ai_photoshop_continue_same'
-      )
+      ),
     ],
     [
       Markup.button.callback(
         isRu ? '⬆️ Увеличить качество фото' : '⬆️ Upscale photo quality',
         'ai_photoshop_upscale_last'
-      )
+      ),
     ],
     [
       Markup.button.callback(
-        isRu ? `🎯 Все сразу (${totalCostAllModels}⭐)` : `🎯 All at once (${totalCostAllModels}⭐)`,
+        isRu
+          ? `🎯 Все сразу (${totalCostAllModels}⭐)`
+          : `🎯 All at once (${totalCostAllModels}⭐)`,
         'ai_photoshop_all_models_from_selector'
-      )
+      ),
     ],
     [
       Markup.button.callback(
@@ -2103,7 +2427,7 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
       Markup.button.callback(
         isRu ? '💡 Освещение' : '💡 Lighting',
         'ai_photoshop_lighting_menu'
-      )
+      ),
     ],
     [
       Markup.button.callback(
@@ -2113,13 +2437,13 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
       Markup.button.callback(
         isRu ? '📏 Соотношение сторон' : '📏 Aspect Ratio',
         'ai_photoshop_aspect_ratio_menu'
-      )
+      ),
     ],
     [
       Markup.button.callback(
         isRu ? '🔢 Количество вариаций' : '🔢 Number of variations',
         'ai_photoshop_variations_menu'
-      )
+      ),
     ],
     [
       Markup.button.callback(
@@ -2127,9 +2451,11 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
         'ai_photoshop_add_new'
       ),
       Markup.button.callback(
-        isRu ? `📋 Галерея (${savedResults.length})` : `📋 Gallery (${savedResults.length})`,
+        isRu
+          ? `📋 Галерея (${savedResults.length})`
+          : `📋 Gallery (${savedResults.length})`,
         'ai_photoshop_show_all'
-      )
+      ),
     ],
     [
       Markup.button.callback(
@@ -2139,19 +2465,24 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
       Markup.button.callback(
         isRu ? '🚪 Главное меню' : '🚪 Main menu',
         'ai_photoshop_exit_to_menu'
-      )
-    ]
+      ),
+    ],
   ])
 
   await ctx.reply(title + '\n\n' + description, {
     parse_mode: 'Markdown',
-    reply_markup: keyboard.reply_markup
+    reply_markup: keyboard.reply_markup,
   })
-
 }
 
 // ✅ NEW: Save photo result function
-async function savePhotoResult(ctx: MyContext, imageUrl: string, model: string, prompt: string, wasAllModels: boolean = false): Promise<void> {
+async function savePhotoResult(
+  ctx: MyContext,
+  imageUrl: string,
+  model: string,
+  prompt: string,
+  wasAllModels: boolean = false
+): Promise<void> {
   if (!ctx.session) return
 
   if (!ctx.session.savedAiPhotoshopResults) {
@@ -2168,10 +2499,15 @@ async function savePhotoResult(ctx: MyContext, imageUrl: string, model: string, 
     wasAllModels, // ✅ NEW: Track if this was generated in all_models mode
     additionalInfo: {
       size: ctx.session.aiPhotoshopSize,
-      originalImage: ctx.session.aiPhotoshopImage !== imageUrl ? ctx.session.aiPhotoshopImage : undefined,
-      isImprovement: ctx.session.savedAiPhotoshopResults && ctx.session.savedAiPhotoshopResults.length > 0,
-      fullPrompt: prompt // Keep full prompt for context
-    }
+      originalImage:
+        ctx.session.aiPhotoshopImage !== imageUrl
+          ? ctx.session.aiPhotoshopImage
+          : undefined,
+      isImprovement:
+        ctx.session.savedAiPhotoshopResults &&
+        ctx.session.savedAiPhotoshopResults.length > 0,
+      fullPrompt: prompt, // Keep full prompt for context
+    },
   }
 
   ctx.session.savedAiPhotoshopResults.push(result)
@@ -2181,24 +2517,29 @@ async function savePhotoResult(ctx: MyContext, imageUrl: string, model: string, 
 
   // ✅ NEW: Initialize sessionId if not exists for Zod validation
   if (!ctx.session.sessionId) {
-    ctx.session.sessionId = Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9)
+    ctx.session.sessionId =
+      Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9)
   }
 
   // Keep only last 10 results to prevent session bloat
   if (ctx.session.savedAiPhotoshopResults.length > 10) {
-    ctx.session.savedAiPhotoshopResults = ctx.session.savedAiPhotoshopResults.slice(-10)
+    ctx.session.savedAiPhotoshopResults =
+      ctx.session.savedAiPhotoshopResults.slice(-10)
   }
 
   logger.info('🎨 AI Photoshop: Photo result saved', {
     telegramId: ctx.from?.id,
     totalSaved: ctx.session.savedAiPhotoshopResults.length,
     model,
-    promptLength: prompt.length
+    promptLength: prompt.length,
   })
 }
 
 // Function to process AI Photoshop request
-const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) => {
+const processAiPhotoshopRequest = async (
+  ctx: MyContext,
+  customPrompt?: string
+) => {
   const isRu = isRussianFromState(ctx)
 
   // Get data from session
@@ -2211,7 +2552,10 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
   } = ctx.session || {}
 
   // Validate data - check for either aiPhotoshopImage OR morphingImages
-  const hasImages = aiPhotoshopImage || (ctx.session?.morphingImages?.length && ctx.session.morphingImages.length > 0)
+  const hasImages =
+    aiPhotoshopImage ||
+    (ctx.session?.morphingImages?.length &&
+      ctx.session.morphingImages.length > 0)
 
   if (!aiPhotoshopModel || !hasImages || !ctx.from?.id) {
     logger.error('Missing required data for AI Photoshop processing', {
@@ -2224,8 +2568,8 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         aiPhotoshopStyle: ctx.session?.aiPhotoshopStyle,
         aiPhotoshopSize: ctx.session?.aiPhotoshopSize,
         aiPhotoshopStep: ctx.session?.aiPhotoshopStep,
-        aiPhotoshopPrompt: !!ctx.session?.aiPhotoshopPrompt
-      }
+        aiPhotoshopPrompt: !!ctx.session?.aiPhotoshopPrompt,
+      },
     })
 
     await ctx.reply(
@@ -2238,15 +2582,25 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
 
   // ✅ NEW: Handle "all_models" case - process with all models simultaneously
   if (aiPhotoshopModel === 'all_models') {
-    logger.info('🎯 AI Photoshop: Processing with ALL models from initial selector', {
-      telegramId: ctx.from?.id,
-      hasImage: !!aiPhotoshopImage
-    })
+    logger.info(
+      '🎯 AI Photoshop: Processing with ALL models from initial selector',
+      {
+        telegramId: ctx.from?.id,
+        hasImage: !!aiPhotoshopImage,
+      }
+    )
 
-    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
-    const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as Array<keyof typeof AI_PHOTOSHOP_MODELS>
+    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce(
+      (sum, model) => sum + model.cost,
+      0
+    )
+    const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as Array<
+      keyof typeof AI_PHOTOSHOP_MODELS
+    >
     const modelNames = availableModels.map(key =>
-      isRu ? AI_PHOTOSHOP_MODELS[key].title_ru : AI_PHOTOSHOP_MODELS[key].title_en
+      isRu
+        ? AI_PHOTOSHOP_MODELS[key].title_ru
+        : AI_PHOTOSHOP_MODELS[key].title_en
     )
 
     await ctx.reply(
@@ -2254,27 +2608,41 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         ? `🎯 *Генерация во ВСЕХ моделях!*\n\n📸 Обрабатываю ваше фото во всех ${availableModels.length} моделях:\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n⏳ Это займет больше времени, но вы получите результаты от всех моделей для сравнения!`
         : `🎯 *Generating with ALL models!*\n\n📸 Processing your photo with all ${availableModels.length} models:\n\n${modelNames.map((name, i) => `${i + 1}. ${name} (${Object.values(AI_PHOTOSHOP_MODELS)[i].cost}⭐)`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n⏳ This will take longer, but you'll get results from all models for comparison!`,
       {
-        parse_mode: 'Markdown'
+        parse_mode: 'Markdown',
       }
     )
 
     // Process with each model sequentially, handling multiple images
     const prompt = customPrompt || 'enhance this image'
-    const imagesToProcess = ctx.session?.morphingImages || (ctx.session?.aiPhotoshopImage ? [{ url: ctx.session.aiPhotoshopImage }] : [])
+    const imagesToProcess =
+      ctx.session?.morphingImages ||
+      (ctx.session?.aiPhotoshopImage
+        ? [{ url: ctx.session.aiPhotoshopImage }]
+        : [])
 
-    logger.info(`🎨 AI Photoshop: Processing ${imagesToProcess.length} images with ${availableModels.length} models`, {
-      telegramId: ctx.from?.id,
-      imageCount: imagesToProcess.length,
-      modelCount: availableModels.length
-    })
+    logger.info(
+      `🎨 AI Photoshop: Processing ${imagesToProcess.length} images with ${availableModels.length} models`,
+      {
+        telegramId: ctx.from?.id,
+        imageCount: imagesToProcess.length,
+        modelCount: availableModels.length,
+      }
+    )
 
     for (const modelKey of availableModels) {
       try {
+        console.log('🔥🔥🔥 [ALL_MODELS LOOP] Starting iteration:', {
+          modelKey,
+          modelIndex: availableModels.indexOf(modelKey) + 1,
+          totalModels: availableModels.length,
+          telegram_id: ctx.from?.id,
+        })
+
         logger.info(`🎨 AI Photoshop: Processing with model ${modelKey}`, {
           telegramId: ctx.from?.id,
           model: modelKey,
           currentStep: `${availableModels.indexOf(modelKey) + 1}/${availableModels.length}`,
-          imageCount: imagesToProcess.length
+          imageCount: imagesToProcess.length,
         })
 
         // ✅ CRITICAL FIX: Process ALL images with current model in ONE call
@@ -2291,7 +2659,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             url: img.url,
             filename: `image_${Date.now()}.jpg`,
             timestamp: Date.now(),
-            originalOrder: 1
+            originalOrder: 1,
           }))
           if (!ctx.session.aiPhotoshopSize) {
             ctx.session.aiPhotoshopSize = '1K'
@@ -2304,22 +2672,42 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         // Small delay between models to prevent rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000))
       } catch (modelError) {
-        logger.error(`❌ AI Photoshop: Error processing with model ${modelKey}`, {
-          telegramId: ctx.from?.id,
-          model: modelKey,
-          error: modelError instanceof Error ? modelError.message : 'Unknown error'
-        })
-        // Log error but don't spam user with individual error messages
+        logger.error(
+          `❌ AI Photoshop: Error processing with model ${modelKey}`,
+          {
+            telegramId: ctx.from?.id,
+            model: modelKey,
+            error:
+              modelError instanceof Error
+                ? modelError.message
+                : 'Unknown error',
+            errorStack: modelError instanceof Error ? modelError.stack : undefined,
+            errorDetails: modelError,
+          }
+        )
+
+        // 🚨 CRITICAL: Show error to user for debugging
+        if (modelKey === 'flux_multi_kontext') {
+          await ctx.reply(
+            `🚨 DEBUG: FLUX Multi-Kontext failed!\n\nError: ${modelError instanceof Error ? modelError.message : 'Unknown error'}\n\nStack: ${modelError instanceof Error ? modelError.stack?.substring(0, 500) : 'N/A'}`,
+            { parse_mode: 'Markdown' }
+          ).catch(() => {})
+        }
+
+        // Log error but don't spam user with individual error messages (except FLUX for debugging)
       }
     }
 
     // ✅ CRITICAL FIX: Restore aiPhotoshopModel back to 'all_models' after loop
     if (ctx.session) {
       ctx.session.aiPhotoshopModel = 'all_models'
-      logger.info('🔄 AI Photoshop: Restored model to all_models after processing', {
-        telegramId: ctx.from?.id,
-        restoredModel: 'all_models'
-      })
+      logger.info(
+        '🔄 AI Photoshop: Restored model to all_models after processing',
+        {
+          telegramId: ctx.from?.id,
+          restoredModel: 'all_models',
+        }
+      )
     }
 
     // Show final results summary
@@ -2328,7 +2716,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         ? `✅ *Обработка всеми моделями завершена!*\n\n🎨 Проверьте результаты выше - теперь у вас есть варианты от всех ${availableModels.length} моделей для сравнения!\n\n💡 Используйте команды для дальнейшего улучшения любого результата.`
         : `✅ *Processing with all models completed!*\n\n🎨 Check the results above - now you have variations from all ${availableModels.length} models for comparison!\n\n💡 Use commands to further improve any result.`,
       {
-        parse_mode: 'Markdown'
+        parse_mode: 'Markdown',
       }
     )
 
@@ -2352,7 +2740,10 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
     if (customPrompt) {
       finalPrompt = customPrompt
     } else if (aiPhotoshopStyle && aiPhotoshopStyle !== 'custom') {
-      const style = AI_PHOTOSHOP_STYLES[aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+      const style =
+        AI_PHOTOSHOP_STYLES[
+          aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES
+        ]
       finalPrompt = style?.template || 'enhance this image'
     } else {
       finalPrompt = 'enhance this image'
@@ -2363,7 +2754,11 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
 
     // Add camera angle if selected
     if (ctx.session?.aiPhotoshopCameraAngle) {
-      const cameraPrompt = AI_PHOTOSHOP_CAMERA_ANGLES[ctx.session.aiPhotoshopCameraAngle as keyof typeof AI_PHOTOSHOP_CAMERA_ANGLES]
+      const cameraPrompt =
+        AI_PHOTOSHOP_CAMERA_ANGLES[
+          ctx.session
+            .aiPhotoshopCameraAngle as keyof typeof AI_PHOTOSHOP_CAMERA_ANGLES
+        ]
       if (cameraPrompt) {
         cameraEnhancements.push(cameraPrompt)
       }
@@ -2371,7 +2766,11 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
 
     // Add lighting if selected
     if (ctx.session?.aiPhotoshopLighting) {
-      const lightingPrompt = AI_PHOTOSHOP_LIGHTING_SETUPS[ctx.session.aiPhotoshopLighting as keyof typeof AI_PHOTOSHOP_LIGHTING_SETUPS]
+      const lightingPrompt =
+        AI_PHOTOSHOP_LIGHTING_SETUPS[
+          ctx.session
+            .aiPhotoshopLighting as keyof typeof AI_PHOTOSHOP_LIGHTING_SETUPS
+        ]
       if (lightingPrompt) {
         cameraEnhancements.push(lightingPrompt)
       }
@@ -2379,7 +2778,11 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
 
     // Add composition if selected
     if (ctx.session?.aiPhotoshopComposition) {
-      const compositionPrompt = AI_PHOTOSHOP_FRAME_COMPOSITION[ctx.session.aiPhotoshopComposition as keyof typeof AI_PHOTOSHOP_FRAME_COMPOSITION]
+      const compositionPrompt =
+        AI_PHOTOSHOP_FRAME_COMPOSITION[
+          ctx.session
+            .aiPhotoshopComposition as keyof typeof AI_PHOTOSHOP_FRAME_COMPOSITION
+        ]
       if (compositionPrompt) {
         cameraEnhancements.push(compositionPrompt)
       }
@@ -2402,47 +2805,63 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
     let actualImageUrls: string[] = []
     let isMultiPhoto = false
 
-    if (ctx.session?.morphingImages?.length && ctx.session.morphingImages.length > 0) {
+    if (
+      ctx.session?.morphingImages?.length &&
+      ctx.session.morphingImages.length > 0
+    ) {
       // Multi-photo via buffer approach - use the original Telegram file URLs from session
       isMultiPhoto = ctx.session.morphingImages.length > 1
 
       logger.info('AI Photoshop: Using original Telegram URLs from session', {
         telegramId: ctx.from.id,
-        imageCount: ctx.session.morphingImages.length
+        imageCount: ctx.session.morphingImages.length,
       })
 
       // Use the original URLs that were stored when the images were uploaded
       logger.info('🔍 AI Photoshop: Checking morphingImages URLs', {
         telegramId: ctx.from.id,
         morphingImagesCount: ctx.session.morphingImages.length,
-        sampleImage: ctx.session.morphingImages[0] ? {
-          hasBuffer: !!ctx.session.morphingImages[0].buffer,
-          hasUrl: !!ctx.session.morphingImages[0].url,
-          urlPreview: ctx.session.morphingImages[0].url ? ctx.session.morphingImages[0].url.substring(0, 100) + '...' : 'NO_URL',
-          filename: ctx.session.morphingImages[0].filename
-        } : 'NO_IMAGES'
+        sampleImage: ctx.session.morphingImages[0]
+          ? {
+              hasBuffer: !!ctx.session.morphingImages[0].buffer,
+              hasUrl: !!ctx.session.morphingImages[0].url,
+              urlPreview: ctx.session.morphingImages[0].url
+                ? ctx.session.morphingImages[0].url.substring(0, 100) + '...'
+                : 'NO_URL',
+              filename: ctx.session.morphingImages[0].filename,
+            }
+          : 'NO_IMAGES',
       })
 
-      actualImageUrls = ctx.session.morphingImages.map(img => img.url).filter(url => url)
+      actualImageUrls = ctx.session.morphingImages
+        .map(img => img.url)
+        .filter(url => url)
 
       logger.info('🎯 AI Photoshop: URL extraction result', {
         telegramId: ctx.from.id,
         totalImages: ctx.session.morphingImages.length,
         extractedUrls: actualImageUrls.length,
-        urlPreviews: actualImageUrls.map(url => url ? url.substring(0, 100) + '...' : 'EMPTY')
+        urlPreviews: actualImageUrls.map(url =>
+          url ? url.substring(0, 100) + '...' : 'EMPTY'
+        ),
       })
     } else if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
       // Multi-photo via URL approach (from multiPhotoHandler)
       isMultiPhoto = true
-      actualImageUrls = Array.isArray(multiPhotoUrls) ? multiPhotoUrls : [multiPhotoUrls]
+      actualImageUrls = Array.isArray(multiPhotoUrls)
+        ? multiPhotoUrls
+        : [multiPhotoUrls]
     } else {
       // Single photo
       isMultiPhoto = false
       actualImageUrls = [aiPhotoshopImage || '']
     }
 
-    const currentModel = AI_PHOTOSHOP_MODELS[aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
-    const maxImages = isMultiPhoto ? Math.min(actualImageUrls.length, currentModel?.max_images || 1) : 1
+    const currentModel =
+      AI_PHOTOSHOP_MODELS[aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+    const maxImages = isMultiPhoto
+      ? Math.min(actualImageUrls.length, currentModel?.max_images || 1)
+      : 1
 
     logger.info('AI Photoshop processing setup', {
       telegramId: ctx.from.id,
@@ -2450,7 +2869,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
       imageCount: actualImageUrls.length,
       maxImages,
       modelSupportsMulti: currentModel?.supports_multi_image,
-      usingBuffers: !!(ctx.session?.morphingImages?.length),
+      usingBuffers: !!ctx.session?.morphingImages?.length,
     })
 
     // ✅ ВАЛИДАЦИЯ: Проверяем поддержку multi-image для выбранной модели
@@ -2472,7 +2891,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
     logger.info('AI Photoshop: Using variations count', {
       telegramId: ctx.from.id,
       variationsCount,
-      model: aiPhotoshopModel
+      model: aiPhotoshopModel,
     })
 
     switch (aiPhotoshopModel) {
@@ -2486,7 +2905,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           isMultiPhoto,
           imageCount: actualImageUrls.length,
           maxImages,
-          variationsCount
+          variationsCount,
         })
 
         // ✅ CRITICAL FIX: Handle multi-photo and merge prompts correctly
@@ -2499,7 +2918,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           prompt: finalPrompt.substring(0, 50) + '...',
           size: selectedSize,
           maxImages,
-          variationsCount
+          variationsCount,
         })
 
         if (isActualMultiPhoto && currentModel?.supports_multi_image) {
@@ -2513,7 +2932,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             ctx,
             size: selectedSize,
             max_images: maxImages,
-            aspect_ratio: 'match_input_image'
+            aspect_ratio: 'match_input_image',
           })
         } else {
           // Single photo processing (or first image if multiple) - APPLY VARIATIONS
@@ -2526,7 +2945,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             ctx,
             size: selectedSize,
             max_images: variationsCount, // ✅ USE VARIATIONS COUNT
-            aspect_ratio: 'match_input_image'
+            aspect_ratio: 'match_input_image',
           })
         }
         break
@@ -2539,7 +2958,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           ctx,
           username: ctx.from.username || 'unknown',
           is_ru: isRu,
-          promptStyle: 'artistic'
+          promptStyle: 'artistic',
         })
         break
 
@@ -2551,7 +2970,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
               ? '⚠️ FLUX Multi-Kontext требует 2 изображения. Пожалуйста, загрузите второе изображение.'
               : '⚠️ FLUX Multi-Kontext requires 2 images. Please upload a second image.',
             Markup.keyboard([
-              [isRu ? '🏠 Главное меню' : '🏠 Main Menu']
+              [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
             ]).resize()
           )
           return
@@ -2566,7 +2985,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           telegram_id: ctx.from.id.toString(),
           username: ctx.from.username || 'unknown',
           is_ru: isRu,
-          ctx
+          ctx,
         })
         break
 
@@ -2574,14 +2993,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         // ✅ GET SELECTED SIZE FROM SESSION LIKE OTHER MODELS
         const qwenSelectedSize = ctx.session?.aiPhotoshopSize || '2K'
 
-        // Map size to aspect ratio (общий паттерн)
-        const sizeToAspectRatio: Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'> = {
-          '1K': '1:1',
-          '2K': '9:16',
-          '4K': '16:9',
-          'custom': '1:1'
-        }
-
+        // Map size to aspect ratio (централизованно из AI_PHOTOSHOP_PRICING)
         result = await generateQwenImageEditPlus({
           prompt: finalPrompt,
           inputImageUrl: actualImageUrls, // Qwen supports multiple images
@@ -2589,9 +3001,10 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
           username: ctx.from.username || 'unknown',
           is_ru: isRu,
           ctx,
-          aspect_ratio: sizeToAspectRatio[qwenSelectedSize as keyof typeof sizeToAspectRatio] || '1:1',
+          aspect_ratio:
+            AI_PHOTOSHOP_PRICING.sizeToAspectRatio[qwenSelectedSize] || '1:1',
           output_format: 'webp',
-          output_quality: 90
+          output_quality: 90,
         })
         break
 
@@ -2608,7 +3021,8 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
     // ✅ ENHANCED: Save photo result and show dialog options
     if (result) {
       // ✅ FIX: Extract image URL from result object
-      const imageUrl = typeof result === 'string' ? result : result.image || result
+      const imageUrl =
+        typeof result === 'string' ? result : result.image || result
       await savePhotoResult(ctx, imageUrl, aiPhotoshopModel, finalPrompt)
 
       // Show continue/exit options after successful processing (ONLY for single model mode, not all_models)
@@ -2619,20 +3033,20 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             Markup.button.callback(
               isRu ? '⬆️ Увеличить качество' : '⬆️ Upscale quality',
               'ai_photoshop_upscale_last'
-            )
+            ),
           ],
           [
             Markup.button.callback(
               isRu ? '📸 Добавить фото' : '📸 Add photo',
               'ai_photoshop_add_new'
-            )
+            ),
           ],
           [
             Markup.button.callback(
               isRu ? '🚪 Главное меню' : '🚪 Main menu',
               'ai_photoshop_exit_to_menu'
-            )
-          ]
+            ),
+          ],
         ])
 
         await ctx.reply(
@@ -2641,7 +3055,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
             : `✨ *Photo successfully processed and saved!*\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text for further improvements:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n⬆️ *Or click button to upscale quality 2x*\n📸 *Add new photo to process*\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!\n🎨 *All photos are saved in gallery until you exit the scene*`,
           {
             parse_mode: 'Markdown',
-            reply_markup: continueKeyboard.reply_markup
+            reply_markup: continueKeyboard.reply_markup,
           }
         )
       }
@@ -2689,14 +3103,14 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         Markup.button.callback(
           isRu ? '🔄 Попробовать снова' : '🔄 Try again',
           'ai_photoshop_restart'
-        )
+        ),
       ],
       [
         Markup.button.callback(
           isRu ? '🚪 Главное меню' : '🚪 Main menu',
           'ai_photoshop_exit_to_menu'
-        )
-      ]
+        ),
+      ],
     ])
 
     await ctx.reply(
@@ -2704,7 +3118,7 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
         ? '❌ Произошла ошибка при обработке изображения.\n\n🔧 Попробуйте еще раз или вернитесь в главное меню.'
         : '❌ An error occurred while processing the image.\n\n🔧 Please try again or return to the main menu.',
       {
-        reply_markup: errorKeyboard.reply_markup
+        reply_markup: errorKeyboard.reply_markup,
       }
     )
 
@@ -2720,21 +3134,29 @@ const processAiPhotoshopRequest = async (ctx: MyContext, customPrompt?: string) 
     }
 
     // Stay in scene to allow recovery instead of leaving
-    logger.info('🎨 AI Photoshop: Staying in scene after error for recovery options', {
-      telegramId: ctx.from?.id,
-    })
+    logger.info(
+      '🎨 AI Photoshop: Staying in scene after error for recovery options',
+      {
+        telegramId: ctx.from?.id,
+      }
+    )
   }
 }
 
 // ✅ NEW: Process single AI Photoshop model (non-recursive version for all_models processing)
-const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: string, modelKey: keyof typeof AI_PHOTOSHOP_MODELS, isAllModelsMode: boolean = false) => {
+const processSingleAiPhotoshopModel = async (
+  ctx: MyContext,
+  customPrompt: string,
+  modelKey: keyof typeof AI_PHOTOSHOP_MODELS,
+  isAllModelsMode: boolean = false
+) => {
   const isRu = isRussianFromState(ctx)
 
   try {
     logger.info(`🎨 AI Photoshop: Processing single model ${modelKey}`, {
       telegramId: ctx.from?.id,
       model: modelKey,
-      hasCustomPrompt: !!customPrompt
+      hasCustomPrompt: !!customPrompt,
     })
 
     // Get session data
@@ -2746,11 +3168,14 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
     if (isAllModelsMode && morphingImages && morphingImages.length > 0) {
       // ✅ ALL_MODELS режим: берем ВСЕ фотографии из morphingImages
       imagesToProcess = morphingImages.map(img => img.url).filter(url => url)
-      logger.info(`🎨 ALL_MODELS: Processing ${imagesToProcess.length} images with ${modelKey}`, {
-        telegramId: ctx.from?.id,
-        imageCount: imagesToProcess.length,
-        model: modelKey
-      })
+      logger.info(
+        `🎨 ALL_MODELS: Processing ${imagesToProcess.length} images with ${modelKey}`,
+        {
+          telegramId: ctx.from?.id,
+          imageCount: imagesToProcess.length,
+          model: modelKey,
+        }
+      )
     } else if (aiPhotoshopImage) {
       // Обычный режим: одно изображение
       imagesToProcess = [aiPhotoshopImage]
@@ -2763,7 +3188,7 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
       logger.error(`Missing images for ${modelKey} processing`, {
         telegramId: ctx.from?.id,
         imageCount: imagesToProcess.length,
-        isAllModelsMode
+        isAllModelsMode,
       })
       return
     }
@@ -2795,18 +3220,42 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
     // ✅ CRITICAL FIX: For ALL_MODELS mode, process each model ONCE with ALL images
     let result
 
+    console.log('🔎🔎🔎 [DEBUG BEFORE IF/ELSE CHAIN]', {
+      isAllModelsMode,
+      modelKey,
+      modelKeyType: typeof modelKey,
+      modelKeyValue: JSON.stringify(modelKey),
+      modelConfig: !!modelConfig,
+      modelConfigKey: modelConfig?.key,
+    })
+
     if (isAllModelsMode) {
-      // 🚨 ALL_MODELS MODE: Each model processes ALL images in ONE call
-      logger.info(`🎨 ALL_MODELS: Processing ${imagesToProcess.length} images with ${modelKey} in ONE call`, {
-        telegramId: ctx.from?.id,
-        imageCount: imagesToProcess.length,
-        model: modelKey
+      console.log('✅✅✅ [DEBUG INSIDE ALL_MODELS BLOCK]', {
+        modelKey,
+        aboutToEnterModelSwitch: true,
       })
+
+      // 🚨 ALL_MODELS MODE: Each model processes ALL images in ONE call
+      logger.info(
+        `🎨 ALL_MODELS: Processing ${imagesToProcess.length} images with ${modelKey} in ONE call`,
+        {
+          telegramId: ctx.from?.id,
+          imageCount: imagesToProcess.length,
+          model: modelKey,
+        }
+      )
 
       // Process based on model capabilities
       if (modelKey === 'seedream') {
         // ✅ Get variations count from session (default 1)
         const variationsCount = ctx.session?.aiPhotoshopVariationsCount || 1
+
+        // 🎯 CRITICAL FIX: For multiple input images, max_images must be >= input count
+        // For single input image, max_images = variations count
+        const maxImages =
+          imagesToProcess.length > 1
+            ? Math.max(imagesToProcess.length, variationsCount) // Multiple inputs: at least as many as inputs
+            : variationsCount // Single input: use variations count
 
         // SeeDream supports multiple images (up to 10)
         result = await generateSeeDream4({
@@ -2817,31 +3266,66 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
           is_ru: isRu,
           ctx,
           size: ctx.session?.aiPhotoshopSize || '1K',
-          max_images: variationsCount, // ✅ USE VARIATIONS COUNT instead of image count
-          aspect_ratio: '9:16'
+          max_images: maxImages, // ✅ USE CORRECT max_images based on input count
+          aspect_ratio: AI_PHOTOSHOP_PRICING.defaultAspectRatio,
         })
       } else if (modelKey === 'nano_banana') {
+        console.log('🍌🍌🍌 [DEBUG] NANO_BANANA CONDITION MATCHED!')
         // Nano Banana supports up to 3 images
         const limitedImages = imagesToProcess.slice(0, 3)
         result = await generateNanoBanana({
           promptText: prompt,
-          inputImageUrl: limitedImages.length === 1 ? limitedImages[0] : limitedImages,
+          inputImageUrl:
+            limitedImages.length === 1 ? limitedImages[0] : limitedImages,
           telegram_id: userId.toString(),
           username: ctx.from?.username || 'unknown',
           is_ru: isRu,
           ctx,
-          promptStyle: 'artistic'
+          promptStyle: 'artistic',
+        })
+      } else if (modelKey === 'flux_multi_kontext') {
+        console.log('🔥🔥🔥 [DEBUG] FLUX CONDITION CHECK!', {
+          modelKey,
+          comparison: modelKey === 'flux_multi_kontext',
+          stringMatch: JSON.stringify(modelKey) === JSON.stringify('flux_multi_kontext'),
+        })
+
+        try {
+          console.log('🚀 [DEBUG] About to call logger.info...')
+          // FLUX Multi-Kontext supports multiple images
+          logger.info('🚀🚀🚀 FLUX MULTI-KONTEXT BLOCK ENTERED!', {
+            telegram_id: userId.toString(),
+            imageCount: imagesToProcess.length,
+            mode: imagesToProcess.length === 1 ? 'single' : 'multi',
+            imageA: imagesToProcess[0] ? 'present' : 'missing',
+            imageB: imagesToProcess.length > 1 ? 'present' : 'missing',
+          })
+          console.log('✅ [DEBUG] logger.info completed, calling generateAdvancedFluxKontext...')
+        } catch (logErr) {
+          console.error('❌ [DEBUG] LOGGER ERROR:', logErr)
+        }
+
+        result = await generateAdvancedFluxKontext({
+          prompt,
+          mode: imagesToProcess.length === 1 ? 'single' : 'multi',
+          imageA: imagesToProcess[0],
+          imageB: imagesToProcess.length > 1 ? imagesToProcess[1] : undefined,
+          modelType: 'pro',
+          telegram_id: userId.toString(),
+          username: ctx.from?.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          silent: true, // Не отправлять статус сообщения в ALL_MODELS режиме
+          aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[ctx.session?.aiPhotoshopSize || '1K'] || '9:16', // ✅ Централизованный aspect_ratio
+        })
+
+        logger.info('✅✅✅ FLUX MULTI-KONTEXT COMPLETED!', {
+          telegram_id: userId.toString(),
+          resultReceived: !!result,
         })
       } else if (modelKey === 'qwen_edit_plus') {
         // Qwen supports multiple images (up to 10)
         const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
-        const sizeToAspectRatio: Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'> = {
-          '1K': '9:16',
-          '2K': '9:16',
-          '4K': '16:9',
-          'custom': '9:16'
-        }
-
         result = await generateQwenImageEditPlus({
           prompt,
           inputImageUrl: imagesToProcess, // Pass array of ALL images
@@ -2849,16 +3333,42 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
           username: ctx.from?.username || 'unknown',
           is_ru: isRu,
           ctx,
-          aspect_ratio: sizeToAspectRatio[selectedSize] || '1:1',
+          aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '1:1',
           output_format: 'jpg',
-          output_quality: 90
+          output_quality: 90,
         })
       }
 
-      // Save result for later reference (all_models mode)
+      // Save result and SEND PHOTO to user (all_models mode)
       if (result) {
-        const imageUrl = typeof result === 'string' ? result : result.image || result.imageUrl || result
+        const imageUrl =
+          typeof result === 'string'
+            ? result
+            : result.image || result.imageUrl || result
         if (imageUrl) {
+          // ✅ CRITICAL FIX: Only send photo for FLUX (other models send themselves)
+          // SeeDream, NanoBanana, QwenEditPlus отправляют фото сами внутри своих функций
+          if (modelKey === 'flux_multi_kontext') {
+            try {
+              await ctx.replyWithPhoto(imageUrl, {
+                caption: isRu
+                  ? `✅ *${modelTitle}*\n\n📝 Промпт: "${prompt.substring(0, 200)}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
+                  : `✅ *${modelTitle}*\n\n📝 Prompt: "${prompt.substring(0, 200)}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
+                parse_mode: 'Markdown',
+              })
+              logger.info(`✅ ${modelKey} photo sent successfully in all_models mode`, {
+                telegramId: ctx.from?.id,
+                model: modelKey,
+              })
+            } catch (photoError) {
+              logger.error(`❌ Failed to send ${modelKey} photo in all_models mode`, {
+                telegramId: ctx.from?.id,
+                model: modelKey,
+                error: photoError instanceof Error ? photoError.message : 'Unknown error',
+              })
+            }
+          }
+
           await savePhotoResult(ctx, imageUrl, modelKey, prompt, true) // ✅ Mark as all_models mode
         }
       }
@@ -2869,12 +3379,15 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
       for (let i = 0; i < imagesToProcess.length; i++) {
         const currentImageUrl = imagesToProcess[i]
 
-        logger.info(`🎨 Processing image ${i + 1}/${imagesToProcess.length} with ${modelKey}`, {
-          telegramId: ctx.from?.id,
-          imageIndex: i + 1,
-          totalImages: imagesToProcess.length,
-          model: modelKey
-        })
+        logger.info(
+          `🎨 Processing image ${i + 1}/${imagesToProcess.length} with ${modelKey}`,
+          {
+            telegramId: ctx.from?.id,
+            imageIndex: i + 1,
+            totalImages: imagesToProcess.length,
+            model: modelKey,
+          }
+        )
 
         if (modelKey === 'seedream') {
           // ✅ Get variations count from session (default 1)
@@ -2889,7 +3402,7 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
             ctx,
             size: ctx.session?.aiPhotoshopSize || '1K',
             max_images: variationsCount, // ✅ USE VARIATIONS COUNT
-            aspect_ratio: '9:16'
+            aspect_ratio: AI_PHOTOSHOP_PRICING.defaultAspectRatio,
           })
         } else if (modelKey === 'nano_banana') {
           result = await generateNanoBanana({
@@ -2899,17 +3412,21 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
             username: ctx.from?.username || 'unknown',
             is_ru: isRu,
             ctx,
-            promptStyle: 'artistic'
+            promptStyle: 'artistic',
+          })
+        } else if (modelKey === 'flux_multi_kontext') {
+          result = await generateAdvancedFluxKontext({
+            prompt,
+            mode: 'single',
+            imageA: currentImageUrl,
+            modelType: 'pro',
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
           })
         } else if (modelKey === 'qwen_edit_plus') {
           const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
-          const sizeToAspectRatio: Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'> = {
-            '1K': '9:16',
-            '2K': '9:16',
-            '4K': '16:9',
-            'custom': '9:16'
-          }
-
           result = await generateQwenImageEditPlus({
             prompt,
             inputImageUrl: currentImageUrl,
@@ -2917,9 +3434,9 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
             username: ctx.from?.username || 'unknown',
             is_ru: isRu,
             ctx,
-            aspect_ratio: sizeToAspectRatio[selectedSize] || '1:1',
+            aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '1:1',
             output_format: 'jpg',
-            output_quality: 90
+            output_quality: 90,
           })
         }
 
@@ -2929,69 +3446,78 @@ const processSingleAiPhotoshopModel = async (ctx: MyContext, customPrompt: strin
             imageUrl: result.imageUrl,
             imageIndex: i + 1,
             success: true,
-            model: modelKey
+            model: modelKey,
           })
 
           // Save result for later reference
           await savePhotoResult(ctx, result.imageUrl, modelKey, prompt)
 
-        // Send result with model name and image number
-        const imageInfo = imagesToProcess.length > 1
-          ? ` (${i + 1}/${imagesToProcess.length})`
-          : ''
+          // Send result with model name and image number
+          const imageInfo =
+            imagesToProcess.length > 1
+              ? ` (${i + 1}/${imagesToProcess.length})`
+              : ''
 
-        await ctx.replyWithPhoto(result.imageUrl, {
-          caption: isRu
-            ? `✅ *${modelTitle}${imageInfo}*\n\n📝 Промпт: "${prompt}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
-            : `✅ *${modelTitle}${imageInfo}*\n\n📝 Prompt: "${prompt}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
-          parse_mode: 'Markdown'
-        })
+          await ctx.replyWithPhoto(result.imageUrl, {
+            caption: isRu
+              ? `✅ *${modelTitle}${imageInfo}*\n\n📝 Промпт: "${prompt}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
+              : `✅ *${modelTitle}${imageInfo}*\n\n📝 Prompt: "${prompt}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
+            parse_mode: 'Markdown',
+          })
 
-        logger.info(`✅ ${modelKey} image ${i + 1}/${imagesToProcess.length} completed successfully`, {
-          telegramId: ctx.from?.id,
-          model: modelKey,
-          imageIndex: i + 1
-        })
-      } else {
-        results.push({
-          imageIndex: i + 1,
-          success: false,
-          model: modelKey,
-          error: result?.error || 'Unknown error'
-        })
+          logger.info(
+            `✅ ${modelKey} image ${i + 1}/${imagesToProcess.length} completed successfully`,
+            {
+              telegramId: ctx.from?.id,
+              model: modelKey,
+              imageIndex: i + 1,
+            }
+          )
+        } else {
+          results.push({
+            imageIndex: i + 1,
+            success: false,
+            model: modelKey,
+            error: result?.error || 'Unknown error',
+          })
 
-        logger.error(`❌ ${modelKey} image ${i + 1}/${imagesToProcess.length} failed`, {
-          telegramId: ctx.from?.id,
-          model: modelKey,
-          imageIndex: i + 1,
-          error: result?.error || 'Unknown error'
-        })
+          logger.error(
+            `❌ ${modelKey} image ${i + 1}/${imagesToProcess.length} failed`,
+            {
+              telegramId: ctx.from?.id,
+              model: modelKey,
+              imageIndex: i + 1,
+              error: result?.error || 'Unknown error',
+            }
+          )
 
-        // Don't send error messages to user in multi-model processing - they're handled upstream
+          // Don't send error messages to user in multi-model processing - they're handled upstream
+        }
       }
-    }
 
       // ✅ Log summary of all processed images (normal mode only)
       const successCount = results.filter(r => r.success).length
-      logger.info(`🎯 ${modelKey} processing summary: ${successCount}/${imagesToProcess.length} images successful`, {
-        telegramId: ctx.from?.id,
-        model: modelKey,
-        totalImages: imagesToProcess.length,
-        successfulImages: successCount,
-        failedImages: imagesToProcess.length - successCount
-      })
+      logger.info(
+        `🎯 ${modelKey} processing summary: ${successCount}/${imagesToProcess.length} images successful`,
+        {
+          telegramId: ctx.from?.id,
+          model: modelKey,
+          totalImages: imagesToProcess.length,
+          successfulImages: successCount,
+          failedImages: imagesToProcess.length - successCount,
+        }
+      )
     }
 
     // Restore original session state
     if (ctx.session) {
       ctx.session.aiPhotoshopModel = originalModel
     }
-
   } catch (error) {
     logger.error(`Error in processSingleAiPhotoshopModel for ${modelKey}`, {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
-      model: modelKey
+      model: modelKey,
     })
 
     // Don't send error messages to user in multi-model processing - they're handled upstream
@@ -3049,7 +3575,10 @@ aiPhotoshopScene.action('ai_photoshop_back_to_styles', async ctx => {
       ctx.session.awaitingAiPhotoshopPrompt = false
     }
 
-    const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+    const model =
+      AI_PHOTOSHOP_MODELS[
+        ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS
+      ]
 
     await ctx.editMessageText(
       isRu
@@ -3115,51 +3644,36 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     // Delete progress message
     await ctx.deleteMessage()
 
-    // Calculate cost based on selected size or use default
+    // ✅ Calculate cost using centralized pricing
     const selectedSize = ctx.session.aiPhotoshopSize || '1K'
-    // Use same price calculation as in size selection
-    const sizeBasePricesUSD = {
-      '1K': 0.10,  // $0.10 base cost
-      '2K': 0.13,  // $0.13 base cost
-      '4K': 0.20   // $0.20 base cost
-    }
-
-    const sizePrices = {
-      '1K': calculateFinalPriceInStars(sizeBasePricesUSD['1K']),
-      '2K': calculateFinalPriceInStars(sizeBasePricesUSD['2K']),
-      '4K': calculateFinalPriceInStars(sizeBasePricesUSD['4K'])
-    }
-
-    // Get current model selection first
     const currentModel = ctx.session.aiPhotoshopModel || 'seedream'
 
-    // Calculate cost based on model selection
+    // Calculate cost based on model selection from centralized config
     let costPerImage: number
     if (currentModel === 'all_models') {
-      // All models mode: dynamic cost based on selected quality
-      const baseCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0) // 30⭐
-      switch (selectedSize) {
-        case '1K':
-          costPerImage = baseCost // 30⭐
-          break
-        case '2K':
-          costPerImage = baseCost * 4 // 120⭐
-          break
-        case '4K':
-          costPerImage = baseCost * 6 // 180⭐
-          break
-        default:
-          costPerImage = baseCost // Default to 1K
-      }
+      // All models mode: use centralized pricing with quality multipliers
+      costPerImage = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality(selectedSize as '1K' | '2K' | '4K')
     } else {
-      // Single model mode: use size-based pricing
-      costPerImage = sizePrices[selectedSize as keyof typeof sizePrices] || calculateFinalPriceInStars(0.10)
+      // Single model mode: use centralized pricing for single models
+      costPerImage = AI_PHOTOSHOP_PRICING.getSingleModelCost(selectedSize as '1K' | '2K' | '4K')
     }
 
     // ✅ Get variations count for cost calculation and display
     const variationsCount = ctx.session?.aiPhotoshopVariationsCount || 1
-    const variationsMultiplier = currentModel === 'seedream' ? variationsCount : 1
-    const totalCost = costPerImage * ctx.session.morphingImages.length * variationsMultiplier
+
+    // 🎯 CRITICAL: Calculate variations multiplier for cost
+    // - For 'seedream' single mode: multiply by variations count
+    // - For 'all_models': SeeDream will generate max(imageCount, variationsCount) images
+    let variationsMultiplier = 1
+    if (currentModel === 'seedream') {
+      variationsMultiplier = variationsCount // Single model: use variations
+    } else if (currentModel === 'all_models') {
+      // In all_models mode, SeeDream generates max(imageCount, variationsCount) images
+      variationsMultiplier = Math.max(1, variationsCount) // At least 1 per image
+    }
+
+    const totalCost =
+      costPerImage * ctx.session.morphingImages.length * variationsMultiplier
 
     // Preserve user's prompt and model selections
     const currentStyle = ctx.session.aiPhotoshopStyle || 'artistic'
@@ -3170,23 +3684,38 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     if (currentModel === 'all_models') {
       modelTitle = isRu ? '🎯 Все модели сразу' : '🎯 All models at once'
     } else {
-      const modelInfo = AI_PHOTOSHOP_MODELS[currentModel as keyof typeof AI_PHOTOSHOP_MODELS]
+      const modelInfo =
+        AI_PHOTOSHOP_MODELS[currentModel as keyof typeof AI_PHOTOSHOP_MODELS]
       modelTitle = isRu ? modelInfo?.title_ru : modelInfo?.title_en
     }
 
     let styleDisplay = ''
     if (currentStyle === 'custom' && currentPrompt) {
-      styleDisplay = isRu ? `✍️ Пользовательский: "${currentPrompt.substring(0, 50)}${currentPrompt.length > 50 ? '...' : ''}"`
-                           : `✍️ Custom: "${currentPrompt.substring(0, 50)}${currentPrompt.length > 50 ? '...' : ''}"`
+      styleDisplay = isRu
+        ? `✍️ Пользовательский: "${currentPrompt.substring(0, 50)}${currentPrompt.length > 50 ? '...' : ''}"`
+        : `✍️ Custom: "${currentPrompt.substring(0, 50)}${currentPrompt.length > 50 ? '...' : ''}"`
     } else if (currentStyle && currentStyle !== 'custom') {
-      const styleInfo = AI_PHOTOSHOP_STYLES[currentStyle as keyof typeof AI_PHOTOSHOP_STYLES]
-      styleDisplay = isRu ? styleInfo?.title_ru || 'Художественный' : styleInfo?.title_en || 'Artistic'
+      const styleInfo =
+        AI_PHOTOSHOP_STYLES[currentStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+      styleDisplay = isRu
+        ? styleInfo?.title_ru || 'Художественный'
+        : styleInfo?.title_en || 'Artistic'
     } else {
       styleDisplay = isRu ? 'Художественный' : 'Artistic'
     }
-    const variationsInfo = currentModel === 'seedream'
-      ? (isRu ? `\n🔢 Вариаций: ${variationsCount}` : `\n🔢 Variations: ${variationsCount}`)
-      : (isRu ? `\n⚠️ Модель не поддерживает вариации` : `\n⚠️ Model doesn't support variations`)
+    // 🎯 Variations info display
+    let variationsInfo = ''
+    if (currentModel === 'seedream') {
+      variationsInfo = isRu ? `\n🔢 Вариаций: ${variationsCount}` : `\n🔢 Variations: ${variationsCount}`
+    } else if (currentModel === 'all_models') {
+      // In all_models mode, show variations info for SeeDream
+      const effectiveVariations = Math.max(ctx.session.morphingImages.length, variationsCount)
+      variationsInfo = isRu
+        ? `\n🔢 Вариаций (SeeDream): ${effectiveVariations}`
+        : `\n🔢 Variations (SeeDream): ${effectiveVariations}`
+    } else {
+      variationsInfo = isRu ? `\n⚠️ Модель не поддерживает вариации` : `\n⚠️ Model doesn't support variations`
+    }
 
     // Show model/style selection for multi-photo
     await ctx.reply(
@@ -3196,27 +3725,36 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
       {
         reply_markup: {
           inline_keyboard: [
-            [{
-              text: isRu ? '🚀 Начать обработку' : '🚀 Start Processing',
-              callback_data: 'ai_photoshop_multi_confirm'
-            }],
-            [{
-              text: isRu ? '⚙️ Выбрать модель' : '⚙️ Choose Model',
-              callback_data: 'ai_photoshop_multi_choose_model'
-            }],
-            [{
-              text: isRu ? `🔢 Вариации (${variationsCount})` : `🔢 Variations (${variationsCount})`,
-              callback_data: 'ai_photoshop_variations_menu'
-            }],
-            [{
-              text: isRu ? '❌ Отмена' : '❌ Cancel',
-              callback_data: 'ai_photoshop_multi_cancel'
-            }]
-          ]
-        }
+            [
+              {
+                text: isRu ? '🚀 Начать обработку' : '🚀 Start Processing',
+                callback_data: 'ai_photoshop_multi_confirm',
+              },
+            ],
+            [
+              {
+                text: isRu ? '⚙️ Выбрать модель' : '⚙️ Choose Model',
+                callback_data: 'ai_photoshop_multi_choose_model',
+              },
+            ],
+            [
+              {
+                text: isRu
+                  ? `🔢 Вариации (${variationsCount})`
+                  : `🔢 Variations (${variationsCount})`,
+                callback_data: 'ai_photoshop_variations_menu',
+              },
+            ],
+            [
+              {
+                text: isRu ? '❌ Отмена' : '❌ Cancel',
+                callback_data: 'ai_photoshop_multi_cancel',
+              },
+            ],
+          ],
+        },
       }
     )
-
   } catch (error) {
     logger.error('Error processing multi-photo AI Photoshop', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -3249,7 +3787,6 @@ aiPhotoshopScene.action('ai_photoshop_multi_restart', async ctx => {
 
     // Show model selection again
     await showAiPhotoshopModels(ctx)
-
   } catch (error) {
     logger.error('Error restarting multi-photo AI Photoshop', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -3266,10 +3803,13 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
 
     // ✅ HANDLE ALL_MODELS CASE - if aiPhotoshopModel is 'all_models', trigger multi-model processing
     if (ctx.session?.aiPhotoshopModel === 'all_models') {
-      logger.info('🎯 AI Photoshop: ALL_MODELS processing detected, triggering multi-model generation', {
-        telegramId: ctx.from?.id,
-        imageCount: ctx.session.morphingImages?.length || 0
-      })
+      logger.info(
+        '🎯 AI Photoshop: ALL_MODELS processing detected, triggering multi-model generation',
+        {
+          telegramId: ctx.from?.id,
+          imageCount: ctx.session.morphingImages?.length || 0,
+        }
+      )
 
       // Check if prompt is already provided for all_models
       if (!ctx.session.aiPhotoshopPrompt) {
@@ -3281,13 +3821,15 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
           {
             parse_mode: 'HTML',
             reply_markup: {
-              inline_keyboard: [[
-                {
-                  text: isRu ? '❌ Отмена' : '❌ Cancel',
-                  callback_data: 'ai_photoshop_multi_cancel'
-                }
-              ]]
-            }
+              inline_keyboard: [
+                [
+                  {
+                    text: isRu ? '❌ Отмена' : '❌ Cancel',
+                    callback_data: 'ai_photoshop_multi_cancel',
+                  },
+                ],
+              ],
+            },
           }
         )
 
@@ -3296,7 +3838,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
           aiPhotoshopStep: 'custom_prompt',
           awaitingAiPhotoshopPrompt: true,
           awaitingAiPhotoshopImage: false,
-          aiPhotoshopModel: 'all_models' // 🚨 CRITICAL FIX: Ensure all_models is set!
+          aiPhotoshopModel: 'all_models', // 🚨 CRITICAL FIX: Ensure all_models is set!
         })
         return
       }
@@ -3330,27 +3872,31 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     }
 
     // 🚨 CRITICAL DEBUG: Log full session state for normal multi-photo processing
-    logger.info('🚨 AI Photoshop: Multi-photo processing initiated - FULL DEBUG', {
-      telegramId: ctx.from?.id,
-      sessionExists: !!ctx.session,
-      morphingImagesExists: !!ctx.session?.morphingImages,
-      morphingImagesCount: ctx.session?.morphingImages?.length || 0,
-      hasModel: !!ctx.session?.aiPhotoshopModel,
-      hasPrompt: !!ctx.session?.aiPhotoshopPrompt,
-      sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
-      morphingImagesPreview: ctx.session?.morphingImages?.map((img, index) => ({
-        index,
-        hasBuffer: !!img.buffer,
-        hasUrl: !!img.url,
-        bufferSize: img.buffer?.length || 0,
-        filename: img.filename
-      })) || []
-    })
+    logger.info(
+      '🚨 AI Photoshop: Multi-photo processing initiated - FULL DEBUG',
+      {
+        telegramId: ctx.from?.id,
+        sessionExists: !!ctx.session,
+        morphingImagesExists: !!ctx.session?.morphingImages,
+        morphingImagesCount: ctx.session?.morphingImages?.length || 0,
+        hasModel: !!ctx.session?.aiPhotoshopModel,
+        hasPrompt: !!ctx.session?.aiPhotoshopPrompt,
+        sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
+        morphingImagesPreview:
+          ctx.session?.morphingImages?.map((img, index) => ({
+            index,
+            hasBuffer: !!img.buffer,
+            hasUrl: !!img.url,
+            bufferSize: img.buffer?.length || 0,
+            filename: img.filename,
+          })) || [],
+      }
+    )
 
     if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 1) {
       logger.error('AI Photoshop: No images found for processing', {
         telegramId: ctx.from?.id,
-        imageCount: ctx.session.morphingImages?.length || 0
+        imageCount: ctx.session.morphingImages?.length || 0,
       })
       await ctx.reply(
         isRu
@@ -3364,7 +3910,9 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     try {
       await ctx.deleteMessage()
     } catch (error) {
-      logger.warn('Failed to delete confirmation message', { error: error.message })
+      logger.warn('Failed to delete confirmation message', {
+        error: error.message,
+      })
     }
 
     // ✅ CRITICAL FIX: Preserve ALL user selections from session
@@ -3381,9 +3929,9 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
         style: currentStyle,
         size: currentSize,
         hasPrompt: !!currentPrompt,
-        promptLength: currentPrompt?.length || 0
+        promptLength: currentPrompt?.length || 0,
       },
-      currentStep: ctx.session.aiPhotoshopStep
+      currentStep: ctx.session.aiPhotoshopStep,
     })
 
     // ✅ CRITICAL: DON'T RESET - preserve user's choices!
@@ -3397,7 +3945,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
       logger.info('✅ AI Photoshop: User prompt preserved', {
         telegramId: ctx.from?.id,
         prompt: currentPrompt,
-        promptLength: currentPrompt.length
+        promptLength: currentPrompt.length,
       })
     }
 
@@ -3413,13 +3961,15 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
           : `🎨 Processing ${imageCount} images...\n⏳ This may take some time`,
         {
           reply_markup: {
-            inline_keyboard: [[
-              {
-                text: isRu ? '⏳ Обработка...' : '⏳ Processing...',
-                callback_data: 'loading_processing_indicator'
-              }
-            ]]
-          }
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? '⏳ Обработка...' : '⏳ Processing...',
+                  callback_data: 'loading_processing_indicator',
+                },
+              ],
+            ],
+          },
         }
       )
     } catch (error) {
@@ -3435,26 +3985,35 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
       sessionData: {
         model: ctx.session.aiPhotoshopModel,
         style: ctx.session.aiPhotoshopStyle,
-        step: ctx.session.aiPhotoshopStep
-      }
+        step: ctx.session.aiPhotoshopStep,
+      },
     })
 
     // ✅ ENHANCED PROMPT VALIDATION with automatic fallback
     if (!ctx.session.aiPhotoshopPrompt) {
-      logger.warn('⚠️ AI Photoshop: No custom prompt found, using style-based fallback', {
-        telegramId: ctx.from?.id,
-        currentStyle: ctx.session.aiPhotoshopStyle,
-        availableStyles: Object.keys(AI_PHOTOSHOP_STYLES)
-      })
+      logger.warn(
+        '⚠️ AI Photoshop: No custom prompt found, using style-based fallback',
+        {
+          telegramId: ctx.from?.id,
+          currentStyle: ctx.session.aiPhotoshopStyle,
+          availableStyles: Object.keys(AI_PHOTOSHOP_STYLES),
+        }
+      )
 
       // Use style-based prompt as fallback
-      if (ctx.session.aiPhotoshopStyle && ctx.session.aiPhotoshopStyle !== 'custom') {
-        const style = AI_PHOTOSHOP_STYLES[ctx.session.aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+      if (
+        ctx.session.aiPhotoshopStyle &&
+        ctx.session.aiPhotoshopStyle !== 'custom'
+      ) {
+        const style =
+          AI_PHOTOSHOP_STYLES[
+            ctx.session.aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES
+          ]
         ctx.session.aiPhotoshopPrompt = style?.template || 'enhance this image'
         logger.info('✅ AI Photoshop: Fallback prompt applied', {
           telegramId: ctx.from?.id,
           style: ctx.session.aiPhotoshopStyle,
-          fallbackPrompt: ctx.session.aiPhotoshopPrompt
+          fallbackPrompt: ctx.session.aiPhotoshopPrompt,
         })
       } else {
         // Ultimate fallback for multi-photo processing
@@ -3462,7 +4021,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
         logger.info('✅ AI Photoshop: Multi-photo fallback prompt applied', {
           telegramId: ctx.from?.id,
           imageCount: ctx.session.morphingImages?.length,
-          ultimatePrompt: ctx.session.aiPhotoshopPrompt
+          ultimatePrompt: ctx.session.aiPhotoshopPrompt,
         })
       }
     }
@@ -3479,7 +4038,6 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
 
     // Call the actual processing function
     await processAiPhotoshopRequest(ctx, ctx.session.aiPhotoshopPrompt)
-
   } catch (error) {
     logger.error('Error confirming multi-photo AI Photoshop', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -3522,7 +4080,6 @@ aiPhotoshopScene.action('ai_photoshop_multi_cancel', async ctx => {
 
     // Show model selection again
     await showAiPhotoshopModels(ctx)
-
   } catch (error) {
     logger.error('Error cancelling multi-photo AI Photoshop', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -3554,7 +4111,12 @@ aiPhotoshopScene.action('ai_photoshop_improve_last', async ctx => {
     // Set up session for improvement
     if (ctx.session) {
       ctx.session.aiPhotoshopImage = lastPhoto.url
-      ctx.session.aiPhotoshopModel = (lastPhoto.model as 'seedream' | 'nano_banana' | 'flux_multi_kontext' | 'qwen_edit_plus') || 'seedream'
+      ctx.session.aiPhotoshopModel =
+        (lastPhoto.model as
+          | 'seedream'
+          | 'nano_banana'
+          | 'flux_multi_kontext'
+          | 'qwen_edit_plus') || 'seedream'
       ctx.session.aiPhotoshopStyle = 'custom'
       ctx.session.aiPhotoshopStep = 'custom_prompt'
       ctx.session.awaitingAiPhotoshopPrompt = true
@@ -3572,14 +4134,13 @@ aiPhotoshopScene.action('ai_photoshop_improve_last', async ctx => {
             [
               {
                 text: isRu ? '🚪 Главное меню' : '🚪 Main menu',
-                callback_data: 'ai_photoshop_exit_to_menu'
-              }
-            ]
-          ]
-        }
+                callback_data: 'ai_photoshop_exit_to_menu',
+              },
+            ],
+          ],
+        },
       }
     )
-
   } catch (error) {
     logger.error('Error in improve last photo handler', { error })
   }
@@ -3602,14 +4163,17 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
     }
 
     const lastPhoto = savedResults[savedResults.length - 1]
-    const imageUrl = typeof lastPhoto.imageUrl === 'string' ? lastPhoto.imageUrl : lastPhoto.url
+    const imageUrl =
+      typeof lastPhoto.imageUrl === 'string'
+        ? lastPhoto.imageUrl
+        : lastPhoto.url
 
     await ctx.editMessageText(
       isRu
         ? `⬆️ *Увеличиваю качество последнего фото!*\n\n🎯 Применяю Clarity Upscaler для улучшения разрешения в 2 раза...\n\n💎 Стоимость: 3 ⭐`
         : `⬆️ *Upscaling last photo quality!*\n\n🎯 Applying Clarity Upscaler to enhance resolution 2x...\n\n💎 Cost: 3 ⭐`,
       {
-        parse_mode: 'Markdown'
+        parse_mode: 'Markdown',
       }
     )
 
@@ -3620,16 +4184,15 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
         username: ctx.from?.username || 'unknown_user',
         is_ru: isRu,
         ctx,
-        originalPrompt: lastPhoto.prompt || 'Dialog mode button upscale'
+        originalPrompt: lastPhoto.prompt || 'Dialog mode button upscale',
       })
 
       // Show dialog interface again after upscaling
       await showDialogInterface(ctx)
-
     } catch (error) {
       logger.error('🚨 AI Photoshop: Upscaler button failed', {
         telegramId: ctx.from?.id,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
 
       await ctx.reply(
@@ -3638,7 +4201,6 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
           : '❌ Error occurred during upscaling. Please try again later.'
       )
     }
-
   } catch (error) {
     logger.error('Error in upscale last photo handler', { error })
   }
@@ -3661,12 +4223,19 @@ aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
     }
 
     const lastPhoto = savedResults[savedResults.length - 1]
-    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce((sum, model) => sum + model.cost, 0)
+    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce(
+      (sum, model) => sum + model.cost,
+      0
+    )
 
     // ✅ EXTENSIBLE: Get all available models dynamically
-    const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as Array<keyof typeof AI_PHOTOSHOP_MODELS>
+    const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as Array<
+      keyof typeof AI_PHOTOSHOP_MODELS
+    >
     const modelNames = availableModels.map(key =>
-      isRu ? AI_PHOTOSHOP_MODELS[key].title_ru : AI_PHOTOSHOP_MODELS[key].title_en
+      isRu
+        ? AI_PHOTOSHOP_MODELS[key].title_ru
+        : AI_PHOTOSHOP_MODELS[key].title_en
     )
 
     await ctx.reply(
@@ -3676,13 +4245,17 @@ aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
       {
         parse_mode: 'Markdown',
         reply_markup: {
-          inline_keyboard: [[
-            {
-              text: isRu ? '⏳ Обработка всеми моделями...' : '⏳ Processing with all models...',
-              callback_data: 'loading_all_models_indicator'
-            }
-          ]]
-        }
+          inline_keyboard: [
+            [
+              {
+                text: isRu
+                  ? '⏳ Обработка всеми моделями...'
+                  : '⏳ Processing with all models...',
+                callback_data: 'loading_all_models_indicator',
+              },
+            ],
+          ],
+        },
       }
     )
 
@@ -3696,7 +4269,7 @@ aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
           telegramId: ctx.from?.id,
           model: modelKey,
           modelTitle,
-          originalPrompt: lastPhoto.prompt
+          originalPrompt: lastPhoto.prompt,
         })
 
         // Set up session for this model
@@ -3716,13 +4289,18 @@ aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
 
         // Small delay between models to prevent rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000))
-
       } catch (modelError) {
-        logger.error(`❌ AI Photoshop: Error processing with model ${modelKey}`, {
-          telegramId: ctx.from?.id,
-          model: modelKey,
-          error: modelError instanceof Error ? modelError.message : 'Unknown error'
-        })
+        logger.error(
+          `❌ AI Photoshop: Error processing with model ${modelKey}`,
+          {
+            telegramId: ctx.from?.id,
+            model: modelKey,
+            error:
+              modelError instanceof Error
+                ? modelError.message
+                : 'Unknown error',
+          }
+        )
 
         // Log error but don't spam user with individual error messages
       }
@@ -3734,13 +4312,12 @@ aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
         ? `✅ *Обработка всеми моделями завершена!*\n\n🎨 Проверьте результаты выше - теперь у вас есть варианты от всех ${availableModels.length} моделей для сравнения!\n\n💡 Используйте команды для дальнейшего улучшения любого результата.`
         : `✅ *Processing with all models completed!*\n\n🎨 Check the results above - now you have variations from all ${availableModels.length} models for comparison!\n\n💡 Use commands to further improve any result.`,
       {
-        parse_mode: 'Markdown'
+        parse_mode: 'Markdown',
       }
     )
 
     // Show dialog interface again
     await showDialogInterface(ctx)
-
   } catch (error) {
     logger.error('Error in generate all models handler', { error })
     const isRu = isRussianFromState(ctx)
@@ -3775,10 +4352,9 @@ aiPhotoshopScene.action('ai_photoshop_add_new', async ctx => {
         ? '📸 *Добавляем новое фото!*\n\n🎯 *Шаг 1 из 4:* Выберите модель ИИ\n\n📋 *Процесс добавления:*\n1️⃣ Выберите модель\n2️⃣ Выберите стиль обработки\n3️⃣ Загрузите фото\n4️⃣ Получите результат\n\n⬇️ *Выберите модель для обработки:*'
         : '📸 *Adding a new photo!*\n\n🎯 *Step 1 of 4:* Choose AI model\n\n📋 *Adding process:*\n1️⃣ Choose model\n2️⃣ Select processing style\n3️⃣ Upload photo\n4️⃣ Get result\n\n⬇️ *Choose a model for processing:*',
       {
-        reply_markup: createModelSelectionKeyboard(isRu).reply_markup
+        reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
       }
     )
-
   } catch (error) {
     logger.error('Error in add new photo handler', { error })
   }
@@ -3793,9 +4369,7 @@ aiPhotoshopScene.action('ai_photoshop_show_all', async ctx => {
     const savedResults = ctx.session?.savedAiPhotoshopResults || []
     if (savedResults.length === 0) {
       await ctx.reply(
-        isRu
-          ? '❌ Нет сохраненных фотографий.'
-          : '❌ No saved photos.'
+        isRu ? '❌ Нет сохраненных фотографий.' : '❌ No saved photos.'
       )
       return
     }
@@ -3813,7 +4387,7 @@ aiPhotoshopScene.action('ai_photoshop_show_all', async ctx => {
         await ctx.replyWithPhoto(photo.url, {
           caption: isRu
             ? `${i + 1}. Модель: ${photo.model}\n💬 "${photo.prompt}"\n⏰ ${new Date(photo.timestamp).toLocaleString('ru')}`
-            : `${i + 1}. Model: ${photo.model}\n💬 "${photo.prompt}"\n⏰ ${new Date(photo.timestamp).toLocaleString('en')}`
+            : `${i + 1}. Model: ${photo.model}\n💬 "${photo.prompt}"\n⏰ ${new Date(photo.timestamp).toLocaleString('en')}`,
         })
       } catch (error) {
         logger.warn('Failed to send saved photo', { error, photoIndex: i })
@@ -3830,7 +4404,6 @@ aiPhotoshopScene.action('ai_photoshop_show_all', async ctx => {
 
     // Show dialog options again
     await showDialogInterface(ctx)
-
   } catch (error) {
     logger.error('Error in show all photos handler', { error })
   }
@@ -3865,10 +4438,9 @@ aiPhotoshopScene.action('ai_photoshop_restart', async ctx => {
         ? '🔄 Начинаем заново!\n\nВыберите модель ИИ для обработки:'
         : '🔄 Starting over!\n\nChoose an AI model for processing:',
       {
-        reply_markup: createModelSelectionKeyboard(isRu).reply_markup
+        reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
       }
     )
-
   } catch (error) {
     logger.error('Error in restart handler', { error })
   }
@@ -3886,8 +4458,8 @@ aiPhotoshopScene.action('ai_photoshop_exit_to_menu', async ctx => {
         : '🚪 Returning to main menu.\n\n✨ Your photos are saved for next time!',
       {
         reply_markup: {
-          remove_keyboard: true
-        }
+          remove_keyboard: true,
+        },
       }
     )
 
@@ -3906,7 +4478,6 @@ aiPhotoshopScene.action('ai_photoshop_exit_to_menu', async ctx => {
 
     await ctx.scene.leave()
     await ctx.scene.enter('main_menu')
-
   } catch (error) {
     logger.error('Error in exit to menu handler', { error })
     // Fallback: force leave scene
@@ -3920,9 +4491,7 @@ aiPhotoshopScene.command('menu', async ctx => {
     const isRu = isRussianFromState(ctx)
 
     await ctx.reply(
-      isRu
-        ? '🚪 Выходим из AI Photoshop...'
-        : '🚪 Exiting AI Photoshop...'
+      isRu ? '🚪 Выходим из AI Photoshop...' : '🚪 Exiting AI Photoshop...'
     )
 
     await ctx.scene.leave()
@@ -4021,7 +4590,9 @@ aiPhotoshopScene.action('ai_photoshop_continue_same', async ctx => {
     const savedResults = ctx.session?.savedAiPhotoshopResults || []
 
     if (savedResults.length === 0) {
-      await ctx.reply(isRu ? '❌ Нет сохраненных результатов' : '❌ No saved results')
+      await ctx.reply(
+        isRu ? '❌ Нет сохраненных результатов' : '❌ No saved results'
+      )
       return
     }
 
@@ -4034,18 +4605,21 @@ aiPhotoshopScene.action('ai_photoshop_continue_same', async ctx => {
 
     // ✅ CRITICAL FIX: Restore the correct model mode to session
     if (ctx.session) {
-      ctx.session.aiPhotoshopModel = lastModel as keyof typeof AI_PHOTOSHOP_MODELS
+      ctx.session.aiPhotoshopModel =
+        lastModel as keyof typeof AI_PHOTOSHOP_MODELS
     }
 
     logger.info('AI Photoshop: Continue with same settings', {
       telegramId: ctx.from?.id,
       model: lastModel,
       wasAllModels,
-      promptLength: lastPrompt.length
+      promptLength: lastPrompt.length,
     })
 
     const modelDisplay = wasAllModels
-      ? (isRu ? 'Все модели' : 'All models')
+      ? isRu
+        ? 'Все модели'
+        : 'All models'
       : lastResult.model
 
     // Re-trigger processing with same settings
@@ -4113,11 +4687,26 @@ Object.keys(AI_PHOTOSHOP_CAMERA_ANGLES).forEach(angle => {
 
       // Store camera angle in session
       if (ctx.session) {
-        ctx.session.aiPhotoshopCameraAngle = angle as 'medium_shot' | 'close_up' | 'extreme_close_up' | 'wide_shot' | 'high_angle' | 'low_angle' | 'dutch_angle' | 'over_shoulder' | 'profile_shot' | 'three_quarter' | 'bird_eye' | 'macro_beauty'
+        ctx.session.aiPhotoshopCameraAngle = angle as
+          | 'medium_shot'
+          | 'close_up'
+          | 'extreme_close_up'
+          | 'wide_shot'
+          | 'high_angle'
+          | 'low_angle'
+          | 'dutch_angle'
+          | 'over_shoulder'
+          | 'profile_shot'
+          | 'three_quarter'
+          | 'bird_eye'
+          | 'macro_beauty'
       }
 
       const angleLabel = getCameraAngleLabel(angle, isRu)
-      const cameraPrompt = AI_PHOTOSHOP_CAMERA_ANGLES[angle as keyof typeof AI_PHOTOSHOP_CAMERA_ANGLES]
+      const cameraPrompt =
+        AI_PHOTOSHOP_CAMERA_ANGLES[
+          angle as keyof typeof AI_PHOTOSHOP_CAMERA_ANGLES
+        ]
 
       await ctx.editMessageText(
         isRu
@@ -4143,11 +4732,26 @@ Object.keys(AI_PHOTOSHOP_LIGHTING_SETUPS).forEach(lighting => {
 
       // Store lighting in session
       if (ctx.session) {
-        ctx.session.aiPhotoshopLighting = lighting as 'soft_natural' | 'dramatic' | 'golden_hour' | 'studio' | 'rembrandt' | 'butterfly' | 'split' | 'rim' | 'candlelight' | 'neon_noir' | 'morning' | 'sunset'
+        ctx.session.aiPhotoshopLighting = lighting as
+          | 'soft_natural'
+          | 'dramatic'
+          | 'golden_hour'
+          | 'studio'
+          | 'rembrandt'
+          | 'butterfly'
+          | 'split'
+          | 'rim'
+          | 'candlelight'
+          | 'neon_noir'
+          | 'morning'
+          | 'sunset'
       }
 
       const lightingLabel = getLightingLabel(lighting, isRu)
-      const lightingPrompt = AI_PHOTOSHOP_LIGHTING_SETUPS[lighting as keyof typeof AI_PHOTOSHOP_LIGHTING_SETUPS]
+      const lightingPrompt =
+        AI_PHOTOSHOP_LIGHTING_SETUPS[
+          lighting as keyof typeof AI_PHOTOSHOP_LIGHTING_SETUPS
+        ]
 
       await ctx.editMessageText(
         isRu
@@ -4166,32 +4770,47 @@ Object.keys(AI_PHOTOSHOP_LIGHTING_SETUPS).forEach(lighting => {
 
 // Composition selection handlers
 Object.keys(AI_PHOTOSHOP_FRAME_COMPOSITION).forEach(composition => {
-  aiPhotoshopScene.action(`ai_photoshop_composition_${composition}`, async ctx => {
-    try {
-      await ctx.answerCbQuery()
-      const isRu = isRussianFromState(ctx)
+  aiPhotoshopScene.action(
+    `ai_photoshop_composition_${composition}`,
+    async ctx => {
+      try {
+        await ctx.answerCbQuery()
+        const isRu = isRussianFromState(ctx)
 
-      // Store composition in session
-      if (ctx.session) {
-        ctx.session.aiPhotoshopComposition = composition as 'center_weighted' | 'rule_thirds' | 'golden_ratio' | 'symmetrical' | 'negative_space' | 'leading_lines'
-      }
-
-      const compositionLabel = getCompositionLabel(composition, isRu)
-      const compositionPrompt = AI_PHOTOSHOP_FRAME_COMPOSITION[composition as keyof typeof AI_PHOTOSHOP_FRAME_COMPOSITION]
-
-      await ctx.editMessageText(
-        isRu
-          ? `✅ *Композиция выбрана:* ${compositionLabel}\n\n📝 Промпт добавлен: \`${compositionPrompt}\`\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
-          : `✅ *Composition selected:* ${compositionLabel}\n\n📝 Prompt added: \`${compositionPrompt}\`\n\n💡 Now write text to process the photo or choose other settings.`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: createCompositionKeyboard(isRu).reply_markup,
+        // Store composition in session
+        if (ctx.session) {
+          ctx.session.aiPhotoshopComposition = composition as
+            | 'center_weighted'
+            | 'rule_thirds'
+            | 'golden_ratio'
+            | 'symmetrical'
+            | 'negative_space'
+            | 'leading_lines'
         }
-      )
-    } catch (error) {
-      logger.error('Error handling composition selection', { error, composition })
+
+        const compositionLabel = getCompositionLabel(composition, isRu)
+        const compositionPrompt =
+          AI_PHOTOSHOP_FRAME_COMPOSITION[
+            composition as keyof typeof AI_PHOTOSHOP_FRAME_COMPOSITION
+          ]
+
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Композиция выбрана:* ${compositionLabel}\n\n📝 Промпт добавлен: \`${compositionPrompt}\`\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
+            : `✅ *Composition selected:* ${compositionLabel}\n\n📝 Prompt added: \`${compositionPrompt}\`\n\n💡 Now write text to process the photo or choose other settings.`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: createCompositionKeyboard(isRu).reply_markup,
+          }
+        )
+      } catch (error) {
+        logger.error('Error handling composition selection', {
+          error,
+          composition,
+        })
+      }
     }
-  })
+  )
 })
 
 // Variations count selection handlers
@@ -4210,7 +4829,7 @@ variationsHandlers.forEach(count => {
 
       logger.info('AI Photoshop: Variations count selected', {
         telegramId: ctx.from?.id,
-        variationsCount: count
+        variationsCount: count,
       })
 
       await ctx.editMessageText(
@@ -4230,13 +4849,55 @@ variationsHandlers.forEach(count => {
 
 // Aspect ratio selection handlers
 const aspectRatioHandlers = [
-  { key: '1_1', ratio: '1:1', labelRu: '🔲 1:1 (Квадрат)', labelEn: '🔲 1:1 (Square)', sizeKey: '1K' },
-  { key: '16_9', ratio: '16:9', labelRu: '📺 16:9 (Широкий)', labelEn: '📺 16:9 (Wide)', sizeKey: '4K' },
-  { key: '9_16', ratio: '9:16', labelRu: '📱 9:16 (Портрет)', labelEn: '📱 9:16 (Portrait)', sizeKey: '2K' },
-  { key: '4_3', ratio: '4:3', labelRu: '🖼️ 4:3 (Стандарт)', labelEn: '🖼️ 4:3 (Standard)', sizeKey: '1K' },
-  { key: '3_4', ratio: '3:4', labelRu: '🖼️ 3:4 (Портрет)', labelEn: '🖼️ 3:4 (Portrait)', sizeKey: '1K' },
-  { key: '21_9', ratio: '21:9', labelRu: '🎬 21:9 (Кино)', labelEn: '🎬 21:9 (Cinema)', sizeKey: '4K' },
-  { key: '9_21', ratio: '9:21', labelRu: '🎬 9:21 (Портрет)', labelEn: '🎬 9:21 (Portrait)', sizeKey: '2K' }
+  {
+    key: '1_1',
+    ratio: '1:1',
+    labelRu: '🔲 1:1 (Квадрат)',
+    labelEn: '🔲 1:1 (Square)',
+    sizeKey: '1K',
+  },
+  {
+    key: '16_9',
+    ratio: '16:9',
+    labelRu: '📺 16:9 (Широкий)',
+    labelEn: '📺 16:9 (Wide)',
+    sizeKey: '4K',
+  },
+  {
+    key: '9_16',
+    ratio: '9:16',
+    labelRu: '📱 9:16 (Портрет)',
+    labelEn: '📱 9:16 (Portrait)',
+    sizeKey: '2K',
+  },
+  {
+    key: '4_3',
+    ratio: '4:3',
+    labelRu: '🖼️ 4:3 (Стандарт)',
+    labelEn: '🖼️ 4:3 (Standard)',
+    sizeKey: '1K',
+  },
+  {
+    key: '3_4',
+    ratio: '3:4',
+    labelRu: '🖼️ 3:4 (Портрет)',
+    labelEn: '🖼️ 3:4 (Portrait)',
+    sizeKey: '1K',
+  },
+  {
+    key: '21_9',
+    ratio: '21:9',
+    labelRu: '🎬 21:9 (Кино)',
+    labelEn: '🎬 21:9 (Cinema)',
+    sizeKey: '4K',
+  },
+  {
+    key: '9_21',
+    ratio: '9:21',
+    labelRu: '🎬 9:21 (Портрет)',
+    labelEn: '🎬 9:21 (Portrait)',
+    sizeKey: '2K',
+  },
 ]
 
 aspectRatioHandlers.forEach(({ key, ratio, labelRu, labelEn, sizeKey }) => {
@@ -4351,7 +5012,10 @@ aiPhotoshopScene.action('ai_photoshop_back_to_main', async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Show dialog mode menu if we have saved results
-    if (ctx.session?.savedAiPhotoshopResults && ctx.session.savedAiPhotoshopResults.length > 0) {
+    if (
+      ctx.session?.savedAiPhotoshopResults &&
+      ctx.session.savedAiPhotoshopResults.length > 0
+    ) {
       await showDialogInterface(ctx)
     } else {
       // Show initial model selection

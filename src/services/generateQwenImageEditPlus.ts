@@ -113,9 +113,18 @@ export const generateQwenImageEditPlus = async (
       finalAspectRatio
     })
 
+    // 🚨 CRITICAL: Truncate prompt to 1000 chars to avoid validation errors
+    const MAX_PROMPT_LENGTH = 1000
+    let truncatedPrompt = prompt
+    if (prompt.length > MAX_PROMPT_LENGTH) {
+      console.log(`⚠️ [QwenEditPlus] Prompt too long (${prompt.length} chars), truncating to ${MAX_PROMPT_LENGTH}`)
+      // Truncate to 997 chars so that adding '...' results in exactly 1000
+      truncatedPrompt = prompt.substring(0, 997) + '...'
+    }
+
     // Validate and prepare input for Qwen API
     const qwenInput = {
-      prompt,
+      prompt: truncatedPrompt,
       image: imageInput,
       aspect_ratio: finalAspectRatio,
       output_format,
