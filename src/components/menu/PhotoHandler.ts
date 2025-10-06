@@ -268,7 +268,7 @@ export class PhotoHandler implements BaseHandler {
       try {
         await ctx.answerCbQuery()
         await ctx.scene.leave()
-        await ctx.scene.enter('flux_kontext_scene')
+        await ctx.scene.enter('ai_photoshop_scene')
       } catch (error) {
         logger.error('Error in different_mode action:', {
           error,
