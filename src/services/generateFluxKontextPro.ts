@@ -188,8 +188,8 @@ export const generateFluxKontextPro = async (
         error: error instanceof Error ? error.message : String(error),
       })
 
-      // ✅ Refund user on API failure
-      await refundUser(ctx, totalCost)
+      // ✅ Refund user on API failure (silent mode if needed)
+      await refundUser(ctx, totalCost, params.silent || false)
 
       throw error
     }
