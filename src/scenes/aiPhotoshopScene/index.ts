@@ -44,10 +44,14 @@ const AI_PHOTOSHOP_PRICING = {
   // 🎯 БАЗОВЫЕ USD ЦЕНЫ МОДЕЛЕЙ (себестоимость Replicate)
   // Проверено на https://replicate.com/ - актуальные цены 2025
   modelsUSD: {
-    seedream: 0.03,           // SeeDream-4 (ByteDance)
-    nano_banana: 0.039,       // Nano Banana (Google Gemini 2.5)
-    flux_multi_kontext: 0.03, // FLUX Multi-Kontext
-    qwen_edit_plus: 0.03,     // Qwen Image Edit Plus
+    seedream: 0.03,            // SeeDream-4 (ByteDance)
+    nano_banana: 0.039,        // Nano Banana (Google Gemini 2.5)
+    flux_multi_kontext: 0.03,  // FLUX Multi-Kontext
+    qwen_edit_plus: 0.03,      // Qwen Image Edit Plus
+    // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
+    flux_kontext_pro: 0.05,    // FLUX Kontext Pro (8x faster, Adobe integrated)
+    seededit_3: 0.05,          // SeedEdit 3.0 (56.1% usability, 4K support)
+    qwen_image_edit: 0.025,    // Qwen Image Edit (SOTA, bilingual, FREE)
   },
 
   // 💰 НАЦЕНКА для AI Photoshop (множитель)
@@ -61,6 +65,10 @@ const AI_PHOTOSHOP_PRICING = {
       nano_banana: calculateFinalPriceInStars(this.modelsUSD.nano_banana, 0.016, this.markup),        // $0.039 → 6⭐
       flux_multi_kontext: calculateFinalPriceInStars(this.modelsUSD.flux_multi_kontext, 0.016, this.markup), // $0.03 → 5⭐
       qwen_edit_plus: calculateFinalPriceInStars(this.modelsUSD.qwen_edit_plus, 0.016, this.markup),  // $0.03 → 5⭐
+      // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
+      flux_kontext_pro: calculateFinalPriceInStars(this.modelsUSD.flux_kontext_pro, 0.016, this.markup),    // $0.05 → 8⭐
+      seededit_3: calculateFinalPriceInStars(this.modelsUSD.seededit_3, 0.016, this.markup),                // $0.05 → 8⭐
+      qwen_image_edit: calculateFinalPriceInStars(this.modelsUSD.qwen_image_edit, 0.016, this.markup),      // $0.025 → 4⭐
     }
   },
 
@@ -118,6 +126,10 @@ import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
 import { generateAdvancedFluxKontext } from '@/services/generateFluxKontext'
 import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
+// ✅ NEW AI PHOTOSHOP MODELS - January 2025
+import { generateFluxKontextPro } from '@/services/generateFluxKontextPro'
+import { generateSeedEdit3 } from '@/services/generateSeedEdit3'
+import { generateQwenImageEdit } from '@/services/generateQwenImageEdit'
 // ✅ IMPORT MULTI-PHOTO SUPPORT FOR AI PHOTOSHOP
 import {
   detectMultiPhotoUpload,
@@ -198,23 +210,23 @@ const AI_PHOTOSHOP_MODELS = {
       'ByteDance SeeDream-4 - Продвинутая генерация и трансформация изображений',
     description_en:
       'ByteDance SeeDream-4 - Advanced image generation and transformation',
-    cost: AI_PHOTOSHOP_PRICING.models.seedream, // ✅ Цена из централизованной конфигурации
+    cost: AI_PHOTOSHOP_PRICING.models.seedream,
     key: 'seedream',
     supports_image_input: true,
     supports_text_only: true,
-    supports_multi_image: true, // ✅ NEW: Multi-image support
-    max_images: 10, // Updated from 5 to 10
+    supports_multi_image: true,
+    max_images: 10,
   },
   nano_banana: {
     title_ru: '🍌 Nano Banana',
     title_en: '🍌 Nano Banana',
     description_ru: 'Google Nano Banana - ИИ редактирование на базе Gemini 2.5',
     description_en: 'Google Nano Banana - AI editing powered by Gemini 2.5',
-    cost: AI_PHOTOSHOP_PRICING.models.nano_banana, // ✅ Цена из централизованной конфигурации
+    cost: AI_PHOTOSHOP_PRICING.models.nano_banana,
     key: 'nano_banana',
     supports_image_input: true,
     supports_text_only: false,
-    supports_multi_image: true, // ✅ NEW: Multi-image support
+    supports_multi_image: true,
     max_images: 3,
   },
   flux_multi_kontext: {
@@ -224,11 +236,11 @@ const AI_PHOTOSHOP_MODELS = {
       'FLUX Multi-Kontext Pro - Объединение двух изображений в единый композит',
     description_en:
       'FLUX Multi-Kontext Pro - Combine two images into seamless composite',
-    cost: AI_PHOTOSHOP_PRICING.models.flux_multi_kontext, // ✅ Цена из централизованной конфигурации
+    cost: AI_PHOTOSHOP_PRICING.models.flux_multi_kontext,
     key: 'flux_multi_kontext',
     supports_image_input: true,
     supports_text_only: false,
-    supports_multi_image: true, // ✅ Поддерживает 2 изображения
+    supports_multi_image: true,
     max_images: 2,
   },
   qwen_edit_plus: {
@@ -238,11 +250,54 @@ const AI_PHOTOSHOP_MODELS = {
       'Qwen Image Edit Plus - Продвинутое редактирование множественных изображений',
     description_en:
       'Qwen Image Edit Plus - Advanced multi-image editing with improved consistency',
-    cost: AI_PHOTOSHOP_PRICING.models.qwen_edit_plus, // ✅ Цена из централизованной конфигурации
+    cost: AI_PHOTOSHOP_PRICING.models.qwen_edit_plus,
     key: 'qwen_edit_plus',
     supports_image_input: true,
     supports_text_only: false,
-    supports_multi_image: true, // ✅ Multi-image support
+    supports_multi_image: true,
+    max_images: 10,
+  },
+  // ✨ NEW AI PHOTOSHOP MODELS - January 2025
+  flux_kontext_pro: {
+    title_ru: '⚡ FLUX Kontext Pro',
+    title_en: '⚡ FLUX Kontext Pro',
+    description_ru:
+      'FLUX Kontext Pro - 8x быстрее, интеграция с Adobe Photoshop Beta',
+    description_en:
+      'FLUX Kontext Pro - 8x faster, Adobe Photoshop Beta integrated',
+    cost: AI_PHOTOSHOP_PRICING.models.flux_kontext_pro,
+    key: 'flux_kontext_pro',
+    supports_image_input: true,
+    supports_text_only: true,
+    supports_multi_image: false,
+    max_images: 1,
+  },
+  seededit_3: {
+    title_ru: '🎯 SeedEdit 3.0',
+    title_en: '🎯 SeedEdit 3.0',
+    description_ru:
+      'SeedEdit 3.0 - 56.1% usability, поддержка 4K, лучшая детализация',
+    description_en:
+      'SeedEdit 3.0 - 56.1% usability, 4K support, superior detail preservation',
+    cost: AI_PHOTOSHOP_PRICING.models.seededit_3,
+    key: 'seededit_3',
+    supports_image_input: true,
+    supports_text_only: true,
+    supports_multi_image: false,
+    max_images: 1,
+  },
+  qwen_image_edit: {
+    title_ru: '🔥 Qwen Edit (SOTA)',
+    title_en: '🔥 Qwen Edit (SOTA)',
+    description_ru:
+      'Qwen Image Edit - SOTA производительность, билингвальное редактирование текста',
+    description_en:
+      'Qwen Image Edit - SOTA performance, bilingual text editing',
+    cost: AI_PHOTOSHOP_PRICING.models.qwen_image_edit,
+    key: 'qwen_image_edit',
+    supports_image_input: true,
+    supports_text_only: false,
+    supports_multi_image: true,
     max_images: 10,
   },
 }
@@ -327,11 +382,8 @@ const createModelSelectionKeyboard = (isRu: boolean) => {
     keyboard.push(row)
   }
 
-  // ✅ Add "All at once" button
-  const totalCostAllModels = Object.values(AI_PHOTOSHOP_MODELS).reduce(
-    (sum, model) => sum + model.cost,
-    0
-  )
+  // ✅ Add "All at once" button - автоматически считает все модели из AI_PHOTOSHOP_MODELS
+  const totalCostAllModels = AI_PHOTOSHOP_PRICING.getAllModelsCost()
   keyboard.push([
     Markup.button.callback(
       isRu
@@ -1191,14 +1243,15 @@ aiPhotoshopScene.action(
       if (ctx.session) {
         ctx.session.aiPhotoshopSize = sizeMatch
         ctx.session.aiPhotoshopModel = 'all_models' as any // Ensure model is set to all_models
-        ctx.session.aiPhotoshopStep = 'image_upload'
-        ctx.session.awaitingAiPhotoshopImage = true
+        ctx.session.aiPhotoshopStep = 'custom_prompt' // ✅ FIX: Ask for PROMPT first, not photo!
+        ctx.session.awaitingAiPhotoshopPrompt = true // ✅ FIX: Await prompt, not image
+        ctx.session.awaitingAiPhotoshopImage = false // ✅ FIX: Not awaiting image yet
 
         logger.info('🎯 AI Photoshop: ALL_MODELS size selected', {
           telegramId: ctx.from?.id,
           selectedSize: sizeMatch,
           aiPhotoshopModel: ctx.session.aiPhotoshopModel,
-          awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
+          awaitingAiPhotoshopPrompt: ctx.session.awaitingAiPhotoshopPrompt,
         })
       }
 
@@ -1206,6 +1259,7 @@ aiPhotoshopScene.action(
       const modelNames = Object.values(AI_PHOTOSHOP_MODELS).map(model =>
         isRu ? model.title_ru : model.title_en
       )
+      const totalModelsCount = Object.keys(AI_PHOTOSHOP_MODELS).length
 
       let totalCost: number
       let qualityDesc: string
@@ -1230,8 +1284,8 @@ aiPhotoshopScene.action(
 
       await ctx.editMessageText(
         isRu
-          ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📸 *Отправьте фото для обработки:*`
-          : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📸 *Send photo for processing:*`,
+          ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📝 *Опишите, как обработать изображение:*\n\n💡 _Этот промпт будет использован для всех ${totalModelsCount} моделей_`
+          : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📝 *Describe how to process the image:*\n\n💡 _This prompt will be used for all ${totalModelsCount} models_`,
         {
           parse_mode: 'Markdown',
           reply_markup: {
@@ -1484,25 +1538,39 @@ async function handleAllModelsPrompt(
       imageCount: ctx.session.morphingImages?.length || 0,
     })
 
-    // Save prompt and show confirmation
+    // ✅ Save prompt and request PHOTO
     ctx.session.aiPhotoshopPrompt = messageText
     ctx.session.awaitingAiPhotoshopPrompt = false
+    ctx.session.awaitingAiPhotoshopImage = true // ✅ NOW waiting for photo!
+    ctx.session.aiPhotoshopStep = 'image_upload' // ✅ Move to image upload step
+
+    const totalModelsCount = Object.keys(AI_PHOTOSHOP_MODELS).length
+    const selectedSize = ctx.session.aiPhotoshopSize || '2K'
+
+    // ✅ Calculate cost based on ALREADY SELECTED quality
+    let totalCost: number
+    switch (selectedSize) {
+      case '1K':
+        totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('1K')
+        break
+      case '2K':
+        totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('2K')
+        break
+      case '4K':
+        totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('4K')
+        break
+      default:
+        totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('1K')
+    }
 
     await ctx.reply(
       isRu
-        ? `✅ Промпт получен: "${messageText}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n⚙️ Выберите качество для расчета стоимости`
-        : `✅ Prompt received: "${messageText}"\n\n🎯 Ready to process with all 4 models!\n\n⚙️ Select quality to calculate cost`,
+        ? `✅ Промпт получен: "${messageText}"\n\n🎯 Готово к обработке всеми ${totalModelsCount} моделями!\n\n📊 Качество: ${selectedSize}\n💰 Стоимость: ${totalCost}⭐\n\n📸 *Отправьте фото для обработки:*`
+        : `✅ Prompt received: "${messageText}"\n\n🎯 Ready to process with all ${totalModelsCount} models!\n\n📊 Quality: ${selectedSize}\n💰 Cost: ${totalCost}⭐\n\n📸 *Send photo for processing:*`,
       {
+        parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
-            [
-              {
-                text: isRu
-                  ? '🚀 Начать обработку всеми моделями'
-                  : '🚀 Start processing with all models',
-                callback_data: 'ai_photoshop_multi_confirm',
-              },
-            ],
             [
               {
                 text: isRu ? '❌ Отмена' : '❌ Cancel',
@@ -1966,10 +2034,11 @@ aiPhotoshopScene.on('text', async ctx => {
       }
 
       // Show confirmation message for all_models mode
+      const totalModelsCount = Object.keys(AI_PHOTOSHOP_MODELS).length
       await ctx.reply(
         isRu
-          ? `✅ Промпт получен: "${prompt}"\n\n🎯 Готово к обработке всеми 4 моделями!\n\n⚙️ Выберите качество для расчета стоимости`
-          : `✅ Prompt received: "${prompt}"\n\n🎯 Ready to process with all 4 models!\n\n⚙️ Select quality to calculate cost`,
+          ? `✅ Промпт получен: "${prompt}"\n\n🎯 Готово к обработке всеми ${totalModelsCount} моделями!\n\n⚙️ Выберите качество для расчета стоимости`
+          : `✅ Prompt received: "${prompt}"\n\n🎯 Ready to process with all ${totalModelsCount} models!\n\n⚙️ Select quality to calculate cost`,
         {
           reply_markup: {
             inline_keyboard: [
@@ -2080,9 +2149,10 @@ const createAiPhotoshopProgressMessage = (
 
   // ✅ Special message for 'all_models' mode
   if (isAllModelsMode) {
+    const totalModelsCount = Object.keys(AI_PHOTOSHOP_MODELS).length
     const baseMessage = isRu
-      ? `🎯 *ИИ Фотошоп - Все модели сразу*\n\n📸 ${progressBar}\n\n✨ Отлично! Загружайте еще фотографии\n💡 Каждое фото будет обработано всеми 4 моделями\n⚙️ Цена зависит от выбранного качества (1K/2K/4K)`
-      : `🎯 *AI Photoshop - All Models*\n\n📸 ${progressBar}\n\n✨ Great! Upload more photos\n💡 Each photo will be processed by all 4 models\n⚙️ Price depends on selected quality (1K/2K/4K)`
+      ? `🎯 *ИИ Фотошоп - Все модели сразу*\n\n📸 ${progressBar}\n\n✨ Отлично! Загружайте еще фотографии\n💡 Каждое фото будет обработано всеми ${totalModelsCount} моделями\n⚙️ Цена зависит от выбранного качества (1K/2K/4K)`
+      : `🎯 *AI Photoshop - All Models*\n\n📸 ${progressBar}\n\n✨ Great! Upload more photos\n💡 Each photo will be processed by all ${totalModelsCount} models\n⚙️ Price depends on selected quality (1K/2K/4K)`
 
     if (count >= 1) {
       const actionMessage = isRu
@@ -2382,19 +2452,17 @@ async function showDialogInterface(ctx: MyContext): Promise<void> {
 
   const recentPhoto = savedResults[savedResults.length - 1]
 
-  // ✅ NEW: Calculate total cost for "All Models" button
-  const totalCostAllModels = Object.values(AI_PHOTOSHOP_MODELS).reduce(
-    (sum, model) => sum + model.cost,
-    0
-  )
+  // ✅ NEW: Calculate total cost and count for "All Models" button - автоматически считает все модели
+  const totalCostAllModels = AI_PHOTOSHOP_PRICING.getAllModelsCost()
+  const totalModelsCount = Object.keys(AI_PHOTOSHOP_MODELS).length
 
   const title = isRu
     ? '🎨 *Продолжить работу с фотографиями*'
     : '🎨 *Continue working with photos*'
 
   const description = isRu
-    ? `✨ У вас есть ${savedResults.length} обработанных фото в галерее!\n\n🎯 *Диалоговый режим активен* - теперь вы можете:\n\n💬 *Просто написать текст для улучшения:*\n• "Добавь туда побольше атмосферы и девчонок"\n• "Сделай более яркие цвета"\n• "Добавь эффект дождя или снега"\n• "Измени стиль на винтажный"\n• "Убери фон, оставь только человека"\n• "Увеличить качество" или "upscale" для апскейлинга\n\n🔄 *Использовать кнопки для быстрых действий*\n⬆️ *Увеличить качество* фото с помощью Clarity Upscaler\n🎯 *Все сразу* - генерация во ВСЕХ 4 моделях одновременно (${totalCostAllModels}⭐)\n📸 *Добавить новое фото* для обработки\n📋 *Посмотреть всю галерею* (${savedResults.length} фото)\n\n🚀 *Продвинутые команды:*\n• "Увеличь контрастность на 20%"\n• "Добавь теплые тона"\n• "Сделай как в стиле Ван Гога"\n\n💡 *Совет:* Пишите простые команды - я понимаю естественный язык!`
-    : `✨ You have ${savedResults.length} processed photos in your gallery!\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text to improve:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n🔄 *Use buttons for quick actions*\n⬆️ *Upscale photo quality* with Clarity Upscaler\n🎯 *All at once* - generate with ALL 4 models simultaneously (${totalCostAllModels}⭐)\n📸 *Add new photo* to process\n📋 *View entire gallery* (${savedResults.length} photos)\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!`
+    ? `✨ У вас есть ${savedResults.length} обработанных фото в галерее!\n\n🎯 *Диалоговый режим активен* - теперь вы можете:\n\n💬 *Просто написать текст для улучшения:*\n• "Добавь туда побольше атмосферы и девчонок"\n• "Сделай более яркие цвета"\n• "Добавь эффект дождя или снега"\n• "Измени стиль на винтажный"\n• "Убери фон, оставь только человека"\n• "Увеличить качество" или "upscale" для апскейлинга\n\n🔄 *Использовать кнопки для быстрых действий*\n⬆️ *Увеличить качество* фото с помощью Clarity Upscaler\n🎯 *Все сразу* - генерация во ВСЕХ ${totalModelsCount} моделях одновременно (${totalCostAllModels}⭐)\n📸 *Добавить новое фото* для обработки\n📋 *Посмотреть всю галерею* (${savedResults.length} фото)\n\n🚀 *Продвинутые команды:*\n• "Увеличь контрастность на 20%"\n• "Добавь теплые тона"\n• "Сделай как в стиле Ван Гога"\n\n💡 *Совет:* Пишите простые команды - я понимаю естественный язык!`
+    : `✨ You have ${savedResults.length} processed photos in your gallery!\n\n🎯 *Dialog mode is active* - now you can:\n\n💬 *Simply write text to improve:*\n• "Add more atmosphere and girls there"\n• "Make colors more vibrant"\n• "Add rain or snow effect"\n• "Change style to vintage"\n• "Remove background, keep only person"\n• "Upscale" or "enhance quality" for upscaling\n\n🔄 *Use buttons for quick actions*\n⬆️ *Upscale photo quality* with Clarity Upscaler\n🎯 *All at once* - generate with ALL ${totalModelsCount} models simultaneously (${totalCostAllModels}⭐)\n📸 *Add new photo* to process\n📋 *View entire gallery* (${savedResults.length} photos)\n\n🚀 *Advanced commands:*\n• "Increase contrast by 20%"\n• "Add warm tones"\n• "Make it Van Gogh style"\n\n💡 *Tip:* Write simple commands - I understand natural language!`
 
   const keyboard = Markup.inlineKeyboard([
     [
@@ -2590,10 +2658,9 @@ const processAiPhotoshopRequest = async (
       }
     )
 
-    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce(
-      (sum, model) => sum + model.cost,
-      0
-    )
+    // ✅ FIX: Use quality multiplier for correct cost display
+    const selectedQuality = (ctx.session?.aiPhotoshopSize || '1K') as '1K' | '2K' | '4K'
+    const totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality(selectedQuality)
     const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as Array<
       keyof typeof AI_PHOTOSHOP_MODELS
     >
@@ -2994,9 +3061,10 @@ const processAiPhotoshopRequest = async (
         const qwenSelectedSize = ctx.session?.aiPhotoshopSize || '2K'
 
         // Map size to aspect ratio (централизованно из AI_PHOTOSHOP_PRICING)
+        // ✅ REFACTOR: inputImageUrl FIRST (what), then prompt (how)
         result = await generateQwenImageEditPlus({
-          prompt: finalPrompt,
-          inputImageUrl: actualImageUrls, // Qwen supports multiple images
+          inputImageUrl: actualImageUrls, // WHAT to edit - Qwen supports multiple images
+          prompt: finalPrompt, // HOW to edit
           telegram_id: ctx.from.id.toString(),
           username: ctx.from.username || 'unknown',
           is_ru: isRu,
@@ -3005,6 +3073,69 @@ const processAiPhotoshopRequest = async (
             AI_PHOTOSHOP_PRICING.sizeToAspectRatio[qwenSelectedSize] || '1:1',
           output_format: 'webp',
           output_quality: 90,
+        })
+        break
+
+      // ✨ NEW AI PHOTOSHOP MODELS - January 2025
+      case 'flux_kontext_pro':
+        logger.info('⚡ Processing with FLUX Kontext Pro', {
+          telegram_id: ctx.from.id,
+          imageCount: actualImageUrls.length,
+        })
+
+        const fluxProSize = ctx.session?.aiPhotoshopSize || '2K'
+
+        // ✅ REFACTOR: inputImageUrl FIRST (what), then prompt (how)
+        result = await generateFluxKontextPro({
+          inputImageUrl: actualImageUrls[0], // WHAT to edit - Single image only
+          prompt: finalPrompt, // HOW to edit
+          telegram_id: ctx.from.id.toString(),
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          size: fluxProSize,
+          aspect_ratio:
+            AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
+        })
+        break
+
+      case 'seededit_3':
+        logger.info('🎯 Processing with SeedEdit 3.0', {
+          telegram_id: ctx.from.id,
+          imageCount: actualImageUrls.length,
+        })
+
+        const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'
+
+        // ✅ REFACTOR: inputImageUrl FIRST (what), then prompt (how)
+        result = await generateSeedEdit3({
+          inputImageUrl: actualImageUrls[0], // WHAT to edit - Single image only
+          prompt: finalPrompt, // HOW to edit
+          telegram_id: ctx.from.id.toString(),
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          size: seedEdit3Size,
+        })
+        break
+
+      case 'qwen_image_edit':
+        logger.info('🔥 Processing with Qwen Image Edit (SOTA)', {
+          telegram_id: ctx.from.id,
+          imageCount: actualImageUrls.length,
+        })
+
+        const qwenImageEditSize = ctx.session?.aiPhotoshopSize || '2K'
+
+        // ✅ REFACTOR: inputImageUrl FIRST (what), then prompt (how)
+        result = await generateQwenImageEdit({
+          inputImageUrl: actualImageUrls[0], // WHAT to edit - Single image only
+          prompt: finalPrompt, // HOW to edit
+          telegram_id: ctx.from.id.toString(),
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          size: qwenImageEditSize,
         })
         break
 
@@ -3273,8 +3404,16 @@ const processSingleAiPhotoshopModel = async (
         console.log('🍌🍌🍌 [DEBUG] NANO_BANANA CONDITION MATCHED!')
         // Nano Banana supports up to 3 images
         const limitedImages = imagesToProcess.slice(0, 3)
+
+        // ✅ Get aspect_ratio from centralized config
+        const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
+        const aspectRatio = AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '9:16'
+
+        // ✅ Nano Banana controls aspect ratio through PROMPT, not API parameter
+        const promptWithAspectRatio = `[${aspectRatio} aspect ratio] ${prompt}`
+
         result = await generateNanoBanana({
-          promptText: prompt,
+          promptText: promptWithAspectRatio, // ✅ Include aspect ratio in prompt
           inputImageUrl:
             limitedImages.length === 1 ? limitedImages[0] : limitedImages,
           telegram_id: userId.toString(),
@@ -3326,9 +3465,10 @@ const processSingleAiPhotoshopModel = async (
       } else if (modelKey === 'qwen_edit_plus') {
         // Qwen supports multiple images (up to 10)
         const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
+        // ✅ REFACTOR: inputImageUrl FIRST (what), then prompt (how)
         result = await generateQwenImageEditPlus({
-          prompt,
-          inputImageUrl: imagesToProcess, // Pass array of ALL images
+          inputImageUrl: imagesToProcess, // WHAT to edit - Pass array of ALL images
+          prompt, // HOW to edit
           telegram_id: userId.toString(),
           username: ctx.from?.username || 'unknown',
           is_ru: isRu,
@@ -3337,40 +3477,123 @@ const processSingleAiPhotoshopModel = async (
           output_format: 'jpg',
           output_quality: 90,
         })
-      }
+      } else if (['flux_kontext_pro', 'seededit_3', 'qwen_image_edit'].includes(modelKey)) {
+        // 🔄 Models 5-7 support ONLY single image - process EACH image in loop
+        logger.info(`🔄 Processing ${imagesToProcess.length} images with ${modelKey}`, {
+          telegram_id: userId.toString(),
+          imageCount: imagesToProcess.length,
+          modelKey,
+        })
 
-      // Save result and SEND PHOTO to user (all_models mode)
-      if (result) {
-        const imageUrl =
-          typeof result === 'string'
-            ? result
-            : result.image || result.imageUrl || result
-        if (imageUrl) {
-          // ✅ CRITICAL FIX: Only send photo for FLUX (other models send themselves)
-          // SeeDream, NanoBanana, QwenEditPlus отправляют фото сами внутри своих функций
-          if (modelKey === 'flux_multi_kontext') {
-            try {
-              await ctx.replyWithPhoto(imageUrl, {
-                caption: isRu
-                  ? `✅ *${modelTitle}*\n\n📝 Промпт: "${prompt.substring(0, 200)}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
-                  : `✅ *${modelTitle}*\n\n📝 Prompt: "${prompt.substring(0, 200)}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
-                parse_mode: 'Markdown',
+        // ✅ Check balance ONCE before loop (prevents ctx navigation on each iteration)
+        const modelCost = AI_PHOTOSHOP_PRICING[modelKey]?.cost || 5
+        const qualityMultiplier =
+          (ctx.session?.aiPhotoshopSize === '4K' ? 6 :
+           ctx.session?.aiPhotoshopSize === '2K' ? 4 : 1)
+        const costPerImage = modelCost * qualityMultiplier
+        const totalCostForAllImages = costPerImage * imagesToProcess.length
+
+        logger.info(`💰 Pre-loop balance check for ${modelKey}`, {
+          telegram_id: userId.toString(),
+          imageCount: imagesToProcess.length,
+          costPerImage,
+          totalCostForAllImages,
+        })
+
+        // Check balance once
+        const { processBalanceOperation } = await import('@/price/helpers')
+        const balanceCheck = await processBalanceOperation({
+          ctx,
+          telegram_id: userId,
+          paymentAmount: totalCostForAllImages,
+          is_ru: isRu,
+          bot_name: ctx.botInfo.username,
+        })
+
+        if (!balanceCheck.success) {
+          logger.error(`❌ Insufficient balance for ${modelKey}, skipping`, {
+            telegram_id: userId.toString(),
+            required: totalCostForAllImages,
+          })
+          // Skip this model - do not process images
+        } else {
+          // Balance check passed - process all images
+          for (let i = 0; i < imagesToProcess.length; i++) {
+          const currentImageUrl = imagesToProcess[i]
+
+          logger.info(`🎨 Processing image ${i + 1}/${imagesToProcess.length}`, {
+            telegram_id: userId.toString(),
+            imageIndex: i + 1,
+            model: modelKey,
+          })
+
+          try {
+            if (modelKey === 'flux_kontext_pro') {
+              const fluxProSize = ctx.session?.aiPhotoshopSize || '2K'
+              result = await generateFluxKontextPro({
+                inputImageUrl: currentImageUrl,
+                prompt,
+                telegram_id: userId.toString(),
+                username: ctx.from?.username || 'unknown',
+                is_ru: isRu,
+                ctx,
+                size: fluxProSize,
+                aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
+                silent: true, // ✅ Don't send photo in ALL_MODELS mode
+                skipBalanceCheck: true, // ✅ Balance already checked before loop
               })
-              logger.info(`✅ ${modelKey} photo sent successfully in all_models mode`, {
-                telegramId: ctx.from?.id,
-                model: modelKey,
+            } else if (modelKey === 'seededit_3') {
+              const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'
+              result = await generateSeedEdit3({
+                inputImageUrl: currentImageUrl,
+                prompt,
+                telegram_id: userId.toString(),
+                username: ctx.from?.username || 'unknown',
+                is_ru: isRu,
+                ctx,
+                size: seedEdit3Size,
+                silent: true, // ✅ Don't send photo in ALL_MODELS mode
+                skipBalanceCheck: true, // ✅ Balance already checked before loop
               })
-            } catch (photoError) {
-              logger.error(`❌ Failed to send ${modelKey} photo in all_models mode`, {
-                telegramId: ctx.from?.id,
-                model: modelKey,
-                error: photoError instanceof Error ? photoError.message : 'Unknown error',
+            } else if (modelKey === 'qwen_image_edit') {
+              const qwenImageEditSize = ctx.session?.aiPhotoshopSize || '2K'
+              result = await generateQwenImageEdit({
+                inputImageUrl: currentImageUrl,
+                prompt,
+                telegram_id: userId.toString(),
+                username: ctx.from?.username || 'unknown',
+                is_ru: isRu,
+                ctx,
+                size: qwenImageEditSize,
+                silent: true, // ✅ Don't send photo in ALL_MODELS mode
+                skipBalanceCheck: true, // ✅ Balance already checked before loop
               })
             }
-          }
 
-          await savePhotoResult(ctx, imageUrl, modelKey, prompt, true) // ✅ Mark as all_models mode
+            // Save result for EACH image
+            if (result) {
+              const imageUrl =
+                typeof result === 'string'
+                  ? result
+                  : result.image || result.imageUrl || result
+              if (imageUrl) {
+                await savePhotoResult(ctx, imageUrl, modelKey, prompt, true)
+                logger.info(`✅ ${modelKey} image ${i + 1}/${imagesToProcess.length} completed`, {
+                  telegram_id: userId.toString(),
+                  imageIndex: i + 1,
+                })
+              }
+            }
+          } catch (error) {
+            logger.error(`❌ ${modelKey} image ${i + 1}/${imagesToProcess.length} FAILED`, {
+              telegram_id: userId.toString(),
+              imageIndex: i + 1,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            // Continue with next image even if this one failed
+          }
         }
+        } // End else (balance check passed)
       }
     } else {
       // 🚨 NORMAL MODE: Process images individually for backward compatibility
@@ -3427,9 +3650,10 @@ const processSingleAiPhotoshopModel = async (
           })
         } else if (modelKey === 'qwen_edit_plus') {
           const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
+          // ✅ REFACTOR: inputImageUrl FIRST (what), then prompt (how)
           result = await generateQwenImageEditPlus({
-            prompt,
-            inputImageUrl: currentImageUrl,
+            inputImageUrl: currentImageUrl, // WHAT to edit
+            prompt, // HOW to edit
             telegram_id: userId.toString(),
             username: ctx.from?.username || 'unknown',
             is_ru: isRu,
@@ -3437,6 +3661,43 @@ const processSingleAiPhotoshopModel = async (
             aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '1:1',
             output_format: 'jpg',
             output_quality: 90,
+          })
+        } else if (modelKey === 'flux_kontext_pro') {
+          // ⚡ FLUX Kontext Pro - process EACH image separately (fast 8x Adobe integrated)
+          const fluxProSize = ctx.session?.aiPhotoshopSize || '2K'
+          result = await generateFluxKontextPro({
+            inputImageUrl: currentImageUrl, // WHAT to edit - EACH image separately
+            prompt, // HOW to edit
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
+            size: fluxProSize,
+            aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
+          })
+        } else if (modelKey === 'seededit_3') {
+          // 🎯 SeedEdit 3.0 - process EACH image separately, 4K support, detail preservation
+          const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'
+          result = await generateSeedEdit3({
+            inputImageUrl: currentImageUrl, // WHAT to edit - EACH image separately
+            prompt, // HOW to edit
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
+            size: seedEdit3Size,
+          })
+        } else if (modelKey === 'qwen_image_edit') {
+          // 🔥 Qwen Image Edit (SOTA) - process EACH image separately, bilingual support
+          const qwenImageEditSize = ctx.session?.aiPhotoshopSize || '2K'
+          result = await generateQwenImageEdit({
+            inputImageUrl: currentImageUrl, // WHAT to edit - EACH image separately
+            prompt, // HOW to edit
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
+            size: qwenImageEditSize,
           })
         }
 
@@ -3813,11 +4074,12 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
 
       // Check if prompt is already provided for all_models
       if (!ctx.session.aiPhotoshopPrompt) {
+        const totalModelsCount = Object.keys(AI_PHOTOSHOP_MODELS).length
         // Ask for prompt first for all_models mode
         await ctx.editMessageText(
           isRu
-            ? `🎯 <b>Все модели сразу</b>\n\n📝 Опишите, как обработать ваши ${ctx.session.morphingImages?.length || 0} изображений:\n\n💡 <i>Этот промпт будет использован для всех 4 моделей</i>`
-            : `🎯 <b>All models at once</b>\n\n📝 Describe how to process your ${ctx.session.morphingImages?.length || 0} images:\n\n💡 <i>This prompt will be used for all 4 models</i>`,
+            ? `🎯 <b>Все модели сразу</b>\n\n📝 Опишите, как обработать ваши ${ctx.session.morphingImages?.length || 0} изображений:\n\n💡 <i>Этот промпт будет использован для всех ${totalModelsCount} моделей</i>`
+            : `🎯 <b>All models at once</b>\n\n📝 Describe how to process your ${ctx.session.morphingImages?.length || 0} images:\n\n💡 <i>This prompt will be used for all ${totalModelsCount} models</i>`,
           {
             parse_mode: 'HTML',
             reply_markup: {
@@ -4223,10 +4485,10 @@ aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
     }
 
     const lastPhoto = savedResults[savedResults.length - 1]
-    const totalCost = Object.values(AI_PHOTOSHOP_MODELS).reduce(
-      (sum, model) => sum + model.cost,
-      0
-    )
+
+    // ✅ FIX: Use quality multiplier for correct cost display
+    const selectedQuality = (ctx.session?.aiPhotoshopSize || '1K') as '1K' | '2K' | '4K'
+    const totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality(selectedQuality)
 
     // ✅ EXTENSIBLE: Get all available models dynamically
     const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as Array<

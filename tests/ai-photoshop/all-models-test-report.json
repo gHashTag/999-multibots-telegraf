@@ -1,9 +1,9 @@
 {
-  "timestamp": "2025-09-29T16:32:42.277Z",
+  "timestamp": "2025-10-06T11:49:49.907Z",
   "totalTests": 8,
-  "passed": 8,
-  "failed": 0,
-  "successRate": "100.0%",
+  "passed": 5,
+  "failed": 3,
+  "successRate": "62.5%",
   "results": [
     {
       "name": "Interface Type Definition",
@@ -22,13 +22,13 @@
     },
     {
       "name": "Photo Collection Logic",
-      "status": "PASS",
-      "details": "Photo collection properly configured for all_models mode"
+      "status": "FAIL",
+      "error": "Photo collection logic for all_models mode not found"
     },
     {
       "name": "Cost Calculation",
-      "status": "PASS",
-      "details": "DYNAMIC cost calculation properly implemented (5+7+13+5=30⭐) - extensible architecture"
+      "status": "FAIL",
+      "error": "Dynamic cost calculation for all_models not found"
     },
     {
       "name": "Model Title Display",
@@ -42,8 +42,8 @@
     },
     {
       "name": "Logging Implementation",
-      "status": "PASS",
-      "details": "Comprehensive logging implemented: 3/3 key points logged"
+      "status": "FAIL",
+      "error": "Insufficient logging: only 0/3 points found"
     }
   ]
 }

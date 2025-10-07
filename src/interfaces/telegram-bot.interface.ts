@@ -324,7 +324,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   requestId?: string
 
   // AI Photoshop scene fields
-  aiPhotoshopModel?: 'seedream' | 'nano_banana' | 'flux_multi_kontext' | 'qwen_edit_plus' | 'all_models'
+  aiPhotoshopModel?: 'seedream' | 'nano_banana' | 'flux_multi_kontext' | 'qwen_edit_plus' | 'flux_kontext_pro' | 'seededit_3' | 'qwen_image_edit' | 'all_models'
   aiPhotoshopStyle?: 'portrait' | 'artistic' | 'photorealistic' | 'fantasy' | 'cyberpunk' | 'vintage' | 'custom'
   aiPhotoshopImage?: string
   aiPhotoshopPrompt?: string

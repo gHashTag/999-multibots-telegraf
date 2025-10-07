@@ -77,17 +77,17 @@ Task("Server health diagnostics", "Run complete server health check", "general-p
 
 ### Перезапуск контейнера
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'docker restart 999-multibots'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker restart 999-multibots'
 ```
 
 ### Полная пересборка
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && docker stop 999-multibots && docker rm 999-multibots && docker build --no-cache -t 999-multibots . && docker run -d --name 999-multibots --restart=always -p 3001:3001 -v /root/999-agents-telegraf/.env:/app/.env:ro 999-multibots'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && docker stop 999-multibots && docker rm 999-multibots && docker build --no-cache -t 999-multibots . && docker run -d --name 999-multibots --restart=always -p 3001:3001 -v /root/999-agents-telegraf/.env:/app/.env:ro 999-multibots'
 ```
 
 ### Просмотр логов
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'docker logs 999-multibots --tail 1000 | grep [pattern]'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 1000 | grep [pattern]'
 ```
 
 ## 📁 Файлы агента
@@ -122,9 +122,9 @@ ssh -i ~/.ssh/selectel root@185.161.67.53 'docker logs 999-multibots --tail 1000
 ## ⚙️ Конфигурация
 
 ### SSH доступ
-- Host: `185.161.67.53`
+- Host: `212.86.115.30`
 - User: `root`
-- Key: `~/.ssh/selectel`
+- Key: `~/.ssh/zomro`
 - Container: `999-multibots`
 
 ### Мониторинг

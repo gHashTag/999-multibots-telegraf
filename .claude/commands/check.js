@@ -4,7 +4,7 @@
  * Claude Code Custom Slash Command: /check
  *
  * Быстрая проверка JavaScript ошибок в продакшн логах:
- * - Подключается к серверу 185.161.67.53
+ * - Подключается к серверу 212.86.115.30
  * - Анализирует логи Docker контейнера 999-multibots
  * - Ищет только JavaScript/TypeScript ошибки
  * - Предлагает быстрые исправления
@@ -16,9 +16,9 @@ const { execSync } = require('child_process');
 // Конфигурация
 const CONFIG = {
   PRODUCTION_SERVER: {
-    HOST: '185.161.67.53',
+    HOST: '212.86.115.30',
     USER: 'root',
-    SSH_KEY: '~/.ssh/selectel',
+    SSH_KEY: '~/.ssh/zomro',
     CONTAINER: '999-multibots'
   },
   COLORS: {
@@ -216,7 +216,7 @@ class JSErrorChecker {
     }
 
     this.log('\n🚀 Быстрая перестройка контейнера:', CONFIG.COLORS.BLUE);
-    this.log('   ssh -i ~/.ssh/selectel root@185.161.67.53');
+    this.log('   ssh -i ~/.ssh/zomro root@212.86.115.30');
     this.log('   cd /root/999-agents-telegraf');
     this.log('   docker stop 999-multibots && docker rm 999-multibots');
     this.log('   docker build --no-cache -t 999-multibots .');

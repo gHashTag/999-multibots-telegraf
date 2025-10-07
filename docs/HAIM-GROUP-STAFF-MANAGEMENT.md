@@ -48,7 +48,7 @@ Run the automated script to create model copies for the new staff member:
 
 ```bash
 # Method 1: For single user
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && docker exec 999-multibots node -e "
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && docker exec 999-multibots node -e "
 const { createModelCopiesForHaimStaff } = require(\"/app/scripts/create-haim-models.js\");
 const SINGLE_USER = [\"999999999\"]; // Replace with actual Telegram ID
 
@@ -59,14 +59,14 @@ addSingleUser().then(() => process.exit(0));
 "'
 
 # Method 2: Re-run full script (will skip existing users)
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && docker exec 999-multibots node scripts/create-haim-models.js'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && docker exec 999-multibots node scripts/create-haim-models.js'
 ```
 
 ### Step 3: Verify Models Created
 Check that the models were created successfully:
 
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && docker exec 999-multibots node -e "
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && docker exec 999-multibots node -e "
 const { supabase } = require(\"/app/dist/core/supabase/index.js\");
 
 async function verifyNewUser() {
@@ -86,7 +86,7 @@ verifyNewUser().then(() => process.exit(0));
 Test that the new user sees the models correctly:
 
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && docker exec 999-multibots node -e "
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && docker exec 999-multibots node -e "
 const { getActiveUserModelsByTypeForHaim } = require(\"/app/dist/core/supabase/getActiveUserModelsByTypeForHaim.js\");
 
 async function testNewUser() {
@@ -112,7 +112,7 @@ Remove the Telegram ID from `HAIM_GROUP_STAFF_IDS` array in `/src/menu/mainMenu.
 If you want to remove their model copies:
 
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && docker exec 999-multibots node -e "
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && docker exec 999-multibots node -e "
 const { supabase } = require(\"/app/dist/core/supabase/index.js\");
 
 async function removeUserModels() {

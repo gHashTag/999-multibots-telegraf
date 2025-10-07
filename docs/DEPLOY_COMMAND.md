@@ -37,7 +37,7 @@
 - Отправляет изменения в `origin/production`
 
 ### 5. 🔄 Обновление продакшн сервера
-- SSH подключение к серверу `185.161.67.53`
+- SSH подключение к серверу `212.86.115.30`
 - Обновляет подмодуль `services/bot-farm`
 - Выполняет `git reset --hard origin/production`
 - Компилирует TypeScript на сервере
@@ -100,9 +100,9 @@ scripts/
 ## 🔧 Конфигурация
 
 ### Настройки продакшн сервера:
-- **Host:** `185.161.67.53`
+- **Host:** `212.86.115.30`
 - **User:** `root` 
-- **SSH Key:** `~/.ssh/selectel`
+- **SSH Key:** `~/.ssh/zomro`
 - **Project Path:** `/root/999-agents-vibecoder`
 - **Submodule Path:** `/root/999-agents-vibecoder/services/bot-farm`
 - **Service Name:** `app`
@@ -110,8 +110,8 @@ scripts/
 ### Настройка SSH ключа:
 ```bash
 # Убедитесь что SSH ключ настроен корректно
-ssh-add ~/.ssh/selectel
-ssh -i ~/.ssh/selectel root@185.161.67.53 'echo "Подключение работает"'
+ssh-add ~/.ssh/zomro
+ssh -i ~/.ssh/zomro root@212.86.115.30 'echo "Подключение работает"'
 ```
 
 ## 📊 Пример вывода
@@ -179,24 +179,24 @@ src/handlers/newFeature.ts(15,3): error TS2322: Type 'string' is not assignable 
 ### Если ошибки SSH подключения:
 ```bash
 ❌ Не удалось обновить подмодуль
-ssh: connect to host 185.161.67.53 port 22: Connection timed out
+ssh: connect to host 212.86.115.30 port 22: Connection timed out
 ```
 
 ## 🔧 Отладка
 
 ### Проверка SSH подключения:
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'echo "OK"'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'echo "OK"'
 ```
 
 ### Ручная проверка статуса на сервере:
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder && docker-compose ps'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-vibecoder && docker-compose ps'
 ```
 
 ### Проверка логов сервиса:
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder && docker-compose logs --tail=50 app'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-vibecoder && docker-compose logs --tail=50 app'
 ```
 
 ## 💡 Советы по использованию

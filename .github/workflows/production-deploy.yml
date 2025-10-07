@@ -82,13 +82,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H 185.161.67.53 >> ~/.ssh/known_hosts
+          ssh-keyscan -H 212.86.115.30 >> ~/.ssh/known_hosts
 
       - name: Deploy to Production Server
         run: |
           echo "🚀 Starting production deployment..."
           
-          ssh -i ~/.ssh/id_rsa root@185.161.67.53 << 'ENDSSH'
+          ssh -i ~/.ssh/id_rsa root@212.86.115.30 << 'ENDSSH'
           set -e
           
           echo "📦 Deploying to production server..."
@@ -143,7 +143,7 @@ jobs:
           fi
           
           # Check webhook status via SSH
-          ssh -i ~/.ssh/id_rsa root@185.161.67.53 << 'ENDSSH'
+          ssh -i ~/.ssh/id_rsa root@212.86.115.30 << 'ENDSSH'
           echo "🔍 Checking webhook status..."
           
           # Get first bot token and check webhook

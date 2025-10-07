@@ -158,7 +158,8 @@ export async function handleImageToVideoDirect(
       ctx.telegram,
       ctx.from?.id || 0,
       aspectRatio === '9:16' ? '480p' : '1080p', // разрешение для Seedance и WAN
-      aspectRatio // передаем соотношение сторон
+      aspectRatio, // передаем соотношение сторон
+      ctx // ✅ FIX: Pass ctx to save videoJobId for status updates
     )
 
     logger.info('[handleImageToVideoDirect] Image to Video generation started', {

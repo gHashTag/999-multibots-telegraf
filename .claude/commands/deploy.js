@@ -19,9 +19,9 @@ const path = require('path');
 // Конфигурация
 const CONFIG = {
   PRODUCTION_SERVER: {
-    HOST: '185.161.67.53',
+    HOST: '212.86.115.30',
     USER: 'root',
-    SSH_KEY: '~/.ssh/selectel',
+    SSH_KEY: '~/.ssh/zomro',
     PROJECT_PATH: '/root/999-agents-vibecoder',
     SUBMODULE_PATH: '/root/999-agents-vibecoder/services/bot-farm',
     SERVICE_NAME: 'app'

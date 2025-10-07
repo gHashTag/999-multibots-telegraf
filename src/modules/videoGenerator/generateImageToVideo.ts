@@ -132,7 +132,8 @@ export const generateImageToVideo = async (
   telegramInstance: Telegraf<MyContext>['telegram'],
   chatId: number,
   selectedResolution?: string, // Добавлен параметр для разрешения Seedance
-  selectedAspectRatio?: string // Добавлен параметр для соотношения сторон Kie.ai моделей
+  selectedAspectRatio?: string, // Добавлен параметр для соотношения сторон Kie.ai моделей
+  ctx?: MyContext // ✅ FIX: Added ctx to save videoJobId in session
 ): Promise<void> => {
   let localVideoPath: string | undefined
   const notificationMessage = isRu
@@ -730,8 +731,29 @@ export const generateImageToVideo = async (
 
             // Реализуем polling для Kie.ai API
             const taskId = kieResponse.data.taskId
+
+            // ✅ FIX: Save taskId to session so "Update status" button works
+            if (ctx && ctx.session) {
+              ctx.session.videoJobId = taskId
+              ctx.session.videoPrompt = processedPrompt || prompt || ''
+              ctx.session.videoModelId = modelId as any
+              ctx.session.videoMessageId = 0 // Will be updated later
+              logger.info('[I2V BG] ✅ Saved taskId to session for status updates', {
+                telegramId,
+                taskId,
+                sessionHasContext: !!ctx.session
+              })
+            } else {
+              logger.warn('[I2V BG] ⚠️ Cannot save taskId - ctx or session missing', {
+                telegramId,
+                taskId,
+                hasCtx: !!ctx,
+                hasSession: !!ctx?.session
+              })
+            }
+
             const maxPollingAttempts = 300 // 300 попыток = ~10 минут (2 сек * 300) - увеличено для VEO 3
-            const pollingInterval = 2000 // 2 секунды между проверками 
+            const pollingInterval = 2000 // 2 секунды между проверками
 
             let attempts = 0
             let lastProgressMessage = ''
