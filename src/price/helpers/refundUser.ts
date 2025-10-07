@@ -5,7 +5,11 @@ import { mainMenu } from '@/menu'
 import { PaymentType } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
-export async function refundUser(ctx: MyContext, paymentAmount: number) {
+export async function refundUser(
+  ctx: MyContext,
+  paymentAmount: number,
+  silent: boolean = false
+) {
   if (!ctx.from) {
     console.error('refundUser: ctx.from is undefined')
     return
@@ -38,11 +42,15 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
     console.error(
       `refundUser: Failed to update balance for ${telegramIdStr}. Update function returned false.`
     )
-    await ctx.reply(
-      isRussianFromState(ctx)
-        ? 'Не удалось вернуть средства. Обратитесь в поддержку.'
-        : 'Failed to refund. Please contact support.'
-    )
+
+    // ✅ Only send error message if NOT in silent mode
+    if (!silent) {
+      await ctx.reply(
+        isRussianFromState(ctx)
+          ? 'Не удалось вернуть средства. Обратитесь в поддержку.'
+          : 'Failed to refund. Please contact support.'
+      )
+    }
     return
   }
 
@@ -63,22 +71,25 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
   const displayBalance =
     newBalance !== null ? newBalance : initialBalance + amountToRefund
 
-  await ctx.reply(
-    `${
-      isRu
-        ? 'Возвращено звезд за отмененную генерацию'
-        : 'Stars refunded for cancelled generation'
-    }: ${amountToRefund.toFixed(2)} ⭐️\n${
-      isRu ? 'Текущий баланс' : 'Current balance'
-    }: ${displayBalance.toFixed(2)} ⭐️`,
-    {
-      reply_markup: (
-        await mainMenu({
-          isRu,
-          subscription: subscriptionType,
-          ctx,
-        })
-      ).reply_markup,
-    }
-  )
+  // ✅ Only send success message if NOT in silent mode
+  if (!silent) {
+    await ctx.reply(
+      `${
+        isRu
+          ? 'Возвращено звезд за отмененную генерацию'
+          : 'Stars refunded for cancelled generation'
+      }: ${amountToRefund.toFixed(2)} ⭐️\n${
+        isRu ? 'Текущий баланс' : 'Current balance'
+      }: ${displayBalance.toFixed(2)} ⭐️`,
+      {
+        reply_markup: (
+          await mainMenu({
+            isRu,
+            subscription: subscriptionType,
+            ctx,
+          })
+        ).reply_markup,
+      }
+    )
+  }
 }
