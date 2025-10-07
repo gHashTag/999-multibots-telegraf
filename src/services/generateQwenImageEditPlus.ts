@@ -29,9 +29,10 @@ import {
 } from '@/schemas/qwenImageEditPlus.schema'
 
 // Service parameters interface
+// ✅ REFACTOR: inputImageUrl FIRST (what to edit), then prompt (how to edit)
 export interface QwenImageEditPlusServiceParams {
-  prompt: string
-  inputImageUrl: string | string[]
+  inputImageUrl: string | string[] // WHAT to edit
+  prompt: string // HOW to edit
   telegram_id: string
   username: string
   is_ru: boolean

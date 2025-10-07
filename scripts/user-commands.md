@@ -56,7 +56,7 @@ node user-access-agent.js analyze "Проблемы у пользователе�
 • check_access
 
 🖥️ SSH КОМАНДЫ ДЛЯ ВЫПОЛНЕНИЯ:
-1. ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && node -e "..."'
+1. ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && node -e "..."'
 ================================================
 ```
 
@@ -147,7 +147,7 @@ node user-access-agent.js report 123456789
 
 ### Предоставление подписки
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && node -e "
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && node -e "
 const { createClient } = require(\"@supabase/supabase-js\");
 // ... код предоставления подписки
 "'
@@ -155,7 +155,7 @@ const { createClient } = require(\"@supabase/supabase-js\");
 
 ### Проверка доступа
 ```bash
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && node -e "
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && node -e "
 const { getUserDetailsSubscription } = require(\"./dist/core/supabase/getUserDetailsSubscription\");
 // ... код проверки доступа
 "'
@@ -175,10 +175,10 @@ echo "" > /tmp/user-access-agent.log
 ### Проверка соединения с сервером
 ```bash
 # Тест SSH подключения
-ssh -i ~/.ssh/selectel root@185.161.67.53 'echo "Соединение работает"'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'echo "Соединение работает"'
 
 # Проверка доступности проекта
-ssh -i ~/.ssh/selectel root@185.161.67.53 'ls -la /root/999-agents-telegraf/'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'ls -la /root/999-agents-telegraf/'
 ```
 
 ## 📊 Интеграция с Claude
@@ -262,23 +262,23 @@ ta-report 123456789
 **SSH Connection Failed**
 ```bash
 # Проверить SSH ключи
-ls -la ~/.ssh/selectel
-chmod 600 ~/.ssh/selectel
+ls -la ~/.ssh/zomro
+chmod 600 ~/.ssh/zomro
 
 # Тест подключения
-ssh -i ~/.ssh/selectel root@185.161.67.53 'date'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'date'
 ```
 
 **Module Not Found**
 ```bash
 # Убедиться что проект собран
-ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-telegraf && npm run build'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /root/999-agents-telegraf && npm run build'
 ```
 
 **Database Connection Error**
 ```bash
 # Проверить переменные окружения на сервере
-ssh -i ~/.ssh/selectel root@185.161.67.53 'env | grep SUPABASE'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'env | grep SUPABASE'
 ```
 
 ### Поддержка

@@ -21,7 +21,7 @@ npm run deploy
 1. **Проверка окружения** - проверяет что запущена из корня проекта
 2. **Создание коммита** - автоматически коммитит все изменения (с опциональным сообщением)
 3. **Отправка в репозиторий** - пушит изменения в `production` branch
-4. **Подключение к серверу** - подключается к продакшн серверу `185.161.67.53`
+4. **Подключение к серверу** - подключается к продакшн серверу `212.86.115.30`
 5. **Обновление кода** - выполняет `git pull origin production`
 6. **Остановка контейнера** - останавливает старый Docker контейнер `999-multibots`
 7. **Удаление контейнера** - удаляет старый контейнер
@@ -88,13 +88,13 @@ npm run deploy
 
 ```bash
 # Просмотр логов
-ssh -i ~/.ssh/selectel root@185.161.67.53 'docker logs 999-multibots --tail 50'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 50'
 
 # Проверка статуса контейнера
-ssh -i ~/.ssh/selectel root@185.161.67.53 'docker ps | grep 999-multibots'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker ps | grep 999-multibots'
 
 # Проверка что новый код применился
-ssh -i ~/.ssh/selectel root@185.161.67.53 'docker exec 999-multibots head -10 /app/dist/core/supabase/getActiveUserModelsByTypeForHaim.js'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker exec 999-multibots head -10 /app/dist/core/supabase/getActiveUserModelsByTypeForHaim.js'
 ```
 
 ## ⚠️ Когда НЕ использовать deploy
@@ -107,7 +107,7 @@ ssh -i ~/.ssh/selectel root@185.161.67.53 'docker exec 999-multibots head -10 /a
 Для таких случаев используйте:
 ```bash
 # Простой перезапуск без пересборки
-ssh -i ~/.ssh/selectel root@185.161.67.53 'docker restart 999-multibots'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker restart 999-multibots'
 ```
 
 ## 🛡️ Безопасность
@@ -130,7 +130,7 @@ ssh -i ~/.ssh/selectel root@185.161.67.53 'docker restart 999-multibots'
 
 1. **Проверьте статус контейнера:**
    ```bash
-   ssh -i ~/.ssh/selectel root@185.161.67.53 'docker ps -a | grep 999-multibots'
+   ssh -i ~/.ssh/zomro root@212.86.115.30 'docker ps -a | grep 999-multibots'
    ```
 
 2. **Запустите заново:**
@@ -140,7 +140,7 @@ ssh -i ~/.ssh/selectel root@185.161.67.53 'docker restart 999-multibots'
 
 3. **Ручное восстановление (если нужно):**
    ```bash
-   ssh -i ~/.ssh/selectel root@185.161.67.53
+   ssh -i ~/.ssh/zomro root@212.86.115.30
    cd /root/999-agents-telegraf
    docker stop 999-multibots || true
    docker rm 999-multibots || true

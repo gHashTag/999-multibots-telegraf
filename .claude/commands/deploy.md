@@ -3,7 +3,7 @@ name: deploy
 description: Deploy code changes to production server with Docker rebuild
 ---
 
-Invoke the deployment-manager agent to perform a safe production deployment to server 185.161.67.53.
+Invoke the deployment-manager agent to perform a safe production deployment to server 212.86.115.30.
 
 The agent will:
 1. Validate pre-deployment conditions

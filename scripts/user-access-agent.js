@@ -20,7 +20,7 @@ const path = require('path');
 
 class TelegramUserAccessAgent {
     constructor(options = {}) {
-        this.SERVER_HOST = options.host || '185.161.67.53';
+        this.SERVER_HOST = options.host || '212.86.115.30';
         this.SERVER_USER = options.user || 'root';
         this.PROJECT_PATH = options.projectPath || '/root/999-agents-telegraf';
         this.logFile = options.logFile || '/tmp/user-access-agent.log';
@@ -279,7 +279,7 @@ class TelegramUserAccessAgent {
      * ГЕНЕРАТОРЫ SSH КОМАНД
      */
     generateGrantSubscriptionCommand(telegramId, subscriptionType) {
-        return `ssh -i ~/.ssh/selectel ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
+        return `ssh -i ~/.ssh/zomro ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
 const { getUserDetailsSubscription } = require(\"./dist/core/supabase/getUserDetailsSubscription\");
 const { createClient } = require(\"@supabase/supabase-js\");
 
@@ -317,7 +317,7 @@ grantSubscription();
     }
 
     generateCheckAccessCommand(telegramId) {
-        return `ssh -i ~/.ssh/selectel ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
+        return `ssh -i ~/.ssh/zomro ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
 const { getUserDetailsSubscription } = require(\"./dist/core/supabase/getUserDetailsSubscription\");
 const { getUserBalance } = require(\"./dist/core/supabase/getUserBalance\");
 
@@ -361,7 +361,7 @@ checkAccess();
     }
 
     generateCreateUserCommand(telegramId) {
-        return `ssh -i ~/.ssh/selectel ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
+        return `ssh -i ~/.ssh/zomro ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
 const { createClient } = require(\"@supabase/supabase-js\");
 
 async function createUser() {
@@ -401,7 +401,7 @@ createUser();
      * ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ (через SSH)
      */
     async getUserDetails(telegramId) {
-        const command = `ssh -i ~/.ssh/selectel ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
+        const command = `ssh -i ~/.ssh/zomro ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
 const { getUserDetailsSubscription } = require(\"./dist/core/supabase/getUserDetailsSubscription\");
 getUserDetailsSubscription(\"${telegramId}\").then(result => console.log(JSON.stringify(result))).catch(err => console.error(err.message));"'`;
         
@@ -424,7 +424,7 @@ getUserDetailsSubscription(\"${telegramId}\").then(result => console.log(JSON.st
      * ПОЛУЧЕНИЕ БАЛАНСА ПОЛЬЗОВАТЕЛЯ (через SSH)
      */
     async getUserBalance(telegramId) {
-        const command = `ssh -i ~/.ssh/selectel ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
+        const command = `ssh -i ~/.ssh/zomro ${this.SERVER_USER}@${this.SERVER_HOST} 'cd ${this.PROJECT_PATH} && node -e "
 const { getUserBalance } = require(\"./dist/core/supabase/getUserBalance\");
 getUserBalance(\"${telegramId}\").then(result => console.log(result)).catch(err => console.error(err.message));"'`;
         

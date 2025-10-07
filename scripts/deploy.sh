@@ -51,7 +51,7 @@ echo "✅ Изменения отправлены в репозиторий"
 # Подключаемся к продакшн серверу и выполняем развертывание
 echo "🔄 Подключаемся к продакшн серверу и выполняем развертывание..."
 
-ssh -i ~/.ssh/selectel root@185.161.67.53 << 'EOF'
+ssh -i ~/.ssh/zomro root@212.86.115.30 << 'EOF'
 set -e
 
 echo "📥 Переходим в директорию проекта..."
@@ -116,9 +116,9 @@ echo "  ✅ Новый контейнер запущен с обновленны
 echo "  ✅ Проверка статуса и логов выполнена"
 echo ""
 echo "🔍 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ДЛЯ ПРОВЕРКИ:"
-echo "  📜 Логи: ssh -i ~/.ssh/selectel root@185.161.67.53 'docker logs 999-multibots --tail 50'"
-echo "  📊 Статус: ssh -i ~/.ssh/selectel root@185.161.67.53 'docker ps | grep 999-multibots'"
-echo "  🔍 Проверка кода: ssh -i ~/.ssh/selectel root@185.161.67.53 'docker exec 999-multibots grep \"версия_кода\" /app/dist/...'"
+echo "  📜 Логи: ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 50'"
+echo "  📊 Статус: ssh -i ~/.ssh/zomro root@212.86.115.30 'docker ps | grep 999-multibots'"
+echo "  🔍 Проверка кода: ssh -i ~/.ssh/zomro root@212.86.115.30 'docker exec 999-multibots grep \"версия_кода\" /app/dist/...'"
 echo ""
 
 # Показываем время выполнения
