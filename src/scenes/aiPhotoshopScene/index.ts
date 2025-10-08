@@ -4921,15 +4921,68 @@ Object.keys(AI_PHOTOSHOP_CAMERA_ANGLES).forEach(angle => {
           angle as keyof typeof AI_PHOTOSHOP_CAMERA_ANGLES
         ]
 
-      await ctx.editMessageText(
-        isRu
-          ? `✅ *Ракурс камеры выбран:* ${angleLabel}\n\n📝 Промпт добавлен: \`${cameraPrompt}\`\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
-          : `✅ *Camera angle selected:* ${angleLabel}\n\n📝 Prompt added: \`${cameraPrompt}\`\n\n💡 Now write text to process the photo or choose other settings.`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: createCameraAngleKeyboard(isRu).reply_markup,
+      // ✅ NEW: Check if we have photo - if yes, request prompt; if no, request photo
+      const hasPhoto = !!ctx.session?.aiPhotoshopImage
+      const hasModel = !!ctx.session?.aiPhotoshopModel
+
+      if (hasPhoto && hasModel) {
+        // Photo already uploaded, request prompt
+        if (ctx.session) {
+          ctx.session.aiPhotoshopStep = 'custom_prompt'
+          ctx.session.awaitingAiPhotoshopPrompt = true
         }
-      )
+
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Ракурс камеры выбран:* ${angleLabel}\n\n📝 Промпт добавлен: \`${cameraPrompt}\`\n\n💬 *Теперь опишите, как обработать изображение:*`
+            : `✅ *Camera angle selected:* ${angleLabel}\n\n📝 Prompt added: \`${cameraPrompt}\`\n\n💬 *Now describe how to process the image:*`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[
+                Markup.button.callback(
+                  isRu ? 'Отмена' : 'Cancel',
+                  'ai_photoshop_cancel'
+                )
+              ]]
+            }
+          }
+        )
+      } else if (hasModel) {
+        // Model selected but no photo, request photo
+        if (ctx.session) {
+          ctx.session.aiPhotoshopStep = 'image_upload'
+          ctx.session.awaitingAiPhotoshopImage = true
+        }
+
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Ракурс камеры выбран:* ${angleLabel}\n\n📝 Промпт добавлен: \`${cameraPrompt}\`\n\n📸 *Отправьте изображение для обработки:*`
+            : `✅ *Camera angle selected:* ${angleLabel}\n\n📝 Prompt added: \`${cameraPrompt}\`\n\n📸 *Send an image for processing:*`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[
+                Markup.button.callback(
+                  isRu ? 'Отмена' : 'Cancel',
+                  'ai_photoshop_cancel'
+                )
+              ]]
+            }
+          }
+        )
+      } else {
+        // No model selected, just show confirmation
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Ракурс камеры выбран:* ${angleLabel}\n\n📝 Промпт добавлен: \`${cameraPrompt}\`\n\n💡 Выберите другие настройки или вернитесь назад.`
+            : `✅ *Camera angle selected:* ${angleLabel}\n\n📝 Prompt added: \`${cameraPrompt}\`\n\n💡 Choose other settings or go back.`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: createCameraAngleKeyboard(isRu).reply_markup,
+          }
+        )
+      }
     } catch (error) {
       logger.error('Error handling camera angle selection', { error, angle })
     }
@@ -4966,15 +5019,68 @@ Object.keys(AI_PHOTOSHOP_LIGHTING_SETUPS).forEach(lighting => {
           lighting as keyof typeof AI_PHOTOSHOP_LIGHTING_SETUPS
         ]
 
-      await ctx.editMessageText(
-        isRu
-          ? `✅ *Освещение выбрано:* ${lightingLabel}\n\n📝 Промпт добавлен: \`${lightingPrompt}\`\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
-          : `✅ *Lighting selected:* ${lightingLabel}\n\n📝 Prompt added: \`${lightingPrompt}\`\n\n💡 Now write text to process the photo or choose other settings.`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: createLightingKeyboard(isRu).reply_markup,
+      // ✅ NEW: Check if we have photo - if yes, request prompt; if no, request photo
+      const hasPhoto = !!ctx.session?.aiPhotoshopImage
+      const hasModel = !!ctx.session?.aiPhotoshopModel
+
+      if (hasPhoto && hasModel) {
+        // Photo already uploaded, request prompt
+        if (ctx.session) {
+          ctx.session.aiPhotoshopStep = 'custom_prompt'
+          ctx.session.awaitingAiPhotoshopPrompt = true
         }
-      )
+
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Освещение выбрано:* ${lightingLabel}\n\n📝 Промпт добавлен: \`${lightingPrompt}\`\n\n💬 *Теперь опишите, как обработать изображение:*`
+            : `✅ *Lighting selected:* ${lightingLabel}\n\n📝 Prompt added: \`${lightingPrompt}\`\n\n💬 *Now describe how to process the image:*`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[
+                Markup.button.callback(
+                  isRu ? 'Отмена' : 'Cancel',
+                  'ai_photoshop_cancel'
+                )
+              ]]
+            }
+          }
+        )
+      } else if (hasModel) {
+        // Model selected but no photo, request photo
+        if (ctx.session) {
+          ctx.session.aiPhotoshopStep = 'image_upload'
+          ctx.session.awaitingAiPhotoshopImage = true
+        }
+
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Освещение выбрано:* ${lightingLabel}\n\n📝 Промпт добавлен: \`${lightingPrompt}\`\n\n📸 *Отправьте изображение для обработки:*`
+            : `✅ *Lighting selected:* ${lightingLabel}\n\n📝 Prompt added: \`${lightingPrompt}\`\n\n📸 *Send an image for processing:*`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[
+                Markup.button.callback(
+                  isRu ? 'Отмена' : 'Cancel',
+                  'ai_photoshop_cancel'
+                )
+              ]]
+            }
+          }
+        )
+      } else {
+        // No model selected, just show confirmation
+        await ctx.editMessageText(
+          isRu
+            ? `✅ *Освещение выбрано:* ${lightingLabel}\n\n📝 Промпт добавлен: \`${lightingPrompt}\`\n\n💡 Выберите другие настройки или вернитесь назад.`
+            : `✅ *Lighting selected:* ${lightingLabel}\n\n📝 Prompt added: \`${lightingPrompt}\`\n\n💡 Choose other settings or go back.`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: createLightingKeyboard(isRu).reply_markup,
+          }
+        )
+      }
     } catch (error) {
       logger.error('Error handling lighting selection', { error, lighting })
     }
@@ -5007,15 +5113,68 @@ Object.keys(AI_PHOTOSHOP_FRAME_COMPOSITION).forEach(composition => {
             composition as keyof typeof AI_PHOTOSHOP_FRAME_COMPOSITION
           ]
 
-        await ctx.editMessageText(
-          isRu
-            ? `✅ *Композиция выбрана:* ${compositionLabel}\n\n📝 Промпт добавлен: \`${compositionPrompt}\`\n\n💡 Теперь напишите текст для обработки фотографии или выберите другие настройки.`
-            : `✅ *Composition selected:* ${compositionLabel}\n\n📝 Prompt added: \`${compositionPrompt}\`\n\n💡 Now write text to process the photo or choose other settings.`,
-          {
-            parse_mode: 'Markdown',
-            reply_markup: createCompositionKeyboard(isRu).reply_markup,
+        // ✅ NEW: Check if we have photo - if yes, request prompt; if no, request photo
+        const hasPhoto = !!ctx.session?.aiPhotoshopImage
+        const hasModel = !!ctx.session?.aiPhotoshopModel
+
+        if (hasPhoto && hasModel) {
+          // Photo already uploaded, request prompt
+          if (ctx.session) {
+            ctx.session.aiPhotoshopStep = 'custom_prompt'
+            ctx.session.awaitingAiPhotoshopPrompt = true
           }
-        )
+
+          await ctx.editMessageText(
+            isRu
+              ? `✅ *Композиция выбрана:* ${compositionLabel}\n\n📝 Промпт добавлен: \`${compositionPrompt}\`\n\n💬 *Теперь опишите, как обработать изображение:*`
+              : `✅ *Composition selected:* ${compositionLabel}\n\n📝 Prompt added: \`${compositionPrompt}\`\n\n💬 *Now describe how to process the image:*`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [[
+                  Markup.button.callback(
+                    isRu ? 'Отмена' : 'Cancel',
+                    'ai_photoshop_cancel'
+                  )
+                ]]
+              }
+            }
+          )
+        } else if (hasModel) {
+          // Model selected but no photo, request photo
+          if (ctx.session) {
+            ctx.session.aiPhotoshopStep = 'image_upload'
+            ctx.session.awaitingAiPhotoshopImage = true
+          }
+
+          await ctx.editMessageText(
+            isRu
+              ? `✅ *Композиция выбрана:* ${compositionLabel}\n\n📝 Промпт добавлен: \`${compositionPrompt}\`\n\n📸 *Отправьте изображение для обработки:*`
+              : `✅ *Composition selected:* ${compositionLabel}\n\n📝 Prompt added: \`${compositionPrompt}\`\n\n📸 *Send an image for processing:*`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [[
+                  Markup.button.callback(
+                    isRu ? 'Отмена' : 'Cancel',
+                    'ai_photoshop_cancel'
+                  )
+                ]]
+              }
+            }
+          )
+        } else {
+          // No model selected, just show confirmation
+          await ctx.editMessageText(
+            isRu
+              ? `✅ *Композиция выбрана:* ${compositionLabel}\n\n📝 Промпт добавлен: \`${compositionPrompt}\`\n\n💡 Выберите другие настройки или вернитесь назад.`
+              : `✅ *Composition selected:* ${compositionLabel}\n\n📝 Prompt added: \`${compositionPrompt}\`\n\n💡 Choose other settings or go back.`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: createCompositionKeyboard(isRu).reply_markup,
+            }
+          )
+        }
       } catch (error) {
         logger.error('Error handling composition selection', {
           error,
