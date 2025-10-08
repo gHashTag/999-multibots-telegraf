@@ -32,6 +32,8 @@ export interface NanoBananaServiceParams {
   is_ru?: boolean
   output_format?: 'jpg' | 'png'
   promptStyle?: 'headshot' | 'fullBody' | 'artistic'
+  silent?: boolean // If true, don't send photo to user (for ALL_MODELS mode)
+  skipBalanceCheck?: boolean // If true, skip balance check (already checked before loop)
 }
 
 // Nano Banana model configuration
@@ -157,55 +159,68 @@ export async function generateNanoBanana(
       throw new Error(`Nano Banana supports maximum 3 images, but ${imageCount} were provided`)
     }
 
-    // Проверяем баланс и списываем звезды
-    console.log('🔵 [NanoBanana] Processing balance operation...', {
-      telegram_id,
-      costPerImage: NANO_BANANA_MODEL.costPerImage,
-      imageCount,
-      totalCost
-    })
-
-    const balanceCheck = await processBalanceOperation({
-      telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
-      paymentAmount: totalCost,
-      is_ru,
-      bot_name: ctx.botInfo?.username,
-      ctx,
-    })
-    
-    console.log('🟢 [NanoBanana] Balance check result:', {
-      telegram_id,
-      balanceCheckSuccess: balanceCheck?.success,
-    })
-
-    if (!balanceCheck.success) {
-      logger.warn('[NanoBanana] Insufficient balance', {
+    // Проверяем баланс и списываем звезды (skip if already checked before loop)
+    if (!params.skipBalanceCheck) {
+      console.log('🔵 [NanoBanana] Processing balance operation...', {
         telegram_id,
-        required: totalCost,
+        costPerImage: NANO_BANANA_MODEL.costPerImage,
+        imageCount,
+        totalCost
       })
-      
-      await ctx.reply(
-        is_ru
-          ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
-          : `❌ Insufficient stars for generation\\n\\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\\nYour balance: ${balanceCheck.currentBalance || 0}⭐\\n\\nTop up via /start → 💎 Top up balance`,
-        { parse_mode: 'MarkdownV2' }
-      )
-      return null
+
+      const balanceCheck = await processBalanceOperation({
+        telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+        paymentAmount: totalCost,
+        is_ru,
+        bot_name: ctx.botInfo?.username,
+        ctx,
+      })
+
+      console.log('🟢 [NanoBanana] Balance check result:', {
+        telegram_id,
+        balanceCheckSuccess: balanceCheck?.success,
+      })
+
+      if (!balanceCheck.success) {
+        logger.warn('[NanoBanana] Insufficient balance', {
+          telegram_id,
+          required: totalCost,
+        })
+
+        await ctx.reply(
+          is_ru
+            ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
+            : `❌ Insufficient stars for generation\\n\\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\\nYour balance: ${balanceCheck.currentBalance || 0}⭐\\n\\nTop up via /start → 💎 Top up balance`,
+          { parse_mode: 'MarkdownV2' }
+        )
+        return null
+      }
+    } else {
+      console.log('⏭️ [NanoBanana] Skipping balance check (already verified)', {
+        telegram_id,
+      })
     }
 
-    // Отправляем статус
-    console.log('📤 [NanoBanana] Sending status message...', { telegram_id })
-    
-    const statusMessage = await ctx.reply(
-      is_ru
-        ? '🍌 Генерирую ваш образ через Google Nano Banana...\n\n⏱ Это займет 10-20 секунд'
-        : '🍌 Generating your image via Google Nano Banana...\n\n⏱ This will take 10-20 seconds'
-    )
-    
-    console.log('✅ [NanoBanana] Status message sent!', { 
-      telegram_id,
-      messageId: statusMessage.message_id,
-    })
+    // Отправляем статус ONLY if NOT in silent mode
+    let statusMessage: any = null
+    if (!params.silent) {
+      console.log('📤 [NanoBanana] Sending status message...', { telegram_id })
+
+      statusMessage = await ctx.reply(
+        is_ru
+          ? '🍌 Генерирую ваш образ через Google Nano Banana...\n\n⏱ Это займет 10-20 секунд'
+          : '🍌 Generating your image via Google Nano Banana...\n\n⏱ This will take 10-20 seconds'
+      )
+
+      console.log('✅ [NanoBanana] Status message sent!', {
+        telegram_id,
+        messageId: statusMessage.message_id,
+      })
+    } else {
+      console.log('🔇 [NanoBanana] Silent mode - skipping status message', {
+        telegram_id,
+      })
+    }
 
     // Enhance prompt based on style
     const enhancedPrompt = NANO_BANANA_PROMPT_TEMPLATES[promptStyle](validatedInput.prompt)
@@ -318,11 +333,13 @@ export async function generateNanoBanana(
       imageUrl: validatedResponse.image.substring(0, 50) + '...',
     })
 
-    // Delete status message
-    try {
-      await ctx.deleteMessage(statusMessage.message_id)
-    } catch (err) {
-      logger.warn('[NanoBanana] Failed to delete status message', { err })
+    // Delete status message (only if it was sent)
+    if (statusMessage) {
+      try {
+        await ctx.deleteMessage(statusMessage.message_id)
+      } catch (err) {
+        logger.warn('[NanoBanana] Failed to delete status message', { err })
+      }
     }
 
     // Save prompt to database
@@ -350,38 +367,44 @@ export async function generateNanoBanana(
       imageUrl: imageUrl.substring(0, 50) + '...',
     })
 
-    // Send image to user with information
-    const botUsername = ctx.botInfo?.username || 'clip_maker_neuro_bot'
-    const caption = is_ru
-      ? `✨ Ваш образ готов!\n\n🍌 Создано с помощью Google Nano Banana\n💫 Потрачено: ${totalCost}⭐\n🎨 Изображений: ${validatedInput.image_input.length}\n\n🤖 Сделано в боте @${botUsername}`
-      : `✨ Your image is ready!\n\n🍌 Created with Google Nano Banana\n💫 Spent: ${totalCost}⭐\n🎨 Images: ${validatedInput.image_input.length}\n\n🤖 Made with @${botUsername} bot`
+    // Send image to user ONLY if NOT in silent mode
+    if (!params.silent) {
+      const botUsername = ctx.botInfo?.username || 'clip_maker_neuro_bot'
+      const caption = is_ru
+        ? `✨ Ваш образ готов!\n\n🍌 Создано с помощью Google Nano Banana\n💫 Потрачено: ${totalCost}⭐\n🎨 Изображений: ${validatedInput.image_input.length}\n\n🤖 Сделано в боте @${botUsername}`
+        : `✨ Your image is ready!\n\n🍌 Created with Google Nano Banana\n💫 Spent: ${totalCost}⭐\n🎨 Images: ${validatedInput.image_input.length}\n\n🤖 Made with @${botUsername} bot`
 
-    console.log('🚀 [NanoBanana] About to call sendPhotoWithFallback', {
-      telegram_id,
-      imageUrl: imageUrl.substring(0, 50) + '...',
-      captionLength: caption.length,
-    })
-
-    const sendResult = await sendPhotoWithFallback(ctx, imageUrl, {
-      caption
-    })
-    
-    console.log('🎯 [NanoBanana] sendPhotoWithFallback result:', {
-      telegram_id,
-      sendResult,
-    })
-    
-    if (!sendResult) {
-      console.error('❌ [NanoBanana] Failed to send photo!', {
+      console.log('🚀 [NanoBanana] About to call sendPhotoWithFallback', {
         telegram_id,
         imageUrl: imageUrl.substring(0, 50) + '...',
+        captionLength: caption.length,
       })
-      throw new Error('Failed to send photo to user')
+
+      const sendResult = await sendPhotoWithFallback(ctx, imageUrl, {
+        caption
+      })
+
+      console.log('🎯 [NanoBanana] sendPhotoWithFallback result:', {
+        telegram_id,
+        sendResult,
+      })
+
+      if (!sendResult) {
+        console.error('❌ [NanoBanana] Failed to send photo!', {
+          telegram_id,
+          imageUrl: imageUrl.substring(0, 50) + '...',
+        })
+        throw new Error('Failed to send photo to user')
+      }
+
+      console.log('📬 [NanoBanana] Photo sent successfully!', {
+        telegram_id,
+      })
+    } else {
+      console.log('🔇 [NanoBanana] Silent mode - skipping photo send', {
+        telegram_id,
+      })
     }
-    
-    console.log('📬 [NanoBanana] Photo sent successfully!', {
-      telegram_id,
-    })
 
     // Send to pulse channel
     try {

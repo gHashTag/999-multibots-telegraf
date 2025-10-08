@@ -12,7 +12,7 @@ export const SeedEdit3InputSchema = z.object({
     .min(1, 'Prompt cannot be empty')
     .max(1000, 'Prompt cannot exceed 1000 characters'),
 
-  input_image: z.string()
+  image: z.string()
     .url('Input image must be a valid URL')
     .describe('URL of the image to edit'),
 

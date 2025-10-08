@@ -105,7 +105,7 @@ export const generateQwenImageEdit = async (
     // ✅ Prepare Replicate API input with Zod validation
     const replicateInput: QwenImageEditInput = validateQwenImageEditInput({
       prompt: finalPrompt,
-      input_image: inputImageUrl,
+      image: inputImageUrl,
       editing_mode: autoDetectedMode,
       preserve_quality,
       output_format: 'png',

@@ -103,7 +103,7 @@ export const generateSeedEdit3 = async (
     // ✅ Prepare Replicate API input with Zod validation
     const replicateInput: SeedEdit3Input = validateSeedEdit3Input({
       prompt: finalPrompt,
-      input_image: inputImageUrl,
+      image: inputImageUrl,
       output_resolution,
       editing_strength,
       preserve_background,

@@ -13,7 +13,7 @@ export const QwenImageEditInputSchema = z.object({
     .max(1000, 'Prompt cannot exceed 1000 characters')
     .describe('Editing instruction in English or Chinese'),
 
-  input_image: z.string()
+  image: z.string()
     .url('Input image must be a valid URL')
     .describe('URL of the image to edit'),
 

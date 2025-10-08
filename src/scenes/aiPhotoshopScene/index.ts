@@ -83,11 +83,11 @@ const AI_PHOTOSHOP_PRICING = {
   // Все модели используют единый aspect ratio из этой настройки
   defaultAspectRatio: '9:16' as '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21',
 
-  // Mapping размеров к aspect ratio (если нужно разное для разных размеров)
+  // Mapping размеров к aspect ratio (ЦЕНТРАЛИЗОВАНО - ВСЕ используют 9:16)
   sizeToAspectRatio: {
     '1K': '9:16',
     '2K': '9:16',
-    '4K': '16:9',
+    '4K': '9:16', // ✅ ИСПРАВЛЕНО: был 16:9, теперь единообразно 9:16
     custom: '9:16',
   } as Record<string, '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'>,
 
@@ -357,29 +357,16 @@ export const aiPhotoshopScene = new Scenes.BaseScene<MyContext>(
 const createModelSelectionKeyboard = (isRu: boolean) => {
   const keyboard = []
 
-  // Add models 2 per row
+  // ✅ Add models 1 per row (changed from 2 per row)
   const models = Object.entries(AI_PHOTOSHOP_MODELS)
-  for (let i = 0; i < models.length; i += 2) {
-    const row = []
-    const [modelKey1, model1] = models[i]
-    row.push(
+  for (let i = 0; i < models.length; i++) {
+    const [modelKey, model] = models[i]
+    keyboard.push([
       Markup.button.callback(
-        `${isRu ? model1.title_ru : model1.title_en} (${model1.cost}⭐)`,
-        `ai_photoshop_model_${modelKey1}`
+        `${isRu ? model.title_ru : model.title_en} (${model.cost}⭐)`,
+        `ai_photoshop_model_${modelKey}`
       )
-    )
-
-    if (i + 1 < models.length) {
-      const [modelKey2, model2] = models[i + 1]
-      row.push(
-        Markup.button.callback(
-          `${isRu ? model2.title_ru : model2.title_en} (${model2.cost}⭐)`,
-          `ai_photoshop_model_${modelKey2}`
-        )
-      )
-    }
-
-    keyboard.push(row)
+    ])
   }
 
   // ✅ Add "All at once" button - автоматически считает все модели из AI_PHOTOSHOP_MODELS
@@ -2777,6 +2764,48 @@ const processAiPhotoshopRequest = async (
       )
     }
 
+    // 🚨 CRITICAL FIX: Send all saved photos from ALL_MODELS processing
+    if (ctx.session?.savedAiPhotoshopResults && ctx.session.savedAiPhotoshopResults.length > 0) {
+      logger.info('📤 AI Photoshop: Sending all saved results from ALL_MODELS mode', {
+        telegramId: ctx.from?.id,
+        resultCount: ctx.session.savedAiPhotoshopResults.length,
+      })
+
+      for (const result of ctx.session.savedAiPhotoshopResults) {
+        try {
+          const modelConfig = AI_PHOTOSHOP_MODELS[result.model as keyof typeof AI_PHOTOSHOP_MODELS]
+          const modelTitle = modelConfig ? (isRu ? modelConfig.title_ru : modelConfig.title_en) : result.model
+          const modelCost = modelConfig?.cost || 0
+
+          await ctx.replyWithPhoto(result.imageUrl, {
+            caption: isRu
+              ? `✅ *${modelTitle}*\n\n📝 Промпт: "${result.prompt}"\n\n💎 *Стоимость: ${modelCost}⭐*`
+              : `✅ *${modelTitle}*\n\n📝 Prompt: "${result.prompt}"\n\n💎 *Cost: ${modelCost}⭐*`,
+            parse_mode: 'Markdown',
+          })
+
+          logger.info(`✅ Sent photo from ${result.model}`, {
+            telegramId: ctx.from?.id,
+            model: result.model,
+          })
+        } catch (photoError) {
+          logger.error(`❌ Failed to send photo from ${result.model}`, {
+            telegramId: ctx.from?.id,
+            model: result.model,
+            error: photoError instanceof Error ? photoError.message : String(photoError),
+          })
+        }
+
+        // Small delay between photos to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+
+      logger.info('✅ All photos sent successfully', {
+        telegramId: ctx.from?.id,
+        totalSent: ctx.session.savedAiPhotoshopResults.length,
+      })
+    }
+
     // Show final results summary
     await ctx.reply(
       isRu
@@ -3398,8 +3427,18 @@ const processSingleAiPhotoshopModel = async (
           ctx,
           size: ctx.session?.aiPhotoshopSize || '1K',
           max_images: maxImages, // ✅ USE CORRECT max_images based on input count
-          aspect_ratio: AI_PHOTOSHOP_PRICING.defaultAspectRatio,
+          aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[ctx.session?.aiPhotoshopSize || '1K'] || '9:16', // ✅ ИСПРАВЛЕНО: теперь использует size-based aspect ratio
         })
+
+        // ✅ Save result to session for later sending
+        if (result?.image || result?.imageUrl) {
+          const imageUrl = result.image || result.imageUrl
+          await savePhotoResult(ctx, imageUrl, modelKey, prompt, true)
+          logger.info(`✅ ${modelKey} result saved to session`, {
+            telegram_id: userId.toString(),
+            imageUrl: imageUrl.substring(0, 50) + '...',
+          })
+        }
       } else if (modelKey === 'nano_banana') {
         console.log('🍌🍌🍌 [DEBUG] NANO_BANANA CONDITION MATCHED!')
         // Nano Banana supports up to 3 images
@@ -3421,7 +3460,19 @@ const processSingleAiPhotoshopModel = async (
           is_ru: isRu,
           ctx,
           promptStyle: 'artistic',
+          silent: true, // ✅ ИСПРАВЛЕНО: Don't send photo in ALL_MODELS mode
+          skipBalanceCheck: true, // ✅ ИСПРАВЛЕНО: Balance already checked before loop
         })
+
+        // ✅ Save result to session for later sending
+        if (result?.image || result?.imageUrl) {
+          const imageUrl = result.image || result.imageUrl
+          await savePhotoResult(ctx, imageUrl, modelKey, prompt, true)
+          logger.info(`✅ ${modelKey} result saved to session`, {
+            telegram_id: userId.toString(),
+            imageUrl: imageUrl.substring(0, 50) + '...',
+          })
+        }
       } else if (modelKey === 'flux_multi_kontext') {
         console.log('🔥🔥🔥 [DEBUG] FLUX CONDITION CHECK!', {
           modelKey,
@@ -3462,6 +3513,16 @@ const processSingleAiPhotoshopModel = async (
           telegram_id: userId.toString(),
           resultReceived: !!result,
         })
+
+        // ✅ Save result to session for later sending
+        if (result?.image || result?.imageUrl) {
+          const imageUrl = result.image || result.imageUrl
+          await savePhotoResult(ctx, imageUrl, modelKey, prompt, true)
+          logger.info(`✅ ${modelKey} result saved to session`, {
+            telegram_id: userId.toString(),
+            imageUrl: imageUrl.substring(0, 50) + '...',
+          })
+        }
       } else if (modelKey === 'qwen_edit_plus') {
         // Qwen supports multiple images (up to 10)
         const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
@@ -3477,11 +3538,28 @@ const processSingleAiPhotoshopModel = async (
           output_format: 'jpg',
           output_quality: 90,
         })
+
+        // ✅ Save result to session for later sending
+        if (result?.image || result?.imageUrl) {
+          const imageUrl = result.image || result.imageUrl
+          await savePhotoResult(ctx, imageUrl, modelKey, prompt, true)
+          logger.info(`✅ ${modelKey} result saved to session`, {
+            telegram_id: userId.toString(),
+            imageUrl: imageUrl.substring(0, 50) + '...',
+          })
+        }
       } else if (['flux_kontext_pro', 'seededit_3', 'qwen_image_edit'].includes(modelKey)) {
-        // 🔄 Models 5-7 support ONLY single image - process EACH image in loop
-        logger.info(`🔄 Processing ${imagesToProcess.length} images with ${modelKey}`, {
+        // 🔄 Models 5-7 support ONLY single image
+        // ✅ ИСПРАВЛЕНИЕ: По умолчанию обрабатываем ТОЛЬКО ПЕРВОЕ фото (variations = 1)
+        // Если нужно больше вариаций - используется variations count
+        const variationsCount = ctx.session?.aiPhotoshopVariationsCount || 1
+        const imagesToProcessForThisModel = imagesToProcess.slice(0, Math.min(variationsCount, imagesToProcess.length))
+
+        logger.info(`🔄 Processing ${imagesToProcessForThisModel.length} images with ${modelKey}`, {
           telegram_id: userId.toString(),
-          imageCount: imagesToProcess.length,
+          imageCount: imagesToProcessForThisModel.length,
+          totalImagesAvailable: imagesToProcess.length,
+          variationsCount,
           modelKey,
         })
 
@@ -3491,7 +3569,7 @@ const processSingleAiPhotoshopModel = async (
           (ctx.session?.aiPhotoshopSize === '4K' ? 6 :
            ctx.session?.aiPhotoshopSize === '2K' ? 4 : 1)
         const costPerImage = modelCost * qualityMultiplier
-        const totalCostForAllImages = costPerImage * imagesToProcess.length
+        const totalCostForAllImages = costPerImage * imagesToProcessForThisModel.length
 
         logger.info(`💰 Pre-loop balance check for ${modelKey}`, {
           telegram_id: userId.toString(),
@@ -3517,11 +3595,11 @@ const processSingleAiPhotoshopModel = async (
           })
           // Skip this model - do not process images
         } else {
-          // Balance check passed - process all images
-          for (let i = 0; i < imagesToProcess.length; i++) {
-          const currentImageUrl = imagesToProcess[i]
+          // Balance check passed - process selected images (up to variations count)
+          for (let i = 0; i < imagesToProcessForThisModel.length; i++) {
+          const currentImageUrl = imagesToProcessForThisModel[i]
 
-          logger.info(`🎨 Processing image ${i + 1}/${imagesToProcess.length}`, {
+          logger.info(`🎨 Processing image ${i + 1}/${imagesToProcessForThisModel.length}`, {
             telegram_id: userId.toString(),
             imageIndex: i + 1,
             model: modelKey,
@@ -3544,9 +3622,16 @@ const processSingleAiPhotoshopModel = async (
               })
             } else if (modelKey === 'seededit_3') {
               const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'
+              // ✅ Get centralized aspect ratio
+              const targetAspectRatio = AI_PHOTOSHOP_PRICING.sizeToAspectRatio[seedEdit3Size] || '9:16'
+              // ✅ Add aspect ratio instruction to prompt for SeedEdit 3.0
+              const seedEdit3Prompt = targetAspectRatio === '9:16'
+                ? `${prompt}. Adjust image to vertical 9:16 portrait format, maintaining subject composition.`
+                : prompt
+
               result = await generateSeedEdit3({
                 inputImageUrl: currentImageUrl,
-                prompt,
+                prompt: seedEdit3Prompt, // ✅ Use modified prompt with aspect ratio instruction
                 telegram_id: userId.toString(),
                 username: ctx.from?.username || 'unknown',
                 is_ru: isRu,
@@ -3557,9 +3642,16 @@ const processSingleAiPhotoshopModel = async (
               })
             } else if (modelKey === 'qwen_image_edit') {
               const qwenImageEditSize = ctx.session?.aiPhotoshopSize || '2K'
+              // ✅ Get centralized aspect ratio
+              const targetAspectRatio = AI_PHOTOSHOP_PRICING.sizeToAspectRatio[qwenImageEditSize] || '9:16'
+              // ✅ Add aspect ratio instruction to prompt for Qwen Image Edit
+              const qwenImageEditPrompt = targetAspectRatio === '9:16'
+                ? `${prompt}. Convert to 9:16 vertical portrait aspect ratio format.`
+                : prompt
+
               result = await generateQwenImageEdit({
                 inputImageUrl: currentImageUrl,
-                prompt,
+                prompt: qwenImageEditPrompt, // ✅ Use modified prompt with aspect ratio instruction
                 telegram_id: userId.toString(),
                 username: ctx.from?.username || 'unknown',
                 is_ru: isRu,
@@ -3578,14 +3670,14 @@ const processSingleAiPhotoshopModel = async (
                   : result.image || result.imageUrl || result
               if (imageUrl) {
                 await savePhotoResult(ctx, imageUrl, modelKey, prompt, true)
-                logger.info(`✅ ${modelKey} image ${i + 1}/${imagesToProcess.length} completed`, {
+                logger.info(`✅ ${modelKey} image ${i + 1}/${imagesToProcessForThisModel.length} completed`, {
                   telegram_id: userId.toString(),
                   imageIndex: i + 1,
                 })
               }
             }
           } catch (error) {
-            logger.error(`❌ ${modelKey} image ${i + 1}/${imagesToProcess.length} FAILED`, {
+            logger.error(`❌ ${modelKey} image ${i + 1}/${imagesToProcessForThisModel.length} FAILED`, {
               telegram_id: userId.toString(),
               imageIndex: i + 1,
               error: error instanceof Error ? error.message : String(error),
