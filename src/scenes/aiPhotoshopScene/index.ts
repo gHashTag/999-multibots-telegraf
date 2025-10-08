@@ -1056,20 +1056,20 @@ aiPhotoshopScene.action('ai_photoshop_custom_prompt', async ctx => {
 
     if (ctx.session) {
       ctx.session.aiPhotoshopStyle = 'custom'
-      ctx.session.aiPhotoshopStep = 'custom_prompt'
-      ctx.session.awaitingAiPhotoshopImage = false
-      ctx.session.awaitingAiPhotoshopPrompt = true
+      ctx.session.aiPhotoshopStep = 'image_upload' // ✅ NEW: Request PHOTO first
+      ctx.session.awaitingAiPhotoshopImage = true // ✅ NEW: Await photo first
+      ctx.session.awaitingAiPhotoshopPrompt = false // ✅ NEW: Not awaiting prompt yet
     }
 
     logger.info(
-      '🎨 AI Photoshop: Custom prompt selected, requesting prompt first',
+      '🎨 AI Photoshop: Custom prompt selected, requesting photo first',
       {
         telegramId: ctx.from?.id,
         newState: {
           aiPhotoshopStyle: 'custom',
-          aiPhotoshopStep: 'custom_prompt',
-          awaitingAiPhotoshopImage: false,
-          awaitingAiPhotoshopPrompt: true,
+          aiPhotoshopStep: 'image_upload',
+          awaitingAiPhotoshopImage: true,
+          awaitingAiPhotoshopPrompt: false,
         },
       }
     )
@@ -1081,8 +1081,8 @@ aiPhotoshopScene.action('ai_photoshop_custom_prompt', async ctx => {
 
     await ctx.editMessageText(
       isRu
-        ? `✅ *Модель:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Стиль:* Пользовательский промпт\n\n💬 Опишите, как обработать изображение:\n\n💡 *После ввода промпта вы отправите фото для обработки*`
-        : `✅ *Model:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Style:* Custom prompt\n\n💬 Describe how to process the image:\n\n💡 *After entering the prompt, you'll send the photo for processing*`,
+        ? `✅ *Модель:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Стиль:* Пользовательский промпт\n\n📸 *Отправьте изображение для обработки:*\n\n💡 *После отправки фото вы введёте промпт для обработки*`
+        : `✅ *Model:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Style:* Custom prompt\n\n📸 *Send an image for processing:*\n\n💡 *After sending the photo, you'll enter the processing prompt*`,
       {
         parse_mode: 'Markdown',
         reply_markup: Markup.inlineKeyboard([
@@ -1230,15 +1230,15 @@ aiPhotoshopScene.action(
       if (ctx.session) {
         ctx.session.aiPhotoshopSize = sizeMatch
         ctx.session.aiPhotoshopModel = 'all_models' as any // Ensure model is set to all_models
-        ctx.session.aiPhotoshopStep = 'custom_prompt' // ✅ FIX: Ask for PROMPT first, not photo!
-        ctx.session.awaitingAiPhotoshopPrompt = true // ✅ FIX: Await prompt, not image
-        ctx.session.awaitingAiPhotoshopImage = false // ✅ FIX: Not awaiting image yet
+        ctx.session.aiPhotoshopStep = 'image_upload' // ✅ NEW: Ask for PHOTO first, not prompt!
+        ctx.session.awaitingAiPhotoshopPrompt = false // ✅ NEW: Not awaiting prompt yet
+        ctx.session.awaitingAiPhotoshopImage = true // ✅ NEW: Await photo first
 
         logger.info('🎯 AI Photoshop: ALL_MODELS size selected', {
           telegramId: ctx.from?.id,
           selectedSize: sizeMatch,
           aiPhotoshopModel: ctx.session.aiPhotoshopModel,
-          awaitingAiPhotoshopPrompt: ctx.session.awaitingAiPhotoshopPrompt,
+          awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
         })
       }
 
@@ -1271,8 +1271,8 @@ aiPhotoshopScene.action(
 
       await ctx.editMessageText(
         isRu
-          ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📝 *Опишите, как обработать изображение:*\n\n💡 _Этот промпт будет использован для всех ${totalModelsCount} моделей_`
-          : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📝 *Describe how to process the image:*\n\n💡 _This prompt will be used for all ${totalModelsCount} models_`,
+          ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📸 *Отправьте изображение для обработки:*\n\n💡 _После отправки фото вы введёте промпт для всех ${totalModelsCount} моделей_`
+          : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📸 *Send an image for processing:*\n\n💡 _After sending the photo, you'll enter the prompt for all ${totalModelsCount} models_`,
         {
           parse_mode: 'Markdown',
           reply_markup: {
@@ -1393,20 +1393,6 @@ aiPhotoshopScene.on('photo', async ctx => {
           : '❌ Please select a model and processing style first.'
       )
       return
-    } else if (
-      ctx.session?.awaitingAiPhotoshopPrompt &&
-      ctx.session?.aiPhotoshopStyle === 'custom'
-    ) {
-      // User sent photo while we were waiting for prompt - this is OK, but ask for prompt first
-      await ctx.telegram.editMessageText(
-        ctx.chat?.id,
-        loadingMsg.message_id,
-        undefined,
-        isRu
-          ? '✅ Фото получено! Но сначала опишите, как его обработать:\n\n📝 Напишите промпт для обработки фото:'
-          : '✅ Photo received! But first describe how to process it:\n\n📝 Write a prompt for photo processing:'
-      )
-      return
     }
 
     const photo = ctx.message.photo?.pop()
@@ -1425,44 +1411,34 @@ aiPhotoshopScene.on('photo', async ctx => {
     // Save the photo and handle different states
     if (ctx.session) {
       ctx.session.aiPhotoshopImage = fileLink.href
-
-      // If we were waiting for prompt (user sent photo early), keep waiting for prompt
-      if (
-        ctx.session.awaitingAiPhotoshopPrompt &&
-        ctx.session.aiPhotoshopStyle === 'custom'
-      ) {
-        // Don't change awaitingAiPhotoshopPrompt - keep it true
-        ctx.session.awaitingAiPhotoshopImage = false
-
-        await ctx.telegram.editMessageText(
-          ctx.chat?.id,
-          loadingMsg.message_id,
-          undefined,
-          isRu
-            ? '✅ Фото сохранено! Теперь опишите, как его обработать:\n\n📝 Напишите промпт для обработки фото:'
-            : '✅ Photo saved! Now describe how to process it:\n\n📝 Write a prompt for photo processing:'
-        )
-        return
-      } else {
-        // Normal flow - photo received when expected
-        ctx.session.awaitingAiPhotoshopImage = false
-      }
+      ctx.session.awaitingAiPhotoshopImage = false
     }
 
-    // If style is custom, we need to wait for the prompt
-    if (ctx.session?.aiPhotoshopStyle === 'custom') {
+    // ✅ NEW: If style is custom OR model is all_models, we need to wait for the prompt
+    if (
+      ctx.session?.aiPhotoshopStyle === 'custom' ||
+      ctx.session?.aiPhotoshopModel === 'all_models'
+    ) {
       if (ctx.session) {
         ctx.session.aiPhotoshopStep = 'custom_prompt'
         ctx.session.awaitingAiPhotoshopPrompt = true
       }
 
+      // ✅ Different messages for all_models vs custom
+      const promptMessage =
+        ctx.session?.aiPhotoshopModel === 'all_models'
+          ? isRu
+            ? `✅ Изображение загружено!\n\n📝 Теперь опишите, как его обработать:\n\n🎯 *Этот промпт будет использован для всех ${Object.keys(AI_PHOTOSHOP_MODELS).length} моделей*\n\n💡 *Для лучших результатов пишите на английском языке*`
+            : `✅ Image uploaded!\n\n📝 Now describe how to process it:\n\n🎯 *This prompt will be used for all ${Object.keys(AI_PHOTOSHOP_MODELS).length} models*\n\n💡 *For best results, write in English*`
+          : isRu
+            ? '✅ Изображение загружено!\n\n📝 Теперь опишите, как его обработать:\n\n💡 *Для лучших результатов пишите на английском языке*'
+            : '✅ Image uploaded!\n\n📝 Now describe how to process it:\n\n💡 *For best results, write in English*'
+
       await ctx.telegram.editMessageText(
         ctx.chat?.id,
         loadingMsg.message_id,
         undefined,
-        isRu
-          ? '✅ Изображение загружено!\n\n📝 Теперь опишите, как его обработать:\n\n💡 *Для лучших результатов пишите на английском языке*'
-          : '✅ Image uploaded!\n\n📝 Now describe how to process it:\n\n💡 *For best results, write in English*',
+        promptMessage,
         {
           parse_mode: 'Markdown',
           reply_markup: {
@@ -1507,73 +1483,6 @@ aiPhotoshopScene.on('photo', async ctx => {
 })
 
 // Handle text messages (custom prompts)
-// 🚨 DEDICATED FUNCTION: Handle all_models prompt BEFORE everything else
-async function handleAllModelsPrompt(
-  ctx: MyContext,
-  messageText: string
-): Promise<boolean> {
-  const isRu = isRussianFromState(ctx)
-
-  // Check if this is all_models prompt waiting state
-  if (
-    ctx.session?.aiPhotoshopModel === 'all_models' &&
-    ctx.session?.awaitingAiPhotoshopPrompt
-  ) {
-    console.log('🎯🎯🎯 ALL_MODELS PROMPT DETECTED!', {
-      telegramId: ctx.from?.id,
-      prompt: messageText.substring(0, 50),
-      imageCount: ctx.session.morphingImages?.length || 0,
-    })
-
-    // ✅ Save prompt and request PHOTO
-    ctx.session.aiPhotoshopPrompt = messageText
-    ctx.session.awaitingAiPhotoshopPrompt = false
-    ctx.session.awaitingAiPhotoshopImage = true // ✅ NOW waiting for photo!
-    ctx.session.aiPhotoshopStep = 'image_upload' // ✅ Move to image upload step
-
-    const totalModelsCount = Object.keys(AI_PHOTOSHOP_MODELS).length
-    const selectedSize = ctx.session.aiPhotoshopSize || '2K'
-
-    // ✅ Calculate cost based on ALREADY SELECTED quality
-    let totalCost: number
-    switch (selectedSize) {
-      case '1K':
-        totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('1K')
-        break
-      case '2K':
-        totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('2K')
-        break
-      case '4K':
-        totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('4K')
-        break
-      default:
-        totalCost = AI_PHOTOSHOP_PRICING.getAllModelsWithQuality('1K')
-    }
-
-    await ctx.reply(
-      isRu
-        ? `✅ Промпт получен: "${messageText}"\n\n🎯 Готово к обработке всеми ${totalModelsCount} моделями!\n\n📊 Качество: ${selectedSize}\n💰 Стоимость: ${totalCost}⭐\n\n📸 *Отправьте фото для обработки:*`
-        : `✅ Prompt received: "${messageText}"\n\n🎯 Ready to process with all ${totalModelsCount} models!\n\n📊 Quality: ${selectedSize}\n💰 Cost: ${totalCost}⭐\n\n📸 *Send photo for processing:*`,
-      {
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: isRu ? '❌ Отмена' : '❌ Cancel',
-                callback_data: 'ai_photoshop_multi_cancel',
-              },
-            ],
-          ],
-        },
-      }
-    )
-    return true // Handled
-  }
-
-  return false // Not handled
-}
-
 aiPhotoshopScene.on('text', async ctx => {
   try {
     // 🔥 ULTRA DEBUG: Always log text handler entry
@@ -1584,13 +1493,6 @@ aiPhotoshopScene.on('text', async ctx => {
     })
 
     const messageText = ctx.message.text
-
-    // 🚨 FIRST PRIORITY: Check for all_models prompt handling
-    if (await handleAllModelsPrompt(ctx, messageText)) {
-      console.log('🎯 ALL_MODELS prompt handled, returning early')
-      return
-    }
-
     const isRu = isRussianFromState(ctx)
 
     // Skip commands
@@ -1718,80 +1620,37 @@ aiPhotoshopScene.on('text', async ctx => {
       if (ctx.session) {
         ctx.session.aiPhotoshopPrompt = prompt
         ctx.session.awaitingAiPhotoshopPrompt = false
-        ctx.session.aiPhotoshopStep = 'image_upload'
-        ctx.session.awaitingAiPhotoshopImage = true
+        ctx.session.aiPhotoshopStep = 'processing'
 
         logger.info('✅ AI Photoshop: Custom prompt saved successfully', {
           telegramId: ctx.from?.id,
           promptLength: prompt.length,
           promptPreview: prompt.substring(0, 100) + '...',
           step: ctx.session.aiPhotoshopStep,
+          hasImage: !!ctx.session.aiPhotoshopImage,
+          model: ctx.session.aiPhotoshopModel,
         })
       }
 
-      const model =
-        AI_PHOTOSHOP_MODELS[
-          ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS
-        ]
-
-      // Size selection for SeeDream-4 model
-      if (ctx.session.aiPhotoshopModel === 'seedream') {
+      // ✅ NEW: Check if image is already uploaded (new sequence)
+      if (!ctx.session?.aiPhotoshopImage) {
         await ctx.reply(
           isRu
-            ? `✅ Промпт сохранен: "${prompt}"\n\n📏 Выберите размер изображения:`
-            : `✅ Prompt saved: "${prompt}"\n\n📏 Choose image size:`,
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: '1K - 5⭐',
-                    callback_data: 'ai_photoshop_size_1K',
-                  },
-                ],
-                [
-                  {
-                    text: '2K - 20⭐',
-                    callback_data: 'ai_photoshop_size_2K',
-                  },
-                ],
-                [
-                  {
-                    text: '4K - 30⭐',
-                    callback_data: 'ai_photoshop_size_4K',
-                  },
-                ],
-                [
-                  {
-                    text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
-                    callback_data: 'back_to_menu',
-                  },
-                ],
-              ],
-            },
-          }
+            ? '❌ Фото не найдено. Отправьте фото сначала.'
+            : '❌ Photo not found. Send a photo first.'
         )
-      } else {
-        // Direct to photo upload for other models
-        await ctx.reply(
-          isRu
-            ? `✅ Промпт сохранен: "${prompt}"\n\n📷 Теперь загрузите фото или альбом изображений:`
-            : `✅ Prompt saved: "${prompt}"\n\n📷 Now upload a photo or album of images:`,
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
-                    callback_data: 'back_to_menu',
-                  },
-                ],
-              ],
-            },
-          }
-        )
-        ctx.session.awaitingAiPhotoshopImage = true
+        return
       }
+
+      // ✅ NEW: Start processing immediately since we have both prompt and image
+      await ctx.reply(
+        isRu
+          ? `✅ Промпт получен: "${prompt}"\n\n⏳ Начинаю обработку...`
+          : `✅ Prompt received: "${prompt}"\n\n⏳ Starting processing...`
+      )
+
+      // ✅ Process the request
+      await processAiPhotoshopRequest(ctx)
       return
     }
 
