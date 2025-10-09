@@ -211,11 +211,17 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       return next()
     })
 
-    // 3. --- РЕГИСТРАЦИЯ ГЛОБАЛЬНЫХ КОМАНД ПЕРЕД STAGE ---
-    // ВАЖНО: Команды регистрируются ДО stage.middleware(), чтобы они не перехватывались сценами
+    // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
+    bot.use(stage.middleware())
 
-    // ✅ РЕГИСТРАЦИЯ HELP КОМАНДЫ
+    // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ
+    registerPaymentActions(bot)
+
+    // 5. ✅ РЕГИСТРАЦИЯ HELP КОМАНДЫ
     bot.command('help', handleHelpCommand)
+
+    // 6. --- РЕГИСТРАЦИЯ ГЛОБАЛЬНЫХ КОМАНД ---
+    // Команды должны быть зарегистрированы здесь, до hears и общего on('text')
 
     bot.command('start', async ctx => {
       if (ctx.chat.type !== 'private') {
@@ -721,23 +727,6 @@ If not, continue on your own and click the "I myself" button`
         )
       }
     })
-
-    // ==========================================
-    // КРИТИЧЕСКИ ВАЖНЫЙ ПОРЯДОК РЕГИСТРАЦИИ:
-    // 1. Все bot.command() - ВЫШЕ (строки 214-723)
-    // 2. Stage middleware - НИЖЕ (сейчас)
-    // 3. Payment handlers - НИЖЕ
-    // 4. Hears handlers - НИЖЕ
-    // ==========================================
-
-    // 3. Middleware сцен (ПОСЛЕ ВСЕХ КОМАНД!)
-    // ВАЖНО: stage.middleware() регистрируется ПОСЛЕ команд, чтобы команды не перехватывались сценами
-    bot.use(stage.middleware())
-    logger.info('✅ Stage middleware registered AFTER all commands')
-
-    // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ (ПОСЛЕ STAGE)
-    registerPaymentActions(bot)
-    logger.info('✅ Payment actions registered')
 
     // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
     bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
