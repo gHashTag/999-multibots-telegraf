@@ -1056,20 +1056,20 @@ aiPhotoshopScene.action('ai_photoshop_custom_prompt', async ctx => {
 
     if (ctx.session) {
       ctx.session.aiPhotoshopStyle = 'custom'
-      ctx.session.aiPhotoshopStep = 'image_upload' // ✅ NEW: Request PHOTO first
-      ctx.session.awaitingAiPhotoshopImage = true // ✅ NEW: Await photo first
-      ctx.session.awaitingAiPhotoshopPrompt = false // ✅ NEW: Not awaiting prompt yet
+      ctx.session.aiPhotoshopStep = 'custom_prompt' // ✅ Request PROMPT first
+      ctx.session.awaitingAiPhotoshopPrompt = true // ✅ Await prompt first
+      ctx.session.awaitingAiPhotoshopImage = false // ✅ Not awaiting image yet
     }
 
     logger.info(
-      '🎨 AI Photoshop: Custom prompt selected, requesting photo first',
+      '🎨 AI Photoshop: Custom prompt selected, requesting prompt first',
       {
         telegramId: ctx.from?.id,
         newState: {
           aiPhotoshopStyle: 'custom',
-          aiPhotoshopStep: 'image_upload',
-          awaitingAiPhotoshopImage: true,
-          awaitingAiPhotoshopPrompt: false,
+          aiPhotoshopStep: 'custom_prompt',
+          awaitingAiPhotoshopPrompt: true,
+          awaitingAiPhotoshopImage: false,
         },
       }
     )
@@ -1081,8 +1081,8 @@ aiPhotoshopScene.action('ai_photoshop_custom_prompt', async ctx => {
 
     await ctx.editMessageText(
       isRu
-        ? `✅ *Модель:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Стиль:* Пользовательский промпт\n\n📸 *Отправьте изображение для обработки:*\n\n💡 *После отправки фото вы введёте промпт для обработки*`
-        : `✅ *Model:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Style:* Custom prompt\n\n📸 *Send an image for processing:*\n\n💡 *After sending the photo, you'll enter the processing prompt*`,
+        ? `✅ *Модель:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Стиль:* Пользовательский промпт\n\n📝 *Введите промпт для обработки изображения:*\n\n💡 *После ввода промпта отправьте фото для обработки*`
+        : `✅ *Model:* ${isRu ? model?.title_ru : model?.title_en}\n✍️ *Style:* Custom prompt\n\n📝 *Enter a prompt for image processing:*\n\n💡 *After entering the prompt, send a photo for processing*`,
       {
         parse_mode: 'Markdown',
         reply_markup: Markup.inlineKeyboard([
@@ -1121,8 +1121,18 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
       if (!ctx.session.aiPhotoshopModel) {
         ctx.session.aiPhotoshopModel = 'seedream' // Default model if not set
       }
-      ctx.session.aiPhotoshopStep = 'image_upload'
-      ctx.session.awaitingAiPhotoshopImage = true
+
+      // ✅ If photos already uploaded, go straight to confirmation. Otherwise, await photo.
+      const hasPhotos = ctx.session.morphingImages && ctx.session.morphingImages.length > 0
+
+      if (hasPhotos) {
+        ctx.session.aiPhotoshopStep = 'processing'
+        ctx.session.awaitingAiPhotoshopImage = false
+        ctx.session.awaitingAiPhotoshopPrompt = false
+      } else {
+        ctx.session.aiPhotoshopStep = 'image_upload'
+        ctx.session.awaitingAiPhotoshopImage = true
+      }
     }
 
     // ✅ Price calculation using centralized pricing
@@ -1138,29 +1148,111 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
       '4K': '4K',
     }
 
-    await ctx.editMessageText(
-      isRu
-        ? `✅ Размер выбран: ${sizeMatch} (${sizeDimensions[sizeMatch]})\n💰 Стоимость: ${sizePrices[sizeMatch]}⭐\n\n📷 Теперь загрузите фото или альбом изображений:`
-        : `✅ Size selected: ${sizeMatch} (${sizeDimensions[sizeMatch]})\n💰 Cost: ${sizePrices[sizeMatch]}⭐\n\n📷 Now upload a photo or album of images:`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: isRu ? '🔄 Изменить размер' : '🔄 Change Size',
-                callback_data: 'ai_photoshop_change_size',
-              },
-            ],
-            [
-              {
-                text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
-                callback_data: 'back_to_menu',
-              },
-            ],
-          ],
-        },
+    // ✅ If photos already uploaded, show summary and "Process" button
+    const hasPhotos = ctx.session.morphingImages && ctx.session.morphingImages.length > 0
+
+    if (hasPhotos) {
+      const imageCount = ctx.session.morphingImages!.length
+      const costPerImage = sizePrices[sizeMatch]
+      const totalCost = costPerImage * imageCount
+
+      // Get variations count for cost calculation
+      const variationsCount = ctx.session.aiPhotoshopVariationsCount || 1
+      const finalCost = totalCost * variationsCount
+
+      // Get model and style info
+      const currentModel = ctx.session.aiPhotoshopModel || 'seedream'
+      const currentStyle = ctx.session.aiPhotoshopStyle || 'artistic'
+      const currentPrompt = ctx.session.aiPhotoshopPrompt
+
+      let modelTitle: string
+      const modelInfo =
+        AI_PHOTOSHOP_MODELS[currentModel as keyof typeof AI_PHOTOSHOP_MODELS]
+      modelTitle = isRu ? modelInfo?.title_ru : modelInfo?.title_en
+
+      let styleDisplay = ''
+      if (currentStyle === 'custom' && currentPrompt) {
+        styleDisplay = isRu
+          ? `✍️ Пользовательский: "${currentPrompt.substring(0, 50)}${currentPrompt.length > 50 ? '...' : ''}"`
+          : `✍️ Custom: "${currentPrompt.substring(0, 50)}${currentPrompt.length > 50 ? '...' : ''}"`
+      } else if (currentStyle && currentStyle !== 'custom') {
+        const styleInfo =
+          AI_PHOTOSHOP_STYLES[currentStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+        styleDisplay = isRu
+          ? styleInfo?.title_ru || 'Художественный'
+          : styleInfo?.title_en || 'Artistic'
       }
-    )
+
+      await ctx.editMessageText(
+        isRu
+          ? `✅ Качество изменено: ${sizeMatch}\n\n✨ Готово к обработке ${imageCount} изображений!\n\n🎭 Модель: ${modelTitle}\n🎨 Стиль: ${styleDisplay}\n📏 Размер: ${sizeMatch}\n🔢 Вариаций: ${variationsCount}\n💎 Стоимость: ${finalCost} ⭐ (${costPerImage}⭐ за фото)`
+          : `✅ Quality changed: ${sizeMatch}\n\n✨ Ready to process ${imageCount} images!\n\n🎭 Model: ${modelTitle}\n🎨 Style: ${styleDisplay}\n📏 Size: ${sizeMatch}\n🔢 Variations: ${variationsCount}\n💎 Cost: ${finalCost} ⭐ (${costPerImage}⭐ per photo)`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? '🚀 Начать обработку' : '🚀 Start Processing',
+                  callback_data: 'ai_photoshop_multi_confirm',
+                },
+              ],
+              [
+                {
+                  text: isRu ? '📏 Изменить качество' : '📏 Change Quality',
+                  callback_data: 'ai_photoshop_change_size',
+                },
+              ],
+              [
+                {
+                  text: isRu ? '⚙️ Выбрать модель' : '⚙️ Choose Model',
+                  callback_data: 'ai_photoshop_multi_choose_model',
+                },
+              ],
+              [
+                {
+                  text: isRu
+                    ? `🔢 Вариации (${variationsCount})`
+                    : `🔢 Variations (${variationsCount})`,
+                  callback_data: 'ai_photoshop_variations_menu',
+                },
+              ],
+              [
+                {
+                  text: isRu ? '❌ Отмена' : '❌ Cancel',
+                  callback_data: 'ai_photoshop_multi_cancel',
+                },
+              ],
+            ],
+          },
+        }
+      )
+    } else {
+      // No photos yet, request upload
+      await ctx.editMessageText(
+        isRu
+          ? `✅ Размер выбран: ${sizeMatch} (${sizeDimensions[sizeMatch]})\n💰 Стоимость: ${sizePrices[sizeMatch]}⭐\n\n📷 Теперь загрузите фото или альбом изображений:`
+          : `✅ Size selected: ${sizeMatch} (${sizeDimensions[sizeMatch]})\n💰 Cost: ${sizePrices[sizeMatch]}⭐\n\n📷 Now upload a photo or album of images:`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: isRu ? '🔄 Изменить размер' : '🔄 Change Size',
+                  callback_data: 'ai_photoshop_change_size',
+                },
+              ],
+              [
+                {
+                  text: isRu ? '🚪 Назад в меню' : '🚪 Back to Menu',
+                  callback_data: 'back_to_menu',
+                },
+              ],
+            ],
+          },
+        }
+      )
+    }
   } catch (error) {
     logger.error('Error handling AI Photoshop size selection', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -1230,14 +1322,25 @@ aiPhotoshopScene.action(
       if (ctx.session) {
         ctx.session.aiPhotoshopSize = sizeMatch
         ctx.session.aiPhotoshopModel = 'all_models' as any // Ensure model is set to all_models
-        ctx.session.aiPhotoshopStep = 'image_upload' // ✅ NEW: Ask for PHOTO first, not prompt!
-        ctx.session.awaitingAiPhotoshopPrompt = false // ✅ NEW: Not awaiting prompt yet
-        ctx.session.awaitingAiPhotoshopImage = true // ✅ NEW: Await photo first
+
+        // ✅ If photos already uploaded, go straight to confirmation. Otherwise, await photo.
+        const hasPhotos = ctx.session.morphingImages && ctx.session.morphingImages.length > 0
+
+        if (hasPhotos) {
+          ctx.session.aiPhotoshopStep = 'processing'
+          ctx.session.awaitingAiPhotoshopImage = false
+          ctx.session.awaitingAiPhotoshopPrompt = false
+        } else {
+          ctx.session.aiPhotoshopStep = 'image_upload'
+          ctx.session.awaitingAiPhotoshopPrompt = false
+          ctx.session.awaitingAiPhotoshopImage = true
+        }
 
         logger.info('🎯 AI Photoshop: ALL_MODELS size selected', {
           telegramId: ctx.from?.id,
           selectedSize: sizeMatch,
           aiPhotoshopModel: ctx.session.aiPhotoshopModel,
+          hasPhotos,
           awaitingAiPhotoshopImage: ctx.session.awaitingAiPhotoshopImage,
         })
       }
@@ -1269,34 +1372,78 @@ aiPhotoshopScene.action(
           qualityDesc = isRu ? '1K качество (базовое)' : '1K quality (base)'
       }
 
-      await ctx.editMessageText(
-        isRu
-          ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📸 *Отправьте изображение для обработки:*\n\n💡 _После отправки фото вы введёте промпт для всех ${totalModelsCount} моделей_`
-          : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📸 *Send an image for processing:*\n\n💡 _After sending the photo, you'll enter the prompt for all ${totalModelsCount} models_`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                Markup.button.callback(
-                  isRu ? 'Изменить качество' : 'Change quality',
-                  'ai_photoshop_all_models_from_selector'
-                ),
+      // ✅ If photos already uploaded, show summary and "Process" button
+      const hasPhotos = ctx.session.morphingImages && ctx.session.morphingImages.length > 0
+
+      if (hasPhotos) {
+        const imageCount = ctx.session.morphingImages!.length
+        const costPerImage = Math.round(totalCost / imageCount)
+
+        await ctx.editMessageText(
+          isRu
+            ? `✨ Готово к обработке ${imageCount} изображений!\n\n🎯 Модель: 🎯 Все модели сразу\n📏 Размер: ${qualityDesc}\n💎 Стоимость: ${totalCost} ⭐ (${costPerImage}⭐ за фото)`
+            : `✨ Ready to process ${imageCount} images!\n\n🎯 Model: 🎯 All Models\n📏 Size: ${qualityDesc}\n💎 Cost: ${totalCost} ⭐ (${costPerImage}⭐ per photo)`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: isRu ? '🚀 Начать обработку' : '🚀 Start Processing',
+                    callback_data: 'ai_photoshop_multi_confirm',
+                  },
+                ],
+                [
+                  Markup.button.callback(
+                    isRu ? '📏 Изменить качество' : '📏 Change quality',
+                    'ai_photoshop_all_models_from_selector'
+                  ),
+                ],
+                [
+                  Markup.button.callback(
+                    isRu ? 'Назад к моделям' : 'Back to models',
+                    'ai_photoshop_back_to_models'
+                  ),
+                  Markup.button.callback(
+                    isRu ? 'Отмена' : 'Cancel',
+                    'ai_photoshop_cancel'
+                  ),
+                ],
               ],
-              [
-                Markup.button.callback(
-                  isRu ? 'Назад к моделям' : 'Back to models',
-                  'ai_photoshop_back_to_models'
-                ),
-                Markup.button.callback(
-                  isRu ? 'Отмена' : 'Cancel',
-                  'ai_photoshop_cancel'
-                ),
+            },
+          }
+        )
+      } else {
+        // No photos yet - request photo upload
+        await ctx.editMessageText(
+          isRu
+            ? `🎯 *Все модели сразу!*\n\n📊 *Выбрано: ${qualityDesc}*\n\n🔸 *Модели для обработки:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Общая стоимость: ${totalCost}⭐*\n\n📸 *Отправьте изображение для обработки:*\n\n💡 _После отправки фото вы введёте промпт для всех ${totalModelsCount} моделей_`
+            : `🎯 *All models at once!*\n\n📊 *Selected: ${qualityDesc}*\n\n🔸 *Models to process:*\n${modelNames.map((name, i) => `• ${name}`).join('\n')}\n\n💎 *Total cost: ${totalCost}⭐*\n\n📸 *Send an image for processing:*\n\n💡 _After sending the photo, you'll enter the prompt for all ${totalModelsCount} models_`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  Markup.button.callback(
+                    isRu ? 'Изменить качество' : 'Change quality',
+                    'ai_photoshop_all_models_from_selector'
+                  ),
+                ],
+                [
+                  Markup.button.callback(
+                    isRu ? 'Назад к моделям' : 'Back to models',
+                    'ai_photoshop_back_to_models'
+                  ),
+                  Markup.button.callback(
+                    isRu ? 'Отмена' : 'Cancel',
+                    'ai_photoshop_cancel'
+                  ),
+                ],
               ],
-            ],
-          },
-        }
-      )
+            },
+          }
+        )
+      }
     } catch (error) {
       logger.error('Error handling all models size selection', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -1632,17 +1779,51 @@ aiPhotoshopScene.on('text', async ctx => {
         })
       }
 
-      // ✅ NEW: Check if image is already uploaded (new sequence)
-      if (!ctx.session?.aiPhotoshopImage) {
+      // ✅ HANDLE ALL_MODELS MODE - check morphingImages instead of single image
+      if (ctx.session?.aiPhotoshopModel === 'all_models') {
+        if (!ctx.session?.morphingImages || ctx.session.morphingImages.length === 0) {
+          await ctx.reply(
+            isRu
+              ? '❌ Фото не найдено. Отправьте фото сначала.'
+              : '❌ Photo not found. Send a photo first.'
+          )
+          return
+        }
+
+        // ✅ Set first image as aiPhotoshopImage for all_models processing
+        if (ctx.session.morphingImages[0]?.url) {
+          ctx.session.aiPhotoshopImage = ctx.session.morphingImages[0].url
+        }
+
         await ctx.reply(
           isRu
-            ? '❌ Фото не найдено. Отправьте фото сначала.'
-            : '❌ Photo not found. Send a photo first.'
+            ? `✅ Промпт получен: "${prompt}"\n\n⏳ Начинаю обработку всеми ${Object.keys(AI_PHOTOSHOP_MODELS).length} моделями для ${ctx.session.morphingImages.length} изображений...`
+            : `✅ Prompt received: "${prompt}"\n\n⏳ Starting processing with all ${Object.keys(AI_PHOTOSHOP_MODELS).length} models for ${ctx.session.morphingImages.length} images...`
         )
+
+        // ✅ Process with all models - processAiPhotoshopRequest handles all_models internally
+        await processAiPhotoshopRequest(ctx, prompt)
         return
       }
 
-      // ✅ NEW: Start processing immediately since we have both prompt and image
+      // ✅ REGULAR MODE: If no image yet, save prompt and request image
+      if (!ctx.session?.aiPhotoshopImage) {
+        await ctx.reply(
+          isRu
+            ? `✅ Промпт сохранен: "${prompt}"\n\n📸 Теперь отправьте изображение для обработки`
+            : `✅ Prompt saved: "${prompt}"\n\n📸 Now send an image for processing`
+        )
+
+        // Update session to await image
+        if (ctx.session) {
+          ctx.session.aiPhotoshopStep = 'image_upload'
+          ctx.session.awaitingAiPhotoshopImage = true
+          ctx.session.awaitingAiPhotoshopPrompt = false
+        }
+        return
+      }
+
+      // ✅ REGULAR MODE: Both prompt and image ready - start processing
       await ctx.reply(
         isRu
           ? `✅ Промпт получен: "${prompt}"\n\n⏳ Начинаю обработку...`
@@ -3929,6 +4110,58 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
       variationsInfo = isRu ? `\n⚠️ Модель не поддерживает вариации` : `\n⚠️ Model doesn't support variations`
     }
 
+    // ✅ Build keyboard with quality selection for ALL_MODELS
+    const keyboard: any[][] = [
+      [
+        {
+          text: isRu ? '🚀 Начать обработку' : '🚀 Start Processing',
+          callback_data: 'ai_photoshop_multi_confirm',
+        },
+      ],
+      [
+        {
+          text: isRu ? '⚙️ Выбрать модель' : '⚙️ Choose Model',
+          callback_data: 'ai_photoshop_multi_choose_model',
+        },
+      ],
+    ]
+
+    // ✅ Add quality selection button for ALL models
+    if (ctx.session?.aiPhotoshopModel === 'all_models') {
+      keyboard.push([
+        {
+          text: isRu ? '📏 Изменить качество' : '📏 Change Quality',
+          callback_data: 'ai_photoshop_all_models_from_selector',
+        },
+      ])
+    } else {
+      // ✅ Add quality selection button for SINGLE models too
+      keyboard.push([
+        {
+          text: isRu ? '📏 Изменить качество' : '📏 Change Quality',
+          callback_data: 'ai_photoshop_change_size',
+        },
+      ])
+    }
+
+    // Add variations button (only for SeeDream)
+    keyboard.push([
+      {
+        text: isRu
+          ? `🔢 Вариации (${variationsCount})`
+          : `🔢 Variations (${variationsCount})`,
+        callback_data: 'ai_photoshop_variations_menu',
+      },
+    ])
+
+    // Add cancel button
+    keyboard.push([
+      {
+        text: isRu ? '❌ Отмена' : '❌ Cancel',
+        callback_data: 'ai_photoshop_multi_cancel',
+      },
+    ])
+
     // Show model/style selection for multi-photo
     await ctx.reply(
       isRu
@@ -3936,34 +4169,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
         : `✨ Ready to process ${ctx.session.morphingImages.length} images!\n\n🎭 Model: ${modelTitle}\n🎨 Style: ${styleDisplay}\n📏 Size: ${selectedSize}${variationsInfo}\n💎 Cost: ${totalCost} ⭐ (${costPerImage}⭐ per photo)`,
       {
         reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: isRu ? '🚀 Начать обработку' : '🚀 Start Processing',
-                callback_data: 'ai_photoshop_multi_confirm',
-              },
-            ],
-            [
-              {
-                text: isRu ? '⚙️ Выбрать модель' : '⚙️ Choose Model',
-                callback_data: 'ai_photoshop_multi_choose_model',
-              },
-            ],
-            [
-              {
-                text: isRu
-                  ? `🔢 Вариации (${variationsCount})`
-                  : `🔢 Variations (${variationsCount})`,
-                callback_data: 'ai_photoshop_variations_menu',
-              },
-            ],
-            [
-              {
-                text: isRu ? '❌ Отмена' : '❌ Cancel',
-                callback_data: 'ai_photoshop_multi_cancel',
-              },
-            ],
-          ],
+          inline_keyboard: keyboard,
         },
       }
     )
