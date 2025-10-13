@@ -306,6 +306,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   // Morphing fields
   morphingType?: 'loop' | 'linear' // Тип морфинга
+  morphingCustomPrompt?: string // Кастомный промпт для переходов морфинга
+  morphingAwaitingCustomPrompt?: boolean // Флаг ожидания ввода кастомного промпта
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса

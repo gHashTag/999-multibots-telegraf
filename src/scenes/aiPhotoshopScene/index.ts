@@ -1275,12 +1275,6 @@ aiPhotoshopScene.action('ai_photoshop_change_size', async ctx => {
           inline_keyboard: [
             [
               {
-                text: '1K - 5⭐',
-                callback_data: 'ai_photoshop_size_1K',
-              },
-            ],
-            [
-              {
                 text: '2K - 20⭐',
                 callback_data: 'ai_photoshop_size_2K',
               },
@@ -2756,7 +2750,7 @@ const processAiPhotoshopRequest = async (
             originalOrder: 1,
           }))
           if (!ctx.session.aiPhotoshopSize) {
-            ctx.session.aiPhotoshopSize = '1K'
+            ctx.session.aiPhotoshopSize = '2K'
           }
         }
 
@@ -3400,7 +3394,7 @@ const processSingleAiPhotoshopModel = async (
       ctx.session.aiPhotoshopPrompt = customPrompt
       // ✅ НЕ устанавливаем aiPhotoshopImage - оставляем morphingImages как есть
       if (!ctx.session.aiPhotoshopSize) {
-        ctx.session.aiPhotoshopSize = '1K'
+        ctx.session.aiPhotoshopSize = '2K'
       }
     }
 
@@ -4038,7 +4032,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     await ctx.deleteMessage()
 
     // ✅ Calculate cost using centralized pricing
-    const selectedSize = ctx.session.aiPhotoshopSize || '1K'
+    const selectedSize = ctx.session.aiPhotoshopSize || '2K'
     const currentModel = ctx.session.aiPhotoshopModel || 'seedream'
 
     // Calculate cost based on model selection from centralized config
@@ -4699,7 +4693,7 @@ aiPhotoshopScene.action('ai_photoshop_generate_all_models', async ctx => {
           ctx.session.aiPhotoshopStep = 'processing'
           // Default size for SeeDream-4 model
           if (modelKey === 'seedream') {
-            ctx.session.aiPhotoshopSize = lastPhoto.additionalInfo?.size || '1K'
+            ctx.session.aiPhotoshopSize = lastPhoto.additionalInfo?.size || '2K'
           }
         }
 

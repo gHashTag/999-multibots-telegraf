@@ -18,6 +18,8 @@ interface MorphingRequest {
   imageCount: number
   morphingType: 'seamless' | 'loop'
   withLoop: boolean // ✅ Параметр лупа
+  customPrompt?: string // ✅ Кастомный промпт для переходов (если не указан - используется дефолтный кинематографичный)
+  ctx?: any // ✅ Контекст Telegraf для использования существующего бота
 }
 
 interface MorphingResponse {
@@ -124,14 +126,26 @@ export async function generateMorphing(
       }
     }
 
-    // ✅ ПОЛУЧАЕМ BOT TOKEN ЗАРАНЕЕ
-    const botToken = getBotTokenByName(requestData.botName)
-    if (!botToken) {
-      throw new Error(`Bot token not found for: ${requestData.botName}`)
+    // ✅ ИСПОЛЬЗУЕМ СУЩЕСТВУЮЩИЙ БОТ ИЗ КОНТЕКСТА ИЛИ СОЗДАЕМ НОВЫЙ
+    let bot: any
+    if (requestData.ctx) {
+      // Используем существующий бот из контекста
+      bot = { telegram: requestData.ctx.telegram }
+      logger.info('✅ Using existing bot from context', {
+        telegram_id: requestData.telegram_id,
+      })
+    } else {
+      // Создаем новый экземпляр (fallback для backward compatibility)
+      const botToken = getBotTokenByName(requestData.botName)
+      if (!botToken) {
+        throw new Error(`Bot token not found for: ${requestData.botName}`)
+      }
+      bot = new Telegraf(botToken)
+      logger.info('⚠️ Creating new Telegraf instance', {
+        telegram_id: requestData.telegram_id,
+        botName: requestData.botName,
+      })
     }
-
-    // ✅ СОЗДАЕМ БОТ ОДИН РАЗ ДЛЯ ВСЕХ ОТПРАВОК
-    const bot = new Telegraf(botToken)
 
     // ✅ ПРЯМАЯ ОБРАБОТКА МОРФИНГА через Replicate API
     const { createMorphingVideo } = await import(
@@ -205,6 +219,7 @@ export async function generateMorphing(
       tempDir: fullTempDir,
       telegram_id: requestData.telegram_id,
       onIntermediateVideo: sendIntermediateVideo,
+      customPrompt: requestData.customPrompt, // ✅ Передаем кастомный промпт если указан
     })
 
     // ✅ ОТПРАВКА ФИНАЛЬНОГО ВИДЕО В TELEGRAM (используем тот же bot)
