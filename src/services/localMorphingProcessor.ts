@@ -84,6 +84,8 @@ interface MorphingVideoOptions {
   ) => Promise<void>
   // ✅ Возобновление с определенного клипа (для восстановления после ошибок)
   resumeFromClip?: number
+  // ✅ Кастомный промпт для переходов (если не указан - используется дефолтный кинематографичный)
+  customPrompt?: string
 }
 
 interface ReplicateClient {
@@ -98,22 +100,16 @@ interface ReplicateClient {
 const MAX_RETRIES = 5 // Максимум 5 попыток для каждого клипа
 const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
 
-// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (ОБНОВЛЕН ДЛЯ v2.5 Turbo Pro - Sept 2025)
-// 🔥 КРИТИЧЕСКИ ВАЖНО: v2.5 Turbo Pro должна быть ПЕРВОЙ - самая свежая и производительная!
+// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ
+// 🔥 КРИТИЧЕСКИ ВАЖНО: v2.1 Pro ОБЯЗАТЕЛЬНА ДЛЯ МОРФИНГА (поддерживает start_image + end_image)
+// ⚠️ v2.5 Turbo Pro НЕ ПОДДЕРЖИВАЕТ МОРФИНГ - у него нет параметров start_image/end_image!
 const FALLBACK_KLING_MODELS = [
-  {
-    id: 'kwaivgi/kling-v2.5-turbo-pro',
-    name: 'Kling v2.5 Turbo Pro',
-    variant: 'pro',
-    cost: 0.84, // $0.084/сек * 10 сек = $0.84 за клип (экономия 6.7% vs v2.1)
-    description: '1080p, LATEST Sept 2025 - improved motion & style consistency',
-  },
   {
     id: 'kwaivgi/kling-v2.1',
     name: 'Kling v2.1 Pro',
     variant: 'pro',
-    cost: 0.9, // $0.09/сек * 10 сек = $0.9 за клип (премиум качество)
-    description: '1080p, премиум Kling v2.1 модель для морфинга (fallback)',
+    cost: 0.9, // $0.09/сек * 10 сек = $0.9 за клип
+    description: '1080p, ЕДИНСТВЕННАЯ модель с поддержкой морфинга (start_image + end_image)',
   },
   {
     id: 'kwaivgi/kling-v2.1',
@@ -326,11 +322,12 @@ export async function createMorphingVideo(
         `🧬 Generating morph clip ${clipIndex + 1}/${imagePairs.length}`
       )
 
-      // ✅ ГЕНЕРАЦИЯ КЛИПА С RETRY ЛОГИКОЙ
+      // ✅ ГЕНЕРАЦИЯ КЛИПА С RETRY ЛОГИКОЙ (с кастомным промптом если передан)
       const videoUrl = await generateSingleClipWithRetry(
         pair,
         clipIndex + 1,
-        imagePairs.length
+        imagePairs.length,
+        options.customPrompt
       )
       videoClipUrls.push(videoUrl)
 
@@ -529,8 +526,9 @@ export async function createMorphingVideo(
     } else {
       // Для нескольких клипов создаем concat файл
       const concatFilePath = path.join(tempDir, 'concat_list.txt')
+      // ✅ ИСПРАВЛЕНО: Используем полные абсолютные пути вместо basename
       const concatContent = normalizedClipPaths
-        .map(clipPath => `file '${path.basename(clipPath)}'`)
+        .map(clipPath => `file '${clipPath}'`)
         .join('\n')
 
       fs.writeFileSync(concatFilePath, concatContent)
@@ -608,7 +606,8 @@ async function downloadFile(
 async function generateSingleClipWithRetry(
   pair: any,
   clipNumber: number,
-  totalClips: number
+  totalClips: number,
+  customPrompt?: string
 ): Promise<string> {
   const Replicate = require('replicate')
   const replicate: ReplicateClient = new Replicate({
@@ -617,20 +616,20 @@ async function generateSingleClipWithRetry(
 
   let currentModelIndex = 0 // Начинаем с первой модели
 
+  // ✅ УЛУЧШЕННЫЙ ДЕФОЛТНЫЙ ПРОМПТ: Кинематографичный smooth transition (на основе исследования best practices 2025)
+  const defaultPrompt = 'smooth cinematic transition, elegant morphing between frames, constant camera movement, soft cinematic lighting, professional cinematography, motion blur, 4k quality'
+
   const baseInput: {
     start_image: any
     end_image: any
     prompt: string
     duration: number
-    cfg_scale: number
-    mode?: string // Для v1.6 моделей
-    model_variant?: string // ✅ Для v2.1 моделей
+    mode?: string // Для v2.1: 'pro' или 'standard'
   } = {
     start_image: pair.start,
     end_image: pair.end,
-    prompt: 'cinematic video, beautiful, hd, 4k, morphing effect',
+    prompt: customPrompt || defaultPrompt, // ✅ Используем кастомный промпт если передан, иначе дефолтный
     duration: 5, // 5 секунд
-    cfg_scale: 0.5,
   }
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -643,10 +642,10 @@ async function generateSingleClipWithRetry(
 
       // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА: используем mode для всех моделей Kling
       if (currentModel === 'kwaivgi/kling-v2.1') {
-        // 🔥 ИСПРАВЛЕНИЕ: API требует mode='pro' даже для v2.1!
-        const modelVariant = currentModelInfo.variant || 'standard'
-        input.mode = modelVariant === 'pro' ? 'pro' : 'std' // API использует mode, а не model_variant!
-        logger.info(`🆕 Using Kling v2.1 with mode: ${input.mode} (variant: ${modelVariant})`)
+        // 🔥 КРИТИЧЕСКИ ВАЖНО: end_image (морфинг) ТРЕБУЕТ mode='pro'!
+        // Источник: https://replicate.com/kwaivgi/kling-v2.1 - "end_image parameter requires pro mode"
+        input.mode = 'pro' // ВСЕГДА pro для морфинга (end_image требует pro!)
+        logger.info(`🆕 Using Kling v2.1 with mode: pro (REQUIRED for morphing with end_image)`)
       } else {
         // Для старых моделей v1.6 используем старую логику mode
         if (currentModel.includes('pro')) {
