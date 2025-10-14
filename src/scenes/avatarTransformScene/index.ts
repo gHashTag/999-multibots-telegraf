@@ -2736,8 +2736,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      // Переходим к шагу выбора героя (шаг 3, индекс 3)
-      return ctx.wizard.selectStep(3)
+      // Переходим к шагу выбора героя (шаг 4, индекс 4)
+      return ctx.wizard.selectStep(4)
     } catch (error) {
       logger.error(
         '[AvatarTransformScene] Error processing uploaded photo:',
