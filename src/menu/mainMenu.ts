@@ -82,11 +82,11 @@ export const levels: Record<number, Level> = {
     title_en: '🌀 Infinity Morphing',
     // Доступно всем пользователям с подпиской
   },
-  // lip_sync - новая Kling модель (временно только для админов)
+  // lip_sync - выбор моделей lip-sync (Kling, Sync, Veed Fabric)
   14: {
-    title_ru: '🎤 Kling Lip Sync',
-    title_en: '🎤 Kling Lip Sync',
-    admin_only: true, // 🔒 ВРЕМЕННО: только для админов пока тестируется интеграция с ai-server
+    title_ru: '🎤 Синхронизация губ',
+    title_en: '🎤 Lip Sync',
+    admin_only: true, // 🔒 ВРЕМЕННО: только для админов пока тестируется интеграция
   },
   // 15: {
   //   title_ru: '🎥 Видео в URL',

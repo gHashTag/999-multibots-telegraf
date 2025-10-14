@@ -201,6 +201,14 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   steps?: number
   videoUrl?: string
   audioUrl?: string
+  selectedLipSyncModel?: string // ID выбранной модели lip-sync
+  veedFabric?: {
+    // Данные для Veed Fabric wizard
+    step?: 'image' | 'text' | 'processing'
+    imageUrl?: string
+    text?: string
+    startTime?: number
+  }
   email?: string
   inviteCode?: string
   inviter?: string

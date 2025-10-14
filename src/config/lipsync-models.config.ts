@@ -6,19 +6,21 @@
 export enum LipSyncModelType {
   KLING = 'kling',
   SYNC_V2 = 'sync_v2',
+  VEED_FABRIC = 'veed_fabric',
 }
 
 export interface LipSyncModelConfig {
   id: string
   name: string
   description: string
-  provider: 'replicate' | 'sync'
+  provider: 'replicate' | 'sync' | 'kie'
   modelId: string
   costPerSecond: number // в долларах
   maxDuration: number // максимальная длительность в секундах
   quality: 'standard' | 'high' | 'premium'
   isAvailable: boolean
   features: string[]
+  resolution?: '480p' | '720p' // для kie.ai моделей
 }
 
 export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
@@ -32,7 +34,7 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
     costPerSecond: 0.014, // $0.014 per second
     maxDuration: 30,
     quality: 'high',
-    isAvailable: true,
+    isAvailable: false, // Временно отключено
     features: [
       'Высокая скорость обработки',
       'Точная синхронизация',
@@ -50,13 +52,34 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
     costPerSecond: 0.05, // $0.05 per second
     maxDuration: 60,
     quality: 'premium',
-    isAvailable: true,
+    isAvailable: false, // Временно отключено
     features: [
       'Сохранение уникального стиля речи',
       'Премиум качество',
       'Улучшенная работа с зубами',
       'Устойчивость к поворотам головы',
       'Работа с бородой и усами',
+    ],
+  },
+  [LipSyncModelType.VEED_FABRIC]: {
+    id: 'veed_fabric',
+    name: '🎭 Veed Fabric AI',
+    description:
+      'AI talking video модель с естественной синхронизацией губ, выразительными движениями глаз и тонкими мимическими жестами. Использует голос аватара пользователя.',
+    provider: 'kie',
+    modelId: 'veed-fabric',
+    costPerSecond: 0.0475, // $0.0475 per second for 480p
+    maxDuration: 120, // 2 минуты
+    quality: 'high',
+    isAvailable: true,
+    resolution: '480p', // можно переключать на 720p ($0.09/sec)
+    features: [
+      'Использует голос аватара пользователя',
+      'Естественная синхронизация губ',
+      'Выразительные движения глаз',
+      'Тонкие мимические жесты',
+      'Качество 480p/720p',
+      'До 2 минут видео',
     ],
   },
 }

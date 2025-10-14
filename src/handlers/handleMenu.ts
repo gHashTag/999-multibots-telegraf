@@ -2,6 +2,10 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { Markup } from 'telegraf'
 import { levels, HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
+import {
+  createLipSyncModelKeyboard,
+  createLipSyncModelsInfo,
+} from '@/menu/lipSyncModelSelection'
 import { handlePriceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
@@ -398,28 +402,29 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[14].title_ru : levels[14].title_en]: async () => {
         logger.info({
-          message: '🎤 [handleMenu] Переход к Kling Lip Sync',
+          message: '🎤 [handleMenu] Открытие меню выбора Lip Sync модели',
           telegramId,
           function: 'handleMenu',
-          action: 'lip_sync',
-          nextScene: 'lip_sync',
+          action: 'lip_sync_menu',
         })
-        console.log('CASE: 🎤 Kling Lip Sync')
+        console.log('CASE: 🎤 Лип Синк - показываем меню моделей')
 
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в липсинк
         const hasSubscription = await checkSubscriptionGuard(
           ctx,
-          '🎤 Kling Lip Sync'
+          isRu ? '🎤 Синхронизация губ' : '🎤 Lip Sync'
         )
         if (!hasSubscription) {
           return // Пользователь перенаправлен в subscriptionScene
         }
 
-        // Устанавливаем режим LipSync и переходим напрямую в lip_sync scene
+        // Устанавливаем режим LipSync
         ctx.session.mode = ModeEnum.LipSync
-        console.log(`🔄 [handleMenu] Вход в сцену lip_sync`)
-        await ctx.scene.enter('lip_sync')
-        console.log(`✅ [handleMenu] Завершен вход в сцену lip_sync`)
+
+        // Сразу запускаем Veed Fabric wizard
+        logger.info(`🔄 [handleMenu] Запуск Veed Fabric wizard`)
+        await ctx.scene.enter('veed_fabric_lipsync')
+        console.log(`✅ [handleMenu] Запущен Veed Fabric wizard`)
       },
       [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
         logger.info({

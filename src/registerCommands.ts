@@ -61,6 +61,7 @@ import {
   levelQuestWizard,
   neuroCoderScene,
   lipSyncWizard,
+  veedFabricWizard,
   startScene,
   chatWithAvatarWizard,
   helpScene,
@@ -137,6 +138,7 @@ export const stage = new Scenes.Stage<MyContext>([
   ),
   videoTranscriptionWizard,
   lipSyncWizard,
+  veedFabricWizard,
   avatarTransformScene,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
   new Scenes.WizardScene(
@@ -1753,6 +1755,41 @@ If not, continue on your own and click the "I myself" button`
           error,
           telegramId: ctx.from?.id,
         })
+      }
+    })
+
+    // 🎭 Обработчик выбора модели lip-sync
+    bot.action(/^lip_sync_model_(.+)$/, async ctx => {
+      const modelId = ctx.match[1]
+      logger.info('🎭 GLOBAL ACTION: lip_sync_model selected', {
+        telegramId: ctx.from?.id,
+        modelId,
+      })
+
+      try {
+        await ctx.answerCbQuery()
+
+        // Определяем в какой wizard отправить пользователя
+        const targetScene = modelId === 'veed_fabric' ? 'veed_fabric_lipsync' : 'lip_sync'
+
+        // Сохраняем выбранную модель в сессии
+        ctx.session.selectedLipSyncModel = modelId
+
+        logger.info(`🔄 [LIP_SYNC] Routing to ${targetScene} for model ${modelId}`, {
+          telegramId: ctx.from?.id,
+        })
+
+        // Переходим в соответствующий wizard
+        await ctx.scene.enter(targetScene)
+      } catch (error) {
+        logger.error('Error in lip_sync_model action:', {
+          error,
+          telegramId: ctx.from?.id,
+          modelId,
+        })
+        await ctx.reply(
+          'Произошла ошибка при выборе модели. Попробуйте еще раз.'
+        )
       }
     })
 

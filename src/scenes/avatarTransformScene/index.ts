@@ -1136,6 +1136,25 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     const text = ctx.message.text
 
+    // Обработка команд выхода из wizard
+    if (text === '/menu' || text === '/cancel') {
+      logger.info('[AvatarTransformScene] User requested exit from gender selection', {
+        telegramId,
+        command: text,
+      })
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Игнорируем другие команды - они будут обработаны command handler'ом
+    if (text.startsWith('/')) {
+      logger.info('[AvatarTransformScene] Ignoring command in gender selection', {
+        telegramId,
+        command: text,
+      })
+      return
+    }
+
     // Возврат в главное меню
     if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
       await ctx.reply(
@@ -1203,6 +1222,25 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     const text = ctx.message.text
+
+    // Обработка команд выхода из wizard
+    if (text === '/menu' || text === '/cancel') {
+      logger.info('[AvatarTransformScene] User requested exit from model selection', {
+        telegramId,
+        command: text,
+      })
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Игнорируем другие команды - они будут обработаны command handler'ом
+    if (text.startsWith('/')) {
+      logger.info('[AvatarTransformScene] Ignoring command in model selection', {
+        telegramId,
+        command: text,
+      })
+      return
+    }
 
     // Возврат к выбору пола
     if (text === (isRu ? '🔙 Назад' : '🔙 Back')) {
@@ -1395,6 +1433,25 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     const text = ctx.message.text
+
+    // Обработка команд выхода из wizard
+    if (text === '/menu' || text === '/cancel') {
+      logger.info('[AvatarTransformScene] User requested exit from action selection', {
+        telegramId,
+        command: text,
+      })
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Игнорируем другие команды - они будут обработаны command handler'ом
+    if (text.startsWith('/')) {
+      logger.info('[AvatarTransformScene] Ignoring command in action selection', {
+        telegramId,
+        command: text,
+      })
+      return
+    }
 
     // Возврат к выбору модели
     if (
@@ -1672,13 +1729,34 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       })
       await ctx.reply(
         isRu
-          ? '❌ Пожалуйста, используйте кнопки для выбора'
-          : '❌ Please use buttons for selection'
+          ? '❌ Пожалуйста, используйте кнопки для выбора\n\n💡 Для выхода отправьте /menu или /start'
+          : '❌ Please use buttons for selection\n\n💡 To exit send /menu or /start'
       )
       return
     }
 
     const receivedText = ctx.message.text
+
+    // Обработка команд выхода из wizard
+    if (receivedText === '/menu' || receivedText === '/cancel') {
+      logger.info('[AvatarTransformScene] User requested exit from wizard', {
+        telegramId,
+        command: receivedText,
+      })
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Игнорируем другие команды (начинаются с /) - они будут обработаны command handler'ом
+    if (receivedText.startsWith('/')) {
+      logger.info('[AvatarTransformScene] Ignoring command in wizard', {
+        telegramId,
+        receivedText,
+        step: 'hero_selection',
+        reason: 'command_will_be_handled_by_command_handler',
+      })
+      return
+    }
 
     logger.info('[AvatarTransformScene] Processing hero selection', {
       telegramId,
@@ -2691,6 +2769,25 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     const customPrompt = ctx.message.text.trim()
+
+    // Обработка команд выхода из wizard
+    if (customPrompt === '/menu' || customPrompt === '/cancel') {
+      logger.info('[AvatarTransformScene] User requested exit from custom prompt', {
+        telegramId,
+        command: customPrompt,
+      })
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Игнорируем другие команды - они будут обработаны command handler'ом
+    if (customPrompt.startsWith('/')) {
+      logger.info('[AvatarTransformScene] Ignoring command in custom prompt step', {
+        telegramId,
+        command: customPrompt,
+      })
+      return
+    }
 
     // Валидация кастомного промпта
     if (customPrompt.length < 10) {

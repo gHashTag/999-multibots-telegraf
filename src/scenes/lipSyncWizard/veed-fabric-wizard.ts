@@ -1,0 +1,352 @@
+import { Scenes, Markup } from 'telegraf'
+import { MyContext } from '../../interfaces'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { PaymentType } from '@/interfaces/payments.interface'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { lipSyncOrchestrator } from '@/core/lipsync/lipsync-orchestrator'
+import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
+import { logger } from '@/utils/logger'
+import {
+  LIPSYNC_MODELS,
+  getAvailableLipSyncModels,
+  calculateLipSyncCost,
+} from '@/config/lipsync-models.config'
+
+/**
+ * Wizard для Veed Fabric модели (image + text input)
+ */
+export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
+  'veed_fabric_lipsync',
+
+  // Step 0: Запрос изображения
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Инициализируем сессию
+    ctx.session.veedFabric = {
+      step: 'image',
+      startTime: Date.now(),
+    }
+
+    await ctx.reply(
+      isRu
+        ? '🎭 Синхронизация губ (Veed Fabric AI)\n\n📸 Отправьте фото или URL изображения с лицом.\n\nНа следующем шаге вы сможете отправить текст (будет озвучен вашим голосом аватара) или голосовое сообщение.'
+        : '🎭 Lip Sync (Veed Fabric AI)\n\n📸 Send a photo or image URL with a face.\n\nOn the next step you can send text (will be voiced with your avatar) or a voice message.',
+      { reply_markup: { remove_keyboard: true } }
+    )
+
+    return ctx.wizard.next()
+  },
+
+  // Step 1: Обработка изображения, запрос текста
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const message = ctx.message
+    let imageUrl: string | null = null
+
+    try {
+      // Обработка фото из Telegram
+      if (message && 'photo' in message && message.photo.length > 0) {
+        const photo = message.photo[message.photo.length - 1] // Берем самое большое фото
+        const photoFile = await ctx.telegram.getFile(photo.file_id)
+        imageUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${photoFile.file_path}`
+
+        logger.info('📸 Получено фото из Telegram', { fileId: photo.file_id })
+      }
+      // Обработка URL изображения
+      else if (message && 'text' in message) {
+        const text = message.text.trim()
+
+        // Простая валидация URL
+        if (text.startsWith('http://') || text.startsWith('https://')) {
+          imageUrl = text
+          logger.info('📸 Получен URL изображения', { url: imageUrl.substring(0, 100) })
+        }
+      }
+
+      if (!imageUrl) {
+        await ctx.reply(
+          isRu
+            ? '❌ Некорректное изображение. Отправьте фото или URL изображения.'
+            : '❌ Invalid image. Send a photo or image URL.'
+        )
+        return ctx.scene.leave()
+      }
+
+      // Сохраняем imageUrl в сессию
+      ctx.session.veedFabric = {
+        ...ctx.session.veedFabric,
+        imageUrl,
+        step: 'text',
+      }
+
+      await ctx.reply(
+        isRu
+          ? '✅ Изображение получено!\n\n📝 Теперь отправьте:\n• Текст (до 500 символов) - будет озвучен голосом вашего аватара\n• ИЛИ голосовое сообщение - будет использовано напрямую'
+          : '✅ Image received!\n\n📝 Now send:\n• Text (up to 500 characters) - will be voiced with your avatar\n• OR voice message - will be used directly'
+      )
+
+      return ctx.wizard.next()
+    } catch (error) {
+      logger.error('❌ Ошибка обработки изображения', { error })
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при обработке изображения. Попробуйте еще раз.'
+          : '❌ An error occurred while processing the image. Try again.'
+      )
+      return ctx.scene.leave()
+    }
+  },
+
+  // Step 2: Обработка текста, генерация
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const message = ctx.message
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
+      )
+      return ctx.scene.leave()
+    }
+
+    try {
+      // Получаем текст
+      if (!message || !('text' in message)) {
+        await ctx.reply(
+          isRu
+            ? '❌ Пожалуйста, введите текст.'
+            : '❌ Please enter text.'
+        )
+        return ctx.scene.leave()
+      }
+
+      const text = message.text.trim()
+
+      // Валидация длины текста
+      if (text.length === 0) {
+        await ctx.reply(
+          isRu ? '❌ Текст не может быть пустым.' : '❌ Text cannot be empty.'
+        )
+        return ctx.scene.leave()
+      }
+
+      if (text.length > 500) {
+        await ctx.reply(
+          isRu
+            ? `❌ Текст слишком длинный (${text.length} символов). Максимум: 500 символов.`
+            : `❌ Text is too long (${text.length} characters). Maximum: 500 characters.`
+        )
+        return ctx.scene.leave()
+      }
+
+      const imageUrl = ctx.session.veedFabric?.imageUrl
+
+      if (!imageUrl) {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: изображение не найдено. Начните заново.'
+            : '❌ Error: image not found. Start over.'
+        )
+        return ctx.scene.leave()
+      }
+
+      // Проверка наличия голоса аватара пользователя
+      const { supabase } = await import('@/core/supabase')
+      const { ModeEnum } = await import('@/interfaces/modes')
+      const { data: userData } = await supabase
+        .from('users')
+        .select('voice_id_elevenlabs')
+        .eq('telegram_id', telegramId)
+        .maybeSingle()
+
+      if (!userData?.voice_id_elevenlabs) {
+        await ctx.reply(
+          isRu
+            ? '❌ У вас не настроен голос аватара!\n\n' +
+              '📝 Для использования Veed Fabric нужно сначала создать голос аватара.\n\n' +
+              '🎤 Сейчас я перенаправлю вас в команду создания голоса аватара...'
+            : '❌ You don\'t have an avatar voice configured!\n\n' +
+              '📝 To use Veed Fabric, you need to create an avatar voice first.\n\n' +
+              '🎤 I will redirect you to the voice creation wizard...'
+        )
+
+        // Перенаправляем в команду создания голоса аватара
+        ctx.session.mode = ModeEnum.Voice
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        return
+      }
+
+      // Фиксированная стоимость по уровням длины текста
+      let cost: number
+      if (text.length <= 100) {
+        cost = 0.5
+      } else if (text.length <= 250) {
+        cost = 1.0
+      } else {
+        cost = 2.0
+      }
+
+      logger.info('💰 Расчет стоимости Veed Fabric', {
+        textLength: text.length,
+        cost,
+      })
+
+      // Проверка баланса
+      const currentBalance = await getUserBalance(telegramId)
+
+      if (currentBalance === null) {
+        await ctx.reply(
+          isRu
+            ? 'Ошибка получения баланса. Попробуйте позже.'
+            : 'Error getting balance. Try again later.'
+        )
+        return ctx.scene.leave()
+      }
+
+      if (currentBalance < cost) {
+        await ctx.reply(
+          isRu
+            ? `Недостаточно средств. Требуется: ${cost.toFixed(2)}⭐, у вас: ${currentBalance}⭐`
+            : `Insufficient funds. Required: ${cost.toFixed(2)}⭐, you have: ${currentBalance}⭐`
+        )
+        return ctx.scene.leave()
+      }
+
+      // Списание средств
+      const paymentSuccess = await updateUserBalance(
+        telegramId,
+        cost,
+        PaymentType.MONEY_OUTCOME,
+        'Veed Fabric lip-sync video generation',
+        {
+          bot_name: ctx.botInfo?.username || 'unknown_bot',
+          service_type: 'veed_fabric_lipsync',
+          model_name: 'veed-fabric',
+          text_length: text.length,
+          cost_tier: text.length <= 100 ? 'small' : text.length <= 250 ? 'medium' : 'large',
+        }
+      )
+
+      if (!paymentSuccess) {
+        await ctx.reply(
+          isRu
+            ? 'Ошибка списания средств. Попробуйте позже.'
+            : 'Error charging payment. Try again later.'
+        )
+        return ctx.scene.leave()
+      }
+
+      const newBalance = currentBalance - cost
+      await ctx.reply(
+        isRu
+          ? `💰 Списано ${cost.toFixed(2)}⭐. Новый баланс: ${newBalance.toFixed(2)}⭐\n\n⏳ Генерация началась, это займет 30-60 секунд...`
+          : `💰 Charged ${cost.toFixed(2)}⭐. New balance: ${newBalance.toFixed(2)}⭐\n\n⏳ Generation started, it will take 30-60 seconds...`
+      )
+
+      // Генерация через orchestrator
+      try {
+        const input = LipSyncInputBuilder.forVeedFabric(
+          imageUrl,
+          text,
+          telegramId,
+          {
+            botName: ctx.botInfo?.username || 'unknown_bot',
+            resolution: '480p', // По умолчанию 480p для экономии
+          }
+        )
+
+        logger.info('🎭 Запуск Veed Fabric генерации', {
+          telegramId,
+          imageUrl: imageUrl.substring(0, 100),
+          textLength: text.length,
+        })
+
+        const result = await lipSyncOrchestrator.generate(input)
+
+        // Проверка на ошибки - LipSyncError не имеет 'id', а LipSyncOutput имеет
+        if (!('id' in result)) {
+          const error = result as { message?: string; error?: string }
+          logger.error('❌ Ошибка генерации Veed Fabric', { result })
+
+          // Возврат средств
+          await updateUserBalance(
+            telegramId,
+            cost,
+            PaymentType.MONEY_INCOME,
+            'Veed Fabric refund - generation error',
+            { bot_name: ctx.botInfo?.username || 'unknown_bot' }
+          )
+
+          await ctx.reply(
+            isRu
+              ? `❌ Ошибка генерации: ${error.message || 'Unknown error'}\nСредства возвращены.`
+              : `❌ Generation error: ${error.message || 'Unknown error'}\nFunds refunded.`
+          )
+          return ctx.scene.leave()
+        }
+
+        // Успешная генерация - теперь TypeScript знает что это LipSyncOutput
+        const videoUrl = result.output
+
+        if (!videoUrl) {
+          throw new Error('Video URL not returned from orchestrator')
+        }
+
+        await ctx.reply(
+          isRu
+            ? `✅ Видео готово!\n\n🎬 Скачать: ${videoUrl}`
+            : `✅ Video ready!\n\n🎬 Download: ${videoUrl}`
+        )
+
+        logger.info('✅ Veed Fabric видео успешно сгенерировано', {
+          telegramId,
+          output: videoUrl,
+        })
+      } catch (genError) {
+        logger.error('❌ Критическая ошибка генерации', { error: genError })
+
+        // Возврат средств
+        await updateUserBalance(
+          telegramId,
+          cost,
+          PaymentType.MONEY_INCOME,
+          'Veed Fabric refund - critical error',
+          { bot_name: ctx.botInfo?.username || 'unknown_bot' }
+        )
+
+        await ctx.reply(
+          isRu
+            ? `❌ Произошла критическая ошибка. Средства возвращены.`
+            : `❌ A critical error occurred. Funds refunded.`
+        )
+      }
+
+      return ctx.scene.leave()
+    } catch (error) {
+      logger.error('❌ Ошибка в Veed Fabric wizard', { error })
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка. Попробуйте позже.'
+          : '❌ An error occurred. Try again later.'
+      )
+      return ctx.scene.leave()
+    }
+  }
+)
+
+export default veedFabricWizard
