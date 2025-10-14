@@ -80,8 +80,8 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '🎭 Синхронизация губ (Veed Fabric AI)\n\n📸 Отправьте фото или URL изображения с лицом.\n\nНа следующем шаге вы сможете отправить текст (будет озвучен вашим голосом аватара) или голосовое сообщение.'
-        : '🎭 Lip Sync (Veed Fabric AI)\n\n📸 Send a photo or image URL with a face.\n\nOn the next step you can send text (will be voiced with your avatar) or a voice message.',
+        ? '🎭 Синхронизация губ\n\n📸 Отправьте фото или URL изображения с лицом.\n\nНа следующем шаге вы сможете отправить текст (будет озвучен вашим голосом аватара) или голосовое сообщение.'
+        : '🎭 Lip Sync\n\n📸 Send a photo or image URL with a face.\n\nOn the next step you can send text (will be voiced with your avatar) or a voice message.',
       { reply_markup: { remove_keyboard: true } }
     )
 
@@ -257,11 +257,11 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu
             ? '❌ У вас не настроен голос аватара!\n\n' +
-              '📝 Для использования Veed Fabric нужен голос аватара.\n\n' +
+              '📝 Для использования этой функции нужен голос аватара.\n\n' +
               '🎤 Хотите создать голос сейчас? Это займет 1-2 минуты.\n\n' +
               '📌 После создания голоса вы сможете продолжить генерацию lip-sync видео.'
             : '❌ You don\'t have an avatar voice configured!\n\n' +
-              '📝 Veed Fabric requires an avatar voice.\n\n' +
+              '📝 This feature requires an avatar voice.\n\n' +
               '🎤 Want to create a voice now? It takes 1-2 minutes.\n\n' +
               '📌 After creating the voice, you can continue with lip-sync generation.'
         )
@@ -323,11 +323,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         telegramId,
         cost,
         PaymentType.MONEY_OUTCOME,
-        'Veed Fabric lip-sync video generation',
+        'Lip-sync video generation',
         {
           bot_name: ctx.botInfo?.username || 'unknown_bot',
-          service_type: 'veed_fabric_lipsync',
-          model_name: 'veed-fabric',
+          service_type: 'lipsync',
           text_length: text.length,
           cost_tier: text.length <= 100 ? 'small' : text.length <= 250 ? 'medium' : 'large',
         }
@@ -379,7 +378,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             telegramId,
             cost,
             PaymentType.MONEY_INCOME,
-            'Veed Fabric refund - generation error',
+            'Lip-sync refund - generation error',
             { bot_name: ctx.botInfo?.username || 'unknown_bot' }
           )
 
@@ -416,7 +415,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           telegramId,
           cost,
           PaymentType.MONEY_INCOME,
-          'Veed Fabric refund - critical error',
+          'Lip-sync refund - critical error',
           { bot_name: ctx.botInfo?.username || 'unknown_bot' }
         )
 
