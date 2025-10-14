@@ -715,6 +715,22 @@ Click "Training" and dive with us.
         return handleTechSupport(ctx)
       }
 
+      // ✅ ИСПРАВЛЕНИЕ: Перехватываем команды РАНЬШЕ, чем пересылать в handleMenu
+      if (text.startsWith('/')) {
+        logger.info({
+          message: `🔧 [StartScene Step 2] Command detected, processing directly: ${text}`,
+          telegramId,
+          command: text,
+          function: 'startScene.step2.command_interceptor',
+        })
+
+        // Выходим из startScene, чтобы глобальные обработчики команд могли сработать
+        await ctx.scene.leave()
+
+        // НЕ вызываем handleMenu для команд - пусть обработает registerCommands.ts
+        return
+      }
+
       // Для остальных сообщений используем handleMenu
       logger.info({
         message: `📝 [StartScene] Forwarding text to handleMenu: ${text}`,
