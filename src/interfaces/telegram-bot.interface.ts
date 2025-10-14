@@ -208,6 +208,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     imageUrl?: string
     text?: string
     startTime?: number
+    resolution?: '480p' | '720p' // Разрешение видео
   }
   email?: string
   inviteCode?: string
