@@ -408,23 +408,50 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'lip_sync_menu',
         })
         console.log('CASE: 🎤 Лип Синк - показываем меню моделей')
+        logger.info('🔧 [handleMenu DEBUG] Before checkSubscriptionGuard', {
+          telegramId,
+          currentScene: ctx.scene.current?.id,
+        })
 
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в липсинк
         const hasSubscription = await checkSubscriptionGuard(
           ctx,
           isRu ? '🎤 Синхронизация губ' : '🎤 Lip Sync'
         )
+
+        logger.info('🔧 [handleMenu DEBUG] After checkSubscriptionGuard', {
+          telegramId,
+          hasSubscription,
+          currentScene: ctx.scene.current?.id,
+        })
+
         if (!hasSubscription) {
+          logger.warn('⚠️ [handleMenu] No subscription - exiting')
           return // Пользователь перенаправлен в subscriptionScene
         }
 
-        // Устанавливаем режим LipSync
-        ctx.session.mode = ModeEnum.LipSync
+        logger.info('🔧 [handleMenu DEBUG] Subscription OK, entering wizard')
+
+        // ❌ ИСПРАВЛЕНИЕ: НЕ устанавливаем mode = LipSync, чтобы не перехватывали middleware
+        // ctx.session.mode = ModeEnum.LipSync
 
         // Сразу запускаем Veed Fabric wizard
         logger.info(`🔄 [handleMenu] Запуск Veed Fabric wizard`)
-        await ctx.scene.enter('veed_fabric_lipsync')
-        console.log(`✅ [handleMenu] Запущен Veed Fabric wizard`)
+
+        try {
+          await ctx.scene.enter('veed_fabric_lipsync')
+          logger.info(`✅ [handleMenu] Успешно вошли в veed_fabric_lipsync wizard`, {
+            currentScene: ctx.scene.current?.id,
+            wizardStep: (ctx.wizard as any)?.cursor,
+          })
+        } catch (error) {
+          logger.error(`❌ [handleMenu] Ошибка входа в veed_fabric_lipsync`, { error })
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка запуска wizard. Попробуйте позже.'
+              : '❌ Error starting wizard. Try again later.'
+          )
+        }
       },
       [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
         logger.info({
