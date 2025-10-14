@@ -179,31 +179,30 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           isRu
             ? '❌ У вас не настроен голос аватара!\n\n' +
               '📝 Для использования Veed Fabric нужно сначала создать голос аватара.\n\n' +
-              '🎤 Сейчас я перенаправлю вас в команду создания голоса аватара...'
+              '🎤 Пожалуйста, создайте голос в разделе "🎤 Голос аватара" из главного меню.'
             : '❌ You don\'t have an avatar voice configured!\n\n' +
               '📝 To use Veed Fabric, you need to create an avatar voice first.\n\n' +
-              '🎤 I will redirect you to the voice creation wizard...'
+              '🎤 Please create a voice in "🎤 Voice Avatar" section from the main menu.'
         )
 
-        // Перенаправляем в команду создания голоса аватара
-        ctx.session.mode = ModeEnum.Voice
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        return
+        // ✅ ИСПРАВЛЕНО: Выходим из wizard без редиректа
+        return ctx.scene.leave()
       }
 
-      // Фиксированная стоимость по уровням длины текста
-      let cost: number
-      if (text.length <= 100) {
-        cost = 0.5
-      } else if (text.length <= 250) {
-        cost = 1.0
-      } else {
-        cost = 2.0
-      }
+      // ✅ ИСПРАВЛЕНО: Расчет на основе длительности с наценкой (не фиксированные тиры)
+      // Оцениваем длительность из длины текста (примерно 15 символов в секунду речи)
+      const estimatedDurationSeconds = Math.ceil(text.length / 15)
+      const resolution = ctx.session.veedFabric?.resolution || '480p' // default 480p
+
+      // Используем новую систему ценообразования с наценкой 2.4x
+      const { calculateLipSyncCostStars } = await import('@/config/lipsync-models.config')
+      const cost = calculateLipSyncCostStars('veed_fabric', estimatedDurationSeconds, resolution)
 
       logger.info('💰 Расчет стоимости Veed Fabric', {
         textLength: text.length,
-        cost,
+        estimatedDurationSeconds,
+        resolution,
+        costStars: cost,
       })
 
       // Проверка баланса

@@ -15,12 +15,15 @@ export interface LipSyncModelConfig {
   description: string
   provider: 'replicate' | 'sync' | 'kie'
   modelId: string
-  costPerSecond: number // в долларах
+  costPerSecond: number // в долларах (с наценкой)
+  costPerSecond720p?: number // для моделей с 720p опцией
+  costPerSecondStars480p?: number // цена в звездах для 480p
+  costPerSecondStars720p?: number // цена в звездах для 720p
   maxDuration: number // максимальная длительность в секундах
   quality: 'standard' | 'high' | 'premium'
   isAvailable: boolean
   features: string[]
-  resolution?: '480p' | '720p' // для kie.ai моделей
+  resolution?: '480p' | '720p' // для kie.ai моделей (default)
 }
 
 export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
@@ -68,17 +71,20 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
       'AI talking video модель с естественной синхронизацией губ, выразительными движениями глаз и тонкими мимическими жестами. Использует голос аватара пользователя.',
     provider: 'kie',
     modelId: 'veed-fabric',
-    costPerSecond: 0.0475, // $0.0475 per second for 480p
+    costPerSecond: 0.114, // ✅ ИСПРАВЛЕНО: $0.0475 × 2.4 наценка = $0.114/sec для 480p
+    costPerSecond720p: 0.216, // ✅ ДОБАВЛЕНО: $0.09 × 2.4 наценка = $0.216/sec для 720p
+    costPerSecondStars480p: 7, // ✅ $0.114 / 0.016 = 7.125⭐ ≈ 7⭐/sec
+    costPerSecondStars720p: 14, // ✅ $0.216 / 0.016 = 13.5⭐ ≈ 14⭐/sec
     maxDuration: 120, // 2 минуты
     quality: 'high',
     isAvailable: true,
-    resolution: '480p', // можно переключать на 720p ($0.09/sec)
+    resolution: '480p', // default разрешение
     features: [
       'Использует голос аватара пользователя',
       'Естественная синхронизация губ',
       'Выразительные движения глаз',
       'Тонкие мимические жесты',
-      'Качество 480p/720p',
+      'Выбор качества: 480p (7⭐/сек) или 720p (14⭐/сек)',
       'До 2 минут видео',
     ],
   },
@@ -114,14 +120,46 @@ export function getLipSyncModelByType(
  */
 export function calculateLipSyncCost(
   modelId: string,
-  durationSeconds: number
+  durationSeconds: number,
+  resolution?: '480p' | '720p'
 ): number {
   const model = getLipSyncModelById(modelId)
   if (!model) {
     throw new Error(`Unknown lip-sync model: ${modelId}`)
   }
 
+  // Для Veed Fabric с выбором разрешения
+  if (modelId === 'veed_fabric' && resolution === '720p' && model.costPerSecond720p) {
+    return model.costPerSecond720p * durationSeconds
+  }
+
   return model.costPerSecond * durationSeconds
+}
+
+/**
+ * Рассчитать стоимость в звездах для модели
+ */
+export function calculateLipSyncCostStars(
+  modelId: string,
+  durationSeconds: number,
+  resolution?: '480p' | '720p'
+): number {
+  const model = getLipSyncModelById(modelId)
+  if (!model) {
+    throw new Error(`Unknown lip-sync model: ${modelId}`)
+  }
+
+  // Для Veed Fabric с выбором разрешения
+  if (modelId === 'veed_fabric') {
+    const costPerSec = resolution === '720p'
+      ? (model.costPerSecondStars720p || 14)
+      : (model.costPerSecondStars480p || 7)
+    return costPerSec * durationSeconds
+  }
+
+  // Для других моделей - конвертируем USD в звезды
+  const starCost = 0.016 // $1 = 62.5⭐ → 1⭐ = $0.016
+  return Math.ceil(model.costPerSecond * durationSeconds / starCost)
 }
 
 /**
