@@ -42,6 +42,7 @@ export interface SeeDream4ServiceParams {
   height?: number
   max_images?: number
   aspect_ratio?: string
+  suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
 }
 
 // SeeDream-4 model configuration
@@ -187,11 +188,14 @@ export const generateSeeDream4 = async (
     })
 
     if (currentBalance < totalCost) {
-      const message = is_ru
-        ? `❌ Недостаточно звезд на балансе.\n\n💰 Требуется: ${totalCost}⭐\n💎 У вас: ${currentBalance}⭐\n\n📱 Пополните баланс в главном меню.`
-        : `❌ Insufficient stars balance.\n\n💰 Required: ${totalCost}⭐\n💎 You have: ${currentBalance}⭐\n\n📱 Top up your balance in the main menu.`
+      // ✅ Only notify user if not in fallback mode
+      if (!params.suppressUserErrors) {
+        const message = is_ru
+          ? `❌ Недостаточно звезд на балансе.\n\n💰 Требуется: ${totalCost}⭐\n💎 У вас: ${currentBalance}⭐\n\n📱 Пополните баланс в главном меню.`
+          : `❌ Insufficient stars balance.\n\n💰 Required: ${totalCost}⭐\n💎 You have: ${currentBalance}⭐\n\n📱 Top up your balance in the main menu.`
 
-      await ctx.reply(message)
+        await ctx.reply(message)
+      }
 
       logger.error('SeeDream4 insufficient balance', {
         telegram_id,
@@ -415,12 +419,14 @@ export const generateSeeDream4 = async (
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
-    // Send error message to user
-    const errorMessage = params.is_ru
-      ? '❌ Произошла ошибка при генерации изображения. Попробуйте позже.'
-      : '❌ An error occurred during image generation. Please try later.'
+    // ✅ Only notify user if not in fallback mode
+    if (!params.suppressUserErrors) {
+      const errorMessage = params.is_ru
+        ? '❌ Произошла ошибка при генерации изображения. Попробуйте позже.'
+        : '❌ An error occurred during image generation. Please try later.'
 
-    await params.ctx.reply(errorMessage)
+      await params.ctx.reply(errorMessage)
+    }
 
     // ❌ НЕ ВОЗВРАЩАЕМ ЗВЕЗДЫ - списание происходит только после успешной генерации
     // Если ошибка случилась ДО списания - звезды не были списаны

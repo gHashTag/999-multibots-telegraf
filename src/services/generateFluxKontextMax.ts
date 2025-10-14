@@ -39,6 +39,7 @@ export interface FluxKontextMaxServiceParams {
   aspect_ratio?: '1:1' | '16:9' | 'match_input_image'
   output_format?: 'png' | 'jpg'
   safety_tolerance?: number
+  suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
 }
 
 // FLUX Kontext Max model configuration
@@ -363,12 +364,14 @@ export const generateFluxKontextMax = async (
       error: error instanceof Error ? error.message : 'Unknown error'
     })
 
-    // Send error message to user
-    const errorMessage = params.is_ru
-      ? '❌ Произошла ошибка при обработке изображения. Попробуйте позже.'
-      : '❌ An error occurred during image processing. Please try later.'
+    // ✅ Only notify user if not in fallback mode
+    if (!params.suppressUserErrors) {
+      const errorMessage = params.is_ru
+        ? '❌ Произошла ошибка при обработке изображения. Попробуйте позже.'
+        : '❌ An error occurred during image processing. Please try later.'
 
-    await params.ctx.reply(errorMessage)
+      await params.ctx.reply(errorMessage)
+    }
 
     // Refund user
     await refundUser(params.ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage)

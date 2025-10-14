@@ -35,6 +35,7 @@ export interface FluxKontextParams {
   is_ru: boolean
   ctx: MyContext
   aspect_ratio?: '1:1' | '16:9' | 'match_input_image'
+  suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
 }
 
 // Новый интерфейс для продвинутого FLUX Kontext
@@ -81,6 +82,7 @@ export const generateFluxKontext = async (
       username,
       is_ru,
       ctx,
+      suppressUserErrors = false,
     } = params
 
     console.log(
@@ -433,16 +435,19 @@ export const generateFluxKontext = async (
         mode: 'edit',
       })
 
-      console.log('🔥 [CRITICAL] Sending fallback error message...')
+      // ✅ Only notify user if not in fallback mode
+      if (!suppressUserErrors) {
+        console.log('🔥 [CRITICAL] Sending fallback error message...')
 
-      await ctx.reply(
-        is_ru
-          ? `❌ *Ошибка при отправке изображения*\n\n🔄 Изображение было создано, но произошла ошибка при отправке\n💡 Попробуйте позже или обратитесь в поддержку\n\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}`
-          : `❌ *Error sending image*\n\n🔄 Image was created but failed to send\n💡 Try later or contact support\n\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}`,
-        { parse_mode: 'Markdown' }
-      )
+        await ctx.reply(
+          is_ru
+            ? `❌ *Ошибка при отправке изображения*\n\n🔄 Изображение было создано, но произошла ошибка при отправке\n💡 Попробуйте позже или обратитесь в поддержку\n\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}`
+            : `❌ *Error sending image*\n\n🔄 Image was created but failed to send\n💡 Try later or contact support\n\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}`,
+          { parse_mode: 'Markdown' }
+        )
 
-      console.log('🔥 [CRITICAL] Fallback message sent')
+        console.log('🔥 [CRITICAL] Fallback message sent')
+      }
 
       // НЕ выбрасываем ошибку - позволяем процессу завершиться нормально
     }
@@ -510,14 +515,17 @@ export const generateFluxKontext = async (
       }
     }
 
-    // Проверяем наличие контекста перед отправкой сообщения об ошибке
-    if (params.ctx && params.ctx.telegram) {
-      await params.ctx.telegram.sendMessage(params.telegram_id, errorMessageToUser)
-    } else {
-      console.error('🚨 [CRITICAL] Cannot send error message - context unavailable', {
-        telegram_id: params.telegram_id,
-        errorMessage: errorMessageToUser,
-      })
+    // ✅ Only notify user if not in fallback mode
+    if (!params.suppressUserErrors) {
+      // Проверяем наличие контекста перед отправкой сообщения об ошибке
+      if (params.ctx && params.ctx.telegram) {
+        await params.ctx.telegram.sendMessage(params.telegram_id, errorMessageToUser)
+      } else {
+        console.error('🚨 [CRITICAL] Cannot send error message - context unavailable', {
+          telegram_id: params.telegram_id,
+          errorMessage: errorMessageToUser,
+        })
+      }
     }
     throw error
   }

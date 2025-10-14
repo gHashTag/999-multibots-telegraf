@@ -34,6 +34,7 @@ export interface NanoBananaServiceParams {
   promptStyle?: 'headshot' | 'fullBody' | 'artistic'
   silent?: boolean // If true, don't send photo to user (for ALL_MODELS mode)
   skipBalanceCheck?: boolean // If true, skip balance check (already checked before loop)
+  suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
 }
 
 // Nano Banana model configuration
@@ -462,12 +463,14 @@ export async function generateNanoBanana(
       error: error instanceof Error ? error.message : 'Unknown error',
     })
 
-    // Send error message to user
-    const errorMessage = params.is_ru
-      ? '❌ Произошла ошибка при генерации. Попробуйте позже.'
-      : '❌ An error occurred during generation. Please try later.'
+    // ✅ Only notify user if not in fallback mode
+    if (!params.suppressUserErrors) {
+      const errorMessage = params.is_ru
+        ? '❌ Произошла ошибка при генерации. Попробуйте позже.'
+        : '❌ An error occurred during generation. Please try later.'
 
-    await params.ctx.reply(errorMessage)
+      await params.ctx.reply(errorMessage)
+    }
 
     // Refund user
     await refundUser(params.ctx, totalCost)
