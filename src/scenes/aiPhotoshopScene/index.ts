@@ -3598,12 +3598,23 @@ const processSingleAiPhotoshopModel = async (
         })
 
         // ✅ Check balance ONCE before loop (prevents ctx navigation on each iteration)
-        const modelCost = AI_PHOTOSHOP_PRICING[modelKey]?.cost || 5
+        // ✅ ИСПРАВЛЕНИЕ ЦЕНООБРАЗОВАНИЯ: Берем цену из AI_PHOTOSHOP_MODELS (не AI_PHOTOSHOP_PRICING!)
+        const modelCost = AI_PHOTOSHOP_MODELS[modelKey as keyof typeof AI_PHOTOSHOP_MODELS]?.cost || 5
         const qualityMultiplier =
           (ctx.session?.aiPhotoshopSize === '4K' ? 6 :
            ctx.session?.aiPhotoshopSize === '2K' ? 4 : 1)
         const costPerImage = modelCost * qualityMultiplier
         const totalCostForAllImages = costPerImage * imagesToProcessForThisModel.length
+
+        logger.info(`💰 Correct pricing calculation`, {
+          telegram_id: userId.toString(),
+          modelKey,
+          modelCost,
+          qualityMultiplier,
+          costPerImage,
+          imageCount: imagesToProcessForThisModel.length,
+          totalCostForAllImages,
+        })
 
         logger.info(`💰 Pre-loop balance check for ${modelKey}`, {
           telegram_id: userId.toString(),
