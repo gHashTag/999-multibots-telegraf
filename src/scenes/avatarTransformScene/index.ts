@@ -2402,7 +2402,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               username: ctx.from?.username || 'unknown',
               is_ru: isRu,
               ctx,
-              size: '1K',
+              size: '2K',
               aspect_ratio: '9:16',
               suppressUserErrors: true, // ✅ Don't show errors in fallback chain
             })
@@ -2705,7 +2705,29 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           Гамора: { ru: '🗡️ Гамора', en: '🗡️ Gamora' },
           Шури: { ru: '💙 Шури', en: '💙 Shuri' },
           Валькирия: { ru: '⚔️ Валькирия', en: '⚔️ Valkyrie' },
-          // Остальные герои с 🎨 префиксом будут использовать fallback
+          // DC Universe female heroes
+          'Чудо-женщина': { ru: '⭐ Чудо-женщина', en: '⭐ Wonder Woman' },
+          'Харли Квинн': { ru: '🎭 Харли Квинн', en: '🎭 Harley Quinn' },
+          Супергёрл: { ru: '💫 Супергёрл', en: '💫 Supergirl' },
+          // Marvel additional female heroes
+          'Чёрная вдова': { ru: '🕷️ Чёрная вдова', en: '🕷️ Black Widow' },
+          'Гвен Стейси': { ru: '🕸️ Гвен Стейси', en: '🕸️ Gwen Stacy' },
+          // Slavic fairy tale heroines
+          'Василиса Прекрасная': {
+            ru: '👸 Василиса Прекрасная',
+            en: '👸 Vasilisa',
+          },
+          // Games & Disney
+          'Лара Крофт': { ru: '🗿 Лара Крофт', en: '🗿 Lara Croft' },
+          Эльза: { ru: '❄️ Эльза', en: '❄️ Elsa' },
+          // Custom prompt option
+          'Кастомный промпт': { ru: '✍️ Свой промпт', en: '✍️ Custom Prompt' },
+          // Additional popular heroes for male avatars
+          Халк: { ru: '💚 Халк', en: '💚 Hulk' },
+          Дэдпул: { ru: '🔴 Дэдпул', en: '🔴 Deadpool' },
+          Росомаха: { ru: '🦾 Росомаха', en: '🦾 Wolverine' },
+          Супермен: { ru: '🚀 Супермен', en: '🚀 Superman' },
+          Бэтмен: { ru: '🦇 Бэтмен', en: '🦇 Batman' },
         }
 
         const translation = heroTranslations[heroName]
