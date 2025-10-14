@@ -6,7 +6,7 @@ import { z } from 'zod'
  */
 
 // Общие типы провайдеров
-export const LipSyncProviderSchema = z.enum(['replicate', 'sync'])
+export const LipSyncProviderSchema = z.enum(['replicate', 'sync', 'kie'])
 
 // Базовые входные параметры для всех моделей
 export const BaseLipSyncInputSchema = z.object({
@@ -57,10 +57,22 @@ export const SyncLipSyncInputSchema = BaseLipSyncInputSchema.extend({
     .optional(),
 })
 
+// Специфичные параметры для Veed Fabric модели (Kie.ai)
+export const VeedFabricInputSchema = z.object({
+  provider: z.literal('kie'),
+  modelId: z.literal('veed-fabric'),
+  imageUrl: z.string().url('Image URL must be a valid URL'),
+  text: z.string().min(1, 'Text is required for audio generation'),
+  telegramId: z.string().min(1, 'Telegram ID is required'),
+  botName: z.string().optional().default('unknown_bot'),
+  resolution: z.enum(['480p', '720p']).optional().default('480p'),
+})
+
 // Универсальная схема для любой lip-sync модели
 export const UniversalLipSyncInputSchema = z.discriminatedUnion('provider', [
   KlingLipSyncInputSchema,
   SyncLipSyncInputSchema,
+  VeedFabricInputSchema,
 ])
 
 // Схема для выходных данных
@@ -127,6 +139,7 @@ export type LipSyncProvider = z.infer<typeof LipSyncProviderSchema>
 export type BaseLipSyncInput = z.infer<typeof BaseLipSyncInputSchema>
 export type KlingLipSyncInput = z.infer<typeof KlingLipSyncInputSchema>
 export type SyncLipSyncInput = z.infer<typeof SyncLipSyncInputSchema>
+export type VeedFabricInput = z.infer<typeof VeedFabricInputSchema>
 export type UniversalLipSyncInput = z.infer<typeof UniversalLipSyncInputSchema>
 export type LipSyncOutput = z.infer<typeof LipSyncOutputSchema>
 export type LipSyncError = z.infer<typeof LipSyncErrorSchema>
@@ -248,6 +261,29 @@ export const LipSyncInputBuilder = {
         preserve_identity: options?.preserve_identity,
         enhance_quality: options?.enhance_quality,
       },
+    })
+  },
+
+  /**
+   * Создать входные данные для Veed Fabric модели
+   */
+  forVeedFabric: (
+    imageUrl: string,
+    text: string,
+    telegramId: string,
+    options?: {
+      botName?: string
+      resolution?: '480p' | '720p'
+    }
+  ): VeedFabricInput => {
+    return VeedFabricInputSchema.parse({
+      imageUrl,
+      text,
+      telegramId,
+      provider: 'kie',
+      modelId: 'veed-fabric',
+      botName: options?.botName,
+      resolution: options?.resolution,
     })
   },
 }

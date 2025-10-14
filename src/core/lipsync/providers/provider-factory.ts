@@ -2,6 +2,7 @@ import type { ILipSyncProvider } from '../interfaces/lipsync-provider.interface'
 import type { LipSyncProvider } from '../schemas/lipsync-schemas'
 import { ReplicateKlingProvider } from './replicate-kling-provider'
 import { SyncLipSyncProvider } from './sync-lipsync-provider'
+import { KieVeedFabricProvider } from './kie-veed-fabric-provider'
 import { logger } from '@/utils/logger'
 
 /**
@@ -48,6 +49,10 @@ export class LipSyncProviderFactory {
         provider = new SyncLipSyncProvider(config)
         break
 
+      case 'kie':
+        provider = new KieVeedFabricProvider(config)
+        break
+
       default:
         throw new Error(`Unknown provider type: ${providerType}`)
     }
@@ -71,7 +76,7 @@ export class LipSyncProviderFactory {
     configs?: Record<LipSyncProvider, any>
   ): ILipSyncProvider[] {
     const providers: ILipSyncProvider[] = []
-    const availableProviders: LipSyncProvider[] = ['replicate', 'sync']
+    const availableProviders: LipSyncProvider[] = ['replicate', 'sync', 'kie']
 
     for (const providerType of availableProviders) {
       try {
@@ -114,7 +119,7 @@ export class LipSyncProviderFactory {
    * Получает список поддерживаемых типов провайдеров
    */
   getSupportedProviderTypes(): LipSyncProvider[] {
-    return ['replicate', 'sync']
+    return ['replicate', 'sync', 'kie']
   }
 
   /**
@@ -147,6 +152,11 @@ export const DEFAULT_PROVIDER_CONFIGS = {
     timeout: 600000, // 10 минут
     retryAttempts: 2,
     baseUrl: 'https://api.sync.so',
+  },
+  kie: {
+    timeout: 300000, // 5 минут
+    retryAttempts: 3,
+    defaultResolution: '480p' as const,
   },
 } as const
 
