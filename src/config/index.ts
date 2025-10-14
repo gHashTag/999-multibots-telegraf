@@ -108,6 +108,7 @@ export const {
   RUNWAY_API_KEY,
   ELEVENLABS_API_KEY,
   KIE_AI_API_KEY,
+  FAL_KEY, // ✅ ДОБАВЛЕНО: FAL_KEY для kie.ai gateway
   API_SERVER_URL,
   NGROK,
   PIXEL_API_KEY,
