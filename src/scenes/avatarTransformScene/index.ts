@@ -2404,6 +2404,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               ctx,
               size: '1K',
               aspect_ratio: '9:16',
+              suppressUserErrors: true, // ✅ Don't show errors in fallback chain
             })
 
             if (seedreamResult?.image) {
@@ -2423,6 +2424,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               is_ru: isRu,
               ctx,
               promptStyle: 'headshot',
+              suppressUserErrors: true, // ✅ Don't show errors in fallback chain
             })
 
             if (nanoBananaResult) {
@@ -2445,6 +2447,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
                 is_ru: isRu,
                 ctx,
                 aspect_ratio: 'match_input_image',
+                suppressUserErrors: true, // ✅ Don't show errors in fallback chain
               })
 
               if (fluxMaxResult?.image) {
@@ -2468,6 +2471,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
                 username: ctx.from?.username || 'unknown',
                 is_ru: isRu,
                 ctx,
+                suppressUserErrors: true, // ✅ Don't show errors in fallback chain
               })
 
               if (fluxLegacyResult?.image) {
