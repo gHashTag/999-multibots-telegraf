@@ -19,10 +19,18 @@ import {
 export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
   'veed_fabric_lipsync',
 
-  // Step 0: Запрос изображения
+  // Step 0: Запрос изображения (или продолжение после создания голоса)
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
+
+    logger.info('🎭 [VEED FABRIC WIZARD] Step 0 STARTED - Запрос изображения', {
+      telegramId,
+      hasFrom: !!ctx.from,
+      hasSavedState: !!(ctx.session.veedFabric?.imageUrl && ctx.session.veedFabric?.text),
+      needsVoiceCreation: ctx.session.veedFabric?.needsVoiceCreation,
+      function: 'veedFabricWizard.step0',
+    })
 
     if (!telegramId) {
       await ctx.reply(
@@ -33,11 +41,42 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Инициализируем сессию
+    // ✅ УЛУЧШЕНО: Проверяем, возвращаемся ли после создания голоса
+    if (
+      ctx.session.veedFabric?.imageUrl &&
+      ctx.session.veedFabric?.text &&
+      ctx.session.veedFabric?.needsVoiceCreation
+    ) {
+      logger.info('🎭 [VEED FABRIC] Продолжаем с сохраненными данными', {
+        telegramId,
+        hasImageUrl: !!ctx.session.veedFabric.imageUrl,
+        hasText: !!ctx.session.veedFabric.text,
+      })
+
+      // Очищаем флаг needsVoiceCreation
+      ctx.session.veedFabric.needsVoiceCreation = false
+
+      await ctx.reply(
+        isRu
+          ? '🎭 Продолжаем генерацию lip-sync видео с вашими данными...'
+          : '🎭 Continuing lip-sync video generation with your data...'
+      )
+
+      // Пропускаем к Step 2 (генерация)
+      ctx.wizard.selectStep(2)
+      return ctx.wizard.next()
+    }
+
+    // Обычный флоу: инициализируем сессию
     ctx.session.veedFabric = {
       step: 'image',
       startTime: Date.now(),
     }
+
+    logger.info('🎭 [VEED FABRIC WIZARD] Step 0 - Session initialized', {
+      telegramId,
+      sessionState: ctx.session.veedFabric,
+    })
 
     await ctx.reply(
       isRu
@@ -54,6 +93,13 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let imageUrl: string | null = null
+
+    logger.info('🎭 [VEED FABRIC WIZARD] Step 1 STARTED - Обработка изображения', {
+      telegramId: ctx.from?.id?.toString(),
+      hasMessage: !!message,
+      messageType: message ? ('photo' in message ? 'photo' : 'text' in message ? 'text' : 'other') : 'none',
+      function: 'veedFabricWizard.step1',
+    })
 
     try {
       // Обработка фото из Telegram
@@ -115,6 +161,15 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const telegramId = ctx.from?.id?.toString()
 
+    logger.info('🎭 [VEED FABRIC WIZARD] Step 2 STARTED - Обработка текста', {
+      telegramId,
+      hasMessage: !!message,
+      messageType: message ? ('text' in message ? 'text' : 'other') : 'none',
+      textPreview: message && 'text' in message ? message.text.substring(0, 50) : 'N/A',
+      hasSavedData: !!(ctx.session.veedFabric?.text && ctx.session.veedFabric?.imageUrl),
+      function: 'veedFabricWizard.step2',
+    })
+
     if (!telegramId) {
       await ctx.reply(
         isRu
@@ -125,17 +180,43 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
     }
 
     try {
-      // Получаем текст
-      if (!message || !('text' in message)) {
-        await ctx.reply(
-          isRu
-            ? '❌ Пожалуйста, введите текст.'
-            : '❌ Please enter text.'
-        )
-        return ctx.scene.leave()
-      }
+      // ✅ УЛУЧШЕНО: Получаем текст либо из сообщения, либо из сохраненных данных
+      let text: string
+      let imageUrl: string
 
-      const text = message.text.trim()
+      if (ctx.session.veedFabric?.text && ctx.session.veedFabric?.imageUrl) {
+        // Используем сохраненные данные (после возврата из voice wizard)
+        text = ctx.session.veedFabric.text
+        imageUrl = ctx.session.veedFabric.imageUrl
+
+        logger.info('🎭 [VEED FABRIC] Using saved data', {
+          telegramId,
+          textLength: text.length,
+          imageUrl: imageUrl.substring(0, 50),
+        })
+      } else {
+        // Обычный флоу: получаем текст из нового сообщения
+        if (!message || !('text' in message)) {
+          await ctx.reply(
+            isRu
+              ? '❌ Пожалуйста, введите текст.'
+              : '❌ Please enter text.'
+          )
+          return ctx.scene.leave()
+        }
+
+        text = message.text.trim()
+        imageUrl = ctx.session.veedFabric?.imageUrl || ''
+
+        if (!imageUrl) {
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: изображение не найдено. Начните заново.'
+              : '❌ Error: image not found. Start over.'
+          )
+          return ctx.scene.leave()
+        }
+      }
 
       // Валидация длины текста
       if (text.length === 0) {
@@ -154,17 +235,6 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      const imageUrl = ctx.session.veedFabric?.imageUrl
-
-      if (!imageUrl) {
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка: изображение не найдено. Начните заново.'
-            : '❌ Error: image not found. Start over.'
-        )
-        return ctx.scene.leave()
-      }
-
       // Проверка наличия голоса аватара пользователя
       const { supabase } = await import('@/core/supabase')
       const { ModeEnum } = await import('@/interfaces/modes')
@@ -175,18 +245,40 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         .maybeSingle()
 
       if (!userData?.voice_id_elevenlabs) {
+        // ✅ УЛУЧШЕНО: Сохраняем состояние wizard и предлагаем создать голос
+        ctx.session.veedFabric = {
+          ...ctx.session.veedFabric,
+          imageUrl,
+          text,
+          step: 'text',
+          needsVoiceCreation: true,
+        }
+
         await ctx.reply(
           isRu
             ? '❌ У вас не настроен голос аватара!\n\n' +
-              '📝 Для использования Veed Fabric нужно сначала создать голос аватара.\n\n' +
-              '🎤 Пожалуйста, создайте голос в разделе "🎤 Голос аватара" из главного меню.'
+              '📝 Для использования Veed Fabric нужен голос аватара.\n\n' +
+              '🎤 Хотите создать голос сейчас? Это займет 1-2 минуты.\n\n' +
+              '📌 После создания голоса вы сможете продолжить генерацию lip-sync видео.'
             : '❌ You don\'t have an avatar voice configured!\n\n' +
-              '📝 To use Veed Fabric, you need to create an avatar voice first.\n\n' +
-              '🎤 Please create a voice in "🎤 Voice Avatar" section from the main menu.'
+              '📝 Veed Fabric requires an avatar voice.\n\n' +
+              '🎤 Want to create a voice now? It takes 1-2 minutes.\n\n' +
+              '📌 After creating the voice, you can continue with lip-sync generation.'
         )
 
-        // ✅ ИСПРАВЛЕНО: Выходим из wizard без редиректа
-        return ctx.scene.leave()
+        // Перенаправляем в команду создания голоса
+        const { ModeEnum } = await import('@/interfaces/modes')
+        ctx.session.mode = ModeEnum.Voice
+        ctx.session.returnToVeedFabricAfterVoice = true // Флаг для возврата
+
+        logger.info('🎤 [VEED FABRIC] Redirecting to voice creation', {
+          telegramId,
+          savedImageUrl: imageUrl.substring(0, 50),
+          savedText: text.substring(0, 50),
+        })
+
+        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        return
       }
 
       // ✅ ИСПРАВЛЕНО: Расчет на основе длительности с наценкой (не фиксированные тиры)

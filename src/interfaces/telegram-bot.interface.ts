@@ -209,7 +209,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     text?: string
     startTime?: number
     resolution?: '480p' | '720p' // Разрешение видео
+    needsVoiceCreation?: boolean // Флаг необходимости создания голоса
   }
+  returnToVeedFabricAfterVoice?: boolean // Флаг возврата в Veed Fabric после создания голоса
   email?: string
   inviteCode?: string
   inviter?: string
