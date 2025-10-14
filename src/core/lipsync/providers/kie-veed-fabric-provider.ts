@@ -61,21 +61,12 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
     voiceId: string,
     telegramId: string
   ): Promise<string | null> {
-    console.log('🎤 [GENERATE AUDIO] Called with:', {
-      text: text.substring(0, 20),
-      voiceId,
-      telegramId,
-      hasElevenLabsKey: !!ELEVENLABS_API_KEY,
-      keyPreview: ELEVENLABS_API_KEY ? ELEVENLABS_API_KEY.substring(0, 10) + '...' : 'MISSING',
-    })
-
     try {
       logger.info('🎤 Генерация аудио через ElevenLabs', {
         voiceId,
         textLength: text.length,
       })
 
-      console.log('📤 [ELEVENLABS] Calling API...')
       const response = await axios.post(
         `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
         {
@@ -96,21 +87,11 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         }
       )
 
-      console.log('✅ [ELEVENLABS] Response received:', {
-        status: response.status,
-        audioSize: response.data.length,
-      })
-
       logger.info('✅ Аудио сгенерировано, загружаем в Supabase Storage...')
 
       // Загружаем в Supabase Storage для получения публичного URL
       const audioBuffer = Buffer.from(response.data)
       const fileName = `lipsync-audio/${telegramId}/${Date.now()}.mp3`
-
-      console.log('📤 [SUPABASE] Uploading audio...', {
-        fileName,
-        bufferSize: audioBuffer.length,
-      })
 
       // ✅ Use service role client to bypass RLS policies
       const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
@@ -123,19 +104,14 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         })
 
       if (uploadError) {
-        console.error('❌ [SUPABASE] Upload error:', uploadError)
         logger.error('❌ Ошибка загрузки аудио в Supabase', { uploadError })
         return null
       }
-
-      console.log('✅ [SUPABASE] Upload successful')
 
       // Получаем публичный URL
       const { data: urlData } = serviceClient.storage
         .from('images')
         .getPublicUrl(fileName)
-
-      console.log('✅ [SUPABASE] Public URL generated:', urlData.publicUrl)
 
       logger.info('✅ Аудио загружено в Supabase', {
         fileName,
@@ -149,7 +125,6 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
         errorStack: error instanceof Error ? error.stack : undefined,
       })
-      console.error('🚨 [ELEVENLABS DEBUG] Full error:', error)
       return null
     }
   }

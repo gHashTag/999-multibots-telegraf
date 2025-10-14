@@ -161,6 +161,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const telegramId = ctx.from?.id?.toString()
 
+    console.log('🎭 [VEED FABRIC WIZARD] Step 2 STARTED - Обработка текста')
     logger.info('🎭 [VEED FABRIC WIZARD] Step 2 STARTED - Обработка текста', {
       telegramId,
       hasMessage: !!message,
