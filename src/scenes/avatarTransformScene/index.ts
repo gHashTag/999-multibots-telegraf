@@ -1713,7 +1713,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           : `📸 <b>Upload New Photo</b>\n\n💡 Send me the photo you would like to transform\n\n✨ <b>Recommendations:</b>\n• Clear face photo\n• Good lighting\n• Minimum 512x512 pixels`,
         { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
       )
-      return ctx.wizard.selectStep(4) // Переходим к шагу загрузки фото (индекс 4)
+      return ctx.wizard.selectStep(5) // Переходим к шагу загрузки фото (индекс 5)
     }
   },
   // Шаг 3: Обработка выбора героя и генерация
