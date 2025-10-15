@@ -67,10 +67,8 @@ export const VeedFabricInputSchema = z.object({
   telegramId: z.string().min(1, 'Telegram ID is required'),
   botName: z.string().optional().default('unknown_bot'),
   resolution: z.enum(['480p', '720p']).optional().default('480p'),
-}).refine(
-  data => data.text || data.audioUrl,
-  { message: 'Either text or audioUrl must be provided' }
-)
+})
+// Валидация "text ИЛИ audioUrl" будет в builder
 
 // Универсальная схема для любой lip-sync модели
 export const UniversalLipSyncInputSchema = z.discriminatedUnion('provider', [
@@ -281,15 +279,22 @@ export const LipSyncInputBuilder = {
       isAudioUrl?: boolean // флаг: true = audioUrl, false = text
     }
   ): VeedFabricInput => {
-    return VeedFabricInputSchema.parse({
+    const input = {
       imageUrl,
       text: options?.isAudioUrl ? undefined : textOrAudioUrl,
       audioUrl: options?.isAudioUrl ? textOrAudioUrl : undefined,
       telegramId,
-      provider: 'kie',
-      modelId: 'veed-fabric',
+      provider: 'kie' as const,
+      modelId: 'veed-fabric' as const,
       botName: options?.botName,
       resolution: options?.resolution,
-    })
+    }
+
+    // Валидация: должен быть либо text, либо audioUrl
+    if (!input.text && !input.audioUrl) {
+      throw new Error('Either text or audioUrl must be provided for Veed Fabric')
+    }
+
+    return VeedFabricInputSchema.parse(input)
   },
 }
