@@ -153,32 +153,47 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         telegramId: veedInput.telegramId,
         modelId: veedInput.modelId,
         resolution: veedInput.resolution || this.config.defaultResolution,
+        hasAudioUrl: !!veedInput.audioUrl,
+        hasText: !!veedInput.text,
       })
 
-      // 1. Получаем voice_id пользователя
-      const voiceId = await getVoiceId(veedInput.telegramId)
-      if (!voiceId) {
-        return {
-          message: 'User voice ID not found',
-          error: 'Cannot generate audio without user voice ID',
-          code: 'MISSING_VOICE_ID',
-          provider: 'kie',
-          modelId: veedInput.modelId,
-        }
-      }
+      // ✅ УЛУЧШЕНО: Если audioUrl уже есть (голосовое сообщение), пропускаем ElevenLabs
+      let audioUrl: string
 
-      logger.info('✅ Voice ID получен', { voiceId })
+      if (veedInput.audioUrl) {
+        // Используем готовый audioUrl от голосового сообщения
+        audioUrl = veedInput.audioUrl
+        logger.info('🎤 Используем готовое аудио от пользователя', { audioUrl })
 
-      // 2. Генерируем аудио через ElevenLabs и загружаем в Supabase
-      const audioUrl = await this.generateAudio(veedInput.text, voiceId, veedInput.telegramId)
-      if (!audioUrl) {
-        return {
-          message: 'Failed to generate audio',
-          error: 'ElevenLabs audio generation failed',
-          code: 'AUDIO_GENERATION_FAILED',
-          provider: 'kie',
-          modelId: veedInput.modelId,
+      } else {
+        // Генерируем аудио через ElevenLabs для текста
+        // 1. Получаем voice_id пользователя
+        const voiceId = await getVoiceId(veedInput.telegramId)
+        if (!voiceId) {
+          return {
+            message: 'User voice ID not found',
+            error: 'Cannot generate audio without user voice ID',
+            code: 'MISSING_VOICE_ID',
+            provider: 'kie',
+            modelId: veedInput.modelId,
+          }
         }
+
+        logger.info('✅ Voice ID получен', { voiceId })
+
+        // 2. Генерируем аудио через ElevenLabs и загружаем в Supabase
+        const generatedAudio = await this.generateAudio(veedInput.text!, voiceId, veedInput.telegramId)
+        if (!generatedAudio) {
+          return {
+            message: 'Failed to generate audio',
+            error: 'ElevenLabs audio generation failed',
+            code: 'AUDIO_GENERATION_FAILED',
+            provider: 'kie',
+            modelId: veedInput.modelId,
+          }
+        }
+
+        audioUrl = generatedAudio
       }
 
       // 3. Вызываем Kie.ai API для создания lip-sync видео

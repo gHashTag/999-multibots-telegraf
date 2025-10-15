@@ -71,11 +71,11 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
       'AI talking video модель с естественной синхронизацией губ, выразительными движениями глаз и тонкими мимическими жестами. Использует голос аватара пользователя.',
     provider: 'kie',
     modelId: 'veed-fabric',
-    costPerSecond: 0.114, // ✅ ИСПРАВЛЕНО: $0.0475 × 2.4 наценка = $0.114/sec для 480p
-    costPerSecond720p: 0.216, // ✅ ДОБАВЛЕНО: $0.09 × 2.4 наценка = $0.216/sec для 720p
-    costPerSecondStars480p: 7, // ✅ $0.114 / 0.016 = 7.125⭐ ≈ 7⭐/sec
-    costPerSecondStars720p: 14, // ✅ $0.216 / 0.016 = 13.5⭐ ≈ 14⭐/sec
-    maxDuration: 120, // 2 минуты
+    costPerSecond: 0.192, // ✅ ПРАВИЛЬНО: $0.08 × 2.4 наценка = $0.192/sec для 480p
+    costPerSecond720p: 0.36, // ✅ ПРАВИЛЬНО: $0.15 × 2.4 наценка = $0.36/sec для 720p
+    costPerSecondStars480p: 12, // ✅ $0.192 / 0.016 = 12⭐/sec
+    costPerSecondStars720p: 23, // ✅ $0.36 / 0.016 = 22.5⭐ ≈ 23⭐/sec
+    maxDuration: 30, // ✅ ПРАВИЛЬНО: fal.ai limit 30 секунд
     quality: 'high',
     isAvailable: true,
     resolution: '480p', // default разрешение
@@ -84,8 +84,8 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
       'Естественная синхронизация губ',
       'Выразительные движения глаз',
       'Тонкие мимические жесты',
-      'Выбор качества: 480p (7⭐/сек) или 720p (14⭐/сек)',
-      'До 2 минут видео',
+      'Выбор качества: 480p (12⭐/сек) или 720p (23⭐/сек)',
+      'До 30 секунд видео',
     ],
   },
 }

@@ -401,6 +401,7 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
       },
       [isRu ? levels[14].title_ru : levels[14].title_en]: async () => {
+        console.log('🔵 [DEBUG 1] Lip Sync button handler started')
         logger.info({
           message: '🎤 [handleMenu] Открытие меню выбора Lip Sync модели',
           telegramId,
@@ -408,17 +409,21 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'lip_sync_menu',
         })
         console.log('CASE: 🎤 Лип Синк - показываем меню моделей')
+        console.log('🔵 [DEBUG 2] Before checkSubscriptionGuard call')
         logger.info('🔧 [handleMenu DEBUG] Before checkSubscriptionGuard', {
           telegramId,
           currentScene: ctx.scene.current?.id,
         })
 
+        console.log('🔵 [DEBUG 3] Calling checkSubscriptionGuard...')
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в липсинк
         const hasSubscription = await checkSubscriptionGuard(
           ctx,
           isRu ? '🎤 Синхронизация губ' : '🎤 Lip Sync'
         )
+        console.log('🔵 [DEBUG 4] checkSubscriptionGuard returned:', hasSubscription)
 
+        console.log('🔵 [DEBUG 5] After checkSubscriptionGuard')
         logger.info('🔧 [handleMenu DEBUG] After checkSubscriptionGuard', {
           telegramId,
           hasSubscription,
@@ -426,25 +431,31 @@ export const handleMenu = async (ctx: MyContext) => {
         })
 
         if (!hasSubscription) {
+          console.log('🔴 [DEBUG 6] No subscription - exiting early')
           logger.warn('⚠️ [handleMenu] No subscription - exiting')
           return // Пользователь перенаправлен в subscriptionScene
         }
 
+        console.log('🟢 [DEBUG 7] Subscription OK, preparing to enter wizard')
         logger.info('🔧 [handleMenu DEBUG] Subscription OK, entering wizard')
 
         // ❌ ИСПРАВЛЕНИЕ: НЕ устанавливаем mode = LipSync, чтобы не перехватывали middleware
         // ctx.session.mode = ModeEnum.LipSync
 
         // Сразу запускаем Veed Fabric wizard
+        console.log('🟢 [DEBUG 8] About to enter veed_fabric_lipsync scene')
         logger.info(`🔄 [handleMenu] Запуск Veed Fabric wizard`)
 
         try {
+          console.log('🟢 [DEBUG 9] Calling ctx.scene.enter("veed_fabric_lipsync")')
           await ctx.scene.enter('veed_fabric_lipsync')
+          console.log('🟢 [DEBUG 10] Successfully entered veed_fabric_lipsync')
           logger.info(`✅ [handleMenu] Успешно вошли в veed_fabric_lipsync wizard`, {
             currentScene: ctx.scene.current?.id,
             wizardStep: (ctx.wizard as any)?.cursor,
           })
         } catch (error) {
+          console.log('🔴 [DEBUG 11] Error entering wizard:', error)
           logger.error(`❌ [handleMenu] Ошибка входа в veed_fabric_lipsync`, { error })
           await ctx.reply(
             isRu
