@@ -30,6 +30,86 @@ import { getParsingAccess } from './menu/mainMenu'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
+  // 🏠 ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КНОПКИ "ГЛАВНОЕ МЕНЮ" - РАБОТАЕТ ВЕЗДЕ!
+  bot.hears([levels[104].title_ru, levels[104].title_en], async ctx => {
+    logger.info('🏠 GLOBAL HEARS: Main menu button pressed', {
+      telegramId: ctx.from?.id,
+      text: ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown',
+    })
+
+    try {
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
+
+      // Покидаем текущую сцену
+      await ctx.scene.leave()
+
+      // Устанавливаем режим главного меню
+      ctx.session.mode = ModeEnum.MainMenu
+
+      // Переходим в главное меню
+      await ctx.scene.enter(ModeEnum.MainMenu)
+
+      logger.info('✅ GLOBAL HEARS: Successfully entered main menu', {
+        telegramId: ctx.from?.id,
+      })
+    } catch (error) {
+      logger.error('❌ GLOBAL HEARS: Error in main menu handler:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError = isRussianFromState(ctx)
+      await ctx.reply(
+        isRuError
+          ? '❌ Произошла ошибка при переходе в главное меню.'
+          : '❌ Error occurred while entering main menu.'
+      )
+    }
+  })
+
+  // 🏠 ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КОМАНДЫ "/menu" - РАБОТАЕТ ВЕЗДЕ!
+  bot.command('menu', async ctx => {
+    logger.info('🏠 GLOBAL COMMAND: /menu command pressed', {
+      telegramId: ctx.from?.id,
+    })
+
+    try {
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
+
+      // Покидаем текущую сцену
+      await ctx.scene.leave()
+
+      // Устанавливаем режим главного меню
+      ctx.session.mode = ModeEnum.MainMenu
+
+      // Переходим в главное меню
+      await ctx.scene.enter(ModeEnum.MainMenu)
+
+      logger.info(
+        '✅ GLOBAL COMMAND: Successfully entered main menu via /menu',
+        {
+          telegramId: ctx.from?.id,
+        }
+      )
+    } catch (error) {
+      logger.error('❌ GLOBAL COMMAND: Error in /menu handler:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError = isRussianFromState(ctx)
+      await ctx.reply(
+        isRuError
+          ? '❌ Произошла ошибка при переходе в главное меню.'
+          : '❌ Error occurred while entering main menu.'
+      )
+    }
+  })
+
   // Удаляем экстренный обработчик подписки - он перехватывает слишком много команд
   // Обработка подписки происходит через конкретные кнопки в registerCommands.ts
 
@@ -194,7 +274,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     const { ADMIN_IDS_ARRAY } = await import('@/config')
     const userId = ctx.from?.id
     const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-    
+
     if (!isAdmin) {
       await ctx.reply('❌ У вас нет доступа к этой функции.')
       return
@@ -930,7 +1010,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     const { ADMIN_IDS_ARRAY } = await import('@/config')
     const userId = ctx.from?.id
     const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-    
+
     if (!isAdmin) {
       await ctx.reply('❌ У вас нет доступа к этой функции.')
       return
@@ -959,7 +1039,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     const { ADMIN_IDS_ARRAY } = await import('@/config')
     const userId = ctx.from?.id
     const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-    
+
     if (!isAdmin) {
       await ctx.reply('❌ У вас нет доступа к этой функции.')
       return
@@ -1086,7 +1166,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         userId,
         error: error instanceof Error ? error.message : String(error),
       })
-      await ctx.reply('❌ Произошла ошибка при запуске парсинга. Попробуйте позже.')
+      await ctx.reply(
+        '❌ Произошла ошибка при запуске парсинга. Попробуйте позже.'
+      )
     }
   })
 }
