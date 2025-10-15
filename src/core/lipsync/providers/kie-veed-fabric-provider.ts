@@ -159,6 +159,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
 
       // ✅ УЛУЧШЕНО: Если audioUrl уже есть (голосовое сообщение), пропускаем ElevenLabs
       let audioUrl: string
+      let voiceId: string | null = null // Объявляем снаружи для доступа в metadata
 
       if (veedInput.audioUrl) {
         // Используем готовый audioUrl от голосового сообщения
@@ -168,7 +169,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       } else {
         // Генерируем аудио через ElevenLabs для текста
         // 1. Получаем voice_id пользователя
-        const voiceId = await getVoiceId(veedInput.telegramId)
+        voiceId = await getVoiceId(veedInput.telegramId)
         if (!voiceId) {
           return {
             message: 'User voice ID not found',
@@ -342,8 +343,9 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         processingTime,
         metadata: {
           resolution: veedInput.resolution || this.config.defaultResolution,
-          voiceId,
-          textLength: veedInput.text.length,
+          voiceId: voiceId || undefined,
+          textLength: veedInput.text?.length || 0,
+          audioSource: veedInput.audioUrl ? 'user_voice' : 'elevenlabs_tts',
           provider: 'kie',
         },
       }
