@@ -215,8 +215,10 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
 
     const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
-    console.log(`🔍 [DEBUG] fullPrompt сформирован: ${fullPrompt.substring(0, 100)}...`)
-    
+    console.log(
+      `🔍 [DEBUG] fullPrompt сформирован: ${fullPrompt.substring(0, 100)}...`
+    )
+
     console.log('🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid')
     try {
       // ГЕНЕРИРУЕМ СРАЗУ 1 ИЗОБРАЖЕНИЕ КАК БЫЛО РАНЬШЕ!
@@ -228,7 +230,10 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         ctx,
         ctx.botInfo?.username
       )
-      console.log('✅ [DEBUG] generateNeuroPhotoHybrid завершен успешно:', result)
+      console.log(
+        '✅ [DEBUG] generateNeuroPhotoHybrid завершен успешно:',
+        result
+      )
     } catch (error) {
       console.error('❌ [DEBUG] Ошибка в generateNeuroPhotoHybrid:', error)
       const isRu = isRussianFromState(ctx)
@@ -239,9 +244,37 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       )
       return
     }
-    
-    // После генерации переходим к следующему шагу (для обработки кнопок типа "Новый промпт")
-    console.log('🔄 [DEBUG] Переходим к следующему шагу wizard')
+
+    // После генерации показываем кнопки для дополнительной генерации
+    console.log('🔄 [DEBUG] Показываем кнопки для дополнительной генерации')
+
+    const isRu = isRussianFromState(ctx)
+    const additionalGenerationKeyboard = {
+      reply_markup: {
+        keyboard: [
+          [{ text: '1' }, { text: '2' }, { text: '3' }, { text: '4' }],
+          [
+            { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
+            { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+          ],
+          [
+            { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
+            { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
+          ],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      },
+    }
+
+    await ctx.reply(
+      isRu
+        ? '✨ Нейрофото сгенерировано! Выберите количество дополнительных изображений или используйте другие опции:'
+        : '✨ Neurophoto generated! Choose the number of additional images or use other options:',
+      additionalGenerationKeyboard
+    )
+
+    // Переходим к следующему шагу для обработки кнопок
     ctx.wizard.next()
     return
   }
@@ -371,8 +404,49 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
   await ctx.answerCbQuery()
 
+  // ✅ ОБРАБОТКА КНОПОК РЕЗУЛЬТАТОВ НЕЙРОФОТО
+  if (callbackData === 'new_neurophoto_prompt') {
+    console.log('🔄 [CALLBACK] Новый промпт - возврат к началу сцены')
+    ctx.session.prompt = undefined
+    ctx.wizard.selectStep(0)
+    return neuroPhotoConversationStep(ctx)
+  }
+
+  if (callbackData === 'improve_prompt') {
+    console.log('🔄 [CALLBACK] Улучшить промпт')
+    await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
+    return
+  }
+
+  if (callbackData === 'change_size') {
+    console.log('🔄 [CALLBACK] Изменить размер')
+    await ctx.scene.enter(ModeEnum.SizeWizard)
+    return
+  }
+
+  if (callbackData === 'go_main_menu') {
+    console.log('🔄 [CALLBACK] Главное меню')
+    await handleMenu(ctx)
+    return ctx.scene.leave()
+  }
+
+  if (callbackData === 'upscale_neurophoto_image') {
+    console.log('🔄 [CALLBACK] Увеличить качество')
+    // TODO: Добавить обработку upscale
+    await ctx.reply(
+      isRu
+        ? 'Функция увеличения качества будет добавлена в ближайшее время.'
+        : 'Upscale feature will be added soon.'
+    )
+    return
+  }
+
   if (callbackData === 'cancel_neuro_photo') {
-    await ctx.reply(isRu ? "Отменено. Возвращаю в главное меню." : "Cancelled. Returning to main menu.")
+    await ctx.reply(
+      isRu
+        ? 'Отменено. Возвращаю в главное меню.'
+        : 'Cancelled. Returning to main menu.'
+    )
     await handleMenu(ctx)
     return ctx.scene.leave()
   } else if (callbackData.startsWith('select_neuro_model_')) {
@@ -386,7 +460,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
     const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
     const selectedModel = userModels?.find(
-      (model) => model.id.toString() === modelId
+      model => model.id.toString() === modelId
     )
 
     if (selectedModel) {
@@ -408,13 +482,13 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 })
 
 // ✅ ОБРАБАТЫВАЕМ УНИВЕРСАЛЬНЫЕ КОМАНДЫ ВОКРУГ СЦЕНЫ (МЕНЮ, HELP И Т.Д.)
-neuroPhotoWizard.command('menu', async (ctx) => {
+neuroPhotoWizard.command('menu', async ctx => {
   // handleMenu сам определит язык и подписку
   await handleMenu(ctx)
   return ctx.scene.leave()
 })
 
-neuroPhotoWizard.command('help', async (ctx) => {
+neuroPhotoWizard.command('help', async ctx => {
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
   await ctx.reply(
