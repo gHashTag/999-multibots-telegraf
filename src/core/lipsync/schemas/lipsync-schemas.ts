@@ -6,7 +6,7 @@ import { z } from 'zod'
  */
 
 // Общие типы провайдеров
-export const LipSyncProviderSchema = z.enum(['replicate', 'sync'])
+export const LipSyncProviderSchema = z.enum(['replicate', 'sync', 'kie'])
 
 // Базовые входные параметры для всех моделей
 export const BaseLipSyncInputSchema = z.object({
@@ -57,10 +57,24 @@ export const SyncLipSyncInputSchema = BaseLipSyncInputSchema.extend({
     .optional(),
 })
 
+// Специфичные параметры для Veed Fabric модели (Kie.ai)
+export const VeedFabricInputSchema = z.object({
+  provider: z.literal('kie'),
+  modelId: z.literal('veed-fabric'),
+  imageUrl: z.string().url('Image URL must be a valid URL'),
+  text: z.string().optional(), // Опционально если есть audioUrl
+  audioUrl: z.string().url('Audio URL must be a valid URL').optional(), // Опционально если есть text
+  telegramId: z.string().min(1, 'Telegram ID is required'),
+  botName: z.string().optional().default('unknown_bot'),
+  resolution: z.enum(['480p', '720p']).optional().default('480p'),
+})
+// Валидация "text ИЛИ audioUrl" будет в builder
+
 // Универсальная схема для любой lip-sync модели
 export const UniversalLipSyncInputSchema = z.discriminatedUnion('provider', [
   KlingLipSyncInputSchema,
   SyncLipSyncInputSchema,
+  VeedFabricInputSchema,
 ])
 
 // Схема для выходных данных
@@ -127,6 +141,7 @@ export type LipSyncProvider = z.infer<typeof LipSyncProviderSchema>
 export type BaseLipSyncInput = z.infer<typeof BaseLipSyncInputSchema>
 export type KlingLipSyncInput = z.infer<typeof KlingLipSyncInputSchema>
 export type SyncLipSyncInput = z.infer<typeof SyncLipSyncInputSchema>
+export type VeedFabricInput = z.infer<typeof VeedFabricInputSchema>
 export type UniversalLipSyncInput = z.infer<typeof UniversalLipSyncInputSchema>
 export type LipSyncOutput = z.infer<typeof LipSyncOutputSchema>
 export type LipSyncError = z.infer<typeof LipSyncErrorSchema>
@@ -249,5 +264,37 @@ export const LipSyncInputBuilder = {
         enhance_quality: options?.enhance_quality,
       },
     })
+  },
+
+  /**
+   * Создать входные данные для Veed Fabric модели
+   */
+  forVeedFabric: (
+    imageUrl: string,
+    textOrAudioUrl: string, // может быть text или audioUrl
+    telegramId: string,
+    options?: {
+      botName?: string
+      resolution?: '480p' | '720p'
+      isAudioUrl?: boolean // флаг: true = audioUrl, false = text
+    }
+  ): VeedFabricInput => {
+    const input = {
+      imageUrl,
+      text: options?.isAudioUrl ? undefined : textOrAudioUrl,
+      audioUrl: options?.isAudioUrl ? textOrAudioUrl : undefined,
+      telegramId,
+      provider: 'kie' as const,
+      modelId: 'veed-fabric' as const,
+      botName: options?.botName,
+      resolution: options?.resolution,
+    }
+
+    // Валидация: должен быть либо text, либо audioUrl
+    if (!input.text && !input.audioUrl) {
+      throw new Error('Either text or audioUrl must be provided for Veed Fabric')
+    }
+
+    return VeedFabricInputSchema.parse(input)
   },
 }

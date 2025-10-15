@@ -8,7 +8,180 @@ import { logger } from '@/utils/logger' // Keep logger import
 import { PaymentType } from '@/interfaces/payments.interface' // Keep imports for now
 
 /**
- * Обрабатывает операцию с балансом для видео (Изолированная версия)
+ * Проверяет баланс пользователя без снятия денег (только проверка)
+ */
+export const checkBalanceVideoOperationHelper = async (
+  telegramId: string,
+  modelId: string,
+  isRu: boolean,
+  serviceType = 'image_to_video'
+): Promise<BalanceOperationResult> => {
+  if (!telegramId) {
+    logger.error('checkBalanceVideoOperationHelper: User ID not found')
+    return {
+      success: false,
+      error: 'User ID not found',
+      newBalance: 0,
+      modePrice: 0,
+      paymentAmount: 0,
+      currentBalance: 0,
+    }
+  }
+
+  // Ищем конфигурацию по ключу
+  const selectedModelConfig = VIDEO_MODELS_CONFIG[modelId]
+
+  if (!selectedModelConfig) {
+    logger.error('checkBalanceVideoOperationHelper: Invalid modelId received, model not found:', { modelId })
+    const errorMsg = isRu
+      ? 'Ошибка конфигурации для выбранной модели.'
+      : 'Configuration error for selected model.'
+    return {
+      success: false,
+      error: errorMsg,
+      newBalance: 0,
+      modePrice: 0,
+      paymentAmount: 0,
+      currentBalance: 0,
+    }
+  }
+
+  let paymentAmount = 0
+  let modePrice = 0
+  try {
+    paymentAmount = calculateFinalPrice(modelId)
+    modePrice = paymentAmount
+  } catch (costError) {
+    logger.error('checkBalanceVideoOperationHelper: Error calculating cost', { modelId, error: costError })
+    const errorMsg = isRu ? 'Ошибка расчета стоимости.' : 'Error calculating cost.'
+    return {
+      success: false,
+      error: errorMsg,
+      newBalance: 0,
+      modePrice: 0,
+      paymentAmount: 0,
+      currentBalance: 0,
+    }
+  }
+
+  try {
+    const currentBalance = await getUserBalance(telegramId)
+
+    if (currentBalance < paymentAmount) {
+      const message = isRu
+        ? 'Недостаточно средств на балансе. Пополните баланс в главном меню.'
+        : 'Insufficient funds. Top up your balance in the main menu.'
+      logger.warn('checkBalanceVideoOperationHelper: Insufficient funds', {
+        telegramId,
+        currentBalance,
+        paymentAmount,
+        modelId,
+      })
+      return {
+        success: false,
+        error: message,
+        newBalance: currentBalance,
+        modePrice,
+        paymentAmount: paymentAmount,
+        currentBalance,
+      }
+    }
+
+    logger.info('checkBalanceVideoOperationHelper: Balance check passed', {
+      telegramId,
+      currentBalance,
+      paymentAmount,
+      modelId
+    })
+
+    return {
+      success: true,
+      newBalance: currentBalance, // Не меняем баланс, только проверяем
+      modePrice,
+      paymentAmount: paymentAmount,
+      currentBalance,
+    }
+  } catch (error) {
+    logger.error('checkBalanceVideoOperationHelper: Error checking balance:', { error, telegramId, modelId })
+    let currentBalanceOnError = 0
+    try {
+      currentBalanceOnError = await getUserBalance(telegramId)
+    } catch (getBalanceError) {
+      logger.error('Failed to get balance in catch block', { telegramId, getBalanceError })
+    }
+
+    const errorMsg = isRu ? 'Внутренняя ошибка проверки баланса.' : 'Internal error checking balance.'
+    return {
+      success: false,
+      error: errorMsg + (error instanceof Error ? `: ${error.message}` : ''),
+      newBalance: currentBalanceOnError,
+      modePrice,
+      paymentAmount: paymentAmount,
+      currentBalance: currentBalanceOnError,
+    }
+  }
+}
+
+/**
+ * Снимает деньги после успешной генерации видео
+ */
+export const deductBalanceAfterSuccess = async (
+  telegramId: string,
+  modelId: string,
+  botName: string,
+  paymentAmount: number,
+  serviceType = 'image_to_video'
+): Promise<boolean> => {
+  try {
+    const selectedModelConfig = VIDEO_MODELS_CONFIG[modelId]
+    if (!selectedModelConfig) {
+      logger.error('deductBalanceAfterSuccess: Model config not found', { modelId })
+      return false
+    }
+
+    const updateSuccess = await updateUserBalance(
+      telegramId,
+      paymentAmount,
+      PaymentType.MONEY_OUTCOME,
+      `Video generation (${selectedModelConfig.title})`,
+      {
+        bot_name: botName,
+        service_type: serviceType,
+        model_name: modelId,
+        modePrice: paymentAmount,
+        currentBalance: 0, // Не знаем текущий баланс здесь
+        paymentAmount: paymentAmount,
+      }
+    )
+
+    if (updateSuccess) {
+      logger.info('deductBalanceAfterSuccess: Payment deducted successfully', {
+        telegramId,
+        modelId,
+        paymentAmount
+      })
+      return true
+    } else {
+      logger.error('deductBalanceAfterSuccess: Failed to deduct payment', {
+        telegramId,
+        modelId,
+        paymentAmount
+      })
+      return false
+    }
+  } catch (error) {
+    logger.error('deductBalanceAfterSuccess: Error deducting payment', {
+      error,
+      telegramId,
+      modelId,
+      paymentAmount
+    })
+    return false
+  }
+}
+
+/**
+ * Обрабатывает операцию с балансом для видео (Изолированная версия) - УСТАРЕВШАЯ, используйте checkBalanceVideoOperationHelper + deductBalanceAfterSuccess
  */
 export const processBalanceVideoOperationHelper = async (
   telegramId: string, // Removed ctx dependency

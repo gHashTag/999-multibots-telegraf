@@ -140,6 +140,7 @@ export interface MySessionData extends Scenes.WizardSessionData {
   triggerWord?: string
   steps?: number
   memory?: Memory
+  lastStartCommand?: number // Timestamp of last /start command to prevent spam
 
   __scenes: Record<string, unknown>
 }
@@ -185,6 +186,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   images: BufferType
   morphingImages?: {
     buffer: Buffer
+    url?: string // ✅ Оригинальный URL от Telegram для API вызовов
     filename: string
     timestamp?: number // ✅ Для правильной сортировки
     originalOrder?: number // ✅ Исходный порядок добавления
@@ -199,6 +201,17 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   steps?: number
   videoUrl?: string
   audioUrl?: string
+  selectedLipSyncModel?: string // ID выбранной модели lip-sync
+  veedFabric?: {
+    // Данные для Veed Fabric wizard
+    step?: 'image' | 'text' | 'processing'
+    imageUrl?: string
+    text?: string
+    startTime?: number
+    resolution?: '480p' | '720p' // Разрешение видео
+    needsVoiceCreation?: boolean // Флаг необходимости создания голоса
+  }
+  returnToVeedFabricAfterVoice?: boolean // Флаг возврата в Veed Fabric после создания голоса
   email?: string
   inviteCode?: string
   inviter?: string
@@ -234,7 +247,6 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   translationCache?: Record<string, TranslationEntry[]> | null
   neuroPhotoInProgress?: boolean
   userModel: UserModel
-  selectedModel?: string
   videoModel?: string
   translations?: Translation[]
   buttons?: TranslationButton[]
@@ -295,11 +307,18 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }
 
   // Avatar transformation fields
+  selectedModel?: 'flux-kontext' | 'seedream4' | 'nano-banana' // Выбранная AI модель для трансформации
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
   selectedHero?: string // Выбранный герой Marvel для трансформации
 
+  // ИИ Герои transformation fields
+  aiHeroGender?: 'male' | 'female' // Выбранный пол для ИИ Герои трансформации
+  aiHeroImageUrl?: string // URL фото пользователя для ИИ Герои трансформации
+
   // Morphing fields
   morphingType?: 'loop' | 'linear' // Тип морфинга
+  morphingCustomPrompt?: string // Кастомный промпт для переходов морфинга
+  morphingAwaitingCustomPrompt?: boolean // Флаг ожидания ввода кастомного промпта
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса
@@ -316,9 +335,52 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   step?: 'video' | 'audio' | 'processing'
   startTime?: number
   requestId?: string
+
+  // AI Photoshop scene fields
+  aiPhotoshopModel?: 'seedream' | 'nano_banana' | 'flux_multi_kontext' | 'qwen_edit_plus' | 'flux_kontext_pro' | 'seededit_3' | 'qwen_image_edit' | 'all_models'
+  aiPhotoshopStyle?: 'portrait' | 'artistic' | 'photorealistic' | 'fantasy' | 'cyberpunk' | 'vintage' | 'custom'
+  aiPhotoshopImage?: string
+  aiPhotoshopPrompt?: string
+  aiPhotoshopSize?: '1K' | '2K' | '4K' | 'custom'
+  aiPhotoshopVariationsCount?: number
+  awaitingAiPhotoshopImage?: boolean
+  awaitingAiPhotoshopPrompt?: boolean
+  aiPhotoshopStep?: 'model_select' | 'style_select' | 'image_upload' | 'custom_prompt' | 'processing' | 'quality_selection'
+
+  // 🎬 AI Photoshop camera control fields (transferred from FLUX Kontext)
+  aiPhotoshopCameraAngle?: 'medium_shot' | 'close_up' | 'extreme_close_up' | 'wide_shot' | 'high_angle' | 'low_angle' | 'dutch_angle' | 'over_shoulder' | 'profile_shot' | 'three_quarter' | 'bird_eye' | 'macro_beauty'
+  aiPhotoshopLighting?: 'soft_natural' | 'dramatic' | 'golden_hour' | 'studio' | 'rembrandt' | 'butterfly' | 'split' | 'rim' | 'candlelight' | 'neon_noir' | 'morning' | 'sunset'
+  aiPhotoshopComposition?: 'center_weighted' | 'rule_thirds' | 'golden_ratio' | 'symmetrical' | 'negative_space' | 'leading_lines'
+
+  // ✅ NEW: Dialog mode support for AI Photoshop
+  savedAiPhotoshopResults?: Array<{
+    url: string
+    imageUrl: string // ✅ Compatibility field for dialog mode logic
+    model: string
+    prompt: string
+    timestamp: string
+    id: string
+    wasAllModels?: boolean // ✅ Track if generated in all_models mode
+    additionalInfo?: {
+      size?: '1K' | '2K' | '4K' | 'custom'
+      originalImage?: string
+      isImprovement?: boolean
+      fullPrompt?: string
+    }
+  }>
+  dialogMode?: boolean
+  lastPhotoTimestamp?: number // ✅ For sequential photo detection in AI Photoshop
+  sessionId?: string // ✅ Session ID for Zod validation
+
+  // Multi-photo neurophoto fields
+  multiPhotoUrls?: string[] // URLs of multiple input photos for neurophoto series
+  multiPhotoCount?: number // Number of photos in multi-photo session
+  awaitingMultiPhotoConfirmation?: boolean // Waiting for user confirmation to process multi-photos
+  multiPhotoProcessingIndex?: number // Current index being processed in multi-photo series
 }
 
 export interface MyContext extends Context {
+  match?: RegExpExecArray;
   session: MySession
   scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
   wizard: Scenes.WizardContextWizard<MyContext>

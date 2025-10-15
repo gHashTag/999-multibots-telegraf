@@ -1,3 +1,6 @@
+// Import config to load .env before checking ELEVENLABS_API_KEY
+import '@/config'
+
 // Mock-класс для ElevenLabs API
 class MockElevenLabsClient {
   // Сохраняем конфиг для отладки
@@ -49,7 +52,11 @@ class MockElevenLabsClient {
 // Определяем, используем реальный API или мок
 const createElevenLabsClient = () => {
   // Сначала проверяем наличие API ключа
-  if (!process.env.ELEVENLABS_API_KEY) {
+  const apiKey = process.env.ELEVENLABS_API_KEY
+
+  console.log('[ElevenLabs] Creating client with API key:', apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT FOUND')
+
+  if (!apiKey) {
     console.warn(
       'ELEVENLABS_API_KEY not found in environment, using mock client'
     )
@@ -61,9 +68,13 @@ const createElevenLabsClient = () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { ElevenLabsClient } = require('elevenlabs')
 
+    console.log('[ElevenLabs] Initializing ElevenLabsClient with key:', apiKey.substring(0, 10) + '...')
+
     const client = new ElevenLabsClient({
-      apiKey: process.env.ELEVENLABS_API_KEY,
+      apiKey: apiKey,
     })
+
+    console.log('[ElevenLabs] Client created successfully')
 
     // Add voiceExists method to the client
     client.voiceExists = async (voiceId: string): Promise<boolean> => {
@@ -75,18 +86,28 @@ const createElevenLabsClient = () => {
         )
         console.log('[ElevenLabs] DEBUG: Looking for voice ID:', voiceId)
 
-        const voices = await client.voices.getAll()
+        const voicesResponse = await client.voices.getAll()
+        console.log('[ElevenLabs] DEBUG: Raw API response:', voicesResponse)
+
+        // Handle different possible response structures
+        const voicesList = voicesResponse?.voices || voicesResponse || []
         console.log(
           '[ElevenLabs] DEBUG: Found voices count:',
-          voices.voices.length
-        )
-        console.log(
-          '[ElevenLabs] DEBUG: Voice IDs in account:',
-          voices.voices.map((v: any) => v.voice_id)
+          Array.isArray(voicesList) ? voicesList.length : 'Not an array'
         )
 
-        const exists = voices.voices.some(
-          (voice: any) => voice.voice_id === voiceId
+        if (!Array.isArray(voicesList)) {
+          console.error('[ElevenLabs] ERROR: Voices response is not an array:', typeof voicesList)
+          return false
+        }
+
+        console.log(
+          '[ElevenLabs] DEBUG: Voice IDs in account:',
+          voicesList.map((v: any) => v.voice_id || v.id)
+        )
+
+        const exists = voicesList.some(
+          (voice: any) => (voice.voice_id || voice.id) === voiceId
         )
         console.log('[ElevenLabs] DEBUG: Voice exists?', exists)
 
@@ -107,12 +128,28 @@ const createElevenLabsClient = () => {
   }
 }
 
-export const elevenlabs = createElevenLabsClient()
+// Lazy initialization - create client only when accessed
+let _elevenlabs: any = null
+
+export const getElevenLabsClient = () => {
+  if (!_elevenlabs) {
+    _elevenlabs = createElevenLabsClient()
+  }
+  return _elevenlabs
+}
+
+// Export a proxy that creates client on first access
+export const elevenlabs = new Proxy({} as any, {
+  get(_target, prop) {
+    const client = getElevenLabsClient()
+    return client[prop]
+  }
+})
 
 // Helper function to check if a voice exists
 export const checkVoiceExists = async (voiceId: string): Promise<boolean> => {
   try {
-    return await elevenlabs.voiceExists(voiceId)
+    return await getElevenLabsClient().voiceExists(voiceId)
   } catch (error) {
     console.error('[ElevenLabs] Error in checkVoiceExists:', error)
     return false

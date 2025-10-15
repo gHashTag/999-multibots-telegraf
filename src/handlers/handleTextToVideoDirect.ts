@@ -261,7 +261,7 @@ async function monitorVideoGeneration(
           ctx,
           statusResponse.videoUrl,
           ctx.session.videoPrompt || '',
-          (ctx.session.videoModelId as VideoModelId) || 'veo-3-fast',
+          (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
           ctx.session.videoDuration,
           messageId
         )
@@ -408,10 +408,9 @@ async function handleVideoReady(
       telegram_id
     })
 
-    // Отправляем видео пользователю
+    // Отправляем видео с минимальной подписью
     await ctx.replyWithVideo(Input.fromURL(uploadedUrl), {
       caption:
-        `🎬 ${prompt}\n\n` +
         `🤖 ${is_ru ? 'Модель' : 'Model'}: ${modelName}\n` +
         (duration
           ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${
@@ -421,6 +420,39 @@ async function handleVideoReady(
         `⚡ ${is_ru ? 'Сгенерировано через' : 'Generated with'} AI`,
       parse_mode: 'Markdown',
     })
+
+    // Отправляем полный промпт отдельным сообщением
+    // Проверяем, нужно ли разбить промпт на несколько сообщений (лимит Telegram 4096 символов)
+    const MAX_MESSAGE_LENGTH = 4000 // Оставляем запас для форматирования
+    const promptHeader = is_ru ? '📝 Ваш запрос:\n\n' : '📝 Your prompt:\n\n'
+    const fullPromptMessage = promptHeader + prompt
+    
+    if (fullPromptMessage.length > MAX_MESSAGE_LENGTH) {
+      // Разбиваем на несколько сообщений, если очень длинный
+      const chunks = []
+      let currentChunk = promptHeader
+      const words = prompt.split(' ')
+      
+      for (const word of words) {
+        if ((currentChunk + ' ' + word).length > MAX_MESSAGE_LENGTH) {
+          chunks.push(currentChunk)
+          currentChunk = word
+        } else {
+          currentChunk += (currentChunk === promptHeader ? '' : ' ') + word
+        }
+      }
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk)
+      }
+      
+      // Отправляем каждый чанк
+      for (const chunk of chunks) {
+        await ctx.reply(chunk)
+      }
+    } else {
+      // Отправляем одним сообщением
+      await ctx.reply(fullPromptMessage)
+    }
 
     // Списываем баланс
     const price = getModelPriceInStars(modelId, duration)
@@ -462,6 +494,35 @@ async function handleVideoReady(
       modelId,
       price,
     })
+
+    // Отправляем видео в pulse канал
+    try {
+      const { sendMediaToPulse } = await import('@/helpers/pulse')
+      await sendMediaToPulse({
+        mediaType: 'video',
+        mediaSource: uploadedUrl,
+        telegramId: telegram_id,
+        username: ctx.from?.username,
+        language: is_ru ? 'ru' : 'en',
+        serviceType: modelName,
+        prompt: prompt,
+        botName: 'HaimGroupMedia_bot',
+        additionalInfo: {
+          'Model': modelName,
+          'Duration': duration ? `${duration} sec` : 'N/A',
+          'Price': `${price} stars`
+        }
+      })
+      
+      logger.info('[handleVideoReady] Video sent to pulse channel', {
+        telegram_id,
+        modelId,
+        uploadedUrl
+      })
+    } catch (pulseError) {
+      logger.error('[handleVideoReady] Error sending to pulse channel:', pulseError)
+      // Не прерываем выполнение, если pulse не сработал
+    }
   } catch (error) {
     logger.error('[handleVideoReady] Error sending video:', error)
 
@@ -504,7 +565,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx,
         statusResponse.videoUrl,
         ctx.session.videoPrompt || '',
-        (ctx.session.videoModelId as VideoModelId) || 'veo-3-fast',
+        (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
         ctx.session.videoDuration,
         ctx.session.videoMessageId || 0
       )

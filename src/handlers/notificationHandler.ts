@@ -40,7 +40,24 @@ export class NotificationHandler {
     logger.info('🚀 Начинаем обработку очереди уведомлений...')
 
     try {
+      // Проверяем подключение к Supabase
+      const { error: connectionError } = await supabase
+        .from('pending_messages')
+        .select('count', { count: 'exact', head: true })
+
+      if (connectionError) {
+        logger.error('❌ Ошибка подключения к Supabase:', {
+          error: connectionError.message,
+          code: connectionError.code,
+          details: connectionError.details,
+          hint: connectionError.hint
+        })
+        return
+      }
+
+      logger.info('✅ Подключение к Supabase успешно')
       // Получаем неотправленные сообщения из очереди
+      logger.info('🔍 Выполняем запрос к Supabase pending_messages...')
       const { data: messages, error } = await supabase
         .from('pending_messages')
         .select('*')
@@ -50,13 +67,33 @@ export class NotificationHandler {
         .order('created_at', { ascending: true })
         .limit(50) // Обрабатываем максимум 50 сообщений за раз
 
+      logger.info('🔍 Запрос к Supabase завершен:', {
+        hasData: !!messages,
+        dataLength: messages?.length || 0,
+        hasError: !!error
+      })
+
       if (error) {
-        logger.error('❌ Ошибка при получении уведомлений:', error)
+        logger.error('❌ Ошибка при получении уведомлений:', {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        })
         return
       }
 
       if (!messages || messages.length === 0) {
         logger.info('✅ Нет уведомлений для отправки')
+        return
+      }
+
+      // Проверяем структуру данных
+      if (!Array.isArray(messages)) {
+        logger.error('❌ Неправильная структура данных от Supabase:', {
+          dataType: typeof messages,
+          data: messages
+        })
         return
       }
 
@@ -125,14 +162,31 @@ export class NotificationHandler {
       if (error) {
         logger.error(
           `❌ Ошибка при обновлении статуса сообщения ${messageId}:`,
-          error
+          {
+            error: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+          }
         )
+
+        // Для сетевых ошибок просто логируем, но не выбрасываем исключение
+        if (error.message?.includes('fetch') || error.code === 'PGRST301') {
+          logger.warn(`⚠️ Сетевая ошибка при обновлении статуса сообщения ${messageId}, продолжаем`)
+          return
+        }
       }
     } catch (error) {
       logger.error(
         `❌ Ошибка при пометке сообщения ${messageId} как отправленного:`,
         error
       )
+
+      // Для сетевых ошибок просто логируем
+      if (error instanceof Error && error.message?.includes('fetch')) {
+        logger.warn(`⚠️ Сетевая ошибка при пометке сообщения ${messageId} как отправленного`)
+        return
+      }
     }
   }
 
@@ -158,14 +212,29 @@ export class NotificationHandler {
       if (updateError) {
         logger.error(
           `❌ Ошибка при обновлении статуса неудачного сообщения ${messageId}:`,
-          updateError
+          {
+            error: updateError.message,
+            code: updateError.code,
+            details: updateError.details,
+            hint: updateError.hint
+          }
         )
+
+        // Для сетевых ошибок просто логируем
+        if (updateError.message?.includes('fetch') || updateError.code === 'PGRST301') {
+          logger.warn(`⚠️ Сетевая ошибка при обновлении статуса неудачного сообщения ${messageId}`)
+        }
       }
     } catch (updateError) {
       logger.error(
         `❌ Ошибка при пометке сообщения ${messageId} как неудачного:`,
         updateError
       )
+
+      // Для сетевых ошибок просто логируем
+      if (updateError instanceof Error && updateError.message?.includes('fetch')) {
+        logger.warn(`⚠️ Сетевая ошибка при пометке сообщения ${messageId} как неудачного`)
+      }
     }
   }
 

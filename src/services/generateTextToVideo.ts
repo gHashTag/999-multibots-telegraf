@@ -15,8 +15,8 @@ export type VideoModelId =
   | 'wan-text-to-video'
   | 'minimax'
   // Kie.ai модели
-  | 'veo-3-fast'
-  | 'veo-3'
+  | 'veo3_fast'
+  | 'veo3'
   | 'runway-aleph'
 
 interface TextToVideoRequest {
@@ -60,7 +60,7 @@ async function notifyAdminAboutServerIssue(
       `👤 User: ${telegram_id}\n` +
       `🎬 Model: ${videoModel}\n` +
       `❌ Error: ${error}\n` +
-      `🔄 Используется прямой Kie.ai API\n\n` +
+      `🔄 Используется прямой API Veo 3\n\n` +
       `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
     
     for (const adminId of adminIds) {
@@ -75,6 +75,43 @@ async function notifyAdminAboutServerIssue(
     })
   } catch (notifyError) {
     logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+  }
+}
+
+async function notifyAdminAboutPlanBSuccess(
+  telegram_id: string,
+  videoModel: string,
+  taskId: string,
+  videoUrl: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+
+    if (!botResult.bot) return
+
+    const successMessage = `✅ **PLAN B SUCCESS**\n\n` +
+      `📍 Видео успешно сгенерировано через Plan B\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🎬 Model: ${videoModel}\n` +
+      `🔗 Task ID: ${taskId}\n` +
+      `🎥 Video URL: ${videoUrl.substring(0, 50)}...\n\n` +
+      `✅ Fallback механизм работает корректно`
+
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, successMessage, {
+        parse_mode: 'Markdown'
+      })
+    }
+
+    logger.info('[ADMIN NOTIFICATION] Plan B success reported to admins', {
+      adminIds,
+      telegram_id,
+      taskId
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins about Plan B success', notifyError)
   }
 }
 
@@ -124,72 +161,14 @@ export async function generateTextToVideo(
 
   try {
     // Проверяем, является ли это Veo моделью
-    const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
+    const isVeoModel = ['veo3', 'veo3_fast', 'runway-aleph'].includes(videoModel)
     
     if (isVeoModel) {
-      // ПЛАН А: Сначала пробуем через наш сервер
-      logger.info('[PLAN A] Trying server first for Veo model', {
+      // ПЛАН Б: Для Veo моделей используем прямую интеграцию с Kie.ai
+      // НЕ используем сервер, так как там нет поддержки этих моделей через Replicate
+      logger.info('[PLAN B] Using Kie.ai directly for Veo model', {
         videoModel,
-        serverUrl: API_URL
-      })
-      
-      try {
-        const baseUrl = API_URL
-        
-        // Проверяем доступность сервера (пропускаем localhost для тестов)
-        if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {
-          const url = `${baseUrl}/api/v1/veo/generate`
-          
-          const requestBody = {
-            model: videoModel === 'veo-3-fast' ? 'veo3_fast' : 
-                   videoModel === 'veo-3' ? 'veo3' : 'runway_aleph',
-            prompt,
-            aspectRatio: aspectRatio || '9:16',
-            enableFallback: false,
-            enableTranslation: true,
-            telegram_id,
-            username,
-            is_ru,
-            bot_name,
-          }
-          
-          const response = await axios.post(url, requestBody, {
-            headers: {
-              'Content-Type': 'application/json',
-              'x-secret-key': SECRET_API_KEY,
-            },
-            timeout: 10000, // 10 секунд таймаут для проверки сервера
-          })
-          
-          logger.info('[PLAN A] Server response received', {
-            status: response.status,
-            success: response.data.success
-          })
-          
-          // Если сервер ответил успешно, возвращаем результат
-          if (response.data.success) {
-            return response.data
-          }
-        }
-      } catch (serverError) {
-        // Сервер недоступен, переключаемся на План Б
-        const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
-        logger.warn('[PLAN A] Server failed, switching to PLAN B', {
-          error: errorMessage,
-          videoModel
-        })
-        
-        // Уведомляем админа о проблеме с сервером
-        await notifyAdminAboutServerIssue(errorMessage, telegram_id, videoModel)
-      }
-      
-      // ПЛАН Б: Используем прямую интеграцию с Kie.ai
-      logger.info('[PLAN B] Using direct Kie.ai API', {
-        videoModel,
-        aspectRatio,
-        duration,
-        telegram_id,
-        username
+        reason: 'Veo models are not available on Replicate, using Kie.ai API directly'
       })
       
       // Импортируем KieAiProvider
@@ -199,7 +178,7 @@ export async function generateTextToVideo(
       // Преобразуем aspectRatio в формат Kie.ai
       const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
       
-      logger.info('[PLAN B] Calling Kie.ai generateVideo with params:', {
+      logger.info('[PLAN B] Calling Veo 3 generateVideo with params:', {
         model: videoModel,
         promptLength: prompt.length, // Логируем длину вместо обрезки
         duration: duration || 8,
@@ -214,7 +193,7 @@ export async function generateTextToVideo(
         aspectRatio: kieAspectRatio || '9:16',
       })
       
-      logger.info('[PLAN B] Kie.ai response received:', {
+      logger.info('[PLAN B] Veo 3 API response received:', {
         success: kieResponse.success,
         hasData: !!kieResponse.data,
         hasVideoUrl: !!kieResponse.data?.videoUrl,
@@ -234,7 +213,7 @@ export async function generateTextToVideo(
           return {
             success: true,
             jobId: kieResponse.data.taskId,
-            message: 'Video generation started (Plan B)',
+            message: 'Video generation started',
           }
         }
       }
@@ -446,12 +425,12 @@ export async function checkVideoGenerationStatus(
     
     if (isKieTaskId) {
       // Используем KieAiProvider для проверки статуса
-      logger.info('[checkVideoGenerationStatus] Using Kie.ai provider to check status')
+      logger.info('[checkVideoGenerationStatus] Using Veo 3 provider to check status')
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
       const result = await kieProvider.checkVideoStatus(jobId)
       
-      logger.info('[checkVideoGenerationStatus] Kie.ai status result:', {
+      logger.info('[checkVideoGenerationStatus] Veo 3 status result:', {
         success: result.success,
         hasData: !!result.data,
         hasVideoUrl: !!result.data?.videoUrl,
@@ -503,9 +482,51 @@ export async function checkVideoGenerationStatus(
     return response.data
   } catch (error) {
     if (isAxiosError(error)) {
-      logger.error('Error checking video generation status', {
+      const statusCode = error.response?.status
+      const errorData = error.response?.data
+
+      // Специальная обработка для 404 ошибки (job not found)
+      if (statusCode === 404 || errorData?.message?.includes('not found') || errorData?.message?.includes('Video job not found')) {
+        logger.warn('[checkVideoGenerationStatus] Video job not found - may have expired or been deleted', {
+          jobId,
+          statusCode,
+          errorMessage: errorData?.message || error.message
+        })
+
+        return {
+          success: false,
+          error: is_ru
+            ? 'Задача генерации видео не найдена. Возможно, она была удалена или истек срок хранения.'
+            : 'Video generation task not found. It may have been deleted or expired.',
+        }
+      }
+
+      // Обработка других HTTP ошибок
+      if (statusCode >= 500) {
+        logger.error('[checkVideoGenerationStatus] Server error while checking video status', {
+          jobId,
+          statusCode,
+          error: errorData || error.message,
+        })
+
+        return {
+          success: false,
+          error: is_ru
+            ? 'Ошибка сервера при проверке статуса видео. Попробуйте позже.'
+            : 'Server error while checking video status. Please try again later.',
+        }
+      }
+
+      logger.error('[checkVideoGenerationStatus] HTTP error while checking video status', {
         jobId,
-        error: error.response?.data || error.message,
+        statusCode,
+        error: errorData || error.message,
+      })
+    } else {
+      // Обработка не-HTTP ошибок
+      logger.error('[checkVideoGenerationStatus] Non-HTTP error while checking video status', {
+        jobId,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     }
 

@@ -121,6 +121,10 @@ async function initializeBots() {
       .map(([, value]) => value)
       .filter(Boolean) as string[]
 
+    if (process.env.TEST_BOT_TOKEN && !potentialTokens.includes(process.env.TEST_BOT_TOKEN)) {
+      potentialTokens.unshift(process.env.TEST_BOT_TOKEN)
+    }
+
     let bot: Telegraf<MyContext> | null = null
     let foundBotInfo: Awaited<
       ReturnType<Telegraf<MyContext>['telegram']['getMe']>
@@ -232,7 +236,7 @@ async function initializeBots() {
 
     let currentPort = 3001
 
-    for (const token of botTokens) {
+    for (const [index, token] of botTokens.entries()) {
       if (await validateBotToken(token)) {
         const bot = new Telegraf<MyContext>(token, {
           handlerTimeout: Infinity,
@@ -270,19 +274,10 @@ async function initializeBots() {
         // Используем импортированную функцию setBotCommands
         await setBotCommands(bot)
 
-        // Запускаем webhook для каждого бота
-        // Старый блок установки команд ниже должен быть полностью удален
-
-        // webhook settings
-        // ... existing code ...
-
-        while (await isPortInUse(currentPort)) {
-          console.log(`⚠️ Порт ${currentPort} занят, пробуем следующий...`)
-          currentPort++
-        }
-
+        // Присваиваем уникальный порт для каждого бота: 3001 + index
+        const botPort = 3001 + index
         console.log(
-          `🔌 Используем порт ${currentPort} для бота ${botInfo.username}`
+          `🔌 Присваиваем порт ${botPort} для бота ${botInfo.username}`
         )
 
         const webhookDomain = process.env.WEBHOOK_DOMAIN
@@ -311,7 +306,7 @@ async function initializeBots() {
           bot.launch({
             webhook: {
               domain: webhookDomain,
-              port: currentPort,
+              port: botPort,
               hookPath: webhookPath, // Используем hookPath, как было раньше
             },
             allowedUpdates: [
@@ -322,11 +317,10 @@ async function initializeBots() {
             ],
           })
           console.log(
-            `🚀 Бот ${botInfo.username} запущен в webhook режиме на порту ${currentPort}`
+            `🚀 Бот ${botInfo.username} запущен в webhook режиме на порту ${botPort}`
           )
 
           await new Promise(resolve => setTimeout(resolve, 2000))
-          currentPort++
         }
       }
     }

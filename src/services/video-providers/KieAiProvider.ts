@@ -119,11 +119,11 @@ export class KieAiProvider {
 
       const processingTime = Date.now() - startTime
 
-      logger.info(`🎬 Kie.ai API request successful`, {
+      logger.info(`🎬 Veo 3 API request successful`, {
         endpoint,
         processingTime,
         model: data.model,
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
       })
 
       return { ...response.data, processingTime }
@@ -134,7 +134,7 @@ export class KieAiProvider {
       ) {
         const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff
         logger.warn(
-          `🔄 Retrying Kie.ai request in ${delay}ms (attempt ${
+          `🔄 Retrying Veo 3 API request in ${delay}ms (attempt ${
             retryCount + 1
           }/${this.maxRetries})`
         )
@@ -161,11 +161,11 @@ export class KieAiProvider {
     const errorCode = error.response?.status
     const errorMessage = error.response?.data || error.message
 
-    logger.error(`❌ Kie.ai API error`, {
+    logger.error(`❌ Veo 3 API error`, {
       endpoint,
       errorCode,
       errorMessage,
-      provider: 'Kie.ai',
+      provider: 'Veo 3 API',
     })
   }
 
@@ -190,7 +190,7 @@ export class KieAiProvider {
 
       return { credits: apiResponse.data }
     } catch (error) {
-      logger.error('Failed to get Kie.ai account balance', { error })
+      logger.error('Failed to get Veo 3 API account balance', { error })
       throw error
     }
   }
@@ -200,7 +200,7 @@ export class KieAiProvider {
       return {
         success: false,
         cost: { usd: 0, stars: 0 },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model: request.model,
         error: 'KIE_AI_API_KEY is required for video generation',
       }
@@ -214,35 +214,112 @@ export class KieAiProvider {
       imageUrl,
     } = request
 
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Для image-to-video ОБЯЗАТЕЛЬНО наличие изображения
+    // НО veo3_fast и veo-3 поддерживают text-to-video!
+    // Удаляем эту проверку, так как она блокирует text-to-video
+
     // Преобразуем название модели в формат Kie.ai
     let kieModel = model
-    if (model === 'veo-3-fast') {
+    if (model === 'veo3_fast') {
+      // ВСЕГДА используем veo3_fast для Veo 3 Fast (и для text-to-video, и для image-to-video)
       kieModel = 'veo3_fast'
-    } else if (model === 'veo-3') {
+      logger.info('[KieAiProvider] Veo 3 Fast selected:', {
+        originalModel: model,
+        selectedModel: kieModel,
+        hasImage: !!imageUrl,
+        mode: imageUrl ? 'image-to-video' : 'text-to-video',
+        expectedCost: '40 stars'
+      })
+    } else if (model === 'veo3') {
+      // Для обычной Veo 3 используем veo3
       kieModel = 'veo3'
+      logger.info('[KieAiProvider] Veo 3 selected:', {
+        originalModel: model,
+        selectedModel: kieModel,
+        hasImage: !!imageUrl,
+        mode: imageUrl ? 'image-to-video' : 'text-to-video',
+        expectedCost: '120 stars'
+      })
     } else if (model === 'runway-aleph') {
       kieModel = 'runway_aleph'
     }
     
+    // Формируем правильный callback URL
+    const callbackUrl = process.env.BASE_WEBHOOK_URL
+      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
+      : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
+
     const requestData: any = {
       model: kieModel,
       prompt, // Отправляем ПОЛНЫЙ промпт без обрезки
       aspectRatio: aspectRatio,
-      enableFallback: false,
+      enableFallback: true,
       enableTranslation: true,
+      // Добавляем callbackUrl для webhook уведомлений
+      callBackUrl: callbackUrl,
     }
     
     // Логируем полный промпт для отладки
-    logger.info('[KieAiProvider] Sending full prompt to Kie.ai:', {
+    logger.info('[KieAiProvider] Sending full prompt to Veo 3 API:', {
       model: kieModel,
       promptLength: prompt.length,
       aspectRatio: aspectRatio,
-      fullPrompt: prompt // Отправляем полный промпт в логи
+      mode: imageUrl ? 'image-to-video' : 'text-to-video',
+      hasImageUrl: !!imageUrl,
+      imageUrlValue: imageUrl || 'no image provided',
+      callbackUrl: callbackUrl // Логируем callback URL
     })
 
+    // Только добавляем изображение если оно есть (для image-to-video)
     if (imageUrl) {
-      requestData.image_url = imageUrl
+      // Пробуем разные форматы для Kie.ai API
+      requestData.imageUrls = [imageUrl]
+
+      // Для imageKey пробуем извлечь file_id из Telegram URL
+      let imageKey = imageUrl
+      if (imageUrl.includes('telegram.org')) {
+        // Извлекаем file_id из Telegram URL
+        const urlParts = imageUrl.split('/')
+        const fileName = urlParts[urlParts.length - 1]
+        if (fileName && fileName.includes('.')) {
+          imageKey = fileName.split('.')[0] // Берем только file_id без расширения
+        }
+      } else {
+        // Для других URL используем последний сегмент пути
+        const urlParts = imageUrl.split('/')
+        imageKey = urlParts[urlParts.length - 1]?.split('.')[0] || imageUrl
+      }
+
+      requestData.imageKey = imageKey
+
+      logger.info('[KieAiProvider] Image parameters added to request:', {
+        imageUrlsCount: requestData.imageUrls.length,
+        firstImageUrl: imageUrl.substring(0, 100) + '...',
+        imageKey: imageKey,
+        extractedFromTelegram: imageUrl.includes('telegram.org'),
+        usingDualFormat: true
+      })
+    } else {
+      logger.info('[KieAiProvider] Text-to-video mode - no image needed')
     }
+
+    // Логируем полный request перед отправкой
+    logger.info('[KieAiProvider] Full request data to Kie.ai API:', {
+      model: kieModel,
+      hasPrompt: !!requestData.prompt,
+      promptLength: requestData.prompt?.length || 0,
+      hasImageUrls: !!requestData.imageUrls && requestData.imageUrls.length > 0,
+      imageUrlsCount: requestData.imageUrls?.length || 0,
+      firstImageUrl: requestData.imageUrls?.[0]?.substring(0, 100) + '...' || 'none',
+      hasImageKey: !!requestData.imageKey,
+      imageKey: requestData.imageKey || 'none',
+      aspectRatio: requestData.aspectRatio,
+      enableFallback: requestData.enableFallback,
+      enableTranslation: requestData.enableTranslation,
+      hasCallbackUrl: !!requestData.callBackUrl,
+      callbackUrl: requestData.callBackUrl,
+      requestKeys: Object.keys(requestData)
+    })
 
     try {
       const response = await this.makeRequest<any>(
@@ -253,6 +330,15 @@ export class KieAiProvider {
       // Calculate cost based on model and duration
       const costUSD = this.calculateVideoCost(model, duration)
       const costStars = this.usdToStars(costUSD)
+      
+      logger.info('[KieAiProvider] Cost calculation:', {
+        model,
+        kieModel,
+        duration,
+        costUSD,
+        costStars,
+        pricePerSecond: costUSD / duration
+      })
 
       logger.info('[KieAiProvider] Veo generate response:', {
         responseKeys: Object.keys(response),
@@ -282,7 +368,7 @@ export class KieAiProvider {
           usd: costUSD,
           stars: costStars,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         processingTime: response.processingTime,
       }
@@ -293,7 +379,7 @@ export class KieAiProvider {
           usd: 0,
           stars: 0,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         error: error instanceof Error ? error.message : 'Unknown error',
       }
@@ -347,7 +433,7 @@ export class KieAiProvider {
           usd: costUSD,
           stars: costStars,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         processingTime: response.processingTime,
       }
@@ -358,7 +444,7 @@ export class KieAiProvider {
           usd: 0,
           stars: 0,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         error: error instanceof Error ? error.message : 'Unknown error',
       }
@@ -381,6 +467,7 @@ export class KieAiProvider {
         msg: response.data.msg,
         successFlag: response.data.data?.successFlag,
         hasResultUrls: !!response.data.data?.response?.resultUrls,
+        fullResponse: response.data,
       })
 
       if (response.data.code !== 200) {
@@ -388,20 +475,35 @@ export class KieAiProvider {
       }
 
       const data = response.data.data
-      if (data.successFlag === 1 && data.response?.resultUrls?.[0]) {
-        return {
-          success: true,
-          data: {
-            videoUrl: data.response.resultUrls[0],
-            duration: 8, // Default duration
-            taskId: taskId,
-          },
-          cost: { usd: 0, stars: 0 },
-          provider: 'Kie.ai',
-          model: 'veo-3',
+
+      // Проверяем различные форматы ответа
+      if (data.successFlag === 1) {
+        // Видео готово - проверяем разные форматы URL
+        const videoUrl = data.response?.resultUrls?.[0] ||
+                        data.response?.result_url ||
+                        data.resultUrls?.[0] ||
+                        data.result_url
+
+        if (videoUrl) {
+          logger.info('[KieAiProvider] Video is ready!', { taskId, videoUrl })
+          return {
+            success: true,
+            data: {
+              videoUrl: videoUrl,
+              duration: data.response?.duration || data.duration || 8,
+              taskId: taskId,
+            },
+            cost: { usd: 0, stars: 0 },
+            provider: 'Veo 3 API',
+            model: 'veo3',
+          }
+        } else {
+          logger.warn('[KieAiProvider] Video marked as ready but no URL found', { taskId, data })
+          throw new Error('Video marked as ready but no video URL provided')
         }
       } else if (data.successFlag === 0) {
         // Still processing
+        logger.info('[KieAiProvider] Video still processing', { taskId })
         return {
           success: true,
           data: {
@@ -410,18 +512,39 @@ export class KieAiProvider {
             taskId: taskId,
           },
           cost: { usd: 0, stars: 0 },
-          provider: 'Kie.ai',
-          model: 'veo-3',
+          provider: 'Veo 3 API',
+          model: 'veo3',
         }
+      } else if (data.successFlag === 3) {
+        // Ошибка политики контента Google
+        logger.error('[KieAiProvider] Video generation rejected by content policy', { taskId, errorCode: data.errorCode, errorMessage: data.errorMessage });
+        throw new Error(data.errorMessage || 'Content rejected by Google policy. Please try different prompt or image.');
+      } else if (data.successFlag === 2) {
+        // Ошибка генерации
+        logger.error('[KieAiProvider] Video generation failed', { taskId, data })
+        throw new Error(data.errorMessage || data.response?.errorMessage || 'Video generation failed')
       } else {
-        throw new Error(data.errorMessage || 'Video generation failed')
+        logger.warn('[KieAiProvider] Unknown successFlag value', { taskId, successFlag: data.successFlag })
+        // Продолжаем polling для неизвестных статусов
+        return {
+          success: true,
+          data: {
+            videoUrl: undefined,
+            duration: 8,
+            taskId: taskId,
+          },
+          cost: { usd: 0, stars: 0 },
+          provider: 'Veo 3 API',
+          model: 'veo3',
+        }
       }
     } catch (error) {
+      logger.error('[KieAiProvider] Error checking video status', { taskId, error })
       return {
         success: false,
         cost: { usd: 0, stars: 0 },
-        provider: 'Kie.ai',
-        model: 'veo-3',
+        provider: 'Veo 3 API',
+        model: 'veo3',
         error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
@@ -471,7 +594,7 @@ export class KieAiProvider {
           usd: costUSD,
           stars: costStars,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         processingTime: response.processingTime,
       }
@@ -482,7 +605,7 @@ export class KieAiProvider {
           usd: 0,
           stars: 0,
         },
-        provider: 'Kie.ai',
+        provider: 'Veo 3 API',
         model,
         error: error instanceof Error ? error.message : 'Unknown error',
       }
@@ -491,8 +614,8 @@ export class KieAiProvider {
 
   private calculateVideoCost(model: string, duration: number): number {
     const pricing: Record<string, number> = {
-      'veo-3-fast': 0.05, // $0.05 per second
-      'veo-3': 0.25, // $0.25 per second
+      'veo3_fast': 0.08, // $0.08 per second = 40⭐ for 8 seconds
+      'veo3': 0.24, // $0.24 per second = 120⭐ for 8 seconds (FIXED PRICE)
       'runway-aleph': 0.3, // $0.30 per second
     }
 
@@ -527,10 +650,9 @@ export class KieAiProvider {
   private usdToStars(usdCost: number): number {
     // Using the markup from unified-pricing.config.ts
     const STAR_COST_USD = 0.016
-    const MARKUP_MULTIPLIER = 1.5
-
-    const starsBeforeMarkup = usdCost / STAR_COST_USD
-    const starsWithMarkup = starsBeforeMarkup * MARKUP_MULTIPLIER
-    return Math.floor(starsWithMarkup)
+    // NO MARKUP for Veo models - fixed prices already include everything
+    // For Veo models we use direct conversion without markup
+    const starsWithoutMarkup = usdCost / STAR_COST_USD
+    return Math.floor(starsWithoutMarkup)
   }
 }

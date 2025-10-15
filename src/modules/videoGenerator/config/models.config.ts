@@ -153,6 +153,38 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     imageKey: 'start_image',
     canMorph: false,
   },
+  'kling-v2.1-standard': {
+    id: 'kling-v2.1-standard',
+    title: 'Kling v2.1 Standard',
+    inputType: ['image', 'morph'],
+    description:
+      'Kling v2.1 Standard 720p - улучшенная анимация с поддержкой морфинга (цена за секунду)',
+    basePrice: 0.05,
+    api: {
+      model: 'kwaivgi/kling-v2.1',
+      input: {
+        model_variant: 'standard'
+      },
+    },
+    imageKey: 'start_image',
+    canMorph: true,
+  },
+  'kling-v2.1-pro': {
+    id: 'kling-v2.1-pro',
+    title: 'Kling v2.1 Pro',
+    inputType: ['image', 'morph'],
+    description:
+      'Kling v2.1 Pro 1080p - премиум анимация с поддержкой морфинга (цена за секунду)',
+    basePrice: 0.09,
+    api: {
+      model: 'kwaivgi/kling-v2.1',
+      input: {
+        model_variant: 'pro'
+      },
+    },
+    imageKey: 'start_image',
+    canMorph: true,
+  },
   'hunyuan-video-fast': {
     id: 'hunyuan-video-fast',
     title: 'Hunyuan Video Fast',
@@ -234,15 +266,15 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   },
 
 
-  'veo-3-fast': {
-    id: 'veo-3-fast',
+  'veo3_fast': {
+    id: 'veo3_fast',
     title: 'Veo 3 Fast',
     inputType: ['text', 'image'],
     description:
       '🚀 БЫСТРО: 8 сек, 720p, быстрый режим - 40⭐ (экономия до 87%)',
     basePrice: 0.64, // $0.64 USD за 8 секунд = 40 звезд
     api: {
-      model: 'google/veo-3-fast',
+      model: 'google/veo3_fast',
       input: {
         duration: 8, // Фиксированная длительность 8 секунд
         aspect_ratio: (userAspect: string) =>
@@ -253,8 +285,8 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
     aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
   },
-  'veo-3': {
-    id: 'veo-3',
+  'veo3': {
+    id: 'veo3',
     title: 'Veo 3',
     inputType: ['text'],
     description:

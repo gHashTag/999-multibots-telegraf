@@ -495,9 +495,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         return // Пользователь перенаправлен в subscriptionScene
       }
 
-      // Входим в сцену выбора модели FLUX Kontext
+      // Входим в сцену выбора модели AI Photoshop
       await ctx.scene.leave()
-      await ctx.scene.enter('flux_kontext_scene')
+      await ctx.scene.enter('ai_photoshop_scene')
     }
   )
 
@@ -1107,15 +1107,15 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   })
 
-  // Новые обработчики для продвинутого FLUX Kontext
+  // Новые обработчики для AI Photoshop
   bot.hears(['🔄 Другой режим', '🔄 Different mode'], async ctx => {
     logger.info('GLOBAL HEARS: Different mode requested', {
       telegramId: ctx.from?.id,
     })
 
-    // Возвращаемся к продвинутой сцене FLUX Kontext
+    // Возвращаемся к AI Photoshop сцене
     await ctx.scene.leave()
-    await ctx.scene.enter('flux_kontext_scene')
+    await ctx.scene.enter('ai_photoshop_scene')
   })
 
   // === ПАРСИНГ INSTAGRAM ДЛЯ АДМИНОВ (НОВЫЙ WIZARD БЕЗ CALLBACKS) ===

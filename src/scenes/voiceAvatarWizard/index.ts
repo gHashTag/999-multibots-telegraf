@@ -83,6 +83,21 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           ctx
         )
 
+        // ✅ УЛУЧШЕНО: Проверяем флаг возврата в Veed Fabric
+        if (ctx.session.returnToVeedFabricAfterVoice && ctx.session.veedFabric) {
+          // Очищаем флаг
+          delete ctx.session.returnToVeedFabricAfterVoice
+
+          await ctx.reply(
+            isRu
+              ? '✅ Голос успешно создан!\n\n🎭 Возвращаемся к генерации lip-sync видео...'
+              : '✅ Voice successfully created!\n\n🎭 Returning to lip-sync generation...'
+          )
+
+          // Возвращаемся в Veed Fabric wizard на шаг генерации
+          return ctx.scene.enter('veed_fabric_lipsync')
+        }
+
         // Если createVoiceAvatar выполнился успешно (не выбросил исключение),
         // переходим в сцену text_to_speech вместо выхода из текущей сцены.
         return ctx.scene.enter('text_to_speech')

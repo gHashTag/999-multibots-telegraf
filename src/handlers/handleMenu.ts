@@ -1,7 +1,11 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { Markup } from 'telegraf'
-import { levels } from '@/menu/mainMenu'
+import { levels, HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
+import {
+  createLipSyncModelKeyboard,
+  createLipSyncModelsInfo,
+} from '@/menu/lipSyncModelSelection'
 import { handlePriceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
@@ -10,6 +14,7 @@ import { handleTechSupport } from '@/commands/handleTechSupport'
 import { handleRestartVideoGeneration } from './handleVideoRestart'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
+import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 // ✅ Обновляем импорты для новых функций языка
 // ✅ НОВАЯ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ЯЗЫКОВ (БЕЗ ЗАПРОСОВ К БД!)
 import {
@@ -29,6 +34,16 @@ logger.info('[handleMenu] adminIds from env:', adminIds)
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
+  
+  // ВАЖНО: Не обрабатываем команды
+  if (ctx.message && 'text' in ctx.message && ctx.message.text?.startsWith('/')) {
+    logger.info('handleMenu skipping command', {
+      telegramId,
+      command: ctx.message.text,
+    })
+    return
+  }
+  
   logger.info({
     message: '🚀 [handleMenu] Обработка команды меню',
     telegramId,
@@ -340,32 +355,28 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
         logger.info({
-          message: '🎨 [handleMenu] Переход к FLUX Kontext',
+          message: '🎨 [handleMenu] Переход к ИИ Фотошоп',
           telegramId,
           function: 'handleMenu',
-          action: 'flux_kontext',
-          nextScene: ModeEnum.CheckBalanceScene,
+          action: 'ai_photoshop',
+          nextScene: 'ai_photoshop_scene',
         })
-        console.log('CASE: 🎨 FLUX Kontext')
+        console.log('CASE: 🎨 ИИ Фотошоп')
 
-        // ✅ ЗАЩИТА: Проверяем подписку перед входом в FLUX Kontext
+        // ✅ ЗАЩИТА: Проверяем подписку перед входом в ИИ Фотошоп
         const hasSubscription = await checkSubscriptionGuard(
           ctx,
-          '🎨 FLUX Kontext'
+          '🎨 ИИ Фотошоп'
         )
         if (!hasSubscription) {
           return // Пользователь перенаправлен в subscriptionScene
         }
 
-        // Устанавливаем режим FLUX Kontext и идем через checkBalanceScene
-        ctx.session.mode = ModeEnum.FluxKontext
-        console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
+        // Устанавливаем режим ИИ Фотошоп и переходим напрямую в ai_photoshop_scene
+        ctx.session.mode = 'ai_photoshop' as any
+        console.log(`🔄 [handleMenu] Вход в сцену ai_photoshop_scene`)
+        await ctx.scene.enter('ai_photoshop_scene')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ai_photoshop_scene`)
       },
       [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
         logger.info({
@@ -390,29 +401,68 @@ export const handleMenu = async (ctx: MyContext) => {
         console.log(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
       },
       [isRu ? levels[14].title_ru : levels[14].title_en]: async () => {
+        console.log('🔵 [DEBUG 1] Lip Sync button handler started')
         logger.info({
-          message: '🎤 [handleMenu] Переход к Kling Lip Sync',
+          message: '🎤 [handleMenu] Открытие меню выбора Lip Sync модели',
           telegramId,
           function: 'handleMenu',
-          action: 'lip_sync',
-          nextScene: 'lip_sync',
+          action: 'lip_sync_menu',
         })
-        console.log('CASE: 🎤 Kling Lip Sync')
+        console.log('CASE: 🎤 Лип Синк - показываем меню моделей')
+        console.log('🔵 [DEBUG 2] Before checkSubscriptionGuard call')
+        logger.info('🔧 [handleMenu DEBUG] Before checkSubscriptionGuard', {
+          telegramId,
+          currentScene: ctx.scene.current?.id,
+        })
 
+        console.log('🔵 [DEBUG 3] Calling checkSubscriptionGuard...')
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в липсинк
         const hasSubscription = await checkSubscriptionGuard(
           ctx,
-          '🎤 Kling Lip Sync'
+          isRu ? '🎤 Синхронизация губ' : '🎤 Lip Sync'
         )
+        console.log('🔵 [DEBUG 4] checkSubscriptionGuard returned:', hasSubscription)
+
+        console.log('🔵 [DEBUG 5] After checkSubscriptionGuard')
+        logger.info('🔧 [handleMenu DEBUG] After checkSubscriptionGuard', {
+          telegramId,
+          hasSubscription,
+          currentScene: ctx.scene.current?.id,
+        })
+
         if (!hasSubscription) {
+          console.log('🔴 [DEBUG 6] No subscription - exiting early')
+          logger.warn('⚠️ [handleMenu] No subscription - exiting')
           return // Пользователь перенаправлен в subscriptionScene
         }
 
-        // Устанавливаем режим LipSync и переходим напрямую в lip_sync scene
-        ctx.session.mode = ModeEnum.LipSync
-        console.log(`🔄 [handleMenu] Вход в сцену lip_sync`)
-        await ctx.scene.enter('lip_sync')
-        console.log(`✅ [handleMenu] Завершен вход в сцену lip_sync`)
+        console.log('🟢 [DEBUG 7] Subscription OK, preparing to enter wizard')
+        logger.info('🔧 [handleMenu DEBUG] Subscription OK, entering wizard')
+
+        // ❌ ИСПРАВЛЕНИЕ: НЕ устанавливаем mode = LipSync, чтобы не перехватывали middleware
+        // ctx.session.mode = ModeEnum.LipSync
+
+        // Сразу запускаем Veed Fabric wizard
+        console.log('🟢 [DEBUG 8] About to enter veed_fabric_lipsync scene')
+        logger.info(`🔄 [handleMenu] Запуск Veed Fabric wizard`)
+
+        try {
+          console.log('🟢 [DEBUG 9] Calling ctx.scene.enter("veed_fabric_lipsync")')
+          await ctx.scene.enter('veed_fabric_lipsync')
+          console.log('🟢 [DEBUG 10] Successfully entered veed_fabric_lipsync')
+          logger.info(`✅ [handleMenu] Успешно вошли в veed_fabric_lipsync wizard`, {
+            currentScene: ctx.scene.current?.id,
+            wizardStep: (ctx.wizard as any)?.cursor,
+          })
+        } catch (error) {
+          console.log('🔴 [DEBUG 11] Error entering wizard:', error)
+          logger.error(`❌ [handleMenu] Ошибка входа в veed_fabric_lipsync`, { error })
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка запуска wizard. Попробуйте позже.'
+              : '❌ Error starting wizard. Try again later.'
+          )
+        }
       },
       [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
         logger.info({
@@ -522,6 +572,78 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
         )
       },
+      [isRu ? levels[110].title_ru : levels[110].title_en]: async () => {
+        logger.info({
+          message: '🎬 [handleMenu] AI Reels - открытие miniApp',
+          telegramId,
+          function: 'handleMenu',
+          action: 'ai_reels_miniapp',
+        })
+        console.log('CASE: 🎬 AI Reels - Mini App')
+
+        // Проверяем права администратора или сотрудников Хаим Групп
+        const userId = ctx.from?.id?.toString()
+        const isMainAdmin = userId && adminIds.includes(userId)
+        const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+        const hasAccess = isMainAdmin || isHaimStaff
+
+        if (!hasAccess) {
+          logger.warn('[handleMenu] AI Reels access denied - not admin/staff', {
+            telegramId,
+            userId,
+            isMainAdmin,
+            isHaimStaff,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ У вас нет доступа к AI Reels. Функция доступна только администраторам.'
+              : '❌ You do not have access to AI Reels. This feature is admin only.'
+          )
+          return
+        }
+
+        // Импортируем функцию создания miniApp кнопки
+        const { createMiniAppKeyboard } = await import('@/menu/miniAppButton')
+        
+        // Создаем keyboard с miniApp кнопкой
+        const miniAppKeyboard = createMiniAppKeyboard(isRu)
+        
+        // Отправляем сообщение с miniApp кнопкой
+        await ctx.reply(
+          isRu 
+            ? `🎬 <b>AI Reels Creator</b>\n\n🎨 Откройте приложение для создания профессиональных Reels с помощью AI!\n\n✨ Возможности:\n• Генерация вирусных сценариев\n• Создание видео в формате 9:16\n• Готовые шаблоны для разных ниш\n• Профессиональная обработка`
+            : `🎬 <b>AI Reels Creator</b>\n\n🎨 Open the app to create professional Reels with AI!\n\n✨ Features:\n• Viral script generation\n• 9:16 video creation\n• Ready templates for different niches\n• Professional processing`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: miniAppKeyboard.reply_markup
+          }
+        )
+        
+        logger.info('[handleMenu] AI Reels miniApp button sent', {
+          telegramId,
+          userId,
+        })
+      },
+      [isRu ? levels[111].title_ru : levels[111].title_en]: async () => {
+        logger.info({
+          message: '🦸‍♂️ [handleMenu] Переход к ИИ Герои Transform',
+          telegramId,
+          function: 'handleMenu',
+          action: 'ai_heroes_transform',
+          nextScene: 'avatarTransformScene',
+        })
+        console.log('CASE: 🦸‍♂️ ИИ Герои - Launching Avatar Transform')
+
+        // ИИ Герои используют avatar transform scene для трансформации
+        ctx.session.mode = ModeEnum.AvatarTransform
+        console.log(
+          `🔄 [handleMenu] Вход в сцену avatarTransformScene`
+        )
+        await ctx.scene.enter('avatar_transform')
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену avatarTransformScene`
+        )
+      },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
       //   ctx.session.mode = 'video_in_url'
@@ -532,32 +654,112 @@ export const handleMenu = async (ctx: MyContext) => {
           message: '💎 [handleMenu] Переход к пополнению баланса',
           telegramId,
           function: 'handleMenu',
-          action: 'topup_balance',
-          nextScene: ModeEnum.PaymentScene,
+          action: 'topup_balance_attempt',
         })
         console.log('CASE: 💎 Пополнить баланс')
-        ctx.session.mode = ModeEnum.PaymentScene
 
-        // Очищаем/инициализируем selectedPayment для контекста пополнения баланса
-        ctx.session.selectedPayment = {
-          amount: 0, // Сумма будет определена в payment_scene
-          stars: 0, // Количество звезд будет определено в payment_scene
-          subscription: null, // Явно указываем, что это не покупка подписки
-          type: PaymentType.MONEY_INCOME, // Тип операции - пополнение
-        }
-        logger.info(
-          '[handleMenu] Initialized ctx.session.selectedPayment for top-up',
-          {
+        // Проверяем подписку пользователя перед пополнением баланса
+        try {
+          const userDetails = await getUserDetailsSubscription(telegramId)
+
+          logger.info('[handleMenu] Subscription check for top-up', {
             telegramId,
-            selectedPayment: ctx.session.selectedPayment,
-          }
-        )
+            hasActiveSubscription: userDetails.isSubscriptionActive,
+            subscriptionType: userDetails.subscriptionType,
+            stars: userDetails.stars,
+          })
 
-        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
-        await ctx.scene.enter(ModeEnum.PaymentScene)
-        console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
-        )
+          // Если у пользователя есть активная подписка - разрешаем пополнение баланса
+          if (userDetails.isSubscriptionActive && userDetails.subscriptionType) {
+            logger.info('[handleMenu] User has active subscription - proceeding to top-up', {
+              telegramId,
+              subscriptionType: userDetails.subscriptionType,
+            })
+
+            ctx.session.mode = ModeEnum.PaymentScene
+
+            // Очищаем/инициализируем selectedPayment для контекста пополнения баланса
+            ctx.session.selectedPayment = {
+              amount: 0, // Сумма будет определена в payment_scene
+              stars: 0, // Количество звезд будет определено в payment_scene
+              subscription: null, // Явно указываем, что это не покупка подписки
+              type: PaymentType.MONEY_INCOME, // Тип операции - пополнение
+            }
+            logger.info(
+              '[handleMenu] Initialized ctx.session.selectedPayment for top-up',
+              {
+                telegramId,
+                selectedPayment: ctx.session.selectedPayment,
+              }
+            )
+
+            console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
+            await ctx.scene.enter(ModeEnum.PaymentScene)
+            console.log(
+              `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
+            )
+          } else {
+            // Если подписки нет - предлагаем купить подписку
+            logger.info('[handleMenu] User has no active subscription - offering subscription purchase', {
+              telegramId,
+              stars: userDetails.stars,
+            })
+
+            const message = isRu
+              ? '💎 Для пополнения баланса требуется активная подписка.\n\n' +
+                'Выберите подписку для доступа к пополнению баланса и всем функциям:'
+              : '💎 Active subscription is required to top up balance.\n\n' +
+                'Choose a subscription to access balance top-up and all features:'
+
+            const keyboard = Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                  'subscription_menu'
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                  'main_menu'
+                ),
+              ],
+            ])
+
+            await ctx.reply(message, { reply_markup: keyboard.reply_markup })
+          }
+        } catch (error) {
+          logger.error('[handleMenu] Error checking subscription for top-up', {
+            telegramId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+
+          // В случае ошибки - все равно предлагаем купить подписку
+          const message = isRu
+            ? '❌ Произошла ошибка при проверке подписки.\n\n' +
+              'Для пополнения баланса требуется активная подписка.\n' +
+              'Выберите подписку для доступа ко всем функциям:'
+            : '❌ Error checking subscription.\n\n' +
+              'Active subscription is required to top up balance.\n' +
+              'Choose a subscription to access all features:'
+
+          const keyboard = Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                'subscription_menu'
+              ),
+            ],
+            [
+              Markup.button.callback(
+                isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                'main_menu'
+              ),
+            ],
+          ])
+
+          await ctx.reply(message, { reply_markup: keyboard.reply_markup })
+        }
       },
       [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
         logger.info({
@@ -804,6 +1006,26 @@ export const handleMenu = async (ctx: MyContext) => {
       })
       console.log('CASE: handleMenuCommand.if', normalizedText)
       await actions[normalizedText]()
+    } else if (normalizedText.startsWith(isRu ? levels[111].title_ru : levels[111].title_en)) {
+      // ✅ ИСПРАВЛЕНИЕ: Обработка AI Heroes с любым badge (♾️, 🚫, или счетчиком)
+      logger.info({
+        message: `🦸‍♂️ [handleMenu] AI Heroes с badge обнаружен: "${normalizedText}"`,
+        telegramId,
+        function: 'handleMenu',
+        action: 'ai_heroes_transform_with_badge',
+        nextScene: 'avatarTransformScene',
+      })
+      console.log('CASE: 🦸‍♂️ ИИ Герои с badge - Launching Avatar Transform')
+
+      // ИИ Герои используют avatar transform scene для трансформации
+      ctx.session.mode = ModeEnum.AvatarTransform
+      console.log(
+        `🔄 [handleMenu] Вход в сцену avatarTransformScene`
+      )
+      await ctx.scene.enter('avatar_transform')
+      console.log(
+        `✅ [handleMenu] Завершен вход в сцену avatarTransformScene`
+      )
     } else {
       // Логика для необработанного текста (если нужна)
       logger.warn({
