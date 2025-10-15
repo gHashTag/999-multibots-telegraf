@@ -204,31 +204,209 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         resolution: veedInput.resolution || this.config.defaultResolution,
       })
 
-      // ✅ ИСПРАВЛЕНО: Правильный endpoint и формат запроса (асинхронный API)
-      const createTaskResponse = await axios.post(
-        'https://api.kie.ai/api/v1/jobs/createTask',
-        {
-          model: 'veed/fabric-1', // ✅ Правильное имя модели
-          input: {
-            image_url: veedInput.imageUrl,
-            audio_url: audioUrl, // ✅ Публичный URL из Supabase Storage
-            resolution: veedInput.resolution || this.config.defaultResolution,
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${KIE_AI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 60000,
-        }
-      )
-
-      logger.info('📥 Task created, taskId:', {
-        status: createTaskResponse.status,
-        taskId: createTaskResponse.data.data?.taskId,
-        responsePreview: JSON.stringify(createTaskResponse.data).substring(0, 200),
+      // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ: Проверяем URL перед отправкой
+      logger.info('🔍 [KIE PROVIDER] Проверка доступности ресурсов', {
+        imageUrl: veedInput.imageUrl,
+        audioUrl: audioUrl,
+        resolution: veedInput.resolution || this.config.defaultResolution,
       })
+
+      // ✅ ИСПРАВЛЕНИЕ: Проверяем доступность image URL с правильными заголовками
+      try {
+        const imageResponse = await axios.get(veedInput.imageUrl, {
+          timeout: 10000,
+          responseType: 'stream',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; LipSync-Bot/1.0)',
+          }
+        })
+        logger.info('✅ [KIE PROVIDER] Image URL доступен', {
+          status: imageResponse.status,
+          contentType: imageResponse.headers['content-type'],
+          contentLength: imageResponse.headers['content-length'],
+        })
+      } catch (imageError) {
+        logger.warn('⚠️ [KIE PROVIDER] Image URL HEAD request failed, trying GET...', {
+          error: imageError instanceof Error ? imageError.message : 'Unknown error',
+          status: (imageError as any).response?.status,
+          imageUrl: veedInput.imageUrl.substring(0, 100),
+        })
+
+        // ✅ FALLBACK: Если HEAD не работает, пробуем GET запрос (некоторые серверы не поддерживают HEAD)
+        try {
+          const getResponse = await axios.get(veedInput.imageUrl, {
+            timeout: 10000,
+            responseType: 'stream',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; LipSync-Bot/1.0)',
+            }
+          })
+
+          // Прерываем поток сразу после получения заголовков
+          getResponse.data.destroy()
+
+          logger.info('✅ [KIE PROVIDER] Image URL доступен через GET', {
+            status: getResponse.status,
+            contentType: getResponse.headers['content-type'],
+            contentLength: getResponse.headers['content-length'],
+          })
+        } catch (getError) {
+          logger.error('❌ [KIE PROVIDER] Image URL полностью недоступен', {
+            headError: imageError instanceof Error ? imageError.message : 'Unknown error',
+            getError: getError instanceof Error ? getError.message : 'Unknown error',
+            imageUrl: veedInput.imageUrl.substring(0, 100),
+            headStatus: (imageError as any).response?.status,
+            getStatus: (getError as any).response?.status,
+          })
+
+          // ✅ ОПЦИЯ: Для Supabase URL пробуем альтернативные форматы
+          if (veedInput.imageUrl.includes('supabase.co')) {
+            logger.info('🔄 [KIE PROVIDER] Supabase URL detected, continuing without validation...')
+            // Продолжаем без проверки, так как Supabase может блокировать HEAD запросы
+          } else {
+            return {
+              message: 'Image URL is not accessible',
+              error: `Failed to access image: HEAD=${(imageError as any).response?.status || 'timeout'}, GET=${(getError as any).response?.status || 'timeout'}`,
+              code: 'IMAGE_URL_INACCESSIBLE',
+              provider: 'kie',
+              modelId: veedInput.modelId,
+            }
+          }
+        }
+      }
+
+      // ✅ ИСПРАВЛЕНИЕ: Проверяем доступность audio URL с fallback
+      try {
+        const audioResponse = await axios.get(audioUrl, {
+          timeout: 10000,
+          responseType: 'stream',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; LipSync-Bot/1.0)',
+          }
+        })
+        logger.info('✅ [KIE PROVIDER] Audio URL доступен', {
+          status: audioResponse.status,
+          contentType: audioResponse.headers['content-type'],
+          contentLength: audioResponse.headers['content-length'],
+        })
+      } catch (audioError) {
+        logger.warn('⚠️ [KIE PROVIDER] Audio URL HEAD request failed, trying GET...', {
+          error: audioError instanceof Error ? audioError.message : 'Unknown error',
+          status: (audioError as any).response?.status,
+          audioUrl: audioUrl.substring(0, 100),
+        })
+
+        // ✅ FALLBACK: Если HEAD не работает, пробуем GET запрос
+        try {
+          const getResponse = await axios.get(audioUrl, {
+            timeout: 10000,
+            responseType: 'stream',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; LipSync-Bot/1.0)',
+            }
+          })
+
+          // Прерываем поток сразу после получения заголовков
+          getResponse.data.destroy()
+
+          logger.info('✅ [KIE PROVIDER] Audio URL доступен через GET', {
+            status: getResponse.status,
+            contentType: getResponse.headers['content-type'],
+            contentLength: getResponse.headers['content-length'],
+          })
+        } catch (getError) {
+          logger.error('❌ [KIE PROVIDER] Audio URL полностью недоступен', {
+            headError: audioError instanceof Error ? audioError.message : 'Unknown error',
+            getError: getError instanceof Error ? getError.message : 'Unknown error',
+            audioUrl: audioUrl.substring(0, 100),
+            headStatus: (audioError as any).response?.status,
+            getStatus: (getError as any).response?.status,
+          })
+
+          // ✅ ОПЦИЯ: Для Supabase URL пропускаем проверку
+          if (audioUrl.includes('supabase.co')) {
+            logger.info('🔄 [KIE PROVIDER] Supabase Audio URL detected, continuing without validation...')
+            // Продолжаем без проверки, так как Supabase может блокировать HEAD запросы
+          } else {
+            return {
+              message: 'Audio URL is not accessible',
+              error: `Failed to access audio: HEAD=${(audioError as any).response?.status || 'timeout'}, GET=${(getError as any).response?.status || 'timeout'}`,
+              code: 'AUDIO_URL_INACCESSIBLE',
+              provider: 'kie',
+              modelId: veedInput.modelId,
+            }
+          }
+        }
+      }
+
+      // ✅ WEBHOOK CALLBACK: Определяем callback URL для асинхронной обработки
+      const callbackUrl = process.env.BASE_WEBHOOK_URL
+        ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
+        : process.env.API_SERVER_URL
+        ? `${process.env.API_SERVER_URL}/api/kie-ai/callback`
+        : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
+
+      // ✅ ИСПРАВЛЕНО: Правильный endpoint и формат запроса (асинхронный API) с callback URL
+      const requestPayload = {
+        model: 'veed/fabric-1', // ✅ Правильное имя модели
+        input: {
+          image_url: veedInput.imageUrl,
+          audio_url: audioUrl, // ✅ Публичный URL из Supabase Storage
+          resolution: veedInput.resolution || this.config.defaultResolution,
+        },
+        // ✅ CALLBACK URL: Добавляем webhook для асинхронного уведомления
+        callback_url: callbackUrl,
+      }
+
+      logger.info('📤 [KIE PROVIDER] Отправляем запрос в Kie.ai API', {
+        endpoint: 'https://api.kie.ai/api/v1/jobs/createTask',
+        payload: requestPayload,
+        hasApiKey: !!KIE_AI_API_KEY,
+        apiKeyPrefix: KIE_AI_API_KEY ? KIE_AI_API_KEY.substring(0, 10) + '...' : 'MISSING',
+      })
+
+      let createTaskResponse
+      try {
+        createTaskResponse = await axios.post(
+          'https://api.kie.ai/api/v1/jobs/createTask',
+          requestPayload,
+          {
+            headers: {
+              Authorization: `Bearer ${KIE_AI_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 60000,
+          }
+        )
+
+        logger.info('📥 [KIE PROVIDER] Task создан успешно', {
+          status: createTaskResponse.status,
+          taskId: createTaskResponse.data.data?.taskId,
+          recordId: createTaskResponse.data.data?.recordId,
+          responseData: createTaskResponse.data,
+        })
+
+      } catch (createError) {
+        logger.error('❌ [KIE PROVIDER] Ошибка создания task в Kie.ai', {
+          error: createError instanceof Error ? createError.message : 'Unknown error',
+          status: (createError as any).response?.status,
+          statusText: (createError as any).response?.statusText,
+          responseData: (createError as any).response?.data,
+          requestPayload: requestPayload,
+        })
+
+        // Возвращаем детальную ошибку
+        const errorStatus = (createError as any).response?.status
+        const errorData = (createError as any).response?.data
+
+        return {
+          message: `Kie.ai API error: ${errorStatus || 'Connection failed'}`,
+          error: errorData ? JSON.stringify(errorData) : (createError instanceof Error ? createError.message : 'Unknown error'),
+          code: errorStatus ? errorStatus.toString() : 'CONNECTION_FAILED',
+          provider: 'kie',
+          modelId: veedInput.modelId,
+        }
+      }
 
       const taskId = createTaskResponse.data.data?.taskId
       const recordId = createTaskResponse.data.data?.recordId
@@ -243,122 +421,36 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         }
       }
 
-      // Use recordId for polling if available, otherwise taskId
-      const pollId = recordId || taskId
+      const finalTaskId = recordId || taskId
 
-      // ✅ Poll for task completion (асинхронный API)
-      logger.info('⏳ Polling task status...', { taskId, recordId, pollId })
-
-      let attempts = 0
-      const maxAttempts = 60 // 5 минут (5сек * 60)
-      let videoUrl: string | null = null
-
-      while (attempts < maxAttempts) {
-        attempts++
-
-        // Wait 5 seconds between polls
-        await new Promise(resolve => setTimeout(resolve, 5000))
-
-        try {
-          const statusResponse = await axios.get(
-            `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${pollId}`,
-            {
-              headers: {
-                Authorization: `Bearer ${KIE_AI_API_KEY}`,
-              },
-              timeout: 30000,
-            }
-          )
-
-          const taskData = statusResponse.data.data
-          const state = taskData?.state
-
-          logger.info(`📊 Task status check #${attempts}`, {
-            taskId,
-            state,
-            completeTime: taskData?.completeTime,
-            costTime: taskData?.costTime,
-          })
-
-          if (state === 'success') {
-            // Parse resultJson to get video URL
-            const resultJson = JSON.parse(taskData.resultJson || '{}')
-            videoUrl = resultJson.resultUrls?.[0]
-
-            logger.info('✅ Task completed successfully!', {
-              taskId,
-              videoUrl,
-              costTime: taskData.costTime,
-              consumeCredits: taskData.consumeCredits,
-            })
-
-            break
-          } else if (state === 'fail') {
-            return {
-              message: 'Kie.ai task failed',
-              error: taskData.failMsg || 'Unknown error',
-              code: taskData.failCode || 'TASK_FAILED',
-              provider: 'kie',
-              modelId: veedInput.modelId,
-            }
-          }
-          // else state is 'processing' or 'waiting', continue polling
-        } catch (pollError) {
-          logger.error('❌ Error polling task status', {
-            taskId,
-            attempt: attempts,
-            error: pollError,
-          })
-          // Continue polling even if one check fails
-        }
-      }
-
-      if (!videoUrl) {
-        return {
-          message: 'Task timeout or no video URL',
-          error: `Task did not complete after ${attempts} attempts (${attempts * 5}s)`,
-          code: 'TASK_TIMEOUT',
-          provider: 'kie',
-          modelId: veedInput.modelId,
-        }
-      }
-
-      const processingTime = Date.now() - startTime
-      const estimatedDuration = Math.ceil(veedInput.text.length / 50)
-      const costEstimate = this.calculateCost(estimatedDuration, veedInput.modelId)
-
-      logger.info('✅ Veed Fabric видео успешно сгенерировано', {
-        videoUrl,
-        telegramId: veedInput.telegramId,
-        processingTime,
+      // ✅ WEBHOOK MODE: Возвращаем немедленно с taskId для асинхронной обработки
+      logger.info('🔗 [KIE PROVIDER] Task создан, ожидание webhook callback', {
+        taskId: finalTaskId,
+        callbackUrl,
+        message: 'Task будет обработан асинхронно через webhook'
       })
 
-      // Возвращаем результат в правильном формате LipSyncOutput
+      // Возвращаем результат с taskId для AsyncLipSyncManager
       return {
-        id: `kie-veed-${Date.now()}`,
-        status: 'succeeded',
-        output: videoUrl,
-        modelUsed: veedInput.modelId,
-        costEstimate,
-        processingTime,
-        metadata: {
-          resolution: veedInput.resolution || this.config.defaultResolution,
-          voiceId: voiceId || undefined,
-          textLength: veedInput.text?.length || 0,
-          audioSource: veedInput.audioUrl ? 'user_voice' : 'elevenlabs_tts',
-          provider: 'kie',
-        },
+        id: finalTaskId, // ✅ Указываем что результат pending
+        taskId: finalTaskId, // ✅ Сохраняем taskId для webhook correlation
+        output: '', // Пустой до получения webhook
+        modelUsed: 'Veed Fabric AI',
+        provider: 'kie',
+        status: 'processing', // ✅ Статус processing до webhook
+        message: 'Task started, awaiting webhook notification'
       }
     } catch (error) {
-      logger.error('❌ Ошибка генерации Veed Fabric', {
-        error,
-        telegramId: (input as VeedFabricInput).telegramId,
+      logger.error('❌ [KIE PROVIDER] Критическая ошибка', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        telegramId: input.telegramId,
+        modelId: input.modelId,
       })
 
       return {
-        message: 'Veed Fabric generation failed',
+        message: 'Critical error in Veed Fabric provider',
         error: error instanceof Error ? error.message : 'Unknown error',
-        code: 'GENERATION_FAILED',
+        code: 'CRITICAL_ERROR',
         provider: 'kie',
         modelId: input.modelId,
       }

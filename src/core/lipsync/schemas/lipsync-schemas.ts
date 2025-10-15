@@ -87,6 +87,8 @@ export const LipSyncOutputSchema = z.object({
   costEstimate: z.number().min(0),
   processingTime: z.number().optional(),
   metadata: z.record(z.any()).optional(),
+  // ✅ WEBHOOK SUPPORT: Добавляем taskId для callback correlation
+  taskId: z.string().optional(),
 })
 
 // Схема для ошибок
