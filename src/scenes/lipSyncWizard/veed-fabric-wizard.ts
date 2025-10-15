@@ -80,8 +80,14 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '🎭 Синхронизация губ\n\n📸 Отправьте фото или URL изображения с лицом.\n\nНа следующем шаге вы сможете отправить текст (будет озвучен вашим голосом аватара) или голосовое сообщение.'
-        : '🎭 Lip Sync\n\n📸 Send a photo or image URL with a face.\n\nOn the next step you can send text (will be voiced with your avatar) or a voice message.',
+        ? '🎭 Синхронизация губ\n\n📸 Отправьте фото или URL изображения с лицом.\n\n' +
+          '📝 На следующем шаге выберите:\n' +
+          '• Текст (будет озвучен вашим голосом аватара)\n' +
+          '• 🎤 Голосовое сообщение (до 30 сек)'
+        : '🎭 Lip Sync\n\n📸 Send a photo or image URL with a face.\n\n' +
+          '📝 On the next step choose:\n' +
+          '• Text (will be voiced with your avatar)\n' +
+          '• 🎤 Voice message (up to 30 sec)',
       { reply_markup: { remove_keyboard: true } }
     )
 
@@ -181,9 +187,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
     }
 
     try {
-      // ✅ УЛУЧШЕНО: Получаем текст либо из сообщения, либо из сохраненных данных
-      let text: string
+      // ✅ УЛУЧШЕНО: Получаем текст/голос либо из сообщения, либо из сохраненных данных
+      let text: string = ''
       let imageUrl: string
+      let audioUrl: string | null = null // Для голосовых сообщений
 
       if (ctx.session.veedFabric?.text && ctx.session.veedFabric?.imageUrl) {
         // Используем сохраненные данные (после возврата из voice wizard)
@@ -196,17 +203,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           imageUrl: imageUrl.substring(0, 50),
         })
       } else {
-        // Обычный флоу: получаем текст из нового сообщения
-        if (!message || !('text' in message)) {
-          await ctx.reply(
-            isRu
-              ? '❌ Пожалуйста, введите текст.'
-              : '❌ Please enter text.'
-          )
-          return ctx.scene.leave()
-        }
-
-        text = message.text.trim()
+        // Обычный флоу: получаем текст или голосовое сообщение
         imageUrl = ctx.session.veedFabric?.imageUrl || ''
 
         if (!imageUrl) {
@@ -217,35 +214,125 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           )
           return ctx.scene.leave()
         }
+
+        // Проверяем тип сообщения: текст или голос
+        if (message && 'voice' in message) {
+          // ✅ НОВОЕ: Обработка голосового сообщения
+          const voice = message.voice
+
+          logger.info('🎤 [VEED FABRIC] Получено голосовое сообщение', {
+            telegramId,
+            duration: voice.duration,
+            fileSize: voice.file_size,
+          })
+
+          // Проверка длительности (максимум 30 секунд)
+          if (voice.duration > 30) {
+            await ctx.reply(
+              isRu
+                ? `❌ Голосовое сообщение слишком длинное (${voice.duration} сек). Максимум: 30 секунд.`
+                : `❌ Voice message is too long (${voice.duration} sec). Maximum: 30 seconds.`
+            )
+            return ctx.scene.leave()
+          }
+
+          // Скачиваем голосовое сообщение
+          try {
+            const fileLink = await ctx.telegram.getFileLink(voice.file_id)
+            const response = await fetch(fileLink.href)
+
+            if (!response.ok) {
+              throw new Error(`Failed to download voice: ${response.statusText}`)
+            }
+
+            const audioBuffer = Buffer.from(await response.arrayBuffer())
+
+            // Загружаем в Supabase Storage
+            const { createClient } = await import('@supabase/supabase-js')
+            const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+
+            const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+            const fileName = `lipsync-audio/${telegramId}/${Date.now()}.ogg`
+
+            const { error: uploadError } = await serviceClient.storage
+              .from('images')
+              .upload(fileName, audioBuffer, {
+                contentType: 'audio/ogg',
+                upsert: false,
+              })
+
+            if (uploadError) {
+              throw new Error(`Upload failed: ${uploadError.message}`)
+            }
+
+            // Получаем публичный URL
+            const { data: urlData } = serviceClient.storage
+              .from('images')
+              .getPublicUrl(fileName)
+
+            audioUrl = urlData.publicUrl
+
+            logger.info('✅ [VEED FABRIC] Голосовое сообщение загружено', {
+              telegramId,
+              audioUrl,
+              duration: voice.duration,
+            })
+
+            // Для расчета стоимости используем реальную длительность
+            text = 'voice_message_' + voice.duration // Placeholder для логики стоимости
+
+          } catch (voiceError) {
+            logger.error('❌ [VEED FABRIC] Ошибка обработки голоса', { voiceError })
+            await ctx.reply(
+              isRu
+                ? '❌ Ошибка обработки голосового сообщения. Попробуйте еще раз.'
+                : '❌ Error processing voice message. Please try again.'
+            )
+            return ctx.scene.leave()
+          }
+
+        } else if (message && 'text' in message) {
+          // Обычный текст
+          text = message.text.trim()
+
+          if (text.length === 0) {
+            await ctx.reply(
+              isRu ? '❌ Текст не может быть пустым.' : '❌ Text cannot be empty.'
+            )
+            return ctx.scene.leave()
+          }
+
+          if (text.length > 500) {
+            await ctx.reply(
+              isRu
+                ? `❌ Текст слишком длинный (${text.length} символов). Максимум: 500 символов.`
+                : `❌ Text is too long (${text.length} characters). Maximum: 500 characters.`
+            )
+            return ctx.scene.leave()
+          }
+
+        } else {
+          // Неподдерживаемый тип сообщения
+          await ctx.reply(
+            isRu
+              ? '❌ Пожалуйста, отправьте текст или голосовое сообщение.'
+              : '❌ Please send text or voice message.'
+          )
+          return ctx.scene.leave()
+        }
       }
 
-      // Валидация длины текста
-      if (text.length === 0) {
-        await ctx.reply(
-          isRu ? '❌ Текст не может быть пустым.' : '❌ Text cannot be empty.'
-        )
-        return ctx.scene.leave()
-      }
+      // ✅ Проверка наличия голоса аватара (только если используем текст, а не голосовое сообщение)
+      if (!audioUrl) {
+        const { supabase } = await import('@/core/supabase')
+        const { ModeEnum } = await import('@/interfaces/modes')
+        const { data: userData } = await supabase
+          .from('users')
+          .select('voice_id_elevenlabs')
+          .eq('telegram_id', telegramId)
+          .maybeSingle()
 
-      if (text.length > 500) {
-        await ctx.reply(
-          isRu
-            ? `❌ Текст слишком длинный (${text.length} символов). Максимум: 500 символов.`
-            : `❌ Text is too long (${text.length} characters). Maximum: 500 characters.`
-        )
-        return ctx.scene.leave()
-      }
-
-      // Проверка наличия голоса аватара пользователя
-      const { supabase } = await import('@/core/supabase')
-      const { ModeEnum } = await import('@/interfaces/modes')
-      const { data: userData } = await supabase
-        .from('users')
-        .select('voice_id_elevenlabs')
-        .eq('telegram_id', telegramId)
-        .maybeSingle()
-
-      if (!userData?.voice_id_elevenlabs) {
+        if (!userData?.voice_id_elevenlabs) {
         // ✅ УЛУЧШЕНО: Сохраняем состояние wizard и предлагаем создать голос
         ctx.session.veedFabric = {
           ...ctx.session.veedFabric,
@@ -278,13 +365,22 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           savedText: text.substring(0, 50),
         })
 
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        return
+          await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+          return
+        }
       }
 
-      // ✅ ИСПРАВЛЕНО: Расчет на основе длительности с наценкой (не фиксированные тиры)
-      // Оцениваем длительность из длины текста (примерно 15 символов в секунду речи)
-      const estimatedDurationSeconds = Math.ceil(text.length / 15)
+      // ✅ Расчет длительности: для голоса берем реальную длительность, для текста оцениваем
+      let estimatedDurationSeconds: number
+
+      if (audioUrl) {
+        // Для голосового сообщения: извлекаем длительность из placeholder
+        const durationMatch = text.match(/voice_message_(\d+)/)
+        estimatedDurationSeconds = durationMatch ? parseInt(durationMatch[1], 10) : 10
+      } else {
+        // Для текста: оцениваем длительность (примерно 15 символов в секунду речи)
+        estimatedDurationSeconds = Math.ceil(text.length / 15)
+      }
       const resolution = ctx.session.veedFabric?.resolution || '480p' // default 480p
 
       // Используем новую систему ценообразования с наценкой 2.4x
@@ -353,11 +449,12 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       try {
         const input = LipSyncInputBuilder.forVeedFabric(
           imageUrl,
-          text,
+          audioUrl || text, // Передаем либо audioUrl, либо text
           telegramId,
           {
             botName: ctx.botInfo?.username || 'unknown_bot',
             resolution: '480p', // По умолчанию 480p для экономии
+            isAudioUrl: !!audioUrl, // Флаг: если audioUrl существует, значит это URL, иначе text
           }
         )
 

@@ -62,11 +62,15 @@ export const VeedFabricInputSchema = z.object({
   provider: z.literal('kie'),
   modelId: z.literal('veed-fabric'),
   imageUrl: z.string().url('Image URL must be a valid URL'),
-  text: z.string().min(1, 'Text is required for audio generation'),
+  text: z.string().optional(), // Опционально если есть audioUrl
+  audioUrl: z.string().url('Audio URL must be a valid URL').optional(), // Опционально если есть text
   telegramId: z.string().min(1, 'Telegram ID is required'),
   botName: z.string().optional().default('unknown_bot'),
   resolution: z.enum(['480p', '720p']).optional().default('480p'),
-})
+}).refine(
+  data => data.text || data.audioUrl,
+  { message: 'Either text or audioUrl must be provided' }
+)
 
 // Универсальная схема для любой lip-sync модели
 export const UniversalLipSyncInputSchema = z.discriminatedUnion('provider', [
@@ -269,16 +273,18 @@ export const LipSyncInputBuilder = {
    */
   forVeedFabric: (
     imageUrl: string,
-    text: string,
+    textOrAudioUrl: string, // может быть text или audioUrl
     telegramId: string,
     options?: {
       botName?: string
       resolution?: '480p' | '720p'
+      isAudioUrl?: boolean // флаг: true = audioUrl, false = text
     }
   ): VeedFabricInput => {
     return VeedFabricInputSchema.parse({
       imageUrl,
-      text,
+      text: options?.isAudioUrl ? undefined : textOrAudioUrl,
+      audioUrl: options?.isAudioUrl ? textOrAudioUrl : undefined,
       telegramId,
       provider: 'kie',
       modelId: 'veed-fabric',
