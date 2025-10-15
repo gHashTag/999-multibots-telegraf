@@ -13,6 +13,43 @@ import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
 
+// Функция для отправки уведомления админу о проблеме с сервером
+async function notifyAdminAboutServerIssue(
+  error: string,
+  telegram_id: string,
+  botName: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName(botName)
+
+    if (!botResult.bot) return
+
+    const errorMessage =
+      `🚨 **SERVER DOWN ALERT**\n\n` +
+      `📍 План Б активирован для нейрофото генерации\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🤖 Bot: ${botName}\n` +
+      `❌ Error: ${error}\n` +
+      `🔄 Используется локальная обработка\n\n` +
+      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
+        parse_mode: 'Markdown',
+      })
+    }
+
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
+      adminIds,
+      error,
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+  }
+}
+
 // Создание клавиатуры для результатов нейрофотографий с кнопкой Upscale
 const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
   return Markup.inlineKeyboard([
@@ -68,9 +105,9 @@ export async function generateNeuroPhotoHybrid(
     numImages,
     telegram_id,
     botName,
-    explicitAspectRatio
+    explicitAspectRatio,
   })
-  
+
   logger.info({
     message: '🔄 [HYBRID] Начало гибридной генерации neuro_photo',
     telegram_id,
@@ -183,7 +220,11 @@ export async function generateNeuroPhotoHybrid(
     }
 
     // Проверяем тип ответа от сервера
-    if (response.data.urls && Array.isArray(response.data.urls) && response.data.urls.length > 0) {
+    if (
+      response.data.urls &&
+      Array.isArray(response.data.urls) &&
+      response.data.urls.length > 0
+    ) {
       // СЦЕНАРИЙ 1: Сервер вернул готовые изображения
       logger.info({
         message: '📸 [HYBRID] Отправка фотографий пользователю',
@@ -196,7 +237,7 @@ export async function generateNeuroPhotoHybrid(
       if (ctx.session) {
         ctx.session.lastNeuroPhotoImageUrl = lastUrl
         ctx.session.lastNeuroPhotoPrompt = prompt
-        
+
         logger.info({
           message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
           description: 'Neurophoto URL saved in session for upscaler',
@@ -215,10 +256,16 @@ export async function generateNeuroPhotoHybrid(
             ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${exactCostPerImage} ⭐`
             : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${exactCostPerImage} ⭐`
 
-          await ctx.telegram.sendPhoto(telegram_id, { url }, {
-            caption,
-            reply_markup: createNeuroPhotoResultKeyboard(isRussianFromState(ctx)).reply_markup,
-          })
+          await ctx.telegram.sendPhoto(
+            telegram_id,
+            { url },
+            {
+              caption,
+              reply_markup: createNeuroPhotoResultKeyboard(
+                isRussianFromState(ctx)
+              ).reply_markup,
+            }
+          )
 
           logger.info({
             message: '✅ [HYBRID] Фотография отправлена',
@@ -234,29 +281,43 @@ export async function generateNeuroPhotoHybrid(
           })
         }
       }
-      
+
       return response.data
-      
     } else if (response.data.jobId) {
       // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
       logger.info({
-        message: '✅ [HYBRID] План А успешен - сервер принял задачу и будет обрабатывать асинхронно',
+        message:
+          '✅ [HYBRID] План А успешен - сервер принял задачу и будет обрабатывать асинхронно',
         telegram_id,
         jobId: response.data.jobId,
       })
-      
+
       // Сервер сам отправит изображение через webhook после обработки
       // Просто возвращаем успешный результат
       return response.data
-      
+    } else if (
+      response.data.message &&
+      response.data.message.includes('Processing started')
+    ) {
+      // СЦЕНАРИЙ 3: Сервер принял задачу и начал обработку
+      logger.info({
+        message:
+          '✅ [HYBRID] План А успешен - сервер принял задачу и начал обработку',
+        telegram_id,
+        serverMessage: response.data.message,
+      })
+
+      // Сервер сам отправит изображение через webhook после обработки
+      // Просто возвращаем успешный результат
+      return response.data
     } else {
-      // СЦЕНАРИЙ 3: Неожиданный формат ответа
+      // СЦЕНАРИЙ 4: Неожиданный формат ответа
       logger.error({
         message: '❌ [HYBRID] Неожиданный формат ответа от сервера',
         telegram_id,
         responseData: JSON.stringify(response.data).substring(0, 200),
       })
-      
+
       throw new Error('Unexpected response format from server')
     }
   } catch (error) {
@@ -292,6 +353,9 @@ export async function generateNeuroPhotoHybrid(
       message: '🔄 [HYBRID] Переключение на План Б: локальная обработка',
       telegram_id,
     })
+
+    // 🚨 УВЕДОМЛЕНИЕ АДМИНУ О ПРОБЛЕМЕ С СЕРВЕРОМ
+    await notifyAdminAboutServerIssue(String(error), telegram_id, botName)
 
     try {
       const localResult = await generateNeuroPhotoDirect(
