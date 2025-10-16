@@ -54,24 +54,37 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H 212.86.115.30 >> ~/.ssh/known_hosts
 
-      - name: Copy code to Production Server
+      - name: Sync code to Production Server
         run: |
-          echo "📦 Copying code to production server..."
+          echo "📦 Syncing code to production server..."
 
-          # Create backup directory and sync code
-          ssh -i ~/.ssh/id_rsa root@212.86.115.30 'mkdir -p /root/bot-farm-backup'
+          # Method 1: Try git pull (preferred for commit history)
+          echo "🔄 Attempting git pull..."
+          ssh -i ~/.ssh/id_rsa root@212.86.115.30 << 'ENDSSH' || echo "⚠️ Git pull failed, will use rsync"
+          cd /root/bot-farm
+          if [ -d ".git" ]; then
+            git config --global --add safe.directory /root/bot-farm
+            git fetch origin production 2>/dev/null && git reset --hard origin/production
+            echo "✅ Git pull successful"
+          else
+            echo "⚠️ No .git directory"
+            exit 1
+          fi
+          ENDSSH
 
-          # Sync code to server (excluding node_modules, dist, etc.)
-          rsync -avz --delete \
-            --exclude 'node_modules' \
-            --exclude 'dist' \
-            --exclude '.git' \
-            --exclude '.env' \
-            --exclude '.env.local' \
-            -e "ssh -i ~/.ssh/id_rsa" \
-            ./ root@212.86.115.30:/root/bot-farm/
-
-          echo "✅ Code copied successfully"
+          # Method 2: Rsync as fallback
+          if [ $? -ne 0 ]; then
+            echo "📦 Using rsync to copy code..."
+            rsync -avz --delete \
+              --exclude 'node_modules' \
+              --exclude 'dist' \
+              --exclude '.git' \
+              --exclude '.env' \
+              --exclude '.env.local' \
+              -e "ssh -i ~/.ssh/id_rsa" \
+              ./ root@212.86.115.30:/root/bot-farm/
+            echo "✅ Code copied via rsync"
+          fi
 
       - name: Deploy to Production Server
         run: |
