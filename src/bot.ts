@@ -104,16 +104,22 @@ async function initializeBots() {
     )
   }
 
-  if (isDev) {
-    // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
+  const mode = process.env.MODE || 'webhook'
+
+  if (mode === 'polling') {
+    // В режиме polling запускаем ОДИН бот (для dev - TEST_BOT_NAME, для prod - первый доступный)
     const targetBotUsername = process.env.TEST_BOT_NAME
-    if (!targetBotUsername) {
+
+    if (isDev && !targetBotUsername) {
       throw new Error(
-        '❌ Переменная окружения TEST_BOT_NAME не установлена. Укажите username бота для запуска в development.'
+        '❌ В development режиме требуется TEST_BOT_NAME. Укажите username бота для запуска.'
       )
     }
 
-    console.log(`🔧 Ищем тестового бота с username: ${targetBotUsername}`)
+    if (targetBotUsername) {
+      console.log(`🔧 [POLLING] Ищем бота с username: ${targetBotUsername}`)
+    } else {
+      console.log(`🔧 [POLLING] Запуск первого доступного бота из .env`)
 
     // Собираем все потенциальные токены из env
     const potentialTokens = Object.entries(process.env)
@@ -121,7 +127,10 @@ async function initializeBots() {
       .map(([, value]) => value)
       .filter(Boolean) as string[]
 
-    if (process.env.TEST_BOT_TOKEN && !potentialTokens.includes(process.env.TEST_BOT_TOKEN)) {
+    if (
+      process.env.TEST_BOT_TOKEN &&
+      !potentialTokens.includes(process.env.TEST_BOT_TOKEN)
+    ) {
       potentialTokens.unshift(process.env.TEST_BOT_TOKEN)
     }
 
@@ -136,22 +145,25 @@ async function initializeBots() {
           handlerTimeout: Infinity,
         })
         const botInfo = await tempBot.telegram.getMe()
-        if (botInfo.username === targetBotUsername) {
-          console.log(`✅ Найден бот ${botInfo.username}`)
-          bot = tempBot // Используем этого бота
+
+        // Если targetBotUsername указан - ищем конкретного бота
+        // Если НЕ указан - берём первый валидный
+        if (!targetBotUsername || botInfo.username === targetBotUsername) {
+          console.log(`✅ [POLLING] Найден бот ${botInfo.username}`)
+          bot = tempBot
           foundBotInfo = botInfo
-          break // Прерываем цикл, бот найден
+          break
         }
       } catch (error) {
         // Игнорируем ошибки валидации токенов, просто ищем дальше
-        // console.warn(`⚠️ Ошибка проверки токена ${token.substring(0, 10)}...: ${error.message}`);
       }
     }
 
     if (!bot || !foundBotInfo) {
-      throw new Error(
-        `❌ Бот с username '${targetBotUsername}' не найден среди токенов в .env или токен невалиден.`
-      )
+      const errorMsg = targetBotUsername
+        ? `❌ Бот с username '${targetBotUsername}' не найден среди токенов в .env`
+        : `❌ Не найдено ни одного валидного токена бота в .env`
+      throw new Error(errorMsg)
     }
 
     // Добавляем логи перед регистрацией команд
@@ -201,14 +213,19 @@ async function initializeBots() {
         await bot.telegram.deleteWebhook({ drop_pending_updates: true })
         console.log('✅ [WEBHOOK] Вебхук удалён, переходим к polling')
       } else {
-        console.log('🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling')
+        console.log(
+          '🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling'
+        )
       }
     } catch (error) {
-      console.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
+      console.warn(
+        '⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:',
+        String(error)
+      )
     }
 
-    // В режиме разработки используем polling
-    console.log('🔍 [DEBUG] Начинаем запуск bot.launch()...')
+    // Запускаем бота в polling режиме
+    console.log('🔍 [DEBUG] Начинаем запуск bot.launch() в polling режиме...')
     console.log('🔍 [DEBUG] Bot instance валиден:', !!bot)
     console.log('🔍 [DEBUG] Bot username:', foundBotInfo.username)
 
@@ -222,14 +239,17 @@ async function initializeBots() {
         ],
       })
       console.log(
-        `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
+        `🚀 [POLLING] Бот ${foundBotInfo.username} успешно запущен в polling режиме`
       )
     } catch (launchError) {
       console.error('❌ [ERROR] bot.launch() failed:', launchError)
-      console.error('❌ [ERROR] Stack:', launchError instanceof Error ? launchError.stack : 'no stack')
+      console.error(
+        '❌ [ERROR] Stack:',
+        launchError instanceof Error ? launchError.stack : 'no stack'
+      )
       throw launchError
     }
-  } else {
+  } else if (mode === 'webhook') {
     // В продакшене используем все активные боты
     const botTokens = [
       process.env.BOT_TOKEN_1,
@@ -244,7 +264,7 @@ async function initializeBots() {
       process.env.BOT_TOKEN_10,
     ].filter((token): token is string => Boolean(token))
 
-    let currentPort = 3001
+    const currentPort = 3001
 
     for (const [index, token] of botTokens.entries()) {
       if (await validateBotToken(token)) {
@@ -334,6 +354,10 @@ async function initializeBots() {
         }
       }
     }
+  } else {
+    throw new Error(
+      `❌ Неизвестный режим MODE="${mode}". Допустимые значения: "polling" или "webhook"`
+    )
   }
 
   console.log('🔍 Инициализация сцен...')
@@ -346,7 +370,9 @@ async function initializeBots() {
 
   // ✅ ИНИЦИАЛИЗАЦИЯ АСИНХРОННОГО LIPSYNC МЕНЕДЖЕРА
   try {
-    const { asyncLipSyncManager } = await import('./core/lipsync/async-lipsync-manager')
+    const { asyncLipSyncManager } = await import(
+      './core/lipsync/async-lipsync-manager'
+    )
 
     // Устанавливаем первый бот как основной для отправки сообщений
     if (botInstances.length > 0) {
@@ -354,7 +380,10 @@ async function initializeBots() {
       console.log('✅ Асинхронный LipSync менеджер инициализирован')
     }
   } catch (error) {
-    console.error('❌ Ошибка инициализации асинхронного LipSync менеджера:', error)
+    console.error(
+      '❌ Ошибка инициализации асинхронного LipSync менеджера:',
+      error
+    )
   }
 }
 
