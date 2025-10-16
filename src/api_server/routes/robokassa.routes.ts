@@ -12,13 +12,14 @@ import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 const router: Router = express.Router()
 
 // Константы для расчета звезд из суммы платежа
+// ⚠️ ВАЖНО: Минимальная сумма Robokassa - 50-100₽
 const PAYMENT_OPTIONS = [
+  { amount: 100, stars: 43 }, // ✅ Минимальная безопасная сумма
   { amount: 500, stars: 217 },
   { amount: 1000, stars: 434 },
   { amount: 2000, stars: 869 },
   { amount: 5000, stars: 2173 },
   { amount: 10000, stars: 4347 },
-  { amount: 10, stars: 6 },
 ]
 
 const SUBSCRIPTION_PLANS = [
