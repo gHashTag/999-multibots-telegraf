@@ -208,17 +208,27 @@ async function initializeBots() {
     }
 
     // В режиме разработки используем polling
-    await bot.launch({
-      allowedUpdates: [
-        'message',
-        'callback_query',
-        'pre_checkout_query' as any,
-        'successful_payment' as any,
-      ],
-    })
-    console.log(
-      `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
-    )
+    console.log('🔍 [DEBUG] Начинаем запуск bot.launch()...')
+    console.log('🔍 [DEBUG] Bot instance валиден:', !!bot)
+    console.log('🔍 [DEBUG] Bot username:', foundBotInfo.username)
+
+    try {
+      await bot.launch({
+        allowedUpdates: [
+          'message',
+          'callback_query',
+          'pre_checkout_query' as any,
+          'successful_payment' as any,
+        ],
+      })
+      console.log(
+        `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
+      )
+    } catch (launchError) {
+      console.error('❌ [ERROR] bot.launch() failed:', launchError)
+      console.error('❌ [ERROR] Stack:', launchError instanceof Error ? launchError.stack : 'no stack')
+      throw launchError
+    }
   } else {
     // В продакшене используем все активные боты
     const botTokens = [
