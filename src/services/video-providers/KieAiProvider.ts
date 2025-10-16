@@ -200,7 +200,7 @@ export class KieAiProvider {
       return {
         success: false,
         cost: { usd: 0, stars: 0 },
-        provider: 'Veo 3 API',
+        provider: 'Kie.ai',
         model: request.model,
         error: 'KIE_AI_API_KEY is required for video generation',
       }
@@ -214,15 +214,45 @@ export class KieAiProvider {
       imageUrl,
     } = request
 
-    // КРИТИЧЕСКАЯ ПРОВЕРКА: Для image-to-video ОБЯЗАТЕЛЬНО наличие изображения
-    // НО veo3_fast и veo-3 поддерживают text-to-video!
-    // Удаляем эту проверку, так как она блокирует text-to-video
+    // Определяем провайдера на основе модели
+    const isSoraModel = model.includes('sora')
+    const isVeoModel = model.includes('veo')
+    const isRunwayModel = model.includes('runway')
 
     // Преобразуем название модели в формат Kie.ai
     let kieModel = model
-    if (model === 'veo3_fast') {
+    let provider = 'Kie.ai'
+    let endpoint = '/veo/generate'
+
+    if (isSoraModel) {
+      // Sora 2 models
+      if (model === 'sora-2' || model === 'sora2') {
+        kieModel = 'sora2'
+        provider = 'Sora 2 API'
+        endpoint = '/sora/generate'
+        logger.info('[KieAiProvider] Sora 2 selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: imageUrl ? 'image-to-video' : 'text-to-video',
+          expectedCost: '~94 stars per 10sec'
+        })
+      } else if (model === 'sora-2-pro' || model === 'sora2-pro') {
+        kieModel = 'sora2-pro'
+        provider = 'Sora 2 Pro API'
+        endpoint = '/sora/generate'
+        logger.info('[KieAiProvider] Sora 2 Pro selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: imageUrl ? 'image-to-video' : 'text-to-video',
+          expectedCost: '~125 stars per 10sec'
+        })
+      }
+    } else if (model === 'veo3_fast') {
       // ВСЕГДА используем veo3_fast для Veo 3 Fast (и для text-to-video, и для image-to-video)
       kieModel = 'veo3_fast'
+      provider = 'Veo 3 Fast API'
       logger.info('[KieAiProvider] Veo 3 Fast selected:', {
         originalModel: model,
         selectedModel: kieModel,
@@ -233,6 +263,7 @@ export class KieAiProvider {
     } else if (model === 'veo3') {
       // Для обычной Veo 3 используем veo3
       kieModel = 'veo3'
+      provider = 'Veo 3 API'
       logger.info('[KieAiProvider] Veo 3 selected:', {
         originalModel: model,
         selectedModel: kieModel,
@@ -242,6 +273,7 @@ export class KieAiProvider {
       })
     } else if (model === 'runway-aleph') {
       kieModel = 'runway_aleph'
+      provider = 'Runway API'
     }
     
     // Формируем правильный callback URL
@@ -323,7 +355,7 @@ export class KieAiProvider {
 
     try {
       const response = await this.makeRequest<any>(
-        '/veo/generate',
+        endpoint, // Use dynamic endpoint based on model
         requestData
       )
 
@@ -356,7 +388,7 @@ export class KieAiProvider {
       // Обрабатываем различные форматы ответа
       const taskId = response.data?.taskId || response.taskId
       const videoUrl = response.data?.videoUrl || response.data?.resultUrls?.[0]
-      
+
       return {
         success: true,
         data: {
@@ -368,7 +400,7 @@ export class KieAiProvider {
           usd: costUSD,
           stars: costStars,
         },
-        provider: 'Veo 3 API',
+        provider: provider,
         model,
         processingTime: response.processingTime,
       }
@@ -379,7 +411,7 @@ export class KieAiProvider {
           usd: 0,
           stars: 0,
         },
-        provider: 'Veo 3 API',
+        provider: provider,
         model,
         error: error instanceof Error ? error.message : 'Unknown error',
       }
@@ -614,9 +646,15 @@ export class KieAiProvider {
 
   private calculateVideoCost(model: string, duration: number): number {
     const pricing: Record<string, number> = {
-      'veo3_fast': 0.08, // $0.08 per second = 40⭐ for 8 seconds
-      'veo3': 0.24, // $0.24 per second = 120⭐ for 8 seconds (FIXED PRICE)
-      'runway-aleph': 0.3, // $0.30 per second
+      // Kie.ai Sora pricing: $0.15 per 10 seconds = $0.015/sec
+      'sora-2': 0.015,      // ~94⭐ per 10 seconds
+      'sora2': 0.015,
+      'sora-2-pro': 0.02,   // ~125⭐ per 10 seconds
+      'sora2-pro': 0.02,
+      // Veo pricing
+      'veo3_fast': 0.08,    // 40⭐ for 8 seconds
+      'veo3': 0.24,         // 120⭐ for 8 seconds (FIXED PRICE)
+      'runway-aleph': 0.3,  // $0.30 per second
     }
 
     const pricePerSecond = pricing[model] || 0.05
