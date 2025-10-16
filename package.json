@@ -52,7 +52,11 @@
     "report:financial": "npx tsx scripts/generateFinancialReport.ts",
     "report:test": "npx tsx scripts/testExcelGenerator.ts",
     "report:monthly": "npx tsx scripts/generateFinancialReport.ts -m",
-    "report:bot": "npx tsx scripts/generateFinancialReport.ts -b"
+    "report:bot": "npx tsx scripts/generateFinancialReport.ts -b",
+    "logs": "node scripts/logs-monitor.js",
+    "logs:follow": "node scripts/logs-monitor.js --follow",
+    "logs:no-fix": "node scripts/logs-monitor.js --no-fix",
+    "logs:tail": "node scripts/logs-monitor.js --tail=200"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
