@@ -27,8 +27,8 @@ docker build --no-cache -t 999-multibots .
 
 # Step 4: Start new container
 docker run -d --name 999-multibots --restart=always \
-  -p 3001:3001 \
-  -v /root/999-agents-telegraf/.env:/app/.env:ro \
+  -p 3001:3001 -p 2999:2999 \
+  -v /root/bot-farm/.env:/app/.env:ro \
   999-multibots
 ```
 
@@ -41,9 +41,10 @@ docker run -d --name 999-multibots --restart=always \
 ## Server Configuration
 - Host: root@212.86.115.30
 - SSH Key: ~/.ssh/zomro
-- Project Path: /root/999-agents-telegraf
+- Project Path: /root/bot-farm
 - Container Name: 999-multibots
-- External Port: 3001
+- External Ports: 3001 (webhooks), 2999 (API server)
+- Environment Mode: MODE=polling or MODE=webhook
 
 ## Deployment Phases
 
