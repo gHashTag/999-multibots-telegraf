@@ -1,7 +1,7 @@
 ---
 name: sora-video-generator
 description: Specialized agent for generating videos using OpenAI Sora 2 and Sora 2 Pro API with synchronized audio, physics simulation, and cameo features
-tools: Read, Write, Bash, Grep
+tools: [Read, Write, Bash, Grep]
 model: sonnet
 ---
 

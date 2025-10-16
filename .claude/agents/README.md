@@ -2,65 +2,30 @@
 
 Коллекция специализированных саб-агентов для автоматизации задач.
 
-## 📋 Доступные агенты
+## 📋 Доступные агенты (13 Total)
 
-### 1. server-health-checker
-**Команда**: `/check`
+### Production & Deployment (3)
+1. **server-health-checker** - `/check` - Production server health monitoring
+2. **deployment-manager** - `/deploy` - Docker deployment automation
+3. **js-error-fixer** - Auto-fix JavaScript errors in production logs
 
-Автоматизированная проверка состояния production сервера.
+### User Management (1)
+4. **telegram-user-manager** - `/user-check [id]` - Telegram user access management
 
-**Проверяет**:
-- ✅ Docker container status & uptime
-- 📊 CPU, RAM, процессы
-- 🚨 Критические ошибки в логах
-- 🎨 AI Photoshop functionality (wasAllModels)
-- 📡 Supabase, network, activity
+### Code Quality & Architecture (4)
+5. **best-practices-researcher** - Research best practices before implementing
+6. **anti-duplication-guardian** - Prevent code duplication (DRY)
+7. **business-logic-guardian** - Enforce Clean Architecture separation
+8. **code-reviewer** - Strict quality enforcer ("бьет по рукам")
 
-**Использование**:
-```bash
-/check
-```
+### Development & Testing (2)
+9. **tdd-test-engineer** - Test-First development (RED-GREEN-REFACTOR)
+10. **telegram-scene-builder** - Create Telegram scenes with proper patterns
 
-[Подробная документация](../../docs/server-health-checker.md)
-
----
-
-### 2. deployment-manager
-**Команда**: `/deploy`
-
-Управление деплоем на production сервер.
-
-**Возможности**:
-- 🚀 Автоматический деплой
-- 🔨 Пересборка Docker контейнера
-- 📝 Git операции
-- ✅ Проверка после деплоя
-
-**Использование**:
-```bash
-/deploy
-```
-
----
-
-### 3. telegram-user-manager
-**Команда**: `/user-check [telegram_id]`
-
-Автоматическое управление пользователями Telegram ботов.
-
-**Функции**:
-- 👤 Проверка статуса пользователя
-- 💰 Анализ баланса и подписки
-- 🔧 Автоматические рекомендации
-- ⚡ Быстрые действия (grant access, etc.)
-
-**Автоактивация**: При упоминании Telegram ID (8-12 цифр)
-
-**Использование**:
-```bash
-/user-check 144022504
-# или просто упомянуть ID в сообщении
-```
+### Coordination & Docs (3)
+11. **rules-guardian** - Meta-agent monitoring all agents
+12. **docs-sync** - Sync deployment documentation
+13. **sora-video-generator** - OpenAI Sora 2 video generation
 
 ---
 
@@ -73,11 +38,37 @@
 /user-check [id]    # User management
 ```
 
-### Через Task tool
+### Через естественный язык
+
+**Просто попросите Claude:**
+```
+Проверь здоровье сервера
+Задеплой изменения в production
+Проверь пользователя 144022504
+Создай промпт для Sora 2 про [тема]
+```
+
+**Claude автоматически поймет и вызовет нужного агента!**
+
+### Прямой вызов через Task tool (для разработчиков)
+
+**Правильный XML синтаксис:**
+```xml
+<invoke name="Task">
+<parameter name="description">Server diagnostics</parameter>
+<parameter name="prompt">Run complete health check on production server</parameter>
+<parameter name="subagent_type">server-health-checker</parameter>
+</invoke>
+```
+
+**Псевдокод для понимания:**
 ```javascript
-Task("Server diagnostics", "Run health check", "general-purpose")
-Task("Deploy changes", "Deploy to production", "general-purpose")
-Task("Check user 144022504", "Analyze user status", "general-purpose")
+// Это НЕ реальный синтаксис, просто для объяснения структуры
+Task({
+  description: "Server diagnostics",
+  prompt: "Run complete health check",
+  subagent_type: "server-health-checker"
+})
 ```
 
 ## 📁 Структура
@@ -102,7 +93,7 @@ Task("Check user 144022504", "Analyze user status", "general-purpose")
 ---
 name: your-agent
 description: What this agent does
-tools: Bash, Read, Edit
+tools: [Bash, Read, Edit]  # IMPORTANT: Array format!
 model: sonnet
 ---
 
@@ -110,6 +101,8 @@ model: sonnet
 
 Agent description and instructions...
 ```
+
+⚠️ **ВАЖНО**: Поле `tools` ДОЛЖНО быть в формате массива `[Tool1, Tool2]`, НЕ `Tool1, Tool2`!
 
 2. Создайте команду в `.claude/commands/your-command.md`:
 ```markdown

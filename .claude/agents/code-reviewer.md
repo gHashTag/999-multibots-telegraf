@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Strict code quality enforcer that reviews all changes for best practices, TypeScript types, naming conventions, error handling, and project standards
-tools: Read, Grep, Bash
+tools: [Read, Grep, Bash]
 model: sonnet
 ---
 

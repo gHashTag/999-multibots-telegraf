@@ -18,6 +18,11 @@ export type VideoModelId =
   | 'veo3_fast'
   | 'veo3'
   | 'runway-aleph'
+  | 'sora-2'
+  | 'sora-2-pro'
+  // Sora 2 Image-to-Video
+  | 'sora-2-i2v'
+  | 'sora-2-pro-i2v'
 
 interface TextToVideoRequest {
   prompt: string
@@ -160,67 +165,111 @@ export async function generateTextToVideo(
   })
 
   try {
-    // Проверяем, является ли это Veo моделью
-    const isVeoModel = ['veo3', 'veo3_fast', 'runway-aleph'].includes(videoModel)
-    
-    if (isVeoModel) {
-      // ПЛАН Б: Для Veo моделей используем прямую интеграцию с Kie.ai
-      // НЕ используем сервер, так как там нет поддержки этих моделей через Replicate
-      logger.info('[PLAN B] Using Kie.ai directly for Veo model', {
+    // Проверяем, является ли это Kie.ai моделью (Veo или Sora)
+    const isKieAiModel = ['veo3', 'veo3_fast', 'runway-aleph', 'sora-2', 'sora-2-pro'].includes(videoModel)
+    const isSoraModel = ['sora-2', 'sora-2-pro'].includes(videoModel)
+
+    if (isKieAiModel) {
+      // Для Kie.ai моделей используем прямую интеграцию
+      logger.info('[KIE.AI] Using Kie.ai directly', {
         videoModel,
-        reason: 'Veo models are not available on Replicate, using Kie.ai API directly'
+        isSoraModel,
+        reason: isSoraModel
+          ? 'Sora models use Kie.ai Sora API'
+          : 'Veo models are not available on Replicate'
       })
-      
+
       // Импортируем KieAiProvider
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
-      
-      // Преобразуем aspectRatio в формат Kie.ai
-      const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
-      
-      logger.info('[PLAN B] Calling Veo 3 generateVideo with params:', {
-        model: videoModel,
-        promptLength: prompt.length, // Логируем длину вместо обрезки
-        duration: duration || 8,
-        aspectRatio: kieAspectRatio || '9:16'
-      })
-      
-      // Генерируем видео через Kie.ai
-      const kieResponse = await kieProvider.generateVideo({
-        model: videoModel,
-        prompt,
-        duration: duration || 8,
-        aspectRatio: kieAspectRatio || '9:16',
-      })
-      
-      logger.info('[PLAN B] Veo 3 API response received:', {
-        success: kieResponse.success,
-        hasData: !!kieResponse.data,
-        hasVideoUrl: !!kieResponse.data?.videoUrl,
-        hasTaskId: !!kieResponse.data?.taskId,
-        taskId: kieResponse.data?.taskId,
-        error: kieResponse.error
-      })
-      
-      if (kieResponse.success) {
-        if (kieResponse.data?.videoUrl) {
+
+      if (isSoraModel) {
+        // Для Sora моделей используем специальный API
+        const soraAspectRatio = aspectRatio === '9:16' ? 'portrait' : 'landscape'
+        const soraModel = videoModel === 'sora-2-pro'
+          ? 'sora-2-pro-text-to-video'
+          : 'sora-2-text-to-video'
+
+        logger.info('[SORA] Calling Sora generateSoraVideo with params:', {
+          model: soraModel,
+          promptLength: prompt.length,
+          aspectRatio: soraAspectRatio,
+          duration: 10 // Sora всегда 10 секунд
+        })
+
+        const soraResponse = await kieProvider.generateSoraVideo(
+          prompt,
+          soraModel as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
+          soraAspectRatio as 'landscape' | 'portrait',
+          false // remove_watermark
+        )
+
+        logger.info('[SORA] API response received:', {
+          success: soraResponse.success,
+          hasData: !!soraResponse.data,
+          hasTaskId: !!soraResponse.data?.taskId,
+          taskId: soraResponse.data?.taskId,
+          error: soraResponse.error
+        })
+
+        if (soraResponse.success && soraResponse.data?.taskId) {
           return {
             success: true,
-            videoUrl: kieResponse.data.videoUrl,
-          }
-        } else if (kieResponse.data?.taskId) {
-          // Если есть taskId, но нет videoUrl - видео еще генерируется
-          return {
-            success: true,
-            jobId: kieResponse.data.taskId,
-            message: 'Video generation started',
+            jobId: soraResponse.data.taskId,
+            message: 'Sora video generation started',
           }
         }
-      }
-      
-      return {
-        success: false,
-        error: kieResponse.error || 'Failed to generate video',
+
+        return {
+          success: false,
+          error: soraResponse.error || 'Failed to generate Sora video',
+        }
+      } else {
+        // Для Veo моделей используем обычный generateVideo
+        const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
+
+        logger.info('[VEO] Calling Veo 3 generateVideo with params:', {
+          model: videoModel,
+          promptLength: prompt.length,
+          duration: duration || 8,
+          aspectRatio: kieAspectRatio || '9:16'
+        })
+
+        const kieResponse = await kieProvider.generateVideo({
+          model: videoModel,
+          prompt,
+          duration: duration || 8,
+          aspectRatio: kieAspectRatio || '9:16',
+        })
+
+        logger.info('[VEO] API response received:', {
+          success: kieResponse.success,
+          hasData: !!kieResponse.data,
+          hasVideoUrl: !!kieResponse.data?.videoUrl,
+          hasTaskId: !!kieResponse.data?.taskId,
+          taskId: kieResponse.data?.taskId,
+          error: kieResponse.error
+        })
+
+        if (kieResponse.success) {
+          if (kieResponse.data?.videoUrl) {
+            return {
+              success: true,
+              videoUrl: kieResponse.data.videoUrl,
+            }
+          } else if (kieResponse.data?.taskId) {
+            return {
+              success: true,
+              jobId: kieResponse.data.taskId,
+              message: 'Video generation started',
+            }
+          }
+        }
+
+        return {
+          success: false,
+          error: kieResponse.error || 'Failed to generate video',
+        }
       }
     }
     

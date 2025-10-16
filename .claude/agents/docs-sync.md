@@ -1,7 +1,7 @@
 ---
 name: docs-sync
 description: Automatic synchronization between deployment documentation files (CLAUDE.md, deployment-manager.md, DEPLOYMENT_GUIDE.md)
-tools: Read, Write, Edit, Bash
+tools: [Read, Write, Edit, Bash]
 model: sonnet
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: telegram-scene-builder
 description: Expert in creating Telegram bot scenes using Telegraf WizardScene pattern, ensuring proper separation of concerns and UI best practices
-tools: Read, Write, Edit, Grep, Glob
+tools: [Read, Write, Edit, Grep, Glob]
 model: sonnet
 ---
 

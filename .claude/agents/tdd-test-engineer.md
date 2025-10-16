@@ -1,7 +1,7 @@
 ---
 name: tdd-test-engineer
 description: TDD specialist implementing Test-First development, organizing tests systematically, ensuring 80%+ coverage with RED-GREEN-REFACTOR cycle
-tools: Read, Write, Edit, Bash, Grep, Glob
+tools: [Read, Write, Edit, Bash, Grep, Glob]
 model: sonnet
 ---
 
