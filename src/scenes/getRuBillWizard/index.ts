@@ -63,7 +63,9 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
         return ctx.scene.leave()
       }
 
-      const invId = Math.floor(Math.random() * 1000000)
+      // ✅ ИСПРАВЛЕНИЕ: Используем Date.now() для уникального возрастающего InvId
+      // Robokassa требует уникальный InvId как счётчик (1 <= InvId <= 2147483647)
+      const invId = Date.now() % 2147483647
       console.log('Generated invoice ID:', invId)
 
       const invoiceURL = await getInvoiceId(
