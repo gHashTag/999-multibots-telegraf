@@ -867,12 +867,11 @@ export async function generateNeuroPhotoDirect(
           ? `✅ Готово! Успешно сгенерировано ${generatedUrls.length} из ${validNumImages} изображений.\nСписано: ${totalCost.toFixed(2)} ⭐️\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
           : `✅ Done! Successfully generated ${generatedUrls.length} out of ${validNumImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
 
-        await ctx.telegram.sendMessage(telegram_id, finalMessage, {
-          ...createNeuroPhotoResultKeyboard(is_ru),
-        })
+        // 🚨 ИСПРАВЛЕНИЕ: Отправляем БЕЗ inline кнопок (wizard добавит reply keyboard)
+        await ctx.telegram.sendMessage(telegram_id, finalMessage)
 
         logger.info({
-          message: '✅ [DIRECT] Итоговое сообщение с клавиатурой отправлено',
+          message: '✅ [DIRECT] Итоговое сообщение отправлено (без кнопок)',
           telegram_id,
           totalImages: generatedUrls.length,
           totalCost,
@@ -1026,20 +1025,5 @@ export async function generateNeuroPhotoDirect(
   }
 }
 
-// Создание клавиатуры для результатов нейрофотографий точно как в AI сервере (обычная клавиатура)
-const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
-  return Markup.keyboard([
-    // Первая строка: кнопки с эмодзи нумерацией как в AI сервере
-    ['1️⃣', '2️⃣', '3️⃣', '4️⃣'],
-    [
-      is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
-      is_ru ? '📐 Изменить размер' : '📐 Change size',
-    ],
-    [
-      is_ru ? '🆕 Новый промпт' : '🆕 New prompt',
-      is_ru ? '🏠 Главное меню' : '🏠 Main menu',
-    ],
-  ])
-    .resize() // resize_keyboard: true
-    .persistent() // one_time_keyboard: false
-}
+// 🚨 ФУНКЦИЯ УДАЛЕНА: Reply keyboard теперь создаётся в wizard'е
+// Это предотвращает дублирование кнопок (inline над сообщением + reply внизу)

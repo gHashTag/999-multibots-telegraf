@@ -11,25 +11,9 @@ import { logger } from '@/utils/logger'
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
-import { Markup } from 'telegraf'
 
-// Создание клавиатуры для результатов нейрофотографий точно как в AI сервере (обычная клавиатура)
-const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
-  return Markup.keyboard([
-    // Первая строка: кнопки с эмодзи нумерацией как в AI сервере
-    ['1️⃣', '2️⃣', '3️⃣', '4️⃣'],
-    [
-      is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
-      is_ru ? '📐 Изменить размер' : '📐 Change size',
-    ],
-    [
-      is_ru ? '🆕 Новый промпт' : '🆕 New prompt',
-      is_ru ? '🏠 Главное меню' : '🏠 Main menu',
-    ],
-  ])
-    .resize() // resize_keyboard: true
-    .persistent() // one_time_keyboard: false
-}
+// 🚨 ФУНКЦИЯ УДАЛЕНА: Reply keyboard теперь создаётся в wizard'е
+// Это предотвращает дублирование кнопок
 
 /**
  * Гибридная функция для генерации neuro_photo:
@@ -223,19 +207,19 @@ export async function generateNeuroPhotoHybrid(
         }
       }
 
-      // Отправляем итоговое сообщение с клавиатурой (как в AI сервере)
+      // 🚨 ИСПРАВЛЕНИЕ: Отправляем итоговое сообщение БЕЗ кнопок
+      // Reply keyboard будет добавлена в wizard отдельным сообщением
       const totalCost = exactCostPerImage * imageUrls.length
       const finalMessage = isRussianFromState(ctx)
         ? `✅ Готово! Успешно сгенерировано ${imageUrls.length} из ${numImages} изображений.\nСписано: ${totalCost.toFixed(2)} ⭐️\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
         : `✅ Done! Successfully generated ${imageUrls.length} out of ${numImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
 
       try {
-        await ctx.telegram.sendMessage(telegram_id, finalMessage, {
-          ...createNeuroPhotoResultKeyboard(isRussianFromState(ctx)),
-        })
+        // Отправляем ТОЛЬКО текст, БЕЗ кнопок (ни inline, ни reply)
+        await ctx.telegram.sendMessage(telegram_id, finalMessage)
 
         logger.info({
-          message: '✅ [HYBRID] Итоговое сообщение с клавиатурой отправлено',
+          message: '✅ [HYBRID] Итоговое сообщение отправлено (без кнопок)',
           telegram_id,
           totalImages: imageUrls.length,
           totalCost,
