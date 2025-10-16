@@ -340,8 +340,11 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       }
 
       // ✅ WEBHOOK CALLBACK: Определяем callback URL для асинхронной обработки
+      // ИСПРАВЛЕНИЕ: Приоритет LOCAL_SERVER_URL для локального bot-farm сервера
       const callbackUrl = process.env.BASE_WEBHOOK_URL
         ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
+        : process.env.LOCAL_SERVER_URL
+        ? `${process.env.LOCAL_SERVER_URL}/api/kie-ai/callback`
         : process.env.API_SERVER_URL
         ? `${process.env.API_SERVER_URL}/api/kie-ai/callback`
         : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'

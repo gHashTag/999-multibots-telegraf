@@ -68,23 +68,20 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
     id: 'veed_fabric',
     name: '🎭 Veed Fabric AI',
     description:
-      'AI talking video модель с естественной синхронизацией губ, выразительными движениями глаз и тонкими мимическими жестами. Использует голос аватара пользователя.',
+      'AI talking video модель с естественной синхронизацией губ, выразительными движениями глаз и тонкими мимическими жестами. Использует голос аватара пользователя. Качество 720p.',
     provider: 'kie',
     modelId: 'veed-fabric',
-    costPerSecond: 0.192, // ✅ ПРАВИЛЬНО: $0.08 × 2.4 наценка = $0.192/sec для 480p
-    costPerSecond720p: 0.36, // ✅ ПРАВИЛЬНО: $0.15 × 2.4 наценка = $0.36/sec для 720p
-    costPerSecondStars480p: 12, // ✅ $0.192 / 0.016 = 12⭐/sec
-    costPerSecondStars720p: 23, // ✅ $0.36 / 0.016 = 22.5⭐ ≈ 23⭐/sec
-    maxDuration: 30, // ✅ ПРАВИЛЬНО: fal.ai limit 30 секунд
+    costPerSecond: 0.216, // ✅ ТОЛЬКО 720p: $0.09 × 2.4 наценка = $0.216/сек (kie.ai: 18 credits)
+    maxDuration: 30, // kie.ai limit 30 секунд
     quality: 'high',
     isAvailable: true,
-    resolution: '480p', // default разрешение
+    resolution: '720p',
     features: [
       'Использует голос аватара пользователя',
-      'Естественная синхронизация губ',
+      'Естественная синхронизация губ (720p)',
       'Выразительные движения глаз',
       'Тонкие мимические жесты',
-      'Выбор качества: 480p (12⭐/сек) или 720p (23⭐/сек)',
+      'Высокое качество 720p - 14⭐/сек',
       'До 30 секунд видео',
     ],
   },
@@ -149,12 +146,10 @@ export function calculateLipSyncCostStars(
     throw new Error(`Unknown lip-sync model: ${modelId}`)
   }
 
-  // Для Veed Fabric с выбором разрешения
+  // Для Veed Fabric только 720p: $0.216/сек
+  // 1⭐ ≈ $0.016, поэтому $0.216 / $0.016 = 13.5⭐ ≈ 14⭐/сек
   if (modelId === 'veed_fabric') {
-    const costPerSec = resolution === '720p'
-      ? (model.costPerSecondStars720p || 14)
-      : (model.costPerSecondStars480p || 7)
-    return costPerSec * durationSeconds
+    return 14 * durationSeconds // 720p quality
   }
 
   // Для других моделей - конвертируем USD в звезды
