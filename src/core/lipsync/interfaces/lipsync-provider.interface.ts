@@ -6,6 +6,7 @@ export interface ILipSyncProvider {
   generateLipSync(params: any): Promise<any>
   supportedModels: string[]
   generate(input: any): Promise<any>
+  getStatus(taskId: string): Promise<any> // ✅ FALLBACK POLLING: Для проверки статуса задачи
 }
 
 export interface ProviderOperationResult {

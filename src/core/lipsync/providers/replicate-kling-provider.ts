@@ -273,4 +273,59 @@ export class ReplicateKlingProvider implements ILipSyncProvider {
       return false
     }
   }
+
+  /**
+   * ✅ Получает статус обработки (для fallback polling)
+   */
+  async getStatus(predictionId: string): Promise<any> {
+    try {
+      const prediction = await this.replicate.predictions.get(predictionId)
+
+      if (prediction.status === 'succeeded' && prediction.output) {
+        return {
+          id: predictionId,
+          taskId: predictionId,
+          output: prediction.output,
+          modelUsed: 'Kling 1.0',
+          provider: 'replicate',
+          status: 'completed',
+          message: 'Task completed successfully',
+        }
+      }
+
+      if (prediction.status === 'failed') {
+        return {
+          message: 'Task failed on Replicate',
+          error: prediction.error || 'Unknown error',
+          code: 'TASK_FAILED',
+          provider: 'replicate',
+          modelId: 'kling',
+        }
+      }
+
+      // Still processing
+      return {
+        id: predictionId,
+        taskId: predictionId,
+        output: '',
+        modelUsed: 'Kling 1.0',
+        provider: 'replicate',
+        status: 'processing',
+        message: 'Task is still processing',
+      }
+    } catch (error) {
+      logger.error('❌ Ошибка проверки статуса Replicate', {
+        predictionId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      return {
+        message: 'Failed to check task status',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        code: 'STATUS_CHECK_FAILED',
+        provider: 'replicate',
+        modelId: 'kling',
+      }
+    }
+  }
 }

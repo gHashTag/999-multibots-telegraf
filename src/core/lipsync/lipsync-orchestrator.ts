@@ -101,6 +101,56 @@ export class LipSyncOrchestrator {
   isProviderAvailable(provider: string): boolean {
     return lipSyncProviderFactory.isProviderTypeSupported(provider)
   }
+
+  /**
+   * ✅ FALLBACK POLLING: Проверяет статус задачи через провайдер
+   * Используется когда webhook не приходит
+   */
+  async checkStatus(
+    providerType: string,
+    modelId: string,
+    taskId: string
+  ): Promise<LipSyncOutput | LipSyncError> {
+    try {
+      logger.info('🔍 [ORCHESTRATOR] Проверка статуса задачи', {
+        providerType,
+        modelId,
+        taskId,
+      })
+
+      // Получаем провайдер из factory
+      const provider: ILipSyncProvider =
+        lipSyncProviderFactory.createProvider(providerType)
+
+      // Вызываем getStatus провайдера
+      const result = await provider.getStatus(taskId)
+
+      logger.info('📥 [ORCHESTRATOR] Получен статус от провайдера', {
+        providerType,
+        modelId,
+        taskId,
+        hasError: 'error' in result,
+        status: 'status' in result ? result.status : 'unknown',
+      })
+
+      return result
+    } catch (error) {
+      logger.error('❌ [ORCHESTRATOR] Ошибка проверки статуса', {
+        error: error instanceof Error ? error.message : String(error),
+        providerType,
+        modelId,
+        taskId,
+      })
+
+      return {
+        message: 'Failed to check task status',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        code: 'STATUS_CHECK_ERROR',
+        provider: providerType,
+        modelId: modelId,
+      }
+    }
+  }
 }
 
 /**
