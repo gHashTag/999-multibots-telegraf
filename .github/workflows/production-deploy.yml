@@ -47,36 +47,6 @@ jobs:
       - name: Build application
         run: npm run build || echo "Build completed"
 
-      - name: Create empty .env file for Docker build
-        run: |
-          echo "# Environment variables are provided at runtime" > .env
-          echo "NODE_ENV=production" >> .env
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -93,16 +63,25 @@ jobs:
 
           echo "📦 Deploying to production server..."
           cd /root/bot-farm
-          
+
           # Stop current container
           echo "🛑 Stopping current container..."
           docker stop 999-multibots || true
           docker rm 999-multibots || true
-          
-          # Pull latest image
-          echo "📥 Pulling latest image..."
-          docker pull ${{ steps.meta.outputs.tags }}
-          
+
+          # Pull latest code from production branch
+          echo "📥 Pulling latest code..."
+          if [ -d ".git" ]; then
+            git fetch origin production
+            git reset --hard origin/production
+          else
+            echo "⚠️  .git not found, skipping git pull"
+          fi
+
+          # Build Docker image locally (no cache for fresh build)
+          echo "🔨 Building Docker image..."
+          docker build --no-cache -t 999-multibots .
+
           # Start new container with correct configuration
           echo "🚀 Starting new container..."
           docker run -d --name 999-multibots \
@@ -113,7 +92,7 @@ jobs:
             -p 3003:3003 -p 3004:3004 -p 3005:3005 -p 3006:3006 \
             -p 3007:3007 -p 3008:3008 -p 3009:3009 -p 3010:3010 \
             --restart unless-stopped \
-            ${{ steps.meta.outputs.tags }}
+            999-multibots
           
           # Wait for container to start
           echo "⏳ Waiting for container to start..."
