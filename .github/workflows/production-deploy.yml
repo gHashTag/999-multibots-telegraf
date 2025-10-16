@@ -91,7 +91,7 @@ jobs:
           docker run -d \
             --name ${{ env.CONTAINER_NAME }} \
             --restart unless-stopped \
-            --env-file .env \
+            -v ${{ env.DEPLOY_PATH }}/.env:/app/.env:ro \
             -e NODE_ENV=production \
             -p 3000:3000 \
             -p 2999:2999 -p 3001:3001 -p 3002:3002 -p 3003:3003 \
