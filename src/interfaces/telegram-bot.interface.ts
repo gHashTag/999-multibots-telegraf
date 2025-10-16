@@ -204,14 +204,34 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedLipSyncModel?: string // ID выбранной модели lip-sync
   veedFabric?: {
     // Данные для Veed Fabric wizard
-    step?: 'image' | 'text' | 'processing'
+    step?: 'image' | 'text' | 'processing' | 'confirm'
     imageUrl?: string
     text?: string
+    audioUrl?: string // URL голосового сообщения из Supabase
+    duration?: number // Длительность в секундах
+    cost?: number // Стоимость генерации в звездах
     startTime?: number
     resolution?: '480p' | '720p' // Разрешение видео
     needsVoiceCreation?: boolean // Флаг необходимости создания голоса
   }
   returnToVeedFabricAfterVoice?: boolean // Флаг возврата в Veed Fabric после создания голоса
+
+  aiReels?: {
+    // Данные для AI Reels wizard (lip-sync + WAN 2.5 + merging)
+    step?: 'image' | 'text' | 'lipsync_generation' | 'wan_generation' | 'merging'
+    imageUrl?: string
+    text?: string
+    audioUrl?: string
+    startTime?: number
+    needsVoiceCreation?: boolean // Флаг необходимости создания голоса
+    resolution?: '720p' | '1080p' // Разрешение видео
+    firstVideoUrl?: string  // URL первого видео (lip-sync)
+    secondVideoUrl?: string // URL второго видео (WAN 2.5)
+    finalVideoUrl?: string  // URL финального склеенного видео
+    wan25Prompt?: string    // Промпт для WAN 2.5
+    wan25TaskId?: string    // ID задачи WAN 2.5 для отслеживания
+  }
+  returnToAIReelsAfterVoice?: boolean // Флаг возврата в AI Reels после создания голоса
   email?: string
   inviteCode?: string
   inviter?: string

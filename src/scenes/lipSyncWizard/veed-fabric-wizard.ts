@@ -111,10 +111,57 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       // Обработка фото из Telegram
       if (message && 'photo' in message && message.photo.length > 0) {
         const photo = message.photo[message.photo.length - 1] // Берем самое большое фото
-        const photoFile = await ctx.telegram.getFile(photo.file_id)
-        imageUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${photoFile.file_path}`
+        const telegramId = ctx.from?.id?.toString()
 
-        logger.info('📸 Получено фото из Telegram', { fileId: photo.file_id })
+        logger.info('📸 Скачиваем фото из Telegram', { fileId: photo.file_id, telegramId })
+
+        // ✅ ИСПРАВЛЕНО: Скачиваем и загружаем в Supabase (как голосовое сообщение)
+        try {
+          const fileLink = await ctx.telegram.getFileLink(photo.file_id)
+          const response = await fetch(fileLink.href)
+
+          if (!response.ok) {
+            throw new Error(`Failed to download photo: ${response.statusText}`)
+          }
+
+          const imageBuffer = Buffer.from(await response.arrayBuffer())
+
+          // Загружаем в Supabase Storage
+          const { createClient } = await import('@supabase/supabase-js')
+          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+
+          const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+          const fileName = `lipsync-images/${telegramId}/${Date.now()}.jpg`
+
+          const { error: uploadError } = await serviceClient.storage
+            .from('images')
+            .upload(fileName, imageBuffer, {
+              contentType: 'image/jpeg',
+              upsert: false,
+            })
+
+          if (uploadError) {
+            throw new Error(`Upload failed: ${uploadError.message}`)
+          }
+
+          // Получаем публичный URL
+          const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
+
+          imageUrl = urlData.publicUrl
+
+          logger.info('✅ Фото загружено в Supabase', {
+            fileName,
+            publicUrl: imageUrl,
+          })
+        } catch (uploadError) {
+          logger.error('❌ Ошибка загрузки фото', { error: uploadError })
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка загрузки фото. Попробуйте еще раз.'
+              : '❌ Error uploading photo. Try again.'
+          )
+          return ctx.scene.leave()
+        }
       }
       // Обработка URL изображения
       else if (message && 'text' in message) {
@@ -381,7 +428,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         // Для текста: оцениваем длительность (примерно 15 символов в секунду речи)
         estimatedDurationSeconds = Math.ceil(text.length / 15)
       }
-      const resolution = ctx.session.veedFabric?.resolution || '480p' // default 480p
+      const resolution = ctx.session.veedFabric?.resolution || '720p' // default 720p для лучшего качества
 
       // Используем новую систему ценообразования с наценкой 2.4x
       const { calculateLipSyncCostStars } = await import('@/config/lipsync-models.config')
@@ -415,118 +462,50 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      // Списание средств
-      const paymentSuccess = await updateUserBalance(
-        telegramId,
+      // ✅ СОХРАНЯЕМ ВСЕ ДАННЫЕ в сессию для Step 3
+      ctx.session.veedFabric = {
+        ...ctx.session.veedFabric,
+        imageUrl,
+        text,
+        audioUrl: audioUrl || undefined,
+        duration: estimatedDurationSeconds,
         cost,
-        PaymentType.MONEY_OUTCOME,
-        'Lip-sync video generation',
-        {
-          bot_name: ctx.botInfo?.username || 'unknown_bot',
-          service_type: 'lipsync',
-          text_length: text.length,
-          cost_tier: text.length <= 100 ? 'small' : text.length <= 250 ? 'medium' : 'large',
-        }
-      )
-
-      if (!paymentSuccess) {
-        await ctx.reply(
-          isRu
-            ? 'Ошибка списания средств. Попробуйте позже.'
-            : 'Error charging payment. Try again later.'
-        )
-        return ctx.scene.leave()
+        step: 'confirm',
       }
 
-      const newBalance = currentBalance - cost
+      // ✅ ПОКАЗЫВАЕМ СТОИМОСТЬ И ЗАПРАШИВАЕМ ПОДТВЕРЖДЕНИЕ
+      const { Markup } = await import('telegraf')
       await ctx.reply(
         isRu
-          ? `💰 Списано ${cost.toFixed(2)}⭐. Новый баланс: ${newBalance.toFixed(2)}⭐\n\n⏳ Генерация началась, это займет 30-60 секунд...`
-          : `💰 Charged ${cost.toFixed(2)}⭐. New balance: ${newBalance.toFixed(2)}⭐\n\n⏳ Generation started, it will take 30-60 seconds...`
+          ? `💰 Стоимость генерации:\n\n` +
+            `⏱ Длительность: ${estimatedDurationSeconds} сек\n` +
+            `📺 Качество: ${resolution}\n` +
+            `💎 Стоимость: ${cost.toFixed(2)}⭐ (${cost}⭐)\n` +
+            `💰 Ваш баланс: ${currentBalance.toFixed(2)}⭐\n\n` +
+            `❓ Подтвердите генерацию?`
+          : `💰 Generation cost:\n\n` +
+            `⏱ Duration: ${estimatedDurationSeconds} sec\n` +
+            `📺 Quality: ${resolution}\n` +
+            `💎 Cost: ${cost.toFixed(2)}⭐ (${cost}⭐)\n` +
+            `💰 Your balance: ${currentBalance.toFixed(2)}⭐\n\n` +
+            `❓ Confirm generation?`,
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '✅ Подтвердить' : '✅ Confirm',
+              'veed_fabric_confirm'
+            )
+          ],
+          [
+            Markup.button.callback(isRu ? '❌ Отменить' : '❌ Cancel', 'veed_fabric_cancel')
+          ],
+        ])
       )
 
-      // Генерация через orchestrator
-      try {
-        const input = LipSyncInputBuilder.forVeedFabric(
-          imageUrl,
-          audioUrl || text, // Передаем либо audioUrl, либо text
-          telegramId,
-          {
-            botName: ctx.botInfo?.username || 'unknown_bot',
-            resolution: '480p', // По умолчанию 480p для экономии
-            isAudioUrl: !!audioUrl, // Флаг: если audioUrl существует, значит это URL, иначе text
-          }
-        )
-
-        logger.info('🎭 Запуск Veed Fabric генерации', {
-          telegramId,
-          imageUrl: imageUrl.substring(0, 100),
-          textLength: text.length,
-        })
-
-        const result = await lipSyncOrchestrator.generate(input)
-
-        // Проверка на ошибки - LipSyncError не имеет 'id', а LipSyncOutput имеет
-        if (!('id' in result)) {
-          const error = result as { message?: string; error?: string }
-          logger.error('❌ Ошибка генерации Veed Fabric', { result })
-
-          // Возврат средств
-          await updateUserBalance(
-            telegramId,
-            cost,
-            PaymentType.MONEY_INCOME,
-            'Lip-sync refund - generation error',
-            { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-          )
-
-          await ctx.reply(
-            isRu
-              ? `❌ Ошибка генерации: ${error.message || 'Unknown error'}\nСредства возвращены.`
-              : `❌ Generation error: ${error.message || 'Unknown error'}\nFunds refunded.`
-          )
-          return ctx.scene.leave()
-        }
-
-        // Успешная генерация - теперь TypeScript знает что это LipSyncOutput
-        const videoUrl = result.output
-
-        if (!videoUrl) {
-          throw new Error('Video URL not returned from orchestrator')
-        }
-
-        await ctx.reply(
-          isRu
-            ? `✅ Видео готово!\n\n🎬 Скачать: ${videoUrl}`
-            : `✅ Video ready!\n\n🎬 Download: ${videoUrl}`
-        )
-
-        logger.info('✅ Veed Fabric видео успешно сгенерировано', {
-          telegramId,
-          output: videoUrl,
-        })
-      } catch (genError) {
-        logger.error('❌ Критическая ошибка генерации', { error: genError })
-
-        // Возврат средств
-        await updateUserBalance(
-          telegramId,
-          cost,
-          PaymentType.MONEY_INCOME,
-          'Lip-sync refund - critical error',
-          { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-        )
-
-        await ctx.reply(
-          isRu
-            ? `❌ Произошла критическая ошибка. Средства возвращены.`
-            : `❌ A critical error occurred. Funds refunded.`
-        )
-      }
-
-      return ctx.scene.leave()
+      // Переходим к следующему шагу (обработка подтверждения)
+      return ctx.wizard.next()
     } catch (error) {
-      logger.error('❌ Ошибка в Veed Fabric wizard', { error })
+      logger.error('❌ Ошибка в Veed Fabric wizard Step 2', { error })
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка. Попробуйте позже.'
@@ -534,6 +513,183 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       )
       return ctx.scene.leave()
     }
+  },
+
+  // Step 3: Обработка подтверждения и генерация
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    // Обрабатываем только callback_query
+    if (!('callback_query' in ctx.update)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, нажмите одну из кнопок.'
+          : '❌ Please press one of the buttons.'
+      )
+      return // Остаемся в том же шаге
+    }
+
+    const callbackData = 'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
+
+    // Обработка отмены
+    if (callbackData === 'veed_fabric_cancel') {
+      await ctx.answerCbQuery()
+      await ctx.reply(isRu ? '❌ Генерация отменена.' : '❌ Generation cancelled.')
+      return ctx.scene.leave()
+    }
+
+    // Обработка подтверждения
+    if (callbackData === 'veed_fabric_confirm') {
+      await ctx.answerCbQuery()
+
+      if (!telegramId) {
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: не удалось определить ваш ID'
+            : '❌ Error: could not determine your ID'
+        )
+        return ctx.scene.leave()
+      }
+
+      try {
+        // Получаем сохраненные данные из сессии
+        const { imageUrl, text, audioUrl, cost, duration } = ctx.session.veedFabric || {}
+
+        if (!imageUrl || !text || cost === undefined) {
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: данные генерации не найдены. Начните заново.'
+              : '❌ Error: generation data not found. Start over.'
+          )
+          return ctx.scene.leave()
+        }
+
+        // Списание средств
+        const paymentSuccess = await updateUserBalance(
+          telegramId,
+          cost,
+          PaymentType.MONEY_OUTCOME,
+          'Lip-sync video generation',
+          {
+            bot_name: ctx.botInfo?.username || 'unknown_bot',
+            service_type: 'lipsync',
+            text_length: text.length,
+            cost_tier: text.length <= 100 ? 'small' : text.length <= 250 ? 'medium' : 'large',
+          }
+        )
+
+        if (!paymentSuccess) {
+          await ctx.reply(
+            isRu
+              ? 'Ошибка списания средств. Попробуйте позже.'
+              : 'Error charging payment. Try again later.'
+          )
+          return ctx.scene.leave()
+        }
+
+        const currentBalance = await getUserBalance(telegramId)
+        const newBalance = currentBalance ? currentBalance : 0
+
+        await ctx.reply(
+          isRu
+            ? `💰 Списано ${cost.toFixed(2)}⭐. Новый баланс: ${newBalance.toFixed(2)}⭐\n\n⏳ Генерация началась, это займет 30-60 секунд...`
+            : `💰 Charged ${cost.toFixed(2)}⭐. New balance: ${newBalance.toFixed(2)}⭐\n\n⏳ Generation started, it will take 30-60 seconds...`
+        )
+
+        // ✅ РЕШЕНИЕ ПРОБЛЕМЫ ТАЙМАУТОВ: Асинхронная генерация
+        try {
+          const input = LipSyncInputBuilder.forVeedFabric(
+            imageUrl,
+            audioUrl || text, // Передаем либо audioUrl, либо text
+            telegramId,
+            {
+              botName: ctx.botInfo?.username || 'unknown_bot',
+              resolution: '720p', // Высокое качество 720p
+              isAudioUrl: !!audioUrl, // Флаг: если audioUrl существует, значит это URL, иначе text
+            }
+          )
+
+          logger.info('🎭 Запуск АСИНХРОННОЙ Veed Fabric генерации', {
+            telegramId,
+            imageUrl: imageUrl.substring(0, 100),
+            textLength: text.length,
+          })
+
+          // ✅ Импортируем асинхронный менеджер
+          const { asyncLipSyncManager } = await import('@/core/lipsync/async-lipsync-manager')
+
+          // Устанавливаем ссылку на бота (если еще не установлена)
+          asyncLipSyncManager.setBotInstance(ctx)
+
+          // Запускаем асинхронную генерацию
+          const jobId = await asyncLipSyncManager.startAsyncGeneration(
+            input,
+            cost,
+            telegramId,
+            ctx.chat!.id,
+            ctx.botInfo
+          )
+
+          await ctx.reply(
+            isRu
+              ? `🚀 Генерация запущена!\n\n` +
+                `⏳ Это займет 30-300 секунд\n` +
+                `📱 Результат придет отдельным сообщением\n` +
+                `🆔 ID задачи: ${jobId.slice(-8)}\n\n` +
+                `💡 Можете продолжать пользоваться ботом!`
+              : `🚀 Generation started!\n\n` +
+                `⏳ It will take 30-300 seconds\n` +
+                `📱 Result will come in a separate message\n` +
+                `🆔 Job ID: ${jobId.slice(-8)}\n\n` +
+                `💡 You can continue using the bot!`
+          )
+
+          logger.info('✅ Асинхронная задача запущена', {
+            telegramId,
+            jobId,
+            chatId: ctx.chat!.id,
+          })
+
+        } catch (genError) {
+          logger.error('❌ Ошибка запуска асинхронной генерации', { error: genError })
+
+          // Возврат средств
+          await updateUserBalance(
+            telegramId,
+            cost,
+            PaymentType.MONEY_INCOME,
+            'Lip-sync refund - startup error',
+            { bot_name: ctx.botInfo?.username || 'unknown_bot' }
+          )
+
+          await ctx.reply(
+            isRu
+              ? `❌ Ошибка запуска генерации. Средства возвращены.`
+              : `❌ Error starting generation. Funds refunded.`
+          )
+        }
+
+        return ctx.scene.leave()
+      } catch (error) {
+        logger.error('❌ Ошибка в Veed Fabric wizard Step 3', { error })
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка. Попробуйте позже.'
+            : '❌ An error occurred. Try again later.'
+        )
+        return ctx.scene.leave()
+      }
+    }
+
+    // Неизвестный callback
+    await ctx.answerCbQuery()
+    await ctx.reply(
+      isRu
+        ? '❌ Неизвестная команда. Начните заново.'
+        : '❌ Unknown command. Start over.'
+    )
+    return ctx.scene.leave()
   }
 )
 

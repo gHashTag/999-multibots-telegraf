@@ -30,6 +30,107 @@ import { getParsingAccess } from './menu/mainMenu'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
+  // === INLINE КНОПКИ ДЛЯ НЕЙРОФОТО ===
+  bot.on('callback_query', async (ctx: MyContext) => {
+    if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+      await ctx.answerCbQuery()
+      return
+    }
+
+    const data = ctx.callbackQuery.data
+    const telegramId = ctx.from.id
+
+    try {
+      await ctx.answerCbQuery()
+
+      // Обработка кнопок генерации нейрофото
+      if (data.startsWith('neuro_generate_')) {
+        const numImages = parseInt(data.replace('neuro_generate_', ''))
+
+        logger.info(`🔢 [INLINE] Запрошена генерация ${numImages} изображений пользователем ${telegramId}`)
+
+        // Проверяем, есть ли активная сессия нейрофото с промптом и моделью
+        if (!ctx.session?.prompt || !ctx.session?.userModel || !ctx.session.userModel.model_url) {
+          const isRu = isRussianFromState(ctx)
+          await ctx.reply(
+            isRu
+              ? '❌ Для генерации нужно сначала выбрать модель и ввести промпт. Используйте команду "📸 Нейрофото".'
+              : '❌ To generate images, please first select a model and enter a prompt. Use "📸 NeuroPhoto" command.'
+          )
+          return
+        }
+
+        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+        const isRu = isRussianFromState(ctx)
+        const userId = ctx.from?.id
+        const prompt = ctx.session.prompt
+
+        // Получаем данные пола для промпта
+        const userData = await getUserData(userId?.toString() ?? '')
+        let genderPromptPart = 'person'
+        if (userData?.gender === 'female') {
+          genderPromptPart = 'female'
+        } else if (userData?.gender === 'male') {
+          genderPromptPart = 'male'
+        }
+
+        const trigger_word = ctx.session.userModel.trigger_word as string
+        const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+        const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
+
+        // Получаем aspect ratio пользователя
+        const { getAspectRatio } = await import('./core/supabase')
+        const userAspectRatio = await getAspectRatio(userId || 0)
+
+        logger.info(`🚀 [INLINE] Начинаем генерацию ${numImages} изображений для пользователя ${telegramId}`)
+
+        // Запускаем генерацию
+        await generateNeuroPhotoHybrid(
+          fullPrompt,
+          ctx.session.userModel.model_url as any,
+          numImages,
+          userId?.toString() ?? '',
+          ctx,
+          ctx.botInfo?.username,
+          userAspectRatio
+        )
+        return
+      }
+
+      // Обработка других кнопок нейрофото
+      switch (data) {
+        case 'improve_prompt':
+          await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
+          break
+        case 'change_size':
+          await ctx.scene.enter(ModeEnum.SizeWizard)
+          break
+        case 'new_prompt':
+          ctx.session.prompt = undefined
+          await ctx.scene.enter(ModeEnum.NeuroPhoto)
+          break
+        case 'main_menu':
+          await ctx.scene.enter(ModeEnum.MainMenu)
+          break
+        default:
+          logger.warn(`Unknown callback data: ${data}`)
+      }
+
+    } catch (error) {
+      logger.error('Error in callback_query handler:', {
+        error,
+        telegramId,
+        data,
+      })
+      const isRuError = isRussianFromState(ctx)
+      await ctx.reply(
+        isRuError
+          ? '❌ Произошла ошибка при обработке команды.'
+          : '❌ An error occurred while processing the command.'
+      )
+    }
+  })
+
   // Удаляем экстренный обработчик подписки - он перехватывает слишком много команд
   // Обработка подписки происходит через конкретные кнопки в registerCommands.ts
 
@@ -565,35 +666,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  // ИСПРАВЛЕНО: Кнопки 1️⃣,2️⃣,3️⃣,4️⃣ теперь для ВЫБОРА изображений, а не генерации новых
-  bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async (ctx: MyContext) => {
-    if (!('text' in ctx.message)) {
-      logger.warn('Получено нетекстовое сообщение для числового hears')
-      return
-    }
-    const text = ctx.message.text
-    const imageNumber = parseInt(text[0])
-    const telegramId = ctx.from.id
-
-    logger.info(`🔢 [FIXED] Выбрано изображение #${imageNumber} пользователем ${telegramId}`)
-
-    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    const isRu = isRussianFromState(ctx)
-
-    // Информируем пользователя о выборе изображения
-    const message = isRu
-      ? `📸 Вы выбрали изображение #${imageNumber}\n\n💡 Теперь вы можете:\n• ⬆️ Увеличить качество\n• 📐 Изменить размер\n• 🆕 Создать новый промпт`
-      : `📸 You selected image #${imageNumber}\n\n💡 Now you can:\n• ⬆️ Upscale quality\n• 📐 Change size\n• 🆕 Create new prompt`
-
-    await ctx.reply(message)
-
-    // TODO: Здесь можно добавить логику для сохранения выбранного изображения
-    // для дальнейших операций (upscaling, editing, etc.)
-    if (ctx.session) {
-      ctx.session.selectedImageNumber = imageNumber
-      logger.debug(`💾 Сохранен номер выбранного изображения: ${imageNumber} для пользователя ${telegramId}`)
-    }
-  })
+  // УБРАНО: Кнопки 1️⃣,2️⃣,3️⃣,4️⃣ теперь будут inline кнопками в клавиатуре после генерации
 
   bot.hears(
     ['⬆️ Улучшить промпт', '⬆️ Improve prompt'],

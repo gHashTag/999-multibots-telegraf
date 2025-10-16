@@ -333,6 +333,19 @@ async function initializeBots() {
 
   // После регистрации всех сцен добавляю итоговый лог:
   console.log('✅ Все сцены успешно зарегистрированы')
+
+  // ✅ ИНИЦИАЛИЗАЦИЯ АСИНХРОННОГО LIPSYNC МЕНЕДЖЕРА
+  try {
+    const { asyncLipSyncManager } = await import('./core/lipsync/async-lipsync-manager')
+
+    // Устанавливаем первый бот как основной для отправки сообщений
+    if (botInstances.length > 0) {
+      asyncLipSyncManager.setBotInstance(botInstances[0])
+      console.log('✅ Асинхронный LipSync менеджер инициализирован')
+    }
+  } catch (error) {
+    console.error('❌ Ошибка инициализации асинхронного LipSync менеджера:', error)
+  }
 }
 
 // Асинхронная функция для остановки

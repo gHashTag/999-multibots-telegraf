@@ -12,6 +12,7 @@ import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger, logSessionSafely } from '@/utils/logger'
 import { getUserBalance, getUserData } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { sendImprovedPrompt } from '@/helpers/sendLongMessage'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
@@ -86,10 +87,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
     ctx.session.prompt = improvedPrompt
 
-    await ctx.reply(
-      isRu
-        ? 'Улучшенный промпт:\n```\n' + improvedPrompt + '\n```'
-        : 'Improved prompt:\n```\n' + improvedPrompt + '\n```',
+    await sendImprovedPrompt(
+      ctx,
+      improvedPrompt,
+      isRu,
       {
         reply_markup: Markup.keyboard([
           [
@@ -343,10 +344,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
           ctx.session.prompt = improvedPrompt
 
-          await ctx.reply(
-            isRu
-              ? 'Улучшенный промпт:\n```\n' + improvedPrompt + '\n```'
-              : 'Improved prompt:\n```\n' + improvedPrompt + '\n```',
+          await sendImprovedPrompt(
+            ctx,
+            improvedPrompt,
+            isRu,
             {
               reply_markup: Markup.keyboard([
                 [
