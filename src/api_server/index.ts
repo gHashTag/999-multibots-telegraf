@@ -12,6 +12,9 @@ const PORT = process.env.PORT || '2999'
 export function startApiServer(): void {
   const app: any = express()
 
+  // ✅ Доверяем nginx прокси для корректной работы X-Forwarded-For
+  app.set('trust proxy', true)
+
   // ✅ РЕШЕНИЕ ПРОБЛЕМЫ ТАЙМАУТОВ: Увеличиваем таймауты для долгих операций
   app.use((req: any, res: any, next: any) => {
     // Увеличиваем таймаут до 10 минут для всех запросов
