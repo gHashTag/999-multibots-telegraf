@@ -27,7 +27,7 @@ function createImageToVideoButton(
       durationText = ' | 8s'
       break
     case 'veo3':
-      stars = 80
+      stars = 120 // ✅ ИСПРАВЛЕНО: $1.92 / $0.016 = 120⭐ (было 80)
       durationText = ' | 8s'
       break
     case 'kling-v1.6-pro':
@@ -46,6 +46,14 @@ function createImageToVideoButton(
       stars = 70
       durationText = ' | 4s'
       break
+    case 'sora-2-i2v':
+      stars = 9 // ✅ ДОБАВЛЕНО: $0.15 за 10 сек / $0.016 = 9⭐ БЕЗ наценки
+      durationText = ' | 10s'
+      break
+    case 'sora-2-pro-i2v':
+      stars = 28 // ✅ ДОБАВЛЕНО: $0.45 за 10 сек / $0.016 = 28⭐ БЕЗ наценки
+      durationText = ' | 10s'
+      break
     default:
       stars = 40
       durationText = ' | 8s'
@@ -58,7 +66,9 @@ function createImageToVideoButton(
     'kling-v1.6-pro': 'Kling v1.6 Pro',
     'minimax': 'Minimax',
     'seedance-1-pro': aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p',
-    'wan-2.2-i2v-fast': 'WAN 2.2 I2V Fast'
+    'wan-2.2-i2v-fast': 'WAN 2.2 I2V Fast',
+    'sora-2-i2v': 'Sora 2 I2V', // ✅ ДОБАВЛЕНО
+    'sora-2-pro-i2v': 'Sora 2 Pro I2V' // ✅ ДОБАВЛЕНО
   }
 
   const modelName = modelNames[modelId] || modelId
@@ -89,7 +99,7 @@ function parseImageToVideoSelection(buttonText: string): {
       duration = 8
     } else if (buttonText.includes('Veo 3') && !buttonText.includes('Fast')) {
       modelId = 'veo3'
-      cost = 80
+      cost = 120 // ✅ ИСПРАВЛЕНО: $1.92 / $0.016 = 120⭐ (было 80)
       duration = 8
     } else if (buttonText.includes('Kling')) {
       modelId = 'kling-v1.6-pro'
@@ -107,6 +117,14 @@ function parseImageToVideoSelection(buttonText: string): {
       modelId = 'wan-2.2-i2v-fast'
       cost = 70
       duration = 4
+    } else if (buttonText.includes('Sora 2 Pro I2V')) {
+      modelId = 'sora-2-pro-i2v'
+      cost = 28 // ✅ ДОБАВЛЕНО
+      duration = 10
+    } else if (buttonText.includes('Sora 2 I2V')) {
+      modelId = 'sora-2-i2v'
+      cost = 9 // ✅ ДОБАВЛЕНО
+      duration = 10
     }
 
     return { modelId, aspectRatio, duration, cost }
@@ -198,11 +216,13 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Создаем кнопки выбора модели (аналогично Text to Video)
       const supportedModels = [
         'veo3_fast',
-        'veo3', 
+        'veo3',
         'kling-v1.6-pro',
         'minimax',
         'seedance-1-pro',
-        'wan-2.2-i2v-fast'
+        'wan-2.2-i2v-fast',
+        'sora-2-i2v', // ✅ ДОБАВЛЕНО
+        'sora-2-pro-i2v' // ✅ ДОБАВЛЕНО
       ]
 
       const keyboardRows: string[][] = []
