@@ -120,6 +120,7 @@ async function initializeBots() {
       console.log(`🔧 [POLLING] Ищем бота с username: ${targetBotUsername}`)
     } else {
       console.log(`🔧 [POLLING] Запуск первого доступного бота из .env`)
+    }
 
     // Собираем все потенциальные токены из env
     const potentialTokens = Object.entries(process.env)

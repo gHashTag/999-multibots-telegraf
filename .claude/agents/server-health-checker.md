@@ -92,7 +92,7 @@ Provide a concise health report:
 If issues are detected, provide actionable commands:
 
 - Container restart: `docker restart 999-multibots`
-- Full rebuild: `cd /root/999-agents-telegraf && docker build --no-cache -t 999-multibots . && docker run -d --name 999-multibots ...`
+- Full rebuild: `cd /root/bot-farm && docker build --no-cache -t 999-multibots . && docker run -d --name 999-multibots ...`
 - Log inspection: `docker logs 999-multibots --tail 1000 | grep [pattern]`
 
 ## Automation Rules

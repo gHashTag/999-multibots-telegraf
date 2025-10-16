@@ -620,7 +620,18 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         return ctx.wizard.next()
 
       } catch (genError) {
-        logger.error('❌ [AI REELS] Критическая ошибка генерации lip-sync', { error: genError })
+        // ✅ УЛУЧШЕНО: Детальное логирование с полной информацией об ошибке
+        logger.error('❌ [AI REELS] Критическая ошибка генерации lip-sync', {
+          error: genError,
+          errorMessage: genError instanceof Error ? genError.message : 'Unknown error',
+          errorStack: genError instanceof Error ? genError.stack : undefined,
+          errorName: genError instanceof Error ? genError.name : typeof genError,
+          telegramId,
+          imageUrl: imageUrl?.substring(0, 100),
+          hasAudioUrl: !!audioUrl,
+          hasText: !!text,
+          textLength: text?.length || 0,
+        })
 
         // Возврат средств
         await updateUserBalance(

@@ -228,10 +228,20 @@ export class AsyncLipSyncManager {
     try {
       const processingTime = Math.round((Date.now() - job.startTime) / 1000)
 
+      // Send completion notification with sound first
       await this.bot.telegram.sendMessage(
         job.chatId,
-        `✅ Видео готово!\n\n` +
-        `🎬 Скачать: ${result.output}\n` +
+        '✅ Готово!',
+        {
+          disable_notification: false, // Enable sound notification
+        }
+      )
+
+      // Then send the detailed result
+      await this.bot.telegram.sendMessage(
+        job.chatId,
+        `🎬 Видео готово!\n\n` +
+        `📥 Скачать: ${result.output}\n` +
         `⏱ Время обработки: ${processingTime} сек\n` +
         `🤖 Модель: ${result.modelUsed}`,
         {
