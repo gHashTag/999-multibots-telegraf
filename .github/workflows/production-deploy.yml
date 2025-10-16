@@ -54,6 +54,25 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H 212.86.115.30 >> ~/.ssh/known_hosts
 
+      - name: Copy code to Production Server
+        run: |
+          echo "📦 Copying code to production server..."
+
+          # Create backup directory and sync code
+          ssh -i ~/.ssh/id_rsa root@212.86.115.30 'mkdir -p /root/bot-farm-backup'
+
+          # Sync code to server (excluding node_modules, dist, etc.)
+          rsync -avz --delete \
+            --exclude 'node_modules' \
+            --exclude 'dist' \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude '.env.local' \
+            -e "ssh -i ~/.ssh/id_rsa" \
+            ./ root@212.86.115.30:/root/bot-farm/
+
+          echo "✅ Code copied successfully"
+
       - name: Deploy to Production Server
         run: |
           echo "🚀 Starting production deployment..."
@@ -68,15 +87,6 @@ jobs:
           echo "🛑 Stopping current container..."
           docker stop 999-multibots || true
           docker rm 999-multibots || true
-
-          # Pull latest code from production branch
-          echo "📥 Pulling latest code..."
-          if [ -d ".git" ]; then
-            git fetch origin production
-            git reset --hard origin/production
-          else
-            echo "⚠️  .git not found, skipping git pull"
-          fi
 
           # Build Docker image locally (no cache for fresh build)
           echo "🔨 Building Docker image..."
