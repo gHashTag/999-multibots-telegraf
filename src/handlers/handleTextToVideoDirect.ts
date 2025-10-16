@@ -230,9 +230,96 @@ async function monitorVideoGeneration(
   messageId: number
 ): Promise<void> {
   const is_ru = isRussianFromState(ctx)
-  const maxAttempts = 60 // 5 минут максимум
+  const modelId = ctx.session.videoModelId
+  const isSoraModel = modelId && ['sora-2', 'sora-2-pro'].includes(modelId)
+  const maxAttempts = isSoraModel ? 36 : 60 // Sora: 3 минуты (36 * 5s), другие: 5 минут
   let attempts = 0
 
+  // Для Sora моделей используем прямой Kie.ai polling
+  if (isSoraModel) {
+    const { KieAiProvider } = await import('@/services/video-providers/KieAiProvider')
+    const kieProvider = new KieAiProvider()
+
+    const checkInterval = setInterval(async () => {
+      attempts++
+
+      try {
+        const soraResponse = await kieProvider.pollSoraTaskStatus(jobId, 5000)
+
+        logger.info('[monitorVideoGeneration] Sora status check:', {
+          jobId,
+          success: soraResponse.success,
+          hasVideoUrl: !!soraResponse.data?.videoUrl,
+          attempts
+        })
+
+        if (soraResponse.success && soraResponse.data?.videoUrl) {
+          clearInterval(checkInterval)
+          await handleVideoReady(
+            ctx,
+            soraResponse.data.videoUrl,
+            ctx.session.videoPrompt || '',
+            (ctx.session.videoModelId as VideoModelId) || 'sora-2',
+            10, // Sora всегда 10 секунд
+            messageId
+          )
+
+          // Очищаем сессию
+          delete ctx.session.videoJobId
+          delete ctx.session.videoPrompt
+          delete ctx.session.videoModelId
+          delete ctx.session.videoDuration
+          delete ctx.session.videoMessageId
+        } else if (!soraResponse.success && soraResponse.error) {
+          clearInterval(checkInterval)
+          if (ctx && ctx.telegram && ctx.chat) {
+            await ctx.telegram.editMessageText(
+              ctx.chat.id,
+              messageId,
+              undefined,
+              is_ru
+                ? `❌ Ошибка генерации Sora: ${soraResponse.error}`
+                : `❌ Sora generation error: ${soraResponse.error}`
+            )
+          }
+        } else if (attempts >= maxAttempts) {
+          clearInterval(checkInterval)
+          if (ctx && ctx.telegram && ctx.chat) {
+            await ctx.telegram.editMessageText(
+              ctx.chat.id,
+              messageId,
+              undefined,
+              is_ru
+                ? '⏱️ Генерация Sora видео заняла слишком много времени.'
+                : '⏱️ Sora video generation took too long.'
+            )
+          }
+          delete ctx.session.videoJobId
+          delete ctx.session.videoPrompt
+          delete ctx.session.videoModelId
+          delete ctx.session.videoDuration
+          delete ctx.session.videoMessageId
+        }
+      } catch (error) {
+        clearInterval(checkInterval)
+        logger.error('[monitorVideoGeneration] Sora polling error:', error)
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            messageId,
+            undefined,
+            is_ru
+              ? '❌ Ошибка при проверке статуса Sora генерации.'
+              : '❌ Error checking Sora generation status.'
+          )
+        }
+      }
+    }, 5000) // Проверяем каждые 5 секунд
+
+    return
+  }
+
+  // Для других моделей используем стандартный API polling
   const checkInterval = setInterval(async () => {
     attempts++
 

@@ -1,7 +1,7 @@
 ---
 name: rules-guardian
 description: Meta-agent that enforces all project rules, monitors agent behavior, ensures all agents follow established guidelines and coordination protocols
-tools: Read, Grep, Bash
+tools: [Read, Grep, Bash]
 model: sonnet
 ---
 

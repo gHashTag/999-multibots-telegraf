@@ -1,7 +1,7 @@
 ---
 name: best-practices-researcher
 description: Researches current best practices online before implementing solutions, stays updated with 2025 trends, validates approaches with documentation
-tools: WebSearch, WebFetch, Read, Bash
+tools: [WebSearch, WebFetch, Read, Bash]
 model: sonnet
 ---
 

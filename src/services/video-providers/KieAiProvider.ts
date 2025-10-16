@@ -36,6 +36,41 @@ interface KieAiVideoResponse {
   error?: string
 }
 
+interface SoraCreateTaskRequest {
+  model: 'sora-2-text-to-video' | 'sora-2-pro-text-to-video' | 'sora-2-image-to-video' | 'sora-2-pro-image-to-video'
+  callBackUrl?: string
+  input: {
+    prompt?: string // Optional for image-to-video
+    image_urls?: string[] // For image-to-video
+    aspect_ratio?: 'landscape' | 'portrait'
+    remove_watermark?: boolean
+    n_frames?: '10' | '15' // Required for Pro models
+    size?: 'standard' | 'high' // Video quality
+  }
+}
+
+interface SoraCreateTaskResponse {
+  code: number
+  msg: string
+  data: {
+    taskId: string
+  }
+}
+
+interface SoraTaskStatusResponse {
+  code: number
+  msg: string
+  data: {
+    taskId: string
+    status: 'pending' | 'processing' | 'completed' | 'failed'
+    successFlag?: number
+    videoUrl?: string
+    resultUrls?: string[]
+    errorMessage?: string
+    duration?: number
+  }
+}
+
 interface KieAiImageRequest {
   model: string
   prompt: string
@@ -276,10 +311,14 @@ export class KieAiProvider {
       provider = 'Runway API'
     }
     
-    // Формируем правильный callback URL
+    // Формируем правильный callback URL из переменной окружения
     const callbackUrl = process.env.BASE_WEBHOOK_URL
       ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
-      : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
+      : undefined
+
+    if (!callbackUrl) {
+      logger.warn('[KieAiProvider] BASE_WEBHOOK_URL not set - webhook notifications will not work')
+    }
 
     const requestData: any = {
       model: kieModel,
@@ -582,6 +621,369 @@ export class KieAiProvider {
     }
   }
 
+  /**
+   * Generate Sora 2 video using job-based flow
+   * Supports both text-to-video and image-to-video
+   * Pricing: 30 credits ($0.15) per 10 seconds (Sora 2), 90 credits ($0.45) per 10 seconds (Sora 2 Pro)
+   * @param prompt - Text prompt for video generation (optional for image-to-video)
+   * @param model - Sora model variant
+   * @param aspectRatio - Video aspect ratio ('landscape' or 'portrait')
+   * @param removeWatermark - Whether to remove watermark (default: false)
+   * @param duration - Video duration in seconds (10 or 15)
+   * @param size - Video quality ('standard' or 'high')
+   * @param imageUrl - Image URL for image-to-video (optional)
+   * @returns KieAiVideoResponse with taskId for polling
+   */
+  async generateSoraVideo(
+    prompt: string = '',
+    model: 'sora-2-text-to-video' | 'sora-2-pro-text-to-video' | 'sora-2-image-to-video' | 'sora-2-pro-image-to-video' = 'sora-2-text-to-video',
+    aspectRatio: 'landscape' | 'portrait' = 'landscape',
+    removeWatermark: boolean = false,
+    duration: 10 | 15 = 10,
+    size: 'standard' | 'high' = 'standard',
+    imageUrl?: string
+  ): Promise<KieAiVideoResponse> {
+    if (!this.apiKey) {
+      return {
+        success: false,
+        cost: { usd: 0, stars: 0 },
+        provider: 'Kie.ai Sora 2',
+        model,
+        error: 'KIE_AI_API_KEY is required for Sora video generation',
+      }
+    }
+
+    const startTime = Date.now()
+    const isImageToVideo = model.includes('image-to-video')
+    const isPro = model.includes('pro')
+    const provider = isPro ? 'Sora 2 Pro API' : 'Sora 2 API'
+
+    // Generate callback URL if webhook infrastructure exists
+    const callbackUrl = process.env.BASE_WEBHOOK_URL
+      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/sora-callback`
+      : undefined
+
+    const requestData: SoraCreateTaskRequest = {
+      model,
+      input: {
+        aspect_ratio: aspectRatio,
+        remove_watermark: removeWatermark,
+        n_frames: duration.toString() as '10' | '15',
+        size: size,
+      },
+    }
+
+    // Добавляем prompt или image_urls в зависимости от типа
+    if (isImageToVideo) {
+      if (!imageUrl) {
+        throw new Error('imageUrl is required for image-to-video models')
+      }
+      requestData.input.image_urls = [imageUrl]
+      // Для image-to-video промпт опционален
+      if (prompt) {
+        requestData.input.prompt = prompt
+      }
+    } else {
+      if (!prompt) {
+        throw new Error('prompt is required for text-to-video models')
+      }
+      requestData.input.prompt = prompt
+    }
+
+    if (callbackUrl) {
+      requestData.callBackUrl = callbackUrl
+    }
+
+    logger.info('[KieAiProvider] Creating Sora 2 video task:', {
+      model,
+      provider,
+      mode: isImageToVideo ? 'image-to-video' : 'text-to-video',
+      promptLength: prompt?.length || 0,
+      hasImage: !!imageUrl,
+      aspectRatio,
+      removeWatermark,
+      duration,
+      size,
+      hasCallback: !!callbackUrl,
+    })
+
+    try {
+      const response = await axios.post<SoraCreateTaskResponse>(
+        `${this.baseUrl}/jobs/createTask`,
+        requestData,
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: this.timeout,
+        }
+      )
+
+      const processingTime = Date.now() - startTime
+
+      if (response.data.code !== 200) {
+        throw new Error(response.data.msg || 'Failed to create Sora video task')
+      }
+
+      const taskId = response.data.data.taskId
+
+      // Calculate cost based on model, duration, and quality
+      const costUSD = this.calculateSoraCost(model, duration, size)
+      const costStars = this.usdToStars(costUSD)
+
+      logger.info('[KieAiProvider] Sora 2 task created successfully:', {
+        taskId,
+        provider,
+        model,
+        costUSD,
+        costStars,
+        processingTime,
+      })
+
+      return {
+        success: true,
+        data: {
+          videoUrl: '', // Will be populated by polling or webhook
+          duration,
+          taskId,
+        },
+        cost: {
+          usd: costUSD,
+          stars: costStars,
+        },
+        provider,
+        model,
+        processingTime,
+      }
+    } catch (error) {
+      logger.error('[KieAiProvider] Sora 2 video generation failed:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        model,
+        provider,
+      })
+
+      return {
+        success: false,
+        cost: { usd: 0, stars: 0 },
+        provider,
+        model,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Check Sora 2 task status
+   * Max polling time: 3 minutes (180 seconds)
+   * @param taskId - Task ID returned from generateSoraVideo
+   * @returns KieAiVideoResponse with video URL when completed
+   */
+  async checkSoraTaskStatus(taskId: string): Promise<KieAiVideoResponse> {
+    if (!this.apiKey) {
+      return {
+        success: false,
+        cost: { usd: 0, stars: 0 },
+        provider: 'Kie.ai Sora 2',
+        model: 'sora-2-text-to-video',
+        error: 'KIE_AI_API_KEY is required for checking task status',
+      }
+    }
+
+    try {
+      const response = await axios.get<SoraTaskStatusResponse>(
+        `${this.baseUrl}/jobs/taskStatus`,
+        {
+          params: { taskId },
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000, // 30 seconds timeout for status check
+        }
+      )
+
+      logger.info('[KieAiProvider] Sora task status response:', {
+        taskId,
+        code: response.data.code,
+        msg: response.data.msg,
+        status: response.data.data?.status,
+        successFlag: response.data.data?.successFlag,
+        hasVideoUrl: !!response.data.data?.videoUrl,
+      })
+
+      if (response.data.code !== 200) {
+        throw new Error(response.data.msg || 'Failed to check Sora task status')
+      }
+
+      const data = response.data.data
+
+      // Check if task is completed (successFlag === 1 or status === 'completed')
+      if (data.successFlag === 1 || data.status === 'completed') {
+        const videoUrl = data.videoUrl || data.resultUrls?.[0]
+
+        if (videoUrl) {
+          logger.info('[KieAiProvider] Sora video is ready!', { taskId, videoUrl })
+          return {
+            success: true,
+            data: {
+              videoUrl,
+              duration: data.duration || 10,
+              taskId,
+            },
+            cost: { usd: 0, stars: 0 }, // Cost already calculated in generateSoraVideo
+            provider: 'Kie.ai Sora 2',
+            model: 'sora-2-text-to-video',
+          }
+        } else {
+          logger.warn('[KieAiProvider] Sora video marked as ready but no URL found', {
+            taskId,
+            data,
+          })
+          throw new Error('Video marked as ready but no video URL provided')
+        }
+      } else if (
+        data.successFlag === 0 ||
+        data.status === 'pending' ||
+        data.status === 'processing'
+      ) {
+        // Still processing
+        logger.info('[KieAiProvider] Sora video still processing', {
+          taskId,
+          status: data.status,
+          successFlag: data.successFlag,
+        })
+        return {
+          success: true,
+          data: {
+            videoUrl: '', // Empty string indicates still processing
+            duration: 10,
+            taskId,
+          },
+          cost: { usd: 0, stars: 0 },
+          provider: 'Kie.ai Sora 2',
+          model: 'sora-2-text-to-video',
+        }
+      } else if (data.successFlag === 2 || data.status === 'failed') {
+        // Task failed
+        const errorMessage =
+          data.errorMessage || 'Sora video generation failed'
+        logger.error('[KieAiProvider] Sora video generation failed', {
+          taskId,
+          errorMessage,
+        })
+        throw new Error(errorMessage)
+      } else if (data.successFlag === 3) {
+        // Content policy violation
+        logger.error('[KieAiProvider] Sora video rejected by content policy', {
+          taskId,
+          errorMessage: data.errorMessage,
+        })
+        throw new Error(
+          data.errorMessage ||
+            'Content rejected by policy. Please try a different prompt.'
+        )
+      } else {
+        logger.warn('[KieAiProvider] Unknown Sora task status', {
+          taskId,
+          status: data.status,
+          successFlag: data.successFlag,
+        })
+        // Continue polling for unknown statuses
+        return {
+          success: true,
+          data: {
+            videoUrl: '',
+            duration: 10,
+            taskId,
+          },
+          cost: { usd: 0, stars: 0 },
+          provider: 'Kie.ai Sora 2',
+          model: 'sora-2-text-to-video',
+        }
+      }
+    } catch (error) {
+      logger.error('[KieAiProvider] Error checking Sora task status', {
+        taskId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+      return {
+        success: false,
+        cost: { usd: 0, stars: 0 },
+        provider: 'Kie.ai Sora 2',
+        model: 'sora-2-text-to-video',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Poll Sora task status with exponential backoff
+   * Max polling time: 3 minutes (180 seconds)
+   * @param taskId - Task ID to poll
+   * @param maxWaitTime - Maximum time to wait in milliseconds (default: 180000 = 3 minutes)
+   * @returns KieAiVideoResponse with video URL when completed
+   */
+  async pollSoraTaskStatus(
+    taskId: string,
+    maxWaitTime: number = 180000
+  ): Promise<KieAiVideoResponse> {
+    const startTime = Date.now()
+    let attempt = 0
+    const maxAttempts = 20 // Maximum number of polling attempts
+
+    logger.info('[KieAiProvider] Starting Sora task polling:', {
+      taskId,
+      maxWaitTime,
+      maxAttempts,
+    })
+
+    while (Date.now() - startTime < maxWaitTime && attempt < maxAttempts) {
+      attempt++
+
+      const result = await this.checkSoraTaskStatus(taskId)
+
+      // If video is ready or failed, return result
+      if (!result.success || result.data?.videoUrl) {
+        logger.info('[KieAiProvider] Sora polling completed:', {
+          taskId,
+          attempt,
+          elapsedTime: Date.now() - startTime,
+          success: result.success,
+          hasVideo: !!result.data?.videoUrl,
+        })
+        return result
+      }
+
+      // Calculate exponential backoff delay: 5s, 7.5s, 11.25s, etc.
+      const delay = Math.min(5000 * Math.pow(1.5, attempt - 1), 30000)
+
+      logger.info('[KieAiProvider] Sora task still processing, waiting...', {
+        taskId,
+        attempt,
+        elapsedTime: Date.now() - startTime,
+        nextDelay: delay,
+      })
+
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+
+    // Timeout reached
+    logger.warn('[KieAiProvider] Sora polling timeout reached', {
+      taskId,
+      attempts: attempt,
+      elapsedTime: Date.now() - startTime,
+    })
+
+    return {
+      success: false,
+      cost: { usd: 0, stars: 0 },
+      provider: 'Kie.ai Sora 2',
+      model: 'sora-2-text-to-video',
+      error: `Video generation timeout after ${Math.floor((Date.now() - startTime) / 1000)} seconds`,
+    }
+  }
+
   async generateMusic(request: KieAiMusicRequest): Promise<KieAiMusicResponse> {
     const {
       model,
@@ -659,6 +1061,41 @@ export class KieAiProvider {
 
     const pricePerSecond = pricing[model] || 0.05
     return pricePerSecond * duration
+  }
+
+  /**
+   * Calculate cost for Sora 2 video generation
+   * Pricing:
+   * - Sora 2: 30 credits ($0.15) per 10 seconds
+   * - Sora 2 Pro Standard: 90 credits ($0.45) per 10 seconds
+   * - Sora 2 Pro HD: 200 credits ($1) per 10 seconds
+   * @param model - Sora model variant
+   * @param duration - Video duration in seconds (default: 10)
+   * @param size - Video quality ('standard' or 'high')
+   * @returns Cost in USD
+   */
+  private calculateSoraCost(
+    model: 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
+    duration: number = 10,
+    size: 'standard' | 'high' = 'standard'
+  ): number {
+    // Pricing per 10 seconds based on Kie.ai documentation
+    let costPer10Seconds: number
+
+    if (model === 'sora-2-text-to-video') {
+      costPer10Seconds = 0.15 // 30 credits = $0.15
+    } else {
+      // Sora 2 Pro
+      if (size === 'high') {
+        costPer10Seconds = 1.0 // 200 credits = $1.0
+      } else {
+        costPer10Seconds = 0.45 // 90 credits = $0.45
+      }
+    }
+
+    // Calculate based on actual duration (10 or 15 seconds)
+    const multiplier = duration / 10
+    return costPer10Seconds * multiplier
   }
 
   private calculateImageCost(model: string, numImages: number): number {

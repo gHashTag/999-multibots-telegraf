@@ -1,7 +1,7 @@
 ---
 name: anti-duplication-guardian
 description: Prevents code duplication by constantly monitoring for similar logic, ensuring reuse of existing patterns, maintaining DRY principles
-tools: Read, Grep, Glob, Bash
+tools: [Read, Grep, Glob, Bash]
 model: sonnet
 ---
 

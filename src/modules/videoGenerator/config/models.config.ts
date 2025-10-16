@@ -322,6 +322,84 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     canMorph: false,
     aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
   },
+  'sora-2': {
+    id: 'sora-2',
+    title: 'Sora 2',
+    inputType: ['text'],
+    description:
+      '🎬 OpenAI Sora 2 - высокое качество, 10 сек - 9⭐',
+    basePrice: 0.015, // 9⭐ за 10 сек БЕЗ наценки = $0.15 за 10 сек (Kie.ai pricing)
+    api: {
+      model: 'sora-2-text-to-video', // Kie.ai provider
+      input: {
+        duration: 10, // Фиксированная длительность 10 секунд
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? 'portrait' : 'landscape',
+        remove_watermark: false,
+      },
+    },
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'],
+  },
+  'sora-2-pro': {
+    id: 'sora-2-pro',
+    title: 'Sora 2 Pro',
+    inputType: ['text'],
+    description:
+      '✨ OpenAI Sora 2 Pro - максимальное качество, 10 сек - 28⭐',
+    basePrice: 0.045, // 28⭐ за 10 сек standard = 0.45 USD за 10 сек = 0.045/сек (Kie.ai pricing)
+    api: {
+      model: 'sora-2-pro-text-to-video', // Kie.ai provider
+      input: {
+        duration: 10, // Фиксированная длительность 10 секунд
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? 'portrait' : 'landscape',
+        remove_watermark: false,
+      },
+    },
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'],
+  },
+  'sora-2-i2v': {
+    id: 'sora-2-i2v',
+    title: 'Sora 2 I2V',
+    inputType: ['image'],
+    description:
+      '🎬 OpenAI Sora 2 Image-to-Video - 10 сек - 9⭐',
+    basePrice: 0.015, // 9⭐ за 10 сек = 0.15 USD за 10 сек = 0.015/сек (Kie.ai pricing)
+    api: {
+      model: 'sora-2-image-to-video', // Kie.ai provider
+      input: {
+        duration: 10,
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? 'portrait' : 'landscape',
+        remove_watermark: false,
+      },
+    },
+    imageKey: 'image_urls',
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'],
+  },
+  'sora-2-pro-i2v': {
+    id: 'sora-2-pro-i2v',
+    title: 'Sora 2 Pro I2V',
+    inputType: ['image'],
+    description:
+      '✨ OpenAI Sora 2 Pro Image-to-Video - 10 сек - 28⭐',
+    basePrice: 0.045, // 28⭐ за 10 сек standard = 0.45 USD за 10 сек = 0.045/сек (Kie.ai pricing)
+    api: {
+      model: 'sora-2-pro-image-to-video', // Kie.ai provider
+      input: {
+        duration: 10,
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? 'portrait' : 'landscape',
+        remove_watermark: false,
+      },
+    },
+    imageKey: 'image_urls',
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'],
+  },
 }
 
 // Определяем тип ключей конфига

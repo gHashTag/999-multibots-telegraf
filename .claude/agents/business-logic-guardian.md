@@ -1,7 +1,7 @@
 ---
 name: business-logic-guardian
 description: Enforces Clean Architecture principles, prevents business logic in UI layer, ensures proper separation of concerns between scenes, services, and core
-tools: Read, Grep, Bash
+tools: [Read, Grep, Bash]
 model: sonnet
 ---
 

@@ -169,6 +169,34 @@ export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
     maxDuration: 10,
   },
 
+  // OpenAI Sora 2 модели через Kie.ai
+  'sora-2': {
+    pricePerSecondUSD: 0.015, // $0.15 за 10 сек = 94⭐ за 10 сек (Kie.ai pricing)
+    supportedDurations: [10],
+    defaultDuration: 10,
+    maxDuration: 10,
+  },
+  'sora-2-pro': {
+    pricePerSecondUSD: 0.045, // $0.45 за 10 сек standard = 28⭐ за 10 сек (Kie.ai pricing)
+    supportedDurations: [10, 15],
+    defaultDuration: 10,
+    maxDuration: 15,
+  },
+
+  // Sora 2 Image-to-Video (те же цены что и text-to-video)
+  'sora-2-i2v': {
+    pricePerSecondUSD: 0.015, // $0.15 за 10 сек = 9⭐ за 10 сек (Kie.ai pricing)
+    supportedDurations: [10],
+    defaultDuration: 10,
+    maxDuration: 10,
+  },
+  'sora-2-pro-i2v': {
+    pricePerSecondUSD: 0.045, // $0.45 за 10 сек standard = 28⭐ за 10 сек (Kie.ai pricing)
+    supportedDurations: [10, 15],
+    defaultDuration: 10,
+    maxDuration: 15,
+  },
+
   // Модели изображений
   'kie-gpt-4o-image': {
     pricePerImageUSD: 0.1,
@@ -223,7 +251,11 @@ export function calculateKieAiPriceInStars(
     if (
       modelId === 'veo3_fast' ||
       modelId === 'veo3' ||
-      modelId === 'runway-aleph'
+      modelId === 'runway-aleph' ||
+      modelId === 'sora-2' ||
+      modelId === 'sora-2-pro' ||
+      modelId === 'sora-2-i2v' ||
+      modelId === 'sora-2-pro-i2v'
     ) {
       return Math.floor(totalCostUSD / STAR_COST_USD)
     }
