@@ -152,8 +152,12 @@ export class AsyncLipSyncManager {
             taskId: result.taskId,
             telegramId: job.telegramId
           })
+
+          // ✅ FALLBACK POLLING: Запускаем проверку статуса через 2 минуты, если webhook не пришел
+          this.startFallbackPolling(jobId, result.taskId as string)
+
           // НЕ обновляем job.status и НЕ отправляем сообщение пользователю
-          // Webhook сделает это позже
+          // Webhook или polling сделает это позже
           return
         }
       }
@@ -462,6 +466,167 @@ export class AsyncLipSyncManager {
     }
 
     return true
+  }
+
+  /**
+   * ✅ FALLBACK POLLING: Проверяет статус задачи, если webhook не пришел
+   * Запускается через 2 минуты после создания задачи
+   * Проверяет каждые 30 секунд до 10 минут
+   */
+  private startFallbackPolling(jobId: string, taskId: string): void {
+    const INITIAL_DELAY = 2 * 60 * 1000 // 2 минуты ожидания webhook
+    const POLLING_INTERVAL = 30 * 1000 // 30 секунд между проверками
+    const MAX_POLLING_TIME = 10 * 60 * 1000 // 10 минут максимум
+
+    logger.info('🔄 [FALLBACK POLLING] Запланирована проверка статуса', {
+      jobId,
+      taskId,
+      initialDelayMs: INITIAL_DELAY,
+      pollingIntervalMs: POLLING_INTERVAL,
+      maxPollingTimeMs: MAX_POLLING_TIME,
+    })
+
+    // ✅ Запускаем первую проверку через 2 минуты
+    setTimeout(async () => {
+      const job = this.jobs.get(jobId)
+      if (!job) {
+        logger.warn('⚠️ [FALLBACK POLLING] Job не найден', { jobId, taskId })
+        return
+      }
+
+      // ✅ Если webhook уже пришел (job.status изменился), прекращаем polling
+      if (job.status === 'completed' || job.status === 'failed') {
+        logger.info('✅ [FALLBACK POLLING] Webhook уже обработан, polling не нужен', {
+          jobId,
+          taskId,
+          status: job.status,
+        })
+        return
+      }
+
+      logger.info('🔍 [FALLBACK POLLING] Webhook не пришел, начинаем проверку статуса', {
+        jobId,
+        taskId,
+        elapsedTime: Date.now() - job.startTime,
+      })
+
+      // ✅ Запускаем периодическую проверку
+      const startPollingTime = Date.now()
+      const pollingInterval = setInterval(async () => {
+        const currentJob = this.jobs.get(jobId)
+        if (!currentJob) {
+          logger.warn('⚠️ [FALLBACK POLLING] Job удален, останавливаем polling', { jobId, taskId })
+          clearInterval(pollingInterval)
+          return
+        }
+
+        // ✅ Если webhook пришел, останавливаем polling
+        if (currentJob.status === 'completed' || currentJob.status === 'failed') {
+          logger.info('✅ [FALLBACK POLLING] Webhook пришел, останавливаем polling', {
+            jobId,
+            taskId,
+            status: currentJob.status,
+          })
+          clearInterval(pollingInterval)
+          return
+        }
+
+        // ✅ Проверяем максимальное время polling
+        const elapsedPollingTime = Date.now() - startPollingTime
+        if (elapsedPollingTime > MAX_POLLING_TIME) {
+          logger.error('❌ [FALLBACK POLLING] Превышено время ожидания', {
+            jobId,
+            taskId,
+            elapsedPollingTime,
+            maxPollingTime: MAX_POLLING_TIME,
+          })
+
+          // ✅ Возвращаем средства пользователю
+          currentJob.status = 'failed'
+          currentJob.result = {
+            message: 'Task timeout exceeded',
+            error: `Task exceeded maximum processing time (${MAX_POLLING_TIME / 1000 / 60} minutes)`,
+            code: 'TIMEOUT_EXCEEDED',
+            provider: currentJob.input.provider,
+            modelId: currentJob.input.modelId,
+          }
+          this.jobs.set(jobId, currentJob)
+          await this.sendErrorResult(currentJob, currentJob.result as LipSyncError)
+
+          clearInterval(pollingInterval)
+          return
+        }
+
+        try {
+          logger.info('🔄 [FALLBACK POLLING] Проверка статуса через provider', {
+            jobId,
+            taskId,
+            attemptTime: elapsedPollingTime,
+          })
+
+          // ✅ Используем исправленный getStatus() метод провайдера
+          const statusResult = await lipSyncOrchestrator.checkStatus(
+            currentJob.input.provider,
+            currentJob.input.modelId,
+            taskId
+          )
+
+          logger.info('📥 [FALLBACK POLLING] Получен статус от provider', {
+            jobId,
+            taskId,
+            statusResult,
+          })
+
+          // ✅ Если задача завершена - обрабатываем результат
+          if ('status' in statusResult && statusResult.status === 'completed') {
+            logger.info('✅ [FALLBACK POLLING] Задача завершена успешно', {
+              jobId,
+              taskId,
+              output: statusResult.output,
+            })
+
+            currentJob.status = 'completed'
+            currentJob.result = statusResult
+            this.jobs.set(jobId, currentJob)
+            await this.sendSuccessResult(currentJob, statusResult as LipSyncOutput)
+
+            clearInterval(pollingInterval)
+            return
+          }
+
+          // ✅ Если произошла ошибка - обрабатываем
+          if ('error' in statusResult && statusResult.error) {
+            logger.error('❌ [FALLBACK POLLING] Задача завершилась с ошибкой', {
+              jobId,
+              taskId,
+              error: statusResult.error,
+            })
+
+            currentJob.status = 'failed'
+            currentJob.result = statusResult
+            this.jobs.set(jobId, currentJob)
+            await this.sendErrorResult(currentJob, statusResult as LipSyncError)
+
+            clearInterval(pollingInterval)
+            return
+          }
+
+          // ✅ Если задача еще в процессе - продолжаем polling
+          logger.info('⏳ [FALLBACK POLLING] Задача еще в процессе, продолжаем проверку', {
+            jobId,
+            taskId,
+            nextCheckInSeconds: POLLING_INTERVAL / 1000,
+          })
+
+        } catch (error) {
+          logger.error('❌ [FALLBACK POLLING] Ошибка при проверке статуса', {
+            jobId,
+            taskId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+        }
+      }, POLLING_INTERVAL)
+    }, INITIAL_DELAY)
   }
 }
 

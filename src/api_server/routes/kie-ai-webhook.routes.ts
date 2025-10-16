@@ -227,24 +227,41 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
 
     const payload: KieAiWebhookPayload = req.body
 
-    // ✅ Валидация обязательных полей
-    if (!payload.taskId) {
-      logger.error('❌ [KIE.AI WEBHOOK] Missing taskId', { payload })
-      return
-    }
+    // ✅ ИСПРАВЛЕНИЕ: Kie.ai отправляет taskId в payload.data.taskId
+    const taskId = payload.taskId || (payload.data && payload.data.taskId) || (payload as any).data?.taskId
+    const successFlag = payload.successFlag !== undefined ? payload.successFlag : (payload.code === 200 ? 1 : 2)
 
-    if (typeof payload.successFlag !== 'number') {
-      logger.error('❌ [KIE.AI WEBHOOK] Missing or invalid successFlag', {
+    // ✅ Валидация обязательных полей
+    if (!taskId) {
+      logger.error('❌ [KIE.AI WEBHOOK] Missing taskId', {
         payload,
-        successFlagType: typeof payload.successFlag
+        hasData: !!payload.data,
+        dataKeys: payload.data ? Object.keys(payload.data) : []
       })
       return
     }
 
-    // ✅ Асинхронная обработка в фоне
-    processKieAiWebhookAsync(payload).catch(error => {
+    // ✅ Нормализуем payload для дальнейшей обработки
+    const normalizedPayload: KieAiWebhookPayload = {
+      ...payload,
+      taskId,
+      successFlag,
+      resultUrls: payload.resultUrls || (payload.data as any)?.info?.resultUrls || (payload.data as any)?.resultUrls,
+      errorMessage: payload.errorMessage || (payload.data as any)?.errorMessage
+    }
+
+    if (typeof normalizedPayload.successFlag !== 'number') {
+      logger.error('❌ [KIE.AI WEBHOOK] Missing or invalid successFlag', {
+        payload,
+        successFlagType: typeof normalizedPayload.successFlag
+      })
+      return
+    }
+
+    // ✅ Асинхронная обработка в фоне с нормализованным payload
+    processKieAiWebhookAsync(normalizedPayload).catch(error => {
       logger.error('❌ [KIE.AI WEBHOOK] Error in async processing', {
-        taskId: payload.taskId,
+        taskId: normalizedPayload.taskId,
         error: error.message,
         stack: error.stack
       })

@@ -469,15 +469,123 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
 
   /**
    * Получает статус обработки
+   * ✅ ИСПРАВЛЕНО: Kie.ai использует АСИНХРОННЫЙ API с webhook callback
+   * Этот метод для fallback проверки, если webhook не пришел
    */
   async getStatus(predictionId: string): Promise<LipSyncOutput | LipSyncError> {
-    // Kie.ai синхронный API, статус проверки не требуется
-    return {
-      message: 'Status check not supported for Veed Fabric',
-      error: 'Kie.ai uses synchronous API',
-      code: 'NOT_SUPPORTED',
-      provider: 'kie',
-      modelId: 'veed-fabric',
+    try {
+      logger.info('🔍 [KIE PROVIDER] Проверка статуса задачи', {
+        taskId: predictionId,
+      })
+
+      const response = await axios.get(
+        'https://api.kie.ai/api/v1/jobs/status',
+        {
+          params: {
+            taskId: predictionId,
+            recordId: predictionId,
+          },
+          headers: {
+            Authorization: `Bearer ${KIE_AI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000,
+        }
+      )
+
+      logger.info('📥 [KIE PROVIDER] Получен статус задачи', {
+        status: response.status,
+        data: response.data,
+      })
+
+      const data = response.data.data || response.data
+
+      // ✅ Проверяем флаг успеха
+      if (data.successFlag === true || data.success === true) {
+        const resultUrls = data.resultUrls || []
+        const videoUrl = Array.isArray(resultUrls) ? resultUrls[0] : resultUrls
+
+        if (videoUrl) {
+          logger.info('✅ [KIE PROVIDER] Задача завершена успешно', {
+            taskId: predictionId,
+            videoUrl,
+          })
+
+          return {
+            id: predictionId,
+            taskId: predictionId,
+            output: videoUrl,
+            modelUsed: 'Veed Fabric AI',
+            provider: 'kie',
+            status: 'completed',
+            message: 'Task completed successfully',
+          }
+        }
+      }
+
+      // ✅ Если задача еще в процессе
+      if (data.status === 'processing' || data.successFlag === false) {
+        logger.info('⏳ [KIE PROVIDER] Задача еще в процессе', {
+          taskId: predictionId,
+        })
+
+        return {
+          id: predictionId,
+          taskId: predictionId,
+          output: '',
+          modelUsed: 'Veed Fabric AI',
+          provider: 'kie',
+          status: 'processing',
+          message: 'Task is still processing',
+        }
+      }
+
+      // ✅ Если произошла ошибка на стороне Kie.ai
+      if (data.errorMsg || data.error) {
+        logger.error('❌ [KIE PROVIDER] Ошибка обработки задачи', {
+          taskId: predictionId,
+          error: data.errorMsg || data.error,
+        })
+
+        return {
+          message: 'Task failed on Kie.ai side',
+          error: data.errorMsg || data.error || 'Unknown error',
+          code: 'TASK_FAILED',
+          provider: 'kie',
+          modelId: 'veed-fabric',
+        }
+      }
+
+      // ✅ Неизвестный статус
+      logger.warn('⚠️ [KIE PROVIDER] Неизвестный статус задачи', {
+        taskId: predictionId,
+        data,
+      })
+
+      return {
+        id: predictionId,
+        taskId: predictionId,
+        output: '',
+        modelUsed: 'Veed Fabric AI',
+        provider: 'kie',
+        status: 'processing',
+        message: 'Unknown status, assuming still processing',
+      }
+    } catch (error) {
+      logger.error('❌ [KIE PROVIDER] Ошибка при проверке статуса', {
+        taskId: predictionId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        status: (error as any).response?.status,
+        data: (error as any).response?.data,
+      })
+
+      return {
+        message: 'Failed to check task status',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        code: 'STATUS_CHECK_FAILED',
+        provider: 'kie',
+        modelId: 'veed-fabric',
+      }
     }
   }
 
