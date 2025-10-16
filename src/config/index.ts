@@ -50,18 +50,15 @@ if (!process.env.NODE_ENV) {
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
 }
 
-// 🔧 ИСПРАВЛЕНИЕ: Принудительный development режим через FORCE_DEV_MODE или TEST_BOT_NAME
+// 🔧 ИСПРАВЛЕНИЕ: Принудительный development режим ТОЛЬКО через FORCE_DEV_MODE
+// TEST_BOT_NAME больше НЕ переключает режим - это просто выбор бота для polling
 const forceDevMode = process.env.FORCE_DEV_MODE === 'true'
-const hasTestBot = !!process.env.TEST_BOT_NAME
 if (forceDevMode) {
   console.log('[CONFIG] FORCE_DEV_MODE=true detected, overriding to development mode')
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
-} else if (hasTestBot) {
-  console.log(`[CONFIG] TEST_BOT_NAME=${process.env.TEST_BOT_NAME} detected, overriding to development mode`)
-  ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
 }
 
-export const isDev = process.env.NODE_ENV === 'development' || forceDevMode || hasTestBot
+export const isDev = process.env.NODE_ENV === 'development' || forceDevMode
 console.log(`[CONFIG] isDev flag set to: ${isDev}`)
 console.log(`[CONFIG] forceDevMode: ${forceDevMode}`)
 
