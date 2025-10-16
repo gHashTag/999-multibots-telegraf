@@ -156,6 +156,31 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
   if (ctx.message && 'text' in ctx.message) {
     const promptText = ctx.message.text.trim()
     console.log(`CASE: Введен промпт: ${promptText}`)
+
+    // ИСПРАВЛЕНО: Проверяем, не является ли это кнопкой выбора изображения
+    if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(promptText)) {
+      const imageNumber = parseInt(promptText[0])
+      const telegramId = ctx.from?.id?.toString() || ''
+
+      logger.info(`🔢 [WIZARD] Выбрано изображение #${imageNumber} в wizard'е пользователем ${telegramId}`)
+
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRu = isRussianFromState(ctx)
+
+      const message = isRu
+        ? `📸 Вы выбрали изображение #${imageNumber}\n\n💡 Теперь вы можете:\n• ⬆️ Увеличить качество\n• 📐 Изменить размер\n• 🆕 Создать новый промпт`
+        : `📸 You selected image #${imageNumber}\n\n💡 Now you can:\n• ⬆️ Upscale quality\n• 📐 Change size\n• 🆕 Create new prompt`
+
+      await ctx.reply(message)
+
+      // Сохраняем выбранное изображение в сессии
+      if (ctx.session) {
+        ctx.session.selectedImageNumber = imageNumber
+      }
+
+      return // НЕ обрабатываем как промпт!
+    }
+
     if (promptText.length < 3) {
       // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
       const isRu = isRussianFromState(ctx)
@@ -233,10 +258,10 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       )
       return
     }
-    
-    // После генерации переходим к следующему шагу (для обработки кнопок типа "Новый промпт")
-    console.log('🔄 [DEBUG] Переходим к следующему шагу wizard')
-    ctx.wizard.next()
+
+    // ИСПРАВЛЕНИЕ: После успешной генерации НЕ переходим к следующему шагу
+    // Это предотвратит двойную генерацию при нажатии кнопок
+    console.log('✅ [DEBUG] Генерация завершена. Пользователь может использовать inline кнопки или команды.')
     return
   }
 }
