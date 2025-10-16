@@ -87,12 +87,12 @@ jobs:
       - name: Deploy to Production Server
         run: |
           echo "🚀 Starting production deployment..."
-          
+
           ssh -i ~/.ssh/id_rsa root@212.86.115.30 << 'ENDSSH'
           set -e
-          
+
           echo "📦 Deploying to production server..."
-          cd /root/999-agents-vibecoder
+          cd /root/bot-farm
           
           # Stop current container
           echo "🛑 Stopping current container..."
