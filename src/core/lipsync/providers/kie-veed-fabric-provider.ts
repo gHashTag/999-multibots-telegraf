@@ -349,6 +349,13 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         ? `${process.env.API_SERVER_URL}/api/kie-ai/callback`
         : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
 
+      logger.info('🔗 [KIE PROVIDER] Callback URL определен', {
+        callback_url: callbackUrl,
+        source: process.env.BASE_WEBHOOK_URL ? 'BASE_WEBHOOK_URL' :
+                process.env.LOCAL_SERVER_URL ? 'LOCAL_SERVER_URL' :
+                process.env.API_SERVER_URL ? 'API_SERVER_URL' : 'hardcoded_fallback'
+      })
+
       // ✅ ИСПРАВЛЕНО: Правильный endpoint и формат запроса (асинхронный API) с callback URL
       const requestPayload = {
         model: 'veed/fabric-1', // ✅ Правильное имя модели
