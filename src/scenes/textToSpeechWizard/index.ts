@@ -21,6 +21,7 @@ import fs from 'fs'
 import logger from '@/utils/logger'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
+import { sendCompletionNotification } from '@/helpers/completionNotification'
 
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'text_to_speech',
@@ -108,6 +109,9 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           audioPath,
         })
 
+        // Send completion notification with sound
+        await sendCompletionNotification(ctx, isRu, 'text_to_speech')
+
         // --- Начало блока отправки сообщения о балансе ---
         const costResult = calculateModeCost({ mode: ModeEnum.TextToSpeech })
         const cost = costResult.stars
@@ -153,7 +157,8 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
             )
           }
         }
-        ctx.scene.leave()
+        await ctx.scene.leave()
+        await ctx.scene.enter(ModeEnum.MainMenu)
       }
       return
     }

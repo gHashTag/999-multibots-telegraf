@@ -652,7 +652,18 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           })
 
         } catch (genError) {
-          logger.error('❌ Ошибка запуска асинхронной генерации', { error: genError })
+          // ✅ УЛУЧШЕНО: Детальное логирование с полной информацией об ошибке
+          logger.error('❌ Ошибка запуска асинхронной генерации', {
+            error: genError,
+            errorMessage: genError instanceof Error ? genError.message : 'Unknown error',
+            errorStack: genError instanceof Error ? genError.stack : undefined,
+            errorName: genError instanceof Error ? genError.name : typeof genError,
+            telegramId,
+            imageUrl: imageUrl.substring(0, 100),
+            hasAudioUrl: !!audioUrl,
+            hasText: !!text,
+            textLength: text?.length || 0,
+          })
 
           // Возврат средств
           await updateUserBalance(
