@@ -3,19 +3,19 @@
 ## Проблема
 Webhook callback'и от KIE.ai должны использовать защищенное HTTPS соединение вместо небезопасного HTTP.
 
-## Решение: Elestio "Три головы дракона"
+## Решение: "Три головы дракона" (three-head-dragon.shop)
 
 ### Production Configuration
 ```bash
 # .env file на сервере 212.86.115.30
-BASE_WEBHOOK_URL=https://999-multibots-telegraf-u14194.vm.elestio.app
+BASE_WEBHOOK_URL=https://three-head-dragon.shop
 ```
 
 ### Как это работает:
 
-1. **Elestio Domain**: `999-multibots-telegraf-u14194.vm.elestio.app`
+1. **Three Head Dragon Domain**: `three-head-dragon.shop`
    - Автоматический SSL/TLS сертификат
-   - Reverse proxy к bot-farm серверу
+   - Reverse proxy к bot-farm серверу (212.86.115.30)
    - Безопасное соединение для webhook'ов
 
 2. **Приоритет Callback URL** (в коде):
@@ -30,7 +30,7 @@ BASE_WEBHOOK_URL=https://999-multibots-telegraf-u14194.vm.elestio.app
    ```
 
 3. **Результат**:
-   - ✅ KIE.ai отправляет callback на: `https://999-multibots-telegraf-u14194.vm.elestio.app/api/kie-ai/callback`
+   - ✅ KIE.ai отправляет callback на: `https://three-head-dragon.shop/api/kie-ai/callback`
    - ✅ Защищенное HTTPS соединение
    - ✅ Webhook route обрабатывается в `src/api_server/routes/kie-ai-webhook.routes.ts`
 
@@ -41,7 +41,7 @@ BASE_WEBHOOK_URL=https://999-multibots-telegraf-u14194.vm.elestio.app
 # 1. Обновить .env
 ssh -i ~/.ssh/zomro root@212.86.115.30
 cd /root/bot-farm
-echo "BASE_WEBHOOK_URL=https://999-multibots-telegraf-u14194.vm.elestio.app" >> .env
+echo "BASE_WEBHOOK_URL=https://three-head-dragon.shop" >> .env
 
 # 2. Перезапустить контейнер
 docker restart 999-multibots
@@ -58,7 +58,7 @@ docker logs 999-multibots | grep "callback"
    ```
    🔗 [KIE PROVIDER] Callback URL определен
    {
-     callback_url: 'https://999-multibots-telegraf-u14194.vm.elestio.app/api/kie-ai/callback',
+     callback_url: 'https://three-head-dragon.shop/api/kie-ai/callback',
      source: 'BASE_WEBHOOK_URL'
    }
    ```
@@ -67,8 +67,8 @@ docker logs 999-multibots | grep "callback"
 ## Безопасность
 
 - ✅ HTTPS защищает данные в транзите
-- ✅ SSL/TLS сертификат от Elestio автоматически обновляется
-- ✅ Приватный IP (212.86.115.30) скрыт за proxy
+- ✅ SSL/TLS сертификат автоматически обновляется
+- ✅ Приватный IP (212.86.115.30) скрыт за reverse proxy
 - ✅ Webhook endpoint защищен валидацией payload
 
 ## Альтернативные конфигурации
@@ -88,17 +88,18 @@ BASE_WEBHOOK_URL=https://staging-bot-farm.yourdomain.com
 ## Troubleshooting
 
 ### Callback'и не приходят:
-1. Проверить Elestio routing: `curl https://999-multibots-telegraf-u14194.vm.elestio.app/api/kie-ai/callback`
+1. Проверить routing: `curl https://three-head-dragon.shop/api/kie-ai/callback`
 2. Проверить логи webhook: `docker logs 999-multibots | grep "KIE.AI WEBHOOK"`
 3. Проверить firewall правила на сервере
 
 ### SSL ошибки:
-1. Проверить сертификат: `openssl s_client -connect 999-multibots-telegraf-u14194.vm.elestio.app:443`
-2. Убедиться, что Elestio proxy работает
+1. Проверить сертификат: `openssl s_client -connect three-head-dragon.shop:443`
+2. Убедиться, что reverse proxy работает
 3. Проверить DNS резолюцию
 
 ## История изменений
 
-- **2025-10-16**: Переход с HTTP (212.86.115.30:2999) на HTTPS (Elestio домен)
+- **2025-10-16**: Переход с HTTP (212.86.115.30:2999) на HTTPS (three-head-dragon.shop)
 - **Причина**: Безопасность webhook'ов от KIE.ai
 - **Файлы**: `src/core/lipsync/providers/kie-veed-fabric-provider.ts`
+- **Домен**: "Три головы дракона" - https://three-head-dragon.shop
