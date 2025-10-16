@@ -140,11 +140,11 @@ export const API_URL = forceProductionAPI
 const BASE_PAYMENT_URL = isDev
   ? API_SERVER_URL ||
     process.env.SERVER_API_URL ||
-    'https://ai-server-production-production-8e2d.up.railway.app' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
+    'https://three-head-dragon.shop' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
     process.env.SERVER_API_URL ||
-    'https://ai-server-production-production-8e2d.up.railway.app'
+    'https://three-head-dragon.shop'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 
