@@ -74,10 +74,16 @@ function createModelButton(
         stars = 40
         break
       case 'veo3':
-        stars = 202
+        stars = 120 // ✅ ИСПРАВЛЕНО: $1.92 / $0.016 = 120⭐ (было 202)
         break
       case 'runway-aleph':
         stars = 182
+        break
+      case 'sora-2':
+        stars = 9 // ✅ ДОБАВЛЕНО: $0.15 за 10 сек / $0.016 = 9⭐ БЕЗ наценки
+        break
+      case 'sora-2-pro':
+        stars = 28 // ✅ ДОБАВЛЕНО: $0.45 за 10 сек / $0.016 = 28⭐ БЕЗ наценки
         break
       default:
         // Для остальных моделей используем расчет из конфига
@@ -135,10 +141,16 @@ function parseModelSelection(buttonText: string): {
           stars = 40
           break
         case 'veo3':
-          stars = 202
+          stars = 120 // ✅ ИСПРАВЛЕНО: $1.92 / $0.016 = 120⭐ (было 202)
           break
         case 'runway-aleph':
           stars = 182
+          break
+        case 'sora-2':
+          stars = 9 // ✅ ДОБАВЛЕНО: $0.15 за 10 сек / $0.016 = 9⭐ БЕЗ наценки
+          break
+        case 'sora-2-pro':
+          stars = 28 // ✅ ДОБАВЛЕНО: $0.45 за 10 сек / $0.016 = 28⭐ БЕЗ наценки
           break
         default:
           // Для остальных моделей используем расчет из конфига
