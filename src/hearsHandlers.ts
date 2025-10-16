@@ -565,124 +565,33 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  // ИСПРАВЛЕНО: Кнопки 1️⃣,2️⃣,3️⃣,4️⃣ теперь для ВЫБОРА изображений, а не генерации новых
   bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async (ctx: MyContext) => {
     if (!('text' in ctx.message)) {
       logger.warn('Получено нетекстовое сообщение для числового hears')
       return
     }
     const text = ctx.message.text
-    logger.debug(`Получен hears для кнопки ${text} от ${ctx.from?.id}`)
+    const imageNumber = parseInt(text[0])
+    const telegramId = ctx.from.id
+
+    logger.info(`🔢 [FIXED] Выбрано изображение #${imageNumber} пользователем ${telegramId}`)
+
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
-    const prompt = ctx.session.prompt
-    const telegramId = ctx.from.id
-    const numImages = parseInt(text[0])
 
-    // --- DEBUG LOG ---
-    logger.debug('>>> HEARS HANDLER (1-4):', {
-      telegramId: telegramId,
-      textButton: text,
-      parsedNumImages: numImages,
-      sessionPromptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
-      sessionMode: ctx.session.mode,
-      sessionSelectedImageModel: ctx.session.selectedImageModel,
-    })
-    // --- END DEBUG LOG ---
+    // Информируем пользователя о выборе изображения
+    const message = isRu
+      ? `📸 Вы выбрали изображение #${imageNumber}\n\n💡 Теперь вы можете:\n• ⬆️ Увеличить качество\n• 📐 Изменить размер\n• 🆕 Создать новый промпт`
+      : `📸 You selected image #${imageNumber}\n\n💡 Now you can:\n• ⬆️ Upscale quality\n• 📐 Change size\n• 🆕 Create new prompt`
 
-    const { profile, settings } = await getUserProfileAndSettings(telegramId)
+    await ctx.reply(message)
 
-    if (!profile || !settings) {
-      logger.error(
-        'Не удалось получить профиль или настройки для hears handler',
-        { telegramId }
-      )
-      await ctx.reply(
-        isRu
-          ? 'Ошибка: Не удалось получить данные пользователя.'
-          : 'Error: Could not retrieve user data.'
-      )
-      return
-    }
-
-    if (!prompt) {
-      logger.error('Промпт отсутствует в сессии для hears handler', {
-        telegramId,
-      })
-      await ctx.reply(
-        isRu
-          ? 'Ошибка: Не найден текст для генерации. Попробуйте снова.'
-          : 'Error: Prompt not found. Please try again.'
-      )
-      return
-    }
-
-    const generate = async (num: number) => {
-      if (ctx.session.mode === ModeEnum.NeuroPhoto) {
-        // ИСПРАВЛЕНИЕ: Формируем правильный промпт с учетом пола и trigger_word
-        const trigger_word = ctx.session.userModel.trigger_word as string
-
-        const userData = await getUserData(telegramId.toString())
-        let genderPromptPart = 'person'
-        if (userData?.gender === 'female') {
-          genderPromptPart = 'female'
-        } else if (userData?.gender === 'male') {
-          genderPromptPart = 'male'
-        }
-
-        logger.info(
-          `[hearsHandlers 1-4] Determined gender for prompt: ${genderPromptPart}`,
-          {
-            telegramId,
-          }
-        )
-
-        const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
-
-        const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
-
-        await generateNeuroPhotoHybrid(
-          fullPrompt,
-          ctx.session.userModel.model_url,
-          num,
-          telegramId.toString(),
-          ctx,
-          ctx.botInfo?.username
-        )
-      } else if (ctx.session.mode === ModeEnum.TextToImage) {
-        const modelToUse = ctx.session.selectedImageModel
-
-        if (!modelToUse) {
-          logger.error(
-            '[Hears 1-4 TextToImage] Model not found in session (ctx.session.selectedImageModel).',
-            { telegramId }
-          )
-          await ctx.reply(
-            isRu
-              ? 'Ошибка: Модель для генерации не найдена в текущей сессии. Попробуйте начать заново из главного меню.'
-              : 'Error: Model for generation not found in the current session. Please try starting over from the main menu.'
-          )
-          return
-        }
-
-        logger.info(
-          `[Hears 1-4 TextToImage] Using model from session: ${modelToUse} for user ${telegramId}`
-        )
-        await generateTextToImage(
-          prompt,
-          modelToUse,
-          numImages,
-          telegramId.toString(),
-          isRu,
-          ctx,
-          ctx.botInfo?.username
-        )
-      }
-    }
-
-    if (numImages >= 1 && numImages <= 4) {
-      await generate(numImages)
-    } else {
-      await ctx.reply('Неизвестная кнопка')
+    // TODO: Здесь можно добавить логику для сохранения выбранного изображения
+    // для дальнейших операций (upscaling, editing, etc.)
+    if (ctx.session) {
+      ctx.session.selectedImageNumber = imageNumber
+      logger.debug(`💾 Сохранен номер выбранного изображения: ${imageNumber} для пользователя ${telegramId}`)
     }
   })
 
