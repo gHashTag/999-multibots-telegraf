@@ -33,9 +33,9 @@ class InngestProvider {
 
   private initializeConfigs() {
     // BOT инстанс (наш основной сервер)
-    const botEventKey = process.env.INNGEST_EVENT_KEY
-    const botSigningKey = process.env.INNGEST_SIGNING_KEY
-    const botBaseUrl = process.env.INNGEST_BASE_URL || 'https://three-head-dragon.shop/api/inngest'
+    const botEventKey = process.env.BOT_INNGEST_EVENT_KEY
+    const botSigningKey = process.env.BOT_INNGEST_SIGNING_KEY
+    const botBaseUrl = process.env.BOT_INNGEST_BASE_URL || 'https://three-head-dragon.shop/api/inngest'
 
     if (botEventKey) {
       this.configs.set('BOT', {
@@ -49,19 +49,17 @@ class InngestProvider {
         hasSigningKey: !!botSigningKey,
       })
     } else {
-      logger.warn('⚠️ [INNGEST PROVIDER] BOT instance missing INNGEST_EVENT_KEY')
+      logger.warn('⚠️ [INNGEST PROVIDER] BOT instance missing BOT_INNGEST_EVENT_KEY')
     }
 
     // RENDER инстанс (render-server на Railway)
-    // ✅ SDK читает signing key из environment variable INNGEST_SIGNING_KEY
-    // Поэтому temporary устанавливаем RENDER ключи как основные
-    const renderEventKey = process.env.INNGEST_EVENT_KEY_RENDER || process.env.INNGEST_EVENT_KEY
-    const renderSigningKey = process.env.INNGEST_SIGNING_KEY_RENDER || process.env.INNGEST_SIGNING_KEY
-    const renderBaseUrl = 'https://render-v3-production.up.railway.app/api/inngest'
+    const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
+    const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
+    const renderBaseUrl = process.env.RENDER_INNGEST_BASE_URL || 'https://render-v3-production.up.railway.app/api/inngest'
 
     if (renderEventKey) {
       // Создаем официальный Inngest client для RENDER
-      // ⚠️ SDK читает INNGEST_SIGNING_KEY из environment при вызове send()
+      // ⚠️ SDK читает environment variables при вызове send()
       const renderClient = new Inngest({
         name: 'render-server-client',
         eventKey: renderEventKey,
@@ -79,11 +77,9 @@ class InngestProvider {
         baseUrl: renderBaseUrl,
         hasSigningKey: !!renderSigningKey,
         hasClient: true,
-        usingRenderKey: !!process.env.INNGEST_EVENT_KEY_RENDER,
-        usingMainKey: !process.env.INNGEST_EVENT_KEY_RENDER && !!process.env.INNGEST_EVENT_KEY,
       })
     } else {
-      logger.warn('⚠️ [INNGEST PROVIDER] RENDER instance missing INNGEST_EVENT_KEY or INNGEST_EVENT_KEY_RENDER')
+      logger.warn('⚠️ [INNGEST PROVIDER] RENDER instance missing RENDER_INNGEST_EVENT_KEY')
     }
   }
 

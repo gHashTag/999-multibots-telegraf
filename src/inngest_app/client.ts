@@ -1,13 +1,4 @@
 import { Inngest } from 'inngest'
-// Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
-// import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
-import { generateAIReelsFunction } from './functions/generateAIReelsFunction'
-
-// ✅ Список активных Inngest функций
-export const functions = [
-  // generateAdvancedLoopingVideoFunction - отключено, используем localMorphingProcessor
-  generateAIReelsFunction, // AI Reels с автоматическими retry и webhook уведомлениями
-]
 
 // Определяем конфигурацию для логирования
 const config = {
@@ -24,7 +15,7 @@ const config = {
   // Event key только для production
   eventKey:
     process.env.NODE_ENV === 'production'
-      ? process.env.INNGEST_EVENT_KEY
+      ? process.env.BOT_INNGEST_EVENT_KEY
       : undefined,
 }
 
@@ -34,6 +25,20 @@ console.log('🔥 [DEBUG] Inngest client configuration:', {
   environment: process.env.NODE_ENV
 })
 
-// Создаем клиент Inngest для подключения к нашему dev server
+// ✅ ВАЖНО: Создаем клиент Inngest ПЕРЕД импортом функций (избегаем circular dependency)
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
 export const inngest = new Inngest(config)
+
+// ✅ Импортируем FACTORY функции (не сами функции - избегаем circular dependency)
+// Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
+// import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
+import { createGenerateAIReelsFunction } from './functions/generateAIReelsFunction'
+
+// ✅ Создаем функции через factory после создания inngest client
+const generateAIReelsFunction = createGenerateAIReelsFunction(inngest)
+
+// ✅ Список активных Inngest функций
+export const functions = [
+  // generateAdvancedLoopingVideoFunction - отключено, используем localMorphingProcessor
+  generateAIReelsFunction, // AI Reels с автоматическими retry и webhook уведомлениями
+]
