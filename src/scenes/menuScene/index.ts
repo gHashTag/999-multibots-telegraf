@@ -21,7 +21,6 @@ import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getParsingAccess } from '@/menu/mainMenu'
 import { getBotNameByToken } from '@/core/bot'
-import { createMiniAppKeyboard } from '@/menu/miniAppButton'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -168,17 +167,15 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (photo_url) {
       // Специальная обработка для digitalAvatar - добавляем inline кнопки даже с фото
       if (translationKey === 'digitalAvatar') {
-        // Create mini app button
-        const miniAppKeyboard = createMiniAppKeyboard(isRu, [
+        // Inline кнопка подписки (БЕЗ Mini App)
+        const inlineKeyboard = Markup.inlineKeyboard([
           [
             {
               text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
               callback_data: 'go_to_subscription_scene',
             },
           ],
-        ])
-        
-        const inlineKeyboard = miniAppKeyboard.reply_markup
+        ]).reply_markup
 
         // Пробуем отправить фото с fallback
         const photoSent = await sendPhotoWithFallback(ctx, photo_url, {
@@ -213,17 +210,15 @@ const menuCommandStep = async (ctx: MyContext) => {
 
         // Специальная обработка для digitalAvatar - добавляем inline кнопки
         if (translationKey === 'digitalAvatar') {
-          // Create mini app button
-          const miniAppKeyboard = createMiniAppKeyboard(isRu, [
+          // Inline кнопка подписки (БЕЗ Mini App)
+          const inlineKeyboard = Markup.inlineKeyboard([
             [
               {
                 text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
                 callback_data: 'go_to_subscription_scene',
               },
             ],
-          ])
-          
-          const inlineKeyboard = miniAppKeyboard.reply_markup
+          ]).reply_markup
 
           // Отправляем сообщение с inline кнопками
           await ctx.reply(message, {
