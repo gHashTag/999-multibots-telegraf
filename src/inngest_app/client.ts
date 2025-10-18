@@ -1,10 +1,12 @@
 import { Inngest } from 'inngest'
 // Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
 // import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
+import { generateAIReelsFunction } from './functions/generateAIReelsFunction'
 
-// ✅ Список Inngest функций (пуст - морфинг переведен на чистый JavaScript)
+// ✅ Список активных Inngest функций
 export const functions = [
   // generateAdvancedLoopingVideoFunction - отключено, используем localMorphingProcessor
+  generateAIReelsFunction, // AI Reels с автоматическими retry и webhook уведомлениями
 ]
 
 // Определяем конфигурацию для логирования
@@ -16,7 +18,7 @@ const config = {
     process.env.NODE_ENV === 'development'
       ? 'http://localhost:8288' // Наш dev server
       : (process.env.SERVER_API_URL ||
-          'https://ai-server-production-production-8e2d.up.railway.app') +
+          'https://three-head-dragon.shop') +
         '/api/inngest', // Продакшн сервер
   isDev: process.env.NODE_ENV === 'development',
   // Event key только для production
