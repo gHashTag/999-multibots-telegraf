@@ -73,11 +73,11 @@ export async function generateAiServerLipSync(
       urls: {
         get: `${
           process.env.SERVER_API_URL ||
-          'https://ai-server-production-production-8e2d.up.railway.app'
+          'https://three-head-dragon.shop'
         }/api/lipsync/${result.id}`,
         cancel: `${
           process.env.SERVER_API_URL ||
-          'https://ai-server-production-production-8e2d.up.railway.app'
+          'https://three-head-dragon.shop'
         }/api/lipsync/${result.id}/cancel`,
       },
     } as AiServerLipSyncResponse
@@ -121,11 +121,11 @@ export async function getAiServerLipSyncStatus(
       urls: {
         get: `${
           process.env.SERVER_API_URL ||
-          'https://ai-server-production-production-8e2d.up.railway.app'
+          'https://three-head-dragon.shop'
         }/api/lipsync/${result.id}`,
         cancel: `${
           process.env.SERVER_API_URL ||
-          'https://ai-server-production-production-8e2d.up.railway.app'
+          'https://three-head-dragon.shop'
         }/api/lipsync/${result.id}/cancel`,
       },
     } as AiServerLipSyncResponse

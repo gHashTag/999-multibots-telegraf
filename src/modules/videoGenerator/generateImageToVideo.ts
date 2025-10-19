@@ -54,7 +54,7 @@ async function notifyAdminAboutServerIssue(
       `🎬 Model: ${escapeHtml(videoModel)}\n` +
       `❌ Server Error: ${escapeHtml(error)}\n` +
       `✅ Используется прямой API Veo 3 (Plan B)\n\n` +
-      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+      `⚠️ Проверьте сервер: https://three-head-dragon.shop`
     
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {

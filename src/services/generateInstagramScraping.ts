@@ -133,7 +133,7 @@ export async function generateInstagramScraping(
       process.env.NODE_ENV === 'development'
         ? 'localhost:8288'
         : (process.env.SERVER_API_URL?.replace('https://', '') ||
-            'ai-server-production-production-8e2d.up.railway.app') +
+            'three-head-dragon.shop') +
             '/api/inngest'
     )
     console.log(
