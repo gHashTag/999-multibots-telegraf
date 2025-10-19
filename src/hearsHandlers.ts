@@ -30,15 +30,36 @@ import { getParsingAccess } from './menu/mainMenu'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
+  // ✅ WIZARD CALLBACK HANDLING: Wizards обрабатываются через stage.middleware()
+  // stage.middleware() запускается ПЕРЕД этим handler'ом и устанавливает ctx.scene.current
+  // Если wizard активен, мы пропускаем callback к wizard через return next()
+
   // === INLINE КНОПКИ ДЛЯ НЕЙРОФОТО ===
-  bot.on('callback_query', async (ctx: MyContext) => {
+  bot.on('callback_query', async (ctx: MyContext, next) => {
     if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
       await ctx.answerCbQuery()
-      return
+      return next()
     }
 
     const data = ctx.callbackQuery.data
     const telegramId = ctx.from.id
+
+    // ✅ КРИТИЧНО: Если wizard активен, пропускаем к wizard handler
+    // stage.middleware() уже запустился и установил ctx.scene.current
+    console.log('🔍 [GLOBAL CALLBACK] Checking wizard:', {
+      hasScene: !!ctx.scene,
+      hasCurrent: !!ctx.scene?.current,
+      wizardId: ctx.scene?.current?.id,
+      callback: data,
+    })
+
+    if (ctx.scene?.current?.id) {
+      console.log('🚨 [GLOBAL CALLBACK] Active wizard detected, passing to wizard:', {
+        wizardId: ctx.scene.current.id,
+        callback: data,
+      })
+      return next() // Передаём wizard handler'у
+    }
 
     try {
       await ctx.answerCbQuery()
@@ -101,19 +122,21 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       switch (data) {
         case 'improve_prompt':
           await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
-          break
+          return
         case 'change_size':
           await ctx.scene.enter(ModeEnum.SizeWizard)
-          break
+          return
         case 'new_prompt':
           ctx.session.prompt = undefined
           await ctx.scene.enter(ModeEnum.NeuroPhoto)
-          break
+          return
         case 'main_menu':
           await ctx.scene.enter(ModeEnum.MainMenu)
-          break
+          return
         default:
-          logger.warn(`Unknown callback data: ${data}`)
+          // Неизвестный callback - передаем другим обработчикам (может быть wizard)
+          logger.debug(`Callback не обработан глобальным handler'ом, передаем дальше: ${data}`)
+          return next()
       }
 
     } catch (error) {

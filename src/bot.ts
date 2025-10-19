@@ -104,16 +104,18 @@ async function initializeBots() {
     )
   }
 
-  const mode = process.env.MODE || 'webhook'
+  // 🔧 FIX: В development режиме ВСЕГДА используем polling (один бот)
+  // В production - по умолчанию webhook (все боты)
+  const mode = isDev ? 'polling' : (process.env.MODE || 'webhook')
+
+  console.log(`🎯 [MODE] Выбран режим: ${mode} (isDev: ${isDev})`)
 
   if (mode === 'polling') {
     // В режиме polling запускаем ОДИН бот (для dev - TEST_BOT_NAME, для prod - первый доступный)
     const targetBotUsername = process.env.TEST_BOT_NAME
 
     if (isDev && !targetBotUsername) {
-      throw new Error(
-        '❌ В development режиме требуется TEST_BOT_NAME. Укажите username бота для запуска.'
-      )
+      console.log('⚠️ [POLLING] TEST_BOT_NAME не указан, используем первый доступный бот')
     }
 
     if (targetBotUsername) {
@@ -182,6 +184,9 @@ async function initializeBots() {
 
     // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
     setupNotificationProcessor(bot)
+
+    // ❌ УБРАЛИ WIZARD BLOCKER отсюда - он был ПЕРЕД stage.middleware()!
+    // Теперь wizard callbacks будут обрабатываться правильно через stage.middleware()
 
     registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS

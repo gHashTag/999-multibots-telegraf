@@ -574,12 +574,12 @@ export const handleMenu = async (ctx: MyContext) => {
       },
       [isRu ? levels[110].title_ru : levels[110].title_en]: async () => {
         logger.info({
-          message: '🎬 [handleMenu] AI Reels - открытие miniApp',
+          message: '🎬 [handleMenu] AI Reels - запуск entry wizard',
           telegramId,
           function: 'handleMenu',
-          action: 'ai_reels_miniapp',
+          action: 'ai_reels_entry',
         })
-        console.log('CASE: 🎬 AI Reels - Mini App')
+        console.log('CASE: 🎬 AI Reels - Entry Wizard')
 
         // Проверяем права администратора или сотрудников Хаим Групп
         const userId = ctx.from?.id?.toString()
@@ -602,24 +602,12 @@ export const handleMenu = async (ctx: MyContext) => {
           return
         }
 
-        // Импортируем функцию создания miniApp кнопки
-        const { createMiniAppKeyboard } = await import('@/menu/miniAppButton')
-        
-        // Создаем keyboard с miniApp кнопкой
-        const miniAppKeyboard = createMiniAppKeyboard(isRu)
-        
-        // Отправляем сообщение с miniApp кнопкой
-        await ctx.reply(
-          isRu 
-            ? `🎬 <b>AI Reels Creator</b>\n\n🎨 Откройте приложение для создания профессиональных Reels с помощью AI!\n\n✨ Возможности:\n• Генерация вирусных сценариев\n• Создание видео в формате 9:16\n• Готовые шаблоны для разных ниш\n• Профессиональная обработка`
-            : `🎬 <b>AI Reels Creator</b>\n\n🎨 Open the app to create professional Reels with AI!\n\n✨ Features:\n• Viral script generation\n• 9:16 video creation\n• Ready templates for different niches\n• Professional processing`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: miniAppKeyboard.reply_markup
-          }
-        )
-        
-        logger.info('[handleMenu] AI Reels miniApp button sent', {
+        // Запускаем AI Reels entry wizard (выбор метода)
+        console.log(`🔄 [handleMenu] Вход в сцену ai_reels_entry`)
+        await ctx.scene.enter('ai_reels_entry')
+        console.log(`✅ [handleMenu] Завершен вход в сцену ai_reels_entry`)
+
+        logger.info('[handleMenu] AI Reels wizard launched', {
           telegramId,
           userId,
         })

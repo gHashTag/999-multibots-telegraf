@@ -1,5 +1,5 @@
-import { inngest } from '../client'
 import { logger } from '@/utils/logger'
+import type { Inngest } from 'inngest'
 
 /**
  * 🎬 AI REELS GENERATION FUNCTION
@@ -38,9 +38,10 @@ export interface AIReelsResult {
 }
 
 /**
- * Inngest функция для генерации AI Reels
+ * ✅ Factory function для создания Inngest функции (избегаем circular dependency)
  */
-export const generateAIReelsFunction = inngest.createFunction(
+export function createGenerateAIReelsFunction(inngest: Inngest.Any) {
+  return inngest.createFunction(
   {
     id: 'ai-reels-generation',
     name: 'AI Reels Generation',
@@ -103,8 +104,9 @@ export const generateAIReelsFunction = inngest.createFunction(
           WAN25_MODELS,
           WAN25ModelType,
           WAN25_DEFAULT_PROMPTS,
-          type WAN25CreateTaskRequest,
         } = await import('@/config/wan25-config')
+
+        type WAN25CreateTaskRequest = import('@/config/wan25-config').WAN25CreateTaskRequest
 
         const wan25Prompt = WAN25_DEFAULT_PROMPTS.CINEMATIC.en
 
@@ -264,4 +266,5 @@ export const generateAIReelsFunction = inngest.createFunction(
       throw error
     }
   }
-)
+  )
+}
