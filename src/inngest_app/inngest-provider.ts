@@ -162,7 +162,30 @@ class InngestProvider {
   async checkAvailability(instance: InngestInstance): Promise<boolean> {
     const config = this.getConfig(instance)
 
-    if (!config || !config.baseUrl) {
+    if (!config) {
+      return false
+    }
+
+    // Для RENDER instance проверяем наличие client и eventKey
+    // (это функция в Inngest Cloud, нельзя проверить через HTTP GET)
+    if (instance === 'RENDER') {
+      const isAvailable = !!(config.client && config.eventKey)
+      if (isAvailable) {
+        logger.info(`✅ [INNGEST PROVIDER] ${instance} available (Inngest Cloud client configured)`, {
+          hasClient: !!config.client,
+          hasEventKey: !!config.eventKey,
+        })
+      } else {
+        logger.warn(`⚠️ [INNGEST PROVIDER] ${instance} not available`, {
+          hasClient: !!config.client,
+          hasEventKey: !!config.eventKey,
+        })
+      }
+      return isAvailable
+    }
+
+    // Для BOT instance проверяем через HTTP запрос к нашему серверу
+    if (!config.baseUrl) {
       return false
     }
 
