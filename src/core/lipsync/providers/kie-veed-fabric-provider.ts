@@ -347,7 +347,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         ? `${process.env.LOCAL_SERVER_URL}/api/kie-ai/callback`
         : process.env.API_SERVER_URL
         ? `${process.env.API_SERVER_URL}/api/kie-ai/callback`
-        : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
+        : 'https://three-head-dragon.shop/api/kie-ai/callback'
 
       logger.info('🔗 [KIE PROVIDER] Callback URL определен', {
         callback_url: callbackUrl,
