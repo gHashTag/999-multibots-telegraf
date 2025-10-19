@@ -52,13 +52,13 @@ class InngestProvider {
       logger.warn('⚠️ [INNGEST PROVIDER] BOT instance missing BOT_INNGEST_EVENT_KEY')
     }
 
-    // RENDER инстанс (Inngest Cloud → Railway render-server function)
+    // RENDER инстанс (Inngest Cloud → Railway render-server)
     const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
     const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
 
     if (renderEventKey) {
       // Создаем Inngest client для отправки в Inngest Cloud
-      // Inngest Cloud вызовет функцию на Railway render-server
+      // Inngest Cloud вызовет Railway render-server function
       const renderClient = new Inngest({
         name: 'render-server-client',
         eventKey: renderEventKey,
