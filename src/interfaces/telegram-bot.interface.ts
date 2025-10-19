@@ -232,6 +232,17 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     wan25TaskId?: string    // ID задачи WAN 2.5 для отслеживания
   }
   returnToAIReelsAfterVoice?: boolean // Флаг возврата в AI Reels после создания голоса
+
+  aiReelsRender?: {
+    // Данные для AI Reels Render wizard (генерация через render-server с Hedra/HeyGen)
+    step?: 'image' | 'text' | 'avatar_service' | 'processing'
+    imageUrl?: string
+    text?: string
+    audioUrl?: string
+    avatarService?: 'hedra' | 'heygen' // Выбранный сервис генерации аватара
+    startTime?: number
+    eventId?: string // ID события Inngest для отслеживания
+  }
   email?: string
   inviteCode?: string
   inviter?: string

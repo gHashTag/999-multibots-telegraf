@@ -36,7 +36,7 @@ export interface AIReelsEventPayload {
  * Отправляет событие AI Reels в Inngest
  */
 export async function sendAIReelsEvent(payload: AIReelsEventPayload): Promise<{ eventId: string }> {
-  const eventKey = process.env.INNGEST_EVENT_KEY
+  const eventKey = process.env.BOT_INNGEST_EVENT_KEY
 
   if (!eventKey) {
     throw new Error('INNGEST_EVENT_KEY not configured')
@@ -51,7 +51,7 @@ export async function sendAIReelsEvent(payload: AIReelsEventPayload): Promise<{ 
 
   try {
     // Отправляем событие напрямую в Inngest Cloud
-    const response = await fetch(`https://api.inngest.com/e/${eventKey}`, {
+    const response = await fetch(`https://inn.gs/e/${eventKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

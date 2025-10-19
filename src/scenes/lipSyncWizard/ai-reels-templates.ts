@@ -176,5 +176,5 @@ export function getTemplateConfig(template: AIReelsTemplate): AIReelsTemplateCon
  * Проверяет, доступен ли Inngest шаблон
  */
 export function isInngestTemplateAvailable(): boolean {
-  return !!process.env.INNGEST_EVENT_KEY && process.env.NODE_ENV === 'production'
+  return !!process.env.BOT_INNGEST_EVENT_KEY && process.env.NODE_ENV === 'production'
 }
