@@ -1,7 +1,7 @@
 import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
-import { bot } from '@/core/bot'
+import { defaultBot } from '@/core/bot'
 
 const router: Router = express.Router()
 
@@ -130,7 +130,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
         telegramId
       })
 
-      await bot.telegram.sendMessage(
+      await defaultBot.telegram.sendMessage(
         telegramId,
         '⚠️ Видео готово, но произошла ошибка при получении ссылки. Попробуйте ещё раз.'
       )
@@ -144,7 +144,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
     })
 
     // Отправляем готовое видео пользователю
-    await bot.telegram.sendVideo(telegramId, videoUrl, {
+    await defaultBot.telegram.sendVideo(telegramId, videoUrl, {
       caption: '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Railway)'
     })
 
@@ -162,7 +162,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
 
     // Отправляем сообщение об ошибке пользователю
     try {
-      await bot.telegram.sendMessage(
+      await defaultBot.telegram.sendMessage(
         telegramId,
         '⚠️ Видео готово, но произошла ошибка при отправке. Попробуйте ещё раз.'
       )
@@ -187,7 +187,7 @@ async function handleFailedRender(telegramId: string, payload: AIReelsCallbackPa
       error: errorMessage
     })
 
-    await bot.telegram.sendMessage(
+    await defaultBot.telegram.sendMessage(
       telegramId,
       `❌ Ошибка при создании видео:\n\n${errorMessage}\n\nПопробуйте ещё раз или выберите другой шаблон.`
     )
