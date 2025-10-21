@@ -35,14 +35,14 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
           '• Лицо чётко видно\n' +
           '• Анфас (прямо в камеру)\n' +
           '• Хорошее освещение\n\n' +
-          '💰 <b>Стоимость:</b> 1 ⭐'
+          '💰 <b>Стоимость:</b> 10 ⭐'
         : '🎭 <b>Face Swap</b>\n\n' +
           'Upload photo of the person whose face you want to swap.\n\n' +
           '📋 <b>Requirements:</b>\n' +
           '• Face clearly visible\n' +
           '• Frontal angle\n' +
           '• Good lighting\n\n' +
-          '💰 <b>Cost:</b> 1 ⭐',
+          '💰 <b>Cost:</b> 10 ⭐',
       { parse_mode: 'HTML' }
     )
 
@@ -143,7 +143,7 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
 
     // Check user balance
     const balance = await getUserBalance(telegramId!)
-    const requiredStars = 1 // Face swap costs 1 star
+    const requiredStars = 10 // Face swap costs 10 stars
 
     if (balance < requiredStars) {
       await ctx.reply(
