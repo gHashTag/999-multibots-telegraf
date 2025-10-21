@@ -433,13 +433,15 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         }
       }
 
-      // 💰 Шаблон 1: Фиксированная стоимость 300⭐
+      // 💰 Шаблон 1: Фиксированная стоимость 240⭐
+      // Себестоимость: 160⭐ (VEO3) × 1.5 наценка = 240⭐
       // Включает: Lip-sync + 4 видео сцены + склеивание
-      const totalCost = 300
+      const totalCost = 240
 
       logger.info('💰 AI Reels Шаблон 1 - фиксированная стоимость', {
         totalCost,
         template: 'Template 1 (WAN25)',
+        markup: 1.5,
       })
 
       // Проверка баланса
@@ -458,10 +460,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu
             ? `💰 Недостаточно средств для создания AI Reels\n\n` +
-              `📊 Стоимость Шаблона 1: ${totalCost}⭐\n` +
+              `📊 Стоимость Шаблона 1: ${totalCost}⭐ ($${(totalCost / 100).toFixed(2)})\n` +
               `💳 У вас: ${currentBalance.toFixed(2)}⭐`
             : `💰 Insufficient funds for AI Reels creation\n\n` +
-              `📊 Template 1 cost: ${totalCost}⭐\n` +
+              `📊 Template 1 cost: ${totalCost}⭐ ($${(totalCost / 100).toFixed(2)})\n` +
               `💳 You have: ${currentBalance.toFixed(2)}⭐`
         )
         return ctx.scene.leave()
