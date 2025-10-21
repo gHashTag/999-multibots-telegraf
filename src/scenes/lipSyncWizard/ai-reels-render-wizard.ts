@@ -511,16 +511,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                 `⏱️ Ожидаемое время: 2-5 минут\n` +
                 `📢 Вы получите уведомление когда видео будет готово\n\n` +
                 `💰 Списано: ${estimatedCost}⭐\n` +
-                `💳 Новый баланс: ${(currentBalance - estimatedCost).toFixed(2)}⭐\n\n` +
-                `🔍 Мониторинг: https://app.inngest.com`
+                `💳 Новый баланс: ${(currentBalance - estimatedCost).toFixed(2)}⭐`
               : `✅ Request sent to render-server!\n\n` +
                 `🔄 Event ID: ${eventId}\n` +
                 `🎭 Service: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
                 `⏱️ Expected time: 2-5 minutes\n` +
                 `📢 You will receive notification when video is ready\n\n` +
                 `💰 Charged: ${estimatedCost}⭐\n` +
-                `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐\n\n` +
-                `🔍 Monitor: https://app.inngest.com`,
+                `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`,
             { parse_mode: 'HTML' }
           )
           console.log('🔴 [STEP 3] Reply sent to user!')
