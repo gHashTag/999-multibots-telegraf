@@ -7,10 +7,12 @@ const router: Router = express.Router()
 
 /**
  * Interface для callback payload от Railway render-server
+ * Реальный формат: { download_url: "https://.../jobs/telegram-ID-timestamp/results/file.mp4" }
  */
 interface AIReelsCallbackPayload {
-  job_id: string
-  status: 'completed' | 'failed' | 'processing'
+  download_url?: string  // Railway format
+  job_id?: string
+  status?: 'completed' | 'failed' | 'processing'
   result_url?: string
   video_url?: string
   error?: string
@@ -42,52 +44,64 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
 
     const payload: AIReelsCallbackPayload = req.body
 
+    // Railway отправляет download_url вместо структурированного payload
+    // Извлекаем job_id из download_url: .../jobs/telegram-ID-timestamp/results/...
+    let jobId = payload.job_id
+    let videoUrl = payload.result_url || payload.video_url || payload.download_url
+    let status = payload.status || 'completed' // Default to completed if we have download_url
+
+    if (!jobId && payload.download_url) {
+      const match = payload.download_url.match(/jobs\/(telegram-\d+-\d+)\//)
+      if (match) {
+        jobId = match[1]
+      }
+    }
+
     logger.info('🎬 [AI REELS CALLBACK] Received callback from Railway', {
-      jobId: payload.job_id,
-      status: payload.status,
-      hasResultUrl: !!payload.result_url,
-      hasVideoUrl: !!payload.video_url,
+      jobId,
+      status,
+      videoUrl,
       hasError: !!payload.error,
-      metadata: payload.metadata
+      rawPayload: payload
     })
 
     // Валидация обязательных полей
-    if (!payload.job_id) {
-      logger.error('❌ [AI REELS CALLBACK] Missing job_id', { payload })
+    if (!jobId) {
+      logger.error('❌ [AI REELS CALLBACK] Cannot extract job_id', { payload })
       return
     }
 
-    if (!payload.status) {
-      logger.error('❌ [AI REELS CALLBACK] Missing status', { payload })
+    if (!videoUrl) {
+      logger.error('❌ [AI REELS CALLBACK] No video URL found', { payload })
       return
     }
 
     // Извлекаем Telegram ID из metadata или job_id
     const telegramId = payload.metadata?.telegram_id ||
                        payload.metadata?.chat_id ||
-                       extractTelegramIdFromJobId(payload.job_id)
+                       extractTelegramIdFromJobId(jobId)
 
     if (!telegramId) {
       logger.error('❌ [AI REELS CALLBACK] Cannot extract Telegram ID', {
-        jobId: payload.job_id,
+        jobId,
         metadata: payload.metadata
       })
       return
     }
 
     // Обработка в зависимости от статуса
-    if (payload.status === 'completed') {
-      await handleCompletedRender(telegramId, payload)
-    } else if (payload.status === 'failed') {
-      await handleFailedRender(telegramId, payload)
-    } else if (payload.status === 'processing') {
-      await handleProcessingUpdate(telegramId, payload)
+    if (status === 'completed') {
+      await handleCompletedRender(telegramId, { ...payload, job_id: jobId, result_url: videoUrl })
+    } else if (status === 'failed') {
+      await handleFailedRender(telegramId, { ...payload, job_id: jobId })
+    } else if (status === 'processing') {
+      await handleProcessingUpdate(telegramId, { ...payload, job_id: jobId })
     }
 
     const duration = Date.now() - startTime
     logger.info('✅ [AI REELS CALLBACK] Processed successfully', {
-      jobId: payload.job_id,
-      status: payload.status,
+      jobId,
+      status,
       duration: `${duration}ms`
     })
 
