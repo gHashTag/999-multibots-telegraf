@@ -283,13 +283,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       }
 
       // 💰 Динамический расчет цены:
-      // - VEO3 Fast (4 видео): 160⭐ фиксированно
-      // - Hedra lip-sync: ~14⭐/сек (включает Hedra + ElevenLabs + накладные)
-      // - Наценка: x2
-      const veo3Cost = 160
-      const hedraPerSecond = 14
-      const baseCost = veo3Cost + (estimatedDuration * hedraPerSecond)
-      const finalCost = Math.ceil(baseCost * 2) // x2 наценка
+      // - VEO3 Fast (4 видео): 160⭐ × 1.5 = 240⭐
+      // - Hedra lip-sync: ~4.9⭐/сек себестоимость × 1.5 = ~7⭐/сек
+      // - Формула: 240 + (duration × 7)
+      const veo3Cost = 240 // с наценкой x1.5
+      const hedraPerSecond = 7 // с наценкой x1.5
+      const finalCost = veo3Cost + (estimatedDuration * hedraPerSecond)
       const finalCostUSD = (finalCost / 100).toFixed(2)
 
       // Запрос выбора сервиса аватара
@@ -298,8 +297,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           ? `✅ Текст получен!\n\n` +
             `📊 <b>Расчет стоимости:</b>\n` +
             `• Длительность: ~${estimatedDuration} сек\n` +
-            `• 4 видео VEO3 Fast: 160⭐\n` +
-            `• Hedra lip-sync: ${estimatedDuration} × 14⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
+            `• 4 видео VEO3 Fast: 240⭐\n` +
+            `• Hedra lip-sync: ${estimatedDuration} × 7⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
             `• <b>Итого: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
             `🎭 Выберите сервис для генерации аватара:\n\n` +
             `🎭 <b>Hedra</b> - качественная генерация\n` +
@@ -311,8 +310,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           : `✅ Text received!\n\n` +
             `📊 <b>Cost calculation:</b>\n` +
             `• Duration: ~${estimatedDuration} sec\n` +
-            `• 4 VEO3 Fast videos: 160⭐\n` +
-            `• Hedra lip-sync: ${estimatedDuration} × 14⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
+            `• 4 VEO3 Fast videos: 240⭐\n` +
+            `• Hedra lip-sync: ${estimatedDuration} × 7⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
             `• <b>Total: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
             `🎭 Choose avatar generation service:\n\n` +
             `🎭 <b>Hedra</b> - quality generation\n` +
@@ -438,18 +437,18 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         console.log('🔴 [STEP 3] Avatar service set on payload:', payload.avatar_gen_service)
 
         // 💰 Шаблон 2: Динамическая стоимость по длине lip-sync
+        // Наценка x1.5 применена к базовым ценам
         const duration = ctx.session.aiReelsRender.estimatedDuration || 10
-        const veo3Cost = 160
-        const hedraPerSecond = 14
-        const baseCost = veo3Cost + (duration * hedraPerSecond)
-        const estimatedCost = Math.ceil(baseCost * 2) // x2 наценка
+        const veo3Cost = 240 // 160⭐ × 1.5
+        const hedraPerSecond = 7 // ~4.9⭐/сек × 1.5
+        const estimatedCost = veo3Cost + (duration * hedraPerSecond)
 
         console.log('🔴 [STEP 3] Dynamic cost calculation:', {
           duration,
           veo3Cost,
           hedraPerSecond,
-          baseCost,
           estimatedCost,
+          markup: 1.5,
         })
 
         // Проверка баланса
