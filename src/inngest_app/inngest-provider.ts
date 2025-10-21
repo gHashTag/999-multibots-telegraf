@@ -52,30 +52,29 @@ class InngestProvider {
       logger.warn('⚠️ [INNGEST PROVIDER] BOT instance missing BOT_INNGEST_EVENT_KEY')
     }
 
-    // RENDER инстанс (render-server на Railway)
+    // RENDER инстанс (Inngest Cloud → Railway render-server)
     const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
     const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
-    const renderBaseUrl = process.env.RENDER_INNGEST_BASE_URL || 'https://render-v3-production.up.railway.app/api/inngest'
 
     if (renderEventKey) {
-      // Создаем официальный Inngest client для RENDER
-      // События идут напрямую на Railway render-server (self-hosted Inngest)
+      // Создаем Inngest client для отправки в Inngest Cloud
+      // Inngest Cloud вызовет Railway render-server function
       const renderClient = new Inngest({
         name: 'render-server-client',
         eventKey: renderEventKey,
-        inngestBaseUrl: renderBaseUrl,
+        // НЕ устанавливаем inngestBaseUrl - по умолчанию Inngest Cloud (inn.gs)
       })
 
       this.configs.set('RENDER', {
         eventKey: renderEventKey,
         signingKey: renderSigningKey,
-        baseUrl: renderBaseUrl,
+        baseUrl: 'https://inn.gs', // Inngest Cloud
         name: 'render-server',
         client: renderClient,
       })
-      logger.info('✅ [INNGEST PROVIDER] RENDER instance configured with SDK client', {
-        baseUrl: renderBaseUrl,
-        hasSigningKey: !!renderSigningKey,
+      logger.info('✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Railway)', {
+        cloudUrl: 'https://inn.gs',
+        hasEventKey: !!renderEventKey,
         hasClient: true,
       })
     } else {
@@ -131,16 +130,16 @@ class InngestProvider {
         dataSize: JSON.stringify(data).length,
       })
 
-      // ✅ Отправляем событие через Inngest SDK
-      // Для RENDER: напрямую на Railway render-server (self-hosted)
+      // ✅ Отправляем событие в Inngest Cloud
+      // Inngest Cloud вызовет функцию на Railway render-server
       await config.client.send({
         name: eventName,
         data,
       })
 
-      logger.info(`✅ [INNGEST PROVIDER] Event sent to ${instance}`, {
+      logger.info(`✅ [INNGEST PROVIDER] Event sent to ${instance} (via Inngest Cloud)`, {
         eventName,
-        baseUrl: config.baseUrl,
+        cloudUrl: instance === 'RENDER' ? 'https://inn.gs' : config.baseUrl,
       })
 
       // SDK не возвращает event IDs, генерируем свой для логирования
@@ -167,7 +166,25 @@ class InngestProvider {
       return false
     }
 
-    // Проверяем через HTTP запрос к Inngest server
+    // Для RENDER instance проверяем наличие client и eventKey
+    // (это функция в Inngest Cloud, нельзя проверить через HTTP GET)
+    if (instance === 'RENDER') {
+      const isAvailable = !!(config.client && config.eventKey)
+      if (isAvailable) {
+        logger.info(`✅ [INNGEST PROVIDER] ${instance} available (Inngest Cloud client configured)`, {
+          hasClient: !!config.client,
+          hasEventKey: !!config.eventKey,
+        })
+      } else {
+        logger.warn(`⚠️ [INNGEST PROVIDER] ${instance} not available`, {
+          hasClient: !!config.client,
+          hasEventKey: !!config.eventKey,
+        })
+      }
+      return isAvailable
+    }
+
+    // Для BOT instance проверяем через HTTP запрос к нашему серверу
     if (!config.baseUrl) {
       return false
     }
