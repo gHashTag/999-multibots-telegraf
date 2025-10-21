@@ -464,6 +464,43 @@ export const handleMenu = async (ctx: MyContext) => {
           )
         }
       },
+      [isRu ? levels[15].title_ru : levels[15].title_en]: async () => {
+        logger.info({
+          message: '🎭 [handleMenu] Переход к замене лица',
+          telegramId,
+          function: 'handleMenu',
+          action: 'face_swap',
+          nextScene: ModeEnum.FaceSwap,
+        })
+        console.log('CASE: 🎭 Замена лица')
+
+        // ✅ ЗАЩИТА: Проверяем подписку перед входом в face swap
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          isRu ? '🎭 Замена лица' : '🎭 Face Swap'
+        )
+
+        if (!hasSubscription) {
+          logger.warn('⚠️ [handleMenu] No subscription for Face Swap - exiting')
+          return
+        }
+
+        logger.info(`🔄 [handleMenu] Запуск Face Swap wizard`)
+
+        try {
+          await ctx.scene.enter(ModeEnum.FaceSwap)
+          logger.info(`✅ [handleMenu] Успешно вошли в face_swap wizard`, {
+            currentScene: ctx.scene.current?.id,
+          })
+        } catch (error) {
+          logger.error(`❌ [handleMenu] Ошибка входа в face_swap`, { error })
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка запуска замены лица. Попробуйте позже.'
+              : '❌ Error starting face swap. Try again later.'
+          )
+        }
+      },
       [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
         logger.info({
           message: '⬆️ [handleMenu] Переход к увеличению качества фото',
