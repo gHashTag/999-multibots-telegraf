@@ -556,9 +556,59 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        const firstVideoUrl = result.output
+        // ✅ ИСПРАВЛЕНИЕ: Поддержка асинхронного провайдера (kie)
+        let firstVideoUrl = result.output
 
-        if (!firstVideoUrl) {
+        // Если output пустой но есть taskId - это async провайдер, нужен polling
+        if (!firstVideoUrl && result.taskId && result.status === 'processing') {
+          logger.info('⏳ [AI REELS] Async провайдер, запуск polling', {
+            taskId: result.taskId,
+            provider: result.provider,
+          })
+
+          // Polling результата (максимум 120 секунд)
+          const maxAttempts = 40 // 40 попыток × 3 сек = 120 сек
+          let attempts = 0
+
+          while (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 3000)) // Ждем 3 секунды
+            attempts++
+
+            const statusResult = await lipSyncOrchestrator.checkStatus(
+              result.provider || 'kie',
+              result.modelId || 'veed-fabric',
+              result.taskId
+            )
+
+            logger.info('🔍 [AI REELS] Проверка статуса polling', {
+              attempt: attempts,
+              hasOutput: !!('output' in statusResult && statusResult.output),
+              status: 'status' in statusResult ? statusResult.status : 'unknown',
+            })
+
+            // Если результат готов
+            if ('output' in statusResult && statusResult.output) {
+              firstVideoUrl = statusResult.output
+              logger.info('✅ [AI REELS] Получен результат через polling', {
+                attempts,
+                videoUrl: firstVideoUrl.substring(0, 100),
+              })
+              break
+            }
+
+            // Если ошибка
+            if ('error' in statusResult) {
+              logger.error('❌ [AI REELS] Ошибка при polling', { statusResult })
+              throw new Error(`Polling error: ${statusResult.error}`)
+            }
+          }
+
+          // Если после всех попыток output пустой
+          if (!firstVideoUrl) {
+            throw new Error('Polling timeout: video not ready after 120 seconds')
+          }
+        } else if (!firstVideoUrl) {
+          // Если это не async провайдер и output пустой - ошибка
           throw new Error('First video URL not returned from orchestrator')
         }
 
