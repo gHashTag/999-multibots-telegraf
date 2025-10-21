@@ -3,6 +3,7 @@ import healthRouter from './routes/health.routes'
 import robokassaRouter from './routes/robokassa.routes'
 import githubAutoFixerRouter from './routes/github-autofixer.routes'
 import kieAiWebhookRouter from './routes/kie-ai-webhook.routes'
+import aiReelsCallbackRouter from './routes/ai-reels-callback.routes'
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 
@@ -46,6 +47,9 @@ export function startApiServer(): void {
 
   // Регистрируем маршруты для Kie.ai webhook
   app.use('/api', kieAiWebhookRouter)
+
+  // Регистрируем маршруты для AI Reels callback от Railway
+  app.use('/api', aiReelsCallbackRouter)
 
   // Интеграция Inngest с API (актуальная сигнатура serve)
   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
