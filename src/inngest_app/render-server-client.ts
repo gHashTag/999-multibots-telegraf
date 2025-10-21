@@ -16,29 +16,40 @@ logger.info('📦 [RENDER CLIENT] Module loaded, inngestProvider imported')
 
 const RENDER_SERVER_URL = 'https://render-v3-production.up.railway.app'
 
-export interface RenderAvatarVideoPayload {
+export interface RenderRiddlePayload {
   job_id: string
   eleven_labs_api_key: string
   kie_api_key: string
   cover_url: string
-  intro_text_1: string
-  intro_text_2: string
-  upper_intro_text: string
-  avatar_gen_service: 'hedra' | 'kling' | 'other'
+  intro_text_1: {
+    text: string
+    position: [number, number]
+    font_size: number
+  }
+  intro_text_2: {
+    text: string
+    position: [number, number]
+    font_size: number
+  }
+  upper_intro_text?: string
+  circle_position: [number, number, number]
+  circle_scale: [number, number, number]
+  avatar_gen_service: 'hedra' | 'heygen'
   avatar_settings: {
     api_key: string
     avatar_photo_url: string
     voice_id: string
     avatar_speech: string
   }
+  callback_url?: string
 }
 
 /**
- * Отправляет событие на render-server для генерации видео с аватаром
+ * Отправляет событие render-riddle на render-server
  * Использует RENDER инстанс через inngestProvider
  */
 export async function sendRenderAvatarVideoEvent(
-  payload: RenderAvatarVideoPayload
+  payload: RenderRiddlePayload
 ): Promise<{ eventId: string }> {
   logger.info('🎬 [RENDER SERVER] Sending avatar video event', {
     jobId: payload.job_id,
@@ -46,7 +57,7 @@ export async function sendRenderAvatarVideoEvent(
   })
 
   try {
-    const result = await inngestProvider.sendEvent('RENDER', 'render/avatar-video', payload)
+    const result = await inngestProvider.sendEvent('RENDER', 'render-riddle', payload)
 
     if (!result) {
       throw new Error('Failed to send event to RENDER instance')
@@ -76,7 +87,7 @@ export async function checkRenderServerAvailability(): Promise<boolean> {
 }
 
 /**
- * Создает payload для render-avatar-video из параметров бота
+ * Создает payload для render-riddle из параметров бота
  */
 export function createRenderAvatarPayload(
   telegramId: string,
@@ -88,16 +99,27 @@ export function createRenderAvatarPayload(
     introText1?: string
     introText2?: string
     upperIntroText?: string
+    callbackUrl?: string
   }
-): RenderAvatarVideoPayload {
+): RenderRiddlePayload {
   return {
     job_id: `telegram-${telegramId}-${Date.now()}`,
     eleven_labs_api_key: process.env.ELEVENLABS_API_KEY || '',
     kie_api_key: process.env.KIE_AI_API_KEY || '',
     cover_url: options?.coverUrl || '',
-    intro_text_1: options?.introText1 || '',
-    intro_text_2: options?.introText2 || '',
+    intro_text_1: {
+      text: options?.introText1 || '',
+      position: [540, 1200],
+      font_size: 100,
+    },
+    intro_text_2: {
+      text: options?.introText2 || '',
+      position: [540, 1340],
+      font_size: 100,
+    },
     upper_intro_text: options?.upperIntroText || '',
+    circle_position: [872, 1360, 0],
+    circle_scale: [150, 150, 100],
     avatar_gen_service: 'hedra',
     avatar_settings: {
       api_key: process.env.HEDRA_API_KEY || '',
@@ -105,5 +127,6 @@ export function createRenderAvatarPayload(
       voice_id: voiceId,
       avatar_speech: text,
     },
+    callback_url: options?.callbackUrl || 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
   }
 }
