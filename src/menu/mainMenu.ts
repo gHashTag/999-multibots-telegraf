@@ -324,17 +324,32 @@ export async function mainMenu({
 
   console.log(`[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`)
 
-  availableLevels = Object.values(levels)
-    .filter(filterServiceLevels)
-    .filter(
+  // 🔍 DEBUG: Trace level 15 through filtering pipeline
+  console.log(`[DEBUG] levels[15]:`, levels[15])
+  console.log(`[DEBUG] Object.keys(levels):`, Object.keys(levels))
+  const allLevels = Object.values(levels)
+  console.log(`[DEBUG] Total levels from Object.values:`, allLevels.length)
+  console.log(`[DEBUG] Level 15 in Object.values:`, allLevels.find(l => l.title_ru === '🎭 Замена лица'))
+
+  const afterServiceFilter = allLevels.filter(filterServiceLevels)
+  console.log(`[DEBUG] After filterServiceLevels:`, afterServiceFilter.length)
+  console.log(`[DEBUG] Level 15 after service filter:`, afterServiceFilter.find(l => l.title_ru === '🎭 Замена лица'))
+
+  availableLevels = afterServiceFilter.filter(
       level => {
         const shouldInclude = !(level.admin_only && !hasAdminAccess)
+        if (level.title_ru === '🎭 Замена лица') {
+          console.log(`[DEBUG] Level 15 admin check: admin_only=${level.admin_only}, hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`)
+        }
         if (level.admin_only) {
           console.log(`[mainMenu DEBUG] Admin-only level ${level.title_ru}: hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`)
         }
         return shouldInclude
       }
     )
+
+  console.log(`[DEBUG] Final availableLevels count:`, availableLevels.length)
+  console.log(`[DEBUG] Level 15 in final availableLevels:`, availableLevels.find(l => l.title_ru === '🎭 Замена лица'))
 
   // Добавляем кнопку мониторинга конкурентов для админов и сотрудников Хаим Групп
   if (userId && levels[109]) {
