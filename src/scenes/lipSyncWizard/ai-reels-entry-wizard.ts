@@ -47,27 +47,27 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       isRu
         ? '🎬 <b>AI Reels - Выбор шаблона</b>\n\n' +
           '🎯 Выберите шаблон генерации:\n\n' +
-          `<b>Шаблон 1: ${template1.name.ru}</b>\n` +
+          `<b>${template1.name.ru}</b>\n` +
           `${template1.description.ru}\n` +
           `${template1.features.ru.join('\n')}\n\n` +
-          `<b>Шаблон 2: ${template2.name.ru}</b>\n` +
+          `<b>${template2.name.ru}</b>\n` +
           `${template2.description.ru}\n` +
           `${template2.features.ru.join('\n')}\n\n` +
           `⚠️ <i>Цена Шаблона 2 зависит от длины lip-sync видео</i>`
         : '🎬 <b>AI Reels - Template Selection</b>\n\n' +
           '🎯 Choose template:\n\n' +
-          `<b>Template 1: ${template1.name.en}</b>\n` +
+          `<b>${template1.name.en}</b>\n` +
           `${template1.description.en}\n` +
           `${template1.features.en.join('\n')}\n\n` +
-          `<b>Template 2: ${template2.name.en}</b>\n` +
+          `<b>${template2.name.en}</b>\n` +
           `${template2.description.en}\n` +
           `${template2.features.en.join('\n')}\n\n` +
           `⚠️ <i>Template 2 price depends on lip-sync video length</i>`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? `${template1.icon} Шаблон 1: ${template1.name.ru}` : `${template1.icon} Template 1: ${template1.name.en}`, 'ai_reels_template_wan25')],
-          [Markup.button.callback(isRu ? `${template2.icon} Шаблон 2: ${template2.name.ru}` : `${template2.icon} Template 2: ${template2.name.en}`, 'ai_reels_template_inngest')],
+          [Markup.button.callback(isRu ? `${template1.icon} ${template1.name.ru}` : `${template1.icon} ${template1.name.en}`, 'ai_reels_template_wan25')],
+          [Markup.button.callback(isRu ? `${template2.icon} ${template2.name.ru}` : `${template2.icon} ${template2.name.en}`, 'ai_reels_template_inngest')],
         ]),
       }
     )
