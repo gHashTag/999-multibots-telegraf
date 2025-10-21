@@ -2,6 +2,8 @@ import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
 import { defaultBot } from '@/core/bot'
+import axios from 'axios'
+import { Input } from 'telegraf'
 
 const router: Router = express.Router()
 
@@ -157,10 +159,30 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
       videoUrl
     })
 
-    // Отправляем готовое видео пользователю
-    await defaultBot.telegram.sendVideo(telegramId, videoUrl, {
-      caption: '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Railway)'
+    // Скачиваем видео с Selectel S3 и отправляем как Buffer
+    const videoResponse = await axios.get(videoUrl, {
+      responseType: 'arraybuffer',
+      timeout: 60000, // 60 секунд таймаут для больших файлов
+      maxContentLength: 50 * 1024 * 1024, // 50MB max
+      maxBodyLength: 50 * 1024 * 1024
     })
+
+    const videoBuffer = Buffer.from(videoResponse.data)
+
+    logger.info('📥 [AI REELS CALLBACK] Video downloaded', {
+      telegramId,
+      size: videoBuffer.length,
+      sizeKB: Math.round(videoBuffer.length / 1024)
+    })
+
+    // Отправляем видео как InputFile (Buffer)
+    await defaultBot.telegram.sendVideo(
+      telegramId,
+      Input.fromBuffer(videoBuffer, `ai-reels-${Date.now()}.mp4`),
+      {
+        caption: '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Railway)'
+      }
+    )
 
     logger.info('✅ [AI REELS CALLBACK] Video sent successfully', {
       telegramId,
