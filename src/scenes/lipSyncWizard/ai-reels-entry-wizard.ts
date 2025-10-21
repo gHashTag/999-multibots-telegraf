@@ -10,6 +10,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
+import { AI_REELS_TEMPLATES, AIReelsTemplate } from './ai-reels-templates'
 
 export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_entry',
@@ -38,38 +39,35 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Показываем выбор метода
+    // Показываем выбор шаблона
+    const template1 = AI_REELS_TEMPLATES[AIReelsTemplate.WAN25]
+    const template2 = AI_REELS_TEMPLATES[AIReelsTemplate.INNGEST]
+
     await ctx.reply(
       isRu
-        ? '🎬 <b>AI Reels Generator</b>\n\n' +
-          '🎯 Выберите метод генерации:\n\n' +
-          '<b>🎬 Локальная генерация</b>\n' +
-          '• Создадим lip-sync видео\n' +
-          '• Добавим WAN 2.5 видео\n' +
-          '• Склеим в единый ролик\n' +
-          '• Все этапы локально\n\n' +
-          '<b>🚀 Render Server (Premium)</b>\n' +
-          '• Hedra - быстрая генерация (50⭐, 2-3 мин)\n' +
-          '• HeyGen - премиум качество (100⭐, 4-5 мин)\n' +
-          '• Профессиональная обработка\n' +
-          '• Автоматические интро и обложки'
-        : '🎬 <b>AI Reels Generator</b>\n\n' +
-          '🎯 Choose generation method:\n\n' +
-          '<b>🎬 Local Generation</b>\n' +
-          '• Create lip-sync video\n' +
-          '• Add WAN 2.5 video\n' +
-          '• Merge into single reel\n' +
-          '• All steps locally\n\n' +
-          '<b>🚀 Render Server (Premium)</b>\n' +
-          '• Hedra - fast generation (50⭐, 2-3 min)\n' +
-          '• HeyGen - premium quality (100⭐, 4-5 min)\n' +
-          '• Professional processing\n' +
-          '• Automatic intros and covers',
+        ? '🎬 <b>AI Reels - Выбор шаблона</b>\n\n' +
+          '🎯 Выберите шаблон генерации:\n\n' +
+          `<b>Шаблон 1: ${template1.name.ru}</b>\n` +
+          `${template1.description.ru}\n` +
+          `${template1.features.ru.join('\n')}\n\n` +
+          `<b>Шаблон 2: ${template2.name.ru}</b>\n` +
+          `${template2.description.ru}\n` +
+          `${template2.features.ru.join('\n')}\n\n` +
+          `⚠️ <i>Цена Шаблона 2 зависит от длины lip-sync видео</i>`
+        : '🎬 <b>AI Reels - Template Selection</b>\n\n' +
+          '🎯 Choose template:\n\n' +
+          `<b>Template 1: ${template1.name.en}</b>\n` +
+          `${template1.description.en}\n` +
+          `${template1.features.en.join('\n')}\n\n` +
+          `<b>Template 2: ${template2.name.en}</b>\n` +
+          `${template2.description.en}\n` +
+          `${template2.features.en.join('\n')}\n\n` +
+          `⚠️ <i>Template 2 price depends on lip-sync video length</i>`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? '🎬 Локальная генерация' : '🎬 Local Generation', 'ai_reels_method_local')],
-          [Markup.button.callback(isRu ? '🚀 Render Server' : '🚀 Render Server', 'ai_reels_method_render')],
+          [Markup.button.callback(isRu ? `${template1.icon} Шаблон 1: ${template1.name.ru}` : `${template1.icon} Template 1: ${template1.name.en}`, 'ai_reels_template_wan25')],
+          [Markup.button.callback(isRu ? `${template2.icon} Шаблон 2: ${template2.name.ru}` : `${template2.icon} Template 2: ${template2.name.en}`, 'ai_reels_template_inngest')],
         ]),
       }
     )
@@ -134,34 +132,34 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.answerCbQuery()
 
-    if (choice === 'ai_reels_method_local') {
-      // Локальная генерация
+    if (choice === 'ai_reels_template_wan25') {
+      // Шаблон 1
       await ctx.editMessageText(
         isRu
-          ? '✅ Выбрана локальная генерация!\n\n⏳ Переходим к настройке...'
-          : '✅ Local generation selected!\n\n⏳ Proceeding to setup...'
+          ? '✅ Выбран Шаблон 1!\n\n⏳ Переходим к настройке...'
+          : '✅ Template 1 selected!\n\n⏳ Proceeding to setup...'
       )
 
-      // Переходим к локальному wizard
+      // Переходим к wizard для Шаблона 1
       await ctx.scene.enter('ai_reels_wizard')
       return
-    } else if (choice === 'ai_reels_method_render') {
-      // Render Server
-      logger.info('🚀 [AI REELS ENTRY] Entering RENDER wizard', {
+    } else if (choice === 'ai_reels_template_inngest') {
+      // Шаблон 2
+      logger.info('🎬 [AI REELS ENTRY] Entering Template 2 wizard', {
         telegramId,
         targetScene: 'ai_reels_render_wizard',
       })
 
       await ctx.editMessageText(
         isRu
-          ? '✅ Выбран Render Server!\n\n⏳ Переходим к настройке...'
-          : '✅ Render Server selected!\n\n⏳ Proceeding to setup...'
+          ? '✅ Выбран Шаблон 2!\n\n⏳ Переходим к настройке...'
+          : '✅ Template 2 selected!\n\n⏳ Proceeding to setup...'
       )
 
-      // Переходим к render wizard
+      // Переходим к render wizard (Inngest)
       await ctx.scene.enter('ai_reels_render_wizard')
 
-      logger.info('✅ [AI REELS ENTRY] Entered render wizard', {
+      logger.info('✅ [AI REELS ENTRY] Entered Inngest template wizard', {
         telegramId,
         currentScene: ctx.scene.current?.id,
       })

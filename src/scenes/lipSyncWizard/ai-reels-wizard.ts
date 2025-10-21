@@ -433,39 +433,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         }
       }
 
-      // Расчет стоимости для всего процесса (lip-sync + WAN 2.5 + склеивание)
-      let estimatedDurationSeconds: number
+      // 💰 Шаблон 1: Фиксированная стоимость 300⭐
+      // Включает: Lip-sync + 4 видео сцены + склеивание
+      const totalCost = 300
 
-      if (audioUrl) {
-        const durationMatch = text.match(/voice_message_(\d+)/)
-        estimatedDurationSeconds = durationMatch ? parseInt(durationMatch[1], 10) : 10
-      } else {
-        estimatedDurationSeconds = Math.ceil(text.length / 15)
-      }
-
-      const resolution = ctx.session.aiReels?.resolution || '720p'
-
-      // Расчет общей стоимости: lip-sync + WAN 2.5 + склеивание
-      const { calculateLipSyncCostStars } = await import('@/config/lipsync-models.config')
-      // For lipsync we only support 720p, convert 1080p to 720p
-      const lipSyncResolution: '480p' | '720p' = resolution === '1080p' ? '720p' : '720p'
-      const lipSyncCost = calculateLipSyncCostStars('veed_fabric', estimatedDurationSeconds, lipSyncResolution)
-
-      // WAN 2.5 стоимость: для 5 секунд, высокое качество
-      const wan25Duration = 5 // фиксированная длительность для WAN 2.5
-      const wan25Cost = calculateWAN25CostStars(WAN25ModelType.IMAGE_TO_VIDEO, wan25Duration, resolution)
-
-      // Склеивание - фиксированная стоимость
-      const mergingCost = Math.ceil(lipSyncCost * 0.2) // 20% от lip-sync стоимости
-      const totalCost = lipSyncCost + wan25Cost + mergingCost
-
-      logger.info('💰 Расчет стоимости AI Reels', {
-        estimatedDurationSeconds,
-        resolution,
-        lipSyncCost,
-        wan25Cost,
-        mergingCost,
+      logger.info('💰 AI Reels Шаблон 1 - фиксированная стоимость', {
         totalCost,
+        template: 'Template 1 (WAN25)',
       })
 
       // Проверка баланса
@@ -483,19 +457,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       if (currentBalance < totalCost) {
         await ctx.reply(
           isRu
-            ? `💰 Недостаточно средств для создания ИИ Рилс\n\n` +
-              `📊 Стоимость:\n` +
-              `• Lip-sync видео: ${lipSyncCost.toFixed(2)}⭐\n` +
-              `• WAN 2.5 видео: ${wan25Cost.toFixed(2)}⭐\n` +
-              `• Склеивание: ${mergingCost.toFixed(2)}⭐\n` +
-              `🔸 Всего: ${totalCost.toFixed(2)}⭐\n\n` +
+            ? `💰 Недостаточно средств для создания AI Reels\n\n` +
+              `📊 Стоимость Шаблона 1: ${totalCost}⭐\n` +
               `💳 У вас: ${currentBalance.toFixed(2)}⭐`
             : `💰 Insufficient funds for AI Reels creation\n\n` +
-              `📊 Cost breakdown:\n` +
-              `• Lip-sync video: ${lipSyncCost.toFixed(2)}⭐\n` +
-              `• WAN 2.5 video: ${wan25Cost.toFixed(2)}⭐\n` +
-              `• Merging: ${mergingCost.toFixed(2)}⭐\n` +
-              `🔸 Total: ${totalCost.toFixed(2)}⭐\n\n` +
+              `📊 Template 1 cost: ${totalCost}⭐\n` +
               `💳 You have: ${currentBalance.toFixed(2)}⭐`
         )
         return ctx.scene.leave()
@@ -506,12 +472,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         telegramId,
         totalCost,
         PaymentType.MONEY_OUTCOME,
-        'AI Reels creation (lip-sync + WAN 2.5 + merging)',
+        'AI Reels Шаблон 1',
         {
           bot_name: ctx.botInfo?.username || 'unknown_bot',
-          service_type: 'ai_reels',
+          service_type: 'ai_reels_template_1',
           text_length: text.length,
-          cost_breakdown: { lipSyncCost, wan25Cost, mergingCost, totalCost },
+          fixed_cost: totalCost,
         }
       )
 
