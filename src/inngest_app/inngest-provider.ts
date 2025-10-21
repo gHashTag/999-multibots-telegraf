@@ -52,28 +52,28 @@ class InngestProvider {
       logger.warn('⚠️ [INNGEST PROVIDER] BOT instance missing BOT_INNGEST_EVENT_KEY')
     }
 
-    // RENDER инстанс (Zomro render-server на 999-agents.site)
-    const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY
+    // RENDER инстанс (Inngest Cloud → Railway render-server)
+    const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
     const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
-    const renderBaseUrl = 'https://999-agents.site/api/inngest' // Zomro сервер
 
     if (renderEventKey) {
-      // Создаем Inngest client для отправки на Zomro render-server
+      // Создаем Inngest client для отправки в Inngest Cloud
+      // Inngest Cloud вызовет Railway render-server function
       const renderClient = new Inngest({
         name: 'render-server-client',
         eventKey: renderEventKey,
-        inngestBaseUrl: renderBaseUrl, // Направляем на Zomro вместо inn.gs
+        // НЕ устанавливаем inngestBaseUrl - по умолчанию Inngest Cloud (inn.gs)
       })
 
       this.configs.set('RENDER', {
         eventKey: renderEventKey,
         signingKey: renderSigningKey,
-        baseUrl: renderBaseUrl, // Zomro сервер
+        baseUrl: 'https://inn.gs', // Inngest Cloud
         name: 'render-server',
         client: renderClient,
       })
-      logger.info('✅ [INNGEST PROVIDER] RENDER instance configured (Zomro render-server)', {
-        baseUrl: renderBaseUrl,
+      logger.info('✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Railway)', {
+        cloudUrl: 'https://inn.gs',
         hasEventKey: !!renderEventKey,
         hasClient: true,
       })
@@ -137,9 +137,9 @@ class InngestProvider {
         data,
       })
 
-      logger.info(`✅ [INNGEST PROVIDER] Event sent to ${instance}`, {
+      logger.info(`✅ [INNGEST PROVIDER] Event sent to ${instance} (via Inngest Cloud)`, {
         eventName,
-        targetUrl: config.baseUrl,
+        cloudUrl: instance === 'RENDER' ? 'https://inn.gs' : config.baseUrl,
       })
 
       // SDK не возвращает event IDs, генерируем свой для логирования
@@ -166,39 +166,22 @@ class InngestProvider {
       return false
     }
 
-    // Для RENDER instance проверяем доступность Zomro сервера
+    // Для RENDER instance проверяем наличие client и eventKey
+    // (это функция в Inngest Cloud, нельзя проверить через HTTP GET)
     if (instance === 'RENDER') {
-      if (!config.baseUrl) {
-        return false
+      const isAvailable = !!(config.client && config.eventKey)
+      if (isAvailable) {
+        logger.info(`✅ [INNGEST PROVIDER] ${instance} available (Inngest Cloud client configured)`, {
+          hasClient: !!config.client,
+          hasEventKey: !!config.eventKey,
+        })
+      } else {
+        logger.warn(`⚠️ [INNGEST PROVIDER] ${instance} not available`, {
+          hasClient: !!config.client,
+          hasEventKey: !!config.eventKey,
+        })
       }
-
-      try {
-        const response = await fetch(config.baseUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          logger.info(`✅ [INNGEST PROVIDER] ${instance} available (Zomro render-server)`, {
-            baseUrl: config.baseUrl,
-            functions: data.function_count || 0,
-          })
-          return true
-        }
-
-        logger.warn(`⚠️ [INNGEST PROVIDER] ${instance} responded but not OK`, {
-          status: response.status,
-        })
-        return false
-      } catch (error) {
-        logger.error(`❌ [INNGEST PROVIDER] ${instance} not available`, {
-          error: error instanceof Error ? error.message : String(error),
-        })
-        return false
-      }
+      return isAvailable
     }
 
     // Для BOT instance проверяем через HTTP запрос к нашему серверу
