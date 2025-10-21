@@ -9,6 +9,10 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
+import { generateFaceSwap } from '@/services/generateFaceSwap'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
   'face_swap',
@@ -137,23 +141,78 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
       hasTargetUrl: !!targetImageUrl,
     })
 
-    await ctx.reply(
+    // Check user balance
+    const balance = await getUserBalance(telegramId!)
+    const requiredStars = 1 // Face swap costs 1 star
+
+    if (balance < requiredStars) {
+      await ctx.reply(
+        isRu
+          ? `❌ Недостаточно звезд для замены лица.\n\n💰 Требуется: ${requiredStars} ⭐\n💰 У вас: ${balance.toFixed(1)} ⭐\n\nПополните баланс командой /balance`
+          : `❌ Insufficient stars for face swap.\n\n💰 Required: ${requiredStars} ⭐\n💰 You have: ${balance.toFixed(1)} ⭐\n\nTop up with /balance`
+      )
+      return ctx.scene.leave()
+    }
+
+    // Send processing message
+    const processingMsg = await ctx.reply(
       isRu
-        ? '⏳ Обрабатываем... Это может занять 10-30 секунд.'
-        : '⏳ Processing... This may take 10-30 seconds.'
+        ? '⏳ Обрабатываем замену лица... Это может занять 10-30 секунд.'
+        : '⏳ Processing face swap... This may take 10-30 seconds.'
     )
 
-    // TODO: Call generateFaceSwap service
-    // For now, just show success message
-    await ctx.reply(
-      isRu
-        ? '🎭 Функция замены лица находится в разработке.\n\n' +
-          'Скоро будет доступна полная интеграция с Replicate API!'
-        : '🎭 Face swap feature is under development.\n\n' +
-          'Full Replicate API integration coming soon!'
+    // Call generateFaceSwap service
+    const result = await generateFaceSwap({
+      targetImageUrl,
+      swapImageUrl,
+    })
+
+    // Delete processing message
+    try {
+      await ctx.telegram.deleteMessage(ctx.chat!.id, processingMsg.message_id)
+    } catch (e) {
+      // Ignore if message can't be deleted
+    }
+
+    if (!result.success || !result.resultUrl) {
+      await ctx.reply(
+        isRu
+          ? `❌ Ошибка при замене лица: ${result.error || 'Неизвестная ошибка'}\n\nПопробуйте другие фотографии.`
+          : `❌ Face swap error: ${result.error || 'Unknown error'}\n\nTry different photos.`
+      )
+      return ctx.scene.leave()
+    }
+
+    // Charge user
+    const charged = await updateUserBalance(
+      telegramId!,
+      -requiredStars,
+      PaymentType.MONEY_OUTCOME,
+      'Face Swap - Replicate',
+      {
+        service_type: 'face_swap',
+        model_name: 'codeplugtech/face-swap',
+        stars: requiredStars,
+        processing_time: result.processingTime,
+      }
     )
 
-    logger.info('✅ [FACE SWAP] Wizard completed', { telegramId })
+    if (!charged) {
+      logger.error('[FACE SWAP] Failed to charge user', { telegramId })
+    }
+
+    // Send result
+    await ctx.replyWithPhoto(result.resultUrl, {
+      caption: isRu
+        ? `✅ Готово! Лицо успешно заменено.\n\n⏱️ Время обработки: ${Math.round((result.processingTime || 0) / 1000)} сек\n💰 Списано: ${requiredStars} ⭐`
+        : `✅ Done! Face swap completed.\n\n⏱️ Processing time: ${Math.round((result.processingTime || 0) / 1000)} sec\n💰 Charged: ${requiredStars} ⭐`,
+    })
+
+    logger.info('✅ [FACE SWAP] Wizard completed successfully', {
+      telegramId,
+      processingTime: result.processingTime,
+      charged,
+    })
 
     return ctx.scene.leave()
   }
