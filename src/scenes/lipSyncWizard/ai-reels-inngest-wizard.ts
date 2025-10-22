@@ -9,7 +9,10 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
-import { sendAIReelsEvent, checkInngestAvailability } from '@/inngest_app/send-event'
+import {
+  sendAIReelsEvent,
+  checkInngestAvailability,
+} from '@/inngest_app/send-event'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
@@ -28,7 +31,9 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
 
     if (!telegramId) {
       await ctx.reply(
-        isRu ? '❌ Ошибка: не удалось определить ваш ID' : '❌ Error: could not determine your ID'
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
       )
       return ctx.scene.leave()
     }
@@ -55,19 +60,19 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '🔄 <b>AI Reels - Надежный режим (Inngest)</b>\n\n' +
-          '✨ Преимущества:\n' +
-          '• 🔄 Автоматические повторы при ошибках\n' +
-          '• ⏱️ Работает в фоне\n' +
-          '• 📢 Уведомление при готовности\n' +
-          '• 🛡️ Защита от сбоев\n\n' +
-          '📸 Отправьте фото или URL изображения с лицом для lip-sync видео.'
+            '✨ Преимущества:\n' +
+            '• 🔄 Автоматические повторы при ошибках\n' +
+            '• ⏱️ Работает в фоне\n' +
+            '• 📢 Уведомление при готовности\n' +
+            '• 🛡️ Защита от сбоев\n\n' +
+            '📸 Отправьте фото или URL изображения с лицом для lip-sync видео.'
         : '🔄 <b>AI Reels - Reliable mode (Inngest)</b>\n\n' +
-          '✨ Benefits:\n' +
-          '• 🔄 Automatic retries on errors\n' +
-          '• ⏱️ Background processing\n' +
-          '• 📢 Notification when ready\n' +
-          '• 🛡️ Failure protection\n\n' +
-          '📸 Send a photo or image URL with a face for lip-sync video.',
+            '✨ Benefits:\n' +
+            '• 🔄 Automatic retries on errors\n' +
+            '• ⏱️ Background processing\n' +
+            '• 📢 Notification when ready\n' +
+            '• 🛡️ Failure protection\n\n' +
+            '📸 Send a photo or image URL with a face for lip-sync video.',
       {
         parse_mode: 'HTML',
         reply_markup: { remove_keyboard: true },
@@ -104,9 +109,14 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
 
         // Загружаем в Supabase Storage
         const { createClient } = await import('@supabase/supabase-js')
-        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+          '@/config'
+        )
 
-        const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+        const serviceClient = createClient(
+          SUPABASE_URL!,
+          SUPABASE_SERVICE_ROLE_KEY!
+        )
         const fileName = `ai-reels-inngest/${telegramId}/${Date.now()}.jpg`
 
         const { error: uploadError } = await serviceClient.storage
@@ -120,7 +130,9 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
           throw new Error(`Upload failed: ${uploadError.message}`)
         }
 
-        const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
+        const { data: urlData } = serviceClient.storage
+          .from('images')
+          .getPublicUrl(fileName)
         imageUrl = urlData.publicUrl
 
         logger.info('✅ [AI REELS INNGEST] Photo uploaded', {
@@ -154,9 +166,9 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? '✅ Изображение получено!\n\n' +
-            '📝 Отправьте текст (до 500 символов) или голосовое сообщение (до 30 сек).'
+              '📝 Отправьте текст (до 500 символов) или голосовое сообщение (до 30 сек).'
           : '✅ Image received!\n\n' +
-            '📝 Send text (up to 500 characters) or voice message (up to 30 sec).'
+              '📝 Send text (up to 500 characters) or voice message (up to 30 sec).'
       )
 
       return ctx.wizard.next()
@@ -177,10 +189,16 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const telegramId = ctx.from?.id?.toString()
 
-    logger.info('🔄 [AI REELS INNGEST] Step 2 - Sending to Inngest', { telegramId })
+    logger.info('🔄 [AI REELS INNGEST] Step 2 - Sending to Inngest', {
+      telegramId,
+    })
 
     if (!telegramId) {
-      await ctx.reply(isRu ? '❌ Ошибка: не удалось определить ваш ID' : '❌ Error: could not determine your ID')
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
+      )
       return ctx.scene.leave()
     }
 
@@ -190,7 +208,9 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
       const imageUrl = ctx.session.aiReels?.imageUrl
 
       if (!imageUrl) {
-        await ctx.reply(isRu ? '❌ Изображение не найдено.' : '❌ Image not found.')
+        await ctx.reply(
+          isRu ? '❌ Изображение не найдено.' : '❌ Image not found.'
+        )
         return ctx.scene.leave()
       }
 
@@ -213,9 +233,14 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
         const audioBuffer = Buffer.from(await response.arrayBuffer())
 
         const { createClient } = await import('@supabase/supabase-js')
-        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+          '@/config'
+        )
 
-        const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+        const serviceClient = createClient(
+          SUPABASE_URL!,
+          SUPABASE_SERVICE_ROLE_KEY!
+        )
         const fileName = `ai-reels-inngest-audio/${telegramId}/${Date.now()}.ogg`
 
         const { error: uploadError } = await serviceClient.storage
@@ -229,7 +254,9 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
           throw new Error(`Upload failed: ${uploadError.message}`)
         }
 
-        const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
+        const { data: urlData } = serviceClient.storage
+          .from('images')
+          .getPublicUrl(fileName)
         audioUrl = urlData.publicUrl
         text = `voice_message_${voice.duration}`
       }
@@ -260,8 +287,16 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
         : Math.ceil(text.length / 15)
 
       const resolution = ctx.session.aiReels?.resolution || '720p'
-      const lipSyncCost = calculateLipSyncCostStars('veed_fabric', estimatedDurationSeconds, '720p')
-      const wan25Cost = calculateWAN25CostStars(WAN25ModelType.IMAGE_TO_VIDEO, 5, resolution)
+      const lipSyncCost = calculateLipSyncCostStars(
+        'veed_fabric',
+        estimatedDurationSeconds,
+        '720p'
+      )
+      const wan25Cost = calculateWAN25CostStars(
+        WAN25ModelType.IMAGE_TO_VIDEO,
+        5,
+        resolution
+      )
       const mergingCost = Math.ceil(lipSyncCost * 0.2)
       const totalCost = lipSyncCost + wan25Cost + mergingCost
 
@@ -303,17 +338,17 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? `✅ Запрос отправлен в обработку!\n\n` +
-            `🔄 Генерация запущена (ID: ${eventId})\n` +
-            `⏱️ Ожидаемое время: 3-5 минут\n` +
-            `📢 Вы получите уведомление когда видео будет готово\n\n` +
-            `💰 Списано: ${totalCost.toFixed(2)}⭐\n` +
-            `💳 Новый баланс: ${(currentBalance - totalCost).toFixed(2)}⭐`
+              `🔄 Генерация запущена (ID: ${eventId})\n` +
+              `⏱️ Ожидаемое время: 3-5 минут\n` +
+              `📢 Вы получите уведомление когда видео будет готово\n\n` +
+              `💰 Списано: ${totalCost.toFixed(2)}⭐\n` +
+              `💳 Новый баланс: ${(currentBalance - totalCost).toFixed(2)}⭐`
           : `✅ Request sent for processing!\n\n` +
-            `🔄 Generation started (ID: ${eventId})\n` +
-            `⏱️ Expected time: 3-5 minutes\n` +
-            `📢 You will receive notification when video is ready\n\n` +
-            `💰 Charged: ${totalCost.toFixed(2)}⭐\n` +
-            `💳 New balance: ${(currentBalance - totalCost).toFixed(2)}⭐`,
+              `🔄 Generation started (ID: ${eventId})\n` +
+              `⏱️ Expected time: 3-5 minutes\n` +
+              `📢 You will receive notification when video is ready\n\n` +
+              `💰 Charged: ${totalCost.toFixed(2)}⭐\n` +
+              `💳 New balance: ${(currentBalance - totalCost).toFixed(2)}⭐`,
         { parse_mode: 'HTML' }
       )
 
