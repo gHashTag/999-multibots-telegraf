@@ -153,18 +153,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       } catch (error) {
         console.error('Error creating model selection keyboard:', error)
         handleButtonError(
-          error instanceof Error ? error : new Error(String(error)),
-          'neuroPhoto model selection',
-          async () => {
-            await sendGenericErrorMessage(
-              ctx,
-              isRu,
-              error instanceof Error
-                ? error
-                : new Error('Model selection failed')
-            )
-            await ctx.scene.leave()
-          }
+          ctx,
+          error instanceof Error ? error : new Error(String(error))
         )
         return
       }
@@ -444,7 +434,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       )
 
       const userDataForAspect = await getUserData(userId?.toString() ?? '')
-      const aspectRatio = userDataForAspect?.aspectRatio || '9:16'
+      const aspectRatio = (userDataForAspect as any)?.aspectRatio || '9:16'
       console.log(
         `[neuroPhotoWizard ButtonStep] aspectRatio пользователя: ${aspectRatio}`
       )
@@ -710,7 +700,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
       if (result.model) {
         console.log('Successfully selected model:', result.model.id)
-        ctx.session.userModel = result.model as UserModel
+        ctx.session.userModel = result.model as any
         await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
         const isCancel = await handleHelpCancel(ctx)
         if (isCancel) {
@@ -722,15 +712,8 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   } catch (error) {
     console.error('Error in neuroPhoto callback handler:', error)
     handleButtonError(
-      error instanceof Error ? error : new Error(String(error)),
-      'neuroPhoto callback handling',
-      async () => {
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при обработке выбора. Попробуйте снова.'
-            : '❌ Error processing selection. Please try again.'
-        )
-      }
+      ctx,
+      error instanceof Error ? error : new Error(String(error))
     )
   }
 })
