@@ -628,12 +628,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         const result = await lipSyncOrchestrator.generate(input)
 
         if (!('id' in result)) {
-          const error = result as { message?: string; error?: string }
+          const error = result as { message?: string; error?: string; code?: string }
           logger.error(
             '❌ [AI REELS] Ошибка генерации lip-sync видео через fal провайдер',
             {
               result,
               provider: 'fal',
+              errorCode: error.code,
             }
           )
 
@@ -646,11 +647,22 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             { bot_name: ctx.botInfo?.username || 'unknown_bot' }
           )
 
-          await ctx.reply(
-            isRu
-              ? `❌ Ошибка генерации lip-sync видео: ${error.message || 'Unknown error'}\nСредства возвращены.`
-              : `❌ Lip-sync generation error: ${error.message || 'Unknown error'}\nFunds refunded.`
-          )
+          // Специальные сообщения для разных типов ошибок
+          let errorMessage = isRu
+            ? `❌ Ошибка генерации lip-sync видео: ${error.message || 'Unknown error'}\nСредства возвращены.`
+            : `❌ Lip-sync generation error: ${error.message || 'Unknown error'}\nFunds refunded.`
+
+          if (error.code === 'BALANCE_EXHAUSTED') {
+            errorMessage = isRu
+              ? `💰 У Fal.ai закончился баланс. Пожалуйста, пополните счет на fal.ai/dashboard/billing\nСредства возвращены.`
+              : `💰 Fal.ai account balance exhausted. Please top up at fal.ai/dashboard/billing\nFunds refunded.`
+          } else if (error.code === 'AUTHENTICATION_ERROR') {
+            errorMessage = isRu
+              ? `🔑 Ошибка аутентификации Fal.ai API. Проверьте ключ API.\nСредства возвращены.`
+              : `🔑 Fal.ai API authentication failed. Please check your API key.\nFunds refunded.`
+          }
+
+          await ctx.reply(errorMessage)
           return ctx.scene.leave()
         }
 
