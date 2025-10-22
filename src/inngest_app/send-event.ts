@@ -35,7 +35,9 @@ export interface AIReelsEventPayload {
 /**
  * Отправляет событие AI Reels в Inngest
  */
-export async function sendAIReelsEvent(payload: AIReelsEventPayload): Promise<{ eventId: string }> {
+export async function sendAIReelsEvent(
+  payload: AIReelsEventPayload
+): Promise<{ eventId: string }> {
   const eventKey = process.env.BOT_INNGEST_EVENT_KEY
 
   if (!eventKey) {
@@ -70,7 +72,9 @@ export async function sendAIReelsEvent(payload: AIReelsEventPayload): Promise<{ 
         statusText: response.statusText,
         error: errorText,
       })
-      throw new Error(`Inngest event send failed: ${response.status} ${response.statusText}`)
+      throw new Error(
+        `Inngest event send failed: ${response.status} ${response.statusText}`
+      )
     }
 
     const result = await response.json()
@@ -96,8 +100,7 @@ export async function sendAIReelsEvent(payload: AIReelsEventPayload): Promise<{ 
  * Проверяет доступность Inngest
  */
 export async function checkInngestAvailability(): Promise<boolean> {
-  const baseUrl =
-    process.env.SERVER_API_URL || 'https://three-head-dragon.shop'
+  const baseUrl = process.env.SERVER_API_URL || 'https://three-head-dragon.shop'
 
   try {
     const response = await fetch(`${baseUrl}/api/inngest`, {
