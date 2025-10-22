@@ -624,6 +624,21 @@ export class AsyncLipSyncManager {
             taskId,
             error: error instanceof Error ? error.message : 'Unknown error',
           })
+
+          // ✅ Обрабатываем ошибку как критическую
+          const currentJob = this.jobs.get(jobId)
+          if (currentJob) {
+            currentJob.status = 'failed'
+            currentJob.result = {
+              message: 'Failed to check task status',
+              error: error instanceof Error ? error.message : 'Unknown error',
+              code: 'STATUS_CHECK_FAILED',
+            }
+            this.jobs.set(jobId, currentJob)
+            await this.sendErrorResult(currentJob, currentJob.result as LipSyncError)
+            clearInterval(pollingInterval)
+            return
+          }
         }
       }, POLLING_INTERVAL)
     }, INITIAL_DELAY)
