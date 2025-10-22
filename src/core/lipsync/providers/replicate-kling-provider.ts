@@ -156,6 +156,13 @@ export class ReplicateKlingProvider implements ILipSyncProvider {
   }
 
   /**
+   * Генерирует lip-sync (для совместимости с интерфейсом)
+   */
+  async generateLipSync(params: any): Promise<any> {
+    return this.generate(params)
+  }
+
+  /**
    * Получает статус обработки
    */
   async getStatus(predictionId: string): Promise<LipSyncOutput | LipSyncError> {

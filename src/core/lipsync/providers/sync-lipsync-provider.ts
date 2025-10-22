@@ -327,6 +327,13 @@ export class SyncLipSyncProvider implements ILipSyncProvider {
   }
 
   /**
+   * Генерирует lip-sync (для совместимости с интерфейсом)
+   */
+  async generateLipSync(params: any): Promise<any> {
+    return this.generate(params)
+  }
+
+  /**
    * ✅ Получает статус обработки (для fallback polling)
    * Sync Labs API не поддерживает проверку статуса, так как использует синхронный режим
    */

@@ -56,7 +56,8 @@ export function createSafeModelSelectionKeyboard(
           ? `${modelName.substring(0, maxTextLength - 3)}...`
           : modelName
 
-      const fullButtonText = `${buttonText} (${modelCost}⭐)`
+      // Используем только название модели без стоимости
+      const fullButtonText = buttonText
 
       // Создаем callback_data с ограничением длины
       const callbackData = `${callbackPrefix}_${model.id}`

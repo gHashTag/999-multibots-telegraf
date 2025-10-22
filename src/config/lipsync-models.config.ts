@@ -7,13 +7,14 @@ export enum LipSyncModelType {
   KLING = 'kling',
   SYNC_V2 = 'sync_v2',
   VEED_FABRIC = 'veed_fabric',
+  FAL_VEED_FABRIC = 'fal_veed_fabric',
 }
 
 export interface LipSyncModelConfig {
   id: string
   name: string
   description: string
-  provider: 'replicate' | 'sync' | 'kie'
+  provider: 'replicate' | 'sync' | 'kie' | 'fal'
   modelId: string
   costPerSecond: number // в долларах (с наценкой)
   costPerSecond720p?: number // для моделей с 720p опцией
@@ -83,6 +84,30 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
       'Тонкие мимические жесты',
       'Высокое качество 720p - 14⭐/сек',
       'До 30 секунд видео',
+    ],
+  },
+  [LipSyncModelType.FAL_VEED_FABRIC]: {
+    id: 'fal_veed_fabric',
+    name: '🚀 Fal.ai Veed Fabric 1.0 Fast',
+    description:
+      'Быстрая и стабильная модель от Fal.ai для создания talking video с естественной синхронизацией губ. Поддерживает 720p и 480p качество. Более стабильная альтернатива.',
+    provider: 'fal',
+    modelId: 'fal-veed-fabric-1.0-fast',
+    costPerSecond: 0.03, // $0.03 per second (базовая цена)
+    costPerSecond720p: 0.045, // $0.045 per second для 720p
+    costPerSecondStars480p: 2.4, // 2.4⭐/сек для 480p
+    costPerSecondStars720p: 3.6, // 3.6⭐/сек для 720p
+    maxDuration: 60,
+    quality: 'high',
+    isAvailable: true,
+    resolution: '720p',
+    features: [
+      'Быстрая и стабильная обработка',
+      'Поддержка 720p и 480p качества',
+      'Естественная синхронизация губ',
+      'Надежная инфраструктура Fal.ai',
+      'До 60 секунд видео',
+      'Экономичная цена',
     ],
   },
 }

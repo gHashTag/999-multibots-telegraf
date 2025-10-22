@@ -621,6 +621,13 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
   }
 
   /**
+   * Генерирует lip-sync (для совместимости с интерфейсом)
+   */
+  async generateLipSync(params: any): Promise<any> {
+    return this.generate(params)
+  }
+
+  /**
    * Отменяет генерацию
    */
   async cancel(predictionId: string): Promise<boolean> {
