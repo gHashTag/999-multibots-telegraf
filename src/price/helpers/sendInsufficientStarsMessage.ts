@@ -18,11 +18,22 @@ export const sendInsufficientStarsMessage = async (
 
     await ctx.telegram.sendMessage(chatId, message)
   } catch (error) {
-    console.error('❌ Error sending insufficient stars message:', {
-      error: error instanceof Error ? error.message : String(error),
-      chatId: ctx.from?.id,
-      balance: currentBalance
-    })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    
+    // Проверяем, является ли это ошибкой "chat not found"
+    if (errorMessage.includes('chat not found')) {
+      console.warn('⚠️ Chat not found - user may have blocked bot or deleted chat:', {
+        chatId: ctx.from?.id,
+        balance: currentBalance,
+        note: 'This is not critical - main functionality continues'
+      })
+    } else {
+      console.error('❌ Error sending insufficient stars message:', {
+        error: errorMessage,
+        chatId: ctx.from?.id,
+        balance: currentBalance
+      })
+    }
     // Не выбрасываем ошибку, чтобы не прерывать основной поток
   }
 }
