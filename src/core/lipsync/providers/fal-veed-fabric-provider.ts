@@ -176,7 +176,37 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         stack: error.stack,
         provider: 'fal',
         modelId: input.modelId,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
       })
+
+      // Специальная обработка для ошибки баланса
+      if (
+        error.response?.status === 403 &&
+        error.response?.data?.detail?.includes('Exhausted balance')
+      ) {
+        return {
+          message:
+            'Fal.ai account balance exhausted. Please top up your balance.',
+          error: 'Fal.ai account locked due to insufficient balance',
+          code: 'BALANCE_EXHAUSTED',
+          provider: 'fal',
+          modelId: input.modelId,
+        }
+      }
+
+      // Обработка других ошибок API
+      if (error.response?.status === 401) {
+        return {
+          message:
+            'Fal.ai API authentication failed. Please check your API key.',
+          error: 'Invalid or expired Fal.ai API key',
+          code: 'AUTHENTICATION_ERROR',
+          provider: 'fal',
+          modelId: input.modelId,
+        }
+      }
 
       return {
         message: 'Failed to generate video with Fal.ai Veed Fabric',
@@ -236,10 +266,11 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
     // ✅ ИСПРАВЛЕНО: Реальные цены Fal.ai Veed Fabric 1.0 Fast с наценкой
     const baseCost480p = 0.1 // $0.10 за секунду для 480p (базовая цена)
     const baseCost720p = 0.2 // $0.20 за секунду для 720p (базовая цена)
-    
+
     // Применяем централизованную наценку 50% (MARKUP_MULTIPLIER = 1.5)
-    const costWithMarkup = resolution === '720p' ? baseCost720p * 1.5 : baseCost480p * 1.5
-    
+    const costWithMarkup =
+      resolution === '720p' ? baseCost720p * 1.5 : baseCost480p * 1.5
+
     return costWithMarkup
   }
 
