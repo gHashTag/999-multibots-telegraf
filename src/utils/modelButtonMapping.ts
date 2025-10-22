@@ -6,11 +6,14 @@
 export const modelButtonMappings = {
   'flux-kontext-pro': 'Flux Kontext Pro',
   'flux-kontext-multi': 'Flux Kontext Multi',
-  'default': 'Default Model'
+  default: 'Default Model',
 }
 
 export function getModelDisplayName(modelKey: string): string {
-  return modelButtonMappings[modelKey as keyof typeof modelButtonMappings] || modelButtonMappings.default
+  return (
+    modelButtonMappings[modelKey as keyof typeof modelButtonMappings] ||
+    modelButtonMappings.default
+  )
 }
 
 export function validateModelButton(modelKey: string): boolean {
@@ -23,7 +26,14 @@ export function createSafeModelSelectionKeyboard(
   options: ModelButtonOptions = {}
 ): { isValid: boolean; keyboard?: any[]; error?: string } {
   try {
+    console.log(
+      `🔍 [createSafeModelSelectionKeyboard] Создание клавиатуры для ${models?.length || 0} моделей`
+    )
+
     if (!models || models.length === 0) {
+      console.log(
+        `❌ [createSafeModelSelectionKeyboard] Нет моделей для создания клавиатуры`
+      )
       return { isValid: false, error: 'No models provided' }
     }
 
@@ -33,45 +43,63 @@ export function createSafeModelSelectionKeyboard(
 
     // Создаем кнопки для каждой модели
     for (const model of models) {
-      const modelName = model.name || model.id?.toString() || 'Unknown Model'
+      const modelName =
+        model.model_name ||
+        model.name ||
+        model.id?.toString() ||
+        'Unknown Model'
       const modelCost = model.cost || 0
-      
+
       // Ограничиваем длину текста кнопки
-      const buttonText = modelName.length > maxTextLength 
-        ? `${modelName.substring(0, maxTextLength - 3)}...`
-        : modelName
-      
+      const buttonText =
+        modelName.length > maxTextLength
+          ? `${modelName.substring(0, maxTextLength - 3)}...`
+          : modelName
+
       const fullButtonText = `${buttonText} (${modelCost}⭐)`
-      
+
       // Создаем callback_data с ограничением длины
       const callbackData = `${callbackPrefix}_${model.id}`
       if (callbackData.length > 64) {
         // Если слишком длинный, используем хеш
         const shortId = model.id.toString().slice(-8)
         const shortCallbackData = `${callbackPrefix}_${shortId}`
-        keyboard.push([{
-          text: fullButtonText,
-          callback_data: shortCallbackData
-        }])
+        keyboard.push([
+          {
+            text: fullButtonText,
+            callback_data: shortCallbackData,
+          },
+        ])
       } else {
-        keyboard.push([{
-          text: fullButtonText,
-          callback_data: callbackData
-        }])
+        keyboard.push([
+          {
+            text: fullButtonText,
+            callback_data: callbackData,
+          },
+        ])
       }
     }
 
     // Добавляем кнопку отмены
-    keyboard.push([{
-      text: isRu ? '❌ Отмена' : '❌ Cancel',
-      callback_data: 'cancel_model_selection'
-    }])
+    keyboard.push([
+      {
+        text: isRu ? '❌ Отмена' : '❌ Cancel',
+        callback_data: 'cancel_model_selection',
+      },
+    ])
 
+    console.log(
+      `✅ [createSafeModelSelectionKeyboard] Клавиатура создана успешно: ${keyboard.length} кнопок`
+    )
     return { isValid: true, keyboard }
   } catch (error) {
-    return { 
-      isValid: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    console.log(
+      `❌ [createSafeModelSelectionKeyboard] Ошибка создания клавиатуры:`,
+      error
+    )
+    return {
+      isValid: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
 }
@@ -85,12 +113,6 @@ export interface ModelTraining {
   name?: string
   cost?: number
   [key: string]: any
-}
-
-export class ModelTraining {
-  static async train(): Promise<any> {
-    return {}
-  }
 }
 
 export interface ModelButtonOptions {
