@@ -59,6 +59,11 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       'replicate'
     )
 
+    console.log(`🔍 [neuroPhotoConversationStep] Результат getActiveUserModelsByType:`, {
+      userModels: userModels?.length || 0,
+      hasModels: !!userModels && userModels.length > 0
+    })
+
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
     if (!userModels || userModels.length === 0) {

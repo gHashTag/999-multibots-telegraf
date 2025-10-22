@@ -13,6 +13,8 @@ export async function getActiveUserModelsByType(
   apiType: string
 ): Promise<ModelTraining[] | null> {
   try {
+    console.log(`🔍 [getActiveUserModelsByType] Запрос моделей для пользователя ${telegram_id}, тип: ${apiType}`)
+    
     const { data, error } = await supabase
       .from('model_trainings')
       .select('*')
@@ -23,16 +25,21 @@ export async function getActiveUserModelsByType(
 
     if (error) {
       console.error(
-        `Error getting active user models by type (${apiType}):`,
+        `❌ [getActiveUserModelsByType] Error getting active user models by type (${apiType}):`,
         error
       )
       return null
     }
 
+    console.log(`✅ [getActiveUserModelsByType] Найдено моделей: ${data?.length || 0} для пользователя ${telegram_id}`)
+    if (data && data.length > 0) {
+      console.log(`📋 [getActiveUserModelsByType] Модели:`, data.map(m => ({ id: m.id, name: m.model_name, status: m.status })))
+    }
+
     return data as ModelTraining[] // Если ModelTraining это правильный тип, иначе нужно будет привести к нему или изменить его
   } catch (error) {
     console.error(
-      `Unexpected error in getActiveUserModelsByType (${apiType}):`,
+      `❌ [getActiveUserModelsByType] Unexpected error in getActiveUserModelsByType (${apiType}):`,
       error
     )
     return null
