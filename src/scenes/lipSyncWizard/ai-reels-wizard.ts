@@ -53,7 +53,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     logger.info('🎬 [AI REELS WIZARD] Step 0 STARTED - Запрос изображения', {
       telegramId,
       hasFrom: !!ctx.from,
-      hasSavedState: !!(ctx.session.aiReels?.imageUrl && ctx.session.aiReels?.text),
+      hasSavedState: !!(
+        ctx.session.aiReels?.imageUrl && ctx.session.aiReels?.text
+      ),
       needsVoiceCreation: ctx.session.aiReels?.needsVoiceCreation,
       function: 'aiReelsWizard.step0',
     })
@@ -107,23 +109,23 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '🎬 ИИ Рилс - создание двух видео\n\n' +
-          '📸 Отправьте фото или URL изображения с лицом для lip-sync видео.\n\n' +
-          '🎯 Процесс:\n' +
-          '1️⃣ Создадим lip-sync видео из вашего изображения\n' +
-          '2️⃣ Создадим дополнительное видео через WAN 2.5\n' +
-          '3️⃣ Склеим оба видео в единый ролик\n\n' +
-          '📝 На следующем шаге выберите:\n' +
-          '• Текст (будет озвучен вашим голосом аватара)\n' +
-          '• 🎤 Голосовое сообщение (до 30 сек)'
+            '📸 Отправьте фото или URL изображения с лицом для lip-sync видео.\n\n' +
+            '🎯 Процесс:\n' +
+            '1️⃣ Создадим lip-sync видео из вашего изображения\n' +
+            '2️⃣ Создадим дополнительное видео через WAN 2.5\n' +
+            '3️⃣ Склеим оба видео в единый ролик\n\n' +
+            '📝 На следующем шаге выберите:\n' +
+            '• Текст (будет озвучен вашим голосом аватара)\n' +
+            '• 🎤 Голосовое сообщение (до 30 сек)'
         : '🎬 AI Reels - creating two videos\n\n' +
-          '📸 Send a photo or image URL with a face for lip-sync video.\n\n' +
-          '🎯 Process:\n' +
-          '1️⃣ Create lip-sync video from your image\n' +
-          '2️⃣ Create additional video via WAN 2.5\n' +
-          '3️⃣ Merge both videos into final reel\n\n' +
-          '📝 On the next step choose:\n' +
-          '• Text (will be voiced with your avatar)\n' +
-          '• 🎤 Voice message (up to 30 sec)',
+            '📸 Send a photo or image URL with a face for lip-sync video.\n\n' +
+            '🎯 Process:\n' +
+            '1️⃣ Create lip-sync video from your image\n' +
+            '2️⃣ Create additional video via WAN 2.5\n' +
+            '3️⃣ Merge both videos into final reel\n\n' +
+            '📝 On the next step choose:\n' +
+            '• Text (will be voiced with your avatar)\n' +
+            '• 🎤 Voice message (up to 30 sec)',
       { reply_markup: { remove_keyboard: true } }
     )
 
@@ -139,7 +141,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     logger.info('🎬 [AI REELS WIZARD] Step 1 STARTED - Обработка изображения', {
       telegramId: ctx.from?.id?.toString(),
       hasMessage: !!message,
-      messageType: message ? ('photo' in message ? 'photo' : 'text' in message ? 'text' : 'other') : 'none',
+      messageType: message
+        ? 'photo' in message
+          ? 'photo'
+          : 'text' in message
+            ? 'text'
+            : 'other'
+        : 'none',
       function: 'aiReelsWizard.step1',
     })
 
@@ -149,7 +157,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         const photo = message.photo[message.photo.length - 1]
         const telegramId = ctx.from?.id?.toString()
 
-        logger.info('📸 Скачиваем фото из Telegram для AI Reels', { fileId: photo.file_id, telegramId })
+        logger.info('📸 Скачиваем фото из Telegram для AI Reels', {
+          fileId: photo.file_id,
+          telegramId,
+        })
 
         try {
           const fileLink = await ctx.telegram.getFileLink(photo.file_id)
@@ -163,9 +174,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
           // Загружаем в Supabase Storage
           const { createClient } = await import('@supabase/supabase-js')
-          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+            '@/config'
+          )
 
-          const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+          const serviceClient = createClient(
+            SUPABASE_URL!,
+            SUPABASE_SERVICE_ROLE_KEY!
+          )
           const fileName = `ai-reels-images/${telegramId}/${Date.now()}.jpg`
 
           const { error: uploadError } = await serviceClient.storage
@@ -180,7 +196,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           }
 
           // Получаем публичный URL
-          const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
+          const { data: urlData } = serviceClient.storage
+            .from('images')
+            .getPublicUrl(fileName)
 
           imageUrl = urlData.publicUrl
 
@@ -189,7 +207,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             publicUrl: imageUrl,
           })
         } catch (uploadError) {
-          logger.error('❌ Ошибка загрузки фото для AI Reels', { error: uploadError })
+          logger.error('❌ Ошибка загрузки фото для AI Reels', {
+            error: uploadError,
+          })
           await ctx.reply(
             isRu
               ? '❌ Ошибка загрузки фото. Попробуйте еще раз.'
@@ -204,7 +224,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         if (text.startsWith('http://') || text.startsWith('https://')) {
           imageUrl = text
-          logger.info('📸 Получен URL изображения для AI Reels', { url: imageUrl.substring(0, 100) })
+          logger.info('📸 Получен URL изображения для AI Reels', {
+            url: imageUrl.substring(0, 100),
+          })
         }
       }
 
@@ -227,15 +249,15 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? '✅ Изображение получено!\n\n' +
-            '📝 Теперь отправьте:\n' +
-            '• Текст (до 500 символов) - будет озвучен голосом вашего аватара для lip-sync\n' +
-            '• ИЛИ голосовое сообщение - будет использовано напрямую\n\n' +
-            '💡 Этот текст/голос будет использован для первого видео (lip-sync)'
+              '📝 Теперь отправьте:\n' +
+              '• Текст (до 500 символов) - будет озвучен голосом вашего аватара для lip-sync\n' +
+              '• ИЛИ голосовое сообщение - будет использовано напрямую\n\n' +
+              '💡 Этот текст/голос будет использован для первого видео (lip-sync)'
           : '✅ Image received!\n\n' +
-            '📝 Now send:\n' +
-            '• Text (up to 500 characters) - will be voiced with your avatar for lip-sync\n' +
-            '• OR voice message - will be used directly\n\n' +
-            '💡 This text/voice will be used for the first video (lip-sync)'
+              '📝 Now send:\n' +
+              '• Text (up to 500 characters) - will be voiced with your avatar for lip-sync\n' +
+              '• OR voice message - will be used directly\n\n' +
+              '💡 This text/voice will be used for the first video (lip-sync)'
       )
 
       return ctx.wizard.next()
@@ -256,12 +278,21 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const telegramId = ctx.from?.id?.toString()
 
-    logger.info('🎬 [AI REELS WIZARD] Step 2 STARTED - Генерация первого видео (lip-sync)', {
-      telegramId,
-      hasMessage: !!message,
-      messageType: message ? ('text' in message ? 'text' : 'voice' in message ? 'voice' : 'other') : 'none',
-      function: 'aiReelsWizard.step2',
-    })
+    logger.info(
+      '🎬 [AI REELS WIZARD] Step 2 STARTED - Генерация первого видео (lip-sync)',
+      {
+        telegramId,
+        hasMessage: !!message,
+        messageType: message
+          ? 'text' in message
+            ? 'text'
+            : 'voice' in message
+              ? 'voice'
+              : 'other'
+          : 'none',
+        function: 'aiReelsWizard.step2',
+      }
+    )
 
     if (!telegramId) {
       await ctx.reply(
@@ -319,15 +350,22 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             const response = await fetch(fileLink.href)
 
             if (!response.ok) {
-              throw new Error(`Failed to download voice: ${response.statusText}`)
+              throw new Error(
+                `Failed to download voice: ${response.statusText}`
+              )
             }
 
             const audioBuffer = Buffer.from(await response.arrayBuffer())
 
             const { createClient } = await import('@supabase/supabase-js')
-            const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+            const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+              '@/config'
+            )
 
-            const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+            const serviceClient = createClient(
+              SUPABASE_URL!,
+              SUPABASE_SERVICE_ROLE_KEY!
+            )
             const fileName = `ai-reels-audio/${telegramId}/${Date.now()}.ogg`
 
             const { error: uploadError } = await serviceClient.storage
@@ -353,9 +391,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
               audioUrl,
               duration: voice.duration,
             })
-
           } catch (voiceError) {
-            logger.error('❌ [AI REELS] Ошибка обработки голоса', { voiceError })
+            logger.error('❌ [AI REELS] Ошибка обработки голоса', {
+              voiceError,
+            })
             await ctx.reply(
               isRu
                 ? '❌ Ошибка обработки голосового сообщения. Попробуйте еще раз.'
@@ -363,13 +402,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             )
             return ctx.scene.leave()
           }
-
         } else if (message && 'text' in message) {
           text = message.text.trim()
 
           if (text.length === 0) {
             await ctx.reply(
-              isRu ? '❌ Текст не может быть пустым.' : '❌ Text cannot be empty.'
+              isRu
+                ? '❌ Текст не может быть пустым.'
+                : '❌ Text cannot be empty.'
             )
             return ctx.scene.leave()
           }
@@ -382,7 +422,6 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             )
             return ctx.scene.leave()
           }
-
         } else {
           await ctx.reply(
             isRu
@@ -415,13 +454,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           await ctx.reply(
             isRu
               ? '❌ У вас не настроен голос аватара!\n\n' +
-                '📝 Для создания ИИ Рилс нужен голос аватара.\n\n' +
-                '🎤 Хотите создать голос сейчас? Это займет 1-2 минуты.\n\n' +
-                '📌 После создания голоса вы сможете продолжить создание рилса.'
-              : '❌ You don\'t have an avatar voice configured!\n\n' +
-                '📝 AI Reels creation requires an avatar voice.\n\n' +
-                '🎤 Want to create a voice now? It takes 1-2 minutes.\n\n' +
-                '📌 After creating the voice, you can continue with reels creation.'
+                  '📝 Для создания ИИ Рилс нужен голос аватара.\n\n' +
+                  '🎤 Хотите создать голос сейчас? Это займет 1-2 минуты.\n\n' +
+                  '📌 После создания голоса вы сможете продолжить создание рилса.'
+              : "❌ You don't have an avatar voice configured!\n\n" +
+                  '📝 AI Reels creation requires an avatar voice.\n\n' +
+                  '🎤 Want to create a voice now? It takes 1-2 minutes.\n\n' +
+                  '📌 After creating the voice, you can continue with reels creation.'
           )
 
           const { ModeEnum } = await import('@/interfaces/modes')
@@ -460,11 +499,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu
             ? `💰 Недостаточно средств для создания AI Reels\n\n` +
-              `📊 Стоимость Шаблона 1: ${totalCost}⭐ ($${(totalCost / 100).toFixed(2)})\n` +
-              `💳 У вас: ${currentBalance.toFixed(2)}⭐`
+                `📊 Стоимость Шаблона 1: ${totalCost}⭐ ($${(totalCost / 100).toFixed(2)})\n` +
+                `💳 У вас: ${currentBalance.toFixed(2)}⭐`
             : `💰 Insufficient funds for AI Reels creation\n\n` +
-              `📊 Template 1 cost: ${totalCost}⭐ ($${(totalCost / 100).toFixed(2)})\n` +
-              `💳 You have: ${currentBalance.toFixed(2)}⭐`
+                `📊 Template 1 cost: ${totalCost}⭐ ($${(totalCost / 100).toFixed(2)})\n` +
+                `💳 You have: ${currentBalance.toFixed(2)}⭐`
         )
         return ctx.scene.leave()
       }
@@ -496,13 +535,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? `💰 Списано ${totalCost.toFixed(2)}⭐. Новый баланс: ${newBalance.toFixed(2)}⭐\n\n` +
-            `🎬 Начинаем создание ИИ Рилс:\n` +
-            `1️⃣ Генерация lip-sync видео...\n` +
-            `⏳ Это займет 30-60 секунд...`
+              `🎬 Начинаем создание ИИ Рилс:\n` +
+              `1️⃣ Генерация lip-sync видео...\n` +
+              `⏳ Это займет 30-60 секунд...`
           : `💰 Charged ${totalCost.toFixed(2)}⭐. New balance: ${newBalance.toFixed(2)}⭐\n\n` +
-            `🎬 Starting AI Reels creation:\n` +
-            `1️⃣ Generating lip-sync video...\n` +
-            `⏳ This will take 30-60 seconds...`
+              `🎬 Starting AI Reels creation:\n` +
+              `1️⃣ Generating lip-sync video...\n` +
+              `⏳ This will take 30-60 seconds...`
       )
 
       // Сохраняем данные в сессию
@@ -537,7 +576,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         if (!('id' in result)) {
           const error = result as { message?: string; error?: string }
-          logger.error('❌ [AI REELS] Ошибка генерации lip-sync видео', { result })
+          logger.error('❌ [AI REELS] Ошибка генерации lip-sync видео', {
+            result,
+          })
 
           // Возврат средств
           await updateUserBalance(
@@ -583,7 +624,8 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             logger.info('🔍 [AI REELS] Проверка статуса polling', {
               attempt: attempts,
               hasOutput: !!('output' in statusResult && statusResult.output),
-              status: 'status' in statusResult ? statusResult.status : 'unknown',
+              status:
+                'status' in statusResult ? statusResult.status : 'unknown',
             })
 
             // Если результат готов
@@ -605,7 +647,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
           // Если после всех попыток output пустой
           if (!firstVideoUrl) {
-            throw new Error('Polling timeout: video not ready after 120 seconds')
+            throw new Error(
+              'Polling timeout: video not ready after 120 seconds'
+            )
           }
         } else if (!firstVideoUrl) {
           // Если это не async провайдер и output пустой - ошибка
@@ -622,11 +666,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu
             ? `✅ Первое видео (lip-sync) готово!\n\n` +
-              `2️⃣ Создаем второе видео через WAN 2.5...\n` +
-              `⏳ Это займет 60-90 секунд...`
+                `2️⃣ Создаем второе видео через WAN 2.5...\n` +
+                `⏳ Это займет 60-90 секунд...`
             : `✅ First video (lip-sync) ready!\n\n` +
-              `2️⃣ Creating second video via WAN 2.5...\n` +
-              `⏳ This will take 60-90 seconds...`
+                `2️⃣ Creating second video via WAN 2.5...\n` +
+                `⏳ This will take 60-90 seconds...`
         )
 
         logger.info('✅ [AI REELS] Первое видео (lip-sync) сгенерировано', {
@@ -636,19 +680,27 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         // Переходим к следующему шагу (генерация WAN 2.5)
         return ctx.wizard.next()
-
       } catch (genError) {
         // ✅ УЛУЧШЕНО: Детальное логирование с полной информацией об ошибке
         logger.error('❌ [AI REELS] Критическая ошибка генерации lip-sync', {
           error: genError,
-          errorMessage: genError instanceof Error ? genError.message : 'Unknown error',
+          errorMessage:
+            genError instanceof Error ? genError.message : 'Unknown error',
           errorStack: genError instanceof Error ? genError.stack : undefined,
-          errorName: genError instanceof Error ? genError.name : typeof genError,
+          errorName:
+            genError instanceof Error ? genError.name : typeof genError,
           telegramId,
           imageUrl: imageUrl?.substring(0, 100),
           hasAudioUrl: !!audioUrl,
           hasText: !!text,
           textLength: text?.length || 0,
+          isTimeout:
+            genError instanceof Error && genError.message.includes('timeout'),
+          isElevenLabsError:
+            genError instanceof Error &&
+            genError.message.includes('ElevenLabs'),
+          isKieApiError:
+            genError instanceof Error && genError.message.includes('Kie.ai'),
         })
 
         // Возврат средств
@@ -660,14 +712,29 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           { bot_name: ctx.botInfo?.username || 'unknown_bot' }
         )
 
-        await ctx.reply(
-          isRu
-            ? `❌ Критическая ошибка генерации lip-sync видео. Средства возвращены.`
-            : `❌ Critical lip-sync generation error. Funds refunded.`
-        )
+        // Специальное сообщение для timeout ошибок
+        const isTimeout =
+          genError instanceof Error && genError.message.includes('timeout')
+        const isElevenLabsError =
+          genError instanceof Error && genError.message.includes('ElevenLabs')
+
+        let errorMessage = isRu
+          ? `❌ Критическая ошибка генерации lip-sync видео. Средства возвращены.`
+          : `❌ Critical lip-sync generation error. Funds refunded.`
+
+        if (isTimeout) {
+          errorMessage = isRu
+            ? `⏰ Таймаут генерации lip-sync видео. Серверы перегружены, попробуйте позже. Средства возвращены.`
+            : `⏰ Lip-sync generation timeout. Servers are overloaded, try again later. Funds refunded.`
+        } else if (isElevenLabsError) {
+          errorMessage = isRu
+            ? `🎤 Ошибка генерации голоса. Проблема с ElevenLabs API. Средства возвращены.`
+            : `🎤 Voice generation error. ElevenLabs API issue. Funds refunded.`
+        }
+
+        await ctx.reply(errorMessage)
         return ctx.scene.leave()
       }
-
     } catch (error) {
       logger.error('❌ [AI REELS] Ошибка в step 2', { error })
       await ctx.reply(
@@ -684,12 +751,19 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    logger.info('🎬 [AI REELS WIZARD] Step 3 STARTED - Генерация WAN 2.5 видео', {
-      telegramId,
-      function: 'aiReelsWizard.step3',
-    })
+    logger.info(
+      '🎬 [AI REELS WIZARD] Step 3 STARTED - Генерация WAN 2.5 видео',
+      {
+        telegramId,
+        function: 'aiReelsWizard.step3',
+      }
+    )
 
-    if (!telegramId || !ctx.session.aiReels?.firstVideoUrl || !ctx.session.aiReels?.imageUrl) {
+    if (
+      !telegramId ||
+      !ctx.session.aiReels?.firstVideoUrl ||
+      !ctx.session.aiReels?.imageUrl
+    ) {
       await ctx.reply(
         isRu
           ? '❌ Ошибка: не найдены данные первого видео. Начните заново.'
@@ -712,17 +786,17 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         input: {
           prompt: wan25Prompt,
           image_url: imageUrl,
-          duration: "5",
-          resolution: ctx.session.aiReels?.resolution || "720p",
+          duration: '5',
+          resolution: ctx.session.aiReels?.resolution || '720p',
           enable_prompt_expansion: true,
-        }
+        },
       }
 
       // Валидация параметров WAN 2.5
       const validation = validateWAN25Parameters(
         WAN25ModelType.IMAGE_TO_VIDEO,
         5,
-        ctx.session.aiReels?.resolution || "720p"
+        ctx.session.aiReels?.resolution || '720p'
       )
 
       if (!validation.isValid) {
@@ -759,7 +833,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         }
 
         // Ожидание результата с polling
-        const secondVideoUrl = await waitForWAN25Task(taskId, WAN25_API_CONFIG.TIMEOUT.MAX_WAIT_TIME)
+        const secondVideoUrl = await waitForWAN25Task(
+          taskId,
+          WAN25_API_CONFIG.TIMEOUT.MAX_WAIT_TIME
+        )
 
         if (!secondVideoUrl) {
           throw new Error('WAN 2.5 task completed but no video URL returned')
@@ -776,11 +853,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu
             ? `✅ Второе видео (WAN 2.5) готово!\n\n` +
-              `3️⃣ Склеиваем два видео в финальный ролик...\n` +
-              `⏳ Это займет 30-45 секунд...`
+                `3️⃣ Склеиваем два видео в финальный ролик...\n` +
+                `⏳ Это займет 30-45 секунд...`
             : `✅ Second video (WAN 2.5) ready!\n\n` +
-              `3️⃣ Merging two videos into final reel...\n` +
-              `⏳ This will take 30-45 seconds...`
+                `3️⃣ Merging two videos into final reel...\n` +
+                `⏳ This will take 30-45 seconds...`
         )
 
         logger.info('✅ [AI REELS] Второе видео (WAN 2.5) сгенерировано', {
@@ -791,43 +868,46 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         // Переходим к следующему шагу (склеивание)
         return ctx.wizard.next()
-
       } catch (wan25Error) {
-        logger.error('❌ [AI REELS] Ошибка генерации WAN 2.5', { error: wan25Error })
+        logger.error('❌ [AI REELS] Ошибка генерации WAN 2.5', {
+          error: wan25Error,
+        })
 
         // Проверяем, является ли это timeout ошибкой
-        if (wan25Error instanceof Error && wan25Error.message.includes('timeout')) {
+        if (
+          wan25Error instanceof Error &&
+          wan25Error.message.includes('timeout')
+        ) {
           await ctx.reply(
             isRu
               ? '⏱️ Генерация WAN 2.5 видео заняла больше времени, чем ожидалось.\n' +
-                'Но первое видео готово!\n' +
-                `🎬 Ваше lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}`
+                  'Но первое видео готово!\n' +
+                  `🎬 Ваше lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}`
               : '⏱️ WAN 2.5 video generation took longer than expected.\n' +
-                'But first video is ready!\n' +
-                `🎬 Your lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}`
+                  'But first video is ready!\n' +
+                  `🎬 Your lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}`
           )
         } else {
           await ctx.reply(
             isRu
               ? '❌ Ошибка генерации второго видео. Но первое видео готово!\n' +
-                `🎬 Ваше lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}`
+                  `🎬 Ваше lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}`
               : '❌ Error generating second video. But first video is ready!\n' +
-                `🎬 Your lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}`
+                  `🎬 Your lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}`
           )
         }
 
         return ctx.scene.leave()
       }
-
     } catch (error) {
       logger.error('❌ [AI REELS] Ошибка генерации WAN 2.5 видео', { error })
 
       await ctx.reply(
         isRu
           ? '❌ Ошибка генерации второго видео. Но первое видео готово!\n' +
-            `🎬 Ваше lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}`
+              `🎬 Ваше lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}`
           : '❌ Error generating second video. But first video is ready!\n' +
-            `🎬 Your lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}`
+              `🎬 Your lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}`
       )
 
       return ctx.scene.leave()
@@ -844,7 +924,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       function: 'aiReelsWizard.step4',
     })
 
-    if (!telegramId || !ctx.session.aiReels?.firstVideoUrl || !ctx.session.aiReels?.secondVideoUrl) {
+    if (
+      !telegramId ||
+      !ctx.session.aiReels?.firstVideoUrl ||
+      !ctx.session.aiReels?.secondVideoUrl
+    ) {
       await ctx.reply(
         isRu
           ? '❌ Ошибка: не найдены URL обоих видео. Проверьте предыдущие шаги.'
@@ -864,7 +948,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       })
 
       // Создаем временную директорию для работы с видео
-      const tempDir = path.join(os.tmpdir(), `ai-reels-${telegramId}-${Date.now()}`)
+      const tempDir = path.join(
+        os.tmpdir(),
+        `ai-reels-${telegramId}-${Date.now()}`
+      )
       await fs.mkdir(tempDir, { recursive: true })
 
       try {
@@ -919,32 +1006,32 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu
             ? `🎉 ИИ Рилс готов!\n\n` +
-              `📹 Финальное видео: ${finalVideoUrl}\n\n` +
-              `📊 Что создано:\n` +
-              `1️⃣ Lip-sync видео: ${firstVideoUrl}\n` +
-              `2️⃣ WAN 2.5 видео: ${secondVideoUrl}\n` +
-              `3️⃣ Склеенный ролик: ${finalVideoUrl}\n\n` +
-              `✨ Спасибо за использование ИИ Рилс!`
+                `📹 Финальное видео: ${finalVideoUrl}\n\n` +
+                `📊 Что создано:\n` +
+                `1️⃣ Lip-sync видео: ${firstVideoUrl}\n` +
+                `2️⃣ WAN 2.5 видео: ${secondVideoUrl}\n` +
+                `3️⃣ Склеенный ролик: ${finalVideoUrl}\n\n` +
+                `✨ Спасибо за использование ИИ Рилс!`
             : `🎉 AI Reels ready!\n\n` +
-              `📹 Final video: ${finalVideoUrl}\n\n` +
-              `📊 What was created:\n` +
-              `1️⃣ Lip-sync video: ${firstVideoUrl}\n` +
-              `2️⃣ WAN 2.5 video: ${secondVideoUrl}\n` +
-              `3️⃣ Merged reel: ${finalVideoUrl}\n\n` +
-              `✨ Thank you for using AI Reels!`
+                `📹 Final video: ${finalVideoUrl}\n\n` +
+                `📊 What was created:\n` +
+                `1️⃣ Lip-sync video: ${firstVideoUrl}\n` +
+                `2️⃣ WAN 2.5 video: ${secondVideoUrl}\n` +
+                `3️⃣ Merged reel: ${finalVideoUrl}\n\n` +
+                `✨ Thank you for using AI Reels!`
         )
 
         logger.info('🎉 [AI REELS] Финальный ролик готов', {
           telegramId,
           finalVideoUrl,
-          processingTime: Date.now() - (ctx.session.aiReels?.startTime || Date.now()),
+          processingTime:
+            Date.now() - (ctx.session.aiReels?.startTime || Date.now()),
         })
 
         // Очищаем сессию
         delete ctx.session.aiReels
 
         return ctx.scene.leave()
-
       } finally {
         // Очищаем временные файлы
         try {
@@ -957,18 +1044,17 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           })
         }
       }
-
     } catch (error) {
       logger.error('❌ [AI REELS] Ошибка склеивания видео', { error })
 
       await ctx.reply(
         isRu
           ? '❌ Ошибка склеивания видео. Но оба видео готовы по отдельности!\n\n' +
-            `🎬 Lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}\n` +
-            `🎬 WAN 2.5 видео: ${ctx.session.aiReels?.secondVideoUrl}`
+              `🎬 Lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}\n` +
+              `🎬 WAN 2.5 видео: ${ctx.session.aiReels?.secondVideoUrl}`
           : '❌ Error merging videos. But both videos are ready separately!\n\n' +
-            `🎬 Lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}\n` +
-            `🎬 WAN 2.5 video: ${ctx.session.aiReels?.secondVideoUrl}`
+              `🎬 Lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}\n` +
+              `🎬 WAN 2.5 video: ${ctx.session.aiReels?.secondVideoUrl}`
       )
 
       return ctx.scene.leave()
@@ -981,7 +1067,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 /**
  * Создает задачу в WAN 2.5 API
  */
-async function createWAN25Task(request: WAN25CreateTaskRequest): Promise<WAN25TaskResponse> {
+async function createWAN25Task(
+  request: WAN25CreateTaskRequest
+): Promise<WAN25TaskResponse> {
   const { KIE_AI_API_KEY } = await import('@/config')
 
   if (!KIE_AI_API_KEY) {
@@ -1001,7 +1089,7 @@ async function createWAN25Task(request: WAN25CreateTaskRequest): Promise<WAN25Ta
     method: 'POST',
     headers: {
       ...WAN25_API_CONFIG.HEADERS,
-      'Authorization': `Bearer ${KIE_AI_API_KEY}`,
+      Authorization: `Bearer ${KIE_AI_API_KEY}`,
     },
     body: JSON.stringify(request),
     signal: AbortSignal.timeout(WAN25_API_CONFIG.TIMEOUT.CREATE_TASK),
@@ -1014,11 +1102,15 @@ async function createWAN25Task(request: WAN25CreateTaskRequest): Promise<WAN25Ta
       statusText: response.statusText,
       error: errorText,
     })
-    throw new Error(`WAN 2.5 API error: ${response.status} ${response.statusText}`)
+    throw new Error(
+      `WAN 2.5 API error: ${response.status} ${response.statusText}`
+    )
   }
 
   const result = await response.json()
-  logger.info('✅ [WAN 2.5 API] Задача создана', { taskId: result.data?.taskId })
+  logger.info('✅ [WAN 2.5 API] Задача создана', {
+    taskId: result.data?.taskId,
+  })
 
   return result
 }
@@ -1026,7 +1118,9 @@ async function createWAN25Task(request: WAN25CreateTaskRequest): Promise<WAN25Ta
 /**
  * Проверяет статус задачи WAN 2.5
  */
-async function checkWAN25TaskStatus(taskId: string): Promise<WAN25StatusResponse> {
+async function checkWAN25TaskStatus(
+  taskId: string
+): Promise<WAN25StatusResponse> {
   const { KIE_AI_API_KEY } = await import('@/config')
 
   if (!KIE_AI_API_KEY) {
@@ -1037,13 +1131,15 @@ async function checkWAN25TaskStatus(taskId: string): Promise<WAN25StatusResponse
 
   const response = await fetch(url, {
     headers: {
-      'Authorization': `Bearer ${KIE_AI_API_KEY}`,
+      Authorization: `Bearer ${KIE_AI_API_KEY}`,
     },
     signal: AbortSignal.timeout(WAN25_API_CONFIG.TIMEOUT.STATUS_CHECK),
   })
 
   if (!response.ok) {
-    throw new Error(`WAN 2.5 status check error: ${response.status} ${response.statusText}`)
+    throw new Error(
+      `WAN 2.5 status check error: ${response.status} ${response.statusText}`
+    )
   }
 
   return response.json()
@@ -1052,7 +1148,10 @@ async function checkWAN25TaskStatus(taskId: string): Promise<WAN25StatusResponse
 /**
  * Ожидает завершения задачи WAN 2.5 с polling
  */
-async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 120000): Promise<string> {
+async function waitForWAN25Task(
+  taskId: string,
+  maxWaitTimeMs: number = 120000
+): Promise<string> {
   const startTime = Date.now()
   const pollInterval = WAN25_API_CONFIG.TIMEOUT.POLL_INTERVAL
 
@@ -1073,7 +1172,9 @@ async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 120000):
       })
 
       if (status.code === 200 && status.data.state === 'success') {
-        const resultJson = status.data.resultJson ? JSON.parse(status.data.resultJson) : {}
+        const resultJson = status.data.resultJson
+          ? JSON.parse(status.data.resultJson)
+          : {}
         const videoUrl = resultJson.resultUrls?.[0] || ''
 
         if (videoUrl) {
@@ -1094,7 +1195,9 @@ async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 120000):
           taskId,
           failMsg: status.data.failMsg,
         })
-        throw new Error(`WAN 2.5 task failed: ${status.data.failMsg || 'Unknown error'}`)
+        throw new Error(
+          `WAN 2.5 task failed: ${status.data.failMsg || 'Unknown error'}`
+        )
       }
 
       // Если задача все еще обрабатывается, ждем
@@ -1109,7 +1212,6 @@ async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 120000):
         state: status.data.state,
         response: status,
       })
-
     } catch (pollError) {
       logger.error('❌ [WAN 2.5 API] Ошибка при проверке статуса', {
         taskId,
@@ -1197,12 +1299,22 @@ async function uploadVideoToSupabase(
 
   // Опционально: сохраняем информацию о видео в таблицу assets
   try {
-    const { saveVideoUrlToSupabase } = await import('@/core/supabase/saveVideoUrlToSupabase')
-    await saveVideoUrlToSupabase(telegramId, publicUrl, storagePath, 'ai_reels_final')
+    const { saveVideoUrlToSupabase } = await import(
+      '@/core/supabase/saveVideoUrlToSupabase'
+    )
+    await saveVideoUrlToSupabase(
+      telegramId,
+      publicUrl,
+      storagePath,
+      'ai_reels_final'
+    )
   } catch (saveError) {
-    logger.warn('⚠️ [SUPABASE] Не удалось сохранить информацию в таблицу assets', {
-      error: saveError,
-    })
+    logger.warn(
+      '⚠️ [SUPABASE] Не удалось сохранить информацию в таблицу assets',
+      {
+        error: saveError,
+      }
+    )
     // Не критично, продолжаем
   }
 
