@@ -37,8 +37,9 @@ export class LipSyncOrchestrator {
       })
 
       // Получаем провайдер из factory
-      const provider: ILipSyncProvider =
-        lipSyncProviderFactory.createProvider(input.provider)
+      const provider: ILipSyncProvider = lipSyncProviderFactory.createProvider(
+        input.provider
+      )
 
       // Проверяем поддержку модели
       if (!provider.supportedModels.includes(input.modelId)) {
@@ -119,8 +120,9 @@ export class LipSyncOrchestrator {
       })
 
       // Получаем провайдер из factory
-      const provider: ILipSyncProvider =
-        lipSyncProviderFactory.createProvider(providerType)
+      const provider: ILipSyncProvider = lipSyncProviderFactory.createProvider(
+        providerType as any
+      )
 
       // Вызываем getStatus провайдера
       const result = await provider.getStatus(taskId)

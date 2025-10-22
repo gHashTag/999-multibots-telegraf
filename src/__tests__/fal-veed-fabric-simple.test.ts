@@ -3,15 +3,15 @@
  */
 
 import { describe, it, expect } from 'bun:test'
-import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-provider'
-import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
+import { FalVeedFabricProvider } from '../core/lipsync/providers/fal-veed-fabric-provider'
+import { LipSyncInputBuilder } from '../core/lipsync/schemas/lipsync-schemas'
 
 describe('Fal.ai Veed Fabric Provider - Simple Tests', () => {
   it('должен создаваться с правильными параметрами', () => {
     process.env.FAL_KEY = 'test-key'
-    
+
     const provider = new FalVeedFabricProvider()
-    
+
     expect(provider.providerId).toBe('fal')
     expect(provider.providerName).toBe('Fal.ai Veed Fabric 1.0 Fast')
     expect(provider.supportedModels).toEqual(['fal-veed-fabric-1.0-fast'])
@@ -39,19 +39,19 @@ describe('Fal.ai Veed Fabric Provider - Simple Tests', () => {
 
   it('должен поддерживать метод getStatus', async () => {
     process.env.FAL_KEY = 'test-key'
-    
+
     const provider = new FalVeedFabricProvider()
     const result = await provider.getStatus('test-task-id')
 
-    expect(result.status).toBe('succeeded')
+    expect(result.status).toBe('completed')
     expect(result.message).toContain('synchronous')
   })
 
   it('должен поддерживать метод generateLipSync', async () => {
     process.env.FAL_KEY = 'test-key'
-    
+
     const provider = new FalVeedFabricProvider()
-    
+
     // Проверяем, что метод существует
     expect(typeof provider.generateLipSync).toBe('function')
   })
