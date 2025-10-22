@@ -1,6 +1,11 @@
 import axios from 'axios'
 import { logger } from '@/utils/logger'
-import { KIE_AI_API_KEY, ELEVENLABS_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '@/config'
+import {
+  KIE_AI_API_KEY,
+  ELEVENLABS_API_KEY,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+} from '@/config'
 import { getVoiceId } from '@/core/supabase/getVoiceId'
 import { supabase } from '@/core/supabase'
 import { createClient } from '@supabase/supabase-js'
@@ -11,7 +16,10 @@ import type {
   LipSyncModelConfig,
   VeedFabricInput,
 } from '../schemas/lipsync-schemas'
-import { LIPSYNC_MODELS, getLipSyncModelById } from '@/config/lipsync-models.config'
+import {
+  LIPSYNC_MODELS,
+  getLipSyncModelById,
+} from '@/config/lipsync-models.config'
 
 /**
  * Провайдер для Kie.ai Veed Fabric 1.0 модели
@@ -28,9 +36,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
     defaultResolution: '480p' | '720p'
   }
 
-  constructor(
-    config?: Partial<typeof KieVeedFabricProvider.prototype.config>
-  ) {
+  constructor(config?: Partial<typeof KieVeedFabricProvider.prototype.config>) {
     if (!KIE_AI_API_KEY) {
       throw new Error('KIE_AI_API_KEY is not set')
     }
@@ -94,14 +100,18 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       const fileName = `lipsync-audio/${telegramId}/${Date.now()}.mp3`
 
       // ✅ Use service role client to bypass RLS policies
-      const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+      const serviceClient = createClient(
+        SUPABASE_URL!,
+        SUPABASE_SERVICE_ROLE_KEY!
+      )
 
-      const { data: uploadData, error: uploadError } = await serviceClient.storage
-        .from('images')
-        .upload(fileName, audioBuffer, {
-          contentType: 'audio/mpeg',
-          upsert: false,
-        })
+      const { data: uploadData, error: uploadError } =
+        await serviceClient.storage
+          .from('images')
+          .upload(fileName, audioBuffer, {
+            contentType: 'audio/mpeg',
+            upsert: false,
+          })
 
       if (uploadError) {
         logger.error('❌ Ошибка загрузки аудио в Supabase', { uploadError })
@@ -132,7 +142,9 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
   /**
    * Генерирует lip-sync видео через Kie.ai Veed Fabric
    */
-  async generate(input: VeedFabricInput): Promise<LipSyncOutput | LipSyncError> {
+  async generate(
+    input: VeedFabricInput
+  ): Promise<LipSyncOutput | LipSyncError> {
     try {
       const startTime = Date.now()
 
@@ -165,7 +177,6 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         // Используем готовый audioUrl от голосового сообщения
         audioUrl = veedInput.audioUrl
         logger.info('🎤 Используем готовое аудио от пользователя', { audioUrl })
-
       } else {
         // Генерируем аудио через ElevenLabs для текста
         // 1. Получаем voice_id пользователя
@@ -183,7 +194,11 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         logger.info('✅ Voice ID получен', { voiceId })
 
         // 2. Генерируем аудио через ElevenLabs и загружаем в Supabase
-        const generatedAudio = await this.generateAudio(veedInput.text!, voiceId, veedInput.telegramId)
+        const generatedAudio = await this.generateAudio(
+          veedInput.text!,
+          voiceId,
+          veedInput.telegramId
+        )
         if (!generatedAudio) {
           return {
             message: 'Failed to generate audio',
@@ -218,7 +233,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           responseType: 'stream',
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; LipSync-Bot/1.0)',
-          }
+          },
         })
         logger.info('✅ [KIE PROVIDER] Image URL доступен', {
           status: imageResponse.status,
@@ -226,11 +241,17 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           contentLength: imageResponse.headers['content-length'],
         })
       } catch (imageError) {
-        logger.warn('⚠️ [KIE PROVIDER] Image URL HEAD request failed, trying GET...', {
-          error: imageError instanceof Error ? imageError.message : 'Unknown error',
-          status: (imageError as any).response?.status,
-          imageUrl: veedInput.imageUrl.substring(0, 100),
-        })
+        logger.warn(
+          '⚠️ [KIE PROVIDER] Image URL HEAD request failed, trying GET...',
+          {
+            error:
+              imageError instanceof Error
+                ? imageError.message
+                : 'Unknown error',
+            status: (imageError as any).response?.status,
+            imageUrl: veedInput.imageUrl.substring(0, 100),
+          }
+        )
 
         // ✅ FALLBACK: Если HEAD не работает, пробуем GET запрос (некоторые серверы не поддерживают HEAD)
         try {
@@ -239,7 +260,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
             responseType: 'stream',
             headers: {
               'User-Agent': 'Mozilla/5.0 (compatible; LipSync-Bot/1.0)',
-            }
+            },
           })
 
           // Прерываем поток сразу после получения заголовков
@@ -252,8 +273,12 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           })
         } catch (getError) {
           logger.error('❌ [KIE PROVIDER] Image URL полностью недоступен', {
-            headError: imageError instanceof Error ? imageError.message : 'Unknown error',
-            getError: getError instanceof Error ? getError.message : 'Unknown error',
+            headError:
+              imageError instanceof Error
+                ? imageError.message
+                : 'Unknown error',
+            getError:
+              getError instanceof Error ? getError.message : 'Unknown error',
             imageUrl: veedInput.imageUrl.substring(0, 100),
             headStatus: (imageError as any).response?.status,
             getStatus: (getError as any).response?.status,
@@ -261,7 +286,9 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
 
           // ✅ ОПЦИЯ: Для Supabase URL пробуем альтернативные форматы
           if (veedInput.imageUrl.includes('supabase.co')) {
-            logger.info('🔄 [KIE PROVIDER] Supabase URL detected, continuing without validation...')
+            logger.info(
+              '🔄 [KIE PROVIDER] Supabase URL detected, continuing without validation...'
+            )
             // Продолжаем без проверки, так как Supabase может блокировать HEAD запросы
           } else {
             return {
@@ -282,7 +309,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           responseType: 'stream',
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; LipSync-Bot/1.0)',
-          }
+          },
         })
         logger.info('✅ [KIE PROVIDER] Audio URL доступен', {
           status: audioResponse.status,
@@ -290,11 +317,17 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           contentLength: audioResponse.headers['content-length'],
         })
       } catch (audioError) {
-        logger.warn('⚠️ [KIE PROVIDER] Audio URL HEAD request failed, trying GET...', {
-          error: audioError instanceof Error ? audioError.message : 'Unknown error',
-          status: (audioError as any).response?.status,
-          audioUrl: audioUrl.substring(0, 100),
-        })
+        logger.warn(
+          '⚠️ [KIE PROVIDER] Audio URL HEAD request failed, trying GET...',
+          {
+            error:
+              audioError instanceof Error
+                ? audioError.message
+                : 'Unknown error',
+            status: (audioError as any).response?.status,
+            audioUrl: audioUrl.substring(0, 100),
+          }
+        )
 
         // ✅ FALLBACK: Если HEAD не работает, пробуем GET запрос
         try {
@@ -303,7 +336,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
             responseType: 'stream',
             headers: {
               'User-Agent': 'Mozilla/5.0 (compatible; LipSync-Bot/1.0)',
-            }
+            },
           })
 
           // Прерываем поток сразу после получения заголовков
@@ -316,8 +349,12 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           })
         } catch (getError) {
           logger.error('❌ [KIE PROVIDER] Audio URL полностью недоступен', {
-            headError: audioError instanceof Error ? audioError.message : 'Unknown error',
-            getError: getError instanceof Error ? getError.message : 'Unknown error',
+            headError:
+              audioError instanceof Error
+                ? audioError.message
+                : 'Unknown error',
+            getError:
+              getError instanceof Error ? getError.message : 'Unknown error',
             audioUrl: audioUrl.substring(0, 100),
             headStatus: (audioError as any).response?.status,
             getStatus: (getError as any).response?.status,
@@ -325,7 +362,9 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
 
           // ✅ ОПЦИЯ: Для Supabase URL пропускаем проверку
           if (audioUrl.includes('supabase.co')) {
-            logger.info('🔄 [KIE PROVIDER] Supabase Audio URL detected, continuing without validation...')
+            logger.info(
+              '🔄 [KIE PROVIDER] Supabase Audio URL detected, continuing without validation...'
+            )
             // Продолжаем без проверки, так как Supabase может блокировать HEAD запросы
           } else {
             return {
@@ -344,16 +383,20 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       const callbackUrl = process.env.BASE_WEBHOOK_URL
         ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
         : process.env.LOCAL_SERVER_URL
-        ? `${process.env.LOCAL_SERVER_URL}/api/kie-ai/callback`
-        : process.env.API_SERVER_URL
-        ? `${process.env.API_SERVER_URL}/api/kie-ai/callback`
-        : 'https://three-head-dragon.shop/api/kie-ai/callback'
+          ? `${process.env.LOCAL_SERVER_URL}/api/kie-ai/callback`
+          : process.env.API_SERVER_URL
+            ? `${process.env.API_SERVER_URL}/api/kie-ai/callback`
+            : 'https://three-head-dragon.shop/api/kie-ai/callback'
 
       logger.info('🔗 [KIE PROVIDER] Callback URL определен', {
         callback_url: callbackUrl,
-        source: process.env.BASE_WEBHOOK_URL ? 'BASE_WEBHOOK_URL' :
-                process.env.LOCAL_SERVER_URL ? 'LOCAL_SERVER_URL' :
-                process.env.API_SERVER_URL ? 'API_SERVER_URL' : 'hardcoded_fallback'
+        source: process.env.BASE_WEBHOOK_URL
+          ? 'BASE_WEBHOOK_URL'
+          : process.env.LOCAL_SERVER_URL
+            ? 'LOCAL_SERVER_URL'
+            : process.env.API_SERVER_URL
+              ? 'API_SERVER_URL'
+              : 'hardcoded_fallback',
       })
 
       // ✅ ИСПРАВЛЕНО: Правильный endpoint и формат запроса (асинхронный API) с callback URL
@@ -372,7 +415,9 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         endpoint: 'https://api.kie.ai/api/v1/jobs/createTask',
         payload: requestPayload,
         hasApiKey: !!KIE_AI_API_KEY,
-        apiKeyPrefix: KIE_AI_API_KEY ? KIE_AI_API_KEY.substring(0, 10) + '...' : 'MISSING',
+        apiKeyPrefix: KIE_AI_API_KEY
+          ? KIE_AI_API_KEY.substring(0, 10) + '...'
+          : 'MISSING',
       })
 
       let createTaskResponse
@@ -395,10 +440,12 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           recordId: createTaskResponse.data.data?.recordId,
           responseData: createTaskResponse.data,
         })
-
       } catch (createError) {
         logger.error('❌ [KIE PROVIDER] Ошибка создания task в Kie.ai', {
-          error: createError instanceof Error ? createError.message : 'Unknown error',
+          error:
+            createError instanceof Error
+              ? createError.message
+              : 'Unknown error',
           status: (createError as any).response?.status,
           statusText: (createError as any).response?.statusText,
           responseData: (createError as any).response?.data,
@@ -411,7 +458,11 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
 
         return {
           message: `Kie.ai API error: ${errorStatus || 'Connection failed'}`,
-          error: errorData ? JSON.stringify(errorData) : (createError instanceof Error ? createError.message : 'Unknown error'),
+          error: errorData
+            ? JSON.stringify(errorData)
+            : createError instanceof Error
+              ? createError.message
+              : 'Unknown error',
           code: errorStatus ? errorStatus.toString() : 'CONNECTION_FAILED',
           provider: 'kie',
           modelId: veedInput.modelId,
@@ -437,7 +488,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       logger.info('🔗 [KIE PROVIDER] Task создан, ожидание webhook callback', {
         taskId: finalTaskId,
         callbackUrl,
-        message: 'Task будет обработан асинхронно через webhook'
+        message: 'Task будет обработан асинхронно через webhook',
       })
 
       // Возвращаем результат с taskId для AsyncLipSyncManager
@@ -448,7 +499,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         modelUsed: 'Veed Fabric AI',
         provider: 'kie',
         status: 'processing', // ✅ Статус processing до webhook
-        message: 'Task started, awaiting webhook notification'
+        message: 'Task started, awaiting webhook notification',
       }
     } catch (error) {
       logger.error('❌ [KIE PROVIDER] Критическая ошибка', {
@@ -479,7 +530,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       })
 
       const response = await axios.get(
-        'https://api.kie.ai/api/v1/jobs/status',
+        'https://api.kie.ai/api/v1/jobs/taskStatus',
         {
           params: {
             taskId: predictionId,
