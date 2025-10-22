@@ -283,7 +283,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         ...ctx.session.aiReelsRender,
         text,
         audioUrl,
-        step: 'avatar_service',
+        step: 'intro_text',
       }
 
       // Оценка длительности для расчета стоимости
@@ -313,14 +313,175 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       const finalCost = veo3Cost + estimatedDuration * hedraPerSecond
       const finalCostUSD = (finalCost / 100).toFixed(2)
 
-      // Запрос выбора сервиса аватара
+      // Запрос текста интро для обложки
       await ctx.reply(
         isRu
           ? `✅ Текст получен!\n\n` +
+              `📝 Теперь введите текст для интро на обложке:\n\n` +
+              `• До 50 символов\n` +
+              `• Этот текст будет отображаться на обложке видео\n` +
+              `• Например: "Ai-Stars", "News", "Tech Update" и т.д.`
+          : `✅ Text received!\n\n` +
+              `📝 Now enter intro text for the cover:\n\n` +
+              `• Up to 50 characters\n` +
+              `• This text will be displayed on the video cover\n` +
+              `• For example: "Ai-Stars", "News", "Tech Update", etc.`
+      )
+
+      return ctx.wizard.next()
+    } catch (error) {
+      logger.error('❌ [AI REELS RENDER] Text/voice processing error', {
+        error,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при обработке данных.'
+          : '❌ Error processing data.'
+      )
+      return ctx.scene.leave()
+    }
+  },
+
+  // Step 3: Ввод текста интро для обложки
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    logger.info('🎬 [AI REELS RENDER] Step 3 - Intro text input', {
+      telegramId,
+      step: 'intro_text',
+    })
+
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Обработка текста интро
+    if (ctx.message && 'text' in ctx.message) {
+      const introText = ctx.message.text.trim()
+
+      if (introText.length === 0 || introText.length > 50) {
+        await ctx.reply(
+          isRu
+            ? '❌ Текст интро должен быть от 1 до 50 символов.'
+            : '❌ Intro text must be between 1 and 50 characters.'
+        )
+        return ctx.scene.leave()
+      }
+
+      // Сохраняем первый текст интро
+      ctx.session.aiReelsRender = {
+        ...ctx.session.aiReelsRender,
+        introText1: introText,
+        step: 'intro_text_2', // Переходим к вводу второго текста
+      }
+
+      // Запрос второго текста интро
+      await ctx.reply(
+        isRu
+          ? `✅ Первый текст получен: "${introText}"\n\n` +
+              `📝 Теперь введите <b>второй текст</b> для интро (до 50 символов):\n\n` +
+              `💡 <i>Например: "АВАТАР" или "NEWS"</i>`
+          : `✅ First text received: "${introText}"\n\n` +
+              `📝 Now enter the <b>second text</b> for intro (up to 50 characters):\n\n` +
+              `💡 <i>For example: "AVATAR" or "NEWS"</i>`,
+        { parse_mode: 'HTML' }
+      )
+
+      return ctx.wizard.next()
+    } else {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, отправьте текст для интро (до 50 символов).'
+          : '❌ Please send intro text (up to 50 characters).'
+      )
+      return ctx.scene.leave()
+    }
+  },
+
+  // Step 4: Ввод второго текста интро
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    logger.info('🎬 [AI REELS RENDER] Step 4 - Second intro text input', {
+      telegramId,
+      step: 'intro_text_2',
+    })
+
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Обработка второго текста интро
+    if (ctx.message && 'text' in ctx.message) {
+      const introText2 = ctx.message.text.trim()
+
+      if (introText2.length === 0 || introText2.length > 50) {
+        await ctx.reply(
+          isRu
+            ? '❌ Второй текст интро должен быть от 1 до 50 символов.'
+            : '❌ Second intro text must be between 1 and 50 characters.'
+        )
+        return ctx.scene.leave()
+      }
+
+      // Сохраняем второй текст интро
+      ctx.session.aiReelsRender = {
+        ...ctx.session.aiReelsRender,
+        introText2: introText2,
+        upperIntroText: introText2, // Используем второй текст как верхний
+        step: 'avatar_service', // Переходим к выбору сервиса
+      }
+
+      // Оценка длительности для расчета стоимости
+      let estimatedDuration = 10 // секунд по умолчанию
+
+      if (ctx.session.aiReelsRender.audioUrl && 'voice' in ctx.message) {
+        // Для голоса - точная длительность
+        estimatedDuration = ctx.message.voice.duration
+      } else {
+        // Для текста - оценка (~2.5 слова в секунду, среднее чтение)
+        const words = (ctx.session.aiReelsRender.text || '').split(/\s+/).length
+        estimatedDuration = Math.ceil(words / 2.5)
+      }
+
+      // Сохраняем длительность для расчета цены
+      ctx.session.aiReelsRender = {
+        ...ctx.session.aiReelsRender,
+        estimatedDuration,
+      }
+
+      // 💰 Динамический расчет цены:
+      // - VEO3 Fast (4 видео): 160⭐ фиксированно
+      // - Hedra lip-sync: ~14⭐/сек (включает Hedra + ElevenLabs + накладные)
+      // - Наценка: x2
+      const veo3Cost = 160
+      const hedraPerSecond = 14
+      const baseCost = veo3Cost + estimatedDuration * hedraPerSecond
+      const finalCost = Math.ceil(baseCost * 2) // x2 наценка
+      const finalCostUSD = (finalCost / 100).toFixed(2)
+
+      // Запрос выбора сервиса аватара
+      await ctx.reply(
+        isRu
+          ? `✅ Тексты интро получены:\n` +
+              `• Первый: "${ctx.session.aiReelsRender.introText1}"\n` +
+              `• Второй: "${introText2}"\n\n` +
               `📊 <b>Расчет стоимости:</b>\n` +
               `• Длительность: ~${estimatedDuration} сек\n` +
-              `• 4 видео VEO3 Fast: 240⭐\n` +
-              `• Hedra lip-sync: ${estimatedDuration} × 7⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
+              `• 4 видео VEO3 Fast: 160⭐\n` +
+              `• Hedra lip-sync: ${estimatedDuration} × 14⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
               `• <b>Итого: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
               `🎭 Выберите сервис для генерации аватара:\n\n` +
               `🎭 <b>Hedra</b> - качественная генерация\n` +
@@ -329,11 +490,13 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               `🎬 <b>HeyGen</b> - премиум качество\n` +
               `   • Стоимость: ${finalCost}⭐\n` +
               `   • Время: 4-5 минут`
-          : `✅ Text received!\n\n` +
+          : `✅ Intro texts received:\n` +
+              `• First: "${ctx.session.aiReelsRender.introText1}"\n` +
+              `• Second: "${introText2}"\n\n` +
               `📊 <b>Cost calculation:</b>\n` +
               `• Duration: ~${estimatedDuration} sec\n` +
-              `• 4 VEO3 Fast videos: 240⭐\n` +
-              `• Hedra lip-sync: ${estimatedDuration} × 7⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
+              `• 4 VEO3 Fast videos: 160⭐\n` +
+              `• Hedra lip-sync: ${estimatedDuration} × 14⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
               `• <b>Total: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
               `🎭 Choose avatar generation service:\n\n` +
               `🎭 <b>Hedra</b> - quality generation\n` +
@@ -363,49 +526,46 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      // НЕ вызываем next() - ждем callback_query в этом же шаге
-    } catch (error) {
-      logger.error('❌ [AI REELS RENDER] Text/voice processing error', {
-        error,
-      })
+      return ctx.wizard.next()
+    } else {
       await ctx.reply(
         isRu
-          ? '❌ Произошла ошибка при обработке данных.'
-          : '❌ Error processing data.'
+          ? '❌ Пожалуйста, отправьте второй текст для интро (до 50 символов).'
+          : '❌ Please send second intro text (up to 50 characters).'
       )
       return ctx.scene.leave()
     }
   },
 
-  // Step 3: Обработка выбора аватара и отправка на render-server
+  // Step 5: Обработка выбора аватара и отправка на render-server
   async ctx => {
-    console.log('🔴🔴🔴 [RENDER WIZARD STEP 3] FUNCTION EXECUTING!!!')
-    console.log('🔴 [RENDER WIZARD STEP 3] Update type:', ctx.updateType)
+    console.log('🔴🔴🔴 [RENDER WIZARD STEP 5] FUNCTION EXECUTING!!!')
+    console.log('🔴 [RENDER WIZARD STEP 5] Update type:', ctx.updateType)
     console.log(
-      '🔴 [RENDER WIZARD STEP 3] Has callback?',
+      '🔴 [RENDER WIZARD STEP 5] Has callback?',
       'callback_query' in ctx.update
     )
 
-    console.log('🔴 [STEP 3] About to call logger.info...')
+    console.log('🔴 [STEP 5] About to call logger.info...')
 
     try {
-      console.log('🔴 [STEP 3] Inside try block')
+      console.log('🔴 [STEP 5] Inside try block')
       const isRu = isRussianFromState(ctx)
-      console.log('🔴 [STEP 3] Got isRu:', isRu)
+      console.log('🔴 [STEP 5] Got isRu:', isRu)
 
       const telegramId = ctx.from?.id?.toString()
-      console.log('🔴 [STEP 3] Got telegramId:', telegramId)
+      console.log('🔴 [STEP 5] Got telegramId:', telegramId)
 
-      logger.info('🎬 [AI REELS RENDER] Step 3 STARTED', {
+      logger.info('🎬 [AI REELS RENDER] Step 5 STARTED', {
         telegramId,
         hasCallbackQuery: 'callback_query' in ctx.update,
         updateKeys: Object.keys(ctx.update),
       })
 
       // Обрабатываем только callback_query
-      console.log('🔴 [STEP 3] Checking callback_query...')
+      console.log('🔴 [STEP 5] Checking callback_query...')
       if (!('callback_query' in ctx.update)) {
-        console.log('🔴 [STEP 3] NO callback_query!')
+        console.log('🔴 [STEP 5] NO callback_query!')
         await ctx.reply(
           isRu
             ? '❌ Пожалуйста, нажмите одну из кнопок.'
@@ -414,9 +574,9 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         return // Остаемся в том же шаге
       }
 
-      console.log('🔴 [STEP 3] Checking telegramId...')
+      console.log('🔴 [STEP 5] Checking telegramId...')
       if (!telegramId) {
-        console.log('🔴 [STEP 3] NO telegramId!')
+        console.log('🔴 [STEP 5] NO telegramId!')
         await ctx.reply(
           isRu
             ? '❌ Ошибка: не удалось определить ваш ID'
@@ -425,43 +585,43 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      console.log('🔴 [STEP 3] Extracting callbackData...')
+      console.log('🔴 [STEP 5] Extracting callbackData...')
       const callbackData =
         'data' in ctx.update.callback_query
           ? ctx.update.callback_query.data
           : ''
-      console.log('🔴 [STEP 3] CallbackData:', callbackData)
+      console.log('🔴 [STEP 5] CallbackData:', callbackData)
 
       logger.info('🎬 [AI REELS RENDER] Processing callback', {
         telegramId,
         callbackData,
       })
 
-      console.log('🔴 [STEP 3] Checking if avatar callback...')
+      console.log('🔴 [STEP 5] Checking if avatar callback...')
       if (callbackData === 'avatar_hedra' || callbackData === 'avatar_heygen') {
-        console.log('🔴 [STEP 3] YES! Avatar callback detected!')
+        console.log('🔴 [STEP 5] YES! Avatar callback detected!')
         const avatarService =
           callbackData === 'avatar_hedra' ? 'hedra' : 'heygen'
-        console.log('🔴 [STEP 3] Avatar service:', avatarService)
+        console.log('🔴 [STEP 5] Avatar service:', avatarService)
 
-        console.log('🔴 [STEP 3] Current session:', ctx.session.aiReelsRender)
+        console.log('🔴 [STEP 5] Current session:', ctx.session.aiReelsRender)
 
         ctx.session.aiReelsRender = {
           ...ctx.session.aiReelsRender,
           avatarService,
         }
 
-        console.log('🔴 [STEP 3] Answering callback query...')
+        console.log('🔴 [STEP 5] Answering callback query...')
         await ctx.answerCbQuery()
-        console.log('🔴 [STEP 3] Editing message...')
+        console.log('🔴 [STEP 5] Editing message...')
         await ctx.editMessageText(
           isRu
             ? `✅ Выбран: ${avatarService === 'hedra' ? '🎭 Hedra' : '🎬 HeyGen'}\n\n⏳ Отправляем запрос на render-server...`
             : `✅ Selected: ${avatarService === 'hedra' ? '🎭 Hedra' : '🎬 HeyGen'}\n\n⏳ Sending request to render-server...`
         )
-        console.log('🔴 [STEP 3] Message edited successfully!')
+        console.log('🔴 [STEP 5] Message edited successfully!')
 
-        console.log('🔴 [STEP 3] Creating payload...')
+        console.log('🔴 [STEP 5] Creating payload...')
         // Создание payload
         const payload = createRenderAvatarPayload(
           telegramId,
@@ -471,17 +631,18 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           {
             coverUrl:
               'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
-            introText1: 'Ai-Stars',
-            introText2: 'News',
-            upperIntroText: 'Ai-Stars',
+            introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
+            introText2: ctx.session.aiReelsRender.introText2 || 'News',
+            upperIntroText:
+              ctx.session.aiReelsRender.upperIntroText || 'Ai-Stars',
           }
         )
-        console.log('🔴 [STEP 3] Payload created!')
+        console.log('🔴 [STEP 5] Payload created!')
 
         // Установить выбранный сервис
         payload.avatar_gen_service = avatarService
         console.log(
-          '🔴 [STEP 3] Avatar service set on payload:',
+          '🔴 [STEP 5] Avatar service set on payload:',
           payload.avatar_gen_service
         )
 
@@ -492,7 +653,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         const hedraPerSecond = 7 // ~4.9⭐/сек × 1.5
         const estimatedCost = veo3Cost + duration * hedraPerSecond
 
-        console.log('🔴 [STEP 3] Dynamic cost calculation:', {
+        console.log('🔴 [STEP 5] Dynamic cost calculation:', {
           duration,
           veo3Cost,
           hedraPerSecond,
@@ -501,13 +662,13 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         })
 
         // Проверка баланса
-        console.log('🔴 [STEP 3] Getting user balance...')
+        console.log('🔴 [STEP 5] Getting user balance...')
         const currentBalance = await getUserBalance(telegramId)
-        console.log('🔴 [STEP 3] Current balance:', currentBalance)
+        console.log('🔴 [STEP 5] Current balance:', currentBalance)
 
-        console.log('🔴 [STEP 3] Checking if balance sufficient...')
+        console.log('🔴 [STEP 5] Checking if balance sufficient...')
         if (currentBalance === null || currentBalance < estimatedCost) {
-          console.log('🔴 [STEP 3] INSUFFICIENT BALANCE!')
+          console.log('🔴 [STEP 5] INSUFFICIENT BALANCE!')
           await ctx.reply(
             isRu
               ? `💰 Недостаточно средств\n\nТребуется: ${estimatedCost}⭐\nУ вас: ${(currentBalance || 0).toFixed(2)}⭐`
@@ -516,7 +677,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        console.log('🔴 [STEP 3] Balance sufficient! Charging user...')
+        console.log('🔴 [STEP 5] Balance sufficient! Charging user...')
         // Списание средств
         await updateUserBalance(
           telegramId,
@@ -529,14 +690,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             avatar_service: avatarService,
           }
         )
-        console.log('🔴 [STEP 3] User charged successfully!')
+        console.log('🔴 [STEP 5] User charged successfully!')
 
-        console.log('🔴 [STEP 3] Sending event to render-server...')
+        console.log('🔴 [STEP 5] Sending event to render-server...')
         // Отправка на render-server
         try {
-          console.log('🔴 [STEP 3] Inside sendEvent try block')
-          console.log('🔴 [STEP 3] Payload job_id:', payload.job_id)
-          console.log('🔴 [STEP 3] Payload keys:', Object.keys(payload))
+          console.log('🔴 [STEP 5] Inside sendEvent try block')
+          console.log('🔴 [STEP 5] Payload job_id:', payload.job_id)
+          console.log('🔴 [STEP 5] Payload keys:', Object.keys(payload))
 
           logger.info('🎬 [AI REELS RENDER] Starting event send', {
             telegramId,
@@ -548,12 +709,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           })
 
           console.log(
-            '🔴 [STEP 3] About to call sendRenderAvatarVideoEvent()...'
+            '🔴 [STEP 5] About to call sendRenderAvatarVideoEvent()...'
           )
           const { eventId } = await sendRenderAvatarVideoEvent(payload)
-          console.log('🔴 [STEP 3] Event sent! Event ID:', eventId)
+          console.log('🔴 [STEP 5] Event sent! Event ID:', eventId)
 
-          console.log('🔴 [STEP 3] Sending success reply to user...')
+          console.log('🔴 [STEP 5] Sending success reply to user...')
           await ctx.reply(
             isRu
               ? `✅ Запрос отправлен на render-server!\n\n` +
@@ -572,7 +733,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                   `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`,
             { parse_mode: 'HTML' }
           )
-          console.log('🔴 [STEP 3] Reply sent to user!')
+          console.log('🔴 [STEP 5] Reply sent to user!')
 
           logger.info('✅ [AI REELS RENDER] Event sent successfully', {
             telegramId,
@@ -581,12 +742,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             cost: estimatedCost,
           })
 
-          console.log('🔴 [STEP 3] All done! Cleaning up...')
+          console.log('🔴 [STEP 5] All done! Cleaning up...')
         } catch (error) {
-          console.log('🔴🔴🔴 [STEP 3] CAUGHT ERROR IN SEND EVENT!')
-          console.log('🔴 [STEP 3] Error:', error)
+          console.log('🔴🔴🔴 [STEP 5] CAUGHT ERROR IN SEND EVENT!')
+          console.log('🔴 [STEP 5] Error:', error)
           console.log(
-            '🔴 [STEP 3] Error message:',
+            '🔴 [STEP 5] Error message:',
             error instanceof Error ? error.message : String(error)
           )
 
@@ -617,14 +778,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
     } catch (error) {
-      console.log('🔴🔴🔴 [STEP 3] CAUGHT ERROR!')
-      console.log('🔴 [STEP 3] Error:', error)
+      console.log('🔴🔴🔴 [STEP 5] CAUGHT ERROR!')
+      console.log('🔴 [STEP 5] Error:', error)
       console.log(
-        '🔴 [STEP 3] Error message:',
+        '🔴 [STEP 5] Error message:',
         error instanceof Error ? error.message : String(error)
       )
       console.log(
-        '🔴 [STEP 3] Error stack:',
+        '🔴 [STEP 5] Error stack:',
         error instanceof Error ? error.stack : 'NO STACK'
       )
 

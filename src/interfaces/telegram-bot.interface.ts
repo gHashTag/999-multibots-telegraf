@@ -235,13 +235,17 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   aiReelsRender?: {
     // Данные для AI Reels Render wizard (генерация через render-server с Hedra/HeyGen)
-    step?: 'image' | 'text' | 'avatar_service' | 'processing'
+    step?: 'image' | 'text' | 'intro_text' | 'intro_text_2' | 'avatar_service' | 'processing'
     imageUrl?: string
     text?: string
     audioUrl?: string
+    introText1?: string // Текст для первого поля интро
+    introText2?: string // Текст для второго поля интро
+    upperIntroText?: string // Верхний текст интро
     avatarService?: 'hedra' | 'heygen' // Выбранный сервис генерации аватара
     startTime?: number
     eventId?: string // ID события Inngest для отслеживания
+    estimatedDuration?: number // Оценка длительности для расчета стоимости
   }
   email?: string
   inviteCode?: string
