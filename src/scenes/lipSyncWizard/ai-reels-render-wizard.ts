@@ -313,19 +313,22 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       const finalCost = veo3Cost + estimatedDuration * hedraPerSecond
       const finalCostUSD = (finalCost / 100).toFixed(2)
 
-      // Запрос текста интро для обложки
+      // Запрос первой части заголовка для обложки
       await ctx.reply(
         isRu
           ? `✅ Текст получен!\n\n` +
-              `📝 Теперь введите текст для интро на обложке:\n\n` +
-              `• До 50 символов\n` +
-              `• Этот текст будет отображаться на обложке видео\n` +
-              `• Например: "Ai-Stars", "News", "Tech Update" и т.д.`
+              `📝 Теперь введите <b>первую часть</b> заголовка для обложки:\n\n` +
+              `🎨 <b>Это будет составной заголовок из двух частей:</b>\n` +
+              `• Первая часть: [ваш текст] (до 50 символов)\n` +
+              `• Вторая часть: [будет запрошена далее]\n\n` +
+              `💡 <i>Например: "ФОТОРЕАЛЬНЫЙ", "AI-STARS", "NEWS"</i>`
           : `✅ Text received!\n\n` +
-              `📝 Now enter intro text for the cover:\n\n` +
-              `• Up to 50 characters\n` +
-              `• This text will be displayed on the video cover\n` +
-              `• For example: "Ai-Stars", "News", "Tech Update", etc.`
+              `📝 Now enter the <b>first part</b> of the cover title:\n\n` +
+              `🎨 <b>This will be a composite title with two parts:</b>\n` +
+              `• First part: [your text] (up to 50 characters)\n` +
+              `• Second part: [will be requested next]\n\n` +
+              `💡 <i>For example: "PHOTOREALISTIC", "AI-STARS", "NEWS"</i>`,
+        { parse_mode: 'HTML' }
       )
 
       return ctx.wizard.next()
@@ -384,12 +387,18 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       // Запрос второго текста интро
       await ctx.reply(
         isRu
-          ? `✅ Первый текст получен: "${introText}"\n\n` +
-              `📝 Теперь введите <b>второй текст</b> для интро (до 50 символов):\n\n` +
-              `💡 <i>Например: "АВАТАР" или "NEWS"</i>`
-          : `✅ First text received: "${introText}"\n\n` +
-              `📝 Now enter the <b>second text</b> for intro (up to 50 characters):\n\n` +
-              `💡 <i>For example: "AVATAR" or "NEWS"</i>`,
+          ? `✅ Первая часть заголовка: "${introText}"\n\n` +
+              `📝 Теперь введите <b>вторую часть</b> заголовка (до 50 символов):\n\n` +
+              `🎨 <b>Это будет составной заголовок:</b>\n` +
+              `• Первая часть: "${introText}"\n` +
+              `• Вторая часть: [ваш текст]\n\n` +
+              `💡 <i>Например: "АВАТАР", "NEWS", "TECH"</i>`
+          : `✅ First part of title: "${introText}"\n\n` +
+              `📝 Now enter the <b>second part</b> of title (up to 50 characters):\n\n` +
+              `🎨 <b>This will be a composite title:</b>\n` +
+              `• First part: "${introText}"\n` +
+              `• Second part: [your text]\n\n` +
+              `💡 <i>For example: "AVATAR", "NEWS", "TECH"</i>`,
         { parse_mode: 'HTML' }
       )
 
@@ -475,9 +484,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       // Запрос выбора сервиса аватара
       await ctx.reply(
         isRu
-          ? `✅ Тексты интро получены:\n` +
-              `• Первый: "${ctx.session.aiReelsRender.introText1}"\n` +
-              `• Второй: "${introText2}"\n\n` +
+          ? `✅ <b>Составной заголовок создан:</b>\n` +
+              `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
               `📊 <b>Расчет стоимости:</b>\n` +
               `• Длительность: ~${estimatedDuration} сек\n` +
               `• 4 видео VEO3 Fast: 160⭐\n` +
@@ -490,9 +498,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               `🎬 <b>HeyGen</b> - премиум качество\n` +
               `   • Стоимость: ${finalCost}⭐\n` +
               `   • Время: 4-5 минут`
-          : `✅ Intro texts received:\n` +
-              `• First: "${ctx.session.aiReelsRender.introText1}"\n` +
-              `• Second: "${introText2}"\n\n` +
+          : `✅ <b>Composite title created:</b>\n` +
+              `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
               `📊 <b>Cost calculation:</b>\n` +
               `• Duration: ~${estimatedDuration} sec\n` +
               `• 4 VEO3 Fast videos: 160⭐\n` +
