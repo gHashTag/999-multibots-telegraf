@@ -555,37 +555,94 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       // Генерация первого видео (lip-sync) через orchestrator
       try {
-        const input = LipSyncInputBuilder.forVeedFabric(
+        // ✅ ИСПРАВЛЕНИЕ: Используем fal провайдер вместо kie для лучшей стабильности
+        let finalAudioUrl = audioUrl
+
+        // Если у нас есть текст, но нет аудио - генерируем аудио через ElevenLabs
+        if (!finalAudioUrl && text) {
+          logger.info(
+            '🎤 [AI REELS] Генерируем аудио из текста для fal провайдера',
+            {
+              telegramId,
+              textLength: text.length,
+            }
+          )
+
+          // Импортируем функцию генерации аудио из kie провайдера
+          const { KieVeedFabricProvider } = await import(
+            '@/core/lipsync/providers/kie-veed-fabric-provider'
+          )
+          const kieProvider = new KieVeedFabricProvider()
+
+          // Получаем voice_id пользователя
+          const { getVoiceId } = await import('@/core/supabase/getVoiceId')
+          const voiceId = await getVoiceId(telegramId)
+
+          if (!voiceId) {
+            throw new Error('User voice ID not found for audio generation')
+          }
+
+          // Генерируем аудио (используем приватный метод через рефлексию)
+          const audioResult = await (kieProvider as any).generateAudio(
+            text,
+            voiceId,
+            telegramId
+          )
+
+          if (!audioResult) {
+            throw new Error('Failed to generate audio from text')
+          }
+
+          finalAudioUrl = audioResult
+          logger.info('✅ [AI REELS] Аудио сгенерировано для fal провайдера', {
+            telegramId,
+            audioUrl: finalAudioUrl.substring(0, 100),
+          })
+        }
+
+        if (!finalAudioUrl) {
+          throw new Error('No audio URL available for fal provider')
+        }
+
+        const input = LipSyncInputBuilder.forFalVeedFabric(
           imageUrl,
-          audioUrl || text,
+          finalAudioUrl,
           telegramId,
           {
             botName: ctx.botInfo?.username || 'unknown_bot',
             resolution: '720p',
-            isAudioUrl: !!audioUrl,
           }
         )
 
-        logger.info('🎭 [AI REELS] Запуск генерации первого видео (lip-sync)', {
-          telegramId,
-          imageUrl: imageUrl.substring(0, 100),
-          textLength: text.length,
-        })
+        logger.info(
+          '🎭 [AI REELS] Запуск генерации первого видео (lip-sync) через fal провайдер',
+          {
+            telegramId,
+            imageUrl: imageUrl.substring(0, 100),
+            textLength: text.length,
+            hasAudioUrl: !!finalAudioUrl,
+            provider: 'fal',
+          }
+        )
 
         const result = await lipSyncOrchestrator.generate(input)
 
         if (!('id' in result)) {
           const error = result as { message?: string; error?: string }
-          logger.error('❌ [AI REELS] Ошибка генерации lip-sync видео', {
-            result,
-          })
+          logger.error(
+            '❌ [AI REELS] Ошибка генерации lip-sync видео через fal провайдер',
+            {
+              result,
+              provider: 'fal',
+            }
+          )
 
           // Возврат средств
           await updateUserBalance(
             telegramId,
             totalCost,
             PaymentType.MONEY_INCOME,
-            'AI Reels refund - lip-sync generation error',
+            'AI Reels refund - fal lip-sync generation error',
             { bot_name: ctx.botInfo?.username || 'unknown_bot' }
           )
 
@@ -597,63 +654,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        // ✅ ИСПРАВЛЕНИЕ: Поддержка асинхронного провайдера (kie)
-        let firstVideoUrl = result.output
+        // ✅ ИСПРАВЛЕНИЕ: fal провайдер синхронный, не требует polling
+        const firstVideoUrl = result.output
 
-        // Если output пустой но есть taskId - это async провайдер, нужен polling
-        if (!firstVideoUrl && result.taskId && result.status === 'processing') {
-          logger.info('⏳ [AI REELS] Async провайдер, запуск polling', {
-            taskId: result.taskId,
-            provider: result.provider,
-          })
-
-          // Polling результата (максимум 120 секунд)
-          const maxAttempts = 40 // 40 попыток × 3 сек = 120 сек
-          let attempts = 0
-
-          while (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 3000)) // Ждем 3 секунды
-            attempts++
-
-            const statusResult = await lipSyncOrchestrator.checkStatus(
-              result.provider || 'kie',
-              result.modelId || 'veed-fabric',
-              result.taskId
-            )
-
-            logger.info('🔍 [AI REELS] Проверка статуса polling', {
-              attempt: attempts,
-              hasOutput: !!('output' in statusResult && statusResult.output),
-              status:
-                'status' in statusResult ? statusResult.status : 'unknown',
-            })
-
-            // Если результат готов
-            if ('output' in statusResult && statusResult.output) {
-              firstVideoUrl = statusResult.output
-              logger.info('✅ [AI REELS] Получен результат через polling', {
-                attempts,
-                videoUrl: firstVideoUrl.substring(0, 100),
-              })
-              break
-            }
-
-            // Если ошибка
-            if ('error' in statusResult) {
-              logger.error('❌ [AI REELS] Ошибка при polling', { statusResult })
-              throw new Error(`Polling error: ${statusResult.error}`)
-            }
-          }
-
-          // Если после всех попыток output пустой
-          if (!firstVideoUrl) {
-            throw new Error(
-              'Polling timeout: video not ready after 120 seconds'
-            )
-          }
-        } else if (!firstVideoUrl) {
-          // Если это не async провайдер и output пустой - ошибка
-          throw new Error('First video URL not returned from orchestrator')
+        if (!firstVideoUrl) {
+          // fal провайдер синхронный, если output пустой - ошибка
+          throw new Error('First video URL not returned from fal orchestrator')
         }
 
         // Сохраняем URL первого видео
@@ -665,43 +671,51 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         await ctx.reply(
           isRu
-            ? `✅ Первое видео (lip-sync) готово!\n\n` +
+            ? `✅ Первое видео (lip-sync) готово через fal провайдер!\n\n` +
                 `2️⃣ Создаем второе видео через WAN 2.5...\n` +
                 `⏳ Это займет 60-90 секунд...`
-            : `✅ First video (lip-sync) ready!\n\n` +
+            : `✅ First video (lip-sync) ready via fal provider!\n\n` +
                 `2️⃣ Creating second video via WAN 2.5...\n` +
                 `⏳ This will take 60-90 seconds...`
         )
 
-        logger.info('✅ [AI REELS] Первое видео (lip-sync) сгенерировано', {
-          telegramId,
-          firstVideoUrl,
-        })
+        logger.info(
+          '✅ [AI REELS] Первое видео (lip-sync) сгенерировано через fal провайдер',
+          {
+            telegramId,
+            firstVideoUrl,
+            provider: 'fal',
+          }
+        )
 
         // Переходим к следующему шагу (генерация WAN 2.5)
         return ctx.wizard.next()
       } catch (genError) {
         // ✅ УЛУЧШЕНО: Детальное логирование с полной информацией об ошибке
-        logger.error('❌ [AI REELS] Критическая ошибка генерации lip-sync', {
-          error: genError,
-          errorMessage:
-            genError instanceof Error ? genError.message : 'Unknown error',
-          errorStack: genError instanceof Error ? genError.stack : undefined,
-          errorName:
-            genError instanceof Error ? genError.name : typeof genError,
-          telegramId,
-          imageUrl: imageUrl?.substring(0, 100),
-          hasAudioUrl: !!audioUrl,
-          hasText: !!text,
-          textLength: text?.length || 0,
-          isTimeout:
-            genError instanceof Error && genError.message.includes('timeout'),
-          isElevenLabsError:
-            genError instanceof Error &&
-            genError.message.includes('ElevenLabs'),
-          isKieApiError:
-            genError instanceof Error && genError.message.includes('Kie.ai'),
-        })
+        logger.error(
+          '❌ [AI REELS] Критическая ошибка генерации lip-sync через fal провайдер',
+          {
+            error: genError,
+            errorMessage:
+              genError instanceof Error ? genError.message : 'Unknown error',
+            errorStack: genError instanceof Error ? genError.stack : undefined,
+            errorName:
+              genError instanceof Error ? genError.name : typeof genError,
+            telegramId,
+            imageUrl: imageUrl?.substring(0, 100),
+            hasAudioUrl: !!audioUrl,
+            hasText: !!text,
+            textLength: text?.length || 0,
+            provider: 'fal',
+            isTimeout:
+              genError instanceof Error && genError.message.includes('timeout'),
+            isElevenLabsError:
+              genError instanceof Error &&
+              genError.message.includes('ElevenLabs'),
+            isFalApiError:
+              genError instanceof Error && genError.message.includes('Fal.ai'),
+          }
+        )
 
         // Возврат средств
         await updateUserBalance(
@@ -717,19 +731,25 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           genError instanceof Error && genError.message.includes('timeout')
         const isElevenLabsError =
           genError instanceof Error && genError.message.includes('ElevenLabs')
+        const isFalApiError =
+          genError instanceof Error && genError.message.includes('Fal.ai')
 
         let errorMessage = isRu
-          ? `❌ Критическая ошибка генерации lip-sync видео. Средства возвращены.`
-          : `❌ Critical lip-sync generation error. Funds refunded.`
+          ? `❌ Критическая ошибка генерации lip-sync видео через fal провайдер. Средства возвращены.`
+          : `❌ Critical lip-sync generation error via fal provider. Funds refunded.`
 
         if (isTimeout) {
           errorMessage = isRu
-            ? `⏰ Таймаут генерации lip-sync видео. Серверы перегружены, попробуйте позже. Средства возвращены.`
-            : `⏰ Lip-sync generation timeout. Servers are overloaded, try again later. Funds refunded.`
+            ? `⏰ Таймаут генерации lip-sync видео через fal провайдер. Серверы перегружены, попробуйте позже. Средства возвращены.`
+            : `⏰ Lip-sync generation timeout via fal provider. Servers are overloaded, try again later. Funds refunded.`
         } else if (isElevenLabsError) {
           errorMessage = isRu
             ? `🎤 Ошибка генерации голоса. Проблема с ElevenLabs API. Средства возвращены.`
             : `🎤 Voice generation error. ElevenLabs API issue. Funds refunded.`
+        } else if (isFalApiError) {
+          errorMessage = isRu
+            ? `🎭 Ошибка fal провайдера. Проблема с Fal.ai API. Средства возвращены.`
+            : `🎭 Fal provider error. Fal.ai API issue. Funds refunded.`
         }
 
         await ctx.reply(errorMessage)
