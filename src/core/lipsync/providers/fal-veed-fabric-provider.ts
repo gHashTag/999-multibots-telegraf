@@ -230,14 +230,17 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
   }
 
   /**
-   * Рассчитывает стоимость генерации
+   * Рассчитывает стоимость генерации с централизованной наценкой
    */
   private calculateCost(resolution: string): number {
-    // ✅ ИСПРАВЛЕНО: Реальные цены Fal.ai Veed Fabric 1.0 Fast
-    const baseCost480p = 0.10 // $0.10 за секунду для 480p
-    const baseCost720p = 0.20 // $0.20 за секунду для 720p
+    // ✅ ИСПРАВЛЕНО: Реальные цены Fal.ai Veed Fabric 1.0 Fast с наценкой
+    const baseCost480p = 0.1 // $0.10 за секунду для 480p (базовая цена)
+    const baseCost720p = 0.2 // $0.20 за секунду для 720p (базовая цена)
     
-    return resolution === '720p' ? baseCost720p : baseCost480p
+    // Применяем централизованную наценку 50% (MARKUP_MULTIPLIER = 1.5)
+    const costWithMarkup = resolution === '720p' ? baseCost720p * 1.5 : baseCost480p * 1.5
+    
+    return costWithMarkup
   }
 
   /**
