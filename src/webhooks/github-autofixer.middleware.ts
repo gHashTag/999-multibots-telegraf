@@ -1,6 +1,6 @@
 import express from 'express'
 
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 
 export const githubWebhookRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
@@ -10,13 +10,15 @@ export const githubWebhookRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // ✅ ИСПРАВЛЕНИЕ: Правильная конфигурация для работы с nginx прокси
+  // ✅ ИСПРАВЛЕНИЕ: Правильная конфигурация для работы с nginx прокси и IPv6
   keyGenerator: (req: any) => {
     // Используем X-Forwarded-For заголовок для определения реального IP
     const forwarded = req.get('X-Forwarded-For')
     const realIp = req.get('X-Real-IP')
     const clientIp = forwarded ? forwarded.split(',')[0].trim() : (realIp || req.ip)
-    return clientIp
+    
+    // ✅ Используем ipKeyGenerator helper для правильной обработки IPv6
+    return ipKeyGenerator(req, clientIp)
   },
 })
 
