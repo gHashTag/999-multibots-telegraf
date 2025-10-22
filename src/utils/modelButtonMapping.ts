@@ -105,8 +105,74 @@ export function createSafeModelSelectionKeyboard(
   }
 }
 
-export function handleModelSelectionCallback(ctx: any): Promise<void> {
-  return Promise.resolve()
+export function handleModelSelectionCallback(
+  userModels: ModelTraining[],
+  callbackData: string,
+  operationName: string,
+  options: { isRussian?: boolean; debug?: boolean } = {}
+): {
+  success: boolean
+  model?: ModelTraining
+  shouldCancel?: boolean
+  error?: string
+} {
+  try {
+    console.log(`🔍 [handleModelSelectionCallback] Обработка выбора модели:`, {
+      callbackData,
+      userModelsCount: userModels?.length || 0,
+      operationName,
+    })
+
+    if (!userModels || userModels.length === 0) {
+      console.log(`❌ [handleModelSelectionCallback] Нет моделей для выбора`)
+      return { success: false, error: 'No models available' }
+    }
+
+    if (!callbackData || !callbackData.startsWith('select_model_')) {
+      console.log(
+        `❌ [handleModelSelectionCallback] Неверный callback: ${callbackData}`
+      )
+      return { success: false, error: 'Invalid callback data' }
+    }
+
+    // Извлекаем ID модели из callback_data
+    const modelId = callbackData.replace('select_model_', '')
+    console.log(
+      `🔍 [handleModelSelectionCallback] Ищем модель с ID: ${modelId}`
+    )
+
+    // Находим модель по ID
+    const selectedModel = userModels.find(
+      model => model.id.toString() === modelId
+    )
+
+    if (!selectedModel) {
+      console.log(
+        `❌ [handleModelSelectionCallback] Модель не найдена: ${modelId}`
+      )
+      return { success: false, error: 'Model not found' }
+    }
+
+    console.log(`✅ [handleModelSelectionCallback] Модель найдена:`, {
+      id: selectedModel.id,
+      name: selectedModel.model_name || selectedModel.name,
+      status: selectedModel.status,
+    })
+
+    return {
+      success: true,
+      model: selectedModel,
+    }
+  } catch (error) {
+    console.error(
+      `❌ [handleModelSelectionCallback] Ошибка обработки выбора модели:`,
+      error
+    )
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
 }
 
 export interface ModelTraining {
