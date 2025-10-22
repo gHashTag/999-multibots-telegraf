@@ -216,11 +216,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       if (message && 'voice' in message) {
         const voice = message.voice
 
-        if (voice.duration > 30) {
+        if ((voice as any).duration > 30) {
           await ctx.reply(
             isRu
-              ? `❌ Голосовое сообщение слишком длинное (${voice.duration} сек). Максимум: 30 секунд.`
-              : `❌ Voice message is too long (${voice.duration} sec). Maximum: 30 seconds.`
+              ? `❌ Голосовое сообщение слишком длинное (${(voice as any).duration} сек). Максимум: 30 секунд.`
+              : `❌ Voice message is too long (${(voice as any).duration} sec). Maximum: 30 seconds.`
           )
           return ctx.scene.leave()
         }
@@ -256,7 +256,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           .from('images')
           .getPublicUrl(fileName)
         audioUrl = urlData.publicUrl
-        text = `voice_message_${voice.duration}`
+        text = `voice_message_${(voice as any).duration}`
       }
       // Обработка текста
       else if (message && 'text' in message) {
@@ -291,7 +291,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       if (audioUrl && 'voice' in message) {
         // Для голоса - точная длительность
-        estimatedDuration = message.voice.duration
+        estimatedDuration = (message.voice as any).duration || 10
       } else {
         // Для текста - оценка (~2.5 слова в секунду, среднее чтение)
         const words = text.split(/\s+/).length
@@ -321,13 +321,13 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               `🎨 <b>Это будет составной заголовок из двух частей:</b>\n` +
               `• Первая часть: [ваш текст] (до 50 символов)\n` +
               `• Вторая часть: [будет запрошена далее]\n\n` +
-              `💡 <i>Например: "ФОТОРЕАЛЬНЫЙ", "AI-STARS", "NEWS"</i>`
+              `💡 <i>Например: "ФОТОРЕАЛЬНЫЙ АВАТАР"</i>`
           : `✅ Text received!\n\n` +
               `📝 Now enter the <b>first part</b> of the cover title:\n\n` +
               `🎨 <b>This will be a composite title with two parts:</b>\n` +
               `• First part: [your text] (up to 50 characters)\n` +
               `• Second part: [will be requested next]\n\n` +
-              `💡 <i>For example: "PHOTOREALISTIC", "AI-STARS", "NEWS"</i>`,
+              `💡 <i>For example: "PHOTOREALISTIC AVATAR"</i>`,
         { parse_mode: 'HTML' }
       )
 
@@ -458,7 +458,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       if (ctx.session.aiReelsRender.audioUrl && 'voice' in ctx.message) {
         // Для голоса - точная длительность
-        estimatedDuration = ctx.message.voice.duration
+        estimatedDuration = (ctx.message.voice as any).duration || 10
       } else {
         // Для текста - оценка (~2.5 слова в секунду, среднее чтение)
         const words = (ctx.session.aiReelsRender.text || '').split(/\s+/).length
