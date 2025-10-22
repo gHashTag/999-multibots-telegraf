@@ -288,10 +288,15 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
 
-    // 🚨 ОБРАБОТКА КНОПОК 1️⃣,2️⃣,3️⃣,4️⃣
-    if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text)) {
+    // 🚨 ОБРАБОТКА КНОПОК 1️⃣,2️⃣,3️⃣,4️⃣ И ЧИСЕЛ 1,2,3,4
+    if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text) || ['1', '2', '3', '4'].includes(text)) {
       console.log(`CASE: Генерация ${text} изображений`)
-      const numImages = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].indexOf(text) + 1
+      let numImages: number
+      if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text)) {
+        numImages = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].indexOf(text) + 1
+      } else {
+        numImages = parseInt(text)
+      }
       const prompt = ctx.session.prompt
       const userId = ctx.from?.id
 
@@ -355,6 +360,119 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     if (text === '🏠 Главное меню' || text === '🏠 Main menu' || text === levels[104].title_ru || text === levels[104].title_en) {
       console.log('CASE: Главное меню')
       await handleMenu(ctx)
+      return
+    }
+
+    // 🚨 ОБРАБОТКА ТЕКСТОВОГО ПРОМПТА (если пользователь отправил текст вместо кнопки)
+    if (text && text.length > 10) {
+      console.log('CASE: Получен текстовый промпт в neuroPhotoButtonStep, обрабатываем как промпт')
+      // Сохраняем промпт в сессии
+      ctx.session.prompt = text
+      
+      // Переходим к генерации 1 изображения по умолчанию
+      const numImages = 1
+      const prompt = ctx.session.prompt
+      const userId = ctx.from?.id
+
+      if (!prompt || !ctx.session.userModel || !ctx.session.userModel.model_url) {
+        console.error(
+          'Error: prompt or userModel not found in session at neuroPhotoButtonStep'
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка: данные для генерации не найдены. Попробуйте начать заново.'
+            : '❌ Error: generation data not found. Please start over.'
+        )
+        await handleMenu(ctx)
+        return
+      }
+
+      const trigger_word = ctx.session.userModel.trigger_word as string
+      const userData = await getUserData(userId?.toString() ?? '')
+      let genderPromptPart = 'person'
+      if (userData?.gender === 'female') {
+        genderPromptPart = 'female'
+      } else if (userData?.gender === 'male') {
+        genderPromptPart = 'male'
+      }
+
+      const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+
+      const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
+
+      console.log(`[neuroPhotoWizard ButtonStep] Determined gender for prompt: ${genderPromptPart}`)
+      console.log(`[neuroPhotoWizard ButtonStep] fullPrompt сформирован: ${fullPrompt.substring(0, 100)}...`)
+
+      const userDataForAspect = await getUserData(userId?.toString() ?? '')
+      const aspectRatio = userDataForAspect?.aspectRatio || '9:16'
+      console.log(`[neuroPhotoWizard ButtonStep] aspectRatio пользователя: ${aspectRatio}`)
+
+      console.log('🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid')
+      console.log('🚀 [HYBRID] generateNeuroPhotoHybrid ВХОД в функцию')
+      console.log('🚀 [HYBRID] Параметры:', {
+        prompt: fullPrompt.substring(0, 100) + '...',
+        model_url: ctx.session.userModel.model_url,
+        numImages,
+        telegram_id: userId?.toString(),
+        botName: 'clip_maker_neuro_bot',
+        explicitAspectRatio: aspectRatio,
+      })
+
+      try {
+        const result = await generateNeuroPhotoHybrid({
+          prompt: fullPrompt,
+          model_url: ctx.session.userModel.model_url,
+          numImages,
+          telegram_id: userId?.toString() ?? '',
+          botName: 'clip_maker_neuro_bot',
+          explicitAspectRatio: aspectRatio,
+        })
+
+        console.log('✅ [DEBUG] generateNeuroPhotoHybrid завершен успешно:', result)
+
+        if (result.success && result.urls && result.urls.length > 0) {
+          for (const url of result.urls) {
+            await ctx.replyWithPhoto(url)
+          }
+          
+          // Показываем кнопки для дальнейших действий
+          await ctx.reply(
+            isRu
+              ? '✅ Изображения сгенерированы! Выберите действие:'
+              : '✅ Images generated! Choose an action:',
+            {
+              reply_markup: {
+                keyboard: [
+                  [
+                    { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
+                    { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' }
+                  ],
+                  [
+                    { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
+                    { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' }
+                  ]
+                ],
+                resize_keyboard: true,
+                one_time_keyboard: false,
+              },
+            }
+          )
+        } else {
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка при генерации изображений. Попробуйте снова.'
+              : '❌ Error generating images. Please try again.'
+          )
+        }
+      } catch (error) {
+        console.error('Error in generateNeuroPhotoHybrid:', error)
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при генерации. Попробуйте снова.'
+            : '❌ Error occurred during generation. Please try again.'
+        )
+      }
+      
       return
     }
 
