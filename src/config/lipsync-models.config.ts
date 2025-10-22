@@ -93,10 +93,10 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
       'Быстрая и стабильная модель от Fal.ai для создания talking video с естественной синхронизацией губ. Поддерживает 720p и 480p качество. Более стабильная альтернатива.',
     provider: 'fal',
     modelId: 'fal-veed-fabric-1.0-fast',
-    costPerSecond: 0.03, // $0.03 per second (базовая цена)
-    costPerSecond720p: 0.045, // $0.045 per second для 720p
-    costPerSecondStars480p: 2.4, // 2.4⭐/сек для 480p
-    costPerSecondStars720p: 3.6, // 3.6⭐/сек для 720p
+    costPerSecond: 0.10, // ✅ ИСПРАВЛЕНО: $0.10 per second для 480p
+    costPerSecond720p: 0.20, // ✅ ИСПРАВЛЕНО: $0.20 per second для 720p
+    costPerSecondStars480p: 6.25, // ✅ ИСПРАВЛЕНО: 6.25⭐/сек для 480p ($0.10 / $0.016)
+    costPerSecondStars720p: 12.5, // ✅ ИСПРАВЛЕНО: 12.5⭐/сек для 720p ($0.20 / $0.016)
     maxDuration: 60,
     quality: 'high',
     isAvailable: true,
@@ -107,7 +107,7 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
       'Естественная синхронизация губ',
       'Надежная инфраструктура Fal.ai',
       'До 60 секунд видео',
-      'Экономичная цена',
+      'Обновленные реальные цены',
     ],
   },
 }
@@ -179,6 +179,13 @@ export function calculateLipSyncCostStars(
   // 1⭐ ≈ $0.016, поэтому $0.216 / $0.016 = 13.5⭐ ≈ 14⭐/сек
   if (modelId === 'veed_fabric') {
     return 14 * durationSeconds // 720p quality
+  }
+
+  // ✅ ИСПРАВЛЕНО: Для Fal.ai Veed Fabric 1.0 Fast с правильными ценами
+  if (modelId === 'fal_veed_fabric') {
+    const starCost = 0.016 // $1 = 62.5⭐ → 1⭐ = $0.016
+    const costPerSecond = resolution === '720p' ? 0.20 : 0.10 // $0.20 для 720p, $0.10 для 480p
+    return Math.ceil((costPerSecond * durationSeconds) / starCost)
   }
 
   // Для других моделей - конвертируем USD в звезды

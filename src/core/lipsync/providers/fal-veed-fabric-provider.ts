@@ -233,10 +233,11 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
    * Рассчитывает стоимость генерации
    */
   private calculateCost(resolution: string): number {
-    // Примерная стоимость для Fal.ai Veed Fabric
-    const baseCost = 0.02 // $0.02 за секунду
-    const resolutionMultiplier = resolution === '720p' ? 1.5 : 1.0
-    return baseCost * resolutionMultiplier
+    // ✅ ИСПРАВЛЕНО: Реальные цены Fal.ai Veed Fabric 1.0 Fast
+    const baseCost480p = 0.10 // $0.10 за секунду для 480p
+    const baseCost720p = 0.20 // $0.20 за секунду для 720p
+    
+    return resolution === '720p' ? baseCost720p : baseCost480p
   }
 
   /**
