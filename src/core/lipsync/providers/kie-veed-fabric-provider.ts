@@ -89,7 +89,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
             'Content-Type': 'application/json',
           },
           responseType: 'arraybuffer',
-          timeout: 60000,
+          timeout: 30000, // Уменьшаем timeout до 30 секунд
         }
       )
 
@@ -134,7 +134,22 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         error,
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
         errorStack: error instanceof Error ? error.stack : undefined,
+        isTimeout: error instanceof Error && error.message.includes('timeout'),
+        isNetworkError:
+          error instanceof Error && error.message.includes('Network Error'),
+        isApiError:
+          error instanceof Error && error.message.includes('Request failed'),
       })
+
+      // Если это timeout или network error, возвращаем специальную ошибку
+      if (
+        error instanceof Error &&
+        (error.message.includes('timeout') ||
+          error.message.includes('Network Error'))
+      ) {
+        throw new Error(`ElevenLabs API timeout: ${error.message}`)
+      }
+
       return null
     }
   }
@@ -450,20 +465,23 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           statusText: (createError as any).response?.statusText,
           responseData: (createError as any).response?.data,
           requestPayload: requestPayload,
+          isTimeout: createError instanceof Error && createError.message.includes('timeout'),
+          isNetworkError: createError instanceof Error && createError.message.includes('Network Error'),
         })
 
         // Возвращаем детальную ошибку
         const errorStatus = (createError as any).response?.status
         const errorData = (createError as any).response?.data
+        const isTimeout = createError instanceof Error && createError.message.includes('timeout')
 
         return {
-          message: `Kie.ai API error: ${errorStatus || 'Connection failed'}`,
+          message: `Kie.ai API error: ${isTimeout ? 'Timeout' : errorStatus || 'Connection failed'}`,
           error: errorData
             ? JSON.stringify(errorData)
             : createError instanceof Error
               ? createError.message
               : 'Unknown error',
-          code: errorStatus ? errorStatus.toString() : 'CONNECTION_FAILED',
+          code: isTimeout ? 'TIMEOUT' : errorStatus ? errorStatus.toString() : 'CONNECTION_FAILED',
           provider: 'kie',
           modelId: veedInput.modelId,
         }
