@@ -8,19 +8,32 @@ export const sendBalanceMessage = async (
   isRu: boolean,
   bot_name: string
 ) => {
-  const { bot } = getBotByName(bot_name as BotName)
-  if (!bot) {
-    console.error(`Bot instance not found for name: ${bot_name}`)
-    throw new Error('Bot instance not found')
+  try {
+    const { bot } = getBotByName(bot_name as BotName)
+    if (!bot) {
+      console.error(`Bot instance not found for name: ${bot_name}`)
+      throw new Error('Bot instance not found')
+    }
+
+    const chatId = ctx.from?.id?.toString()
+    if (!chatId) {
+      console.error('Chat ID not found for balance message')
+      return
+    }
+
+    const message = isRu
+      ? `Стоимость: ${cost.toFixed(2)} ⭐️\nВаш баланс: ${newBalance.toFixed(2)} ⭐️`
+      : `Cost: ${cost.toFixed(2)} ⭐️\nYour balance: ${newBalance.toFixed(2)} ⭐️`
+
+    await bot.telegram.sendMessage(chatId, message)
+  } catch (error) {
+    console.error('❌ Error sending balance message:', {
+      error: error instanceof Error ? error.message : String(error),
+      bot_name,
+      chatId: ctx.from?.id,
+      cost,
+      balance: newBalance
+    })
+    // Не выбрасываем ошибку, чтобы не прерывать основной поток
   }
-  await bot.telegram.sendMessage(
-    ctx.from?.id?.toString() || '',
-    isRu
-      ? `Стоимость: ${cost.toFixed(2)} ⭐️\nВаш баланс: ${newBalance.toFixed(
-          2
-        )} ⭐️`
-      : `Cost: ${cost.toFixed(2)} ⭐️\nYour balance: ${newBalance.toFixed(
-          2
-        )} ⭐️`
-  )
 }
