@@ -282,9 +282,9 @@ export class ReplicateKlingProvider implements ILipSyncProvider {
   }
 
   /**
-   * ✅ Получает статус обработки (для fallback polling)
+   * ✅ Получает статус обработки (для fallback polling) - дублирующий метод
    */
-  async getStatus(predictionId: string): Promise<any> {
+  async getStatusFallback(predictionId: string): Promise<any> {
     try {
       const prediction = await this.replicate.predictions.get(predictionId)
 

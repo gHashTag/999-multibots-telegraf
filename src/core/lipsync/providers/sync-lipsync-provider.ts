@@ -334,10 +334,10 @@ export class SyncLipSyncProvider implements ILipSyncProvider {
   }
 
   /**
-   * ✅ Получает статус обработки (для fallback polling)
+   * ✅ Получает статус обработки (для fallback polling) - дублирующий метод
    * Sync Labs API не поддерживает проверку статуса, так как использует синхронный режим
    */
-  async getStatus(predictionId: string): Promise<any> {
+  async getStatusFallback(predictionId: string): Promise<any> {
     logger.warn('⚠️ [SYNC PROVIDER] getStatus не поддерживается - Sync Labs работает синхронно', {
       predictionId,
     })
