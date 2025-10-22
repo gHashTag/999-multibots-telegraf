@@ -21,21 +21,32 @@ interface InngestConfig {
 
 class InngestProvider {
   private configs: Map<InngestInstance, InngestConfig> = new Map()
+  private initialized = false
 
   constructor() {
     logger.info('🔧 [INNGEST PROVIDER] Initializing...')
-    // Инициализируем конфигурации из .env
-    this.initializeConfigs()
-    logger.info('✅ [INNGEST PROVIDER] Initialized with instances', {
-      instances: Array.from(this.configs.keys()),
-    })
+    // Ленивая инициализация - конфигурации будут загружены при первом использовании
+    logger.info('⏳ [INNGEST PROVIDER] Lazy initialization enabled')
+  }
+
+  private ensureInitialized() {
+    if (!this.initialized) {
+      logger.info('🔧 [INNGEST PROVIDER] Lazy initialization starting...')
+      this.initializeConfigs()
+      this.initialized = true
+      logger.info('✅ [INNGEST PROVIDER] Lazy initialization completed', {
+        instances: Array.from(this.configs.keys()),
+      })
+    }
   }
 
   private initializeConfigs() {
     // BOT инстанс (наш основной сервер)
     const botEventKey = process.env.BOT_INNGEST_EVENT_KEY
     const botSigningKey = process.env.BOT_INNGEST_SIGNING_KEY
-    const botBaseUrl = process.env.BOT_INNGEST_BASE_URL || 'https://three-head-dragon.shop/api/inngest'
+    const botBaseUrl =
+      process.env.BOT_INNGEST_BASE_URL ||
+      'https://three-head-dragon.shop/api/inngest'
 
     if (botEventKey) {
       this.configs.set('BOT', {
@@ -49,7 +60,9 @@ class InngestProvider {
         hasSigningKey: !!botSigningKey,
       })
     } else {
-      logger.warn('⚠️ [INNGEST PROVIDER] BOT instance missing BOT_INNGEST_EVENT_KEY')
+      logger.warn(
+        '⚠️ [INNGEST PROVIDER] BOT instance missing BOT_INNGEST_EVENT_KEY'
+      )
     }
 
     // RENDER инстанс (Inngest Cloud → Railway render-server)
@@ -72,13 +85,18 @@ class InngestProvider {
         name: 'render-server',
         client: renderClient,
       })
-      logger.info('✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Railway)', {
-        cloudUrl: 'https://inn.gs',
-        hasEventKey: !!renderEventKey,
-        hasClient: true,
-      })
+      logger.info(
+        '✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Railway)',
+        {
+          cloudUrl: 'https://inn.gs',
+          hasEventKey: !!renderEventKey,
+          hasClient: true,
+        }
+      )
     } else {
-      logger.warn('⚠️ [INNGEST PROVIDER] RENDER instance missing RENDER_INNGEST_EVENT_KEY')
+      logger.warn(
+        '⚠️ [INNGEST PROVIDER] RENDER instance missing RENDER_INNGEST_EVENT_KEY'
+      )
     }
   }
 
@@ -86,10 +104,13 @@ class InngestProvider {
    * Получить конфигурацию для указанного инстанса
    */
   getConfig(instance: InngestInstance): InngestConfig | null {
+    this.ensureInitialized()
     const config = this.configs.get(instance)
 
     if (!config) {
-      logger.error('❌ [INNGEST PROVIDER] Instance not configured', { instance })
+      logger.error('❌ [INNGEST PROVIDER] Instance not configured', {
+        instance,
+      })
       return null
     }
 
@@ -105,6 +126,7 @@ class InngestProvider {
     eventName: string,
     data: any
   ): Promise<{ eventId: string } | null> {
+    this.ensureInitialized()
     const config = this.getConfig(instance)
 
     if (!config) {
@@ -112,7 +134,9 @@ class InngestProvider {
     }
 
     if (!config.client) {
-      throw new Error(`Inngest client not initialized for instance "${instance}"`)
+      throw new Error(
+        `Inngest client not initialized for instance "${instance}"`
+      )
     }
 
     logger.info(`📤 [INNGEST PROVIDER] Sending event to ${instance} via SDK`, {
@@ -137,10 +161,13 @@ class InngestProvider {
         data,
       })
 
-      logger.info(`✅ [INNGEST PROVIDER] Event sent to ${instance} (via Inngest Cloud)`, {
-        eventName,
-        cloudUrl: instance === 'RENDER' ? 'https://inn.gs' : config.baseUrl,
-      })
+      logger.info(
+        `✅ [INNGEST PROVIDER] Event sent to ${instance} (via Inngest Cloud)`,
+        {
+          eventName,
+          cloudUrl: instance === 'RENDER' ? 'https://inn.gs' : config.baseUrl,
+        }
+      )
 
       // SDK не возвращает event IDs, генерируем свой для логирования
       const generatedEventId = `${instance.toLowerCase()}-${Date.now()}`
@@ -160,6 +187,7 @@ class InngestProvider {
    * Проверить доступность инстанса
    */
   async checkAvailability(instance: InngestInstance): Promise<boolean> {
+    this.ensureInitialized()
     const config = this.getConfig(instance)
 
     if (!config) {
@@ -171,10 +199,13 @@ class InngestProvider {
     if (instance === 'RENDER') {
       const isAvailable = !!(config.client && config.eventKey)
       if (isAvailable) {
-        logger.info(`✅ [INNGEST PROVIDER] ${instance} available (Inngest Cloud client configured)`, {
-          hasClient: !!config.client,
-          hasEventKey: !!config.eventKey,
-        })
+        logger.info(
+          `✅ [INNGEST PROVIDER] ${instance} available (Inngest Cloud client configured)`,
+          {
+            hasClient: !!config.client,
+            hasEventKey: !!config.eventKey,
+          }
+        )
       } else {
         logger.warn(`⚠️ [INNGEST PROVIDER] ${instance} not available`, {
           hasClient: !!config.client,
@@ -227,7 +258,9 @@ class InngestProvider {
   /**
    * Получить статус всех инстансов
    */
-  async getStatus(): Promise<Record<InngestInstance, { configured: boolean; available?: boolean }>> {
+  async getStatus(): Promise<
+    Record<InngestInstance, { configured: boolean; available?: boolean }>
+  > {
     const instances = this.getAvailableInstances()
     const status: any = {}
 
