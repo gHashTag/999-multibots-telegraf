@@ -3,10 +3,12 @@
  */
 
 export interface ILipSyncProvider {
+  readonly providerId: string
+  readonly providerName: string
+  readonly supportedModels: string[]
   generateLipSync(params: any): Promise<any>
-  supportedModels: string[]
   generate(input: any): Promise<any>
-  getStatus(taskId: string): Promise<any> // ✅ FALLBACK POLLING: Для проверки статуса задачи
+  getStatus(taskId: string): Promise<any>
 }
 
 export interface ProviderOperationResult {

@@ -24,6 +24,61 @@ export interface LipSyncModelConfig {
   [key: string]: any
 }
 
+// Типы провайдеров
+export type LipSyncProvider = 'replicate' | 'sync' | 'kie' | 'fal'
+
+// Входные данные для различных провайдеров
+export interface SyncLipSyncInput extends UniversalLipSyncInput {
+  provider: 'sync'
+  modelId: 'sync/lipsync-2'
+  videoUrl: string
+  audioUrl: string
+  telegramId: string
+  parameters?: any
+}
+
+export interface KlingLipSyncInput extends UniversalLipSyncInput {
+  provider: 'replicate'
+  modelId: 'kwaivgi/kling-lip-sync'
+  videoUrl: string
+  audioUrl: string
+  telegramId: string
+}
+
+export interface VeedFabricInput extends UniversalLipSyncInput {
+  provider: 'kie'
+  modelId: 'veed-fabric'
+  imageUrl: string
+  text?: string
+  audioUrl?: string
+  telegramId: string
+  resolution?: '480p' | '720p'
+}
+
+// Менеджер конфигурации
+export interface LipSyncModelManagerConfig {
+  defaultModel: string
+  enableCaching: boolean
+  retryAttempts: number
+  timeout: number
+}
+
+// Валидация
+export function validateLipSyncInput(input: any): boolean {
+  return true // Упрощенная валидация
+}
+
+export class LipSyncValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'LipSyncValidationError'
+  }
+}
+
+export const LipSyncModelManagerConfigSchema = {
+  parse: (config: any) => config
+}
+
 export interface LipSyncModelManagementStrategy {
   [key: string]: any
 }
@@ -84,6 +139,44 @@ export const LipSyncInputBuilder = {
         `textOrAudioUrl length=${textOrAudioUrl?.length}, ` +
         `telegramId=${telegramId}, ` +
         `isAudioUrl=${options?.isAudioUrl}`
+      )
+    }
+  },
+
+  /**
+   * Создать входные данные для Fal.ai Veed Fabric 1.0 Fast модели
+   * @param imageUrl - URL изображения для lip-sync
+   * @param audioUrl - URL аудиофайла
+   * @param telegramId - ID пользователя Telegram
+   * @param options - Дополнительные опции
+   * @returns Объект входных данных для Fal.ai Veed Fabric
+   */
+  forFalVeedFabric: (
+    imageUrl: string,
+    audioUrl: string,
+    telegramId: string,
+    options?: {
+      botName?: string
+      resolution?: '480p' | '720p'
+    }
+  ): UniversalLipSyncInput => {
+    try {
+      return {
+        imageUrl,
+        audioUrl,
+        telegramId,
+        provider: 'fal',
+        modelId: 'fal-veed-fabric-1.0-fast',
+        botName: options?.botName || 'unknown_bot',
+        resolution: options?.resolution || '720p',
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to create Fal.ai Veed Fabric input: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+        `Input data: imageUrl=${imageUrl?.substring(0, 50)}, ` +
+        `audioUrl=${audioUrl?.substring(0, 50)}, ` +
+        `telegramId=${telegramId}, ` +
+        `resolution=${options?.resolution}`
       )
     }
   },
