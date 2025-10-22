@@ -28,16 +28,19 @@ export const sendBalanceMessage = async (
     await bot.telegram.sendMessage(chatId, message)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    
+
     // Проверяем, является ли это ошибкой "chat not found"
     if (errorMessage.includes('chat not found')) {
-      console.warn('⚠️ Chat not found - user may have blocked bot or deleted chat:', {
-        bot_name,
-        chatId: ctx.from?.id,
-        cost,
-        balance: newBalance,
-        note: 'This is not critical - main functionality continues'
-      })
+      console.warn(
+        '⚠️ Chat not found - user may have blocked bot or deleted chat:',
+        {
+          bot_name,
+          chatId: ctx.from?.id,
+          cost,
+          balance: newBalance,
+          note: 'This is not critical - main functionality continues',
+        }
+      )
     } else {
       console.error('❌ Error sending balance message:', {
         error: errorMessage,

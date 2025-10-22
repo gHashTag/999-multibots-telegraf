@@ -133,6 +133,18 @@ export class LipSyncOrchestrator {
         status: 'status' in result ? result.status : 'unknown',
       })
 
+      // ✅ Проверяем, есть ли ошибка в результате
+      if ('error' in result && result.error) {
+        logger.error('❌ [ORCHESTRATOR] Провайдер вернул ошибку', {
+          providerType,
+          modelId,
+          taskId,
+          error: result.error,
+          code: result.code,
+        })
+        return result
+      }
+
       return result
     } catch (error) {
       logger.error('❌ [ORCHESTRATOR] Ошибка проверки статуса', {

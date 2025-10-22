@@ -1,10 +1,5 @@
 import axios, { isAxiosError } from 'axios'
-import {
-  isDev,
-  SECRET_API_KEY,
-  API_URL,
-  LOCAL_SERVER_URL,
-} from '@/config'
+import { isDev, SECRET_API_KEY, API_URL, LOCAL_SERVER_URL } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -38,9 +33,9 @@ export async function generateNeuroPhotoHybrid(
     numImages,
     telegram_id,
     botName,
-    explicitAspectRatio
+    explicitAspectRatio,
   })
-  
+
   logger.info({
     message: '🔄 [HYBRID] Начало гибридной генерации neuro_photo',
     telegram_id,
@@ -155,10 +150,16 @@ export async function generateNeuroPhotoHybrid(
     }
 
     // Проверяем тип ответа от синхронного сервера
-    if (response.data.success && response.data.images && Array.isArray(response.data.images) && response.data.images.length > 0) {
+    if (
+      response.data.success &&
+      response.data.images &&
+      Array.isArray(response.data.images) &&
+      response.data.images.length > 0
+    ) {
       // СЦЕНАРИЙ 1: Синхронный сервер вернул готовые изображения
       logger.info({
-        message: '📸 [HYBRID] План А успешен - получены изображения от синхронного сервера',
+        message:
+          '📸 [HYBRID] План А успешен - получены изображения от синхронного сервера',
         telegram_id,
         images_count: response.data.images.length,
         server_count: response.data.count,
@@ -238,7 +239,6 @@ export async function generateNeuroPhotoHybrid(
         success: true,
         urls: imageUrls,
       }
-
     } else {
       // СЦЕНАРИЙ 2: Неожиданный формат ответа от синхронного сервера
       logger.error({

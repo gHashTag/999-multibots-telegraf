@@ -36,7 +36,10 @@ export interface AIReelsTemplateConfig {
 /**
  * Конфигурация шаблонов AI Reels
  */
-export const AI_REELS_TEMPLATES: Record<AIReelsTemplate, AIReelsTemplateConfig> = {
+export const AI_REELS_TEMPLATES: Record<
+  AIReelsTemplate,
+  AIReelsTemplateConfig
+> = {
   [AIReelsTemplate.WAN25]: {
     id: AIReelsTemplate.WAN25,
     name: {
@@ -104,10 +107,12 @@ export async function showTemplateSelection(ctx: MyContext): Promise<void> {
     ? `🎬 <b>AI REELS - Выбор шаблона</b>\n\n` +
       `Выберите подход для создания вашего AI Reels:\n\n` +
       `${Object.values(AI_REELS_TEMPLATES)
-        .map((template) => {
+        .map(template => {
           const name = isRu ? template.name.ru : template.name.en
           const desc = isRu ? template.description.ru : template.description.en
-          const features = (isRu ? template.features.ru : template.features.en).join('\n')
+          const features = (
+            isRu ? template.features.ru : template.features.en
+          ).join('\n')
           const recommended = template.recommended ? ' ⭐' : ''
           return `${name}${recommended}\n${desc}\n\n${features}`
         })
@@ -115,10 +120,12 @@ export async function showTemplateSelection(ctx: MyContext): Promise<void> {
     : `🎬 <b>AI REELS - Template Selection</b>\n\n` +
       `Choose your AI Reels creation approach:\n\n` +
       `${Object.values(AI_REELS_TEMPLATES)
-        .map((template) => {
+        .map(template => {
           const name = isRu ? template.name.ru : template.name.en
           const desc = isRu ? template.description.ru : template.description.en
-          const features = (isRu ? template.features.ru : template.features.en).join('\n')
+          const features = (
+            isRu ? template.features.ru : template.features.en
+          ).join('\n')
           const recommended = template.recommended ? ' ⭐' : ''
           return `${name}${recommended}\n${desc}\n\n${features}`
         })
@@ -170,7 +177,9 @@ export function parseTemplateSelection(text: string): AIReelsTemplate | null {
 /**
  * Получает конфигурацию шаблона
  */
-export function getTemplateConfig(template: AIReelsTemplate): AIReelsTemplateConfig {
+export function getTemplateConfig(
+  template: AIReelsTemplate
+): AIReelsTemplateConfig {
   return AI_REELS_TEMPLATES[template]
 }
 
@@ -178,5 +187,7 @@ export function getTemplateConfig(template: AIReelsTemplate): AIReelsTemplateCon
  * Проверяет, доступен ли Inngest шаблон
  */
 export function isInngestTemplateAvailable(): boolean {
-  return !!process.env.BOT_INNGEST_EVENT_KEY && process.env.NODE_ENV === 'production'
+  return (
+    !!process.env.BOT_INNGEST_EVENT_KEY && process.env.NODE_ENV === 'production'
+  )
 }

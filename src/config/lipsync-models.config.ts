@@ -151,7 +151,11 @@ export function calculateLipSyncCost(
   }
 
   // Для Veed Fabric с выбором разрешения
-  if (modelId === 'veed_fabric' && resolution === '720p' && model.costPerSecond720p) {
+  if (
+    modelId === 'veed_fabric' &&
+    resolution === '720p' &&
+    model.costPerSecond720p
+  ) {
     return model.costPerSecond720p * durationSeconds
   }
 
@@ -179,7 +183,7 @@ export function calculateLipSyncCostStars(
 
   // Для других моделей - конвертируем USD в звезды
   const starCost = 0.016 // $1 = 62.5⭐ → 1⭐ = $0.016
-  return Math.ceil(model.costPerSecond * durationSeconds / starCost)
+  return Math.ceil((model.costPerSecond * durationSeconds) / starCost)
 }
 
 /**

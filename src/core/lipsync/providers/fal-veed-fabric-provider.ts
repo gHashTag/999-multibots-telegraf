@@ -192,10 +192,40 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
    * Проверяет статус задачи (для совместимости с интерфейсом)
    */
   async getStatus(taskId: string): Promise<any> {
-    // Fal.ai API синхронный, поэтому всегда возвращаем success
-    return {
-      status: 'succeeded',
-      message: 'Fal.ai Veed Fabric is synchronous',
+    try {
+      logger.info('🔍 [FAL PROVIDER] Checking task status', {
+        taskId,
+        provider: 'fal',
+      })
+
+      // Fal.ai API синхронный, поэтому всегда возвращаем success
+      // Но добавляем проверку на валидность taskId
+      if (!taskId || taskId.length < 3) {
+        throw new Error('Invalid task ID')
+      }
+
+      return {
+        id: taskId,
+        taskId: taskId,
+        status: 'completed',
+        output: '', // Fal.ai синхронный, результат уже получен
+        modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
+        provider: 'fal',
+        message: 'Fal.ai Veed Fabric is synchronous',
+      }
+    } catch (error: any) {
+      logger.error('❌ [FAL PROVIDER] Error checking status', {
+        taskId,
+        error: error.message,
+        provider: 'fal',
+      })
+
+      return {
+        status: 'failed',
+        message: 'Failed to check task status',
+        error: error.message,
+        code: 'STATUS_CHECK_FAILED',
+      }
     }
   }
 

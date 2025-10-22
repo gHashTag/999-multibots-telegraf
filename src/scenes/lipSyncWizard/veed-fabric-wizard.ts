@@ -24,10 +24,23 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
+    console.log('🎭 [VEED FABRIC WIZARD] Step 0 STARTED - DEBUG INFO', {
+      telegramId,
+      hasFrom: !!ctx.from,
+      hasSavedState: !!(
+        ctx.session.veedFabric?.imageUrl && ctx.session.veedFabric?.text
+      ),
+      needsVoiceCreation: ctx.session.veedFabric?.needsVoiceCreation,
+      sessionKeys: Object.keys(ctx.session || {}),
+      sceneCurrent: ctx.scene?.current?.id,
+    })
+
     logger.info('🎭 [VEED FABRIC WIZARD] Step 0 STARTED - Запрос изображения', {
       telegramId,
       hasFrom: !!ctx.from,
-      hasSavedState: !!(ctx.session.veedFabric?.imageUrl && ctx.session.veedFabric?.text),
+      hasSavedState: !!(
+        ctx.session.veedFabric?.imageUrl && ctx.session.veedFabric?.text
+      ),
       needsVoiceCreation: ctx.session.veedFabric?.needsVoiceCreation,
       function: 'veedFabricWizard.step0',
     })
@@ -81,14 +94,23 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '🎭 Синхронизация губ\n\n📸 Отправьте фото или URL изображения с лицом.\n\n' +
-          '📝 На следующем шаге выберите:\n' +
-          '• Текст (будет озвучен вашим голосом аватара)\n' +
-          '• 🎤 Голосовое сообщение (до 30 сек)'
+            '📝 На следующем шаге выберите:\n' +
+            '• Текст (будет озвучен вашим голосом аватара)\n' +
+            '• 🎤 Голосовое сообщение (до 30 сек)'
         : '🎭 Lip Sync\n\n📸 Send a photo or image URL with a face.\n\n' +
-          '📝 On the next step choose:\n' +
-          '• Text (will be voiced with your avatar)\n' +
-          '• 🎤 Voice message (up to 30 sec)',
+            '📝 On the next step choose:\n' +
+            '• Text (will be voiced with your avatar)\n' +
+            '• 🎤 Voice message (up to 30 sec)',
       { reply_markup: { remove_keyboard: true } }
+    )
+
+    console.log(
+      '🎭 [VEED FABRIC WIZARD] Step 0 COMPLETED - Moving to next step',
+      {
+        telegramId,
+        sceneCurrent: ctx.scene?.current?.id,
+        wizardCursor: ctx.wizard?.cursor,
+      }
     )
 
     return ctx.wizard.next()
@@ -100,12 +122,21 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     let imageUrl: string | null = null
 
-    logger.info('🎭 [VEED FABRIC WIZARD] Step 1 STARTED - Обработка изображения', {
-      telegramId: ctx.from?.id?.toString(),
-      hasMessage: !!message,
-      messageType: message ? ('photo' in message ? 'photo' : 'text' in message ? 'text' : 'other') : 'none',
-      function: 'veedFabricWizard.step1',
-    })
+    logger.info(
+      '🎭 [VEED FABRIC WIZARD] Step 1 STARTED - Обработка изображения',
+      {
+        telegramId: ctx.from?.id?.toString(),
+        hasMessage: !!message,
+        messageType: message
+          ? 'photo' in message
+            ? 'photo'
+            : 'text' in message
+              ? 'text'
+              : 'other'
+          : 'none',
+        function: 'veedFabricWizard.step1',
+      }
+    )
 
     try {
       // Обработка фото из Telegram
@@ -113,7 +144,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         const photo = message.photo[message.photo.length - 1] // Берем самое большое фото
         const telegramId = ctx.from?.id?.toString()
 
-        logger.info('📸 Скачиваем фото из Telegram', { fileId: photo.file_id, telegramId })
+        logger.info('📸 Скачиваем фото из Telegram', {
+          fileId: photo.file_id,
+          telegramId,
+        })
 
         // ✅ ИСПРАВЛЕНО: Скачиваем и загружаем в Supabase (как голосовое сообщение)
         try {
@@ -128,9 +162,14 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
           // Загружаем в Supabase Storage
           const { createClient } = await import('@supabase/supabase-js')
-          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+            '@/config'
+          )
 
-          const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+          const serviceClient = createClient(
+            SUPABASE_URL!,
+            SUPABASE_SERVICE_ROLE_KEY!
+          )
           const fileName = `lipsync-images/${telegramId}/${Date.now()}.jpg`
 
           const { error: uploadError } = await serviceClient.storage
@@ -145,7 +184,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           }
 
           // Получаем публичный URL
-          const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
+          const { data: urlData } = serviceClient.storage
+            .from('images')
+            .getPublicUrl(fileName)
 
           imageUrl = urlData.publicUrl
 
@@ -170,7 +211,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         // Простая валидация URL
         if (text.startsWith('http://') || text.startsWith('https://')) {
           imageUrl = text
-          logger.info('📸 Получен URL изображения', { url: imageUrl.substring(0, 100) })
+          logger.info('📸 Получен URL изображения', {
+            url: imageUrl.substring(0, 100),
+          })
         }
       }
 
@@ -219,8 +262,11 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       telegramId,
       hasMessage: !!message,
       messageType: message ? ('text' in message ? 'text' : 'other') : 'none',
-      textPreview: message && 'text' in message ? message.text.substring(0, 50) : 'N/A',
-      hasSavedData: !!(ctx.session.veedFabric?.text && ctx.session.veedFabric?.imageUrl),
+      textPreview:
+        message && 'text' in message ? message.text.substring(0, 50) : 'N/A',
+      hasSavedData: !!(
+        ctx.session.veedFabric?.text && ctx.session.veedFabric?.imageUrl
+      ),
       function: 'veedFabricWizard.step2',
     })
 
@@ -289,16 +335,23 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             const response = await fetch(fileLink.href)
 
             if (!response.ok) {
-              throw new Error(`Failed to download voice: ${response.statusText}`)
+              throw new Error(
+                `Failed to download voice: ${response.statusText}`
+              )
             }
 
             const audioBuffer = Buffer.from(await response.arrayBuffer())
 
             // Загружаем в Supabase Storage
             const { createClient } = await import('@supabase/supabase-js')
-            const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+            const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+              '@/config'
+            )
 
-            const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+            const serviceClient = createClient(
+              SUPABASE_URL!,
+              SUPABASE_SERVICE_ROLE_KEY!
+            )
             const fileName = `lipsync-audio/${telegramId}/${Date.now()}.ogg`
 
             const { error: uploadError } = await serviceClient.storage
@@ -327,9 +380,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
             // Для расчета стоимости используем реальную длительность
             text = 'voice_message_' + voice.duration // Placeholder для логики стоимости
-
           } catch (voiceError) {
-            logger.error('❌ [VEED FABRIC] Ошибка обработки голоса', { voiceError })
+            logger.error('❌ [VEED FABRIC] Ошибка обработки голоса', {
+              voiceError,
+            })
             await ctx.reply(
               isRu
                 ? '❌ Ошибка обработки голосового сообщения. Попробуйте еще раз.'
@@ -337,14 +391,15 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             )
             return ctx.scene.leave()
           }
-
         } else if (message && 'text' in message) {
           // Обычный текст
           text = message.text.trim()
 
           if (text.length === 0) {
             await ctx.reply(
-              isRu ? '❌ Текст не может быть пустым.' : '❌ Text cannot be empty.'
+              isRu
+                ? '❌ Текст не может быть пустым.'
+                : '❌ Text cannot be empty.'
             )
             return ctx.scene.leave()
           }
@@ -357,7 +412,6 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             )
             return ctx.scene.leave()
           }
-
         } else {
           // Неподдерживаемый тип сообщения
           await ctx.reply(
@@ -380,37 +434,37 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           .maybeSingle()
 
         if (!userData?.voice_id_elevenlabs) {
-        // ✅ УЛУЧШЕНО: Сохраняем состояние wizard и предлагаем создать голос
-        ctx.session.veedFabric = {
-          ...ctx.session.veedFabric,
-          imageUrl,
-          text,
-          step: 'text',
-          needsVoiceCreation: true,
-        }
+          // ✅ УЛУЧШЕНО: Сохраняем состояние wizard и предлагаем создать голос
+          ctx.session.veedFabric = {
+            ...ctx.session.veedFabric,
+            imageUrl,
+            text,
+            step: 'text',
+            needsVoiceCreation: true,
+          }
 
-        await ctx.reply(
-          isRu
-            ? '❌ У вас не настроен голос аватара!\n\n' +
-              '📝 Для использования этой функции нужен голос аватара.\n\n' +
-              '🎤 Хотите создать голос сейчас? Это займет 1-2 минуты.\n\n' +
-              '📌 После создания голоса вы сможете продолжить генерацию lip-sync видео.'
-            : '❌ You don\'t have an avatar voice configured!\n\n' +
-              '📝 This feature requires an avatar voice.\n\n' +
-              '🎤 Want to create a voice now? It takes 1-2 minutes.\n\n' +
-              '📌 After creating the voice, you can continue with lip-sync generation.'
-        )
+          await ctx.reply(
+            isRu
+              ? '❌ У вас не настроен голос аватара!\n\n' +
+                  '📝 Для использования этой функции нужен голос аватара.\n\n' +
+                  '🎤 Хотите создать голос сейчас? Это займет 1-2 минуты.\n\n' +
+                  '📌 После создания голоса вы сможете продолжить генерацию lip-sync видео.'
+              : "❌ You don't have an avatar voice configured!\n\n" +
+                  '📝 This feature requires an avatar voice.\n\n' +
+                  '🎤 Want to create a voice now? It takes 1-2 minutes.\n\n' +
+                  '📌 After creating the voice, you can continue with lip-sync generation.'
+          )
 
-        // Перенаправляем в команду создания голоса
-        const { ModeEnum } = await import('@/interfaces/modes')
-        ctx.session.mode = ModeEnum.Voice
-        ctx.session.returnToVeedFabricAfterVoice = true // Флаг для возврата
+          // Перенаправляем в команду создания голоса
+          const { ModeEnum } = await import('@/interfaces/modes')
+          ctx.session.mode = ModeEnum.Voice
+          ctx.session.returnToVeedFabricAfterVoice = true // Флаг для возврата
 
-        logger.info('🎤 [VEED FABRIC] Redirecting to voice creation', {
-          telegramId,
-          savedImageUrl: imageUrl.substring(0, 50),
-          savedText: text.substring(0, 50),
-        })
+          logger.info('🎤 [VEED FABRIC] Redirecting to voice creation', {
+            telegramId,
+            savedImageUrl: imageUrl.substring(0, 50),
+            savedText: text.substring(0, 50),
+          })
 
           await ctx.scene.enter(ModeEnum.CheckBalanceScene)
           return
@@ -423,7 +477,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       if (audioUrl) {
         // Для голосового сообщения: извлекаем длительность из placeholder
         const durationMatch = text.match(/voice_message_(\d+)/)
-        estimatedDurationSeconds = durationMatch ? parseInt(durationMatch[1], 10) : 10
+        estimatedDurationSeconds = durationMatch
+          ? parseInt(durationMatch[1], 10)
+          : 10
       } else {
         // Для текста: оцениваем длительность (примерно 15 символов в секунду речи)
         estimatedDurationSeconds = Math.ceil(text.length / 15)
@@ -431,8 +487,14 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       const resolution = ctx.session.veedFabric?.resolution || '720p' // default 720p для лучшего качества
 
       // Используем новую систему ценообразования с наценкой 2.4x
-      const { calculateLipSyncCostStars } = await import('@/config/lipsync-models.config')
-      const cost = calculateLipSyncCostStars('veed_fabric', estimatedDurationSeconds, resolution)
+      const { calculateLipSyncCostStars } = await import(
+        '@/config/lipsync-models.config'
+      )
+      const cost = calculateLipSyncCostStars(
+        'veed_fabric',
+        estimatedDurationSeconds,
+        resolution
+      )
 
       logger.info('💰 Расчет стоимости Veed Fabric', {
         textLength: text.length,
@@ -478,26 +540,29 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? `💰 Стоимость генерации:\n\n` +
-            `⏱ Длительность: ${estimatedDurationSeconds} сек\n` +
-            `📺 Качество: ${resolution}\n` +
-            `💎 Стоимость: ${cost.toFixed(2)}⭐ (${cost}⭐)\n` +
-            `💰 Ваш баланс: ${currentBalance.toFixed(2)}⭐\n\n` +
-            `❓ Подтвердите генерацию?`
+              `⏱ Длительность: ${estimatedDurationSeconds} сек\n` +
+              `📺 Качество: ${resolution}\n` +
+              `💎 Стоимость: ${cost.toFixed(2)}⭐ (${cost}⭐)\n` +
+              `💰 Ваш баланс: ${currentBalance.toFixed(2)}⭐\n\n` +
+              `❓ Подтвердите генерацию?`
           : `💰 Generation cost:\n\n` +
-            `⏱ Duration: ${estimatedDurationSeconds} sec\n` +
-            `📺 Quality: ${resolution}\n` +
-            `💎 Cost: ${cost.toFixed(2)}⭐ (${cost}⭐)\n` +
-            `💰 Your balance: ${currentBalance.toFixed(2)}⭐\n\n` +
-            `❓ Confirm generation?`,
+              `⏱ Duration: ${estimatedDurationSeconds} sec\n` +
+              `📺 Quality: ${resolution}\n` +
+              `💎 Cost: ${cost.toFixed(2)}⭐ (${cost}⭐)\n` +
+              `💰 Your balance: ${currentBalance.toFixed(2)}⭐\n\n` +
+              `❓ Confirm generation?`,
         Markup.inlineKeyboard([
           [
             Markup.button.callback(
               isRu ? '✅ Подтвердить' : '✅ Confirm',
               'veed_fabric_confirm'
-            )
+            ),
           ],
           [
-            Markup.button.callback(isRu ? '❌ Отменить' : '❌ Cancel', 'veed_fabric_cancel')
+            Markup.button.callback(
+              isRu ? '❌ Отменить' : '❌ Cancel',
+              'veed_fabric_cancel'
+            ),
           ],
         ])
       )
@@ -530,12 +595,15 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       return // Остаемся в том же шаге
     }
 
-    const callbackData = 'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
+    const callbackData =
+      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
 
     // Обработка отмены
     if (callbackData === 'veed_fabric_cancel') {
       await ctx.answerCbQuery()
-      await ctx.reply(isRu ? '❌ Генерация отменена.' : '❌ Generation cancelled.')
+      await ctx.reply(
+        isRu ? '❌ Генерация отменена.' : '❌ Generation cancelled.'
+      )
       return ctx.scene.leave()
     }
 
@@ -554,7 +622,8 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
       try {
         // Получаем сохраненные данные из сессии
-        const { imageUrl, text, audioUrl, cost, duration } = ctx.session.veedFabric || {}
+        const { imageUrl, text, audioUrl, cost, duration } =
+          ctx.session.veedFabric || {}
 
         if (!imageUrl || !text || cost === undefined) {
           await ctx.reply(
@@ -575,7 +644,12 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             bot_name: ctx.botInfo?.username || 'unknown_bot',
             service_type: 'lipsync',
             text_length: text.length,
-            cost_tier: text.length <= 100 ? 'small' : text.length <= 250 ? 'medium' : 'large',
+            cost_tier:
+              text.length <= 100
+                ? 'small'
+                : text.length <= 250
+                  ? 'medium'
+                  : 'large',
           }
         )
 
@@ -617,7 +691,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           })
 
           // ✅ Импортируем асинхронный менеджер
-          const { asyncLipSyncManager } = await import('@/core/lipsync/async-lipsync-manager')
+          const { asyncLipSyncManager } = await import(
+            '@/core/lipsync/async-lipsync-manager'
+          )
 
           // Устанавливаем ссылку на бота (если еще не установлена)
           asyncLipSyncManager.setBotInstance(ctx)
@@ -634,15 +710,15 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           await ctx.reply(
             isRu
               ? `🚀 Генерация запущена!\n\n` +
-                `⏳ Это займет 30-300 секунд\n` +
-                `📱 Результат придет отдельным сообщением\n` +
-                `🆔 ID задачи: ${jobId.slice(-8)}\n\n` +
-                `💡 Можете продолжать пользоваться ботом!`
+                  `⏳ Это займет 30-300 секунд\n` +
+                  `📱 Результат придет отдельным сообщением\n` +
+                  `🆔 ID задачи: ${jobId.slice(-8)}\n\n` +
+                  `💡 Можете продолжать пользоваться ботом!`
               : `🚀 Generation started!\n\n` +
-                `⏳ It will take 30-300 seconds\n` +
-                `📱 Result will come in a separate message\n` +
-                `🆔 Job ID: ${jobId.slice(-8)}\n\n` +
-                `💡 You can continue using the bot!`
+                  `⏳ It will take 30-300 seconds\n` +
+                  `📱 Result will come in a separate message\n` +
+                  `🆔 Job ID: ${jobId.slice(-8)}\n\n` +
+                  `💡 You can continue using the bot!`
           )
 
           logger.info('✅ Асинхронная задача запущена', {
@@ -650,14 +726,15 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             jobId,
             chatId: ctx.chat!.id,
           })
-
         } catch (genError) {
           // ✅ УЛУЧШЕНО: Детальное логирование с полной информацией об ошибке
           logger.error('❌ Ошибка запуска асинхронной генерации', {
             error: genError,
-            errorMessage: genError instanceof Error ? genError.message : 'Unknown error',
+            errorMessage:
+              genError instanceof Error ? genError.message : 'Unknown error',
             errorStack: genError instanceof Error ? genError.stack : undefined,
-            errorName: genError instanceof Error ? genError.name : typeof genError,
+            errorName:
+              genError instanceof Error ? genError.name : typeof genError,
             telegramId,
             imageUrl: imageUrl.substring(0, 100),
             hasAudioUrl: !!audioUrl,

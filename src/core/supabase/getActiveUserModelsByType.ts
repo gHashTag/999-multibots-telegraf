@@ -13,8 +13,10 @@ export async function getActiveUserModelsByType(
   apiType: string
 ): Promise<ModelTraining[] | null> {
   try {
-    console.log(`🔍 [getActiveUserModelsByType] Запрос моделей для пользователя ${telegram_id}, тип: ${apiType}`)
-    
+    console.log(
+      `🔍 [getActiveUserModelsByType] Запрос моделей для пользователя ${telegram_id}, тип: ${apiType}`
+    )
+
     const { data, error } = await supabase
       .from('model_trainings')
       .select('*')
@@ -31,9 +33,14 @@ export async function getActiveUserModelsByType(
       return null
     }
 
-    console.log(`✅ [getActiveUserModelsByType] Найдено моделей: ${data?.length || 0} для пользователя ${telegram_id}`)
+    console.log(
+      `✅ [getActiveUserModelsByType] Найдено моделей: ${data?.length || 0} для пользователя ${telegram_id}`
+    )
     if (data && data.length > 0) {
-      console.log(`📋 [getActiveUserModelsByType] Модели:`, data.map(m => ({ id: m.id, name: m.model_name, status: m.status })))
+      console.log(
+        `📋 [getActiveUserModelsByType] Модели:`,
+        data.map(m => ({ id: m.id, name: m.model_name, status: m.status }))
+      )
     }
 
     return data as ModelTraining[] // Если ModelTraining это правильный тип, иначе нужно будет привести к нему или изменить его

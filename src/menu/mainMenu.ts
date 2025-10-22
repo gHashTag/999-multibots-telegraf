@@ -142,7 +142,7 @@ export const levels: Record<number, Level> = {
   },
   // AI Reels generation button - creates Instagram-style reels with AI (admin only)
   110: {
-    title_ru: '🎬 AI Reels',
+    title_ru: '🎬 ИИ Рилс',
     title_en: '🎬 AI Reels',
     admin_only: true, // Доступно только администраторам
   },
@@ -317,25 +317,27 @@ export async function mainMenu({
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
   // Используем ADMIN_IDS_ARRAY для единой проверки (уже импортирован в начале файла)
-  
+
   // Проверяем доступ для админов и сотрудников Хаим Групп
   const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
   const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
   const hasAdminAccess = isMainAdmin || isHaimStaff
 
-  console.log(`[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`)
+  console.log(
+    `[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`
+  )
 
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
-    .filter(
-      level => {
-        const shouldInclude = !(level.admin_only && !hasAdminAccess)
-        if (level.admin_only) {
-          console.log(`[mainMenu DEBUG] Admin-only level ${level.title_ru}: hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`)
-        }
-        return shouldInclude
+    .filter(level => {
+      const shouldInclude = !(level.admin_only && !hasAdminAccess)
+      if (level.admin_only) {
+        console.log(
+          `[mainMenu DEBUG] Admin-only level ${level.title_ru}: hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`
+        )
       }
-    )
+      return shouldInclude
+    })
 
   // Добавляем кнопку мониторинга конкурентов для админов и сотрудников Хаим Групп
   if (userId && levels[109]) {
@@ -373,15 +375,21 @@ export async function mainMenu({
     // Если это AI Heroes (level 111), добавляем информацию о лимитах
     if (lvl === levels[111] && telegramId) {
       try {
-        const generationBadge = await getGenerationStatusBadgeAsync(telegramId, isRu)
+        const generationBadge = await getGenerationStatusBadgeAsync(
+          telegramId,
+          isRu
+        )
         if (generationBadge !== '🎮') {
           buttonText += ` ${generationBadge}`
         }
       } catch (error) {
-        logger.warn('[mainMenu] Failed to get generation status for AI Heroes button', {
-          telegramId,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
+        logger.warn(
+          '[mainMenu] Failed to get generation status for AI Heroes button',
+          {
+            telegramId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }
+        )
       }
     }
 
@@ -431,7 +439,9 @@ export async function mainMenu({
     isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
   )
 
-  console.log(`[mainMenu LOG] Adding balance and top-up buttons for subscription: ${currentSubscription}`)
+  console.log(
+    `[mainMenu LOG] Adding balance and top-up buttons for subscription: ${currentSubscription}`
+  )
 
   // Баланс и Пополнить идут в основные ряды для всех пользователей
   buttonRows.push([balanceButton, topUpButton])
