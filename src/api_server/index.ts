@@ -13,8 +13,9 @@ const PORT = process.env.PORT || '2999'
 export function startApiServer(): void {
   const app: any = express()
 
-  // ✅ Доверяем nginx прокси для корректной работы X-Forwarded-For
-  app.set('trust proxy', true)
+  // ✅ Безопасная конфигурация trust proxy для nginx
+  // Доверяем только первому прокси (nginx), а не всем
+  app.set('trust proxy', 1)
 
   // ✅ РЕШЕНИЕ ПРОБЛЕМЫ ТАЙМАУТОВ: Увеличиваем таймауты для долгих операций
   app.use((req: any, res: any, next: any) => {
