@@ -419,14 +419,15 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       })
 
       try {
-        const result = await generateNeuroPhotoHybrid({
-          prompt: fullPrompt,
-          model_url: ctx.session.userModel.model_url,
+        const result = await generateNeuroPhotoHybrid(
+          fullPrompt,
+          ctx.session.userModel.model_url,
           numImages,
-          telegram_id: userId?.toString() ?? '',
-          botName: 'clip_maker_neuro_bot',
-          explicitAspectRatio: aspectRatio,
-        })
+          userId?.toString() ?? '',
+          ctx,
+          'clip_maker_neuro_bot',
+          aspectRatio
+        )
 
         console.log('✅ [DEBUG] generateNeuroPhotoHybrid завершен успешно:', result)
 
