@@ -38,6 +38,7 @@ export interface RenderRiddlePayload {
   avatar_settings: {
     api_key: string
     avatar_photo_url: string
+    avatar_id: string
     voice_id: string
     avatar_speech: string
   }
@@ -57,7 +58,11 @@ export async function sendRenderAvatarVideoEvent(
   })
 
   try {
-    const result = await inngestProvider.sendEvent('RENDER', 'render-riddle', payload)
+    const result = await inngestProvider.sendEvent(
+      'RENDER',
+      'render-riddle',
+      payload
+    )
 
     if (!result) {
       throw new Error('Failed to send event to RENDER instance')
@@ -124,9 +129,12 @@ export function createRenderAvatarPayload(
     avatar_settings: {
       api_key: process.env.HEDRA_API_KEY || '',
       avatar_photo_url: avatarPhotoUrl,
+      avatar_id: `avatar-${telegramId}-${Date.now()}`,
       voice_id: voiceId,
       avatar_speech: text,
     },
-    callback_url: options?.callbackUrl || 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
+    callback_url:
+      options?.callbackUrl ||
+      'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
   }
 }
