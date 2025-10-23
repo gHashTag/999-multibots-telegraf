@@ -139,6 +139,13 @@ export class AsyncLipSyncManager {
       // ✅ WEBHOOK INTEGRATION: Если результат содержит taskId, сохраняем связь
       if ('taskId' in result && result.taskId) {
         this.setTaskId(jobId, result.taskId as string)
+        console.log('🔗 [ASYNC LIPSYNC] TaskId связан с job для webhook', {
+          jobId,
+          taskId: result.taskId,
+          telegramId: job.telegramId,
+          resultPreview: JSON.stringify(result).substring(0, 200),
+        })
+
         logger.info('🔗 [ASYNC LIPSYNC] TaskId связан с job для webhook', {
           jobId,
           taskId: result.taskId,
@@ -147,6 +154,14 @@ export class AsyncLipSyncManager {
 
         // ✅ WEBHOOK MODE: Если status = 'processing', не завершаем job - ждем webhook
         if ('status' in result && result.status === 'processing') {
+          console.log('⏳ [ASYNC LIPSYNC] Job в режиме ожидания webhook', {
+            jobId,
+            taskId: result.taskId,
+            telegramId: job.telegramId,
+            provider: job.input.provider,
+            modelId: job.input.modelId,
+          })
+
           logger.info('⏳ [ASYNC LIPSYNC] Job в режиме ожидания webhook', {
             jobId,
             taskId: result.taskId,
@@ -154,6 +169,12 @@ export class AsyncLipSyncManager {
           })
 
           // ✅ FALLBACK POLLING: Запускаем проверку статуса через 2 минуты, если webhook не пришел
+          console.log('🔄 [ASYNC LIPSYNC] Запускаем fallback polling', {
+            jobId,
+            taskId: result.taskId,
+            willCheckAfterMs: 120000, // 2 минуты
+          })
+
           this.startFallbackPolling(jobId, result.taskId as string)
 
           // НЕ обновляем job.status и НЕ отправляем сообщение пользователю

@@ -500,6 +500,15 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       const taskId = createTaskResponse.data.data?.taskId
       const recordId = createTaskResponse.data.data?.recordId
 
+      // ✅ КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: Показываем что именно вернулось
+      console.log('🔴 [KIE DEBUG] Task IDs from createTask response:', {
+        taskId,
+        recordId,
+        rawData: createTaskResponse.data.data,
+        willUse: recordId || taskId,
+        preferringRecordId: !!recordId,
+      })
+
       if (!taskId && !recordId) {
         return {
           message: 'No taskId or recordId in response',
@@ -511,6 +520,11 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       }
 
       const finalTaskId = recordId || taskId
+
+      console.log('🔴 [KIE DEBUG] Using finalTaskId for webhook correlation:', {
+        finalTaskId,
+        source: recordId ? 'recordId' : 'taskId',
+      })
 
       // ✅ WEBHOOK MODE: Возвращаем немедленно с taskId для асинхронной обработки
       logger.info('🔗 [KIE PROVIDER] Task создан, ожидание webhook callback', {
@@ -553,8 +567,19 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
    */
   async getStatus(predictionId: string): Promise<LipSyncOutput | LipSyncError> {
     try {
+      // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ: Проверка перед запросом
       logger.info('🔍 [KIE PROVIDER] Проверка статуса задачи', {
         taskId: predictionId,
+        hasApiKey: !!KIE_AI_API_KEY,
+        apiKeyPrefix: KIE_AI_API_KEY?.substring(0, 10) + '...',
+        endpoint: 'https://api.kie.ai/api/v1/jobs/taskStatus',
+      })
+
+      console.log('🔴 [KIE DEBUG] Full getStatus() request details:', {
+        taskId: predictionId,
+        recordId: predictionId,
+        url: 'https://api.kie.ai/api/v1/jobs/taskStatus',
+        hasAuthHeader: !!KIE_AI_API_KEY,
       })
 
       const response = await axios.get(
@@ -571,6 +596,13 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           timeout: 30000,
         }
       )
+
+      console.log('🔴 [KIE DEBUG] getStatus() response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        hasData: !!response.data,
+        dataKeys: response.data ? Object.keys(response.data) : [],
+      })
 
       logger.info('📥 [KIE PROVIDER] Получен статус задачи', {
         status: response.status,
@@ -651,16 +683,49 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         message: 'Unknown status, assuming still processing',
       }
     } catch (error) {
+      // ✅ КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: Детали ошибки API запроса
+      const errorStatus = (error as any).response?.status
+      const errorData = (error as any).response?.data
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const isAxiosError = (error as any).isAxiosError === true
+      const isTimeout = errorMessage.includes('timeout')
+      const isNetworkError = errorMessage.includes('Network Error')
+
+      console.log('🔴🔴🔴 [KIE CRITICAL ERROR] getStatus() failed:', {
+        taskId: predictionId,
+        errorMessage,
+        isAxiosError,
+        isTimeout,
+        isNetworkError,
+        httpStatus: errorStatus,
+        httpStatusText: (error as any).response?.statusText,
+        responseData: errorData,
+        requestUrl: (error as any).config?.url,
+        requestParams: (error as any).config?.params,
+        hasAuthHeader: !!(error as any).config?.headers?.Authorization,
+      })
+
       logger.error('❌ [KIE PROVIDER] Ошибка при проверке статуса', {
         taskId: predictionId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        status: (error as any).response?.status,
-        data: (error as any).response?.data,
+        error: errorMessage,
+        status: errorStatus,
+        statusText: (error as any).response?.statusText,
+        data: errorData,
+        isTimeout,
+        isNetworkError,
+        fullError: isAxiosError ? {
+          message: errorMessage,
+          code: (error as any).code,
+          response: {
+            status: errorStatus,
+            data: errorData,
+          }
+        } : errorMessage,
       })
 
       return {
         message: 'Failed to check task status',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         code: 'STATUS_CHECK_FAILED',
         provider: 'kie',
         modelId: 'veed-fabric',

@@ -182,6 +182,31 @@ export const LipSyncInputBuilder = {
   },
 
   /**
+   * Alias для forVeedFabric() - для обратной совместимости
+   * @deprecated Используйте forVeedFabric() вместо этого
+   */
+  forKieVeedFabric: (
+    imageUrl: string,
+    audioUrl: string,
+    telegramId: string,
+    options?: {
+      botName?: string
+      resolution?: '480p' | '720p'
+    }
+  ): UniversalLipSyncInput => {
+    // Используем forVeedFabric() с флагом isAudioUrl=true
+    return LipSyncInputBuilder.forVeedFabric(
+      imageUrl,
+      audioUrl,
+      telegramId,
+      {
+        ...options,
+        isAudioUrl: true, // всегда audioUrl для этого метода
+      }
+    )
+  },
+
+  /**
    * Универсальный метод build для обратной совместимости
    */
   build() {
