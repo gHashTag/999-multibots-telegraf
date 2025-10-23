@@ -270,6 +270,115 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           )
           return ctx.scene.leave()
         }
+
+        // ✅ ИСПРАВЛЕНИЕ: Генерируем аудио из текста через централизованную систему
+        logger.info('🎤 [AI REELS RENDER] Генерируем аудио из текста', {
+          telegramId,
+          textLength: text.length,
+        })
+
+        try {
+          const { createAudioFileFromText } = await import(
+            '@/core/elevenlabs/createAudioFileFromText'
+          )
+          const { getVoiceId } = await import('@/core/supabase/getVoiceId')
+
+          // Получаем voice_id пользователя через централизованную систему
+          const voiceId = await getVoiceId(telegramId)
+
+          if (!voiceId) {
+            throw new Error('User voice ID not found for audio generation')
+          }
+
+          logger.info(
+            '🎤 [AI REELS RENDER] Используем централизованную систему голосов',
+            {
+              telegramId,
+              voiceId,
+              textLength: text.length,
+            }
+          )
+
+          // Генерируем аудио через централизованную систему
+          const audioPath = await createAudioFileFromText({
+            text,
+            voice_id: voiceId,
+            telegram_id: telegramId,
+          })
+
+          if (!audioPath) {
+            throw new Error('Failed to generate audio from text')
+          }
+
+          // Загружаем сгенерированное аудио в Supabase Storage
+          const fs = await import('fs/promises')
+          const audioBuffer = await fs.readFile(audioPath)
+
+          const { createClient } = await import('@supabase/supabase-js')
+          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+            '@/config'
+          )
+
+          const serviceClient = createClient(
+            SUPABASE_URL!,
+            SUPABASE_SERVICE_ROLE_KEY!
+          )
+          const fileName = `ai-reels-render-generated-audio/${telegramId}/${Date.now()}.mp3`
+
+          const { error: uploadError } = await serviceClient.storage
+            .from('images')
+            .upload(fileName, audioBuffer, {
+              contentType: 'audio/mpeg',
+              upsert: false,
+            })
+
+          if (uploadError) {
+            throw new Error(`Upload failed: ${uploadError.message}`)
+          }
+
+          const { data: urlData } = serviceClient.storage
+            .from('images')
+            .getPublicUrl(fileName)
+
+          audioUrl = urlData.publicUrl
+
+          // Удаляем временный файл
+          try {
+            await fs.unlink(audioPath)
+          } catch (cleanupError) {
+            logger.warn(
+              '⚠️ [AI REELS RENDER] Не удалось удалить временный файл',
+              {
+                audioPath,
+                error: cleanupError,
+              }
+            )
+          }
+
+          logger.info(
+            '✅ [AI REELS RENDER] Аудио сгенерировано через централизованную систему',
+            {
+              telegramId,
+              voiceId,
+              audioUrl: audioUrl.substring(0, 100),
+            }
+          )
+        } catch (audioError) {
+          logger.error(
+            '❌ [AI REELS RENDER] Ошибка генерации аудио из текста',
+            {
+              error: audioError,
+              telegramId,
+            }
+          )
+
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка генерации аудио из текста. Попробуйте отправить голосовое сообщение.'
+              : '❌ Error generating audio from text. Try sending a voice message.'
+          )
+          return ctx.scene.leave()
+        }
       } else {
         await ctx.reply(
           isRu
@@ -629,12 +738,29 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         console.log('🔴 [STEP 5] Message edited successfully!')
 
         console.log('🔴 [STEP 5] Creating payload...')
-        // Создание payload
+
+        // ✅ ИСПРАВЛЕНИЕ: Получаем voice_id пользователя из БД
+        const { getVoiceId } = await import('@/core/supabase/getVoiceId')
+        const userVoiceId = await getVoiceId(telegramId)
+
+        if (!userVoiceId) {
+          console.log('🔴 [STEP 5] ERROR: No user voice ID found!')
+          await ctx.reply(
+            isRu
+              ? '❌ У вас не настроен голос аватара. Создайте голос сначала.'
+              : '❌ You dont have avatar voice configured. Create voice first.'
+          )
+          return ctx.scene.leave()
+        }
+
+        console.log('🔴 [STEP 5] User voice ID:', userVoiceId)
+
+        // Создание payload с ПРАВИЛЬНЫМ voice_id пользователя
         const payload = createRenderAvatarPayload(
           telegramId,
           ctx.session.aiReelsRender.text || '',
           ctx.session.aiReelsRender.imageUrl || '',
-          '0BcDz9UPwL3MpsnTeUlO', // Default ElevenLabs voice ID
+          userVoiceId, // ✅ Используем voice_id пользователя из БД
           {
             coverUrl:
               'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
@@ -644,7 +770,40 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               ctx.session.aiReelsRender.upperIntroText || 'Ai-Stars',
           }
         )
-        console.log('🔴 [STEP 5] Payload created!')
+        // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
+        const elevenLabsToken = process.env.ELEVENLABS_API_KEY
+        if (!elevenLabsToken) {
+          console.log('🔴 [STEP 5] ERROR: ELEVENLABS_API_KEY not found in ENV!')
+          logger.error('[AI REELS RENDER] Missing ELEVENLABS_API_KEY', {
+            telegramId,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка конфигурации сервера (ElevenLabs token). Обратитесь к администратору.'
+              : '❌ Server configuration error (ElevenLabs token). Contact admin.'
+          )
+          return ctx.scene.leave()
+        }
+
+        console.log(
+          '🔴 [STEP 5] Payload created with user voice ID:',
+          userVoiceId
+        )
+        console.log(
+          '🔴 [STEP 5] ElevenLabs token (masked):',
+          elevenLabsToken.substring(0, 10) + '...'
+        )
+
+        // ✅ ЛОГИРОВАНИЕ: Проверяем payload перед отправкой
+        logger.info('[AI REELS RENDER] Payload validation', {
+          telegramId,
+          hasElevenLabsToken: !!payload.eleven_labs_api_key,
+          elevenLabsTokenPrefix: payload.eleven_labs_api_key.substring(0, 10),
+          voiceId: userVoiceId,
+          avatarService,
+          avatarPhotoUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 50),
+          textLength: ctx.session.aiReelsRender.text?.length,
+        })
 
         // Установить выбранный сервис
         payload.avatar_gen_service = avatarService
@@ -706,6 +865,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           console.log('🔴 [STEP 5] Payload job_id:', payload.job_id)
           console.log('🔴 [STEP 5] Payload keys:', Object.keys(payload))
 
+          // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ: Полный payload перед отправкой на render-server
           logger.info('🎬 [AI REELS RENDER] Starting event send', {
             telegramId,
             avatarService,
@@ -714,6 +874,35 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             imageUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 100),
             text: ctx.session.aiReelsRender.text?.substring(0, 50),
           })
+
+          logger.info('🎬 [AI REELS RENDER] FULL PAYLOAD DETAILS', {
+            telegramId,
+            job_id: payload.job_id,
+            avatar_gen_service: payload.avatar_gen_service,
+            eleven_labs_api_key_present: !!payload.eleven_labs_api_key,
+            eleven_labs_api_key_prefix:
+              payload.eleven_labs_api_key?.substring(0, 10) || 'MISSING',
+            kie_api_key_present: !!payload.kie_api_key,
+            avatar_settings: {
+              voice_id: payload.avatar_settings.voice_id,
+              avatar_photo_url:
+                payload.avatar_settings.avatar_photo_url.substring(0, 50),
+              avatar_speech_length:
+                payload.avatar_settings.avatar_speech.length,
+              api_key_present: !!payload.avatar_settings.api_key,
+            },
+            intro_text_1: payload.intro_text_1.text,
+            intro_text_2: payload.intro_text_2.text,
+          })
+
+          console.log(
+            '🔴 [STEP 5] CRITICAL: Payload voice_id:',
+            payload.avatar_settings.voice_id
+          )
+          console.log(
+            '🔴 [STEP 5] CRITICAL: Payload eleven_labs_api_key (first 10 chars):',
+            payload.eleven_labs_api_key?.substring(0, 10)
+          )
 
           console.log(
             '🔴 [STEP 5] About to call sendRenderAvatarVideoEvent()...'
