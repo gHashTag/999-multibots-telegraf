@@ -2,6 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 
 import { isValidImage } from '../../helpers/images'
+import { compressImage } from '../../helpers/images/compressImage'
 import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
@@ -277,8 +278,22 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
+      // ✅ FIX: Compress image to reduce ZIP size and avoid 413 error
+      console.log(`📸 Original image size: ${buffer.length} bytes`)
+      const compressedBuffer = await compressImage(buffer, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        quality: 85,
+        format: 'jpeg',
+      })
+      console.log(
+        `🗜️ Compressed image size: ${compressedBuffer.length} bytes (saved ${
+          buffer.length - compressedBuffer.length
+        } bytes)`
+      )
+
       ctx.session.images.push({
-        buffer: Buffer.from(buffer),
+        buffer: compressedBuffer,
         filename: `a_photo_of_${ctx.session.username}x${
           ctx.session.images.length + 1
         }.jpg`,
