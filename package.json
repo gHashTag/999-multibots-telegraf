@@ -69,6 +69,7 @@
     ]
   },
   "dependencies": {
+    "@fal-ai/client": "^1.7.0",
     "@fastify/express": "^4.0.2",
     "@octokit/rest": "^22.0.0",
     "@supabase/supabase-js": "^2.39.3",
@@ -99,6 +100,7 @@
     "pinata-web3": "^0.5.4",
     "qs": "^6.11.2",
     "replicate": "^0.25.2",
+    "sharp": "^0.34.4",
     "telegraf": "4.16.3",
     "tsc-alias": "^1.8.8",
     "tslib": "^2.6.2",
