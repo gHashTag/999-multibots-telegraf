@@ -465,14 +465,20 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           statusText: (createError as any).response?.statusText,
           responseData: (createError as any).response?.data,
           requestPayload: requestPayload,
-          isTimeout: createError instanceof Error && createError.message.includes('timeout'),
-          isNetworkError: createError instanceof Error && createError.message.includes('Network Error'),
+          isTimeout:
+            createError instanceof Error &&
+            createError.message.includes('timeout'),
+          isNetworkError:
+            createError instanceof Error &&
+            createError.message.includes('Network Error'),
         })
 
         // Возвращаем детальную ошибку
         const errorStatus = (createError as any).response?.status
         const errorData = (createError as any).response?.data
-        const isTimeout = createError instanceof Error && createError.message.includes('timeout')
+        const isTimeout =
+          createError instanceof Error &&
+          createError.message.includes('timeout')
 
         return {
           message: `Kie.ai API error: ${isTimeout ? 'Timeout' : errorStatus || 'Connection failed'}`,
@@ -481,7 +487,11 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
             : createError instanceof Error
               ? createError.message
               : 'Unknown error',
-          code: isTimeout ? 'TIMEOUT' : errorStatus ? errorStatus.toString() : 'CONNECTION_FAILED',
+          code: isTimeout
+            ? 'TIMEOUT'
+            : errorStatus
+              ? errorStatus.toString()
+              : 'CONNECTION_FAILED',
           provider: 'kie',
           modelId: veedInput.modelId,
         }

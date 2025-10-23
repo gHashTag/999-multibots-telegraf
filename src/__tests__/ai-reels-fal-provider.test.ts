@@ -60,7 +60,7 @@ describe('AI Reels с fal провайдером - Тесты', () => {
 
       // В тестовой среде это должно вернуть ошибку, но не падать
       const result = await lipSyncOrchestrator.generate(input)
-      
+
       expect(result).toHaveProperty('message')
       expect(result).toHaveProperty('error')
     })
@@ -77,7 +77,7 @@ describe('AI Reels с fal провайдером - Тесты', () => {
       )
 
       const result = await lipSyncOrchestrator.generate(input)
-      
+
       expect(result).toHaveProperty('error')
     })
   })
@@ -87,11 +87,11 @@ describe('AI Reels с fal провайдером - Тесты', () => {
       // Тестируем логику генерации аудио
       const text = 'Тестовый текст для генерации аудио'
       const telegramId = '123456789'
-      
+
       // Симулируем получение voice_id
       const voiceId = 'test-voice-id'
       expect(voiceId).toBeDefined()
-      
+
       // Симулируем генерацию аудио
       const audioUrl = 'https://example.com/generated-audio.mp3'
       expect(audioUrl).toMatch(/^https?:\/\/.+/)
@@ -100,7 +100,7 @@ describe('AI Reels с fal провайдером - Тесты', () => {
     it('должен обрабатывать ошибки генерации аудио', () => {
       const text = 'Тестовый текст'
       const voiceId = null // Нет voice_id
-      
+
       // Если нет voice_id, должна быть ошибка
       expect(voiceId).toBeNull()
     })
@@ -109,20 +109,20 @@ describe('AI Reels с fal провайдером - Тесты', () => {
   describe('Синхронность fal провайдера', () => {
     it('должен быть синхронным (не требует polling)', async () => {
       const provider = new FalVeedFabricProvider()
-      
+
       // fal провайдер синхронный, getStatus всегда возвращает completed
       const result = await provider.getStatus('test-task-id')
-      
+
       expect(result.status).toBe('completed')
       expect(result.message).toContain('synchronous')
     })
 
     it('должен обрабатывать ошибки getStatus', async () => {
       const provider = new FalVeedFabricProvider()
-      
+
       // Тестируем с невалидным taskId
       const result = await provider.getStatus('')
-      
+
       expect(result).toHaveProperty('error')
     })
   })
@@ -132,7 +132,7 @@ describe('AI Reels с fal провайдером - Тесты', () => {
       const imageUrl = 'https://example.com/face-image.jpg'
       const audioUrl = 'https://example.com/voice-audio.mp3'
       const telegramId = '123456789'
-      
+
       const input = LipSyncInputBuilder.forFalVeedFabric(
         imageUrl,
         audioUrl,
@@ -155,7 +155,7 @@ describe('AI Reels с fal провайдером - Тесты', () => {
 
     it('должен обрабатывать различные разрешения видео', () => {
       const resolutions = ['480p', '720p']
-      
+
       resolutions.forEach(resolution => {
         const input = LipSyncInputBuilder.forFalVeedFabric(
           'https://example.com/image.jpg',
@@ -165,7 +165,7 @@ describe('AI Reels с fal провайдером - Тесты', () => {
             resolution: resolution as '480p' | '720p',
           }
         )
-        
+
         expect(input.resolution).toBe(resolution)
       })
     })

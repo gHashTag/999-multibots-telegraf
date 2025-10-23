@@ -553,64 +553,286 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         step: 'lipsync_generation',
       }
 
-      // Генерация первого видео (lip-sync) через orchestrator
+      // Генерация первого видео (lip-sync) через Fal.ai провайдер
       try {
-        // ✅ ИСПРАВЛЕНИЕ: Используем fal провайдер вместо kie для лучшей стабильности
+        console.log(
+          '🚨 [AI REELS] CRITICAL DEBUG: Начинаем генерацию lip-sync видео',
+          {
+            telegramId,
+            hasImageUrl: !!imageUrl,
+            hasText: !!text,
+            hasAudioUrl: !!audioUrl,
+            textLength: text?.length || 0,
+          }
+        )
+
+        logger.info('🎭 [AI REELS] DEBUG: Начинаем генерацию lip-sync видео', {
+          telegramId,
+          hasImageUrl: !!imageUrl,
+          hasText: !!text,
+          hasAudioUrl: !!audioUrl,
+          textLength: text?.length || 0,
+        })
+
+        // ✅ ИСПРАВЛЕНИЕ: Используем ТОЛЬКО fal провайдер для максимальной стабильности
         let finalAudioUrl = audioUrl
 
-        // Если у нас есть текст, но нет аудио - генерируем аудио через ElevenLabs
+        // Если у нас есть текст, но нет аудио - генерируем аудио через централизованную систему
         if (!finalAudioUrl && text) {
-          logger.info(
-            '🎤 [AI REELS] Генерируем аудио из текста для fal провайдера',
+          console.log(
+            '🚨 [AI REELS] CRITICAL DEBUG: Нет аудио, генерируем из текста',
             {
               telegramId,
               textLength: text.length,
             }
           )
 
-          // Импортируем функцию генерации аудио из kie провайдера
-          const { KieVeedFabricProvider } = await import(
-            '@/core/lipsync/providers/kie-veed-fabric-provider'
-          )
-          const kieProvider = new KieVeedFabricProvider()
-
-          // Получаем voice_id пользователя
-          const { getVoiceId } = await import('@/core/supabase/getVoiceId')
-          const voiceId = await getVoiceId(telegramId)
-
-          if (!voiceId) {
-            throw new Error('User voice ID not found for audio generation')
-          }
-
-          // Генерируем аудио (используем приватный метод через рефлексию)
-          const audioResult = await (kieProvider as any).generateAudio(
-            text,
-            voiceId,
-            telegramId
-          )
-
-          if (!audioResult) {
-            throw new Error('Failed to generate audio from text')
-          }
-
-          finalAudioUrl = audioResult
-          logger.info('✅ [AI REELS] Аудио сгенерировано для fal провайдера', {
+          logger.info('🎭 [AI REELS] DEBUG: Нет аудио, генерируем из текста', {
             telegramId,
-            audioUrl: finalAudioUrl.substring(0, 100),
+            textLength: text.length,
           })
+
+          try {
+            logger.info(
+              '🎤 [AI REELS] Генерируем аудио из текста через централизованную систему',
+              {
+                telegramId,
+                textLength: text.length,
+              }
+            )
+
+            // ✅ ИСПРАВЛЕНИЕ: Используем централизованную систему генерации аудио
+            const { createAudioFileFromText } = await import(
+              '@/core/elevenlabs/createAudioFileFromText'
+            )
+            const { getVoiceId } = await import('@/core/supabase/getVoiceId')
+
+            // Получаем voice_id пользователя через централизованную систему
+            const voiceId = await getVoiceId(telegramId)
+
+            if (!voiceId) {
+              throw new Error('User voice ID not found for audio generation')
+            }
+
+            logger.info(
+              '🎤 [AI REELS] Используем централизованную систему голосов',
+              {
+                telegramId,
+                voiceId,
+                textLength: text.length,
+              }
+            )
+
+            // Генерируем аудио через централизованную систему
+            logger.info(
+              '🎤 [AI REELS] DEBUG: Вызываем createAudioFileFromText',
+              {
+                telegramId,
+                voiceId,
+                textLength: text.length,
+              }
+            )
+
+            const audioPath = await createAudioFileFromText({
+              text,
+              voice_id: voiceId,
+              telegram_id: telegramId,
+            })
+
+            logger.info(
+              '🎤 [AI REELS] DEBUG: createAudioFileFromText завершен',
+              {
+                telegramId,
+                audioPath,
+                hasAudioPath: !!audioPath,
+              }
+            )
+
+            if (!audioPath) {
+              throw new Error('Failed to generate audio from text')
+            }
+
+            // Загружаем сгенерированное аудио в Supabase Storage
+            logger.info(
+              '🎤 [AI REELS] DEBUG: Загружаем аудио в Supabase Storage',
+              {
+                telegramId,
+                audioPath,
+              }
+            )
+
+            const fs = await import('fs/promises')
+            const audioBuffer = await fs.readFile(audioPath)
+
+            logger.info('🎤 [AI REELS] DEBUG: Аудио файл прочитан', {
+              telegramId,
+              audioBufferSize: audioBuffer.length,
+            })
+
+            const { createClient } = await import('@supabase/supabase-js')
+            const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+              '@/config'
+            )
+
+            const serviceClient = createClient(
+              SUPABASE_URL!,
+              SUPABASE_SERVICE_ROLE_KEY!
+            )
+            const fileName = `ai-reels-generated-audio/${telegramId}/${Date.now()}.mp3`
+
+            logger.info('🎤 [AI REELS] DEBUG: Загружаем в Supabase', {
+              telegramId,
+              fileName,
+              audioBufferSize: audioBuffer.length,
+            })
+
+            const { error: uploadError } = await serviceClient.storage
+              .from('images')
+              .upload(fileName, audioBuffer, {
+                contentType: 'audio/mpeg',
+                upsert: false,
+              })
+
+            if (uploadError) {
+              throw new Error(`Upload failed: ${uploadError.message}`)
+            }
+
+            logger.info('🎤 [AI REELS] DEBUG: Загрузка в Supabase успешна', {
+              telegramId,
+              fileName,
+            })
+
+            const { data: urlData } = serviceClient.storage
+              .from('images')
+              .getPublicUrl(fileName)
+
+            finalAudioUrl = urlData.publicUrl
+
+            logger.info('🎤 [AI REELS] DEBUG: Получен public URL', {
+              telegramId,
+              finalAudioUrl: finalAudioUrl.substring(0, 100),
+            })
+
+            // Удаляем временный файл
+            try {
+              await fs.unlink(audioPath)
+              logger.info('🗑️ [AI REELS] Временный файл удален', {
+                telegramId,
+                audioPath,
+              })
+            } catch (cleanupError) {
+              logger.warn('⚠️ [AI REELS] Не удалось удалить временный файл', {
+                audioPath,
+                error: cleanupError,
+              })
+            }
+
+            logger.info(
+              '✅ [AI REELS] Аудио сгенерировано через централизованную систему',
+              {
+                telegramId,
+                voiceId,
+                audioUrl: finalAudioUrl.substring(0, 100),
+              }
+            )
+
+            console.log(
+              '🚨 [AI REELS] CRITICAL DEBUG: Аудио сгенерировано, переходим к Fal.ai',
+              {
+                telegramId,
+                hasFinalAudioUrl: !!finalAudioUrl,
+                finalAudioUrlLength: finalAudioUrl?.length || 0,
+              }
+            )
+
+            logger.info(
+              '🎭 [AI REELS] DEBUG: Переходим к созданию input для Fal.ai',
+              {
+                telegramId,
+                hasFinalAudioUrl: !!finalAudioUrl,
+                finalAudioUrlLength: finalAudioUrl?.length || 0,
+              }
+            )
+          } catch (audioError) {
+            logger.error('❌ [AI REELS] Ошибка генерации аудио из текста', {
+              error: audioError,
+              errorMessage:
+                audioError instanceof Error
+                  ? audioError.message
+                  : 'Unknown error',
+              errorStack:
+                audioError instanceof Error ? audioError.stack : undefined,
+              telegramId,
+              textLength: text.length,
+            })
+
+            await ctx.reply(
+              isRu
+                ? '❌ Ошибка генерации аудио из текста. Попробуйте отправить голосовое сообщение.'
+                : '❌ Error generating audio from text. Try sending a voice message.'
+            )
+            return ctx.scene.leave()
+          }
         }
 
         if (!finalAudioUrl) {
           throw new Error('No audio URL available for fal provider')
         }
 
-        const input = LipSyncInputBuilder.forFalVeedFabric(
+        console.log(
+          '🚨 [AI REELS] CRITICAL DEBUG: Создаем input для Fal.ai провайдера',
+          {
+            telegramId,
+            imageUrl: imageUrl.substring(0, 100),
+            finalAudioUrl: finalAudioUrl.substring(0, 100),
+            textLength: text.length,
+          }
+        )
+
+        logger.info(
+          '🎭 [AI REELS] DEBUG: Создаем input для Fal.ai провайдера',
+          {
+            telegramId,
+            imageUrl: imageUrl.substring(0, 100),
+            finalAudioUrl: finalAudioUrl.substring(0, 100),
+            textLength: text.length,
+          }
+        )
+
+        console.log(
+          '🚨 [AI REELS] CRITICAL DEBUG: Создаем LipSyncInputBuilder',
+          {
+            telegramId,
+            imageUrl: imageUrl.substring(0, 50),
+            finalAudioUrl: finalAudioUrl.substring(0, 50),
+          }
+        )
+
+        // ✅ ВРЕМЕННОЕ РЕШЕНИЕ: Используем KieVeedFabricProvider (Fal.ai баланс исчерпан)
+        const input = LipSyncInputBuilder.forKieVeedFabric(
           imageUrl,
           finalAudioUrl,
           telegramId,
           {
             botName: ctx.botInfo?.username || 'unknown_bot',
             resolution: '720p',
+          }
+        )
+
+        console.log('🚨 [AI REELS] CRITICAL DEBUG: Input создан успешно', {
+          telegramId,
+          inputProvider: input.provider,
+          inputModelId: input.modelId,
+          inputResolution: input.resolution,
+        })
+
+        logger.info(
+          '🎭 [AI REELS] DEBUG: Input создан, переходим к Fal.ai провайдеру',
+          {
+            telegramId,
+            inputProvider: input.provider,
+            inputModelId: input.modelId,
+            inputResolution: input.resolution,
           }
         )
 
@@ -625,83 +847,111 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           }
         )
 
-        const result = await lipSyncOrchestrator.generate(input)
-
-        if (!('id' in result)) {
-          const error = result as { message?: string; error?: string; code?: string }
-          logger.error(
-            '❌ [AI REELS] Ошибка генерации lip-sync видео через fal провайдер',
-            {
-              result,
-              provider: 'fal',
-              errorCode: error.code,
-            }
-          )
-
-          // Возврат средств
-          await updateUserBalance(
+        // ✅ ИСПРАВЛЕНИЕ: Используем ТОЛЬКО Fal.ai провайдер напрямую
+        console.log(
+          '🚨 [AI REELS] CRITICAL DEBUG: Импортируем FalVeedFabricProvider',
+          {
             telegramId,
-            totalCost,
-            PaymentType.MONEY_INCOME,
-            'AI Reels refund - fal lip-sync generation error',
-            { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-          )
-
-          // Специальные сообщения для разных типов ошибок
-          let errorMessage = isRu
-            ? `❌ Ошибка генерации lip-sync видео: ${error.message || 'Unknown error'}\nСредства возвращены.`
-            : `❌ Lip-sync generation error: ${error.message || 'Unknown error'}\nFunds refunded.`
-
-          if (error.code === 'BALANCE_EXHAUSTED') {
-            errorMessage = isRu
-              ? `💰 У Fal.ai закончился баланс. Пожалуйста, пополните счет на fal.ai/dashboard/billing\nСредства возвращены.`
-              : `💰 Fal.ai account balance exhausted. Please top up at fal.ai/dashboard/billing\nFunds refunded.`
-          } else if (error.code === 'AUTHENTICATION_ERROR') {
-            errorMessage = isRu
-              ? `🔑 Ошибка аутентификации Fal.ai API. Проверьте ключ API.\nСредства возвращены.`
-              : `🔑 Fal.ai API authentication failed. Please check your API key.\nFunds refunded.`
           }
+        )
 
-          await ctx.reply(errorMessage)
-          return ctx.scene.leave()
-        }
+        logger.info('🎭 [AI REELS] DEBUG: Импортируем FalVeedFabricProvider', {
+          telegramId,
+        })
 
-        // ✅ ИСПРАВЛЕНИЕ: fal провайдер синхронный, не требует polling
-        const firstVideoUrl = result.output
+        // ✅ ВРЕМЕННОЕ РЕШЕНИЕ: Используем KieVeedFabricProvider (Fal.ai баланс исчерпан)
+        const { KieVeedFabricProvider } = await import(
+          '@/core/lipsync/providers/kie-veed-fabric-provider'
+        )
 
-        if (!firstVideoUrl) {
-          // fal провайдер синхронный, если output пустой - ошибка
-          throw new Error('First video URL not returned from fal orchestrator')
-        }
-
-        // Сохраняем URL первого видео
-        ctx.session.aiReels = {
-          ...ctx.session.aiReels,
-          firstVideoUrl,
-          step: 'wan_generation',
-        }
-
-        await ctx.reply(
-          isRu
-            ? `✅ Первое видео (lip-sync) готово через fal провайдер!\n\n` +
-                `2️⃣ Создаем второе видео через WAN 2.5...\n` +
-                `⏳ Это займет 60-90 секунд...`
-            : `✅ First video (lip-sync) ready via fal provider!\n\n` +
-                `2️⃣ Creating second video via WAN 2.5...\n` +
-                `⏳ This will take 60-90 seconds...`
+        console.log(
+          '🚨 [AI REELS] CRITICAL DEBUG: KieVeedFabricProvider импортирован (Fal.ai баланс исчерпан)',
+          {
+            telegramId,
+          }
         )
 
         logger.info(
-          '✅ [AI REELS] Первое видео (lip-sync) сгенерировано через fal провайдер',
+          '🎭 [AI REELS] DEBUG: FalVeedFabricProvider импортирован, создаем экземпляр',
           {
             telegramId,
-            firstVideoUrl,
-            provider: 'fal',
           }
         )
 
-        // Переходим к следующему шагу (генерация WAN 2.5)
-        return ctx.wizard.next()
+        const kieProvider = new KieVeedFabricProvider()
+
+        console.log(
+          '🚨 [AI REELS] CRITICAL DEBUG: KieVeedFabricProvider создан, вызываем generate',
+          {
+            telegramId,
+            provider: 'kie',
+            modelId: 'kie-veed-fabric',
+          }
+        )
+
+        logger.info(
+          '🎭 [AI REELS] DEBUG: FalVeedFabricProvider создан, вызываем generate',
+          {
+            telegramId,
+            provider: 'fal',
+            modelId: 'fal-veed-fabric-1.0-fast',
+          }
+        )
+
+        console.log(
+          '🚨 [AI REELS] CRITICAL DEBUG: Запускаем асинхронную генерацию',
+          {
+            telegramId,
+          }
+        )
+
+        // ✅ ИСПРАВЛЕНИЕ: Используем асинхронный менеджер вместо синхронного вызова
+        const { asyncLipSyncManager } = await import(
+          '@/core/lipsync/async-lipsync-manager'
+        )
+
+        // Устанавливаем ссылку на бота
+        asyncLipSyncManager.setBotInstance(ctx)
+
+        // Запускаем асинхронную генерацию
+        const jobId = await asyncLipSyncManager.startAsyncGeneration(
+          input,
+          totalCost,
+          telegramId,
+          ctx.chat!.id,
+          ctx.botInfo
+        )
+
+        console.log(
+          '🚨 [AI REELS] CRITICAL DEBUG: Асинхронная задача запущена',
+          {
+            telegramId,
+            jobId,
+          }
+        )
+
+        logger.info('🎭 [AI REELS] DEBUG: Асинхронная задача запущена', {
+          telegramId,
+          jobId,
+        })
+
+        // ✅ ИСПРАВЛЕНИЕ: Асинхронная генерация запущена, уведомляем пользователя
+        await ctx.reply(
+          isRu
+            ? `🚀 Генерация lip-sync видео запущена!\n\n` +
+                `⏳ Это займет 30-60 секунд...\n` +
+                `📱 Результат придет отдельным сообщением\n` +
+                `🆔 ID задачи: ${jobId}\n\n` +
+                `💡 Можете продолжать пользоваться ботом!`
+            : `🚀 Lip-sync video generation started!\n\n` +
+                `⏳ This will take 30-60 seconds...\n` +
+                `📱 Result will come in a separate message\n` +
+                `🆔 Task ID: ${jobId}\n\n` +
+                `💡 You can continue using the bot!`
+        )
+
+        // Выходим из сцены - результат придет через асинхронный менеджер
+        return ctx.scene.leave()
       } catch (genError) {
         // ✅ УЛУЧШЕНО: Детальное логирование с полной информацией об ошибке
         logger.error(
@@ -1352,5 +1602,100 @@ async function uploadVideoToSupabase(
 
   return publicUrl
 }
+
+// ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ДЛЯ ФОТО ВНЕ WIZARD STEPS
+aiReelsWizard.on('photo', async ctx => {
+  const isRu = isRussianFromState(ctx)
+  const telegramId = ctx.from?.id?.toString()
+
+  logger.info('📸 [AI REELS WIZARD] Photo received outside wizard steps', {
+    telegramId,
+    hasPhoto: !!ctx.message?.photo,
+    photoCount: ctx.message?.photo?.length || 0,
+  })
+
+  // Проверяем, находимся ли мы в правильном шаге
+  if (ctx.wizard?.cursor !== 1) {
+    await ctx.reply(
+      isRu
+        ? '❌ Пожалуйста, следуйте инструкциям. Отправьте фото в правильном порядке.'
+        : '❌ Please follow the instructions. Send photo in the correct order.'
+    )
+    return
+  }
+
+  // Обрабатываем фото как в Step 1
+  try {
+    const photo = ctx.message?.photo?.[ctx.message.photo.length - 1]
+    if (!photo) {
+      await ctx.reply(
+        isRu ? '❌ Ошибка: фото не найдено' : '❌ Error: photo not found'
+      )
+      return
+    }
+
+    const fileLink = await ctx.telegram.getFileLink(photo.file_id)
+    const response = await fetch(fileLink.href)
+
+    if (!response.ok) {
+      throw new Error(`Failed to download photo: ${response.statusText}`)
+    }
+
+    const imageBuffer = Buffer.from(await response.arrayBuffer())
+
+    // Загружаем в Supabase Storage
+    const { createClient } = await import('@supabase/supabase-js')
+    const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+
+    const serviceClient = createClient(
+      SUPABASE_URL!,
+      SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const fileName = `ai-reels/${telegramId}/${Date.now()}.jpg`
+
+    const { error: uploadError } = await serviceClient.storage
+      .from('images')
+      .upload(fileName, imageBuffer, {
+        contentType: 'image/jpeg',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      throw new Error(`Upload failed: ${uploadError.message}`)
+    }
+
+    const { data: urlData } = serviceClient.storage
+      .from('images')
+      .getPublicUrl(fileName)
+    const imageUrl = urlData.publicUrl
+
+    // Сохраняем в сессию
+    ctx.session.aiReels = {
+      ...ctx.session.aiReels,
+      imageUrl,
+      step: 'text',
+    }
+
+    await ctx.reply(
+      isRu
+        ? '✅ Фото загружено! Теперь отправьте текст для lip-sync видео или голосовое сообщение.'
+        : '✅ Photo uploaded! Now send text for lip-sync video or voice message.'
+    )
+
+    // Переходим к следующему шагу
+    return ctx.wizard.next()
+  } catch (error) {
+    logger.error('❌ [AI REELS WIZARD] Error processing photo', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId,
+    })
+
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка обработки фото. Попробуйте еще раз.'
+        : '❌ Error processing photo. Try again.'
+    )
+  }
+})
 
 export default aiReelsWizard

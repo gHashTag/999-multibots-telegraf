@@ -142,7 +142,7 @@ export class AsyncLipSyncManager {
         logger.info('🔗 [ASYNC LIPSYNC] TaskId связан с job для webhook', {
           jobId,
           taskId: result.taskId,
-          telegramId: job.telegramId
+          telegramId: job.telegramId,
         })
 
         // ✅ WEBHOOK MODE: Если status = 'processing', не завершаем job - ждем webhook
@@ -150,7 +150,7 @@ export class AsyncLipSyncManager {
           logger.info('⏳ [ASYNC LIPSYNC] Job в режиме ожидания webhook', {
             jobId,
             taskId: result.taskId,
-            telegramId: job.telegramId
+            telegramId: job.telegramId,
           })
 
           // ✅ FALLBACK POLLING: Запускаем проверку статуса через 2 минуты, если webhook не пришел
@@ -192,8 +192,20 @@ export class AsyncLipSyncManager {
 
         await this.sendErrorResult(job, result)
       }
-
     } catch (error) {
+      console.log(
+        '🚨 [ASYNC LIPSYNC] CRITICAL DEBUG: Критическая ошибка обработки',
+        {
+          jobId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          errorName: error instanceof Error ? error.name : typeof error,
+          errorStack: error instanceof Error ? error.stack : undefined,
+          telegramId: job.telegramId,
+          provider: job.input.provider,
+          modelId: job.input.modelId,
+        }
+      )
+
       job.status = 'failed'
       job.result = {
         message: 'Async processing failed',
@@ -213,17 +225,23 @@ export class AsyncLipSyncManager {
       })
     } finally {
       // Очищаем задачу через час для экономии памяти
-      setTimeout(() => {
-        this.jobs.delete(jobId)
-        logger.info('🗑️ [ASYNC LIPSYNC] Задача удалена из памяти', { jobId })
-      }, 60 * 60 * 1000) // 1 час
+      setTimeout(
+        () => {
+          this.jobs.delete(jobId)
+          logger.info('🗑️ [ASYNC LIPSYNC] Задача удалена из памяти', { jobId })
+        },
+        60 * 60 * 1000
+      ) // 1 час
     }
   }
 
   /**
    * Отправляет результат успешной генерации
    */
-  private async sendSuccessResult(job: AsyncLipSyncJob, result: LipSyncOutput): Promise<void> {
+  private async sendSuccessResult(
+    job: AsyncLipSyncJob,
+    result: LipSyncOutput
+  ): Promise<void> {
     if (!this.bot) {
       logger.error('❌ [ASYNC LIPSYNC] Bot instance не установлен')
       return
@@ -233,21 +251,17 @@ export class AsyncLipSyncManager {
       const processingTime = Math.round((Date.now() - job.startTime) / 1000)
 
       // Send completion notification with sound first
-      await this.bot.telegram.sendMessage(
-        job.chatId,
-        '✅ Готово!',
-        {
-          disable_notification: false, // Enable sound notification
-        }
-      )
+      await this.bot.telegram.sendMessage(job.chatId, '✅ Готово!', {
+        disable_notification: false, // Enable sound notification
+      })
 
       // Then send the detailed result
       await this.bot.telegram.sendMessage(
         job.chatId,
         `🎬 Видео готово!\n\n` +
-        `📥 Скачать: ${result.output}\n` +
-        `⏱ Время обработки: ${processingTime} сек\n` +
-        `🤖 Модель: ${result.modelUsed}`,
+          `📥 Скачать: ${result.output}\n` +
+          `⏱ Время обработки: ${processingTime} сек\n` +
+          `🤖 Модель: ${result.modelUsed}`,
         {
           parse_mode: 'HTML',
           disable_web_page_preview: false,
@@ -259,11 +273,11 @@ export class AsyncLipSyncManager {
         telegramId: job.telegramId,
         processingTime,
       })
-
     } catch (sendError) {
       logger.error('❌ [ASYNC LIPSYNC] Ошибка отправки успешного результата', {
         jobId: job.id,
-        sendError: sendError instanceof Error ? sendError.message : 'Unknown error',
+        sendError:
+          sendError instanceof Error ? sendError.message : 'Unknown error',
       })
     }
   }
@@ -271,7 +285,20 @@ export class AsyncLipSyncManager {
   /**
    * Отправляет ошибку генерации с возвратом средств
    */
-  private async sendErrorResult(job: AsyncLipSyncJob, result: LipSyncError): Promise<void> {
+  private async sendErrorResult(
+    job: AsyncLipSyncJob,
+    result: LipSyncError
+  ): Promise<void> {
+    console.log('🚨 [ASYNC LIPSYNC] CRITICAL DEBUG: sendErrorResult вызван', {
+      jobId: job.id,
+      telegramId: job.telegramId,
+      errorMessage: result.message,
+      errorCode: result.code,
+      errorProvider: result.provider,
+      errorModelId: result.modelId,
+      fullResult: result,
+    })
+
     if (!this.bot) {
       logger.error('❌ [ASYNC LIPSYNC] Bot instance не установлен')
       return
@@ -287,15 +314,15 @@ export class AsyncLipSyncManager {
         {
           bot_name: job.botInfo?.username || 'unknown_bot',
           error_code: result.code,
-          job_id: job.id
+          job_id: job.id,
         }
       )
 
       await this.bot.telegram.sendMessage(
         job.chatId,
         `❌ Ошибка генерации: ${result.message}\n\n` +
-        `💰 Средства возвращены: ${job.cost.toFixed(2)}⭐\n` +
-        `🔍 Код ошибки: ${result.code}`,
+          `💰 Средства возвращены: ${job.cost.toFixed(2)}⭐\n` +
+          `🔍 Код ошибки: ${result.code}`,
         { parse_mode: 'HTML' }
       )
 
@@ -305,11 +332,11 @@ export class AsyncLipSyncManager {
         refundAmount: job.cost,
         errorCode: result.code,
       })
-
     } catch (sendError) {
       logger.error('❌ [ASYNC LIPSYNC] Ошибка отправки сообщения об ошибке', {
         jobId: job.id,
-        sendError: sendError instanceof Error ? sendError.message : 'Unknown error',
+        sendError:
+          sendError instanceof Error ? sendError.message : 'Unknown error',
       })
     }
   }
@@ -317,7 +344,10 @@ export class AsyncLipSyncManager {
   /**
    * Отправляет критическую ошибку с возвратом средств
    */
-  private async sendCriticalError(job: AsyncLipSyncJob, error: any): Promise<void> {
+  private async sendCriticalError(
+    job: AsyncLipSyncJob,
+    error: any
+  ): Promise<void> {
     if (!this.bot) {
       logger.error('❌ [ASYNC LIPSYNC] Bot instance не установлен')
       return
@@ -332,28 +362,31 @@ export class AsyncLipSyncManager {
         'LipSync refund - critical error',
         {
           bot_name: job.botInfo?.username || 'unknown_bot',
-          job_id: job.id
+          job_id: job.id,
         }
       )
 
       await this.bot.telegram.sendMessage(
         job.chatId,
         `❌ Произошла критическая ошибка при генерации.\n\n` +
-        `💰 Средства возвращены: ${job.cost.toFixed(2)}⭐\n` +
-        `🛠️ Попробуйте позже или обратитесь в поддержку.`,
+          `💰 Средства возвращены: ${job.cost.toFixed(2)}⭐\n` +
+          `🛠️ Попробуйте позже или обратитесь в поддержку.`,
         { parse_mode: 'HTML' }
       )
 
-      logger.info('💰 [ASYNC LIPSYNC] Средства возвращены за критическую ошибку', {
-        jobId: job.id,
-        telegramId: job.telegramId,
-        refundAmount: job.cost,
-      })
-
+      logger.info(
+        '💰 [ASYNC LIPSYNC] Средства возвращены за критическую ошибку',
+        {
+          jobId: job.id,
+          telegramId: job.telegramId,
+          refundAmount: job.cost,
+        }
+      )
     } catch (sendError) {
       logger.error('❌ [ASYNC LIPSYNC] Ошибка отправки критической ошибки', {
         jobId: job.id,
-        sendError: sendError instanceof Error ? sendError.message : 'Unknown error',
+        sendError:
+          sendError instanceof Error ? sendError.message : 'Unknown error',
       })
     }
   }
@@ -370,8 +403,9 @@ export class AsyncLipSyncManager {
    */
   getUserActiveJobs(telegramId: string): AsyncLipSyncJob[] {
     return Array.from(this.jobs.values()).filter(
-      job => job.telegramId === telegramId &&
-      ['pending', 'processing'].includes(job.status)
+      job =>
+        job.telegramId === telegramId &&
+        ['pending', 'processing'].includes(job.status)
     )
   }
 
@@ -400,7 +434,10 @@ export class AsyncLipSyncManager {
   setTaskId(jobId: string, taskId: string): boolean {
     const job = this.jobs.get(jobId)
     if (!job) {
-      logger.error('❌ [ASYNC LIPSYNC] Job not found for taskId update', { jobId, taskId })
+      logger.error('❌ [ASYNC LIPSYNC] Job not found for taskId update', {
+        jobId,
+        taskId,
+      })
       return false
     }
 
@@ -410,7 +447,7 @@ export class AsyncLipSyncManager {
     logger.info('🔗 [ASYNC LIPSYNC] TaskId linked to job', {
       jobId,
       taskId,
-      telegramId: job.telegramId
+      telegramId: job.telegramId,
     })
 
     return true
@@ -429,7 +466,9 @@ export class AsyncLipSyncManager {
     logger.warn('🔍 [ASYNC LIPSYNC] Job not found by taskId', {
       taskId,
       totalJobs: this.jobs.size,
-      activeJobs: Array.from(this.jobs.values()).filter(j => ['pending', 'processing'].includes(j.status)).length
+      activeJobs: Array.from(this.jobs.values()).filter(j =>
+        ['pending', 'processing'].includes(j.status)
+      ).length,
     })
 
     return null
@@ -438,7 +477,10 @@ export class AsyncLipSyncManager {
   /**
    * Обновляет результат задачи через webhook (от Kie.ai)
    */
-  async completeJobByTaskId(taskId: string, result: LipSyncOutput | LipSyncError): Promise<boolean> {
+  async completeJobByTaskId(
+    taskId: string,
+    result: LipSyncOutput | LipSyncError
+  ): Promise<boolean> {
     const job = this.getJobByTaskId(taskId)
     if (!job) {
       return false
@@ -450,13 +492,16 @@ export class AsyncLipSyncManager {
     job.result = result
     this.jobs.set(job.id, job)
 
-    logger.info(`${isSuccess ? '✅' : '❌'} [ASYNC LIPSYNC] Job updated via webhook`, {
-      jobId: job.id,
-      taskId,
-      telegramId: job.telegramId,
-      success: isSuccess,
-      processingTime: Date.now() - job.startTime
-    })
+    logger.info(
+      `${isSuccess ? '✅' : '❌'} [ASYNC LIPSYNC] Job updated via webhook`,
+      {
+        jobId: job.id,
+        taskId,
+        telegramId: job.telegramId,
+        success: isSuccess,
+        processingTime: Date.now() - job.startTime,
+      }
+    )
 
     // Отправляем результат пользователю
     if (isSuccess) {
@@ -496,37 +541,52 @@ export class AsyncLipSyncManager {
 
       // ✅ Если webhook уже пришел (job.status изменился), прекращаем polling
       if (job.status === 'completed' || job.status === 'failed') {
-        logger.info('✅ [FALLBACK POLLING] Webhook уже обработан, polling не нужен', {
-          jobId,
-          taskId,
-          status: job.status,
-        })
+        logger.info(
+          '✅ [FALLBACK POLLING] Webhook уже обработан, polling не нужен',
+          {
+            jobId,
+            taskId,
+            status: job.status,
+          }
+        )
         return
       }
 
-      logger.info('🔍 [FALLBACK POLLING] Webhook не пришел, начинаем проверку статуса', {
-        jobId,
-        taskId,
-        elapsedTime: Date.now() - job.startTime,
-      })
+      logger.info(
+        '🔍 [FALLBACK POLLING] Webhook не пришел, начинаем проверку статуса',
+        {
+          jobId,
+          taskId,
+          elapsedTime: Date.now() - job.startTime,
+        }
+      )
 
       // ✅ Запускаем периодическую проверку
       const startPollingTime = Date.now()
       const pollingInterval = setInterval(async () => {
         const currentJob = this.jobs.get(jobId)
         if (!currentJob) {
-          logger.warn('⚠️ [FALLBACK POLLING] Job удален, останавливаем polling', { jobId, taskId })
+          logger.warn(
+            '⚠️ [FALLBACK POLLING] Job удален, останавливаем polling',
+            { jobId, taskId }
+          )
           clearInterval(pollingInterval)
           return
         }
 
         // ✅ Если webhook пришел, останавливаем polling
-        if (currentJob.status === 'completed' || currentJob.status === 'failed') {
-          logger.info('✅ [FALLBACK POLLING] Webhook пришел, останавливаем polling', {
-            jobId,
-            taskId,
-            status: currentJob.status,
-          })
+        if (
+          currentJob.status === 'completed' ||
+          currentJob.status === 'failed'
+        ) {
+          logger.info(
+            '✅ [FALLBACK POLLING] Webhook пришел, останавливаем polling',
+            {
+              jobId,
+              taskId,
+              status: currentJob.status,
+            }
+          )
           clearInterval(pollingInterval)
           return
         }
@@ -551,7 +611,10 @@ export class AsyncLipSyncManager {
             modelId: currentJob.input.modelId,
           }
           this.jobs.set(jobId, currentJob)
-          await this.sendErrorResult(currentJob, currentJob.result as LipSyncError)
+          await this.sendErrorResult(
+            currentJob,
+            currentJob.result as LipSyncError
+          )
 
           clearInterval(pollingInterval)
           return
@@ -588,7 +651,10 @@ export class AsyncLipSyncManager {
             currentJob.status = 'completed'
             currentJob.result = statusResult
             this.jobs.set(jobId, currentJob)
-            await this.sendSuccessResult(currentJob, statusResult as LipSyncOutput)
+            await this.sendSuccessResult(
+              currentJob,
+              statusResult as LipSyncOutput
+            )
 
             clearInterval(pollingInterval)
             return
@@ -612,12 +678,14 @@ export class AsyncLipSyncManager {
           }
 
           // ✅ Если задача еще в процессе - продолжаем polling
-          logger.info('⏳ [FALLBACK POLLING] Задача еще в процессе, продолжаем проверку', {
-            jobId,
-            taskId,
-            nextCheckInSeconds: POLLING_INTERVAL / 1000,
-          })
-
+          logger.info(
+            '⏳ [FALLBACK POLLING] Задача еще в процессе, продолжаем проверку',
+            {
+              jobId,
+              taskId,
+              nextCheckInSeconds: POLLING_INTERVAL / 1000,
+            }
+          )
         } catch (error) {
           logger.error('❌ [FALLBACK POLLING] Ошибка при проверке статуса', {
             jobId,
@@ -635,7 +703,10 @@ export class AsyncLipSyncManager {
               code: 'STATUS_CHECK_FAILED',
             }
             this.jobs.set(jobId, currentJob)
-            await this.sendErrorResult(currentJob, currentJob.result as LipSyncError)
+            await this.sendErrorResult(
+              currentJob,
+              currentJob.result as LipSyncError
+            )
             clearInterval(pollingInterval)
             return
           }
