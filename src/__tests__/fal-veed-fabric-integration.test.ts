@@ -122,7 +122,7 @@ describe('Fal.ai Veed Fabric Integration', () => {
   })
 
   describe('Конфигурация по умолчанию', () => {
-    it('должна включать конфигурацию для Fal провайдера', () => {
+    it('должна включать конфигурацию для Fal провайдера', async () => {
       const { DEFAULT_PROVIDER_CONFIGS } = await import('@/core/lipsync/providers/provider-factory')
       
       expect(DEFAULT_PROVIDER_CONFIGS.fal).toBeDefined()
