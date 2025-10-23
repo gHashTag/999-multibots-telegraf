@@ -937,7 +937,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         ctx.session.aiReels = {
           ...ctx.session.aiReels,
           firstVideoUrl: lipSyncVideoUrl,
-          step: 'wan25_generation',
+          step: 'wan_generation',
         }
 
         console.log('✅ [AI REELS] Session обновлён:', {
