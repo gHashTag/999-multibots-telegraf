@@ -2,6 +2,25 @@
  * Model button mapping utilities
  */
 
+// ✅ IMPORT TYPES FROM INTERFACES
+export interface ModelTraining {
+  id: string | number
+  model_name?: string
+  name?: string
+  cost?: number
+  status?: string
+  [key: string]: any
+}
+
+export interface ModelButtonOptions {
+  isRussian?: boolean
+  includeSteps?: boolean
+  includeDate?: boolean
+  maxTextLength?: number
+  debug?: boolean
+  [key: string]: any
+}
+
 // Заглушка для маппинга кнопок моделей
 export const modelButtonMappings = {
   'flux-kontext-pro': 'Flux Kontext Pro',
@@ -173,15 +192,4 @@ export function handleModelSelectionCallback(
       error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
-}
-
-export interface ModelTraining {
-  id: string | number
-  name?: string
-  cost?: number
-  [key: string]: any
-}
-
-export interface ModelButtonOptions {
-  [key: string]: any
 }
