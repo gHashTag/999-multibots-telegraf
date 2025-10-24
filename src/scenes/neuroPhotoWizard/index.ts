@@ -533,6 +533,27 @@ export const neuroPhotoWizard = new Scenes.WizardScene<MyContext>(
   neuroPhotoButtonStep
 )
 
+// ✅ ОБРАБОТЧИК КНОПКИ "ОТМЕНА" - ДОЛЖЕН БЫТЬ ПЕРЕД .on('callback_query')
+neuroPhotoWizard.action('cancel_neuro_photo', async ctx => {
+  const isRu = isRussianFromState(ctx)
+
+  await ctx.answerCbQuery()
+  await ctx.deleteMessage().catch(() => {})
+
+  await ctx.reply(
+    isRu
+      ? '❌ Генерация нейрофото отменена. Возвращаю в главное меню.'
+      : '❌ Neurophoto generation cancelled. Returning to main menu.'
+  )
+
+  // Очищаем данные сессии
+  delete ctx.session.prompt
+  delete ctx.session.userModel
+
+  await handleMenu(ctx)
+  return ctx.scene.leave()
+})
+
 neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
@@ -653,15 +674,8 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       return ctx.scene.leave()
     }
 
-    if (callbackData === 'cancel_neuro_photo') {
-      await ctx.reply(
-        isRu
-          ? 'Отменено. Возвращаю в главное меню.'
-          : 'Cancelled. Returning to main menu.'
-      )
-      await handleMenu(ctx)
-      return ctx.scene.leave()
-    } else if (callbackData.startsWith('select_model_')) {
+    // ✅ cancel_neuro_photo обрабатывается через .action() выше
+    if (callbackData.startsWith('select_model_')) {
       const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
 
       if (!userModels || userModels.length === 0) {
