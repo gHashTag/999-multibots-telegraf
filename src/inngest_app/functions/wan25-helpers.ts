@@ -97,7 +97,22 @@ export async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 1
 
   while (Date.now() - startTime < maxWaitTimeMs) {
     try {
+      console.log('🔍 [WAN 2.5 POLLING] Checking status...', {
+        taskId,
+        attempt: Math.floor((Date.now() - startTime) / pollInterval) + 1,
+        elapsedTime: Math.floor((Date.now() - startTime) / 1000) + 's',
+      })
+
       const status = await checkWAN25TaskStatus(taskId)
+
+      console.log('📊 [WAN 2.5 POLLING] Status response:', {
+        taskId,
+        code: status.code,
+        state: status.data?.state,
+        hasResultJson: !!status.data?.resultJson,
+        hasFailMsg: !!status.data?.failMsg,
+        fullResponse: JSON.stringify(status),
+      })
 
       logger.info('🔍 [WAN 2.5 API] Проверка статуса', {
         taskId,

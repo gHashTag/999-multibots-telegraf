@@ -17,19 +17,8 @@ import {
   getAvailableLipSyncModels,
   calculateLipSyncCost,
 } from '@/config/lipsync-models.config'
-import {
-  WAN25_MODELS,
-  WAN25ModelType,
-  calculateWAN25CostStars,
-  validateWAN25Parameters,
-  WAN25_API_CONFIG,
-  WAN25_DEFAULT_PROMPTS,
-  type WAN25CreateTaskRequest,
-  type WAN25TaskResponse,
-  type WAN25StatusResponse,
-  type WAN25Error,
-  WAN25ErrorType,
-} from '@/config/wan25-config'
+import { FalWAN25Provider } from '@/core/lipsync/providers/fal-wan25-provider'
+import { WAN25_DEFAULT_PROMPTS } from '@/config/wan25-config'
 
 // Интерфейс для aiReels теперь определен в MySession interface
 
@@ -301,6 +290,62 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           : '❌ Error: could not determine your ID'
       )
       return ctx.scene.leave()
+    }
+
+    // 🧪 ТЕСТОВЫЙ РЕЖИМ: Используем готовое видео для экономии средств
+    const isDev = process.env.NODE_ENV === 'development'
+    const TEST_LIPSYNC_VIDEO_URL =
+      'https://v3b.fal.media/files/b/tiger/mak7VQyKPCP3HJeazjbl__tmp0r5i6khu.mp4'
+
+    if (isDev && process.env.USE_TEST_LIPSYNC === 'true') {
+      console.log('🧪 [AI REELS TEST MODE] Using hardcoded lip-sync video URL')
+
+      ctx.session.aiReels = {
+        ...ctx.session.aiReels,
+        firstVideoUrl: TEST_LIPSYNC_VIDEO_URL,
+        step: 'wan_generation',
+      }
+
+      await ctx.reply(
+        isRu
+          ? `🧪 ТЕСТОВЫЙ РЕЖИМ: Используем готовое lip-sync видео\n\n✅ Первое видео (lip-sync) готово!`
+          : `🧪 TEST MODE: Using existing lip-sync video\n\n✅ First video (lip-sync) ready!`
+      )
+
+      await ctx.replyWithVideo(
+        { url: TEST_LIPSYNC_VIDEO_URL },
+        {
+          caption: isRu
+            ? `🎬 Промежуточный результат - Lip-sync видео (тест)`
+            : `🎬 Intermediate result - Lip-sync video (test)`,
+        }
+      )
+
+      await ctx.reply(
+        isRu
+          ? `🎬 Создаем второе видео (WAN 2.5)...\n⏳ Это займет 5-10 минут...`
+          : `🎬 Creating second video (WAN 2.5)...\n⏳ This will take 5-10 minutes...`
+      )
+
+      console.log('🔄 [AI REELS TEST MODE] Skipping to Step 3 (WAN 2.5):', {
+        telegramId,
+        testVideoUrl: TEST_LIPSYNC_VIDEO_URL,
+      })
+
+      // Переходим к Step 3 и вызываем его вручную
+      await ctx.wizard.next()
+
+      const nextStep = (ctx.wizard as any).steps[ctx.wizard.cursor]
+      if (nextStep && typeof nextStep === 'function') {
+        console.log('🔄 [AI REELS TEST MODE] Manually executing Step 3...', {
+          telegramId,
+          cursor: ctx.wizard.cursor,
+        })
+        return await nextStep(ctx)
+      } else {
+        console.error('❌ [AI REELS TEST MODE] Next step not found!')
+        return ctx.scene.leave()
+      }
     }
 
     try {
@@ -986,7 +1031,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         await ctx.wizard.next()
 
         // Вручную вызываем следующий step
-        const nextStep = ctx.wizard.steps[ctx.wizard.cursor]
+        const nextStep = (ctx.wizard as any).steps[ctx.wizard.cursor]
         if (nextStep && typeof nextStep === 'function') {
           console.log('🔄 [AI REELS] Manually executing Step 3...', {
             telegramId,
@@ -997,7 +1042,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           console.error('❌ [AI REELS] Next step not found!', {
             telegramId,
             cursor: ctx.wizard.cursor,
-            totalSteps: ctx.wizard.steps.length,
+            totalSteps: (ctx.wizard as any).steps.length,
           })
           return ctx.scene.leave()
         }
@@ -1131,95 +1176,119 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         ? WAN25_DEFAULT_PROMPTS.CINEMATIC.ru
         : WAN25_DEFAULT_PROMPTS.CINEMATIC.en
 
-      // Создаем задачу в WAN 2.5
-      const wan25Request: WAN25CreateTaskRequest = {
-        model: WAN25_MODELS[WAN25ModelType.IMAGE_TO_VIDEO].modelId,
-        input: {
-          prompt: wan25Prompt,
-          image_url: imageUrl,
-          duration: '5',
-          resolution: ctx.session.aiReels?.resolution || '720p',
-          enable_prompt_expansion: true,
-        },
-      }
-
-      // Валидация параметров WAN 2.5
-      const validation = validateWAN25Parameters(
-        WAN25ModelType.IMAGE_TO_VIDEO,
-        5,
-        ctx.session.aiReels?.resolution || '720p'
-      )
-
-      if (!validation.isValid) {
-        throw new Error(`WAN 2.5 validation failed: ${validation.error}`)
-      }
-
-      logger.info('🔥 [AI REELS] Отправляем запрос в WAN 2.5', {
+      logger.info('🔥 [AI REELS] Генерация WAN 2.5 через Fal.ai', {
         telegramId,
         prompt: wan25Prompt.substring(0, 100),
         imageUrl: imageUrl.substring(0, 100),
-        resolution: wan25Request.input.resolution,
+        resolution: ctx.session.aiReels?.resolution || '720p',
+      })
+
+      console.log('📦 [AI REELS FAL WAN 2.5] REQUEST:', {
+        telegramId,
+        provider: 'fal',
+        model: 'fal-ai/wan-25-preview/image-to-video',
+        prompt: wan25Prompt.substring(0, 100) + '...',
+        image_url: imageUrl.substring(0, 100) + '...',
+        resolution: ctx.session.aiReels?.resolution || '720p',
       })
 
       try {
-        // Реальный вызов WAN 2.5 API
-        const taskResponse = await createWAN25Task(wan25Request)
+        // ✅ ТЕСТОВЫЙ РЕЖИМ - используем готовое WAN v2.2-5b видео
+        const isDev = process.env.NODE_ENV === 'development'
+        const useTestWan25 = isDev && process.env.USE_TEST_LIPSYNC === 'true'
+        const TEST_WAN25_VIDEO_URL = 'https://v3b.fal.media/files/b/penguin/Jns1yqrvrnqff91m_C-R2_p9xGAM9j.mp4'
 
-        if (taskResponse.code !== 200) {
-          throw new Error(`WAN 2.5 API error: ${taskResponse.message}`)
+        let wan25Result: { videoUrl?: string; output?: string; error?: string }
+        let visualPrompt: string
+
+        if (useTestWan25) {
+          console.log('🧪 [AI REELS TEST MODE] Using test WAN v2.2-5b video URL (no API call)')
+          visualPrompt = wan25Prompt // используем дефолтный промпт в тестовом режиме
+          wan25Result = {
+            videoUrl: TEST_WAN25_VIDEO_URL,
+            output: TEST_WAN25_VIDEO_URL,
+          }
+        } else {
+          // ✅ СИНХРОННЫЙ ВЫЗОВ Fal.ai WAN v2.2-5b с промптом на основе текста пользователя
+          const falWan25 = new FalWAN25Provider()
+
+          // 🎨 ГЕНЕРАЦИЯ ВИЗУАЛЬНОГО ПРОМПТА на основе текста пользователя
+          const userText = ctx.session.aiReels?.text || ''
+
+          console.log('✨ [AI REELS] Generating visual prompt from user text', {
+            userText: userText.substring(0, 100),
+            language: isRu ? 'ru' : 'en',
+          })
+
+          visualPrompt = await falWan25.generateVisualPrompt(userText, isRu ? 'ru' : 'en')
+
+          console.log('✅ [AI REELS] Visual prompt generated', {
+            promptLength: visualPrompt.length,
+            preview: visualPrompt.substring(0, 200) + '...',
+          })
+
+          // Aspect ratio для AI Reels: по умолчанию 9:16 (вертикальное видео для соцсетей)
+          const aspectRatio = ctx.session.aiReels?.aspectRatio || '9:16'
+
+          const wan25Input = {
+            imageUrl,
+            prompt: visualPrompt, // используем сгенерированный промпт
+            telegramId,
+            botName: ctx.botInfo?.username || 'unknown_bot',
+            resolution: (ctx.session.aiReels?.resolution || '720p') as '720p' | '1080p',
+            aspectRatio, // добавляем aspect ratio
+            provider: 'fal' as const,
+            modelId: 'fal-wan-v2.2-5b',
+          }
+
+          console.log('🚀 [AI REELS FAL WAN v2.2-5b] Calling Fal.ai synchronously...', {
+            aspectRatio,
+            promptLength: visualPrompt.length,
+          })
+          wan25Result = await falWan25.generate(wan25Input)
         }
 
-        const taskId = taskResponse.data.taskId
-
-        logger.info('🔥 [AI REELS] WAN 2.5 задача создана', {
-          telegramId,
-          taskId,
+        console.log('✅ [AI REELS FAL WAN v2.2-5b] Generation completed:', {
+          hasOutput: !!wan25Result.output,
+          hasVideoUrl: !!wan25Result.videoUrl,
+          hasError: !!wan25Result.error,
+          videoUrl: wan25Result.output?.substring(0, 100),
         })
 
-        // Сохраняем taskId для отслеживания
-        ctx.session.aiReels = {
-          ...ctx.session.aiReels,
-          wan25TaskId: taskId,
-          wan25Prompt,
+        if (wan25Result.error || !wan25Result.output) {
+          throw new Error(wan25Result.error || 'Fal.ai WAN v2.2-5b generation failed')
         }
 
-        // Ожидание результата с polling
-        const secondVideoUrl = await waitForWAN25Task(
-          taskId,
-          WAN25_API_CONFIG.TIMEOUT.MAX_WAIT_TIME
-        )
+        const secondVideoUrl = wan25Result.output
 
-        if (!secondVideoUrl) {
-          throw new Error('WAN 2.5 task completed but no video URL returned')
-        }
-
-        // Сохраняем URL второго видео
+        // Сохраняем URL второго видео и промпт
+        const finalPrompt = useTestWan25 ? wan25Prompt : visualPrompt
         ctx.session.aiReels = {
           ...ctx.session.aiReels,
-          secondVideoUrl: secondVideoUrl,
-          wan25Prompt,
+          secondVideoUrl,
+          wan25Prompt: finalPrompt,
           step: 'merging',
         }
 
-        logger.info('✅ [AI REELS] Второе видео (WAN 2.5) сгенерировано', {
+        logger.info('✅ [AI REELS] Второе видео (Fal WAN v2.2-5b) сгенерировано', {
           telegramId,
-          secondVideoUrl,
-          taskId,
+          secondVideoUrl: secondVideoUrl.substring(0, 100),
+          promptUsed: finalPrompt.substring(0, 150),
         })
 
-        // ✅ ОТПРАВЛЯЕМ WAN 2.5 ВИДЕО ПОЛЬЗОВАТЕЛЮ (промежуточный результат)
+        // ✅ ОТПРАВЛЯЕМ WAN v2.2-5b ВИДЕО ПОЛЬЗОВАТЕЛЮ (промежуточный результат)
         await ctx.reply(
           isRu
-            ? `✅ Второе видео (WAN 2.5) готово!`
-            : `✅ Second video (WAN 2.5) ready!`
+            ? `✅ Второе видео (WAN v2.2-5b 9:16) готово!\n\n🎨 Визуальная идея:\n${finalPrompt.substring(0, 200)}${finalPrompt.length > 200 ? '...' : ''}`
+            : `✅ Second video (WAN v2.2-5b 9:16) ready!\n\n🎨 Visual concept:\n${finalPrompt.substring(0, 200)}${finalPrompt.length > 200 ? '...' : ''}`
         )
 
         await ctx.replyWithVideo(
           { url: secondVideoUrl },
           {
             caption: isRu
-              ? `🎬 Промежуточный результат - WAN 2.5 видео`
-              : `🎬 Intermediate result - WAN 2.5 video`,
+              ? `🎬 Промежуточный результат - WAN v2.2-5b видео (9:16)`
+              : `🎬 Intermediate result - WAN v2.2-5b video (9:16)`,
           }
         )
 
@@ -1230,12 +1299,33 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         )
 
         // Переходим к следующему шагу (склеивание) и ВЫЗЫВАЕМ его вручную
+        console.log('🔄 [AI REELS] Before ctx.wizard.next():', {
+          telegramId,
+          currentCursor: ctx.wizard.cursor,
+          totalSteps: (ctx.wizard as any).steps.length,
+        })
+
         await ctx.wizard.next()
 
+        console.log('🔄 [AI REELS] After ctx.wizard.next():', {
+          telegramId,
+          newCursor: ctx.wizard.cursor,
+          totalSteps: (ctx.wizard as any).steps.length,
+        })
+
         // Вручную вызываем следующий step
-        const nextStep = ctx.wizard.steps[ctx.wizard.cursor]
+        const nextStep = (ctx.wizard as any).steps[ctx.wizard.cursor]
+
+        console.log('🔍 [AI REELS] Next step info:', {
+          telegramId,
+          hasNextStep: !!nextStep,
+          isFunction: typeof nextStep === 'function',
+          nextStepType: typeof nextStep,
+          cursor: ctx.wizard.cursor,
+        })
+
         if (nextStep && typeof nextStep === 'function') {
-          console.log('🔄 [AI REELS] Manually executing Step 4...', {
+          console.log('✅ [AI REELS] Manually executing Step 4...', {
             telegramId,
             cursor: ctx.wizard.cursor,
           })
@@ -1244,13 +1334,31 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           console.error('❌ [AI REELS] Step 4 not found!', {
             telegramId,
             cursor: ctx.wizard.cursor,
-            totalSteps: ctx.wizard.steps.length,
+            totalSteps: (ctx.wizard as any).steps.length,
+            allSteps: (ctx.wizard as any).steps.map((s: any, i: number) => ({
+              index: i,
+              type: typeof s,
+              isFunction: typeof s === 'function',
+            })),
           })
           return ctx.scene.leave()
         }
       } catch (wan25Error) {
+        // 🔥 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ОШИБКИ WAN 2.5
+        console.error('❌ [AI REELS WAN 2.5] ERROR CAUGHT:', {
+          error: wan25Error,
+          errorMessage:
+            wan25Error instanceof Error ? wan25Error.message : String(wan25Error),
+          errorStack: wan25Error instanceof Error ? wan25Error.stack : undefined,
+          errorName: wan25Error instanceof Error ? wan25Error.name : typeof wan25Error,
+          telegramId,
+          taskId: ctx.session?.aiReels?.wan25TaskId,
+        })
+
         logger.error('❌ [AI REELS] Ошибка генерации WAN 2.5', {
           error: wan25Error,
+          errorMessage:
+            wan25Error instanceof Error ? wan25Error.message : String(wan25Error),
         })
 
         // Проверяем, является ли это timeout ошибкой
@@ -1311,6 +1419,15 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
+    console.log('🚀🚀🚀 [AI REELS] STEP 4 ENTRY POINT', {
+      telegramId,
+      hasSession: !!ctx.session,
+      hasAiReels: !!ctx.session?.aiReels,
+      firstVideoUrl: ctx.session?.aiReels?.firstVideoUrl?.substring(0, 100),
+      secondVideoUrl: ctx.session?.aiReels?.secondVideoUrl?.substring(0, 100),
+      step: ctx.session?.aiReels?.step,
+    })
+
     logger.info('🎬 [AI REELS WIZARD] Step 4 STARTED - Склеивание видео', {
       telegramId,
       function: 'aiReelsWizard.step4',
@@ -1321,6 +1438,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       !ctx.session.aiReels?.firstVideoUrl ||
       !ctx.session.aiReels?.secondVideoUrl
     ) {
+      console.log('❌❌❌ [AI REELS] Step 4 VALIDATION FAILED:', {
+        hasTelegramId: !!telegramId,
+        hasFirstVideoUrl: !!ctx.session?.aiReels?.firstVideoUrl,
+        hasSecondVideoUrl: !!ctx.session?.aiReels?.secondVideoUrl,
+        sessionData: JSON.stringify(ctx.session?.aiReels || {}),
+      })
+
       await ctx.reply(
         isRu
           ? '❌ Ошибка: не найдены URL обоих видео. Проверьте предыдущие шаги.'
@@ -1376,33 +1500,28 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           0
         )
 
-        logger.info('🎬 [AI REELS] Видео склеено, загружаем результат', {
+        const finalVideoStats = await fs.stat(finalVideoPath)
+        logger.info('🎬 [AI REELS] Видео склеено, отправляем файл напрямую', {
           telegramId,
-          finalVideoSize: (await fs.stat(finalVideoPath)).size,
+          finalVideoSize: finalVideoStats.size,
+          finalVideoPath,
         })
 
-        // Загружаем склеенное видео в Supabase Storage
-        const finalVideoUrl = await uploadVideoToSupabase(
-          finalVideoPath,
-          `ai-reels-final-${telegramId}-${Date.now()}.mp4`,
-          telegramId
-        )
-
-        // Сохраняем финальный URL
+        // Обновляем сессию
         ctx.session.aiReels = {
           ...ctx.session.aiReels,
-          finalVideoUrl,
           step: 'completed' as any,
         }
 
-        logger.info('📤 [AI REELS] Отправляем финальное видео пользователю', {
+        logger.info('📤 [AI REELS] Отправляем финальное видео напрямую (без Supabase)', {
           telegramId,
-          finalVideoUrl: finalVideoUrl.substring(0, 100),
+          fileSize: finalVideoStats.size,
         })
 
-        // ✅ ОТПРАВЛЯЕМ ВИДЕО ФАЙЛОМ (без упоминания моделей и промежуточных URL)
+        // ✅ ОТПРАВЛЯЕМ ФАЙЛ НАПРЯМУЮ из локального хранилища
+        const { createReadStream } = await import('fs')
         await ctx.replyWithVideo(
-          { url: finalVideoUrl },
+          { source: createReadStream(finalVideoPath) as any },
           {
             caption: isRu
               ? `🎬 Ваш AI Reels готов!\n\n✨ Приятного просмотра!`
@@ -1422,7 +1541,6 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         logger.info('🎉 [AI REELS] Финальный ролик готов', {
           telegramId,
-          finalVideoUrl,
           processingTime:
             Date.now() - (ctx.session.aiReels?.startTime || Date.now()),
         })
@@ -1461,358 +1579,3 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-// Реальные функции для работы с WAN 2.5 API
-
-/**
- * Создает задачу в WAN 2.5 API
- */
-async function createWAN25Task(
-  request: WAN25CreateTaskRequest
-): Promise<WAN25TaskResponse> {
-  const { KIE_AI_API_KEY } = await import('@/config')
-
-  if (!KIE_AI_API_KEY) {
-    throw new Error('KIE_AI_API_KEY not configured')
-  }
-
-  const url = `${WAN25_API_CONFIG.BASE_URL}${WAN25_API_CONFIG.ENDPOINTS.CREATE_TASK}`
-
-  logger.info('🔥 [WAN 2.5 API] Создание задачи', {
-    url,
-    model: request.model,
-    duration: request.input.duration,
-    resolution: request.input.resolution,
-  })
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      ...WAN25_API_CONFIG.HEADERS,
-      Authorization: `Bearer ${KIE_AI_API_KEY}`,
-    },
-    body: JSON.stringify(request),
-    signal: AbortSignal.timeout(WAN25_API_CONFIG.TIMEOUT.CREATE_TASK),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    logger.error('❌ [WAN 2.5 API] Ошибка создания задачи', {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorText,
-    })
-    throw new Error(
-      `WAN 2.5 API error: ${response.status} ${response.statusText}`
-    )
-  }
-
-  const result = await response.json()
-  logger.info('✅ [WAN 2.5 API] Задача создана', {
-    taskId: result.data?.taskId,
-  })
-
-  return result
-}
-
-/**
- * Проверяет статус задачи WAN 2.5
- */
-async function checkWAN25TaskStatus(
-  taskId: string
-): Promise<WAN25StatusResponse> {
-  const { KIE_AI_API_KEY } = await import('@/config')
-
-  if (!KIE_AI_API_KEY) {
-    throw new Error('KIE_AI_API_KEY not configured')
-  }
-
-  const url = `${WAN25_API_CONFIG.BASE_URL}${WAN25_API_CONFIG.ENDPOINTS.TASK_STATUS}?taskId=${taskId}`
-
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${KIE_AI_API_KEY}`,
-    },
-    signal: AbortSignal.timeout(WAN25_API_CONFIG.TIMEOUT.STATUS_CHECK),
-  })
-
-  if (!response.ok) {
-    throw new Error(
-      `WAN 2.5 status check error: ${response.status} ${response.statusText}`
-    )
-  }
-
-  return response.json()
-}
-
-/**
- * Ожидает завершения задачи WAN 2.5 с polling
- */
-async function waitForWAN25Task(
-  taskId: string,
-  maxWaitTimeMs: number = 120000
-): Promise<string> {
-  const startTime = Date.now()
-  const pollInterval = WAN25_API_CONFIG.TIMEOUT.POLL_INTERVAL
-
-  logger.info('⏳ [WAN 2.5 API] Начинаем ожидание результата', {
-    taskId,
-    maxWaitTimeMs,
-    pollInterval,
-  })
-
-  while (Date.now() - startTime < maxWaitTimeMs) {
-    try {
-      const status = await checkWAN25TaskStatus(taskId)
-
-      logger.info('🔍 [WAN 2.5 API] Проверка статуса', {
-        taskId,
-        state: status.data.state,
-        elapsedTime: Date.now() - startTime,
-      })
-
-      if (status.code === 200 && status.data.state === 'success') {
-        const resultJson = status.data.resultJson
-          ? JSON.parse(status.data.resultJson)
-          : {}
-        const videoUrl = resultJson.resultUrls?.[0] || ''
-
-        if (videoUrl) {
-          logger.info('✅ [WAN 2.5 API] Задача завершена успешно', {
-            taskId,
-            videoUrl: videoUrl.substring(0, 100),
-            totalTime: Date.now() - startTime,
-            consumeCredits: status.data.consumeCredits,
-          })
-          return videoUrl
-        } else {
-          throw new Error('WAN 2.5 task completed but no video URL in result')
-        }
-      }
-
-      if (status.data.state === 'fail') {
-        logger.error('❌ [WAN 2.5 API] Задача завершилась с ошибкой', {
-          taskId,
-          failMsg: status.data.failMsg,
-        })
-        throw new Error(
-          `WAN 2.5 task failed: ${status.data.failMsg || 'Unknown error'}`
-        )
-      }
-
-      // Если задача все еще обрабатывается, ждем
-      if (status.data.state === 'processing') {
-        await new Promise(resolve => setTimeout(resolve, pollInterval))
-        continue
-      }
-
-      // Неизвестное состояние
-      logger.warn('⚠️ [WAN 2.5 API] Неизвестное состояние задачи', {
-        taskId,
-        state: status.data.state,
-        response: status,
-      })
-    } catch (pollError) {
-      logger.error('❌ [WAN 2.5 API] Ошибка при проверке статуса', {
-        taskId,
-        error: pollError,
-        elapsedTime: Date.now() - startTime,
-      })
-
-      // Если это последняя попытка, выбрасываем ошибку
-      if (Date.now() - startTime + pollInterval >= maxWaitTimeMs) {
-        throw pollError
-      }
-
-      // Иначе ждем и пробуем снова
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
-    }
-  }
-
-  logger.error('⏱️ [WAN 2.5 API] Timeout ожидания результата', {
-    taskId,
-    maxWaitTimeMs,
-    elapsedTime: Date.now() - startTime,
-  })
-
-  throw new Error(`WAN 2.5 task timeout after ${maxWaitTimeMs}ms`)
-}
-
-/**
- * Загружает видео файл в Supabase Storage и возвращает публичный URL
- */
-async function uploadVideoToSupabase(
-  videoFilePath: string,
-  fileName: string,
-  telegramId: string
-): Promise<string> {
-  const { createClient } = await import('@supabase/supabase-js')
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Supabase configuration not found')
-  }
-
-  const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
-  logger.info('☁️ [SUPABASE] Загружаем видео', {
-    fileName,
-    telegramId,
-    videoSize: (await fs.stat(videoFilePath)).size,
-  })
-
-  // Читаем файл
-  const videoBuffer = await fs.readFile(videoFilePath)
-
-  // Путь в storage
-  const storagePath = `ai-reels-videos/${telegramId}/${fileName}`
-
-  // Загружаем в Supabase Storage
-  const { error: uploadError } = await serviceClient.storage
-    .from('images') // используем существующий bucket 'images'
-    .upload(storagePath, videoBuffer, {
-      contentType: 'video/mp4',
-      upsert: false,
-    })
-
-  if (uploadError) {
-    logger.error('❌ [SUPABASE] Ошибка загрузки видео', {
-      error: uploadError,
-      fileName,
-      storagePath,
-    })
-    throw new Error(`Supabase upload failed: ${uploadError.message}`)
-  }
-
-  // Получаем публичный URL
-  const { data: urlData } = serviceClient.storage
-    .from('images')
-    .getPublicUrl(storagePath)
-
-  const publicUrl = urlData.publicUrl
-
-  logger.info('✅ [SUPABASE] Видео загружено', {
-    fileName,
-    publicUrl: publicUrl.substring(0, 100),
-    storagePath,
-  })
-
-  // Опционально: сохраняем информацию о видео в таблицу assets
-  try {
-    const { saveVideoUrlToSupabase } = await import(
-      '@/core/supabase/saveVideoUrlToSupabase'
-    )
-    await saveVideoUrlToSupabase(
-      telegramId,
-      publicUrl,
-      storagePath,
-      'ai_reels_final'
-    )
-  } catch (saveError) {
-    logger.warn(
-      '⚠️ [SUPABASE] Не удалось сохранить информацию в таблицу assets',
-      {
-        error: saveError,
-      }
-    )
-    // Не критично, продолжаем
-  }
-
-  return publicUrl
-}
-
-// ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ДЛЯ ФОТО ВНЕ WIZARD STEPS
-aiReelsWizard.on('photo', async ctx => {
-  const isRu = isRussianFromState(ctx)
-  const telegramId = ctx.from?.id?.toString()
-
-  logger.info('📸 [AI REELS WIZARD] Photo received outside wizard steps', {
-    telegramId,
-    hasPhoto: !!ctx.message?.photo,
-    photoCount: ctx.message?.photo?.length || 0,
-  })
-
-  // Проверяем, находимся ли мы в правильном шаге
-  if (ctx.wizard?.cursor !== 1) {
-    await ctx.reply(
-      isRu
-        ? '❌ Пожалуйста, следуйте инструкциям. Отправьте фото в правильном порядке.'
-        : '❌ Please follow the instructions. Send photo in the correct order.'
-    )
-    return
-  }
-
-  // Обрабатываем фото как в Step 1
-  try {
-    const photo = ctx.message?.photo?.[ctx.message.photo.length - 1]
-    if (!photo) {
-      await ctx.reply(
-        isRu ? '❌ Ошибка: фото не найдено' : '❌ Error: photo not found'
-      )
-      return
-    }
-
-    const fileLink = await ctx.telegram.getFileLink(photo.file_id)
-    const response = await fetch(fileLink.href)
-
-    if (!response.ok) {
-      throw new Error(`Failed to download photo: ${response.statusText}`)
-    }
-
-    const imageBuffer = Buffer.from(await response.arrayBuffer())
-
-    // Загружаем в Supabase Storage
-    const { createClient } = await import('@supabase/supabase-js')
-    const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
-
-    const serviceClient = createClient(
-      SUPABASE_URL!,
-      SUPABASE_SERVICE_ROLE_KEY!
-    )
-    const fileName = `ai-reels/${telegramId}/${Date.now()}.jpg`
-
-    const { error: uploadError } = await serviceClient.storage
-      .from('images')
-      .upload(fileName, imageBuffer, {
-        contentType: 'image/jpeg',
-        upsert: false,
-      })
-
-    if (uploadError) {
-      throw new Error(`Upload failed: ${uploadError.message}`)
-    }
-
-    const { data: urlData } = serviceClient.storage
-      .from('images')
-      .getPublicUrl(fileName)
-    const imageUrl = urlData.publicUrl
-
-    // Сохраняем в сессию
-    ctx.session.aiReels = {
-      ...ctx.session.aiReels,
-      imageUrl,
-      step: 'text',
-    }
-
-    await ctx.reply(
-      isRu
-        ? '✅ Фото загружено! Теперь отправьте текст для lip-sync видео или голосовое сообщение.'
-        : '✅ Photo uploaded! Now send text for lip-sync video or voice message.'
-    )
-
-    // Переходим к следующему шагу
-    return ctx.wizard.next()
-  } catch (error) {
-    logger.error('❌ [AI REELS WIZARD] Error processing photo', {
-      error: error instanceof Error ? error.message : String(error),
-      telegramId,
-    })
-
-    await ctx.reply(
-      isRu
-        ? '❌ Ошибка обработки фото. Попробуйте еще раз.'
-        : '❌ Error processing photo. Try again.'
-    )
-  }
-})
-
-export default aiReelsWizard
