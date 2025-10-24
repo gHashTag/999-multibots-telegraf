@@ -125,6 +125,8 @@ export const {
   ROBOKASSA_PASSWORD_2,
   SERVER_API_URL,
   USE_PRODUCTION_API,
+  REPLICATE_API_TOKEN, // ✅ LOCAL TRAINING: Replicate API token
+  REPLICATE_USERNAME, // ✅ LOCAL TRAINING: Replicate username
 } = process.env
 
 // API_URL для AI сервера - логика переключения между локальным и продакшн сервером

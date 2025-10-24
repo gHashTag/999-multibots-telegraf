@@ -247,8 +247,8 @@ export const WAN25_API_CONFIG = {
   TIMEOUT: {
     CREATE_TASK: 30000, // 30 секунд
     STATUS_CHECK: 10000, // 10 секунд
-    MAX_WAIT_TIME: 180000, // 3 минуты максимальное ожидание
-    POLL_INTERVAL: 5000, // проверяем статус каждые 5 секунд
+    MAX_WAIT_TIME: 600000, // 10 минут максимальное ожидание (WAN 2.5 медленная)
+    POLL_INTERVAL: 30000, // проверяем статус каждые 30 секунд
   },
   HEADERS: {
     'Content-Type': 'application/json',

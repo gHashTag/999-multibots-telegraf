@@ -3,6 +3,7 @@ import { MyContext } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
 import { createModelTraining } from '@/services/createModelTraining'
+import { createModelTrainingLocal } from '@/services/createModelTrainingLocal' // ✅ LOCAL training
 import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
 import { sendGenericErrorMessage } from '@/menu'
@@ -59,11 +60,14 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     await ctx.reply(
       isRu
-        ? `⏳ Начинаю обучение модели...\n\nВаша модель будет натренирована через 1-2 часа. После завершения вы сможете проверить её работу, используя раздел "Модели" в Нейрофото.`
-        : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
+        ? `⏳ Начинаю обучение модели на bot-farm...\n\nВаша модель будет натренирована через 1-2 часа. После завершения вы сможете проверить её работу, используя раздел "Модели" в Нейрофото.`
+        : `⏳ Starting model training on bot-farm...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
     )
 
-    await createModelTraining(
+    // ✅ ИСПРАВЛЕНИЕ: Используем локальную тренировку вместо внешнего AI-сервера
+    console.log('[uploadTrainFluxModelScene] Using LOCAL training (bot-farm)')
+
+    const response = await createModelTrainingLocal(
       {
         filePath: zipPath,
         triggerWord,
@@ -75,6 +79,14 @@ uploadTrainFluxModelScene.enter(async ctx => {
         gender: gender,
       },
       ctx
+    )
+
+    console.log('[uploadTrainFluxModelScene] Training response:', response)
+
+    await ctx.reply(
+      isRu
+        ? `✅ Тренировка запущена на bot-farm!\n\nID модели: ${response.model_id}\nID тренировки: ${response.training_id}`
+        : `✅ Training started on bot-farm!\n\nModel ID: ${response.model_id}\nTraining ID: ${response.training_id}`
     )
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)
