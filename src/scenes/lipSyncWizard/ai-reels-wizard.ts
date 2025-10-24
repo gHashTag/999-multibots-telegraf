@@ -982,8 +982,25 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           currentStep: ctx.wizard?.cursor,
         })
 
-        // ✅ ПЕРЕХОДИМ К STEP 3 (WAN 2.5 генерация)
-        return ctx.wizard.next()
+        // ✅ ПЕРЕХОДИМ К STEP 3 (WAN 2.5 генерация) и ВЫЗЫВАЕМ его вручную
+        await ctx.wizard.next()
+
+        // Вручную вызываем следующий step
+        const nextStep = ctx.wizard.steps[ctx.wizard.cursor]
+        if (nextStep && typeof nextStep === 'function') {
+          console.log('🔄 [AI REELS] Manually executing Step 3...', {
+            telegramId,
+            cursor: ctx.wizard.cursor,
+          })
+          return await nextStep(ctx)
+        } else {
+          console.error('❌ [AI REELS] Next step not found!', {
+            telegramId,
+            cursor: ctx.wizard.cursor,
+            totalSteps: ctx.wizard.steps.length,
+          })
+          return ctx.scene.leave()
+        }
       } catch (genError) {
         // ✅ УЛУЧШЕНО: Детальное логирование с полной информацией об ошибке
         logger.error(
@@ -1212,8 +1229,25 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             : `3️⃣ Merging two videos into final reel...\n⏳ This will take 30-45 seconds...`
         )
 
-        // Переходим к следующему шагу (склеивание)
-        return ctx.wizard.next()
+        // Переходим к следующему шагу (склеивание) и ВЫЗЫВАЕМ его вручную
+        await ctx.wizard.next()
+
+        // Вручную вызываем следующий step
+        const nextStep = ctx.wizard.steps[ctx.wizard.cursor]
+        if (nextStep && typeof nextStep === 'function') {
+          console.log('🔄 [AI REELS] Manually executing Step 4...', {
+            telegramId,
+            cursor: ctx.wizard.cursor,
+          })
+          return await nextStep(ctx)
+        } else {
+          console.error('❌ [AI REELS] Step 4 not found!', {
+            telegramId,
+            cursor: ctx.wizard.cursor,
+            totalSteps: ctx.wizard.steps.length,
+          })
+          return ctx.scene.leave()
+        }
       } catch (wan25Error) {
         logger.error('❌ [AI REELS] Ошибка генерации WAN 2.5', {
           error: wan25Error,
