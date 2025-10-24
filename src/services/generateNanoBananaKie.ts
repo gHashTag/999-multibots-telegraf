@@ -222,7 +222,9 @@ export async function generateNanoBananaKie({
 Проверьте логи для деталей.`
 
       for (const adminId of adminIds) {
-        await ctx.telegram.sendMessage(adminId, adminMessage).catch(err => {
+        await ctx.telegram.sendMessage(adminId, adminMessage, {
+          parse_mode: undefined // ✅ Отключаем парсинг для технических сообщений с промптами
+        }).catch(err => {
           // Only log errors that aren't "chat not found" (invalid admin IDs)
           if (!err.message?.includes('chat not found')) {
             console.error('Failed to notify admin:', err)
