@@ -7,10 +7,10 @@ const http = require('http')
 const assetUrls = [
   // Изображение из AI Reels
   'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/ai-reels/144022504/1761213029431.jpg',
-  
+
   // Аудио из AI Reels
   'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/ai-reels-generated-audio/144022504/1761213041375.mp3',
-  
+
   // Дополнительные файлы из логов
   'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/ai-reels-images/144022504/1',
   'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/lipsync-images/144022504/1760511204459.jpg',
@@ -30,35 +30,41 @@ console.log(`📁 Папка для сохранения: ${assetsDir}`)
 function downloadFile(url, filename) {
   return new Promise((resolve, reject) => {
     const protocol = url.startsWith('https:') ? https : http
-    
+
     console.log(`🔍 Пытаемся скачать: ${url}`)
-    
-    protocol.get(url, (response) => {
-      if (response.statusCode === 200) {
-        const filePath = path.join(assetsDir, filename)
-        const fileStream = fs.createWriteStream(filePath)
-        
-        response.pipe(fileStream)
-        
-        fileStream.on('finish', () => {
-          fileStream.close()
-          console.log(`✅ Скачан: ${filename} (${response.headers['content-length'] || 'unknown'} bytes)`)
-          resolve(filePath)
-        })
-        
-        fileStream.on('error', (err) => {
-          console.error(`❌ Ошибка записи файла ${filename}:`, err.message)
-          reject(err)
-        })
-      } else {
-        console.error(`❌ Ошибка скачивания ${filename}: HTTP ${response.statusCode}`)
-        console.error(`   URL: ${url}`)
-        reject(new Error(`HTTP ${response.statusCode}`))
-      }
-    }).on('error', (err) => {
-      console.error(`❌ Ошибка запроса ${filename}:`, err.message)
-      reject(err)
-    })
+
+    protocol
+      .get(url, response => {
+        if (response.statusCode === 200) {
+          const filePath = path.join(assetsDir, filename)
+          const fileStream = fs.createWriteStream(filePath)
+
+          response.pipe(fileStream)
+
+          fileStream.on('finish', () => {
+            fileStream.close()
+            console.log(
+              `✅ Скачан: ${filename} (${response.headers['content-length'] || 'unknown'} bytes)`
+            )
+            resolve(filePath)
+          })
+
+          fileStream.on('error', err => {
+            console.error(`❌ Ошибка записи файла ${filename}:`, err.message)
+            reject(err)
+          })
+        } else {
+          console.error(
+            `❌ Ошибка скачивания ${filename}: HTTP ${response.statusCode}`
+          )
+          console.error(`   URL: ${url}`)
+          reject(new Error(`HTTP ${response.statusCode}`))
+        }
+      })
+      .on('error', err => {
+        console.error(`❌ Ошибка запроса ${filename}:`, err.message)
+        reject(err)
+      })
   })
 }
 
@@ -68,17 +74,17 @@ async function downloadAll() {
     const url = assetUrls[i]
     const urlParts = url.split('/')
     const filename = urlParts[urlParts.length - 1] || `asset_${i + 1}`
-    
+
     try {
       await downloadFile(url, filename)
     } catch (error) {
       console.error(`❌ Не удалось скачать ${url}:`, error.message)
     }
   }
-  
+
   console.log('🎉 Скачивание завершено!')
   console.log(`📁 Все файлы сохранены в: ${path.resolve(assetsDir)}`)
-  
+
   // Показываем содержимое папки
   try {
     const files = fs.readdirSync(assetsDir)

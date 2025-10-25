@@ -38,7 +38,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
 
-  // Step 2: Handle Gender Selection & Ask for Images
+  // Step 2: Handle Gender Selection & Ask for Model Name
   async ctx => {
     const isRu = isRussian(ctx)
     let gender: string | null = null
@@ -137,72 +137,88 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       )
     }
 
-    if (!username) {
-      console.error(
-        '[trainFluxModelWizard] CRITICAL: Username is still missing after checks at step 2.'
-      )
+    // ✅ Спрашиваем название модели для Нейрофото
+    await ctx.reply(
+      isRu
+        ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n📝 Теперь введите название для вашей модели.\n\nЭто название будет отображаться в разделе "Модели" в Нейрофото.\n\nНапример: "Мой аватар", "Персонаж для видео", "Модель для работы" и т.д.`
+        : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} saved.\n\n📝 Now enter a name for your model.\n\nThis name will be displayed in the "Models" section in Neurophoto.\n\nFor example: "My Avatar", "Video Character", "Work Model", etc.`
+    )
+
+    return ctx.wizard.next()
+  },
+
+  // Step 3: Handle Model Name Input & Ask for Images
+  async ctx => {
+    const isRu = isRussian(ctx)
+
+    if (!ctx.message || !('text' in ctx.message)) {
       await ctx.reply(
         isRu
-          ? '❌ Ошибка сессии. Не найдено имя пользователя.'
-          : '❌ Session error. Username not found.'
+          ? '⚠️ Пожалуйста, введите название модели текстом.'
+          : '⚠️ Please enter the model name as text.'
       )
-      return ctx.scene.leave()
+      return
     }
 
+    const modelNameInput = ctx.message.text.trim()
+
+    if (!modelNameInput || modelNameInput.length < 2) {
+      await ctx.reply(
+        isRu
+          ? '⚠️ Название модели слишком короткое. Введите минимум 2 символа.'
+          : '⚠️ Model name too short. Enter at least 2 characters.'
+      )
+      return
+    }
+
+    if (modelNameInput.length > 50) {
+      await ctx.reply(
+        isRu
+          ? '⚠️ Название модели слишком длинное. Максимум 50 символов.'
+          : '⚠️ Model name too long. Maximum 50 characters.'
+      )
+      return
+    }
+
+    // Создаем безопасное название для файлов (убираем спецсимволы)
+    const safeModelName = modelNameInput
+      .toLowerCase()
+      .replace(/[^a-zа-я0-9_-]/gi, '_')
+      .substring(0, 30)
+
+    ctx.session.modelName = modelNameInput // Читаемое название для пользователя
+    ctx.session.triggerWord = safeModelName.toUpperCase() // Trigger word для Replicate
     ctx.session.images = []
-    ctx.session.modelName = `${username.toLowerCase()}`
-    ctx.session.triggerWord = `${username.toLowerCase()}`
+
+    console.log(`[trainFluxModelWizard] Model name set: "${modelNameInput}" (safe: "${safeModelName}")`)
 
     const replyMessage = isRu
-      ? `✅ Пол ${
-          gender === GENDER_MALE ? 'Мужской' : 'Женский'
-        } сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+      ? `✅ Название модели: "${modelNameInput}"\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
    - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Gender ${
-          gender === GENDER_MALE ? 'Male' : 'Female'
-        } saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+      : `✅ Model name: "${modelNameInput}"\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
    - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
    - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
    - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
    - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
 
-    const fullReplyMessage = isRu
-      ? `✅ Пол ${
-          gender === GENDER_MALE ? 'Мужской' : 'Женский'
-        } сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
-   - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
-   - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
-   - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
-   - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
-   - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
-   - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Gender ${
-          gender === GENDER_MALE ? 'Male' : 'Female'
-        } saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
-   - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
-   - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
-   - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
-   - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
-   - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
-
-    await ctx.reply(fullReplyMessage, {
+    await ctx.reply(replyMessage, {
       ...Markup.keyboard([
         [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
       ]).resize(),
       parse_mode: 'HTML',
     })
 
-    console.log('Proceeding to image upload step (Step 3)')
+    console.log('Proceeding to image upload step (Step 4)')
     return ctx.wizard.next()
   },
 
-  // Step 3: Handle Image Collection (Original Step 2)
+  // Step 4: Handle Image Collection
   async ctx => {
     console.log('Scene: IMAGES')
     const isRu = isRussian(ctx)

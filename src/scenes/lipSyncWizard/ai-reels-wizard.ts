@@ -1291,58 +1291,6 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
               : `🎬 Intermediate result - WAN v2.2-5b video (9:16)`,
           }
         )
-
-        await ctx.reply(
-          isRu
-            ? `3️⃣ Склеиваем два видео в финальный ролик...\n⏳ Это займет 30-45 секунд...`
-            : `3️⃣ Merging two videos into final reel...\n⏳ This will take 30-45 seconds...`
-        )
-
-        // Переходим к следующему шагу (склеивание) и ВЫЗЫВАЕМ его вручную
-        console.log('🔄 [AI REELS] Before ctx.wizard.next():', {
-          telegramId,
-          currentCursor: ctx.wizard.cursor,
-          totalSteps: (ctx.wizard as any).steps.length,
-        })
-
-        await ctx.wizard.next()
-
-        console.log('🔄 [AI REELS] After ctx.wizard.next():', {
-          telegramId,
-          newCursor: ctx.wizard.cursor,
-          totalSteps: (ctx.wizard as any).steps.length,
-        })
-
-        // Вручную вызываем следующий step
-        const nextStep = (ctx.wizard as any).steps[ctx.wizard.cursor]
-
-        console.log('🔍 [AI REELS] Next step info:', {
-          telegramId,
-          hasNextStep: !!nextStep,
-          isFunction: typeof nextStep === 'function',
-          nextStepType: typeof nextStep,
-          cursor: ctx.wizard.cursor,
-        })
-
-        if (nextStep && typeof nextStep === 'function') {
-          console.log('✅ [AI REELS] Manually executing Step 4...', {
-            telegramId,
-            cursor: ctx.wizard.cursor,
-          })
-          return await nextStep(ctx)
-        } else {
-          console.error('❌ [AI REELS] Step 4 not found!', {
-            telegramId,
-            cursor: ctx.wizard.cursor,
-            totalSteps: (ctx.wizard as any).steps.length,
-            allSteps: (ctx.wizard as any).steps.map((s: any, i: number) => ({
-              index: i,
-              type: typeof s,
-              isFunction: typeof s === 'function',
-            })),
-          })
-          return ctx.scene.leave()
-        }
       } catch (wan25Error) {
         // 🔥 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ОШИБКИ WAN 2.5
         console.error('❌ [AI REELS WAN 2.5] ERROR CAUGHT:', {
@@ -1391,13 +1339,73 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         return ctx.scene.leave()
       }
-    } catch (error) {
-      logger.error('❌ [AI REELS] Ошибка генерации WAN 2.5 видео', { error })
+
+      // ✅ WAN v2.2-5b генерация завершена успешно, переходим к склеиванию
+      // Выносим Step 4 invocation ВНЕ try-catch блока WAN 2.5, чтобы ошибки Step 4
+      // не ловились как ошибки WAN 2.5
 
       await ctx.reply(
         isRu
-          ? '❌ Ошибка генерации второго видео. Но первое видео готово!'
-          : '❌ Error generating second video. But first video is ready!'
+          ? `3️⃣ Склеиваем два видео в финальный ролик...\n⏳ Это займет 30-45 секунд...`
+          : `3️⃣ Merging two videos into final reel...\n⏳ This will take 30-45 seconds...`
+      )
+
+      // Переходим к следующему шагу (склеивание) и ВЫЗЫВАЕМ его вручную
+      console.log('🔄 [AI REELS] Before ctx.wizard.next():', {
+        telegramId,
+        currentCursor: ctx.wizard.cursor,
+        totalSteps: (ctx.wizard as any).steps.length,
+      })
+
+      await ctx.wizard.next()
+
+      console.log('🔄 [AI REELS] After ctx.wizard.next():', {
+        telegramId,
+        newCursor: ctx.wizard.cursor,
+        totalSteps: (ctx.wizard as any).steps.length,
+      })
+
+      // Вручную вызываем следующий step
+      const nextStep = (ctx.wizard as any).steps[ctx.wizard.cursor]
+
+      console.log('🔍 [AI REELS] Next step info:', {
+        telegramId,
+        hasNextStep: !!nextStep,
+        isFunction: typeof nextStep === 'function',
+        nextStepType: typeof nextStep,
+        cursor: ctx.wizard.cursor,
+      })
+
+      if (nextStep && typeof nextStep === 'function') {
+        console.log('✅ [AI REELS] Manually executing Step 4...', {
+          telegramId,
+          cursor: ctx.wizard.cursor,
+        })
+        return await nextStep(ctx)
+      } else {
+        console.error('❌ [AI REELS] Step 4 not found!', {
+          telegramId,
+          cursor: ctx.wizard.cursor,
+          totalSteps: (ctx.wizard as any).steps.length,
+          allSteps: (ctx.wizard as any).steps.map((s: any, i: number) => ({
+            index: i,
+            type: typeof s,
+            isFunction: typeof s === 'function',
+          })),
+        })
+        return ctx.scene.leave()
+      }
+    } catch (error) {
+      logger.error('❌ [AI REELS] Ошибка в Step 3 (WAN 2.5 или склеивание)', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      })
+
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при обработке видео. Но первое видео готово!'
+          : '❌ Error occurred while processing video. But first video is ready!'
       )
 
       // ✅ Отправляем первое видео (lip-sync) файлом
@@ -1416,8 +1424,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
   // Step 4: Склеивание двух видео
   async ctx => {
+    console.log('🔥🔥🔥 [AI REELS STEP 4] Line 1: Function started')
+
     const isRu = isRussianFromState(ctx)
+    console.log('🔥 [AI REELS STEP 4] Line 2: isRu =', isRu)
+
     const telegramId = ctx.from?.id?.toString()
+    console.log('🔥 [AI REELS STEP 4] Line 3: telegramId =', telegramId)
 
     console.log('🚀🚀🚀 [AI REELS] STEP 4 ENTRY POINT', {
       telegramId,
@@ -1428,9 +1441,19 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       step: ctx.session?.aiReels?.step,
     })
 
+    console.log('🔥 [AI REELS STEP 4] Line 4: About to call logger.info')
+
     logger.info('🎬 [AI REELS WIZARD] Step 4 STARTED - Склеивание видео', {
       telegramId,
       function: 'aiReelsWizard.step4',
+    })
+
+    console.log('🔥 [AI REELS STEP 4] Line 5: logger.info completed')
+
+    console.log('🔥 [AI REELS STEP 4] Line 6: Checking validation', {
+      hasTelegramId: !!telegramId,
+      hasFirstVideoUrl: !!ctx.session?.aiReels?.firstVideoUrl,
+      hasSecondVideoUrl: !!ctx.session?.aiReels?.secondVideoUrl,
     })
 
     if (
@@ -1453,9 +1476,20 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    console.log('✅✅✅ [AI REELS STEP 4] Line 7: Validation PASSED!')
+
     try {
+      console.log('🔥 [AI REELS STEP 4] Line 8: Extracting URLs from session')
+
       const firstVideoUrl = ctx.session.aiReels.firstVideoUrl
       const secondVideoUrl = ctx.session.aiReels.secondVideoUrl
+
+      console.log('🔥 [AI REELS STEP 4] Line 9: URLs extracted', {
+        firstVideoUrl: firstVideoUrl.substring(0, 50),
+        secondVideoUrl: secondVideoUrl.substring(0, 50),
+      })
+
+      console.log('🔥 [AI REELS STEP 4] Line 10: About to call logger.info for merging')
 
       logger.info('🔗 [AI REELS] Начинаем склеивание видео', {
         telegramId,
@@ -1463,34 +1497,67 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         secondVideoUrl: secondVideoUrl.substring(0, 100),
       })
 
+      console.log('🔥 [AI REELS STEP 4] Line 11: logger.info completed')
+
       // Создаем временную директорию для работы с видео
+      console.log('🔥 [AI REELS STEP 4] Line 12: Creating temp directory...')
+
       const tempDir = path.join(
         os.tmpdir(),
         `ai-reels-${telegramId}-${Date.now()}`
       )
+
+      console.log('🔥 [AI REELS STEP 4] Line 13: Temp dir path =', tempDir)
+
       await fs.mkdir(tempDir, { recursive: true })
 
+      console.log('🔥 [AI REELS STEP 4] Line 14: Temp dir created successfully')
+
       try {
+        console.log('🔥 [AI REELS STEP 4] Line 15: Defining video paths...')
+
         // Скачиваем оба видео
         const firstVideoPath = path.join(tempDir, 'first-video.mp4')
         const secondVideoPath = path.join(tempDir, 'second-video.mp4')
         const finalVideoPath = path.join(tempDir, 'final-reels.mp4')
+
+        console.log('🔥 [AI REELS STEP 4] Line 16: Video paths defined', {
+          firstVideoPath,
+          secondVideoPath,
+          finalVideoPath,
+        })
+
+        console.log('🔥 [AI REELS STEP 4] Line 17: About to download videos...')
 
         logger.info('📥 [AI REELS] Скачиваем видео', {
           telegramId,
           tempDir,
         })
 
+        console.log('🔥 [AI REELS STEP 4] Line 18: Starting Promise.all for downloads...')
+
         await Promise.all([
           downloadFile(firstVideoUrl, firstVideoPath),
           downloadFile(secondVideoUrl, secondVideoPath),
         ])
 
+        console.log('🔥 [AI REELS STEP 4] Line 19: Downloads completed!')
+
+        const firstVideoSize = (await fs.stat(firstVideoPath)).size
+        const secondVideoSize = (await fs.stat(secondVideoPath)).size
+
+        console.log('🔥 [AI REELS STEP 4] Line 20: File sizes checked', {
+          firstVideoSize,
+          secondVideoSize,
+        })
+
         logger.info('✅ [AI REELS] Видео скачаны, начинаем склеивание', {
           telegramId,
-          firstVideoSize: (await fs.stat(firstVideoPath)).size,
-          secondVideoSize: (await fs.stat(secondVideoPath)).size,
+          firstVideoSize,
+          secondVideoSize,
         })
+
+        console.log('🔥 [AI REELS STEP 4] Line 21: About to call combineVideos...')
 
         // Склеиваем видео с помощью FFmpeg
         await combineVideos(
@@ -1499,6 +1566,8 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           'none', // без перехода для простоты
           0
         )
+
+        console.log('🔥 [AI REELS STEP 4] Line 22: combineVideos completed!')
 
         const finalVideoStats = await fs.stat(finalVideoPath)
         logger.info('🎬 [AI REELS] Видео склеено, отправляем файл напрямую', {

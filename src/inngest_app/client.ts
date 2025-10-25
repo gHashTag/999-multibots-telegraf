@@ -33,12 +33,15 @@ export const inngest = new Inngest(config)
 // Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
 // import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
 import { createGenerateAIReelsFunction } from './functions/generateAIReelsFunction'
+import { createGenerateModelTrainingFunction } from './functions/generateModelTrainingFunction'
 
 // ✅ Создаем функции через factory после создания inngest client
 const generateAIReelsFunction = createGenerateAIReelsFunction(inngest)
+const generateModelTrainingFunction = createGenerateModelTrainingFunction(inngest)
 
 // ✅ Список активных Inngest функций
 export const functions = [
   // generateAdvancedLoopingVideoFunction - отключено, используем localMorphingProcessor
   generateAIReelsFunction, // AI Reels с автоматическими retry и webhook уведомлениями
+  generateModelTrainingFunction, // Model Training с Replicate webhook callback
 ]

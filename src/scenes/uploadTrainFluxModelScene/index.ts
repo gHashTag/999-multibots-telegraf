@@ -2,8 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
-import { createModelTraining } from '@/services/createModelTraining'
-import { createModelTrainingLocal } from '@/services/createModelTrainingLocal' // ✅ LOCAL training
+import { createModelTrainingLocal } from '@/services/createModelTrainingLocal' // ✅ Локальная тренировка
 import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
 import { sendGenericErrorMessage } from '@/menu'
@@ -58,14 +57,14 @@ uploadTrainFluxModelScene.enter(async ctx => {
       return ctx.scene.leave()
     }
 
+    // ✅ Локальная тренировка на bot-farm (прямой вызов Replicate API)
+    console.log('[uploadTrainFluxModelScene] Using LOCAL training on bot-farm')
+
     await ctx.reply(
       isRu
-        ? `⏳ Начинаю обучение модели на bot-farm...\n\nВаша модель будет натренирована через 1-2 часа. После завершения вы сможете проверить её работу, используя раздел "Модели" в Нейрофото.`
-        : `⏳ Starting model training on bot-farm...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
+        ? `⏳ Начинаю обучение модели...\n\nВаша модель будет натренирована через 1-2 часа. После завершения вы сможете проверить её работу, используя раздел "Модели" в Нейрофото.`
+        : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
     )
-
-    // ✅ ИСПРАВЛЕНИЕ: Используем локальную тренировку вместо внешнего AI-сервера
-    console.log('[uploadTrainFluxModelScene] Using LOCAL training (bot-farm)')
 
     const response = await createModelTrainingLocal(
       {
@@ -75,7 +74,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
         steps: ctx.session.steps,
         telegram_id: ctx.session.targetUserId.toString(),
         is_ru: isRu,
-        botName: ctx.botInfo?.username,
+        botName: ctx.botInfo?.username || 'unknown',
         gender: gender,
       },
       ctx
@@ -85,8 +84,8 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     await ctx.reply(
       isRu
-        ? `✅ Тренировка запущена на bot-farm!\n\nID модели: ${response.model_id}\nID тренировки: ${response.training_id}`
-        : `✅ Training started on bot-farm!\n\nModel ID: ${response.model_id}\nTraining ID: ${response.training_id}`
+        ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${ctx.session.modelName}\n🆔 ID: ${response.training_id}\n⏱️ Время: ~1-2 часа`
+        : `✅ Model training started!\n\n📦 Model: ${ctx.session.modelName}\n🆔 ID: ${response.training_id}\n⏱️ Time: ~1-2 hours`
     )
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)

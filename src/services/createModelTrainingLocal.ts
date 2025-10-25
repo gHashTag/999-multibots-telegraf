@@ -67,7 +67,7 @@ export async function createModelTrainingLocal(
     const { data: existingTrainings } = await supabase
       .from('model_trainings')
       .select('id, replicate_training_id, status')
-      .eq('user_id', requestData.telegram_id)
+      .eq('telegram_id', requestData.telegram_id) // Используем telegram_id вместо user_id
       .eq('model_name', requestData.modelName)
       .in('status', ['starting', 'processing'])
       .order('created_at', { ascending: false })
@@ -103,16 +103,74 @@ export async function createModelTrainingLocal(
       base64Length: base64Data.length,
     })
 
-    // ✅ STEP 6: Create training on Replicate
+    // ✅ STEP 6: Create or verify Replicate model exists
+    // Replicate требует lowercase название модели
+    const modelNameLower = requestData.modelName.toLowerCase()
+    const destination = `${REPLICATE_USERNAME}/${modelNameLower}`
+
+    logger.info('[LOCAL TRAINING] Checking if model exists...', {
+      destination,
+      originalName: requestData.modelName,
+      lowercaseName: modelNameLower
+    })
+
+    try {
+      // Try to get existing model
+      const existingModel = await replicate.models.get(REPLICATE_USERNAME, modelNameLower)
+      logger.info('[LOCAL TRAINING] Model exists', { url: existingModel.url })
+    } catch (error) {
+      // Model doesn't exist, create it
+      logger.info('[LOCAL TRAINING] Model not found, creating new model...', {
+        username: REPLICATE_USERNAME,
+        modelName: modelNameLower,
+        originalName: requestData.modelName,
+      })
+
+      try {
+        const newModel = await replicate.models.create(
+          REPLICATE_USERNAME,
+          modelNameLower,
+          {
+            description: `LoRA: ${requestData.triggerWord}`,
+            visibility: 'public',
+            hardware: 'gpu-l40s',
+          }
+        )
+        logger.info('[LOCAL TRAINING] ✅ Model created successfully', {
+          url: newModel.url,
+          version: newModel.latest_version?.id,
+        })
+
+        // Wait 5 seconds for model to be fully initialized
+        logger.info('[LOCAL TRAINING] Waiting 5 seconds for model initialization...')
+        await new Promise(resolve => setTimeout(resolve, 5000))
+      } catch (createError) {
+        logger.error('[LOCAL TRAINING] Failed to create model', {
+          error: createError instanceof Error ? createError.message : String(createError),
+        })
+        throw new Error('Failed to create Replicate model')
+      }
+    }
+
+    // ✅ STEP 7: Create training on Replicate
     const model = 'ostris/flux-dev-lora-trainer'
     const version = 'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497'
-    const destination = `${REPLICATE_USERNAME}/${requestData.modelName}`
 
     logger.info('[LOCAL TRAINING] Creating Replicate training...', {
       model,
       version,
       destination,
       steps: requestData.steps,
+    })
+
+    // ✅ Webhook URL для уведомлений о завершении тренировки
+    const webhookUrl = process.env.SERVER_API_URL
+      ? `${process.env.SERVER_API_URL}/api/webhooks/replicate`
+      : 'https://999-agents.site/api/webhooks/replicate'
+
+    logger.info('[LOCAL TRAINING] Webhook configuration', {
+      webhookUrl,
+      hasServerApiUrl: !!process.env.SERVER_API_URL,
     })
 
     const training = await replicate.trainings.create(
@@ -133,9 +191,9 @@ export async function createModelTrainingLocal(
           learning_rate: 0.0001,
           wandb_project: 'flux_train_replicate',
         },
-        // ✅ Webhook URL for status updates (optional)
-        // webhook: `${process.env.SERVER_API_URL}/api/webhooks/replicate`,
-        // webhook_events_filter: ['completed'],
+        // ✅ Webhook для получения уведомлений о завершении тренировки
+        webhook: webhookUrl,
+        webhook_events_filter: ['completed'],
       }
     )
 
@@ -146,14 +204,18 @@ export async function createModelTrainingLocal(
       elapsed: `${Date.now() - startTime}ms`,
     })
 
-    // ✅ STEP 7: Save training record to Supabase
+    // ✅ STEP 8: Save training record to Supabase
     const trainingRecord = {
-      user_id: requestData.telegram_id,
+      telegram_id: requestData.telegram_id, // Используем telegram_id, а не user_id
       model_name: requestData.modelName,
       trigger_word: requestData.triggerWord,
       zip_url: requestData.filePath, // Local path for reference
       replicate_training_id: training.id,
       status: training.status,
+      bot_name: requestData.botName,
+      steps: requestData.steps,
+      gender: requestData.gender,
+      is_ru: requestData.is_ru,
       // Additional metadata
       created_at: new Date().toISOString(),
     }
@@ -172,7 +234,7 @@ export async function createModelTrainingLocal(
       logger.info('[LOCAL TRAINING] Training record saved to database')
     }
 
-    // ✅ STEP 8: Clean up local ZIP file
+    // ✅ STEP 9: Clean up local ZIP file
     try {
       await fs.promises.unlink(requestData.filePath)
       logger.info('[LOCAL TRAINING] Local ZIP file deleted')
@@ -182,7 +244,7 @@ export async function createModelTrainingLocal(
       })
     }
 
-    // ✅ STEP 9: Return success response
+    // ✅ STEP 10: Return success response
     const successMessage = requestData.is_ru
       ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${requestData.modelName}\n🆔 ID: ${training.id}\n⏱️ Время: ~1-2 часа`
       : `✅ Model training started!\n\n📦 Model: ${requestData.modelName}\n🆔 ID: ${training.id}\n⏱️ Time: ~1-2 hours`
