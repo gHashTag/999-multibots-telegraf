@@ -83,10 +83,22 @@ router.post('/replicate', async (req: any, res: any) => {
     }
 
     if (payload.status === 'succeeded' && payload.output) {
-      updateData.model_url = payload.output.version
+      // Format model_url as owner/name:version for Replicate API compatibility
+      const versionHash = payload.output.version
+      const replicateUsername = process.env.REPLICATE_USERNAME || 'ghashtag'
+      const modelName = trainingRecord.model_name || 'model'
+
+      // Create full model reference: owner/name:version
+      updateData.model_url = `${replicateUsername}/${modelName}:${versionHash}`
       updateData.weights = payload.output.weights
       updateData.result = 'SUCCESS'
       updateData.api = 'replicate' // Ensure api field is set
+
+      logger.info('[REPLICATE WEBHOOK] Formatted model URL', {
+        training_id: payload.id,
+        version_hash: versionHash.substring(0, 20) + '...',
+        model_url: updateData.model_url,
+      })
     }
 
     if (payload.status === 'failed' && payload.error) {

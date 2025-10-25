@@ -17,8 +17,7 @@ import {
   getAvailableLipSyncModels,
   calculateLipSyncCost,
 } from '@/config/lipsync-models.config'
-import { FalWAN25Provider } from '@/core/lipsync/providers/fal-wan25-provider'
-import { WAN25_DEFAULT_PROMPTS } from '@/config/wan25-config'
+import { FalVeo31Provider } from '@/core/lipsync/providers/fal-veo31-provider'
 
 // Интерфейс для aiReels теперь определен в MySession interface
 
@@ -1138,7 +1137,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     })
 
     logger.info(
-      '🎬 [AI REELS WIZARD] Step 3 STARTED - Генерация WAN 2.5 видео',
+      '🎬 [AI REELS WIZARD] Step 3 STARTED - Генерация Google Veo 3.1 видео',
       {
         telegramId,
         function: 'aiReelsWizard.step3',
@@ -1166,161 +1165,148 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    console.log('✅ [AI REELS] Step 3 - Validation passed, proceeding with WAN 2.5')
+    console.log('✅ [AI REELS] Step 3 - Validation passed, proceeding with Google Veo 3.1')
 
     try {
       const imageUrl = ctx.session.aiReels.imageUrl
 
-      // Автоматический промпт для WAN 2.5 на основе изображения
-      const wan25Prompt = isRu
-        ? WAN25_DEFAULT_PROMPTS.CINEMATIC.ru
-        : WAN25_DEFAULT_PROMPTS.CINEMATIC.en
-
-      logger.info('🔥 [AI REELS] Генерация WAN 2.5 через Fal.ai', {
+      logger.info('🔥 [AI REELS] Генерация Google Veo 3.1 через Fal.ai', {
         telegramId,
-        prompt: wan25Prompt.substring(0, 100),
         imageUrl: imageUrl.substring(0, 100),
         resolution: ctx.session.aiReels?.resolution || '720p',
       })
 
-      console.log('📦 [AI REELS FAL WAN 2.5] REQUEST:', {
+      console.log('📦 [AI REELS FAL VEO 3.1] REQUEST:', {
         telegramId,
         provider: 'fal',
-        model: 'fal-ai/wan-25-preview/image-to-video',
-        prompt: wan25Prompt.substring(0, 100) + '...',
+        model: 'fal-ai/veo3.1/reference-to-video',
         image_url: imageUrl.substring(0, 100) + '...',
         resolution: ctx.session.aiReels?.resolution || '720p',
       })
 
       try {
-        // ✅ ТЕСТОВЫЙ РЕЖИМ - отдельный флаг для WAN v2.2-5b
+        // ✅ ТЕСТОВЫЙ РЕЖИМ - отдельный флаг для Veo 3.1
         const isDev = process.env.NODE_ENV === 'development'
-        const useTestWan25 = isDev && process.env.USE_TEST_WAN25 === 'true'
-        const TEST_WAN25_VIDEO_URL = 'https://v3b.fal.media/files/b/penguin/Jns1yqrvrnqff91m_C-R2_p9xGAM9j.mp4'
+        const useTestVeo31 = isDev && process.env.USE_TEST_VEO31 === 'true'
+        const TEST_VEO31_VIDEO_URL = 'https://storage.googleapis.com/falserverless/example_outputs/veo31-r2v-output.mp4'
 
-        let wan25Result: { videoUrl?: string; output?: string; error?: string }
-        let visualPrompt: string
+        let veo31Result: { videoUrl?: string; output?: string; error?: string }
+        let storyPrompt: string
 
-        if (useTestWan25) {
-          console.log('🧪 [AI REELS TEST MODE] Using test WAN v2.2-5b video URL (no API call)')
-          visualPrompt = wan25Prompt // используем дефолтный промпт в тестовом режиме
-          wan25Result = {
-            videoUrl: TEST_WAN25_VIDEO_URL,
-            output: TEST_WAN25_VIDEO_URL,
+        if (useTestVeo31) {
+          console.log('🧪 [AI REELS TEST MODE] Using test Veo 3.1 video URL (no API call)')
+          storyPrompt = 'The person from the reference image speaks confidently to camera. Professional studio setup, cinematic lighting, engaging delivery.' // fallback промпт
+          veo31Result = {
+            videoUrl: TEST_VEO31_VIDEO_URL,
+            output: TEST_VEO31_VIDEO_URL,
           }
         } else {
-          // ✅ СИНХРОННЫЙ ВЫЗОВ Fal.ai WAN v2.2-5b с промптом на основе текста пользователя
-          const falWan25 = new FalWAN25Provider()
+          // ✅ СИНХРОННЫЙ ВЫЗОВ Google Veo 3.1 с story continuation промптом
+          const falVeo31 = new FalVeo31Provider()
 
-          // 🎨 ГЕНЕРАЦИЯ ВИЗУАЛЬНОГО ПРОМПТА на основе текста пользователя
+          // 🎨 ГЕНЕРАЦИЯ STORY PROMPT на основе текста пользователя
           const userText = ctx.session.aiReels?.text || ''
 
-          console.log('✨ [AI REELS] Generating visual prompt from user text', {
+          console.log('📖 [AI REELS] Generating story continuation prompt from user text', {
             userText: userText.substring(0, 100),
             language: isRu ? 'ru' : 'en',
           })
 
-          visualPrompt = await falWan25.generateVisualPrompt(userText, isRu ? 'ru' : 'en')
+          storyPrompt = await falVeo31.generateStoryPrompt(userText, isRu ? 'ru' : 'en')
 
-          console.log('✅ [AI REELS] Visual prompt generated', {
-            promptLength: visualPrompt.length,
-            preview: visualPrompt.substring(0, 200) + '...',
+          console.log('✅ [AI REELS] Story prompt generated', {
+            promptLength: storyPrompt.length,
+            preview: storyPrompt.substring(0, 200) + '...',
           })
 
-          // Aspect ratio для AI Reels: по умолчанию 9:16 (вертикальное видео для соцсетей)
-          const aspectRatio = ctx.session.aiReels?.aspectRatio || '9:16'
-
-          const wan25Input = {
+          const veo31Input = {
             imageUrl,
-            prompt: visualPrompt, // используем сгенерированный промпт
+            prompt: storyPrompt, // используем сгенерированный story prompt
             telegramId,
             botName: ctx.botInfo?.username || 'unknown_bot',
             resolution: (ctx.session.aiReels?.resolution || '720p') as '720p' | '1080p',
-            aspectRatio, // добавляем aspect ratio
             provider: 'fal' as const,
-            modelId: 'fal-wan-v2.2-5b',
+            modelId: 'fal-veo31',
           }
 
-          console.log('🚀 [AI REELS FAL WAN v2.2-5b] Calling Fal.ai synchronously...', {
-            aspectRatio,
-            promptLength: visualPrompt.length,
+          console.log('🚀 [AI REELS FAL VEO 3.1] Calling Fal.ai synchronously...', {
+            resolution: veo31Input.resolution,
+            promptLength: storyPrompt.length,
           })
-          wan25Result = await falWan25.generate(wan25Input)
+          veo31Result = await falVeo31.generate(veo31Input)
         }
 
-        console.log('✅ [AI REELS FAL WAN v2.2-5b] Generation completed:', {
-          hasOutput: !!wan25Result.output,
-          hasVideoUrl: !!wan25Result.videoUrl,
-          hasError: !!wan25Result.error,
-          videoUrl: wan25Result.output?.substring(0, 100),
+        console.log('✅ [AI REELS FAL VEO 3.1] Generation completed:', {
+          hasOutput: !!veo31Result.output,
+          hasVideoUrl: !!veo31Result.videoUrl,
+          hasError: !!veo31Result.error,
+          videoUrl: veo31Result.output?.substring(0, 100),
         })
 
-        if (wan25Result.error || !wan25Result.output) {
-          throw new Error(wan25Result.error || 'Fal.ai WAN v2.2-5b generation failed')
+        if (veo31Result.error || !veo31Result.output) {
+          throw new Error(veo31Result.error || 'Fal.ai Veo 3.1 generation failed')
         }
 
-        const secondVideoUrl = wan25Result.output
+        const secondVideoUrl = veo31Result.output
 
-        // Сохраняем URL второго видео и промпт
-        const finalPrompt = useTestWan25 ? wan25Prompt : visualPrompt
+        // Сохраняем URL второго видео и story prompt
         ctx.session.aiReels = {
           ...ctx.session.aiReels,
           secondVideoUrl,
-          wan25Prompt: finalPrompt,
+          wan25Prompt: storyPrompt, // сохраняем как wan25Prompt для совместимости
           step: 'merging',
         }
 
-        logger.info('✅ [AI REELS] Второе видео (Fal WAN v2.2-5b) сгенерировано', {
+        logger.info('✅ [AI REELS] Второе видео (Google Veo 3.1) сгенерировано', {
           telegramId,
           secondVideoUrl: secondVideoUrl.substring(0, 100),
-          promptUsed: finalPrompt.substring(0, 150),
+          storyPromptUsed: storyPrompt.substring(0, 150),
         })
 
-        // ✅ ОТПРАВЛЯЕМ WAN v2.2-5b ВИДЕО ПОЛЬЗОВАТЕЛЮ (промежуточный результат)
+        // ✅ ОТПРАВЛЯЕМ VEO 3.1 ВИДЕО ПОЛЬЗОВАТЕЛЮ (промежуточный результат)
         await ctx.reply(
           isRu
-            ? `✅ Второе видео (WAN v2.2-5b 9:16) готово!\n\n🎨 Визуальная идея:\n${finalPrompt.substring(0, 200)}${finalPrompt.length > 200 ? '...' : ''}`
-            : `✅ Second video (WAN v2.2-5b 9:16) ready!\n\n🎨 Visual concept:\n${finalPrompt.substring(0, 200)}${finalPrompt.length > 200 ? '...' : ''}`
+            ? `✅ Второе видео (Google Veo 3.1 - 8 сек) готово!\n\n📖 История:\n${storyPrompt.substring(0, 200)}${storyPrompt.length > 200 ? '...' : ''}`
+            : `✅ Second video (Google Veo 3.1 - 8s) ready!\n\n📖 Story:\n${storyPrompt.substring(0, 200)}${storyPrompt.length > 200 ? '...' : ''}`
         )
 
         await ctx.replyWithVideo(
           { url: secondVideoUrl },
           {
             caption: isRu
-              ? `🎬 Промежуточный результат - WAN v2.2-5b видео (9:16)`
-              : `🎬 Intermediate result - WAN v2.2-5b video (9:16)`,
+              ? `🎬 Промежуточный результат - Google Veo 3.1 видео (8 сек)`
+              : `🎬 Intermediate result - Google Veo 3.1 video (8s)`,
           }
         )
-      } catch (wan25Error) {
-        // 🔥 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ОШИБКИ WAN 2.5
-        console.error('❌ [AI REELS WAN 2.5] ERROR CAUGHT:', {
-          error: wan25Error,
+      } catch (veo31Error) {
+        // 🔥 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ОШИБКИ VEO 3.1
+        console.error('❌ [AI REELS VEO 3.1] ERROR CAUGHT:', {
+          error: veo31Error,
           errorMessage:
-            wan25Error instanceof Error ? wan25Error.message : String(wan25Error),
-          errorStack: wan25Error instanceof Error ? wan25Error.stack : undefined,
-          errorName: wan25Error instanceof Error ? wan25Error.name : typeof wan25Error,
+            veo31Error instanceof Error ? veo31Error.message : String(veo31Error),
+          errorStack: veo31Error instanceof Error ? veo31Error.stack : undefined,
+          errorName: veo31Error instanceof Error ? veo31Error.name : typeof veo31Error,
           telegramId,
-          taskId: ctx.session?.aiReels?.wan25TaskId,
         })
 
-        logger.error('❌ [AI REELS] Ошибка генерации WAN 2.5', {
-          error: wan25Error,
+        logger.error('❌ [AI REELS] Ошибка генерации Veo 3.1', {
+          error: veo31Error,
           errorMessage:
-            wan25Error instanceof Error ? wan25Error.message : String(wan25Error),
+            veo31Error instanceof Error ? veo31Error.message : String(veo31Error),
         })
 
         // Проверяем, является ли это timeout ошибкой
         const isTimeout =
-          wan25Error instanceof Error && wan25Error.message.includes('timeout')
+          veo31Error instanceof Error && veo31Error.message.includes('timeout')
 
         await ctx.reply(
           isRu
             ? isTimeout
-              ? '⏱️ Генерация WAN 2.5 видео заняла больше времени, чем ожидалось.\n' +
+              ? '⏱️ Генерация Veo 3.1 видео заняла больше времени, чем ожидалось.\n' +
                 'Но первое видео готово!'
               : '❌ Ошибка генерации второго видео. Но первое видео готово!'
             : isTimeout
-              ? '⏱️ WAN 2.5 video generation took longer than expected.\n' +
+              ? '⏱️ Veo 3.1 video generation took longer than expected.\n' +
                 'But first video is ready!'
               : '❌ Error generating second video. But first video is ready!'
         )
@@ -1396,7 +1382,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
     } catch (error) {
-      logger.error('❌ [AI REELS] Ошибка в Step 3 (WAN 2.5 или склеивание)', {
+      logger.error('❌ [AI REELS] Ошибка в Step 3 (Veo 3.1 или склеивание)', {
         error,
         errorMessage: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,

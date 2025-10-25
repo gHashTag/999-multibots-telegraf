@@ -89,6 +89,12 @@ export class FalWAN25Provider {
    * ВСЕГДА генерирует промпт на английском (для WAN v2.2-5b от Alibaba)
    */
   async generateVisualPrompt(userText: string, language: 'ru' | 'en' = 'ru'): Promise<string> {
+    console.log('🎨🎨🎨 [WAN PROMPT] generateVisualPrompt CALLED', {
+      userTextLength: userText.length,
+      userTextPreview: userText.substring(0, 100),
+      language,
+    })
+
     try {
       // ШАГ 1: Перевод на английский (если текст на русском)
       let englishText = userText
@@ -99,7 +105,14 @@ export class FalWAN25Provider {
           original: userText.substring(0, 100),
           translated: englishText.substring(0, 100),
         })
+      } else {
+        console.log('🌐 [WAN PROMPT] Text already in English, skipping translation')
       }
+
+      console.log('📝 [WAN PROMPT] English text ready for prompt generation:', {
+        length: englishText.length,
+        preview: englishText.substring(0, 100),
+      })
 
       // ШАГ 2: Генерация визуального промпта на английском
       const systemPrompt = `You are an expert at creating visual prompts for AI video generation.
@@ -127,7 +140,11 @@ Visual prompt: "Futuristic tech lab environment, vertical composition. Camera st
 
 Create visual prompt ONLY based on the idea, no extra explanations.`
 
-      console.log('✨ [WAN PROMPT] Generating visual prompt from English text...')
+      console.log('✨ [WAN PROMPT] About to call OpenAI API...')
+      console.log('🔑 [WAN PROMPT] OpenAI client configured:', {
+        hasOpenaiClient: !!openai,
+        model: 'gpt-4o-mini',
+      })
 
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -139,7 +156,18 @@ Create visual prompt ONLY based on the idea, no extra explanations.`
         max_tokens: 300,
       })
 
+      console.log('✅ [WAN PROMPT] OpenAI API call successful!', {
+        hasResponse: !!response,
+        hasChoices: !!response.choices,
+        choicesLength: response.choices?.length,
+      })
+
       const generatedPrompt = response.choices[0]?.message?.content?.trim()
+
+      console.log('🔍 [WAN PROMPT] Extracted prompt:', {
+        hasPrompt: !!generatedPrompt,
+        promptLength: generatedPrompt?.length,
+      })
 
       if (!generatedPrompt) {
         throw new Error('OpenAI returned empty prompt')
@@ -152,8 +180,17 @@ Create visual prompt ONLY based on the idea, no extra explanations.`
         promptPreview: generatedPrompt.substring(0, 150),
       })
 
+      console.log('🎉🎉🎉 [WAN PROMPT] Returning generated prompt:', {
+        preview: generatedPrompt.substring(0, 200),
+      })
+
       return generatedPrompt
     } catch (error) {
+      console.error('❌❌❌ [WAN PROMPT] ERROR in generateVisualPrompt:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      })
       logger.error('❌ [WAN PROMPT] Failed to generate visual prompt', { error })
 
       // Fallback промпт (всегда на английском)
