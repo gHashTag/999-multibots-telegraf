@@ -74,14 +74,14 @@ router.post('/replicate', async (req: any, res: any) => {
     }
 
     if (payload.status === 'succeeded' && payload.output) {
-      updateData.model_version = payload.output.version
-      updateData.model_weights_url = payload.output.weights
-      updateData.completed_at = payload.completed_at
+      updateData.model_url = payload.output.version
+      updateData.weights = payload.output.weights
+      updateData.result = 'succeeded'
     }
 
     if (payload.status === 'failed' && payload.error) {
-      updateData.error_message = payload.error
-      updateData.completed_at = payload.completed_at
+      updateData.error = payload.error
+      updateData.result = 'failed'
     }
 
     const { error: updateError } = await supabase
@@ -115,17 +115,12 @@ router.post('/replicate', async (req: any, res: any) => {
         } else {
           const userId = trainingRecord.telegram_id
           const modelName = trainingRecord.model_name
-          const isRu = trainingRecord.is_ru !== false // По умолчанию русский
 
           let message: string
           if (payload.status === 'succeeded') {
-            message = isRu
-              ? `✅ Тренировка модели завершена!\n\n📦 Модель: ${modelName}\n🎯 Trigger word: ${trainingRecord.trigger_word}\n🆔 Training ID: ${payload.id}\n\n🎨 Теперь вы можете использовать эту модель в разделе "Модели" в Нейрофото.\n\nЧтобы использовать модель, укажите trigger word в промпте: ${trainingRecord.trigger_word}`
-              : `✅ Model training completed!\n\n📦 Model: ${modelName}\n🎯 Trigger word: ${trainingRecord.trigger_word}\n🆔 Training ID: ${payload.id}\n\n🎨 You can now use this model in the "Models" section in Neurophoto.\n\nTo use the model, mention the trigger word in your prompt: ${trainingRecord.trigger_word}`
+            message = `✅ Тренировка модели завершена!\n\n📦 Модель: ${modelName}\n🎯 Trigger word: ${trainingRecord.trigger_word}\n🆔 Training ID: ${payload.id}\n\n🎨 Теперь вы можете использовать эту модель в разделе "Модели" в Нейрофото.\n\nЧтобы использовать модель, укажите trigger word в промпте: ${trainingRecord.trigger_word}`
           } else {
-            message = isRu
-              ? `❌ Ошибка тренировки модели\n\n📦 Модель: ${modelName}\n🆔 Training ID: ${payload.id}\n\n⚠️ Причина: ${payload.error || 'Unknown error'}\n\nПопробуйте запустить тренировку заново или обратитесь в поддержку.`
-              : `❌ Model training failed\n\n📦 Model: ${modelName}\n🆔 Training ID: ${payload.id}\n\n⚠️ Reason: ${payload.error || 'Unknown error'}\n\nPlease try again or contact support.`
+            message = `❌ Ошибка тренировки модели\n\n📦 Модель: ${modelName}\n🆔 Training ID: ${payload.id}\n\n⚠️ Причина: ${payload.error || 'Unknown error'}\n\nПопробуйте запустить тренировку заново или обратитесь в поддержку.`
           }
 
           await bot.telegram.sendMessage(userId, message)

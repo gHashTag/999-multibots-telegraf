@@ -1193,9 +1193,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       })
 
       try {
-        // ✅ ТЕСТОВЫЙ РЕЖИМ - используем готовое WAN v2.2-5b видео
+        // ✅ ТЕСТОВЫЙ РЕЖИМ - отдельный флаг для WAN v2.2-5b
         const isDev = process.env.NODE_ENV === 'development'
-        const useTestWan25 = isDev && process.env.USE_TEST_LIPSYNC === 'true'
+        const useTestWan25 = isDev && process.env.USE_TEST_WAN25 === 'true'
         const TEST_WAN25_VIDEO_URL = 'https://v3b.fal.media/files/b/penguin/Jns1yqrvrnqff91m_C-R2_p9xGAM9j.mp4'
 
         let wan25Result: { videoUrl?: string; output?: string; error?: string }
