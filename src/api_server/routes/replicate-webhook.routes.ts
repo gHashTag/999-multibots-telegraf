@@ -68,20 +68,30 @@ router.post('/replicate', async (req: any, res: any) => {
     })
 
     // ✅ STEP 2: Update training status in database
+    // Map Replicate statuses to our database format
+    const statusMap: Record<string, string> = {
+      'succeeded': 'SUCCESS',
+      'failed': 'FAILED',
+      'canceled': 'CANCELED',
+      'starting': 'STARTING',
+      'processing': 'PROCESSING'
+    }
+
     const updateData: any = {
-      status: payload.status,
+      status: statusMap[payload.status] || payload.status.toUpperCase(),
       updated_at: new Date().toISOString(),
     }
 
     if (payload.status === 'succeeded' && payload.output) {
       updateData.model_url = payload.output.version
       updateData.weights = payload.output.weights
-      updateData.result = 'succeeded'
+      updateData.result = 'SUCCESS'
+      updateData.api = 'replicate' // Ensure api field is set
     }
 
     if (payload.status === 'failed' && payload.error) {
       updateData.error = payload.error
-      updateData.result = 'failed'
+      updateData.result = 'FAILED'
     }
 
     const { error: updateError } = await supabase
