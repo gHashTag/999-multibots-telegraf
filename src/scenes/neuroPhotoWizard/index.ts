@@ -37,6 +37,9 @@ interface NeuroPhotoWizardSession extends Scenes.WizardSessionData {
 }
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
+  // ✅ УСТАНАВЛИВАЕМ РЕЖИМ ДЛЯ ПРАВИЛЬНОЙ РАБОТЫ helpScene
+  ctx.session.mode = ModeEnum.NeuroPhoto
+
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
   try {
@@ -168,6 +171,14 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
 const neuroPhotoPromptStep = async (ctx: MyContext) => {
   console.log('CASE 2: neuroPhotoPromptStep')
+
+  // ✅ ПРОВЕРЯЕМ СПРАВКУ/ОТМЕНУ ПЕРЕД ОБРАБОТКОЙ ТЕКСТА
+  const isHelpOrCancel = await handleHelpCancel(ctx)
+  if (isHelpOrCancel) {
+    console.log('✅ [neuroPhotoPromptStep] Help or Cancel detected, exiting')
+    return ctx.scene.leave()
+  }
+
   if (ctx.message && 'text' in ctx.message) {
     const promptText = ctx.message.text.trim()
     console.log(`CASE: Введен промпт: ${promptText}`)
