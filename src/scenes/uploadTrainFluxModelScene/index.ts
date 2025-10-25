@@ -7,6 +7,7 @@ import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
 import { sendGenericErrorMessage } from '@/menu'
 import { supabase } from '@/core/supabase'
+import { getBotNameByToken } from '@/core/bot' // ✅ For correct bot_name detection
 import fetch from 'node-fetch'
 import { API_URL, isDev } from '@/config'
 const fs = require('fs')
@@ -66,6 +67,10 @@ uploadTrainFluxModelScene.enter(async ctx => {
         : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
     )
 
+    // ✅ Get correct bot name from token
+    const botToken = (ctx.telegram as any).token || (ctx as any).botInfo?.token
+    const { bot_name } = getBotNameByToken(botToken)
+
     const response = await createModelTrainingLocal(
       {
         filePath: zipPath,
@@ -74,7 +79,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
         steps: ctx.session.steps,
         telegram_id: ctx.session.targetUserId.toString(),
         is_ru: isRu,
-        botName: ctx.botInfo?.username || 'unknown',
+        botName: bot_name, // ✅ Use bot_name from token instead of ctx.botInfo?.username
         gender: gender,
       },
       ctx
