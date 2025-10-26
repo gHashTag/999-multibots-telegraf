@@ -1,15 +1,35 @@
-import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import {
-  PaymentType,
-  BalanceOperationResult,
-} from '@/interfaces/payments.interface'
-import { Telegraf } from 'telegraf' // Нужен для отправки сообщения о недостатке средств
-import { MyContext } from '@/interfaces'
-import logger from '@/utils/logger'
-import { ModeEnum } from '@/interfaces'
+/**
+ * @deprecated Используйте BalanceOperationProcessor напрямую
+ * Этот файл сохранен для обратной совместимости
+ *
+ * Миграция:
+ * Было:
+ * ```
+ * await processServiceBalanceOperation({
+ *   telegram_id, paymentAmount, is_ru, bot, bot_name, description, service_type, metadata
+ * })
+ * ```
+ *
+ * Стало:
+ * ```
+ * import { BalanceOperationProcessor } from '@/price/helpers/BalanceOperationProcessor'
+ * await BalanceOperationProcessor.processOperation({
+ *   telegram_id, paymentAmount, is_ru, bot_name, description, service_type, metadata, bot
+ * })
+ * ```
+ */
 
-// Определим тип для результата, аналогичный BalanceOperationResult, но без ctx-зависимых полей
+import { BalanceOperationResult } from '@/interfaces/payments.interface'
+import { Telegraf } from 'telegraf'
+import { MyContext } from '@/interfaces'
+import logger from '@/utils/enhancedLogger'
+import { ModeEnum } from '@/interfaces'
+import {
+  BalanceOperationProcessor,
+  type BalanceOperationParams,
+} from './BalanceOperationProcessor'
+
+// Сохраняем старый интерфейс для совместимости
 export interface ServiceBalanceOperationResult {
   newBalance?: number
   success: boolean
@@ -18,18 +38,20 @@ export interface ServiceBalanceOperationResult {
   currentBalance: number
 }
 
-// Тип для параметров
 interface ServiceBalanceOperationProps {
-  telegram_id: string // Принимаем как string
+  telegram_id: string
   paymentAmount: number
   is_ru: boolean
-  bot: Telegraf<MyContext> // Нужен для отправки сообщения об ошибке
+  bot: Telegraf<MyContext>
   bot_name: string
   description: string
-  service_type: ModeEnum // Use ModeEnum as specified
-  metadata?: Record<string, any> // Метаданные для расчета cost
+  service_type: ModeEnum
+  metadata?: Record<string, any>
 }
 
+/**
+ * @deprecated Используйте BalanceOperationProcessor.processOperation
+ */
 export const processServiceBalanceOperation = async ({
   telegram_id,
   paymentAmount,
@@ -40,110 +62,32 @@ export const processServiceBalanceOperation = async ({
   service_type,
   metadata,
 }: ServiceBalanceOperationProps): Promise<ServiceBalanceOperationResult> => {
-  let currentBalance = 0
-  try {
-    // Получаем текущий баланс (getUserBalance принимает string)
-    currentBalance = await getUserBalance(telegram_id)
+  logger.info('🔍 [processServiceBalanceOperation] Вызов функции (совместимость):', {
+    telegram_id,
+    service_type,
+  })
 
-    // Проверяем достаточно ли средств
-    if (currentBalance < paymentAmount) {
-      const message = is_ru
-        ? '❌ Недостаточно звёзд. Пополните баланс в главном меню.'
-        : '❌ Insufficient stars. Top up your balance in the main menu.'
-      // Отправляем сообщение напрямую через bot.telegram
-      try {
-        await bot.telegram.sendMessage(telegram_id, message)
-      } catch (e) {
-        logger.error('Failed to send insufficient balance message', {
-          telegram_id,
-          error: e,
-        })
-      }
-      // Возвращаем результат с ошибкой
-      return {
-        currentBalance,
-        success: false,
-        error: message,
-        paymentAmount,
-      }
-    }
+  // Подготовка параметров для нового процессора
+  const params: BalanceOperationParams = {
+    telegram_id,
+    paymentAmount,
+    is_ru,
+    bot_name,
+    description,
+    service_type,
+    metadata,
+    bot,
+  }
 
-    // Рассчитываем новый баланс
-    const newBalance = currentBalance - paymentAmount
+  // Используем новый унифицированный обработчик
+  const result = await BalanceOperationProcessor.processOperation(params)
 
-    // Используем существующую updateUserBalance
-    const updateSuccess = await updateUserBalance(
-      telegram_id,
-      -paymentAmount, // Pass negative amount for expense
-      PaymentType.MONEY_OUTCOME, // Correctly use the Enum member
-      description,
-      {
-        // Передаем остальные данные в metadata
-        bot_name,
-        service_type,
-        paymentAmount: paymentAmount, // Дублируем для логики внутри updateUserBalance
-        currentBalance: currentBalance, // Передаем текущий баланс для логов
-        operation: 'service_payment', // Добавляем маркер операции
-        ...metadata, // Добавляем переданные метаданные для расчета cost
-      }
-    )
-
-    if (!updateSuccess) {
-      const message = is_ru
-        ? '❌ Ошибка обновления баланса.'
-        : '❌ Error updating balance.'
-      logger.error(
-        'Failed to update balance in processServiceBalanceOperation',
-        { telegram_id, paymentAmount }
-      )
-      // Отправляем сообщение об ошибке напрямую
-      try {
-        await bot.telegram.sendMessage(telegram_id, message)
-      } catch (e) {
-        logger.error('Failed to send balance update error message', {
-          telegram_id,
-          error: e,
-        })
-      }
-      return {
-        currentBalance, // Возвращаем баланс до попытки списания
-        success: false,
-        error: 'Failed to update balance', // Возвращаем общую ошибку
-        paymentAmount,
-      }
-    }
-
-    // Успешное списание
-    return {
-      newBalance, // Новый баланс после списания
-      success: true,
-      paymentAmount,
-      currentBalance, // Баланс до списания
-    }
-  } catch (error) {
-    logger.error('Critical Error in processServiceBalanceOperation:', {
-      telegram_id,
-      paymentAmount,
-      error,
-    })
-    // Пытаемся получить баланс еще раз в случае неизвестной ошибки
-    try {
-      currentBalance = await getUserBalance(telegram_id)
-    } catch (e) {
-      logger.error(
-        'Failed to get balance in final catch block of processServiceBalanceOperation',
-        { telegram_id, error: e }
-      )
-      currentBalance = 0 // или другое значение по умолчанию
-    }
-    return {
-      currentBalance,
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Unknown balance processing error',
-      paymentAmount,
-    }
+  // Преобразуем результат к старому формату для совместимости
+  return {
+    newBalance: result.newBalance,
+    success: result.success,
+    error: result.error,
+    paymentAmount: result.paymentAmount,
+    currentBalance: result.currentBalance,
   }
 }

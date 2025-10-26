@@ -1,12 +1,29 @@
-import { MyContext } from '../interfaces'
+/**
+ * @deprecated Используйте ErrorMessageService напрямую
+ * Этот файл сохранен для обратной совместимости
+ *
+ * Миграция:
+ * Было:
+ * ```
+ * await sendGenerationErrorMessage(ctx, isRu)
+ * ```
+ *
+ * Стало:
+ * ```
+ * import { ErrorMessageService } from '@/helpers/error/ErrorMessageService'
+ * await ErrorMessageService.sendGenerationError(ctx, isRu)
+ * ```
+ */
 
+import { MyContext } from '../interfaces'
+import { ErrorMessageService } from '@/helpers/error/ErrorMessageService'
+
+/**
+ * @deprecated Используйте ErrorMessageService.sendGenerationError
+ */
 export async function sendGenerationErrorMessage(
   ctx: MyContext,
   isRu: boolean
 ): Promise<void> {
-  const message = isRu
-    ? '❌ Произошла ошибка при генерации. Пожалуйста, попробуйте позже.'
-    : '❌ An error occurred while generating. Please try again later.'
-
-  await ctx.reply(message)
+  return ErrorMessageService.sendGenerationError(ctx, isRu)
 }

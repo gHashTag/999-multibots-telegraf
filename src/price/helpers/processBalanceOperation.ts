@@ -1,7 +1,28 @@
-import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+/**
+ * @deprecated Используйте BalanceOperationProcessor напрямую
+ * Этот файл сохранен для обратной совместимости
+ *
+ * Миграция:
+ * Было:
+ * ```
+ * await processBalanceOperation({ ctx, telegram_id, paymentAmount, is_ru, bot_name })
+ * ```
+ *
+ * Стало:
+ * ```
+ * import { BalanceOperationProcessor } from '@/price/helpers/BalanceOperationProcessor'
+ * await BalanceOperationProcessor.processOperation({
+ *   telegram_id, paymentAmount, is_ru, bot_name, ctx
+ * })
+ * ```
+ */
+
 import { BalanceOperationResult, MyContext } from '@/interfaces'
-import { PaymentType } from '@/interfaces/payments.interface'
+import {
+  BalanceOperationProcessor,
+  type BalanceOperationParams,
+} from './BalanceOperationProcessor'
+
 type BalanceOperationProps = {
   ctx?: MyContext
   model?: string
@@ -11,6 +32,9 @@ type BalanceOperationProps = {
   bot_name?: string
 }
 
+/**
+ * @deprecated Используйте BalanceOperationProcessor.processOperation
+ */
 export const processBalanceOperation = async ({
   ctx,
   telegram_id,
@@ -18,128 +42,16 @@ export const processBalanceOperation = async ({
   is_ru,
   bot_name,
 }: BalanceOperationProps): Promise<BalanceOperationResult> => {
-  console.log('Processing balance operation for:', {
+  // Подготовка параметров для нового процессора
+  const params: BalanceOperationParams = {
     telegram_id,
     paymentAmount,
     is_ru,
-    bot_name,
-  })
-  console.log('Context available:', !!ctx)
-
-  // 🎁 ЛИДMАГНЕТ: Проверяем флаг обхода платежа (ТОЛЬКО для AvatarTransform!)
-  // ✅ БЕЗОПАСНОСТЬ: Bypass работает ТОЛЬКО для mode = 'AvatarTransform'
-  const isAvatarTransformMode = ctx?.session?.mode === 'AvatarTransform'
-
-  if (ctx?.session?.bypass_payment_check && isAvatarTransformMode) {
-    console.log('🎁 [LEAD MAGNET] Bypassing payment check - FREE AvatarTransform only!', {
-      telegram_id,
-      mode: ctx.session.mode,
-      bypassFlag: ctx.session.bypass_payment_check,
-    })
-
-    // Получаем текущий баланс для отображения (но не списываем)
-    const currentBalance = await getUserBalance(telegram_id.toString())
-
-    // ✅ БЕЗОПАСНОСТЬ: Очищаем флаг после использования (одноразовый bypass)
-    delete ctx.session.bypass_payment_check
-
-    return {
-      newBalance: currentBalance, // Баланс НЕ изменился
-      success: true, // Операция успешна
-      modePrice: paymentAmount, // Обычная цена (для статистики)
-      paymentAmount: 0, // РЕАЛЬНО списано 0
-      currentBalance,
-    }
+    bot_name: bot_name || ctx?.botInfo?.username || 'unknown_bot',
+    ctx,
+    bypass_payment_check: ctx?.session?.bypass_payment_check,
   }
 
-  // ✅ БЕЗОПАСНОСТЬ: Если bypass_payment_check установлен, но режим НЕ AvatarTransform - ИГНОРИРУЕМ!
-  if (ctx?.session?.bypass_payment_check && !isAvatarTransformMode) {
-    console.warn('⚠️ [SECURITY] bypass_payment_check detected in non-AvatarTransform mode - IGNORING!', {
-      telegram_id,
-      mode: ctx.session.mode,
-      bypassFlag: ctx.session.bypass_payment_check,
-    })
-
-    // Очищаем флаг для безопасности
-    delete ctx.session.bypass_payment_check
-  }
-
-  try {
-    // Получаем текущий баланс
-    console.log('Fetching current balance for:', telegram_id)
-    const currentBalance = await getUserBalance(telegram_id.toString())
-    console.log('Current balance fetched:', currentBalance)
-    // Проверяем достаточно ли средств
-    if (currentBalance < paymentAmount) {
-      const message = is_ru
-        ? 'Недостаточно средств на балансе. Пополните баланс в главном меню.'
-        : 'Insufficient funds. Top up your balance in the main menu.'
-      await ctx.telegram.sendMessage(telegram_id.toString(), message)
-      return {
-        newBalance: currentBalance,
-        success: false,
-        error: message,
-        modePrice: paymentAmount,
-        paymentAmount: paymentAmount,
-        currentBalance,
-      }
-    }
-
-    // Рассчитываем новый баланс
-    const newBalance = Number(currentBalance) - Number(paymentAmount)
-
-    // Обновляем баланс в БД, передавая все необходимые аргументы
-    console.log('Updating balance with details:', {
-      telegram_id,
-      paymentAmount,
-      bot_name: ctx?.botInfo?.username || bot_name || 'unknown_bot',
-      service_type: ctx?.session?.mode || 'unknown_mode',
-    })
-    const updateSuccess = await updateUserBalance(
-      telegram_id.toString(),
-      paymentAmount,
-      PaymentType.MONEY_OUTCOME,
-      'Payment operation',
-      {
-        bot_name: ctx?.botInfo?.username || bot_name || 'unknown_bot',
-        service_type: ctx?.session?.mode || 'unknown_mode',
-        modePrice: paymentAmount,
-        currentBalance: currentBalance,
-      },
-      paymentAmount
-    )
-
-    if (!updateSuccess) {
-      // Обработка ошибки обновления баланса
-      const message = is_ru
-        ? 'Ошибка обновления баланса.'
-        : 'Error updating balance.'
-      return {
-        newBalance: currentBalance,
-        success: false,
-        error: message,
-        modePrice: paymentAmount,
-        paymentAmount: paymentAmount,
-        currentBalance,
-      }
-    }
-
-    return {
-      newBalance,
-      success: true,
-      modePrice: paymentAmount,
-      paymentAmount: paymentAmount,
-      currentBalance,
-    }
-  } catch (error) {
-    console.error('Error in processBalanceOperation:', error)
-    return {
-      newBalance: await getUserBalance(telegram_id.toString()),
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      modePrice: paymentAmount,
-      paymentAmount: paymentAmount,
-      currentBalance: await getUserBalance(telegram_id.toString()),
-    }
-  }
+  // Используем новый унифицированный обработчик
+  return BalanceOperationProcessor.processOperation(params)
 }
