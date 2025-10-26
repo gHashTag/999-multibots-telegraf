@@ -12,6 +12,12 @@ if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true })
 }
 
+// Создаем директорию для логов безопасности
+const securityLogsDir = path.join(logDir, 'security')
+if (!fs.existsSync(securityLogsDir)) {
+  fs.mkdirSync(securityLogsDir, { recursive: true })
+}
+
 // Расширенный интерфейс для логирования
 interface EnhancedLogContext {
   correlationId?: string
@@ -91,8 +97,20 @@ if (process.env.NODE_ENV !== 'production') {
 if (process.env.NODE_ENV !== 'test') {
   logTransports.push(
     createRotateTransport('app', 'info'),
-    createRotateTransport('error', 'error'),
-    createRotateTransport('security', 'warn')
+    createRotateTransport('error', 'error')
+  )
+
+  // Добавляем специальный транспорт для логов безопасности
+  logTransports.push(
+    new DailyRotateFile({
+      filename: path.join(securityLogsDir, 'security-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '14d',
+      level: 'warn',
+      format: structuredFormat,
+      auditFile: path.join(securityLogsDir, 'security-audit.json'),
+    })
   )
 }
 
@@ -195,6 +213,170 @@ export const logger = {
   error: (message: string, meta?: any) => enhancedLogger.error(message, meta),
   security: (message: string, meta?: any) =>
     enhancedLogger.security(message, meta),
+}
+
+// Логгер для ботов с дополнительным контекстом имени бота
+export const botLogger = {
+  info: (botName: string, message: string, meta?: Record<string, any>) => {
+    logger.info(`[${botName}] ${message}`, meta)
+  },
+  warn: (botName: string, message: string, meta?: Record<string, any>) => {
+    logger.warn(`[${botName}] ${message}`, meta)
+  },
+  error: (botName: string, message: string, meta?: Record<string, any>) => {
+    logger.error(`[${botName}] ${message}`, meta)
+  },
+  debug: (botName: string, message: string, meta?: Record<string, any>) => {
+    logger.debug(`[${botName}] ${message}`, meta)
+  },
+}
+
+// Создаем отдельный логгер безопасности
+const securityTransports: any[] = []
+
+if (process.env.NODE_ENV !== 'test') {
+  securityTransports.push(
+    new DailyRotateFile({
+      filename: path.join(securityLogsDir, 'security-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '14d',
+      format: structuredFormat,
+      auditFile: path.join(securityLogsDir, 'security-audit.json'),
+    }),
+    // Критические проблемы безопасности также идут в основной лог ошибок
+    createRotateTransport('error', 'error')
+  )
+}
+
+// В development режиме выводим в консоль
+if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
+  securityTransports.push(
+    new transports.Console({
+      format: format.combine(format.colorize(), format.simple()),
+    })
+  )
+}
+
+// Логгер безопасности для отслеживания подозрительной активности
+export const securityLogger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    format.json()
+  ),
+  defaultMeta: { service: 'security' },
+  transports: securityTransports,
+  exitOnError: false,
+})
+
+// Хелпер для логирования попыток неавторизованного доступа
+export const logSecurityEvent = (
+  eventType: string,
+  details: Record<string, any>,
+  severity: 'info' | 'warn' | 'error' = 'warn'
+) => {
+  securityLogger[severity](`Событие безопасности: ${eventType}`, {
+    ...details,
+    timestamp: new Date().toISOString(),
+    eventType,
+  })
+}
+
+// Функция для очистки объектов от Buffer данных перед логированием
+const sanitizeForLogging = (obj: any, seen = new WeakSet()): any => {
+  if (obj === null || obj === undefined) return obj
+
+  if (Buffer.isBuffer(obj)) {
+    return `<Buffer ${obj.length} bytes>`
+  }
+
+  if (obj instanceof Uint8Array) {
+    return `<Uint8Array ${obj.length} bytes>`
+  }
+
+  if (Array.isArray(obj)) {
+    // Защита от циклических ссылок
+    if (seen.has(obj)) {
+      return '<Circular Array Reference>'
+    }
+    seen.add(obj)
+
+    // Проверяем, есть ли в массиве Buffer или большие данные
+    if (obj.length > 100) {
+      return `<Array ${obj.length} items (truncated for logging)>`
+    }
+    return obj.map(item => sanitizeForLogging(item, seen))
+  }
+
+  if (typeof obj === 'object') {
+    // Защита от циклических ссылок
+    if (seen.has(obj)) {
+      return '<Circular Object Reference>'
+    }
+    seen.add(obj)
+
+    const sanitized: any = {}
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === 'images' && Array.isArray(value)) {
+        sanitized[key] = value.map((img: any, index: number) => ({
+          filename: img.filename || `image_${index}`,
+          bufferSize: img.buffer?.length || 0,
+          hasBuffer: !!img.buffer,
+        }))
+      } else {
+        sanitized[key] = sanitizeForLogging(value, seen)
+      }
+    }
+    return sanitized
+  }
+
+  return obj
+}
+
+// Функция для безопасного логирования session без Buffer данных
+export const logSessionSafely = (session: any, label?: string) => {
+  const safeCopy = { ...session }
+
+  // Удаляем или заменяем Buffer объекты безопасными представлениями
+  if (safeCopy.images && Array.isArray(safeCopy.images)) {
+    safeCopy.images = safeCopy.images.map((img: any, index: number) => ({
+      filename: img.filename || `image_${index}`,
+      bufferSize: img.buffer?.length || 0,
+      hasBuffer: !!img.buffer,
+    }))
+  }
+
+  // Удаляем другие потенциально большие объекты
+  if (safeCopy.userModel && typeof safeCopy.userModel === 'object') {
+    safeCopy.userModel = {
+      ...safeCopy.userModel,
+      // Сохраняем только основные поля, исключая потенциально большие данные
+      model_url: safeCopy.userModel.model_url,
+      trigger_word: safeCopy.userModel.trigger_word,
+      model_id: safeCopy.userModel.model_id,
+    }
+  }
+
+  logger.info(label || 'Session data', safeCopy)
+}
+
+// Безопасная версия console.log
+export const safeConsoleLog = (...args: any[]) => {
+  const sanitizedArgs = args.map(arg => sanitizeForLogging(arg))
+  console.log(...sanitizedArgs)
+}
+
+// Настройка безопасного логирования консоли (опционально)
+export const setupSafeConsoleLogging = () => {
+  const originalConsoleLog = console.log
+
+  console.log = (...args: any[]) => {
+    const sanitizedArgs = args.map(arg => sanitizeForLogging(arg))
+    originalConsoleLog(...sanitizedArgs)
+  }
+
+  logger.info('Safe console logging enabled - Buffer data will be sanitized')
 }
 
 export default logger
