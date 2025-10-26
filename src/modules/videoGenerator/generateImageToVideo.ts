@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
+import { createHash } from 'crypto'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import {
@@ -24,6 +25,10 @@ import axios from 'axios'
 import { isAxiosError } from 'axios'
 import { API_URL, SECRET_API_KEY } from '@/config'
 import { safeSendMessage, markUserAsBlocked } from '@/utils/blockedUsersCheck'
+
+// ✅ FIX: Map для предотвращения дублирования одинаковых запросов генерации
+// Key: telegramId + hash(imageUrl + prompt + modelId) -> Value: taskId
+const activeTasksCache = new Map<string, string>()
 
 // Функция для отправки уведомления админу
 async function notifyAdminAboutServerIssue(
@@ -153,6 +158,32 @@ export const generateImageToVideo = async (
         originalLength: prompt.length,
         truncatedLength: processedPrompt.length
       })
+    }
+
+    // ✅ FIX: Проверка на дублирующиеся запросы генерации
+    // Создаем уникальный hash запроса для предотвращения двойной генерации
+    const requestHash = createHash('md5')
+      .update(`${telegramId}_${imageUrl || ''}_${processedPrompt || ''}_${modelId}`)
+      .digest('hex')
+    const cacheKey = `${telegramId}_${requestHash}`
+
+    // Проверяем, есть ли уже активная задача с таким же запросом
+    if (activeTasksCache.has(cacheKey)) {
+      const existingTaskId = activeTasksCache.get(cacheKey)
+      logger.warn('[I2V BG] ⚠️ Duplicate request detected - skipping generation', {
+        telegramId,
+        existingTaskId,
+        requestHash: requestHash.substring(0, 8),
+        modelId
+      })
+
+      await telegramInstance.sendMessage(
+        chatId,
+        isRu
+          ? '⚠️ Аналогичная генерация видео уже выполняется. Пожалуйста, дождитесь завершения текущей генерации.'
+          : '⚠️ Similar video generation is already in progress. Please wait for the current generation to complete.'
+      )
+      return
     }
 
     const modelConfig = VIDEO_MODELS_CONFIG[modelId]
@@ -732,6 +763,25 @@ export const generateImageToVideo = async (
             // Реализуем polling для Kie.ai API
             const taskId = kieResponse.data.taskId
 
+            // ✅ FIX: Сохраняем taskId в кеш для предотвращения дублирующихся запросов
+            activeTasksCache.set(cacheKey, taskId)
+            logger.info('[I2V BG] ✅ TaskId saved to cache for deduplication', {
+              telegramId,
+              taskId,
+              cacheKey: cacheKey.substring(0, 20) + '...'
+            })
+
+            // Автоматически удаляем из кеша через 15 минут (макс. время генерации)
+            setTimeout(() => {
+              if (activeTasksCache.has(cacheKey)) {
+                activeTasksCache.delete(cacheKey)
+                logger.info('[I2V BG] 🧹 Auto-cleanup: taskId removed from cache after timeout', {
+                  telegramId,
+                  taskId
+                })
+              }
+            }, 15 * 60 * 1000) // 15 минут
+
             // ✅ FIX: Save taskId to session so "Update status" button works
             if (ctx && ctx.session) {
               ctx.session.videoJobId = taskId
@@ -786,13 +836,23 @@ export const generateImageToVideo = async (
                 if (!statusResponse.success) {
                   // Ошибка генерации (например, unsafe image upload)
                   const errorMessage = statusResponse.error || 'Unknown generation error'
-                  
+
                   logger.error('[I2V BG] Plan B: Video generation failed', {
                     telegramId,
                     taskId,
                     error: errorMessage,
                     attempts
                   })
+
+                  // ✅ FIX: Очищаем кеш при ошибке генерации
+                  if (activeTasksCache.has(cacheKey)) {
+                    activeTasksCache.delete(cacheKey)
+                    logger.info('[I2V BG] 🧹 Cache cleaned on error', {
+                      telegramId,
+                      taskId,
+                      error: errorMessage
+                    })
+                  }
 
                   // Создаем клавиатуру для ошибки
                   const errorKeyboard = Markup.keyboard([
@@ -813,11 +873,11 @@ export const generateImageToVideo = async (
                   // Уведомляем пользователя об ошибке
                   const { getBotByName } = await import('@/core/bot')
                   const botResult = getBotByName('neuro_blogger_bot')
-                  
+
                   if (botResult.bot) {
                     const errorMessage = isRu
                       ? `❌ Ошибка генерации видео: ${statusResponse.error || 'Unknown generation error'}\n\n${
-                          statusResponse.error?.includes('English prompts') 
+                          statusResponse.error?.includes('English prompts')
                             ? '🔤 Пожалуйста, используйте английский язык для промпта.\n💰 Деньги НЕ были списаны.'
                             : 'Попробуйте другое изображение или измените промпт.'
                         }`
@@ -826,7 +886,7 @@ export const generateImageToVideo = async (
                             ? '🔤 Please use English language for prompts.\n💰 No money was charged.'
                             : 'Try a different image or modify the prompt.'
                         }`
-                    
+
                     // Используем безопасную отправку с проверкой блокировки
                     const sent = await safeSendMessage(
                       { telegram: botResult.bot.telegram } as any,
@@ -834,7 +894,7 @@ export const generateImageToVideo = async (
                       errorMessage,
                       { reply_markup: errorKeyboard.reply_markup }
                     )
-                    
+
                     if (!sent) {
                       logger.info('[I2V BG] User has blocked the bot, stopping polling', {
                         telegramId,
@@ -988,6 +1048,17 @@ export const generateImageToVideo = async (
                       : 'Your video is ready! What next?',
                     keyboard
                   )
+
+                  // ✅ FIX: Очищаем кеш после успешной генерации и отправки видео
+                  if (activeTasksCache.has(cacheKey)) {
+                    activeTasksCache.delete(cacheKey)
+                    logger.info('[I2V BG] 🧹 Cache cleaned on success', {
+                      telegramId,
+                      taskId,
+                      videoUrl: videoUrl.substring(0, 50) + '...'
+                    })
+                  }
+
                   return // Выходим из функции, так как видео уже отправлено
                 }
 
