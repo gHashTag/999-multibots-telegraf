@@ -1090,9 +1090,27 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 ✨ Creating amazing Infinity Morphing for you...
 ⏳ This may take up to 5 minutes, please wait...`
 
-    await ctx.editMessageText(costMessage, {
-      parse_mode: 'HTML',
-    })
+    // ✅ FIX: Редактируем сообщение только если это callback query
+    // При custom prompt пользователь отправляет текст, поэтому нет сообщения для редактирования
+    if (ctx.callbackQuery) {
+      try {
+        await ctx.editMessageText(costMessage, {
+          parse_mode: 'HTML',
+        })
+      } catch (editError) {
+        // Если не удалось отредактировать - отправляем новое сообщение
+        const sentMessage = await ctx.reply(costMessage, { parse_mode: 'HTML' })
+        if ('message_id' in sentMessage) {
+          ctx.session.morphingProgressMessageId = sentMessage.message_id
+        }
+      }
+    } else {
+      // Для текстовых сообщений (custom prompt) - отправляем новое сообщение
+      const sentMessage = await ctx.reply(costMessage, { parse_mode: 'HTML' })
+      if ('message_id' in sentMessage) {
+        ctx.session.morphingProgressMessageId = sentMessage.message_id
+      }
+    }
 
     // Вызываем сервис генерации морфинга (прямо с изображениями, без архива)
     const morphingResult = await generateMorphing({
@@ -1122,9 +1140,26 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 
 💡 <b>Note:</b> If file is large (>50MB), you'll receive a download link`
 
-    await ctx.editMessageText(completionMessage, {
-      parse_mode: 'HTML',
-    })
+    // ✅ FIX: Пытаемся отредактировать сообщение, если не получается - отправляем новое
+    try {
+      if (ctx.session.morphingProgressMessageId) {
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id,
+          ctx.session.morphingProgressMessageId,
+          undefined,
+          completionMessage,
+          { parse_mode: 'HTML' }
+        )
+      } else if (ctx.callbackQuery) {
+        await ctx.editMessageText(completionMessage, { parse_mode: 'HTML' })
+      } else {
+        // Fallback: отправляем новое сообщение
+        await ctx.reply(completionMessage, { parse_mode: 'HTML' })
+      }
+    } catch (editError) {
+      // Если редактирование не удалось - отправляем новое сообщение
+      await ctx.reply(completionMessage, { parse_mode: 'HTML' })
+    }
 
     // Очищаем сессию и выходим из сцены
     if (ctx.session) {
