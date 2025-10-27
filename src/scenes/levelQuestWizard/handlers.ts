@@ -7,6 +7,7 @@ import { isRussian } from '@/helpers/language'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function handleQuestRules(ctx: MyContext) {
   try {
@@ -115,7 +116,10 @@ Creating a digital avatar body is an important step in personalizing your digita
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel1:', error)
+    logger.error('[LevelQuest] Error in handleLevel1', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
@@ -167,7 +171,10 @@ After the process is complete, you will receive your <b>neurophoto</b>. This ima
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel2:', error)
+    logger.error('[LevelQuest] Error in handleLevel2', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
@@ -225,7 +232,10 @@ Using the "Image to Prompt" function opens up new possibilities for creativity a
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel3:', error)
+    logger.error('[LevelQuest] Error in handleLevel3', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -278,7 +288,10 @@ Once you provide all the necessary information, our bot will process the data an
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel0:', error)
+    logger.error('[LevelQuest] Error in handleLevel0', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -312,7 +325,10 @@ We are proud to offer you such an innovative tool and hope it becomes an indispe
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel8:', error)
+    logger.error('[LevelQuest] Error in handleLevel8', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -364,7 +380,10 @@ The "Select AI Model" function opens up the possibility of more flexible and eff
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel7:', error)
+    logger.error('[LevelQuest] Error in handleLevel7', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -432,7 +451,10 @@ The "Voice for Avatar" function allows you to personalize your digital image, ma
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel7:', error)
+    logger.error('[LevelQuest] Error in handleLevel7', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
     throw error
   }
@@ -484,7 +506,10 @@ The "Text to Voice" function makes your digital content more lively and expressi
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel6:', error)
+    logger.error('[LevelQuest] Error in handleLevel6', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -532,7 +557,10 @@ The "Image to Video" function allows you to bring your ideas to life in dynamic 
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel9:', error)
+    logger.error('[LevelQuest] Error in handleLevel9', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -612,7 +640,10 @@ But this is just the beginning. You can experiment with different descriptions t
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel10:', error)
+    logger.error('[LevelQuest] Error in handleLevel10', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -676,7 +707,10 @@ After selecting a model, the next step is to create a text description or prompt
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel11:', error)
+    logger.error('[LevelQuest] Error in handleLevel11', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -722,7 +756,10 @@ Using the "Change Size" function allows you to easily adapt your avatar images t
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleLevel4:', error)
+    logger.error('[LevelQuest] Error in handleLevel4', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -781,7 +818,10 @@ Expand the user community and open new horizons together!`
     })
     return
   } catch (error) {
-    console.error('Error in handleLevel13:', error)
+    logger.error('[LevelQuest] Error in handleLevel13', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -806,7 +846,7 @@ export async function handleQuestComplete(ctx: MyContext) {
       ctx,
     })
   )
-  console.log('Quest completed')
+  logger.info('[LevelQuest] Quest completed', { telegramId: ctx.from?.id })
 }
 
 export async function handleImageUpscalerHelp(ctx: MyContext) {
@@ -889,7 +929,10 @@ Turn any image into high-quality in minutes! 📸✨`
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleImageUpscalerHelp:', error)
+    logger.error('[LevelQuest] Error in handleImageUpscalerHelp', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -977,7 +1020,10 @@ Turn any video into useful text in minutes! 🎬✨`
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleVideoTranscriptionHelp:', error)
+    logger.error('[LevelQuest] Error in handleVideoTranscriptionHelp', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }
@@ -1075,7 +1121,10 @@ FLUX Kontext is the future of image editing, available today! 🌈✨`
       ]).resize().reply_markup,
     })
   } catch (error) {
-    console.error('Error in handleFluxKontextHelp:', error)
+    logger.error('[LevelQuest] Error in handleFluxKontextHelp', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id,
+    })
     errorMessage(ctx, error as Error, isRussianFromState(ctx))
     throw error
   }

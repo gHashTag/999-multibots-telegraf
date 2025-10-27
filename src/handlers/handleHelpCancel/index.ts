@@ -1,11 +1,13 @@
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
-  console.log('🔍 [handleHelpCancel] STARTED', {
+  logger.info('[handleHelpCancel] Started processing', {
     hasMessage: !!ctx.message,
     messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
+    telegramId: ctx.from?.id,
   })
 
   if (ctx.message && 'text' in ctx.message) {
@@ -13,7 +15,7 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
     const originalText = ctx.message?.text
     const text = originalText?.toLowerCase()
 
-    console.log('🔍 [handleHelpCancel] TEXT ANALYSIS', {
+    logger.debug('[handleHelpCancel] Text analysis', {
       originalText,
       processedText: text,
       isRu,
@@ -23,28 +25,37 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
     })
 
     if (text === (isRu ? 'отмена' : 'cancel')) {
-      console.log(
-        '✅ [handleHelpCancel] CANCEL DETECTED - Processing cancellation'
-      )
+      logger.info('[handleHelpCancel] Cancel detected - processing cancellation', {
+        telegramId: ctx.from?.id,
+      })
       await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
-      console.log(
-        '✅ [handleHelpCancel] CANCEL MESSAGE SENT - Entering MainMenu'
-      )
+      logger.debug('[handleHelpCancel] Cancel message sent - entering MainMenu', {
+        telegramId: ctx.from?.id,
+      })
       ctx.scene.enter(ModeEnum.MainMenu)
-      console.log('✅ [handleHelpCancel] ENTERING MAIN MENU SCENE')
+      logger.info('[handleHelpCancel] Entered main menu scene', {
+        telegramId: ctx.from?.id,
+      })
       return true
     }
 
     if (text === (isRu ? 'справка по команде' : 'help for the command')) {
-      console.log('✅ [handleHelpCancel] HELP DETECTED - Processing help')
+      logger.info('[handleHelpCancel] Help detected - processing help', {
+        telegramId: ctx.from?.id,
+      })
       // ✅ Входим в helpScene и остаёмся там (убрали .leave())
       await ctx.scene.enter('helpScene')
       return true
     }
 
-    console.log('❌ [handleHelpCancel] NO MATCH FOUND - Continuing normal flow')
+    logger.debug('[handleHelpCancel] No match found - continuing normal flow', {
+      telegramId: ctx.from?.id,
+      text,
+    })
   } else {
-    console.log('❌ [handleHelpCancel] NO TEXT MESSAGE - Skipping')
+    logger.debug('[handleHelpCancel] No text message - skipping', {
+      telegramId: ctx.from?.id,
+    })
   }
   return false
 }
