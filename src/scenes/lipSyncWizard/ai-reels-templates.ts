@@ -137,7 +137,7 @@ export async function showTemplateSelection(ctx: MyContext): Promise<void> {
     parse_mode: 'HTML',
     reply_markup: Markup.keyboard([
       [
-        isRu ? '⚡ Быстрый (WAN 2.5)' : '⚡ Fast (WAN 2.5)',
+        isRu ? '⚡ Быстрый (Veo 3.1)' : '⚡ Fast (Veo 3.1)',
         isRu ? '🔄 Надежный (Inngest)' : '🔄 Reliable (Inngest)',
       ],
       [isRu ? '🏠 Главное меню' : '🏠 Main menu'],

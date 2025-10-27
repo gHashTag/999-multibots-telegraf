@@ -2,7 +2,7 @@
  * 🎬 AI REELS ENTRY WIZARD
  *
  * Точка входа для выбора метода генерации AI Reels
- * - Локальная генерация (lip-sync + WAN 2.5 + merging)
+ * - Локальная генерация (lip-sync + Google Veo 3.1 + merging)
  * - Render Server (Hedra/HeyGen через Railway)
  */
 
@@ -134,14 +134,30 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
 
     if (choice === 'ai_reels_template_wan25') {
       // Шаблон 1
+      logger.info('🎬 [AI REELS ENTRY] Template 1 selected, preparing to enter wizard', {
+        telegramId,
+        targetScene: 'ai_reels_wizard',
+      })
+
       await ctx.editMessageText(
         isRu
           ? '✅ Выбран Шаблон 1!\n\n⏳ Переходим к настройке...'
           : '✅ Template 1 selected!\n\n⏳ Proceeding to setup...'
       )
 
+      logger.info('🚀 [AI REELS ENTRY] About to call ctx.scene.enter("ai_reels_wizard")', {
+        telegramId,
+        currentScene: ctx.scene.current?.id,
+      })
+
       // Переходим к wizard для Шаблона 1
       await ctx.scene.enter('ai_reels_wizard')
+
+      logger.info('✅ [AI REELS ENTRY] ctx.scene.enter completed', {
+        telegramId,
+        currentScene: ctx.scene.current?.id,
+      })
+
       return
     } else if (choice === 'ai_reels_template_inngest') {
       // Шаблон 2
