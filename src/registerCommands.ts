@@ -166,25 +166,44 @@ const scenesToRegister = [
   instagramParserScene,
 ]
 
+// 🔍 DEBUG: Print scene names from array definition
+const sceneNames = [
+  'startScene', 'menuScene', 'helpScene', 'inviteScene', 'paymentScene',
+  'rublePaymentScene', 'starPaymentScene', 'subscriptionScene', 'subscriptionCheckScene',
+  'checkBalanceScene', 'balanceScene', 'neuroPhotoWizard', 'neuroPhotoWizardV2',
+  'textToImageWizard', 'textToVideoWizard', 'imageToVideoWizard', 'imageToPromptWizard',
+  'imageUpscalerWizard', 'faceSwapWizard', 'improvePromptWizard', 'trainFluxModelWizard',
+  'uploadTrainFluxModelScene', 'uploadVideoScene', 'sizeWizard', 'aiPhotoshopScene',
+  'morphingWizard', 'voiceWizard_wrapped', 'textToSpeechWizard_wrapped',
+  'videoTranscriptionWizard', 'lipSyncWizard', 'veedFabricWizard', 'aiReelsWizard',
+  'aiReelsEntryWizard', 'aiReelsRenderWizard', 'avatarTransformScene',
+  'avatarBrainWizard_wrapped', 'chatWithAvatarWizard_wrapped', 'selectModelWizard',
+  'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
+  'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
+  'autoFixerConfigScene', 'instagramParserScene'
+]
+
 // 🔍 DEBUG: Validate each scene
 scenesToRegister.forEach((scene, index) => {
   const hasId = scene?.id != null
   const hasMiddleware = typeof scene?.middleware === 'function'
   const isValid = hasId && hasMiddleware
 
-  console.log(`🔍 [SCENE ${index}] ${scene?.id || 'UNKNOWN'}:`, {
+  console.log(`🔍 [SCENE ${index}] ${sceneNames[index] || 'ARRAY_INDEX_' + index}: ${scene?.id || 'UNKNOWN'}`, {
     hasId,
     hasMiddleware,
     isValid,
-    type: typeof scene,
-    middlewareType: typeof scene?.middleware
+    isUndefined: scene === undefined,
+    isNull: scene === null,
   })
 
-  if (!isValid) {
-    console.error(`❌ [SCENE ${index}] INVALID SCENE:`, scene?.id || 'NO_ID')
+  if (!isValid || scene === undefined || scene === null) {
+    console.error(`❌❌❌ [SCENE ${index}] CRITICAL: ${sceneNames[index]} is invalid/undefined!`)
+    console.error(`   - Variable name: ${sceneNames[index]}`)
+    console.error(`   - Actual value: ${scene}`)
+    console.error(`   - Type: ${typeof scene}`)
     console.error(`   - Has ID: ${hasId}`)
     console.error(`   - Has middleware: ${hasMiddleware}`)
-    console.error(`   - Scene object:`, Object.keys(scene || {}))
   }
 })
 
