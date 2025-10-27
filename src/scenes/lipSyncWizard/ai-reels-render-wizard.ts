@@ -378,6 +378,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       ctx.session.aiReelsRender = {
         ...ctx.session.aiReelsRender,
         heygenAvatarId: avatarId,
+        heygenApiKey: avatarInfo.apiKey, // ✅ Сохраняем API ключ набора аватара
         step: 'text',
       }
 
@@ -1119,8 +1120,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       }
 
       // ✅ Для HeyGen используем выбранный пользователем аватар из сессии
-      const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
-      const heygenApiKey = ctx.session.aiReelsRender.heygenApiKey
+      let heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
+      let heygenApiKey = ctx.session.aiReelsRender.heygenApiKey
 
       if (avatarService === 'heygen') {
         if (!heygenAvatarId || !heygenApiKey) {
@@ -1133,6 +1134,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           const defaultAvatar = HEYGEN_AVATAR_SETS.cocoage.avatars[0]
           ctx.session.aiReelsRender.heygenAvatarId = defaultAvatar.id
           ctx.session.aiReelsRender.heygenApiKey = HEYGEN_AVATAR_SETS.cocoage.apiKey
+
+          // ✅ Перечитываем значения после fallback
+          heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
+          heygenApiKey = ctx.session.aiReelsRender.heygenApiKey
         }
       }
 
