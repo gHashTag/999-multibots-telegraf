@@ -775,9 +775,21 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     logger.info('🎬 [AI REELS RENDER] Step 5 - Service selection routing', {
       telegramId,
       hasCallbackQuery: 'callback_query' in ctx.update,
+      avatarServiceAlreadySet: ctx.session.aiReelsRender?.avatarService,
     })
 
-    // Обрабатываем только callback_query
+    // ✅ Если сервис уже выбран (HeyGen из Step 0), пропускаем этот шаг
+    if (ctx.session.aiReelsRender?.avatarService === 'heygen') {
+      logger.info('🎬 [AI REELS RENDER] HeyGen already selected, skipping Step 5, going to final step', {
+        telegramId,
+      })
+
+      // Пропускаем Step 5a, 5b (они уже выполнены) и переходим к финалу
+      ctx.wizard.selectStep(8) // Индекс 8, next() будет индекс 9 (Step 7 финал)
+      return ctx.wizard.next()
+    }
+
+    // Обрабатываем только callback_query (для Hedra flow)
     if (!('callback_query' in ctx.update)) {
       await ctx.reply(
         isRu
@@ -1030,21 +1042,24 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       ctx.session.aiReelsRender = {
         ...ctx.session.aiReelsRender,
         heygenAvatarId: avatarId,
+        step: 'text',
       }
 
       await ctx.answerCbQuery()
       await ctx.editMessageText(
         isRu
-          ? `✅ Выбран аватар: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n⏳ Отправляем запрос на render-server...`
-          : `✅ Avatar selected: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n⏳ Sending request to render-server...`
+          ? `✅ Выбран аватар: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Теперь отправьте текст или голосовое сообщение для озвучки аватара (макс. 500 символов или 30 сек):`
+          : `✅ Avatar selected: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Now send text or voice message for avatar voiceover (max 500 chars or 30 sec):`
       )
 
-      logger.info('🎬 [AI REELS RENDER] Avatar selected, proceeding to final step', {
+      logger.info('🎬 [AI REELS RENDER] Avatar selected, requesting text input', {
         telegramId,
         avatarId,
         setName: ctx.session.aiReelsRender.heygenAvatarSet,
       })
 
+      // Переходим к Step 3 (индекс 3) - ввод текста для озвучки
+      ctx.wizard.selectStep(2) // Индекс 2, следующий next() будет индекс 3
       return ctx.wizard.next()
     } else {
       await ctx.reply(
