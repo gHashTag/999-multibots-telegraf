@@ -109,7 +109,8 @@ console.log('🚨 [SCENE_DEBUG] textToVideoWizard check:', {
   sceneType: typeof textToVideoWizard,
 })
 
-export const stage = new Scenes.Stage<MyContext>([
+// 🔍 DEBUG: Проверка всех сцен ПЕРЕД созданием Stage
+const scenesToRegister = [
   startScene,
   menuScene,
   helpScene,
@@ -163,7 +164,31 @@ export const stage = new Scenes.Stage<MyContext>([
   instagramScrapingWizard,
   autoFixerConfigScene,
   instagramParserScene,
-])
+]
+
+// 🔍 DEBUG: Validate each scene
+scenesToRegister.forEach((scene, index) => {
+  const hasId = scene?.id != null
+  const hasMiddleware = typeof scene?.middleware === 'function'
+  const isValid = hasId && hasMiddleware
+
+  console.log(`🔍 [SCENE ${index}] ${scene?.id || 'UNKNOWN'}:`, {
+    hasId,
+    hasMiddleware,
+    isValid,
+    type: typeof scene,
+    middlewareType: typeof scene?.middleware
+  })
+
+  if (!isValid) {
+    console.error(`❌ [SCENE ${index}] INVALID SCENE:`, scene?.id || 'NO_ID')
+    console.error(`   - Has ID: ${hasId}`)
+    console.error(`   - Has middleware: ${hasMiddleware}`)
+    console.error(`   - Scene object:`, Object.keys(scene || {}))
+  }
+})
+
+export const stage = new Scenes.Stage<MyContext>(scenesToRegister)
 
 // Проверяем зарегистрированные сцены
 console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
