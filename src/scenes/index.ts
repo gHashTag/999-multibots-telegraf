@@ -21,7 +21,7 @@ export * from './paymentScene'
 export * from './textToImageWizard'
 export * from './levelQuestWizard'
 export * from './neuroCoderScene'
-export * from './lipSyncWizard'
+export { lipSyncWizard } from './lipSyncWizard'  // ✅ EXPLICIT NAMED EXPORT
 export { veedFabricWizard } from './lipSyncWizard/veed-fabric-wizard'
 export { aiReelsWizard } from './lipSyncWizard/ai-reels-wizard'
 export { aiReelsEntryWizard } from './lipSyncWizard/ai-reels-entry-wizard'
