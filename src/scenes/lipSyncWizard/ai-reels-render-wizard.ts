@@ -23,7 +23,7 @@ import {
   checkRenderServerAvailability,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
-import { HEYGEN_AVATAR_SETS, HEYGEN_DEFAULT_VOICE_ID } from './heygen-avatars-config'
+import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -1039,13 +1039,40 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🔴 [STEP 6] Creating payload...')
 
-      // ✅ ИСПРАВЛЕНИЕ: Для HeyGen используем дефолтный voice_id, для Hedra - voice_id пользователя
+      // ✅ ИСПРАВЛЕНИЕ: Для HeyGen используем voice_id набора аватара, для Hedra - voice_id пользователя
       let voiceIdToUse: string
 
       if (avatarService === 'heygen') {
-        // Для HeyGen всегда используем дефолтный voice_id (голос Дианы)
-        voiceIdToUse = HEYGEN_DEFAULT_VOICE_ID
-        console.log('🔴 [STEP 6] Using HeyGen default voice_id:', voiceIdToUse)
+        // Для HeyGen получаем voice_id на основе выбранного аватара
+        const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
+
+        if (!heygenAvatarId) {
+          console.log('🔴 [STEP 6] ERROR: No HeyGen avatar ID in session!')
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: аватар HeyGen не выбран'
+              : '❌ Error: HeyGen avatar not selected'
+          )
+          return ctx.scene.leave()
+        }
+
+        const heygenVoiceId = getVoiceIdForAvatar(heygenAvatarId)
+
+        if (!heygenVoiceId) {
+          console.log('🔴 [STEP 6] ERROR: Could not find voice_id for avatar:', heygenAvatarId)
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: не найден voice_id для выбранного аватара'
+              : '❌ Error: voice_id not found for selected avatar'
+          )
+          return ctx.scene.leave()
+        }
+
+        voiceIdToUse = heygenVoiceId
+        console.log('🔴 [STEP 6] Using HeyGen voice_id for avatar:', {
+          avatarId: heygenAvatarId.substring(0, 15),
+          voiceId: voiceIdToUse,
+        })
       } else {
         // Для Hedra используем voice_id пользователя из БД
         const { getVoiceId } = await import('@/core/supabase/getVoiceId')
