@@ -433,13 +433,14 @@ export async function createCircleCompositionWithFaceDetection(
     )
 
     // 8. FFmpeg команда: вырезаем лицо, потом позиционируем в левом нижнем углу
-    const ffmpegCommand = `ffmpeg -i "${backgroundVideoPath}" -i "${lipSyncVideoPath}" -i "${maskPath}" \
+    // ⚠️ Background video audio is MUTED (-an flag) - only lip-sync audio is used
+    const ffmpegCommand = `ffmpeg -i "${backgroundVideoPath}" -an -i "${lipSyncVideoPath}" -i "${maskPath}" \
       -filter_complex "\
         [0:v]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2,trim=duration=${finalDuration},setpts=PTS-STARTPTS[bg]; \
         [1:v]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2,trim=duration=${finalDuration},setpts=PTS-STARTPTS[lipsync]; \
         [lipsync][2:v]alphamerge[masked]; \
         [bg][masked]overlay=${smartOffset.x}:${smartOffset.y}[outv]" \
-      -map "[outv]" -map 1:a? -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -aspect 9:16 -t ${finalDuration} \
+      -map "[outv]" -map 1:a -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -aspect 9:16 -t ${finalDuration} \
       -y "${outputPath}"`
 
     logger.info('🔧 [CIRCLE COMPOSITION] Running FFmpeg with face detection')
