@@ -26,6 +26,7 @@ import {
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 // Импортируем AutoFixer команды
 import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
+import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
 // Импортируем админ middleware
 import { requireAdmin } from './middleware/adminOnly'
 // ✅ ИМПОРТИРУЕМ MULTI-PHOTO ACTION HANDLERS
@@ -135,8 +136,11 @@ export const stage = new Scenes.Stage<MyContext>([
   sizeWizard,
   aiPhotoshopScene,
   morphingWizard,
-  voiceAvatarWizard,
-  textToSpeechWizard,
+  new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
+  new Scenes.WizardScene(
+    ModeEnum.TextToSpeech,
+    ...(textToSpeechWizard.steps as any)
+  ),
   videoTranscriptionWizard,
   lipSyncWizard,
   veedFabricWizard,
@@ -144,8 +148,11 @@ export const stage = new Scenes.Stage<MyContext>([
   aiReelsEntryWizard,
   aiReelsRenderWizard,
   avatarTransformScene,
-  avatarBrainWizard,
-  chatWithAvatarWizard,
+  new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
+  new Scenes.WizardScene(
+    ModeEnum.ChatWithAvatar,
+    ...(chatWithAvatarWizard.steps as any)
+  ),
   selectModelWizard,
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
@@ -154,6 +161,7 @@ export const stage = new Scenes.Stage<MyContext>([
   createUserScene,
   neuroCoderScene,
   instagramScrapingWizard,
+  autoFixerConfigScene,
   instagramParserScene,
 ])
 
