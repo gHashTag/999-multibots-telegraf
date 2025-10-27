@@ -23,7 +23,7 @@ import {
   checkRenderServerAvailability,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
-import { HEYGEN_AVATAR_SETS } from './heygen-avatars-config'
+import { HEYGEN_AVATAR_SETS, HEYGEN_DEFAULT_VOICE_ID } from './heygen-avatars-config'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -926,12 +926,18 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           { parse_mode: 'HTML' }
         )
 
-        // Пропускаем Step 6 (обработку callback выбора сервиса) и переходим сразу к финальной отправке
-        // Структура: 0, 1, 1a, 1b, 2, 3, 4, 5, 6, 7(FINAL)
-        // Индексы:   0, 1,  2,  3, 4, 5, 6, 7, 8, 9(FINAL)
-        // Текущий Step 5 = индекс 7, финальный Step = индекс 9
-        ctx.wizard.selectStep(8) // selectStep(8) + next() = индекс 9 (финальная отправка)
-        return ctx.wizard.next()
+        // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6
+        logger.info('🎬 [AI REELS RENDER] Service already selected, proceeding to Step 6', {
+          telegramId,
+          avatarService: service,
+        })
+
+        // Переключаем на Step 6 (индекс 8)
+        ctx.wizard.selectStep(8)
+
+        // ✅ Вызываем handler Step 6 напрямую
+        // @ts-ignore - steps is private but we need direct invocation
+        return await (ctx.wizard as any).steps[ctx.wizard.cursor](ctx)
       }
 
       // ❌ УСТАРЕВШИЙ ПУТЬ: Если сервис НЕ выбран (только для Hedra flow из старого кода)
@@ -1033,21 +1039,31 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🔴 [STEP 6] Creating payload...')
 
-      // ✅ ИСПРАВЛЕНИЕ: Получаем voice_id пользователя из БД
-      const { getVoiceId } = await import('@/core/supabase/getVoiceId')
-      const userVoiceId = await getVoiceId(telegramId)
+      // ✅ ИСПРАВЛЕНИЕ: Для HeyGen используем дефолтный voice_id, для Hedra - voice_id пользователя
+      let voiceIdToUse: string
 
-      if (!userVoiceId) {
-        console.log('🔴 [STEP 6] ERROR: No user voice ID found!')
-        await ctx.reply(
-          isRu
-            ? '❌ У вас не настроен голос аватара. Создайте голос сначала.'
-            : '❌ You dont have avatar voice configured. Create voice first.'
-        )
-        return ctx.scene.leave()
+      if (avatarService === 'heygen') {
+        // Для HeyGen всегда используем дефолтный voice_id (голос Дианы)
+        voiceIdToUse = HEYGEN_DEFAULT_VOICE_ID
+        console.log('🔴 [STEP 6] Using HeyGen default voice_id:', voiceIdToUse)
+      } else {
+        // Для Hedra используем voice_id пользователя из БД
+        const { getVoiceId } = await import('@/core/supabase/getVoiceId')
+        const userVoiceId = await getVoiceId(telegramId)
+
+        if (!userVoiceId) {
+          console.log('🔴 [STEP 6] ERROR: No user voice ID found for Hedra!')
+          await ctx.reply(
+            isRu
+              ? '❌ У вас не настроен голос аватара. Создайте голос сначала.'
+              : '❌ You dont have avatar voice configured. Create voice first.'
+          )
+          return ctx.scene.leave()
+        }
+
+        voiceIdToUse = userVoiceId
+        console.log('🔴 [STEP 6] Using user voice ID for Hedra:', voiceIdToUse)
       }
-
-      console.log('🔴 [STEP 6] User voice ID:', userVoiceId)
 
       // ✅ Для HeyGen используем выбранный пользователем аватар из сессии
       const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
@@ -1073,12 +1089,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         fromSession: true,
       })
 
-      // Создание payload с ПРАВИЛЬНЫМ voice_id пользователя и NEW API STRUCTURE
+      // Создание payload с ПРАВИЛЬНЫМ voice_id (HeyGen default или user) и NEW API STRUCTURE
       const payload = createRenderAvatarPayload(
         telegramId,
         ctx.session.aiReelsRender.text || '',
         ctx.session.aiReelsRender.imageUrl || '',
-        userVoiceId, // ✅ Используем voice_id пользователя из БД
+        voiceIdToUse, // ✅ Используем дефолтный voice_id для HeyGen или user voice_id для Hedra
         {
           coverUrl:
             'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
@@ -1106,8 +1122,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       }
 
       console.log(
-        '🔴 [STEP 6] Payload created with user voice ID:',
-        userVoiceId
+        '🔴 [STEP 6] Payload created with voice ID:',
+        voiceIdToUse
       )
       console.log(
         '🔴 [STEP 6] ElevenLabs token (masked):',
@@ -1119,7 +1135,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         telegramId,
         hasElevenLabsToken: !!payload.eleven_labs_api_key,
         elevenLabsTokenPrefix: payload.eleven_labs_api_key.substring(0, 10),
-        voiceId: userVoiceId,
+        voiceId: voiceIdToUse,
+        voiceIdType: avatarService === 'heygen' ? 'heygen_default' : 'user_voice',
         avatarService,
         avatarPhotoUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 50),
         textLength: ctx.session.aiReelsRender.text?.length,

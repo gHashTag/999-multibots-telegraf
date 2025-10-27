@@ -52,18 +52,30 @@ export const HAIM_AVATARS: HeyGenAvatar[] = [
 /**
  * Наборы аватаров с API ключами
  */
+/**
+ * ✅ БЕЗОПАСНО: API ключи читаются из переменных окружения (.env)
+ * Добавьте в .env файл:
+ * HEYGEN_COCOAGE_API_KEY=sk_V2_hgu_...
+ * HEYGEN_HAIM_API_KEY=sk_V2_hgu_...
+ */
 export const HEYGEN_AVATAR_SETS: Record<string, HeyGenAvatarSet> = {
   cocoage: {
     name: 'Cocoage',
-    apiKey: 'sk_V2_hgu_kRHjrVzZGiM_I2rKedw8sWe6rX9ieS51oMFMS5SfLEBs',
+    apiKey: process.env.HEYGEN_COCOAGE_API_KEY || '',
     avatars: COCOAGE_AVATARS,
   },
   haim: {
     name: 'Haim',
-    apiKey: 'sk_V2_hgu_kNGdj3aoXVt_oR1djZTA9b6pgyByyyNi2T4DmC3s3NdY',
+    apiKey: process.env.HEYGEN_HAIM_API_KEY || '',
     avatars: HAIM_AVATARS,
   },
 }
+
+/**
+ * Дефолтный voice_id для HeyGen (голос Дианы "Вау")
+ * Работает со всеми HeyGen API ключами
+ */
+export const HEYGEN_DEFAULT_VOICE_ID = '2b2e1f15157b454487f1250ffe586d7a'
 
 /**
  * Получить набор аватаров по имени владельца
