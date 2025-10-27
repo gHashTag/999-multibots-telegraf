@@ -9,6 +9,7 @@
 export interface HeyGenAvatarSet {
   name: string
   apiKey: string
+  voiceId: string // Дефолтный voice_id для этого набора аватаров
   avatars: HeyGenAvatar[]
 }
 
@@ -50,7 +51,7 @@ export const HAIM_AVATARS: HeyGenAvatar[] = [
 ]
 
 /**
- * Наборы аватаров с API ключами
+ * Наборы аватаров с API ключами и voice_id
  */
 /**
  * ✅ БЕЗОПАСНО: API ключи читаются из переменных окружения (.env)
@@ -62,20 +63,30 @@ export const HEYGEN_AVATAR_SETS: Record<string, HeyGenAvatarSet> = {
   cocoage: {
     name: 'Cocoage',
     apiKey: process.env.HEYGEN_COCOAGE_API_KEY || '',
+    voiceId: '2b2e1f15157b454487f1250ffe586d7a', // Голос Дианы "Вау" для Cocoage
     avatars: COCOAGE_AVATARS,
   },
   haim: {
     name: 'Haim',
     apiKey: process.env.HEYGEN_HAIM_API_KEY || '',
+    voiceId: 'dc9cd149b0d741d6934a1d95e3f3ef00', // Голос для Haim
     avatars: HAIM_AVATARS,
   },
 }
 
 /**
- * Дефолтный voice_id для HeyGen (голос Дианы "Вау")
- * Работает со всеми HeyGen API ключами
+ * Получить voice_id для конкретного аватара
+ * Каждый набор (Cocoage/Haim) имеет свой voice_id
  */
-export const HEYGEN_DEFAULT_VOICE_ID = '2b2e1f15157b454487f1250ffe586d7a'
+export function getVoiceIdForAvatar(avatarId: string): string | null {
+  for (const set of Object.values(HEYGEN_AVATAR_SETS)) {
+    const avatar = set.avatars.find(a => a.id === avatarId)
+    if (avatar) {
+      return set.voiceId
+    }
+  }
+  return null
+}
 
 /**
  * Получить набор аватаров по имени владельца
