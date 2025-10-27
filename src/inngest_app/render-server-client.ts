@@ -50,8 +50,6 @@ export interface RenderRiddlePayload {
   circle_position: [number, number, number]
   circle_scale: [number, number, number]
   avatar_gen_service: 'hedra' | 'heygen'
-  heygen_avatar_id?: string // ID аватара HeyGen (используется когда avatar_gen_service === 'heygen')
-  heygen_api_key?: string // API ключ HeyGen (используется когда avatar_gen_service === 'heygen')
   avatar_settings: {
     api_key: string
     avatar_photo_url: string
@@ -189,14 +187,8 @@ export function createRenderAvatarPayload(
     introText2?: string
     upperIntroText?: string
     callbackUrl?: string
-    avatarService?: 'hedra' | 'heygen'
-    heygenAvatarId?: string
-    heygenApiKey?: string
   }
 ): RenderRiddlePayload {
-  const avatarService = options?.avatarService || 'hedra'
-  const isHeygen = avatarService === 'heygen'
-
   return {
     job_id: `telegram-${telegramId}-${Date.now()}`,
     eleven_labs_api_key: process.env.ELEVENLABS_API_KEY || '',
@@ -215,19 +207,11 @@ export function createRenderAvatarPayload(
     upper_intro_text: options?.upperIntroText || '',
     circle_position: [872, 1360, 0],
     circle_scale: [150, 150, 100],
-    avatar_gen_service: avatarService,
-    // For HeyGen: add heygen-specific fields
-    ...(isHeygen && {
-      heygen_avatar_id: options?.heygenAvatarId || '',
-      heygen_api_key: options?.heygenApiKey || '',
-    }),
-    // avatar_settings: For HeyGen, use minimal data; render-server will use heygen fields instead
+    avatar_gen_service: 'hedra',
     avatar_settings: {
-      api_key: isHeygen ? '' : process.env.HEDRA_API_KEY || '',
-      avatar_photo_url: isHeygen ? '' : avatarPhotoUrl,
-      avatar_id: isHeygen
-        ? options?.heygenAvatarId || ''
-        : `avatar-${telegramId}-${Date.now()}`,
+      api_key: process.env.HEDRA_API_KEY || '',
+      avatar_photo_url: avatarPhotoUrl,
+      avatar_id: `avatar-${telegramId}-${Date.now()}`,
       voice_id: voiceId,
       avatar_speech: text,
     },
