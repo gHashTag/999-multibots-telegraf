@@ -156,6 +156,10 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
           : '✅ Template 2 selected!\n\n⏳ Proceeding to setup...'
       )
 
+      // ✅ ВАЖНО: Очищаем сессию wizard'а чтобы начать с Step 0
+      delete ctx.session.aiReelsRender
+      delete (ctx.session as any).__scenes
+
       // Переходим к render wizard (Inngest)
       await ctx.scene.enter('ai_reels_render_wizard')
 
