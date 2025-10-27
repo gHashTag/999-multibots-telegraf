@@ -34,7 +34,9 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    logger.info('🎬 [AI REELS RENDER] Wizard started - Service selection', { telegramId })
+    logger.info('🎬 [AI REELS RENDER] Wizard started - Service selection', {
+      telegramId,
+    })
 
     if (!telegramId) {
       await ctx.reply(
@@ -88,8 +90,18 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? '🎭 Hedra' : '🎭 Hedra', 'service_hedra')],
-          [Markup.button.callback(isRu ? '🎬 HeyGen' : '🎬 HeyGen', 'service_heygen')],
+          [
+            Markup.button.callback(
+              isRu ? '🎭 Hedra' : '🎭 Hedra',
+              'service_hedra'
+            ),
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '🎬 HeyGen' : '🎬 HeyGen',
+              'service_heygen'
+            ),
+          ],
         ]),
       }
     )
@@ -675,6 +687,22 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         step: 'avatar_service', // Переходим к выбору сервиса
       }
 
+      // ✅ Если HeyGen уже выбран в Step 0, пропускаем дублирующий выбор сервиса
+      if (ctx.session.aiReelsRender?.avatarService === 'heygen') {
+        logger.info(
+          '🎬 [AI REELS RENDER] HeyGen already selected in Step 0, skipping duplicate service selection',
+          {
+            telegramId,
+            heygenAvatarId: ctx.session.aiReelsRender.heygenAvatarId,
+            heygenAvatarSet: ctx.session.aiReelsRender.heygenAvatarSet,
+          }
+        )
+
+        // Переходим сразу к финальному шагу (Step 7, индекс 9)
+        ctx.wizard.selectStep(8) // Индекс 8, next() будет индекс 9 (Step 7 финал)
+        return ctx.wizard.next()
+      }
+
       // Оценка длительности для расчета стоимости
       let estimatedDuration = 10 // секунд по умолчанию
 
@@ -780,9 +808,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
     // ✅ Если сервис уже выбран (HeyGen из Step 0), пропускаем этот шаг
     if (ctx.session.aiReelsRender?.avatarService === 'heygen') {
-      logger.info('🎬 [AI REELS RENDER] HeyGen already selected, skipping Step 5, going to final step', {
-        telegramId,
-      })
+      logger.info(
+        '🎬 [AI REELS RENDER] HeyGen already selected, skipping Step 5, going to final step',
+        {
+          telegramId,
+        }
+      )
 
       // Пропускаем Step 5a, 5b (они уже выполнены) и переходим к финалу
       ctx.wizard.selectStep(8) // Индекс 8, next() будет индекс 9 (Step 7 финал)
@@ -809,9 +840,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const callbackData =
-      'data' in ctx.update.callback_query
-        ? ctx.update.callback_query.data
-        : ''
+      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
 
     logger.info('🎬 [AI REELS RENDER] Processing service selection', {
       telegramId,
@@ -832,9 +861,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           : '✅ Selected: 🎭 Hedra\n\n⏳ Sending request to render-server...'
       )
 
-      logger.info('🎬 [AI REELS RENDER] Hedra selected, skipping to final step', {
-        telegramId,
-      })
+      logger.info(
+        '🎬 [AI REELS RENDER] Hedra selected, skipping to final step',
+        {
+          telegramId,
+        }
+      )
 
       // Пропускаем Steps 5a и 5b (выбор аватаров HeyGen), переходим к Step 7
       // Устанавливаем курсор на шаг 7 и вызываем wizard.next() для выполнения
@@ -917,9 +949,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const callbackData =
-      'data' in ctx.update.callback_query
-        ? ctx.update.callback_query.data
-        : ''
+      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
 
     const { HEYGEN_AVATAR_SETS } = await import('./heygen-avatars-config')
 
@@ -927,8 +957,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       callbackData === 'heygen_set_cocoage' ||
       callbackData === 'heygen_set_haim'
     ) {
-      const setName =
-        callbackData === 'heygen_set_cocoage' ? 'cocoage' : 'haim'
+      const setName = callbackData === 'heygen_set_cocoage' ? 'cocoage' : 'haim'
       const avatarSet = HEYGEN_AVATAR_SETS[setName]
 
       ctx.session.aiReelsRender = {
@@ -1021,9 +1050,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const callbackData =
-      'data' in ctx.update.callback_query
-        ? ctx.update.callback_query.data
-        : ''
+      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
 
     if (callbackData.startsWith('heygen_avatar_')) {
       const avatarId = callbackData.replace('heygen_avatar_', '')
@@ -1052,11 +1079,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           : `✅ Avatar selected: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Now send text or voice message for avatar voiceover (max 500 chars or 30 sec):`
       )
 
-      logger.info('🎬 [AI REELS RENDER] Avatar selected, requesting text input', {
-        telegramId,
-        avatarId,
-        setName: ctx.session.aiReelsRender.heygenAvatarSet,
-      })
+      logger.info(
+        '🎬 [AI REELS RENDER] Avatar selected, requesting text input',
+        {
+          telegramId,
+          avatarId,
+          setName: ctx.session.aiReelsRender.heygenAvatarSet,
+        }
+      )
 
       // Переходим к Step 3 (индекс 3) - ввод текста для озвучки
       // ВАЖНО: Только selectStep БЕЗ next(), чтобы ждать следующего сообщения
@@ -1124,10 +1154,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
           introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
           introText2: ctx.session.aiReelsRender.introText2 || 'News',
-            upperIntroText:
-              ctx.session.aiReelsRender.upperIntroText || 'Ai-Stars',
-          }
-        )
+          upperIntroText:
+            ctx.session.aiReelsRender.upperIntroText || 'Ai-Stars',
+        }
+      )
       // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
       const elevenLabsToken = process.env.ELEVENLABS_API_KEY
       if (!elevenLabsToken) {
@@ -1143,12 +1173,21 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      console.log('🔴 [STEP 7] Payload created with user voice ID:', userVoiceId)
-      console.log('🔴 [STEP 7] ElevenLabs token (masked):', elevenLabsToken.substring(0, 10) + '...')
+      console.log(
+        '🔴 [STEP 7] Payload created with user voice ID:',
+        userVoiceId
+      )
+      console.log(
+        '🔴 [STEP 7] ElevenLabs token (masked):',
+        elevenLabsToken.substring(0, 10) + '...'
+      )
 
       // Установить выбранный сервис
       payload.avatar_gen_service = avatarService
-      console.log('🔴 [STEP 7] Avatar service set on payload:', payload.avatar_gen_service)
+      console.log(
+        '🔴 [STEP 7] Avatar service set on payload:',
+        payload.avatar_gen_service
+      )
 
       // 🆕 Если HeyGen - добавляем avatar_id и API key
       if (avatarService === 'heygen') {
@@ -1170,7 +1209,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         payload.heygen_api_key = heygenApiKey
 
         console.log('🔴 [STEP 7] HeyGen avatar set:', heygenAvatarId)
-        console.log('🔴 [STEP 7] HeyGen API key (masked):', heygenApiKey.substring(0, 15) + '...')
+        console.log(
+          '🔴 [STEP 7] HeyGen API key (masked):',
+          heygenApiKey.substring(0, 15) + '...'
+        )
       }
 
       // ✅ ЛОГИРОВАНИЕ: Проверяем payload перед отправкой
@@ -1180,7 +1222,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         elevenLabsTokenPrefix: payload.eleven_labs_api_key.substring(0, 10),
         voiceId: userVoiceId,
         avatarService,
-        heygenAvatarId: avatarService === 'heygen' ? payload.heygen_avatar_id : 'N/A',
+        heygenAvatarId:
+          avatarService === 'heygen' ? payload.heygen_avatar_id : 'N/A',
         avatarPhotoUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 50),
         textLength: ctx.session.aiReelsRender.text?.length,
       })
@@ -1252,7 +1295,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           telegramId,
           job_id: payload.job_id,
           avatar_gen_service: payload.avatar_gen_service,
-          heygen_avatar_id: avatarService === 'heygen' ? payload.heygen_avatar_id : 'N/A',
+          heygen_avatar_id:
+            avatarService === 'heygen' ? payload.heygen_avatar_id : 'N/A',
           eleven_labs_api_key_present: !!payload.eleven_labs_api_key,
           eleven_labs_api_key_prefix:
             payload.eleven_labs_api_key?.substring(0, 10) || 'MISSING',
@@ -1261,8 +1305,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             voice_id: payload.avatar_settings.voice_id,
             avatar_photo_url:
               payload.avatar_settings.avatar_photo_url.substring(0, 50),
-            avatar_speech_length:
-              payload.avatar_settings.avatar_speech.length,
+            avatar_speech_length: payload.avatar_settings.avatar_speech.length,
             api_key_present: !!payload.avatar_settings.api_key,
           },
           intro_text_1: payload.intro_text_1.text,
@@ -1278,9 +1321,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           payload.eleven_labs_api_key?.substring(0, 10)
         )
 
-        console.log(
-          '🔴 [STEP 7] About to call sendRenderAvatarVideoEvent()...'
-        )
+        console.log('🔴 [STEP 7] About to call sendRenderAvatarVideoEvent()...')
         const { eventId } = await sendRenderAvatarVideoEvent(payload)
         console.log('🔴 [STEP 7] Event sent! Event ID:', eventId)
 
