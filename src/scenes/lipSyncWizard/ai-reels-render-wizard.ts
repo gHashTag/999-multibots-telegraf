@@ -163,27 +163,224 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next()
     } else if (callbackData === 'service_heygen') {
-      // ВЕТКА HEYGEN: Пропускаем фото, сразу к тексту
+      // ВЕТКА HEYGEN: Показываем выбор набора аватаров
       ctx.session.aiReelsRender = {
         ...ctx.session.aiReelsRender,
         avatarService: 'heygen',
-        step: 'text',
+        step: 'avatar_set_selection',
         imageUrl: '', // HeyGen не требует фото пользователя
       }
 
       await ctx.answerCbQuery()
       await ctx.editMessageText(
         isRu
-          ? '✅ Выбран: 🎬 HeyGen\n\n📝 Отправьте текст (до 500 символов) или голосовое сообщение (до 30 сек).'
-          : '✅ Selected: 🎬 HeyGen\n\n📝 Send text (up to 500 characters) or voice message (up to 30 sec).'
+          ? '✅ Выбран: 🎬 HeyGen\n\n👥 Выберите набор аватаров:'
+          : '✅ Selected: 🎬 HeyGen\n\n👥 Choose avatar set:',
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                `${isRu ? '👤 Cocoage' : '👤 Cocoage'} (8)`,
+                'heygen_set_cocoage'
+              ),
+            ],
+            [
+              Markup.button.callback(
+                `${isRu ? '👥 Haim' : '👥 Haim'} (11)`,
+                'heygen_set_haim'
+              ),
+            ],
+          ]),
+        }
       )
 
-      logger.info('🎬 [AI REELS RENDER] HeyGen selected, requesting text', {
+      logger.info('🎬 [AI REELS RENDER] HeyGen selected, showing avatar sets', {
         telegramId,
       })
 
-      // Пропускаем Step 2 (обработка фото) и переходим сразу к Step 3 (обработка текста)
-      ctx.wizard.selectStep(3)
+      // Переходим к Step 1a (выбор набора аватаров)
+      return ctx.wizard.next()
+    } else {
+      await ctx.reply(
+        isRu
+          ? '❌ Неизвестная опция. Попробуйте еще раз.'
+          : '❌ Unknown option. Try again.'
+      )
+      return ctx.scene.leave()
+    }
+  },
+
+  // Step 1a: HEYGEN - Выбор набора аватаров (Cocoage/Haim)
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    logger.info('🎬 [AI REELS RENDER] Step 1a - Avatar set selection', {
+      telegramId,
+      hasCallbackQuery: 'callback_query' in ctx.update,
+    })
+
+    if (!('callback_query' in ctx.update)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, нажмите одну из кнопок.'
+          : '❌ Please press one of the buttons.'
+      )
+      return
+    }
+
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
+      )
+      return ctx.scene.leave()
+    }
+
+    const callbackData =
+      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
+
+    if (
+      callbackData === 'heygen_set_cocoage' ||
+      callbackData === 'heygen_set_haim'
+    ) {
+      const setName = callbackData === 'heygen_set_cocoage' ? 'cocoage' : 'haim'
+      const avatarSet = HEYGEN_AVATAR_SETS[setName]
+
+      ctx.session.aiReelsRender = {
+        ...ctx.session.aiReelsRender,
+        heygenAvatarSet: setName,
+        heygenApiKey: avatarSet.apiKey,
+      }
+
+      await ctx.answerCbQuery()
+
+      // Создаем кнопки с аватарами (по 2 в ряд)
+      const avatarButtons = []
+      for (let i = 0; i < avatarSet.avatars.length; i += 2) {
+        const row = []
+        const avatar1 = avatarSet.avatars[i]
+        row.push(
+          Markup.button.callback(
+            `${avatar1.emoji} ${avatar1.name}`,
+            `heygen_avatar_${avatar1.id}`
+          )
+        )
+
+        if (i + 1 < avatarSet.avatars.length) {
+          const avatar2 = avatarSet.avatars[i + 1]
+          row.push(
+            Markup.button.callback(
+              `${avatar2.emoji} ${avatar2.name}`,
+              `heygen_avatar_${avatar2.id}`
+            )
+          )
+        }
+        avatarButtons.push(row)
+      }
+
+      await ctx.editMessageText(
+        isRu
+          ? `✅ Набор: ${avatarSet.name}\n\n` +
+              `🎭 Выберите аватар (${avatarSet.avatars.length} доступно):`
+          : `✅ Set: ${avatarSet.name}\n\n` +
+              `🎭 Choose avatar (${avatarSet.avatars.length} available):`,
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard(avatarButtons),
+        }
+      )
+
+      logger.info('🎬 [AI REELS RENDER] Avatar set selected, showing avatars', {
+        telegramId,
+        setName,
+        avatarsCount: avatarSet.avatars.length,
+      })
+
+      return ctx.wizard.next()
+    } else {
+      await ctx.reply(
+        isRu
+          ? '❌ Неизвестная опция. Попробуйте еще раз.'
+          : '❌ Unknown option. Try again.'
+      )
+      return ctx.scene.leave()
+    }
+  },
+
+  // Step 1b: HEYGEN - Выбор конкретного аватара из набора
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    logger.info('🎬 [AI REELS RENDER] Step 1b - Specific avatar selection', {
+      telegramId,
+      hasCallbackQuery: 'callback_query' in ctx.update,
+    })
+
+    if (!('callback_query' in ctx.update)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, нажмите одну из кнопок.'
+          : '❌ Please press one of the buttons.'
+      )
+      return
+    }
+
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
+      )
+      return ctx.scene.leave()
+    }
+
+    const callbackData =
+      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
+
+    if (callbackData.startsWith('heygen_avatar_')) {
+      const avatarId = callbackData.replace('heygen_avatar_', '')
+      const { findAvatarById } = await import('./heygen-avatars-config')
+      const avatarInfo = findAvatarById(avatarId)
+
+      if (!avatarInfo) {
+        await ctx.reply(
+          isRu
+            ? '❌ Аватар не найден. Попробуйте еще раз.'
+            : '❌ Avatar not found. Try again.'
+        )
+        return ctx.scene.leave()
+      }
+
+      ctx.session.aiReelsRender = {
+        ...ctx.session.aiReelsRender,
+        heygenAvatarId: avatarId,
+        step: 'text',
+      }
+
+      await ctx.answerCbQuery()
+      await ctx.editMessageText(
+        isRu
+          ? `✅ Выбран аватар: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Теперь отправьте текст (до 500 символов) или голосовое сообщение (до 30 сек):`
+          : `✅ Avatar selected: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Now send text (up to 500 characters) or voice message (up to 30 sec):`
+      )
+
+      logger.info(
+        '🎬 [AI REELS RENDER] Avatar selected, requesting text input',
+        {
+          telegramId,
+          avatarId,
+          setName: ctx.session.aiReelsRender.heygenAvatarSet,
+        }
+      )
+
+      // Переходим к Step 3 (текст/голос), пропуская Step 2 (Hedra фото)
+      // Структура: 0, 1, 1a, 1b, 2, 3, 4, 5, 6
+      // Индекс 5 = Step 3 (текст/голос)
+      ctx.wizard.selectStep(5) // Индекс 5 = Step 3 (текст/голос для HeyGen)
       return
     } else {
       await ctx.reply(
