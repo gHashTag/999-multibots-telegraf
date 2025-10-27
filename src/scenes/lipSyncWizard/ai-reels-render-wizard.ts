@@ -863,7 +863,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         ...ctx.session.aiReelsRender,
         introText2: introText2,
         upperIntroText: introText2, // Используем второй текст как верхний
-        step: 'avatar_service', // Переходим к выбору сервиса
+        step: 'processing', // Переходим к обработке
       }
 
       // Оценка длительности для расчета стоимости
@@ -894,6 +894,47 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       const finalCost = Math.ceil(baseCost * 2) // x2 наценка
       const finalCostUSD = (finalCost / 100).toFixed(2)
 
+      // ✅ ПРОВЕРКА: Если avatarService УЖЕ выбран (HeyGen с аватаром или Hedra с фото)
+      if (ctx.session.aiReelsRender.avatarService) {
+        const service = ctx.session.aiReelsRender.avatarService
+        const serviceName = service === 'hedra' ? '🎭 Hedra' : '🎬 HeyGen'
+
+        logger.info('🎬 [AI REELS RENDER] Service already selected, skipping duplicate choice', {
+          telegramId,
+          avatarService: service,
+          heygenAvatarId: ctx.session.aiReelsRender.heygenAvatarId,
+        })
+
+        await ctx.reply(
+          isRu
+            ? `✅ <b>Составной заголовок создан:</b>\n` +
+                `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
+                `📊 <b>Расчет стоимости:</b>\n` +
+                `• Длительность: ~${estimatedDuration} сек\n` +
+                `• 4 видео VEO3 Fast: 160⭐\n` +
+                `• Hedra lip-sync: ${estimatedDuration} × 14⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
+                `• <b>Итого: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
+                `✅ Генерация через ${serviceName}\n\n⏳ Отправляем запрос на render-server...`
+            : `✅ <b>Composite title created:</b>\n` +
+                `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
+                `📊 <b>Cost calculation:</b>\n` +
+                `• Duration: ~${estimatedDuration} sec\n` +
+                `• 4 VEO3 Fast videos: 160⭐\n` +
+                `• Hedra lip-sync: ${estimatedDuration} × 14⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
+                `• <b>Total: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
+                `✅ Generating with ${serviceName}\n\n⏳ Sending request to render-server...`,
+          { parse_mode: 'HTML' }
+        )
+
+        // Пропускаем Step 6 (обработку callback выбора сервиса) и переходим сразу к финальной отправке
+        // Структура: 0, 1, 1a, 1b, 2, 3, 4, 5, 6, 7(FINAL)
+        // Индексы:   0, 1,  2,  3, 4, 5, 6, 7, 8, 9(FINAL)
+        // Текущий Step 5 = индекс 7, финальный Step = индекс 9
+        ctx.wizard.selectStep(8) // selectStep(8) + next() = индекс 9 (финальная отправка)
+        return ctx.wizard.next()
+      }
+
+      // ❌ УСТАРЕВШИЙ ПУТЬ: Если сервис НЕ выбран (только для Hedra flow из старого кода)
       // Запрос выбора сервиса аватара
       await ctx.reply(
         isRu
@@ -1008,13 +1049,28 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🔴 [STEP 6] User voice ID:', userVoiceId)
 
-      // ✅ Для HeyGen используем дефолтный аватар Cocoage
-      const defaultHeyGenAvatar = HEYGEN_AVATAR_SETS.cocoage.avatars[0]
-      const heyGenApiKey = HEYGEN_AVATAR_SETS.cocoage.apiKey
+      // ✅ Для HeyGen используем выбранный пользователем аватар из сессии
+      const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
+      const heygenApiKey = ctx.session.aiReelsRender.heygenApiKey
+
+      if (avatarService === 'heygen') {
+        if (!heygenAvatarId || !heygenApiKey) {
+          logger.error('🔴 [STEP 6] HeyGen avatar data missing!', {
+            telegramId,
+            hasAvatarId: !!heygenAvatarId,
+            hasApiKey: !!heygenApiKey,
+          })
+          // Используем дефолтный аватар Cocoage как fallback
+          const defaultAvatar = HEYGEN_AVATAR_SETS.cocoage.avatars[0]
+          ctx.session.aiReelsRender.heygenAvatarId = defaultAvatar.id
+          ctx.session.aiReelsRender.heygenApiKey = HEYGEN_AVATAR_SETS.cocoage.apiKey
+        }
+      }
 
       console.log('🔴 [STEP 6] HeyGen config:', {
-        avatarId: defaultHeyGenAvatar.id,
-        apiKeyPrefix: heyGenApiKey.substring(0, 15),
+        avatarId: heygenAvatarId?.substring(0, 15),
+        apiKeyPrefix: heygenApiKey?.substring(0, 15),
+        fromSession: true,
       })
 
       // Создание payload с ПРАВИЛЬНЫМ voice_id пользователя и NEW API STRUCTURE
@@ -1028,11 +1084,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
           introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
           introText2: ctx.session.aiReelsRender.introText2 || 'News',
-          // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId
+          // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId - используем из сессии!
           avatarService,
-          heygenApiKey: avatarService === 'heygen' ? heyGenApiKey : undefined,
-          heygenAvatarId:
-            avatarService === 'heygen' ? defaultHeyGenAvatar.id : undefined,
+          heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
+          heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
         }
       )
       // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
