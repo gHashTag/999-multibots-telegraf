@@ -29,14 +29,12 @@ logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_render_wizard',
 
-  // Step 0: ВЫБОР СЕРВИСА (Hedra/HeyGen) - ПЕРВЫЙ ШАГ
+  // Step 0: Проверка render-server и запрос изображения
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    logger.info('🎬 [AI REELS RENDER] Wizard started - Service selection', {
-      telegramId,
-    })
+    logger.info('🎬 [AI REELS RENDER] Wizard started', { telegramId })
 
     if (!telegramId) {
       await ctx.reply(
@@ -61,165 +59,42 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
     // Инициализируем сессию
     ctx.session.aiReelsRender = {
-      step: 'avatar_service',
+      step: 'image',
       startTime: Date.now(),
     }
 
     await ctx.reply(
       isRu
-        ? '🎬 <b>AI Reels - Шаблон 2</b>\n\n' +
-            '🎯 Выберите сервис для генерации аватара:\n\n' +
-            '🎭 <b>Hedra</b>\n' +
-            '• Загрузите свое фото\n' +
-            '• Быстрая генерация (2-3 мин)\n' +
-            '• Хорошее качество\n\n' +
-            '🎬 <b>HeyGen</b>\n' +
-            '• Готовые профессиональные аватары\n' +
-            '• Премиум качество (4-5 мин)\n' +
-            '• Выбор из коллекции'
-        : '🎬 <b>AI Reels - Template 2</b>\n\n' +
-            '🎯 Choose avatar generation service:\n\n' +
-            '🎭 <b>Hedra</b>\n' +
-            '• Upload your photo\n' +
-            '• Fast generation (2-3 min)\n' +
-            '• Good quality\n\n' +
-            '🎬 <b>HeyGen</b>\n' +
-            '• Ready professional avatars\n' +
-            '• Premium quality (4-5 min)\n' +
-            '• Choose from collection',
+        ? '🎬 <b>AI Reels - Профессиональная генерация</b>\n\n' +
+            '✨ Возможности:\n' +
+            '• 🎭 Hedra - быстрая генерация lip-sync\n' +
+            '• 🎬 HeyGen - премиум качество видео\n' +
+            '• 🎤 ElevenLabs - естественный голос\n' +
+            '• 🖼️ Автоматические интро и обложки\n\n' +
+            '📸 Отправьте фото или URL изображения с лицом для аватара.'
+        : '🎬 <b>AI Reels - Professional generation</b>\n\n' +
+            '✨ Features:\n' +
+            '• 🎭 Hedra - fast lip-sync generation\n' +
+            '• 🎬 HeyGen - premium video quality\n' +
+            '• 🎤 ElevenLabs - natural voice\n' +
+            '• 🖼️ Automatic intros and covers\n\n' +
+            '📸 Send a photo or image URL with a face for avatar.',
       {
         parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              isRu ? '🎭 Hedra' : '🎭 Hedra',
-              'service_hedra'
-            ),
-          ],
-          [
-            Markup.button.callback(
-              isRu ? '🎬 HeyGen' : '🎬 HeyGen',
-              'service_heygen'
-            ),
-          ],
-        ]),
+        reply_markup: { remove_keyboard: true },
       }
     )
 
     return ctx.wizard.next()
   },
 
-  // Step 1: РОУТИНГ по выбору сервиса (Hedra/HeyGen)
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
-
-    logger.info('🎬 [AI REELS RENDER] Step 1 - Service routing', {
-      telegramId,
-      hasCallbackQuery: 'callback_query' in ctx.update,
-    })
-
-    // Обрабатываем только callback_query
-    if (!('callback_query' in ctx.update)) {
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, нажмите одну из кнопок.'
-          : '❌ Please press one of the buttons.'
-      )
-      return
-    }
-
-    if (!telegramId) {
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось определить ваш ID'
-          : '❌ Error: could not determine your ID'
-      )
-      return ctx.scene.leave()
-    }
-
-    const callbackData =
-      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
-
-    if (callbackData === 'service_hedra') {
-      // ВЕТКА HEDRA: Запрос фото пользователя
-      ctx.session.aiReelsRender = {
-        ...ctx.session.aiReelsRender,
-        avatarService: 'hedra',
-        step: 'image',
-      }
-
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(
-        isRu
-          ? '✅ Выбран: 🎭 Hedra\n\n📸 Отправьте фото или URL изображения с лицом для аватара.'
-          : '✅ Selected: 🎭 Hedra\n\n📸 Send a photo or image URL with a face for avatar.'
-      )
-
-      logger.info('🎬 [AI REELS RENDER] Hedra selected, requesting photo', {
-        telegramId,
-      })
-
-      return ctx.wizard.next()
-    } else if (callbackData === 'service_heygen') {
-      // ВЕТКА HEYGEN: Выбор набора аватаров
-      const { HEYGEN_AVATAR_SETS } = await import('./heygen-avatars-config')
-
-      ctx.session.aiReelsRender = {
-        ...ctx.session.aiReelsRender,
-        avatarService: 'heygen',
-        step: 'avatar_service',
-      }
-
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(
-        isRu
-          ? '✅ Выбран: 🎬 HeyGen\n\n👥 Выберите набор аватаров:'
-          : '✅ Selected: 🎬 HeyGen\n\n👥 Choose avatar set:',
-        {
-          parse_mode: 'HTML',
-          ...Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                `${isRu ? '👤 Cocoage' : '👤 Cocoage'} (8)`,
-                'heygen_set_cocoage'
-              ),
-            ],
-            [
-              Markup.button.callback(
-                `${isRu ? '👥 Haim' : '👥 Haim'} (11)`,
-                'heygen_set_haim'
-              ),
-            ],
-          ]),
-        }
-      )
-
-      logger.info('🎬 [AI REELS RENDER] HeyGen selected, showing avatar sets', {
-        telegramId,
-      })
-
-      // Пропускаем Hedra steps (2,3,4,5,6) и переходим на Step 5a (индекс 7)
-      // Step 5a обрабатывает выбор набора аватаров (heygen_set_cocoage/haim)
-      ctx.wizard.selectStep(7) // Jump directly to Step 5a (avatar set selection)
-      return // Ждем callback от кнопки, Step 5a выполнится при нажатии
-    } else {
-      await ctx.reply(
-        isRu
-          ? '❌ Неизвестная опция. Попробуйте еще раз.'
-          : '❌ Unknown option. Try again.'
-      )
-      return ctx.scene.leave()
-    }
-  },
-
-  // Step 2: HEDRA - Обработка изображения
+  // Step 1: Обработка изображения
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let imageUrl: string | null = null
 
-    logger.info('🎬 [AI REELS RENDER] Step 2 - Hedra: Processing image', {
+    logger.info('🎬 [AI REELS RENDER] Step 1 - Processing image', {
       telegramId: ctx.from?.id?.toString(),
     })
 
@@ -687,22 +562,6 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         step: 'avatar_service', // Переходим к выбору сервиса
       }
 
-      // ✅ Если HeyGen уже выбран в Step 0, пропускаем дублирующий выбор сервиса
-      if (ctx.session.aiReelsRender?.avatarService === 'heygen') {
-        logger.info(
-          '🎬 [AI REELS RENDER] HeyGen already selected in Step 0, skipping duplicate service selection',
-          {
-            telegramId,
-            heygenAvatarId: ctx.session.aiReelsRender.heygenAvatarId,
-            heygenAvatarSet: ctx.session.aiReelsRender.heygenAvatarSet,
-          }
-        )
-
-        // Переходим сразу к финальному шагу (Step 7, индекс 9)
-        ctx.wizard.selectStep(8) // Индекс 8, next() будет индекс 9 (Step 7 финал)
-        return ctx.wizard.next()
-      }
-
       // Оценка длительности для расчета стоимости
       let estimatedDuration = 10 // секунд по умолчанию
 
@@ -794,602 +653,339 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // Step 5: Обработка выбора Hedra/HeyGen - роутинг
+  // Step 5: Обработка выбора аватара и отправка на render-server
   async ctx => {
     console.log('🔴🔴🔴 [RENDER WIZARD STEP 5] FUNCTION EXECUTING!!!')
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
+    console.log('🔴 [RENDER WIZARD STEP 5] Update type:', ctx.updateType)
+    console.log(
+      '🔴 [RENDER WIZARD STEP 5] Has callback?',
+      'callback_query' in ctx.update
+    )
 
-    logger.info('🎬 [AI REELS RENDER] Step 5 - Service selection routing', {
-      telegramId,
-      hasCallbackQuery: 'callback_query' in ctx.update,
-      avatarServiceAlreadySet: ctx.session.aiReelsRender?.avatarService,
-    })
-
-    // ✅ Если сервис уже выбран (HeyGen из Step 0), пропускаем этот шаг
-    if (ctx.session.aiReelsRender?.avatarService === 'heygen') {
-      logger.info(
-        '🎬 [AI REELS RENDER] HeyGen already selected, skipping Step 5, going to final step',
-        {
-          telegramId,
-        }
-      )
-
-      // Пропускаем Step 5a, 5b (они уже выполнены) и переходим к финалу
-      ctx.wizard.selectStep(8) // Индекс 8, next() будет индекс 9 (Step 7 финал)
-      return ctx.wizard.next()
-    }
-
-    // Обрабатываем только callback_query (для Hedra flow)
-    if (!('callback_query' in ctx.update)) {
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, нажмите одну из кнопок.'
-          : '❌ Please press one of the buttons.'
-      )
-      return // Остаемся в том же шаге
-    }
-
-    if (!telegramId) {
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось определить ваш ID'
-          : '❌ Error: could not determine your ID'
-      )
-      return ctx.scene.leave()
-    }
-
-    const callbackData =
-      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
-
-    logger.info('🎬 [AI REELS RENDER] Processing service selection', {
-      telegramId,
-      callbackData,
-    })
-
-    if (callbackData === 'avatar_hedra') {
-      // Hedra выбран - сохраняем и переходим сразу к финальному степу (Step 7)
-      ctx.session.aiReelsRender = {
-        ...ctx.session.aiReelsRender,
-        avatarService: 'hedra',
-      }
-
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(
-        isRu
-          ? '✅ Выбран: 🎭 Hedra\n\n⏳ Отправляем запрос на render-server...'
-          : '✅ Selected: 🎭 Hedra\n\n⏳ Sending request to render-server...'
-      )
-
-      logger.info(
-        '🎬 [AI REELS RENDER] Hedra selected, skipping to final step',
-        {
-          telegramId,
-        }
-      )
-
-      // Пропускаем Steps 5a и 5b (выбор аватаров HeyGen), переходим к Step 7
-      // Устанавливаем курсор на шаг 7 и вызываем wizard.next() для выполнения
-      ctx.wizard.selectStep(6) // Устанавливаем на 6, потому что next() увеличит на 1
-      return ctx.wizard.next()
-    } else if (callbackData === 'avatar_heygen') {
-      // HeyGen выбран - переходим к выбору набора аватаров (Step 5a)
-      const { HEYGEN_AVATAR_SETS } = await import('./heygen-avatars-config')
-
-      ctx.session.aiReelsRender = {
-        ...ctx.session.aiReelsRender,
-        avatarService: 'heygen',
-      }
-
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(
-        isRu
-          ? '✅ Выбран: 🎬 HeyGen\n\n👥 Теперь выберите набор аватаров:'
-          : '✅ Selected: 🎬 HeyGen\n\n👥 Now choose avatar set:',
-        {
-          parse_mode: 'HTML',
-          ...Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                `${isRu ? '👤 Cocoage' : '👤 Cocoage'} (8)`,
-                'heygen_set_cocoage'
-              ),
-            ],
-            [
-              Markup.button.callback(
-                `${isRu ? '👥 Haim' : '👥 Haim'} (11)`,
-                'heygen_set_haim'
-              ),
-            ],
-          ]),
-        }
-      )
-
-      logger.info('🎬 [AI REELS RENDER] HeyGen selected, showing avatar sets', {
-        telegramId,
-      })
-
-      return ctx.wizard.next()
-    } else {
-      await ctx.reply(
-        isRu
-          ? '❌ Неизвестная опция. Попробуйте еще раз.'
-          : '❌ Unknown option. Try again.'
-      )
-      return ctx.scene.leave()
-    }
-  },
-
-  // Step 5a: Выбор набора аватаров HeyGen (Cocoage/Haim)
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
-
-    logger.info('🎬 [AI REELS RENDER] Step 5a - Avatar set selection', {
-      telegramId,
-      hasCallbackQuery: 'callback_query' in ctx.update,
-    })
-
-    if (!('callback_query' in ctx.update)) {
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, нажмите одну из кнопок.'
-          : '❌ Please press one of the buttons.'
-      )
-      return
-    }
-
-    if (!telegramId) {
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось определить ваш ID'
-          : '❌ Error: could not determine your ID'
-      )
-      return ctx.scene.leave()
-    }
-
-    const callbackData =
-      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
-
-    const { HEYGEN_AVATAR_SETS } = await import('./heygen-avatars-config')
-
-    if (
-      callbackData === 'heygen_set_cocoage' ||
-      callbackData === 'heygen_set_haim'
-    ) {
-      const setName = callbackData === 'heygen_set_cocoage' ? 'cocoage' : 'haim'
-      const avatarSet = HEYGEN_AVATAR_SETS[setName]
-
-      ctx.session.aiReelsRender = {
-        ...ctx.session.aiReelsRender,
-        heygenAvatarSet: setName,
-        heygenApiKey: avatarSet.apiKey,
-      }
-
-      await ctx.answerCbQuery()
-
-      // Создаем кнопки с аватарами (по 2 в ряд)
-      const avatarButtons = []
-      for (let i = 0; i < avatarSet.avatars.length; i += 2) {
-        const row = []
-        const avatar1 = avatarSet.avatars[i]
-        row.push(
-          Markup.button.callback(
-            `${avatar1.emoji} ${avatar1.name}`,
-            `heygen_avatar_${avatar1.id}`
-          )
-        )
-
-        if (i + 1 < avatarSet.avatars.length) {
-          const avatar2 = avatarSet.avatars[i + 1]
-          row.push(
-            Markup.button.callback(
-              `${avatar2.emoji} ${avatar2.name}`,
-              `heygen_avatar_${avatar2.id}`
-            )
-          )
-        }
-        avatarButtons.push(row)
-      }
-
-      await ctx.editMessageText(
-        isRu
-          ? `✅ Набор: ${avatarSet.name}\n\n` +
-              `🎭 Выберите аватар (${avatarSet.avatars.length} доступно):`
-          : `✅ Set: ${avatarSet.name}\n\n` +
-              `🎭 Choose avatar (${avatarSet.avatars.length} available):`,
-        {
-          parse_mode: 'HTML',
-          ...Markup.inlineKeyboard(avatarButtons),
-        }
-      )
-
-      logger.info('🎬 [AI REELS RENDER] Avatar set selected, showing avatars', {
-        telegramId,
-        setName,
-        avatarsCount: avatarSet.avatars.length,
-      })
-
-      return ctx.wizard.next()
-    } else {
-      await ctx.reply(
-        isRu
-          ? '❌ Неизвестная опция. Попробуйте еще раз.'
-          : '❌ Unknown option. Try again.'
-      )
-      return ctx.scene.leave()
-    }
-  },
-
-  // Step 5b: Выбор конкретного аватара из набора
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
-
-    logger.info('🎬 [AI REELS RENDER] Step 5b - Specific avatar selection', {
-      telegramId,
-      hasCallbackQuery: 'callback_query' in ctx.update,
-    })
-
-    if (!('callback_query' in ctx.update)) {
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, нажмите одну из кнопок.'
-          : '❌ Please press one of the buttons.'
-      )
-      return
-    }
-
-    if (!telegramId) {
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось определить ваш ID'
-          : '❌ Error: could not determine your ID'
-      )
-      return ctx.scene.leave()
-    }
-
-    const callbackData =
-      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
-
-    if (callbackData.startsWith('heygen_avatar_')) {
-      const avatarId = callbackData.replace('heygen_avatar_', '')
-      const { findAvatarById } = await import('./heygen-avatars-config')
-      const avatarInfo = findAvatarById(avatarId)
-
-      if (!avatarInfo) {
-        await ctx.reply(
-          isRu
-            ? '❌ Аватар не найден. Попробуйте еще раз.'
-            : '❌ Avatar not found. Try again.'
-        )
-        return ctx.scene.leave()
-      }
-
-      ctx.session.aiReelsRender = {
-        ...ctx.session.aiReelsRender,
-        heygenAvatarId: avatarId,
-        step: 'text',
-      }
-
-      await ctx.answerCbQuery()
-      await ctx.editMessageText(
-        isRu
-          ? `✅ Выбран аватар: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Теперь отправьте текст или голосовое сообщение для озвучки аватара (макс. 500 символов или 30 сек):`
-          : `✅ Avatar selected: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Now send text or voice message for avatar voiceover (max 500 chars or 30 sec):`
-      )
-
-      logger.info(
-        '🎬 [AI REELS RENDER] Avatar selected, requesting text input',
-        {
-          telegramId,
-          avatarId,
-          setName: ctx.session.aiReelsRender.heygenAvatarSet,
-        }
-      )
-
-      // Переходим к Step 3 (индекс 3) - ввод текста для озвучки
-      // ВАЖНО: Только selectStep БЕЗ next(), чтобы ждать следующего сообщения
-      ctx.wizard.selectStep(3) // Следующее сообщение будет обработано Step 3
-      return
-    } else {
-      await ctx.reply(
-        isRu
-          ? '❌ Неизвестная опция. Попробуйте еще раз.'
-          : '❌ Unknown option. Try again.'
-      )
-      return ctx.scene.leave()
-    }
-  },
-
-  // Step 7 (финальный): Отправка на render-server
-  async ctx => {
-    console.log('🔴🔴🔴 [RENDER WIZARD STEP 7 FINAL] FUNCTION EXECUTING!!!')
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
-
-    logger.info('🎬 [AI REELS RENDER] Step 7 - Final send to render-server', {
-      telegramId,
-      avatarService: ctx.session.aiReelsRender?.avatarService,
-    })
-
-    if (!telegramId) {
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось определить ваш ID'
-          : '❌ Error: could not determine your ID'
-      )
-      return ctx.scene.leave()
-    }
+    console.log('🔴 [STEP 5] About to call logger.info...')
 
     try {
-      const avatarService = ctx.session.aiReelsRender?.avatarService || 'hedra'
-      console.log('🔴 [STEP 7] Avatar service:', avatarService)
-      console.log('🔴 [STEP 7] Current session:', ctx.session.aiReelsRender)
+      console.log('🔴 [STEP 5] Inside try block')
+      const isRu = isRussianFromState(ctx)
+      console.log('🔴 [STEP 5] Got isRu:', isRu)
 
-      // ✅ ИСПРАВЛЕНИЕ: Получаем voice_id пользователя из БД
-      const { getVoiceId } = await import('@/core/supabase/getVoiceId')
-      const userVoiceId = await getVoiceId(telegramId)
+      const telegramId = ctx.from?.id?.toString()
+      console.log('🔴 [STEP 5] Got telegramId:', telegramId)
 
-      if (!userVoiceId) {
-        console.log('🔴 [STEP 7] ERROR: No user voice ID found!')
+      logger.info('🎬 [AI REELS RENDER] Step 5 STARTED', {
+        telegramId,
+        hasCallbackQuery: 'callback_query' in ctx.update,
+        updateKeys: Object.keys(ctx.update),
+      })
+
+      // Обрабатываем только callback_query
+      console.log('🔴 [STEP 5] Checking callback_query...')
+      if (!('callback_query' in ctx.update)) {
+        console.log('🔴 [STEP 5] NO callback_query!')
         await ctx.reply(
           isRu
-            ? '❌ У вас не настроен голос аватара. Создайте голос сначала.'
-            : '❌ You dont have avatar voice configured. Create voice first.'
+            ? '❌ Пожалуйста, нажмите одну из кнопок.'
+            : '❌ Please press one of the buttons.'
+        )
+        return // Остаемся в том же шаге
+      }
+
+      console.log('🔴 [STEP 5] Checking telegramId...')
+      if (!telegramId) {
+        console.log('🔴 [STEP 5] NO telegramId!')
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: не удалось определить ваш ID'
+            : '❌ Error: could not determine your ID'
         )
         return ctx.scene.leave()
       }
 
-      console.log('🔴 [STEP 7] User voice ID:', userVoiceId)
+      console.log('🔴 [STEP 5] Extracting callbackData...')
+      const callbackData =
+        'data' in ctx.update.callback_query
+          ? ctx.update.callback_query.data
+          : ''
+      console.log('🔴 [STEP 5] CallbackData:', callbackData)
 
-      // ✅ ВАЛИДАЦИЯ: Для HeyGen проверяем наличие avatar_id и API key
-      if (avatarService === 'heygen') {
-        const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
-        const heygenApiKey = ctx.session.aiReelsRender.heygenApiKey
+      logger.info('🎬 [AI REELS RENDER] Processing callback', {
+        telegramId,
+        callbackData,
+      })
 
-        if (!heygenAvatarId || !heygenApiKey) {
-          console.log('🔴 [STEP 7] ERROR: HeyGen avatar data missing!')
+      console.log('🔴 [STEP 5] Checking if avatar callback...')
+      if (callbackData === 'avatar_hedra' || callbackData === 'avatar_heygen') {
+        console.log('🔴 [STEP 5] YES! Avatar callback detected!')
+        const avatarService =
+          callbackData === 'avatar_hedra' ? 'hedra' : 'heygen'
+        console.log('🔴 [STEP 5] Avatar service:', avatarService)
+
+        console.log('🔴 [STEP 5] Current session:', ctx.session.aiReelsRender)
+
+        ctx.session.aiReelsRender = {
+          ...ctx.session.aiReelsRender,
+          avatarService,
+        }
+
+        console.log('🔴 [STEP 5] Answering callback query...')
+        await ctx.answerCbQuery()
+        console.log('🔴 [STEP 5] Editing message...')
+        await ctx.editMessageText(
+          isRu
+            ? `✅ Выбран: ${avatarService === 'hedra' ? '🎭 Hedra' : '🎬 HeyGen'}\n\n⏳ Отправляем запрос на render-server...`
+            : `✅ Selected: ${avatarService === 'hedra' ? '🎭 Hedra' : '🎬 HeyGen'}\n\n⏳ Sending request to render-server...`
+        )
+        console.log('🔴 [STEP 5] Message edited successfully!')
+
+        console.log('🔴 [STEP 5] Creating payload...')
+
+        // ✅ ИСПРАВЛЕНИЕ: Получаем voice_id пользователя из БД
+        const { getVoiceId } = await import('@/core/supabase/getVoiceId')
+        const userVoiceId = await getVoiceId(telegramId)
+
+        if (!userVoiceId) {
+          console.log('🔴 [STEP 5] ERROR: No user voice ID found!')
           await ctx.reply(
             isRu
-              ? '❌ Ошибка: не выбран аватар HeyGen.'
-              : '❌ Error: HeyGen avatar not selected.'
+              ? '❌ У вас не настроен голос аватара. Создайте голос сначала.'
+              : '❌ You dont have avatar voice configured. Create voice first.'
           )
           return ctx.scene.leave()
         }
-        console.log('🔴 [STEP 7] HeyGen validation passed:', {
-          avatarId: heygenAvatarId,
-          apiKeyPrefix: heygenApiKey.substring(0, 15) + '...',
-        })
-      }
 
-      // Создание payload с ПРАВИЛЬНЫМ voice_id пользователя
-      const payload = createRenderAvatarPayload(
-        telegramId,
-        ctx.session.aiReelsRender.text || '',
-        ctx.session.aiReelsRender.imageUrl || '',
-        userVoiceId, // ✅ Используем voice_id пользователя из БД
-        {
-          coverUrl:
-            'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
-          introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
-          introText2: ctx.session.aiReelsRender.introText2 || 'News',
-          upperIntroText:
-            ctx.session.aiReelsRender.upperIntroText || 'Ai-Stars',
-          avatarService: avatarService,
-          heygenAvatarId: ctx.session.aiReelsRender.heygenAvatarId,
-          heygenApiKey: ctx.session.aiReelsRender.heygenApiKey,
+        console.log('🔴 [STEP 5] User voice ID:', userVoiceId)
+
+        // Создание payload с ПРАВИЛЬНЫМ voice_id пользователя
+        const payload = createRenderAvatarPayload(
+          telegramId,
+          ctx.session.aiReelsRender.text || '',
+          ctx.session.aiReelsRender.imageUrl || '',
+          userVoiceId, // ✅ Используем voice_id пользователя из БД
+          {
+            coverUrl:
+              'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
+            introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
+            introText2: ctx.session.aiReelsRender.introText2 || 'News',
+            upperIntroText:
+              ctx.session.aiReelsRender.upperIntroText || 'Ai-Stars',
+          }
+        )
+        // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
+        const elevenLabsToken = process.env.ELEVENLABS_API_KEY
+        if (!elevenLabsToken) {
+          console.log('🔴 [STEP 5] ERROR: ELEVENLABS_API_KEY not found in ENV!')
+          logger.error('[AI REELS RENDER] Missing ELEVENLABS_API_KEY', {
+            telegramId,
+          })
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка конфигурации сервера (ElevenLabs token). Обратитесь к администратору.'
+              : '❌ Server configuration error (ElevenLabs token). Contact admin.'
+          )
+          return ctx.scene.leave()
         }
-      )
-      // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
-      const elevenLabsToken = process.env.ELEVENLABS_API_KEY
-      if (!elevenLabsToken) {
-        console.log('🔴 [STEP 7] ERROR: ELEVENLABS_API_KEY not found in ENV!')
-        logger.error('[AI REELS RENDER] Missing ELEVENLABS_API_KEY', {
+
+        console.log(
+          '🔴 [STEP 5] Payload created with user voice ID:',
+          userVoiceId
+        )
+        console.log(
+          '🔴 [STEP 5] ElevenLabs token (masked):',
+          elevenLabsToken.substring(0, 10) + '...'
+        )
+
+        // ✅ ЛОГИРОВАНИЕ: Проверяем payload перед отправкой
+        logger.info('[AI REELS RENDER] Payload validation', {
           telegramId,
+          hasElevenLabsToken: !!payload.eleven_labs_api_key,
+          elevenLabsTokenPrefix: payload.eleven_labs_api_key.substring(0, 10),
+          voiceId: userVoiceId,
+          avatarService,
+          avatarPhotoUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 50),
+          textLength: ctx.session.aiReelsRender.text?.length,
         })
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка конфигурации сервера (ElevenLabs token). Обратитесь к администратору.'
-            : '❌ Server configuration error (ElevenLabs token). Contact admin.'
+
+        // Установить выбранный сервис
+        payload.avatar_gen_service = avatarService
+        console.log(
+          '🔴 [STEP 5] Avatar service set on payload:',
+          payload.avatar_gen_service
         )
-        return ctx.scene.leave()
-      }
 
-      console.log(
-        '🔴 [STEP 7] Payload created with user voice ID:',
-        userVoiceId
-      )
-      console.log(
-        '🔴 [STEP 7] ElevenLabs token (masked):',
-        elevenLabsToken.substring(0, 10) + '...'
-      )
+        // 💰 Шаблон 2: Динамическая стоимость по длине lip-sync
+        // Наценка x1.5 применена к базовым ценам
+        const duration = ctx.session.aiReelsRender.estimatedDuration || 10
+        const veo3Cost = 240 // 160⭐ × 1.5
+        const hedraPerSecond = 7 // ~4.9⭐/сек × 1.5
+        const estimatedCost = veo3Cost + duration * hedraPerSecond
 
-      // ✅ ЛОГИРОВАНИЕ: Проверяем payload перед отправкой
-      logger.info('[AI REELS RENDER] Payload validation', {
-        telegramId,
-        hasElevenLabsToken: !!payload.eleven_labs_api_key,
-        elevenLabsTokenPrefix: payload.eleven_labs_api_key.substring(0, 10),
-        voiceId: userVoiceId,
-        avatarService,
-        heygenAvatarId:
-          avatarService === 'heygen' ? payload.heygen_avatar_id : 'N/A',
-        avatarPhotoUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 50),
-        textLength: ctx.session.aiReelsRender.text?.length,
-      })
+        console.log('🔴 [STEP 5] Dynamic cost calculation:', {
+          duration,
+          veo3Cost,
+          hedraPerSecond,
+          estimatedCost,
+          markup: 1.5,
+        })
 
-      // 💰 Шаблон 2: Динамическая стоимость по длине lip-sync
-      // Наценка x1.5 применена к базовым ценам
-      const duration = ctx.session.aiReelsRender.estimatedDuration || 10
-      const veo3Cost = 240 // 160⭐ × 1.5
-      const hedraPerSecond = 7 // ~4.9⭐/сек × 1.5
-      const estimatedCost = veo3Cost + duration * hedraPerSecond
+        // Проверка баланса
+        console.log('🔴 [STEP 5] Getting user balance...')
+        const currentBalance = await getUserBalance(telegramId)
+        console.log('🔴 [STEP 5] Current balance:', currentBalance)
 
-      console.log('🔴 [STEP 7] Dynamic cost calculation:', {
-        duration,
-        veo3Cost,
-        hedraPerSecond,
-        estimatedCost,
-        markup: 1.5,
-      })
-
-      // Проверка баланса
-      console.log('🔴 [STEP 7] Getting user balance...')
-      const currentBalance = await getUserBalance(telegramId)
-      console.log('🔴 [STEP 7] Current balance:', currentBalance)
-
-      console.log('🔴 [STEP 7] Checking if balance sufficient...')
-      if (currentBalance === null || currentBalance < estimatedCost) {
-        console.log('🔴 [STEP 7] INSUFFICIENT BALANCE!')
-        await ctx.reply(
-          isRu
-            ? `💰 Недостаточно средств\n\nТребуется: ${estimatedCost}⭐\nУ вас: ${(currentBalance || 0).toFixed(2)}⭐`
-            : `💰 Insufficient funds\n\nRequired: ${estimatedCost}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`
-        )
-        return ctx.scene.leave()
-      }
-
-      console.log('🔴 [STEP 7] Balance sufficient! Charging user...')
-      // Списание средств
-      await updateUserBalance(
-        telegramId,
-        estimatedCost,
-        PaymentType.MONEY_OUTCOME,
-        `AI Reels Render (${avatarService})`,
-        {
-          bot_name: ctx.botInfo?.username || 'unknown_bot',
-          service_type: 'ai_reels_render',
-          avatar_service: avatarService,
+        console.log('🔴 [STEP 5] Checking if balance sufficient...')
+        if (currentBalance === null || currentBalance < estimatedCost) {
+          console.log('🔴 [STEP 5] INSUFFICIENT BALANCE!')
+          await ctx.reply(
+            isRu
+              ? `💰 Недостаточно средств\n\nТребуется: ${estimatedCost}⭐\nУ вас: ${(currentBalance || 0).toFixed(2)}⭐`
+              : `💰 Insufficient funds\n\nRequired: ${estimatedCost}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`
+          )
+          return ctx.scene.leave()
         }
-      )
-      console.log('🔴 [STEP 7] User charged successfully!')
 
-      console.log('🔴 [STEP 7] Sending event to render-server...')
-      // Отправка на render-server
-      try {
-        console.log('🔴 [STEP 7] Inside sendEvent try block')
-        console.log('🔴 [STEP 7] Payload job_id:', payload.job_id)
-        console.log('🔴 [STEP 7] Payload keys:', Object.keys(payload))
-
-        // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ: Полный payload перед отправкой на render-server
-        logger.info('🎬 [AI REELS RENDER] Starting event send', {
-          telegramId,
-          avatarService,
-          payloadJobId: payload.job_id,
-          payloadKeys: Object.keys(payload),
-          imageUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 100),
-          text: ctx.session.aiReelsRender.text?.substring(0, 50),
-        })
-
-        logger.info('🎬 [AI REELS RENDER] FULL PAYLOAD DETAILS', {
-          telegramId,
-          job_id: payload.job_id,
-          avatar_gen_service: payload.avatar_gen_service,
-          heygen_avatar_id:
-            avatarService === 'heygen' ? payload.heygen_avatar_id : 'N/A',
-          eleven_labs_api_key_present: !!payload.eleven_labs_api_key,
-          eleven_labs_api_key_prefix:
-            payload.eleven_labs_api_key?.substring(0, 10) || 'MISSING',
-          kie_api_key_present: !!payload.kie_api_key,
-          avatar_settings: {
-            voice_id: payload.avatar_settings.voice_id,
-            avatar_photo_url:
-              payload.avatar_settings.avatar_photo_url.substring(0, 50),
-            avatar_speech_length: payload.avatar_settings.avatar_speech.length,
-            api_key_present: !!payload.avatar_settings.api_key,
-          },
-          intro_text_1: payload.intro_text_1.text,
-          intro_text_2: payload.intro_text_2.text,
-        })
-
-        console.log(
-          '🔴 [STEP 7] CRITICAL: Payload voice_id:',
-          payload.avatar_settings.voice_id
-        )
-        console.log(
-          '🔴 [STEP 7] CRITICAL: Payload eleven_labs_api_key (first 10 chars):',
-          payload.eleven_labs_api_key?.substring(0, 10)
-        )
-
-        console.log('🔴 [STEP 7] About to call sendRenderAvatarVideoEvent()...')
-        const { eventId } = await sendRenderAvatarVideoEvent(payload)
-        console.log('🔴 [STEP 7] Event sent! Event ID:', eventId)
-
-        console.log('🔴 [STEP 7] Sending success reply to user...')
-        await ctx.reply(
-          isRu
-            ? `✅ Запрос отправлен на render-server!\n\n` +
-                `🔄 Event ID: ${eventId}\n` +
-                `🎭 Сервис: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
-                `⏱️ Ожидаемое время: 2-5 минут\n` +
-                `📢 Вы получите уведомление когда видео будет готово\n\n` +
-                `💰 Списано: ${estimatedCost}⭐\n` +
-                `💳 Новый баланс: ${(currentBalance - estimatedCost).toFixed(2)}⭐`
-            : `✅ Request sent to render-server!\n\n` +
-                `🔄 Event ID: ${eventId}\n` +
-                `🎭 Service: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
-                `⏱️ Expected time: 2-5 minutes\n` +
-                `📢 You will receive notification when video is ready\n\n` +
-                `💰 Charged: ${estimatedCost}⭐\n` +
-                `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`,
-          { parse_mode: 'HTML' }
-        )
-        console.log('🔴 [STEP 7] Reply sent to user!')
-
-        logger.info('✅ [AI REELS RENDER] Event sent successfully', {
-          telegramId,
-          eventId,
-          avatarService,
-          cost: estimatedCost,
-        })
-
-        console.log('🔴 [STEP 7] All done! Cleaning up...')
-      } catch (error) {
-        console.log('🔴🔴🔴 [STEP 7] CAUGHT ERROR IN SEND EVENT!')
-        console.log('🔴 [STEP 7] Error:', error)
-        console.log(
-          '🔴 [STEP 7] Error message:',
-          error instanceof Error ? error.message : String(error)
-        )
-
-        logger.error('❌ [AI REELS RENDER] Error sending event', { error })
-
-        // Возврат средств при ошибке
+        console.log('🔴 [STEP 5] Balance sufficient! Charging user...')
+        // Списание средств
         await updateUserBalance(
           telegramId,
           estimatedCost,
-          PaymentType.MONEY_INCOME,
-          `Refund: AI Reels Render error`,
+          PaymentType.MONEY_OUTCOME,
+          `AI Reels Render (${avatarService})`,
           {
             bot_name: ctx.botInfo?.username || 'unknown_bot',
-            service_type: 'refund',
+            service_type: 'ai_reels_render',
+            avatar_service: avatarService,
           }
         )
+        console.log('🔴 [STEP 5] User charged successfully!')
 
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при отправке запроса. Средства возвращены.'
-            : '❌ Error sending request. Funds refunded.'
-        )
+        console.log('🔴 [STEP 5] Sending event to render-server...')
+        // Отправка на render-server
+        try {
+          console.log('🔴 [STEP 5] Inside sendEvent try block')
+          console.log('🔴 [STEP 5] Payload job_id:', payload.job_id)
+          console.log('🔴 [STEP 5] Payload keys:', Object.keys(payload))
+
+          // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ: Полный payload перед отправкой на render-server
+          logger.info('🎬 [AI REELS RENDER] Starting event send', {
+            telegramId,
+            avatarService,
+            payloadJobId: payload.job_id,
+            payloadKeys: Object.keys(payload),
+            imageUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 100),
+            text: ctx.session.aiReelsRender.text?.substring(0, 50),
+          })
+
+          logger.info('🎬 [AI REELS RENDER] FULL PAYLOAD DETAILS', {
+            telegramId,
+            job_id: payload.job_id,
+            avatar_gen_service: payload.avatar_gen_service,
+            eleven_labs_api_key_present: !!payload.eleven_labs_api_key,
+            eleven_labs_api_key_prefix:
+              payload.eleven_labs_api_key?.substring(0, 10) || 'MISSING',
+            kie_api_key_present: !!payload.kie_api_key,
+            avatar_settings: {
+              voice_id: payload.avatar_settings.voice_id,
+              avatar_photo_url:
+                payload.avatar_settings.avatar_photo_url.substring(0, 50),
+              avatar_speech_length:
+                payload.avatar_settings.avatar_speech.length,
+              api_key_present: !!payload.avatar_settings.api_key,
+            },
+            intro_text_1: payload.intro_text_1.text,
+            intro_text_2: payload.intro_text_2.text,
+          })
+
+          console.log(
+            '🔴 [STEP 5] CRITICAL: Payload voice_id:',
+            payload.avatar_settings.voice_id
+          )
+          console.log(
+            '🔴 [STEP 5] CRITICAL: Payload eleven_labs_api_key (first 10 chars):',
+            payload.eleven_labs_api_key?.substring(0, 10)
+          )
+
+          console.log(
+            '🔴 [STEP 5] About to call sendRenderAvatarVideoEvent()...'
+          )
+          const { eventId } = await sendRenderAvatarVideoEvent(payload)
+          console.log('🔴 [STEP 5] Event sent! Event ID:', eventId)
+
+          console.log('🔴 [STEP 5] Sending success reply to user...')
+          await ctx.reply(
+            isRu
+              ? `✅ Запрос отправлен на render-server!\n\n` +
+                  `🔄 Event ID: ${eventId}\n` +
+                  `🎭 Сервис: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
+                  `⏱️ Ожидаемое время: 2-5 минут\n` +
+                  `📢 Вы получите уведомление когда видео будет готово\n\n` +
+                  `💰 Списано: ${estimatedCost}⭐\n` +
+                  `💳 Новый баланс: ${(currentBalance - estimatedCost).toFixed(2)}⭐`
+              : `✅ Request sent to render-server!\n\n` +
+                  `🔄 Event ID: ${eventId}\n` +
+                  `🎭 Service: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
+                  `⏱️ Expected time: 2-5 minutes\n` +
+                  `📢 You will receive notification when video is ready\n\n` +
+                  `💰 Charged: ${estimatedCost}⭐\n` +
+                  `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`,
+            { parse_mode: 'HTML' }
+          )
+          console.log('🔴 [STEP 5] Reply sent to user!')
+
+          logger.info('✅ [AI REELS RENDER] Event sent successfully', {
+            telegramId,
+            eventId,
+            avatarService,
+            cost: estimatedCost,
+          })
+
+          console.log('🔴 [STEP 5] All done! Cleaning up...')
+        } catch (error) {
+          console.log('🔴🔴🔴 [STEP 5] CAUGHT ERROR IN SEND EVENT!')
+          console.log('🔴 [STEP 5] Error:', error)
+          console.log(
+            '🔴 [STEP 5] Error message:',
+            error instanceof Error ? error.message : String(error)
+          )
+
+          logger.error('❌ [AI REELS RENDER] Error sending event', { error })
+
+          // Возврат средств при ошибке
+          await updateUserBalance(
+            telegramId,
+            estimatedCost,
+            PaymentType.MONEY_INCOME,
+            `Refund: AI Reels Render error`,
+            {
+              bot_name: ctx.botInfo?.username || 'unknown_bot',
+              service_type: 'refund',
+            }
+          )
+
+          await ctx.reply(
+            isRu
+              ? '❌ Произошла ошибка при отправке запроса. Средства возвращены.'
+              : '❌ Error sending request. Funds refunded.'
+          )
+        }
+
+        // Очистка сессии
+        delete ctx.session.aiReelsRender
+
+        return ctx.scene.leave()
       }
-
-      // Очистка сессии
-      delete ctx.session.aiReelsRender
-
-      return ctx.scene.leave()
     } catch (error) {
-      console.log('🔴🔴🔴 [STEP 7] CAUGHT ERROR!')
-      console.log('🔴 [STEP 7] Error:', error)
+      console.log('🔴🔴🔴 [STEP 5] CAUGHT ERROR!')
+      console.log('🔴 [STEP 5] Error:', error)
       console.log(
-        '🔴 [STEP 7] Error message:',
+        '🔴 [STEP 5] Error message:',
         error instanceof Error ? error.message : String(error)
       )
       console.log(
-        '🔴 [STEP 7] Error stack:',
+        '🔴 [STEP 5] Error stack:',
         error instanceof Error ? error.stack : 'NO STACK'
       )
 
-      logger.error('❌ [AI REELS RENDER] Step 7 ERROR', {
+      logger.error('❌ [AI REELS RENDER] Step 3 ERROR', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         telegramId: ctx.from?.id,

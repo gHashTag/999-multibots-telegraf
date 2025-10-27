@@ -1,0 +1,88 @@
+/**
+ * 🎬 HEYGEN AVATARS CONFIGURATION
+ *
+ * Конфигурация аватаров HeyGen для двух владельцев:
+ * - Cocoage: 8 аватаров
+ * - Haim: 11 аватаров
+ */
+
+export interface HeyGenAvatarSet {
+  name: string
+  apiKey: string
+  avatars: HeyGenAvatar[]
+}
+
+export interface HeyGenAvatar {
+  id: string
+  name: string
+  emoji: string
+}
+
+/**
+ * Аватары Cocoage
+ */
+export const COCOAGE_AVATARS: HeyGenAvatar[] = [
+  { id: '4c34500dc5af419c9809a104874b9466', name: 'Avatar 1', emoji: '👤' },
+  { id: '27c6cbedfd2b47d5b55b27419739a267', name: 'Avatar 2', emoji: '👥' },
+  { id: 'e8f8c980d9234f9c8f352180e950ecbf', name: 'Avatar 3', emoji: '🎭' },
+  { id: '3d35833e81604bd69614da73779ddc0a', name: 'Avatar 4', emoji: '🎪' },
+  { id: 'b150fbefd4984f75a6f48551bebd0ce7', name: 'Avatar 5', emoji: '🎬' },
+  { id: '11664679d7b24560b51ba88b12b5d3c3', name: 'Avatar 6', emoji: '🎨' },
+  { id: '94078296b04d494c9cd84f453dacc8c9', name: 'Avatar 7', emoji: '🎯' },
+  { id: '04973f5fb5c14d078e8fe7ddee8b1705', name: 'Avatar 8', emoji: '🎲' },
+]
+
+/**
+ * Аватары Haim
+ */
+export const HAIM_AVATARS: HeyGenAvatar[] = [
+  { id: 'bf56d364324b47d791717fb1ab772f74', name: 'Avatar 1', emoji: '👤' },
+  { id: 'e043a4dbe1724fd6bb6f8ec2e604dd1c', name: 'Avatar 2', emoji: '👥' },
+  { id: '00bde1e30acd4de98fa870ab827209db', name: 'Avatar 3', emoji: '🎭' },
+  { id: '1a9ab725dc974662afaa0e23347373b7', name: 'Avatar 4', emoji: '🎪' },
+  { id: '2012999ab5d0428da44a54025bdd1580', name: 'Avatar 5', emoji: '🎬' },
+  { id: 'e11c19e3e1d04d3e82b3bf2263c9684c', name: 'Avatar 6', emoji: '🎨' },
+  { id: 'c61aedd2173c4c26a67af0ce6f8feb74', name: 'Avatar 7', emoji: '🎯' },
+  { id: '6cb5aa7a0d574f6b8a4d802f41eb72e1', name: 'Avatar 8', emoji: '🎲' },
+  { id: '24bb390a51c34a01b3a64a1906a02b45', name: 'Avatar 9', emoji: '🎰' },
+  { id: 'c244b5c053094c39a7207d99ceffd558', name: 'Avatar 10', emoji: '🎻' },
+  { id: 'c2251854fceb46319262660cde417d94', name: 'Avatar 11', emoji: '🎺' },
+]
+
+/**
+ * Наборы аватаров с API ключами
+ */
+export const HEYGEN_AVATAR_SETS: Record<string, HeyGenAvatarSet> = {
+  cocoage: {
+    name: 'Cocoage',
+    apiKey: 'sk_V2_hgu_kRHjrVzZGiM_I2rKedw8sWe6rX9ieS51oMFMS5SfLEBs',
+    avatars: COCOAGE_AVATARS,
+  },
+  haim: {
+    name: 'Haim',
+    apiKey: 'sk_V2_hgu_kNGdj3aoXVt_oR1djZTA9b6pgyByyyNi2T4DmC3s3NdY',
+    avatars: HAIM_AVATARS,
+  },
+}
+
+/**
+ * Получить набор аватаров по имени владельца
+ */
+export function getAvatarSet(setName: string): HeyGenAvatarSet | null {
+  return HEYGEN_AVATAR_SETS[setName.toLowerCase()] || null
+}
+
+/**
+ * Получить аватар по ID из всех наборов
+ */
+export function findAvatarById(
+  avatarId: string
+): { avatar: HeyGenAvatar; setName: string; apiKey: string } | null {
+  for (const [setName, set] of Object.entries(HEYGEN_AVATAR_SETS)) {
+    const avatar = set.avatars.find(a => a.id === avatarId)
+    if (avatar) {
+      return { avatar, setName: set.name, apiKey: set.apiKey }
+    }
+  }
+  return null
+}
