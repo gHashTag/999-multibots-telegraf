@@ -1143,6 +1143,26 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🔴 [STEP 7] User voice ID:', userVoiceId)
 
+      // ✅ ВАЛИДАЦИЯ: Для HeyGen проверяем наличие avatar_id и API key
+      if (avatarService === 'heygen') {
+        const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
+        const heygenApiKey = ctx.session.aiReelsRender.heygenApiKey
+
+        if (!heygenAvatarId || !heygenApiKey) {
+          console.log('🔴 [STEP 7] ERROR: HeyGen avatar data missing!')
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: не выбран аватар HeyGen.'
+              : '❌ Error: HeyGen avatar not selected.'
+          )
+          return ctx.scene.leave()
+        }
+        console.log('🔴 [STEP 7] HeyGen validation passed:', {
+          avatarId: heygenAvatarId,
+          apiKeyPrefix: heygenApiKey.substring(0, 15) + '...',
+        })
+      }
+
       // Создание payload с ПРАВИЛЬНЫМ voice_id пользователя
       const payload = createRenderAvatarPayload(
         telegramId,
@@ -1156,6 +1176,9 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           introText2: ctx.session.aiReelsRender.introText2 || 'News',
           upperIntroText:
             ctx.session.aiReelsRender.upperIntroText || 'Ai-Stars',
+          avatarService: avatarService,
+          heygenAvatarId: ctx.session.aiReelsRender.heygenAvatarId,
+          heygenApiKey: ctx.session.aiReelsRender.heygenApiKey,
         }
       )
       // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
@@ -1181,39 +1204,6 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         '🔴 [STEP 7] ElevenLabs token (masked):',
         elevenLabsToken.substring(0, 10) + '...'
       )
-
-      // Установить выбранный сервис
-      payload.avatar_gen_service = avatarService
-      console.log(
-        '🔴 [STEP 7] Avatar service set on payload:',
-        payload.avatar_gen_service
-      )
-
-      // 🆕 Если HeyGen - добавляем avatar_id и API key
-      if (avatarService === 'heygen') {
-        const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
-        const heygenApiKey = ctx.session.aiReelsRender.heygenApiKey
-
-        if (!heygenAvatarId || !heygenApiKey) {
-          console.log('🔴 [STEP 7] ERROR: HeyGen avatar data missing!')
-          await ctx.reply(
-            isRu
-              ? '❌ Ошибка: не выбран аватар HeyGen.'
-              : '❌ Error: HeyGen avatar not selected.'
-          )
-          return ctx.scene.leave()
-        }
-
-        // Добавляем в payload специфичные для HeyGen данные
-        payload.heygen_avatar_id = heygenAvatarId
-        payload.heygen_api_key = heygenApiKey
-
-        console.log('🔴 [STEP 7] HeyGen avatar set:', heygenAvatarId)
-        console.log(
-          '🔴 [STEP 7] HeyGen API key (masked):',
-          heygenApiKey.substring(0, 15) + '...'
-        )
-      }
 
       // ✅ ЛОГИРОВАНИЕ: Проверяем payload перед отправкой
       logger.info('[AI REELS RENDER] Payload validation', {
