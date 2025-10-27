@@ -1063,16 +1063,19 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           backgroundSize: (await fs.stat(backgroundPath)).size,
         })
 
-        // ✅ ИСПОЛЬЗУЕМ CIRCLE COMPOSITION С FACE DETECTION
-        const { createCircleCompositionWithFaceDetection } = await import(
+        // ✅ ИСПОЛЬЗУЕМ SIMPLE CIRCLE COMPOSITION (no face detection, muted background)
+        const { createCircleCompositionSimple } = await import(
           '@/helpers/face-circle-composer'
         )
 
-        await createCircleCompositionWithFaceDetection(
-          backgroundPath,  // фоновое видео
-          lipSyncPath,     // lip-sync видео (вырезаем лицо в кружочек)
+        // Circle in bottom-left corner (fixed position)
+        await createCircleCompositionSimple(
+          backgroundPath,  // фоновое видео (БЕЗ ЗВУКА)
+          lipSyncPath,     // lip-sync видео (С ЗВУКОМ)
           finalPath,
-          80 // margin 80% (автоматический динамический размер)
+          300,  // радиус круга
+          300,  // X позиция (левый нижний угол)
+          1620  // Y позиция (левый нижний угол для 1920px высоты)
         )
 
         logger.info('🎬 [AI REELS] Композиция создана', {
@@ -1093,11 +1096,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           {
             caption: isRu
               ? `🎬 Ваш AI Reels готов!\n\n` +
-                  `✨ Лицо с lip-sync в кружочке поверх фонового видео\n` +
-                  `🤖 Автоматическая детекция лица и позиционирование`
+                  `✨ Lip-sync в кружочке поверх фонового видео\n` +
+                  `🔇 Фоновое видео без звука (только голос аватара)`
               : `🎬 Your AI Reels is ready!\n\n` +
-                  `✨ Lip-sync face in circle over background video\n` +
-                  `🤖 Automatic face detection and positioning`,
+                  `✨ Lip-sync in circle over background video\n` +
+                  `🔇 Background muted (avatar voice only)`,
           }
         )
 
