@@ -385,12 +385,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       await ctx.answerCbQuery()
       await ctx.editMessageText(
         isRu
-          ? `✅ Выбран аватар: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Теперь отправьте текст (до 500 символов) или голосовое сообщение (до 30 сек):`
-          : `✅ Avatar selected: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n📝 Now send text (up to 500 characters) or voice message (up to 30 sec):`
+          ? `✅ Выбран аватар: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n🖼️ Теперь отправьте обложку (фото для превью видео):`
+          : `✅ Avatar selected: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n🖼️ Now send cover image (video preview thumbnail):`
       )
 
       logger.info(
-        '🎬 [AI REELS RENDER] Avatar selected, requesting text input',
+        '🎬 [AI REELS RENDER] Avatar selected, requesting cover image',
         {
           telegramId,
           avatarId,
@@ -398,10 +398,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      // Переходим к Step 3 (текст/голос), пропуская Step 2 (Hedra фото)
-      // Структура: 0, 1, 1a, 1b, 2, 3, 4, 5, 6
-      // Индекс 5 = Step 3 (текст/голос)
-      ctx.wizard.selectStep(5) // Индекс 5 = Step 3 (текст/голос для HeyGen)
+      // Переходим к Step 2.5 (cover) - новый шаг для обложки
+      // Структура: 0, 1, 1a, 1b, 2, 2.5(cover), 3, 4, 5, 6
+      // Индекс 5 = Step 2.5 (cover)
+      ctx.wizard.selectStep(5) // Индекс 5 = Step 2.5 (cover для HeyGen)
       return
     } else {
       await ctx.reply(
@@ -496,19 +496,122 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(
         isRu
-          ? '✅ Изображение получено!\n\n' +
-              '📝 Отправьте текст (до 500 символов) или голосовое сообщение (до 30 сек).'
-          : '✅ Image received!\n\n' +
-              '📝 Send text (up to 500 characters) or voice message (up to 30 sec).'
+          ? '✅ Изображение аватара получено!\n\n' +
+              '🖼️ Теперь отправьте обложку (фото для превью видео):'
+          : '✅ Avatar image received!\n\n' +
+              '🖼️ Now send cover image (video preview thumbnail):'
       )
 
-      return ctx.wizard.next()
+      return ctx.wizard.next() // Переход к Step 2.5 (cover)
     } catch (error) {
       logger.error('❌ [AI REELS RENDER] Image processing error', { error })
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при обработке изображения.'
           : '❌ Error processing image.'
+      )
+      return ctx.scene.leave()
+    }
+  },
+
+  // Step 2.5: Загрузка обложки (cover) для всех типов
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const message = ctx.message
+    const telegramId = ctx.from?.id?.toString()
+
+    logger.info('🎬 [AI REELS RENDER] Step 2.5 - Processing cover image', {
+      telegramId,
+    })
+
+    if (!telegramId) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка: не удалось определить ваш ID'
+          : '❌ Error: could not determine your ID'
+      )
+      return ctx.scene.leave()
+    }
+
+    try {
+      let coverUrl: string | null = null
+
+      // Обработка фото обложки
+      if (message && 'photo' in message && message.photo.length > 0) {
+        const photo = message.photo[message.photo.length - 1]
+        const fileLink = await ctx.telegram.getFileLink(photo.file_id)
+        const response = await fetch(fileLink.href)
+
+        if (!response.ok) {
+          throw new Error(`Failed to download cover: ${response.statusText}`)
+        }
+
+        const imageBuffer = Buffer.from(await response.arrayBuffer())
+
+        // Загружаем в Supabase Storage
+        const { createClient } = await import('@supabase/supabase-js')
+        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+          '@/config'
+        )
+
+        const serviceClient = createClient(
+          SUPABASE_URL!,
+          SUPABASE_SERVICE_ROLE_KEY!
+        )
+        const fileName = `ai-reels-covers/${telegramId}/${Date.now()}.jpg`
+
+        const { error: uploadError } = await serviceClient.storage
+          .from('images')
+          .upload(fileName, imageBuffer, {
+            contentType: 'image/jpeg',
+            upsert: false,
+          })
+
+        if (uploadError) {
+          throw new Error(`Supabase upload failed: ${uploadError.message}`)
+        }
+
+        const { data: urlData } = serviceClient.storage
+          .from('images')
+          .getPublicUrl(fileName)
+
+        coverUrl = urlData.publicUrl
+
+        logger.info('✅ [AI REELS RENDER] Cover image uploaded', {
+          telegramId,
+          coverUrl,
+        })
+      } else {
+        await ctx.reply(
+          isRu
+            ? '❌ Пожалуйста, отправьте фото для обложки.'
+            : '❌ Please send a photo for the cover.'
+        )
+        return
+      }
+
+      // Сохраняем URL обложки в сессию
+      ctx.session.aiReelsRender = {
+        ...ctx.session.aiReelsRender,
+        coverUrl,
+        step: 'text',
+      }
+
+      await ctx.reply(
+        isRu
+          ? '✅ Обложка получена!\n\n' +
+              '📝 Теперь отправьте текст (до 500 символов) или голосовое сообщение (до 30 сек):'
+          : '✅ Cover received!\n\n' +
+              '📝 Now send text (up to 500 characters) or voice message (up to 30 sec):'
+      )
+
+      return ctx.wizard.next() // Переход к Step 3 (текст)
+    } catch (error) {
+      logger.error('❌ [AI REELS RENDER] Cover processing error', { error })
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при обработке обложки.'
+          : '❌ Error processing cover.'
       )
       return ctx.scene.leave()
     }
@@ -953,8 +1056,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           avatarService: service,
         })
 
-        // Переключаем на Step 6 (индекс 8)
-        ctx.wizard.selectStep(8)
+        // Переключаем на Step 6 (индекс 9, после добавления cover шага)
+        ctx.wizard.selectStep(9)
 
         // ✅ Вызываем handler Step 6 напрямую
         // @ts-ignore - steps is private but we need direct invocation
@@ -1155,7 +1258,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         voiceIdToUse, // ✅ Используем дефолтный voice_id для HeyGen или user voice_id для Hedra
         {
           coverUrl:
-            'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
+            ctx.session.aiReelsRender.coverUrl ||
+            'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg', // ✅ Используем обложку от пользователя или дефолтную
           introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
           introText2: ctx.session.aiReelsRender.introText2 || 'News',
           // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId - используем из сессии!
