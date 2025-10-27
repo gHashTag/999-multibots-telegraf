@@ -103,6 +103,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               'service_heygen'
             ),
           ],
+          [
+            Markup.button.callback(
+              isRu ? '❌ Отмена' : '❌ Cancel',
+              'ai_reels_cancel'
+            ),
+          ],
         ]),
       }
     )
@@ -189,6 +195,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               Markup.button.callback(
                 `${isRu ? '👥 Haim' : '👥 Haim'} (11)`,
                 'heygen_set_haim'
+              ),
+            ],
+            [
+              Markup.button.callback(
+                isRu ? '❌ Отмена' : '❌ Cancel',
+                'ai_reels_cancel'
               ),
             ],
           ]),
@@ -280,6 +292,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         }
         avatarButtons.push(row)
       }
+
+      // Добавляем кнопку отмены
+      avatarButtons.push([
+        Markup.button.callback(
+          isRu ? '❌ Отмена' : '❌ Cancel',
+          'ai_reels_cancel'
+        ),
+      ])
 
       await ctx.editMessageText(
         isRu
@@ -989,6 +1009,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                 'avatar_heygen'
               ),
             ],
+            [
+              Markup.button.callback(
+                isRu ? '❌ Отмена' : '❌ Cancel',
+                'ai_reels_cancel'
+              ),
+            ],
           ]),
         }
       )
@@ -1382,5 +1408,40 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
   }
 )
+
+// Обработчик кнопки отмены
+aiReelsRenderWizard.action('ai_reels_cancel', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    logger.info('🎬 [AI REELS RENDER] User cancelled wizard', {
+      telegramId: ctx.from?.id,
+    })
+
+    await ctx.reply(
+      isRu
+        ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+        : '❌ Process cancelled. Returning to main menu.',
+      {
+        reply_markup: {
+          remove_keyboard: true,
+        },
+      }
+    )
+
+    // Очистка сессии
+    if (ctx.session.aiReelsRender) {
+      delete ctx.session.aiReelsRender
+    }
+
+    await ctx.scene.leave()
+  } catch (error) {
+    logger.error('❌ [AI REELS RENDER] Error handling cancel', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
 
 export default aiReelsRenderWizard
