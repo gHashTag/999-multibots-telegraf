@@ -10,9 +10,6 @@
  * в зависимости от положения лица на кадре.
  */
 
-import * as faceapi from 'face-api.js'
-import * as canvas from 'canvas'
-import * as tf from '@tensorflow/tfjs-node'
 import path from 'path'
 import fs from 'fs/promises'
 import { exec } from 'child_process'
@@ -20,11 +17,6 @@ import { promisify } from 'util'
 import { logger } from '@/utils/logger'
 
 const execAsync = promisify(exec)
-
-// Настройка canvas для face-api.js
-const { Canvas, Image, ImageData } = canvas
-// @ts-ignore
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData })
 
 /**
  * Интерфейс для координат лица
@@ -497,13 +489,14 @@ export async function createCircleCompositionSimple(
     await createCircleMask(targetWidth, targetHeight, cx, cy, circleRadius, maskPath)
 
     // FFmpeg команда для создания вертикального 9:16 видео
-    const ffmpegCommand = `ffmpeg -i "${backgroundVideoPath}" -i "${lipSyncVideoPath}" -i "${maskPath}" \
+    // ⚠️ Background video audio is MUTED (-an flag) - only lip-sync audio is used
+    const ffmpegCommand = `ffmpeg -i "${backgroundVideoPath}" -an -i "${lipSyncVideoPath}" -i "${maskPath}" \
       -filter_complex "\
         [0:v]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2[bg]; \
         [1:v]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2[lipsync]; \
         [lipsync][2:v]alphamerge[masked]; \
         [bg][masked]overlay=0:0[outv]" \
-      -map "[outv]" -map 1:a? -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -aspect 9:16 \
+      -map "[outv]" -map 1:a -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -aspect 9:16 \
       -y "${outputPath}"`
 
     await execAsync(ffmpegCommand)
