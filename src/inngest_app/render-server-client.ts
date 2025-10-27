@@ -31,6 +31,10 @@ function createInngestSignature(
   return hmac.digest('hex')
 }
 
+/**
+ * Render Server API Payload (Updated 2025-10-27)
+ * Структура соответствует новому API render-server
+ */
 export interface RenderRiddlePayload {
   job_id: string
   eleven_labs_api_key: string
@@ -46,18 +50,22 @@ export interface RenderRiddlePayload {
     position: [number, number]
     font_size: number
   }
-  upper_intro_text?: string
-  circle_position: [number, number, number]
-  circle_scale: [number, number, number]
-  avatar_gen_service: 'hedra' | 'heygen'
   avatar_settings: {
-    api_key: string
-    avatar_photo_url: string
-    avatar_id: string
-    voice_id: string
-    avatar_speech: string
+    heygen: {
+      api_key: string
+      avatar_id: string
+      voice_id: string
+      avatar_speech: string
+    } | null
+    hedra: {
+      api_key: string
+      avatar_photo_url: string
+      avatar_id: string
+      voice_id: string
+      avatar_speech: string
+    } | null
   }
-  callback_url?: string
+  callback_url: string | null
 }
 
 /**
@@ -69,7 +77,8 @@ export async function sendRenderAvatarVideoEvent(
 ): Promise<{ eventId: string }> {
   logger.info('🎬 [RENDER SERVER] Sending avatar video event', {
     jobId: payload.job_id,
-    service: payload.avatar_gen_service,
+    hasHeygenSettings: !!payload.avatar_settings.heygen,
+    hasHedraSettings: !!payload.avatar_settings.hedra,
   })
 
   try {
@@ -115,7 +124,8 @@ export async function sendDirectToRenderServer(
 ): Promise<{ eventId: string }> {
   logger.info('🎬 [RENDER SERVER DIRECT] Sending direct request to Railway', {
     jobId: payload.job_id,
-    service: payload.avatar_gen_service,
+    hasHeygenSettings: !!payload.avatar_settings.heygen,
+    hasHedraSettings: !!payload.avatar_settings.hedra,
     url: RENDER_SERVER_URL,
   })
 
@@ -175,6 +185,13 @@ export async function sendDirectToRenderServer(
 
 /**
  * Создает payload для render-riddle из параметров бота
+ * Поддерживает HeyGen и Hedra провайдеры
+ *
+ * @param telegramId - ID пользователя Telegram
+ * @param text - Текст для озвучки аватара
+ * @param avatarPhotoUrl - URL изображения для Hedra (игнорируется для HeyGen)
+ * @param voiceId - ID голоса ElevenLabs
+ * @param options - Дополнительные параметры
  */
 export function createRenderAvatarPayload(
   telegramId: string,
@@ -185,10 +202,23 @@ export function createRenderAvatarPayload(
     coverUrl?: string
     introText1?: string
     introText2?: string
-    upperIntroText?: string
-    callbackUrl?: string
+    callbackUrl?: string | null
+    // HeyGen specific
+    avatarService?: 'heygen' | 'hedra'
+    heygenApiKey?: string
+    heygenAvatarId?: string
   }
 ): RenderRiddlePayload {
+  const isHeygen = options?.avatarService === 'heygen'
+
+  logger.info('🎬 [RENDER PAYLOAD] Creating payload', {
+    telegramId,
+    avatarService: options?.avatarService || 'hedra',
+    isHeygen,
+    hasHeygenApiKey: !!options?.heygenApiKey,
+    hasHeygenAvatarId: !!options?.heygenAvatarId,
+  })
+
   return {
     job_id: `telegram-${telegramId}-${Date.now()}`,
     eleven_labs_api_key: process.env.ELEVENLABS_API_KEY || '',
@@ -196,27 +226,36 @@ export function createRenderAvatarPayload(
     cover_url: options?.coverUrl || '',
     intro_text_1: {
       text: options?.introText1 || '',
-      position: [540, 1200],
+      position: [202, 960],
       font_size: 100,
     },
     intro_text_2: {
       text: options?.introText2 || '',
-      position: [540, 1340],
-      font_size: 100,
+      position: [720, 960],
+      font_size: 75,
     },
-    upper_intro_text: options?.upperIntroText || '',
-    circle_position: [872, 1360, 0],
-    circle_scale: [150, 150, 100],
-    avatar_gen_service: 'hedra',
     avatar_settings: {
-      api_key: process.env.HEDRA_API_KEY || '',
-      avatar_photo_url: avatarPhotoUrl,
-      avatar_id: `avatar-${telegramId}-${Date.now()}`,
-      voice_id: voiceId,
-      avatar_speech: text,
+      heygen: isHeygen
+        ? {
+            api_key: options?.heygenApiKey || '',
+            avatar_id: options?.heygenAvatarId || '',
+            voice_id: voiceId,
+            avatar_speech: text,
+          }
+        : null,
+      hedra: !isHeygen
+        ? {
+            api_key: process.env.HEDRA_API_KEY || '',
+            avatar_photo_url: avatarPhotoUrl,
+            avatar_id: `avatar-${telegramId}-${Date.now()}`,
+            voice_id: voiceId,
+            avatar_speech: text,
+          }
+        : null,
     },
     callback_url:
-      options?.callbackUrl ||
-      'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
+      options?.callbackUrl !== undefined
+        ? options.callbackUrl
+        : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
   }
 }
