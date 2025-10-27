@@ -1059,8 +1059,9 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       })
 
       // Переходим к Step 3 (индекс 3) - ввод текста для озвучки
-      ctx.wizard.selectStep(2) // Индекс 2, следующий next() будет индекс 3
-      return ctx.wizard.next()
+      // ВАЖНО: Только selectStep БЕЗ next(), чтобы ждать следующего сообщения
+      ctx.wizard.selectStep(3) // Следующее сообщение будет обработано Step 3
+      return
     } else {
       await ctx.reply(
         isRu
