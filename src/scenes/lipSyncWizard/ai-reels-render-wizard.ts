@@ -23,6 +23,7 @@ import {
   checkRenderServerAvailability,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
+import { HEYGEN_AVATAR_SETS } from './heygen-avatars-config'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -755,7 +756,16 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
         console.log('🔴 [STEP 5] User voice ID:', userVoiceId)
 
-        // Создание payload с ПРАВИЛЬНЫМ voice_id пользователя
+        // ✅ Для HeyGen используем дефолтный аватар Cocoage
+        const defaultHeyGenAvatar = HEYGEN_AVATAR_SETS.cocoage.avatars[0]
+        const heyGenApiKey = HEYGEN_AVATAR_SETS.cocoage.apiKey
+
+        console.log('🔴 [STEP 5] HeyGen config:', {
+          avatarId: defaultHeyGenAvatar.id,
+          apiKeyPrefix: heyGenApiKey.substring(0, 15),
+        })
+
+        // Создание payload с ПРАВИЛЬНЫМ voice_id пользователя и NEW API STRUCTURE
         const payload = createRenderAvatarPayload(
           telegramId,
           ctx.session.aiReelsRender.text || '',
@@ -766,8 +776,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
             introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
             introText2: ctx.session.aiReelsRender.introText2 || 'News',
-            upperIntroText:
-              ctx.session.aiReelsRender.upperIntroText || 'Ai-Stars',
+            // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId
+            avatarService,
+            heygenApiKey: avatarService === 'heygen' ? heyGenApiKey : undefined,
+            heygenAvatarId:
+              avatarService === 'heygen' ? defaultHeyGenAvatar.id : undefined,
           }
         )
         // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
@@ -803,14 +816,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           avatarService,
           avatarPhotoUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 50),
           textLength: ctx.session.aiReelsRender.text?.length,
+          heygenEnabled: avatarService === 'heygen',
+          hedraEnabled: avatarService === 'hedra',
         })
 
-        // Установить выбранный сервис
-        payload.avatar_gen_service = avatarService
-        console.log(
-          '🔴 [STEP 5] Avatar service set on payload:',
-          payload.avatar_gen_service
-        )
+        console.log('🔴 [STEP 5] Payload structure:', {
+          hasHeygenSettings: !!payload.avatar_settings.heygen,
+          hasHedraSettings: !!payload.avatar_settings.hedra,
+        })
 
         // 💰 Шаблон 2: Динамическая стоимость по длине lip-sync
         // Наценка x1.5 применена к базовым ценам
@@ -878,27 +891,45 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           logger.info('🎬 [AI REELS RENDER] FULL PAYLOAD DETAILS', {
             telegramId,
             job_id: payload.job_id,
-            avatar_gen_service: payload.avatar_gen_service,
+            avatarService, // ✅ NEW: avatarService вместо avatar_gen_service
             eleven_labs_api_key_present: !!payload.eleven_labs_api_key,
             eleven_labs_api_key_prefix:
               payload.eleven_labs_api_key?.substring(0, 10) || 'MISSING',
             kie_api_key_present: !!payload.kie_api_key,
             avatar_settings: {
-              voice_id: payload.avatar_settings.voice_id,
-              avatar_photo_url:
-                payload.avatar_settings.avatar_photo_url.substring(0, 50),
-              avatar_speech_length:
-                payload.avatar_settings.avatar_speech.length,
-              api_key_present: !!payload.avatar_settings.api_key,
+              // ✅ NEW: Логируем heygen или hedra в зависимости от выбора
+              heygen: payload.avatar_settings.heygen
+                ? {
+                    avatar_id: payload.avatar_settings.heygen.avatar_id,
+                    voice_id: payload.avatar_settings.heygen.voice_id,
+                    avatar_speech_length:
+                      payload.avatar_settings.heygen.avatar_speech.length,
+                    api_key_present: !!payload.avatar_settings.heygen.api_key,
+                  }
+                : null,
+              hedra: payload.avatar_settings.hedra
+                ? {
+                    avatar_id: payload.avatar_settings.hedra.avatar_id,
+                    voice_id: payload.avatar_settings.hedra.voice_id,
+                    avatar_photo_url:
+                      payload.avatar_settings.hedra.avatar_photo_url.substring(
+                        0,
+                        50
+                      ),
+                    avatar_speech_length:
+                      payload.avatar_settings.hedra.avatar_speech.length,
+                    api_key_present: !!payload.avatar_settings.hedra.api_key,
+                  }
+                : null,
             },
             intro_text_1: payload.intro_text_1.text,
             intro_text_2: payload.intro_text_2.text,
           })
 
-          console.log(
-            '🔴 [STEP 5] CRITICAL: Payload voice_id:',
-            payload.avatar_settings.voice_id
-          )
+          console.log('🔴 [STEP 5] CRITICAL: Payload voice_id:', {
+            heygen: payload.avatar_settings.heygen?.voice_id || null,
+            hedra: payload.avatar_settings.hedra?.voice_id || null,
+          })
           console.log(
             '🔴 [STEP 5] CRITICAL: Payload eleven_labs_api_key (first 10 chars):',
             payload.eleven_labs_api_key?.substring(0, 10)
