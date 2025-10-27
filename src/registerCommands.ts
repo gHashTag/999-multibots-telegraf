@@ -144,9 +144,9 @@ export const stage = new Scenes.Stage<MyContext>([
   videoTranscriptionWizard,
   lipSyncWizard,
   veedFabricWizard,
-  aiReelsWizard,
-  aiReelsEntryWizard,
-  aiReelsRenderWizard,
+  // aiReelsWizard,  // TEMPORARILY DISABLED - emergency fix
+  // aiReelsEntryWizard,  // TEMPORARILY DISABLED - emergency fix
+  // aiReelsRenderWizard,  // TEMPORARILY DISABLED - emergency fix
   avatarTransformScene,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
   new Scenes.WizardScene(
