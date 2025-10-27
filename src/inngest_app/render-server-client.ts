@@ -226,12 +226,12 @@ export function createRenderAvatarPayload(
     cover_url: options?.coverUrl || '',
     intro_text_1: {
       text: options?.introText1 || '',
-      position: [202, 960],
+      position: [540, 860], // ✅ Обновлено: правильное позиционирование для первого текста
       font_size: 100,
     },
     intro_text_2: {
       text: options?.introText2 || '',
-      position: [720, 960],
+      position: [540, 960], // ✅ Обновлено: правильное позиционирование для второго текста
       font_size: 75,
     },
     avatar_settings: {
