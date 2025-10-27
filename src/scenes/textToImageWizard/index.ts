@@ -10,7 +10,8 @@ import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,
 } from '@/price/helpers'
-import { logger } from '@/utils/logger'
+// ✅ ИСПОЛЬЗУЕМ УЛУЧШЕННЫЙ LOGGER
+import { logger } from '@/utils/enhancedLogger'
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserProfileAndSettings } from '@/db/userSettings'
@@ -22,7 +23,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',
   async ctx => {
     const isRu = isRussianFromState(ctx)
-    console.log('CASE: text_to_image STEP 1', ctx.from?.id)
+    logger.info('[TextToImageWizard] Starting step 1', {
+      telegramId: ctx.from?.id,
+      step: 1,
+    })
 
     if (!ctx.from?.id) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -37,7 +41,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
           (model.inputType.includes('text') &&
             model.inputType.includes('image')))
     )
-    console.log('filteredModels', filteredModels)
+    logger.debug('[TextToImageWizard] Filtered models', {
+      telegramId: ctx.from?.id,
+      modelCount: filteredModels.length,
+    })
     const modelButtons = filteredModels.map(model =>
       Markup.button.text(model.shortName)
     )
@@ -73,7 +80,11 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
-    console.log('CASE: text_to_image STEP 2', message)
+    logger.info('[TextToImageWizard] Starting step 2', {
+      telegramId: ctx.from?.id,
+      step: 2,
+      hasMessage: !!message,
+    })
 
     if (!message || !('text' in message)) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -81,7 +92,9 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!ctx.from?.id) {
-      console.error('❌ Telegram ID не найден')
+      logger.error('[TextToImageWizard] Telegram ID not found in step 2', {
+        step: 2,
+      })
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -97,7 +110,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     )
 
     if (!selectedModelEntry) {
-      console.error('Model not found:', modelShortName)
+      logger.error('[TextToImageWizard] Model not found', {
+        modelShortName,
+        telegramId: ctx.from?.id,
+      })
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -119,7 +135,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       isRu,
       ctx
     )
-    console.log('price', price)
+    logger.debug('[TextToImageWizard] Price calculated', {
+      price,
+      telegramId: ctx.from?.id,
+    })
 
     if (price === null) {
       return ctx.scene.leave()
@@ -129,7 +148,9 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
 
       if (!ctx.botInfo?.username) {
-        console.error('❌ Bot username не найден')
+        logger.error('[TextToImageWizard] Bot username not found', {
+          telegramId: ctx.from?.id,
+        })
         await sendGenericErrorMessage(ctx, isRu)
         return ctx.scene.leave()
       }
@@ -158,7 +179,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next()
     } catch (error) {
-      console.error('Error generating image:', error)
+      logger.error('[TextToImageWizard] Error in step 2', {
+        error: error instanceof Error ? error.message : String(error),
+        telegramId: ctx.from?.id,
+      })
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -166,6 +190,10 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
+    logger.info('[TextToImageWizard] Starting step 3', {
+      telegramId: ctx.from?.id,
+      step: 3,
+    })
 
     if (!message || !('text' in message)) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -173,7 +201,9 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!ctx.from?.id) {
-      console.error('❌ Telegram ID не найден')
+      logger.error('[TextToImageWizard] Telegram ID not found in step 3', {
+        step: 3,
+      })
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
