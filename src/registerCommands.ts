@@ -26,7 +26,6 @@ import {
 import expenseAnalysisCommand from './commands/expenseAnalysisCommand'
 // Импортируем AutoFixer команды
 import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
-import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
 // Импортируем админ middleware
 import { requireAdmin } from './middleware/adminOnly'
 // ✅ ИМПОРТИРУЕМ MULTI-PHOTO ACTION HANDLERS
@@ -155,8 +154,6 @@ export const stage = new Scenes.Stage<MyContext>([
   createUserScene,
   neuroCoderScene,
   instagramScrapingWizard,
-  autoFixerConfigScene,
-  instagramParserScene,
   instagramParserWizard,
 ])
 
