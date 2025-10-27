@@ -136,11 +136,8 @@ export const stage = new Scenes.Stage<MyContext>([
   sizeWizard,
   aiPhotoshopScene,
   morphingWizard,
-  new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.TextToSpeech,
-    ...(textToSpeechWizard.steps as any)
-  ),
+  voiceAvatarWizard,
+  textToSpeechWizard,
   videoTranscriptionWizard,
   lipSyncWizard,
   veedFabricWizard,
@@ -148,11 +145,8 @@ export const stage = new Scenes.Stage<MyContext>([
   aiReelsEntryWizard,
   aiReelsRenderWizard,
   avatarTransformScene,
-  new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.ChatWithAvatar,
-    ...(chatWithAvatarWizard.steps as any)
-  ),
+  avatarBrainWizard,
+  chatWithAvatarWizard,
   selectModelWizard,
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
@@ -163,6 +157,7 @@ export const stage = new Scenes.Stage<MyContext>([
   instagramScrapingWizard,
   autoFixerConfigScene,
   instagramParserScene,
+  instagramParserWizard,
 ])
 
 // Проверяем зарегистрированные сцены
