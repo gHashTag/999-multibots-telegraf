@@ -217,17 +217,26 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   returnToVeedFabricAfterVoice?: boolean // Флаг возврата в Veed Fabric после создания голоса
 
   aiReels?: {
-    // Данные для AI Reels wizard (lip-sync + WAN v2.2-5b + merging)
-    step?: 'image' | 'text' | 'lipsync_generation' | 'wan_generation' | 'merging'
+    // Данные для AI Reels wizard (circle composition: lip-sync в кружочке поверх фона)
+    step?:
+      | 'image'
+      | 'text'
+      | 'data_collected'              // Step 2: все данные собраны
+      | 'background_video_uploaded'   // Step 3: фоновое видео загружено
+      | 'lipsync_generation'          // Step 4: генерация lip-sync
+      | 'lipsync_ready'               // Step 4: lip-sync готов
+      | 'wan_generation'              // (legacy) WAN v2.2-5b генерация
+      | 'merging'                     // Step 5: композиция/склеивание
     imageUrl?: string
     text?: string
     audioUrl?: string
+    backgroundVideoUrl?: string       // URL фонового видео от пользователя
     startTime?: number
     needsVoiceCreation?: boolean // Флаг необходимости создания голоса
     resolution?: '720p' | '1080p' // Разрешение видео
     aspectRatio?: '16:9' | '9:16' | '1:1' // Соотношение сторон видео (по умолчанию 9:16 для соцсетей)
     firstVideoUrl?: string  // URL первого видео (lip-sync)
-    secondVideoUrl?: string // URL второго видео (WAN v2.2-5b)
+    secondVideoUrl?: string // URL второго видео (WAN v2.2-5b или background от пользователя)
     finalVideoUrl?: string  // URL финального склеенного видео
     wan25Prompt?: string    // Промпт для WAN v2.2-5b (генерируется из текста пользователя)
     wan25TaskId?: string    // ID задачи WAN v2.2-5b для отслеживания
@@ -244,6 +253,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     introText2?: string // Текст для второго поля интро
     upperIntroText?: string // Верхний текст интро
     avatarService?: 'hedra' | 'heygen' // Выбранный сервис генерации аватара
+    heygenAvatarSet?: string // Название набора аватаров HeyGen (cocoage/haim)
+    heygenAvatarId?: string // ID выбранного аватара HeyGen
+    heygenApiKey?: string // API ключ для выбранного набора аватаров
     startTime?: number
     eventId?: string // ID события Inngest для отслеживания
     estimatedDuration?: number // Оценка длительности для расчета стоимости
