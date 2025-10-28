@@ -180,8 +180,38 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
     logger.info('📥 [AI REELS CALLBACK] Video downloaded', {
       telegramId,
       size: videoBuffer.length,
-      sizeKB: Math.round(videoBuffer.length / 1024)
+      sizeKB: Math.round(videoBuffer.length / 1024),
+      sizeMB: (videoBuffer.length / (1024 * 1024)).toFixed(2)
     })
+
+    // ✅ Telegram лимит: 50MB. Если видео больше - отправляем URL
+    const TELEGRAM_VIDEO_LIMIT = 50 * 1024 * 1024 // 50MB
+
+    if (videoBuffer.length > TELEGRAM_VIDEO_LIMIT) {
+      logger.warn('⚠️ [AI REELS CALLBACK] Video exceeds Telegram limit, sending URL', {
+        telegramId,
+        videoSize: videoBuffer.length,
+        limit: TELEGRAM_VIDEO_LIMIT
+      })
+
+      // Отправляем URL вместо файла
+      await defaultBot.telegram.sendMessage(
+        telegramId,
+        `✅ Ваше AI Reels видео готово!\n\n` +
+        `⚠️ Видео слишком большое для Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n` +
+        `📥 Скачайте видео по ссылке:\n${videoUrl}\n\n` +
+        `🎬 Создано с помощью Template 2 (Inngest + Railway)`,
+        {
+          disable_web_page_preview: false
+        }
+      )
+
+      logger.info('✅ [AI REELS CALLBACK] URL sent successfully', {
+        telegramId,
+        jobId: payload.job_id
+      })
+      return
+    }
 
     // Отправляем видео как InputFile (Buffer)
     await defaultBot.telegram.sendVideo(
