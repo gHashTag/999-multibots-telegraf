@@ -281,8 +281,7 @@ export class AsyncLipSyncManager {
         job.chatId,
         `🎬 Видео готово!\n\n` +
           `📥 Скачать: ${result.output}\n` +
-          `⏱ Время обработки: ${processingTime} сек\n` +
-          `🤖 Модель: ${result.modelUsed}`,
+          `⏱ Время обработки: ${processingTime} сек`,
         {
           parse_mode: 'HTML',
           disable_web_page_preview: false,
