@@ -600,9 +600,9 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? '✅ Обложка получена!\n\n' +
-              '📝 Теперь отправьте текст (до 500 символов) или голосовое сообщение (до 30 сек):'
+              '📝 Теперь отправьте текст (до 5000 символов) или голосовое сообщение (до 30 сек):'
           : '✅ Cover received!\n\n' +
-              '📝 Now send text (up to 500 characters) or voice message (up to 30 sec):'
+              '📝 Now send text (up to 5000 characters) or voice message (up to 30 sec):'
       )
 
       return ctx.wizard.next() // Переход к Step 3 (текст)
@@ -690,11 +690,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       else if (message && 'text' in message) {
         text = message.text.trim()
 
-        if (text.length === 0 || text.length > 500) {
+        if (text.length === 0 || text.length > 5000) {
           await ctx.reply(
             isRu
-              ? '❌ Текст должен быть от 1 до 500 символов.'
-              : '❌ Text must be between 1 and 500 characters.'
+              ? '❌ Текст должен быть от 1 до 5000 символов.'
+              : '❌ Text must be between 1 and 5000 characters.'
           )
           return ctx.scene.leave()
         }
