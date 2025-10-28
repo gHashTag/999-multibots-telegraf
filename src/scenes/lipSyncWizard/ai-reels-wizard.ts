@@ -238,12 +238,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         isRu
           ? '✅ Изображение получено!\n\n' +
               '📝 Теперь отправьте:\n' +
-              '• Текст (до 500 символов) - будет озвучен голосом вашего аватара для lip-sync\n' +
+              '• Текст (до 5000 символов) - будет озвучен голосом вашего аватара для lip-sync\n' +
               '• ИЛИ голосовое сообщение - будет использовано напрямую\n\n' +
               '💡 Этот текст/голос будет использован для первого видео (lip-sync)'
           : '✅ Image received!\n\n' +
               '📝 Now send:\n' +
-              '• Text (up to 500 characters) - will be voiced with your avatar for lip-sync\n' +
+              '• Text (up to 5000 characters) - will be voiced with your avatar for lip-sync\n' +
               '• OR voice message - will be used directly\n\n' +
               '💡 This text/voice will be used for the first video (lip-sync)'
       )
@@ -458,11 +458,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             return ctx.scene.leave()
           }
 
-          if (text.length > 500) {
+          if (text.length > 5000) {
             await ctx.reply(
               isRu
-                ? `❌ Текст слишком длинный (${text.length} символов). Максимум: 500 символов.`
-                : `❌ Text is too long (${text.length} characters). Maximum: 500 characters.`
+                ? `❌ Текст слишком длинный (${text.length} символов). Максимум: 5000 символов.`
+                : `❌ Text is too long (${text.length} characters). Maximum: 5000 characters.`
             )
             return ctx.scene.leave()
           }
