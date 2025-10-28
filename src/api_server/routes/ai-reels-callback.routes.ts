@@ -37,6 +37,14 @@ interface AIReelsCallbackPayload {
 router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
   const startTime = Date.now()
 
+  // ✅ Логируем сразу при получении callback
+  logger.info('🔔 [AI REELS CALLBACK] Webhook received', {
+    timestamp: new Date().toISOString(),
+    headers: req.headers,
+    bodyKeys: Object.keys(req.body || {}),
+    bodyPreview: JSON.stringify(req.body).substring(0, 200)
+  })
+
   try {
     // ✅ Быстро отвечаем 202 Accepted согласно best practices
     res.status(202).json({
@@ -162,9 +170,9 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
     // Скачиваем видео с Selectel S3 и отправляем как Buffer
     const videoResponse = await axios.get(videoUrl, {
       responseType: 'arraybuffer',
-      timeout: 60000, // 60 секунд таймаут для больших файлов
-      maxContentLength: 50 * 1024 * 1024, // 50MB max
-      maxBodyLength: 50 * 1024 * 1024
+      timeout: 120000, // 120 секунд таймаут для больших файлов
+      maxContentLength: 100 * 1024 * 1024, // 100MB max
+      maxBodyLength: 100 * 1024 * 1024
     })
 
     const videoBuffer = Buffer.from(videoResponse.data)
