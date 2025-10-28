@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function updateUserLevelPlusOne(
   telegram_id: string,
@@ -11,11 +12,11 @@ export async function updateUserLevelPlusOne(
       .eq('telegram_id', telegram_id)
 
     if (error) {
-      console.error('Ошибка обновления уровня пользователя:', error)
+      logger.error('Ошибка обновления уровня пользователя:', error)
     } else {
-      console.log('Уровень пользователя обновлен:', data)
+      logger.debug('Уровень пользователя обновлен:', data)
     }
   } catch (e) {
-    console.log('updateUserLevel', e)
+    logger.debug('updateUserLevel', e)
   }
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { logger } from '@/utils/enhancedLogger'
 
 /**
  * CLI tool for setting up webhooks manually
@@ -15,16 +16,16 @@ interface BotConfig {
 }
 
 async function setupWebhooksFromEnv(): Promise<void> {
-  console.log('🔗 Webhook Setup CLI Tool')
-  console.log('========================')
+  logger.debug('🔗 Webhook Setup CLI Tool')
+  logger.debug('========================')
 
   // Get configuration from environment
   const webhookDomain = process.env.WEBHOOK_DOMAIN || 'http://test-render-farm.ru'
   const webhookPath = process.env.WEBHOOK_PATH || '/webhook'
   
-  console.log(`📍 Domain: ${webhookDomain}`)
-  console.log(`📍 Path: ${webhookPath}`)
-  console.log('')
+  logger.debug(`📍 Domain: ${webhookDomain}`)
+  logger.debug(`📍 Path: ${webhookPath}`)
+  logger.debug('')
 
   // Collect bot tokens from environment
   const botConfigs: BotConfig[] = []
@@ -47,12 +48,12 @@ async function setupWebhooksFromEnv(): Promise<void> {
   }
 
   if (botConfigs.length === 0) {
-    console.error('❌ No bot tokens found in environment variables')
+    logger.error('❌ No bot tokens found in environment variables')
     process.exit(1)
   }
 
-  console.log(`🤖 Found ${botConfigs.length} bot tokens`)
-  console.log('')
+  logger.debug(`🤖 Found ${botConfigs.length} bot tokens`)
+  logger.debug('')
 
   // Setup webhooks
   const bots = botConfigs.map(config => ({
@@ -72,23 +73,23 @@ async function setupWebhooksFromEnv(): Promise<void> {
   const results = await autoConfigureProductionWebhooks(bots, webhookConfig)
 
   // Report results
-  console.log('\n📊 Webhook Setup Results:')
-  console.log('=========================')
+  logger.debug('\n📊 Webhook Setup Results:')
+  logger.debug('=========================')
   
   results.forEach((result, index) => {
     const config = botConfigs[index]
     if (result.success) {
-      console.log(`✅ ${config.name}: ${result.webhookUrl}`)
+      logger.debug(`✅ ${config.name}: ${result.webhookUrl}`)
     } else {
-      console.log(`❌ ${config.name}: ${result.error}`)
+      logger.debug(`❌ ${config.name}: ${result.error}`)
     }
   })
 
   const successCount = results.filter(r => r.success).length
   const failureCount = results.length - successCount
 
-  console.log('')
-  console.log(`📈 Summary: ${successCount} successful, ${failureCount} failed`)
+  logger.debug('')
+  logger.debug(`📈 Summary: ${successCount} successful, ${failureCount} failed`)
   
   if (failureCount > 0) {
     process.exit(1)
@@ -103,7 +104,7 @@ switch (command) {
   case 'setup':
   case undefined:
     setupWebhooksFromEnv().catch(error => {
-      console.error('❌ Webhook setup failed:', error)
+      logger.error('❌ Webhook setup failed:', error)
       process.exit(1)
     })
     break
@@ -111,7 +112,7 @@ switch (command) {
   case 'help':
   case '--help':
   case '-h':
-    console.log(`
+    logger.debug(`
 🔗 Webhook Setup CLI
 
 Usage:
@@ -133,7 +134,7 @@ Examples:
     break
     
   default:
-    console.error(`❌ Unknown command: ${command}`)
-    console.log('Use "help" for usage information')
+    logger.error(`❌ Unknown command: ${command}`)
+    logger.debug('Use "help" for usage information')
     process.exit(1)
 }

@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { getReferalsCountAndUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
@@ -34,7 +35,7 @@ inviteScene.enter(async ctx => {
     await ctx.reply(linkText, { parse_mode: 'HTML' })
     await ctx.scene.enter(ModeEnum.MainMenu)
   } catch (error) {
-    console.error('Error fetching referral count:', error)
+    logger.error('Error fetching referral count:', error)
     await ctx.reply(
       isRu
         ? 'Произошла ошибка при получении данных о рефералах. Пожалуйста, попробуйте позже.'

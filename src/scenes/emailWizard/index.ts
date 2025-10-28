@@ -1,4 +1,5 @@
 import { Markup, Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 import { saveUserEmail, setPayments } from '../../core/supabase'
 import {
@@ -41,15 +42,15 @@ function generateRobokassaUrl(
   password1: string
 ): string {
   if (!merchantLogin) {
-    console.error('❌ Merchant login not found')
+    logger.error('❌ Merchant login not found')
     return ''
   }
   if (!password1) {
-    console.error('❌ Password not found')
+    logger.error('❌ Password not found')
     return ''
   }
   if (!resultUrl2) {
-    console.error('❌ Result URL not found')
+    logger.error('❌ Result URL not found')
     return ''
   }
   const signatureValue = md5(
@@ -73,7 +74,7 @@ async function getInvoiceId(
   description: string,
   password1: string
 ): Promise<string> {
-  console.log('Start getInvoiceId', {
+  logger.debug('Start getInvoiceId', {
     merchantLogin,
     outSum,
     invId,
@@ -84,7 +85,7 @@ async function getInvoiceId(
     const signatureValue = md5(
       `${merchantLogin}:${outSum}:${invId}:${password1}`
     )
-    console.log('signatureValue', signatureValue)
+    logger.debug('signatureValue', signatureValue)
 
     const response = generateRobokassaUrl(
       merchantLogin,
@@ -93,11 +94,11 @@ async function getInvoiceId(
       description,
       password1
     )
-    console.log('response', response)
+    logger.debug('response', response)
 
     return response
   } catch (error) {
-    console.error('Error in getInvoiceId:', error)
+    logger.error('Error in getInvoiceId:', error)
     throw error
   }
 }
@@ -176,24 +177,24 @@ emailWizard.on('text', async ctx => {
 
       try {
         if (!ctx.from) {
-          console.error('❌ Telegram ID не найден')
+          logger.error('❌ Telegram ID не найден')
           return
         }
         const userId = ctx.from?.id
         if (!userId) {
-          console.error('❌ Telegram ID не найден')
+          logger.error('❌ Telegram ID не найден')
           return
         }
         if (!ctx.from?.language_code) {
-          console.error('❌ Telegram ID не найден')
+          logger.error('❌ Telegram ID не найден')
           return
         }
         if (!merchantLogin) {
-          console.error('❌ Merchant login not found')
+          logger.error('❌ Merchant login not found')
           return
         }
         if (!ROBOKASSA_PASSWORD_1) {
-          console.error('❌ Password not found')
+          logger.error('❌ Password not found')
           return
         }
         const invId = Math.floor(Math.random() * 1000000)
@@ -223,7 +224,7 @@ emailWizard.on('text', async ctx => {
           type: PaymentType.MONEY_INCOME,
         })
 
-        console.log('invoiceURL', invoiceURL)
+        logger.debug('invoiceURL', invoiceURL)
 
         const inlineKeyboard = [
           [
@@ -262,7 +263,7 @@ You can now top up your balance with any number of stars and use them for variou
           }
         )
       } catch (error) {
-        console.error('Error in creating payment:', error)
+        logger.error('Error in creating payment:', error)
         await ctx.reply(
           isRu
             ? 'Ошибка при создании чека. Пожалуйста, попробуйте снова.'

@@ -12,7 +12,7 @@ import {
   CostCalculationResult,
 } from '@/interfaces/modes'
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // ✅ ДОБАВЛЯЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ
@@ -308,10 +308,10 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 // ==================================================================
 
 checkBalanceScene.enter(async ctx => {
-  console.log('🚀 [DEBUG] checkBalanceScene.enter STARTED!')
+  logger.debug('🚀 [DEBUG] checkBalanceScene.enter STARTED!')
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log('🚀 [DEBUG] telegramId:', telegramId)
-  console.log('🚀 [DEBUG] session.mode:', ctx.session?.mode)
+  logger.debug('🚀 [DEBUG] telegramId:', telegramId)
+  logger.debug('🚀 [DEBUG] session.mode:', ctx.session?.mode)
 
   logger.info({
     message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
@@ -321,31 +321,31 @@ checkBalanceScene.enter(async ctx => {
     sessionData: JSON.stringify(ctx.session || {}),
   })
 
-  console.log('💵 CASE: checkBalanceScene')
+  logger.debug('💵 CASE: checkBalanceScene')
 
   try {
     // Шаг 1: Получаем ID и режим
-    console.log('🚀 [DEBUG] Step 1: Getting user info...')
+    logger.debug('🚀 [DEBUG] Step 1: Getting user info...')
     const { telegramId: userId } = await getUserInfo(ctx)
-    console.log('🚀 [DEBUG] Step 1 DONE, userId:', userId)
+    logger.debug('🚀 [DEBUG] Step 1 DONE, userId:', userId)
 
-    console.log('🚀 [DEBUG] Step 2: Getting mode...')
+    logger.debug('🚀 [DEBUG] Step 2: Getting mode...')
     const mode = ctx.session.mode as ModeEnum
-    console.log('🚀 [DEBUG] Step 2 DONE, mode:', mode)
-    console.log('🚀 [DEBUG] Step 2: mode typeof:', typeof mode)
-    console.log(
+    logger.debug('🚀 [DEBUG] Step 2 DONE, mode:', mode)
+    logger.debug('🚀 [DEBUG] Step 2: mode typeof:', typeof mode)
+    logger.debug(
       '🚀 [DEBUG] Step 2: ModeEnum.TextToVideo:',
       ModeEnum.TextToVideo
     )
-    console.log(
+    logger.debug(
       '🚀 [DEBUG] Step 2: mode === ModeEnum.TextToVideo:',
       mode === ModeEnum.TextToVideo
     )
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    console.log('🚀 [DEBUG] Step 3: Getting language...')
+    logger.debug('🚀 [DEBUG] Step 3: Getting language...')
     const isRu = isRussianFromState(ctx)
-    console.log('🚀 [DEBUG] Step 3 DONE, isRu:', isRu)
+    logger.debug('🚀 [DEBUG] Step 3 DONE, isRu:', isRu)
 
     logger.info({
       message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
@@ -357,7 +357,7 @@ checkBalanceScene.enter(async ctx => {
     })
 
     // --- ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ ---
-    console.log('🚀 [DEBUG] Step 4: Getting user details from DB...')
+    logger.debug('🚀 [DEBUG] Step 4: Getting user details from DB...')
     logger.info({
       message: `[CheckBalanceScene] Получение данных пользователя из БД`,
       telegramId,
@@ -366,7 +366,7 @@ checkBalanceScene.enter(async ctx => {
     })
 
     const userDetails = await getUserDetailsSubscription(telegramId)
-    console.log('🚀 [DEBUG] Step 4 DONE, userDetails:', {
+    logger.debug('🚀 [DEBUG] Step 4 DONE, userDetails:', {
       isExist: userDetails.isExist,
       isSubscriptionActive: userDetails.isSubscriptionActive,
       stars: userDetails.stars,
@@ -455,7 +455,7 @@ checkBalanceScene.enter(async ctx => {
         balance: currentBalance,
       })
 
-      console.log(ctx.botInfo)
+      logger.debug(ctx.botInfo)
 
       // Передаем и баланс и уровень из userDetails
       await sendBalanceMessage(
@@ -506,7 +506,7 @@ checkBalanceScene.enter(async ctx => {
     })
 
     // --- ВЫЗОВ ФУНКЦИИ ДЛЯ ВХОДА В ЦЕЛЕВУЮ СЦЕНУ ---
-    console.log(
+    logger.debug(
       '🚀 [DEBUG] Step 5: About to call enterTargetScene with mode:',
       mode,
       'cost:',
@@ -523,7 +523,7 @@ checkBalanceScene.enter(async ctx => {
     // Передаем необходимые параметры: контекст, пустую функцию next, режим, стоимость
     // @ts-ignore // Временно игнорируем ошибку компилятора, т.к. типы по факту совпадают
     await enterTargetScene(ctx, async () => {}, mode, costValue) // <--- Исправленный вызов
-    console.log(
+    logger.debug(
       '🚀 [DEBUG] Step 5 DONE: enterTargetScene completed successfully'
     )
 
@@ -535,7 +535,7 @@ checkBalanceScene.enter(async ctx => {
       costValue,
     })
   } catch (error) {
-    console.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
+    logger.error('[DEBUG CheckBalanceScene Enter] Error caught:', error) // Добавлено
     logger.error({
       message: `[CheckBalanceScene] Ошибка при проверке баланса`,
       telegramId,
@@ -550,7 +550,7 @@ checkBalanceScene.enter(async ctx => {
 
 // Добавляем обработчик текстовых сообщений для отладки
 checkBalanceScene.on('text', async ctx => {
-  console.log(
+  logger.debug(
     '📝 [DEBUG] checkBalanceScene: Received text message:',
     ctx.message.text
   )
@@ -570,11 +570,11 @@ checkBalanceScene.on('text', async ctx => {
   await ctx.reply('⏳ Обрабатываю ваш запрос...')
 
   // Проверяем текущую сцену
-  console.log(
+  logger.debug(
     '📝 [DEBUG] checkBalanceScene.text: Current scene:',
     ctx.scene.current?.id
   )
-  console.log(
+  logger.debug(
     '📝 [DEBUG] checkBalanceScene.text: Session mode:',
     ctx.session?.mode
   )
@@ -596,14 +596,14 @@ export const enterTargetScene = async (
   mode: ModeEnum, // Используем ModeEnum
   cost: number
 ) => {
-  console.log(
+  logger.debug(
     '🎯 [DEBUG] enterTargetScene CALLED with mode:',
     mode,
     'cost:',
     cost
   )
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log('🎯 [DEBUG] enterTargetScene telegramId:', telegramId)
+  logger.debug('🎯 [DEBUG] enterTargetScene telegramId:', telegramId)
 
   logger.info({
     message: `[EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим ${mode}`,
@@ -614,16 +614,16 @@ export const enterTargetScene = async (
   })
 
   try {
-    console.log('🎯 [DEBUG] enterTargetScene: Step A - Getting user details...')
+    logger.debug('🎯 [DEBUG] enterTargetScene: Step A - Getting user details...')
     const userDetails = await getUserDetailsSubscription(telegramId)
-    console.log('🎯 [DEBUG] enterTargetScene: Step A DONE, userDetails:', {
+    logger.debug('🎯 [DEBUG] enterTargetScene: Step A DONE, userDetails:', {
       isExist: userDetails.isExist,
       isSubscriptionActive: userDetails.isSubscriptionActive,
       stars: userDetails.stars,
     })
 
     if (!userDetails.isExist) {
-      console.log(
+      logger.debug(
         '🎯 [DEBUG] enterTargetScene: User does not exist, returning...'
       )
       logger.warn({
@@ -640,11 +640,11 @@ export const enterTargetScene = async (
       return
     }
 
-    console.log(
+    logger.debug(
       '🎯 [DEBUG] enterTargetScene: Step B - Checking subscription...'
     )
     if (!userDetails.isSubscriptionActive) {
-      console.log(
+      logger.debug(
         '🎯 [DEBUG] enterTargetScene: Subscription not active, returning...'
       )
       logger.warn({
@@ -657,15 +657,15 @@ export const enterTargetScene = async (
       // Возможно, здесь нужно отправить другое сообщение или просто выйти
       return
     }
-    console.log(
+    logger.debug(
       '🎯 [DEBUG] enterTargetScene: Step B DONE - Subscription is active'
     )
 
-    console.log('🎯 [DEBUG] enterTargetScene: Step C - Checking balance...')
+    logger.debug('🎯 [DEBUG] enterTargetScene: Step C - Checking balance...')
     const currentBalance = userDetails.stars
 
     if (currentBalance < cost) {
-      console.log(
+      logger.debug(
         '🎯 [DEBUG] enterTargetScene: Insufficient balance, returning...'
       )
       logger.warn({
@@ -681,7 +681,7 @@ export const enterTargetScene = async (
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       return
     }
-    console.log(
+    logger.debug(
       '🎯 [DEBUG] enterTargetScene: Step C DONE - Balance is sufficient'
     )
 
@@ -717,7 +717,7 @@ export const enterTargetScene = async (
       })
     }
 
-    console.log(
+    logger.debug(
       '🎯 [DEBUG] enterTargetScene: Step D - Access granted, proceeding to scene selection...'
     )
     logger.info({
@@ -740,14 +740,14 @@ export const enterTargetScene = async (
       function: 'enterTargetSceneWrapper',
     })
 
-    console.log(
+    logger.debug(
       '🎯 [DEBUG] enterTargetScene: Checking special mode cases for mode:',
       mode
     )
 
     // Специальная логика для FluxKontext - направляем в флюкс-контекст сцену
     if (mode === ModeEnum.FluxKontext) {
-      console.log(
+      logger.debug(
         '🎯 [DEBUG] enterTargetScene: FluxKontext mode detected, entering flux_kontext_scene'
       )
       logger.info({
@@ -764,7 +764,7 @@ export const enterTargetScene = async (
 
     // Специальная логика для ImageUpscaler - направляем в imageUpscalerWizard сцену
     if (mode === ModeEnum.ImageUpscaler) {
-      console.log(
+      logger.debug(
         '🎯 [DEBUG] enterTargetScene: ImageUpscaler mode detected, entering imageUpscaler scene'
       )
       logger.info({
@@ -781,7 +781,7 @@ export const enterTargetScene = async (
 
     // Специальная логика для VideoTranscription - направляем в videoTranscriptionWizard сцену
     if (mode === ModeEnum.VideoTranscription) {
-      console.log(
+      logger.debug(
         '🎯 [DEBUG] enterTargetScene: VideoTranscription mode detected, entering video_transcription scene'
       )
       logger.info({
@@ -798,7 +798,7 @@ export const enterTargetScene = async (
 
     // Специальная логика для TextToVideo сцены
     if (mode === ModeEnum.TextToVideo) {
-      console.log(
+      logger.debug(
         '🎯 [DEBUG] enterTargetScene: TextToVideo mode detected, entering text_to_video scene'
       )
       logger.info({
@@ -809,11 +809,11 @@ export const enterTargetScene = async (
       })
       try {
         // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
-        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        logger.debug('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
         await ctx.scene.leave()
-        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video')
+        logger.debug('🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video')
         await ctx.scene.enter('text_to_video')
-        console.log(
+        logger.debug(
           '🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene'
         )
         logger.info({
@@ -823,7 +823,7 @@ export const enterTargetScene = async (
           function: 'enterTargetSceneWrapper',
         })
       } catch (sceneEnterError) {
-        console.error(
+        logger.error(
           '❌ [DEBUG] enterTargetScene: ERROR entering text_to_video scene:',
           sceneEnterError
         )
@@ -850,7 +850,7 @@ export const enterTargetScene = async (
     }
 
     // Fallback для всех остальных режимов
-    console.log(
+    logger.debug(
       '🎯 [DEBUG] enterTargetScene: Using fallback - entering scene with mode:',
       mode
     )
@@ -861,7 +861,7 @@ export const enterTargetScene = async (
       function: 'enterTargetSceneWrapper',
     })
 
-    console.log(
+    logger.debug(
       '🎯 [DEBUG] enterTargetScene: About to call ctx.scene.enter with mode:',
       mode
     )
@@ -884,7 +884,7 @@ export const enterTargetScene = async (
         cost, // Можно передать стоимость в стейт сцены
         // Дополнительные данные, если нужны для целевой сцены
       })
-      console.log(
+      logger.debug(
         '🎯 [DEBUG] enterTargetScene: ctx.scene.enter completed successfully'
       )
 
@@ -897,7 +897,7 @@ export const enterTargetScene = async (
         step: 'scene_enter_completed',
       })
     } catch (sceneEnterError) {
-      console.error(
+      logger.error(
         '❌ [DEBUG] enterTargetScene: Error in ctx.scene.enter:',
         sceneEnterError
       )
@@ -925,7 +925,7 @@ export const enterTargetScene = async (
       function: 'enterTargetSceneWrapper',
     })
   } catch (error) {
-    console.error('[DEBUG EnterTargetScene] Error caught:', error) // Добавлено
+    logger.error('[DEBUG EnterTargetScene] Error caught:', error) // Добавлено
     logger.error({
       message: `[EnterTargetSceneWrapper] ❌ ОШИБКА при обработке входа в режим ${mode}`,
       telegramId,

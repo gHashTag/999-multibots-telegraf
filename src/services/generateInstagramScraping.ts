@@ -1,7 +1,7 @@
 import { inngest } from '@/inngest_app/client'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 export interface InstagramScrapingRequest {
   username_or_id: string
@@ -45,7 +45,7 @@ export async function generateInstagramScraping(
     inngestHost: process.env.INNGEST_DEV_URL || process.env.INNGEST_PROD_URL || 'N/A'
   })
 
-  console.log('🔥 [DEBUG] Function parameters:', {
+  logger.debug('🔥 [DEBUG] Function parameters:', {
     username_or_id,
     project_id,
     max_users,
@@ -91,13 +91,13 @@ export async function generateInstagramScraping(
       debug_session_id: debugSessionId,
     }
 
-    console.log(
+    logger.debug(
       '🔥 [DEBUG] SENDING EVENT DATA:',
       JSON.stringify(eventData, null, 2)
     )
 
     // 🚀 Отправляем событие в Inngest через SDK (работает и в dev, и в production!)
-    console.log(
+    logger.debug(
       `📤 [${process.env.NODE_ENV?.toUpperCase()}] Отправляем событие через Inngest SDK...`
     )
 
@@ -111,7 +111,7 @@ export async function generateInstagramScraping(
       id: `instagram-scraper-${telegram_id}-${username_or_id}-${Date.now()}`,
     }
 
-    console.log('🔥 [DEBUG] Final Inngest event payload:', JSON.stringify(inngestEvent, null, 2))
+    logger.debug('🔥 [DEBUG] Final Inngest event payload:', JSON.stringify(inngestEvent, null, 2))
     
     logger.info('📤 [Instagram Scraper] About to send event to Inngest', {
       eventName: inngestEvent.name,
@@ -122,13 +122,13 @@ export async function generateInstagramScraping(
 
     const sendResult = await inngest.send(inngestEvent)
     
-    console.log('🔥 [DEBUG] Inngest send result:', sendResult)
+    logger.debug('🔥 [DEBUG] Inngest send result:', sendResult)
     logger.info('✅ [Instagram Scraper] Event sent to Inngest with result', {
       sendResult,
       telegram_id
     })
 
-    console.log(
+    logger.debug(
       `✅ [${process.env.NODE_ENV?.toUpperCase()}] Event sent via SDK to:`,
       process.env.NODE_ENV === 'development'
         ? 'localhost:8288'
@@ -136,10 +136,10 @@ export async function generateInstagramScraping(
             'ai-server-production-production-8e2d.up.railway.app') +
             '/api/inngest'
     )
-    console.log(
+    logger.debug(
       `🔥 [DEBUG] Event sent with debug_session_id: ${debugSessionId}`
     )
-    console.log(`🔥 [DEBUG] Check ai-server logs for this session_id!`)
+    logger.debug(`🔥 [DEBUG] Check ai-server logs for this session_id!`)
 
     logger.info({
       message: '✅ [Instagram Scraper] Событие успешно отправлено в Inngest',
@@ -155,7 +155,7 @@ export async function generateInstagramScraping(
         : '🚀 Instagram competitor analysis started! Results will be ready in a few minutes.',
     }
   } catch (error) {
-    console.error('🔥 [DEBUG] Full error object:', error)
+    logger.error('🔥 [DEBUG] Full error object:', error)
     
     logger.error({
       message: '❌ [Instagram Scraper] Ошибка при отправке события в Inngest',
@@ -175,7 +175,7 @@ export async function generateInstagramScraping(
       ? 'Произошла ошибка при запуске поиска конкурентов. Пожалуйста, попробуйте позже.'
       : 'An error occurred while starting competitor search. Please try again later.'
 
-    console.log('🔥 [DEBUG] About to send error message to user:', errorMessage)
+    logger.debug('🔥 [DEBUG] About to send error message to user:', errorMessage)
 
     try {
       if (ctx.reply) {

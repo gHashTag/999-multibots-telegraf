@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from 'axios'
+import { logger } from '@/utils/enhancedLogger'
 import FormData from 'form-data'
 import fs from 'fs'
 import { SECRET_API_KEY, LOCAL_SERVER_URL, API_URL } from '@/config'
@@ -25,9 +26,9 @@ export async function createModelTraining(
   ctx: MyContext
 ): Promise<ModelTrainingResponse> {
   try {
-    console.log('requestData', requestData)
+    logger.debug('requestData', requestData)
     const mode = ctx.session.mode
-    console.log('mode', mode)
+    logger.debug('mode', mode)
     let url = ''
     if (mode === 'digital_avatar_body') {
       url = `${API_URL}/generate/create-model-training`
@@ -73,7 +74,7 @@ export async function createModelTraining(
 
     await fs.promises.unlink(requestData.filePath)
     // Логируем только основные данные, не весь объект ответа
-    console.log('Model training response:', {
+    logger.debug('Model training response:', {
       message: response.data.message,
       model_id: response.data.model_id,
       bot_name: response.data.bot_name,
@@ -82,14 +83,14 @@ export async function createModelTraining(
     return response.data
   } catch (error) {
     // if (axios.isAxiosError(error)) {
-    //   console.error('API Error:', error.response?.data || error.message)
+    //   logger.error('API Error:', error.response?.data || error.message)
     //   throw new Error(
     //     requestData.is_ru
     //       ? 'Произошла ошибка при создании тренировки модели'
     //       : 'Error occurred while creating model training'
     //   )
     // }
-    console.error('Unexpected error:', error)
+    logger.error('Unexpected error:', error)
     throw error
   }
 }

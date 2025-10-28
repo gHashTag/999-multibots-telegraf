@@ -8,7 +8,7 @@ import {
 } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function generateNeuroImageV2(
   prompt: string,
@@ -29,7 +29,7 @@ export async function generateNeuroImageV2(
     throw new Error('Num images not found')
   }
 
-  console.log('Starting generateNeuroImage with:', {
+  logger.debug('Starting generateNeuroImage with:', {
     prompt,
     numImages,
     telegram_id,
@@ -68,7 +68,7 @@ export async function generateNeuroImageV2(
     return response.data
   } catch (error) {
     if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
+      logger.error('API Error:', error.response?.data || error.message)
       if (error.response?.data?.error?.includes('NSFW')) {
         await ctx.reply(
           'Извините, генерация изображения не удалась из-за обнаружения неподходящего контента.'
@@ -79,7 +79,7 @@ export async function generateNeuroImageV2(
         )
       }
     } else {
-      console.error('Error generating image:', error)
+      logger.error('Error generating image:', error)
     }
     return null
   }

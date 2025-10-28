@@ -1,4 +1,5 @@
 import { FixResult } from '../webhooks/github-autofixer.service'
+import { logger } from '@/utils/enhancedLogger'
 
 export interface BotSpecificFix {
   pattern: RegExp
@@ -122,7 +123,7 @@ export class BotSpecificFixesEngine {
       pattern: /(async\s*\([^)]*\)\s*=>\s*\{)(\s*)([\s\S]*?)(\s*\})/g,
       replacement: (match, start, indent, body, end) => {
         if (body.includes('try {')) return match
-        return `${start}${indent}try {${indent}  ${body.trim()}${indent}} catch (error) {${indent}  console.error('Bot error:', error)${indent}  await ctx.reply('Произошла ошибка. Попробуйте позже.')${indent}}${end}`
+        return `${start}${indent}try {${indent}  ${body.trim()}${indent}} catch (error) {${indent}  logger.error('Bot error:', error)${indent}  await ctx.reply('Произошла ошибка. Попробуйте позже.')${indent}}${end}`
       },
       description: 'Add error handling to async handlers',
       type: 'telegraf',
@@ -194,7 +195,7 @@ export class BotSpecificFixesEngine {
           lineNumber: lineNumbers[0] // Берем первое совпадение для номера строки
         })
 
-        console.log(`✅ [BotFixer] Applied ${fix.description} (${matches.length} occurrences)`)
+        logger.debug(`✅ [BotFixer] Applied ${fix.description} (${matches.length} occurrences)`)
       }
     }
 
@@ -231,7 +232,7 @@ export class BotSpecificFixesEngine {
         fixedContent = lines.join('\n')
         appliedFixes.push({ description: importFix.description })
 
-        console.log(`✅ [BotFixer] ${importFix.description}`)
+        logger.debug(`✅ [BotFixer] ${importFix.description}`)
       }
     }
 

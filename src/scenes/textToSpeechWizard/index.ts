@@ -18,14 +18,14 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import fs from 'fs'
-import logger from '@/utils/logger'
+import logger from '@/utils/enhancedLogger'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'text_to_speech',
   async ctx => {
-    console.log('CASE: text_to_speech')
+    logger.debug('CASE: text_to_speech')
     const isRu = isRussianFromState(ctx)
     await ctx.reply(
       isRu
@@ -37,7 +37,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     return
   },
   async ctx => {
-    console.log('CASE: text_to_speech.next', ctx.message)
+    logger.debug('CASE: text_to_speech.next', ctx.message)
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let audioPath: string | null = null
@@ -56,7 +56,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     } else {
       try {
         if (!ctx.from?.id) {
-          console.error('❌ Telegram ID не найден')
+          logger.error('❌ Telegram ID не найден')
           return
         }
         const voice_id = await getVoiceId(ctx.from.id.toString())
@@ -125,7 +125,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         }
         // --- Конец блока отправки сообщения о балансе ---
       } catch (error) {
-        console.error('Error processing text_to_speech in wizard:', error)
+        logger.error('Error processing text_to_speech in wizard:', error)
 
         if (error instanceof VoiceNotFoundError) {
           await ctx.reply(getVoiceAvatarErrorMessage(isRu))

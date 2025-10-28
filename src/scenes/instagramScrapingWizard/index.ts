@@ -7,7 +7,7 @@ import { createHelpCancelKeyboard } from '@/menu'
 import { generateInstagramScraping } from '@/services/generateInstagramScraping'
 import { getBotNameByToken } from '@/core/bot'
 import { getBotToken } from '@/handlers/getBotToken'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { levels } from '@/menu'
 import { getUserProjects, UserProject } from '@/core/supabase/getUserProjects'
 import { getParsingAccess } from '@/menu/mainMenu'
@@ -74,14 +74,14 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
 
     // Если это callback от выбора проекта
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      console.log('🚨 [DEBUG] STEP 0 - CALLBACK QUERY DETECTED:', {
+      logger.debug('🚨 [DEBUG] STEP 0 - CALLBACK QUERY DETECTED:', {
         data: ctx.callbackQuery.data,
       })
 
       const callbackData = ctx.callbackQuery.data
 
       if (callbackData === 'cancel') {
-        console.log('🚨 [DEBUG] CANCEL selected - leaving scene')
+        logger.debug('🚨 [DEBUG] CANCEL selected - leaving scene')
         await ctx.answerCbQuery()
         await ctx.reply(isRu ? '❌ Анализ отменен.' : '❌ Analysis cancelled.')
         await ctx.scene.leave()
@@ -89,13 +89,13 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (callbackData.startsWith('project_')) {
-        console.log('🚨 [DEBUG] PROJECT callback detected in Step 0!')
+        logger.debug('🚨 [DEBUG] PROJECT callback detected in Step 0!')
 
         const projectId = parseInt(callbackData.replace('project_', ''))
-        console.log('🚨 [DEBUG] Parsed project ID:', projectId)
+        logger.debug('🚨 [DEBUG] Parsed project ID:', projectId)
 
         // Получаем проекты еще раз и находим выбранный
-        console.log('🚨 [DEBUG] Getting projects to find selected one...')
+        logger.debug('🚨 [DEBUG] Getting projects to find selected one...')
         const allProjects = await getUserProjects(ctx.from!.id.toString())
 
         // 🔍 Фильтруем проекты по доступу для бота
@@ -106,7 +106,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         )
         const selectedProject = filteredProjects.find(p => p.id === projectId)
 
-        console.log('🚨 [DEBUG] Selected project search result:', {
+        logger.debug('🚨 [DEBUG] Selected project search result:', {
           foundProject: !!selectedProject,
           selectedProject: selectedProject
             ? { id: selectedProject.id, name: selectedProject.name }
@@ -114,16 +114,16 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         })
 
         if (!selectedProject) {
-          console.log('🚨 [DEBUG] ERROR: Project not found!')
+          logger.debug('🚨 [DEBUG] ERROR: Project not found!')
           await ctx.answerCbQuery('Проект не найден')
           return
         }
 
-        console.log('🚨 [DEBUG] Saving project to session...')
+        logger.debug('🚨 [DEBUG] Saving project to session...')
         sessionData.selectedProject = selectedProject
         sessionData.projectId = selectedProject.id
 
-        console.log('🚨 [DEBUG] Answering callback and editing message...')
+        logger.debug('🚨 [DEBUG] Answering callback and editing message...')
         try {
           await ctx.answerCbQuery()
           await ctx.editMessageText(
@@ -131,9 +131,9 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
               ? `✅ Выбран проект: ${selectedProject.name}`
               : `✅ Selected project: ${selectedProject.name}`
           )
-          console.log('🚨 [DEBUG] Message edited successfully!')
+          logger.debug('🚨 [DEBUG] Message edited successfully!')
         } catch (error) {
-          console.error('🚨 [ERROR] Failed to edit message:', error)
+          logger.error('🚨 [ERROR] Failed to edit message:', error)
 
           // Fallback - отправляем новое сообщение
           await ctx.reply(
@@ -144,7 +144,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         }
 
         // Переходим к запросу username
-        console.log('🚨 [DEBUG] Sending username request message...')
+        logger.debug('🚨 [DEBUG] Sending username request message...')
         try {
           await ctx.reply(
             isRu
@@ -152,9 +152,9 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
               : '👤 Enter Instagram username for competitor analysis:\n\n💡 Enter without @ symbol (example: neuro_sage)',
             createHelpCancelKeyboard(isRu)
           )
-          console.log('🚨 [DEBUG] Username request message sent successfully!')
+          logger.debug('🚨 [DEBUG] Username request message sent successfully!')
         } catch (error) {
-          console.error('🚨 [ERROR] Failed to send username request:', error)
+          logger.error('🚨 [ERROR] Failed to send username request:', error)
 
           // Fallback
           await ctx.reply(
@@ -164,20 +164,20 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
           )
         }
 
-        console.log('🚨 [DEBUG] Moving to next step (username input)...')
+        logger.debug('🚨 [DEBUG] Moving to next step (username input)...')
         return ctx.wizard.next()
       }
 
       // Неизвестный callback
-      console.log('🚨 [DEBUG] Unknown callback received:', callbackData)
+      logger.debug('🚨 [DEBUG] Unknown callback received:', callbackData)
       await ctx.answerCbQuery()
       return
     }
 
     // Если это не callback, значит это первый вход в сцену - показываем проекты
-    console.log('🚨 [DEBUG] INSTAGRAM WIZARD SCENE ENTERED - STEP 0!')
+    logger.debug('🚨 [DEBUG] INSTAGRAM WIZARD SCENE ENTERED - STEP 0!')
 
-    console.log(
+    logger.debug(
       'Instagram Scraping Wizard: Step 0 - Project selection started',
       {
         userId: ctx.from?.id,
@@ -239,7 +239,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       )
 
       if (filteredProjects.length === 0) {
-        console.log(
+        logger.debug(
           '🚨 [DEBUG] NO ACCESSIBLE PROJECTS - sending error message to user'
         )
         logger.warn(
@@ -263,12 +263,12 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      console.log(
+      logger.debug(
         '🚨 [DEBUG] ACCESSIBLE PROJECTS FOUND - proceeding with project selection'
       )
 
       // Создаем inline кнопки для выбора проекта
-      console.log('🚨 [DEBUG] Creating project buttons...')
+      logger.debug('🚨 [DEBUG] Creating project buttons...')
       const projectButtons = filteredProjects.map(project => [
         Markup.button.callback(
           `📁 ${project.name} | ${project.industry}`,
@@ -276,7 +276,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         ),
       ])
 
-      console.log('🚨 [DEBUG] Sending project selection message to user...')
+      logger.debug('🚨 [DEBUG] Sending project selection message to user...')
 
       const botSpecificTitle =
         bot_name === 'HaimGroupMedia_bot'
@@ -307,9 +307,9 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
           }
         )
 
-        console.log('🚨 [DEBUG] Project selection message sent successfully!')
+        logger.debug('🚨 [DEBUG] Project selection message sent successfully!')
       } catch (error) {
-        console.error('🚨 [ERROR] Failed to send project selection message:', {
+        logger.error('🚨 [ERROR] Failed to send project selection message:', {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           projectsCount: filteredProjects.length,
@@ -323,12 +323,12 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         )
       }
 
-      console.log('🚨 [DEBUG] Waiting for user to select project...')
+      logger.debug('🚨 [DEBUG] Waiting for user to select project...')
 
       // ❌ УБИРАЕМ ЭТУ СТРОКУ - она заставляла бота перейти дальше сразу!
       // return ctx.wizard.next()
     } catch (error) {
-      console.error('🚨 [ERROR] Exception in step 0:', error)
+      logger.error('🚨 [ERROR] Exception in step 0:', error)
       logger.error('Instagram Scraping Wizard: Step 0 failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
         userId: ctx.from?.id,
@@ -340,9 +340,9 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             ? '❌ Произошла ошибка при загрузке проектов.\n\nПожалуйста, попробуйте позже или обратитесь в поддержку.'
             : '❌ An error occurred while loading projects.\n\nPlease try again later or contact support.'
         )
-        console.log('🚨 [DEBUG] Exception error message sent successfully!')
+        logger.debug('🚨 [DEBUG] Exception error message sent successfully!')
       } catch (replyError) {
-        console.error(
+        logger.error(
           '🚨 [ERROR] Failed to send exception error message:',
           replyError
         )
@@ -354,35 +354,35 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
   // ШАГ 1: ОБРАБОТКА ВВОДА USERNAME
   // ==========================================
   async ctx => {
-    console.log('🚨 [DEBUG] STEP 1 ENTERED - Processing username input')
+    logger.debug('🚨 [DEBUG] STEP 1 ENTERED - Processing username input')
 
     const isRu = isRussianFromState(ctx)
     const sessionData = ctx.wizard.state as InstagramScrapingSessionData
 
-    console.log('🚨 [DEBUG] Checking message type...', {
+    logger.debug('🚨 [DEBUG] Checking message type...', {
       hasText: 'text' in (ctx.message || {}),
       messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
     })
 
     // Обрабатываем ввод username
     if (ctx.message && 'text' in ctx.message) {
-      console.log('🚨 [DEBUG] Processing text message for username...')
+      logger.debug('🚨 [DEBUG] Processing text message for username...')
 
       const username = ctx.message.text.trim().replace('@', '')
-      console.log('🚨 [DEBUG] Extracted username:', {
+      logger.debug('🚨 [DEBUG] Extracted username:', {
         originalText: ctx.message.text,
         processedUsername: username,
       })
 
       // Валидация Instagram username
       const instagramUsernameRegex = /^[a-zA-Z0-9._]{1,30}$/
-      console.log('🚨 [DEBUG] Starting username validation...', {
+      logger.debug('🚨 [DEBUG] Starting username validation...', {
         username,
         regex: instagramUsernameRegex.toString(),
       })
 
       if (!instagramUsernameRegex.test(username)) {
-        console.log('🚨 [DEBUG] VALIDATION FAILED - invalid username format')
+        logger.debug('🚨 [DEBUG] VALIDATION FAILED - invalid username format')
         try {
           await ctx.reply(
             isRu
@@ -390,9 +390,9 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
               : '❌ Invalid Instagram username!\n\n✅ Must contain only letters, numbers, dots and underscores (1-30 characters)\n💡 Try again:',
             createHelpCancelKeyboard(isRu)
           )
-          console.log('🚨 [DEBUG] Validation error message sent successfully')
+          logger.debug('🚨 [DEBUG] Validation error message sent successfully')
         } catch (error) {
-          console.error(
+          logger.error(
             '🚨 [ERROR] Failed to send validation error message:',
             error
           )
@@ -400,12 +400,12 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      console.log('🚨 [DEBUG] VALIDATION PASSED - username is valid')
-      console.log('🚨 [DEBUG] Saving username to session...')
+      logger.debug('🚨 [DEBUG] VALIDATION PASSED - username is valid')
+      logger.debug('🚨 [DEBUG] Saving username to session...')
       sessionData.targetUsername = username
-      console.log('🚨 [DEBUG] Username saved to session successfully!')
+      logger.debug('🚨 [DEBUG] Username saved to session successfully!')
 
-      console.log('🚨 [DEBUG] Sending competitors count selection message...')
+      logger.debug('🚨 [DEBUG] Sending competitors count selection message...')
       try {
         await ctx.reply(
           isRu
@@ -440,11 +440,11 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             ],
           ])
         )
-        console.log(
+        logger.debug(
           '🚨 [DEBUG] Competitors count selection message sent successfully!'
         )
       } catch (error) {
-        console.error(
+        logger.error(
           '🚨 [ERROR] Failed to send competitors count selection message:',
           error
         )
@@ -457,20 +457,20 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         )
       }
 
-      console.log(
+      logger.debug(
         '🚨 [DEBUG] Moving to next step (competitors count selection)...'
       )
       return ctx.wizard.next()
     }
 
     // Handle cancel from help/cancel buttons
-    console.log('🚨 [DEBUG] Checking for help/cancel buttons...')
+    logger.debug('🚨 [DEBUG] Checking for help/cancel buttons...')
     if (await handleHelpCancel(ctx)) {
-      console.log('🚨 [DEBUG] Help/Cancel handled - exiting step')
+      logger.debug('🚨 [DEBUG] Help/Cancel handled - exiting step')
       return
     }
 
-    console.log('🚨 [DEBUG] No text message received - sending error message')
+    logger.debug('🚨 [DEBUG] No text message received - sending error message')
     await ctx.reply(
       isRu
         ? '⚠️ Пожалуйста, введите корректный Instagram username.'
@@ -482,21 +482,21 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
   // ШАГ 2: ОБРАБОТКА КОЛИЧЕСТВА КОНКУРЕНТОВ + ВЫБОР РИЛСОВ
   // ==========================================
   async ctx => {
-    console.log(
+    logger.debug(
       '🚨 [DEBUG] STEP 2 ENTERED - Processing competitors count selection'
     )
     const isRu = isRussianFromState(ctx)
     const sessionData = ctx.wizard.state as InstagramScrapingSessionData
 
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      console.log('🚨 [DEBUG] CALLBACK QUERY in Step 2:', {
+      logger.debug('🚨 [DEBUG] CALLBACK QUERY in Step 2:', {
         data: ctx.callbackQuery.data,
       })
 
       const callbackData = ctx.callbackQuery.data
 
       if (callbackData === 'cancel') {
-        console.log('🚨 [DEBUG] Cancel selected - leaving scene')
+        logger.debug('🚨 [DEBUG] Cancel selected - leaving scene')
         await ctx.answerCbQuery()
         await ctx.reply(isRu ? '❌ Анализ отменен.' : '❌ Analysis cancelled.')
         await ctx.scene.leave()
@@ -504,7 +504,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (callbackData === 'competitors_custom') {
-        console.log('🚨 [DEBUG] Custom competitors count selected')
+        logger.debug('🚨 [DEBUG] Custom competitors count selected')
         await ctx.answerCbQuery()
         await ctx.editMessageText(
           isRu
@@ -518,22 +518,22 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (callbackData.startsWith('competitors_')) {
-        console.log('🚨 [DEBUG] Fixed competitors count selected')
+        logger.debug('🚨 [DEBUG] Fixed competitors count selected')
         const competitorsCountStr = callbackData.replace('competitors_', '')
         const competitorsCount = parseInt(competitorsCountStr)
-        console.log('🚨 [DEBUG] Parsed competitors count:', {
+        logger.debug('🚨 [DEBUG] Parsed competitors count:', {
           original: competitorsCountStr,
           parsed: competitorsCount,
         })
 
         if (isNaN(competitorsCount) || competitorsCount < 1) {
-          console.log('🚨 [DEBUG] Invalid competitors count')
+          logger.debug('🚨 [DEBUG] Invalid competitors count')
           await ctx.answerCbQuery('❌ Некорректное количество')
           return
         }
 
         sessionData.maxCompetitors = competitorsCount
-        console.log(
+        logger.debug(
           '🚨 [DEBUG] Competitors count saved to session:',
           competitorsCount
         )
@@ -570,7 +570,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
           }
         )
 
-        console.log('🚨 [DEBUG] Moving to next step (reels selection)...')
+        logger.debug('🚨 [DEBUG] Moving to next step (reels selection)...')
         return ctx.wizard.next()
       }
     }
@@ -581,17 +581,17 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       ctx.message &&
       'text' in ctx.message
     ) {
-      console.log('🚨 [DEBUG] Processing custom competitors count input...')
+      logger.debug('🚨 [DEBUG] Processing custom competitors count input...')
 
       const customCountStr = ctx.message.text.trim()
       const customCount = parseInt(customCountStr)
-      console.log('🚨 [DEBUG] Parsed custom count:', {
+      logger.debug('🚨 [DEBUG] Parsed custom count:', {
         original: customCountStr,
         parsed: customCount,
       })
 
       if (isNaN(customCount) || customCount < 1 || customCount > 10000) {
-        console.log('🚨 [DEBUG] Invalid custom count')
+        logger.debug('🚨 [DEBUG] Invalid custom count')
         await ctx.reply(
           isRu
             ? '❌ Некорректное число!\n\n💡 Введите число от 1 до 10000:'
@@ -602,7 +602,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
 
       sessionData.maxCompetitors = customCount
       sessionData.waitingForCustomCount = false
-      console.log('🚨 [DEBUG] Custom competitors count saved:', customCount)
+      logger.debug('🚨 [DEBUG] Custom competitors count saved:', customCount)
 
       try {
         await ctx.reply(
@@ -635,9 +635,9 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             ]),
           }
         )
-        console.log('🚨 [DEBUG] Custom count reels selection message sent!')
+        logger.debug('🚨 [DEBUG] Custom count reels selection message sent!')
       } catch (error) {
-        console.error(
+        logger.error(
           '🚨 [ERROR] Failed to send reels selection message:',
           error
         )
@@ -650,18 +650,18 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         )
       }
 
-      console.log('🚨 [DEBUG] Moving to next step (reels selection)...')
+      logger.debug('🚨 [DEBUG] Moving to next step (reels selection)...')
       return ctx.wizard.next()
     }
 
     // Handle cancel from help/cancel buttons
-    console.log('🚨 [DEBUG] Checking for help/cancel buttons in Step 2...')
+    logger.debug('🚨 [DEBUG] Checking for help/cancel buttons in Step 2...')
     if (await handleHelpCancel(ctx)) {
-      console.log('🚨 [DEBUG] Help/Cancel handled - exiting step')
+      logger.debug('🚨 [DEBUG] Help/Cancel handled - exiting step')
       return
     }
 
-    console.log('🚨 [DEBUG] Invalid input in Step 2')
+    logger.debug('🚨 [DEBUG] Invalid input in Step 2')
     await ctx.reply(
       isRu
         ? '⚠️ Пожалуйста, выберите количество конкурентов или введите число.'
@@ -673,14 +673,14 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
   // ШАГ 3: ОБРАБОТКА РИЛСОВ + ЗАПУСК АНАЛИЗА
   // ==========================================
   async ctx => {
-    console.log(
+    logger.debug(
       '🚨 [DEBUG] STEP 3 ENTERED - Final processing and scraping launch'
     )
 
     const isRu = isRussianFromState(ctx)
     const sessionData = ctx.wizard.state as InstagramScrapingSessionData
 
-    console.log('🚨 [DEBUG] Current session data:', {
+    logger.debug('🚨 [DEBUG] Current session data:', {
       projectId: sessionData.projectId,
       targetUsername: sessionData.targetUsername,
       maxCompetitors: sessionData.maxCompetitors,
@@ -688,14 +688,14 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
     })
 
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      console.log('🚨 [DEBUG] CALLBACK QUERY in Step 3:', {
+      logger.debug('🚨 [DEBUG] CALLBACK QUERY in Step 3:', {
         data: ctx.callbackQuery.data,
       })
 
       const callbackData = ctx.callbackQuery.data
 
       if (callbackData === 'cancel') {
-        console.log('🚨 [DEBUG] Cancel selected - leaving scene')
+        logger.debug('🚨 [DEBUG] Cancel selected - leaving scene')
         await ctx.answerCbQuery()
         await ctx.reply(isRu ? '❌ Анализ отменен.' : '❌ Analysis cancelled.')
         await ctx.scene.leave()
@@ -703,38 +703,38 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (callbackData === 'back') {
-        console.log('🚨 [DEBUG] Back selected - going to previous step')
+        logger.debug('🚨 [DEBUG] Back selected - going to previous step')
         await ctx.answerCbQuery()
         return ctx.wizard.back()
       }
 
       if (callbackData === 'reels_yes' || callbackData === 'reels_no') {
-        console.log('🚨 [DEBUG] Reels selection callback detected:', {
+        logger.debug('🚨 [DEBUG] Reels selection callback detected:', {
           callbackData,
           currentIncludeReels: sessionData.includeReels,
         })
 
         // Защита от двойного вызова callback - УБИРАЕМ ЭТУ БЛОКИРОВКУ
         if (sessionData.includeReels !== undefined) {
-          console.log(
+          logger.debug(
             '🚨 [DEBUG] WARNING: includeReels already set, but proceeding anyway'
           )
         }
 
         const includeReels = callbackData === 'reels_yes'
-        console.log('🚨 [DEBUG] Setting includeReels to:', includeReels)
+        logger.debug('🚨 [DEBUG] Setting includeReels to:', includeReels)
         sessionData.includeReels = includeReels
         sessionData.maxReelsPerUser = sessionData.includeReels ? 5 : 0
-        console.log(
+        logger.debug(
           '🚨 [DEBUG] maxReelsPerUser set to:',
           sessionData.maxReelsPerUser
         )
 
-        console.log('🚨 [DEBUG] Answering callback query...')
+        logger.debug('🚨 [DEBUG] Answering callback query...')
         await ctx.answerCbQuery()
 
         // Показываем финальное резюме
-        console.log('🚨 [DEBUG] Creating summary text...')
+        logger.debug('🚨 [DEBUG] Creating summary text...')
         const summaryText = isRu
           ? `🎯 Запуск анализа конкурентов Instagram\n\n📁 Проект: ${
               sessionData.selectedProject!.name
@@ -751,19 +751,19 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
               sessionData.includeReels ? '✅ Yes' : '❌ No'
             }\n\n⏳ Starting analysis...`
 
-        console.log('🚨 [DEBUG] Editing message with summary...')
+        logger.debug('🚨 [DEBUG] Editing message with summary...')
         try {
           await ctx.editMessageText(summaryText)
-          console.log('🚨 [DEBUG] Summary message edited successfully!')
+          logger.debug('🚨 [DEBUG] Summary message edited successfully!')
         } catch (error) {
-          console.error('🚨 [ERROR] Failed to edit summary message:', error)
+          logger.error('🚨 [ERROR] Failed to edit summary message:', error)
 
           // Fallback - send new message
           await ctx.reply(summaryText)
-          console.log('🚨 [DEBUG] Fallback summary message sent!')
+          logger.debug('🚨 [DEBUG] Fallback summary message sent!')
         }
 
-        console.log(
+        logger.debug(
           '🚨 [DEBUG] Starting Instagram scraping generation process...'
         )
         try {
@@ -775,26 +775,26 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             }
           )
 
-          console.log('🚨 [DEBUG] Getting bot token and name...')
+          logger.debug('🚨 [DEBUG] Getting bot token and name...')
           const botToken = getBotToken(ctx)
-          console.log('🚨 [DEBUG] Bot token retrieved:', {
+          logger.debug('🚨 [DEBUG] Bot token retrieved:', {
             tokenExists: !!botToken,
             tokenLength: botToken?.length,
           })
 
           if (!botToken) {
-            console.log('🚨 [DEBUG] ERROR: Bot token not found!')
+            logger.debug('🚨 [DEBUG] ERROR: Bot token not found!')
             throw new Error('Bot token not found')
           }
 
           const { bot_name } = getBotNameByToken(botToken)
-          console.log('🚨 [DEBUG] Bot name resolved:', { bot_name })
+          logger.debug('🚨 [DEBUG] Bot name resolved:', { bot_name })
           logger.info('Instagram Scraping Wizard: Bot name resolved', {
             bot_name,
           })
 
           // Запускаем скрапинг через Inngest
-          console.log(
+          logger.debug(
             '🚨 [DEBUG] Calling generateInstagramScraping with params:',
             {
               targetUsername: sessionData.targetUsername,
@@ -818,10 +818,10 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             bot_name
           )
 
-          console.log('🚨 [DEBUG] generateInstagramScraping result:', result)
+          logger.debug('🚨 [DEBUG] generateInstagramScraping result:', result)
 
           if (result.success) {
-            console.log(
+            logger.debug(
               '🚨 [DEBUG] SUCCESS! Sending success message to user...'
             )
             try {
@@ -842,32 +842,32 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                       sessionData.maxCompetitors
                     }\n\n⏰ Processing time: 5-15 minutes\n📬 We'll notify you when the analysis is ready!\n\n💡 You can continue using the bot`
               )
-              console.log('🚨 [DEBUG] Success message sent successfully!')
+              logger.debug('🚨 [DEBUG] Success message sent successfully!')
             } catch (error) {
-              console.error('🚨 [ERROR] Failed to send success message:', error)
+              logger.error('🚨 [ERROR] Failed to send success message:', error)
             }
 
-            console.log('🚨 [DEBUG] Logging success completion...')
+            logger.debug('🚨 [DEBUG] Logging success completion...')
             logger.info('✅ Instagram Scraping Wizard completed successfully', {
               userId: ctx.from?.id,
               project: sessionData.selectedProject!.name,
               username: sessionData.targetUsername,
             })
           } else {
-            console.log('🚨 [DEBUG] FAILURE! Sending error message to user...')
+            logger.debug('🚨 [DEBUG] FAILURE! Sending error message to user...')
             try {
               await ctx.reply(
                 isRu
                   ? `❌ Ошибка при запуске анализа\n\n${result.message}`
                   : `❌ Error starting analysis\n\n${result.message}`
               )
-              console.log('🚨 [DEBUG] Error message sent successfully!')
+              logger.debug('🚨 [DEBUG] Error message sent successfully!')
             } catch (error) {
-              console.error('🚨 [ERROR] Failed to send error message:', error)
+              logger.error('🚨 [ERROR] Failed to send error message:', error)
             }
           }
         } catch (error) {
-          console.error('🚨 [ERROR] Exception in generation process:', error)
+          logger.error('🚨 [ERROR] Exception in generation process:', error)
           logger.error('Instagram Scraping Wizard: Generation failed', {
             error: error instanceof Error ? error.message : 'Unknown error',
             userId: ctx.from?.id,
@@ -880,17 +880,17 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                 ? '❌ Произошла ошибка при запуске анализа\n\nПожалуйста, попробуйте позже или обратитесь в поддержку.'
                 : '❌ An error occurred while starting the analysis\n\nPlease try again later or contact support.'
             )
-            console.log('🚨 [DEBUG] Exception error message sent successfully!')
+            logger.debug('🚨 [DEBUG] Exception error message sent successfully!')
           } catch (replyError) {
-            console.error(
+            logger.error(
               '🚨 [ERROR] Failed to send exception error message:',
               replyError
             )
           }
         } finally {
-          console.log('🚨 [DEBUG] Leaving Instagram scraping scene...')
+          logger.debug('🚨 [DEBUG] Leaving Instagram scraping scene...')
           await ctx.scene.leave()
-          console.log('🚨 [DEBUG] Scene left successfully!')
+          logger.debug('🚨 [DEBUG] Scene left successfully!')
         }
 
         return

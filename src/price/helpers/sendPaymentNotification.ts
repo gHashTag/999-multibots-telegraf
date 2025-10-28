@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 
 export const sendPaymentNotification = async (
   ctx: MyContext,
@@ -20,7 +21,7 @@ export const sendPaymentNotification = async (
 
     await ctx.telegram.sendMessage('-4166575919', caption)
   } catch (error) {
-    console.error('Ошибка при отправке уведомления об оплате:', error)
+    logger.error('Ошибка при отправке уведомления об оплате:', error)
     throw new Error('Ошибка при отправке уведомления об оплате')
   }
 }

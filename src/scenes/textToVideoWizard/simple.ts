@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 // Простой wizard без коллбэков
 export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
@@ -9,7 +9,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // ШАГ 1: Выбор модели
   async ctx => {
-    console.log('🎬 [SIMPLE] Step 1: Model selection started')
+    logger.debug('🎬 [SIMPLE] Step 1: Model selection started')
     logger.info('[SimpleTextToVideoWizard] Step 1: Model selection', {
       telegramId: ctx.from?.id,
       step: ctx.wizard.cursor,
@@ -36,7 +36,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // ШАГ 2: Обработка выбора модели и выбор параметров
   async ctx => {
-    console.log('🎬 [SIMPLE] Step 2: Model processing and parameters')
+    logger.debug('🎬 [SIMPLE] Step 2: Model processing and parameters')
     logger.info('[SimpleTextToVideoWizard] Step 2: Processing model choice', {
       telegramId: ctx.from?.id,
       step: ctx.wizard.cursor,
@@ -109,7 +109,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // ШАГ 3: Обработка соотношения сторон
   async ctx => {
-    console.log('🎬 [SIMPLE] Step 3: Aspect ratio processing')
+    logger.debug('🎬 [SIMPLE] Step 3: Aspect ratio processing')
     logger.info('[SimpleTextToVideoWizard] Step 3: Processing aspect ratio', {
       telegramId: ctx.from?.id,
       step: ctx.wizard.cursor,
@@ -172,7 +172,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // ШАГ 4: Получение промпта и генерация
   async ctx => {
-    console.log('🎬 [SIMPLE] Step 4: Prompt processing and generation')
+    logger.debug('🎬 [SIMPLE] Step 4: Prompt processing and generation')
     logger.info('[SimpleTextToVideoWizard] Step 4: Processing prompt', {
       telegramId: ctx.from?.id,
       step: ctx.wizard.cursor,
@@ -316,7 +316,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
 // Добавляем обработчик входа в сцену
 simpleTextToVideoWizard.enter(async ctx => {
-  console.log('🎬 [SIMPLE] Wizard entered! User:', ctx.from?.id)
+  logger.debug('🎬 [SIMPLE] Wizard entered! User:', ctx.from?.id)
   logger.info('[SimpleTextToVideoWizard] Wizard entered', {
     telegramId: ctx.from?.id,
     step: ctx.wizard?.cursor,
@@ -324,30 +324,30 @@ simpleTextToVideoWizard.enter(async ctx => {
   
   // ОКАЗЫВАЕТСЯ TELEGRAF НЕ ВЫЗЫВАЕТ ПЕРВЫЙ ШАГ АВТОМАТИЧЕСКИ!
   // НУЖНО ВЫЗЫВАТЬ ЕГО ВРУЧНУЮ, НО БЕЗ ДВОЙНОГО ВЫЗОВА
-  console.log('🎬 [SIMPLE] Manually executing first step since Telegraf doesnt do it automatically...')
+  logger.debug('🎬 [SIMPLE] Manually executing first step since Telegraf doesnt do it automatically...')
   
   try {
     // Проверяем что это первый вход (cursor = undefined)
     if (ctx.wizard.cursor === undefined) {
-      console.log('🎬 [SIMPLE] Fresh wizard entry, executing first step...')
+      logger.debug('🎬 [SIMPLE] Fresh wizard entry, executing first step...')
       const firstStepHandler = (ctx.wizard as any).steps[0]
       if (typeof firstStepHandler === 'function') {
         await firstStepHandler(ctx)
-        console.log('🎬 [SIMPLE] ✅ First step executed successfully from .enter()')
+        logger.debug('🎬 [SIMPLE] ✅ First step executed successfully from .enter()')
       } else {
-        console.error('🎬 [SIMPLE] ❌ First step handler is not a function:', typeof firstStepHandler)
+        logger.error('🎬 [SIMPLE] ❌ First step handler is not a function:', typeof firstStepHandler)
       }
     } else {
-      console.log('🎬 [SIMPLE] Wizard already has cursor:', ctx.wizard.cursor, '- NOT executing first step')
+      logger.debug('🎬 [SIMPLE] Wizard already has cursor:', ctx.wizard.cursor, '- NOT executing first step')
     }
   } catch (error) {
-    console.error('🎬 [SIMPLE] ❌ ERROR executing first step from .enter():', error)
+    logger.error('🎬 [SIMPLE] ❌ ERROR executing first step from .enter():', error)
   }
 })
 
 // Добавляем обработчик выхода
 simpleTextToVideoWizard.leave(async ctx => {
-  console.log('🎬 [SIMPLE] Wizard left! User:', ctx.from?.id)
+  logger.debug('🎬 [SIMPLE] Wizard left! User:', ctx.from?.id)
   logger.info('[SimpleTextToVideoWizard] Wizard left', {
     telegramId: ctx.from?.id,
   })

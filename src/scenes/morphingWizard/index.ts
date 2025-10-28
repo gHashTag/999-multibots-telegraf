@@ -5,7 +5,7 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers/getBotToken'
 import { generateMorphing } from '../../services/generateMorphing'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
 import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
 import { isValidImage } from '../../helpers/images'
@@ -176,7 +176,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
 
-    console.log('🧬 [MORPHING WIZARD] Step 1 - Scene Entry!')
+    logger.debug('🧬 [MORPHING WIZARD] Step 1 - Scene Entry!')
     logger.info('🧬 [MORPHING WIZARD] Step 1 - Scene Entry', {
       telegramId: ctx.from?.id,
       username: ctx.from?.username,
@@ -233,7 +233,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
         }
       )
     } catch (error) {
-      console.log('❌ [MORPHING_WIZARD] Error sending welcome message:', error)
+      logger.debug('❌ [MORPHING_WIZARD] Error sending welcome message:', error)
       logger.error('Error sending welcome message in morphing wizard', {
         error: error instanceof Error ? error.message : 'Unknown error',
         telegramId: ctx.from?.id,
@@ -247,7 +247,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
             : '🧬 Morphing - upload first image:'
         )
       } catch (fallbackError) {
-        console.log(
+        logger.debug(
           '❌ [MORPHING_WIZARD] Even fallback message failed:',
           fallbackError
         )
@@ -453,11 +453,11 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
 
   // ✅ ШАГ 3: Выбор типа морфинга (LOOP или LINEAR)
   async ctx => {
-    console.log('🔄 [STEP 3] Loop Selection step STARTED!')
+    logger.debug('🔄 [STEP 3] Loop Selection step STARTED!')
     const isRu = isRussianFromState(ctx)
 
-    console.log('🔄 [STEP 3] Current wizard cursor:', ctx.wizard.cursor)
-    console.log(
+    logger.debug('🔄 [STEP 3] Current wizard cursor:', ctx.wizard.cursor)
+    logger.debug(
       '🔄 [STEP 3] Images count:',
       ctx.session?.morphingImages?.length || 0
     )
@@ -495,7 +495,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
 
 Which type do you prefer?`
 
-    console.log('🔄 [STEP 3] About to send loop selection message...')
+    logger.debug('🔄 [STEP 3] About to send loop selection message...')
 
     await ctx.reply(loopMessage, {
       parse_mode: 'HTML',
@@ -521,7 +521,7 @@ Which type do you prefer?`
       ]).reply_markup,
     })
 
-    console.log(
+    logger.debug(
       '🔄 [STEP 3] Loop selection message sent! Staying on this step.'
     )
     return // Остаемся на этом шаге до выбора
@@ -533,18 +533,18 @@ Which type do you prefer?`
 // Кнопка "Создать морфинг" - переход к выбору лупа
 morphingWizard.action('morphing_start_generation', async ctx => {
   try {
-    console.log('🚀 [MORPHING_START] Action triggered!')
+    logger.debug('🚀 [MORPHING_START] Action triggered!')
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
-    console.log('🚀 [MORPHING_START] Current wizard cursor:', ctx.wizard.cursor)
-    console.log(
+    logger.debug('🚀 [MORPHING_START] Current wizard cursor:', ctx.wizard.cursor)
+    logger.debug(
       '🚀 [MORPHING_START] Images count:',
       ctx.session?.morphingImages?.length
     )
 
     if (!ctx.session?.morphingImages || ctx.session.morphingImages.length < 2) {
-      console.log('❌ [MORPHING_START] Not enough images!')
+      logger.debug('❌ [MORPHING_START] Not enough images!')
       await ctx.reply(
         isRu
           ? '❌ Необходимо минимум 2 изображения для создания морфинга.'
@@ -554,29 +554,29 @@ morphingWizard.action('morphing_start_generation', async ctx => {
     }
 
     // ✅ ПЕРЕХОДИМ К ШАГУ ВЫБОРА ЛУПА (ШАГ 2)
-    console.log('🚀 [MORPHING_START] About to go to step 2 (loop selection)')
-    console.log('🚀 [MORPHING_START] Current cursor before:', ctx.wizard.cursor)
+    logger.debug('🚀 [MORPHING_START] About to go to step 2 (loop selection)')
+    logger.debug('🚀 [MORPHING_START] Current cursor before:', ctx.wizard.cursor)
 
     // Принудительно переходим к шагу 2 (выбор лупа)
     ctx.wizard.selectStep(2)
-    console.log(
+    logger.debug(
       '🚀 [MORPHING_START] After selectStep(2), new cursor:',
       ctx.wizard.cursor
     )
 
     // ✅ ПРИНУДИТЕЛЬНО ВЫПОЛНЯЕМ ШАГИ ПОСЛЕ СМЕНЫ КУРСОРА
-    console.log('🚀 [MORPHING_START] About to execute current step...')
+    logger.debug('🚀 [MORPHING_START] About to execute current step...')
     const currentStepHandler = ctx.wizard.step
     if (typeof currentStepHandler === 'function') {
-      console.log('🚀 [MORPHING_START] Executing current step handler...')
+      logger.debug('🚀 [MORPHING_START] Executing current step handler...')
       await currentStepHandler(ctx, async () => {}) // Добавляем пустую next функцию
     } else {
-      console.log('❌ [MORPHING_START] No step handler found!')
+      logger.debug('❌ [MORPHING_START] No step handler found!')
     }
 
     return
   } catch (error) {
-    console.log('❌ [MORPHING_START] ERROR:', error)
+    logger.debug('❌ [MORPHING_START] ERROR:', error)
     logger.error('Error in morphing_start_generation', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
@@ -589,22 +589,22 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 // Подтверждение LOOP морфинга
 morphingWizard.action('morphing_confirm_loop', async ctx => {
   try {
-    console.log('🔄 [CONFIRM_LOOP] Action triggered!')
+    logger.debug('🔄 [CONFIRM_LOOP] Action triggered!')
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
     // Сохраняем тип морфинга в сессии
     if (ctx.session) {
       ctx.session.morphingType = 'loop'
-      console.log('🔄 [CONFIRM_LOOP] Set morphingType to loop')
+      logger.debug('🔄 [CONFIRM_LOOP] Set morphingType to loop')
     }
 
-    console.log(
+    logger.debug(
       '🔄 [CONFIRM_LOOP] About to call startMorphingGeneration with loop=true'
     )
     await startMorphingGeneration(ctx, true) // true = with loop
   } catch (error) {
-    console.log('❌ [CONFIRM_LOOP] ERROR:', error)
+    logger.debug('❌ [CONFIRM_LOOP] ERROR:', error)
     logger.error('Error in morphing_confirm_loop', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
@@ -615,17 +615,17 @@ morphingWizard.action('morphing_confirm_loop', async ctx => {
 // Подтверждение LINEAR морфинга
 morphingWizard.action('morphing_confirm_linear', async ctx => {
   try {
-    console.log('➡️ [CONFIRM_LINEAR] Action triggered!')
+    logger.debug('➡️ [CONFIRM_LINEAR] Action triggered!')
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
     // Сохраняем тип морфинга в сессии
     if (ctx.session) {
       ctx.session.morphingType = 'linear'
-      console.log('➡️ [CONFIRM_LINEAR] Set morphingType to linear')
+      logger.debug('➡️ [CONFIRM_LINEAR] Set morphingType to linear')
     }
 
-    console.log(
+    logger.debug(
       '➡️ [CONFIRM_LINEAR] About to call startMorphingGeneration with loop=false'
     )
     await startMorphingGeneration(ctx, false) // false = no loop
@@ -652,15 +652,15 @@ morphingWizard.action('morphing_back_to_upload', async ctx => {
 
 // ✅ ФУНКЦИЯ ЗАПУСКА МОРФИНГА (ВЫДЕЛЕНА ИЗ CALLBACK'А)
 async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
-  console.log(`🎬 [START_MORPHING] Function called with withLoop=${withLoop}`)
+  logger.debug(`🎬 [START_MORPHING] Function called with withLoop=${withLoop}`)
   const isRu = isRussianFromState(ctx)
 
-  console.log(
+  logger.debug(
     `🎬 [START_MORPHING] Images count: ${ctx.session?.morphingImages?.length}`
   )
 
   if (!ctx.session?.morphingImages || ctx.session.morphingImages.length < 2) {
-    console.log('❌ [START_MORPHING] Not enough images!')
+    logger.debug('❌ [START_MORPHING] Not enough images!')
     await ctx.reply(
       isRu
         ? '❌ Необходимо минимум 2 изображения для создания морфинга.'
@@ -823,7 +823,7 @@ Please try again or contact support.`
 // Кнопка "Начать заново"
 morphingWizard.action('morphing_restart', async ctx => {
   try {
-    console.log('🔄 [MORPHING_RESTART] Action triggered!')
+    logger.debug('🔄 [MORPHING_RESTART] Action triggered!')
     logger.info('🔄 [MORPHING_RESTART] Action triggered', {
       telegramId: ctx.from?.id,
       sessionExists: !!ctx.session,
@@ -849,17 +849,17 @@ morphingWizard.action('morphing_restart', async ctx => {
 
     // ✅ ИСПРАВЛЕНИЕ: Перезапускаем сцену БЕЗ дополнительного сообщения
     // (приветственное сообщение появится автоматически при reenter)
-    console.log('🔄 [MORPHING_RESTART] Reentering scene...')
+    logger.debug('🔄 [MORPHING_RESTART] Reentering scene...')
     await ctx.scene.reenter()
-    console.log('🔄 [MORPHING_RESTART] Scene reentered successfully!')
+    logger.debug('🔄 [MORPHING_RESTART] Scene reentered successfully!')
 
     // ✅ КРИТИЧЕСКИЙ БАГФИКС: Сбрасываем флаг после успешного перезапуска
     if (ctx.session) {
       ctx.session.morphingRestarting = false
     }
-    console.log('🔄 [MORPHING_RESTART] Restart completed!')
+    logger.debug('🔄 [MORPHING_RESTART] Restart completed!')
   } catch (error) {
-    console.log('❌ [MORPHING_RESTART] Error occurred:', error)
+    logger.debug('❌ [MORPHING_RESTART] Error occurred:', error)
     logger.error('Error restarting morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
@@ -868,14 +868,14 @@ morphingWizard.action('morphing_restart', async ctx => {
     if (ctx.session) {
       ctx.session.morphingRestarting = false
     }
-    console.log('❌ [MORPHING_RESTART] Reset restart flag due to error')
+    logger.debug('❌ [MORPHING_RESTART] Reset restart flag due to error')
   }
 })
 
 // Кнопка "Отмена"
 morphingWizard.action('morphing_cancel', async ctx => {
   try {
-    console.log('❌ [MORPHING_CANCEL] Action triggered!')
+    logger.debug('❌ [MORPHING_CANCEL] Action triggered!')
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
@@ -885,9 +885,9 @@ morphingWizard.action('morphing_cancel', async ctx => {
         : '❌ Morphing creation cancelled. Returning to main menu.'
     )
 
-    console.log('❌ [MORPHING_CANCEL] Leaving scene...')
+    logger.debug('❌ [MORPHING_CANCEL] Leaving scene...')
     await ctx.scene.leave()
-    console.log('❌ [MORPHING_CANCEL] Scene left, entering MainMenu...')
+    logger.debug('❌ [MORPHING_CANCEL] Scene left, entering MainMenu...')
 
     // Принудительно возвращаемся в главное меню
     await ctx.scene.enter(ModeEnum.MainMenu)
@@ -902,7 +902,7 @@ morphingWizard.action('morphing_cancel', async ctx => {
 // ✅ КНОПКА "ПРОДОЛЖИТЬ НЕЗАВЕРШЕННОЕ"
 morphingWizard.action('morphing_resume', async ctx => {
   try {
-    console.log('⚡ [MORPHING_RESUME] Action triggered!')
+    logger.debug('⚡ [MORPHING_RESUME] Action triggered!')
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
@@ -946,7 +946,7 @@ morphingWizard.action('morphing_resume', async ctx => {
       )
     }
   } catch (error) {
-    console.log('❌ [MORPHING_RESUME] Error occurred:', error)
+    logger.debug('❌ [MORPHING_RESUME] Error occurred:', error)
     logger.error('Error resuming morphing', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,

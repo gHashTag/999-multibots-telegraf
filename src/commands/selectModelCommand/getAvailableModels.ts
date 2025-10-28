@@ -1,4 +1,5 @@
 import { openai } from '@/core/openai'
+import { logger } from '@/utils/enhancedLogger'
 
 // Тип для модели с рейтингом
 interface ModelWithRating {
@@ -92,7 +93,7 @@ export async function getAvailableModels(
   options: ModelFilterOptions = {}
 ): Promise<SelectableModel[]> {
   try {
-    console.log(
+    logger.debug(
       '🔍 Получаем список доступных моделей... [Getting list of available models]'
     )
 
@@ -138,12 +139,12 @@ export async function getAvailableModels(
       return 0
     })
 
-    console.log('models', sortedModels)
+    logger.debug('models', sortedModels)
 
     // Ограничиваем количество результатов
     return sortedModels.slice(0, maxResults)
   } catch (error) {
-    console.error(
+    logger.error(
       '🚨 Ошибка при получении моделей: [Error fetching models:]',
       error
     )

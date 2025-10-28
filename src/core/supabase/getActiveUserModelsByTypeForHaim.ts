@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 import { ModelTraining } from '@/interfaces'
 import { HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 
@@ -25,7 +26,7 @@ export async function getActiveUserModelsByTypeForHaim(
       .order('created_at', { ascending: false })
 
     if (userError) {
-      console.error(`Error getting user models (${apiType}):`, userError)
+      logger.error(`Error getting user models (${apiType}):`, userError)
       return null
     }
 
@@ -35,7 +36,7 @@ export async function getActiveUserModelsByTypeForHaim(
     const isHaimStaff = HAIM_GROUP_STAFF_IDS.includes(telegram_id.toString())
 
     if (isHaimStaff && botName === 'HaimGroupMedia_bot') {
-      console.log(
+      logger.debug(
         `🎯 Добавляем общие модели для сотрудника HaimGroupMedia: ${telegram_id}`
       )
 
@@ -60,7 +61,7 @@ export async function getActiveUserModelsByTypeForHaim(
         // Добавляем общую модель в начало списка
         allModels.unshift(modifiedSharedModel)
 
-        console.log(
+        logger.debug(
           `✅ Добавлена общая модель "${sharedModel.model_name}" для пользователя ${telegram_id}`
         )
       }
@@ -68,7 +69,7 @@ export async function getActiveUserModelsByTypeForHaim(
 
     return allModels as ModelTraining[]
   } catch (error) {
-    console.error(
+    logger.error(
       `Unexpected error in getActiveUserModelsByTypeForHaim (${apiType}):`,
       error
     )

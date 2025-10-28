@@ -5,7 +5,7 @@
 
 import { Telegraf, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { getBotStatsWithCost } from '@/core/supabase/getUserBalanceStats'
 import { generateAdminExcelReport } from '@/utils/adminExcelReportGenerator'
@@ -104,7 +104,7 @@ export async function interactiveStatsCommand(ctx: MyContext): Promise<void> {
 
     await showStatsMenu(ctx, botName, 'all')
   } catch (error) {
-    console.error('❌ Ошибка в interactiveStatsCommand:', error)
+    logger.error('❌ Ошибка в interactiveStatsCommand:', error)
     await ctx.reply('❌ Произошла ошибка при показе статистики')
   }
 }
@@ -183,7 +183,7 @@ async function showBotSelection(
       }
     )
   } catch (error) {
-    console.error('❌ Ошибка в showBotSelection:', error)
+    logger.error('❌ Ошибка в showBotSelection:', error)
     await ctx.reply('❌ Ошибка при получении списка ботов')
   }
 }
@@ -330,7 +330,7 @@ async function showStatsMenu(
       })
     }
   } catch (error) {
-    console.error('❌ Ошибка в showStatsMenu:', error)
+    logger.error('❌ Ошибка в showStatsMenu:', error)
     await ctx.reply('❌ Ошибка при получении статистики')
   }
 }
@@ -630,7 +630,7 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
       if (error.message?.includes('message is not modified')) {
         await ctx.answerCbQuery('Статистика актуальна')
       } else {
-        console.error('❌ Ошибка при обновлении статистики:', error)
+        logger.error('❌ Ошибка при обновлении статистики:', error)
         await ctx.answerCbQuery('Ошибка при обновлении')
       }
     }
@@ -734,7 +734,7 @@ async function sendDetailedStats(
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendDetailedStats:', error)
+    logger.error('❌ Ошибка в sendDetailedStats:', error)
     await ctx.reply('❌ Ошибка при получении детальной статистики')
   }
 }
@@ -793,7 +793,7 @@ async function sendExcelReport(
 
     await ctx.reply('✅ Excel отчет готов!', keyboard)
   } catch (error) {
-    console.error('❌ Ошибка в sendExcelReport:', error)
+    logger.error('❌ Ошибка в sendExcelReport:', error)
     await ctx.reply('❌ Ошибка при создании Excel отчета')
   }
 }
@@ -842,7 +842,7 @@ async function sendDebugInfo(ctx: MyContext, botName: string): Promise<void> {
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendDebugInfo:', error)
+    logger.error('❌ Ошибка в sendDebugInfo:', error)
     await ctx.reply('❌ Ошибка при получении отладочной информации')
   }
 }
@@ -926,7 +926,7 @@ export async function sendTopUsers(
       .in('telegram_id', userIds)
 
     if (usersError) {
-      console.error(
+      logger.error(
         '❌ Ошибка при получении информации о пользователях:',
         usersError
       )
@@ -987,7 +987,7 @@ export async function sendTopUsers(
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendTopUsers:', error)
+    logger.error('❌ Ошибка в sendTopUsers:', error)
     await ctx.reply('❌ Ошибка при получении топ пользователей')
   }
 }
@@ -1052,7 +1052,7 @@ async function sendTrendAnalysis(
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendTrendAnalysis:', error)
+    logger.error('❌ Ошибка в sendTrendAnalysis:', error)
     await ctx.reply('❌ Ошибка при анализе трендов')
   }
 }
@@ -1123,7 +1123,7 @@ async function sendSmartRecommendations(
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendSmartRecommendations:', error)
+    logger.error('❌ Ошибка в sendSmartRecommendations:', error)
     await ctx.reply('❌ Ошибка при генерации рекомендаций')
   }
 }
@@ -1178,7 +1178,7 @@ async function sendUserSegmentation(
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendUserSegmentation:', error)
+    logger.error('❌ Ошибка в sendUserSegmentation:', error)
     await ctx.reply('❌ Ошибка при сегментации пользователей')
   }
 }
@@ -1275,7 +1275,7 @@ async function sendAIInsights(ctx: MyContext, botName: string): Promise<void> {
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendAIInsights:', error)
+    logger.error('❌ Ошибка в sendAIInsights:', error)
     await ctx.reply('❌ Ошибка при генерации AI-инсайтов')
   }
 }
@@ -1410,7 +1410,7 @@ async function sendAlerts(ctx: MyContext, botName: string): Promise<void> {
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendAlerts:', error)
+    logger.error('❌ Ошибка в sendAlerts:', error)
     await ctx.reply('❌ Ошибка при получении уведомлений')
   }
 }
@@ -1443,7 +1443,7 @@ async function sendWeeklySummaryReport(
       ...keyboard,
     })
   } catch (error) {
-    console.error('❌ Ошибка в sendWeeklySummaryReport:', error)
+    logger.error('❌ Ошибка в sendWeeklySummaryReport:', error)
     await ctx.reply('❌ Ошибка при генерации еженедельной сводки')
   }
 }

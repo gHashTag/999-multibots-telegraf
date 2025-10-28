@@ -1,4 +1,5 @@
 /**
+import { logger } from '@/utils/enhancedLogger'
  * 📈 МОДУЛЬ АНАЛИЗА ТРЕНДОВ И УМНЫХ РЕКОМЕНДАЦИЙ
  * Генерирует инсайты и прогнозы для владельцев ботов
  */
@@ -102,7 +103,7 @@ export async function analyzeTrends(botName: string): Promise<TrendAnalysis> {
       alerts,
     }
   } catch (error) {
-    console.error('❌ Ошибка анализа трендов:', error)
+    logger.error('❌ Ошибка анализа трендов:', error)
     return getDefaultTrendAnalysis()
   }
 }
@@ -141,7 +142,7 @@ export async function generateSmartRecommendations(
       growth_opportunities: growthOpportunities,
     }
   } catch (error) {
-    console.error('❌ Ошибка генерации рекомендаций:', error)
+    logger.error('❌ Ошибка генерации рекомендаций:', error)
     return getDefaultRecommendations()
   }
 }
@@ -175,7 +176,7 @@ export async function segmentUsers(botName: string): Promise<UserSegmentation> {
       user_journey: userJourney,
     }
   } catch (error) {
-    console.error('❌ Ошибка сегментации пользователей:', error)
+    logger.error('❌ Ошибка сегментации пользователей:', error)
     return getDefaultSegmentation()
   }
 }

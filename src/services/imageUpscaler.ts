@@ -7,7 +7,7 @@ import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
 } from '@/core/supabase'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
@@ -61,7 +61,7 @@ export const upscaleImage = async (
     timestamp: new Date().toISOString(),
   })
   
-  console.log('🔵 UPSCALE_IMAGE CALLED FOR USER:', telegram_id)
+  logger.debug('🔵 UPSCALE_IMAGE CALLED FOR USER:', telegram_id)
 
   // Стоимость upscaling - обновленная цена $0.04 с наценкой 50%
   const clarityUpscalerCostUSD = 0.04
@@ -90,7 +90,7 @@ export const upscaleImage = async (
 
     // Отправка сообщения о начале upscaling
     logger.info('📨 Sending initial upscaling message', { telegram_id })
-    console.log('🟡 SENDING INITIAL MESSAGE TO:', telegram_id)
+    logger.debug('🟡 SENDING INITIAL MESSAGE TO:', telegram_id)
     
     await ctx.telegram.sendMessage(
       telegram_id,
@@ -103,7 +103,7 @@ export const upscaleImage = async (
     )
     
     logger.info('✅ Initial message sent successfully', { telegram_id })
-    console.log('🟢 INITIAL MESSAGE SENT TO:', telegram_id)
+    logger.debug('🟢 INITIAL MESSAGE SENT TO:', telegram_id)
 
     logger.info(`Image upscaling started`, {
       model: 'philz1337x/clarity-upscaler',

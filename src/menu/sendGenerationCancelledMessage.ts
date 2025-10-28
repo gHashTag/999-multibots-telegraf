@@ -1,7 +1,7 @@
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
 import { mainMenu } from '../menu'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export async function sendGenerationCancelledMessage(
@@ -9,7 +9,7 @@ export async function sendGenerationCancelledMessage(
   reason: string
 ) {
   if (!ctx.from) {
-    console.error('❌ Telegram ID не найден')
+    logger.error('❌ Telegram ID не найден')
     return
   }
   const telegram_id = ctx.from.id.toString()

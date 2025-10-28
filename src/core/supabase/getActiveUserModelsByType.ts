@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 import { ModelTraining } from '@/interfaces' // Убедимся, что ModelTraining - это правильный интерфейс
 
 /**
@@ -22,7 +23,7 @@ export async function getActiveUserModelsByType(
       .order('created_at', { ascending: false }) // Сначала новые
 
     if (error) {
-      console.error(
+      logger.error(
         `Error getting active user models by type (${apiType}):`,
         error
       )
@@ -31,7 +32,7 @@ export async function getActiveUserModelsByType(
 
     return data as ModelTraining[] // Если ModelTraining это правильный тип, иначе нужно будет привести к нему или изменить его
   } catch (error) {
-    console.error(
+    logger.error(
       `Unexpected error in getActiveUserModelsByType (${apiType}):`,
       error
     )

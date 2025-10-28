@@ -1,4 +1,5 @@
-console.log('Environment check:', {
+logger.debug('Environment check:', {
+import { logger } from '@/utils/enhancedLogger'
   nodeEnv: process.env.NODE_ENV,
 })
 

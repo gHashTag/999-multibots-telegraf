@@ -1,4 +1,5 @@
 import { imageModelMenu } from './menu/imageModelMenu'
+import { logger } from '@/utils/enhancedLogger'
 import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
@@ -33,7 +34,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   // 🚨 ЭКСТРЕННЫЙ ОБРАБОТЧИК ПОДПИСКИ - САМЫЙ ПЕРВЫЙ!
   // Перехватывает ЛЮБОЙ текст содержащий "подписк" или "Subscribe"
   bot.hears(/подписк|Subscribe/i, async ctx => {
-    console.log(
+    logger.debug(
       '🚨 EMERGENCY SUBSCRIPTION HANDLER TRIGGERED!',
       ctx.message?.text
     )
@@ -41,12 +42,12 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       await ctx.scene.leave()
       ctx.session.mode = ModeEnum.SubscriptionScene
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
-      console.log(
+      logger.debug(
         '✅ Successfully entered subscription scene via emergency handler'
       )
       return // Важно! Не продолжаем обработку
     } catch (error) {
-      console.error('❌ Emergency subscription handler error:', error)
+      logger.error('❌ Emergency subscription handler error:', error)
       await ctx.reply('Переходим к оформлению подписки...')
     }
   })

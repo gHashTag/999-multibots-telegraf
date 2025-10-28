@@ -9,7 +9,7 @@ import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovemen
 import { sendGenericErrorMessage } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
-import { logger, logSessionSafely } from '@/utils/logger'
+import { logger, logSessionSafely } from '@/utils/enhancedLogger'
 import { getUserBalance, getUserData } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 const MAX_ATTEMPTS = 10
@@ -27,12 +27,12 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       'prompt' in ctx.scene.state &&
       typeof ctx.scene.state.prompt === 'string'
     ) {
-      console.log('improvePromptWizard: Получен промпт из ctx.scene.state')
+      logger.debug('improvePromptWizard: Получен промпт из ctx.scene.state')
       ctx.session.prompt = ctx.scene.state.prompt
     } else if (ctx.session.prompt) {
-      console.log('improvePromptWizard: Промпт уже есть в ctx.session')
+      logger.debug('improvePromptWizard: Промпт уже есть в ctx.session')
     } else {
-      console.log(
+      logger.debug(
         'improvePromptWizard: Промпт не найден ни в session, ни в state'
       )
     }
@@ -44,12 +44,12 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       'mode' in ctx.scene.state &&
       typeof ctx.scene.state.mode === 'string' // Убедимся, что это строка (или нужный тип)
     ) {
-      console.log('improvePromptWizard: Получен mode из ctx.scene.state')
+      logger.debug('improvePromptWizard: Получен mode из ctx.scene.state')
       ctx.session.mode = ctx.scene.state.mode as ModeEnum // Приводим к типу
     } else if (ctx.session.mode) {
-      console.log('improvePromptWizard: Mode уже есть в ctx.session')
+      logger.debug('improvePromptWizard: Mode уже есть в ctx.session')
     } else {
-      console.log(
+      logger.debug(
         'improvePromptWizard: Mode не найден ни в session, ни в state'
       )
       // Можно добавить обработку, если mode не найден и он критичен уже здесь
@@ -60,7 +60,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
     const prompt = ctx.session.prompt
 
-    console.log(prompt, 'prompt')
+    logger.debug(prompt, 'prompt')
 
     if (!ctx.from) {
       await ctx.reply(
@@ -116,7 +116,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
     if (message && 'text' in message) {
       const text = message.text
-      console.log(text, 'text')
+      logger.debug(text, 'text')
 
       if (!ctx.from?.id) {
         await ctx.reply(
@@ -172,7 +172,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             return ctx.scene.leave()
           }
 
-          console.log(mode, 'mode')
+          logger.debug(mode, 'mode')
           try {
             switch (mode) {
               case ModeEnum.NeuroPhoto: {
@@ -188,7 +188,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                   genderPromptPart = 'male'
                 }
 
-                console.log(
+                logger.debug(
                   `[improvePromptWizard] Determined gender for prompt: ${genderPromptPart}`
                 )
 
@@ -214,7 +214,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                       : 'improvePromptWizard: Could not identify video model'
                   )
 
-                console.log(ctx.session.videoModel, 'ctx.session.videoModel')
+                logger.debug(ctx.session.videoModel, 'ctx.session.videoModel')
                 if (!ctx.session.videoModel)
                   throw new Error(
                     isRu

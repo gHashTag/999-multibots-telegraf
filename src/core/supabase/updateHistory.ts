@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function updateHistory({
   telegram_id,
@@ -9,7 +10,7 @@ export async function updateHistory({
   report: string
   ai_response: string
 }): Promise<string> {
-  console.log('CASE: updateHistory')
+  logger.debug('CASE: updateHistory')
 
   const { data, error } = await supabase
     .from('game')

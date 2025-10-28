@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 import { UserModel } from '../../interfaces'
 
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
@@ -30,14 +31,14 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
   try {
-    console.log('CASE 1: neuroPhotoConversationV2')
+    logger.debug('CASE 1: neuroPhotoConversationV2')
 
     const { telegramId } = await getUserInfo(ctx)
 
     // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
     const botToken = ctx.telegram.token
     const { bot_name } = getBotNameByToken(botToken)
-    console.log(
+    logger.debug(
       `🤖 Определен бот V2: ${bot_name} для пользователя ${telegramId}`
     )
 
@@ -45,7 +46,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     let userModel = null
 
     if (bot_name === 'HaimGroupMedia_bot') {
-      console.log('🎯 Используем расширенную функцию V2 для HaimGroupMedia_bot')
+      logger.debug('🎯 Используем расширенную функцию V2 для HaimGroupMedia_bot')
       userModel = await getLatestUserModelForHaim(
         Number(telegramId),
         'bfl',
@@ -54,7 +55,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
       // Если нет BFL модели, пробуем replicate
       if (!userModel) {
-        console.log(
+        logger.debug(
           '🔄 BFL модель не найдена, пробуем replicate для HaimGroupMedia_bot'
         )
         userModel = await getLatestUserModelForHaim(
@@ -64,12 +65,12 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
         )
       }
     } else {
-      console.log('🔧 Используем стандартную функцию V2 для обычного бота')
+      logger.debug('🔧 Используем стандартную функцию V2 для обычного бота')
       // Сначала пробуем BFL модели
       userModel = await getLatestUserModel(Number(telegramId), 'bfl')
     }
 
-    console.log('userModel V2', userModel)
+    logger.debug('userModel V2', userModel)
 
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
@@ -102,33 +103,33 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
         ...userModel,
         id: userModel.id.toString().replace('shared_', ''), // Убираем префикс для использования
       }
-      console.log(`✅ Используем общую модель V2: ${userModel.model_name}`)
+      logger.debug(`✅ Используем общую модель V2: ${userModel.model_name}`)
     }
 
     ctx.session.userModel = modelToUse as UserModel
 
     await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
     const isCancel = await handleHelpCancel(ctx)
-    console.log('isCancel', isCancel)
+    logger.debug('isCancel', isCancel)
     if (isCancel) {
       return ctx.scene.leave()
     }
-    console.log('CASE: neuroPhotoConversation V2 next')
+    logger.debug('CASE: neuroPhotoConversation V2 next')
 
     return ctx.wizard.next()
   } catch (error) {
-    console.error('Error in neuroPhotoConversationStep V2:', error)
+    logger.error('Error in neuroPhotoConversationStep V2:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
     throw error
   }
 }
 
 const neuroPhotoPromptStep = async (ctx: MyContext) => {
-  console.log('CASE 2: neuroPhotoPromptStep')
+  logger.debug('CASE 2: neuroPhotoPromptStep')
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
   const promptMsg = ctx.message
-  console.log(promptMsg, 'promptMsg')
+  logger.debug(promptMsg, 'promptMsg')
 
   if (promptMsg && 'text' in promptMsg) {
     const promptText = promptMsg.text
@@ -144,7 +145,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
       const userId = ctx.from?.id
       if (!userId) {
-        console.error('❌ User ID не найден')
+        logger.error('❌ User ID не найден')
         return
       }
       if (trigger_word) {
@@ -157,7 +158,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         }
         const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
 
-        console.log(
+        logger.debug(
           `[neuroPhotoWizardV2] Determined gender for prompt: ${genderPromptPart}`
         )
 
@@ -184,16 +185,16 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 }
 
 const neuroPhotoButtonStep = async (ctx: MyContext) => {
-  console.log('CASE 3: neuroPhotoButtonStep')
+  logger.debug('CASE 3: neuroPhotoButtonStep')
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
-    console.log(`CASE: Нажата кнопка ${text}`)
+    logger.debug(`CASE: Нажата кнопка ${text}`)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
 
     // НОВАЯ ОБРАБОТКА: кнопка "🆕 Новый промпт"
     if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {
-      console.log('CASE: Новый промпт - возврат к началу сцены V2')
+      logger.debug('CASE: Новый промпт - возврат к началу сцены V2')
       // Сбрасываем состояние и возвращаемся к первому шагу
       ctx.session.prompt = undefined
       ctx.wizard.selectStep(0) // Возвращаемся к neuroPhotoConversationStep
@@ -203,19 +204,19 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
     // Обработка кнопок "Улучшить промпт" и "Изменить размер"
     if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
-      console.log('CASE: Улучшить промпт')
+      logger.debug('CASE: Улучшить промпт')
       await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
       return
     }
 
     if (text === '📐 Изменить размер' || text === '📐 Change size') {
-      console.log('CASE: Изменить размер')
+      logger.debug('CASE: Изменить размер')
       await ctx.scene.enter(ModeEnum.SizeWizard)
       return
     }
 
     if (text === levels[104].title_ru || text === levels[104].title_en) {
-      console.log('CASE: Главное меню')
+      logger.debug('CASE: Главное меню')
       await handleMenu(ctx)
       return
     }
@@ -229,11 +230,11 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const trigger_word = ctx.session.userModel.trigger_word as string
 
     if (!userId) {
-      console.error('❌ User ID не найден')
+      logger.error('❌ User ID не найден')
       return
     }
     if (!ctx.botInfo?.username) {
-      console.error('❌ Bot username не найден')
+      logger.error('❌ Bot username не найден')
       return
     }
 
@@ -246,7 +247,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       genderPromptPart = 'male'
     }
 
-    console.log(
+    logger.debug(
       `[neuroPhotoWizardV2 ButtonStep] Determined gender for prompt: ${genderPromptPart}`
     )
 

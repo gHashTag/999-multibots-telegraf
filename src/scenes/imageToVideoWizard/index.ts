@@ -15,7 +15,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { handleHelpCancel } from '@/handlers'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
 import { createAspectRatioKeyboard } from '@/modules/videoGenerator/helpers/keyboard'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { calculateFinalPrice } from '@/price/helpers'
 
 import {
@@ -1169,11 +1169,11 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
   // Шаг 0: Вход и выбор модели - ПРОСТАЯ ФУНКЦИЯ КАК В TEXTTOVIDOEOWIZARD
   async ctx => {
-    console.log('🎬 [DEBUG] askModelStep (simple function) CALLED!')
+    logger.debug('🎬 [DEBUG] askModelStep (simple function) CALLED!')
 
     try {
       const isRu = isRussianFromState(ctx)
-      console.log(
+      logger.debug(
         '🎬 [DEBUG] Language determined:',
         isRu ? 'Russian' : 'English'
       )
@@ -1185,7 +1185,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       // Check morphing mode
       if (ctx.session.current_action === 'morphing') {
-        console.log('🎬 [DEBUG] Morphing mode detected')
+        logger.debug('🎬 [DEBUG] Morphing mode detected')
         ctx.session.videoModel = MORPHING_MODEL_KEY
         ctx.session.is_morphing = true
         const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
@@ -1197,26 +1197,26 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(morphingInfoText)
         return ctx.wizard.selectStep(4)
       } else {
-        console.log('🎬 [DEBUG] Standard flow: creating keyboard...')
+        logger.debug('🎬 [DEBUG] Standard flow: creating keyboard...')
         // Standard flow: show model selection
         const keyboardMarkup = videoModelKeyboard(isRu, 'image')
-        console.log('🎬 [DEBUG] Keyboard created successfully')
+        logger.debug('🎬 [DEBUG] Keyboard created successfully')
 
         const text = isRu
           ? '🤔 Выберите модель для генерации видео:'
           : '🤔 Choose a model for video generation:'
 
-        console.log('🎬 [DEBUG] About to send reply with keyboard...')
+        logger.debug('🎬 [DEBUG] About to send reply with keyboard...')
         await ctx.reply(text, {
           reply_markup: keyboardMarkup.reply_markup,
         })
-        console.log('🎬 [DEBUG] Reply sent successfully!')
+        logger.debug('🎬 [DEBUG] Reply sent successfully!')
 
-        console.log('🎬 [DEBUG] Step 0 - Moving to next step')
+        logger.debug('🎬 [DEBUG] Step 0 - Moving to next step')
         return ctx.wizard.next()
       }
     } catch (error) {
-      console.error('🎬 [ERROR] Error in askModelStep:', error)
+      logger.error('🎬 [ERROR] Error in askModelStep:', error)
       logger.error('[I2V Wizard] Error in Step 0', {
         error,
         telegramId: ctx.from?.id,

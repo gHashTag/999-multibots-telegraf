@@ -1,6 +1,6 @@
 import fs from 'fs'
 import { API_URL } from '@/config'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { sendMediaToPulse } from '@/helpers/pulse'
 import { getBotTokenByName } from '@/core/getBotTokenByName'
 import { Telegraf, Markup } from 'telegraf'
@@ -40,7 +40,7 @@ interface MorphingApiResponse {
 export async function generateMorphing(
   requestData: MorphingRequest
 ): Promise<MorphingResponse> {
-  console.log('🚨 [MORPHING SERVICE] ABOUT TO PROCESS IMAGES:', {
+  logger.debug('🚨 [MORPHING SERVICE] ABOUT TO PROCESS IMAGES:', {
     telegram_id: requestData.telegram_id,
     imageCount: requestData.imageCount,
     morphingType: requestData.morphingType,
@@ -153,7 +153,7 @@ export async function generateMorphing(
         return
       }
 
-      console.log(
+      logger.debug(
         `🚀 [IMMEDIATE SEND] Отправляю промежуточное видео ${clipNumber}/${totalClips} СРАЗУ!`
       )
 
@@ -178,7 +178,7 @@ export async function generateMorphing(
           }
         )
         const sendTime = Date.now() - startTime
-        console.log(
+        logger.debug(
           `✅ [IMMEDIATE SEND] Промежуточное видео ${clipNumber} отправлено за ${sendTime}ms!`
         )
         logger.info(`✅ Intermediate video ${clipNumber} sent IMMEDIATELY`, {
@@ -187,7 +187,7 @@ export async function generateMorphing(
           sendTimeMs: sendTime,
         })
       } catch (error) {
-        console.log(
+        logger.debug(
           `❌ [IMMEDIATE SEND] Ошибка отправки промежуточного видео ${clipNumber}:`,
           error
         )
@@ -380,7 +380,7 @@ export async function generateMorphing(
     })
 
     // Дополнительная информация об ошибке
-    console.error('🚨 [MORPHING SERVICE] ERROR DETAILS:', {
+    logger.error('🚨 [MORPHING SERVICE] ERROR DETAILS:', {
       telegramId: requestData.telegram_id,
       errorType: error.constructor.name,
       message: error instanceof Error ? error.message : 'Unknown error',

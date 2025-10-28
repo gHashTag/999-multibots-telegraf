@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function ensureSupabaseAuth(): Promise<void> {
   try {
@@ -10,7 +11,7 @@ export async function ensureSupabaseAuth(): Promise<void> {
 
     if (error) throw error
   } catch (error) {
-    console.error('Supabase connection error:', error)
+    logger.error('Supabase connection error:', error)
     throw new Error('Не удалось подключиться к Supabase')
   }
 }

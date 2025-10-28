@@ -1,4 +1,5 @@
 import { MyWizardContext, Subscription } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 import { supabase } from '@/core/supabase'
 import { isRussian } from '@/helpers/language'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
@@ -27,13 +28,13 @@ export const checkPaymentStatus = async (
       .maybeSingle()
 
     if (error || !data) {
-      console.error('Ошибка при получении данных о платеже:', error)
+      logger.error('Ошибка при получении данных о платеже:', error)
       return null
     }
 
     return data
   } catch (error) {
-    console.error('Ошибка при проверке статуса платежа:', error)
+    logger.error('Ошибка при проверке статуса платежа:', error)
     return null
   }
 }

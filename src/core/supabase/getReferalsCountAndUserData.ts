@@ -1,4 +1,5 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { logger } from '@/utils/enhancedLogger'
 import { supabase } from '@/core/supabase'
 import { UserType } from '@/interfaces/supabase.interface'
 import { getUserDetailsSubscription } from './getUserDetailsSubscription'
@@ -27,7 +28,7 @@ export const getReferalsCountAndUserData = async (
       .maybeSingle() // ✅ ИСПРАВЛЕНО: используем maybeSingle() чтобы избежать ошибки multiple rows
 
     if (userError || !userData) {
-      console.error(
+      logger.error(
         'getReferalsCountAndUserData: Ошибка при получении user_id или пользователя не существует:',
         userError
       )
@@ -71,7 +72,7 @@ export const getReferalsCountAndUserData = async (
         isActive: rawSubscriptionInfo.isSubscriptionActive,
       }
     } catch (subError) {
-      console.error(
+      logger.error(
         `getReferalsCountAndUserData: Ошибка при вызове getUserDetailsSubscription для ${telegram_id}:`,
         subError
       )
@@ -86,7 +87,7 @@ export const getReferalsCountAndUserData = async (
       .eq('inviter', userData.user_id)
 
     if (countError) {
-      console.error('Ошибка при получении количества рефералов:', countError)
+      logger.error('Ошибка при получении количества рефералов:', countError)
       // Возвращаем данные пользователя и подписку, но 0 рефералов
       return {
         count: 0,
@@ -105,7 +106,7 @@ export const getReferalsCountAndUserData = async (
       isExist: true,
     }
   } catch (error) {
-    console.error('Непредвиденная ошибка в getReferalsCountAndUserData:', error)
+    logger.error('Непредвиденная ошибка в getReferalsCountAndUserData:', error)
     return {
       count: 0,
       level: 0,

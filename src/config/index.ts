@@ -1,43 +1,44 @@
 import { config } from 'dotenv' // Restored dotenv import
+import { logger } from '@/utils/enhancedLogger'
 import fs from 'fs' // Импортируем модуль fs
 import path from 'path' // Импортируем модуль path
 
-console.log('--- Debugging .env loading --- ')
+logger.debug('--- Debugging .env loading --- ')
 const cwd = process.cwd()
-console.log(`[CONFIG] Current Working Directory: ${cwd}`)
+logger.debug(`[CONFIG] Current Working Directory: ${cwd}`)
 
 // Determine the primary .env file path
 const envPath = path.join(cwd, '.env')
-console.log(`[CONFIG] Assuming primary env file path: ${envPath}`)
+logger.debug(`[CONFIG] Assuming primary env file path: ${envPath}`)
 
 // Attempt to load .env - RESTORED THIS LOGIC
 const loadResult = config({ path: envPath })
 
 if (loadResult.error) {
-  console.error(
+  logger.error(
     `[CONFIG] CRITICAL ERROR: Failed to load primary .env file from ${envPath}. Error: ${loadResult.error.message}`
   )
   if (process.env.NODE_ENV === 'production') {
     process.exit(1)
   } else {
-    console.warn(
+    logger.warn(
       `[CONFIG] WARNING: Failed to load .env file at ${envPath}, continuing with system env vars`
     )
   }
 } else if (!loadResult.parsed || Object.keys(loadResult.parsed).length === 0) {
-  console.error(
+  logger.error(
     `[CONFIG] CRITICAL ERROR: Primary .env file loaded from ${envPath}, but it is empty or parsing failed.`
   )
   if (process.env.NODE_ENV === 'production') {
     process.exit(1)
   }
 } else {
-  console.log(
+  logger.debug(
     `[CONFIG] Successfully loaded and parsed primary .env file from ${envPath}. Keys count: ${
       Object.keys(loadResult.parsed).length
     }`
   )
-  console.log(
+  logger.debug(
     `[CONFIG] DEV_SIMULATE_SUBSCRIPTION from file: ${
       loadResult.parsed.DEV_SIMULATE_SUBSCRIPTION || 'NOT FOUND'
     }`
@@ -46,7 +47,7 @@ if (loadResult.error) {
 
 // Set NODE_ENV default if not provided
 if (!process.env.NODE_ENV) {
-  console.log("[CONFIG] NODE_ENV was not set, setting to 'development'")
+  logger.debug("[CONFIG] NODE_ENV was not set, setting to 'development'")
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
 }
 
@@ -54,38 +55,38 @@ if (!process.env.NODE_ENV) {
 const forceDevMode = process.env.FORCE_DEV_MODE === 'true'
 const hasTestBot = !!process.env.TEST_BOT_NAME
 if (forceDevMode) {
-  console.log('[CONFIG] FORCE_DEV_MODE=true detected, overriding to development mode')
+  logger.debug('[CONFIG] FORCE_DEV_MODE=true detected, overriding to development mode')
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
 } else if (hasTestBot) {
-  console.log(`[CONFIG] TEST_BOT_NAME=${process.env.TEST_BOT_NAME} detected, overriding to development mode`)
+  logger.debug(`[CONFIG] TEST_BOT_NAME=${process.env.TEST_BOT_NAME} detected, overriding to development mode`)
   ;(process.env as { NODE_ENV?: string }).NODE_ENV = 'development'
 }
 
 export const isDev = process.env.NODE_ENV === 'development' || forceDevMode || hasTestBot
-console.log(`[CONFIG] isDev flag set to: ${isDev}`)
-console.log(`[CONFIG] forceDevMode: ${forceDevMode}`)
+logger.debug(`[CONFIG] isDev flag set to: ${isDev}`)
+logger.debug(`[CONFIG] forceDevMode: ${forceDevMode}`)
 
-console.log(`[CONFIG] NODE_ENV is set to: ${process.env.NODE_ENV}`)
-console.log('--- End Debugging .env loading --- ')
+logger.debug(`[CONFIG] NODE_ENV is set to: ${process.env.NODE_ENV}`)
+logger.debug('--- End Debugging .env loading --- ')
 
 // Логирование для проверки токенов
 if (process.env.NODE_ENV === 'production') {
-  console.log('Bot tokens check in ENV:')
-  console.log('BOT_TOKEN_1 exists:', !!process.env.BOT_TOKEN_1)
-  console.log('BOT_TOKEN_2 exists:', !!process.env.BOT_TOKEN_2)
-  console.log('BOT_TOKEN_3 exists:', !!process.env.BOT_TOKEN_3)
-  console.log('BOT_TOKEN_4 exists:', !!process.env.BOT_TOKEN_4)
-  console.log('BOT_TOKEN_5 exists:', !!process.env.BOT_TOKEN_5)
-  console.log('BOT_TOKEN_6 exists:', !!process.env.BOT_TOKEN_6)
-  console.log('BOT_TOKEN_7 exists:', !!process.env.BOT_TOKEN_7)
-  console.log('BOT_TOKEN_8 exists:', !!process.env.BOT_TOKEN_8)
-  console.log('BOT_TOKEN_9 exists:', !!process.env.BOT_TOKEN_9)
-  console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL)
-  console.log(
+  logger.debug('Bot tokens check in ENV:')
+  logger.debug('BOT_TOKEN_1 exists:', !!process.env.BOT_TOKEN_1)
+  logger.debug('BOT_TOKEN_2 exists:', !!process.env.BOT_TOKEN_2)
+  logger.debug('BOT_TOKEN_3 exists:', !!process.env.BOT_TOKEN_3)
+  logger.debug('BOT_TOKEN_4 exists:', !!process.env.BOT_TOKEN_4)
+  logger.debug('BOT_TOKEN_5 exists:', !!process.env.BOT_TOKEN_5)
+  logger.debug('BOT_TOKEN_6 exists:', !!process.env.BOT_TOKEN_6)
+  logger.debug('BOT_TOKEN_7 exists:', !!process.env.BOT_TOKEN_7)
+  logger.debug('BOT_TOKEN_8 exists:', !!process.env.BOT_TOKEN_8)
+  logger.debug('BOT_TOKEN_9 exists:', !!process.env.BOT_TOKEN_9)
+  logger.debug('SUPABASE_URL exists:', !!process.env.SUPABASE_URL)
+  logger.debug(
     'SUPABASE_SERVICE_KEY exists:',
     !!process.env.SUPABASE_SERVICE_KEY
   )
-  console.log(
+  logger.debug(
     'SUPABASE_SERVICE_ROLE_KEY exists:',
     !!process.env.SUPABASE_SERVICE_ROLE_KEY
   )
@@ -149,31 +150,31 @@ const BASE_PAYMENT_URL = isDev
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 
-console.log('💳 [ROBOKASSA FIX] BASE_PAYMENT_URL:', BASE_PAYMENT_URL)
-console.log('💳 [ROBOKASSA FIX] UNIFIED_RESULT_URL:', UNIFIED_RESULT_URL)
-console.log('💳 [ROBOKASSA FIX] Original RESULT_URL2:', RESULT_URL2)
+logger.debug('💳 [ROBOKASSA FIX] BASE_PAYMENT_URL:', BASE_PAYMENT_URL)
+logger.debug('💳 [ROBOKASSA FIX] UNIFIED_RESULT_URL:', UNIFIED_RESULT_URL)
+logger.debug('💳 [ROBOKASSA FIX] Original RESULT_URL2:', RESULT_URL2)
 
 // 🚨 ОТЛАДКА: Логируем все URL для понимания проблемы кэширования
-console.log('🚨 [CONFIG DEBUG] URL CONFIGURATION LOADED:')
-console.log(`🚨 [CONFIG DEBUG] isDev: ${isDev}`)
-console.log(`🚨 [CONFIG DEBUG] LOCAL_SERVER_URL: ${LOCAL_SERVER_URL}`)
-console.log(`🚨 [CONFIG DEBUG] API_SERVER_URL: ${API_SERVER_URL}`)
-console.log(`🚨 [CONFIG DEBUG] USE_PRODUCTION_API: ${USE_PRODUCTION_API}`)
-console.log(`🚨 [CONFIG DEBUG] forceProductionAPI: ${forceProductionAPI}`)
-console.log(`🚨 [CONFIG DEBUG] FINAL API_URL: ${API_URL}`)
-console.log(`🚨 [CONFIG DEBUG] SUPABASE_URL: ${SUPABASE_URL}`)
-console.log(`🚨 [CONFIG DEBUG] SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY ? '***SET***' : 'UNDEFINED'}`)
-console.log('🚨 [CONFIG DEBUG] =====================================')
+logger.debug('🚨 [CONFIG DEBUG] URL CONFIGURATION LOADED:')
+logger.debug(`🚨 [CONFIG DEBUG] isDev: ${isDev}`)
+logger.debug(`🚨 [CONFIG DEBUG] LOCAL_SERVER_URL: ${LOCAL_SERVER_URL}`)
+logger.debug(`🚨 [CONFIG DEBUG] API_SERVER_URL: ${API_SERVER_URL}`)
+logger.debug(`🚨 [CONFIG DEBUG] USE_PRODUCTION_API: ${USE_PRODUCTION_API}`)
+logger.debug(`🚨 [CONFIG DEBUG] forceProductionAPI: ${forceProductionAPI}`)
+logger.debug(`🚨 [CONFIG DEBUG] FINAL API_URL: ${API_URL}`)
+logger.debug(`🚨 [CONFIG DEBUG] SUPABASE_URL: ${SUPABASE_URL}`)
+logger.debug(`🚨 [CONFIG DEBUG] SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY ? '***SET***' : 'UNDEFINED'}`)
+logger.debug('🚨 [CONFIG DEBUG] =====================================')
 
 // Парсинг ADMIN_IDS в массив чисел
 const adminIdsString = process.env.ADMIN_IDS || process.env.ADMIN_TELEGRAM_ID || ''
-console.log('[CONFIG DEBUG] Raw ADMIN_IDS value:', adminIdsString)
+logger.debug('[CONFIG DEBUG] Raw ADMIN_IDS value:', adminIdsString)
 export const ADMIN_IDS_ARRAY: number[] = adminIdsString
   .split(',') // Разделяем строку по запятым
   .map(id => parseInt(id.trim(), 10)) // Преобразуем каждую часть в число
   .filter(id => !isNaN(id)) // Убираем некорректные значения (NaN)
 
-console.log('[CONFIG] Parsed ADMIN_IDS_ARRAY:', ADMIN_IDS_ARRAY)
+logger.debug('[CONFIG] Parsed ADMIN_IDS_ARRAY:', ADMIN_IDS_ARRAY)
 
 // Проверка наличия обязательных переменных окружения для Supabase
 export const isSupabaseConfigured = !!(
@@ -183,7 +184,7 @@ export const isSupabaseConfigured = !!(
 )
 
 if (!isSupabaseConfigured && process.env.NODE_ENV === 'production') {
-  console.warn(
+  logger.warn(
     '⚠️ ВНИМАНИЕ: Не настроены параметры Supabase. Боты будут загружены из переменных окружения.'
   )
 }

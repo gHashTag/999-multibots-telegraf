@@ -1,4 +1,5 @@
 import { openai } from '.'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function getTriggerReel({ prompt }: { prompt: string }) {
   try {
@@ -53,17 +54,17 @@ export async function getTriggerReel({ prompt }: { prompt: string }) {
       ],
       temperature: 0.7,
     })
-    console.log(completion, 'completion')
+    logger.debug(completion, 'completion')
 
     const content = completion.choices[0].message.content
     if (content === null) {
       throw new Error('Received null content from OpenAI')
     }
 
-    console.log(content)
+    logger.debug(content)
     return content
   } catch (error) {
-    console.error('Error:', error)
+    logger.error('Error:', error)
     throw error // Перебрасываем ошибку, чтобы она могла быть обработана выше
   }
 }

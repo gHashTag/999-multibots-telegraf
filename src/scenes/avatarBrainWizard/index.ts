@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '../../core/supabase'
 import { isRussianFromState } from '../../helpers/centralizedLanguage'
@@ -82,7 +83,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!ctx.from) {
-      console.error('❌ Telegram ID не найден')
+      logger.error('❌ Telegram ID не найден')
       return ctx.scene.leave()
     }
 

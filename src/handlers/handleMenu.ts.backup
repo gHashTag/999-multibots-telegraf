@@ -59,7 +59,7 @@ export const handleMenu = async (ctx: MyContext) => {
       text: normalizedText,
     })
 
-    logger.debug('CASE: handleMenuCommand.text', normalizedText)
+    console.log('CASE: handleMenuCommand.text', normalizedText)
 
     // Создаем объект для сопоставления текста с действиями
     const actions: Record<string, () => Promise<void>> = {
@@ -71,13 +71,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'subscribe',
           nextScene: ModeEnum.SubscriptionScene,
         })
-        logger.debug('CASE: 💫 Оформление подписки')
+        console.log('CASE: 💫 Оформление подписки')
         ctx.session.mode = ModeEnum.SubscriptionScene
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.SubscriptionScene}`
         )
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SubscriptionScene}`
         )
       },
@@ -90,13 +90,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'digital_avatar_body',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🤖 Цифровое тело')
+        console.log('CASE: 🤖 Цифровое тело')
         ctx.session.mode = ModeEnum.DigitalAvatarBody
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -108,13 +108,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'digital_avatar_body_v2',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🤖 Цифровое тело 2')
+        console.log('CASE: 🤖 Цифровое тело 2')
         ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -126,13 +126,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'neurophoto',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE handleMenu: 📸 Нейрофото')
+        console.log('CASE handleMenu: 📸 Нейрофото')
         ctx.session.mode = ModeEnum.NeuroPhoto
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -144,13 +144,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'neurophoto_v2',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 📸 Нейрофото 2')
+        console.log('CASE: 📸 Нейрофото 2')
         ctx.session.mode = ModeEnum.NeuroPhotoV2
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -163,13 +163,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'neurophoto_v2',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 📸  Нейрофото 2 (двойной пробел)')
+        console.log('CASE: 📸  Нейрофото 2 (двойной пробел)')
         ctx.session.mode = ModeEnum.NeuroPhotoV2
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -181,13 +181,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'image_to_prompt',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🔍 Промпт из фото')
+        console.log('CASE: 🔍 Промпт из фото')
         ctx.session.mode = ModeEnum.ImageToPrompt
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -199,13 +199,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'avatar_brain',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🧠 Мозг аватара')
+        console.log('CASE: 🧠 Мозг аватара')
         ctx.session.mode = ModeEnum.Avatar
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -217,13 +217,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: ModeEnum.ChatWithAvatar,
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 💭 Чат с аватаром')
+        console.log('CASE: 💭 Чат с аватаром')
         ctx.session.mode = ModeEnum.ChatWithAvatar
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -235,11 +235,11 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'select_model',
           nextScene: ModeEnum.SelectModel,
         })
-        logger.debug('CASE: 🤖 Выбор модели ИИ')
+        console.log('CASE: 🤖 Выбор модели ИИ')
         ctx.session.mode = ModeEnum.SelectModel
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.SelectModel}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.SelectModel}`)
         await ctx.scene.enter(ModeEnum.SelectModel)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SelectModel}`
         )
       },
@@ -251,13 +251,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'voice_avatar',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🎤 Голос аватара')
+        console.log('CASE: 🎤 Голос аватара')
         ctx.session.mode = ModeEnum.Voice
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -269,13 +269,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'text_to_speech',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🎙️ Текст в голос')
+        console.log('CASE: 🎙️ Текст в голос')
         ctx.session.mode = ModeEnum.TextToSpeech
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -287,13 +287,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'image_to_video',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🎥 Фото в видео')
+        console.log('CASE: 🎥 Фото в видео')
         ctx.session.mode = ModeEnum.ImageToVideo
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -305,19 +305,19 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'text_to_video',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🎬 Видео из текста')
+        console.log('CASE: 🎬 Видео из текста')
         
         // ✅ Добавляем немедленную обратную связь пользователю
         await ctx.reply(isRu ? '🎬 Загружаем генератор видео...' : '🎬 Loading video generator...')
         
-        logger.debug('🎬 [handleMenu] SETTING MODE TO:', ModeEnum.TextToVideo)
+        console.log('🎬 [handleMenu] SETTING MODE TO:', ModeEnum.TextToVideo)
         ctx.session.mode = ModeEnum.TextToVideo
-        logger.debug('🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:', ctx.session.mode)
-        logger.debug(
+        console.log('🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:', ctx.session.mode)
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -329,13 +329,13 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'text_to_image',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🖼️ Текст в фото')
+        console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -347,7 +347,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'flux_kontext',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 🎨 FLUX Kontext')
+        console.log('CASE: 🎨 FLUX Kontext')
 
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в FLUX Kontext
         const hasSubscription = await checkSubscriptionGuard(
@@ -360,11 +360,11 @@ export const handleMenu = async (ctx: MyContext) => {
 
         // Устанавливаем режим FLUX Kontext и идем через checkBalanceScene
         ctx.session.mode = ModeEnum.FluxKontext
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -376,7 +376,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'morphing',
           nextScene: 'morphing_wizard',
         })
-        logger.debug('CASE: 🧬 Морфинг')
+        console.log('CASE: 🧬 Морфинг')
 
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в морфинг
         const hasSubscription = await checkSubscriptionGuard(ctx, '🧬 Морфинг')
@@ -386,9 +386,9 @@ export const handleMenu = async (ctx: MyContext) => {
 
         // Устанавливаем режим морфинга и переходим напрямую в morphing_wizard
         ctx.session.mode = 'morphing' as any
-        logger.debug(`🔄 [handleMenu] Вход в сцену morphing_wizard`)
+        console.log(`🔄 [handleMenu] Вход в сцену morphing_wizard`)
         await ctx.scene.enter('morphing_wizard')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
+        console.log(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
       },
       [isRu ? levels[14].title_ru : levels[14].title_en]: async () => {
         logger.info({
@@ -398,7 +398,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'lip_sync',
           nextScene: 'lip_sync',
         })
-        logger.debug('CASE: 🎤 Kling Lip Sync')
+        console.log('CASE: 🎤 Kling Lip Sync')
 
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в липсинк
         const hasSubscription = await checkSubscriptionGuard(
@@ -411,9 +411,9 @@ export const handleMenu = async (ctx: MyContext) => {
 
         // Устанавливаем режим LipSync и переходим напрямую в lip_sync scene
         ctx.session.mode = ModeEnum.LipSync
-        logger.debug(`🔄 [handleMenu] Вход в сцену lip_sync`)
+        console.log(`🔄 [handleMenu] Вход в сцену lip_sync`)
         await ctx.scene.enter('lip_sync')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену lip_sync`)
+        console.log(`✅ [handleMenu] Завершен вход в сцену lip_sync`)
       },
       [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
         logger.info({
@@ -423,7 +423,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'image_upscaler',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: ⬆️ Увеличить качество')
+        console.log('CASE: ⬆️ Увеличить качество')
 
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
         const hasSubscription = await checkSubscriptionGuard(
@@ -436,11 +436,11 @@ export const handleMenu = async (ctx: MyContext) => {
 
         // Устанавливаем режим ImageUpscaler и идем через checkBalanceScene
         ctx.session.mode = ModeEnum.ImageUpscaler
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -452,7 +452,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'video_transcription',
           nextScene: ModeEnum.CheckBalanceScene,
         })
-        logger.debug('CASE: 📺 Транскрибация Reels')
+        console.log('CASE: 📺 Транскрибация Reels')
 
         // ✅ ЗАЩИТА: Проверяем подписку перед входом в транскрибацию
         const hasSubscription = await checkSubscriptionGuard(
@@ -465,11 +465,11 @@ export const handleMenu = async (ctx: MyContext) => {
 
         // Устанавливаем режим VideoTranscription и идем через checkBalanceScene
         ctx.session.mode = ModeEnum.VideoTranscription
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
         await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
       },
@@ -481,7 +481,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'instagram_parser',
           nextScene: 'instagram_parser_scene',
         })
-        logger.debug('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
+        console.log('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
         
         // Проверяем доступ к парсингу
         const userId = ctx.from?.id?.toString()
@@ -515,16 +515,16 @@ export const handleMenu = async (ctx: MyContext) => {
         
         // Переходим в Instagram parser scene
         ctx.session.mode = ModeEnum.InstagramParserScene
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
         )
         await ctx.scene.enter(ModeEnum.InstagramParserScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
         )
       },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
-      //   logger.debug('CASE: 🎥 Видео в URL')
+      //   console.log('CASE: 🎥 Видео в URL')
       //   ctx.session.mode = 'video_in_url'
       //   await ctx.scene.enter('checkBalanceScene')
       // },
@@ -536,7 +536,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'topup_balance',
           nextScene: ModeEnum.PaymentScene,
         })
-        logger.debug('CASE: 💎 Пополнить баланс')
+        console.log('CASE: 💎 Пополнить баланс')
         ctx.session.mode = ModeEnum.PaymentScene
 
         // Очищаем/инициализируем selectedPayment для контекста пополнения баланса
@@ -554,9 +554,9 @@ export const handleMenu = async (ctx: MyContext) => {
           }
         )
 
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
         await ctx.scene.enter(ModeEnum.PaymentScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
         )
       },
@@ -568,11 +568,11 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'balance',
           nextScene: 'balanceScene',
         })
-        logger.debug('CASE: 🤑 Баланс')
+        console.log('CASE: 🤑 Баланс')
         ctx.session.mode = ModeEnum.Balance
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
         await ctx.scene.enter('balanceScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
       },
       [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
         logger.info({
@@ -582,11 +582,11 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'invite',
           nextScene: 'inviteScene',
         })
-        logger.debug('CASE: 👥 Пригласить друга')
+        console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
         await ctx.scene.enter('inviteScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
       [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
         logger.info({
@@ -596,11 +596,11 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'help',
           nextScene: ModeEnum.Help,
         })
-        logger.debug('CASE: ❓ Помощь')
+        console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
         await handleTechSupport(ctx)
-        logger.debug(`✅ [handleMenu] Завершен вызов handleTechSupport`)
+        console.log(`✅ [handleMenu] Завершен вызов handleTechSupport`)
       },
       [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
         logger.info({
@@ -610,12 +610,12 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'main_menu',
           nextScene: ModeEnum.MainMenu,
         })
-        logger.debug('CASE: 🏠 Главное меню')
+        console.log('CASE: 🏠 Главное меню')
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
         await ctx.scene.enter(ModeEnum.MainMenu)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
         )
       },
@@ -627,7 +627,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'instagram_parser',
           nextScene: 'instagram_parser_scene',
         })
-        logger.debug('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
+        console.log('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
         
         // Проверяем доступ к парсингу
         const userId = ctx.from?.id?.toString()
@@ -661,11 +661,11 @@ export const handleMenu = async (ctx: MyContext) => {
         
         // Переходим в Instagram parser scene
         ctx.session.mode = ModeEnum.InstagramParserScene
-        logger.debug(
+        console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
         )
         await ctx.scene.enter(ModeEnum.InstagramParserScene)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
         )
       },
@@ -677,11 +677,11 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'help',
           nextScene: ModeEnum.Help,
         })
-        logger.debug('CASE: ❓ Помощь')
+        console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
         await handleTechSupport(ctx)
-        logger.debug(`✅ [handleMenu] Завершен вызов handleTechSupport`)
+        console.log(`✅ [handleMenu] Завершен вызов handleTechSupport`)
       },
       '/invite': async () => {
         logger.info({
@@ -692,11 +692,11 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'invite_command',
           nextScene: 'inviteScene',
         })
-        logger.debug('CASE: 👥 Пригласить друга')
+        console.log('CASE: 👥 Пригласить друга')
         ctx.session.mode = ModeEnum.Invite
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
         await ctx.scene.enter('inviteScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
       },
       '/price': async () => {
         logger.info({
@@ -706,7 +706,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'price_command',
           nextScene: 'priceScene',
         })
-        logger.debug('CASE: 💰 Цены')
+        console.log('CASE: 💰 Цены')
         await handlePriceCommand(ctx)
       },
 
@@ -718,11 +718,11 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'balance_command',
           nextScene: 'balanceScene',
         })
-        logger.debug('CASE: 💰 Баланс')
+        console.log('CASE: 💰 Баланс')
         ctx.session.mode = ModeEnum.Balance
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
         await ctx.scene.enter('balanceScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
       },
       '/help': async () => {
         logger.info({
@@ -732,11 +732,11 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'help_command',
           nextScene: 'helpScene',
         })
-        logger.debug('CASE: ❓ Помощь')
+        console.log('CASE: ❓ Помощь')
         ctx.session.mode = ModeEnum.Help
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
         await ctx.scene.enter('helpScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Help}`)
+        console.log(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Help}`)
       },
       '/menu': async () => {
         logger.info({
@@ -746,12 +746,12 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'menu_command',
           nextScene: ModeEnum.MainMenu,
         })
-        logger.debug('CASE: 🏠 Главное меню')
+        console.log('CASE: 🏠 Главное меню')
         // Re-enter the menu scene
         ctx.session.mode = ModeEnum.MainMenu
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
+        console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
         await ctx.scene.enter(ModeEnum.MainMenu)
-        logger.debug(
+        console.log(
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
         )
       },
@@ -782,7 +782,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'language_toggle_to_en',
           currentLanguage: getUserLanguageFromState(ctx),
         })
-        logger.debug('CASE: 🌐 EN - Переключение на английский')
+        console.log('CASE: 🌐 EN - Переключение на английский')
 
         // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
         await setUserLanguageInState(ctx, 'en')
@@ -799,9 +799,9 @@ export const handleMenu = async (ctx: MyContext) => {
 
         // Перезагружаем главное меню с новым языком
         ctx.session.mode = ModeEnum.MainMenu
-        logger.debug(`🔄 [handleMenu] Перезагрузка меню с английским языком`)
+        console.log(`🔄 [handleMenu] Перезагрузка меню с английским языком`)
         await ctx.scene.enter(ModeEnum.MainMenu)
-        logger.debug(`✅ [handleMenu] Меню перезагружено с языком: en`)
+        console.log(`✅ [handleMenu] Меню перезагружено с языком: en`)
       },
       '🌐 RU': async () => {
         logger.info({
@@ -811,7 +811,7 @@ export const handleMenu = async (ctx: MyContext) => {
           action: 'language_toggle_to_ru',
           currentLanguage: getUserLanguageFromState(ctx),
         })
-        logger.debug('CASE: 🌐 RU - Переключение на русский')
+        console.log('CASE: 🌐 RU - Переключение на русский')
 
         // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
         await setUserLanguageInState(ctx, 'ru')
@@ -828,18 +828,18 @@ export const handleMenu = async (ctx: MyContext) => {
 
         // Перезагружаем главное меню с новым языком
         ctx.session.mode = ModeEnum.MainMenu
-        logger.debug(`🔄 [handleMenu] Перезагрузка меню с русским языком`)
+        console.log(`🔄 [handleMenu] Перезагрузка меню с русским языком`)
         await ctx.scene.enter(ModeEnum.MainMenu)
-        logger.debug(`✅ [handleMenu] Меню перезагружено с языком: ru`)
+        console.log(`✅ [handleMenu] Меню перезагружено с языком: ru`)
       },
     }
 
     // ✅ ОТЛАДКА: Выводим все ключи actions для диагностики
     const actionKeys = Object.keys(actions)
-    logger.debug('🔧 [DEBUG] Available action keys:', actionKeys)
-    logger.debug('🔧 [DEBUG] Looking for key:', normalizedText)
-    logger.debug('🔧 [DEBUG] levels[10].title_ru:', levels[10].title_ru)
-    logger.debug(
+    console.log('🔧 [DEBUG] Available action keys:', actionKeys)
+    console.log('🔧 [DEBUG] Looking for key:', normalizedText)
+    console.log('🔧 [DEBUG] levels[10].title_ru:', levels[10].title_ru)
+    console.log(
       '🔧 [DEBUG] Exact match check:',
       actionKeys.includes(normalizedText)
     )
@@ -853,7 +853,7 @@ export const handleMenu = async (ctx: MyContext) => {
         text: normalizedText,
         result: 'action_found',
       })
-      logger.debug('CASE: handleMenuCommand.if', normalizedText)
+      console.log('CASE: handleMenuCommand.if', normalizedText)
       await actions[normalizedText]()
     } else {
       // Логика для необработанного текста (если нужна)
@@ -864,14 +864,14 @@ export const handleMenu = async (ctx: MyContext) => {
         text: normalizedText,
         result: 'action_not_found',
       })
-      logger.debug('CASE: handleMenuCommand.else', normalizedText)
+      console.log('CASE: handleMenuCommand.else', normalizedText)
       
       // Проверяем, ожидается ли ввод username конкурента
-      logger.debug('🔍 [handleMenu] Checking competitor username input...')
-      logger.debug('Session competitor monitoring state:', ctx.session.competitorMonitoring)
+      console.log('🔍 [handleMenu] Checking competitor username input...')
+      console.log('Session competitor monitoring state:', ctx.session.competitorMonitoring)
       
       if (ctx.session.competitorMonitoring?.waitingForUsername) {
-        logger.debug('✅ [handleMenu] User is waiting for username input, processing...')
+        console.log('✅ [handleMenu] User is waiting for username input, processing...')
         logger.info({
           message: `🔍 [handleMenu] Обрабатываем ввод username конкурента: "${normalizedText}"`,
           telegramId,
@@ -884,11 +884,11 @@ export const handleMenu = async (ctx: MyContext) => {
           // Импортируем и вызываем функцию обработки username
           const handled = await handleCompetitorUsernameInput(ctx, normalizedText)
           if (handled) {
-            logger.debug('✅ [handleMenu] Successfully handled competitor username input')
+            console.log('✅ [handleMenu] Successfully handled competitor username input')
             return // Завершаем обработку
           }
         } catch (error) {
-          logger.debug('❌ [handleMenu] Error handling competitor username input:', error)
+          console.log('❌ [handleMenu] Error handling competitor username input:', error)
           logger.error('[handleMenu] Error handling competitor username input', {
             error: error instanceof Error ? error.message : String(error),
             telegramId,
@@ -921,11 +921,11 @@ export const handleMenu = async (ctx: MyContext) => {
       callbackData,
     })
 
-    logger.debug('CASE: handleMenuCommand.callback', callbackData)
+    console.log('CASE: handleMenuCommand.callback', callbackData)
 
     // Проверяем callback для мониторинга конкурентов
     if (callbackData === 'add_new_competitor') {
-      logger.debug('➕ [handleMenu] add_new_competitor callback')
+      console.log('➕ [handleMenu] add_new_competitor callback')
       logger.info('[handleMenu] add_new_competitor callback triggered', {
         telegramId,
         userId: ctx.from?.id,
@@ -948,11 +948,11 @@ export const handleMenu = async (ctx: MyContext) => {
       }
       
       await ctx.answerCbQuery('✅')
-      logger.debug('Before importing promptForCompetitorUsername')
+      console.log('Before importing promptForCompetitorUsername')
       const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
-      logger.debug('After importing, before calling promptForCompetitorUsername')
+      console.log('After importing, before calling promptForCompetitorUsername')
       await promptForCompetitorUsername(ctx, isRu)
-      logger.debug('After calling promptForCompetitorUsername, session:', ctx.session)
+      console.log('After calling promptForCompetitorUsername, session:', ctx.session)
       logger.info('[handleMenu] add_new_competitor callback completed', {
         sessionAfter: ctx.session
       })
@@ -960,7 +960,7 @@ export const handleMenu = async (ctx: MyContext) => {
     }
 
     if (callbackData === 'refresh_subscriptions') {
-      logger.debug('🔄 [handleMenu] refresh_subscriptions callback')
+      console.log('🔄 [handleMenu] refresh_subscriptions callback')
       await ctx.answerCbQuery()
       await handleCompetitorMonitoring(ctx)
       return
@@ -970,23 +970,23 @@ export const handleMenu = async (ctx: MyContext) => {
       const subscriptionId = callbackData.replace('delete_subscription_', '')
       const isRu = isRussianFromState(ctx)
       
-      logger.debug(`🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`)
+      console.log(`🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`)
       
       try {
         const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
         
         if (result.success) {
-          logger.debug(`✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`)
+          console.log(`✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`)
           await ctx.answerCbQuery(result.message)
           
           // Обновляем список подписок после удаления
           await handleCompetitorMonitoring(ctx)
         } else {
-          logger.debug(`❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`)
+          console.log(`❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`)
           await ctx.answerCbQuery(result.message)
         }
       } catch (error) {
-        logger.debug(`💥 [handleMenu] Error deleting subscription: ${error}`)
+        console.log(`💥 [handleMenu] Error deleting subscription: ${error}`)
         await ctx.answerCbQuery(
           isRu 
             ? '❌ Ошибка при удалении подписки' 

@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
-import logger from '@/utils/logger'
+import logger from '@/utils/enhancedLogger'
 import { getUserLanguageFromState } from '@/helpers/centralizedLanguage'
 import { TranslationButton } from '@/interfaces/supabase.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
@@ -70,9 +70,9 @@ export async function getTranslation({
   buttons: TranslationButton[]
 }> {
   // Добавляем buttons
-  console.log('CASE: getTranslation:', key)
+  logger.debug('CASE: getTranslation:', key)
   if (!ctx.from) {
-    console.error('❌ Telegram ID не найден')
+    logger.error('❌ Telegram ID не найден')
     return {
       translation: '',
       url: '',

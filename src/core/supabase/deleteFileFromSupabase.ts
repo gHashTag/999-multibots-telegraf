@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function deleteFileFromSupabase(
   bucketName: string,
@@ -10,11 +11,11 @@ export async function deleteFileFromSupabase(
       .remove([fileName])
 
     if (error) {
-      console.error('Ошибка при удалении файла из Supabase:', error.message)
+      logger.error('Ошибка при удалении файла из Supabase:', error.message)
     } else {
-      console.log('Файл успешно удален из Supabase:', data)
+      logger.debug('Файл успешно удален из Supabase:', data)
     }
   } catch (error) {
-    console.error('Ошибка при удалении файла из Supabase:', error)
+    logger.error('Ошибка при удалении файла из Supabase:', error)
   }
 }

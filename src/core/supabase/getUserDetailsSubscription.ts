@@ -11,7 +11,7 @@
 // ==================================================================
 
 import { supabase } from '@/core/supabase'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import {
   normalizeTelegramId,
   TelegramId,
@@ -50,7 +50,7 @@ export const getUserDetailsSubscription = async (
   telegramId: TelegramId
 ): Promise<UserDetailsResult> => {
   const telegramIdStr = normalizeTelegramId(telegramId)
-  console.log('🔍 [getUserDetailsSubscription] Checking user:', {
+  logger.debug('🔍 [getUserDetailsSubscription] Checking user:', {
     telegram_id: telegramIdStr,
     input_type: typeof telegramId,
     normalized: telegramIdStr,
@@ -114,7 +114,7 @@ export const getUserDetailsSubscription = async (
         }
       } else if (userData) {
         // <--- ЕСЛИ userData не null (т.е. запись найдена и доступна)
-        console.log(
+        logger.debug(
           '✅ [getUserDetailsSubscription] User FOUND in users table:',
           {
             telegram_id: telegramIdStr,
@@ -125,7 +125,7 @@ export const getUserDetailsSubscription = async (
       } else {
         // userData === null (запись не найдена или скрыта RLS)
         // userExists остается false
-        console.log(
+        logger.debug(
           '❌ [getUserDetailsSubscription] User NOT FOUND in users table:',
           {
             telegram_id: telegramIdStr,
@@ -275,7 +275,7 @@ export const getUserDetailsSubscription = async (
       subscriptionStartDate: isActive ? startDateDb : null,
     }
 
-    console.log('📦 [getUserDetailsSubscription] FINAL RESULT:', {
+    logger.debug('📦 [getUserDetailsSubscription] FINAL RESULT:', {
       telegram_id: telegramIdStr,
       isExist: result.isExist,
       stars: result.stars,

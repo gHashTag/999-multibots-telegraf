@@ -1,4 +1,5 @@
 import express from 'express'
+import { logger } from '@/utils/enhancedLogger'
 
 import rateLimit from 'express-rate-limit'
 
@@ -67,7 +68,7 @@ export const logWebhookRequest = (
   const action = req.body?.action || 'unknown'
   const prNumber = req.body?.pull_request?.number || 'N/A'
 
-  console.log(
+  logger.debug(
     `🎣 [GitHub Webhook] ${timestamp} | Event: ${event} | Action: ${action} | PR: #${prNumber}`
   )
 

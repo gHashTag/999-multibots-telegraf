@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function getUserPhotoUrl(
   ctx: MyContext,
@@ -10,7 +11,7 @@ export async function getUserPhotoUrl(
 
     // Проверяем есть ли фотографии
     if (userPhotos.total_count === 0) {
-      console.log('No photos found')
+      logger.debug('No photos found')
       return null
     }
 
@@ -21,17 +22,17 @@ export async function getUserPhotoUrl(
     const file = await ctx.telegram.getFile(largestPhoto.file_id)
 
     if (!file.file_path) {
-      console.log('No file_path in response')
+      logger.debug('No file_path in response')
       return null
     }
 
     // Формируем URL фотографии
     const photoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
-    console.log('Generated photo URL:', photoUrl)
+    logger.debug('Generated photo URL:', photoUrl)
 
     return photoUrl
   } catch (error) {
-    console.error('Error getting user profile photo:', error)
+    logger.error('Error getting user profile photo:', error)
     throw error
   }
 }

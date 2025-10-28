@@ -5,7 +5,7 @@ import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { levels } from './menu/mainMenu'
 import { getUserDetailsSubscription } from '@/core/supabase'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { getUserInfo } from './handlers/getUserInfo'
 // Импортируем новую функцию
 import { handleRestartVideoGeneration } from './handlers/handleVideoRestart'
@@ -96,7 +96,7 @@ import { registerPaymentActions } from './handlers/paymentActions'
 //https://github.com/telegraf/telegraf/issues/705
 
 // Проверяем что textToVideoWizard загружен
-console.log('🚨 [SCENE_DEBUG] textToVideoWizard check:', {
+logger.debug('🚨 [SCENE_DEBUG] textToVideoWizard check:', {
   isImported: !!textToVideoWizard,
   hasId: textToVideoWizard?.id,
   wizardId: textToVideoWizard?.id,
@@ -155,7 +155,7 @@ export const stage = new Scenes.Stage<MyContext>([
 ])
 
 // Проверяем зарегистрированные сцены
-console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
+logger.debug('🚨 [SCENE_DEBUG] Stage created with scenes:', {
   totalScenes: stage.scenes.size,
   hasTextToVideoWizard: stage.scenes.has('text_to_video'),
   sceneNames: Array.from(stage.scenes.keys()),
@@ -178,13 +178,13 @@ const sendGroupCommandReply = async (ctx: MyContext) => {
         userId: ctx.from?.id,
       }
     )
-    // console.error(`Error replying to command in group for ${ctx.botInfo?.username}:`, e); // Fallback if logger fails
+    // logger.error(`Error replying to command in group for ${ctx.botInfo?.username}:`, e); // Fallback if logger fails
   }
 }
 
 export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
-  console.log('🔧 [DEBUG] registerCommands FUNCTION ENTERED!')
-  console.log('🔧 [DEBUG] Registering commands - INSTAGRAM INCLUDED!')
+  logger.debug('🔧 [DEBUG] registerCommands FUNCTION ENTERED!')
+  logger.debug('🔧 [DEBUG] Registering commands - INSTAGRAM INCLUDED!')
   logger.info('🔧 [DEBUG] Registering commands - INSTAGRAM INCLUDED!')
 
   try {
@@ -206,8 +206,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
       // СПЕЦИАЛЬНЫЙ ЛОГ ДЛЯ /instagram
       if (messageText === '/instagram') {
-        console.log('🚨 [DEBUG] /instagram COMMAND DETECTED in RAW UPDATE!')
-        console.log('🚨 [DEBUG] About to pass to next middleware...')
+        logger.debug('🚨 [DEBUG] /instagram COMMAND DETECTED in RAW UPDATE!')
+        logger.debug('🚨 [DEBUG] About to pass to next middleware...')
       }
 
       return next()
@@ -236,7 +236,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         username: ctx.from?.username,
       })
 
-      console.log('🚀 [START COMMAND] Executing /start command', {
+      logger.debug('🚀 [START COMMAND] Executing /start command', {
         telegramId,
         chatType: ctx.chat.type,
       })
@@ -244,14 +244,14 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       try {
         // При старте всегда сбрасываем сессию
         ctx.session = { ...defaultSession }
-        console.log('✅ [START COMMAND] Session reset')
+        logger.debug('✅ [START COMMAND] Session reset')
 
         // ВАЖНО: Извлекаем реферальный код из команды /start
         if (ctx.message && 'text' in ctx.message) {
           const parts = ctx.message.text.split(' ')
           if (parts.length > 1) {
             const startParam = parts[1]
-            console.log(
+            logger.debug(
               '📝 [START COMMAND] Start parameter detected:',
               startParam
             )
@@ -264,18 +264,18 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
             if (!promoInfo?.isPromo && /^\d+$/.test(startParam)) {
               // Это реферальный код (только цифры)
               ctx.session.inviteCode = startParam
-              console.log('🔗 [START COMMAND] Referral code set:', startParam)
+              logger.debug('🔗 [START COMMAND] Referral code set:', startParam)
             }
           }
         }
 
         await ctx.scene.leave() // Явно выходим из любой сцены
-        console.log('✅ [START COMMAND] Left previous scene')
+        logger.debug('✅ [START COMMAND] Left previous scene')
 
         // Проверяем, существует ли пользователь
         const { getUserDetailsSubscription } = await import('@/core/supabase')
 
-        console.log('🔍 [START COMMAND] Checking user existence...', {
+        logger.debug('🔍 [START COMMAND] Checking user existence...', {
           telegramId,
           username: ctx.from?.username,
           firstName: ctx.from?.first_name,
@@ -284,7 +284,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
         const userDetails = await getUserDetailsSubscription(telegramId)
 
-        console.log('📊 [START COMMAND] User check result:', {
+        logger.debug('📊 [START COMMAND] User check result:', {
           telegramId,
           userExists: userDetails.isExist,
           subscriptionType: userDetails.subscriptionType,
@@ -295,7 +295,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
         if (!userDetails.isExist) {
           // Если пользователь не существует, сначала создаем его
-          console.log(
+          logger.debug(
             '🆕 [START COMMAND] User does not exist, entering CreateUserScene',
             {
               telegramId,
@@ -306,7 +306,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           await ctx.scene.enter(ModeEnum.CreateUserScene)
         } else {
           // Если пользователь существует, переходим к AI Demo
-          console.log(
+          logger.debug(
             '✅ [START COMMAND] User exists, entering AvatarTransform scene',
             {
               telegramId,
@@ -317,7 +317,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           await ctx.scene.enter(ModeEnum.AvatarTransform)
         }
       } catch (error) {
-        console.error('❌ [START COMMAND] Error:', error)
+        logger.error('❌ [START COMMAND] Error:', error)
         logger.error('[START] Error in start command', { error, telegramId })
       }
     })
@@ -349,7 +349,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       if (ctx.chat.type !== 'private') {
         return sendGroupCommandReply(ctx)
       }
-      console.log('CASE bot.command: support')
+      logger.debug('CASE bot.command: support')
       await ctx.scene.leave() // Выходим из сцены перед показом контактов
       await handleTechSupport(ctx as MyContext)
     })
@@ -471,12 +471,12 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       await handleFluxKontextCommand(ctx)
     })
 
-    console.log('🔧 [DEBUG] REGISTERING /instagram command handler NOW!')
+    logger.debug('🔧 [DEBUG] REGISTERING /instagram command handler NOW!')
     logger.info('🔧 [DEBUG] REGISTERING /instagram command handler NOW!')
     bot.command('instagram', async ctx => {
       try {
-        console.log('🔍 [DEBUG] Instagram command handler TRIGGERED!')
-        console.log('🔍 [DEBUG] Instagram command received!', {
+        logger.debug('🔍 [DEBUG] Instagram command handler TRIGGERED!')
+        logger.debug('🔍 [DEBUG] Instagram command received!', {
           telegramId: ctx.from?.id,
           chatType: ctx.chat?.type,
           timestamp: new Date().toISOString(),
@@ -492,7 +492,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           return sendGroupCommandReply(ctx)
         }
 
-        console.log('🔍 [DEBUG] Starting Instagram parsing...')
+        logger.debug('🔍 [DEBUG] Starting Instagram parsing...')
         logger.info('🔍 [DEBUG] Starting Instagram parsing...')
 
         // Проверяем доступ к парсингу
@@ -519,7 +519,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           return
         }
 
-        console.log(
+        logger.debug(
           '🔍 [DEBUG] Parsing access check PASSED! Proceeding with Instagram wizard...'
         )
         logger.info(
@@ -529,21 +529,21 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           }
         )
 
-        console.log('🔍 [DEBUG] Entering Instagram scraping wizard...')
+        logger.debug('🔍 [DEBUG] Entering Instagram scraping wizard...')
         logger.info('🔍 [DEBUG] Entering Instagram scraping wizard...')
 
-        console.log('🔍 [DEBUG] Leaving current scene...')
+        logger.debug('🔍 [DEBUG] Leaving current scene...')
         await ctx.scene.leave() // Выходим из текущей сцены
 
-        console.log('🔍 [DEBUG] Setting session mode...')
+        logger.debug('🔍 [DEBUG] Setting session mode...')
         ctx.session.mode = ModeEnum.InstagramScrapingWizard
 
-        console.log(
+        logger.debug(
           '🔍 [DEBUG] About to enter InstagramScrapingWizard scene...'
         )
         await ctx.scene.enter(ModeEnum.InstagramScrapingWizard)
 
-        console.log(
+        logger.debug(
           '🔍 [DEBUG] Successfully entered Instagram scraping wizard!'
         )
         logger.info('🔍 [DEBUG] Successfully entered Instagram scraping wizard')
@@ -711,7 +711,7 @@ If not, continue on your own and click the "I myself" button`
 
     // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
     bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
-      console.log('CASE bot.hears: 💬 Техподдержка / Support')
+      logger.debug('CASE bot.hears: 💬 Техподдержка / Support')
       await ctx.scene.leave() // Теперь ctx.scene должен быть доступен
       await handleTechSupport(ctx)
     })
@@ -726,13 +726,13 @@ If not, continue on your own and click the "I myself" button`
         '💳 Subscribe',
       ],
       async ctx => {
-        console.log('🎯 URGENT DEBUG: GLOBAL SUBSCRIPTION HEARS TRIGGERED!')
+        logger.debug('🎯 URGENT DEBUG: GLOBAL SUBSCRIPTION HEARS TRIGGERED!')
         logger.info('🚀 GLOBAL HEARS: Оформить подписку / Subscribe', {
           telegramId: ctx.from?.id,
           messageText: ctx.message?.text,
           currentScene: ctx.scene?.current?.id,
         })
-        console.log('🚀 GLOBAL HEARS: Оформить подписку triggered!')
+        logger.debug('🚀 GLOBAL HEARS: Оформить подписку triggered!')
 
         try {
           logger.info(
@@ -744,7 +744,7 @@ If not, continue on your own and click the "I myself" button`
           await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
           logger.info('Successfully entered subscription scene')
         } catch (error) {
-          console.error('❌ Error in subscription hears handler:', error)
+          logger.error('❌ Error in subscription hears handler:', error)
           logger.error('Error in Оформить подписку hears:', {
             error: error instanceof Error ? error.message : String(error),
             stack: error instanceof Error ? error.stack : undefined,
@@ -759,7 +759,7 @@ If not, continue on your own and click the "I myself" button`
                 : '❌ Error entering subscription.'
             )
           } catch (replyError) {
-            console.error('❌ Failed to send error message:', replyError)
+            logger.error('❌ Failed to send error message:', replyError)
           }
         }
       }
@@ -1260,7 +1260,7 @@ If not, continue on your own and click the "I myself" button`
           prompt: ctx.session.lastNeuroPhotoPrompt,
           is_ru,
         })
-        console.log('🔴 CALLING UPSCALE_IMAGE FOR:', telegram_id)
+        logger.debug('🔴 CALLING UPSCALE_IMAGE FOR:', telegram_id)
         
         const { upscaleImage } = await import('./services/imageUpscaler')
         const result = await upscaleImage({
@@ -1277,7 +1277,7 @@ If not, continue on your own and click the "I myself" button`
           telegram_id,
           result: result ? 'Success' : 'No result',
         })
-        console.log('🟢 UPSCALE_IMAGE COMPLETED FOR:', telegram_id)
+        logger.debug('🟢 UPSCALE_IMAGE COMPLETED FOR:', telegram_id)
       } catch (error) {
         logger.error('Error in upscale_neurophoto_image action:', {
           error,
@@ -1506,8 +1506,8 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
-    console.log(
+    logger.debug('✅ [SCENE_DEBUG] Stage импортирован успешно')
+    logger.debug(
       '📊 [SCENE_DEBUG] Количество обработчиков сцен:',
       stage.scenes.size
     )
@@ -1556,7 +1556,7 @@ If not, continue on your own and click the "I myself" button`
           'Successfully entered subscription scene via inline callback'
         )
       } catch (error) {
-        console.error(
+        logger.error(
           '❌ Error in subscription inline callback handler:',
           error
         )
@@ -1575,7 +1575,7 @@ If not, continue on your own and click the "I myself" button`
               : '❌ Error entering subscription.'
           )
         } catch (replyError) {
-          console.error('❌ Failed to send error message:', replyError)
+          logger.error('❌ Failed to send error message:', replyError)
         }
       }
     })
@@ -1599,10 +1599,10 @@ If not, continue on your own and click the "I myself" button`
     // ВАЖНО: setupHearsHandlers и handleTextMessage теперь регистрируются в bot.ts
     // чтобы hears обработчики срабатывали до общего текстового обработчика
 
-    console.log('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
+    logger.debug('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
     logger.info('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
   } catch (error) {
-    console.error('🔧 [ERROR] registerCommands FUNCTION FAILED:', error)
+    logger.error('🔧 [ERROR] registerCommands FUNCTION FAILED:', error)
     logger.error('🔧 [ERROR] registerCommands FUNCTION FAILED:', {
       error: error instanceof Error ? error.message : String(error),
     })

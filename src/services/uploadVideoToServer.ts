@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logger } from '@/utils/enhancedLogger'
 import { isDev, API_SERVER_URL, LOCAL_SERVER_URL } from '@/config'
 interface UploadVideoRequest {
   videoUrl: string
@@ -10,7 +11,7 @@ export async function uploadVideoToServer(
   requestData: UploadVideoRequest
 ): Promise<void> {
   try {
-    console.log('CASE 1: uploadVideoToServer')
+    logger.debug('CASE 1: uploadVideoToServer')
     const url = `${isDev ? LOCAL_SERVER_URL : API_SERVER_URL}/video/upload`
     const response = await axios.post(url, requestData, {
       headers: {
@@ -18,9 +19,9 @@ export async function uploadVideoToServer(
       },
     })
 
-    console.log('Video upload response:', response.data)
+    logger.debug('Video upload response:', response.data)
   } catch (error) {
-    console.error('Error uploading video:', error)
+    logger.error('Error uploading video:', error)
     throw error
   }
 }

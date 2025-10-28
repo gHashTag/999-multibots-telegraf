@@ -1,6 +1,6 @@
 const Replicate = require('replicate')
 import axios from 'axios'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import {
   type ProviderConfig,
@@ -27,18 +27,18 @@ import {
  * Создает Replicate клиент
  */
 const createReplicateClient = (): typeof Replicate => {
-  console.log('🔍 [createReplicateClient] Checking API token...')
-  console.log(
+  logger.debug('🔍 [createReplicateClient] Checking API token...')
+  logger.debug(
     '🔍 [createReplicateClient] Token exists:',
     !!process.env.REPLICATE_API_TOKEN
   )
 
   if (!process.env.REPLICATE_API_TOKEN) {
-    console.error('❌ [createReplicateClient] REPLICATE_API_TOKEN is not set')
+    logger.error('❌ [createReplicateClient] REPLICATE_API_TOKEN is not set')
     throw new Error('REPLICATE_API_TOKEN is not set')
   }
 
-  console.log(
+  logger.debug(
     '✅ [createReplicateClient] Creating Replicate client with token length:',
     process.env.REPLICATE_API_TOKEN.length
   )
@@ -53,7 +53,7 @@ const createReplicateClient = (): typeof Replicate => {
 const generateKlingLipSync = async (
   input: UniversalLipSyncInput
 ): Promise<LipSyncResult> => {
-  console.log('🚀 [generateKlingLipSync] Starting generation with input:', {
+  logger.debug('🚀 [generateKlingLipSync] Starting generation with input:', {
     videoUrl: input.videoUrl?.substring(0, 50) + '...',
     audioUrl: input.audioUrl?.substring(0, 50) + '...',
     text: input.text?.substring(0, 50) + '...',
@@ -89,7 +89,7 @@ const generateKlingLipSync = async (
 
     if (input.text) {
       // 📝 РЕЖИМ ТЕКСТА: используем только video + text
-      console.log(
+      logger.debug(
         '📝 [generateKlingLipSync] Using TEXT mode - no audio upload needed'
       )
 
@@ -104,7 +104,7 @@ const generateKlingLipSync = async (
         videoFileName
       )
 
-      console.log('✅ [generateKlingLipSync] Video uploaded for TEXT mode:', {
+      logger.debug('✅ [generateKlingLipSync] Video uploaded for TEXT mode:', {
         video: publicVideoUrl.substring(0, 100) + '...',
         text: input.text.substring(0, 100) + '...',
       })
@@ -118,7 +118,7 @@ const generateKlingLipSync = async (
       }
     } else if (input.audioUrl) {
       // 🎵 РЕЖИМ АУДИО: загружаем video + audio
-      console.log(
+      logger.debug(
         '🎵 [generateKlingLipSync] Using AUDIO mode - uploading files'
       )
 
@@ -138,7 +138,7 @@ const generateKlingLipSync = async (
         uploadTelegramFileLocal(input.audioUrl, audioFileName),
       ])
 
-      console.log('✅ [generateKlingLipSync] Files uploaded for AUDIO mode:', {
+      logger.debug('✅ [generateKlingLipSync] Files uploaded for AUDIO mode:', {
         video: publicVideoUrl.substring(0, 100) + '...',
         audio: publicAudioUrl.substring(0, 100) + '...',
       })
@@ -154,7 +154,7 @@ const generateKlingLipSync = async (
       throw new Error('Either text or audioUrl must be provided')
     }
 
-    console.log('🎯 [generateKlingLipSync] Prepared Replicate input:', {
+    logger.debug('🎯 [generateKlingLipSync] Prepared Replicate input:', {
       modelId: 'kwaivgi/kling-lip-sync',
       video_url: replicateInput.input.video_url?.substring(0, 100) + '...',
       ...(replicateInput.input.audio_url && {
@@ -166,12 +166,12 @@ const generateKlingLipSync = async (
       webhook: input.parameters?.webhookUrl ? 'SET' : 'NOT_SET',
     })
 
-    console.log('🚀 [generateKlingLipSync] Calling replicate.run...')
+    logger.debug('🚀 [generateKlingLipSync] Calling replicate.run...')
     const prediction = await replicate.run(
       'kwaivgi/kling-lip-sync',
       replicateInput
     )
-    console.log('📥 [generateKlingLipSync] Replicate API responded!')
+    logger.debug('📥 [generateKlingLipSync] Replicate API responded!')
 
     logger.info('✅ Получен ответ от Replicate', {
       predictionId: (prediction as any)?.id || 'unknown',
@@ -217,8 +217,8 @@ const generateKlingLipSync = async (
       },
     }
   } catch (error) {
-    console.error('💥 [generateKlingLipSync] Caught error:', error)
-    console.error('💥 [generateKlingLipSync] Error details:', {
+    logger.error('💥 [generateKlingLipSync] Caught error:', error)
+    logger.error('💥 [generateKlingLipSync] Error details:', {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
       stack:

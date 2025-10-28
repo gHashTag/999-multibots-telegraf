@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { logger } from '@/utils/enhancedLogger'
 import axios from 'axios'
 import { MyContext } from '@/interfaces'
 import { refundUser } from '@/price/helpers'
@@ -35,7 +36,7 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
       )
 
       const predictions = response.data.results
-      console.log('predictions', predictions)
+      logger.debug('predictions', predictions)
 
       const predictionsToCancel = predictions.filter(
         (prediction: Prediction) => {
@@ -49,7 +50,7 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
           return isMatchingPrompt && isCancelableStatus
         }
       )
-      console.log('predictionsToCancel', predictionsToCancel)
+      logger.debug('predictionsToCancel', predictionsToCancel)
 
       // Отменяем каждое подходящее предсказание
       for (const prediction of predictionsToCancel) {
@@ -62,7 +63,7 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
             },
           }
         )
-        console.log(`Cancelled prediction with ID: ${prediction.id}`)
+        logger.debug(`Cancelled prediction with ID: ${prediction.id}`)
         const isRu = isRussian(ctx)
         // Отправляем сообщение пользователю
         await ctx.reply(
@@ -73,13 +74,13 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
 
         if (ctx.from) {
           const paymentAmount = ctx.session.paymentAmount || 0
-          console.log('paymentAmount', paymentAmount)
+          logger.debug('paymentAmount', paymentAmount)
           await refundUser(ctx, paymentAmount)
         }
       }
       return ctx.scene.leave()
     } catch (error) {
-      console.error('Error cancelling predictions:', error)
+      logger.error('Error cancelling predictions:', error)
       const isRu = isRussian(ctx)
       await sendGenericErrorMessage(ctx, isRu, error as Error)
       return ctx.scene.leave()

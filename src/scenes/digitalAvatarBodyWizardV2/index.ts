@@ -1,4 +1,5 @@
 import { Markup, Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -18,7 +19,7 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
   async ctx => {
     // Устанавливаем режим V2 для правильного выбора API endpoint
     ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-    console.log(
+    logger.debug(
       '[digitalAvatarBodyWizardV2] Set session mode:',
       ctx.session.mode
     )
@@ -37,16 +38,16 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
   },
   async ctx => {
     const isRu = isRussianFromState(ctx)
-    console.log('Entering step 2 of the wizard')
+    logger.debug('Entering step 2 of the wizard')
     if (ctx.message && 'text' in ctx.message) {
       const messageText = ctx.message.text
       const stepsMatch = messageText.match(/\d+/)
-      console.log('stepsMatch', stepsMatch)
+      logger.debug('stepsMatch', stepsMatch)
 
       if (stepsMatch) {
         const steps = parseInt(stepsMatch[0])
         ctx.session.steps = steps
-        console.log('Parsed steps:', steps)
+        logger.debug('Parsed steps:', steps)
         const { leaveScene, trainingCostInStars, currentBalance } =
           await handleTrainingCost(ctx, steps, isRu)
         if (leaveScene) {
@@ -60,11 +61,11 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
           if (ctx.from) {
             ctx.session.targetUserId = ctx.from.id
             ctx.session.username = ctx.from.username || `user${ctx.from.id}`
-            console.log(
+            logger.debug(
               `[digitalAvatarBodyWizardV2] Set session data: targetUserId=${ctx.session.targetUserId}, username=${ctx.session.username}`
             )
           } else {
-            console.error(
+            logger.error(
               '[digitalAvatarBodyWizardV2] Cannot set session data: ctx.from is undefined.'
             )
             await ctx.reply(
@@ -78,7 +79,7 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
         }
       }
     } else {
-      console.error('Callback query does not contain data')
+      logger.error('Callback query does not contain data')
     }
 
     const isCancel = await handleHelpCancel(ctx)

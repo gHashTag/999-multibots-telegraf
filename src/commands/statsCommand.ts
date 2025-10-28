@@ -1,6 +1,6 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import {
   getUserBalanceStats,
   UserBalanceStatsResult,
@@ -348,7 +348,7 @@ export async function statsCommand(ctx: MyContext): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Error in statsCommand:', error)
+    logger.error('Error in statsCommand:', error)
     await ctx.reply('❌ Произошла ошибка при получении статистики')
   }
 }
@@ -514,7 +514,7 @@ async function getAdditionalBotMetrics(
       .eq('status', 'COMPLETED')
 
     if (paymentsError) {
-      console.error(
+      logger.error(
         'Error fetching payments for additional metrics:',
         paymentsError
       )
@@ -554,7 +554,7 @@ async function getAdditionalBotMetrics(
       financial_trends: [],
     }
   } catch (error) {
-    console.error('Error in getAdditionalBotMetrics:', error)
+    logger.error('Error in getAdditionalBotMetrics:', error)
     return {
       total_income: 0,
       total_outcome: 0,
@@ -1469,7 +1469,7 @@ async function getDetailedFinancialBreakdown(botName: string): Promise<{
       },
     }
   } catch (error) {
-    console.error('Error in getDetailedFinancialBreakdown:', error)
+    logger.error('Error in getDetailedFinancialBreakdown:', error)
     throw error
   }
 }
@@ -1746,7 +1746,7 @@ async function debugPaymentData(botName: string): Promise<any> {
 
     return analysis
   } catch (error) {
-    console.error('Error in debugPaymentData:', error)
+    logger.error('Error in debugPaymentData:', error)
     throw error
   }
 }
@@ -1829,7 +1829,7 @@ export async function debugStatsCommand(ctx: MyContext): Promise<void> {
       await ctx.reply(sampleMessage, { parse_mode: 'HTML' })
     }
   } catch (error) {
-    console.error('Error in debugStatsCommand:', error)
+    logger.error('Error in debugStatsCommand:', error)
     await ctx.reply('❌ Произошла ошибка при анализе данных')
   }
 }
@@ -2069,7 +2069,7 @@ export async function userSpendingCommand(ctx: MyContext): Promise<void> {
       await ctx.reply(message, { parse_mode: 'HTML' })
     }
   } catch (error) {
-    console.error('❌ Ошибка в userSpendingCommand:', error)
+    logger.error('❌ Ошибка в userSpendingCommand:', error)
     await ctx.reply('❌ Произошла ошибка при анализе трат пользователя')
   }
 }
@@ -2203,7 +2203,7 @@ export async function findUserCommand(ctx: MyContext): Promise<void> {
       await ctx.reply(message, { parse_mode: 'HTML' })
     }
   } catch (error) {
-    console.error('❌ Ошибка в findUserCommand:', error)
+    logger.error('❌ Ошибка в findUserCommand:', error)
     await ctx.reply('❌ Произошла ошибка при поиске пользователей')
   }
 }
@@ -2299,7 +2299,7 @@ ${
 
     await ctx.reply(helpMessage, { parse_mode: 'HTML' })
   } catch (error) {
-    console.error('❌ Ошибка в adminHelpCommand:', error)
+    logger.error('❌ Ошибка в adminHelpCommand:', error)
     await ctx.reply('❌ Произошла ошибка при показе справки')
   }
 }

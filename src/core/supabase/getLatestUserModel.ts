@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 import { ModelTraining } from '@/interfaces'
 
 export async function getLatestUserModel(
@@ -15,15 +16,15 @@ export async function getLatestUserModel(
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
-    console.log(data, 'getLatestUserModel')
+    logger.debug(data, 'getLatestUserModel')
     if (error) {
-      console.error('Error getting user model:', error)
+      logger.error('Error getting user model:', error)
       return null
     }
 
     return data as ModelTraining
   } catch (error) {
-    console.error('Error getting user model:', error)
+    logger.error('Error getting user model:', error)
     return null
   }
 }

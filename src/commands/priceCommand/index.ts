@@ -1,4 +1,5 @@
 import { SYSTEM_CONFIG } from '@/price/constants/index'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '@/interfaces'
 import { modeCosts } from '@/price/helpers/modelsCost'
 import { conversionRates, paymentOptionsPlans } from '@/price/priceCalculator'
@@ -145,7 +146,7 @@ ${subscriptionInfoRu}
 
     await ctx.reply(message, { parse_mode: 'HTML' })
   } catch (error) {
-    console.error('Error in handlePriceCommand:', error)
+    logger.error('Error in handlePriceCommand:', error)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
     await ctx.reply(

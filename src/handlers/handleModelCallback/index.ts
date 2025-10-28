@@ -1,4 +1,5 @@
 // src/handlers/modelHandler.ts
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '@/interfaces'
 import { UserModel } from '@/interfaces/models.interface'
 import { sendPhotoDescriptionRequest } from '@/menu/sendPhotoDescriptionRequest'
@@ -19,7 +20,7 @@ export const handleModelCallback = async (ctx: MyContext) => {
           : `✅ Model successfully changed to ${data}`
       )
     } catch (error) {
-      console.error('Error setting model:', error)
+      logger.error('Error setting model:', error)
       await ctx.reply(
         isRu ? '❌ Ошибка при изменении модели' : '❌ Error changing model'
       )

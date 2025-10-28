@@ -4,15 +4,15 @@ import { upscaleImage } from '@/services/imageUpscaler'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { ModeEnum } from '@/interfaces/modes'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageUpscaler,
   async ctx => {
-    console.log('CASE 0: image_upscaler')
+    logger.debug('CASE 0: image_upscaler')
     const isRu = isRussianFromState(ctx)
-    console.log('CASE: imageUpscalerCommand')
+    logger.debug('CASE: imageUpscalerCommand')
 
     // Устанавливаем режим для правильной работы справки
     ctx.session.mode = ModeEnum.ImageUpscaler
@@ -34,7 +34,7 @@ export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    console.log('CASE 1: image_upscaler')
+    logger.debug('CASE 1: image_upscaler')
     const isRu = isRussianFromState(ctx)
 
     const isCancel = await handleHelpCancel(ctx)

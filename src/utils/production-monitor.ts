@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { logger } from '@/utils/enhancedLogger'
 
 /**
  * Production Monitoring System for Bot Infrastructure
@@ -69,9 +70,9 @@ export class ProductionMonitor {
    * Start continuous monitoring
    */
   async startMonitoring(): Promise<void> {
-    console.log('🔍 Starting production monitoring system...')
-    console.log(`Check interval: ${this.config.checkInterval / 1000}s`)
-    console.log(`Auto-fix enabled: ${this.config.autoFix.enabled}`)
+    logger.debug('🔍 Starting production monitoring system...')
+    logger.debug(`Check interval: ${this.config.checkInterval / 1000}s`)
+    logger.debug(`Auto-fix enabled: ${this.config.autoFix.enabled}`)
     
     // Run initial check
     await this.runHealthChecks()
@@ -81,11 +82,11 @@ export class ProductionMonitor {
       try {
         await this.runHealthChecks()
       } catch (error) {
-        console.error('❌ Monitoring cycle failed:', error)
+        logger.error('❌ Monitoring cycle failed:', error)
       }
     }, this.config.checkInterval)
     
-    console.log('✅ Production monitoring started')
+    logger.debug('✅ Production monitoring started')
   }
 
   /**
@@ -95,7 +96,7 @@ export class ProductionMonitor {
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval)
       this.monitoringInterval = undefined
-      console.log('🛑 Production monitoring stopped')
+      logger.debug('🛑 Production monitoring stopped')
     }
   }
 
@@ -104,7 +105,7 @@ export class ProductionMonitor {
    */
   async runHealthChecks(): Promise<HealthCheck[]> {
     const timestamp = new Date()
-    console.log(`\n🔍 Running health checks at ${timestamp.toISOString()}`)
+    logger.debug(`\n🔍 Running health checks at ${timestamp.toISOString()}`)
     
     const checks: HealthCheck[] = await Promise.all([
       this.checkContainerStatus(),
@@ -580,7 +581,7 @@ export class ProductionMonitor {
     const fullMessage = `🚨 PRODUCTION ALERT 🚨\n\n${message}\n\nTime: ${new Date().toISOString()}\nServer: 185.161.67.53`
     
     // Console alert
-    console.error(critical ? `🚨 CRITICAL ALERT: ${message}` : `⚠️ WARNING: ${message}`)
+    logger.error(critical ? `🚨 CRITICAL ALERT: ${message}` : `⚠️ WARNING: ${message}`)
     
     // Telegram alert
     if (this.config.notifications.telegramBotToken && this.config.notifications.alertChatId) {
@@ -595,7 +596,7 @@ export class ProductionMonitor {
           })
         })
       } catch (error) {
-        console.error('Failed to send Telegram alert:', error)
+        logger.error('Failed to send Telegram alert:', error)
       }
     }
   }
@@ -608,11 +609,11 @@ export class ProductionMonitor {
     const warned = checks.filter(c => c.status === 'warn').length
     const failed = checks.filter(c => c.status === 'fail').length
     
-    console.log(`\n📊 Health Summary: ${passed} passed, ${warned} warnings, ${failed} failed`)
+    logger.debug(`\n📊 Health Summary: ${passed} passed, ${warned} warnings, ${failed} failed`)
     
     for (const check of checks) {
       const icon = check.status === 'pass' ? '✅' : check.status === 'warn' ? '⚠️' : '❌'
-      console.log(`${icon} ${check.name}: ${check.message}`)
+      logger.debug(`${icon} ${check.name}: ${check.message}`)
     }
   }
 
@@ -650,7 +651,7 @@ if (typeof process !== 'undefined' && process.argv.length > 2 && process.argv[1]
       monitor.startMonitoring()
       break
     default:
-      console.log('Usage: bun run src/utils/production-monitor.ts {check|monitor}')
+      logger.debug('Usage: bun run src/utils/production-monitor.ts {check|monitor}')
       process.exit(1)
   }
 }

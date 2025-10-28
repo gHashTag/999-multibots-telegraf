@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { setAspectRatio } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -7,7 +8,7 @@ import { ModeEnum } from '@/interfaces/modes'
 export async function handleSizeSelection(ctx: MyContext, size: string) {
   ctx.session.selectedSize = size
   if (!ctx.from) {
-    console.error('❌ Telegram ID не найден')
+    logger.error('❌ Telegram ID не найден')
     return
   }
   const success = await setAspectRatio(ctx.from.id, size)

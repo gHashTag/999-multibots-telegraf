@@ -10,7 +10,7 @@ import {
 } from '@/core/supabase'
 import { FLUX_KONTEXT_MODELS } from '@/price/models'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
-import { logger, logSessionSafely } from '@/utils/logger'
+import { logger, logSessionSafely } from '@/utils/enhancedLogger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
@@ -58,7 +58,7 @@ export interface AdvancedFluxKontextParams {
 export const generateFluxKontext = async (
   params: FluxKontextParams
 ): Promise<GenerationResult> => {
-  console.log('🔥 [CRITICAL] generateFluxKontext CALLED with params:', {
+  logger.debug('🔥 [CRITICAL] generateFluxKontext CALLED with params:', {
     telegram_id: params.telegram_id,
     modelType: params.modelType,
     promptLength: params.prompt?.length,
@@ -78,21 +78,21 @@ export const generateFluxKontext = async (
       ctx,
     } = params
 
-    console.log(
+    logger.debug(
       '🔥 [CRITICAL] generateFluxKontext params destructured successfully'
     )
 
     const modelKey = `black-forest-labs/flux-kontext-${modelType}`
     const modelConfig = FLUX_KONTEXT_MODELS[modelKey]
 
-    console.log('🔥 [CRITICAL] Model config:', {
+    logger.debug('🔥 [CRITICAL] Model config:', {
       modelKey,
       configExists: !!modelConfig,
       costPerImage: modelConfig?.costPerImage,
     })
 
     if (!modelConfig) {
-      console.error('🚨 [CRITICAL] Model config not found for:', modelKey)
+      logger.error('🚨 [CRITICAL] Model config not found for:', modelKey)
       throw new Error(`Неподдерживаемый тип модели: ${modelKey}`)
     }
 
@@ -115,13 +115,13 @@ export const generateFluxKontext = async (
       is_ru,
     })
 
-    console.log('🔥 [CRITICAL] Balance check completed:', {
+    logger.debug('🔥 [CRITICAL] Balance check completed:', {
       success: balanceCheck.success,
       telegram_id,
     })
 
     if (!balanceCheck.success) {
-      console.error('🚨 [CRITICAL] Balance check failed:', {
+      logger.error('🚨 [CRITICAL] Balance check failed:', {
         telegram_id,
         balanceCheck,
       })
@@ -136,14 +136,14 @@ export const generateFluxKontext = async (
       }
     )
 
-    console.log(
+    logger.debug(
       '🔥 [CRITICAL] About to send status message to telegram_id:',
       telegram_id
     )
 
     // Отправка сообщения о начале редактирования с обработкой ошибок
     try {
-      console.log('🔥 [CRITICAL] Calling ctx.telegram.sendMessage...')
+      logger.debug('🔥 [CRITICAL] Calling ctx.telegram.sendMessage...')
 
       await ctx.telegram.sendMessage(
         telegram_id,
@@ -155,13 +155,13 @@ export const generateFluxKontext = async (
         }
       )
 
-      console.log('🔥 [CRITICAL] Status message sent successfully!')
+      logger.debug('🔥 [CRITICAL] Status message sent successfully!')
 
       logger.info('[generateFluxKontext] Status message sent successfully', {
         telegram_id,
       })
     } catch (messageError) {
-      console.error('🚨 [CRITICAL] Status message failed:', {
+      logger.error('🚨 [CRITICAL] Status message failed:', {
         telegram_id,
         error: messageError,
         errorMessage:
@@ -184,7 +184,7 @@ export const generateFluxKontext = async (
       aspect_ratio: '9:16', // Формат для Instagram Stories
     }
 
-    console.log('🔥 [CRITICAL] About to call Replicate API:', {
+    logger.debug('🔥 [CRITICAL] About to call Replicate API:', {
       modelKey,
       inputParams: {
         prompt: prompt.substring(0, 100) + '...',
@@ -200,7 +200,7 @@ export const generateFluxKontext = async (
       inputParams,
     })
 
-    console.log('🔥 [CRITICAL] Calling replicate.run...')
+    logger.debug('🔥 [CRITICAL] Calling replicate.run...')
 
     let output: ApiResponse
     try {
@@ -209,7 +209,7 @@ export const generateFluxKontext = async (
         input: inputParams,
       })) as ApiResponse
     } catch (error: any) {
-      console.log('🚨 [CRITICAL] First attempt failed, checking error type:', {
+      logger.debug('🚨 [CRITICAL] First attempt failed, checking error type:', {
         errorMessage: error?.message,
         isSensitiveContent: error?.message?.includes('E005'),
       })
@@ -219,7 +219,7 @@ export const generateFluxKontext = async (
         error?.message?.includes('E005') ||
         error?.message?.includes('sensitive')
       ) {
-        console.log('🔄 [CRITICAL] Retrying with safer prompt...')
+        logger.debug('🔄 [CRITICAL] Retrying with safer prompt...')
 
         // Создаем безопасный fallback промпт
         const safePrompt = `[Portrait. Aspect ratio 9:16] Professional headshot of a person in stylish modern clothing. Clean studio lighting, neutral background, fashionable appearance.`
@@ -234,9 +234,9 @@ export const generateFluxKontext = async (
             input: safeInputParams,
           })) as ApiResponse
 
-          console.log('✅ [CRITICAL] Fallback prompt succeeded!')
+          logger.debug('✅ [CRITICAL] Fallback prompt succeeded!')
         } catch (fallbackError: any) {
-          console.error('🚨 [CRITICAL] Even fallback failed:', fallbackError)
+          logger.error('🚨 [CRITICAL] Even fallback failed:', fallbackError)
           throw error // Бросаем оригинальную ошибку
         }
       } else {
@@ -244,7 +244,7 @@ export const generateFluxKontext = async (
       }
     }
 
-    console.log('🔥 [CRITICAL] Replicate API completed!')
+    logger.debug('🔥 [CRITICAL] Replicate API completed!')
 
     logger.info('[generateFluxKontext] API generation completed', {
       telegram_id,
@@ -267,7 +267,7 @@ export const generateFluxKontext = async (
       '.jpeg'
     )
 
-    console.log('🔥 [CRITICAL] File saved locally:', {
+    logger.debug('🔥 [CRITICAL] File saved locally:', {
       imageLocalPath,
       telegram_id,
       fileExists: fs.existsSync(imageLocalPath),
@@ -277,7 +277,7 @@ export const generateFluxKontext = async (
       imageLocalPath
     )}`
 
-    console.log('🔥 [CRITICAL] Local URL created:', {
+    logger.debug('🔥 [CRITICAL] Local URL created:', {
       imageLocalUrl,
       telegram_id,
     })
@@ -290,17 +290,17 @@ export const generateFluxKontext = async (
       Number(telegram_id)
     )
 
-    console.log('🔥 [CRITICAL] Prompt saved:', {
+    logger.debug('🔥 [CRITICAL] Prompt saved:', {
       prompt_id,
       telegram_id,
     })
 
     if (prompt_id === null) {
-      console.error('🚨 [CRITICAL] prompt_id is null!', { telegram_id })
+      logger.error('🚨 [CRITICAL] prompt_id is null!', { telegram_id })
       throw new Error('prompt_id is null')
     }
 
-    console.log('🔥 [CRITICAL] About to download file for sending:', {
+    logger.debug('🔥 [CRITICAL] About to download file for sending:', {
       editedImageUrl,
       telegram_id,
     })
@@ -308,7 +308,7 @@ export const generateFluxKontext = async (
     // Скачивание для отправки
     const image = await downloadFile(editedImageUrl)
 
-    console.log('🔥 [CRITICAL] File downloaded for sending:', {
+    logger.debug('🔥 [CRITICAL] File downloaded for sending:', {
       imageSize: image?.length || 'unknown',
       telegram_id,
     })
@@ -321,7 +321,7 @@ export const generateFluxKontext = async (
       modelType,
     })
 
-    console.log('🔥 [CRITICAL] About to call ctx.telegram.sendPhoto:', {
+    logger.debug('🔥 [CRITICAL] About to call ctx.telegram.sendPhoto:', {
       telegram_id,
       imageLocalPath,
       fileExists: fs.existsSync(imageLocalPath),
@@ -330,7 +330,7 @@ export const generateFluxKontext = async (
 
     // Отправка отредактированного изображения с обработкой ошибок
     try {
-      console.log('🔥 [CRITICAL] Calling ctx.telegram.sendPhoto now...')
+      logger.debug('🔥 [CRITICAL] Calling ctx.telegram.sendPhoto now...')
 
       // Укорачиваем промпт для подписи (Telegram лимит: 1024 символа)
       const maxPromptLength = 600 // Оставляем больше места для рекламы бота
@@ -361,7 +361,7 @@ export const generateFluxKontext = async (
         }
       )
 
-      console.log(
+      logger.debug(
         '🔥 [CRITICAL] ctx.telegram.sendPhoto completed successfully!'
       )
 
@@ -371,7 +371,7 @@ export const generateFluxKontext = async (
         modelType,
       })
     } catch (photoError) {
-      console.error('🚨 [CRITICAL] ctx.telegram.sendPhoto FAILED:', {
+      logger.error('🚨 [CRITICAL] ctx.telegram.sendPhoto FAILED:', {
         telegram_id,
         error: photoError,
         errorMessage:
@@ -386,7 +386,7 @@ export const generateFluxKontext = async (
         mode: 'edit',
       })
 
-      console.log('🔥 [CRITICAL] Sending fallback error message...')
+      logger.debug('🔥 [CRITICAL] Sending fallback error message...')
 
       await ctx.reply(
         is_ru
@@ -395,7 +395,7 @@ export const generateFluxKontext = async (
         { parse_mode: 'Markdown' }
       )
 
-      console.log('🔥 [CRITICAL] Fallback message sent')
+      logger.debug('🔥 [CRITICAL] Fallback message sent')
 
       // НЕ выбрасываем ошибку - позволяем процессу завершиться нормально
     }
@@ -414,7 +414,7 @@ export const generateFluxKontext = async (
         '🔍 SAVE SESSION: Standard FLUX Kontext'
       )
     } else {
-      console.log(
+      logger.debug(
         '❌ SAVE SESSION: ctx.session is null for standard FLUX Kontext',
         { telegram_id }
       )
@@ -542,13 +542,13 @@ export const generateAdvancedFluxKontext = async (
       is_ru,
     })
 
-    console.log('🔥 [CRITICAL] Balance check completed:', {
+    logger.debug('🔥 [CRITICAL] Balance check completed:', {
       success: balanceCheck.success,
       telegram_id,
     })
 
     if (!balanceCheck.success) {
-      console.error('🚨 [CRITICAL] Balance check failed:', {
+      logger.error('🚨 [CRITICAL] Balance check failed:', {
         telegram_id,
         balanceCheck,
       })
@@ -726,7 +726,7 @@ export const generateAdvancedFluxKontext = async (
         '🔍 SAVE SESSION: Advanced FLUX Kontext'
       )
     } else {
-      console.log(
+      logger.debug(
         '❌ SAVE SESSION: ctx.session is null for advanced FLUX Kontext',
         { telegram_id }
       )
@@ -876,13 +876,13 @@ export const upscaleFluxKontextImage = async (params: {
       is_ru,
     })
 
-    console.log('🔥 [CRITICAL] Balance check completed:', {
+    logger.debug('🔥 [CRITICAL] Balance check completed:', {
       success: balanceCheck.success,
       telegram_id,
     })
 
     if (!balanceCheck.success) {
-      console.error('🚨 [CRITICAL] Balance check failed:', {
+      logger.error('🚨 [CRITICAL] Balance check failed:', {
         telegram_id,
         balanceCheck,
       })

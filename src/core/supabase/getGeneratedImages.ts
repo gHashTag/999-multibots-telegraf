@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const getGeneratedImages = async (telegram_id: number) => {
   const { data, error } = await supabase
@@ -8,7 +9,7 @@ export const getGeneratedImages = async (telegram_id: number) => {
     .single()
 
   if (error || !data) {
-    console.log('Ошибка при получении count для telegram_id:', error)
+    logger.debug('Ошибка при получении count для telegram_id:', error)
     return { count: 0, limit: 2 }
   }
 

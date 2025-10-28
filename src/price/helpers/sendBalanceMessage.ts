@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 import { getBotByName } from '@/core/bot'
 import { BotName } from '@/interfaces/telegram-bot.interface'
 export const sendBalanceMessage = async (
@@ -10,7 +11,7 @@ export const sendBalanceMessage = async (
 ) => {
   const { bot } = getBotByName(bot_name as BotName)
   if (!bot) {
-    console.error(`Bot instance not found for name: ${bot_name}`)
+    logger.error(`Bot instance not found for name: ${bot_name}`)
     throw new Error('Bot instance not found')
   }
   await bot.telegram.sendMessage(

@@ -1,7 +1,8 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const getVoiceId = async (telegram_id: string) => {
-  console.log('[getVoiceId] DEBUG: Looking for voice ID for user:', telegram_id)
+  logger.debug('[getVoiceId] DEBUG: Looking for voice ID for user:', telegram_id)
 
   const { data, error } = await supabase
     .from('users')
@@ -10,14 +11,14 @@ export const getVoiceId = async (telegram_id: string) => {
     .maybeSingle()
 
   if (error) {
-    console.error('[getVoiceId] ERROR:', error)
+    logger.error('[getVoiceId] ERROR:', error)
     throw new Error(
       `Ошибка при получении voice_id_elevenlabs: ${error.message}`
     )
   }
 
-  console.log('[getVoiceId] DEBUG: Raw data from database:', data)
-  console.log('[getVoiceId] DEBUG: Voice ID found:', data?.voice_id_elevenlabs)
+  logger.debug('[getVoiceId] DEBUG: Raw data from database:', data)
+  logger.debug('[getVoiceId] DEBUG: Voice ID found:', data?.voice_id_elevenlabs)
 
   return data?.voice_id_elevenlabs
 }

@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 import { ModeEnum } from '@/interfaces/modes'
 
 export const savePromptDirect = async (
@@ -20,7 +21,7 @@ export const savePromptDirect = async (
     .maybeSingle()
 
   if (selectError) {
-    console.error('Ошибка при проверке существующего промпта:', selectError)
+    logger.error('Ошибка при проверке существующего промпта:', selectError)
     return null
   }
 
@@ -43,7 +44,7 @@ export const savePromptDirect = async (
     .single()
 
   if (error) {
-    console.error('Ошибка при сохранении промпта:', error)
+    logger.error('Ошибка при сохранении промпта:', error)
     return null
   }
 

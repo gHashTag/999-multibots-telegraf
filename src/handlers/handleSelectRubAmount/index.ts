@@ -1,4 +1,5 @@
 import { Context, Markup } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import {
   rubTopUpOptions,
   getDynamicRubTopUpOptions,
@@ -43,7 +44,7 @@ export async function handleSelectRubAmount({ ctx, isRu }: SelectRubParams) {
       Markup.inlineKeyboard(inlineKeyboardRows)
     )
   } catch (error) {
-    console.error('Error in handleSelectRubAmount:', error)
+    logger.error('Error in handleSelectRubAmount:', error)
     throw error
   }
 }

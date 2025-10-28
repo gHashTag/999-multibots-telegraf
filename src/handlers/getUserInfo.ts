@@ -1,4 +1,5 @@
 import { MyContext } from '../interfaces'
+import { logger } from '@/utils/enhancedLogger'
 import { getUserDetailsSubscription } from '../core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
@@ -14,14 +15,14 @@ export const getUserInfo = async (ctx: MyContext) => {
         : '❌ User identification error'
     )
     if (!ctx.from) {
-      console.error('❌ Telegram ID не найден')
+      logger.error('❌ Telegram ID не найден')
       return {
         userId: 0,
         telegramId: '',
       }
     }
     if (!telegramId) {
-      console.error('❌ Telegram ID не найден')
+      logger.error('❌ Telegram ID не найден')
       return {
         userId: 0,
         telegramId: '',
@@ -34,7 +35,7 @@ export const getUserInfo = async (ctx: MyContext) => {
     }
   }
   if (!telegramId) {
-    console.error('❌ Telegram ID не найден')
+    logger.error('❌ Telegram ID не найден')
     return {
       userId: 0,
       telegramId: '',

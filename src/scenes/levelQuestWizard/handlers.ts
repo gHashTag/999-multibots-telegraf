@@ -829,7 +829,7 @@ Expand the user community and open new horizons together!`
 
 export async function handleQuestComplete(ctx: MyContext) {
   const telegram_id = ctx.from?.id?.toString() || ''
-  console.warn('TODO: Implement user level update to 12 in handleQuestComplete')
+  logger.warn('TODO: Implement user level update to 12 in handleQuestComplete')
 
   const isRu = isRussian(ctx)
   const { count, subscriptionType, level } = await getReferalsCountAndUserData(

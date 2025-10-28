@@ -1,4 +1,5 @@
 import { createLogger, format, transports } from 'winston'
+import { logger } from '@/utils/enhancedLogger'
 // @ts-ignore - winston-daily-rotate-file doesn't have proper types
 import DailyRotateFile from 'winston-daily-rotate-file'
 import path from 'path'
@@ -364,7 +365,7 @@ export const logSessionSafely = (session: any, label?: string) => {
 // Безопасная версия console.log
 export const safeConsoleLog = (...args: any[]) => {
   const sanitizedArgs = args.map(arg => sanitizeForLogging(arg))
-  console.log(...sanitizedArgs)
+  logger.debug(...sanitizedArgs)
 }
 
 // Настройка безопасного логирования консоли (опционально)

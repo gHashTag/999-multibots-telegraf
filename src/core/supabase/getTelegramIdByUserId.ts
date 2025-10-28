@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const getTelegramIdByUserId = async (
   userId: string
@@ -11,13 +12,13 @@ export const getTelegramIdByUserId = async (
       .single()
 
     if (error) {
-      console.error('Ошибка при получении telegram_id:', error)
+      logger.error('Ошибка при получении telegram_id:', error)
       return null
     }
 
     return data?.telegram_id || null
   } catch (error) {
-    console.error('Ошибка в getTelegramIdByUserId:', error)
+    logger.error('Ошибка в getTelegramIdByUserId:', error)
     throw error
   }
 }

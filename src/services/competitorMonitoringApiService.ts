@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { API_URL } from '@/config'
@@ -161,9 +161,9 @@ export class CompetitorMonitoringApiService {
             }
           }
           
-          console.log('🚀 [INNGEST] Triggering Instagram scraping')
-          console.log('🔗 [INNGEST] URL:', inngestUrl)
-          console.log('📦 [INNGEST] Event:', JSON.stringify(inngestEvent, null, 2))
+          logger.debug('🚀 [INNGEST] Triggering Instagram scraping')
+          logger.debug('🔗 [INNGEST] URL:', inngestUrl)
+          logger.debug('📦 [INNGEST] Event:', JSON.stringify(inngestEvent, null, 2))
           
           logger.info('[Competitor Monitoring API] Triggering Instagram scraping via Inngest', {
             subscriptionId: response.data.subscription.id,
@@ -184,15 +184,15 @@ export class CompetitorMonitoringApiService {
             }
           )
           
-          console.log('✅ [INNGEST] Response status:', parseResponse.status)
-          console.log('✅ [INNGEST] Response data:', parseResponse.data)
+          logger.debug('✅ [INNGEST] Response status:', parseResponse.status)
+          logger.debug('✅ [INNGEST] Response data:', parseResponse.data)
           
           logger.info('[Competitor Monitoring API] Instagram scraping triggered successfully', {
             status: parseResponse.status,
             data: parseResponse.data
           })
         } catch (parseError) {
-          console.error('❌ [INNGEST] Failed to trigger scraping:', parseError)
+          logger.error('❌ [INNGEST] Failed to trigger scraping:', parseError)
           logger.error('[Competitor Monitoring API] Failed to trigger Instagram scraping', {
             error: parseError instanceof Error ? parseError.message : String(parseError),
             subscriptionId: response.data.subscription.id,

@@ -1,4 +1,5 @@
 import { isDev } from '@/config'
+import { logger } from '@/utils/enhancedLogger'
 import { supabase } from '@/core/supabase'
 import axios from 'axios'
 
@@ -27,7 +28,7 @@ export async function generateLipSync(
   const webhookUrl = isDev
     ? `${process.env.NGROK}/api/synclabs-webhook`
     : `${process.env.API_SERVER_URL}/api/synclabs-webhook`
-  console.log(webhookUrl, 'webhookUrl')
+  logger.debug(webhookUrl, 'webhookUrl')
 
   try {
     const response = await axios.post(
@@ -52,7 +53,7 @@ export async function generateLipSync(
 
     const data = response.data
 
-    console.log(response.data, 'response.data')
+    logger.debug(response.data, 'response.data')
 
     await supabase.from('synclabs_videos').insert({
       user_id: userId,
@@ -62,7 +63,7 @@ export async function generateLipSync(
 
     return data
   } catch (error) {
-    console.error('Ошибка при генерации видео:', error)
+    logger.error('Ошибка при генерации видео:', error)
     throw error
   }
 }

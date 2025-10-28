@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import FormData from 'form-data'
-import logger from '@/utils/logger'
+import logger from '@/utils/enhancedLogger'
 
 export class ElevenLabsVoiceLimitError extends Error {
   constructor(message: string) {
@@ -91,8 +91,8 @@ export async function createVoiceElevenLabs({
     const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY
     if (!elevenLabsApiKey) {
       logger.error('[createVoiceElevenLabs] ELEVENLABS_API_KEY is not set.')
-      console.error('ELEVENLABS_API_KEY is not set.')
-      console.warn(
+      logger.error('ELEVENLABS_API_KEY is not set.')
+      logger.warn(
         '[MOCK_MODE] ELEVENLABS_API_KEY not set, would return mock/error here in production'
       )
       return null
@@ -165,7 +165,7 @@ export async function createVoiceElevenLabs({
       try {
         fs.unlinkSync(downloadPath)
       } catch (unlinkError) {
-        console.error('Error deleting temporary voice file:', unlinkError)
+        logger.error('Error deleting temporary voice file:', unlinkError)
       }
     }
   }

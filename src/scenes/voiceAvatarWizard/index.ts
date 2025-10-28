@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '@/interfaces'
 import { createVoiceAvatar } from '@/services/plan_b/createVoiceAvatar'
 import { isRussian } from '@/helpers/language'
@@ -71,7 +72,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         const messageText =
           'text' in ctx.message ? ctx.message.text : 'No text provided'
         if (!ctx.from?.id) {
-          console.error('❌ Telegram ID не найден')
+          logger.error('❌ Telegram ID не найден')
           return
         }
 
@@ -87,7 +88,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         // переходим в сцену text_to_speech вместо выхода из текущей сцены.
         return ctx.scene.enter('text_to_speech')
       } catch (error) {
-        console.error('Error in handleVoiceMessage (Plan B):', error)
+        logger.error('Error in handleVoiceMessage (Plan B):', error)
         await ctx.reply(
           isRu
             ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'

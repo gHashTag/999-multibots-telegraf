@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logger } from '@/utils/enhancedLogger'
 import { SECRET_API_KEY, API_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 import { sendGenericErrorMessage } from '@/menu'
@@ -39,7 +40,7 @@ export async function generateVoiceAvatar(
 
     return response.data
   } catch (error) {
-    console.error('Error generating voice avatar:', error)
+    logger.error('Error generating voice avatar:', error)
 
     try {
       const errorMessage = isRu
@@ -52,7 +53,7 @@ export async function generateVoiceAvatar(
         error instanceof Error ? error : new Error(errorMessage)
       )
     } catch (err) {
-      console.error('Ошибка при отправке сообщения об ошибке:', err)
+      logger.error('Ошибка при отправке сообщения об ошибке:', err)
     }
 
     return null

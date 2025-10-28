@@ -1,4 +1,5 @@
 import axios, { isAxiosError } from 'axios'
+import { logger } from '@/utils/enhancedLogger'
 import {
   isDev,
   SECRET_API_KEY,
@@ -56,18 +57,18 @@ export async function generateTextToSpeech(
       }
     )
 
-    console.log('Text to speech response:', response.data)
+    logger.debug('Text to speech response:', response.data)
     return response.data
   } catch (error) {
     if (isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
+      logger.error('API Error:', error.response?.data || error.message)
       throw new Error(
         isRu
           ? 'Произошла ошибка при преобразовании текста в речь'
           : 'Error occurred while converting text to speech'
       )
     }
-    console.error('Unexpected error:', error)
+    logger.error('Unexpected error:', error)
     throw error
   }
 }

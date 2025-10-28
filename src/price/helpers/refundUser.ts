@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { mainMenu } from '@/menu'
@@ -7,7 +8,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export async function refundUser(ctx: MyContext, paymentAmount: number) {
   if (!ctx.from) {
-    console.error('refundUser: ctx.from is undefined')
+    logger.error('refundUser: ctx.from is undefined')
     return
   }
   const telegramIdStr = ctx.from.id.toString()
@@ -16,7 +17,7 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
   const initialBalance = await getUserBalance(telegramIdStr)
 
   if (initialBalance === null) {
-    console.error(
+    logger.error(
       `refundUser: Failed to get initial balance for ${telegramIdStr}`
     )
     return
@@ -35,7 +36,7 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
 
   // Проверяем булевый результат напрямую
   if (!transactionResult) {
-    console.error(
+    logger.error(
       `refundUser: Failed to update balance for ${telegramIdStr}. Update function returned false.`
     )
     await ctx.reply(
@@ -49,7 +50,7 @@ export async function refundUser(ctx: MyContext, paymentAmount: number) {
   const newBalance = await getUserBalance(telegramIdStr)
 
   if (newBalance === null) {
-    console.error(
+    logger.error(
       `refundUser: Failed to get new balance for ${telegramIdStr} after refund`
     )
   }

@@ -1,4 +1,5 @@
 import { Inngest } from 'inngest'
+import { logger } from '@/utils/enhancedLogger'
 // Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
 // import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
 
@@ -26,7 +27,7 @@ const config = {
       : undefined,
 }
 
-console.log('🔥 [DEBUG] Inngest client configuration:', {
+logger.debug('🔥 [DEBUG] Inngest client configuration:', {
   ...config,
   eventKey: config.eventKey ? '***HIDDEN***' : 'not set',
   environment: process.env.NODE_ENV

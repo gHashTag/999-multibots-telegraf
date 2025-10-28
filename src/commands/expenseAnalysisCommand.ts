@@ -1,4 +1,5 @@
 import { Composer, Markup } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase/client'
 import { ADMIN_IDS_ARRAY } from '@/config'
@@ -25,7 +26,7 @@ composer.command('expense_analysis', async ctx => {
       await ctx.reply(message, { parse_mode: 'HTML' })
     }
   } catch (error) {
-    console.error('❌ Ошибка в expense_analysis:', error)
+    logger.error('❌ Ошибка в expense_analysis:', error)
     await ctx.reply('❌ Произошла ошибка при анализе расходов')
   }
 })

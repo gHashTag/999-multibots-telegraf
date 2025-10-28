@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { supabase } from './client'
 import {
   TelegramId,
@@ -574,7 +574,7 @@ export async function getBotStatsWithCost(
       recommendations: recommendations,
     }
   } catch (error) {
-    console.error('Error in getBotStatsWithCost:', error)
+    logger.error('Error in getBotStatsWithCost:', error)
     return getDefaultStats()
   }
 }

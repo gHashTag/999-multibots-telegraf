@@ -5,7 +5,7 @@ import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { getBotNameByToken } from '../core/bot'
 
 interface Level {
@@ -230,7 +230,7 @@ export async function mainMenu({
   subscription: SubscriptionType | null
   ctx: MyContext
 }): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
-  console.log('💻 CASE: mainMenu - Entering function')
+  logger.debug('💻 CASE: mainMenu - Entering function')
 
   // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MAINMENU
   const telegramId = ctx.from?.id?.toString()
@@ -245,7 +245,7 @@ export async function mainMenu({
 
   const currentSubscription =
     subscription === null ? SubscriptionType.STARS : subscription
-  console.log(
+  logger.debug(
     `[mainMenu LOG] Input subscription: ${subscription}, Effective subscription: ${currentSubscription}`
   )
 
@@ -263,7 +263,7 @@ export async function mainMenu({
   })
 
   let hasFullAccess = checkFullAccess(currentSubscription)
-  console.log(`[mainMenu LOG] hasFullAccess: ${hasFullAccess}`)
+  logger.debug(`[mainMenu LOG] hasFullAccess: ${hasFullAccess}`)
 
   const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
     [SubscriptionType.STARS]: [],
@@ -296,7 +296,7 @@ export async function mainMenu({
     currentSubscription === SubscriptionType.NEUROTESTER
   ) {
     hasFullAccess = true
-    console.log(`[mainMenu LOG] Full access for ${currentSubscription}`)
+    logger.debug(`[mainMenu LOG] Full access for ${currentSubscription}`)
   }
 
   // Показываем ВСЕ основные функции ВСЕМ пользователям
@@ -328,12 +328,12 @@ export async function mainMenu({
     }
   }
 
-  console.log(
+  logger.debug(
     `[mainMenu LOG] Showing ALL buttons for subscription: ${currentSubscription}`
   )
 
   availableLevels = Array.from(new Set(availableLevels))
-  console.log(
+  logger.debug(
     `[mainMenu LOG] Determined availableLevels count: ${availableLevels.length}`
   )
 
@@ -349,7 +349,7 @@ export async function mainMenu({
       Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
       Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
     )
-    console.log('[mainMenu LOG] Added admin buttons.')
+    logger.debug('[mainMenu LOG] Added admin buttons.')
   }
 
   // --- Создаем кнопки, которые нужны почти всегда ---
@@ -374,14 +374,14 @@ export async function mainMenu({
   const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом (Подписка)
 
   if (currentSubscription === SubscriptionType.STARS) {
-    console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
+    logger.debug('[mainMenu LOG] Generating bottom row for STARS subscription')
     // Для STARS добавляем Пригласить друга и Техподдержку
     const inviteButton = Markup.button.text(
       isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
     )
     bottomRowButtons.push([inviteButton, supportButton])
   } else {
-    console.log(
+    logger.debug(
       `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
     )
     const balanceButton = Markup.button.text(
@@ -401,7 +401,7 @@ export async function mainMenu({
 
   // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
   bottomRowButtons.push([languageButton])
-  console.log(
+  logger.debug(
     `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
   )
 
@@ -409,11 +409,11 @@ export async function mainMenu({
   const finalKeyboard = [...buttonRows, ...bottomRowButtons]
 
   // Добавляем кнопку "Оформить подписку" для ВСЕХ пользователей (включая STARS)
-  console.log(`[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`)
+  logger.debug(`[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`)
   finalKeyboard.push([subscribeButton])
 
-  console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
-  console.log(
+  logger.debug(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
+  logger.debug(
     `[mainMenu LOG] Final keyboard structure:`,
     JSON.stringify(finalKeyboard.map(row => row.map(btn => btn.text)))
   )

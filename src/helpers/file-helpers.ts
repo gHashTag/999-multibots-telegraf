@@ -1,4 +1,5 @@
 import axios, { isAxiosError } from 'axios'
+import { logger } from '@/utils/enhancedLogger'
 import * as fs from 'fs/promises'
 import path from 'path'
 import { promisify } from 'util'
@@ -43,9 +44,9 @@ export async function downloadFile(
     const u8 = new Uint8Array(buffer)
     await fs.writeFile(localPath, u8)
   } catch (error) {
-    console.error(`Error downloading file from ${url} to ${localPath}:`, error)
+    logger.error(`Error downloading file from ${url} to ${localPath}:`, error)
     if (isAxiosError(error)) {
-      console.error('Axios error details:', {
+      logger.error('Axios error details:', {
         response: error.response?.data,
         status: error.response?.status,
         headers: error.response?.headers,
@@ -92,12 +93,12 @@ export const getFileExtension = (url: string): string | null => {
  * @param filePath The path to the directory.
  */
 export async function ensureDirectoryExistence(filePath: string) {
-  console.log(`Ensuring directory exists: ${filePath}`) // Лог для проверки пути
+  logger.debug(`Ensuring directory exists: ${filePath}`) // Лог для проверки пути
   try {
     await fs.mkdir(filePath, { recursive: true })
-    console.log(`Directory created: ${filePath}`) // Лог для подтверждения создания
+    logger.debug(`Directory created: ${filePath}`) // Лог для подтверждения создания
   } catch (error) {
-    console.error(`Error creating directory: ${error}`)
+    logger.error(`Error creating directory: ${error}`)
     throw error
   }
 }
@@ -124,7 +125,7 @@ export async function saveFileLocally(
     `${new Date().toISOString()}${extension}`
   )
 
-  console.log('Saving file to:', fileLocalPath)
+  logger.debug('Saving file to:', fileLocalPath)
 
   // Создаем директорию, если она не существует
   await ensureDirectoryExistence(path.dirname(fileLocalPath))
@@ -141,10 +142,10 @@ export async function saveFileLocally(
  */
 export async function deleteFile(filePath: string) {
   try {
-    console.log('filePath', filePath)
+    logger.debug('filePath', filePath)
     await fs.unlink(filePath)
-    console.log(`File ${filePath} deleted successfully`)
+    logger.debug(`File ${filePath} deleted successfully`)
   } catch (error) {
-    console.error(`Error deleting file ${filePath}:`, error)
+    logger.error(`Error deleting file ${filePath}:`, error)
   }
 }

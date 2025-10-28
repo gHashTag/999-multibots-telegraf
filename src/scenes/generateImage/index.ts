@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '@/interfaces'
 
 import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'
@@ -19,9 +20,9 @@ interface GenerateImageState {
 export const generateImageWizard = new Scenes.WizardScene<MyContext>(
   'generate_image',
   async ctx => {
-    console.log('CASE 0: generate_image')
+    logger.debug('CASE 0: generate_image')
     const isRu = isRussianFromState(ctx)
-    console.log('CASE: generateImageCommand')
+    logger.debug('CASE: generateImageCommand')
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
@@ -40,7 +41,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    console.log('CASE 1: generate_image')
+    logger.debug('CASE 1: generate_image')
     const isRu = isRussianFromState(ctx)
 
     const isCancel = await handleHelpCancel(ctx)
@@ -99,7 +100,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    console.log('CASE 2: generate_image - выбор размера')
+    logger.debug('CASE 2: generate_image - выбор размера')
     const isRu = isRussianFromState(ctx)
 
     // Обработка кнопки отмены
@@ -185,7 +186,7 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.scene.leave()
     } catch (error) {
-      console.error('Error in generateImageWizard:', error)
+      logger.error('Error in generateImageWizard:', error)
 
       await ctx.reply(
         isRu

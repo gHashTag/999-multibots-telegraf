@@ -1,4 +1,5 @@
 const Replicate = require('replicate')
+import { logger } from '@/utils/enhancedLogger'
 
 export const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
@@ -48,7 +49,7 @@ interface ModelConfig {
 }
 
 const getInput = (prompt: string, aspect_ratio: string) => {
-  console.log(aspect_ratio, 'getInput aspect_ratio')
+  logger.debug(aspect_ratio, 'getInput aspect_ratio')
   let width: number, height: number
 
   switch (aspect_ratio) {

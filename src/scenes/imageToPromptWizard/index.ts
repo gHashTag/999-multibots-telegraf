@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '@/interfaces'
 
 import { generateImageToPrompt } from '@/services/generateImageToPrompt'
@@ -16,9 +17,9 @@ process.env.HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN || 'dummy-token'
 export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToPrompt,
   async ctx => {
-    console.log('CASE 0: image_to_prompt')
+    logger.debug('CASE 0: image_to_prompt')
     const isRu = isRussianFromState(ctx)
-    console.log('CASE: imageToPromptCommand')
+    logger.debug('CASE: imageToPromptCommand')
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
@@ -36,7 +37,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    console.log('CASE 1: image_to_prompt')
+    logger.debug('CASE 1: image_to_prompt')
     const isRu = isRussianFromState(ctx)
 
     const isCancel = await handleHelpCancel(ctx)
@@ -86,7 +87,7 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
 
         return ctx.scene.leave()
       } catch (error) {
-        console.error('Error in imageToPromptWizard:', error)
+        logger.error('Error in imageToPromptWizard:', error)
         await ctx.reply(
           isRu
             ? 'Произошла ошибка при обработке изображения. Пожалуйста, попробуйте позже.'

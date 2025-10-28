@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { logger } from '@/utils/enhancedLogger'
 import path from 'path'
 import { promisify } from 'util'
 import { downloadFile } from '@/helpers/downloadFile'
@@ -28,7 +29,7 @@ export async function saveFileLocally(
     `${new Date().toISOString()}${extension}`
   )
 
-  console.log('Saving file to:', fileLocalPath)
+  logger.debug('Saving file to:', fileLocalPath)
 
   // Создаем директорию, если она не существует
   await mkdir(path.dirname(fileLocalPath), { recursive: true })

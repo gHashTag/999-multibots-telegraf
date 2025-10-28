@@ -1,5 +1,5 @@
 import { ApifyClient } from 'apify-client'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { supabaseAdmin } from '@/core/supabase/client'
 
 const client = new ApifyClient({
@@ -73,7 +73,7 @@ export async function scrapeInstagramDirect(
             },
           }
 
-    console.log('📋 Apify input:', JSON.stringify(input, null, 2))
+    logger.debug('📋 Apify input:', JSON.stringify(input, null, 2))
 
     // Run the Instagram scraper
     const run = await client.actor('apify/instagram-scraper').call(input, {
@@ -85,15 +85,15 @@ export async function scrapeInstagramDirect(
       throw new Error('Apify не вернул корректный run объект. Возможно, сервис недоступен.')
     }
 
-    console.log(`✅ Actor run started with ID: ${run.id}`)
-    console.log(`📊 Status: ${run.status}`)
+    logger.debug(`✅ Actor run started with ID: ${run.id}`)
+    logger.debug(`📊 Status: ${run.status}`)
 
     // Wait for the run to finish
     await client.run(run.id).waitForFinish()
 
     // Get the final status
     const finalRun = await client.run(run.id).get()
-    console.log(`🏁 Final status: ${finalRun?.status}`)
+    logger.debug(`🏁 Final status: ${finalRun?.status}`)
 
     if (finalRun?.status !== 'SUCCEEDED') {
       throw new Error(`Actor failed with status: ${finalRun?.status}`)
@@ -112,7 +112,7 @@ export async function scrapeInstagramDirect(
       throw new Error('Apify вернул некорректные данные. Возможно, проблема с API.')
     }
 
-    console.log(`📊 Retrieved ${results.items.length} posts`)
+    logger.debug(`📊 Retrieved ${results.items.length} posts`)
     
     // Логируем детали для диагностики
     logger.info('Apify parsing results details', {
@@ -126,7 +126,7 @@ export async function scrapeInstagramDirect(
 
     // Debug: log first item structure
     if (results.items.length > 0) {
-      console.log('🔍 DEBUG: First item structure:', JSON.stringify(results.items[0], null, 2))
+      logger.debug('🔍 DEBUG: First item structure:', JSON.stringify(results.items[0], null, 2))
     }
 
     // Filter for reels/videos
@@ -139,11 +139,11 @@ export async function scrapeInstagramDirect(
                      item.__typename === 'GraphVideo' ||
                      item.media_type === 2  // Instagram API: 2 = video
 
-      console.log(`🔍 Item type: ${item.type}, isVideo: ${isVideo}, hasVideoUrl: ${!!item.videoUrl}, videos: ${item.videos?.length || 0}`)
+      logger.debug(`🔍 Item type: ${item.type}, isVideo: ${isVideo}, hasVideoUrl: ${!!item.videoUrl}, videos: ${item.videos?.length || 0}`)
       return isVideo
     })
 
-    console.log(`🎬 Found ${reels.length} reels/videos`)
+    logger.debug(`🎬 Found ${reels.length} reels/videos`)
 
     // Определяем статус операции на основе результатов
     const hasValidResults = reels.length > 0

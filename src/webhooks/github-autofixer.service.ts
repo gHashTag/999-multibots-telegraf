@@ -1,4 +1,5 @@
 import { ClaudeIntegrationService } from '../services/claude-integration.service'
+import { logger } from '@/utils/enhancedLogger'
 import { BotCodeAnalyzer } from '../utils/bot-code-analyzer'
 
 import { Octokit } from '@octokit/rest'
@@ -30,7 +31,7 @@ export class GitHubAutoFixerService {
     repoOwner: string
     repoName: string
   }): Promise<FixResult[]> {
-    console.log(`🔍 [AutoFixer] Analyzing PR #${prData.prNumber}`)
+    logger.debug(`🔍 [AutoFixer] Analyzing PR #${prData.prNumber}`)
 
     const fixes: FixResult[] = []
 
@@ -49,7 +50,7 @@ export class GitHubAutoFixerService {
       )
 
       if (codeFiles.length === 0) {
-        console.log('📝 [AutoFixer] No code files to analyze')
+        logger.debug('📝 [AutoFixer] No code files to analyze')
         return fixes
       }
 
@@ -96,11 +97,11 @@ export class GitHubAutoFixerService {
         }
       }
 
-      console.log(`✅ [AutoFixer] Applied ${fixes.length} fixes to PR #${prData.prNumber}`)
+      logger.debug(`✅ [AutoFixer] Applied ${fixes.length} fixes to PR #${prData.prNumber}`)
       return fixes
 
     } catch (error) {
-      console.error('❌ [AutoFixer] Error analyzing PR:', error)
+      logger.error('❌ [AutoFixer] Error analyzing PR:', error)
       throw new Error(`Failed to analyze PR: ${error.message}`)
     }
   }
@@ -145,7 +146,7 @@ export class GitHubAutoFixerService {
       }
       return null
     } catch (error) {
-      console.warn(`⚠️ [AutoFixer] Could not get content for ${path}:`, error.message)
+      logger.warn(`⚠️ [AutoFixer] Could not get content for ${path}:`, error.message)
       return null
     }
   }
@@ -190,9 +191,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>`
         sha,
       })
 
-      console.log(`📝 [AutoFixer] Committed fixes to ${filePath}`)
+      logger.debug(`📝 [AutoFixer] Committed fixes to ${filePath}`)
     } catch (error) {
-      console.error(`❌ [AutoFixer] Failed to commit ${filePath}:`, error)
+      logger.error(`❌ [AutoFixer] Failed to commit ${filePath}:`, error)
       throw error
     }
   }

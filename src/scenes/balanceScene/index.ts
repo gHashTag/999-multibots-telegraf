@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '@/interfaces'
 import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
@@ -161,7 +162,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
   'balanceScene',
   async (ctx: MyContext) => {
     try {
-      console.log('CASE: balanceScene')
+      logger.debug('CASE: balanceScene')
       const isRu = isRussianFromState(ctx)
       const userId = ctx.from?.id.toString() || ''
 
@@ -384,7 +385,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
       // Не переходим в меню автоматически, ждем действий пользователя
     } catch (error) {
-      console.error('Error in balanceScene:', error)
+      logger.error('Error in balanceScene:', error)
       const isRu = isRussianFromState(ctx)
       await ctx.reply(
         isRu
@@ -467,7 +468,7 @@ balanceScene.action('download_excel_report', async (ctx: MyContext) => {
       }
     )
   } catch (error) {
-    console.error('Error generating Excel report:', error)
+    logger.error('Error generating Excel report:', error)
     const isRu = isRussianFromState(ctx)
 
     await ctx.editMessageText(

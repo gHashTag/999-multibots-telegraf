@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { logger } from '@/utils/enhancedLogger'
 import path from 'path'
 // import dotenv from 'dotenv' // Removed static import
 import { botLogger, logSecurityEvent } from './logger'
@@ -11,7 +12,7 @@ if (process.env.NODE_ENV !== 'production') {
     const dotenv = require('dotenv')
     dotenv.config()
   } catch (error) {
-    console.error(
+    logger.error(
       'Failed to load dotenv in non-production environment (require):',
       error
     )

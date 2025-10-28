@@ -1,7 +1,7 @@
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { setPayments } from '@/core/supabase/setPayments'
 
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 import { MyContext } from '@/interfaces'
 import {
@@ -26,7 +26,7 @@ async function sendNotification(ctx: MyContext, message: string) {
         adminChatId,
       })
     }
-    console.log('🔔 Notification sent to admin')
+    logger.debug('🔔 Notification sent to admin')
   } else {
     logger.warn('⚠️ ADMIN_CHAT_ID not set. Notification not sent.')
   }

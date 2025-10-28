@@ -8,13 +8,13 @@ import { Telegraf, type Context, type Middleware } from 'telegraf'
 //     const dotenv = require('dotenv');
 //     dotenv.config()
 //   } catch (error) {
-//     console.error("Failed to load dotenv in non-production environment (require):", error);
+//     logger.error("Failed to load dotenv in non-production environment (require):", error);
 //   }
 // }
 
 import { NODE_ENV } from '@/config'
 import { MyContext, BotName } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { toBotName } from '@/helpers/botName.helper'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'

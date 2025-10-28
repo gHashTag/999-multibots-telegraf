@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { competitorMonitoringApi } from './competitorMonitoringApiService'
 import { Markup } from 'telegraf'
 import { ADMIN_IDS_ARRAY } from '@/config'
@@ -221,7 +221,7 @@ export async function addCompetitorSubscription(
   ctx: MyContext,
   competitorUsername: string
 ): Promise<void> {
-  console.log(
+  logger.debug(
     '🎯 [addCompetitorSubscription] Function called with username:',
     competitorUsername
   )
@@ -229,16 +229,16 @@ export async function addCompetitorSubscription(
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id?.toString()
 
-  console.log('🎯 [addCompetitorSubscription] Telegram ID:', telegramId)
-  console.log('🎯 [addCompetitorSubscription] Language:', isRu ? 'ru' : 'en')
+  logger.debug('🎯 [addCompetitorSubscription] Telegram ID:', telegramId)
+  logger.debug('🎯 [addCompetitorSubscription] Language:', isRu ? 'ru' : 'en')
 
   if (!telegramId) {
-    console.log('❌ [addCompetitorSubscription] No telegram ID, returning')
+    logger.debug('❌ [addCompetitorSubscription] No telegram ID, returning')
     return
   }
 
   try {
-    console.log(
+    logger.debug(
       '📝 [addCompetitorSubscription] Logging subscription creation...'
     )
     logger.info('[Competitor Monitoring] Adding competitor subscription', {
@@ -247,10 +247,10 @@ export async function addCompetitorSubscription(
     })
 
     // ВАЖНО: Не используем answerCbQuery для обычных сообщений!
-    console.log('💬 [addCompetitorSubscription] Sending progress message...')
+    logger.debug('💬 [addCompetitorSubscription] Sending progress message...')
     await ctx.reply(isRu ? 'Добавляем подписку...' : 'Adding subscription...')
 
-    console.log(
+    logger.debug(
       '📞 [addCompetitorSubscription] Calling competitorMonitoringApi.createSubscription...'
     )
     const result = await competitorMonitoringApi.createSubscription(ctx, {
@@ -261,25 +261,25 @@ export async function addCompetitorSubscription(
       deliveryFormat: 'individual', // Каждый рилс отдельно
     })
 
-    console.log(
+    logger.debug(
       '📞 [addCompetitorSubscription] competitorMonitoringApi.createSubscription result:',
       result.success
     )
 
     if (result.success) {
-      console.log(
+      logger.debug(
         '✅ [addCompetitorSubscription] Subscription created, sending success message...'
       )
       await ctx.reply(result.message)
-      console.log('✅ [addCompetitorSubscription] Success message sent')
+      logger.debug('✅ [addCompetitorSubscription] Success message sent')
     } else {
-      console.log(
+      logger.debug(
         '❌ [addCompetitorSubscription] Subscription creation failed, sending error message...'
       )
       await ctx.reply(result.message)
     }
   } catch (error) {
-    console.log('💥 [addCompetitorSubscription] Error occurred:', error)
+    logger.debug('💥 [addCompetitorSubscription] Error occurred:', error)
     logger.error(
       '[Competitor Monitoring] Error adding competitor subscription',
       {
@@ -302,44 +302,44 @@ export async function handleCompetitorUsernameInput(
   ctx: MyContext,
   username: string
 ): Promise<boolean> {
-  console.log(
+  logger.debug(
     '🎯 [handleCompetitorUsernameInput] Function called with username:',
     username
   )
-  console.log(
+  logger.debug(
     '🎯 [handleCompetitorUsernameInput] Session state:',
     ctx.session.competitorMonitoring
   )
 
   // Проверяем, ожидается ли ввод username
   if (!ctx.session.competitorMonitoring?.waitingForUsername) {
-    console.log(
+    logger.debug(
       '❌ [handleCompetitorUsernameInput] Not waiting for username, returning false'
     )
     return false // Не обрабатываем этот текст
   }
 
-  console.log(
+  logger.debug(
     '✅ [handleCompetitorUsernameInput] Waiting for username = true, processing...'
   )
   const isRu = isRussianFromState(ctx)
 
   // Валидация Instagram username
   const cleanUsername = username.trim().replace('@', '')
-  console.log(
+  logger.debug(
     '🔍 [handleCompetitorUsernameInput] Clean username:',
     cleanUsername
   )
 
   const instagramUsernameRegex = /^[a-zA-Z0-9._]{1,30}$/
   const isValid = instagramUsernameRegex.test(cleanUsername)
-  console.log(
+  logger.debug(
     '🔍 [handleCompetitorUsernameInput] Username validation result:',
     isValid
   )
 
   if (!isValid) {
-    console.log(
+    logger.debug(
       '❌ [handleCompetitorUsernameInput] Invalid username, sending error message'
     )
     await ctx.reply(
@@ -350,22 +350,22 @@ export async function handleCompetitorUsernameInput(
     return true // Обрабатывали, но с ошибкой
   }
 
-  console.log(
+  logger.debug(
     '✅ [handleCompetitorUsernameInput] Username is valid, resetting state and adding subscription'
   )
 
   // Сбрасываем состояние ожидания
   ctx.session.competitorMonitoring.waitingForUsername = false
-  console.log(
+  logger.debug(
     '🔄 [handleCompetitorUsernameInput] Set waitingForUsername = false'
   )
 
   // Добавляем подписку
-  console.log(
+  logger.debug(
     '📞 [handleCompetitorUsernameInput] Calling addCompetitorSubscription...'
   )
   await addCompetitorSubscription(ctx, cleanUsername)
-  console.log(
+  logger.debug(
     '✅ [handleCompetitorUsernameInput] addCompetitorSubscription completed'
   )
 

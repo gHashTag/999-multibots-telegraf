@@ -1,21 +1,22 @@
 // Mock-класс для ElevenLabs API
+import { logger } from '@/utils/enhancedLogger'
 class MockElevenLabsClient {
   // Сохраняем конфиг для отладки
   private config: any
 
   constructor(config: any) {
-    console.warn('[MOCK] Creating mock ElevenLabs client')
+    logger.warn('[MOCK] Creating mock ElevenLabs client')
     this.config = config
   }
 
   // Мок-методы для всех необходимых методов API
   async getVoices() {
-    console.warn('[MOCK] Called getVoices()')
+    logger.warn('[MOCK] Called getVoices()')
     return { voices: [] }
   }
 
   async generateVoiceSpeech(voiceId: string, text: string) {
-    console.warn('[MOCK] Called generateVoiceSpeech()', {
+    logger.warn('[MOCK] Called generateVoiceSpeech()', {
       voiceId,
       textLength: text.length,
     })
@@ -24,7 +25,7 @@ class MockElevenLabsClient {
   }
 
   async generate(options: any) {
-    console.warn('[MOCK] Called generate()', {
+    logger.warn('[MOCK] Called generate()', {
       voice: options.voice,
       textLength: options.text?.length,
       model: options.model_id,
@@ -41,7 +42,7 @@ class MockElevenLabsClient {
   }
 
   async voiceExists(voiceId: string): Promise<boolean> {
-    console.warn('[MOCK] Called voiceExists()', { voiceId })
+    logger.warn('[MOCK] Called voiceExists()', { voiceId })
     return false // Mock always returns false to indicate voice doesn't exist
   }
 }
@@ -50,7 +51,7 @@ class MockElevenLabsClient {
 const createElevenLabsClient = () => {
   // Сначала проверяем наличие API ключа
   if (!process.env.ELEVENLABS_API_KEY) {
-    console.warn(
+    logger.warn(
       'ELEVENLABS_API_KEY not found in environment, using mock client'
     )
     return new MockElevenLabsClient({ apiKey: 'mock-key' })
@@ -69,18 +70,18 @@ const createElevenLabsClient = () => {
     client.voiceExists = async (voiceId: string): Promise<boolean> => {
       try {
         // Debug logging to see what API key is being used
-        console.log(
+        logger.debug(
           '[ElevenLabs] DEBUG: Checking voice existence with API key:',
           process.env.ELEVENLABS_API_KEY?.substring(0, 10) + '...'
         )
-        console.log('[ElevenLabs] DEBUG: Looking for voice ID:', voiceId)
+        logger.debug('[ElevenLabs] DEBUG: Looking for voice ID:', voiceId)
 
         const voices = await client.voices.getAll()
-        console.log(
+        logger.debug(
           '[ElevenLabs] DEBUG: Found voices count:',
           voices.voices.length
         )
-        console.log(
+        logger.debug(
           '[ElevenLabs] DEBUG: Voice IDs in account:',
           voices.voices.map((v: any) => v.voice_id)
         )
@@ -88,18 +89,18 @@ const createElevenLabsClient = () => {
         const exists = voices.voices.some(
           (voice: any) => voice.voice_id === voiceId
         )
-        console.log('[ElevenLabs] DEBUG: Voice exists?', exists)
+        logger.debug('[ElevenLabs] DEBUG: Voice exists?', exists)
 
         return exists
       } catch (error) {
-        console.error('[ElevenLabs] Error checking if voice exists:', error)
+        logger.error('[ElevenLabs] Error checking if voice exists:', error)
         return false
       }
     }
 
     return client
   } catch (error) {
-    console.error(
+    logger.error(
       'Error creating ElevenLabs client, falling back to mock:',
       error
     )
@@ -114,7 +115,7 @@ export const checkVoiceExists = async (voiceId: string): Promise<boolean> => {
   try {
     return await elevenlabs.voiceExists(voiceId)
   } catch (error) {
-    console.error('[ElevenLabs] Error in checkVoiceExists:', error)
+    logger.error('[ElevenLabs] Error in checkVoiceExists:', error)
     return false
   }
 }

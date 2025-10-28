@@ -1,4 +1,5 @@
 import express from 'express'
+import { logger } from '@/utils/enhancedLogger'
 import * as crypto from 'crypto'
 import { GitHubAutoFixerService } from './github-autofixer.service'
 import { TelegramNotifierService } from '../services/telegram-notifier.service'
@@ -30,7 +31,7 @@ export class GitHubAutoFixerController {
         return
       }
 
-      console.log(`🔧 [GitHub AutoFixer] PR #${pull_request.number} - ${action}`)
+      logger.debug(`🔧 [GitHub AutoFixer] PR #${pull_request.number} - ${action}`)
       
       // Уведомляем в Telegram о начале обработки
       await this.telegramNotifier.notifyAutoFixStart({
@@ -51,7 +52,7 @@ export class GitHubAutoFixerController {
         title: pull_request.title,
         url: pull_request.html_url
       }).catch(async (error) => {
-        console.error('❌ [GitHub AutoFixer] Error:', error)
+        logger.error('❌ [GitHub AutoFixer] Error:', error)
         await this.telegramNotifier.notifyAutoFixError({
           prNumber: pull_request.number,
           title: pull_request.title,
@@ -62,7 +63,7 @@ export class GitHubAutoFixerController {
 
       res.status(200).json({ message: 'Webhook received' })
     } catch (error) {
-      console.error('❌ [GitHub AutoFixer] Webhook error:', error)
+      logger.error('❌ [GitHub AutoFixer] Webhook error:', error)
       res.status(500).json({ error: 'Internal server error' })
     }
   }
@@ -127,7 +128,7 @@ export class GitHubAutoFixerController {
         return
       }
 
-      console.log(`🔧 [Manual Fix] Starting fix for PR #${prNumber}`)
+      logger.debug(`🔧 [Manual Fix] Starting fix for PR #${prNumber}`)
 
       // Запускаем ручное исправление
       const fixes = await this.autoFixerService.manualFixPR({
@@ -142,7 +143,7 @@ export class GitHubAutoFixerController {
         details: fixes
       })
     } catch (error) {
-      console.error('❌ [Manual Fix] Error:', error)
+      logger.error('❌ [Manual Fix] Error:', error)
       res.status(500).json({ error: error.message })
     }
   }

@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { logger } from '@/utils/enhancedLogger'
 import path from 'path'
 import { promisify } from 'util'
 import { pipeline } from 'stream'
@@ -103,14 +104,14 @@ class VideoTranscriptionService {
    * Main method for transcribing Instagram Reels videos
    */
   async transcribeInstagramReel(url: string): Promise<TranscriptionResult> {
-    console.log(`🎬 Starting Instagram Reel transcription for: ${url}`)
+    logger.debug(`🎬 Starting Instagram Reel transcription for: ${url}`)
 
     try {
       // Step 1: Download video using Apify
       const downloadResult = await this.downloadInstagramVideo(url)
 
       if (!downloadResult.success) {
-        console.error('❌ Video download failed:', downloadResult.error)
+        logger.error('❌ Video download failed:', downloadResult.error)
         return {
           success: false,
           error: `Video download failed: ${downloadResult.error}`,
@@ -129,11 +130,11 @@ class VideoTranscriptionService {
         // Clean up the temporary file
         try {
           fs.unlinkSync(downloadResult.videoPath)
-          console.log(
+          logger.debug(
             `🗑️ Cleaned up temporary file: ${downloadResult.videoPath}`
           )
         } catch (cleanupError) {
-          console.warn('⚠️ Failed to clean up temporary file:', cleanupError)
+          logger.warn('⚠️ Failed to clean up temporary file:', cleanupError)
         }
       } else if (downloadResult.videoUrl) {
         // If we have a direct URL
@@ -149,7 +150,7 @@ class VideoTranscriptionService {
 
       return transcriptionResult
     } catch (error) {
-      console.error('❌ Instagram Reel transcription failed:', error)
+      logger.error('❌ Instagram Reel transcription failed:', error)
       return {
         success: false,
         error:
@@ -166,11 +167,11 @@ class VideoTranscriptionService {
   private async downloadInstagramVideo(
     url: string
   ): Promise<VideoDownloadResult> {
-    console.log(`📥 Downloading Instagram video: ${url}`)
+    logger.debug(`📥 Downloading Instagram video: ${url}`)
 
     try {
       // Primary method: epctex/instagram-video-downloader
-      console.log('🔧 Trying primary Apify downloader...')
+      logger.debug('🔧 Trying primary Apify downloader...')
       const primaryResult = await downloadInstagramVideoViaApify(url)
 
       if (primaryResult.success && primaryResult.videoUrl) {
@@ -183,7 +184,7 @@ class VideoTranscriptionService {
         }
       }
 
-      console.log('⚠️ Primary downloader failed, trying fallback...')
+      logger.debug('⚠️ Primary downloader failed, trying fallback...')
 
       // Fallback method: pocesar/download-instagram-video
       const fallbackResult = await downloadInstagramVideoViaApifyFallback(url)
@@ -203,7 +204,7 @@ class VideoTranscriptionService {
         error: 'All Apify download methods failed',
       }
     } catch (error) {
-      console.error('❌ Error in downloadInstagramVideo:', error)
+      logger.error('❌ Error in downloadInstagramVideo:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Download failed',
@@ -239,8 +240,8 @@ class VideoTranscriptionService {
     const fileName = `instagram_video_${Date.now()}${fileExt}`
     const filePath = path.join(this.tempDir, fileName)
 
-    console.log(`📁 Downloading video file to: ${filePath}`)
-    console.log(`🔗 Video URL: ${videoUrl.substring(0, 100)}...`)
+    logger.debug(`📁 Downloading video file to: ${filePath}`)
+    logger.debug(`🔗 Video URL: ${videoUrl.substring(0, 100)}...`)
 
     try {
       const response = await axios({
@@ -254,7 +255,7 @@ class VideoTranscriptionService {
         },
       })
 
-      console.log(`📋 Response headers:`, {
+      logger.debug(`📋 Response headers:`, {
         contentType: response.headers['content-type'],
         contentLength: response.headers['content-length'],
         contentDisposition: response.headers['content-disposition'],
@@ -264,7 +265,7 @@ class VideoTranscriptionService {
       await pipelineAsync(response.data, writer)
 
       const stats = fs.statSync(filePath)
-      console.log(
+      logger.debug(
         `✅ Video downloaded successfully, size: ${(
           stats.size /
           1024 /
@@ -273,7 +274,7 @@ class VideoTranscriptionService {
       )
 
       // Log file info for debugging
-      console.log(`📄 File info:`, {
+      logger.debug(`📄 File info:`, {
         path: filePath,
         extension: path.extname(filePath),
         size: stats.size,
@@ -281,7 +282,7 @@ class VideoTranscriptionService {
 
       return filePath
     } catch (error) {
-      console.error('❌ Error downloading video file:', error)
+      logger.error('❌ Error downloading video file:', error)
       throw new Error(
         `Failed to download video file: ${
           error instanceof Error ? error.message : 'Unknown error'
@@ -296,7 +297,7 @@ class VideoTranscriptionService {
   private async transcribeVideoFile(
     videoPath: string
   ): Promise<TranscriptionResult> {
-    console.log(`🎙️ Transcribing video file: ${videoPath}`)
+    logger.debug(`🎙️ Transcribing video file: ${videoPath}`)
 
     if (!process.env.OPENAI_API_KEY) {
       return {
@@ -316,7 +317,7 @@ class VideoTranscriptionService {
         .map(b => b.toString(16).padStart(2, '0'))
         .join(' ')
 
-      console.log(`📊 File verification:`, {
+      logger.debug(`📊 File verification:`, {
         exists: fs.existsSync(videoPath),
         size: stats.size,
         extension: path.extname(videoPath),
@@ -356,7 +357,7 @@ class VideoTranscriptionService {
         // Rename file to .mp4 if extension is not supported
         finalVideoPath = videoPath.replace(/\.[^.]*$/, '.mp4')
         fs.renameSync(videoPath, finalVideoPath)
-        console.log(`🔄 Renamed file from ${videoPath} to ${finalVideoPath}`)
+        logger.debug(`🔄 Renamed file from ${videoPath} to ${finalVideoPath}`)
       }
 
       const formData = new FormData()
@@ -381,7 +382,7 @@ class VideoTranscriptionService {
       )
 
       if (response.data && response.data.text) {
-        console.log(`✅ Transcription completed successfully`)
+        logger.debug(`✅ Transcription completed successfully`)
         return {
           success: true,
           text: response.data.text.trim(),
@@ -398,7 +399,7 @@ class VideoTranscriptionService {
         }
       }
     } catch (error) {
-      console.error('❌ Transcription failed:', error)
+      logger.error('❌ Transcription failed:', error)
 
       if (axios.isAxiosError(error)) {
         const errorMessage =
@@ -420,7 +421,7 @@ class VideoTranscriptionService {
    * Transcribe video directly from URL (if supported by OpenAI in the future)
    */
   async transcribeVideoFromUrl(videoUrl: string): Promise<TranscriptionResult> {
-    console.log(
+    logger.debug(
       `🎙️ Transcribing video from URL: ${videoUrl.substring(0, 100)}...`
     )
 
@@ -433,7 +434,7 @@ class VideoTranscriptionService {
       try {
         fs.unlinkSync(tempPath)
       } catch (cleanupError) {
-        console.warn('⚠️ Failed to clean up temporary file:', cleanupError)
+        logger.warn('⚠️ Failed to clean up temporary file:', cleanupError)
       }
 
       return result

@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function isLimitAi(telegram_id: string): Promise<boolean> {
   const dailyLimit = 3
@@ -12,7 +13,7 @@ export async function isLimitAi(telegram_id: string): Promise<boolean> {
     .single()
 
   if (userError) {
-    console.error('isLimitAi: Ошибка при получении user_id:', userError)
+    logger.error('isLimitAi: Ошибка при получении user_id:', userError)
     return false
   }
 
@@ -28,7 +29,7 @@ export async function isLimitAi(telegram_id: string): Promise<boolean> {
     .single()
 
   if (limitError && limitError.code !== 'PGRST116') {
-    console.error('Ошибка при получении данных о лимите:', limitError)
+    logger.error('Ошибка при получении данных о лимите:', limitError)
     return false
   }
 
@@ -39,7 +40,7 @@ export async function isLimitAi(telegram_id: string): Promise<boolean> {
       .insert({ user_id, count: 1, created_at: new Date().toISOString() })
 
     if (insertError) {
-      console.error('Ошибка при создании новой записи:', insertError)
+      logger.error('Ошибка при создании новой записи:', insertError)
       return false
     }
 
@@ -52,7 +53,7 @@ export async function isLimitAi(telegram_id: string): Promise<boolean> {
       .eq('id', limitData.id)
 
     if (updateError) {
-      console.error('Ошибка при обновлении записи:', updateError)
+      logger.error('Ошибка при обновлении записи:', updateError)
       return false
     }
 

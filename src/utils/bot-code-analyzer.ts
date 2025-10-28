@@ -1,4 +1,5 @@
 import { BotCodeIssue } from '../services/claude-integration.service'
+import { logger } from '@/utils/enhancedLogger'
 
 export class BotCodeAnalyzer {
   
@@ -69,7 +70,7 @@ export class BotCodeAnalyzer {
     // Дополнительные проверки на уровне файла
     this.addFileSpecificIssues(filePath, content, issues)
 
-    console.log(`🔍 [BotAnalyzer] Found ${issues.length} issues in ${filePath}`)
+    logger.debug(`🔍 [BotAnalyzer] Found ${issues.length} issues in ${filePath}`)
     return issues
   }
 

@@ -3,7 +3,7 @@ import axios from 'axios'
 import { API_URL, SECRET_API_KEY } from '@/config'
 import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { ModeEnum } from '@/interfaces'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 
@@ -27,7 +27,7 @@ export const generateTextToImage = async (
       ctx
     )
   } catch (error) {
-    console.error('Ошибка при генерации изображения:', error)
+    logger.error('Ошибка при генерации изображения:', error)
     try {
       if (ctx.reply) {
         await ctx.reply(
@@ -37,7 +37,7 @@ export const generateTextToImage = async (
         )
       }
     } catch (err) {
-      console.error('Ошибка при отправке сообщения об ошибке:', err)
+      logger.error('Ошибка при отправке сообщения об ошибке:', err)
     }
     throw error
   }

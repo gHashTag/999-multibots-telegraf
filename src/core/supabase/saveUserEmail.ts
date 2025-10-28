@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function saveUserEmail(
   telegram_id: string,
@@ -10,7 +11,7 @@ export async function saveUserEmail(
     .eq('telegram_id', telegram_id)
 
   if (error) {
-    console.error('Ошибка при сохранении e-mail:', error)
+    logger.error('Ошибка при сохранении e-mail:', error)
     throw new Error('Не удалось сохранить e-mail пользователя')
   }
 }
