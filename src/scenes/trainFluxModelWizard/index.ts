@@ -6,6 +6,8 @@ import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { updateUserGender } from '@/core/supabase'
+// ✅ ИМПОРТИРУЕМ LOGGER
+import { logger } from '@/utils/enhancedLogger'
 
 // Define gender options
 const GENDER_MALE = 'male'
@@ -49,13 +51,13 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       if (ctx.from?.id) {
         targetUserId = ctx.from.id
         ctx.session.targetUserId = targetUserId
-        console.log(
-          `[trainFluxModelWizard] Fetched targetUserId from ctx.from: ${targetUserId}`
-        )
+        logger.info('[TrainFluxWizard] Fetched targetUserId from ctx.from', {
+          targetUserId,
+        })
       } else {
-        console.error(
-          '[trainFluxModelWizard] Missing targetUserId in session and ctx.from at step 2.'
-        )
+        logger.error('[TrainFluxWizard] Missing targetUserId in session and ctx.from', {
+          step: 2,
+        })
         await ctx.reply(
           isRu
             ? '❌ Ошибка сессии. Не могу определить пользователя.'
@@ -69,15 +71,16 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       if (ctx.from?.username) {
         username = ctx.from.username
         ctx.session.username = username
-        console.log(
-          `[trainFluxModelWizard] Fetched username from ctx.from: ${username}`
-        )
+        logger.info('[TrainFluxWizard] Fetched username from ctx.from', {
+          username,
+        })
       } else {
         username = `user${targetUserId}`
         ctx.session.username = username
-        console.warn(
-          `[trainFluxModelWizard] Username missing in ctx.from, using fallback: ${username}`
-        )
+        logger.warn('[TrainFluxWizard] Username missing, using fallback', {
+          username,
+          targetUserId,
+        })
       }
     }
 
@@ -94,7 +97,9 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         await ctx.answerCbQuery(
           isRu ? 'Неизвестное действие' : 'Unknown action'
         )
-        console.warn('[trainFluxModelWizard] Unexpected callback data:', data)
+        logger.warn('[TrainFluxWizard] Unexpected callback data', {
+          data,
+        })
         await ctx.reply(
           isRu
             ? '⚠️ Пожалуйста, используйте кнопки для выбора пола.'
@@ -119,28 +124,34 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     }
 
     ctx.session.gender = gender
-    console.log(`[trainFluxModelWizard] Gender set to session: ${gender}`)
+    logger.info('[TrainFluxWizard] Gender set to session', {
+      gender,
+      targetUserId,
+    })
 
     const genderUpdateSuccess = await updateUserGender(targetUserId, gender)
     if (!genderUpdateSuccess) {
-      console.error(
-        `[trainFluxModelWizard] Failed to update gender in DB for user ${targetUserId}`
-      )
+      logger.error('[TrainFluxWizard] Failed to update gender in DB', {
+        targetUserId,
+        gender,
+      })
       await ctx.reply(
         isRu
           ? '⚠️ Не удалось сохранить выбор пола, но вы можете продолжить.'
           : '⚠️ Could not save gender selection, but you can proceed.'
       )
     } else {
-      console.log(
-        `[trainFluxModelWizard] Gender successfully saved to DB for user ${targetUserId}`
-      )
+      logger.info('[TrainFluxWizard] Gender successfully saved to DB', {
+        targetUserId,
+        gender,
+      })
     }
 
     if (!username) {
-      console.error(
-        '[trainFluxModelWizard] CRITICAL: Username is still missing after checks at step 2.'
-      )
+      logger.error('[TrainFluxWizard] CRITICAL - Username still missing after checks', {
+        step: 2,
+        targetUserId,
+      })
       await ctx.reply(
         isRu
           ? '❌ Ошибка сессии. Не найдено имя пользователя.'
@@ -198,23 +209,35 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       parse_mode: 'HTML',
     })
 
-    console.log('Proceeding to image upload step (Step 3)')
+    logger.info('[TrainFluxWizard] Proceeding to image upload step', {
+      step: 3,
+      targetUserId,
+      username,
+    })
     return ctx.wizard.next()
   },
 
   // Step 3: Handle Image Collection (Original Step 2)
   async ctx => {
-    console.log('Scene: IMAGES')
+    logger.info('[TrainFluxWizard] Image collection step started', {
+      step: 3,
+      telegramId: ctx.from?.id,
+    })
     const isRu = isRussian(ctx)
     const message = ctx.message
-    console.log('message', message)
+    logger.debug('[TrainFluxWizard] Message received', {
+      hasMessage: !!message,
+      messageType: message ? Object.keys(message) : [],
+    })
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()
     }
 
     if (message && 'text' in message && message.text === '/done') {
-      console.log('Received /done command')
+      logger.info('[TrainFluxWizard] Received /done command', {
+        imageCount: ctx.session.images?.length || 0,
+      })
       if (!ctx.session.images || ctx.session.images.length < 10) {
         // Check if images array exists
         await ctx.reply(
@@ -228,7 +251,10 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         )
         return
       }
-      console.log('Proceeding to upload scene')
+      logger.info('[TrainFluxWizard] Proceeding to upload scene', {
+        imageCount: ctx.session.images.length,
+        gender: ctx.session.gender,
+      })
       // Pass necessary data including gender to the next scene if needed
       // ctx.scene.enter('uploadTrainFluxModelScene', { gender: ctx.session.gender }); // Example if state is passed
       return ctx.scene.enter('uploadTrainFluxModelScene', {
@@ -289,7 +315,10 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
           ? `✅ Изображение ${ctx.session.images.length} добавлено. Отправьте еще или /done.`
           : `✅ Image ${ctx.session.images.length} added. Send more or /done.`
       )
-      console.log(`Image ${ctx.session.images.length} added`)
+      logger.info('[TrainFluxWizard] Image added', {
+        imageCount: ctx.session.images.length,
+        username: ctx.session.username,
+      })
     } else {
       // Handle cases where it's neither /done nor a photo
       await ctx.reply(
