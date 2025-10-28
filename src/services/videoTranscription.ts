@@ -1,6 +1,6 @@
 import fs from 'fs'
+import { logger } from '@/utils/enhancedLogger'
 import path from 'path'
-import https from 'https'
 import { promisify } from 'util'
 import { pipeline } from 'stream'
 import axios from 'axios'
@@ -104,14 +104,14 @@ class VideoTranscriptionService {
    * Main method for transcribing Instagram Reels videos
    */
   async transcribeInstagramReel(url: string): Promise<TranscriptionResult> {
-    console.log(`🎬 Starting Instagram Reel transcription for: ${url}`)
+    logger.debug(`🎬 Starting Instagram Reel transcription for: ${url}`)
 
     try {
       // Step 1: Download video using Apify
       const downloadResult = await this.downloadInstagramVideo(url)
 
       if (!downloadResult.success) {
-        console.error('❌ Video download failed:', downloadResult.error)
+        logger.error('❌ Video download failed:', downloadResult.error)
         return {
           success: false,
           error: `Video download failed: ${downloadResult.error}`,
@@ -127,8 +127,15 @@ class VideoTranscriptionService {
           downloadResult.videoPath
         )
 
-        // Don't clean up the file here - it will be cleaned up by the wizard after sending
-        // The wizard needs the file to send it to the user
+        // Clean up the temporary file
+        try {
+          fs.unlinkSync(downloadResult.videoPath)
+          logger.debug(
+            `🗑️ Cleaned up temporary file: ${downloadResult.videoPath}`
+          )
+        } catch (cleanupError) {
+          logger.warn('⚠️ Failed to clean up temporary file:', cleanupError)
+        }
       } else if (downloadResult.videoUrl) {
         // If we have a direct URL
         transcriptionResult = await this.transcribeVideoFromUrl(
@@ -143,7 +150,7 @@ class VideoTranscriptionService {
 
       return transcriptionResult
     } catch (error) {
-      console.error('❌ Instagram Reel transcription failed:', error)
+      logger.error('❌ Instagram Reel transcription failed:', error)
       return {
         success: false,
         error:
@@ -160,11 +167,11 @@ class VideoTranscriptionService {
   private async downloadInstagramVideo(
     url: string
   ): Promise<VideoDownloadResult> {
-    console.log(`📥 Downloading Instagram video: ${url}`)
+    logger.debug(`📥 Downloading Instagram video: ${url}`)
 
     try {
       // Primary method: epctex/instagram-video-downloader
-      console.log('🔧 Trying primary Apify downloader...')
+      logger.debug('🔧 Trying primary Apify downloader...')
       const primaryResult = await downloadInstagramVideoViaApify(url)
 
       if (primaryResult.success && primaryResult.videoUrl) {
@@ -177,7 +184,7 @@ class VideoTranscriptionService {
         }
       }
 
-      console.log('⚠️ Primary downloader failed, trying fallback...')
+      logger.debug('⚠️ Primary downloader failed, trying fallback...')
 
       // Fallback method: pocesar/download-instagram-video
       const fallbackResult = await downloadInstagramVideoViaApifyFallback(url)
@@ -197,7 +204,7 @@ class VideoTranscriptionService {
         error: 'All Apify download methods failed',
       }
     } catch (error) {
-      console.error('❌ Error in downloadInstagramVideo:', error)
+      logger.error('❌ Error in downloadInstagramVideo:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Download failed',
@@ -233,8 +240,8 @@ class VideoTranscriptionService {
     const fileName = `instagram_video_${Date.now()}${fileExt}`
     const filePath = path.join(this.tempDir, fileName)
 
-    console.log(`📁 Downloading video file to: ${filePath}`)
-    console.log(`🔗 Video URL: ${videoUrl.substring(0, 100)}...`)
+    logger.debug(`📁 Downloading video file to: ${filePath}`)
+    logger.debug(`🔗 Video URL: ${videoUrl.substring(0, 100)}...`)
 
     try {
       const response = await axios({
@@ -246,12 +253,9 @@ class VideoTranscriptionService {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
-        httpsAgent: new https.Agent({
-          rejectUnauthorized: false, // Игнорируем SSL ошибки для Instagram
-        }),
       })
 
-      console.log(`📋 Response headers:`, {
+      logger.debug(`📋 Response headers:`, {
         contentType: response.headers['content-type'],
         contentLength: response.headers['content-length'],
         contentDisposition: response.headers['content-disposition'],
@@ -261,7 +265,7 @@ class VideoTranscriptionService {
       await pipelineAsync(response.data, writer)
 
       const stats = fs.statSync(filePath)
-      console.log(
+      logger.debug(
         `✅ Video downloaded successfully, size: ${(
           stats.size /
           1024 /
@@ -270,7 +274,7 @@ class VideoTranscriptionService {
       )
 
       // Log file info for debugging
-      console.log(`📄 File info:`, {
+      logger.debug(`📄 File info:`, {
         path: filePath,
         extension: path.extname(filePath),
         size: stats.size,
@@ -278,7 +282,7 @@ class VideoTranscriptionService {
 
       return filePath
     } catch (error) {
-      console.error('❌ Error downloading video file:', error)
+      logger.error('❌ Error downloading video file:', error)
       throw new Error(
         `Failed to download video file: ${
           error instanceof Error ? error.message : 'Unknown error'
@@ -293,7 +297,7 @@ class VideoTranscriptionService {
   private async transcribeVideoFile(
     videoPath: string
   ): Promise<TranscriptionResult> {
-    console.log(`🎙️ Transcribing video file: ${videoPath}`)
+    logger.debug(`🎙️ Transcribing video file: ${videoPath}`)
 
     if (!process.env.OPENAI_API_KEY) {
       return {
@@ -313,7 +317,7 @@ class VideoTranscriptionService {
         .map(b => b.toString(16).padStart(2, '0'))
         .join(' ')
 
-      console.log(`📊 File verification:`, {
+      logger.debug(`📊 File verification:`, {
         exists: fs.existsSync(videoPath),
         size: stats.size,
         extension: path.extname(videoPath),
@@ -353,7 +357,7 @@ class VideoTranscriptionService {
         // Rename file to .mp4 if extension is not supported
         finalVideoPath = videoPath.replace(/\.[^.]*$/, '.mp4')
         fs.renameSync(videoPath, finalVideoPath)
-        console.log(`🔄 Renamed file from ${videoPath} to ${finalVideoPath}`)
+        logger.debug(`🔄 Renamed file from ${videoPath} to ${finalVideoPath}`)
       }
 
       const formData = new FormData()
@@ -365,88 +369,6 @@ class VideoTranscriptionService {
       formData.append('language', 'ru') // Russian language
       formData.append('response_format', 'json')
 
-      // Try Replicate first if available (no regional restrictions)
-      if (process.env.REPLICATE_API_TOKEN) {
-        try {
-          console.log(`🔄 Trying Replicate Whisper API...`)
-          
-          // Convert file to base64 data URI for Replicate
-          const audioBuffer = fs.readFileSync(finalVideoPath)
-          const base64Audio = audioBuffer.toString('base64')
-          const mimeType = this.getMimeType(finalVideoPath)
-          const dataUri = `data:${mimeType};base64,${base64Audio}`
-          
-          const replicateResponse = await axios.post(
-            'https://api.replicate.com/v1/predictions',
-            {
-              version: 'b48b0e1d11dc0c0088a0e7a74a9630e90dab64476c9e85bd88475d47f43adb11', // whisper large-v3
-              input: {
-                audio: dataUri,
-                model: 'large-v3',
-                language: 'russian',
-                translate: false,
-                temperature: 0,
-                transcription: 'plain_text',
-                suppress_tokens: '-1',
-                logprob_threshold: -1.0,
-                no_speech_threshold: 0.6,
-                condition_on_previous_text: true,
-                compression_ratio_threshold: 2.4,
-                temperature_increment_on_fallback: 0.2,
-                initial_prompt: 'Транскрибация видео на русском языке.',
-              }
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${process.env.REPLICATE_API_TOKEN}`,
-                'Content-Type': 'application/json',
-              },
-              timeout: 30000,
-            }
-          )
-          
-          // Poll for result
-          if (replicateResponse.data?.id) {
-            const predictionId = replicateResponse.data.id
-            let attempts = 0
-            const maxAttempts = 60 // 5 minutes max wait
-            
-            while (attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds
-              
-              const statusResponse = await axios.get(
-                `https://api.replicate.com/v1/predictions/${predictionId}`,
-                {
-                  headers: {
-                    'Authorization': `Bearer ${process.env.REPLICATE_API_TOKEN}`,
-                  },
-                }
-              )
-              
-              if (statusResponse.data?.status === 'succeeded' && statusResponse.data?.output?.transcription) {
-                console.log(`✅ Transcription completed with Replicate`)
-                return {
-                  success: true,
-                  text: statusResponse.data.output.transcription.trim(),
-                  videoPath: finalVideoPath,
-                  metadata: {
-                    language: 'ru',
-                  },
-                }
-              } else if (statusResponse.data?.status === 'failed') {
-                throw new Error('Replicate prediction failed')
-              }
-              
-              attempts++
-            }
-          }
-        } catch (replicateError: any) {
-          console.log(`⚠️ Replicate failed, trying next service:`, replicateError.message)
-        }
-      }
-
-
-      // Fallback to OpenAI
       const response = await axios.post(
         'https://api.openai.com/v1/audio/transcriptions',
         formData,
@@ -454,14 +376,13 @@ class VideoTranscriptionService {
           headers: {
             Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
             ...formData.getHeaders(),
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           },
           timeout: 300000, // 5 minutes timeout for transcription
         }
       )
 
       if (response.data && response.data.text) {
-        console.log(`✅ Transcription completed successfully`)
+        logger.debug(`✅ Transcription completed successfully`)
         return {
           success: true,
           text: response.data.text.trim(),
@@ -478,7 +399,7 @@ class VideoTranscriptionService {
         }
       }
     } catch (error) {
-      console.error('❌ Transcription failed:', error)
+      logger.error('❌ Transcription failed:', error)
 
       if (axios.isAxiosError(error)) {
         const errorMessage =
@@ -500,7 +421,7 @@ class VideoTranscriptionService {
    * Transcribe video directly from URL (if supported by OpenAI in the future)
    */
   async transcribeVideoFromUrl(videoUrl: string): Promise<TranscriptionResult> {
-    console.log(
+    logger.debug(
       `🎙️ Transcribing video from URL: ${videoUrl.substring(0, 100)}...`
     )
 
@@ -509,9 +430,13 @@ class VideoTranscriptionService {
       const tempPath = await this.downloadVideoFile(videoUrl)
       const result = await this.transcribeVideoFile(tempPath)
 
-      // Don't clean up here - the file path in result.videoPath needs to be available for sending
-      // The wizard will clean up after sending the video to the user
-      
+      // Clean up
+      try {
+        fs.unlinkSync(tempPath)
+      } catch (cleanupError) {
+        logger.warn('⚠️ Failed to clean up temporary file:', cleanupError)
+      }
+
       return result
     } catch (error) {
       return {

@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 interface KieAiCredits {
   credits: number
@@ -130,7 +130,7 @@ export class KieAiProvider {
   constructor() {
     this.apiKey = process.env.KIE_AI_API_KEY || ''
     if (!this.apiKey) {
-      console.warn(
+      logger.warn(
         '⚠️  KIE_AI_API_KEY not provided - provider will work in test mode only'
       )
     }

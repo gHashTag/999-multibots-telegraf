@@ -1,11 +1,12 @@
 import * as fs from 'fs'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function deleteFile(filePath: string) {
   try {
-    console.log('filePath', filePath)
+    logger.debug('filePath', filePath)
     await fs.promises.unlink(filePath)
-    console.log(`File ${filePath} deleted successfully`)
+    logger.debug(`File ${filePath} deleted successfully`)
   } catch (error) {
-    console.error(`Error deleting file ${filePath}:`, error)
+    logger.error(`Error deleting file ${filePath}:`, error)
   }
 }

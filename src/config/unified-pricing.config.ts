@@ -1,4 +1,5 @@
 /**
+import { logger } from '@/utils/enhancedLogger'
  * 🕉️ ЕДИНАЯ КОНФИГУРАЦИЯ ЦЕНООБРАЗОВАНИЯ
  *
  * КРИТИЧЕСКИ ВАЖНО: Это ЕДИНСТВЕННОЕ место определения цен в системе!
@@ -302,12 +303,12 @@ export const rubRate = USD_TO_RUB_RATE
 
 // Для логирования конфигурации
 export function logPricingConfig(): void {
-  console.log('💰 PRICING CONFIGURATION:')
-  console.log(`  1 ⭐ = $${STAR_COST_USD}`)
-  console.log(`  Markup: ${((MARKUP_MULTIPLIER - 1) * 100).toFixed(0)}%`)
-  console.log(`  1 USD = ${USD_TO_RUB_RATE} RUB`)
-  console.log('  VEO Models:')
+  logger.debug('💰 PRICING CONFIGURATION:')
+  logger.debug(`  1 ⭐ = $${STAR_COST_USD}`)
+  logger.debug(`  Markup: ${((MARKUP_MULTIPLIER - 1) * 100).toFixed(0)}%`)
+  logger.debug(`  1 USD = ${USD_TO_RUB_RATE} RUB`)
+  logger.debug('  VEO Models:')
   Object.entries(VEO_MODELS_PRICING).forEach(([model, config]) => {
-    console.log(`    ${model}: $${config.pricePerSecondUSD}/sec`)
+    logger.debug(`    ${model}: $${config.pricePerSecondUSD}/sec`)
   })
 }

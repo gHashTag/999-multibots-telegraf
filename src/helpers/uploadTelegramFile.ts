@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 import axios from 'axios'
 
 /**
@@ -17,7 +18,7 @@ export async function uploadTelegramFileToSupabase(
   contentType: string
 ): Promise<string> {
   try {
-    console.log(
+    logger.debug(
       '🔗 [uploadTelegramFile] Downloading from Telegram:',
       telegramUrl.substring(0, 100) + '...'
     )
@@ -35,7 +36,7 @@ export async function uploadTelegramFileToSupabase(
     }
 
     const buffer = Buffer.from(response.data)
-    console.log(
+    logger.debug(
       '📊 [uploadTelegramFile] Downloaded file size:',
       buffer.length,
       'bytes'
@@ -50,7 +51,7 @@ export async function uploadTelegramFileToSupabase(
       })
 
     if (error) {
-      console.error('❌ [uploadTelegramFile] Supabase upload error:', error)
+      logger.error('❌ [uploadTelegramFile] Supabase upload error:', error)
       throw new Error(`Failed to upload to Supabase: ${error.message}`)
     }
 
@@ -59,13 +60,13 @@ export async function uploadTelegramFileToSupabase(
       .from(bucket)
       .getPublicUrl(fileName)
 
-    console.log(
+    logger.debug(
       '✅ [uploadTelegramFile] File uploaded successfully:',
       publicUrlData.publicUrl
     )
     return publicUrlData.publicUrl
   } catch (error) {
-    console.error('💥 [uploadTelegramFile] Upload failed:', error)
+    logger.error('💥 [uploadTelegramFile] Upload failed:', error)
     throw new Error(
       `Failed to upload file from Telegram: ${
         error instanceof Error ? error.message : 'Unknown error'

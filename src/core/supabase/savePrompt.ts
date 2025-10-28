@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const savePrompt = async (
   prompt: string,
@@ -17,7 +18,7 @@ export const savePrompt = async (
     .maybeSingle()
 
   if (selectError) {
-    console.error('Ошибка при проверке существующего промпта:', selectError)
+    logger.error('Ошибка при проверке существующего промпта:', selectError)
     return null
   }
 
@@ -38,7 +39,7 @@ export const savePrompt = async (
     .single()
 
   if (error) {
-    console.error('Ошибка при сохранении промпта:', error)
+    logger.error('Ошибка при сохранении промпта:', error)
     return null
   }
 

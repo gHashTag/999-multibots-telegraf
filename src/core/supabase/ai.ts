@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -21,7 +22,7 @@ export const getHistory = async (
     .eq('type', type)
 
   if (error) {
-    console.error('Error fetching lifehacks history:', error)
+    logger.error('Error fetching lifehacks history:', error)
     return []
   }
 
@@ -71,7 +72,7 @@ export const setHistory = async ({
   })
 
   if (error) {
-    console.error('Error setting lifehack history:', error)
+    logger.error('Error setting lifehack history:', error)
     return false
   }
 
@@ -91,7 +92,7 @@ export const incrementGeneratedImages = async (telegram_id: number) => {
       .insert({ telegram_id: telegram_id.toString(), count: 1 })
 
     if (insertError) {
-      console.error('Ошибка при добавлении нового telegram_id:', insertError)
+      logger.error('Ошибка при добавлении нового telegram_id:', insertError)
       return false
     }
   } else if (data) {
@@ -102,11 +103,11 @@ export const incrementGeneratedImages = async (telegram_id: number) => {
       .eq('telegram_id', telegram_id.toString())
 
     if (updateError) {
-      console.error('Ошибка при обновлении count для telegram_id:', updateError)
+      logger.error('Ошибка при обновлении count для telegram_id:', updateError)
       return false
     }
   } else {
-    console.error('Ошибка при проверке существования telegram_id:', error)
+    logger.error('Ошибка при проверке существования telegram_id:', error)
     return false
   }
 
@@ -132,7 +133,7 @@ export const incrementLimit = async ({
       .insert({ telegram_id: telegram_id.toString(), limit: amount })
 
     if (insertError) {
-      console.error('Ошибка при добавлении нового telegram_id:', insertError)
+      logger.error('Ошибка при добавлении нового telegram_id:', insertError)
       return false
     }
   } else if (data) {
@@ -143,11 +144,11 @@ export const incrementLimit = async ({
       .eq('telegram_id', telegram_id.toString())
 
     if (updateError) {
-      console.error('Ошибка при обновлении limit для telegram_id:', updateError)
+      logger.error('Ошибка при обновлении limit для telegram_id:', updateError)
       return false
     }
   } else {
-    console.error('Ошибка при проверке существования telegram_id:', error)
+    logger.error('Ошибка при проверке существования telegram_id:', error)
     return false
   }
 
@@ -176,7 +177,7 @@ export const getAspectRatio = async (telegram_id: number) => {
     .single()
 
   if (error || !data) {
-    console.error('Ошибка при получении aspect_ratio для telegram_id:', error)
+    logger.error('Ошибка при получении aspect_ratio для telegram_id:', error)
     return null
   }
 
@@ -193,7 +194,7 @@ export const setAspectRatio = async (
     .eq('telegram_id', telegram_id.toString())
 
   if (error) {
-    console.error('Ошибка при установке aspect_ratio для telegram_id:', error)
+    logger.error('Ошибка при установке aspect_ratio для telegram_id:', error)
     return false
   }
   return true
@@ -248,11 +249,11 @@ export async function createVoiceElevenLabs({
 
       return result.voice_id
     } else {
-      console.error(`Error: ${response.status} ${response.statusText}`)
+      logger.error(`Error: ${response.status} ${response.statusText}`)
       return null
     }
   } catch (error) {
-    console.error('Error creating voice:', error)
+    logger.error('Error creating voice:', error)
     return null
   } finally {
     // Удаляем файл после использования
@@ -291,11 +292,11 @@ export async function createVoiceElevenLabs({
 
 //       return result.id
 //     } else {
-//       console.error(`Error: ${response.status} ${response.statusText}`)
+//       logger.error(`Error: ${response.status} ${response.statusText}`)
 //       return null
 //     }
 //   } catch (error) {
-//     console.error(error)
+//     logger.error(error)
 //     return null
 //   }
 // }
@@ -317,7 +318,7 @@ export const savePrompt = async (
     .maybeSingle()
 
   if (selectError) {
-    console.error('Ошибка при проверке существующего промпта:', selectError)
+    logger.error('Ошибка при проверке существующего промпта:', selectError)
     return null
   }
 
@@ -338,7 +339,7 @@ export const savePrompt = async (
     .single()
 
   if (error) {
-    console.error('Ошибка при сохранении промпта:', error)
+    logger.error('Ошибка при сохранении промпта:', error)
     return null
   }
 
@@ -353,7 +354,7 @@ export const getPrompt = async (prompt_id: string) => {
     .single()
 
   if (error || !data) {
-    console.error('Ошибка при получении промпта по prompt_id:', error)
+    logger.error('Ошибка при получении промпта по prompt_id:', error)
     return null
   }
 

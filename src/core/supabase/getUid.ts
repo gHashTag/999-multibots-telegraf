@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const getUid = async (
   telegram_id: string | number
@@ -8,7 +9,7 @@ export const getUid = async (
 } | null> => {
   try {
     if (!telegram_id) {
-      console.warn('No telegram_id provided to getUid')
+      logger.warn('No telegram_id provided to getUid')
       return null
     }
 
@@ -18,7 +19,7 @@ export const getUid = async (
       .eq('telegram_id', telegram_id.toString())
 
     if (error) {
-      console.error('Error getting user_id:', error)
+      logger.error('Error getting user_id:', error)
       return null
     }
 
@@ -27,7 +28,7 @@ export const getUid = async (
       username: data?.[0]?.username || null,
     }
   } catch (error) {
-    console.error('Error in getUid:', error)
+    logger.error('Error in getUid:', error)
     return null
   }
 }

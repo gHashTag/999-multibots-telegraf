@@ -1,4 +1,5 @@
 import { WEBHOOK_URL } from '@/config'
+import { logger } from '@/utils/enhancedLogger'
 import { saveVideoUrlToSupabase } from '@/core/supabase'
 import axios, { AxiosResponse } from 'axios'
 import { PaymentStatus } from '@/interfaces/payments.interface'
@@ -61,7 +62,7 @@ export async function generateLipSync(
     webhookUrl: WEBHOOK_URL,
   }
 
-  console.log(body, 'body')
+  logger.debug(body, 'body')
 
   try {
     const response: AxiosResponse<LipSyncResponse> = await axios.post(
@@ -82,18 +83,18 @@ export async function generateLipSync(
       if (response.status === 200) {
         return response.data
       } else {
-        console.error(`Error: ${response.status} ${response.statusText}`)
+        logger.error(`Error: ${response.status} ${response.statusText}`)
         return { message: 'Error generating lip sync' }
       }
     } else {
-      console.error('No video ID found in response')
+      logger.error('No video ID found in response')
       return { message: 'No video ID found in response' }
     }
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      console.error('API Error:', error.response?.data || error.message)
+      logger.error('API Error:', error.response?.data || error.message)
     } else {
-      console.error('Unexpected error:', error)
+      logger.error('Unexpected error:', error)
     }
     return { message: 'Error occurred while generating lip sync' }
   }

@@ -1,4 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { ModeEnum } from '@/interfaces/modes'
 import {
   handleLevel1,
@@ -95,7 +96,7 @@ export const levelQuestWizard = new Scenes.BaseScene<MyContext>(
 
 levelQuestWizard.enter(async ctx => {
   if (!ctx.from?.id) {
-    console.error('❌ Telegram ID не найден')
+    logger.error('❌ Telegram ID не найден')
     return
   }
   const telegram_id = ctx.from.id.toString()

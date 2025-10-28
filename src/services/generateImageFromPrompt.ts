@@ -1,4 +1,5 @@
 /**
+import { logger } from '@/utils/enhancedLogger'
  * Генерирует изображение по текстовому запросу (промпту)
  * @param prompt Запрос для генерации изображения
  * @param userId ID пользователя запросившего генерацию
@@ -14,7 +15,7 @@ export async function generateImageFromPrompt(
   negative_prompt?: string,
   size?: string
 ): Promise<string> {
-  console.log("Генерация изображения:", {
+  logger.debug("Генерация изображения:", {
     prompt,
     userId,
     style,
@@ -48,7 +49,7 @@ export async function generateImageFromPrompt(
     const data = await response.json()
     return data.image_url || data.url || "https://example.com/generated_image.png"
   } catch (error) {
-    console.error("Ошибка генерации изображения:", error)
+    logger.error("Ошибка генерации изображения:", error)
     throw error
   }
 }

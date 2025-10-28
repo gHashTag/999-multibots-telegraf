@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 
 import { supabase } from '@/core/supabase'
 
@@ -21,13 +22,13 @@ export async function getSubScribeChannel(
       .single()
 
     if (error) {
-      console.error('Ошибка при получении группы:', error)
+      logger.error('Ошибка при получении группы:', error)
       return null
     }
 
     return data?.group || null
   } catch (error) {
-    console.error('Ошибка в getAvatarGroup:', error)
+    logger.error('Ошибка в getAvatarGroup:', error)
     return null
   }
 }

@@ -1,4 +1,5 @@
 import { openai } from '../openai'
+import { logger } from '@/utils/enhancedLogger'
 
 type GetAiSupabaseFeedbackT = {
   assistant_id: string
@@ -48,13 +49,13 @@ export async function getAiFeedbackFromSupabase({
     // Step 4: Periodically retrieve the run to check its status
     if (run.status === 'completed') {
       const messages = await openai.beta.threads.messages.list(run.thread_id)
-      console.log(messages, 'messages')
+      logger.debug(messages, 'messages')
       for (const message of messages.data.reverse()) {
         if (message.role === 'assistant') {
-          console.log(message.content, 'message.content')
+          logger.debug(message.content, 'message.content')
 
           const content = message.content[0]
-          console.log(content, 'content')
+          logger.debug(content, 'content')
           if (content && content.type === 'text' && content.text) {
             return {
               ai_response: removeAnnotations(content.text.value),
@@ -63,10 +64,10 @@ export async function getAiFeedbackFromSupabase({
         }
       }
     } else {
-      console.log(run.status)
+      logger.debug(run.status)
     }
   } catch (error) {
-    console.error('Error querying OpenAI Assistant:', error)
+    logger.error('Error querying OpenAI Assistant:', error)
     throw error
   }
 }

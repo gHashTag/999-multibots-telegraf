@@ -3,7 +3,7 @@ import path from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import axios from 'axios'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 // Увеличиваем размер буфера до 50MB для обработки больших выводов от FFmpeg
 const execAsync = (
@@ -360,7 +360,7 @@ export async function createMorphingVideo(
         if (onIntermediateVideo && videoUrl) {
           // videoUrl не пустой = новый клип
           try {
-            console.log(
+            logger.debug(
               `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО отправляю СУЩЕСТВУЮЩИЙ клип ${
                 i + 1
               }/${videoClipUrls.length}!`
@@ -368,7 +368,7 @@ export async function createMorphingVideo(
             const callbackStart = Date.now()
             await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
             const callbackTime = Date.now() - callbackStart
-            console.log(
+            logger.debug(
               `✅ [LOCAL PROCESSOR] Существующий клип отправлен за ${callbackTime}ms!`
             )
             logger.info(
@@ -379,7 +379,7 @@ export async function createMorphingVideo(
               }
             )
           } catch (sendError) {
-            console.log(
+            logger.debug(
               `❌ [LOCAL PROCESSOR] Ошибка отправки существующего клипа ${
                 i + 1
               }:`,
@@ -414,7 +414,7 @@ export async function createMorphingVideo(
         // ✅ ОТПРАВЛЯЕМ ПРОМЕЖУТОЧНОЕ ВИДЕО ПОЛЬЗОВАТЕЛЮ СРАЗУ ЖЕ!
         if (onIntermediateVideo) {
           try {
-            console.log(
+            logger.debug(
               `🚀 [LOCAL PROCESSOR] НЕМЕДЛЕННО вызываю callback для клипа ${
                 i + 1
               }/${videoClipUrls.length}!`
@@ -422,7 +422,7 @@ export async function createMorphingVideo(
             const callbackStart = Date.now()
             await onIntermediateVideo(clipPath, i + 1, videoClipUrls.length)
             const callbackTime = Date.now() - callbackStart
-            console.log(
+            logger.debug(
               `✅ [LOCAL PROCESSOR] Callback выполнен за ${callbackTime}ms!`
             )
             logger.info(
@@ -433,7 +433,7 @@ export async function createMorphingVideo(
               }
             )
           } catch (sendError) {
-            console.log(
+            logger.debug(
               `❌ [LOCAL PROCESSOR] Ошибка в callback для клипа ${i + 1}:`,
               sendError
             )

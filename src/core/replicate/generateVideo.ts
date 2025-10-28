@@ -1,4 +1,5 @@
 import { replicate } from '.'
+import { logger } from '@/utils/enhancedLogger'
 import { supabase } from '@/core/supabase'
 import axios, { isAxiosError } from 'axios'
 
@@ -20,7 +21,7 @@ export const retry = async <T>(
 
 export async function downloadFile(url: string): Promise<Buffer> {
   try {
-    console.log('Downloading from URL:', url)
+    logger.debug('Downloading from URL:', url)
 
     if (!url || typeof url !== 'string' || !url.startsWith('http')) {
       throw new Error(`Invalid URL received: ${url}`)
@@ -47,9 +48,9 @@ export async function downloadFile(url: string): Promise<Buffer> {
 
     return buffer
   } catch (error) {
-    console.error('Error downloading file:', error)
+    logger.error('Error downloading file:', error)
     if (isAxiosError(error)) {
-      console.error('Axios error details:', {
+      logger.error('Axios error details:', {
         response: error.response?.data,
         status: error.response?.status,
         headers: error.response?.headers,
@@ -74,8 +75,8 @@ export const generateVideo = async (
   userId: string
 ): Promise<{ video: Buffer }> => {
   try {
-    console.log('Starting video generation with model:', model)
-    console.log('Prompt:', prompt)
+    logger.debug('Starting video generation with model:', model)
+    logger.debug('Prompt:', prompt)
 
     let output: unknown
 
@@ -86,21 +87,21 @@ export const generateVideo = async (
         aspect_ratio: '16:9',
         use_prompt_enhancer: true,
       }
-      console.log('Haiper model input:', input)
+      logger.debug('Haiper model input:', input)
       output = await replicate.run('haiper-ai/haiper-video-2', { input })
     } else {
       const input = {
         prompt,
         prompt_optimizer: true,
       }
-      console.log('Minimax model input:', input)
+      logger.debug('Minimax model input:', input)
       output = await replicate.run('minimax/video-01', { input })
     }
 
-    console.log('Raw API output:', output)
-    console.log('Output type:', typeof output)
+    logger.debug('Raw API output:', output)
+    logger.debug('Output type:', typeof output)
     if (Array.isArray(output)) {
-      console.log('Output is array of length:', output.length)
+      logger.debug('Output is array of length:', output.length)
     }
 
     if (!output) {
@@ -116,17 +117,17 @@ export const generateVideo = async (
     } else if (typeof output === 'string') {
       videoUrl = output
     } else {
-      console.error(
+      logger.error(
         'Unexpected output format:',
         JSON.stringify(output, null, 2)
       )
       throw new Error(`Unexpected output format from API: ${typeof output}`)
     }
 
-    console.log('Final video URL:', videoUrl)
+    logger.debug('Final video URL:', videoUrl)
 
     const video = await downloadFile(videoUrl)
-    console.log('Video downloaded successfully, size:', video.length, 'bytes')
+    logger.debug('Video downloaded successfully, size:', video.length, 'bytes')
 
     // Сохраняем в таблицу assets
     const { data, error } = await supabase.from('assets').insert({
@@ -139,18 +140,18 @@ export const generateVideo = async (
     })
 
     if (error) {
-      console.error('Supabase error:', error)
+      logger.error('Supabase error:', error)
     } else {
-      console.log('Video metadata saved to database:', data)
+      logger.debug('Video metadata saved to database:', data)
     }
 
     return { video }
   } catch (error) {
-    console.error('Error generating video:', error)
+    logger.error('Error generating video:', error)
     if (error instanceof Error) {
-      console.error('Error name:', error.name)
-      console.error('Error message:', error.message)
-      console.error('Error stack:', error.stack)
+      logger.error('Error name:', error.name)
+      logger.error('Error message:', error.message)
+      logger.error('Error stack:', error.stack)
     }
     throw error
   }

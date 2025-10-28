@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 import { ModelTraining } from '@/interfaces'
 import { HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 
@@ -31,7 +32,7 @@ export async function getLatestUserModelForHaim(
 
     // Если у пользователя есть собственная модель, возвращаем её
     if (!userError && userModel) {
-      console.log(
+      logger.debug(
         `✅ Найдена персональная модель для пользователя ${telegram_id}`
       )
       return userModel as ModelTraining
@@ -39,7 +40,7 @@ export async function getLatestUserModelForHaim(
 
     // Если у пользователя нет собственной модели, но он сотрудник HaimGroupMedia
     if (isHaimStaff && botName === 'HaimGroupMedia_bot') {
-      console.log(
+      logger.debug(
         `🎯 Ищем общую модель для сотрудника HaimGroupMedia: ${telegram_id}`
       )
 
@@ -61,7 +62,7 @@ export async function getLatestUserModelForHaim(
           id: `shared_${sharedModel.id}`,
         }
 
-        console.log(
+        logger.debug(
           `✅ Предоставлена общая модель "${sharedModel.model_name}" для пользователя ${telegram_id}`
         )
         return modifiedSharedModel as ModelTraining
@@ -70,12 +71,12 @@ export async function getLatestUserModelForHaim(
 
     // Если ничего не найдено
     if (userError) {
-      console.error(`Error getting user model (${api}):`, userError)
+      logger.error(`Error getting user model (${api}):`, userError)
     }
 
     return null
   } catch (error) {
-    console.error(
+    logger.error(
       `Unexpected error in getLatestUserModelForHaim (${api}):`,
       error
     )

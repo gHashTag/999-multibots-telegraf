@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 import { TelegramNotifierService } from '../../services/telegram-notifier.service'
 import { GitHubAutoFixerService } from '../../webhooks/github-autofixer.service'
@@ -33,7 +34,7 @@ export function setupAutoFixerCommands(bot: Telegraf<MyContext>): void {
         }
       })
     } catch (error) {
-      console.error('[AutoFixerCommand] Status error:', error)
+      logger.error('[AutoFixerCommand] Status error:', error)
       await ctx.reply('❌ Ошибка получения статуса автофиксера')
     }
   })
@@ -80,7 +81,7 @@ ${fixesText}`, { parse_mode: 'HTML' })
       }
 
     } catch (error) {
-      console.error('[AutoFixerCommand] Manual fix error:', error)
+      logger.error('[AutoFixerCommand] Manual fix error:', error)
       await ctx.reply(`❌ Ошибка при исправлении PR: ${error.message}`)
     }
   })
@@ -98,7 +99,7 @@ ${fixesText}`, { parse_mode: 'HTML' })
 
       await ctx.reply(message, { parse_mode: 'HTML' })
     } catch (error) {
-      console.error('[AutoFixerCommand] Stats error:', error)
+      logger.error('[AutoFixerCommand] Stats error:', error)
       await ctx.reply('❌ Ошибка получения статистики')
     }
   })
@@ -128,7 +129,7 @@ ${fixesText}`, { parse_mode: 'HTML' })
 
       await ctx.answerCbQuery('✅ Статус обновлен')
     } catch (error) {
-      console.error('[AutoFixerCommand] Refresh status error:', error)
+      logger.error('[AutoFixerCommand] Refresh status error:', error)
       await ctx.answerCbQuery('❌ Ошибка обновления')
     }
   })
@@ -144,7 +145,7 @@ ${fixesText}`, { parse_mode: 'HTML' })
       await notifierService.sendTestNotification()
       await ctx.answerCbQuery('✅ Тест уведомления отправлен')
     } catch (error) {
-      console.error('[AutoFixerCommand] Test notifications error:', error)
+      logger.error('[AutoFixerCommand] Test notifications error:', error)
       await ctx.answerCbQuery('❌ Ошибка тестирования')
     }
   })

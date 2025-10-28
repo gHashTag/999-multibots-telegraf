@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import { handleTextMessage } from '../../handlers/handleTextMessage'
@@ -10,7 +11,7 @@ import { ModeEnum } from '@/interfaces/modes'
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ChatWithAvatar,
   async ctx => {
-    console.log('CASE: Чат с аватаром')
+    logger.debug('CASE: Чат с аватаром')
     const isRu = isRussian(ctx)
 
     await ctx.reply(
@@ -65,7 +66,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         // Остаемся на том же шаге для продолжения чата
         return ctx.wizard.selectStep(1)
       } catch (error) {
-        console.error('[chatWithAvatarWizard] Error processing text:', error)
+        logger.error('[chatWithAvatarWizard] Error processing text:', error)
         const isRu = isRussian(ctx)
         await ctx.reply(
           isRu
@@ -83,7 +84,7 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     const userExists = await getUserByTelegramId(ctx)
     if (!userExists) {
-      console.error(
+      logger.error(
         `[chatWithAvatarWizard] User with ID ${telegram_id} not found after message processing.`
       )
       return ctx.scene.leave()

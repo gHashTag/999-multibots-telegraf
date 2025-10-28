@@ -1,4 +1,5 @@
 import { openai } from '.'
+import { logger } from '@/utils/enhancedLogger'
 
 export const upgradePrompt = async (prompt: string) => {
   try {
@@ -21,7 +22,7 @@ export const upgradePrompt = async (prompt: string) => {
 
     return completion.choices[0].message.content
   } catch (error) {
-    console.error('Error in upgradePrompt:', error)
+    logger.error('Error in upgradePrompt:', error)
     throw error
   }
 }

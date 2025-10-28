@@ -1,4 +1,5 @@
 import { Markup } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 
 import { getAvailableModels, SelectableModel } from './getAvailableModels'
@@ -37,7 +38,7 @@ export async function selectModelCommand(ctx: MyContext) {
 
     return
   } catch (error) {
-    console.error('Error creating model selection menu:', error)
+    logger.error('Error creating model selection menu:', error)
     await sendGenericErrorMessage(ctx, isRu, error)
   }
 }

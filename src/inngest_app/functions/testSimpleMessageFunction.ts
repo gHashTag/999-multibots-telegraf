@@ -1,4 +1,5 @@
 import { Inngest } from 'inngest'
+import { logger } from '@/utils/enhancedLogger'
 import { Telegraf } from 'telegraf'
 
 const inngest = new Inngest({
@@ -18,13 +19,13 @@ export const testSimpleMessageFunction = inngest.createFunction(
     return await step.run('send-test-message', async () => {
       const { userId, message } = event.data
 
-      console.log(`🧪 Sending test message to user ${userId}: ${message}`)
+      logger.debug(`🧪 Sending test message to user ${userId}: ${message}`)
 
       const bot = new Telegraf(process.env.BOT_TOKEN!)
 
       await bot.telegram.sendMessage(userId, message)
 
-      console.log('✅ Test message sent successfully!')
+      logger.debug('✅ Test message sent successfully!')
 
       return { success: true, message: 'Test message sent' }
     })

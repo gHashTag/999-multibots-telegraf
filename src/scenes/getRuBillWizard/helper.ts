@@ -1,4 +1,5 @@
 import {
+import { logger } from '@/utils/enhancedLogger'
   MERCHANT_LOGIN,
   RESULT_URL2,
   UNIFIED_RESULT_URL,
@@ -8,14 +9,14 @@ import { levels } from '@/menu/mainMenu'
 import md5 from 'md5'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
-console.log('Payment variables check:')
-console.log('MERCHANT_LOGIN:', MERCHANT_LOGIN)
-console.log(
+logger.debug('Payment variables check:')
+logger.debug('MERCHANT_LOGIN:', MERCHANT_LOGIN)
+logger.debug(
   'ROBOKASSA_PASSWORD_1:',
   ROBOKASSA_PASSWORD_1 ? '[PROTECTED]' : 'undefined'
 )
-console.log('RESULT_URL2 (legacy):', RESULT_URL2)
-console.log('UNIFIED_RESULT_URL (new):', UNIFIED_RESULT_URL)
+logger.debug('RESULT_URL2 (legacy):', RESULT_URL2)
+logger.debug('UNIFIED_RESULT_URL (new):', UNIFIED_RESULT_URL)
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = ROBOKASSA_PASSWORD_1
@@ -50,7 +51,7 @@ export function generateRobokassaUrl(
 ): string {
   // Проверяем все параметры
   if (!merchantLogin || !password1 || !resultUrl2) {
-    console.error('Missing required parameters in generateRobokassaUrl', {
+    logger.error('Missing required parameters in generateRobokassaUrl', {
       hasMerchantLogin: !!merchantLogin,
       hasPassword: !!password1,
       hasResultUrl: !!resultUrl2,
@@ -64,7 +65,7 @@ export function generateRobokassaUrl(
     `${merchantLogin}:${outSum}:${invId}:${password1}`
   ).toUpperCase()
 
-  console.log('generateRobokassaUrl params:', {
+  logger.debug('generateRobokassaUrl params:', {
     merchantLogin,
     outSum,
     invId,
@@ -89,7 +90,7 @@ export async function getInvoiceId(
   description: string,
   password1: string
 ): Promise<string> {
-  console.log('Start getInvoiceId rubGetWizard', {
+  logger.debug('Start getInvoiceId rubGetWizard', {
     merchantLogin,
     outSum,
     invId,
@@ -100,7 +101,7 @@ export async function getInvoiceId(
   try {
     // Проверяем, определены ли все необходимые параметры
     if (!merchantLogin || !password1 || !resultUrl2) {
-      console.error('Missing required parameters for Robokassa payment', {
+      logger.error('Missing required parameters for Robokassa payment', {
         hasMerchantLogin: !!merchantLogin,
         hasPassword: !!password1,
         hasResultUrl: !!resultUrl2,
@@ -112,7 +113,7 @@ export async function getInvoiceId(
     const signatureValue = md5(
       `${merchantLogin}:${outSum}:${invId}:${password1}`
     )
-    console.log('signatureValue', signatureValue)
+    logger.debug('signatureValue', signatureValue)
 
     const response = generateRobokassaUrl(
       merchantLogin,
@@ -121,11 +122,11 @@ export async function getInvoiceId(
       description,
       password1
     )
-    console.log('response', response)
+    logger.debug('response', response)
 
     return response
   } catch (error) {
-    console.error('Error in getInvoiceId:', error)
+    logger.error('Error in getInvoiceId:', error)
     throw error
   }
 }

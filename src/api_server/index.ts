@@ -1,4 +1,5 @@
 import express from 'express'
+import { logger } from '@/utils/enhancedLogger'
 import healthRouter from './routes/health.routes'
 import robokassaRouter from './routes/robokassa.routes'
 import githubAutoFixerRouter from './routes/github-autofixer.routes'
@@ -34,7 +35,7 @@ export function startApiServer(): void {
 
   // Простой middleware для логгирования запросов
   app.use((req: any, res: any, next: any) => {
-    console.log(`[API] ${new Date().toISOString()} | ${req.method} ${req.url}`)
+    logger.debug(`[API] ${new Date().toISOString()} | ${req.method} ${req.url}`)
     next()
   })
 
@@ -62,13 +63,13 @@ export function startApiServer(): void {
 
   // Запуск основного сервера
   app.listen(PORT, () => {
-    console.log(`[API] Server started on port ${PORT}`)
+    logger.debug(`[API] Server started on port ${PORT}`)
   })
 
   // Запуск дублирующего сервера для обратного прокси на порту 8080
   const PROXY_PORT = process.env.PROXY_PORT || '8080'
   app.listen(PROXY_PORT, () => {
-    console.log(`[API] Proxy server started on port ${PROXY_PORT}`)
+    logger.debug(`[API] Proxy server started on port ${PROXY_PORT}`)
   })
 }
 

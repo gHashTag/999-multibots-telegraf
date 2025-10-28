@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 /**
  * Функция для получения уровня пользователя по его telegram_id.
@@ -17,7 +18,7 @@ export async function getUserLevel(
       .single() // Используем .single(), так как ожидаем только одну запись
 
     if (error) {
-      console.error('Ошибка при получении уровня пользователя:', error)
+      logger.error('Ошибка при получении уровня пользователя:', error)
       return null
     }
 
@@ -29,7 +30,7 @@ export async function getUserLevel(
     // Если пользователь не найден
     return null
   } catch (e) {
-    console.error('Ошибка в функции getUserLevel:', e)
+    logger.error('Ошибка в функции getUserLevel:', e)
     return null
   }
 }

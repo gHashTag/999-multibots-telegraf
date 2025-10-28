@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 /**
  * Проверяет наличие и статус подписки пользователя по Telegram ID
@@ -18,7 +19,7 @@ export const checkSubscriptionByTelegramId = async (
 
     // Обрабатываем ошибку запроса
     if (error) {
-      console.error('Ошибка при получении информации о подписке:', error)
+      logger.error('Ошибка при получении информации о подписке:', error)
       return 'unsubscribed'
     }
 
@@ -40,7 +41,7 @@ export const checkSubscriptionByTelegramId = async (
     // Возвращаем уровень подписки
     return data.level
   } catch (err) {
-    console.error('Непредвиденная ошибка при проверке подписки:', err)
+    logger.error('Непредвиденная ошибка при проверке подписки:', err)
     return 'unsubscribed'
   }
 }

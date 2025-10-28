@@ -1,4 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 import { getAvailableModels } from '../../commands/selectModelCommand/getAvailableModels'
 import { sendGenericErrorMessage } from '@/menu'
@@ -49,7 +50,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next()
     } catch (error) {
-      console.error('Error creating model selection menu:', error)
+      logger.error('Error creating model selection menu:', error)
       await ctx.reply(
         isRu
           ? '❌ Ошибка при получении списка моделей'
@@ -94,7 +95,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (!ctx.from?.id) {
-        console.error('❌ Telegram ID не найден')
+        logger.error('❌ Telegram ID не найден')
         await ctx.reply(
           isRu
             ? 'Произошла ошибка, попробуйте позже.'
@@ -116,13 +117,13 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
       const telegram_id = ctx.from?.id
       if (!telegram_id) {
-        console.error('❌ Telegram ID не найден на этапе обновления уровня')
+        logger.error('❌ Telegram ID не найден на этапе обновления уровня')
         return ctx.scene.leave()
       }
 
       const userObject = await getUserByTelegramId(ctx)
       if (!userObject) {
-        console.error(`User with ID ${telegram_id} does not exist.`)
+        logger.error(`User with ID ${telegram_id} does not exist.`)
         return ctx.scene.leave()
       }
       const level = userObject.level
@@ -133,7 +134,7 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
     } else if (ctx.callbackQuery) {
       await ctx
         .answerCbQuery()
-        .catch(e => console.error('Failed to answer CB query', e))
+        .catch(e => logger.error('Failed to answer CB query', e))
       await ctx.reply(
         isRu
           ? 'Пожалуйста, выберите модель кнопкой.'

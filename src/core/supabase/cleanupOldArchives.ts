@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function cleanupOldArchives(userId: string) {
   try {
@@ -8,7 +9,7 @@ export async function cleanupOldArchives(userId: string) {
       .list(`training/${userId}`)
 
     if (error) {
-      console.error('Error listing files:', error)
+      logger.error('Error listing files:', error)
       return
     }
 
@@ -28,6 +29,6 @@ export async function cleanupOldArchives(userId: string) {
       }
     }
   } catch (error) {
-    console.error('Error cleaning up old archives:', error)
+    logger.error('Error cleaning up old archives:', error)
   }
 }

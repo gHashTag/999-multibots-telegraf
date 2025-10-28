@@ -232,7 +232,7 @@ export async function directPayment(
       .select()
 
     if (error) {
-      console.error('Error inserting direct payment:', error)
+      logger.error('Error inserting direct payment:', error)
       return {
         success: false,
         message: 'Error inserting payment',
@@ -249,7 +249,7 @@ export async function directPayment(
 
     return { success: true, message: 'Payment successful', payment: data[0] }
   } catch (error) {
-    console.error('Unexpected error during direct payment:', error)
+    logger.error('Unexpected error during direct payment:', error)
     return {
       success: false,
       message: 'Unexpected system error',

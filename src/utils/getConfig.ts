@@ -9,11 +9,11 @@ import path from 'path'
 //     const dotenv = require('dotenv');
 //     dotenv.config()
 //   } catch (error) {
-//     console.error("Failed to load dotenv in non-production environment (require):", error);
+//     logger.error("Failed to load dotenv in non-production environment (require):", error);
 //   }
 // }
 
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 // Интерфейс для конфигурации приложения
 export interface Config {

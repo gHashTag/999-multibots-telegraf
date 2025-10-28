@@ -1,4 +1,5 @@
 /**
+import { logger } from '@/utils/enhancedLogger'
  * ГЕНЕРАТОР EXCEL-ОТЧЕТОВ ДЛЯ ВЛАДЕЛЬЦЕВ БОТОВ И СУПЕР-АДМИНОВ
  * Создает детальную аналитику по ботам с красивым оформлением
  */
@@ -162,7 +163,7 @@ export async function generateAdminExcelReport_RESTORED(
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
     return buffer
   } catch (error) {
-    console.error('❌ Ошибка генерации Excel отчета:', error)
+    logger.error('❌ Ошибка генерации Excel отчета:', error)
     throw new Error(
       `Не удалось создать Excel отчет: ${
         error instanceof Error ? error.message : 'Неизвестная ошибка'

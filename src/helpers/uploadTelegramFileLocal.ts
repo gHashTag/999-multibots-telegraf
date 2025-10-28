@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logger } from '@/utils/enhancedLogger'
 import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
@@ -16,7 +17,7 @@ export async function uploadTelegramFileLocal(
   fileName?: string
 ): Promise<string> {
   try {
-    console.log(
+    logger.debug(
       '🔗 [uploadLocal] Downloading from Telegram:',
       telegramUrl.substring(0, 100) + '...'
     )
@@ -57,15 +58,15 @@ export async function uploadTelegramFileLocal(
           process.env.SERVER_API_URL ||
           'https://three-head-dragon.shop'
 
-    console.log(
+    logger.debug(
       '🌐 [uploadLocal] Using public URL for Replicate access:',
       API_URL
     )
-    console.log('🔧 [uploadLocal] Environment mode:', process.env.NODE_ENV)
+    logger.debug('🔧 [uploadLocal] Environment mode:', process.env.NODE_ENV)
 
     const publicUrl = `${API_URL}/temp/${uniqueFileName}`
 
-    console.log('✅ [uploadLocal] File saved locally:', {
+    logger.debug('✅ [uploadLocal] File saved locally:', {
       localPath: filePath,
       publicUrl: publicUrl,
       size: response.data.length,
@@ -75,15 +76,15 @@ export async function uploadTelegramFileLocal(
     setTimeout(async () => {
       try {
         await fs.unlink(filePath)
-        console.log('🗑️ [uploadLocal] Temporary file cleaned up:', filePath)
+        logger.debug('🗑️ [uploadLocal] Temporary file cleaned up:', filePath)
       } catch (error) {
-        console.error('⚠️ [uploadLocal] Failed to cleanup file:', error)
+        logger.error('⚠️ [uploadLocal] Failed to cleanup file:', error)
       }
     }, 2 * 60 * 60 * 1000) // 2 часа в миллисекундах
 
     return publicUrl
   } catch (error) {
-    console.error('💥 [uploadLocal] Failed to save file locally:', error)
+    logger.error('💥 [uploadLocal] Failed to save file locally:', error)
     throw new Error(
       `Failed to upload file locally: ${
         error instanceof Error ? error.message : 'Unknown error'
@@ -113,7 +114,7 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
     await fs.access(dirPath)
   } catch {
     await fs.mkdir(dirPath, { recursive: true })
-    console.log('📁 [uploadLocal] Created directory:', dirPath)
+    logger.debug('📁 [uploadLocal] Created directory:', dirPath)
   }
 }
 

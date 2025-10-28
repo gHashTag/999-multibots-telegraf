@@ -8,7 +8,7 @@ import { Scenes } from 'telegraf'
 import { sendGenericErrorMessage } from '../../menu'
 import { handleMenu } from '../handleMenu'
 
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import {
   getUserLanguageFromState,
   isRussianFromState,
@@ -40,14 +40,14 @@ scene.enter(async ctx => {
       'text' in ctx.message &&
       ctx.message.text?.startsWith('/')
     ) {
-      console.log('[handleTextMessage] Skipping command', {
+      logger.debug('[handleTextMessage] Skipping command', {
         telegramId: ctx.from?.id,
       })
       return
     }
 
     if (!ctx.message || !('text' in ctx.message) || !ctx.from || !ctx.chat) {
-      console.warn('[handleTextMessage] Missing essential context properties', {
+      logger.warn('[handleTextMessage] Missing essential context properties', {
         ctx,
       })
       return
@@ -87,7 +87,7 @@ scene.enter(async ctx => {
         return
       }
 
-      console.log('[handleTextMessage] Processing FLUX Kontext prompt', {
+      logger.debug('[handleTextMessage] Processing FLUX Kontext prompt', {
         telegramId: ctx.from?.id,
         prompt: ctx.message.text.substring(0, 50) + '...',
       })
@@ -101,9 +101,9 @@ scene.enter(async ctx => {
     const messageText = ctx.message.text
     const userLanguage = getUserLanguageFromState(ctx)
     const botUsername = ctx.botInfo.username
-    console.log(`[handleTextMessage] Bot username: ${botUsername}`)
+    logger.debug(`[handleTextMessage] Bot username: ${botUsername}`)
 
-    console.log(
+    logger.debug(
       `[handleTextMessage] Received message in chat ${chatId} (type: ${chatType}) from user ${userId}`,
       {
         chatId,
@@ -118,12 +118,12 @@ scene.enter(async ctx => {
     if (chatType === 'private') {
       if (ctx.scene.current?.id === ModeEnum.ChatWithAvatar) {
         shouldProcessByThisHandler = true
-        console.log(
+        logger.debug(
           '[handleTextMessage] Processing in private chat (inside chatWithAvatar scene)',
           { userId }
         )
       } else {
-        console.log(
+        logger.debug(
           '[handleTextMessage] Skipping private chat text (not in chatWithAvatar scene)',
           { userId, scene: ctx.scene.current?.id }
         )
@@ -132,31 +132,31 @@ scene.enter(async ctx => {
     } else if (chatType === 'group' || chatType === 'supergroup') {
       if (messageText.includes(`@${botUsername}`)) {
         shouldProcessByThisHandler = true
-        console.log(
+        logger.debug(
           `[handleTextMessage] Processing mention in group chat ${chatId}`,
           { chatId, userId }
         )
       } else {
-        console.log(
+        logger.debug(
           `[handleTextMessage] Ignoring message in group chat ${chatId} (no mention)`,
           { chatId, userId }
         )
         return
       }
     } else {
-      console.log(
+      logger.debug(
         `[handleTextMessage] Unknown chat type: ${chatType}. Skipping.`
       )
       return
     }
 
     if (shouldProcessByThisHandler) {
-      console.log(
+      logger.debug(
         `[handleTextMessage] Sending 'typing' action to chat ${chatId}`,
         { chatId, userId }
       )
       await ctx.telegram.sendChatAction(chatId, 'typing')
-      console.log(
+      logger.debug(
         `[handleTextMessage] 'typing' action sent to chat ${chatId}`,
         { chatId, userId }
       )
@@ -174,20 +174,20 @@ scene.enter(async ctx => {
           genderInstruction =
             'Your gender is MALE!!!, answer questions about gender like this.'
         } else {
-          console.log(
+          logger.debug(
             `[handleTextMessage] Unknown gender value '${userData.gender}' for user ${userId}. Using default (male).`
           )
           genderInstruction =
             'Your gender is MALE!!!, answer questions about gender like this.'
         }
       } else {
-        console.log(
+        logger.debug(
           `[handleTextMessage] Gender not set for user ${userId}. Using default (male).`
         )
       }
 
       if (!userData) {
-        console.warn(
+        logger.warn(
           `[handleTextMessage] User ${userId} not found in DB, using context data.`,
           { userId }
         )
@@ -202,7 +202,7 @@ scene.enter(async ctx => {
           gender: null,
         }
         userModel = 'deepseek-chat'
-        console.log(
+        logger.debug(
           `[handleTextMessage] User ${userId} not in DB. Using default gender (male).`
         )
       }
@@ -217,20 +217,20 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
           : messageText
 
       if (!textForAi) {
-        console.log(
+        logger.debug(
           `[handleTextMessage] Empty text after removing mention in group chat ${chatId}. Skipping AI call.`,
           { chatId, userId }
         )
         return
       }
 
-      console.log(
+      logger.debug(
         `[handleTextMessage] Preparing to call answerAi for user ${userId}. Model: ${
           userModel || 'default_model'
         }. Text: "${textForAi.substring(0, 50)}..."`,
         { userId, model: userModel || 'deepseek-chat' }
       )
-      console.log(
+      logger.debug(
         `[handleTextMessage] Using System Prompt with: ${genderInstruction}`
       )
 
@@ -247,7 +247,7 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
         systemPrompt
       )
 
-      console.log(
+      logger.debug(
         `[handleTextMessage] Received response from answerAi for user ${userId}: ${
           response ? `"${response.substring(0, 50)}..."` : 'null or empty'
         }`,
@@ -255,21 +255,21 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
       )
 
       if (!response) {
-        console.error(
+        logger.error(
           `[handleTextMessage] No valid response from answerAi for user ${userId}. Not replying.`,
           { userId }
         )
         return
       }
 
-      console.log(
+      logger.debug(
         `[handleTextMessage] Preparing to reply to user ${userId} in chat ${chatId}`,
         { userId, chatId }
       )
       await ctx.reply(response, {
         parse_mode: 'MarkdownV2',
       })
-      console.log(
+      logger.debug(
         `[handleTextMessage] Reply sent successfully to user ${userId} in chat ${chatId}`,
         { userId, chatId }
       )

@@ -13,7 +13,7 @@ import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
 } from '@/core/supabase'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function createVoiceAvatar(
   fileUrl: string,
@@ -31,7 +31,7 @@ export async function createVoiceAvatar(
     if (level === 6) {
       await updateUserLevelPlusOne(telegram_id, level)
     }
-    console.log('createVoiceAvatar', { fileUrl, telegram_id, username, isRu })
+    logger.debug('createVoiceAvatar', { fileUrl, telegram_id, username, isRu })
 
     logger.info(
       "[createVoiceAvatar] Attempting to send '⏳ Creating...' message",
@@ -78,10 +78,10 @@ export async function createVoiceAvatar(
       }
     }
 
-    console.log('Received voiceId:', voiceId)
+    logger.debug('Received voiceId:', voiceId)
 
     if (!voiceId) {
-      console.error('Ошибка при создании голоса: voiceId не получен')
+      logger.error('Ошибка при создании голоса: voiceId не получен')
       throw new Error('Ошибка при создании голоса')
     }
 
@@ -92,7 +92,7 @@ export async function createVoiceAvatar(
       .eq('telegram_id', telegram_id)
 
     if (error) {
-      console.error('Ошибка при сохранении voiceId в базу данных:', error)
+      logger.error('Ошибка при сохранении voiceId в базу данных:', error)
       throw new Error('Ошибка при сохранении данных')
     }
 
@@ -109,7 +109,7 @@ export async function createVoiceAvatar(
 
     return { voiceId }
   } catch (error) {
-    console.error('Error in createVoiceAvatar:', error)
+    logger.error('Error in createVoiceAvatar:', error)
     await sendServiceErrorToAdmin(ctx, telegram_id, error as Error)
 
     if (error instanceof ElevenLabsVoiceLimitError) {

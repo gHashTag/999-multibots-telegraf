@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 
 const ADMIN_IDS = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || []
@@ -41,7 +42,7 @@ autoFixerConfigScene.enter(async (ctx) => {
       }
     })
   } catch (error) {
-    console.error('[AutoFixerConfig] Enter error:', error)
+    logger.error('[AutoFixerConfig] Enter error:', error)
     await ctx.reply('❌ Ошибка входа в настройки')
     await ctx.scene.leave()
   }
@@ -67,7 +68,7 @@ autoFixerConfigScene.action('toggle_auto_fix', async (ctx) => {
       reply_markup: (ctx.callbackQuery.message as any)?.reply_markup
     })
   } catch (error) {
-    console.error('[AutoFixerConfig] Toggle auto fix error:', error)
+    logger.error('[AutoFixerConfig] Toggle auto fix error:', error)
     await ctx.answerCbQuery('❌ Ошибка переключения')
   }
 })
@@ -91,7 +92,7 @@ autoFixerConfigScene.action('toggle_notifications', async (ctx) => {
       reply_markup: (ctx.callbackQuery.message as any)?.reply_markup
     })
   } catch (error) {
-    console.error('[AutoFixerConfig] Toggle notifications error:', error)
+    logger.error('[AutoFixerConfig] Toggle notifications error:', error)
     await ctx.answerCbQuery('❌ Ошибка переключения')
   }
 })
@@ -128,7 +129,7 @@ autoFixerConfigScene.action('configure_fix_types', async (ctx) => {
       }
     )
   } catch (error) {
-    console.error('[AutoFixerConfig] Configure fix types error:', error)
+    logger.error('[AutoFixerConfig] Configure fix types error:', error)
     await ctx.answerCbQuery('❌ Ошибка настройки')
   }
 })
@@ -167,7 +168,7 @@ fixTypeHandlers.forEach(type => {
         ]
       })
     } catch (error) {
-      console.error(`[AutoFixerConfig] Toggle ${type} fixes error:`, error)
+      logger.error(`[AutoFixerConfig] Toggle ${type} fixes error:`, error)
       await ctx.answerCbQuery('❌ Ошибка переключения')
     }
   })
@@ -202,7 +203,7 @@ autoFixerConfigScene.action('back_to_main_config', async (ctx) => {
       }
     })
   } catch (error) {
-    console.error('[AutoFixerConfig] Back to main error:', error)
+    logger.error('[AutoFixerConfig] Back to main error:', error)
     await ctx.answerCbQuery('❌ Ошибка возврата')
   }
 })
@@ -221,7 +222,7 @@ autoFixerConfigScene.action('save_and_exit', async (ctx) => {
     
     await ctx.scene.leave()
   } catch (error) {
-    console.error('[AutoFixerConfig] Save and exit error:', error)
+    logger.error('[AutoFixerConfig] Save and exit error:', error)
     await ctx.reply('❌ Ошибка сохранения настроек')
     await ctx.scene.leave()
   }

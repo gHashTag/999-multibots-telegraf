@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logger } from '@/utils/enhancedLogger'
 import FormData from 'form-data'
 
 /**
@@ -14,7 +15,7 @@ export async function uploadTelegramFileToFileIo(
   fileName?: string
 ): Promise<string> {
   try {
-    console.log(
+    logger.debug(
       '🔗 [uploadToFileIo] Downloading from Telegram:',
       telegramUrl.substring(0, 100) + '...'
     )
@@ -31,7 +32,7 @@ export async function uploadTelegramFileToFileIo(
       throw new Error('Empty response data from Telegram')
     }
 
-    console.log(
+    logger.debug(
       '📊 [uploadToFileIo] File downloaded, uploading to pomf.lain.la...'
     )
 
@@ -51,7 +52,7 @@ export async function uploadTelegramFileToFileIo(
       }
     )
 
-    console.log(
+    logger.debug(
       '📥 [uploadToFileIo] pomf.lain.la response:',
       uploadResponse.data
     )
@@ -65,7 +66,7 @@ export async function uploadTelegramFileToFileIo(
     }
 
     const publicUrl = uploadResponse.data.files[0].url
-    console.log('✅ [uploadToFileIo] File uploaded successfully:', {
+    logger.debug('✅ [uploadToFileIo] File uploaded successfully:', {
       url: publicUrl,
       name: uploadResponse.data.files[0].name,
       size: uploadResponse.data.files[0].size,
@@ -73,11 +74,11 @@ export async function uploadTelegramFileToFileIo(
 
     return publicUrl
   } catch (error) {
-    console.error('💥 [uploadToFileIo] Upload failed:', error)
+    logger.error('💥 [uploadToFileIo] Upload failed:', error)
 
     // Если pomf.lain.la недоступен, пробуем 0x0.st как fallback
     if (error instanceof Error && error.message.includes('Pomf.lain.la')) {
-      console.log('🔄 [uploadToFileIo] Trying fallback: 0x0.st...')
+      logger.debug('🔄 [uploadToFileIo] Trying fallback: 0x0.st...')
       return uploadTelegramFileToZeroSt(telegramUrl, fileName)
     }
 
@@ -97,7 +98,7 @@ async function uploadTelegramFileToZeroSt(
   fileName?: string
 ): Promise<string> {
   try {
-    console.log('🔄 [0x0.st] Downloading from Telegram...')
+    logger.debug('🔄 [0x0.st] Downloading from Telegram...')
 
     // Скачиваем файл из Telegram
     const response = await axios.get(telegramUrl, {
@@ -107,7 +108,7 @@ async function uploadTelegramFileToZeroSt(
       validateStatus: status => status === 200,
     })
 
-    console.log('📊 [0x0.st] File downloaded, uploading to 0x0.st...')
+    logger.debug('📊 [0x0.st] File downloaded, uploading to 0x0.st...')
 
     // Создаем FormData для загрузки
     const formData = new FormData()
@@ -127,10 +128,10 @@ async function uploadTelegramFileToZeroSt(
       throw new Error(`Invalid response from 0x0.st: ${publicUrl}`)
     }
 
-    console.log('✅ [0x0.st] Fallback upload successful:', publicUrl)
+    logger.debug('✅ [0x0.st] Fallback upload successful:', publicUrl)
     return publicUrl
   } catch (error) {
-    console.error('💥 [0x0.st] Fallback upload failed:', error)
+    logger.error('💥 [0x0.st] Fallback upload failed:', error)
     throw new Error(
       `Both pomf.lain.la and 0x0.st failed: ${
         error instanceof Error ? error.message : 'Unknown error'

@@ -1,4 +1,5 @@
 import { Markup } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 
 // models.config.ts
@@ -424,18 +425,18 @@ export const findModelByTitle = (
   type: 'image' | 'text'
 ): string | undefined => {
   // Ищем модель по тексту кнопки
-  console.log('🔍 Поиск модели по тексту:', { title, type })
+  logger.debug('🔍 Поиск модели по тексту:', { title, type })
 
   // Извлекаем имя модели из текста кнопки (удаляем цену в скобках)
   const modelTitle = title.replace(/\s*\([^)]*\)\s*$/, '').trim()
 
-  console.log('🔍 Нормализованное имя модели:', { modelTitle })
+  logger.debug('🔍 Нормализованное имя модели:', { modelTitle })
 
   const foundModel = Object.entries(VIDEO_MODELS_CONFIG).find(([_, model]) => {
     const typeMatch = model.inputType.includes(type)
     const titleMatch = model.title === modelTitle
 
-    console.log(`🔄 Проверка модели ${model.title}:`, {
+    logger.debug(`🔄 Проверка модели ${model.title}:`, {
       typeMatch,
       titleMatch,
       expectedTitle: modelTitle,
@@ -446,21 +447,21 @@ export const findModelByTitle = (
   })
 
   if (foundModel) {
-    console.log('✅ Модель найдена:', {
+    logger.debug('✅ Модель найдена:', {
       key: foundModel[0],
       title: foundModel[1].title,
     })
     return foundModel[0] // Возвращаем ключ модели
   }
 
-  console.log('❌ Модель не найдена')
+  logger.debug('❌ Модель не найдена')
   return undefined
 }
 export const videoModelKeyboard = (
   isRu: boolean,
   inputType: 'text' | 'image'
 ) => {
-  console.log('🎹 Создание клавиатуры для видео-моделей:', {
+  logger.debug('🎹 Создание клавиатуры для видео-моделей:', {
     description: 'Creating video models keyboard',
     isRu,
     inputType,
@@ -469,7 +470,7 @@ export const videoModelKeyboard = (
   // Фильтруем модели по типу ввода
   const filteredModels = Object.values(VIDEO_MODELS_CONFIG).filter(model => {
     const include = model.inputType.includes(inputType)
-    console.log(`🔘 Проверка модели:`, {
+    logger.debug(`🔘 Проверка модели:`, {
       description: 'Checking model',
       modelTitle: model.title,
       modelInputTypes: model.inputType,
@@ -478,7 +479,7 @@ export const videoModelKeyboard = (
     return include
   })
 
-  console.log('📋 Отфильтрованные модели:', {
+  logger.debug('📋 Отфильтрованные модели:', {
     description: 'Filtered models',
     models: filteredModels.map(m => ({
       title: m.title,
@@ -513,7 +514,7 @@ export const videoModelKeyboard = (
   // Создаем клавиатуру
   const keyboard = Markup.keyboard(modelButtons).resize()
 
-  console.log('✅ Клавиатура создана:', {
+  logger.debug('✅ Клавиатура создана:', {
     description: 'Keyboard created',
     buttonRows: modelButtons,
   })

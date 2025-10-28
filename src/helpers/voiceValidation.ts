@@ -1,4 +1,5 @@
 import { checkVoiceExists } from '@/core/elevenlabs'
+import { logger } from '@/utils/enhancedLogger'
 import { supabase } from '@/core/supabase'
 
 /**
@@ -10,16 +11,16 @@ export async function validateAndCleanVoiceId(
   telegramId: string
 ): Promise<boolean> {
   try {
-    console.log(
+    logger.debug(
       '[VoiceValidation] DEBUG: Starting validation for voice ID:',
       voiceId
     )
-    console.log('[VoiceValidation] DEBUG: User telegram ID:', telegramId)
+    logger.debug('[VoiceValidation] DEBUG: User telegram ID:', telegramId)
 
     const voiceExists = await checkVoiceExists(voiceId)
 
     if (!voiceExists) {
-      console.error(
+      logger.error(
         `[VoiceValidation] Voice ID ${voiceId} no longer exists for user ${telegramId}`
       )
 
@@ -29,11 +30,11 @@ export async function validateAndCleanVoiceId(
           .from('users')
           .update({ voice_id_elevenlabs: null })
           .eq('telegram_id', telegramId)
-        console.log(
+        logger.debug(
           `[VoiceValidation] Cleared invalid voice ID ${voiceId} for user ${telegramId}`
         )
       } catch (dbError) {
-        console.error(
+        logger.error(
           '[VoiceValidation] Error clearing invalid voice ID from database:',
           dbError
         )
@@ -42,13 +43,13 @@ export async function validateAndCleanVoiceId(
       return false
     }
 
-    console.log(
+    logger.debug(
       '[VoiceValidation] DEBUG: Voice validation successful for:',
       voiceId
     )
     return true
   } catch (error) {
-    console.error('[VoiceValidation] Error validating voice ID:', error)
+    logger.error('[VoiceValidation] Error validating voice ID:', error)
     return false
   }
 }

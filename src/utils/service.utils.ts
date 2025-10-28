@@ -1,4 +1,5 @@
 import {
+import { logger } from '@/utils/enhancedLogger'
   ServiceType,
   ServiceConfig,
   ServiceUsageStats,
@@ -73,7 +74,7 @@ export const getServiceUsageStats = async (
       serviceType,
     }
   } catch (error) {
-    console.error('Error getting service usage stats:', error)
+    logger.error('Error getting service usage stats:', error)
     // В случае ошибки возвращаем нулевые значения
     return {
       totalRequests: 0,

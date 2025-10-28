@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function saveVideoUrlToSupabase(
   telegramId: string,
@@ -16,8 +17,8 @@ export async function saveVideoUrlToSupabase(
   })
 
   if (error) {
-    console.error('Ошибка при сохранении URL видео в Supabase:', error)
+    logger.error('Ошибка при сохранении URL видео в Supabase:', error)
   } else {
-    console.log('URL видео успешно сохранен в Supabase')
+    logger.debug('URL видео успешно сохранен в Supabase')
   }
 }

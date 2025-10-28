@@ -3,7 +3,7 @@ import axios from 'axios'
 import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 
 // Используем заглушку, если переменная не установлена
 const API_URL =
@@ -30,7 +30,7 @@ export async function generateNeuroImage(
     throw new Error('Num images not found')
   }
 
-  console.log('Starting generateNeuroImage with:', {
+  logger.debug('Starting generateNeuroImage with:', {
     prompt,
     model_url,
     numImages,
@@ -41,7 +41,7 @@ export async function generateNeuroImage(
 
   try {
     const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/neuro-photo`
-    console.log(url, 'url')
+    logger.debug(url, 'url')
 
     const response = await axios.post(
       url,
@@ -71,7 +71,7 @@ export async function generateNeuroImage(
     })
     return response.data
   } catch (error) {
-    console.error('Ошибка при генерации нейроизображения:', error)
+    logger.error('Ошибка при генерации нейроизображения:', error)
 
     if (ctx.reply) {
       await ctx.reply(

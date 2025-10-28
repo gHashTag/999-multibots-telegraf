@@ -1,7 +1,7 @@
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
@@ -117,7 +117,7 @@ export async function generateNeuroPhotoDirect(
     bot_name: botName,
   })
   // --- DEBUG LOG ---
-  // console.log(
+  // logger.debug(
   //   '>>> generateNeuroPhotoDirect: Called with',
   //   {
   //     telegram_id: telegram_id,
@@ -163,7 +163,7 @@ export async function generateNeuroPhotoDirect(
     // Убедимся что numImages имеет разумное значение
     const validNumImages = numImages && numImages > 0 ? numImages : 1
     // --- DEBUG LOG ---
-    // console.log(
+    // logger.debug(
     //   '>>> generateNeuroPhotoDirect: Validated numImages',
     //   {
     //     telegram_id: telegram_id,
@@ -190,7 +190,7 @@ export async function generateNeuroPhotoDirect(
         botName,
         error: botResult.error,
       })
-      console.error(
+      logger.error(
         `❌ [DIRECT] Бот с именем ${botName} не найден: ${botResult.error}`
       )
       throw new Error(`Bot with name ${botName} not found`)
@@ -218,7 +218,7 @@ export async function generateNeuroPhotoDirect(
         description: 'User not found in database (direct)',
         telegram_id,
       })
-      console.error(
+      logger.error(
         `❌ [DIRECT] Пользователь с ID ${telegram_id} не найден в базе данных`
       )
 
@@ -318,7 +318,7 @@ export async function generateNeuroPhotoDirect(
         error: paymentResult.error,
         telegram_id,
       })
-      console.error(
+      logger.error(
         `❌ [DIRECT] Ошибка при обработке платежа: ${paymentResult.error}`
       )
 
@@ -395,7 +395,7 @@ export async function generateNeuroPhotoDirect(
 
     for (let i = 0; i < validNumImages; i++) {
       // --- DEBUG LOG ---
-      // console.log(
+      // logger.debug(
       //   '>>> generateNeuroPhotoDirect: LOOP Iteration',
       //   {
       //     telegram_id: telegram_id,
@@ -744,7 +744,7 @@ export async function generateNeuroPhotoDirect(
           telegram_id,
           index: i,
         })
-        console.error(
+        logger.error(
           `❌ [DIRECT] Ошибка при генерации изображения ${i + 1}: ${
             genError instanceof Error ? genError.message : 'Unknown error'
           }`
@@ -978,12 +978,12 @@ export async function generateNeuroPhotoDirect(
       session_data: JSON.stringify(ctx.session || {}),
     })
 
-    console.error(
+    logger.error(
       `❌ [DIRECT] Критическая ошибка при прямой генерации нейрофото: ${errorMessage}`
     )
-    console.error(`📚 [DIRECT] Стек ошибки:`)
-    console.error(errorStack)
-    console.error(
+    logger.error(`📚 [DIRECT] Стек ошибки:`)
+    logger.error(errorStack)
+    logger.error(
       `📊 [DIRECT] Данные сессии: ${JSON.stringify(ctx.session || {})}`
     )
 

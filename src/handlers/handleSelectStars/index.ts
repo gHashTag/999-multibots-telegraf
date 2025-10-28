@@ -2,7 +2,7 @@ import { Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { starAmounts } from '@/price/helpers/starAmounts'
 // import { BuyParams } from '../handleBuy/index' // Убираем старый импорт
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { ADMIN_IDS_ARRAY } from '@/config'
 
 // Создаем новый интерфейс для параметров этой функции
@@ -17,7 +17,7 @@ export async function handleSelectStars({
   starAmounts,
   isRu,
 }: SelectStarsParams) {
-  console.log(
+  logger.debug(
     `[handleSelectStars LOG] === ENTER Function === (User: ${ctx.from?.id})`
   )
   logger.info('🌟 [handleSelectStars] Начало выбора звезд', {
@@ -41,7 +41,7 @@ export async function handleSelectStars({
 
     const keyboard = Markup.inlineKeyboard(buttons)
 
-    console.log(
+    logger.debug(
       `[handleSelectStars LOG] Sending message with star amount buttons (User: ${ctx.from?.id})`
     )
 
@@ -51,11 +51,11 @@ export async function handleSelectStars({
         : 'Choose the number of stars to buy:',
       keyboard
     )
-    console.log(
+    logger.debug(
       `[handleSelectStars LOG] Message with buttons sent (User: ${ctx.from?.id})`
     )
   } catch (error) {
-    console.error('Error in handleSelectStars:', error)
+    logger.error('Error in handleSelectStars:', error)
     logger.error('❌ [handleSelectStars] Ошибка при отображении выбора звезд', {
       telegram_id: ctx.from?.id,
       error: error instanceof Error ? error.message : String(error),

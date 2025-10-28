@@ -1,4 +1,5 @@
 import {
+import { logger } from '@/utils/enhancedLogger'
   getUsdToRubRate,
   rubToStars,
   usdToStars,
@@ -19,7 +20,7 @@ export const rubTopUpOptions: { amountRub: number; stars: number }[] = [
 
 // Проверка, если вдруг все пакеты стали невалидными
 if (rubTopUpOptions.length === 0) {
-  console.error(
+  logger.error(
     'Не удалось сформировать пакеты пополнения рублями из фиксированного списка.'
   )
   // Добавляем хотя бы один пакет по умолчанию
@@ -54,7 +55,7 @@ export async function generateDynamicTopUpPackages(
     // Фильтруем пакеты с валидным количеством звёзд
     return dynamicPackages.filter(option => option.stars > 0)
   } catch (error) {
-    console.error('Ошибка генерации динамических пакетов пополнения:', error)
+    logger.error('Ошибка генерации динамических пакетов пополнения:', error)
     throw error
   }
 }
@@ -70,7 +71,7 @@ export async function getDynamicRubTopUpOptions(
   try {
     return await generateDynamicTopUpPackages(fallback)
   } catch (error) {
-    console.error('Ошибка получения динамических пакетов пополнения:', error)
+    logger.error('Ошибка получения динамических пакетов пополнения:', error)
     return rubTopUpOptions
   }
 }

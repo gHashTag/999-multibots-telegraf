@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const getAspectRatio = async (telegram_id: number) => {
   const { data, error } = await supabase
@@ -8,7 +9,7 @@ export const getAspectRatio = async (telegram_id: number) => {
     .single()
 
   if (error || !data) {
-    console.error('Ошибка при получении aspect_ratio для telegram_id:', error)
+    logger.error('Ошибка при получении aspect_ratio для telegram_id:', error)
     return null
   }
 

@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { logger } from '@/utils/enhancedLogger'
 import { imageModelPrices } from '@/price/models/imageModelPrices'
 
 export async function validateAndCalculateImageModelPrice(
@@ -18,7 +19,7 @@ export async function validateAndCalculateImageModelPrice(
   }
 
   const modelInfo = imageModelPrices[imageModel]
-  console.log('modelInfo', modelInfo)
+  logger.debug('modelInfo', modelInfo)
   if (!modelInfo) {
     await ctx.reply(
       isRu

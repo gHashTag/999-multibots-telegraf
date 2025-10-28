@@ -2,7 +2,7 @@ import { getBotByName } from '@/core/bot'
 import type { Telegraf } from 'telegraf'
 import { BotName } from '@/interfaces'
 import { toBotName } from '@/helpers/botName.helper'
-import logger from '@/utils/logger'
+import logger from '@/utils/enhancedLogger'
 
 interface NotificationOptions {
   truncateError?: boolean
@@ -34,7 +34,7 @@ export class NotificationService {
     options: NotificationOptions = {}
   ): Promise<void> {
     if (!telegramId) {
-      console.warn('⚠️ Не указан Telegram ID для отправки ошибки')
+      logger.warn('⚠️ Не указан Telegram ID для отправки ошибки')
       return
     }
 
@@ -51,9 +51,9 @@ export class NotificationService {
         { parse_mode: 'MarkdownV2' }
       )
 
-      console.log(`📩 Уведомление отправлено пользователю ${telegramId}`)
+      logger.debug(`📩 Уведомление отправлено пользователю ${telegramId}`)
     } catch (error) {
-      console.error('💥 Ошибка отправки уведомления:', {
+      logger.error('💥 Ошибка отправки уведомления:', {
         telegramId,
         error: error.message,
       })
@@ -76,7 +76,7 @@ export class NotificationService {
         parse_mode: 'MarkdownV2',
       })
     } catch (error) {
-      console.error('Ошибка отправки успешного уведомления:', error)
+      logger.error('Ошибка отправки успешного уведомления:', error)
     }
   }
 }

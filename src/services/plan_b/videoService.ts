@@ -1,4 +1,5 @@
 import { downloadFile } from '@/helpers'
+import { logger } from '@/utils/enhancedLogger'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 
@@ -16,7 +17,7 @@ export class VideoService {
         'videos',
         fileName
       )
-      console.log(videoLocalPath, 'videoLocalPath')
+      logger.debug(videoLocalPath, 'videoLocalPath')
       await mkdir(path.dirname(videoLocalPath), { recursive: true })
 
       const videoBuffer = await downloadFile(videoUrl)
@@ -25,7 +26,7 @@ export class VideoService {
 
       return videoLocalPath
     } catch (error) {
-      console.error('Error processing video:', error)
+      logger.error('Error processing video:', error)
       throw error
     }
   }

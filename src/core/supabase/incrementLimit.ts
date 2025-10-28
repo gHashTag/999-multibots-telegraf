@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const incrementLimit = async ({
   telegram_id,
@@ -19,7 +20,7 @@ export const incrementLimit = async ({
       .insert({ telegram_id: telegram_id.toString(), limit: amount })
 
     if (insertError) {
-      console.error('Ошибка при добавлении нового telegram_id:', insertError)
+      logger.error('Ошибка при добавлении нового telegram_id:', insertError)
       return false
     }
   } else if (data) {
@@ -30,11 +31,11 @@ export const incrementLimit = async ({
       .eq('telegram_id', telegram_id.toString())
 
     if (updateError) {
-      console.error('Ошибка при обновлении limit для telegram_id:', updateError)
+      logger.error('Ошибка при обновлении limit для telegram_id:', updateError)
       return false
     }
   } else {
-    console.error('Ошибка при проверке существования telegram_id:', error)
+    logger.error('Ошибка при проверке существования telegram_id:', error)
     return false
   }
 

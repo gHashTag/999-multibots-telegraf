@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export interface Payment {
   id: string
@@ -17,7 +18,7 @@ export const getPaymentsInfoByTelegramId = async (
     .order('date', { ascending: false })
 
   if (error) {
-    console.error(
+    logger.error(
       'Ошибка при получении информации о платежах пользователя:',
       error
     )

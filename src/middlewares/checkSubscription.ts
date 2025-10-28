@@ -1,5 +1,5 @@
 import { MyContext } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export async function checkSubscription(
@@ -8,18 +8,18 @@ export async function checkSubscription(
 ): Promise<boolean> {
   try {
     if (!ctx.from?.id) {
-      console.error('User ID is undefined')
+      logger.error('User ID is undefined')
       throw new Error('User ID is undefined')
     }
     const chatMember = await ctx.telegram.getChatMember(
       telegram_channel_id,
       ctx.from?.id
     )
-    console.log('chatMember', chatMember)
+    logger.debug('chatMember', chatMember)
 
     return ['member', 'administrator', 'creator'].includes(chatMember.status)
   } catch (error) {
-    console.error('Error checking subscription:', error)
+    logger.error('Error checking subscription:', error)
     throw error
   }
 }

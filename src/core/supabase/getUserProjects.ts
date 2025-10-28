@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { queryNeon, testNeonConnection } from '../neon/client'
 
@@ -29,7 +29,7 @@ function getCachedProjects(telegramId: string): UserProject[] | null {
     return null
   }
 
-  console.log('🚀 [getUserProjects] CACHE HIT! Returning cached projects')
+  logger.debug('🚀 [getUserProjects] CACHE HIT! Returning cached projects')
   return entry.data
 }
 
@@ -39,16 +39,16 @@ function setCachedProjects(telegramId: string, data: UserProject[]): void {
     timestamp: Date.now(),
     telegramId,
   })
-  console.log('💾 [getUserProjects] CACHED projects for future use')
+  logger.debug('💾 [getUserProjects] CACHED projects for future use')
 }
 
 export const getUserProjects = async (
   telegram_id: string | number
 ): Promise<UserProject[]> => {
-  console.log('🚨 [getUserProjects] FUNCTION ENTERED!', { telegram_id })
+  logger.debug('🚨 [getUserProjects] FUNCTION ENTERED!', { telegram_id })
 
   if (!telegram_id) {
-    console.log(
+    logger.debug(
       '🚨 [getUserProjects] Missing telegram_id - returning empty array'
     )
     logger.error('[getUserProjects] Missing telegram_id')
@@ -67,7 +67,7 @@ export const getUserProjects = async (
     typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id
   const isAdmin = ADMIN_IDS_ARRAY.includes(numericTelegramId)
 
-  console.log('🚨 [getUserProjects] Parsed data:', {
+  logger.debug('🚨 [getUserProjects] Parsed data:', {
     telegram_id,
     numericTelegramId,
     isAdmin,
@@ -86,48 +86,48 @@ export const getUserProjects = async (
 
   try {
     // Сначала тестируем соединение и проверяем таблицы
-    console.log('🚨 [getUserProjects] Testing Neon connection...')
+    logger.debug('🚨 [getUserProjects] Testing Neon connection...')
     await testNeonConnection()
 
     if (isAdmin) {
       // ДЛЯ АДМИНОВ: Получаем ВСЕ проекты из базы данных
-      console.log(
+      logger.debug(
         '🚨 [getUserProjects] ADMIN BRANCH - executing query to fetch all projects from NEON'
       )
       logger.info(
         `[getUserProjects] Admin access - executing query to fetch all projects from NEON`
       )
 
-      console.log('🚨 [getUserProjects] About to query NEON...')
+      logger.debug('🚨 [getUserProjects] About to query NEON...')
       const result = await queryNeon(`
         SELECT id, name, description, industry 
         FROM projects 
         ORDER BY name ASC
       `)
-      console.log('🚨 [getUserProjects] NEON query completed!')
+      logger.debug('🚨 [getUserProjects] NEON query completed!')
 
       const projects = result.rows
 
-      console.log('🚨 [getUserProjects] NEON query RESULTS:', {
+      logger.debug('🚨 [getUserProjects] NEON query RESULTS:', {
         hasError: false,
         projectsLength: projects?.length || 0,
         firstThreeProjects: projects?.slice(0, 3) || [],
       })
 
-      console.log(
+      logger.debug(
         '🚨 [getUserProjects] About to call logger.info for Admin query completed'
       )
-      console.log(`🚨 [getUserProjects] Admin query completed (CONSOLE LOG)`, {
+      logger.debug(`🚨 [getUserProjects] Admin query completed (CONSOLE LOG)`, {
         hasError: false,
         errorMessage: null,
         projectsLength: projects?.length || 0,
         projectsData: projects?.slice(0, 3) || [],
       })
-      console.log(
+      logger.debug(
         '🚨 [getUserProjects] logger.info for Admin query completed - DONE'
       )
 
-      console.log(
+      logger.debug(
         '🚨 [getUserProjects] NO ERROR - proceeding with projects processing'
       )
 
@@ -140,7 +140,7 @@ export const getUserProjects = async (
         }
       )
 
-      console.log('🚨 [getUserProjects] ADMIN BRANCH - returning projects:', {
+      logger.debug('🚨 [getUserProjects] ADMIN BRANCH - returning projects:', {
         projectsLength: projects?.length || 0,
         projectNames: projects?.map(p => p.name) || [],
       })
@@ -151,7 +151,7 @@ export const getUserProjects = async (
 
       return resultProjects
     } else {
-      console.log(
+      logger.debug(
         '🚨 [getUserProjects] REGULAR USER BRANCH - fetching user projects from NEON'
       )
       // ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ: Получаем только их проекты
@@ -200,7 +200,7 @@ export const getUserProjects = async (
       return userProjects
     }
   } catch (error) {
-    console.log('🚨 [getUserProjects] CAUGHT ERROR:', {
+    logger.debug('🚨 [getUserProjects] CAUGHT ERROR:', {
       telegram_id,
       error: error instanceof Error ? error.message : String(error),
     })

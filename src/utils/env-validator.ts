@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { logger } from '@/utils/enhancedLogger'
 
 /**
  * Environment Variable Validation and Secure Secrets Management
@@ -86,7 +87,7 @@ class EnvironmentValidator {
       const envVars = this.loadEnvironmentVariables()
       const validatedEnv = ProductionEnvSchema.parse(envVars)
       
-      console.log('✅ Environment validation passed')
+      logger.debug('✅ Environment validation passed')
       
       // Additional validations
       this.validateBotTokens(envVars, result)
@@ -176,7 +177,7 @@ class EnvironmentValidator {
       }
     }
     
-    console.log(`✅ Found ${botTokens.length} bot tokens`)
+    logger.debug(`✅ Found ${botTokens.length} bot tokens`)
   }
   
   /**
@@ -197,7 +198,7 @@ class EnvironmentValidator {
       }
     }
     
-    console.log('✅ Webhook configuration validated')
+    logger.debug('✅ Webhook configuration validated')
   }
   
   /**
@@ -233,7 +234,7 @@ class EnvironmentValidator {
       }
     }
     
-    console.log('✅ Security settings validated')
+    logger.debug('✅ Security settings validated')
   }
   
   /**
@@ -249,7 +250,7 @@ class EnvironmentValidator {
       result.warnings.push('Test bot tokens are present but should not be used in production')
     }
     
-    console.log('✅ Test mode validation completed')
+    logger.debug('✅ Test mode validation completed')
   }
   
   /**
@@ -409,51 +410,51 @@ class EnvironmentValidatorCLI {
         break
         
       default:
-        console.error(`❌ Unknown command: ${command}`)
+        logger.error(`❌ Unknown command: ${command}`)
         this.showHelp()
         process.exit(1)
     }
   }
   
   private async validateCommand(): Promise<void> {
-    console.log('🔍 Validating Production Environment')
-    console.log('===================================')
+    logger.debug('🔍 Validating Production Environment')
+    logger.debug('===================================')
     
     const result = this.validator.validateEnvironment()
     
     // Show validation results
     if (result.valid) {
-      console.log('✅ Environment validation passed')
+      logger.debug('✅ Environment validation passed')
     } else {
-      console.log('❌ Environment validation failed')
+      logger.debug('❌ Environment validation failed')
     }
     
     // Show errors
     if (result.errors.length > 0) {
-      console.log('\n🚨 Errors:')
+      logger.debug('\n🚨 Errors:')
       for (const error of result.errors) {
-        console.log(`  ❌ ${error}`)
+        logger.debug(`  ❌ ${error}`)
       }
     }
     
     // Show warnings
     if (result.warnings.length > 0) {
-      console.log('\n⚠️ Warnings:')
+      logger.debug('\n⚠️ Warnings:')
       for (const warning of result.warnings) {
-        console.log(`  ⚠️ ${warning}`)
+        logger.debug(`  ⚠️ ${warning}`)
       }
     }
     
     // Show secret summary
     if (result.secrets.length > 0) {
-      console.log(`\n🔐 Found ${result.secrets.length} secrets`)
+      logger.debug(`\n🔐 Found ${result.secrets.length} secrets`)
     }
     
     // Show recommendations
     if (result.recommendations.length > 0) {
-      console.log('\n💡 Recommendations:')
+      logger.debug('\n💡 Recommendations:')
       for (const rec of result.recommendations) {
-        console.log(`  💡 ${rec}`)
+        logger.debug(`  💡 ${rec}`)
       }
     }
     
@@ -463,19 +464,19 @@ class EnvironmentValidatorCLI {
   }
   
   private async templateCommand(): Promise<void> {
-    console.log('📝 Generating Environment Template')
-    console.log('=================================')
+    logger.debug('📝 Generating Environment Template')
+    logger.debug('=================================')
     
     const template = this.validator.generateEnvTemplate()
     const templatePath = join(process.cwd(), '.env.template')
     
     writeFileSync(templatePath, template)
-    console.log(`✅ Template written to: ${templatePath}`)
+    logger.debug(`✅ Template written to: ${templatePath}`)
   }
   
   private async auditCommand(): Promise<void> {
-    console.log('🔒 Auditing Secrets Security')
-    console.log('============================')
+    logger.debug('🔒 Auditing Secrets Security')
+    logger.debug('============================')
     
     // First validate to collect secrets
     this.validator.validateEnvironment()
@@ -483,26 +484,26 @@ class EnvironmentValidatorCLI {
     const audit = this.validator.auditSecrets()
     
     if (audit.issues.length > 0) {
-      console.log('\n🚨 Security Issues:')
+      logger.debug('\n🚨 Security Issues:')
       for (const issue of audit.issues) {
-        console.log(`  ❌ ${issue}`)
+        logger.debug(`  ❌ ${issue}`)
       }
     }
     
     if (audit.recommendations.length > 0) {
-      console.log('\n💡 Security Recommendations:')
+      logger.debug('\n💡 Security Recommendations:')
       for (const rec of audit.recommendations) {
-        console.log(`  💡 ${rec}`)
+        logger.debug(`  💡 ${rec}`)
       }
     }
     
     if (audit.issues.length === 0 && audit.recommendations.length === 0) {
-      console.log('✅ No security issues found')
+      logger.debug('✅ No security issues found')
     }
   }
   
   private showHelp(): void {
-    console.log(`
+    logger.debug(`
 🔒 Environment Variable Validator
 
 Usage:
@@ -527,7 +528,7 @@ Examples:
 if (typeof process !== 'undefined' && process.argv.length > 2 && process.argv[1].endsWith('env-validator.ts')) {
   const cli = new EnvironmentValidatorCLI()
   cli.run(process.argv.slice(2)).catch(error => {
-    console.error('❌ CLI Error:', error)
+    logger.error('❌ CLI Error:', error)
     process.exit(1)
   })
 }

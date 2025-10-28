@@ -7,12 +7,10 @@ import { pulse } from '@/helpers/pulse'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
-  getUserBalance,
-  getAspectRatio,
 } from '@/core/supabase'
 import { FLUX_KONTEXT_MODELS } from '@/price/models'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
-import { logger, logSessionSafely } from '@/utils/logger'
+import { logger, logSessionSafely } from '@/utils/enhancedLogger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
@@ -34,8 +32,6 @@ export interface FluxKontextParams {
   username: string
   is_ru: boolean
   ctx: MyContext
-  aspect_ratio?: '1:1' | '16:9' | 'match_input_image'
-  suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
 }
 
 // Новый интерфейс для продвинутого FLUX Kontext
@@ -57,14 +53,12 @@ export interface AdvancedFluxKontextParams {
   is_ru: boolean
   ctx: MyContext
   cameraSettings?: string // Настройки камеры для FLUX Kontext
-  silent?: boolean // Пропустить отправку статус сообщений (для ALL_MODELS режима)
-  aspect_ratio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21' // ✅ Централизованное управление aspect_ratio
 }
 
 export const generateFluxKontext = async (
   params: FluxKontextParams
 ): Promise<GenerationResult> => {
-  console.log('🔥 [CRITICAL] generateFluxKontext CALLED with params:', {
+  logger.debug('🔥 [CRITICAL] generateFluxKontext CALLED with params:', {
     telegram_id: params.telegram_id,
     modelType: params.modelType,
     promptLength: params.prompt?.length,
@@ -82,24 +76,23 @@ export const generateFluxKontext = async (
       username,
       is_ru,
       ctx,
-      suppressUserErrors = false,
     } = params
 
-    console.log(
+    logger.debug(
       '🔥 [CRITICAL] generateFluxKontext params destructured successfully'
     )
 
     const modelKey = `black-forest-labs/flux-kontext-${modelType}`
     const modelConfig = FLUX_KONTEXT_MODELS[modelKey]
 
-    console.log('🔥 [CRITICAL] Model config:', {
+    logger.debug('🔥 [CRITICAL] Model config:', {
       modelKey,
       configExists: !!modelConfig,
       costPerImage: modelConfig?.costPerImage,
     })
 
     if (!modelConfig) {
-      console.error('🚨 [CRITICAL] Model config not found for:', modelKey)
+      logger.error('🚨 [CRITICAL] Model config not found for:', modelKey)
       throw new Error(`Неподдерживаемый тип модели: ${modelKey}`)
     }
 
@@ -122,13 +115,13 @@ export const generateFluxKontext = async (
       is_ru,
     })
 
-    console.log('🔥 [CRITICAL] Balance check completed:', {
+    logger.debug('🔥 [CRITICAL] Balance check completed:', {
       success: balanceCheck.success,
       telegram_id,
     })
 
     if (!balanceCheck.success) {
-      console.error('🚨 [CRITICAL] Balance check failed:', {
+      logger.error('🚨 [CRITICAL] Balance check failed:', {
         telegram_id,
         balanceCheck,
       })
@@ -143,51 +136,32 @@ export const generateFluxKontext = async (
       }
     )
 
-    console.log(
+    logger.debug(
       '🔥 [CRITICAL] About to send status message to telegram_id:',
       telegram_id
     )
 
     // Отправка сообщения о начале редактирования с обработкой ошибок
     try {
-      console.log('🔥 [CRITICAL] Calling ctx.telegram.sendMessage...')
-      console.log('🔥 [CRITICAL] ctx object:', {
-        ctxExists: !!ctx,
-        ctxTelegramExists: !!ctx?.telegram,
-        ctxTelegramType: typeof ctx?.telegram,
+      logger.debug('🔥 [CRITICAL] Calling ctx.telegram.sendMessage...')
+
+      await ctx.telegram.sendMessage(
         telegram_id,
-      })
+        is_ru
+          ? '✨ Редактирую изображение с помощью FLUX Kontext...'
+          : '✨ Editing image with FLUX Kontext...',
+        {
+          reply_markup: { remove_keyboard: true },
+        }
+      )
 
-      // Проверяем наличие ctx и ctx.telegram
-      if (!ctx || !ctx.telegram) {
-        console.error('🚨 [CRITICAL] Context or telegram is undefined!', {
-          ctxExists: !!ctx,
-          ctxTelegramExists: !!ctx?.telegram,
-          telegram_id,
-        })
-        // Пропускаем отправку сообщения если контекст недоступен
-        logger.warn('[generateFluxKontext] Skipping status message - context unavailable', {
-          telegram_id,
-        })
-      } else {
-        await ctx.telegram.sendMessage(
-          telegram_id,
-          is_ru
-            ? '✨ Редактирую изображение с помощью FLUX Kontext...'
-            : '✨ Editing image with FLUX Kontext...',
-          {
-            reply_markup: { remove_keyboard: true },
-          }
-        )
-      }
-
-      console.log('🔥 [CRITICAL] Status message sent successfully!')
+      logger.debug('🔥 [CRITICAL] Status message sent successfully!')
 
       logger.info('[generateFluxKontext] Status message sent successfully', {
         telegram_id,
       })
     } catch (messageError) {
-      console.error('🚨 [CRITICAL] Status message failed:', {
+      logger.error('🚨 [CRITICAL] Status message failed:', {
         telegram_id,
         error: messageError,
         errorMessage:
@@ -207,15 +181,14 @@ export const generateFluxKontext = async (
     const inputParams = {
       prompt,
       input_image: inputImageUrl,
-      aspect_ratio: params.aspect_ratio || 'match_input_image', // Use parameter or default to match_input_image
+      aspect_ratio: '9:16', // Формат для Instagram Stories
     }
 
-    console.log('🔥 [CRITICAL] About to call Replicate API:', {
+    logger.debug('🔥 [CRITICAL] About to call Replicate API:', {
       modelKey,
       inputParams: {
         prompt: prompt.substring(0, 100) + '...',
         input_image: inputImageUrl ? 'present' : 'missing',
-        input_image_preview: inputImageUrl ? inputImageUrl.substring(0, 150) + '...' : 'NO_INPUT_IMAGE',
       },
       telegram_id,
     })
@@ -227,7 +200,7 @@ export const generateFluxKontext = async (
       inputParams,
     })
 
-    console.log('🔥 [CRITICAL] Calling replicate.run...')
+    logger.debug('🔥 [CRITICAL] Calling replicate.run...')
 
     let output: ApiResponse
     try {
@@ -236,7 +209,7 @@ export const generateFluxKontext = async (
         input: inputParams,
       })) as ApiResponse
     } catch (error: any) {
-      console.log('🚨 [CRITICAL] First attempt failed, checking error type:', {
+      logger.debug('🚨 [CRITICAL] First attempt failed, checking error type:', {
         errorMessage: error?.message,
         isSensitiveContent: error?.message?.includes('E005'),
       })
@@ -246,7 +219,7 @@ export const generateFluxKontext = async (
         error?.message?.includes('E005') ||
         error?.message?.includes('sensitive')
       ) {
-        console.log('🔄 [CRITICAL] Retrying with safer prompt...')
+        logger.debug('🔄 [CRITICAL] Retrying with safer prompt...')
 
         // Создаем безопасный fallback промпт
         const safePrompt = `[Portrait. Aspect ratio 9:16] Professional headshot of a person in stylish modern clothing. Clean studio lighting, neutral background, fashionable appearance.`
@@ -261,9 +234,9 @@ export const generateFluxKontext = async (
             input: safeInputParams,
           })) as ApiResponse
 
-          console.log('✅ [CRITICAL] Fallback prompt succeeded!')
+          logger.debug('✅ [CRITICAL] Fallback prompt succeeded!')
         } catch (fallbackError: any) {
-          console.error('🚨 [CRITICAL] Even fallback failed:', fallbackError)
+          logger.error('🚨 [CRITICAL] Even fallback failed:', fallbackError)
           throw error // Бросаем оригинальную ошибку
         }
       } else {
@@ -271,7 +244,7 @@ export const generateFluxKontext = async (
       }
     }
 
-    console.log('🔥 [CRITICAL] Replicate API completed!')
+    logger.debug('🔥 [CRITICAL] Replicate API completed!')
 
     logger.info('[generateFluxKontext] API generation completed', {
       telegram_id,
@@ -294,7 +267,7 @@ export const generateFluxKontext = async (
       '.jpeg'
     )
 
-    console.log('🔥 [CRITICAL] File saved locally:', {
+    logger.debug('🔥 [CRITICAL] File saved locally:', {
       imageLocalPath,
       telegram_id,
       fileExists: fs.existsSync(imageLocalPath),
@@ -304,7 +277,7 @@ export const generateFluxKontext = async (
       imageLocalPath
     )}`
 
-    console.log('🔥 [CRITICAL] Local URL created:', {
+    logger.debug('🔥 [CRITICAL] Local URL created:', {
       imageLocalUrl,
       telegram_id,
     })
@@ -317,17 +290,17 @@ export const generateFluxKontext = async (
       Number(telegram_id)
     )
 
-    console.log('🔥 [CRITICAL] Prompt saved:', {
+    logger.debug('🔥 [CRITICAL] Prompt saved:', {
       prompt_id,
       telegram_id,
     })
 
     if (prompt_id === null) {
-      console.error('🚨 [CRITICAL] prompt_id is null!', { telegram_id })
+      logger.error('🚨 [CRITICAL] prompt_id is null!', { telegram_id })
       throw new Error('prompt_id is null')
     }
 
-    console.log('🔥 [CRITICAL] About to download file for sending:', {
+    logger.debug('🔥 [CRITICAL] About to download file for sending:', {
       editedImageUrl,
       telegram_id,
     })
@@ -335,7 +308,7 @@ export const generateFluxKontext = async (
     // Скачивание для отправки
     const image = await downloadFile(editedImageUrl)
 
-    console.log('🔥 [CRITICAL] File downloaded for sending:', {
+    logger.debug('🔥 [CRITICAL] File downloaded for sending:', {
       imageSize: image?.length || 'unknown',
       telegram_id,
     })
@@ -348,7 +321,7 @@ export const generateFluxKontext = async (
       modelType,
     })
 
-    console.log('🔥 [CRITICAL] About to call ctx.telegram.sendPhoto:', {
+    logger.debug('🔥 [CRITICAL] About to call ctx.telegram.sendPhoto:', {
       telegram_id,
       imageLocalPath,
       fileExists: fs.existsSync(imageLocalPath),
@@ -357,29 +330,7 @@ export const generateFluxKontext = async (
 
     // Отправка отредактированного изображения с обработкой ошибок
     try {
-      console.log('🔥 [CRITICAL] Calling ctx.telegram.sendPhoto now...')
-      console.log('🔥 [CRITICAL] Photo send context check:', {
-        ctxExists: !!ctx,
-        ctxTelegramExists: !!ctx?.telegram,
-        telegram_id,
-        imageLocalPath,
-        fileExists: fs.existsSync(imageLocalPath),
-      })
-
-      // Проверяем наличие ctx и ctx.telegram
-      if (!ctx || !ctx.telegram) {
-        console.error('🚨 [CRITICAL] Context or telegram is undefined for photo send!', {
-          ctxExists: !!ctx,
-          ctxTelegramExists: !!ctx?.telegram,
-          telegram_id,
-        })
-        logger.error('[generateFluxKontext] Cannot send photo - context unavailable', {
-          telegram_id,
-          imageLocalPath,
-        })
-        // Не можем отправить фото без контекста
-        throw new Error('Context unavailable for sending photo')
-      }
+      logger.debug('🔥 [CRITICAL] Calling ctx.telegram.sendPhoto now...')
 
       // Укорачиваем промпт для подписи (Telegram лимит: 1024 символа)
       const maxPromptLength = 600 // Оставляем больше места для рекламы бота
@@ -410,7 +361,7 @@ export const generateFluxKontext = async (
         }
       )
 
-      console.log(
+      logger.debug(
         '🔥 [CRITICAL] ctx.telegram.sendPhoto completed successfully!'
       )
 
@@ -420,7 +371,7 @@ export const generateFluxKontext = async (
         modelType,
       })
     } catch (photoError) {
-      console.error('🚨 [CRITICAL] ctx.telegram.sendPhoto FAILED:', {
+      logger.error('🚨 [CRITICAL] ctx.telegram.sendPhoto FAILED:', {
         telegram_id,
         error: photoError,
         errorMessage:
@@ -435,19 +386,16 @@ export const generateFluxKontext = async (
         mode: 'edit',
       })
 
-      // ✅ Only notify user if not in fallback mode
-      if (!suppressUserErrors) {
-        console.log('🔥 [CRITICAL] Sending fallback error message...')
+      logger.debug('🔥 [CRITICAL] Sending fallback error message...')
 
-        await ctx.reply(
-          is_ru
-            ? `❌ *Ошибка при отправке изображения*\n\n🔄 Изображение было создано, но произошла ошибка при отправке\n💡 Попробуйте позже или обратитесь в поддержку\n\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}`
-            : `❌ *Error sending image*\n\n🔄 Image was created but failed to send\n💡 Try later or contact support\n\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}`,
-          { parse_mode: 'Markdown' }
-        )
+      await ctx.reply(
+        is_ru
+          ? `❌ *Ошибка при отправке изображения*\n\n🔄 Изображение было создано, но произошла ошибка при отправке\n💡 Попробуйте позже или обратитесь в поддержку\n\n📝 Запрос: ${prompt}\n🤖 Модель: FLUX Kontext ${modelType.toUpperCase()}`
+          : `❌ *Error sending image*\n\n🔄 Image was created but failed to send\n💡 Try later or contact support\n\n📝 Prompt: ${prompt}\n🤖 Model: FLUX Kontext ${modelType.toUpperCase()}`,
+        { parse_mode: 'Markdown' }
+      )
 
-        console.log('🔥 [CRITICAL] Fallback message sent')
-      }
+      logger.debug('🔥 [CRITICAL] Fallback message sent')
 
       // НЕ выбрасываем ошибку - позволяем процессу завершиться нормально
     }
@@ -466,7 +414,7 @@ export const generateFluxKontext = async (
         '🔍 SAVE SESSION: Standard FLUX Kontext'
       )
     } else {
-      console.log(
+      logger.debug(
         '❌ SAVE SESSION: ctx.session is null for standard FLUX Kontext',
         { telegram_id }
       )
@@ -515,18 +463,7 @@ export const generateFluxKontext = async (
       }
     }
 
-    // ✅ Only notify user if not in fallback mode
-    if (!params.suppressUserErrors) {
-      // Проверяем наличие контекста перед отправкой сообщения об ошибке
-      if (params.ctx && params.ctx.telegram) {
-        await params.ctx.telegram.sendMessage(params.telegram_id, errorMessageToUser)
-      } else {
-        console.error('🚨 [CRITICAL] Cannot send error message - context unavailable', {
-          telegram_id: params.telegram_id,
-          errorMessage: errorMessageToUser,
-        })
-      }
-    }
+    params.ctx.telegram.sendMessage(params.telegram_id, errorMessageToUser)
     throw error
   }
 }
@@ -546,12 +483,9 @@ export const generateAdvancedFluxKontext = async (
       username,
       is_ru,
       ctx,
-      aspect_ratio,
     } = params
 
     // Выбираем модель в зависимости от режима
-    console.log('🔑 [FLUX] Selecting model key:', { mode, modelType, imageCount: params.imageB ? 2 : 1 })
-
     let modelKey: string
     if (mode === 'multi') {
       // Для режима объединения двух изображений используем специальную модель
@@ -561,25 +495,11 @@ export const generateAdvancedFluxKontext = async (
       modelKey = `black-forest-labs/flux-kontext-${modelType}`
     }
 
-    console.log('🔑 [FLUX] Model key selected:', modelKey)
-
     const modelConfig = FLUX_KONTEXT_MODELS[modelKey]
 
-    console.log('🔑 [FLUX] Model config lookup result:', {
-      modelKey,
-      configFound: !!modelConfig,
-      availableKeys: Object.keys(FLUX_KONTEXT_MODELS),
-    })
-
     if (!modelConfig) {
-      console.error('❌ [FLUX] Model config NOT FOUND!', {
-        requestedKey: modelKey,
-        availableKeys: Object.keys(FLUX_KONTEXT_MODELS),
-      })
       throw new Error(`Неподдерживаемый тип модели: ${modelKey}`)
     }
-
-    console.log('✅ [FLUX] Model config found, cost:', modelConfig.costPerImage)
 
     // Проверка существования пользователя
     const userExists = await getUserByTelegramIdString(telegram_id)
@@ -614,26 +534,26 @@ export const generateAdvancedFluxKontext = async (
       })
     }
 
-    // 🚨 ТОЛЬКО ПРОВЕРКА БАЛАНСА (БЕЗ СПИСАНИЯ!)
-    const currentBalance = await getUserBalance(telegram_id)
+    // Проверка баланса
+    const balanceCheck = await processBalanceOperation({
+      ctx,
+      telegram_id: Number(telegram_id),
+      paymentAmount: cost,
+      is_ru,
+    })
 
-    if (currentBalance < cost) {
-      const message = is_ru
-        ? `❌ Недостаточно звёзд.\n\n💰 Ваш баланс: ${currentBalance.toFixed(1)} ⭐\n💎 Требуется: ${cost} ⭐\n\n🔋 Пополните баланс в главном меню.`
-        : `❌ Insufficient stars.\n\n💰 Your balance: ${currentBalance.toFixed(1)} ⭐\n💎 Required: ${cost} ⭐\n\n🔋 Top up in the main menu.`
+    logger.debug('🔥 [CRITICAL] Balance check completed:', {
+      success: balanceCheck.success,
+      telegram_id,
+    })
 
-      if (ctx && ctx.telegram) {
-        await ctx.telegram.sendMessage(telegram_id, message)
-      }
-
+    if (!balanceCheck.success) {
+      logger.error('🚨 [CRITICAL] Balance check failed:', {
+        telegram_id,
+        balanceCheck,
+      })
       throw new Error('Not enough stars')
     }
-
-    console.log('✅ [BALANCE CHECK] Sufficient balance:', {
-      telegram_id,
-      currentBalance,
-      required: cost,
-    })
 
     // Получаем название режима для отображения
     const modeNames = {
@@ -651,65 +571,31 @@ export const generateAdvancedFluxKontext = async (
       modeNames[mode as keyof typeof modeNames] ||
       (is_ru ? 'Стандартное редактирование' : 'Standard Edit')
 
-    // Отправка сообщения о начале обработки (только если не silent режим)
-    if (!params.silent) {
-      if (ctx && ctx.telegram) {
-        await ctx.telegram.sendMessage(
-          telegram_id,
-          is_ru
-            ? `✨ Обрабатываю изображение в режиме "${modeName}"...\n\n💎 Стоимость: ${cost} ⭐${
-                cost > originalCost
-                  ? ` (базовая ${originalCost}⭐ + наценка ${
-                      cost - originalCost
-                    }⭐)`
-                  : ''
-              }`
-            : `✨ Processing image in "${modeName}" mode...\n\n💎 Cost: ${cost} ⭐${
-                cost > originalCost
-                  ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)`
-                  : ''
-              }`,
-          {
-            reply_markup: { remove_keyboard: true },
-          }
-        )
-      } else {
-        logger.warn('[generateAdvancedFluxKontext] Cannot send status message - context unavailable', {
-          telegram_id,
-        })
+    // Отправка сообщения о начале обработки
+    await ctx.telegram.sendMessage(
+      telegram_id,
+      is_ru
+        ? `✨ Обрабатываю изображение в режиме "${modeName}"...\n\n💎 Стоимость: ${cost} ⭐${
+            cost > originalCost
+              ? ` (базовая ${originalCost}⭐ + наценка ${
+                  cost - originalCost
+                }⭐)`
+              : ''
+          }`
+        : `✨ Processing image in "${modeName}" mode...\n\n💎 Cost: ${cost} ⭐${
+            cost > originalCost
+              ? ` (base ${originalCost}⭐ + markup ${cost - originalCost}⭐)`
+              : ''
+          }`,
+      {
+        reply_markup: { remove_keyboard: true },
       }
-    }
+    )
 
     // Подготовка параметров в зависимости от режима
-    let enhancedPrompt = enhancePromptForMode(prompt, mode, is_ru)
-
-    // 🚨 CRITICAL: Limit prompt length to avoid API errors
-    const MAX_PROMPT_LENGTH = 1000
-    if (enhancedPrompt.length > MAX_PROMPT_LENGTH) {
-      console.log(`⚠️ [FLUX] Prompt too long (${enhancedPrompt.length} chars), truncating to ${MAX_PROMPT_LENGTH}`)
-      // Truncate to 997 chars so that adding '...' results in exactly 1000
-      enhancedPrompt = enhancedPrompt.substring(0, 997) + '...'
-    }
-
-    // ✅ Get centralized aspect_ratio from database
-    const dbAspectRatio = await getAspectRatio(Number(telegram_id))
-    const finalAspectRatio = dbAspectRatio || aspect_ratio || '9:16'
-
-    console.log('📝 [FLUX] Preparing input params:', {
-      telegram_id,
-      promptLength: enhancedPrompt.length,
-      mode,
-      hasImageA: !!imageA,
-      hasImageB: !!imageB,
-      dbAspectRatio,
-      paramAspectRatio: aspect_ratio,
-      finalAspectRatio,
-    })
-
     const inputParams: any = {
-      prompt: enhancedPrompt,
-      input_image_1: imageA, // 🚨 FIX: API requires input_image_1, not input_image
-      aspect_ratio: finalAspectRatio, // ✅ Централизованное управление aspect_ratio
+      prompt: enhancePromptForMode(prompt, mode, is_ru),
+      input_image: imageA,
     }
 
     // Для мульти-режима добавляем второе изображение
@@ -734,61 +620,10 @@ export const generateAdvancedFluxKontext = async (
       hasImageB: !!imageB,
     })
 
-    console.log('🚀🚀🚀 [FLUX] About to call Replicate API:', {
-      modelKey,
-      telegram_id,
-      inputParamsKeys: Object.keys(inputParams),
-      promptPreview: inputParams.prompt?.substring(0, 100) + '...',
-      hasInputImage: !!inputParams.input_image,
-      hasInputImage2: !!inputParams.input_image_2,
-      imageALength: imageA?.length,
-      imageBLength: imageB?.length,
-    })
-
-    // Генерация отредактированного изображения с timeout защитой
-    let output: ApiResponse
-    try {
-      // Создаем timeout promise (60 секунд)
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('FLUX Replicate API timeout after 60 seconds'))
-        }, 60000)
-      })
-
-      // Создаем API call promise
-      const apiPromise = replicate.run(modelKey as any, {
-        input: inputParams,
-      }) as Promise<ApiResponse>
-
-      console.log('⏳ [FLUX] Starting API call with 60s timeout...', {
-        telegram_id,
-        modelKey,
-      })
-
-      // Race между API call и timeout
-      output = await Promise.race([apiPromise, timeoutPromise])
-
-      console.log('✅✅✅ [FLUX] Replicate API call completed!', {
-        telegram_id,
-        outputReceived: !!output,
-        outputType: typeof output,
-        outputIsArray: Array.isArray(output),
-      })
-    } catch (apiError) {
-      console.error('❌❌❌ [FLUX] Replicate API call FAILED:', {
-        telegram_id,
-        modelKey,
-        error: apiError instanceof Error ? apiError.message : 'Unknown error',
-        errorName: apiError instanceof Error ? apiError.name : undefined,
-        errorStack: apiError instanceof Error ? apiError.stack : undefined,
-        inputParamsKeys: Object.keys(inputParams),
-      })
-
-      // Пробрасываем ошибку дальше с контекстом
-      throw new Error(
-        `FLUX API call failed: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`
-      )
-    }
+    // Генерация отредактированного изображения
+    const output: ApiResponse = (await replicate.run(modelKey as any, {
+      input: inputParams,
+    })) as ApiResponse
 
     const editedImageUrl = await processApiResponse(output)
 
@@ -831,13 +666,12 @@ export const generateAdvancedFluxKontext = async (
           'different_mode'
         ),
       ],
-      // ВРЕМЕННО СКРЫТО: Кнопка "Увеличить качество" не работает корректно
-      // [
-      //   Markup.button.callback(
-      //     is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
-      //     'upscale_image'
-      //   ),
-      // ],
+      [
+        Markup.button.callback(
+          is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
+          'upscale_image'
+        ),
+      ],
       [
         Markup.button.callback(
           is_ru ? '🏠 Главное меню' : '🏠 Main menu',
@@ -846,17 +680,8 @@ export const generateAdvancedFluxKontext = async (
       ],
     ])
 
-    // Отправка результата (пропускаем в silent режиме для ALL_MODELS)
-    if (!params.silent) {
-      if (!ctx || !ctx.telegram) {
-        logger.error('[generateAdvancedFluxKontext] Cannot send photo - context unavailable', {
-          telegram_id,
-          imageLocalPath,
-        })
-        throw new Error('Context unavailable for sending photo')
-      }
-
-      await ctx.telegram.sendPhoto(
+    // Отправка результата
+    await ctx.telegram.sendPhoto(
       telegram_id,
       {
         source: fs.createReadStream(imageLocalPath),
@@ -885,39 +710,7 @@ export const generateAdvancedFluxKontext = async (
             }`,
         reply_markup: advancedKeyboard.reply_markup,
       }
-      )
-    } // Закрываем if (!params.silent)
-
-    // 💰 СПИСЫВАЕМ ДЕНЬГИ ТОЛЬКО ПОСЛЕ УСПЕШНОЙ ГЕНЕРАЦИИ!
-    console.log('💰 [PAYMENT] Charging user after successful generation:', {
-      telegram_id,
-      amount: cost,
-      currentBalance,
-    })
-
-    const balanceCheck = await processBalanceOperation({
-      ctx,
-      telegram_id: Number(telegram_id),
-      paymentAmount: cost,
-      is_ru,
-      bot_name: ctx?.botInfo?.username || 'clip_maker_neuro_bot',
-    })
-
-    if (!balanceCheck.success) {
-      logger.error('❌ [PAYMENT] Failed to charge user AFTER generation:', {
-        telegram_id,
-        cost,
-        balanceCheck,
-      })
-      // Не выбрасываем ошибку - пользователь уже получил результат
-      // Логируем для админа
-    } else {
-      console.log('✅ [PAYMENT] Successfully charged user:', {
-        telegram_id,
-        amount: cost,
-        newBalance: balanceCheck.newBalance,
-      })
-    }
+    )
 
     // Сохраняем информацию о последнем изображении для upscaling
     if (ctx.session) {
@@ -933,7 +726,7 @@ export const generateAdvancedFluxKontext = async (
         '🔍 SAVE SESSION: Advanced FLUX Kontext'
       )
     } else {
-      console.log(
+      logger.debug(
         '❌ SAVE SESSION: ctx.session is null for advanced FLUX Kontext',
         { telegram_id }
       )
@@ -957,12 +750,7 @@ export const generateAdvancedFluxKontext = async (
       mode,
     })
 
-    // В silent режиме возвращаем путь к файлу для отправки сценой
-    // imageUrl хранится в image как строка (путь к файлу)
-    return {
-      image: params.silent ? editedImageUrl : image, // URL для ALL_MODELS, Buffer для обычного режима
-      prompt_id,
-    }
+    return { image, prompt_id }
   } catch (error) {
     logger.error('Advanced FLUX Kontext editing failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -1025,20 +813,13 @@ export const generateAdvancedFluxKontext = async (
       }
     }
 
-    if (params.ctx && params.ctx.telegram) {
-      await params.ctx.telegram.sendMessage(
-        params.telegram_id,
-        errorMessageToUser,
-        {
-          reply_markup: replyMarkup,
-        }
-      )
-    } else {
-      logger.error('[generateAdvancedFluxKontext] Cannot send error message - context unavailable', {
-        telegram_id: params.telegram_id,
-        errorMessage: errorMessageToUser,
-      })
-    }
+    await params.ctx.telegram.sendMessage(
+      params.telegram_id,
+      errorMessageToUser,
+      {
+        reply_markup: replyMarkup,
+      }
+    )
 
     throw error
   }
@@ -1095,13 +876,13 @@ export const upscaleFluxKontextImage = async (params: {
       is_ru,
     })
 
-    console.log('🔥 [CRITICAL] Balance check completed:', {
+    logger.debug('🔥 [CRITICAL] Balance check completed:', {
       success: balanceCheck.success,
       telegram_id,
     })
 
     if (!balanceCheck.success) {
-      console.error('🚨 [CRITICAL] Balance check failed:', {
+      logger.error('🚨 [CRITICAL] Balance check failed:', {
         telegram_id,
         balanceCheck,
       })
@@ -1109,21 +890,15 @@ export const upscaleFluxKontextImage = async (params: {
     }
 
     // Отправка сообщения о начале upscaling
-    if (ctx && ctx.telegram) {
-      await ctx.telegram.sendMessage(
-        telegram_id,
-        is_ru
-          ? `⬆️ Увеличиваю качество изображения с помощью Clarity Upscaler...\n\n🎯 Режим: Максимальное сохранение оригинала\n💎 Стоимость: ${upscaleCost} ⭐`
-          : `⬆️ Upscaling image quality with Clarity Upscaler...\n\n🎯 Mode: Maximum original preservation\n💎 Cost: ${upscaleCost} ⭐`,
-        {
-          reply_markup: { remove_keyboard: true },
-        }
-      )
-    } else {
-      logger.warn('[upscaleFluxKontextImage] Cannot send status message - context unavailable', {
-        telegram_id,
-      })
-    }
+    await ctx.telegram.sendMessage(
+      telegram_id,
+      is_ru
+        ? `⬆️ Увеличиваю качество изображения с помощью Clarity Upscaler...\n\n🎯 Режим: Максимальное сохранение оригинала\n💎 Стоимость: ${upscaleCost} ⭐`
+        : `⬆️ Upscaling image quality with Clarity Upscaler...\n\n🎯 Mode: Maximum original preservation\n💎 Cost: ${upscaleCost} ⭐`,
+      {
+        reply_markup: { remove_keyboard: true },
+      }
+    )
 
     logger.info(`Image upscaling started`, {
       model: 'philz1337x/clarity-upscaler',
@@ -1173,14 +948,6 @@ export const upscaleFluxKontextImage = async (params: {
     }
 
     // Отправка upscaled изображения (используем уже сохраненный локальный файл)
-    if (!ctx || !ctx.telegram) {
-      logger.error('[upscaleFluxKontextImage] Cannot send photo - context unavailable', {
-        telegram_id,
-        imageLocalPath,
-      })
-      throw new Error('Context unavailable for sending photo')
-    }
-
     await ctx.telegram.sendPhoto(
       telegram_id,
       {
@@ -1201,13 +968,12 @@ export const upscaleFluxKontextImage = async (params: {
               'more_editing'
             ),
           ],
-          // ВРЕМЕННО СКРЫТО: Кнопка "Увеличить качество" не работает корректно
-          // [
-          //   Markup.button.callback(
-          //     is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
-          //     'upscale_image'
-          //   ),
-          // ],
+          [
+            Markup.button.callback(
+              is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
+              'upscale_image'
+            ),
+          ],
           [
             Markup.button.callback(
               is_ru ? '🏠 Главное меню' : '🏠 Main menu',
@@ -1281,20 +1047,13 @@ export const upscaleFluxKontextImage = async (params: {
       }
     }
 
-    if (params.ctx && params.ctx.telegram) {
-      await params.ctx.telegram.sendMessage(
-        params.telegram_id,
-        errorMessageToUser,
-        {
-          reply_markup: { remove_keyboard: true },
-        }
-      )
-    } else {
-      logger.error('[upscaleFluxKontextImage] Cannot send error message - context unavailable', {
-        telegram_id: params.telegram_id,
-        errorMessage: errorMessageToUser,
-      })
-    }
+    await params.ctx.telegram.sendMessage(
+      params.telegram_id,
+      errorMessageToUser,
+      {
+        reply_markup: { remove_keyboard: true },
+      }
+    )
 
     throw error
   }

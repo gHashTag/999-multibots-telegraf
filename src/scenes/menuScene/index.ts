@@ -1,4 +1,5 @@
 import { Mode, MyContext, Subscription } from '../../interfaces'
+import { logger } from '@/utils/enhancedLogger'
 import { sendGenericErrorMessage } from '@/menu'
 import { levels, mainMenu } from '../../menu/mainMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase'
@@ -23,14 +24,14 @@ import { getParsingAccess } from '@/menu/mainMenu'
 import { getBotNameByToken } from '@/core/bot'
 
 const menuCommandStep = async (ctx: MyContext) => {
-  console.log('CASE 📲: menuCommand')
+  logger.debug('CASE 📲: menuCommand')
 
   // 🚨 КРИТИЧЕСКАЯ ПРОВЕРКА: НЕ обрабатываем если пользователь УЖЕ в другой сцене!
   const currentSceneId = ctx.scene.current?.id
   const telegramId = ctx.from?.id?.toString()
   
   if (currentSceneId !== ModeEnum.MainMenu) {
-    console.log(`🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`, {
+    logger.debug(`🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`, {
       telegramId,
       currentSceneId,
       mainMenuId: ModeEnum.MainMenu
@@ -38,7 +39,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     return // НЕ обрабатываем, если пользователь в другой сцене
   }
 
-  console.log(`✅ [menuCommandStep] User is in main menu scene, processing menuCommand`, {
+  logger.debug(`✅ [menuCommandStep] User is in main menu scene, processing menuCommand`, {
     telegramId,
     currentSceneId
   })
@@ -262,7 +263,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     ctx.wizard.next()
     logger.info(`[menuCommandStep] Current wizard cursor: ${ctx.wizard.cursor}`)
   } catch (error) {
-    console.error('Error in menu command:', error)
+    logger.error('Error in menu command:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
     ctx.scene.leave()
     throw error
@@ -284,7 +285,7 @@ const menuCommandStep = async (ctx: MyContext) => {
  * когда обработать сообщение другим способом невозможно.
  */
 const menuNextStep = async (ctx: MyContext) => {
-  console.log('🎯 URGENT DEBUG: menuNextStep called!')
+  logger.debug('🎯 URGENT DEBUG: menuNextStep called!')
   logger.info('CASE 1: menuScene.next')
   logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard.cursor}`)
   logger.info(
@@ -315,29 +316,29 @@ const menuNextStep = async (ctx: MyContext) => {
     logger.info(`[menuNextStep] Text Message Received: ${text}`)
 
     // ВАЖНО: Обработка кнопки подписки напрямую в menuScene (все варианты)
-    console.log(`🔧 [DEBUG] Checking subscription button. Text: "${text}"`)
+    logger.debug(`🔧 [DEBUG] Checking subscription button. Text: "${text}"`)
     if (
       text === '💫 Оформить подписку' ||
       text === '💫 Subscribe' ||
       text === '💳 Оформить подписку' ||
       text === '💳 Subscribe'
     ) {
-      console.log(`🎯 [DEBUG] SUBSCRIPTION BUTTON MATCHED! Processing: ${text}`)
+      logger.debug(`🎯 [DEBUG] SUBSCRIPTION BUTTON MATCHED! Processing: ${text}`)
       logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)
       try {
-        console.log('🔧 [DEBUG] Step 1: Leaving current scene...')
+        logger.debug('🔧 [DEBUG] Step 1: Leaving current scene...')
         await ctx.scene.leave()
 
-        console.log('🔧 [DEBUG] Step 2: Setting subscription mode...')
+        logger.debug('🔧 [DEBUG] Step 2: Setting subscription mode...')
         ctx.session.mode = ModeEnum.SubscriptionScene
 
-        console.log('🔧 [DEBUG] Step 3: Entering subscription scene...')
+        logger.debug('🔧 [DEBUG] Step 3: Entering subscription scene...')
         await ctx.scene.enter(ModeEnum.SubscriptionScene)
 
-        console.log('✅ [DEBUG] Successfully entered subscription scene!')
+        logger.debug('✅ [DEBUG] Successfully entered subscription scene!')
         return // Explicitly handled
       } catch (error) {
-        console.error(
+        logger.error(
           '❌ [DEBUG] Error in subscription button handling:',
           error
         )
@@ -347,7 +348,7 @@ const menuNextStep = async (ctx: MyContext) => {
         })
       }
     } else {
-      console.log(`🔧 [DEBUG] Not a subscription button. Text: "${text}"`)
+      logger.debug(`🔧 [DEBUG] Not a subscription button. Text: "${text}"`)
     }
 
     // 🔍 ПЕРСОНАЛИЗИРОВАННАЯ ОБРАБОТКА КНОПКИ ПАРСИНГ ПО БОТАМ
@@ -460,7 +461,7 @@ const menuNextStep = async (ctx: MyContext) => {
       logger.info(
         `[menuNextStep] Detected command '${text}' - checking for direct handling`
       )
-      console.log(
+      logger.debug(
         `🎯 COMMAND DETECTION: Processing command in menuScene: ${text}`
       )
 
@@ -494,7 +495,7 @@ const menuNextStep = async (ctx: MyContext) => {
       }
 
       // Для всех остальных команд позволяем глобальным обработчикам обработать
-      console.log(
+      logger.debug(
         `🎯 COMMAND DETECTION: Allowing global handlers for command: ${text}`
       )
       return // Позволяем глобальным обработчикам команд обработать это
@@ -504,7 +505,7 @@ const menuNextStep = async (ctx: MyContext) => {
     // Проблема: после входа в wizard, пользователь получает ответ первого шага, 
     // но menuScene продолжает обрабатывать это как новую команду
     const currentSceneId = ctx.scene.current?.id
-    console.log('🎯 URGENT DEBUG: menuNextStep called!', {
+    logger.debug('🎯 URGENT DEBUG: menuNextStep called!', {
       currentSceneId,
       text: text.substring(0, 50),
       telegramId: ctx.from?.id

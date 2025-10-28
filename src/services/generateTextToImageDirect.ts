@@ -10,7 +10,7 @@ import {
   getUserBalance,
 } from '@/core/supabase'
 import { IMAGES_MODELS } from '@/price/models'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
 // import { PaymentType } from '@/interfaces/payments.interface'
@@ -63,7 +63,7 @@ export const generateTextToImageDirect = async (
   try {
     const modelKey = model_type.toLowerCase()
     const modelConfig = IMAGES_MODELS[modelKey]
-    console.log(modelConfig)
+    logger.debug(modelConfig)
 
     const userExists = await getUserByTelegramIdString(telegram_id)
     if (!userExists) {
@@ -84,7 +84,7 @@ export const generateTextToImageDirect = async (
       paymentAmount: modelConfig.costPerImage * num_images,
       is_ru,
     })
-    console.log(balanceCheck, 'balanceCheck')
+    logger.debug(balanceCheck, 'balanceCheck')
 
     if (!balanceCheck.success) {
       throw new Error('Not enough stars')
@@ -115,7 +115,7 @@ export const generateTextToImageDirect = async (
       inputParams.aspect_ratio = aspectRatioToUse
     }
 
-    console.log(inputParams, 'input')
+    logger.debug(inputParams, 'input')
 
     const results: GenerationResult[] = []
 
@@ -124,7 +124,7 @@ export const generateTextToImageDirect = async (
         const modelId = Object.keys(IMAGES_MODELS).find(
           key => key === model_type.toLowerCase()
         ) as `${string}/${string}` | `${string}/${string}:${string}`
-        console.log(modelId, 'modelId')
+        logger.debug(modelId, 'modelId')
         if (num_images > 1) {
           ctx.telegram.sendMessage(
             telegram_id,
@@ -186,7 +186,7 @@ export const generateTextToImageDirect = async (
         }
         results.push({ image, prompt_id })
       } catch (error) {
-        console.error(`Попытка не удалась для изображения ${i + 1}:`, error)
+        logger.error(`Попытка не удалась для изображения ${i + 1}:`, error)
         let errorMessageToUser = '❌ Произошла ошибка.'
         if (error instanceof Error) {
           if (
@@ -250,7 +250,7 @@ export const generateTextToImageDirect = async (
 
     return results
   } catch (error) {
-    console.error('Error generating images:', error)
+    logger.error('Error generating images:', error)
     throw error
   }
 }

@@ -1,4 +1,5 @@
 import { FixResult } from '../webhooks/github-autofixer.service'
+import { logger } from '@/utils/enhancedLogger'
 
 export interface BotCodeIssue {
   type: 'missing_async' | 'missing_await' | 'scene_transition' | 'context_type' | 'error_handling'
@@ -23,24 +24,24 @@ export class ClaudeIntegrationService {
 
   async analyzeBotCode(request: ClaudeAnalysisRequest): Promise<FixResult[]> {
     if (!this.claudeApiKey) {
-      console.warn('⚠️ [Claude] API key not configured, skipping analysis')
+      logger.warn('⚠️ [Claude] API key not configured, skipping analysis')
       return []
     }
 
     try {
       const prompt = this.buildBotSpecificPrompt(request)
       
-      console.log(`🧠 [Claude] Analyzing ${request.filePath}...`)
+      logger.debug(`🧠 [Claude] Analyzing ${request.filePath}...`)
       
       // Здесь будет реальная интеграция с Claude API
       // Пока возвращаем моковые результаты на основе известных проблем
       const fixes = this.generateMockFixes(request)
 
-      console.log(`✅ [Claude] Found ${fixes.length} fixes for ${request.filePath}`)
+      logger.debug(`✅ [Claude] Found ${fixes.length} fixes for ${request.filePath}`)
       return fixes
 
     } catch (error) {
-      console.error('❌ [Claude] Analysis error:', error)
+      logger.error('❌ [Claude] Analysis error:', error)
       return []
     }
   }
@@ -224,7 +225,7 @@ Return only fixes that are specific to Telegram Bot development with Telegraf fr
       )
       fixedContent = fixedContent.replace(
         /(\\}\\s*)$/,
-        '  } catch (error) {\n    console.error("Bot error:", error)\n    await ctx.reply("Произошла ошибка. Попробуйте позже.")\n  }\n$1'
+        '  } catch (error) {\n    logger.error("Bot error:", error)\n    await ctx.reply("Произошла ошибка. Попробуйте позже.")\n  }\n$1'
       )
     }
 

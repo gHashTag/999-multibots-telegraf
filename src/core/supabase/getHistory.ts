@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const getHistory = async (
   brand: string,
@@ -15,10 +16,10 @@ export const getHistory = async (
     .eq('type', type)
 
   if (error) {
-    console.error('Error fetching lifehacks history:', error)
+    logger.error('Error fetching lifehacks history:', error)
     return []
   }
 
-  console.log(data)
+  logger.debug(data)
   return data
 }

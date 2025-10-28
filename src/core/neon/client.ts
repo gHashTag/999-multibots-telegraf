@@ -1,4 +1,5 @@
 import { Pool } from 'pg'
+import { logger } from '@/utils/enhancedLogger'
 import dotenv from 'dotenv'
 // Neon PostgreSQL connection
 const DATABASE_URL = process.env.DATABASE_URL!
@@ -35,7 +36,7 @@ async function retryWithBackoff<T>(
       }
 
       const delay = initialDelay * Math.pow(2, attempt - 1)
-      console.log(
+      logger.debug(
         `🔄 Retry attempt ${attempt}/${maxRetries} after ${delay}ms...`
       )
       await new Promise(resolve => setTimeout(resolve, delay))
@@ -48,7 +49,7 @@ async function retryWithBackoff<T>(
 export async function testNeonConnection() {
   return await retryWithBackoff(async () => {
     const client = await neonPool.connect()
-    console.log('✅ Neon connection successful')
+    logger.debug('✅ Neon connection successful')
 
     // Проверим какие таблицы есть
     const result = await client.query(`
@@ -58,7 +59,7 @@ export async function testNeonConnection() {
       ORDER BY table_name;
     `)
 
-    console.log(
+    logger.debug(
       '📋 Available tables in Neon:',
       result.rows.map(row => row.table_name)
     )

@@ -12,7 +12,7 @@ import {
 import { setPayments } from '@/core/supabase'
 import { Scenes } from 'telegraf'
 import { getBotNameByToken } from '@/core'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import {
   Currency,
   PaymentStatus,
@@ -25,13 +25,13 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
     step: 'generateInvoiceStep',
     telegram_id: ctx.from?.id,
   })
-  console.log('CASE: generateInvoiceStep')
+  logger.debug('CASE: generateInvoiceStep')
   const isRu = isRussian(ctx)
   const selectedPayment = ctx.session.selectedPayment
-  console.log('selectedPayment', selectedPayment)
+  logger.debug('selectedPayment', selectedPayment)
   if (selectedPayment) {
     const email = ctx.session.email
-    console.log('Email from session:', email)
+    logger.debug('Email from session:', email)
 
     const subscription = selectedPayment.subscription.toLowerCase()
     let amount: number
@@ -53,7 +53,7 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
 
     try {
       const userId = ctx.from?.id
-      console.log('User ID:', userId)
+      logger.debug('User ID:', userId)
       if (!userId) {
         await ctx.reply(
           isRu
@@ -63,10 +63,8 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
         return ctx.scene.leave()
       }
 
-      // ✅ ИСПРАВЛЕНИЕ: Используем Date.now() для уникального возрастающего InvId
-      // Robokassa требует уникальный InvId как счётчик (1 <= InvId <= 2147483647)
-      const invId = Date.now() % 2147483647
-      console.log('Generated invoice ID:', invId)
+      const invId = Math.floor(Math.random() * 1000000)
+      logger.debug('Generated invoice ID:', invId)
 
       const invoiceURL = await getInvoiceId(
         merchantLogin,
@@ -75,7 +73,7 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
         description,
         password1
       )
-      console.log('Invoice URL:', invoiceURL)
+      logger.debug('Invoice URL:', invoiceURL)
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
       let subTypeEnum: SubscriptionType | null = null
@@ -116,14 +114,14 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
           bot_name,
           language: ctx.from?.language_code ?? 'en',
         })
-        console.log('Payment saved with status PENDING')
+        logger.debug('Payment saved with status PENDING')
         logger.info('Pending payment record created for Robokassa', {
           userId,
           invId,
           subscription_type: subTypeEnum,
         })
       } catch (error) {
-        console.error('Error in setting payments:', error)
+        logger.error('Error in setting payments:', error)
         logger.error('Error saving pending Robokassa payment', {
           error,
           userId,
@@ -165,11 +163,11 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
           parse_mode: 'HTML',
         }
       )
-      console.log('Payment message sent to user with URL button')
+      logger.debug('Payment message sent to user with URL button')
 
       return ctx.scene.leave()
     } catch (error) {
-      console.error('Error in creating invoice:', error)
+      logger.error('Error in creating invoice:', error)
       await ctx.reply(
         isRu
           ? 'Ошибка при создании чека Robokassa. Пожалуйста, попробуйте снова.'

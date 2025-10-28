@@ -1,4 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../../interfaces'
 import { generateNeuroPhotoHybrid } from '../../services/generateNeuroPhotoHybrid'
 import { isRussian } from '@/helpers'
@@ -37,10 +38,10 @@ export const neuroCoderScene = new Scenes.WizardScene<MyContext>(
 
       ctx.session.prompt = prompt
       if (ctx.message && 'text' in ctx.message) {
-        console.log('ctx.message.text', ctx.message.text)
+        logger.debug('ctx.message.text', ctx.message.text)
         const numImages = parseInt(ctx.message.text)
 
-        console.log(numImages)
+        logger.debug(numImages)
 
         if (!ctx?.chat?.id) {
           await ctx.reply('Ошибка при генерации ')

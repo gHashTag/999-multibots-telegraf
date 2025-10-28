@@ -1,4 +1,12 @@
 import { Inngest } from 'inngest'
+import { logger } from '@/utils/enhancedLogger'
+// Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
+// import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
+
+// ✅ Список Inngest функций (пуст - морфинг переведен на чистый JavaScript)
+export const functions = [
+  // generateAdvancedLoopingVideoFunction - отключено, используем localMorphingProcessor
+]
 
 // Определяем конфигурацию для логирования
 const config = {
@@ -9,39 +17,22 @@ const config = {
     process.env.NODE_ENV === 'development'
       ? 'http://localhost:8288' // Наш dev server
       : (process.env.SERVER_API_URL ||
-          'https://three-head-dragon.shop') +
+          'https://ai-server-production-production-8e2d.up.railway.app') +
         '/api/inngest', // Продакшн сервер
   isDev: process.env.NODE_ENV === 'development',
   // Event key только для production
   eventKey:
     process.env.NODE_ENV === 'production'
-      ? process.env.BOT_INNGEST_EVENT_KEY
+      ? process.env.INNGEST_EVENT_KEY
       : undefined,
 }
 
-console.log('🔥 [DEBUG] Inngest client configuration:', {
+logger.debug('🔥 [DEBUG] Inngest client configuration:', {
   ...config,
   eventKey: config.eventKey ? '***HIDDEN***' : 'not set',
   environment: process.env.NODE_ENV
 })
 
-// ✅ ВАЖНО: Создаем клиент Inngest ПЕРЕД импортом функций (избегаем circular dependency)
+// Создаем клиент Inngest для подключения к нашему dev server
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
 export const inngest = new Inngest(config)
-
-// ✅ Импортируем FACTORY функции (не сами функции - избегаем circular dependency)
-// Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
-// import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
-import { createGenerateAIReelsFunction } from './functions/generateAIReelsFunction'
-import { createGenerateModelTrainingFunction } from './functions/generateModelTrainingFunction'
-
-// ✅ Создаем функции через factory после создания inngest client
-const generateAIReelsFunction = createGenerateAIReelsFunction(inngest)
-const generateModelTrainingFunction = createGenerateModelTrainingFunction(inngest)
-
-// ✅ Список активных Inngest функций
-export const functions = [
-  // generateAdvancedLoopingVideoFunction - отключено, используем localMorphingProcessor
-  generateAIReelsFunction, // AI Reels с автоматическими retry и webhook уведомлениями
-  generateModelTrainingFunction, // Model Training с Replicate webhook callback
-]

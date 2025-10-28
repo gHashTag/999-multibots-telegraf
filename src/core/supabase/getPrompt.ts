@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const getPrompt = async (prompt_id: string) => {
   const { data, error } = await supabase
@@ -6,9 +7,9 @@ export const getPrompt = async (prompt_id: string) => {
     .select('*')
     .eq('prompt_id', prompt_id)
     .single()
-  console.log(data, 'data')
+  logger.debug(data, 'data')
   if (error || !data) {
-    console.error('Ошибка при получении промпта по prompt_id:', error)
+    logger.error('Ошибка при получении промпта по prompt_id:', error)
     return null
   }
 

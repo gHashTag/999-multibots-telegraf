@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { logger } from '@/utils/enhancedLogger'
 
 /**
  * CLI tool for verifying webhook configurations
@@ -14,8 +15,8 @@ interface BotConfig {
 }
 
 async function verifyWebhooksFromEnv(): Promise<void> {
-  console.log('🔍 Webhook Verification CLI Tool')
-  console.log('================================')
+  logger.debug('🔍 Webhook Verification CLI Tool')
+  logger.debug('================================')
 
   // Collect bot tokens from environment
   const botConfigs: BotConfig[] = []
@@ -38,12 +39,12 @@ async function verifyWebhooksFromEnv(): Promise<void> {
   }
 
   if (botConfigs.length === 0) {
-    console.error('❌ No bot tokens found in environment variables')
+    logger.error('❌ No bot tokens found in environment variables')
     process.exit(1)
   }
 
-  console.log(`🤖 Verifying ${botConfigs.length} bots`)
-  console.log('')
+  logger.debug(`🤖 Verifying ${botConfigs.length} bots`)
+  logger.debug('')
 
   // Verify each bot
   const results = await Promise.all(
@@ -63,36 +64,36 @@ async function verifyWebhooksFromEnv(): Promise<void> {
   )
 
   // Report results
-  console.log('📊 Webhook Verification Results:')
-  console.log('================================')
+  logger.debug('📊 Webhook Verification Results:')
+  logger.debug('================================')
   
   results.forEach((result) => {
     const { config, valid, info, error } = result
     
     if (valid && info) {
-      console.log(`✅ ${config.name}:`)
-      console.log(`   URL: ${info.url || 'Not set'}`)
-      console.log(`   Pending updates: ${info.pending_update_count || 0}`)
-      console.log(`   URL accessible: ${info.urlAccessible ? 'Yes' : 'No'}`)
+      logger.debug(`✅ ${config.name}:`)
+      logger.debug(`   URL: ${info.url || 'Not set'}`)
+      logger.debug(`   Pending updates: ${info.pending_update_count || 0}`)
+      logger.debug(`   URL accessible: ${info.urlAccessible ? 'Yes' : 'No'}`)
       
       if (info.last_error_date) {
         const errorDate = new Date(info.last_error_date * 1000).toISOString()
-        console.log(`   Last error: ${info.last_error_message} (${errorDate})`)
+        logger.debug(`   Last error: ${info.last_error_message} (${errorDate})`)
       }
       
       if (info.urlError) {
-        console.log(`   URL error: ${info.urlError}`)
+        logger.debug(`   URL error: ${info.urlError}`)
       }
     } else {
-      console.log(`❌ ${config.name}: ${error || 'Unknown error'}`)
+      logger.debug(`❌ ${config.name}: ${error || 'Unknown error'}`)
     }
-    console.log('')
+    logger.debug('')
   })
 
   const validCount = results.filter(r => r.valid).length
   const invalidCount = results.length - validCount
 
-  console.log(`📈 Summary: ${validCount} valid, ${invalidCount} invalid`)
+  logger.debug(`📈 Summary: ${validCount} valid, ${invalidCount} invalid`)
   
   if (invalidCount > 0) {
     process.exit(1)
@@ -100,7 +101,7 @@ async function verifyWebhooksFromEnv(): Promise<void> {
 }
 
 async function testWebhookUrl(url: string): Promise<void> {
-  console.log(`🔗 Testing webhook URL: ${url}`)
+  logger.debug(`🔗 Testing webhook URL: ${url}`)
   
   try {
     const response = await fetch(url, {
@@ -122,15 +123,15 @@ async function testWebhookUrl(url: string): Promise<void> {
       signal: AbortSignal.timeout(10000)
     })
 
-    console.log(`📡 Response status: ${response.status}`)
+    logger.debug(`📡 Response status: ${response.status}`)
     
     if (response.ok) {
-      console.log('✅ Webhook URL is accessible')
+      logger.debug('✅ Webhook URL is accessible')
     } else {
-      console.log('⚠️ Webhook URL returned non-success status')
+      logger.debug('⚠️ Webhook URL returned non-success status')
     }
   } catch (error) {
-    console.error('❌ Webhook URL test failed:', error)
+    logger.error('❌ Webhook URL test failed:', error)
   }
 }
 
@@ -142,19 +143,19 @@ switch (command) {
   case 'verify':
   case undefined:
     verifyWebhooksFromEnv().catch(error => {
-      console.error('❌ Webhook verification failed:', error)
+      logger.error('❌ Webhook verification failed:', error)
       process.exit(1)
     })
     break
     
   case 'test':
     if (!args[1]) {
-      console.error('❌ URL required for test command')
-      console.log('Usage: bun run src/utils/webhook-verify-cli.ts test <url>')
+      logger.error('❌ URL required for test command')
+      logger.debug('Usage: bun run src/utils/webhook-verify-cli.ts test <url>')
       process.exit(1)
     }
     testWebhookUrl(args[1]).catch(error => {
-      console.error('❌ URL test failed:', error)
+      logger.error('❌ URL test failed:', error)
       process.exit(1)
     })
     break
@@ -162,7 +163,7 @@ switch (command) {
   case 'help':
   case '--help':
   case '-h':
-    console.log(`
+    logger.debug(`
 🔍 Webhook Verification CLI
 
 Usage:
@@ -184,7 +185,7 @@ Examples:
     break
     
   default:
-    console.error(`❌ Unknown command: ${command}`)
-    console.log('Use "help" for usage information')
+    logger.error(`❌ Unknown command: ${command}`)
+    logger.debug('Use "help" for usage information')
     process.exit(1)
 }

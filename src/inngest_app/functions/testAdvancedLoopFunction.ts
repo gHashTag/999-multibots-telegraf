@@ -1,4 +1,5 @@
 import { Inngest } from 'inngest'
+import { logger } from '@/utils/enhancedLogger'
 import { Telegraf } from 'telegraf'
 
 const inngest = new Inngest({
@@ -18,10 +19,10 @@ export const testAdvancedLoopFunction = inngest.createFunction(
     return await step.run('send-test-message', async () => {
       const { telegram_id, image_base64s } = event.data
 
-      console.log(
+      logger.debug(
         `🧪 Test Advanced Loop Function started for user ${telegram_id}`
       )
-      console.log(`🧪 Received ${image_base64s?.length || 0} images`)
+      logger.debug(`🧪 Received ${image_base64s?.length || 0} images`)
 
       const bot = new Telegraf(process.env.BOT_TOKEN!)
 
@@ -32,7 +33,7 @@ export const testAdvancedLoopFunction = inngest.createFunction(
           `⏰ Время: ${new Date().toLocaleString('ru-RU')}`
       )
 
-      console.log('✅ Test message sent successfully')
+      logger.debug('✅ Test message sent successfully')
 
       return {
         success: true,

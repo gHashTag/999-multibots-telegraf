@@ -1,4 +1,5 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
+import { logger } from '@/utils/enhancedLogger'
 import { supabase } from '@/core/supabase'
 
 export async function getUserByTelegramIdString(telegram_id: TelegramId) {
@@ -12,7 +13,7 @@ export async function getUserByTelegramIdString(telegram_id: TelegramId) {
       .limit(10) // Safety limit
 
     if (error) {
-      console.error('Error fetching user by Telegram ID:', error)
+      logger.error('Error fetching user by Telegram ID:', error)
       return null
     }
 
@@ -28,7 +29,7 @@ export async function getUserByTelegramIdString(telegram_id: TelegramId) {
 
     return users[0] // Most recent user
   } catch (error) {
-    console.error('Unexpected error fetching user by Telegram ID:', error)
+    logger.error('Unexpected error fetching user by Telegram ID:', error)
     return null
   }
 }

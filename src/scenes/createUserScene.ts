@@ -1,4 +1,4 @@
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { MyTextMessageContext } from '@/interfaces'
 import { Scenes } from 'telegraf'
 import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
@@ -18,7 +18,7 @@ import { processPromoLink } from '@/helpers/promoHelper'
 const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 
 const createUserStep = async (ctx: MyTextMessageContext) => {
-  console.log('CASE:createUserStep', ctx.from)
+  logger.debug('CASE:createUserStep', ctx.from)
 
   const {
     username,
@@ -52,25 +52,25 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   const botNameMatch = ctx.message.text.match(
     /https:\/\/t\.me\/([a-zA-Z0-9_]+)\?start=(\d+)/
   )
-  console.log('botNameMatch', botNameMatch)
+  logger.debug('botNameMatch', botNameMatch)
   let botName = ''
   let startNumber = ''
-  console.log('botName', botName)
-  console.log('startNumber', startNumber)
+  logger.debug('botName', botName)
+  logger.debug('startNumber', startNumber)
 
   if (botNameMatch) {
     botName = botNameMatch[1]
     startNumber = botNameMatch[2]
   } else if (ctx.message.text.startsWith('/start')) {
-    console.log(
+    logger.debug(
       'CASE: 🔄 Команда /start. botInfo.username:',
       ctx.botInfo.username
     )
-    console.log('ctx.message.text', ctx.message.text)
+    logger.debug('ctx.message.text', ctx.message.text)
     // Обработка команды /start без ссылки
     botName = ctx.botInfo.username
     const parts = ctx.message.text.split(' ')
-    console.log('parts', parts)
+    logger.debug('parts', parts)
     startNumber = parts.length > 1 ? parts[1] : ''
   }
 
@@ -89,7 +89,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   let inviterUserId = null
   let inviterUserData = null
   if (ctx.session.inviteCode) {
-    console.log(
+    logger.debug(
       '🔍 [CreateUserScene] Looking up inviter by telegram_id:',
       ctx.session.inviteCode
     )
@@ -100,9 +100,9 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       inviterUserId = inviterData.user_id
       inviterUserData = inviterData // Сохраняем данные inviter для уведомлений
       ctx.session.inviter = inviterUserId
-      console.log('✅ [CreateUserScene] Found inviter UUID:', inviterUserId)
+      logger.debug('✅ [CreateUserScene] Found inviter UUID:', inviterUserId)
     } else {
-      console.log(
+      logger.debug(
         '⚠️ [CreateUserScene] Inviter not found for telegram_id:',
         ctx.session.inviteCode
       )
@@ -128,7 +128,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     bot_name: botName,
   }
 
-  console.log('📝 [CreateUserScene] Creating user with data:', {
+  logger.debug('📝 [CreateUserScene] Creating user with data:', {
     telegram_id: userData.telegram_id,
     username: userData.username,
     inviter: userData.inviter,
@@ -237,7 +237,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
 
     // Handle referral logic - используем уже полученные данные inviter
     if (ctx.session.inviteCode && inviterUserId) {
-      console.log('CASE: Sending referral notifications')
+      logger.debug('CASE: Sending referral notifications')
 
       if (ctx.session.inviteCode) {
         try {
@@ -300,7 +300,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         })
       }
     } else {
-      console.log('CASE: ctx.session.inviteCode not exists')
+      logger.debug('CASE: ctx.session.inviteCode not exists')
 
       try {
         const notificationMessage = promoInfo?.isPromo

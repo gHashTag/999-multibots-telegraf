@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 import fs from 'fs'
 
 export async function uploadVideo(
@@ -16,13 +17,13 @@ export async function uploadVideo(
       })
 
     if (error) {
-      console.error('Ошибка при загрузке видео:', error.message)
+      logger.error('Ошибка при загрузке видео:', error.message)
       throw error
     }
 
     return data
   } catch (error) {
-    console.error('Ошибка при загрузке видео:', error)
+    logger.error('Ошибка при загрузке видео:', error)
     throw error
   }
 }
@@ -32,7 +33,7 @@ export async function getVideoUrl(bucket: string, fileName: string) {
     const { data } = supabase.storage.from(bucket).getPublicUrl(fileName)
     return data.publicUrl
   } catch (e) {
-    console.error('Ошибка при получении видео URL:', e)
+    logger.error('Ошибка при получении видео URL:', e)
     throw e
   }
 }

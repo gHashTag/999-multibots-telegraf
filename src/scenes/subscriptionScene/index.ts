@@ -7,7 +7,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { TranslationButton } from '@/interfaces/supabase.interface'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { escapeMarkdownV2 } from '@/helpers/escapeMarkdown'
@@ -71,7 +71,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
           .map(b => ({ text: b.text, callback_data: b.callback_data })) || [],
     })
 
-    console.log('buttons fetched from DB or static!!!', buttons)
+    logger.debug('buttons fetched from DB or static!!!', buttons)
 
     // Получаем ID админов
     const adminIds = process.env.ADMIN_IDS
@@ -130,7 +130,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       // Получаем текст кнопки из перевода, если он есть, иначе используем тип подписки
       const planKey = plan.subscription?.toString().toLowerCase()
       const translatedButton = buttons?.find(b => b.callback_data === planKey)
-      console.log(
+      logger.debug(
         `[SUBSCRIPTION DEBUG] Plan: ${plan.subscription}, Key: ${planKey}, Found button:`,
         translatedButton?.text || 'NOT FOUND'
       )
@@ -293,10 +293,10 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
     return ctx.wizard.next()
   },
   async (ctx: MyContext) => {
-    console.log('CASE: subscriptionScene.next', ctx)
+    logger.debug('CASE: subscriptionScene.next', ctx)
     if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
       const text = ctx.update.callback_query.data
-      console.log('Callback data text:', text)
+      logger.debug('Callback data text:', text)
 
       // Находим выбранный тариф в ЕДИНОМ ИСТОЧНИКЕ, учитывая регистр callback_data
       const selectedPayment = paymentOptionsPlans.find(
@@ -308,7 +308,7 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         // УДАЛЯЕМ ЛИШНЮЮ ПРОВЕРКУ isValidPaymentSubscription, так как find уже гарантирует валидность по списку
         // if (isValidPaymentSubscription(subscription)) {
         const subscription = selectedPayment.subscription
-        console.log('Valid subscription selected:', subscription)
+        logger.debug('Valid subscription selected:', subscription)
         ctx.session.subscription = subscription
         ctx.session.selectedPayment = {
           amount: selectedPayment.amount,
@@ -321,7 +321,7 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         return ctx.scene.enter(ModeEnum.PaymentScene)
       } else if (text === 'admin_test_1rub') {
         // Обработка админской тестовой кнопки
-        console.log('CASE: Admin test 1 rub button pressed')
+        logger.debug('CASE: Admin test 1 rub button pressed')
 
         // Проверяем, что пользователь действительно админ
         const adminIds = process.env.ADMIN_IDS
@@ -360,7 +360,7 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         return ctx.scene.enter(ModeEnum.PaymentScene)
         /* } else {
           // ЭТОТ БЛОК БОЛЬШЕ НЕ НУЖЕН, так как find гарантирует валидность
-          console.warn(
+          logger.warn(
             '[Callback Handler] Subscription type not supported for payment (should not happen):',
             subscription
           )
@@ -372,11 +372,11 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
           )
         } */
       } else if (text === 'mainmenu') {
-        console.log('CASE: 🏠 Главное меню')
+        logger.debug('CASE: 🏠 Главное меню')
         return ctx.scene.enter(ModeEnum.MainMenu)
       } else {
         // Этот блок теперь действительно означает неизвестный callback_data
-        console.warn('[Callback Handler] Unknown callback_data received:', text)
+        logger.warn('[Callback Handler] Unknown callback_data received:', text)
         const isRu = isRussian(ctx)
         await ctx.reply(
           isRu
@@ -389,7 +389,7 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
 
       // ✅ СПЕЦИАЛЬНАЯ ОБРАБОТКА КОМАНДЫ /instagram
       if (messageText === '/instagram') {
-        console.log(
+        logger.debug(
           '🔍 [DEBUG] /instagram command in subscriptionScene - showing subscription required message'
         )
         logger.info('🔍 [DEBUG] /instagram command in subscriptionScene', {

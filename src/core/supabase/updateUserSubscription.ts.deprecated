@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { logger } from '@/utils/enhancedLogger'
 
 export const updateUserSubscription = async (
   telegram_id: string,
@@ -11,11 +12,11 @@ export const updateUserSubscription = async (
       .eq('telegram_id', telegram_id)
 
     if (error) {
-      console.error('Ошибка при обновлении подписки пользователя:', error)
+      logger.error('Ошибка при обновлении подписки пользователя:', error)
       throw new Error('Не удалось обновить подписку пользователя')
     }
   } catch (error) {
-    console.error('Ошибка при обновлении подписки пользователя:', error)
+    logger.error('Ошибка при обновлении подписки пользователя:', error)
     throw new Error('Не удалось обновить подписку пользователя')
   }
 }

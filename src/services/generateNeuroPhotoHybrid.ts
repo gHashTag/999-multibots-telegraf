@@ -2,7 +2,7 @@ import axios, { isAxiosError } from 'axios'
 import { isDev, SECRET_API_KEY, API_URL, LOCAL_SERVER_URL } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
@@ -26,8 +26,8 @@ export async function generateNeuroPhotoHybrid(
   botName: string,
   explicitAspectRatio?: string | null
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
-  console.log('🚀 [HYBRID] generateNeuroPhotoHybrid ВХОД в функцию')
-  console.log('🚀 [HYBRID] Параметры:', {
+  logger.debug('🚀 [HYBRID] generateNeuroPhotoHybrid ВХОД в функцию')
+  logger.debug('🚀 [HYBRID] Параметры:', {
     prompt: prompt.substring(0, 50) + '...',
     model_url,
     numImages,
@@ -47,21 +47,21 @@ export async function generateNeuroPhotoHybrid(
 
   // Валидация входных данных
   if (!ctx.session.prompt) {
-    console.error('❌ [HYBRID] Prompt not found in session')
+    logger.error('❌ [HYBRID] Prompt not found in session')
     throw new Error('Prompt not found')
   }
 
   if (!ctx.session.userModel) {
-    console.error('❌ [HYBRID] User model not found in session')
+    logger.error('❌ [HYBRID] User model not found in session')
     throw new Error('User model not found')
   }
 
   if (!numImages || numImages <= 0) {
-    console.error('❌ [HYBRID] Invalid number of images:', numImages)
+    logger.error('❌ [HYBRID] Invalid number of images:', numImages)
     throw new Error('Invalid number of images')
   }
 
-  console.log('✅ [HYBRID] Валидация входных данных пройдена')
+  logger.debug('✅ [HYBRID] Валидация входных данных пройдена')
 
   // Рассчитываем точную стоимость (БЕЗ ОКРУГЛЕНИЯ!)
   const costResult = calculateModeCost({

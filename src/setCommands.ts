@@ -1,4 +1,5 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
+import { logger } from '@/utils/enhancedLogger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 import { supabase } from './core/supabase'
@@ -23,7 +24,7 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
         .single()
 
       if (error) {
-        console.warn('⚠️ Не удалось найти владельца бота в БД:', {
+        logger.warn('⚠️ Не удалось найти владельца бота в БД:', {
           description: 'Could not find bot owner in database',
           error: error?.message || 'Unknown error',
           botName,
@@ -32,14 +33,14 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
       } else if (data) {
         // Если данные успешно получены, обновляем ID владельца
         ownerTelegramId = data.telegram_id.toString()
-        console.log('✅ Найден владелец бота:', {
+        logger.debug('✅ Найден владелец бота:', {
           description: 'Found bot owner',
           botName,
           ownerTelegramId,
         })
       }
     } catch (dbError) {
-      console.error('❌ Ошибка при запросе к базе данных:', {
+      logger.error('❌ Ошибка при запросе к базе данных:', {
         description: 'Database query error',
         error: dbError instanceof Error ? dbError.message : 'Unknown error',
         botName,
@@ -112,12 +113,12 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
       }
     )
 
-    console.log('✅ Команды бота успешно установлены:', {
+    logger.debug('✅ Команды бота успешно установлены:', {
       description: 'Bot commands set successfully for private chats',
       botName,
     })
   } catch (error) {
-    console.error('❌ Ошибка при установке команд для владельца бота:', {
+    logger.error('❌ Ошибка при установке команд для владельца бота:', {
       description: 'Error setting owner commands',
       error: error instanceof Error ? error.message : 'Unknown error',
     })

@@ -1,4 +1,5 @@
 import { fetchWithAxios } from '@/core/axios/fetchWithAxios'
+import { logger } from '@/utils/enhancedLogger'
 
 export async function createVoiceSyncLabs({
   fileUrl,
@@ -28,14 +29,14 @@ export async function createVoiceSyncLabs({
     if (response.status === 200) {
       // Изменено с response.ok на response.status === 200
       const result = response.data as { id: string } // Изменено с await response.json() на response.data
-      console.log(result, 'result')
+      logger.debug(result, 'result')
       return result.id
     } else {
-      console.error(`Error: ${response.status} ${response.statusText}`)
+      logger.error(`Error: ${response.status} ${response.statusText}`)
       return null
     }
   } catch (error) {
-    console.error(error)
+    logger.error(error)
     return null
   }
 }

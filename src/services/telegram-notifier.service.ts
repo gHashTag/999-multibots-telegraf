@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf'
+import { logger } from '@/utils/enhancedLogger'
 import { MyContext } from '../interfaces'
 import { FixResult } from '../webhooks/github-autofixer.service'
 
@@ -45,7 +46,7 @@ export class TelegramNotifierService {
       this.bot = new Telegraf<MyContext>(botToken)
     } else {
       this.bot = null
-      console.warn('⚠️ [TelegramNotifier] Bot token not configured')
+      logger.warn('⚠️ [TelegramNotifier] Bot token not configured')
     }
   }
 
@@ -166,7 +167,7 @@ ${fixesText}
         link_preview_options: { is_disabled: true }
       })
     } catch (error) {
-      console.error('❌ [TelegramNotifier] Failed to send admin message:', error)
+      logger.error('❌ [TelegramNotifier] Failed to send admin message:', error)
     }
   }
 
@@ -179,7 +180,7 @@ ${fixesText}
         link_preview_options: { is_disabled: true }
       })
     } catch (error) {
-      console.error('❌ [TelegramNotifier] Failed to send channel message:', error)
+      logger.error('❌ [TelegramNotifier] Failed to send channel message:', error)
     }
   }
 

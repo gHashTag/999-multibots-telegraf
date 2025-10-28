@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logger } from '@/utils/enhancedLogger'
 import {
   getUserByTelegramIdString,
   updateUserLevelPlusOne,
@@ -26,13 +27,13 @@ export async function generateImageToPrompt(
   ctx: MyContext,
   bot_name: string
 ): Promise<string> {
-  console.log('generateImageToPrompt', imageUrl, telegram_id, username, is_ru)
+  logger.debug('generateImageToPrompt', imageUrl, telegram_id, username, is_ru)
   let costPerImage: number | undefined = undefined
   let newBalance: number | undefined = undefined
 
   try {
     const userExists = await getUserByTelegramIdString(telegram_id)
-    console.log('userExists', userExists)
+    logger.debug('userExists', userExists)
     if (!userExists) {
       throw new Error(`User with ID ${telegram_id} does not exist.`)
     }
@@ -95,15 +96,15 @@ export async function generateImageToPrompt(
       }
     )
 
-    console.log(
+    logger.debug(
       'Init response data:',
       JSON.stringify(initResponse.data, null, 2)
     )
 
     const eventId = initResponse.data?.event_id || initResponse.data
-    console.log('eventId', eventId)
+    logger.debug('eventId', eventId)
     if (!eventId) {
-      console.error('No event ID in response:', initResponse.data)
+      logger.error('No event ID in response:', initResponse.data)
       throw new Error('No event ID in response')
     }
 
@@ -115,29 +116,29 @@ export async function generateImageToPrompt(
       }
     )
 
-    console.log(
+    logger.debug(
       'Result response data:',
       JSON.stringify(resultResponse.data, null, 2)
     )
 
     if (!resultResponse.data) {
-      console.error('Image to prompt: No data in response', resultResponse)
+      logger.error('Image to prompt: No data in response', resultResponse)
       throw new Error('Image to prompt: No data in response')
     }
 
     const responseText = resultResponse.data as string
     const lines = responseText.split('\n')
-    console.log('Lines:', lines)
+    logger.debug('Lines:', lines)
 
     let foundCaption = false
     for (const line of lines) {
       if (line.startsWith('data: ')) {
         try {
           const data = JSON.parse(line.slice(6))
-          console.log('Parsed data:', data)
+          logger.debug('Parsed data:', data)
           if (Array.isArray(data) && data.length > 1) {
             const caption = data[1]
-            console.log('Found caption:', caption)
+            logger.debug('Found caption:', caption)
             // await bot.telegram.sendMessage(
             await ctx.telegram.sendMessage(
               // Changed to ctx.telegram.sendMessage
@@ -173,21 +174,21 @@ export async function generateImageToPrompt(
             return caption
           }
         } catch (e) {
-          console.error('Error parsing JSON from line:', line, e)
+          logger.error('Error parsing JSON from line:', line, e)
         }
       } else {
-        console.log('Skipped line:', line)
+        logger.debug('Skipped line:', line)
       }
     }
 
     if (!foundCaption) {
-      console.error('No valid caption found in response. All lines:', lines)
+      logger.error('No valid caption found in response. All lines:', lines)
       throw new Error('No valid caption found in response')
     }
 
     throw new Error('Internal error: Caption processing failed')
   } catch (error) {
-    console.error('Error in generateImageToPrompt:', error)
+    logger.error('Error in generateImageToPrompt:', error)
     // await sendServiceErrorToUser(bot, telegram_id, error as Error, is_ru)
     await sendServiceErrorToUser(ctx, telegram_id, error as Error, is_ru) // Changed to pass ctx
     // await sendServiceErrorToAdmin(bot, telegram_id, error as Error)
@@ -205,7 +206,7 @@ export async function generateImageToPrompt(
           inv_id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
           metadata: { is_ru },
         })
-        console.log(`Refunded ${costPerImage} stars to user ${telegram_id}`)
+        logger.debug(`Refunded ${costPerImage} stars to user ${telegram_id}`)
         // await bot.telegram.sendMessage(
         await ctx.telegram.sendMessage(
           // Changed to ctx.telegram.sendMessage
@@ -215,7 +216,7 @@ export async function generateImageToPrompt(
             : 'Funds refunded due to error.'
         )
       } catch (refundError) {
-        console.error(
+        logger.error(
           'CRITICAL: Failed to refund user after error:',
           refundError
         )

@@ -1,6 +1,6 @@
 import { Context } from 'telegraf'
 import { supabase } from './client'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { User } from '@/interfaces/user.interface'
 import { MyContext } from '@/interfaces'
 import { deduplicateUsers } from './deduplicateUsers'
@@ -134,7 +134,7 @@ export const createUserByTelegramId = async (ctx: Context) => {
 
     return newUser
   } catch (error) {
-    console.error('Error creating user:', error)
+    logger.error('Error creating user:', error)
     return null
   }
 }
