@@ -198,10 +198,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           logger.error('❌ Ошибка загрузки фото', { error: uploadError })
           await ctx.reply(
             isRu
-              ? '❌ Ошибка загрузки фото. Попробуйте еще раз.'
-              : '❌ Error uploading photo. Try again.'
+              ? '❌ Ошибка загрузки фото. Попробуйте отправить фото еще раз или используйте URL изображения.'
+              : '❌ Error uploading photo. Try sending photo again or use an image URL.'
           )
-          return ctx.scene.leave()
+          return // Остаемся в wizard
         }
       }
       // Обработка URL изображения
@@ -220,10 +220,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       if (!imageUrl) {
         await ctx.reply(
           isRu
-            ? '❌ Некорректное изображение. Отправьте фото или URL изображения.'
-            : '❌ Invalid image. Send a photo or image URL.'
+            ? '❌ Некорректное изображение. Отправьте фото или URL изображения. Попробуйте еще раз.'
+            : '❌ Invalid image. Send a photo or image URL. Try again.'
         )
-        return ctx.scene.leave()
+        return // Остаемся в wizard
       }
 
       // Сохраняем imageUrl в сессию
@@ -235,8 +235,8 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(
         isRu
-          ? '✅ Изображение получено!\n\n📝 Теперь отправьте:\n• Текст (до 500 символов) - будет озвучен голосом вашего аватара\n• ИЛИ голосовое сообщение - будет использовано напрямую'
-          : '✅ Image received!\n\n📝 Now send:\n• Text (up to 500 characters) - will be voiced with your avatar\n• OR voice message - will be used directly'
+          ? '✅ Изображение получено!\n\n📝 Теперь отправьте:\n• Текст - будет озвучен голосом вашего аватара\n• ИЛИ голосовое сообщение (до 30 сек) - будет использовано напрямую'
+          : '✅ Image received!\n\n📝 Now send:\n• Text - will be voiced with your avatar\n• OR voice message (up to 30 sec) - will be used directly'
       )
 
       return ctx.wizard.next()
@@ -244,10 +244,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       logger.error('❌ Ошибка обработки изображения', { error })
       await ctx.reply(
         isRu
-          ? '❌ Произошла ошибка при обработке изображения. Попробуйте еще раз.'
-          : '❌ An error occurred while processing the image. Try again.'
+          ? '❌ Произошла ошибка при обработке изображения. Попробуйте отправить фото или URL еще раз.'
+          : '❌ An error occurred while processing the image. Try sending photo or URL again.'
       )
-      return ctx.scene.leave()
+      return // Остаемся в wizard
     }
   },
 
@@ -323,10 +323,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           if (voice.duration > 30) {
             await ctx.reply(
               isRu
-                ? `❌ Голосовое сообщение слишком длинное (${voice.duration} сек). Максимум: 30 секунд.`
-                : `❌ Voice message is too long (${voice.duration} sec). Maximum: 30 seconds.`
+                ? `❌ Голосовое сообщение слишком длинное (${voice.duration} сек). Максимум: 30 секунд.\n\n📝 Попробуйте отправить более короткое голосовое сообщение или используйте текст.`
+                : `❌ Voice message is too long (${voice.duration} sec). Maximum: 30 seconds.\n\n📝 Try sending a shorter voice message or use text.`
             )
-            return ctx.scene.leave()
+            return // Остаемся в wizard, даем возможность повторить ввод
           }
 
           // Скачиваем голосовое сообщение
@@ -386,10 +386,10 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             })
             await ctx.reply(
               isRu
-                ? '❌ Ошибка обработки голосового сообщения. Попробуйте еще раз.'
-                : '❌ Error processing voice message. Please try again.'
+                ? '❌ Ошибка обработки голосового сообщения. Попробуйте отправить еще раз или используйте текст.'
+                : '❌ Error processing voice message. Try again or use text.'
             )
-            return ctx.scene.leave()
+            return // Остаемся в wizard, даем возможность повторить ввод
           }
         } else if (message && 'text' in message) {
           // Обычный текст
@@ -398,28 +398,23 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           if (text.length === 0) {
             await ctx.reply(
               isRu
-                ? '❌ Текст не может быть пустым.'
-                : '❌ Text cannot be empty.'
+                ? '❌ Текст не может быть пустым. Попробуйте еще раз.'
+                : '❌ Text cannot be empty. Try again.'
             )
-            return ctx.scene.leave()
+            return // Остаемся в wizard, даем возможность повторить ввод
           }
 
-          if (text.length > 500) {
-            await ctx.reply(
-              isRu
-                ? `❌ Текст слишком длинный (${text.length} символов). Максимум: 500 символов.`
-                : `❌ Text is too long (${text.length} characters). Maximum: 500 characters.`
-            )
-            return ctx.scene.leave()
-          }
+          // ✅ ИСПРАВЛЕНО: Убрано ограничение в 500 символов
+          // Пользователь может отправлять тексты любой длины
+          // Ограничение только со стороны API провайдера (обычно 5000-10000 символов)
         } else {
           // Неподдерживаемый тип сообщения
           await ctx.reply(
             isRu
-              ? '❌ Пожалуйста, отправьте текст или голосовое сообщение.'
-              : '❌ Please send text or voice message.'
+              ? '❌ Пожалуйста, отправьте текст или голосовое сообщение. Попробуйте еще раз.'
+              : '❌ Please send text or voice message. Try again.'
           )
-          return ctx.scene.leave()
+          return // Остаемся в wizard
         }
       }
 
