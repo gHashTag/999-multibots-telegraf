@@ -167,7 +167,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         telegramId,
       })
 
-      return ctx.wizard.next()
+      // ✅ ИСПРАВЛЕНИЕ: Переход напрямую на Step 2 (индекс 4), пропуская HeyGen шаги
+      // Структура: 0, 1, 1a, 1b, 2, 2.5(cover), 3, 4, 5, 6
+      // Step 2 (Hedra photo) = индекс 4
+      ctx.wizard.selectStep(4)
+      return
     } else if (callbackData === 'service_heygen') {
       // ВЕТКА HEYGEN: Показываем выбор набора аватаров
       ctx.session.aiReelsRender = {
