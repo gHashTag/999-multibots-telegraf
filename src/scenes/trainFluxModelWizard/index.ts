@@ -6,7 +6,8 @@ import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { updateUserGender } from '@/core/supabase'
-import { sanitizeModelName } from '@/helpers/sanitizeModelName'
+// ✅ ИМПОРТИРУЕМ LOGGER
+import { logger } from '@/utils/enhancedLogger'
 
 // Define gender options
 const GENDER_MALE = 'male'
@@ -39,7 +40,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
 
-  // Step 2: Handle Gender Selection & Ask for Model Name
+  // Step 2: Handle Gender Selection & Ask for Images
   async ctx => {
     const isRu = isRussian(ctx)
     let gender: string | null = null
@@ -50,13 +51,13 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       if (ctx.from?.id) {
         targetUserId = ctx.from.id
         ctx.session.targetUserId = targetUserId
-        console.log(
-          `[trainFluxModelWizard] Fetched targetUserId from ctx.from: ${targetUserId}`
-        )
+        logger.info('[TrainFluxWizard] Fetched targetUserId from ctx.from', {
+          targetUserId,
+        })
       } else {
-        console.error(
-          '[trainFluxModelWizard] Missing targetUserId in session and ctx.from at step 2.'
-        )
+        logger.error('[TrainFluxWizard] Missing targetUserId in session and ctx.from', {
+          step: 2,
+        })
         await ctx.reply(
           isRu
             ? '❌ Ошибка сессии. Не могу определить пользователя.'
@@ -70,15 +71,16 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       if (ctx.from?.username) {
         username = ctx.from.username
         ctx.session.username = username
-        console.log(
-          `[trainFluxModelWizard] Fetched username from ctx.from: ${username}`
-        )
+        logger.info('[TrainFluxWizard] Fetched username from ctx.from', {
+          username,
+        })
       } else {
         username = `user${targetUserId}`
         ctx.session.username = username
-        console.warn(
-          `[trainFluxModelWizard] Username missing in ctx.from, using fallback: ${username}`
-        )
+        logger.warn('[TrainFluxWizard] Username missing, using fallback', {
+          username,
+          targetUserId,
+        })
       }
     }
 
@@ -95,7 +97,9 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         await ctx.answerCbQuery(
           isRu ? 'Неизвестное действие' : 'Unknown action'
         )
-        console.warn('[trainFluxModelWizard] Unexpected callback data:', data)
+        logger.warn('[TrainFluxWizard] Unexpected callback data', {
+          data,
+        })
         await ctx.reply(
           isRu
             ? '⚠️ Пожалуйста, используйте кнопки для выбора пола.'
@@ -120,115 +124,120 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     }
 
     ctx.session.gender = gender
-    console.log(`[trainFluxModelWizard] Gender set to session: ${gender}`)
+    logger.info('[TrainFluxWizard] Gender set to session', {
+      gender,
+      targetUserId,
+    })
 
     const genderUpdateSuccess = await updateUserGender(targetUserId, gender)
     if (!genderUpdateSuccess) {
-      console.error(
-        `[trainFluxModelWizard] Failed to update gender in DB for user ${targetUserId}`
-      )
+      logger.error('[TrainFluxWizard] Failed to update gender in DB', {
+        targetUserId,
+        gender,
+      })
       await ctx.reply(
         isRu
           ? '⚠️ Не удалось сохранить выбор пола, но вы можете продолжить.'
           : '⚠️ Could not save gender selection, but you can proceed.'
       )
     } else {
-      console.log(
-        `[trainFluxModelWizard] Gender successfully saved to DB for user ${targetUserId}`
-      )
+      logger.info('[TrainFluxWizard] Gender successfully saved to DB', {
+        targetUserId,
+        gender,
+      })
     }
 
-    // ✅ Спрашиваем название модели для Нейрофото
-    await ctx.reply(
-      isRu
-        ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n📝 Теперь введите название для вашей модели.\n\nЭто название будет отображаться в разделе "Модели" в Нейрофото.\n\nНапример: "Мой аватар", "Персонаж для видео", "Модель для работы" и т.д.`
-        : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} saved.\n\n📝 Now enter a name for your model.\n\nThis name will be displayed in the "Models" section in Neurophoto.\n\nFor example: "My Avatar", "Video Character", "Work Model", etc.`
-    )
-
-    return ctx.wizard.next()
-  },
-
-  // Step 3: Handle Model Name Input & Ask for Images
-  async ctx => {
-    const isRu = isRussian(ctx)
-
-    if (!ctx.message || !('text' in ctx.message)) {
+    if (!username) {
+      logger.error('[TrainFluxWizard] CRITICAL - Username still missing after checks', {
+        step: 2,
+        targetUserId,
+      })
       await ctx.reply(
         isRu
-          ? '⚠️ Пожалуйста, введите название модели текстом.'
-          : '⚠️ Please enter the model name as text.'
+          ? '❌ Ошибка сессии. Не найдено имя пользователя.'
+          : '❌ Session error. Username not found.'
       )
-      return
+      return ctx.scene.leave()
     }
 
-    const modelNameInput = ctx.message.text.trim()
-
-    if (!modelNameInput || modelNameInput.length < 2) {
-      await ctx.reply(
-        isRu
-          ? '⚠️ Название модели слишком короткое. Введите минимум 2 символа.'
-          : '⚠️ Model name too short. Enter at least 2 characters.'
-      )
-      return
-    }
-
-    if (modelNameInput.length > 50) {
-      await ctx.reply(
-        isRu
-          ? '⚠️ Название модели слишком длинное. Максимум 50 символов.'
-          : '⚠️ Model name too long. Maximum 50 characters.'
-      )
-      return
-    }
-
-    // ✅ Создаем безопасное название для Replicate API (только латинские буквы, цифры, дефисы)
-    const safeModelName = sanitizeModelName(modelNameInput)
-
-    ctx.session.modelName = safeModelName // ✅ Используем санитизированное имя для Replicate
-    ctx.session.triggerWord = safeModelName.toUpperCase() // Trigger word для Replicate
     ctx.session.images = []
-
-    console.log(`[trainFluxModelWizard] Model name sanitized: "${modelNameInput}" → "${safeModelName}"`)
+    ctx.session.modelName = `${username.toLowerCase()}`
+    ctx.session.triggerWord = `${username.toLowerCase()}`
 
     const replyMessage = isRu
-      ? `✅ Название модели: "${safeModelName}"\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+      ? `✅ Пол ${
+          gender === GENDER_MALE ? 'Мужской' : 'Женский'
+        } сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
    - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Model name: "${safeModelName}"\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+      : `✅ Gender ${
+          gender === GENDER_MALE ? 'Male' : 'Female'
+        } saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
    - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
    - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
    - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
    - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
 
-    await ctx.reply(replyMessage, {
+    const fullReplyMessage = isRu
+      ? `✅ Пол ${
+          gender === GENDER_MALE ? 'Мужской' : 'Женский'
+        } сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+   - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
+   - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
+   - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
+   - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
+   - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
+   - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
+      : `✅ Gender ${
+          gender === GENDER_MALE ? 'Male' : 'Female'
+        } saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+   - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
+   - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
+   - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
+   - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
+   - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
+
+    await ctx.reply(fullReplyMessage, {
       ...Markup.keyboard([
         [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
       ]).resize(),
       parse_mode: 'HTML',
     })
 
-    console.log('Proceeding to image upload step (Step 4)')
+    logger.info('[TrainFluxWizard] Proceeding to image upload step', {
+      step: 3,
+      targetUserId,
+      username,
+    })
     return ctx.wizard.next()
   },
 
-  // Step 4: Handle Image Collection
+  // Step 3: Handle Image Collection (Original Step 2)
   async ctx => {
-    console.log('Scene: IMAGES')
+    logger.info('[TrainFluxWizard] Image collection step started', {
+      step: 3,
+      telegramId: ctx.from?.id,
+    })
     const isRu = isRussian(ctx)
     const message = ctx.message
-    console.log('message', message)
+    logger.debug('[TrainFluxWizard] Message received', {
+      hasMessage: !!message,
+      messageType: message ? Object.keys(message) : [],
+    })
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       return ctx.scene.leave()
     }
 
     if (message && 'text' in message && message.text === '/done') {
-      console.log('Received /done command')
+      logger.info('[TrainFluxWizard] Received /done command', {
+        imageCount: ctx.session.images?.length || 0,
+      })
       if (!ctx.session.images || ctx.session.images.length < 10) {
         // Check if images array exists
         await ctx.reply(
@@ -242,7 +251,10 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         )
         return
       }
-      console.log('Proceeding to upload scene')
+      logger.info('[TrainFluxWizard] Proceeding to upload scene', {
+        imageCount: ctx.session.images.length,
+        gender: ctx.session.gender,
+      })
       // Pass necessary data including gender to the next scene if needed
       // ctx.scene.enter('uploadTrainFluxModelScene', { gender: ctx.session.gender }); // Example if state is passed
       return ctx.scene.enter('uploadTrainFluxModelScene', {
@@ -291,15 +303,8 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      // ✅ Telegram automatically compresses images to optimal size
-      // No additional compression needed
-      console.log(`📸 Image size from Telegram: ${buffer.length} bytes`)
-      console.log(
-        `📊 Image ${ctx.session.images.length + 1}/10: ${(buffer.length / 1024).toFixed(2)} KB`
-      )
-
       ctx.session.images.push({
-        buffer: buffer,
+        buffer: Buffer.from(buffer),
         filename: `a_photo_of_${ctx.session.username}x${
           ctx.session.images.length + 1
         }.jpg`,
@@ -310,7 +315,10 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
           ? `✅ Изображение ${ctx.session.images.length} добавлено. Отправьте еще или /done.`
           : `✅ Image ${ctx.session.images.length} added. Send more or /done.`
       )
-      console.log(`Image ${ctx.session.images.length} added`)
+      logger.info('[TrainFluxWizard] Image added', {
+        imageCount: ctx.session.images.length,
+        username: ctx.session.username,
+      })
     } else {
       // Handle cases where it's neither /done nor a photo
       await ctx.reply(

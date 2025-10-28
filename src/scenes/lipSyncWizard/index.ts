@@ -19,6 +19,8 @@ import {
   LipsyncErrorSchema
 } from '@/interfaces/zod/lipsync.zod'
 import { z } from 'zod'
+// ✅ ИМПОРТИРУЕМ LOGGER
+import { logger } from '@/utils/enhancedLogger'
 
 // НОВОЕ: Проверка админских прав для LipSync с Zod валидацией
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
@@ -71,7 +73,10 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       )
       return ctx.wizard.next()
     } catch (error) {
-      console.error('❌ Ошибка инициализации LipSync:', error)
+      logger.error('[LipSyncWizard] Initialization error', {
+        error: error instanceof Error ? error.message : String(error),
+        telegramId,
+      })
       await ctx.reply(
         isRu 
           ? '❌ Ошибка инициализации. Попробуйте позже.'
@@ -147,9 +152,12 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           : '✅ Video received! Now send an audio, voice message, or audio URL'
       )
       return ctx.wizard.next()
-      
+
     } catch (error) {
-      console.error('❌ Ошибка валидации видео:', error)
+      logger.error('[LipSyncWizard] Video validation error', {
+        error: error instanceof Error ? error.message : String(error),
+        telegramId: ctx.from?.id,
+      })
       const errorMessage = error instanceof z.ZodError 
         ? error.errors.map(e => e.message).join(', ')
         : 'Неизвестная ошибка'
@@ -312,7 +320,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     )
 
     if (!ctx.session.videoUrl || !ctx.session.audioUrl) {
-      console.error('❌ Video URL или Audio URL не найден')
+      logger.error('[LipSyncWizard] Video or Audio URL not found in session', {
+        hasVideoUrl: !!ctx.session.videoUrl,
+        hasAudioUrl: !!ctx.session.audioUrl,
+        telegramId,
+      })
       // Возвращаем средства при ошибке
       await updateUserBalance(
         telegramId,
@@ -340,7 +352,10 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           : `🎥 Video sent for processing. Wait for the result`
       )
     } catch (error) {
-      console.error('❌ Error in generateLipSync:', error)
+      logger.error('[LipSyncWizard] Error in generateLipSync', {
+        error: error instanceof Error ? error.message : String(error),
+        telegramId,
+      })
 
       // Возвращаем средства при ошибке
       await updateUserBalance(
@@ -363,9 +378,12 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           : `❌ An error occurred while processing the video: ${errorMessage}. Funds refunded.`
       )
     }
-    
+
     } catch (error) {
-      console.error('❌ Ошибка валидации аудио:', error)
+      logger.error('[LipSyncWizard] Audio validation error', {
+        error: error instanceof Error ? error.message : String(error),
+        telegramId: ctx.from?.id,
+      })
       const errorMessage = error instanceof z.ZodError 
         ? error.errors.map(e => e.message).join(', ')
         : 'Неизвестная ошибка'
