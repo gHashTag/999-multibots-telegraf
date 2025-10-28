@@ -203,10 +203,9 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
           error: error.message,
           errorName: error.name,
           errorCode: error.code,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          hasResponse: !!error.response,
-          hasResponseData: !!error.response?.data,
+          status: error.status,
+          body: error.body,
+          hasBody: !!error.body,
         }
       )
 
@@ -216,15 +215,15 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         stack: error.stack,
         provider: 'fal',
         modelId: input.modelId,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        responseData: error.response?.data,
+        status: error.status,
+        body: error.body,
       })
 
       // Специальная обработка для ошибки баланса
+      // @fal-ai/client возвращает error.body.detail, а не error.response.data.detail
       if (
-        error.response?.status === 403 &&
-        error.response?.data?.detail?.includes('Exhausted balance')
+        error.status === 403 &&
+        error.body?.detail?.includes('Exhausted balance')
       ) {
         return {
           message:
@@ -237,7 +236,7 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
       }
 
       // Обработка других ошибок API
-      if (error.response?.status === 401) {
+      if (error.status === 401) {
         return {
           message:
             'Fal.ai API authentication failed. Please check your API key.',
