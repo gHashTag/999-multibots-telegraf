@@ -666,22 +666,148 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             : `💰 Charged ${cost.toFixed(2)}⭐. New balance: ${newBalance.toFixed(2)}⭐\n\n⏳ Generation started, it will take 30-60 seconds...`
         )
 
-        // ✅ РЕШЕНИЕ ПРОБЛЕМЫ ТАЙМАУТОВ: Асинхронная генерация
+        // ✅ ПЕРЕКЛЮЧЕНО НА FAL.AI VEED FABRIC PROVIDER
+        // FAL.AI требует audioUrl, поэтому если у нас текст - конвертируем в аудио
+        let finalAudioUrl = audioUrl
+
+        if (!audioUrl && text) {
+          // Конвертируем текст в аудио через ElevenLabs
+          try {
+            await ctx.reply(
+              isRu
+                ? '🎤 Генерируем голос из текста...'
+                : '🎤 Generating voice from text...'
+            )
+
+            const { supabase: supabaseClient } = await import('@/core/supabase')
+            const { data: userData } = await supabaseClient
+              .from('users')
+              .select('voice_id_elevenlabs')
+              .eq('telegram_id', telegramId)
+              .maybeSingle()
+
+            const userVoiceId = userData?.voice_id_elevenlabs
+
+            if (!userVoiceId) {
+              await ctx.reply(
+                isRu
+                  ? '❌ Не найден голос аватара. Создайте голос в настройках.'
+                  : '❌ Avatar voice not found. Create voice in settings.'
+              )
+              return ctx.scene.leave()
+            }
+
+            // Импортируем функцию генерации аудио
+            const { createAudioFileFromText } = await import(
+              '@/core/elevenlabs/createAudioFileFromText'
+            )
+
+            logger.info('🎤 Генерация аудио из текста через ElevenLabs', {
+              telegramId,
+              voiceId: userVoiceId,
+              textLength: text.length,
+            })
+
+            // Генерируем аудио файл
+            const audioFilePath = await createAudioFileFromText({
+              text,
+              voice_id: userVoiceId,
+              telegram_id: telegramId,
+            })
+
+            // Загружаем аудио в Supabase Storage
+            const audioBuffer = await import('fs').then(fs =>
+              fs.promises.readFile(audioFilePath)
+            )
+
+            const { createClient } = await import('@supabase/supabase-js')
+            const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+              '@/config'
+            )
+
+            const serviceClient = createClient(
+              SUPABASE_URL!,
+              SUPABASE_SERVICE_ROLE_KEY!
+            )
+
+            const audioFileName = `lipsync-audio/${telegramId}/${Date.now()}.mp3`
+
+            const { error: uploadError } = await serviceClient.storage
+              .from('images')
+              .upload(audioFileName, audioBuffer, {
+                contentType: 'audio/mpeg',
+                upsert: false,
+              })
+
+            if (uploadError) {
+              throw new Error(`Upload failed: ${uploadError.message}`)
+            }
+
+            // Получаем публичный URL
+            const { data: urlData } = serviceClient.storage
+              .from('images')
+              .getPublicUrl(audioFileName)
+
+            finalAudioUrl = urlData.publicUrl
+
+            logger.info('✅ Аудио сгенерировано и загружено', {
+              telegramId,
+              audioUrl: finalAudioUrl.substring(0, 100),
+            })
+
+            // Удаляем временный файл
+            await import('fs').then(fs => fs.promises.unlink(audioFilePath))
+          } catch (ttsError) {
+            logger.error('❌ Ошибка генерации аудио из текста', {
+              error: ttsError,
+              telegramId,
+            })
+
+            // Возврат средств
+            await updateUserBalance(
+              telegramId,
+              cost,
+              PaymentType.MONEY_INCOME,
+              'Lip-sync refund - TTS error',
+              { bot_name: ctx.botInfo?.username || 'unknown_bot' }
+            )
+
+            await ctx.reply(
+              isRu
+                ? '❌ Ошибка генерации голоса. Средства возвращены.'
+                : '❌ Error generating voice. Funds refunded.'
+            )
+            return ctx.scene.leave()
+          }
+        }
+
+        if (!finalAudioUrl) {
+          await ctx.reply(
+            isRu
+              ? '❌ Не удалось получить аудио URL.'
+              : '❌ Failed to get audio URL.'
+          )
+          return ctx.scene.leave()
+        }
+
+        // ✅ ИСПОЛЬЗУЕМ FAL.AI VEED FABRIC PROVIDER
         try {
-          const input = LipSyncInputBuilder.forVeedFabric(
+          const input = LipSyncInputBuilder.forFalVeedFabric(
             imageUrl,
-            audioUrl || text, // Передаем либо audioUrl, либо text
+            finalAudioUrl, // Всегда передаем audioUrl для FAL.AI
             telegramId,
             {
               botName: ctx.botInfo?.username || 'unknown_bot',
               resolution: '720p', // Высокое качество 720p
-              isAudioUrl: !!audioUrl, // Флаг: если audioUrl существует, значит это URL, иначе text
             }
           )
 
-          logger.info('🎭 Запуск АСИНХРОННОЙ Veed Fabric генерации', {
+          logger.info('🎭 Запуск АСИНХРОННОЙ FAL.AI Veed Fabric генерации', {
             telegramId,
+            provider: 'fal',
+            modelId: 'fal-veed-fabric-1.0-fast',
             imageUrl: imageUrl.substring(0, 100),
+            audioUrl: finalAudioUrl?.substring(0, 100),
             textLength: text.length,
           })
 
