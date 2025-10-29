@@ -6,6 +6,7 @@ import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { updateUserGender } from '@/core/supabase'
+import { sanitizeModelName } from '@/helpers/sanitizeModelName'
 
 // Define gender options
 const GENDER_MALE = 'male'
@@ -180,27 +181,24 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    // Создаем безопасное название для файлов (убираем спецсимволы)
-    const safeModelName = modelNameInput
-      .toLowerCase()
-      .replace(/[^a-zа-я0-9_-]/gi, '_')
-      .substring(0, 30)
+    // ✅ Создаем безопасное название для Replicate API (только латинские буквы, цифры, дефисы)
+    const safeModelName = sanitizeModelName(modelNameInput)
 
-    ctx.session.modelName = modelNameInput // Читаемое название для пользователя
+    ctx.session.modelName = safeModelName // ✅ Используем санитизированное имя для Replicate
     ctx.session.triggerWord = safeModelName.toUpperCase() // Trigger word для Replicate
     ctx.session.images = []
 
-    console.log(`[trainFluxModelWizard] Model name set: "${modelNameInput}" (safe: "${safeModelName}")`)
+    console.log(`[trainFluxModelWizard] Model name sanitized: "${modelNameInput}" → "${safeModelName}"`)
 
     const replyMessage = isRu
-      ? `✅ Название модели: "${modelNameInput}"\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+      ? `✅ Название модели: "${safeModelName}"\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
    - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Model name: "${modelNameInput}"\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+      : `✅ Model name: "${safeModelName}"\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
    - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
    - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
    - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
