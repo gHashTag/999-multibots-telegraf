@@ -64,29 +64,13 @@ export async function createModelTrainingLocal(
       path: requestData.filePath,
     })
 
-    // ✅ STEP 3: Check for existing active training (prevent duplicates)
-    const { data: existingTrainings } = await supabase
-      .from('model_trainings')
-      .select('id, replicate_training_id, status')
-      .eq('telegram_id', requestData.telegram_id) // Используем telegram_id вместо user_id
-      .eq('model_name', requestData.modelName)
-      .in('status', ['starting', 'processing'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (existingTrainings && existingTrainings.length > 0) {
-      const existing = existingTrainings[0]
-      logger.warn('[LOCAL TRAINING] Active training already exists', {
-        training_id: existing.replicate_training_id,
-        status: existing.status,
-      })
-
-      throw new Error(
-        requestData.is_ru
-          ? '⚠️ Тренировка этой модели уже запущена. Пожалуйста, подождите.'
-          : '⚠️ Training for this model is already running. Please wait.'
-      )
-    }
+    // ✅ STEP 3: REMOVED duplicate training check
+    // Пользователи могут запускать неограниченное количество тренировок
+    // Новая тренировка просто создаст новую версию модели на Replicate
+    logger.info('[LOCAL TRAINING] Starting training (no duplicate check)', {
+      telegram_id: requestData.telegram_id,
+      model_name: requestData.modelName,
+    })
 
     // ✅ STEP 4: Initialize Replicate client
     const replicate = new Replicate({
