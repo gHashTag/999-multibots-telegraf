@@ -262,7 +262,11 @@ export class AsyncLipSyncManager {
    */
   private async getFileSize(url: string): Promise<number> {
     try {
-      const response = await axios.head(url, { timeout: 10000 })
+      const response = await axios({
+        method: 'HEAD',
+        url,
+        timeout: 10000,
+      })
       const contentLength = response.headers['content-length']
       return contentLength ? parseInt(contentLength, 10) : 0
     } catch (error) {
