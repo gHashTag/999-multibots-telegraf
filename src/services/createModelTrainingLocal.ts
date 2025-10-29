@@ -4,6 +4,7 @@ import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { REPLICATE_API_TOKEN, REPLICATE_USERNAME } from '@/config'
 import { logger } from '@/utils/logger'
+import { sanitizeModelName, isValidReplicateModelName } from '@/helpers/sanitizeModelName'
 
 interface ModelTrainingRequest {
   filePath: string
@@ -103,14 +104,29 @@ export async function createModelTrainingLocal(
       base64Length: base64Data.length,
     })
 
-    // ✅ STEP 6: Create or verify Replicate model exists
-    // Replicate требует lowercase название модели
-    const modelNameLower = requestData.modelName.toLowerCase()
+    // ✅ STEP 6: Sanitize and validate model name for Replicate
+    let modelNameSanitized = requestData.modelName
+
+    // If model name is not valid, sanitize it
+    if (!isValidReplicateModelName(requestData.modelName)) {
+      logger.warn('[LOCAL TRAINING] Invalid model name, sanitizing...', {
+        original: requestData.modelName
+      })
+      modelNameSanitized = sanitizeModelName(requestData.modelName)
+      logger.info('[LOCAL TRAINING] Model name sanitized', {
+        original: requestData.modelName,
+        sanitized: modelNameSanitized
+      })
+    }
+
+    // Ensure lowercase for Replicate API
+    const modelNameLower = modelNameSanitized.toLowerCase()
     const destination = `${REPLICATE_USERNAME}/${modelNameLower}`
 
     logger.info('[LOCAL TRAINING] Checking if model exists...', {
       destination,
       originalName: requestData.modelName,
+      sanitizedName: modelNameSanitized,
       lowercaseName: modelNameLower
     })
 
