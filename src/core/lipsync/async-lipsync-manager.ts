@@ -2,6 +2,7 @@ import { logger } from '@/utils/logger'
 import { lipSyncOrchestrator } from './lipsync-orchestrator'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
+import axios from 'axios'
 import type {
   UniversalLipSyncInput,
   LipSyncOutput,
@@ -257,7 +258,25 @@ export class AsyncLipSyncManager {
   }
 
   /**
+   * Проверяет размер файла по URL
+   */
+  private async getFileSize(url: string): Promise<number> {
+    try {
+      const response = await axios.head(url, { timeout: 10000 })
+      const contentLength = response.headers['content-length']
+      return contentLength ? parseInt(contentLength, 10) : 0
+    } catch (error) {
+      logger.warn('⚠️ [ASYNC LIPSYNC] Не удалось получить размер файла', {
+        url: url.substring(0, 100),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+      return 0
+    }
+  }
+
+  /**
    * Отправляет результат успешной генерации
+   * Отправляет файл если < 50 МБ, иначе ссылку
    */
   private async sendSuccessResult(
     job: AsyncLipSyncJob,
@@ -276,17 +295,92 @@ export class AsyncLipSyncManager {
         disable_notification: false, // Enable sound notification
       })
 
-      // Then send the detailed result
-      await this.bot.telegram.sendMessage(
-        job.chatId,
-        `🎬 Видео готово!\n\n` +
-          `📥 Скачать: ${result.output}\n` +
-          `⏱ Время обработки: ${processingTime} сек`,
-        {
-          parse_mode: 'HTML',
-          disable_web_page_preview: false,
+      // Проверяем размер файла
+      const fileSize = await this.getFileSize(result.output)
+      const fileSizeMB = fileSize / (1024 * 1024)
+      const maxSizeMB = 50
+
+      logger.info('📊 [ASYNC LIPSYNC] Размер видео файла', {
+        jobId: job.id,
+        fileSize,
+        fileSizeMB: fileSizeMB.toFixed(2),
+        maxSizeMB,
+        willSendAsFile: fileSizeMB < maxSizeMB && fileSize > 0,
+      })
+
+      // Если размер < 50 МБ - отправляем файлом
+      if (fileSize > 0 && fileSizeMB < maxSizeMB) {
+        try {
+          await this.bot.telegram.sendVideo(
+            job.chatId,
+            { url: result.output },
+            {
+              caption:
+                `🎬 Видео готово!\n` +
+                `⏱ Время обработки: ${processingTime} сек\n` +
+                `📦 Размер: ${fileSizeMB.toFixed(1)} МБ`,
+              supports_streaming: true,
+            }
+          )
+
+          logger.info('📹 [ASYNC LIPSYNC] Видео отправлено как файл', {
+            jobId: job.id,
+            telegramId: job.telegramId,
+            fileSizeMB: fileSizeMB.toFixed(2),
+            processingTime,
+          })
+        } catch (videoError) {
+          // Если не получилось отправить как video, отправляем ссылку
+          logger.warn(
+            '⚠️ [ASYNC LIPSYNC] Не удалось отправить как видео, отправляем ссылку',
+            {
+              jobId: job.id,
+              error:
+                videoError instanceof Error
+                  ? videoError.message
+                  : 'Unknown error',
+            }
+          )
+
+          await this.bot.telegram.sendMessage(
+            job.chatId,
+            `🎬 Видео готово!\n\n` +
+              `📥 Скачать: ${result.output}\n` +
+              `⏱ Время обработки: ${processingTime} сек\n` +
+              `📦 Размер: ${fileSizeMB.toFixed(1)} МБ`,
+            {
+              parse_mode: 'HTML',
+              disable_web_page_preview: false,
+            }
+          )
         }
-      )
+      } else {
+        // Если размер >= 50 МБ или не удалось определить - отправляем ссылку
+        await this.bot.telegram.sendMessage(
+          job.chatId,
+          `🎬 Видео готово!\n\n` +
+            `📥 Скачать: ${result.output}\n` +
+            `⏱ Время обработки: ${processingTime} сек` +
+            (fileSizeMB > 0
+              ? `\n📦 Размер: ${fileSizeMB.toFixed(1)} МБ (слишком большой для отправки файлом)`
+              : ''),
+          {
+            parse_mode: 'HTML',
+            disable_web_page_preview: false,
+          }
+        )
+
+        logger.info('📬 [ASYNC LIPSYNC] Видео отправлено как ссылка', {
+          jobId: job.id,
+          telegramId: job.telegramId,
+          reason:
+            fileSizeMB >= maxSizeMB
+              ? 'Файл слишком большой'
+              : 'Размер неизвестен',
+          fileSizeMB: fileSizeMB > 0 ? fileSizeMB.toFixed(2) : 'unknown',
+          processingTime,
+        })
+      }
 
       logger.info('📬 [ASYNC LIPSYNC] Успешный результат отправлен', {
         jobId: job.id,
