@@ -7,6 +7,7 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
 import { logger } from '@/utils/logger'
 import { getBotNameByToken } from '../core/bot'
+import { getGenerationStatusBadgeAsync } from '@/helpers/getGenerationLimitMessage'
 
 interface Level {
   title_ru: string
@@ -70,27 +71,28 @@ export const levels: Record<number, Level> = {
     title_ru: '🖼️ Генерация изображений',
     title_en: '🖼️ Generate Images',
   },
-  // flux_kontext
+  // ai_photoshop (formerly flux_kontext)
   12: {
-    title_ru: '🎨 FLUX Kontext',
-    title_en: '🎨 FLUX Kontext',
+    title_ru: '🎨 ИИ Фотошоп',
+    title_en: '🎨 AI Photoshop',
   },
   // morphing
   13: {
-    title_ru: '🧬 Морфинг',
-    title_en: '🧬 Morphing',
+    title_ru: '🌀 Infinity Морфинг',
+    title_en: '🌀 Infinity Morphing',
     // Доступно всем пользователям с подпиской
   },
-  // lip_sync - новая Kling модель (временно только для админов)
+  // lip_sync - выбор моделей lip-sync (Kling, Sync, Veed Fabric)
   14: {
-    title_ru: '🎤 Kling Lip Sync',
-    title_en: '🎤 Kling Lip Sync',
-    admin_only: true, // 🔒 ВРЕМЕННО: только для админов пока тестируется интеграция с ai-server
+    title_ru: '🎤 Синхронизация губ',
+    title_en: '🎤 Lip Sync',
+    admin_only: true, // 🔒 ВРЕМЕННО: только для админов пока тестируется интеграция
   },
-  // 15: {
-  //   title_ru: '🎥 Видео в URL',
-  //   title_en: '🎥 Video in URL',
-  // },
+  // face_swap - замена лица на видео/фото
+  15: {
+    title_ru: '🎭 Замена лица',
+    title_en: '🎭 Face Swap',
+  },
   // step0
   // paymentScene
   100: {
@@ -138,6 +140,17 @@ export const levels: Record<number, Level> = {
     title_en: '🔍 Competitor Monitoring',
     admin_only: true, // Скрыто для обычных пользователей - только для администраторов
   },
+  // AI Reels generation button - creates Instagram-style reels with AI (admin only)
+  110: {
+    title_ru: '🎬 ИИ Рилс',
+    title_en: '🎬 AI Reels',
+    admin_only: true, // Доступно только администраторам
+  },
+  // AI Heroes transformation - Transform into superheroes from different universes
+  111: {
+    title_ru: '🦸‍♂️ ИИ Герои',
+    title_en: '🦸‍♂️ AI Heroes',
+  },
 }
 
 // Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
@@ -151,6 +164,8 @@ const HAIM_GROUP_STAFF_IDS = [
   '752224685', // @voskresenskaya13 - Админ
   '7669741878', // @Arhustel - Админ
   '164609458', // @artemfisenko - Админ
+  '1036512726', // 🆕 НОВЫЙ СОТРУДНИК - Полный доступ к ИИ Рилс
+  '752224685', // 🆕 НОВЫЙ СОТРУДНИК - Полный доступ к ИИ Рилс (уже был в списке)
 ]
 
 // 🤖 Массив сотрудников MetaMuse_Manifest_bot (полный доступ к парсингу)
@@ -302,26 +317,41 @@ export async function mainMenu({
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
   // Используем ADMIN_IDS_ARRAY для единой проверки (уже импортирован в начале файла)
-  
+
+  // Проверяем доступ для админов и сотрудников Хаим Групп
+  const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+  const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+  const hasAdminAccess = isMainAdmin || isHaimStaff
+
+  console.log(
+    `[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`
+  )
+
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
-    .filter(
-      level => !(level.admin_only && !(userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))))
-    )
+    .filter(level => {
+      const shouldInclude = !(level.admin_only && !hasAdminAccess)
+      if (level.admin_only) {
+        console.log(
+          `[mainMenu DEBUG] Admin-only level ${level.title_ru}: hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`
+        )
+      }
+      return shouldInclude
+    })
 
-  // Добавляем кнопку мониторинга конкурентов только для администраторов
+  // Добавляем кнопку мониторинга конкурентов для админов и сотрудников Хаим Групп
   if (userId && levels[109]) {
-    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
-
-    if (isAdmin) {
+    if (hasAdminAccess) {
       // Добавляем кнопку мониторинга конкурентов для администраторов (теперь открывает парсер)
       if (!availableLevels.includes(levels[109])) {
         availableLevels.push(levels[109])
         logger.info(
-          '[mainMenu] Added competitor monitoring button for admin (opens parser)',
+          '[mainMenu] Added competitor monitoring button for admin/staff (opens parser)',
           {
             userId,
-            isAdmin: true,
+            isMainAdmin,
+            isHaimStaff,
+            hasAdminAccess: true,
           }
         )
       }
@@ -337,9 +367,34 @@ export async function mainMenu({
     `[mainMenu LOG] Determined availableLevels count: ${availableLevels.length}`
   )
 
-  const levelButtons = availableLevels.map(lvl =>
-    Markup.button.text(isRu ? lvl.title_ru : lvl.title_en)
-  )
+  // Создаем кнопки с учетом лимитов генераций для AI Heroes
+  const levelButtons = []
+  for (const lvl of availableLevels) {
+    let buttonText = isRu ? lvl.title_ru : lvl.title_en
+
+    // Если это AI Heroes (level 111), добавляем информацию о лимитах
+    if (lvl === levels[111] && telegramId) {
+      try {
+        const generationBadge = await getGenerationStatusBadgeAsync(
+          telegramId,
+          isRu
+        )
+        if (generationBadge !== '🎮') {
+          buttonText += ` ${generationBadge}`
+        }
+      } catch (error) {
+        logger.warn(
+          '[mainMenu] Failed to get generation status for AI Heroes button',
+          {
+            telegramId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }
+        )
+      }
+    }
+
+    levelButtons.push(Markup.button.text(buttonText))
+  }
 
   const adminSpecificButtons = []
 
@@ -373,31 +428,26 @@ export async function mainMenu({
 
   const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом (Подписка)
 
-  if (currentSubscription === SubscriptionType.STARS) {
-    console.log('[mainMenu LOG] Generating bottom row for STARS subscription')
-    // Для STARS добавляем Пригласить друга и Техподдержку
-    const inviteButton = Markup.button.text(
-      isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
-    )
-    bottomRowButtons.push([inviteButton, supportButton])
-  } else {
-    console.log(
-      `[mainMenu LOG] Generating bottom row for ${currentSubscription} subscription`
-    )
-    const balanceButton = Markup.button.text(
-      isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
-    )
-    const topUpButton = Markup.button.text(
-      isRu ? levels[100].title_ru : levels[100].title_en // "💎 Пополнить баланс"
-    )
-    const inviteButton = Markup.button.text(
-      isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
-    )
-    // Баланс и Пополнить идут в основные ряды
-    buttonRows.push([balanceButton, topUpButton])
-    // Пригласить и Поддержка идут в предпоследний ряд
-    bottomRowButtons.push([inviteButton, supportButton])
-  }
+  // Добавляем кнопки "Баланс" и "Пополнить баланс" для всех пользователей
+  const balanceButton = Markup.button.text(
+    isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
+  )
+  const topUpButton = Markup.button.text(
+    isRu ? levels[100].title_ru : levels[100].title_en // "💎 Пополнить баланс"
+  )
+  const inviteButton = Markup.button.text(
+    isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
+  )
+
+  console.log(
+    `[mainMenu LOG] Adding balance and top-up buttons for subscription: ${currentSubscription}`
+  )
+
+  // Баланс и Пополнить идут в основные ряды для всех пользователей
+  buttonRows.push([balanceButton, topUpButton])
+
+  // Пригласить и Поддержка идут в предпоследний ряд
+  bottomRowButtons.push([inviteButton, supportButton])
 
   // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
   bottomRowButtons.push([languageButton])

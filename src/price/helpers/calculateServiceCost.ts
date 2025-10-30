@@ -88,6 +88,11 @@ export const SERVICE_COST_CONFIG: Record<string, ServiceCostConfig> = {
 
   // 🧬 МОРФИНГ СЕРВИСЫ
   // Morphing (новый сервис, предполагаемая стоимость ~126⭐)
+  morphing: {
+    baseCost: 84, // Реальная стоимость из логов - 84 звезды
+    minCost: 84,
+    maxCost: 500, // Для сложных морфингов с большим количеством изображений
+  },
   morphing_seamless: {
     baseCost: 126, // Базовая стоимость для Kling морфинга
     minCost: 126,

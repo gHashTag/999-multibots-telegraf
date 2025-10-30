@@ -86,6 +86,13 @@ export function extractPromoFromContext(
 
   if (ctx.message && 'text' in ctx.message) {
     const messageText = (ctx.message as Message.TextMessage).text
+    
+    // Логирование для отладки промо-ссылок
+    logger.info('[extractPromo] Анализируем команду', {
+      telegramId,
+      messageText,
+      function: 'extractPromoFromContext'
+    })
 
     // Check for /start promo command with optional parameter
     // Supports: /start promo, /start promo neurovideo, /start promo neurophoto, etc.
@@ -134,5 +141,11 @@ export function extractPromoFromContext(
     }
   }
 
+  // Промо-команда не обнаружена (нормальное поведение для обычных команд)
+  logger.debug('[extractPromo] Промо-команда не обнаружена', {
+    telegramId,
+    function: 'extractPromoFromContext'
+  })
+  
   return null
 }

@@ -118,12 +118,12 @@ export function calculateVideoPriceInStars(
 // ============================================
 
 export const VEO_MODELS_PRICING: Record<string, DynamicVideoPrice> = {
-  'veo-3': {
+  'veo3': {
     pricePerSecondUSD: 0.4,
     supportedDurations: [2, 4, 6, 8],
     defaultDuration: 8,
   },
-  'veo-3-fast': {
+  'veo3_fast': {
     pricePerSecondUSD: 0.3,
     supportedDurations: [2, 4, 6, 8],
     defaultDuration: 4,
@@ -150,14 +150,14 @@ export interface KieAiModelPrice {
 
 export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
   // Видео модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
-  'veo-3-fast': {
-    pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек (конкурентно с +8.1% наценкой)
+  'veo3_fast': {
+    pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек
     supportedDurations: [8], // VEO FAST поддерживает только 8 секунд
     defaultDuration: 8,
     maxDuration: 8,
   },
-  'veo-3': {
-    pricePerSecondUSD: 0.404, // 202⭐ за 8 сек = $3.232 за 8 сек = $0.404/сек (конкурентно с +8.1% наценкой)
+  'veo3': {
+    pricePerSecondUSD: 0.24, // 120⭐ за 8 сек = $1.92 за 8 сек = $0.24/сек (ФИКСИРОВАННАЯ ЦЕНА)
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 8,
     maxDuration: 10,
@@ -167,6 +167,34 @@ export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 6,
     maxDuration: 10,
+  },
+
+  // OpenAI Sora 2 модели через Kie.ai
+  'sora-2': {
+    pricePerSecondUSD: 0.015, // $0.15 за 10 сек = 94⭐ за 10 сек (Kie.ai pricing)
+    supportedDurations: [10],
+    defaultDuration: 10,
+    maxDuration: 10,
+  },
+  'sora-2-pro': {
+    pricePerSecondUSD: 0.045, // $0.45 за 10 сек standard = 28⭐ за 10 сек (Kie.ai pricing)
+    supportedDurations: [10, 15],
+    defaultDuration: 10,
+    maxDuration: 15,
+  },
+
+  // Sora 2 Image-to-Video (те же цены что и text-to-video)
+  'sora-2-i2v': {
+    pricePerSecondUSD: 0.015, // $0.15 за 10 сек = 9⭐ за 10 сек (Kie.ai pricing)
+    supportedDurations: [10],
+    defaultDuration: 10,
+    maxDuration: 10,
+  },
+  'sora-2-pro-i2v': {
+    pricePerSecondUSD: 0.045, // $0.45 за 10 сек standard = 28⭐ за 10 сек (Kie.ai pricing)
+    supportedDurations: [10, 15],
+    defaultDuration: 10,
+    maxDuration: 15,
   },
 
   // Модели изображений
@@ -221,9 +249,13 @@ export function calculateKieAiPriceInStars(
 
     // Для конкурентных видео моделей возвращаем точную цену в звёздах без дополнительной наценки
     if (
-      modelId === 'veo-3-fast' ||
-      modelId === 'veo-3' ||
-      modelId === 'runway-aleph'
+      modelId === 'veo3_fast' ||
+      modelId === 'veo3' ||
+      modelId === 'runway-aleph' ||
+      modelId === 'sora-2' ||
+      modelId === 'sora-2-pro' ||
+      modelId === 'sora-2-i2v' ||
+      modelId === 'sora-2-pro-i2v'
     ) {
       return Math.floor(totalCostUSD / STAR_COST_USD)
     }

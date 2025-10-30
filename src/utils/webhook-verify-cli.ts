@@ -179,7 +179,7 @@ Environment Variables:
 Examples:
   bun run src/utils/webhook-verify-cli.ts
   bun run src/utils/webhook-verify-cli.ts verify
-  bun run src/utils/webhook-verify-cli.ts test http://test-render-farm.ru/webhook
+  bun run src/utils/webhook-verify-cli.ts test https://your-domain.tld/webhook
 `)
     break
     

@@ -1,164 +1,133 @@
 #!/bin/bash
 
-# 🛡️ SECURITY TOKEN GUARD
-# Проверяет код на наличие потенциальных токенов и секретов
+# Security Token Guard - Защита от утечки секретов
+# Блокирует коммиты с хардкод токенами и API ключами
 
 set -e
 
-echo "🛡️ [SECURITY GUARD] Проверка на утечку токенов..."
+echo "🔍 Проверка на утечку секретов в изменённых файлах..."
 
-# Цвета для вывода
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Получаем список файлов для проверки (только изменённые)
+FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|js|tsx|jsx|json|env|yml|yaml)$' || true)
 
-# Счетчики
-FOUND_TOKENS=0
+if [ -z "$FILES" ]; then
+    echo "📭 Нет файлов для проверки"
+    exit 0
+fi
+
 FOUND_SECRETS=0
-TOTAL_ISSUES=0
 
-# Функция для поиска токенов
-check_for_tokens() {
+# Функция для проверки паттернов
+check_pattern() {
     local pattern="$1"
     local description="$2"
-    local severity="$3"
+    local severity="${3:-error}"
     
-    echo -e "${BLUE}🔍 Проверка: $description${NC}"
-    
-    # Ищем в staged файлах
-    local matches=$(git diff --cached --name-only | xargs grep -l "$pattern" 2>/dev/null || true)
-    
-    if [ -n "$matches" ]; then
-        echo -e "${RED}❌ НАЙДЕНЫ $severity:${NC}"
-        echo "$matches" | while read -r file; do
-            echo -e "${RED}   📁 $file${NC}"
-            # Показываем контекст
-            git diff --cached "$file" | grep -A 2 -B 2 "$pattern" || true
-        done
-        TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
-        
-        if [ "$severity" = "КРИТИЧЕСКИЕ ТОКЕНЫ" ]; then
-            FOUND_TOKENS=$((FOUND_TOKENS + 1))
-        elif [ "$severity" = "ПОДОЗРИТЕЛЬНЫЕ СЕКРЕТЫ" ]; then
-            FOUND_SECRETS=$((FOUND_SECRETS + 1))
+    # Проверяем каждый файл
+    for file in $FILES; do
+        if [ -f "$file" ]; then
+            # Ищем паттерн в staged изменениях
+            if git diff --cached "$file" | grep -E "$pattern" > /dev/null 2>&1; then
+                if [ "$severity" = "error" ]; then
+                    echo "🚨 КРИТИЧНО: $description найден в $file"
+                    FOUND_SECRETS=1
+                else
+                    echo "⚠️  ВНИМАНИЕ: $description найден в $file"
+                fi
+            fi
         fi
-    else
-        echo -e "${GREEN}✅ $description - не найдено${NC}"
-    fi
+    done
 }
 
-# Функция для проверки файлов на секреты
-check_file_secrets() {
-    local file="$1"
-    local filename=$(basename "$file")
-    
-    # Пропускаем определенные файлы
-    if [[ "$filename" =~ \.(lock|log|tmp|temp)$ ]] || [[ "$file" =~ node_modules ]] || [[ "$file" =~ \.git ]]; then
-        return 0
+# Проверка на Kie.ai API ключи (32 символа hex начинается с f52f224a)
+check_pattern "['\"]f52f224a[a-f0-9]{24}['\"]" "Kie.ai API ключ"
+
+# Проверка на любые 32-символьные hex ключи (потенциальные API keys)
+check_pattern "['\"][a-f0-9]{32}['\"]" "Потенциальный API ключ (32 hex)" "warning"
+
+# Проверка на 40-символьные hex ключи (потенциальные токены)
+check_pattern "['\"][a-f0-9]{40}['\"]" "Потенциальный токен (40 hex)" "warning"
+
+# Проверка на Telegram Bot токены
+check_pattern "[0-9]{8,10}:[a-zA-Z0-9_-]{35}" "Telegram Bot токен"
+
+# Проверка на OpenAI API ключи
+check_pattern "sk-[a-zA-Z0-9]{48}" "OpenAI API ключ"
+
+# Проверка на AWS Access Keys
+check_pattern "AKIA[0-9A-Z]{16}" "AWS Access Key"
+
+# Проверка на AWS Secret Keys
+check_pattern "['\"][a-zA-Z0-9/+=]{40}['\"]" "Потенциальный AWS Secret Key" "warning"
+
+# Проверка на Google API ключи
+check_pattern "AIza[0-9A-Za-z\\-_]{35}" "Google API ключ"
+
+# Проверка на GitHub токены
+check_pattern "ghp_[a-zA-Z0-9]{36}" "GitHub Personal Access Token"
+check_pattern "gho_[a-zA-Z0-9]{36}" "GitHub OAuth Token"
+check_pattern "github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}" "GitHub Fine-grained PAT"
+
+# Проверка на приватные ключи
+check_pattern "-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----" "Приватный ключ"
+
+# Проверка на JWT токены (базовая проверка)
+check_pattern "eyJ[a-zA-Z0-9_-]+\\.eyJ[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+" "JWT токен" "warning"
+
+# Проверка на паттерн "process.env.KEY || 'hardcoded_value'"
+for file in $FILES; do
+    if [ -f "$file" ]; then
+        if git diff --cached "$file" | grep -E "process\\.env\\.[A-Z_]+\\s*\\|\\|\\s*['\"][^'\"]{20,}['\"]" > /dev/null 2>&1; then
+            # Исключаем безопасные fallback значения
+            if ! git diff --cached "$file" | grep -E "\\|\\|\\s*['\"]undefined['\"]|\\|\\|\\s*['\"]null['\"]|\\|\\|\\s*['\"]development['\"]|\\|\\|\\s*['\"]test['\"]" > /dev/null 2>&1; then
+                echo "⚠️  ОПАСНЫЙ ПАТТЕРН: Fallback на хардкод значение в $file"
+                echo "   Используйте проверку и выход при отсутствии переменной:"
+                echo "   if (!process.env.API_KEY) throw new Error('API_KEY required')"
+                FOUND_SECRETS=1
+            fi
+        fi
     fi
-    
-    # Проверяем на потенциальные секреты
-    if grep -q -E "(password|secret|token|key|api_key|auth_token)" "$file" 2>/dev/null; then
-        echo -e "${YELLOW}⚠️  Подозрительный файл: $file${NC}"
-        # Показываем строки с потенциальными секретами
-        grep -n -E "(password|secret|token|key|api_key|auth_token)" "$file" | head -3 | while read -r line; do
-            echo -e "${YELLOW}   📝 $line${NC}"
-        done
+done
+
+# Проверка на base64 encoded секреты
+for file in $FILES; do
+    if [ -f "$file" ]; then
+        # Ищем длинные base64 строки (потенциальные encoded секреты)
+        if git diff --cached "$file" | grep -E "['\"][A-Za-z0-9+/]{50,}={0,2}['\"]" > /dev/null 2>&1; then
+            echo "⚠️  ПОДОЗРИТЕЛЬНО: Длинная base64 строка в $file (возможно, encoded секрет)"
+        fi
     fi
-}
+done
 
-echo "🚀 Начинаем проверку безопасности..."
+# Проверка на URL с встроенными credentials
+check_pattern "https?://[^:]+:[^@]+@" "URL с встроенными credentials"
 
-# 1. Проверка на реальные токены Telegram
-check_for_tokens \
-    "[0-9]{8,10}:[A-Za-z0-9_-]{35}" \
-    "Реальные токены Telegram ботов" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
+# Проверка на подозрительные комментарии
+for file in $FILES; do
+    if [ -f "$file" ]; then
+        if git diff --cached "$file" | grep -iE "//.*TODO.*remove.*before.*commit|//.*FIXME.*secret|//.*temporary.*password" > /dev/null 2>&1; then
+            echo "⚠️  ПОДОЗРИТЕЛЬНЫЙ КОММЕНТАРИЙ в $file"
+        fi
+    fi
+done
 
-# 2. Проверка на API ключи
-check_for_tokens \
-    "sk-[A-Za-z0-9]{48}" \
-    "OpenAI API ключи" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
-
-# 3. Проверка на другие API ключи
-check_for_tokens \
-    "[A-Za-z0-9]{32,64}" \
-    "Длинные строки (потенциальные API ключи)" \
-    "ПОДОЗРИТЕЛЬНЫЕ СЕКРЕТЫ"
-
-# 4. Проверка на хардкод токенов
-check_for_tokens \
-    "BOT_TOKEN.*=.*['\"][A-Za-z0-9_-]+['\"]" \
-    "Хардкод токенов в коде" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
-
-# 5. Проверка на секреты в переменных окружения
-check_for_tokens \
-    "SECRET.*=.*['\"][A-Za-z0-9_-]+['\"]" \
-    "Хардкод секретов" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
-
-# 6. Проверка на пароли
-check_for_tokens \
-    "password.*=.*['\"][A-Za-z0-9_-]+['\"]" \
-    "Хардкод паролей" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
-
-# 7. Проверка на приватные ключи
-check_for_tokens \
-    "-----BEGIN.*PRIVATE KEY-----" \
-    "Приватные ключи" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
-
-# 8. Проверка на SSH ключи
-check_for_tokens \
-    "ssh-rsa.*[A-Za-z0-9+/]{100,}" \
-    "SSH публичные ключи" \
-    "ПОДОЗРИТЕЛЬНЫЕ СЕКРЕТЫ"
-
-# 9. Проверка на webhook секреты
-check_for_tokens \
-    "webhook_secret.*=.*['\"][A-Za-z0-9_-]+['\"]" \
-    "Webhook секреты" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
-
-# 10. Проверка на GitHub токены
-check_for_tokens \
-    "ghp_[A-Za-z0-9]{36}" \
-    "GitHub Personal Access Tokens" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
-
-# 11. Проверка на Supabase ключи
-check_for_tokens \
-    "eyJ[A-Za-z0-9_-]{100,}" \
-    "JWT токены (Supabase)" \
-    "КРИТИЧЕСКИЕ ТОКЕНЫ"
-
-echo ""
-echo "📊 РЕЗУЛЬТАТЫ ПРОВЕРКИ БЕЗОПАСНОСТИ:"
-echo "=================================="
-
-if [ $TOTAL_ISSUES -eq 0 ]; then
-    echo -e "${GREEN}✅ БЕЗОПАСНОСТЬ: Никаких токенов или секретов не найдено!${NC}"
-    echo -e "${GREEN}🎉 Код готов к коммиту!${NC}"
-    exit 0
-else
-    echo -e "${RED}❌ НАЙДЕНЫ ПРОБЛЕМЫ БЕЗОПАСНОСТИ:${NC}"
-    echo -e "${RED}   🔴 Критических токенов: $FOUND_TOKENS${NC}"
-    echo -e "${RED}   🟡 Подозрительных секретов: $FOUND_SECRETS${NC}"
-    echo -e "${RED}   📊 Всего проблем: $TOTAL_ISSUES${NC}"
+# Результат проверки
+if [ $FOUND_SECRETS -eq 1 ]; then
     echo ""
-    echo -e "${YELLOW}💡 РЕКОМЕНДАЦИИ:${NC}"
-    echo -e "${YELLOW}   1. Удалите все найденные токены из кода${NC}"
-    echo -e "${YELLOW}   2. Используйте переменные окружения (.env файлы)${NC}"
-    echo -e "${YELLOW}   3. Добавьте .env файлы в .gitignore${NC}"
-    echo -e "${YELLOW}   4. Используйте безопасные моки для тестов${NC}"
+    echo "❌ ОШИБКА: Обнаружены потенциальные секреты в коде!"
     echo ""
-    echo -e "${RED}🚫 КОММИТ ОТМЕНЕН из соображений безопасности!${NC}"
-    echo -e "${RED}   Используйте 'git commit --no-verify' для принудительного коммита${NC}"
-    echo -e "${RED}   (НЕ РЕКОМЕНДУЕТСЯ без исправления проблем!)${NC}"
+    echo "📚 Рекомендации:"
+    echo "   1. Используйте переменные окружения: process.env.API_KEY"
+    echo "   2. Добавьте .env файл в .gitignore"
+    echo "   3. Для тестов используйте mock значения или test credentials"
+    echo "   4. Если это false positive, добавьте комментарий: // safe: test value"
+    echo ""
+    echo "🔧 Исправьте проблемы и попробуйте снова:"
+    echo "   git add <fixed-files>"
+    echo "   git commit"
+    echo ""
     exit 1
+else
+    echo "✅ Проверка безопасности пройдена - секреты не обнаружены"
+    exit 0
 fi

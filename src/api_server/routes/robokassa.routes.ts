@@ -3,17 +3,69 @@ import { Router } from 'express'
 import { validateRobokassaSignature } from '@/core/robokassa'
 import { getPaymentByInvId } from '@/core/supabase/payments'
 import { supabaseAdmin } from '@/core/supabase'
-import { PaymentStatus } from '@/interfaces/payments.interface'
+import { PaymentStatus, PaymentType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 import { ROBOKASSA_PASSWORD_2 } from '@/config'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 
 const router: Router = express.Router()
 
+// Константы для расчета звезд из суммы платежа
+// ⚠️ ВАЖНО: Минимальная сумма Robokassa - 50-100₽
+const PAYMENT_OPTIONS = [
+  { amount: 100, stars: 43 }, // ✅ Минимальная безопасная сумма
+  { amount: 500, stars: 217 },
+  { amount: 1000, stars: 434 },
+  { amount: 2000, stars: 869 },
+  { amount: 5000, stars: 2173 },
+  { amount: 10000, stars: 4347 },
+]
+
+const SUBSCRIPTION_PLANS = [
+  {
+    text: '🎨 NeuroPhoto',
+    ru_price: 1110,
+    stars_price: 476,
+    callback_data: 'neurophoto',
+  },
+  {
+    text: '📚 NeuroVideo',
+    ru_price: 2999,
+    stars_price: 1303,
+    callback_data: 'neurovideo',
+  },
+  {
+    text: '🤖 NeuroBlogger',
+    ru_price: 75000,
+    stars_price: 32608,
+    callback_data: 'neuroblogger',
+  },
+]
+
+const SUBSCRIPTION_AMOUNTS = SUBSCRIPTION_PLANS.reduce((acc, plan) => {
+  acc[plan.ru_price] = plan.callback_data
+  return acc
+}, {} as Record<number, string>)
+
 /**
- * Обработчик webhook от Robokassa
+ * Обработчик webhook от Robokassa (legacy endpoint)
  * POST /api/robokassa-result
  */
 router.post('/robokassa-result', async (req: any, res: any) => {
+  // Redirect to new endpoint
+  return handlePaymentSuccess(req, res)
+})
+
+/**
+ * Обработчик webhook от Robokassa (primary endpoint)
+ * POST /api/payment-success
+ */
+router.post('/payment-success', async (req: any, res: any) => {
+  return handlePaymentSuccess(req, res)
+})
+
+async function handlePaymentSuccess(req: any, res: any) {
   try {
     logger.info('🔔 Received Robokassa webhook', {
       body: req.body,
@@ -94,13 +146,95 @@ router.post('/robokassa-result', async (req: any, res: any) => {
       subscription_type: payment.subscription,
     })
 
-    // Уведомление владельца для рублевых платежей приходит с отдельного сервера
-    // Здесь только уведомляем пользователя
+    // Определяем количество звезд и тип подписки из суммы платежа
+    let stars = 0
+    let subscription = payment.subscription || ''
 
-    // Отправляем уведомление пользователю через бота
-    await sendPaymentSuccessNotification(payment)
+    // Проверяем, соответствует ли сумма одному из тарифов подписки
+    if (SUBSCRIPTION_AMOUNTS[OutSum]) {
+      const plan = SUBSCRIPTION_PLANS.find(p => p.ru_price === OutSum)
+      if (plan) {
+        stars = plan.stars_price
+        subscription = plan.callback_data
+      }
+    }
+    // Если не подписка, проверяем стандартные варианты пополнения
+    else {
+      const option = PAYMENT_OPTIONS.find(opt => opt.amount === OutSum)
+      if (option) {
+        stars = option.stars
+      }
+    }
 
-    res.status(200).send('OK')
+    logger.info('💰 Determined payment details', {
+      InvId,
+      OutSum,
+      stars,
+      subscription: subscription || 'none',
+      isSubscription: !!subscription,
+    })
+
+    // Если это не подписка, а пополнение баланса - обновляем баланс пользователя
+    if (!subscription && stars > 0) {
+      const balanceUpdated = await updateUserBalance(
+        payment.telegram_id.toString(),
+        stars,
+        PaymentType.MONEY_INCOME,
+        `Пополнение баланса через Robokassa (InvId: ${InvId})`,
+        {
+          payment_method: 'Robokassa',
+          bot_name: payment.bot_name,
+          language: (payment as any).language || 'ru',
+          inv_id: InvId,
+          stars: stars,
+        }
+      )
+
+      if (balanceUpdated) {
+        logger.info('✅ User balance updated successfully', {
+          InvId,
+          telegram_id: payment.telegram_id,
+          stars_added: stars,
+        })
+      } else {
+        logger.error('❌ Failed to update user balance', {
+          InvId,
+          telegram_id: payment.telegram_id,
+          stars: stars,
+        })
+      }
+    }
+
+    // Отправляем уведомления
+    await sendPaymentSuccessNotification(payment, stars, subscription)
+
+    // Отправляем уведомление в админ-группу
+    await sendAdminGroupNotification(payment, OutSum, stars, subscription)
+
+    // Отправляем уведомление владельцу бота
+    if (payment.bot_name) {
+      try {
+        await notifyBotOwners(payment.bot_name, {
+          username: (payment as any).username || 'User',
+          telegram_id: payment.telegram_id.toString(),
+          amount: OutSum,
+          stars: stars,
+          subscription: subscription || undefined,
+        })
+        logger.info('✅ Bot owner notification sent', {
+          InvId,
+          bot_name: payment.bot_name,
+        })
+      } catch (ownerError) {
+        logger.error('❌ Failed to notify bot owners', {
+          InvId,
+          bot_name: payment.bot_name,
+          error: ownerError instanceof Error ? ownerError.message : String(ownerError),
+        })
+      }
+    }
+
+    res.status(200).send(`OK${InvId}`)
   } catch (error) {
     logger.error('❌ Error processing Robokassa webhook', {
       error: error instanceof Error ? error.message : String(error),
@@ -108,12 +242,65 @@ router.post('/robokassa-result', async (req: any, res: any) => {
     })
     res.status(500).send('Internal server error')
   }
-})
+}
+
+/**
+ * Отправляет уведомление в админ-группу об успешной оплате
+ */
+async function sendAdminGroupNotification(
+  payment: any,
+  amount: number,
+  stars: number,
+  subscription: string
+) {
+  try {
+    const ADMIN_GROUP_ID = '-4166575919' // Группа для уведомлений об оплате
+
+    const { getBotByName } = await import('@/core/bot')
+    const result = getBotByName(payment.bot_name)
+
+    if (!result.bot || result.error) {
+      logger.error('❌ Bot not found for admin notification', {
+        bot_name: payment.bot_name,
+        error: result.error,
+      })
+      return
+    }
+
+    const bot = result.bot
+    const isRu = payment.language === 'ru'
+    const username = payment.username || 'User without username'
+
+    const caption = isRu
+      ? `💸 Пользователь @${username} (Telegram ID: ${payment.telegram_id}) оплатил ${amount} рублей и получил ${stars} звезд.${
+          subscription ? `\n🎯 Подписка: ${subscription}` : ''
+        }`
+      : `💸 User @${username} (Telegram ID: ${payment.telegram_id}) paid ${amount} RUB and received ${stars} stars.${
+          subscription ? `\n🎯 Subscription: ${subscription}` : ''
+        }`
+
+    await bot.telegram.sendMessage(ADMIN_GROUP_ID, caption)
+
+    logger.info('✅ Admin group notification sent', {
+      telegram_id: payment.telegram_id,
+      admin_group: ADMIN_GROUP_ID,
+    })
+  } catch (error) {
+    logger.error('❌ Error sending admin group notification', {
+      error: error instanceof Error ? error.message : String(error),
+      telegram_id: payment.telegram_id,
+    })
+  }
+}
 
 /**
  * Отправляет уведомление пользователю об успешной оплате
  */
-async function sendPaymentSuccessNotification(payment: any) {
+async function sendPaymentSuccessNotification(
+  payment: any,
+  stars: number,
+  subscription: string
+) {
   try {
     const { getBotByName } = await import('@/core/bot')
     const result = getBotByName(payment.bot_name)
@@ -129,15 +316,15 @@ async function sendPaymentSuccessNotification(payment: any) {
 
     const bot = result.bot
     const isRu = payment.language === 'ru'
-    const isSubscription = !!payment.subscription
+    const isSubscription = !!subscription
 
     if (isSubscription) {
       // Сообщение об успешной оплате подписки
       await bot.telegram.sendMessage(
         payment.telegram_id,
         isRu
-          ? `🎉 Ваша подписка "${payment.subscription}" успешно оформлена и активна! Пользуйтесь ботом.`
-          : `🎉 Your subscription "${payment.subscription}" has been successfully activated! Enjoy the bot.`
+          ? `🎉 Ваша подписка "${subscription}" успешно оформлена и активна! Пользуйтесь ботом.`
+          : `🎉 Your subscription "${subscription}" has been successfully activated! Enjoy the bot.`
       )
 
       // Отправляем сообщение о вступлении в чат
@@ -203,8 +390,8 @@ If not, continue on your own and click the "I myself" button`
       await bot.telegram.sendMessage(
         payment.telegram_id,
         isRu
-          ? `💫 Ваш баланс пополнен на ${payment.stars}⭐ звезд!`
-          : `💫 Your balance has been replenished by ${payment.stars}⭐ stars!`
+          ? `💫 Ваш баланс пополнен на ${stars}⭐ звезд!`
+          : `💫 Your balance has been replenished by ${stars}⭐ stars!`
       )
     }
 

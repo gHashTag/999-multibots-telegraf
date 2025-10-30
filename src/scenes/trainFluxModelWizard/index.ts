@@ -6,6 +6,7 @@ import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'
 import { updateUserGender } from '@/core/supabase'
+import { sanitizeModelName } from '@/helpers/sanitizeModelName'
 
 // Define gender options
 const GENDER_MALE = 'male'
@@ -38,7 +39,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
 
-  // Step 2: Handle Gender Selection & Ask for Images
+  // Step 2: Handle Gender Selection & Ask for Model Name
   async ctx => {
     const isRu = isRussian(ctx)
     let gender: string | null = null
@@ -137,72 +138,85 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       )
     }
 
-    if (!username) {
-      console.error(
-        '[trainFluxModelWizard] CRITICAL: Username is still missing after checks at step 2.'
-      )
+    // ✅ Спрашиваем название модели для Нейрофото
+    await ctx.reply(
+      isRu
+        ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n📝 Теперь введите название для вашей модели.\n\nЭто название будет отображаться в разделе "Модели" в Нейрофото.\n\nНапример: "Мой аватар", "Персонаж для видео", "Модель для работы" и т.д.`
+        : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} saved.\n\n📝 Now enter a name for your model.\n\nThis name will be displayed in the "Models" section in Neurophoto.\n\nFor example: "My Avatar", "Video Character", "Work Model", etc.`
+    )
+
+    return ctx.wizard.next()
+  },
+
+  // Step 3: Handle Model Name Input & Ask for Images
+  async ctx => {
+    const isRu = isRussian(ctx)
+
+    if (!ctx.message || !('text' in ctx.message)) {
       await ctx.reply(
         isRu
-          ? '❌ Ошибка сессии. Не найдено имя пользователя.'
-          : '❌ Session error. Username not found.'
+          ? '⚠️ Пожалуйста, введите название модели текстом.'
+          : '⚠️ Please enter the model name as text.'
       )
-      return ctx.scene.leave()
+      return
     }
 
+    const modelNameInput = ctx.message.text.trim()
+
+    if (!modelNameInput || modelNameInput.length < 2) {
+      await ctx.reply(
+        isRu
+          ? '⚠️ Название модели слишком короткое. Введите минимум 2 символа.'
+          : '⚠️ Model name too short. Enter at least 2 characters.'
+      )
+      return
+    }
+
+    if (modelNameInput.length > 50) {
+      await ctx.reply(
+        isRu
+          ? '⚠️ Название модели слишком длинное. Максимум 50 символов.'
+          : '⚠️ Model name too long. Maximum 50 characters.'
+      )
+      return
+    }
+
+    // ✅ Создаем безопасное название для Replicate API (только латинские буквы, цифры, дефисы)
+    const safeModelName = sanitizeModelName(modelNameInput)
+
+    ctx.session.modelName = safeModelName // ✅ Используем санитизированное имя для Replicate
+    ctx.session.triggerWord = safeModelName.toUpperCase() // Trigger word для Replicate
     ctx.session.images = []
-    ctx.session.modelName = `${username.toLowerCase()}`
-    ctx.session.triggerWord = `${username.toLowerCase()}`
+
+    console.log(`[trainFluxModelWizard] Model name sanitized: "${modelNameInput}" → "${safeModelName}"`)
 
     const replyMessage = isRu
-      ? `✅ Пол ${
-          gender === GENDER_MALE ? 'Мужской' : 'Женский'
-        } сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
+      ? `✅ Название модели: "${safeModelName}"\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
    - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
    - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
    - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
    - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
    - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
    - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Gender ${
-          gender === GENDER_MALE ? 'Male' : 'Female'
-        } saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
+      : `✅ Model name: "${safeModelName}"\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
    - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
    - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
    - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
    - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
    - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
 
-    const fullReplyMessage = isRu
-      ? `✅ Пол ${
-          gender === GENDER_MALE ? 'Мужской' : 'Женский'
-        } сохранен.\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
-   - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
-   - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
-   - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
-   - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
-   - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
-   - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Gender ${
-          gender === GENDER_MALE ? 'Male' : 'Female'
-        } saved.\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
-   - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
-   - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
-   - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
-   - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
-   - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
-
-    await ctx.reply(fullReplyMessage, {
+    await ctx.reply(replyMessage, {
       ...Markup.keyboard([
         [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
       ]).resize(),
       parse_mode: 'HTML',
     })
 
-    console.log('Proceeding to image upload step (Step 3)')
+    console.log('Proceeding to image upload step (Step 4)')
     return ctx.wizard.next()
   },
 
-  // Step 3: Handle Image Collection (Original Step 2)
+  // Step 4: Handle Image Collection
   async ctx => {
     console.log('Scene: IMAGES')
     const isRu = isRussian(ctx)
@@ -242,54 +256,82 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       if (!ctx.session.images) {
         ctx.session.images = []
       }
-      // ... (rest of the image handling logic: getFile, fetch, validate, check size, push to session) ...
+      // Process the uploaded photo
       const photo = message.photo[message.photo.length - 1]
-      const file = await ctx.telegram.getFile(photo.file_id)
 
-      if (!file.file_path) {
-        await ctx.reply(
-          isRu ? '❌ Ошибка получения файла' : '❌ Error getting file'
+      try {
+        const file = await ctx.telegram.getFile(photo.file_id)
+
+        if (!file.file_path) {
+          console.error('[trainFluxModelWizard] File path not found for photo:', photo.file_id)
+          await ctx.reply(
+            isRu ? '❌ Ошибка получения файла. Попробуйте загрузить фото еще раз.' : '❌ Error getting file. Please try uploading the photo again.'
+          )
+          return
+        }
+        const botToken = getBotToken(ctx)
+        const response = await fetch(
+          `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
         )
-        return
-      }
-      const botToken = getBotToken(ctx)
-      const response = await fetch(
-        `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
-      )
-      const buffer = Buffer.from(await response.arrayBuffer())
-      const isValid = await isValidImage(buffer)
 
-      if (!isValid) {
+        if (!response.ok) {
+          console.error('[trainFluxModelWizard] Failed to download photo:', response.status)
+          await ctx.reply(
+            isRu ? '❌ Ошибка загрузки фото. Попробуйте еще раз.' : '❌ Failed to download photo. Please try again.'
+          )
+          return
+        }
+
+        const buffer = Buffer.from(await response.arrayBuffer())
+        const isValid = await isValidImage(buffer)
+
+        if (!isValid) {
+          console.error('[trainFluxModelWizard] Invalid image format')
+          await ctx.reply(
+            isRu
+              ? '❌ Файл не является корректным изображением. Поддерживаются JPG, PNG, WEBP.'
+              : '❌ File is not a valid image. Supported formats: JPG, PNG, WEBP.'
+          )
+          return
+        }
+        const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10 MB
+        if (buffer.length > MAX_IMAGE_SIZE) {
+          await ctx.reply(
+            isRu
+              ? '❌ Изображение слишком большое (максимум 10MB). Попробуйте уменьшить размер или качество.'
+              : '❌ Image too large (max 10MB). Try reducing size or quality.'
+          )
+          return
+        }
+
+        // ✅ Telegram automatically compresses images to optimal size
+        // No additional compression needed
+        console.log(`📸 Image size from Telegram: ${buffer.length} bytes`)
+        console.log(
+          `📊 Image ${ctx.session.images.length + 1}/10: ${(buffer.length / 1024).toFixed(2)} KB`
+        )
+
+        ctx.session.images.push({
+          buffer: buffer,
+          filename: `a_photo_of_${ctx.session.username}x${
+            ctx.session.images.length + 1
+          }.jpg`,
+        })
+
         await ctx.reply(
           isRu
-            ? '❌ Файл не является корректным изображением.'
-            : '❌ File is not a valid image.'
+            ? `✅ Изображение ${ctx.session.images.length} добавлено. ${ctx.session.images.length < 10 ? `Нужно еще ${10 - ctx.session.images.length} фото.` : 'Отправьте /done для завершения.'}`
+            : `✅ Image ${ctx.session.images.length} added. ${ctx.session.images.length < 10 ? `Need ${10 - ctx.session.images.length} more photos.` : 'Send /done to finish.'}`
         )
-        return
-      }
-      const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10 MB
-      if (buffer.length > MAX_IMAGE_SIZE) {
+        console.log(`Image ${ctx.session.images.length} added successfully`)
+      } catch (error) {
+        console.error('[trainFluxModelWizard] Error processing photo:', error)
         await ctx.reply(
           isRu
-            ? '❌ Изображение слишком большое (max 10MB).'
-            : '❌ Image too large (max 10MB).'
+            ? '❌ Произошла ошибка при обработке фото. Попробуйте загрузить другое изображение.'
+            : '❌ Error processing photo. Please try uploading a different image.'
         )
-        return
       }
-
-      ctx.session.images.push({
-        buffer: Buffer.from(buffer),
-        filename: `a_photo_of_${ctx.session.username}x${
-          ctx.session.images.length + 1
-        }.jpg`,
-      })
-
-      await ctx.reply(
-        isRu
-          ? `✅ Изображение ${ctx.session.images.length} добавлено. Отправьте еще или /done.`
-          : `✅ Image ${ctx.session.images.length} added. Send more or /done.`
-      )
-      console.log(`Image ${ctx.session.images.length} added`)
     } else {
       // Handle cases where it's neither /done nor a photo
       await ctx.reply(

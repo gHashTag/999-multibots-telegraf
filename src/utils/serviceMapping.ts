@@ -166,6 +166,11 @@ export function getServiceDisplayName(
  * Получает эмодзи для сервиса
  */
 export function getServiceEmoji(serviceName: string): string {
+  // 🛡️ QA FIX: Handle null, undefined, and empty strings gracefully
+  if (!serviceName || typeof serviceName !== 'string') {
+    return SERVICE_EMOJI_MAP[UserService.Unknown]
+  }
+
   // Проверяем является ли serviceName пользовательским сервисом
   if (Object.values(UserService).includes(serviceName as UserService)) {
     return SERVICE_EMOJI_MAP[serviceName as UserService]

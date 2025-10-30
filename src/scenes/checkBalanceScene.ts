@@ -308,10 +308,7 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 // ==================================================================
 
 checkBalanceScene.enter(async ctx => {
-  console.log('🚀 [DEBUG] checkBalanceScene.enter STARTED!')
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log('🚀 [DEBUG] telegramId:', telegramId)
-  console.log('🚀 [DEBUG] session.mode:', ctx.session?.mode)
 
   logger.info({
     message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
@@ -321,31 +318,13 @@ checkBalanceScene.enter(async ctx => {
     sessionData: JSON.stringify(ctx.session || {}),
   })
 
-  console.log('💵 CASE: checkBalanceScene')
-
   try {
-    // Шаг 1: Получаем ID и режим
-    console.log('🚀 [DEBUG] Step 1: Getting user info...')
+    // Get user ID and mode
     const { telegramId: userId } = await getUserInfo(ctx)
-    console.log('🚀 [DEBUG] Step 1 DONE, userId:', userId)
-
-    console.log('🚀 [DEBUG] Step 2: Getting mode...')
     const mode = ctx.session.mode as ModeEnum
-    console.log('🚀 [DEBUG] Step 2 DONE, mode:', mode)
-    console.log('🚀 [DEBUG] Step 2: mode typeof:', typeof mode)
-    console.log(
-      '🚀 [DEBUG] Step 2: ModeEnum.TextToVideo:',
-      ModeEnum.TextToVideo
-    )
-    console.log(
-      '🚀 [DEBUG] Step 2: mode === ModeEnum.TextToVideo:',
-      mode === ModeEnum.TextToVideo
-    )
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    console.log('🚀 [DEBUG] Step 3: Getting language...')
     const isRu = isRussianFromState(ctx)
-    console.log('🚀 [DEBUG] Step 3 DONE, isRu:', isRu)
 
     logger.info({
       message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
@@ -402,8 +381,14 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.StartScene) // Выход, если пользователь не существует
     }
 
-    // Шаг 4: ПРОВЕРКА ПОДПИСКИ
-    if (!userDetails.isSubscriptionActive) {
+    // Шаг 4: ПРОВЕРКА ПОДПИСКИ (кроме платных функций без требования подписки)
+    // 🎙️ TextToSpeech доступен БЕЗ подписки за звезды
+    const modesWithoutSubscriptionRequired = [
+      ModeEnum.TextToSpeech,
+      // Можно добавить другие режимы, доступные за звезды без подписки
+    ]
+
+    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
       logger.warn({
         message: `[CheckBalanceScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`,
         telegramId,
@@ -418,12 +403,13 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.StartScene)
     } else {
       logger.info({
-        message: `[CheckBalanceScene] Подписка активна для пользователя ${telegramId}. Тип: ${userDetails.subscriptionType}`,
+        message: `[CheckBalanceScene] Проверка подписки пройдена для режима ${mode}. ${userDetails.isSubscriptionActive ? `Тип подписки: ${userDetails.subscriptionType}` : 'Режим доступен без подписки'}`,
         telegramId,
         function: 'checkBalanceScene.enter',
         step: 'subscription_check_passed',
         subscriptionType: userDetails.subscriptionType,
         mode,
+        isSubscriptionRequired: !modesWithoutSubscriptionRequired.includes(mode),
       })
     }
 
@@ -444,7 +430,8 @@ checkBalanceScene.enter(async ctx => {
     })
 
     // Шаг 6: Показываем баланс и стоимость, если функция платная
-    if (costValue > 0) {
+    // Исключение для VideoTranscription - баланс показывается после транскрипции
+    if (costValue > 0 && mode !== ModeEnum.VideoTranscription) {
       logger.info({
         message: `[CheckBalanceScene] Отображение информации о балансе для платной функции`,
         telegramId,
@@ -603,7 +590,7 @@ export const enterTargetScene = async (
     cost
   )
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  console.log('🎯 [DEBUG] enterTargetScene telegramId:', telegramId)
+  // Enter target scene based on user details
 
   logger.info({
     message: `[EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим ${mode}`,
@@ -643,7 +630,14 @@ export const enterTargetScene = async (
     console.log(
       '🎯 [DEBUG] enterTargetScene: Step B - Checking subscription...'
     )
-    if (!userDetails.isSubscriptionActive) {
+
+    // 🎙️ Режимы, доступные БЕЗ подписки за звезды
+    const modesWithoutSubscriptionRequired = [
+      ModeEnum.TextToSpeech,
+      // Можно добавить другие режимы
+    ]
+
+    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
       console.log(
         '🎯 [DEBUG] enterTargetScene: Subscription not active, returning...'
       )
@@ -658,7 +652,7 @@ export const enterTargetScene = async (
       return
     }
     console.log(
-      '🎯 [DEBUG] enterTargetScene: Step B DONE - Subscription is active'
+      `🎯 [DEBUG] enterTargetScene: Step B DONE - Subscription check passed ${userDetails.isSubscriptionActive ? '(active)' : '(not required for this mode)'}`
     )
 
     console.log('🎯 [DEBUG] enterTargetScene: Step C - Checking balance...')
@@ -745,20 +739,20 @@ export const enterTargetScene = async (
       mode
     )
 
-    // Специальная логика для FluxKontext - направляем в флюкс-контекст сцену
+    // Специальная логика для FluxKontext - направляем в AI Photoshop сцену
     if (mode === ModeEnum.FluxKontext) {
       console.log(
-        '🎯 [DEBUG] enterTargetScene: FluxKontext mode detected, entering flux_kontext_scene'
+        '🎯 [DEBUG] enterTargetScene: FluxKontext mode (legacy) detected, entering ai_photoshop_scene'
       )
       logger.info({
-        message: `[EnterTargetSceneWrapper] FluxKontext режим - переход в flux_kontext_scene`,
+        message: `[EnterTargetSceneWrapper] FluxKontext режим (legacy) - переход в ai_photoshop_scene`,
         telegramId,
         mode,
         function: 'enterTargetSceneWrapper',
       })
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
-      await ctx.scene.enter('flux_kontext_scene')
+      await ctx.scene.enter('ai_photoshop_scene')
       return
     }
 
