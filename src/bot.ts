@@ -1,4 +1,3 @@
-import { isDev } from './utils/config'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
@@ -7,7 +6,7 @@ setupSafeConsoleLogging()
 
 console.log(`--- Bot Logic ---`)
 console.log(
-  `[BOT] Detected mode (via isDev): ${isDev ? 'development' : 'production'}`
+  `[BOT] Detected mode: ${process.env.NODE_ENV !== 'production' ? 'development' : 'production'}`
 )
 console.log(`[BOT] process.env.NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`--- End Bot Logic Check ---`)
@@ -106,9 +105,9 @@ async function initializeBots() {
 
   // 🔧 FIX: В development режиме ВСЕГДА используем polling (один бот)
   // В production - по умолчанию webhook (все боты)
-  const mode = process.env.USE_POLLING === 'true' ? 'polling' : 'webhook'
+  const mode = process.env.NODE_ENV !== 'production' ? 'polling' : (process.env.MODE || 'webhook')
 
-  console.log(`🎯 [MODE] Выбран режим: ${mode} (USE_POLLING: ${process.env.USE_POLLING})`)
+  console.log(`🎯 [MODE] Выбран режим: ${mode} (NODE_ENV: ${process.env.NODE_ENV})`)
 
   if (mode === 'polling') {
     // В режиме polling запускаем ОДИН бот (для dev - TEST_BOT_NAME, для prod - первый доступный)
