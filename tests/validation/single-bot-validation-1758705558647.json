@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-09-24T09:19:04.292Z",
+  "architecture": "single-bot",
+  "containerHealth": {
+    "status": "RUNNING",
+    "uptime": "44 hours   2999-3000/tcp"
+  },
+  "applicationHealth": {
+    "processCount": 1,
+    "isRunning": true,
+    "hasErrors": false,
+    "recentActivity": true
+  },
+  "networking": {
+    "internalPort2999": "FAILED",
+    "externalPort3001": "FAILED"
+  },
+  "portMapping": {
+    "issue": "APPLICATION_NOT_LISTENING",
+    "description": "Bot application not responding on port 2999"
+  },
+  "errors": [],
+  "recommendations": [
+    "🚨 Bot application not responding - check application health"
+  ]
+}

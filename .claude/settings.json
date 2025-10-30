@@ -1,104 +1,53 @@
 {
-  "hooks": [
-    {
-      "event": "PostToolUse",
-      "matchers": [
-        {
-          "tool_name": "Write|Edit|MultiEdit|NotebookEdit"
-        }
-      ],
-      "commands": [
-        {
-          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-task-security.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-task-security.sh\" \"$TOOL_NAME\" \"$TOOL_INPUT\"",
-          "timeout": 30
-        }
-      ]
-    },
-    {
-      "event": "PostToolUse", 
-      "matchers": [
-        {
-          "tool_name": "Bash"
-        }
-      ],
-      "commands": [
-        {
-          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-task-security.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-task-security.sh\" \"Bash\" \"${TOOL_INPUT:0:200}\"",
-          "timeout": 20
-        }
-      ]
-    },
-    {
-      "event": "Stop",
-      "matchers": [
-        {
-          "tool_name": "*"
-        }
-      ],
-      "commands": [
-        {
-          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-cleanup.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-cleanup.sh\"",
-          "timeout": 60
-        }
-      ]
-    },
-    {
-      "event": "PreToolUse",
-      "matchers": [
-        {
-          "tool_name": "Write|Edit|MultiEdit",
-          "tool_input": ".*\\.env.*"
-        }
-      ],
-      "commands": [
-        {
-          "command": "echo '⚠️  ВНИМАНИЕ: Редактирование .env файла! Убедитесь что секреты не попадут в git.' && echo 'Проверьте .gitignore и используйте переменные окружения для секретов.'",
-          "timeout": 5
-        }
-      ]
-    },
-    {
-      "event": "PreToolUse",
-      "matchers": [
-        {
-          "tool_name": "Bash",
-          "tool_input": ".*(rm -rf|sudo|chmod 777).*"
-        }
-      ],
-      "commands": [
-        {
-          "command": "echo '🚨 ОПАСНАЯ КОМАНДА ОБНАРУЖЕНА! Будьте осторожны с: rm -rf, sudo, chmod 777'",
-          "timeout": 5
-        }
-      ]
-    },
-    {
-      "event": "UserPromptSubmit",
-      "matchers": [
-        {
-          "user_prompt": ".*"
-        }
-      ],
-      "commands": [
-        {
-          "command": "chmod +x \"$CLAUDE_PROJECT_DIR/.claude/hooks/claude-flow-integration.sh\" && \"$CLAUDE_PROJECT_DIR/.claude/hooks/claude-flow-integration.sh\" \"$USER_PROMPT\" 2>&1 | head -5",
-          "timeout": 70
-        }
-      ]
-    },
-    {
-      "event": "UserPromptSubmit",
-      "matchers": [
-        {
-          "user_prompt": ".*(токен|token|ключ|key|пароль|password).*(показать|покажи|выведи|скопируй).*"
-        }
-      ],
-      "commands": [
-        {
-          "command": "echo '{\"decision\": \"block\", \"message\": \"🛡️ Заблокирован потенциально небезопасный запрос на вывод секретной информации. Используйте переменные окружения для работы с секретами.\"}'",
-          "timeout": 5
-        }
-      ]
-    }
-  ]
+  "env": {},
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run test:*)",
+      "Bash(npm test *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git config *)",
+      "Bash(git tag *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Bash(git reset *)",
+      "Bash(git rev-parse *)",
+      "Bash(git ls-files *)",
+      "Bash(gh *)",
+      "Bash(node *)",
+      "Bash(which *)",
+      "Bash(pwd)",
+      "Bash(ls *)",
+      "Bash(jq *)",
+      "Bash(test *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(curl *)",
+      "Bash(mkdir *)",
+      "Bash(cd *)",
+      "Bash(cat *)",
+      "Bash(echo *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(curl * | bash)",
+      "Bash(wget * | sh)",
+      "Bash(eval *)"
+    ]
+  },
+  "hooks": {},
+  "statusLine": {
+    "type": "command",
+    "command": "input=$(cat); model_name=$(echo \"$input\" | jq -r '.model.display_name'); current_dir=$(echo \"$input\" | jq -r '.workspace.current_dir'); project_dir=$(echo \"$input\" | jq -r '.workspace.project_dir'); relative_path=$(echo \"${current_dir#$project_dir}\"); if [ \"$relative_path\" = \"$current_dir\" ]; then display_path=$(basename \"$current_dir\"); else display_path=\"$(basename \"$project_dir\")${relative_path}\"; fi; printf \"$(whoami)@$(hostname -s):${display_path} [${model_name}]\""
+  },
+  "includeCoAuthoredBy": true,
+  "enabledMcpjsonServers": []
 }

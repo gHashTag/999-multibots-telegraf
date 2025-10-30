@@ -1,0 +1,661 @@
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { generateImageToVideo } from '../generateImageToVideo'
+import { Telegraf } from 'telegraf'
+import { MyContext } from '../../../interfaces'
+
+// Мокаем все зависимости
+vi.mock('../../../utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+  },
+}))
+
+vi.mock('../../../core/replicate', () => ({
+  replicate: {
+    run: vi.fn(),
+  },
+}))
+
+vi.mock('../helpers', () => ({
+  downloadFileHelper: vi.fn(),
+  getUserHelper: vi.fn(),
+  checkBalanceVideoOperationHelper: vi.fn(),
+  deductBalanceAfterSuccess: vi.fn(),
+  saveVideoUrlHelper: vi.fn(),
+  updateUserLevelHelper: vi.fn(),
+}))
+
+vi.mock('../../../core/supabase/updateUserBalance', () => ({
+  updateUserBalance: vi.fn(),
+}))
+
+vi.mock('../../../price/helpers', () => ({
+  calculateFinalPrice: vi.fn(),
+}))
+
+vi.mock('../../../config', () => ({
+  API_URL: 'http://test-api-url',
+  SECRET_API_KEY: 'test-secret-key',
+}))
+
+vi.mock('../../../services/video-providers/KieAiProvider', () => ({
+  KieAiProvider: vi.fn().mockImplementation(() => ({
+    generateVideo: vi.fn(),
+  })),
+}))
+
+vi.mock('axios', () => ({
+  default: {
+    post: vi.fn(),
+    get: vi.fn(),
+  },
+  isAxiosError: vi.fn(),
+}))
+
+vi.mock('telegraf', () => ({
+  Markup: {
+    inlineKeyboard: vi.fn(() => ({
+      resize: vi.fn(() => 'mock_keyboard'),
+    })),
+  },
+}))
+
+// Импортируем моки после мока
+import { logger } from '../../../utils/logger'
+import { replicate } from '../../../core/replicate'
+import {
+  downloadFileHelper,
+  getUserHelper,
+  checkBalanceVideoOperationHelper,
+  deductBalanceAfterSuccess,
+  saveVideoUrlHelper,
+  updateUserLevelHelper,
+} from '../helpers'
+import { updateUserBalance } from '../../../core/supabase/updateUserBalance'
+import { calculateFinalPrice } from '../../../price/helpers'
+import { KieAiProvider } from '../../../services/video-providers/KieAiProvider'
+import axios from 'axios'
+
+// Создаем моковый контекст Telegram
+const createMockTelegramInstance = () => ({
+  sendMessage: vi.fn().mockResolvedValue({}),
+  sendVideo: vi.fn().mockResolvedValue({}),
+  sendDocument: vi.fn().mockResolvedValue({}),
+})
+
+const createMockContext = (): MyContext => ({
+  from: {
+    id: 123456789,
+    username: 'test_user',
+    first_name: 'Test',
+    last_name: 'User',
+    is_bot: false,
+    language_code: 'en',
+  },
+  chat: {
+    id: 123456789,
+    type: 'private',
+  },
+  message: {
+    message_id: 1,
+    date: Math.floor(Date.now() / 1000),
+    chat: { id: 123456789, type: 'private' },
+    text: 'test message',
+    from: {
+      id: 123456789,
+      username: 'test_user',
+      first_name: 'Test',
+      last_name: 'User',
+      is_bot: false,
+      language_code: 'en',
+    },
+  },
+  botInfo: {
+    id: 987654321,
+    username: 'test_bot',
+    first_name: 'Test Bot',
+    can_join_groups: true,
+    can_read_all_group_messages: false,
+    supports_inline_queries: false,
+    can_connect_to_business: false,
+    has_main_web_app: false,
+  },
+  session: {},
+  reply: vi.fn(),
+  telegram: createMockTelegramInstance(),
+} as any)
+
+describe('generateImageToVideo', () => {
+  let mockTelegramInstance: any
+  let mockContext: MyContext
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    mockTelegramInstance = createMockTelegramInstance()
+    mockContext = createMockContext()
+
+    // Устанавливаем переменные окружения для тестов
+    process.env.USE_PLAN_A = 'true'
+    process.env.NODE_ENV = 'test'
+
+    // Мокаем успешные ответы по умолчанию
+    ;(getUserHelper as any).mockResolvedValue({
+      id: 123456789,
+      level: 1,
+      aspect_ratio: '9:16',
+      balance: 100,
+    })
+
+    ;(checkBalanceVideoOperationHelper as any).mockResolvedValue({
+      success: true,
+      balance: 100,
+      price: 40,
+      newBalance: 60,
+    })
+
+    ;(calculateFinalPrice as any).mockReturnValue(40)
+
+    // Настраиваем мок KieAiProvider
+    const mockKieProvider = (KieAiProvider as any).mock.results[0]?.value || {}
+    mockKieProvider.generateVideo = vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        taskId: 'test-task-123',
+      },
+    })
+    mockKieProvider.checkVideoStatus = vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        videoUrl: 'http://test-video.mp4',
+      },
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+  })
+
+  describe('Input Validation', () => {
+    it('should reject when imageUrl is missing', async () => {
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        null, // imageUrl is null
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      expect(mockTelegramInstance.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining('Изображение и промпт обязательны')
+      )
+    })
+
+    it('should reject when prompt is missing', async () => {
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        null, // prompt is null
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      expect(mockTelegramInstance.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining('Изображение и промпт обязательны')
+      )
+    })
+
+    it('should truncate long prompts', async () => {
+      const longPrompt = 'a'.repeat(3000) // Очень длинный промпт
+
+      // Мокаем Plan B сценарий
+      ;(axios.post as any).mockRejectedValueOnce(new Error('Server down'))
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        longPrompt,
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      // Проверяем, что промпт был усечен
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[I2V BG] Prompt truncated due to length',
+        expect.objectContaining({
+          telegramId: '123456789',
+          originalLength: 3000,
+          truncatedLength: 2003, // 2000 + 3 символа "..."
+        })
+      )
+    })
+
+    it('should reject when user is not found', async () => {
+      ;(getUserHelper as any).mockResolvedValue(null)
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      expect(mockTelegramInstance.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining('Пользователь 123456789 не найден')
+      )
+    })
+  })
+
+  describe('Payment Processing', () => {
+    it('should reject when balance is insufficient', async () => {
+      ;(checkBalanceVideoOperationHelper as any).mockResolvedValue({
+        success: false,
+        error: 'Insufficient balance',
+        balance: 10,
+        price: 40,
+      })
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      expect(mockTelegramInstance.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining('Insufficient balance')
+      )
+    })
+
+    it('should deduct balance after successful video generation', async () => {
+      // Очищаем все предыдущие моки
+      ;(axios.post as any).mockClear()
+      ;(downloadFileHelper as any).mockClear()
+      ;(saveVideoUrlHelper as any).mockClear()
+      ;(deductBalanceAfterSuccess as any).mockClear()
+
+      // Мокаем успешный ответ Plan A
+      ;(axios.post as any).mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            videoUrl: 'http://test-video.mp4',
+          },
+        },
+      })
+
+      // Мокаем downloadFileHelper
+      ;(downloadFileHelper as any).mockResolvedValue(Buffer.from('test video data'))
+
+      // Мокаем saveVideoUrlHelper
+      ;(saveVideoUrlHelper as any).mockResolvedValue(undefined)
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      // Проверяем, что баланс был списан после успешной генерации
+      expect(deductBalanceAfterSuccess).toHaveBeenCalledWith(
+        '123456789',
+        'veo-3-fast',
+        'test_bot',
+        40,
+        'image_to_video'
+      )
+    })
+  })
+
+  describe('Plan A (Internal Server)', () => {
+    it('should use Plan A when server is available', async () => {
+      // Очищаем все предыдущие моки
+      ;(axios.post as any).mockClear()
+      ;(downloadFileHelper as any).mockClear()
+      ;(saveVideoUrlHelper as any).mockClear()
+      ;(deductBalanceAfterSuccess as any).mockClear()
+
+      // Мокаем успешный ответ Plan A
+      ;(axios.post as any).mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            videoUrl: 'http://test-video.mp4',
+          },
+        },
+      })
+
+      // Мокаем downloadFileHelper
+      ;(downloadFileHelper as any).mockResolvedValue(Buffer.from('test video data'))
+
+      // Мокаем saveVideoUrlHelper
+      ;(saveVideoUrlHelper as any).mockResolvedValue(undefined)
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      expect(axios.post).toHaveBeenCalledWith(
+        'http://test-api-url/api/v1/veo/generate',
+        expect.objectContaining({
+          model: 'veo3_fast',
+          imageUrl: 'http://test-image.jpg',
+          prompt: expect.any(String),
+          telegram_id: '123456789',
+        }),
+        expect.any(Object)
+      )
+
+      // Проверяем, что deductBalanceAfterSuccess был вызван
+      expect(deductBalanceAfterSuccess).toHaveBeenCalledWith(
+        '123456789',
+        'veo-3-fast',
+        'test_bot',
+        40,
+        'image_to_video'
+      )
+    })
+  })
+
+  describe('Plan B (Kie.ai)', () => {
+    beforeEach(() => {
+      // Мокаем Plan B сценарий - Plan A падает
+      ;(axios.post as any).mockRejectedValueOnce(new Error('Server down'))
+    })
+
+    it('should fallback to Plan B when Plan A fails', async () => {
+      // Мокаем Plan A как падающий
+      ;(axios.post as any).mockRejectedValueOnce(new Error('Server down'))
+
+      // Мокаем Kie.ai API успешный ответ
+      ;(axios.post as any).mockResolvedValueOnce({
+        data: {
+          code: 200,
+          data: {
+            taskId: 'test-task-123',
+          },
+        },
+      })
+
+      // Мокаем статус проверки - видео готово
+      ;(axios.get as any).mockResolvedValueOnce({
+        data: {
+          code: 200,
+          data: {
+            successFlag: 1,
+            response: {
+              resultUrls: ['http://test-video.mp4'],
+            },
+          },
+        },
+      })
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('[I2V BG] Standard mode validated')
+      )
+    })
+
+    it('should handle Kie.ai API errors gracefully', async () => {
+      // Мокаем Plan A как падающий
+      ;(axios.post as any).mockRejectedValueOnce(new Error('Server down'))
+
+      // Мокаем Kie.ai API ошибку
+      ;(axios.post as any).mockResolvedValueOnce({
+        data: {
+          code: 400,
+          msg: 'Invalid request',
+        },
+      })
+
+      // Мокаем Kie.ai API ошибку
+      const mockKieProvider = (KieAiProvider as any).mock.results[0]?.value || {}
+      mockKieProvider.generateVideo = vi.fn().mockResolvedValue({
+        success: false,
+        error: 'Kie.ai API error',
+      })
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      // Проверяем, что функция завершается без критических ошибок
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Kie.ai API error')
+      )
+    })
+
+    it('should handle balance check errors', async () => {
+      // Мокаем ошибку проверки баланса
+      ;(checkBalanceVideoOperationHelper as any).mockResolvedValue({
+        success: false,
+        error: 'Insufficient balance',
+        balance: 10,
+        price: 40,
+      })
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      expect(mockTelegramInstance.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining('Insufficient balance')
+      )
+    })
+
+    it('should handle polling setup for Kie.ai', async () => {
+      // Мокаем Plan A как падающий
+      ;(axios.post as any).mockRejectedValueOnce(new Error('Server down'))
+
+      // Мокаем KieAiProvider
+      const mockKieProvider = (KieAiProvider as any).mock.results[0]?.value || {}
+      mockKieProvider.generateVideo = vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          taskId: 'test-task-123',
+        },
+      })
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      // Проверяем, что generateVideo был вызван
+      expect(mockKieProvider.generateVideo).toHaveBeenCalledWith({
+        model: 'veo-3-fast',
+        prompt: 'test prompt',
+        imageUrl: 'http://test-image.jpg',
+      })
+
+      // Проверяем логи о начале polling
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('[I2V BG] Plan B polling attempt')
+      )
+    })
+  })
+
+  describe('Error Handling', () => {
+    it('should handle general errors and send error message', async () => {
+      ;(getUserHelper as any).mockRejectedValue(new Error('Database error'))
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      expect(mockTelegramInstance.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining('❌ Ошибка генерации видео')
+      )
+    })
+
+    it('should truncate error messages that are too long', async () => {
+      const longErrorMessage = 'a'.repeat(5000)
+      ;(getUserHelper as any).mockRejectedValue(new Error(longErrorMessage))
+
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'veo-3-fast',
+        'http://test-image.jpg',
+        'test prompt',
+        false,
+        null,
+        null,
+        mockTelegramInstance,
+        123456789
+      )
+
+      const sendMessageCall = (mockTelegramInstance.sendMessage as any).mock.calls[0][1]
+      expect(sendMessageCall.length).toBeLessThan(4100) // Должен быть усечен
+      expect(sendMessageCall).toContain('...')
+    })
+  })
+
+  describe('Morphing Mode', () => {
+    it('should handle morphing mode setup', async () => {
+      await generateImageToVideo(
+        '123456789',
+        'test_user',
+        true,
+        'test_bot',
+        'kling-v1.6-pro', // Модель, поддерживающая морфинг
+        'http://image-a.jpg',
+        'morphing prompt',
+        true, // isMorphing = true
+        'http://image-b.jpg', // imageAUrl
+        null, // imageBUrl
+        mockTelegramInstance,
+        123456789
+      )
+
+      // Проверяем логи о морфинге
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('[I2V BG] Prepared Replicate input for Kling morphing')
+      )
+    })
+  })
+})

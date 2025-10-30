@@ -167,16 +167,15 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (photo_url) {
       // Специальная обработка для digitalAvatar - добавляем inline кнопки даже с фото
       if (translationKey === 'digitalAvatar') {
-        const inlineKeyboard = {
-          inline_keyboard: [
-            [
-              {
-                text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
-                callback_data: 'go_to_subscription_scene',
-              },
-            ],
+        // Inline кнопка подписки (БЕЗ Mini App)
+        const inlineKeyboard = Markup.inlineKeyboard([
+          [
+            {
+              text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+              callback_data: 'go_to_subscription_scene',
+            },
           ],
-        }
+        ]).reply_markup
 
         // Пробуем отправить фото с fallback
         const photoSent = await sendPhotoWithFallback(ctx, photo_url, {
@@ -211,16 +210,15 @@ const menuCommandStep = async (ctx: MyContext) => {
 
         // Специальная обработка для digitalAvatar - добавляем inline кнопки
         if (translationKey === 'digitalAvatar') {
-          const inlineKeyboard = {
-            inline_keyboard: [
-              [
-                {
-                  text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
-                  callback_data: 'go_to_subscription_scene',
-                },
-              ],
+          // Inline кнопка подписки (БЕЗ Mini App)
+          const inlineKeyboard = Markup.inlineKeyboard([
+            [
+              {
+                text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                callback_data: 'go_to_subscription_scene',
+              },
             ],
-          }
+          ]).reply_markup
 
           // Отправляем сообщение с inline кнопками
           await ctx.reply(message, {

@@ -45,9 +45,7 @@ export async function combineVideos(
     outputPath,
   })
 
-  // Используем FFmpeg для объединения с переходами
-  // Эта логика может быть сложной, для начала сделаем простую конкатенацию
-  // TODO: Реализовать сложные переходы
+  // Используем FFmpeg для объединения с сохранением аудио из ВСЕХ видео
   const listPath = path.join(
     path.dirname(outputPath),
     `concat_list_${Date.now()}.txt`
@@ -55,12 +53,22 @@ export async function combineVideos(
   const fileContent = clipPaths.map(p => `file '${p}'`).join('\n')
   await fs.writeFile(listPath, fileContent)
 
-  const command = `ffmpeg -f concat -safe 0 -i ${listPath} -c copy -y ${outputPath}`
+  // ✅ ИСПРАВЛЕНИЕ: Используем перекодировку вместо -c copy
+  // -c:v libx264: видео кодек (H.264)
+  // -c:a aac: аудио кодек (AAC)
+  // Это сохраняет аудио из всех видео при склейке
+  const command = `ffmpeg -f concat -safe 0 -i ${listPath} -c:v libx264 -c:a aac -b:a 192k -y ${outputPath}`
+
+  logger.info('🎬 [VIDEO MERGE] Executing FFmpeg command', {
+    clipPaths,
+    command: command.substring(0, 100),
+  })
+
   await execAsync(command)
 
   await fs.unlink(listPath) // Clean up the list file
 
-  logger.info('✅ Videos combined successfully')
+  logger.info('✅ Videos combined successfully with audio preserved')
   return outputPath
 }
 

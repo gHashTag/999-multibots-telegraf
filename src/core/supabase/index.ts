@@ -43,7 +43,7 @@ export { updateUserSoul } from './updateUserSoul'
 export { getUserByTelegramId } from './getUserByTelegramId'
 export { getLatestUserModel } from './getLatestUserModel'
 export { setPayments, updateUserSubscriptionType } from './setPayments'
-export { updateUserSubscription } from './updateUserSubscription'
+// DEPRECATED: updateUserSubscription - use payments_v2 logic instead
 export { getTranslation } from './getTranslation'
 export { checkPaymentStatus } from './checkPaymentStatus'
 export { updateUserLevelPlusOne } from './updateUserLevelPlusOne'

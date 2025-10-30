@@ -15,9 +15,14 @@ export type VideoModelId =
   | 'wan-text-to-video'
   | 'minimax'
   // Kie.ai модели
-  | 'veo-3-fast'
-  | 'veo-3'
+  | 'veo3_fast'
+  | 'veo3'
   | 'runway-aleph'
+  | 'sora-2'
+  | 'sora-2-pro'
+  // Sora 2 Image-to-Video
+  | 'sora-2-i2v'
+  | 'sora-2-pro-i2v'
 
 interface TextToVideoRequest {
   prompt: string
@@ -42,6 +47,79 @@ interface TextToVideoResponse {
  * Генерация видео из текстового промпта через API сервера
  * Поддерживает все модели согласно документации
  */
+// Функция для отправки уведомления админу
+async function notifyAdminAboutServerIssue(
+  error: string,
+  telegram_id: string,
+  videoModel: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+    
+    if (!botResult.bot) return
+    
+    const errorMessage = `🚨 **SERVER DOWN ALERT**\n\n` +
+      `📍 План Б активирован для Veo генерации\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🎬 Model: ${videoModel}\n` +
+      `❌ Error: ${error}\n` +
+      `🔄 Используется прямой API Veo 3\n\n` +
+      `⚠️ Проверьте сервер: https://three-head-dragon.shop`
+    
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
+        parse_mode: 'Markdown'
+      })
+    }
+    
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
+      adminIds,
+      error
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+  }
+}
+
+async function notifyAdminAboutPlanBSuccess(
+  telegram_id: string,
+  videoModel: string,
+  taskId: string,
+  videoUrl: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+
+    if (!botResult.bot) return
+
+    const successMessage = `✅ **PLAN B SUCCESS**\n\n` +
+      `📍 Видео успешно сгенерировано через Plan B\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🎬 Model: ${videoModel}\n` +
+      `🔗 Task ID: ${taskId}\n` +
+      `🎥 Video URL: ${videoUrl.substring(0, 50)}...\n\n` +
+      `✅ Fallback механизм работает корректно`
+
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, successMessage, {
+        parse_mode: 'Markdown'
+      })
+    }
+
+    logger.info('[ADMIN NOTIFICATION] Plan B success reported to admins', {
+      adminIds,
+      telegram_id,
+      taskId
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins about Plan B success', notifyError)
+  }
+}
+
 export async function generateTextToVideo(
   params: TextToVideoRequest
 ): Promise<TextToVideoResponse> {
@@ -73,9 +151,10 @@ export async function generateTextToVideo(
     throw new Error('Bot name is required')
   }
 
-  // Логирование начала генерации
+  // Логирование начала генерации - отправляем ПОЛНЫЙ промпт в логи
   logger.info('ASPECT RATIO CHECK - Starting text-to-video generation', {
-    prompt: prompt.substring(0, 100), // Логируем только начало промпта
+    prompt: prompt, // Логируем полный промпт без обрезки
+    promptLength: prompt.length,
     videoModel,
     duration,
     aspectRatio: aspectRatio,
@@ -86,59 +165,107 @@ export async function generateTextToVideo(
   })
 
   try {
-    // Проверяем, является ли это Veo моделью
-    const isVeoModel = ['veo-3', 'veo-3-fast', 'runway-aleph'].includes(videoModel)
-    
-    if (isVeoModel) {
-      // Проверяем наличие KIE_AI_API_KEY
-      const hasKieApiKey = !!process.env.KIE_AI_API_KEY
-      
-      if (!hasKieApiKey) {
-        // Временный mock-режим для Veo моделей
-        logger.warn('KIE_AI_API_KEY not found, using mock video for Veo models', {
-          videoModel,
-          aspectRatio,
-          duration
-        })
-        
-        // Имитируем задержку генерации
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        
-        return {
-          success: true,
-          videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-          message: `[MOCK] Veo model ${videoModel} would generate video with prompt: "${prompt.substring(0, 50)}..." in ${aspectRatio} aspect ratio`
-        }
-      }
-      
-      // Используем прямую интеграцию с Kie.ai для Veo моделей
-      logger.info('Using Kie.ai provider for Veo model', {
+    // Проверяем, является ли это Kie.ai моделью (Veo или Sora)
+    const isKieAiModel = ['veo3', 'veo3_fast', 'runway-aleph', 'sora-2', 'sora-2-pro'].includes(videoModel)
+    const isSoraModel = ['sora-2', 'sora-2-pro'].includes(videoModel)
+
+    if (isKieAiModel) {
+      // Для Kie.ai моделей используем прямую интеграцию
+      logger.info('[KIE.AI] Using Kie.ai directly', {
         videoModel,
-        aspectRatio,
-        duration
+        isSoraModel,
+        reason: isSoraModel
+          ? 'Sora models use Kie.ai Sora API'
+          : 'Veo models are not available on Replicate'
       })
-      
+
       // Импортируем KieAiProvider
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
-      
-      // Преобразуем aspectRatio в формат Kie.ai
-      const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
-      
-      // Генерируем видео через Kie.ai
-      const kieResponse = await kieProvider.generateVideo({
-        model: videoModel,
-        prompt,
-        duration: duration || 8,
-        aspectRatio: kieAspectRatio || '9:16',
-      })
-      
-      if (kieResponse.success && kieResponse.data?.videoUrl) {
+
+      if (isSoraModel) {
+        // Для Sora моделей используем специальный API
+        const soraAspectRatio = aspectRatio === '9:16' ? 'portrait' : 'landscape'
+        const soraModel = videoModel === 'sora-2-pro'
+          ? 'sora-2-pro-text-to-video'
+          : 'sora-2-text-to-video'
+
+        logger.info('[SORA] Calling Sora generateSoraVideo with params:', {
+          model: soraModel,
+          promptLength: prompt.length,
+          aspectRatio: soraAspectRatio,
+          duration: 10 // Sora всегда 10 секунд
+        })
+
+        const soraResponse = await kieProvider.generateSoraVideo(
+          prompt,
+          soraModel as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
+          soraAspectRatio as 'landscape' | 'portrait',
+          false // remove_watermark
+        )
+
+        logger.info('[SORA] API response received:', {
+          success: soraResponse.success,
+          hasData: !!soraResponse.data,
+          hasTaskId: !!soraResponse.data?.taskId,
+          taskId: soraResponse.data?.taskId,
+          error: soraResponse.error
+        })
+
+        if (soraResponse.success && soraResponse.data?.taskId) {
+          return {
+            success: true,
+            jobId: soraResponse.data.taskId,
+            message: 'Sora video generation started',
+          }
+        }
+
         return {
-          success: true,
-          videoUrl: kieResponse.data.videoUrl,
+          success: false,
+          error: soraResponse.error || 'Failed to generate Sora video',
         }
       } else {
+        // Для Veo моделей используем обычный generateVideo
+        const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
+
+        logger.info('[VEO] Calling Veo 3 generateVideo with params:', {
+          model: videoModel,
+          promptLength: prompt.length,
+          duration: duration || 8,
+          aspectRatio: kieAspectRatio || '9:16'
+        })
+
+        const kieResponse = await kieProvider.generateVideo({
+          model: videoModel,
+          prompt,
+          duration: duration || 8,
+          aspectRatio: kieAspectRatio || '9:16',
+        })
+
+        logger.info('[VEO] API response received:', {
+          success: kieResponse.success,
+          hasData: !!kieResponse.data,
+          hasVideoUrl: !!kieResponse.data?.videoUrl,
+          hasTaskId: !!kieResponse.data?.taskId,
+          taskId: kieResponse.data?.taskId,
+          error: kieResponse.error
+        })
+
+        if (kieResponse.success) {
+          if (kieResponse.data?.videoUrl) {
+            return {
+              success: true,
+              videoUrl: kieResponse.data.videoUrl,
+            }
+          } else if (kieResponse.data?.taskId) {
+            return {
+              success: true,
+              jobId: kieResponse.data.taskId,
+              message: 'Video generation started',
+            }
+          }
+        }
+
         return {
           success: false,
           error: kieResponse.error || 'Failed to generate video',
@@ -164,7 +291,7 @@ export async function generateTextToVideo(
         success: true,
         message: 'Mock: Video generation started',
         videoUrl:
-          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
+          'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
       }
     }
 
@@ -270,7 +397,7 @@ export async function generateTextToVideo(
           success: true,
           message: 'Mock: Video generation completed (server unavailable)',
           videoUrl:
-            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Валидное тестовое видео
+            'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
         }
       }
 
@@ -335,8 +462,53 @@ export async function checkVideoGenerationStatus(
   is_ru: boolean
 ): Promise<TextToVideoResponse> {
   try {
+    // Проверяем, это taskId от Kie.ai или jobId от другого сервиса
+    // taskId от Kie.ai всегда 32 символа без дефисов
+    const isKieTaskId = jobId.length === 32 && !jobId.includes('-')
+    
+    logger.info('[checkVideoGenerationStatus] Checking status for:', {
+      jobId,
+      isKieTaskId,
+      jobIdLength: jobId.length
+    })
+    
+    if (isKieTaskId) {
+      // Используем KieAiProvider для проверки статуса
+      logger.info('[checkVideoGenerationStatus] Using Veo 3 provider to check status')
+      const { KieAiProvider } = await import('./video-providers/KieAiProvider')
+      const kieProvider = new KieAiProvider()
+      const result = await kieProvider.checkVideoStatus(jobId)
+      
+      logger.info('[checkVideoGenerationStatus] Veo 3 status result:', {
+        success: result.success,
+        hasData: !!result.data,
+        hasVideoUrl: !!result.data?.videoUrl,
+        error: result.error
+      })
+      
+      if (result.success && result.data?.videoUrl) {
+        return {
+          success: true,
+          videoUrl: result.data.videoUrl,
+        }
+      } else if (result.success && !result.data?.videoUrl) {
+        // Еще генерируется - возвращаем как успешный статус, но без URL
+        return {
+          success: true,
+          message: is_ru
+            ? 'Видео еще генерируется...'
+            : 'Video is still being generated...',
+        }
+      } else {
+        return {
+          success: false,
+          error: result.error || (is_ru ? 'Ошибка генерации' : 'Generation error'),
+        }
+      }
+    }
+    
+    // Старый код для обычных серверов
     const baseUrl = API_URL
-
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 
     const response = await axios.get<TextToVideoResponse>(url, {
@@ -359,9 +531,51 @@ export async function checkVideoGenerationStatus(
     return response.data
   } catch (error) {
     if (isAxiosError(error)) {
-      logger.error('Error checking video generation status', {
+      const statusCode = error.response?.status
+      const errorData = error.response?.data
+
+      // Специальная обработка для 404 ошибки (job not found)
+      if (statusCode === 404 || errorData?.message?.includes('not found') || errorData?.message?.includes('Video job not found')) {
+        logger.warn('[checkVideoGenerationStatus] Video job not found - may have expired or been deleted', {
+          jobId,
+          statusCode,
+          errorMessage: errorData?.message || error.message
+        })
+
+        return {
+          success: false,
+          error: is_ru
+            ? 'Задача генерации видео не найдена. Возможно, она была удалена или истек срок хранения.'
+            : 'Video generation task not found. It may have been deleted or expired.',
+        }
+      }
+
+      // Обработка других HTTP ошибок
+      if (statusCode >= 500) {
+        logger.error('[checkVideoGenerationStatus] Server error while checking video status', {
+          jobId,
+          statusCode,
+          error: errorData || error.message,
+        })
+
+        return {
+          success: false,
+          error: is_ru
+            ? 'Ошибка сервера при проверке статуса видео. Попробуйте позже.'
+            : 'Server error while checking video status. Please try again later.',
+        }
+      }
+
+      logger.error('[checkVideoGenerationStatus] HTTP error while checking video status', {
         jobId,
-        error: error.response?.data || error.message,
+        statusCode,
+        error: errorData || error.message,
+      })
+    } else {
+      // Обработка не-HTTP ошибок
+      logger.error('[checkVideoGenerationStatus] Non-HTTP error while checking video status', {
+        jobId,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     }
 

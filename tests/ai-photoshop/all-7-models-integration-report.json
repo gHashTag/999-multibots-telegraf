@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-10-06T12:26:30.619Z",
+  "totalTests": 7,
+  "passed": 7,
+  "failed": 0,
+  "successRate": "100.0%",
+  "tests": [
+    {
+      "name": "Models Configuration",
+      "status": "PASS",
+      "details": "7/7 models found"
+    },
+    {
+      "name": "Service Imports",
+      "status": "PASS",
+      "details": "7/7 imports found"
+    },
+    {
+      "name": "Switch Cases",
+      "status": "PASS",
+      "details": "7/7 cases found"
+    },
+    {
+      "name": "Pricing Configuration",
+      "status": "PASS",
+      "details": "Total: 41 stars (expected: 41)"
+    },
+    {
+      "name": "Dynamic Calculation",
+      "status": "PASS",
+      "details": "Both methods used"
+    },
+    {
+      "name": "Service Files",
+      "status": "PASS",
+      "details": "7/7 files exist"
+    },
+    {
+      "name": "Zod Schemas",
+      "status": "PASS",
+      "details": "7/7 schemas exist"
+    }
+  ]
+}

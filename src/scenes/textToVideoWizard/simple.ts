@@ -19,7 +19,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // Простая клавиатура с основными моделями
     const keyboard = Markup.keyboard([
-      ['Veo 3 Fast (40 ⭐)', 'Veo 3 (80 ⭐)'],
+      ['Veo 3 Fast (40 ⭐)', 'Veo 3 (120 ⭐)'],
       ['Kling v1.6 Pro (60 ⭐)', 'Minimax (50 ⭐)'],
       ['⬅️ Назад в меню'],
     ]).resize()
@@ -64,15 +64,15 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Определяем выбранную модель
-    let selectedModel = 'veo-3-fast' // по умолчанию
+    let selectedModel = 'veo3_fast' // по умолчанию
     let cost = 40
 
     if (selectedText.includes('Veo 3 Fast')) {
-      selectedModel = 'veo-3-fast'
+      selectedModel = 'veo3_fast'
       cost = 40
     } else if (selectedText.includes('Veo 3')) {
-      selectedModel = 'veo-3'
-      cost = 80
+      selectedModel = 'veo3'
+      cost = 120
     } else if (selectedText.includes('Kling')) {
       selectedModel = 'kling-v1.6-pro'
       cost = 60
@@ -205,7 +205,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Получаем данные из сессии
-    const selectedModel = ctx.session.selectedVideoModel || 'veo-3-fast'
+    const selectedModel = ctx.session.selectedVideoModel || 'veo3_fast'
     const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
     const cost = ctx.session.selectedVideoCost || 40
 

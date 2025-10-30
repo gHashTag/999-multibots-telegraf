@@ -1,3 +1,37 @@
+# 🚨🚨🚨 КРИТИЧЕСКИЕ ПРАВИЛА ДЛЯ CLAUDE - ЧИТАТЬ ПЕРВЫМ 🚨🚨🚨
+
+## ⚠️⚠️⚠️ ГЛАВНОЕ ПРАВИЛО: НИКОГДА НЕ УДАЛЯТЬ ДАННЫЕ ИЗ БАЗЫ! ⚠️⚠️⚠️
+
+**ПЕРЕД ЛЮБЫМ ДЕЙСТВИЕМ ПРОЧИТАЙ:**
+- [`/docs/CRITICAL-RULE-NEVER-DELETE.md`](../CRITICAL-RULE-NEVER-DELETE.md) - основные правила выживания
+- [`/docs/CLAUDE-INTELLIGENCE-CHECK.md`](../CLAUDE-INTELLIGENCE-CHECK.md) - тест на долбоёбизм
+
+### 🚫 КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО:
+- ❌ Удалять записи из таблиц базы данных
+- ❌ Менять telegram_id пользователей
+- ❌ Удалять модели из model_trainings
+- ❌ Делать миграции без полного бэкапа
+- ❌ "Чистить" базу от "мусора"
+- ❌ Пересоздавать пользователей
+
+### ✅ ОБЯЗАТЕЛЬНО ДЕЛАТЬ:
+- ✅ Создавать бэкап перед любыми изменениями
+- ✅ Использовать флаги status='INACTIVE' вместо удаления
+- ✅ Требовать тройное подтверждение для изменений БД
+- ✅ Тестировать на копиях базы
+- ✅ Задаваться вопросом "А не долбоёб ли я сейчас?"
+
+### 🔥 КАТАСТРОФА 16.09.2025 - НИКОГДА НЕ ЗАБЫВАТЬ:
+**Потеряно из-за нарушения правил:**
+- 200+ пользователей пересозданы с нуля
+- ВСЕ оригинальные модели пользователей удалены
+- ВСЕ рефералы и связи разорваны
+- Месяцы работы пользователя 144022504 потеряны навсегда
+
+**ЗАПОМНИ: ТЫ УЖЕ ИСПОРТИЛ НАСТРОЕНИЕ ПОЛЬЗОВАТЕЛЮ. НЕ ДЕЛАЙ ХУЖЕ!**
+
+---
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -91,6 +125,120 @@ This is a multi-bot Telegram system built with Node.js/TypeScript that manages m
 - Service-specific error messages for users
 - Admin notification system for critical errors
 - Safe console logging to prevent Buffer exposure
+
+## Admin Management Instructions
+
+### Adding New Admin User (Quick Reference)
+
+To add a new user as admin with specific subscription and stars balance:
+
+1. **Find the user in database:**
+   ```bash
+   ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "
+   const { supabase } = require(\"./dist/core/supabase/index.js\");
+   // Check if user exists and get their current status
+   supabase.from(\"users\").select(\"*\").eq(\"telegram_id\", \"USER_ID\").single()
+   "'
+   ```
+
+2. **Set subscription type:**
+   ```bash
+   # Update user subscription (NEUROVIDEO, PREMIUM, NEUROPHOTO, etc.)
+   supabase.from(\"users\").update({
+     subscription: \"NEUROVIDEO\", 
+     updated_at: new Date().toISOString()
+   }).eq(\"telegram_id\", \"USER_ID\")
+   ```
+
+3. **Add stars balance:**
+   ```bash
+   # Add stars with correct payment structure
+   supabase.from(\"payments_v2\").insert({
+     telegram_id: \"USER_ID\",
+     type: \"MONEY_INCOME\",
+     description: \"Admin stars grant\",
+     stars: 1000,
+     amount: 0,
+     currency: \"STARS\",
+     status: \"COMPLETED\",
+     bot_name: \"BOT_NAME\"
+   })
+   ```
+
+4. **Add to admin list:**
+   ```bash
+   # Update .env file on server
+   ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder && 
+   cp .env .env.backup && 
+   sed -i "s/ADMIN_IDS=.*/ADMIN_IDS=144022504,1254048880,352374518,1852726961,7669741878,NEW_USER_ID/" .env'
+   ```
+
+5. **Rebuild and restart Docker:**
+   ```bash
+   ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder && 
+   docker-compose down && docker-compose up -d --build'
+   ```
+
+### Example Complete Command:
+```bash
+# For user 5794004227 with NEUROVIDEO subscription and 1000 stars:
+# 1. Set subscription: NEUROVIDEO
+# 2. Add 1000 stars with type MONEY_INCOME
+# 3. Add to ADMIN_IDS: ,5794004227
+# 4. Rebuild container
+```
+
+### Available Subscription Types:
+- `NEUROVIDEO` - Video generation access
+- `PREMIUM` - Full access to all features
+- `NEUROPHOTO` - Photo generation access
+- `stars` - Basic stars-based access
+
+### Payment Types for Stars:
+- `MONEY_INCOME` - Positive balance addition (recommended for admin grants)
+- `MONEY_OUTCOME` - Deduction from balance (for service usage)
+- Required fields: `status: "COMPLETED"`, `currency: "STARS"`
+
+### Quick Stars Addition (One-Command Solution)
+
+**Fast command to add stars to any user:**
+```bash
+# Replace USER_ID and AMOUNT with actual values
+ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "
+const { supabase } = require(\"./dist/core/supabase/index.js\");
+async function addStars() {
+  const { data, error } = await supabase.from(\"payments_v2\").insert({
+    telegram_id: \"USER_ID\",
+    type: \"MONEY_INCOME\",
+    description: \"Admin stars grant\",
+    stars: AMOUNT,
+    amount: 0,
+    currency: \"STARS\",
+    status: \"COMPLETED\",
+    bot_name: \"HaimGroupMedia_bot\"
+  }).select();
+  if (error) console.error(\"❌ Error:\", error);
+  else console.log(\"✅ Added \" + AMOUNT + \" stars to user USER_ID\");
+  process.exit(0);
+}
+addStars();
+"'
+```
+
+**Examples:**
+```bash
+# Add 1000 stars to user 5794004227
+ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "const { supabase } = require(\"./dist/core/supabase/index.js\"); async function addStars() { const { data, error } = await supabase.from(\"payments_v2\").insert({telegram_id: \"5794004227\", type: \"MONEY_INCOME\", description: \"Admin stars grant\", stars: 1000, amount: 0, currency: \"STARS\", status: \"COMPLETED\", bot_name: \"HaimGroupMedia_bot\"}).select(); if (error) console.error(\"❌ Error:\", error); else console.log(\"✅ Added 1000 stars\"); process.exit(0); } addStars();"'
+
+# Add 10000 stars to user 5794004227
+ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "const { supabase } = require(\"./dist/core/supabase/index.js\"); async function addStars() { const { data, error } = await supabase.from(\"payments_v2\").insert({telegram_id: \"5794004227\", type: \"MONEY_INCOME\", description: \"Admin stars grant\", stars: 10000, amount: 0, currency: \"STARS\", status: \"COMPLETED\", bot_name: \"HaimGroupMedia_bot\"}).select(); if (error) console.error(\"❌ Error:\", error); else console.log(\"✅ Added 10000 stars\"); process.exit(0); } addStars();"'
+```
+
+**Ultra-Fast Template (Copy-Paste Ready):**
+```bash
+# Just replace USER_ID and AMOUNT in this one line:
+ssh -i ~/.ssh/selectel root@185.161.67.53 'cd /root/999-agents-vibecoder/services/bot-farm && node -e "const{supabase}=require(\"./dist/core/supabase/index.js\");(async()=>{const{error}=await supabase.from(\"payments_v2\").insert({telegram_id:\"USER_ID\",type:\"MONEY_INCOME\",description:\"Admin stars grant\",stars:AMOUNT,amount:0,currency:\"STARS\",status:\"COMPLETED\",bot_name:\"HaimGroupMedia_bot\"});console.log(error?\"❌ Error:\"+error.message:\"✅ Added AMOUNT stars to USER_ID\");process.exit(0)})();"'
+```
 
 ## Environment Setup
 
@@ -268,3 +416,89 @@ This architecture supports high-scale operations with multiple AI services, comp
 - **Performance regression** detection
 
 This CI/CD implementation ensures zero-downtime deployments with comprehensive testing, security validation, and quality assurance at every step.
+## 🚀 АВТОМАТИЧЕСКОЕ РАЗВЕРТЫВАНИЕ В ПРОДАКШН
+
+### 🎯 КОМАНДА DEPLOY - АВТОМАТИЗИРУЕТ ВСЕ!
+
+```bash
+# 🚀 ОДНА КОМАНДА ДЛЯ ПОЛНОГО РАЗВЕРТЫВАНИЯ:
+npm run deploy
+```
+
+**Что делает команда `deploy`:**
+1. ✅ Автоматически коммитит изменения
+2. ✅ Пушит в production branch
+3. ✅ Подключается к продакшн серверу  
+4. ✅ Обновляет код через git pull
+5. ✅ Останавливает и удаляет старый контейнер
+6. ✅ **Принудительно пересобирает Docker БЕЗ кеша (--no-cache)**
+7. ✅ Запускает новый контейнер
+8. ✅ Проверяет статус и логи
+
+**📖 Полная документация:** [`docs/DEPLOY.md`](../DEPLOY.md)
+
+### 🚨 КРИТИЧЕСКИЕ ПРАВИЛА РАЗВЕРТЫВАНИЯ
+
+**🔥 ПРАВИЛО #1: ВСЕГДА ИСПОЛЬЗУЙТЕ `npm run deploy` ДЛЯ ИЗМЕНЕНИЙ КОДА**
+
+При изменении TypeScript/JavaScript кода НИКОГДА не используйте:
+- ❌ `docker restart 999-multibots` - НЕ применит изменения!
+- ❌ `docker build` без `--no-cache` - может использовать старый кеш!
+
+**✅ ПРАВИЛЬНО:**
+```bash
+npm run deploy  # Автоматически все сделает правильно
+```
+
+**✅ ИЛИ ручной способ на сервере:**
+```bash
+ssh -i ~/.ssh/selectel root@185.161.67.53
+cd /root/999-agents-telegraf
+git pull origin production
+docker stop 999-multibots
+docker rm 999-multibots
+docker build --no-cache -t 999-multibots .  # --no-cache ОБЯЗАТЕЛЬНО!
+docker run -d --name 999-multibots --restart=always -p 3001:3001 -v /root/999-agents-telegraf/.env:/app/.env:ro 999-multibots
+```
+
+**🎯 Помните:** Без принудительной пересборки Docker изменения TypeScript/JavaScript НЕ попадают в продакшн!
+
+## 👥 HAIM Group Staff Management
+
+### 🎯 Quick Reference
+Для управления сотрудниками HAIM Group с доступом к общим моделям:
+
+**📋 Добавление нового сотрудника:**
+1. Добавить Telegram ID в `HAIM_GROUP_STAFF_IDS` в `/src/menu/mainMenu.ts`
+2. Запустить скрипт: `docker exec 999-multibots node scripts/create-haim-models.js`
+3. Проверить создание моделей в базе данных
+
+**🗑️ Удаление сотрудника:**
+1. Убрать Telegram ID из `HAIM_GROUP_STAFF_IDS`
+2. (Опционально) Удалить модели из базы данных
+
+**📊 Проверка статуса:**
+```bash
+# Проверить модели пользователя
+docker exec 999-multibots node -e "
+const { getActiveUserModelsByTypeForHaim } = require('./dist/core/supabase/getActiveUserModelsByTypeForHaim.js');
+getActiveUserModelsByTypeForHaim(TELEGRAM_ID, 'replicate', 'HaimGroupMedia_bot').then(console.log);
+"
+```
+
+**📚 Полная документация:** [`docs/HAIM-GROUP-STAFF-MANAGEMENT.md`](../HAIM-GROUP-STAFF-MANAGEMENT.md)
+
+### 🤖 Текущие сотрудники HAIM Group:
+- `144022504` (@neuro_coder) - Главный админ
+- `289259562` (@Vyacheslav_Neklyudov) - Админ
+- `752224685` (@voskresenskaya13) - Админ
+- `7669741878` (@Arhustel) - Админ
+- `164609458` (@artemfisenko) - Админ
+- `1036512726` - Новый сотрудник
+
+### 🎨 Доступные общие модели:
+- **"Вячеслав"** - 2000 steps, replicate API
+- **"CocoAge"** - 2000 steps, replicate API
+
+**Система:** Каждый сотрудник получает личные копии общих моделей, которые отображаются с именами вместо дат.
+

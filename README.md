@@ -64,6 +64,39 @@
 
 **📖 Полная документация**: [docs/README.md](docs/README.md)
 
+## 🤖 Claude Code Agents
+
+Проект включает специализированных саб-агентов для автоматизации задач разработки и мониторинга.
+
+### Быстрые команды
+
+```bash
+/check              # Server health check
+/deploy             # Deploy to production
+/user-check [id]    # User management
+```
+
+### Доступные агенты
+
+- **server-health-checker** - Автоматическая проверка состояния production сервера
+  - Docker container status & uptime
+  - Critical errors detection
+  - AI Photoshop functionality check
+  - System health metrics
+
+- **deployment-manager** - Управление деплоем на production
+  - Automated git pull & build
+  - Docker rebuild with --no-cache
+  - Health check after deployment
+
+- **telegram-user-manager** - Управление пользователями Telegram ботов
+  - User status & balance check
+  - Subscription analysis
+  - Automated recommendations
+  - Quick actions (grant access, etc.)
+
+**📋 Документация агентов**: [.claude/agents/README.md](.claude/agents/README.md)
+
 ## 🤖 Workflow для AI-ассистентов
 
 ### ⚠️ КРИТИЧЕСКИ ВАЖНО: Правило "Одна задача = один PR"

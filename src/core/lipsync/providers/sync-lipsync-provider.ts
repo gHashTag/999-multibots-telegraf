@@ -325,4 +325,29 @@ export class SyncLipSyncProvider implements ILipSyncProvider {
     logger.warn('⚠️ Отмена не поддерживается Sync API', { predictionId })
     return false
   }
+
+  /**
+   * Генерирует lip-sync (для совместимости с интерфейсом)
+   */
+  async generateLipSync(params: any): Promise<any> {
+    return this.generate(params)
+  }
+
+  /**
+   * ✅ Получает статус обработки (для fallback polling) - дублирующий метод
+   * Sync Labs API не поддерживает проверку статуса, так как использует синхронный режим
+   */
+  async getStatusFallback(predictionId: string): Promise<any> {
+    logger.warn('⚠️ [SYNC PROVIDER] getStatus не поддерживается - Sync Labs работает синхронно', {
+      predictionId,
+    })
+
+    return {
+      message: 'Status check not supported for Sync Labs',
+      error: 'Sync Labs uses synchronous API, status checking not available',
+      code: 'NOT_SUPPORTED',
+      provider: 'sync',
+      modelId: 'sync-lipsync',
+    }
+  }
 }

@@ -7,7 +7,7 @@ import { z } from 'zod'
 
 // ==================== БАЗОВЫЕ ТИПЫ ====================
 
-export type LipSyncProvider = 'replicate' | 'sync'
+export type LipSyncProvider = 'replicate' | 'sync' | 'fal'
 
 export type LipSyncStatus =
   | 'starting'
@@ -20,7 +20,7 @@ export type LipSyncQuality = 'standard' | 'high' | 'premium'
 
 // ==================== ZOD СХЕМЫ ====================
 
-export const LipSyncProviderSchema = z.enum(['replicate', 'sync'])
+export const LipSyncProviderSchema = z.enum(['replicate', 'sync', 'fal'])
 
 export const LipSyncStatusSchema = z.enum([
   'starting',
