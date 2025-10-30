@@ -78,7 +78,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             '🎬 <b>HeyGen</b>\n' +
             '• Готовые профессиональные аватары\n' +
             '• Премиум качество (4-5 мин)\n' +
-            '• Выбор из коллекции'
+            '• Выбор из коллекции\n\n' +
+            '🎯 <b>Fal (Fabric)</b>\n' +
+            '• Загрузите свое фото\n' +
+            '• Высокое качество lip-sync\n' +
+            '• Оптимальная скорость (3-4 мин)'
         : '🎬 <b>AI Reels - Template 2</b>\n\n' +
             '🎯 Choose avatar generation service:\n\n' +
             '🎭 <b>Hedra</b>\n' +
@@ -88,7 +92,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             '🎬 <b>HeyGen</b>\n' +
             '• Ready professional avatars\n' +
             '• Premium quality (4-5 min)\n' +
-            '• Choose from collection',
+            '• Choose from collection\n\n' +
+            '🎯 <b>Fal (Fabric)</b>\n' +
+            '• Upload your photo\n' +
+            '• High quality lip-sync\n' +
+            '• Optimal speed (3-4 min)',
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
@@ -102,6 +110,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             Markup.button.callback(
               isRu ? '🎬 HeyGen' : '🎬 HeyGen',
               'service_heygen'
+            ),
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '🎯 Fal (Fabric)' : '🎯 Fal (Fabric)',
+              'service_fal'
             ),
           ],
           [
@@ -171,6 +185,31 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       // ✅ ИСПРАВЛЕНИЕ: Переход напрямую на Step 2 (индекс 4), пропуская HeyGen шаги
       // Структура: 0, 1, 1a, 1b, 2, 2.5(cover), 3, 4, 5, 6
       // Step 2 (Hedra photo) = индекс 4
+      ctx.wizard.selectStep(4)
+      return
+    } else if (callbackData === 'service_fal') {
+      // ВЕТКА FAL: Запрос фото пользователя (похоже на Hedra)
+      ctx.session.aiReelsRender = {
+        ...ctx.session.aiReelsRender,
+        avatarService: 'fal',
+        step: 'image',
+        // Hardcoded FAL API key (можно вынести в env позже)
+        falApiKey: 'bddcfbd0-cc52-49fd-977b-6c5a4a012f47:f6fe3c46d4c593b6a41863e720204db4',
+        falResolution: '720p', // Default resolution
+      }
+
+      await ctx.answerCbQuery()
+      await ctx.editMessageText(
+        isRu
+          ? '✅ Выбран: 🎯 Fal (Fabric)\n\n📸 Отправьте фото или URL изображения с лицом для аватара.'
+          : '✅ Selected: 🎯 Fal (Fabric)\n\n📸 Send a photo or image URL with a face for avatar.'
+      )
+
+      logger.info('🎬 [AI REELS RENDER] Fal selected, requesting photo', {
+        telegramId,
+      })
+
+      // Переход напрямую на Step 2 (индекс 4), как у Hedra
       ctx.wizard.selectStep(4)
       return
     } else if (callbackData === 'service_heygen') {
@@ -1271,6 +1310,9 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           avatarService,
           heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
           heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
+          // ✅ FAL support
+          falApiKey: avatarService === 'fal' ? ctx.session.aiReelsRender.falApiKey : undefined,
+          falResolution: avatarService === 'fal' ? ctx.session.aiReelsRender.falResolution : undefined,
           // ✅ Передаем имя бота для правильной отправки видео через callback
           botName: ctx.botInfo?.username || 'MetaMuse_Manifest_bot',
         }
@@ -1324,6 +1366,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         text: ctx.session.aiReelsRender.text || '',
         avatarService,
         isOwnHeyGenKey: avatarService === 'heygen' && !!heygenApiKey,
+        isOwnFalKey: avatarService === 'fal' && !!ctx.session.aiReelsRender.falApiKey && ctx.session.aiReelsRender.falApiKey !== 'bddcfbd0-cc52-49fd-977b-6c5a4a012f47:f6fe3c46d4c593b6a41863e720204db4', // Не наш ключ
         markupMultiplier: 1.5, // Наценка x1.5 как в коде
       })
 
