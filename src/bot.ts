@@ -1,4 +1,4 @@
-import { isDev } from './config'
+import { isDev } from './utils/config'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
