@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "Telegram bot for generating blog posts using AI",
   "main": "src/bot.ts",
+  "type": "module",
   "scripts": {
     "prestart": "./scripts/worktree-env-sync.sh",
     "start": "bun run dist/bot.js",
