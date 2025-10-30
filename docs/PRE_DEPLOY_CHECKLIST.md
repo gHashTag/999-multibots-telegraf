@@ -116,7 +116,7 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 50'
 
 # API responding?
 curl http://212.86.115.30:3000/health
-curl http://test-render-farm.ru/
+curl -I ${WEBHOOK_DOMAIN}
 ```
 
 ## ✅ Post-Deployment Verification

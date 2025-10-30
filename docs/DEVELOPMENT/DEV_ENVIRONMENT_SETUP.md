@@ -8,8 +8,8 @@
 
 | Окружение | Сервер | Ветка | Назначение |
 |-----------|--------|-------|------------|
-| **Production** | `999-multibots-u14194.vm.elestio.app` | `Jest-Test` | Продакшн с полными тестами |
-| **Development** | `999-multibots-dev-u14194.vm.elestio.app` | `cicd` | Dev без тестов |
+| **Production** | `${WEBHOOK_DOMAIN}` | `Jest-Test` | Продакшн с полными тестами |
+| **Development** | `localhost` | `cicd` | Dev без тестов |
 
 ## Ключевые файлы
 
@@ -57,8 +57,8 @@ scripts/deployment/deploy-dev-cicd.sh
 # Подключение к dev серверу
 ./scripts/deployment/ssh-dev-connect.sh
 
-# Или напрямую
-ssh -i ~/.ssh/id_rsa root@999-multibots-dev-u14194.vm.elestio.app
+# Или напрямую (пример)
+# ssh -i ~/.ssh/id_rsa root@your-dev-host
 ```
 
 ### 2. Деплой CICD ветки на dev
@@ -115,8 +115,8 @@ docker-compose -f deployment/docker/docker-compose.dev.yml logs -f
 
 ### URLs
 
-- **Dev:** https://999-multibots-dev-u14194.vm.elestio.app
-- **Prod:** https://ai-server-u14194.vm.elestio.app
+- **Dev:** http://localhost:2999
+- **Prod:** ${WEBHOOK_DOMAIN}
 
 ## Troubleshooting
 
@@ -126,8 +126,8 @@ docker-compose -f deployment/docker/docker-compose.dev.yml logs -f
 # Проверить SSH ключ
 ls -la ~/.ssh/id_rsa
 
-# Проверить подключение
-ssh -i ~/.ssh/id_rsa root@999-multibots-dev-u14194.vm.elestio.app "echo 'OK'"
+# Проверить подключение (пример)
+# ssh -i ~/.ssh/id_rsa root@your-dev-host "echo 'OK'"
 ```
 
 ### Проблемы с Docker

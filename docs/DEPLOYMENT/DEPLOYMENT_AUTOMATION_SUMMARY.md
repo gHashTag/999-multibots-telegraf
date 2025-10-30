@@ -148,7 +148,7 @@ npm run deploy:production
 ### **1. Bot Silence Issue**
 - **Before**: Webhooks not set after container recreation
 - **After**: Automatic webhook registration with retry logic
-- **Fix**: HTTP protocol auto-detection for test-render-farm.ru domain
+- **Fix**: HTTP/HTTPS protocol handling for webhook domain via `WEBHOOK_DOMAIN`
 
 ### **2. Manual Deployment Process**
 - **Before**: Manual container rebuilding and configuration
@@ -178,7 +178,7 @@ npm run deploy:production
 - **6 bots active** on ports 3001-3006
 - **API server** running on port 2999 (fixed nginx configuration)
 - **Environment**: `NODE_ENV=production`
-- **Domain**: `http://test-render-farm.ru` (HTTP protocol confirmed working)
+- **Domain**: `${WEBHOOK_DOMAIN}`
 
 ### **Webhooks**: ⚠️ Needs Setup
 - **Issue**: Webhooks currently empty (confirmed via API check)
