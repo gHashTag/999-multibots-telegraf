@@ -145,7 +145,7 @@ export async function transcribeAudioFromUrl(
     response.data.pipe(writer)
 
     await new Promise((resolve, reject) => {
-      writer.on('finish', resolve)
+      writer.on('finish', () => resolve(undefined))
       writer.on('error', reject)
     })
 

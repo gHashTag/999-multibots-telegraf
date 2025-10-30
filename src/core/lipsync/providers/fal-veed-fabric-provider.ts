@@ -187,7 +187,7 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         status: 'succeeded',
         output: videoUrl,
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
-        costEstimate: this.calculateCost(falApiData.resolution),
+        costEstimate: this.calculateCost(60, input.modelId),
         metadata: {
           resolution: falApiData.resolution,
           contentType: result.data?.video?.content_type || 'video/mp4',
@@ -301,16 +301,35 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
   /**
    * Рассчитывает стоимость генерации с централизованной наценкой
    */
-  private calculateCost(resolution: string): number {
+  calculateCost(durationSeconds: number, modelId: string): number {
     // ✅ ИСПРАВЛЕНО: Реальные цены Fal.ai Veed Fabric 1.0 Fast с наценкой
     const baseCost480p = 0.1 // $0.10 за секунду для 480p (базовая цена)
     const baseCost720p = 0.2 // $0.20 за секунду для 720p (базовая цена)
 
     // Применяем централизованную наценку 50% (MARKUP_MULTIPLIER = 1.5)
     const costWithMarkup =
-      resolution === '720p' ? baseCost720p * 1.5 : baseCost480p * 1.5
+      this.config.defaultResolution === '720p' ? baseCost720p * 1.5 : baseCost480p * 1.5
 
-    return costWithMarkup
+    return costWithMarkup * durationSeconds
+  }
+
+  getModelsConfig(): LipSyncModelConfig[] {
+    return this.supportedModels.map(modelId => ({
+      id: modelId,
+      provider: this.providerId,
+      isAvailable: true, // Fal.ai обычно доступен
+      title: 'Veed Fabric 1.0 Fast',
+      description: 'Быстрая и стабильная модель для lip-sync от Fal.ai',
+      maxDuration: 60,
+    }))
+  }
+
+  supportsModel(modelId: string): boolean {
+    return this.supportedModels.includes(modelId)
+  }
+
+  async isAvailable(): Promise<boolean> {
+    return !!process.env.FAL_KEY
   }
 
   /**

@@ -28,7 +28,7 @@ alwaysApply: true
 
 ### 3. AllPepper Memory Bank (`mcp_allpepper-memory-bank_...`)
 
-*   **Управление Файлами:** Могу читать, записывать, обновлять и просматривать файлы в указанных проектах Memory Bank (`MEMORY_BANK_ROOT`: [/Users/playra/999-multibots-telegraf/src/core/mcp/agent/memory-bank](mdc:Users/playra/999-multibots-telegraf/src/core/mcp/agent/memory-bank)).
+*   **Управление Файлами:** Могу читать, записывать, обновлять и просматривать файлы в указанных проектах Memory Bank (`MEMORY_BANK_ROOT`: [/Users/playra/bot-farm/src/core/mcp/agent/memory-bank](mdc:Users/playra/bot-farm/src/core/mcp/agent/memory-bank)).
 
 ### 4. Replicate (`replicate`)
 

@@ -72,7 +72,7 @@ scripts/deployment/deploy-dev-cicd.sh
 
 ```bash
 # На dev сервере
-cd /opt/999-multibots-telegraf
+cd /opt/bot-farm
 git checkout cicd
 git pull origin cicd
 docker-compose -f deployment/docker/docker-compose.dev.yml up -d --build

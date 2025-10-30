@@ -222,4 +222,4 @@ Before deploying:
 
 - Workflow file: `.github/workflows/production-deploy.yml`
 - Full docs: `docs/PRODUCTION_DEPLOYMENT_FIX.md`
-- Repository: https://github.com/gHashTag/999-multibots-telegraf
+- Repository: https://github.com/gHashTag/bot-farm
