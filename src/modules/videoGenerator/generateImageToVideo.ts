@@ -25,10 +25,7 @@ import axios from 'axios'
 import { isAxiosError } from 'axios'
 import { API_URL, SECRET_API_KEY } from '@/config'
 import { safeSendMessage, markUserAsBlocked } from '@/utils/blockedUsersCheck'
-
-// ✅ FIX: Map для предотвращения дублирования одинаковых запросов генерации
-// Key: telegramId + hash(imageUrl + prompt + modelId) -> Value: taskId
-const activeTasksCache = new Map<string, string>()
+import { videoTaskCache } from './taskCache'
 
 // Функция для отправки уведомления админу
 async function notifyAdminAboutServerIssue(
@@ -160,28 +157,22 @@ export const generateImageToVideo = async (
       })
     }
 
-    // ✅ FIX: Проверка на дублирующиеся запросы генерации
-    // Создаем уникальный hash запроса для предотвращения двойной генерации
-    const requestHash = createHash('md5')
-      .update(`${telegramId}_${imageUrl || ''}_${processedPrompt || ''}_${modelId}`)
-      .digest('hex')
-    const cacheKey = `${telegramId}_${requestHash}`
-
-    // Проверяем, есть ли уже активная задача с таким же запросом
-    if (activeTasksCache.has(cacheKey)) {
-      const existingTaskId = activeTasksCache.get(cacheKey)
-      logger.warn('[I2V BG] ⚠️ Duplicate request detected - skipping generation', {
+    // ✅ FIX: Проверка на дублирующиеся запросы генерации через новый кеш
+    // Проверяем, есть ли уже активная задача для этого пользователя и модели
+    if (videoTaskCache.hasActiveTask(telegramId, modelId)) {
+      const existingTask = videoTaskCache.getActiveTask(telegramId, modelId)
+      logger.warn('[I2V BG] ⚠️ Duplicate request detected - blocking multiple generation', {
         telegramId,
-        existingTaskId,
-        requestHash: requestHash.substring(0, 8),
-        modelId
+        existingTaskId: existingTask?.taskId,
+        modelId,
+        cacheStats: videoTaskCache.getStats()
       })
 
       await telegramInstance.sendMessage(
         chatId,
         isRu
-          ? '⚠️ Аналогичная генерация видео уже выполняется. Пожалуйста, дождитесь завершения текущей генерации.'
-          : '⚠️ Similar video generation is already in progress. Please wait for the current generation to complete.'
+          ? `⚠️ Видео с моделью ${modelConfig.title} уже генерируется для вас. Пожалуйста, дождитесь завершения (обычно 2-3 минуты).`
+          : `⚠️ Video with ${modelConfig.title} model is already being generated for you. Please wait for completion (usually 2-3 minutes).`
       )
       return
     }
@@ -268,8 +259,21 @@ export const generateImageToVideo = async (
         })
       }
     }
-    const userAspectRatio =
-      selectedAspectRatio || (userExists.aspect_ratio ?? '9:16')
+    // Определяем aspect ratio с учетом вертикальных фото
+    let userAspectRatio = selectedAspectRatio || (userExists.aspect_ratio ?? '9:16')
+
+    // Если модель поддерживает разные соотношения сторон, используем оптимальное для вертикальных фото
+    if (modelConfig.aspectRatioOptions && modelConfig.aspectRatioOptions.includes('9:16')) {
+      // Для моделей с поддержкой 9:16 используем вертикальное соотношение по умолчанию
+      if (!selectedAspectRatio) {
+        userAspectRatio = '9:16'
+        logger.info('[I2V BG] Using vertical aspect ratio for better compatibility', {
+          telegramId,
+          modelId,
+          aspectRatio: userAspectRatio
+        })
+      }
+    }
 
     const balanceResult = await checkBalanceVideoOperationHelper(
       telegramId,
@@ -345,8 +349,8 @@ export const generateImageToVideo = async (
       // Специальная обработка для Google Veo 3 моделей (используем План А/Б)
       if (modelConfig.id === 'veo3' || modelConfig.id === 'veo3_fast') {
         // Флаг для переключения планов: true = План А (сервер), false = План Б (локальный)
-        // ВРЕМЕННО: Всегда используем План Б по запросу
-        const USE_PLAN_A = false // Принудительно используем План Б
+        // По умолчанию пробуем сервер сначала (План А), при ошибке переключаемся на План Б
+        const USE_PLAN_A = true // Сначала пробуем через сервер
 
         logger.info(`[I2V BG] Veo model detected, using Plan A/B system`, {
           telegramId,
@@ -763,24 +767,13 @@ export const generateImageToVideo = async (
             // Реализуем polling для Kie.ai API
             const taskId = kieResponse.data.taskId
 
-            // ✅ FIX: Сохраняем taskId в кеш для предотвращения дублирующихся запросов
-            activeTasksCache.set(cacheKey, taskId)
+            // ✅ FIX: Сохраняем taskId в новый кеш для предотвращения дублирующихся запросов
+            videoTaskCache.addTask(telegramId, modelId, taskId, processedPrompt || prompt || '', imageUrl || undefined)
             logger.info('[I2V BG] ✅ TaskId saved to cache for deduplication', {
               telegramId,
               taskId,
-              cacheKey: cacheKey.substring(0, 20) + '...'
+              modelId
             })
-
-            // Автоматически удаляем из кеша через 15 минут (макс. время генерации)
-            setTimeout(() => {
-              if (activeTasksCache.has(cacheKey)) {
-                activeTasksCache.delete(cacheKey)
-                logger.info('[I2V BG] 🧹 Auto-cleanup: taskId removed from cache after timeout', {
-                  telegramId,
-                  taskId
-                })
-              }
-            }, 15 * 60 * 1000) // 15 минут
 
             // ✅ FIX: Save taskId to session so "Update status" button works
             if (ctx && ctx.session) {
@@ -845,14 +838,13 @@ export const generateImageToVideo = async (
                   })
 
                   // ✅ FIX: Очищаем кеш при ошибке генерации
-                  if (activeTasksCache.has(cacheKey)) {
-                    activeTasksCache.delete(cacheKey)
-                    logger.info('[I2V BG] 🧹 Cache cleaned on error', {
-                      telegramId,
-                      taskId,
-                      error: errorMessage
-                    })
-                  }
+                  videoTaskCache.removeTask(telegramId, modelId)
+                  logger.info('[I2V BG] 🧹 Cache cleaned on error', {
+                    telegramId,
+                    taskId,
+                    modelId,
+                    error: errorMessage
+                  })
 
                   // Создаем клавиатуру для ошибки
                   const errorKeyboard = Markup.keyboard([
@@ -1050,14 +1042,13 @@ export const generateImageToVideo = async (
                   )
 
                   // ✅ FIX: Очищаем кеш после успешной генерации и отправки видео
-                  if (activeTasksCache.has(cacheKey)) {
-                    activeTasksCache.delete(cacheKey)
-                    logger.info('[I2V BG] 🧹 Cache cleaned on success', {
-                      telegramId,
-                      taskId,
-                      videoUrl: videoUrl.substring(0, 50) + '...'
-                    })
-                  }
+                  videoTaskCache.removeTask(telegramId, modelId)
+                  logger.info('[I2V BG] 🧹 Cache cleaned on success', {
+                    telegramId,
+                    taskId,
+                    modelId,
+                    videoUrl: videoUrl.substring(0, 50) + '...'
+                  })
 
                   return // Выходим из функции, так как видео уже отправлено
                 }
