@@ -1,7 +1,7 @@
 import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
-import { defaultBot } from '@/core/bot'
+import { defaultBot, getBotByName } from '@/core/bot'
 import axios from 'axios'
 import { Input } from 'telegraf'
 
@@ -19,11 +19,13 @@ interface AIReelsCallbackPayload {
   video_url?: string
   error?: string
   error_message?: string
+  bot_name?: string // Добавляем bot_name из payload
   metadata?: {
     telegram_id?: string
     chat_id?: string
     message_id?: number
     duration?: number
+    bot_name?: string // Может быть и в metadata
     [key: string]: any
   }
 }
@@ -146,7 +148,7 @@ function extractTelegramIdFromJobId(jobId: string): string | null {
  */
 async function handleCompletedRender(telegramId: string, payload: AIReelsCallbackPayload) {
   try {
-    const videoUrl = payload.result_url || payload.video_url
+    const videoUrl = payload.result_url || payload.video_url || payload.download_url
 
     if (!videoUrl) {
       logger.error('❌ [AI REELS CALLBACK] Completed render but no video URL', {
@@ -154,17 +156,38 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
         telegramId
       })
 
-      await defaultBot.telegram.sendMessage(
+      // Определяем правильного бота
+      const botName = payload.bot_name || payload.metadata?.bot_name
+      const { bot, error } = botName ? getBotByName(botName) : { bot: defaultBot, error: null }
+
+      if (error) {
+        logger.warn(`⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`)
+      }
+
+      const botToUse = bot || defaultBot
+
+      await botToUse.telegram.sendMessage(
         telegramId,
         '⚠️ Видео готово, но произошла ошибка при получении ссылки. Попробуйте ещё раз.'
       )
       return
     }
 
+    // Определяем правильного бота для отправки
+    const botName = payload.bot_name || payload.metadata?.bot_name
+    const { bot, error } = botName ? getBotByName(botName) : { bot: defaultBot, error: null }
+
+    if (error) {
+      logger.warn(`⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`)
+    }
+
+    const botToUse = bot || defaultBot
+
     logger.info('🎉 [AI REELS CALLBACK] Sending completed video to user', {
       telegramId,
       jobId: payload.job_id,
-      videoUrl
+      videoUrl,
+      botName: botName || 'defaultBot'
     })
 
     // Скачиваем видео с Selectel S3 и отправляем как Buffer
@@ -195,7 +218,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
       })
 
       // Отправляем URL вместо файла
-      await defaultBot.telegram.sendMessage(
+      await botToUse.telegram.sendMessage(
         telegramId,
         `✅ Ваше AI Reels видео готово!\n\n` +
         `⚠️ Видео слишком большое для Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n` +
@@ -214,7 +237,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
     }
 
     // Отправляем видео как InputFile (Buffer)
-    await defaultBot.telegram.sendVideo(
+    await botToUse.telegram.sendVideo(
       telegramId,
       Input.fromBuffer(videoBuffer, `ai-reels-${Date.now()}.mp4`),
       {
@@ -236,7 +259,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
 
     // Отправляем сообщение об ошибке пользователю
     try {
-      await defaultBot.telegram.sendMessage(
+      await botToUse.telegram.sendMessage(
         telegramId,
         '⚠️ Видео готово, но произошла ошибка при отправке. Попробуйте ещё раз.'
       )
@@ -261,7 +284,17 @@ async function handleFailedRender(telegramId: string, payload: AIReelsCallbackPa
       error: errorMessage
     })
 
-    await defaultBot.telegram.sendMessage(
+    // Определяем правильного бота для отправки
+    const botName = payload.bot_name || payload.metadata?.bot_name
+    const { bot, error } = botName ? getBotByName(botName) : { bot: defaultBot, error: null }
+
+    if (error) {
+      logger.warn(`⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`)
+    }
+
+    const botToUse = bot || defaultBot
+
+    await botToUse.telegram.sendMessage(
       telegramId,
       `❌ Ошибка при создании видео:\n\n${errorMessage}\n\nПопробуйте ещё раз или выберите другой шаблон.`
     )

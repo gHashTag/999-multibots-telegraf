@@ -66,6 +66,7 @@ export interface RenderRiddlePayload {
     } | null
   }
   callback_url: string | null
+  bot_name?: string // Добавляем для определения бота при callback
 }
 
 /**
@@ -207,6 +208,8 @@ export function createRenderAvatarPayload(
     avatarService?: 'heygen' | 'hedra'
     heygenApiKey?: string
     heygenAvatarId?: string
+    // Bot name для правильной отправки callback
+    botName?: string
   }
 ): RenderRiddlePayload {
   const isHeygen = options?.avatarService === 'heygen'
@@ -257,5 +260,6 @@ export function createRenderAvatarPayload(
       options?.callbackUrl !== undefined
         ? options.callbackUrl
         : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
+    bot_name: options?.botName, // Передаем имя бота для callback
   }
 }
