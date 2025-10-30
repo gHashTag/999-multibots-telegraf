@@ -45,7 +45,8 @@ export function calculateAIReelsPrice(options: AIReelsPricingOptions): PriceBrea
 
   // Стоимость компонентов (в звездах)
   const elevenLabsCost = audioDuration * 0.5 // ~0.5⭐/сек
-  const veo31Cost = bRollCount * 160 // 160⭐ за 8-сек клип
+  // Veo 3 Fast через Kie.ai: $0.40 за 8 сек = 40⭐ (официальная цена)
+  const veo31Cost = bRollCount * 40 // 40⭐ за 8-сек клип Veo 3 Fast
 
   // Стоимость аватара
   let avatarCost = 0
@@ -96,22 +97,28 @@ export function formatPriceMessage(
   if (isRussian) {
     return `📊 **Расчет стоимости AI Reels:**
 
-⏱ Длительность: ${breakdown.audioDuration} сек
-🎬 B-роллы (Veo 3.1): ${breakdown.bRollCount} × 160⭐ = ${breakdown.veo31Cost}⭐
+⏱ Длительность видео: ${breakdown.audioDuration} сек
+🎬 B-роллы (фон): ${breakdown.bRollCount} шт × 40⭐ = ${breakdown.veo31Cost}⭐
+   _Каждый B-roll = 8 сек видео Veo 3 Fast_
 🎤 Озвучка (ElevenLabs): ${breakdown.elevenLabsCost}⭐
-👤 Аватар: ${breakdown.avatarCost}⭐
-🔧 Обработка: ${breakdown.infrastructureCost}⭐
+👤 Аватар (lip-sync): ${breakdown.avatarCost}⭐
+🔧 Обработка и хранение: ${breakdown.infrastructureCost}⭐
 
-💰 **Итого: ${breakdown.finalPrice}⭐** (~${breakdown.priceInRubles}₽)`
+💰 **Итого: ${breakdown.finalPrice}⭐** (~${breakdown.priceInRubles}₽)
+
+💡 _Цена зависит от длины текста: больше текста = больше B-роллов_`
   } else {
     return `📊 **AI Reels Price Calculation:**
 
-⏱ Duration: ${breakdown.audioDuration} sec
-🎬 B-rolls (Veo 3.1): ${breakdown.bRollCount} × 160⭐ = ${breakdown.veo31Cost}⭐
+⏱ Video duration: ${breakdown.audioDuration} sec
+🎬 B-rolls (background): ${breakdown.bRollCount} × 40⭐ = ${breakdown.veo31Cost}⭐
+   _Each B-roll = 8 sec Veo 3 Fast video_
 🎤 Voice (ElevenLabs): ${breakdown.elevenLabsCost}⭐
-👤 Avatar: ${breakdown.avatarCost}⭐
-🔧 Processing: ${breakdown.infrastructureCost}⭐
+👤 Avatar (lip-sync): ${breakdown.avatarCost}⭐
+🔧 Processing & storage: ${breakdown.infrastructureCost}⭐
 
-💰 **Total: ${breakdown.finalPrice}⭐** (~${breakdown.priceInRubles}₽)`
+💰 **Total: ${breakdown.finalPrice}⭐** (~${breakdown.priceInRubles}₽)
+
+💡 _Price depends on text length: more text = more B-rolls_`
   }
 }
