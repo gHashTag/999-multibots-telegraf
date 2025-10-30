@@ -22,6 +22,8 @@ export enum ModeEnum {
 
   // 🔧 СИСТЕМНЫЕ ОПЕРАЦИИ
   AvatarTransform = 'avatar_transform',
+  FaceSwap = 'face_swap',
+  AIHeroes = 'ai_heroes',
   Subscribe = 'subscribe',
   TopUpBalance = 'top_up_balance',
   Avatar = 'avatar',
@@ -67,6 +69,7 @@ export enum ModeEnum {
   InstagramParserScene = 'instagram_parser_scene',
   InstagramParserWizard = 'instagram_parser_wizard',
   MorphingWizard = 'morphing_wizard',
+  AiPhotoshop = 'ai_photoshop',
 
   // ⚠️ УСТАРЕВШИЕ/НЕИСПОЛЬЗУЕМЫЕ (оставляем для совместимости)
   /** @deprecated Не используется */

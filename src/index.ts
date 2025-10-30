@@ -104,16 +104,25 @@ async function initializeBots() {
     )
   }
 
-  if (isDev) {
-    // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
+  // 🔧 FIX: В development режиме ВСЕГДА используем polling (один бот)
+  // В production - по умолчанию webhook (все боты)
+  const mode = isDev ? 'polling' : (process.env.MODE || 'webhook')
+
+  console.log(`🎯 [MODE] Выбран режим: ${mode} (isDev: ${isDev})`)
+
+  if (mode === 'polling') {
+    // В режиме polling запускаем ОДИН бот (для dev - TEST_BOT_NAME, для prod - первый доступный)
     const targetBotUsername = process.env.TEST_BOT_NAME
-    if (!targetBotUsername) {
-      throw new Error(
-        '❌ Переменная окружения TEST_BOT_NAME не установлена. Укажите username бота для запуска в development.'
-      )
+
+    if (isDev && !targetBotUsername) {
+      console.log('⚠️ [POLLING] TEST_BOT_NAME не указан, используем первый доступный бот')
     }
 
-    console.log(`🔧 Ищем тестового бота с username: ${targetBotUsername}`)
+    if (targetBotUsername) {
+      console.log(`🔧 [POLLING] Ищем бота с username: ${targetBotUsername}`)
+    } else {
+      console.log(`🔧 [POLLING] Запуск первого доступного бота из .env`)
+    }
 
     // Собираем все потенциальные токены из env
     const potentialTokens = Object.entries(process.env)
@@ -132,22 +141,25 @@ async function initializeBots() {
           handlerTimeout: Infinity,
         })
         const botInfo = await tempBot.telegram.getMe()
-        if (botInfo.username === targetBotUsername) {
-          console.log(`✅ Найден бот ${botInfo.username}`)
-          bot = tempBot // Используем этого бота
+
+        // Если targetBotUsername указан - ищем конкретного бота
+        // Если НЕ указан - берём первый валидный
+        if (!targetBotUsername || botInfo.username === targetBotUsername) {
+          console.log(`✅ [POLLING] Найден бот ${botInfo.username}`)
+          bot = tempBot
           foundBotInfo = botInfo
-          break // Прерываем цикл, бот найден
+          break
         }
       } catch (error) {
         // Игнорируем ошибки валидации токенов, просто ищем дальше
-        // console.warn(`⚠️ Ошибка проверки токена ${token.substring(0, 10)}...: ${error.message}`);
       }
     }
 
     if (!bot || !foundBotInfo) {
-      throw new Error(
-        `❌ Бот с username '${targetBotUsername}' не найден среди токенов в .env или токен невалиден.`
-      )
+      const errorMsg = targetBotUsername
+        ? `❌ Бот с username '${targetBotUsername}' не найден среди токенов в .env`
+        : `❌ Не найдено ни одного валидного токена бота в .env`
+      throw new Error(errorMsg)
     }
 
     // Добавляем логи перед регистрацией команд
@@ -165,6 +177,9 @@ async function initializeBots() {
 
     // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
     setupNotificationProcessor(bot)
+
+    // ❌ УБРАЛИ WIZARD BLOCKER отсюда - он был ПЕРЕД stage.middleware()!
+    // Теперь wizard callbacks будут обрабатываться правильно через stage.middleware()
 
     registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
@@ -203,7 +218,7 @@ async function initializeBots() {
       console.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
     }
 
-    // В режиме разработки используем polling
+    // Запускаем бота в polling режиме
     await bot.launch({
       allowedUpdates: [
         'message',
@@ -213,9 +228,9 @@ async function initializeBots() {
       ],
     })
     console.log(
-      `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
+      `🚀 [POLLING] Бот ${foundBotInfo.username} успешно запущен в polling режиме`
     )
-  } else {
+  } else if (mode === 'webhook') {
     // В продакшене используем все активные боты
     const botTokens = [
       process.env.BOT_TOKEN_1,
@@ -330,6 +345,10 @@ async function initializeBots() {
         }
       }
     }
+  } else {
+    throw new Error(
+      `❌ Неизвестный режим MODE="${mode}". Допустимые значения: "polling" или "webhook"`
+    )
   }
 
   console.log('🔍 Инициализация сцен...')

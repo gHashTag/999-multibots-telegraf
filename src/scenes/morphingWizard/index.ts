@@ -13,8 +13,21 @@ import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
 import * as path from 'path'
 
-// ✅ КОНСТАНТА ДЛЯ МОДЕЛИ МОРФИНГА (ПРЕМИУМ КАЧЕСТВО)
-const MORPHING_MODEL_KEY = 'kling-v1.6-pro'
+// ✅ КОНСТАНТЫ ДЛЯ МОДЕЛЕЙ МОРФИНГА
+const MORPHING_MODEL_KEYS = {
+  DEFAULT: 'kling-v2.1-pro', // Новая модель по умолчанию - Pro для поддержки end_image
+  FALLBACK_1: 'kling-v1.6-standard', // Фаллбэк 1
+  FALLBACK_2: 'kling-v1.6-pro', // Фаллбэк 2
+  STANDARD: 'kling-v2.1-standard' // Standard версия (не поддерживает морфинг)
+} as const
+
+// ✅ ПРЕСЕТЫ ПРОМПТОВ ДЛЯ ПЕРЕХОДОВ (основано на исследовании best practices 2025)
+const PROMPT_PRESETS = {
+  cinematic: 'smooth cinematic transition, elegant camera glide between frames, professional cinematography with soft lighting, constant camera movement, motion blur enabled, film grain, 4k quality, dramatic depth of field',
+  dramatic: 'high energy dramatic transition, powerful emotional impact, intense lighting changes, dynamic camera movement, bold color shifts, cinematic drama, epic transformation, theatrical mood',
+  smooth: 'seamless gradual transition, ultra-smooth morphing between frames, gentle motion blur, fluid movement at constant speed, soft blending, natural flow, peaceful transformation, 60fps quality',
+  artistic: 'creative abstract transition, unique visual transformation, artistic morphing effect, fluid color blending, imaginative visual elements, expressive camera work, abstract patterns emerging, creative visual storytelling'
+} as const
 
 // ✅ ZIP архив больше не нужен - работаем напрямую с изображениями
 
@@ -116,23 +129,25 @@ const createProgressMessage = (images: any[], isRu: boolean): string => {
   }
 
   return isRu
-    ? `🧬 <b>Морфинг - Загрузка изображений</b>
+    ? `🌀 <b>Infinity Морфинг - Загрузка изображений</b>
 
-📸 <b>Загружено:</b> ${count} из минимум 2 изображений  
+📸 <b>Загружено:</b> ${count} из минимум 2 изображений
 📊 <b>Прогресс:</b> ${progressBar}
 
 ${statusIcon} <b>${statusText}</b>${sequenceText}
 
 🎬 <b>Будет создано:</b> ${Math.max(0, count - 1)} видео переходов
+🤖 <b>Модель:</b> Kling v2.1 Pro (1080p HD качество)
 💡 <b>Совет:</b> Порядок загрузки = порядок склейки (без ограничений!)`
-    : `🧬 <b>Morphing - Image Upload</b>
+    : `🌀 <b>Infinity Morphing - Image Upload</b>
 
-📸 <b>Uploaded:</b> ${count} of minimum 2 images  
+📸 <b>Uploaded:</b> ${count} of minimum 2 images
 📊 <b>Progress:</b> ${progressBar}
 
 ${statusIcon} <b>${statusText}</b>${sequenceText}
 
 🎬 <b>Will create:</b> ${Math.max(0, count - 1)} video transitions
+🤖 <b>Model:</b> Kling v2.1 Pro (1080p HD quality)
 💡 <b>Tip:</b> Upload order = merge order (unlimited!)`
 }
 
@@ -145,7 +160,7 @@ const createProgressKeyboard = (images: any[], isRu: boolean) => {
   if (canGenerate) {
     keyboard.push([
       Markup.button.callback(
-        isRu ? '✅ Создать морфинг' : '✅ Create morphing',
+        isRu ? '✅ Создать Infinity Морфинг' : '✅ Create Infinity Morphing',
         'morphing_start_generation'
       ),
     ])
@@ -192,22 +207,24 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     }
 
     const welcomeMessage = isRu
-      ? `🧬 <b>Добро пожаловать в Морфинг Студию!</b>
+      ? `🌀 <b>Добро пожаловать в Infinity Морфинг!</b>
 
 ✨ Создавайте потрясающие видео переходы между изображениями
 📸 Загрузите минимум 2 изображения для начала
 🎯 Система создаст плавные переходы между всеми кадрами
 
+🤖 <b>Модели под капотом:</b> Kling v2.1 Pro (1080p HD)
 📋 <b>Важно:</b> Порядок загрузки = порядок склейки
 🔄 <b>Пример:</b> Фото 1→2→3 = переходы 1→2, 2→3
 
 <i>📤 Отправьте первое изображение:</i>`
-      : `🧬 <b>Welcome to Morphing Studio!</b>
+      : `🌀 <b>Welcome to Infinity Morphing!</b>
 
 ✨ Create stunning video transitions between images
 📸 Upload minimum 2 images to start
 🎯 System will create smooth transitions between all frames
 
+🤖 <b>Models under the hood:</b> Kling v2.1 Pro (1080p HD)
 📋 <b>Important:</b> Upload order = merge order
 🔄 <b>Example:</b> Photo 1→2→3 = transitions 1→2, 2→3
 
@@ -243,8 +260,8 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
       try {
         await ctx.reply(
           isRu
-            ? '🧬 Морфинг - загрузите первое изображение:'
-            : '🧬 Morphing - upload first image:'
+            ? '🌀 Infinity Морфинг - загрузите первое изображение:'
+            : '🌀 Infinity Morphing - upload first image:'
         )
       } catch (fallbackError) {
         console.log(
@@ -525,6 +542,144 @@ Which type do you prefer?`
       '🔄 [STEP 3] Loop selection message sent! Staying on this step.'
     )
     return // Остаемся на этом шаге до выбора
+  },
+
+  // ✅ ШАГ 4: Выбор стиля перехода (PROMPT SELECTION)
+  async ctx => {
+    console.log('🎬 [STEP 4] Prompt Selection step STARTED!')
+    const isRu = isRussianFromState(ctx)
+    const message = ctx.message
+
+    console.log('🎬 [STEP 4] Current wizard cursor:', ctx.wizard.cursor)
+    console.log(
+      '🎬 [STEP 4] Morphing type:',
+      ctx.session?.morphingType || 'unknown'
+    )
+    console.log(
+      '🎬 [STEP 4] Awaiting custom prompt:',
+      ctx.session?.morphingAwaitingCustomPrompt || false
+    )
+
+    logger.info('🧬 [MORPHING WIZARD] Step 4 - Prompt Selection', {
+      telegramId: ctx.from?.id,
+      morphingType: ctx.session?.morphingType,
+      hasMessage: !!message,
+      awaitingCustom: ctx.session?.morphingAwaitingCustomPrompt,
+    })
+
+    // ✅ ОБРАБОТКА КАСТОМНОГО ПРОМПТА (если пользователь отправил текст)
+    if (
+      message &&
+      'text' in message &&
+      ctx.session?.morphingAwaitingCustomPrompt
+    ) {
+      const customPrompt = message.text.trim()
+
+      console.log('✍️ [STEP 4] Received custom prompt:', customPrompt)
+
+      if (customPrompt.length < 10) {
+        await ctx.reply(
+          isRu
+            ? '❌ Промпт слишком короткий. Минимум 10 символов.'
+            : '❌ Prompt too short. Minimum 10 characters.'
+        )
+        return // Остаемся на том же шаге
+      }
+
+      // Сохраняем кастомный промпт
+      if (ctx.session) {
+        ctx.session.morphingCustomPrompt = customPrompt
+        ctx.session.morphingAwaitingCustomPrompt = false
+        console.log('✍️ [STEP 4] Custom prompt saved:', customPrompt)
+      }
+
+      // Запускаем генерацию
+      const withLoop = ctx.session?.morphingType === 'loop'
+      await startMorphingGeneration(ctx, withLoop)
+      return
+    }
+
+    // ✅ ПОКАЗЫВАЕМ МЕНЮ ВЫБОРА ПРОМПТА (если это не текстовый ввод кастомного промпта)
+    const promptMessage = isRu
+      ? `🎬 <b>Выбор стиля переходов</b>
+
+Выберите стиль для плавных переходов между изображениями:
+
+🎥 <b>Кинематографичный</b> - профессиональная камера с плавным движением и мягким освещением
+
+⚡ <b>Драматичный</b> - высокая энергия с интенсивным освещением и эмоциональным воздействием
+
+🌊 <b>Плавный</b> - ультра-мягкие переходы с естественным размытием движения
+
+🎨 <b>Креативный</b> - абстрактные трансформации с уникальными визуальными эффектами
+
+✍️ <b>Свой промпт</b> - укажите свои требования к стилю перехода
+
+Какой стиль предпочитаете?`
+      : `🎬 <b>Choose Transition Style</b>
+
+Select style for smooth transitions between images:
+
+🎥 <b>Cinematic</b> - professional camera with smooth movement and soft lighting
+
+⚡ <b>Dramatic</b> - high energy with intense lighting and emotional impact
+
+🌊 <b>Smooth Flow</b> - ultra-soft transitions with natural motion blur
+
+🎨 <b>Creative</b> - abstract transformations with unique visual effects
+
+✍️ <b>Custom Prompt</b> - specify your own transition style
+
+Which style do you prefer?`
+
+    console.log('🎬 [STEP 4] About to send prompt selection message...')
+
+    await ctx.reply(promptMessage, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? '🎥 Кинематографичный' : '🎥 Cinematic',
+            'morphing_prompt_cinematic'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '⚡ Драматичный' : '⚡ Dramatic',
+            'morphing_prompt_dramatic'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '🌊 Плавный' : '🌊 Smooth Flow',
+            'morphing_prompt_smooth'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '🎨 Креативный' : '🎨 Creative',
+            'morphing_prompt_artistic'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '✍️ Свой промпт' : '✍️ Custom Prompt',
+            'morphing_prompt_custom'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '🔙 Назад' : '🔙 Back',
+            'morphing_back_to_loop'
+          ),
+        ],
+      ]).reply_markup,
+    })
+
+    console.log(
+      '🎬 [STEP 4] Prompt selection message sent! Staying on this step.'
+    )
+    return // Остаемся на этом шаге до выбора
   }
 )
 
@@ -586,12 +741,11 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 
 // ✅ НОВЫЕ CALLBACK'И ДЛЯ ВЫБОРА ЛУПА
 
-// Подтверждение LOOP морфинга
+// Подтверждение LOOP морфинга - переход к выбору промпта (Шаг 4)
 morphingWizard.action('morphing_confirm_loop', async ctx => {
   try {
     console.log('🔄 [CONFIRM_LOOP] Action triggered!')
     await ctx.answerCbQuery()
-    const isRu = isRussianFromState(ctx)
 
     // Сохраняем тип морфинга в сессии
     if (ctx.session) {
@@ -599,10 +753,15 @@ morphingWizard.action('morphing_confirm_loop', async ctx => {
       console.log('🔄 [CONFIRM_LOOP] Set morphingType to loop')
     }
 
-    console.log(
-      '🔄 [CONFIRM_LOOP] About to call startMorphingGeneration with loop=true'
-    )
-    await startMorphingGeneration(ctx, true) // true = with loop
+    // ✅ ПЕРЕХОДИМ К ШАГУ 4 (выбор промпта)
+    console.log('🔄 [CONFIRM_LOOP] Moving to Step 4 (prompt selection)')
+    ctx.wizard.selectStep(3) // Шаг 4 (индекс 3)
+
+    const currentStepHandler = ctx.wizard.step
+    if (typeof currentStepHandler === 'function') {
+      await currentStepHandler(ctx, async () => {})
+    }
+    return
   } catch (error) {
     console.log('❌ [CONFIRM_LOOP] ERROR:', error)
     logger.error('Error in morphing_confirm_loop', {
@@ -612,12 +771,11 @@ morphingWizard.action('morphing_confirm_loop', async ctx => {
   }
 })
 
-// Подтверждение LINEAR морфинга
+// Подтверждение LINEAR морфинга - переход к выбору промпта (Шаг 4)
 morphingWizard.action('morphing_confirm_linear', async ctx => {
   try {
     console.log('➡️ [CONFIRM_LINEAR] Action triggered!')
     await ctx.answerCbQuery()
-    const isRu = isRussianFromState(ctx)
 
     // Сохраняем тип морфинга в сессии
     if (ctx.session) {
@@ -625,10 +783,15 @@ morphingWizard.action('morphing_confirm_linear', async ctx => {
       console.log('➡️ [CONFIRM_LINEAR] Set morphingType to linear')
     }
 
-    console.log(
-      '➡️ [CONFIRM_LINEAR] About to call startMorphingGeneration with loop=false'
-    )
-    await startMorphingGeneration(ctx, false) // false = no loop
+    // ✅ ПЕРЕХОДИМ К ШАГУ 4 (выбор промпта)
+    console.log('➡️ [CONFIRM_LINEAR] Moving to Step 4 (prompt selection)')
+    ctx.wizard.selectStep(3) // Шаг 4 (индекс 3)
+
+    const currentStepHandler = ctx.wizard.step
+    if (typeof currentStepHandler === 'function') {
+      await currentStepHandler(ctx, async () => {})
+    }
+    return
   } catch (error) {
     logger.error('Error in morphing_confirm_linear', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -644,6 +807,183 @@ morphingWizard.action('morphing_back_to_upload', async ctx => {
     return ctx.wizard.back() // Возвращаемся к шагу 2
   } catch (error) {
     logger.error('Error in morphing_back_to_upload', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Возврат к выбору лупа (из шага выбора промпта)
+morphingWizard.action('morphing_back_to_loop', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    return ctx.wizard.back() // Возвращаемся к шагу 3 (loop selection)
+  } catch (error) {
+    logger.error('Error in morphing_back_to_loop', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// ✅ ОБРАБОТЧИКИ ВЫБОРА ПРОМПТА
+
+// Пресет: Кинематографичный
+morphingWizard.action('morphing_prompt_cinematic', async ctx => {
+  try {
+    console.log('🎥 [PROMPT_CINEMATIC] Action triggered!')
+    await ctx.answerCbQuery()
+
+    if (ctx.session) {
+      ctx.session.morphingCustomPrompt = PROMPT_PRESETS.cinematic
+      console.log('🎥 [PROMPT_CINEMATIC] Set custom prompt to cinematic preset')
+    }
+
+    const withLoop = ctx.session?.morphingType === 'loop'
+    await startMorphingGeneration(ctx, withLoop)
+  } catch (error) {
+    logger.error('Error in morphing_prompt_cinematic', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Пресет: Драматичный
+morphingWizard.action('morphing_prompt_dramatic', async ctx => {
+  try {
+    console.log('⚡ [PROMPT_DRAMATIC] Action triggered!')
+    await ctx.answerCbQuery()
+
+    if (ctx.session) {
+      ctx.session.morphingCustomPrompt = PROMPT_PRESETS.dramatic
+      console.log('⚡ [PROMPT_DRAMATIC] Set custom prompt to dramatic preset')
+    }
+
+    const withLoop = ctx.session?.morphingType === 'loop'
+    await startMorphingGeneration(ctx, withLoop)
+  } catch (error) {
+    logger.error('Error in morphing_prompt_dramatic', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Пресет: Плавный
+morphingWizard.action('morphing_prompt_smooth', async ctx => {
+  try {
+    console.log('🌊 [PROMPT_SMOOTH] Action triggered!')
+    await ctx.answerCbQuery()
+
+    if (ctx.session) {
+      ctx.session.morphingCustomPrompt = PROMPT_PRESETS.smooth
+      console.log('🌊 [PROMPT_SMOOTH] Set custom prompt to smooth preset')
+    }
+
+    const withLoop = ctx.session?.morphingType === 'loop'
+    await startMorphingGeneration(ctx, withLoop)
+  } catch (error) {
+    logger.error('Error in morphing_prompt_smooth', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Пресет: Креативный
+morphingWizard.action('morphing_prompt_artistic', async ctx => {
+  try {
+    console.log('🎨 [PROMPT_ARTISTIC] Action triggered!')
+    await ctx.answerCbQuery()
+
+    if (ctx.session) {
+      ctx.session.morphingCustomPrompt = PROMPT_PRESETS.artistic
+      console.log('🎨 [PROMPT_ARTISTIC] Set custom prompt to artistic preset')
+    }
+
+    const withLoop = ctx.session?.morphingType === 'loop'
+    await startMorphingGeneration(ctx, withLoop)
+  } catch (error) {
+    logger.error('Error in morphing_prompt_artistic', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Свой промпт - запрос текстового ввода
+morphingWizard.action('morphing_prompt_custom', async ctx => {
+  try {
+    console.log('✍️ [PROMPT_CUSTOM] Action triggered!')
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Устанавливаем флаг ожидания кастомного промпта
+    if (ctx.session) {
+      ctx.session.morphingAwaitingCustomPrompt = true
+    }
+
+    const customPromptMessage = isRu
+      ? `✍️ <b>Свой промпт для переходов</b>
+
+Отправьте текстовое описание стиля переходов на английском языке.
+
+<b>Примеры:</b>
+• "smooth elegant transition with soft colors"
+• "fast energetic morphing with vibrant effects"
+• "dreamy ethereal transformation with particles"
+
+<i>Отправьте ваш промпт:</i>`
+      : `✍️ <b>Custom Transition Prompt</b>
+
+Send a text description of the transition style in English.
+
+<b>Examples:</b>
+• "smooth elegant transition with soft colors"
+• "fast energetic morphing with vibrant effects"
+• "dreamy ethereal transformation with particles"
+
+<i>Send your prompt:</i>`
+
+    await ctx.reply(customPromptMessage, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? '🔙 Назад к пресетам' : '🔙 Back to presets',
+            'morphing_back_to_prompts'
+          ),
+        ],
+      ]).reply_markup,
+    })
+  } catch (error) {
+    logger.error('Error in morphing_prompt_custom', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Возврат к выбору промптов (из custom prompt input)
+morphingWizard.action('morphing_back_to_prompts', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    // Сбрасываем флаг ожидания кастомного промпта
+    if (ctx.session) {
+      ctx.session.morphingAwaitingCustomPrompt = false
+    }
+
+    // Отправляем заново сообщение с выбором промптов
+    ctx.wizard.selectStep(3) // Возвращаемся к шагу 4 (prompt selection)
+    const currentStepHandler = ctx.wizard.step
+    if (typeof currentStepHandler === 'function') {
+      await currentStepHandler(ctx, async () => {})
+    }
+  } catch (error) {
+    logger.error('Error in morphing_back_to_prompts', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
@@ -678,12 +1018,12 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     // ===== 💰 ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
     logger.info('[startMorphingGeneration] Processing balance for morphing', {
       telegramId: ctx.from?.id,
-      modelId: MORPHING_MODEL_KEY,
+      modelId: MORPHING_MODEL_KEYS.DEFAULT,
     })
 
     const balanceResult = await processBalanceVideoOperationHelper(
       String(ctx.from!.id),
-      MORPHING_MODEL_KEY,
+      MORPHING_MODEL_KEYS.DEFAULT,
       isRu,
       ctx.botInfo?.username || 'unknown_bot',
       'morphing'
@@ -713,7 +1053,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     const transitionsCount = withLoop
       ? imagesCount // С лупом: 1→2, 2→3, 3→1 (включая возврат к первому)
       : imagesCount - 1 // Линейные переходы: 1→2, 2→3, 3→4 (без зацикливания)
-    const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEY)
+    const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEYS.DEFAULT)
     const totalCost = finalPriceInStars * transitionsCount
 
     const morphingTypeText = isRu
@@ -725,29 +1065,29 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
       : '➡️ Linear (No Loop)'
 
     const costMessage = isRu
-      ? `💰 <b>Информация о стоимости:</b>
+      ? `💰 <b>Информация о стоимости Infinity Морфинг:</b>
 
-📸 <b>Изображений:</b> ${imagesCount}  
+📸 <b>Изображений:</b> ${imagesCount}
 🎬 <b>Тип:</b> ${morphingTypeText}
 🔄 <b>Видео переходов:</b> ${transitionsCount}
-💫 <b>Стоимость за переход:</b> ${finalPriceInStars}⭐  
+💫 <b>Стоимость за переход:</b> ${finalPriceInStars}⭐
 💎 <b>Общая стоимость:</b> ${totalCost}⭐
 
-⚠️ <b>ВАЖНО:</b> При ошибках безопасности система попробует альтернативные модели Kling (v1.6 Standard, v2.0), что может увеличить стоимость до $3-5 за клип. Это происходит автоматически для обхода фильтров с лицами.
+🤖 <b>Модель:</b> Kling v2.1 Pro (1080p HD качество)
 
-✨ Создаю потрясающий морфинг для вас...
+✨ Создаю потрясающий Infinity Морфинг для вас...
 ⏳ Может занять до 5 минут, ожидайте...`
-      : `💰 <b>Cost Information:</b>
+      : `💰 <b>Infinity Morphing Cost Information:</b>
 
-📸 <b>Images:</b> ${imagesCount}  
+📸 <b>Images:</b> ${imagesCount}
 🎬 <b>Type:</b> ${morphingTypeText}
 🔄 <b>Video transitions:</b> ${transitionsCount}
-💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐  
+💫 <b>Cost per transition:</b> ${finalPriceInStars}⭐
 💎 <b>Total cost:</b> ${totalCost}⭐
 
-⚠️ <b>IMPORTANT:</b> If safety filters reject content, system will automatically try alternative Kling models (v1.6 Standard, v2.0), which may increase cost to $3-5 per clip. This happens automatically to bypass face filters.
+🤖 <b>Model:</b> Kling v2.1 Pro (1080p HD quality)
 
-✨ Creating amazing morphing for you...
+✨ Creating amazing Infinity Morphing for you...
 ⏳ This may take up to 5 minutes, please wait...`
 
     await ctx.editMessageText(costMessage, {
@@ -763,17 +1103,19 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
       imageCount: imagesCount,
       morphingType: 'seamless',
       withLoop: withLoop, // ✅ ПЕРЕДАЕМ ПАРАМЕТР ЛУПА
+      customPrompt: ctx.session.morphingCustomPrompt, // ✅ ПЕРЕДАЕМ КАСТОМНЫЙ ПРОМПТ
+      ctx: ctx, // ✅ ПЕРЕДАЕМ КОНТЕКСТ ДЛЯ ИСПОЛЬЗОВАНИЯ СУЩЕСТВУЮЩЕГО БОТА
     })
 
     // Уведомляем о запуске обработки
     const completionMessage = isRu
-      ? `🚀 Морфинг запущен в обработку! 
+      ? `🚀 Infinity Морфинг запущен в обработку!
 
 ⏳ Создание видео займет до 5 минут
 📱 Готовое видео будет отправлено вам автоматически
 
 💡 <b>Примечание:</b> Если файл большой (>50МБ), вы получите ссылку на скачивание`
-      : `🚀 Morphing processing started! 
+      : `🚀 Infinity Morphing processing started!
 
 ⏳ Video creation will take up to 5 minutes
 📱 Finished video will be sent to you automatically
@@ -881,8 +1223,8 @@ morphingWizard.action('morphing_cancel', async ctx => {
 
     await ctx.reply(
       isRu
-        ? '❌ Создание морфинга отменено. Возвращаюсь в главное меню.'
-        : '❌ Morphing creation cancelled. Returning to main menu.'
+        ? '❌ Создание Infinity Морфинг отменено. Возвращаюсь в главное меню.'
+        : '❌ Infinity Morphing creation cancelled. Returning to main menu.'
     )
 
     console.log('❌ [MORPHING_CANCEL] Leaving scene...')

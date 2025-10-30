@@ -135,13 +135,36 @@ export const SUBSCRIPTION_FEATURES = {
  * Находит ID функции по названию (поддерживает оба языка)
  */
 function findFeatureId(featureName: string): number | null {
+  // Специальная карта для команд, которые не совпадают с menu levels
+  const COMMAND_TO_FEATURE_MAP: Record<string, number> = {
+    'NeuroVideo': FEATURE_IDS.IMAGE_TO_VIDEO, // Ключевое исправление!
+    'TextToVideo': FEATURE_IDS.TEXT_TO_VIDEO,
+    'ImageToVideo': FEATURE_IDS.IMAGE_TO_VIDEO,
+    'NeuroPhoto': FEATURE_IDS.NEURO_PHOTO,
+    'TextToImage': FEATURE_IDS.TEXT_TO_IMAGE,
+    // ✅ ИСПРАВЛЕНИЕ: Добавляем маппинг для морфинга
+    '🌀 Infinity Морфинг': FEATURE_IDS.MORPHING,
+    '🌀 Infinity Morphing': FEATURE_IDS.MORPHING,
+    'Infinity Морфинг': FEATURE_IDS.MORPHING,
+    'Infinity Morphing': FEATURE_IDS.MORPHING,
+    'Морфинг': FEATURE_IDS.MORPHING,
+    'Morphing': FEATURE_IDS.MORPHING,
+    '🧬 Морфинг': FEATURE_IDS.MORPHING,
+    '🧬 Morphing': FEATURE_IDS.MORPHING,
+  }
+
+  // Сначала проверяем специальную карту команд
+  if (COMMAND_TO_FEATURE_MAP[featureName]) {
+    return COMMAND_TO_FEATURE_MAP[featureName]
+  }
+
   // Проверяем по всем levels
   for (const [id, level] of Object.entries(levels)) {
     if (
       featureName === level.title_ru ||
       featureName === level.title_en ||
       featureName.startsWith(level.title_ru.split(' ')[0]) || // По эмодзи
-      featureName.startsWith(level.title_en.split(' ')[0]) // По эмодзи
+      featureName.startsWith(level.title_en.split(' ')[0]) // По эмоджи
     ) {
       return parseInt(id)
     }

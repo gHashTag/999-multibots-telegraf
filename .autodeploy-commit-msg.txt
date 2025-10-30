@@ -1,0 +1,26 @@
+fix: Remove invalid WizardScene wrapping causing 'Unsupported scene' error
+
+CRITICAL FIX: Production Error Resolution
+
+Problem:
+- Error: "telegraf: Unsupported scene" at /app/dist/registerCommands.js:50:17
+- Bot failing to start in production due to invalid scene registration
+
+Root Cause:
+- Lines 139-154 were attempting to create new WizardScenes by spreading `.steps` property
+- WizardScene instances don't expose `.steps` as a public property
+- This resulted in spreading `undefined`, creating invalid wizard scenes
+
+Changes:
+- Removed manual wrapping of voiceAvatarWizard, textToSpeechWizard, avatarBrainWizard, chatWithAvatarWizard
+- These wizards are already proper Scenes.WizardScene instances
+- Now using them directly in Stage array
+
+Impact:
+- Fixes bot startup failure in production
+- All wizard scenes now properly registered
+- Scene IDs remain unchanged (voice, text_to_speech, avatar, chat_with_avatar)
+
+Testing:
+- All wizards are verified as proper WizardScene instances
+- Stage creation will now succeed without errors

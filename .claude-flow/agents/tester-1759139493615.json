@@ -1,0 +1,15 @@
+{
+  "id": "tester-1759139493615",
+  "name": "test-tester",
+  "type": "tester",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1759139493615,
+  "capabilities": [
+    "Testing",
+    "Validation",
+    "Quality Assurance",
+    "Performance Testing"
+  ],
+  "createdAt": 1759139493615
+}

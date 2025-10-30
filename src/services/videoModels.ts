@@ -68,15 +68,15 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
   },
 
   // Kie.ai модели с конкурентными ценами
-  'veo-3-fast': {
-    id: 'veo-3-fast',
+  'veo3_fast': {
+    id: 'veo3_fast',
     name: 'Veo 3 Fast',
     nameRu: 'Veo 3 Fast',
     priceFixed: 40,
     inputTypes: ['text', 'image'],
   },
-  'veo-3': {
-    id: 'veo-3',
+  'veo3': {
+    id: 'veo3',
     name: 'Veo 3',
     nameRu: 'Veo 3',
     priceFixed: 202,
@@ -93,6 +93,42 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     defaultDuration: KIE_AI_MODELS_PRICING['runway-aleph'].defaultDuration!,
     maxDuration: KIE_AI_MODELS_PRICING['runway-aleph'].maxDuration,
     inputTypes: ['text', 'image'],
+  },
+
+  // OpenAI Sora 2 модели (через Kie.ai)
+  'sora-2': {
+    id: 'sora-2',
+    name: 'Sora 2',
+    nameRu: 'Sora 2',
+    priceFixed: 9, // $0.15 за 10 сек = 9⭐ БЕЗ наценки (Kie.ai API pricing)
+    defaultDuration: 10,
+    inputTypes: ['text'],
+  },
+  'sora-2-pro': {
+    id: 'sora-2-pro',
+    name: 'Sora 2 Pro',
+    nameRu: 'Sora 2 Pro',
+    priceFixed: 28, // $0.45 за 10 сек standard = 28⭐ (Kie.ai API pricing)
+    defaultDuration: 10,
+    inputTypes: ['text'],
+  },
+
+  // Sora 2 Image-to-Video модели
+  'sora-2-i2v': {
+    id: 'sora-2-i2v',
+    name: 'Sora 2 I2V',
+    nameRu: 'Sora 2 Изображение в видео',
+    priceFixed: 9, // $0.15 за 10 сек = 9⭐ (аналогично text-to-video)
+    defaultDuration: 10,
+    inputTypes: ['image'],
+  },
+  'sora-2-pro-i2v': {
+    id: 'sora-2-pro-i2v',
+    name: 'Sora 2 Pro I2V',
+    nameRu: 'Sora 2 Pro Изображение в видео',
+    priceFixed: 28, // $0.45 за 10 сек standard = 28⭐ (аналогично text-to-video)
+    defaultDuration: 10,
+    inputTypes: ['image'],
   },
 }
 
@@ -122,7 +158,7 @@ export function getModelPriceInStars(
     const finalDuration = duration || model.defaultDuration || 4
 
     // Для Kie.ai моделей используем специальную функцию расчета
-    if (['veo-3-fast', 'veo-3', 'runway-aleph'].includes(modelId)) {
+    if (['veo3_fast', 'veo3', 'runway-aleph'].includes(modelId)) {
       return calculateKieAiPriceInStars(modelId, finalDuration)
     }
 

@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import https from 'https'
 import { promisify } from 'util'
 import { pipeline } from 'stream'
 import axios from 'axios'
@@ -126,15 +127,8 @@ class VideoTranscriptionService {
           downloadResult.videoPath
         )
 
-        // Clean up the temporary file
-        try {
-          fs.unlinkSync(downloadResult.videoPath)
-          console.log(
-            `🗑️ Cleaned up temporary file: ${downloadResult.videoPath}`
-          )
-        } catch (cleanupError) {
-          console.warn('⚠️ Failed to clean up temporary file:', cleanupError)
-        }
+        // Don't clean up the file here - it will be cleaned up by the wizard after sending
+        // The wizard needs the file to send it to the user
       } else if (downloadResult.videoUrl) {
         // If we have a direct URL
         transcriptionResult = await this.transcribeVideoFromUrl(
@@ -252,6 +246,9 @@ class VideoTranscriptionService {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
+        httpsAgent: new https.Agent({
+          rejectUnauthorized: false, // Игнорируем SSL ошибки для Instagram
+        }),
       })
 
       console.log(`📋 Response headers:`, {
@@ -368,6 +365,88 @@ class VideoTranscriptionService {
       formData.append('language', 'ru') // Russian language
       formData.append('response_format', 'json')
 
+      // Try Replicate first if available (no regional restrictions)
+      if (process.env.REPLICATE_API_TOKEN) {
+        try {
+          console.log(`🔄 Trying Replicate Whisper API...`)
+          
+          // Convert file to base64 data URI for Replicate
+          const audioBuffer = fs.readFileSync(finalVideoPath)
+          const base64Audio = audioBuffer.toString('base64')
+          const mimeType = this.getMimeType(finalVideoPath)
+          const dataUri = `data:${mimeType};base64,${base64Audio}`
+          
+          const replicateResponse = await axios.post(
+            'https://api.replicate.com/v1/predictions',
+            {
+              version: 'b48b0e1d11dc0c0088a0e7a74a9630e90dab64476c9e85bd88475d47f43adb11', // whisper large-v3
+              input: {
+                audio: dataUri,
+                model: 'large-v3',
+                language: 'russian',
+                translate: false,
+                temperature: 0,
+                transcription: 'plain_text',
+                suppress_tokens: '-1',
+                logprob_threshold: -1.0,
+                no_speech_threshold: 0.6,
+                condition_on_previous_text: true,
+                compression_ratio_threshold: 2.4,
+                temperature_increment_on_fallback: 0.2,
+                initial_prompt: 'Транскрибация видео на русском языке.',
+              }
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${process.env.REPLICATE_API_TOKEN}`,
+                'Content-Type': 'application/json',
+              },
+              timeout: 30000,
+            }
+          )
+          
+          // Poll for result
+          if (replicateResponse.data?.id) {
+            const predictionId = replicateResponse.data.id
+            let attempts = 0
+            const maxAttempts = 60 // 5 minutes max wait
+            
+            while (attempts < maxAttempts) {
+              await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds
+              
+              const statusResponse = await axios.get(
+                `https://api.replicate.com/v1/predictions/${predictionId}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${process.env.REPLICATE_API_TOKEN}`,
+                  },
+                }
+              )
+              
+              if (statusResponse.data?.status === 'succeeded' && statusResponse.data?.output?.transcription) {
+                console.log(`✅ Transcription completed with Replicate`)
+                return {
+                  success: true,
+                  text: statusResponse.data.output.transcription.trim(),
+                  videoPath: finalVideoPath,
+                  metadata: {
+                    language: 'ru',
+                  },
+                }
+              } else if (statusResponse.data?.status === 'failed') {
+                throw new Error('Replicate prediction failed')
+              }
+              
+              attempts++
+            }
+          }
+        } catch (replicateError: any) {
+          console.log(`⚠️ Replicate failed, trying next service:`, replicateError.message)
+        }
+      }
+
+
+      // Fallback to OpenAI
       const response = await axios.post(
         'https://api.openai.com/v1/audio/transcriptions',
         formData,
@@ -375,6 +454,7 @@ class VideoTranscriptionService {
           headers: {
             Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
             ...formData.getHeaders(),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           },
           timeout: 300000, // 5 minutes timeout for transcription
         }
@@ -429,13 +509,9 @@ class VideoTranscriptionService {
       const tempPath = await this.downloadVideoFile(videoUrl)
       const result = await this.transcribeVideoFile(tempPath)
 
-      // Clean up
-      try {
-        fs.unlinkSync(tempPath)
-      } catch (cleanupError) {
-        console.warn('⚠️ Failed to clean up temporary file:', cleanupError)
-      }
-
+      // Don't clean up here - the file path in result.videoPath needs to be available for sending
+      // The wizard will clean up after sending the video to the user
+      
       return result
     } catch (error) {
       return {

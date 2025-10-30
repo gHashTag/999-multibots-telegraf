@@ -22,14 +22,17 @@ if [ ! -d dist ]; then
 fi
 
 # Проверяем наличие основного файла
-if [ -f dist/bot.js ]; then
-    echo "✅ Запускаем собранное приложение: dist/bot.js"
+if [ -f dist/index.js ]; then
+    echo "✅ Запускаем собранное приложение: dist/index.js"
+    exec node dist/index.js
+elif [ -f dist/bot.js ]; then
+    echo "✅ Запускаем резервное приложение: dist/bot.js"
     exec node dist/bot.js
 elif [ -f index.js ]; then
     echo "✅ Запускаем исходное приложение: index.js"
     exec node index.js
 else
-    echo "❌ Не найден файл для запуска (ни dist/bot.js, ни index.js)"
+    echo "❌ Не найден файл для запуска (ни dist/index.js, ни dist/bot.js, ни index.js)"
     exit 1
 fi
 

@@ -4,7 +4,7 @@ import { Telegraf } from 'telegraf'
 const inngest = new Inngest({
   name: '999-multibots-telegraf',
   id: '999-multibots-telegraf',
-  eventKey: process.env.INNGEST_EVENT_KEY,
+  eventKey: process.env.BOT_INNGEST_EVENT_KEY,
 })
 
 export const testSimpleMessageFunction = inngest.createFunction(

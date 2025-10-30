@@ -95,7 +95,7 @@ export function getAvailableResolutions(
  * Проверяет, является ли модель моделью Kie.AI
  */
 function isKieAiModel(modelKey: string): boolean {
-  return ['veo-3-fast', 'veo-3', 'runway-aleph'].includes(modelKey)
+  return ['veo3_fast', 'veo3', 'runway-aleph'].includes(modelKey)
 }
 
 export function getPriceForResolution(

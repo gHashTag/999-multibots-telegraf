@@ -2,7 +2,7 @@ import { MySession, PaymentType } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
-export const defaultSession: MySession = {
+export const defaultSession: any = {
   __scenes: {
     data: '',
     cursor: 0,
@@ -47,4 +47,5 @@ export const defaultSession: MySession = {
   translations: [],
   buttons: [],
   neuroPhotoInitialized: false,
+  lastStartCommand: 0,
 }

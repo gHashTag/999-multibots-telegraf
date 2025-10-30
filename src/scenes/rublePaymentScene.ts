@@ -84,7 +84,9 @@ rublePaymentScene.enter(async ctx => {
       }
     )
 
-    const invId = Math.floor(Math.random() * 1000000)
+    // ✅ ИСПРАВЛЕНИЕ: Используем Date.now() для уникального возрастающего InvId
+    // Robokassa требует уникальный InvId как счётчик (1 <= InvId <= 2147483647)
+    const invId = Date.now() % 2147483647
     const description = isRu
       ? `Оплата подписки ${subscriptionType}`
       : `Subscription payment for ${subscriptionType}`
@@ -282,7 +284,9 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       return ctx.scene.leave()
     }
 
-    const invId = Math.floor(Math.random() * 1000000)
+    // ✅ ИСПРАВЛЕНИЕ: Используем Date.now() для уникального возрастающего InvId
+    // Robokassa требует уникальный InvId как счётчик (1 <= InvId <= 2147483647)
+    const invId = Date.now() % 2147483647
     const description = isRu
       ? `Пополнение баланса на ${stars} звезд${
           amountRub === 1 ? ' (Админ-тест)' : ''
@@ -436,7 +440,9 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
       }
     )
 
-    const invId = Math.floor(Math.random() * 1000000)
+    // ✅ ИСПРАВЛЕНИЕ: Используем Date.now() для уникального возрастающего InvId
+    // Robokassa требует уникальный InvId как счётчик (1 <= InvId <= 2147483647)
+    const invId = Date.now() % 2147483647
     const description = isRu
       ? `Тест подписки ${subscriptionType} (Админ)`
       : `Test subscription ${subscriptionType} (Admin)`

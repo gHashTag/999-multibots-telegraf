@@ -1,0 +1,14 @@
+{
+  "id": "invalid-agent-1758548371595",
+  "name": "agent-1758548371595",
+  "type": "invalid-agent",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1758548371595,
+  "capabilities": [
+    "Research",
+    "Analysis",
+    "Code Generation"
+  ],
+  "createdAt": 1758548371595
+}

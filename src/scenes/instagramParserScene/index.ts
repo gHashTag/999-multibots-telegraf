@@ -79,19 +79,40 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
       if (action === 'my_stats') {
         await ctx.answerCbQuery()
         await showStats(ctx)
-        return
+        return ctx.wizard.selectStep(0) // Остаёмся на первом шаге для обработки следующих действий
       }
 
       if (action === 'help') {
         await ctx.answerCbQuery()
         await showHelp(ctx)
-        return
+        return ctx.wizard.selectStep(0) // Остаёмся на первом шаге для обработки следующих действий
       }
 
       if (action === 'exit') {
         await ctx.answerCbQuery()
         await ctx.editMessageText(isRu ? '👋 До встречи!' : '👋 See you!')
         return ctx.scene.leave()
+      }
+      
+      // Обработка кнопки "Назад" из статистики или помощи
+      if (action === 'back_to_menu') {
+        await ctx.answerCbQuery()
+        // Показываем главное меню
+        const menuText = isRu
+          ? '🎬 Instagram Парсер\n\n📱 Собирайте рилсы конкурентов и по хештегам\n⚡ Быстро и эффективно\n\nВыберите действие:'
+          : '🎬 Instagram Parser\n\n📱 Collect competitor reels and by hashtags\n⚡ Fast and efficient\n\nChoose action:'
+
+        await ctx.editMessageText(
+          menuText,
+          Markup.inlineKeyboard([
+            [Markup.button.callback(isRu ? '👤 Парсинг конкурента' : '👤 Parse competitor', 'parse_competitor')],
+            [Markup.button.callback(isRu ? '#️⃣ Парсинг по хештегу' : '#️⃣ Parse by hashtag', 'parse_hashtag')],
+            [Markup.button.callback(isRu ? '📊 Моя статистика' : '📊 My statistics', 'my_stats')],
+            [Markup.button.callback(isRu ? '❓ Помощь' : '❓ Help', 'help')],
+            [Markup.button.callback(isRu ? '❌ Выход' : '❌ Exit', 'exit')],
+          ])
+        )
+        return ctx.wizard.selectStep(0) // Остаёмся на первом шаге
       }
     } else {
       // Показываем главное меню при входе
@@ -192,6 +213,30 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           )
 
           if (result?.success) {
+            // Сохраняем запись о парсинге для статистики
+            try {
+              const { error: saveError } = await supabaseAdmin
+                .from('instagram_scrapings')
+                .insert({
+                  telegram_id: userId.toString(),
+                  user_id: userId.toString(),
+                  target: state.target,
+                  source_type: state.type,
+                  reels_count: count,
+                  cost: cost,
+                  status: 'pending',
+                  bot_name: ctx.botInfo?.username || 'telegram_bot',
+                  created_at: new Date().toISOString()
+                })
+              
+              if (saveError) {
+                logger.error('Failed to save scraping record', { error: saveError, userId })
+              } else {
+                logger.info('Scraping record saved for statistics', { userId, target: state.target })
+              }
+            } catch (err) {
+              logger.error('Error saving scraping record', { error: err, userId })
+            }
             await ctx.editMessageText(
               isRu
                 ? `✅ Парсинг запущен!\n\n🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Количество: ${count} рилсов\n💰 Списано: ${cost} ⭐\n\n📬 Результаты придут автоматически через 3-10 минут`
@@ -214,6 +259,18 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
       }
 
       // Обработка служебных кнопок
+      if (action === 'restart') {
+        await ctx.answerCbQuery()
+        ;(ctx.wizard as any).state = {}
+        return ctx.wizard.selectStep(0)
+      }
+
+      if (action === 'main_menu') {
+        await ctx.answerCbQuery()
+        await ctx.scene.enter('menuScene')
+        return
+      }
+
       if (action === 'top_up') {
         await ctx.answerCbQuery()
         await ctx.scene.enter('payment_scene')
@@ -290,23 +347,110 @@ async function showStats(ctx: MyContext) {
   if (!userId) return
 
   try {
-    // Получаем статистику из БД
-    const { data: stats } = await supabaseAdmin
+    logger.info('📊 [STATS] Fetching Instagram stats', { 
+      userId, 
+      userIdString: userId.toString(),
+      table: 'instagram_apify_reels' 
+    })
+
+    // Проверим обе таблицы для статистики
+    
+    // 1. Проверяем instagram_apify_reels (новые данные от Apify)
+    const { data: apifyReels, error: apifyError } = await supabaseAdmin
+      .from('instagram_apify_reels')
+      .select('*')
+      .or(`telegram_id.eq.${userId.toString()},telegram_id.eq.${userId}`)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    
+    logger.info('📊 [STATS] instagram_apify_reels query', { 
+      userId,
+      count: apifyReels?.length || 0,
+      error: apifyError
+    })
+
+    // 2. Проверяем instagram_scrapings (старые записи о парсингах)
+    const { data: scrapings, error: scrapingsError } = await supabaseAdmin
       .from('instagram_scrapings')
       .select('*')
       .eq('telegram_id', userId.toString())
+      .order('created_at', { ascending: false })
+      .limit(100)
+    
+    logger.info('📊 [STATS] instagram_scrapings query', { 
+      userId,
+      count: scrapings?.length || 0,
+      error: scrapingsError
+    })
 
-    const total_parsings = stats?.length || 0
-    const total_reels =
-      stats?.reduce((sum, s) => sum + (s.reels_count || 0), 0) || 0
-    const total_cost = stats?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0
+    // Используем данные из обеих таблиц
+    const reels = apifyReels || []
+    const hasScrapings = scrapings && scrapings.length > 0
 
-    // Последние парсинги
-    const recent = stats?.slice(-3).reverse() || []
-    const recentText = recent
+    logger.info('📊 [STATS] Combined results', { 
+      userId,
+      apifyReelsCount: apifyReels?.length || 0,
+      scrapingsCount: scrapings?.length || 0,
+      firstApifyReel: apifyReels?.[0] || 'no data',
+      firstScraping: scrapings?.[0] || 'no data'
+    })
+
+    // Если есть данные в instagram_scrapings, используем их
+    if (hasScrapings) {
+      const total_parsings = scrapings.length
+      const total_reels = scrapings.reduce((sum, s) => sum + (s.reels_count || 0), 0)
+      const total_cost = scrapings.reduce((sum, s) => sum + (s.cost || 0), 0)
+      
+      // Последние парсинги
+      const recent = scrapings.slice(0, 3)
+      const recentText = recent
+        .map(
+          s =>
+            `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${s.reels_count} ${isRu ? 'рилсов' : 'reels'}`
+        )
+        .join('\n')
+      
+      await ctx.editMessageText(
+        isRu
+          ? `📊 Ваша статистика Instagram парсера\n\n` +
+              `📈 Всего парсингов: ${total_parsings}\n` +
+              `🎬 Всего рилсов: ${total_reels}\n` +
+              `💰 Потрачено звезд: ${total_cost} ⭐\n` +
+              (recent.length > 0 ? `\n📝 Последние парсинги:\n${recentText}` : '')
+          : `📊 Your Instagram parser statistics\n\n` +
+              `📈 Total parsings: ${total_parsings}\n` +
+              `🎬 Total reels: ${total_reels}\n` +
+              `💰 Stars spent: ${total_cost} ⭐\n` +
+              (recent.length > 0 ? `\n📝 Recent parsings:\n${recentText}` : ''),
+        Markup.inlineKeyboard([
+          [Markup.button.callback(isRu ? '⬅️ Назад' : '⬅️ Back', 'back_to_menu')],
+        ])
+      )
+      return
+    }
+    
+    // Если данных в instagram_scrapings нет, проверяем instagram_apify_reels
+    // Группируем по источникам для подсчёта парсингов
+    const sourcesMap = new Map()
+    reels?.forEach(reel => {
+      const key = `${reel.source_type || 'competitor'}:${reel.source_username || reel.owner_username || 'unknown'}`
+      if (!sourcesMap.has(key)) {
+        sourcesMap.set(key, { count: 0, type: reel.source_type || 'competitor', username: reel.source_username || reel.owner_username || 'unknown' })
+      }
+      sourcesMap.get(key).count++
+    })
+
+    const total_parsings = sourcesMap.size // Количество уникальных источников
+    const total_reels = reels?.length || 0
+    // Приблизительная стоимость (3 звезды за 10 рилсов)
+    const total_cost = Math.ceil(total_reels / 10) * 3
+
+    // Последние источники парсинга
+    const recentSources = Array.from(sourcesMap.values()).slice(0, 3)
+    const recentText = recentSources
       .map(
         s =>
-          `${s.source_type === 'competitor' ? '@' : '#'}${s.target} - ${s.reels_count} ${isRu ? 'рилсов' : 'reels'}`
+          `${s.type === 'hashtag' ? '#' : '@'}${s.username} - ${s.count} ${isRu ? 'рилсов' : 'reels'}`
       )
       .join('\n')
 
@@ -316,12 +460,12 @@ async function showStats(ctx: MyContext) {
             `📈 Всего парсингов: ${total_parsings}\n` +
             `🎬 Всего рилсов: ${total_reels}\n` +
             `💰 Потрачено звезд: ${total_cost} ⭐\n` +
-            (recent.length > 0 ? `\n📝 Последние парсинги:\n${recentText}` : '')
+            (recentSources.length > 0 ? `\n📝 Последние парсинги:\n${recentText}` : '')
         : `📊 Your Instagram parser statistics\n\n` +
             `📈 Total parsings: ${total_parsings}\n` +
             `🎬 Total reels: ${total_reels}\n` +
             `💰 Stars spent: ${total_cost} ⭐\n` +
-            (recent.length > 0 ? `\n📝 Recent parsings:\n${recentText}` : ''),
+            (recentSources.length > 0 ? `\n📝 Recent parsings:\n${recentText}` : ''),
       Markup.inlineKeyboard([
         [Markup.button.callback(isRu ? '⬅️ Назад' : '⬅️ Back', 'back_to_menu')],
       ])
@@ -384,18 +528,4 @@ async function showHelp(ctx: MyContext) {
 }
 
 // ========== ОБРАБОТЧИКИ ACTION ==========
-instagramParserScene.action('back_to_menu', async ctx => {
-  await ctx.answerCbQuery()
-  return ctx.wizard.selectStep(0)
-})
-
-instagramParserScene.action('restart', async ctx => {
-  await ctx.answerCbQuery()
-  ;(ctx.wizard as any).state = {}
-  return ctx.wizard.selectStep(0)
-})
-
-instagramParserScene.action('main_menu', async ctx => {
-  await ctx.answerCbQuery()
-  await ctx.scene.enter('menuScene')
-})
+// Все обработчики перенесены в основной код wizard сцены для корректной работы
