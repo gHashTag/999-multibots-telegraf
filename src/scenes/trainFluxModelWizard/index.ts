@@ -256,61 +256,82 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
       if (!ctx.session.images) {
         ctx.session.images = []
       }
-      // ... (rest of the image handling logic: getFile, fetch, validate, check size, push to session) ...
+      // Process the uploaded photo
       const photo = message.photo[message.photo.length - 1]
-      const file = await ctx.telegram.getFile(photo.file_id)
 
-      if (!file.file_path) {
-        await ctx.reply(
-          isRu ? '❌ Ошибка получения файла' : '❌ Error getting file'
+      try {
+        const file = await ctx.telegram.getFile(photo.file_id)
+
+        if (!file.file_path) {
+          console.error('[trainFluxModelWizard] File path not found for photo:', photo.file_id)
+          await ctx.reply(
+            isRu ? '❌ Ошибка получения файла. Попробуйте загрузить фото еще раз.' : '❌ Error getting file. Please try uploading the photo again.'
+          )
+          return
+        }
+        const botToken = getBotToken(ctx)
+        const response = await fetch(
+          `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
         )
-        return
-      }
-      const botToken = getBotToken(ctx)
-      const response = await fetch(
-        `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
-      )
-      const buffer = Buffer.from(await response.arrayBuffer())
-      const isValid = await isValidImage(buffer)
 
-      if (!isValid) {
+        if (!response.ok) {
+          console.error('[trainFluxModelWizard] Failed to download photo:', response.status)
+          await ctx.reply(
+            isRu ? '❌ Ошибка загрузки фото. Попробуйте еще раз.' : '❌ Failed to download photo. Please try again.'
+          )
+          return
+        }
+
+        const buffer = Buffer.from(await response.arrayBuffer())
+        const isValid = await isValidImage(buffer)
+
+        if (!isValid) {
+          console.error('[trainFluxModelWizard] Invalid image format')
+          await ctx.reply(
+            isRu
+              ? '❌ Файл не является корректным изображением. Поддерживаются JPG, PNG, WEBP.'
+              : '❌ File is not a valid image. Supported formats: JPG, PNG, WEBP.'
+          )
+          return
+        }
+        const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10 MB
+        if (buffer.length > MAX_IMAGE_SIZE) {
+          await ctx.reply(
+            isRu
+              ? '❌ Изображение слишком большое (максимум 10MB). Попробуйте уменьшить размер или качество.'
+              : '❌ Image too large (max 10MB). Try reducing size or quality.'
+          )
+          return
+        }
+
+        // ✅ Telegram automatically compresses images to optimal size
+        // No additional compression needed
+        console.log(`📸 Image size from Telegram: ${buffer.length} bytes`)
+        console.log(
+          `📊 Image ${ctx.session.images.length + 1}/10: ${(buffer.length / 1024).toFixed(2)} KB`
+        )
+
+        ctx.session.images.push({
+          buffer: buffer,
+          filename: `a_photo_of_${ctx.session.username}x${
+            ctx.session.images.length + 1
+          }.jpg`,
+        })
+
         await ctx.reply(
           isRu
-            ? '❌ Файл не является корректным изображением.'
-            : '❌ File is not a valid image.'
+            ? `✅ Изображение ${ctx.session.images.length} добавлено. ${ctx.session.images.length < 10 ? `Нужно еще ${10 - ctx.session.images.length} фото.` : 'Отправьте /done для завершения.'}`
+            : `✅ Image ${ctx.session.images.length} added. ${ctx.session.images.length < 10 ? `Need ${10 - ctx.session.images.length} more photos.` : 'Send /done to finish.'}`
         )
-        return
-      }
-      const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10 MB
-      if (buffer.length > MAX_IMAGE_SIZE) {
+        console.log(`Image ${ctx.session.images.length} added successfully`)
+      } catch (error) {
+        console.error('[trainFluxModelWizard] Error processing photo:', error)
         await ctx.reply(
           isRu
-            ? '❌ Изображение слишком большое (max 10MB).'
-            : '❌ Image too large (max 10MB).'
+            ? '❌ Произошла ошибка при обработке фото. Попробуйте загрузить другое изображение.'
+            : '❌ Error processing photo. Please try uploading a different image.'
         )
-        return
       }
-
-      // ✅ Telegram automatically compresses images to optimal size
-      // No additional compression needed
-      console.log(`📸 Image size from Telegram: ${buffer.length} bytes`)
-      console.log(
-        `📊 Image ${ctx.session.images.length + 1}/10: ${(buffer.length / 1024).toFixed(2)} KB`
-      )
-
-      ctx.session.images.push({
-        buffer: buffer,
-        filename: `a_photo_of_${ctx.session.username}x${
-          ctx.session.images.length + 1
-        }.jpg`,
-      })
-
-      await ctx.reply(
-        isRu
-          ? `✅ Изображение ${ctx.session.images.length} добавлено. Отправьте еще или /done.`
-          : `✅ Image ${ctx.session.images.length} added. Send more or /done.`
-      )
-      console.log(`Image ${ctx.session.images.length} added`)
     } else {
       // Handle cases where it's neither /done nor a photo
       await ctx.reply(
