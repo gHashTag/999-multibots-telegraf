@@ -1,5 +1,6 @@
-logger.debug('Environment check:', {
 import { logger } from '@/utils/enhancedLogger'
+
+logger.debug('Environment check:', {
   nodeEnv: process.env.NODE_ENV,
 })
 
