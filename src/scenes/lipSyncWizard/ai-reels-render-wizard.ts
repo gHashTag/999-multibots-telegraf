@@ -1270,6 +1270,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           avatarService,
           heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
           heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
+          // ✅ Передаем имя бота для правильной отправки видео через callback
+          botName: ctx.botInfo?.username || 'MetaMuse_Manifest_bot',
         }
       )
       // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
