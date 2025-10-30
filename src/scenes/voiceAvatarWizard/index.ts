@@ -43,7 +43,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     if (message && 'text' in message) {
       // Check which option was selected
-      if (message.text === (isRu ? '🎙️ Создать голосовой аватар' : '🎙️ Create voice avatar')) {
+      if (message.text === (isRu ? '🎙️ Создать голосовой аватар' : '9️ Create voice avatar')) {
         ctx.session.voiceMode = 'avatar'
         await ctx.reply(
           isRu
@@ -217,15 +217,15 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
         // Если createVoiceAvatar выполнился успешно (не выбросил исключение),
         // переходим в сцену text_to_speech вместо выхода из текущей сцены.
-        return ctx.scene.enter('text_to_speech')
-      } catch (error) {
-        console.error('Error in handleVoiceMessage (Plan B):', error)
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
-            : '❌ An error occurred while creating the voice avatar. Please try again later.'
-        )
+        return ctx.scene.enter('text_to_speech');
       }
+    } catch (error: any) {
+      console.error('Error in handleVoiceMessage (Plan B):', error)
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
+          : '❌ An error occurred while creating the voice avatar. Please try again later.'
+      )
     }
   }
 )
