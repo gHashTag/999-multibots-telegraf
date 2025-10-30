@@ -5,8 +5,9 @@
 
 interface AIReelsPricingOptions {
   text: string
-  avatarService: 'hedra' | 'heygen'
+  avatarService: 'hedra' | 'heygen' | 'fal'
   isOwnHeyGenKey?: boolean
+  isOwnFalKey?: boolean
   markupMultiplier?: number
 }
 
@@ -32,6 +33,7 @@ export function calculateAIReelsPrice(options: AIReelsPricingOptions): PriceBrea
     text,
     avatarService,
     isOwnHeyGenKey = false,
+    isOwnFalKey = false,
     markupMultiplier = 1.5 // Наценка x1.5 как в коде
   } = options
 
@@ -54,6 +56,12 @@ export function calculateAIReelsPrice(options: AIReelsPricingOptions): PriceBrea
       avatarCost = 0 // Клиент использует свой API ключ
     } else {
       avatarCost = audioDuration * 3 // ~3⭐/сек амортизация наших ключей
+    }
+  } else if (avatarService === 'fal') {
+    if (isOwnFalKey) {
+      avatarCost = 0 // Клиент использует свой API ключ
+    } else {
+      avatarCost = audioDuration * 4 // ~4⭐/сек для Fal (среднее между Hedra и HeyGen)
     }
   }
 

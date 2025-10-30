@@ -64,6 +64,13 @@ export interface RenderRiddlePayload {
       voice_id: string
       avatar_speech: string
     } | null
+    fal: {
+      api_key: string
+      avatar_photo_url: string
+      voice_id: string
+      avatar_speech: string
+      resolution?: '720p' | '1080p'
+    } | null
   }
   callback_url: string | null
   bot_name?: string // Добавляем для определения бота при callback
@@ -204,22 +211,29 @@ export function createRenderAvatarPayload(
     introText1?: string
     introText2?: string
     callbackUrl?: string | null
+    // Avatar service selection
+    avatarService?: 'heygen' | 'hedra' | 'fal'
     // HeyGen specific
-    avatarService?: 'heygen' | 'hedra'
     heygenApiKey?: string
     heygenAvatarId?: string
+    // Fal specific
+    falApiKey?: string
+    falResolution?: '720p' | '1080p'
     // Bot name для правильной отправки callback
     botName?: string
   }
 ): RenderRiddlePayload {
   const isHeygen = options?.avatarService === 'heygen'
+  const isFal = options?.avatarService === 'fal'
 
   logger.info('🎬 [RENDER PAYLOAD] Creating payload', {
     telegramId,
     avatarService: options?.avatarService || 'hedra',
     isHeygen,
+    isFal,
     hasHeygenApiKey: !!options?.heygenApiKey,
     hasHeygenAvatarId: !!options?.heygenAvatarId,
+    hasFalApiKey: !!options?.falApiKey,
   })
 
   return {
@@ -246,13 +260,22 @@ export function createRenderAvatarPayload(
             avatar_speech: text,
           }
         : null,
-      hedra: !isHeygen
+      hedra: !isHeygen && !isFal
         ? {
             api_key: process.env.HEDRA_API_KEY || '',
             avatar_photo_url: avatarPhotoUrl,
             avatar_id: `avatar-${telegramId}-${Date.now()}`,
             voice_id: voiceId,
             avatar_speech: text,
+          }
+        : null,
+      fal: isFal
+        ? {
+            api_key: options?.falApiKey || process.env.FAL_API_KEY || '',
+            avatar_photo_url: avatarPhotoUrl,
+            voice_id: voiceId,
+            avatar_speech: text,
+            resolution: options?.falResolution || '720p',
           }
         : null,
     },
