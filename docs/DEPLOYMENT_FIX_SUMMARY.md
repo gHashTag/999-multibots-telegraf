@@ -90,7 +90,7 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 'docker ps | grep 999-multibots'
 ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 30'
 
 # Test API
-curl http://test-render-farm.ru/
+curl -I ${WEBHOOK_DOMAIN}
 ```
 
 ## 📁 Files Modified
