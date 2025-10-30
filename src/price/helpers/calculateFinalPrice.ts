@@ -37,6 +37,24 @@ export function calculateFinalPrice(
     return 120
   }
 
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для Kling v1.6 Pro Image to Video
+  if (modelKey === 'kling-v1.6-pro') {
+    logger.info('calculateFinalPrice: Using fixed price for Kling v1.6 Pro', {
+      modelKey,
+      fixedPriceInStars: 60,
+    })
+    return 60
+  }
+
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для Minimax Image to Video
+  if (modelKey === 'minimax') {
+    logger.info('calculateFinalPrice: Using fixed price for Minimax', {
+      modelKey,
+      fixedPriceInStars: 50,
+    })
+    return 50
+  }
+
   // ФИКСИРОВАННЫЕ ЦЕНЫ для Kling v2.1 морфинга (С ПРАВИЛЬНОЙ НАЦЕНКОЙ 1.5x)
   if (modelKey === 'kling-v2.1-standard') {
     // Расчет: $0.05 * 10 сек = $0.5 → $0.5 * 1.5 наценка = $0.75 → $0.75 / 0.016 = 46.875 → 46⭐
