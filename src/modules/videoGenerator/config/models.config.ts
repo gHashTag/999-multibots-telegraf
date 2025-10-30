@@ -288,7 +288,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'veo3': {
     id: 'veo3',
     title: 'Veo 3',
-    inputType: ['text'],
+    inputType: ['text', 'image'], // ✅ FIX: Added 'image' support
     description:
       '⭐ ПРЕМИУМ: 8 сек, 1080p, премиум качество - 202⭐ (экономия до 37%)',
     basePrice: 3.23, // $3.23 USD за 8 секунд = 202 звезды
@@ -300,6 +300,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
           userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
+    imageKey: 'image', // ✅ FIX: Added imageKey for image-to-video support
     canMorph: false,
     aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
   },
