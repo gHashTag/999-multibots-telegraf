@@ -22,12 +22,12 @@ import { FalVeo31Provider } from '@/core/lipsync/providers/fal-veo31-provider'
 // Интерфейс для aiReels теперь определен в MySession interface
 
 /**
- * ИИ Рилс Wizard - создает два видео (lip-sync + WAN 2.5) и склеивает их
+ * ИИ Рилс Wizard - создает два видео (lip-sync + Google Veo 3.1) и склеивает их
  *
  * Последовательность:
  * 1. Получение изображения и текста/голоса
  * 2. Генерация первого видео (lip-sync)
- * 3. Генерация второго видео (WAN 2.5 image-to-video)
+ * 3. Генерация второго видео (Google Veo 3.1 reference-to-video)
  * 4. Склеивание двух видео в итоговый ролик
  */
 export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
@@ -100,7 +100,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             '📸 Отправьте фото или URL изображения с лицом для lip-sync видео.\n\n' +
             '🎯 Процесс:\n' +
             '1️⃣ Создадим lip-sync видео из вашего изображения\n' +
-            '2️⃣ Создадим дополнительное видео через WAN 2.5\n' +
+            '2️⃣ Создадим дополнительное видео через Google Veo 3.1\n' +
             '3️⃣ Склеим оба видео в единый ролик\n\n' +
             '📝 На следующем шаге выберите:\n' +
             '• Текст (будет озвучен вашим голосом аватара)\n' +
@@ -109,7 +109,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             '📸 Send a photo or image URL with a face for lip-sync video.\n\n' +
             '🎯 Process:\n' +
             '1️⃣ Create lip-sync video from your image\n' +
-            '2️⃣ Create additional video via WAN 2.5\n' +
+            '2️⃣ Create additional video via Google Veo 3.1\n' +
             '3️⃣ Merge both videos into final reel\n\n' +
             '📝 On the next step choose:\n' +
             '• Text (will be voiced with your avatar)\n' +
@@ -326,7 +326,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           : `🎬 Creating second video (WAN 2.5)...\n⏳ This will take 5-10 minutes...`
       )
 
-      console.log('🔄 [AI REELS TEST MODE] Skipping to Step 3 (WAN 2.5):', {
+      console.log('🔄 [AI REELS TEST MODE] Skipping to Step 3 (Veo 3.1):', {
         telegramId,
         testVideoUrl: TEST_LIPSYNC_VIDEO_URL,
       })
@@ -523,7 +523,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       logger.info('💰 AI Reels Шаблон 1 - фиксированная стоимость', {
         totalCost,
-        template: 'Template 1 (WAN25)',
+        template: 'Template 1 (Veo 3.1)',
         markup: 1.5,
       })
 
@@ -1017,16 +1017,16 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         await ctx.reply(
           isRu
-            ? `🎬 Создаем второе видео (WAN 2.5)...\n⏳ Это займет 5-10 минут...`
-            : `🎬 Creating second video (WAN 2.5)...\n⏳ This will take 5-10 minutes...`
+            ? `🎬 Создаем второе видео (Google Veo 3.1)...\n⏳ Это займет 5-10 минут...`
+            : `🎬 Creating second video (Google Veo 3.1)...\n⏳ This will take 5-10 minutes...`
         )
 
-        console.log('🔄 [AI REELS] Переходим к Step 3 (WAN 2.5):', {
+        console.log('🔄 [AI REELS] Переходим к Step 3 (Veo 3.1):', {
           telegramId,
           currentStep: ctx.wizard?.cursor,
         })
 
-        // ✅ ПЕРЕХОДИМ К STEP 3 (WAN 2.5 генерация) и ВЫЗЫВАЕМ его вручную
+        // ✅ ПЕРЕХОДИМ К STEP 3 (Veo 3.1 генерация) и ВЫЗЫВАЕМ его вручную
         await ctx.wizard.next()
 
         // Вручную вызываем следующий step
@@ -1121,7 +1121,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // Step 3: Генерация второго видео через WAN 2.5
+  // Step 3: Генерация второго видео через Google Veo 3.1
   async ctx => {
     console.log('🎬🎬🎬 [AI REELS] STEP 3 EXECUTING!')
 
