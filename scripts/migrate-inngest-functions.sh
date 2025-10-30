@@ -12,9 +12,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Paths
-AI_SERVER_PATH="/Users/playra/ai-server"
-TELEGRAF_PATH="/Users/playra/999-agents-telegraf"
+# Paths (auto-detect telegraf path, allow override via env vars)
+AI_SERVER_PATH="${AI_SERVER_PATH:-/Users/playra/ai-server}"
+TELEGRAF_PATH="${TELEGRAF_PATH:-$(git rev-parse --show-toplevel 2>/dev/null || echo "/Users/playra/999-agents-telegraf")}"
 BACKUP_PATH="/tmp/inngest-migration-backup-$(date +%Y%m%d-%H%M%S)"
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
