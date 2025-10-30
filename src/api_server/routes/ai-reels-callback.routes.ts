@@ -147,6 +147,16 @@ function extractTelegramIdFromJobId(jobId: string): string | null {
  * Обработка успешного рендеринга
  */
 async function handleCompletedRender(telegramId: string, payload: AIReelsCallbackPayload) {
+  // Определяем правильного бота в начале функции
+  const botName = payload.bot_name || payload.metadata?.bot_name
+  const { bot, error } = botName ? getBotByName(botName) : { bot: defaultBot, error: null }
+
+  if (error) {
+    logger.warn(`⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`)
+  }
+
+  const botToUse = bot || defaultBot
+
   try {
     const videoUrl = payload.result_url || payload.video_url || payload.download_url
 
@@ -156,32 +166,12 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
         telegramId
       })
 
-      // Определяем правильного бота
-      const botName = payload.bot_name || payload.metadata?.bot_name
-      const { bot, error } = botName ? getBotByName(botName) : { bot: defaultBot, error: null }
-
-      if (error) {
-        logger.warn(`⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`)
-      }
-
-      const botToUse = bot || defaultBot
-
       await botToUse.telegram.sendMessage(
         telegramId,
         '⚠️ Видео готово, но произошла ошибка при получении ссылки. Попробуйте ещё раз.'
       )
       return
     }
-
-    // Определяем правильного бота для отправки
-    const botName = payload.bot_name || payload.metadata?.bot_name
-    const { bot, error } = botName ? getBotByName(botName) : { bot: defaultBot, error: null }
-
-    if (error) {
-      logger.warn(`⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`)
-    }
-
-    const botToUse = bot || defaultBot
 
     logger.info('🎉 [AI REELS CALLBACK] Sending completed video to user', {
       telegramId,
@@ -223,10 +213,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
         `✅ Ваше AI Reels видео готово!\n\n` +
         `⚠️ Видео слишком большое для Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n` +
         `📥 Скачайте видео по ссылке:\n${videoUrl}\n\n` +
-        `🎬 Создано с помощью Template 2 (Inngest + Railway)`,
-        {
-          disable_web_page_preview: false
-        }
+        `🎬 Создано с помощью Template 2 (Inngest + Railway)`
       )
 
       logger.info('✅ [AI REELS CALLBACK] URL sent successfully', {

@@ -32,7 +32,7 @@ export function calculateAIReelsPrice(options: AIReelsPricingOptions): PriceBrea
     text,
     avatarService,
     isOwnHeyGenKey = false,
-    markupMultiplier = 2.0
+    markupMultiplier = 1.5 // Наценка x1.5 как в коде
   } = options
 
   // Расчет длительности аудио (примерно 60 символов в секунду речи)
