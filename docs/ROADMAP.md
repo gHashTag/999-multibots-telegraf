@@ -37,7 +37,7 @@
 - **Результат:** ✅ Пользователи с любыми типами моделей теперь корректно попадают в соответствующие версии
 
 ### ✅ ЗАВЕРШЕНО: INSTAGRAM SCRAPER V2 С INNGEST INTEGRATION
-- **Pull Request:** [#193](https://github.com/gHashTag/999-multibots-telegraf/pull/193) - готов к merge
+- **Pull Request:** [#193](https://github.com/gHashTag/bot-farm/pull/193) - готов к merge
 - **Архитектура:** Event-driven через Inngest (Bot → Events → ai-training-server)
 - **Функциональность:** Полный цикл от Telegram мастера до обработки на бэкенде
 - **Статус:** 🚀 Готово к продакшн деплою
@@ -49,7 +49,7 @@
    - **Проблема:** Повторяющиеся ошибки компиляции `link_preview_options does not exist` в Docker сборке
    - **КОРНЕВАЯ ПРИЧИНА НАЙДЕНА:** package.json содержал устаревший telegraf 4.12.2, Docker использовал его, а локально pnpm автоматически ставил 4.16.3
    - **ФИНАЛЬНОЕ РЕШЕНИЕ:** Обновили package.json: telegraf 4.12.2 → 4.16.3 с поддержкой link_preview_options API
-   - **Pull Request:** [#204](https://github.com/gHashTag/999-multibots-telegraf/pull/204) - готов к merge
+   - **Pull Request:** [#204](https://github.com/gHashTag/bot-farm/pull/204) - готов к merge
    - **Исправлены файлы:** package.json, pnpm-lock.yaml, 5 локаций в 3 файлах (notificationHandler.ts, pulse.ts, broadcast.service.ts)
    - **Результат:** ✅ Docker сборка теперь использует правильную версию Telegraf, призрачная ошибка больше не повторится!
 

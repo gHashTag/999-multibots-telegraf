@@ -40,13 +40,13 @@ export interface AIReelsResult {
 /**
  * ✅ Factory function для создания Inngest функции (избегаем circular dependency)
  */
-export function createGenerateAIReelsFunction(inngest: Inngest.Any) {
+export function createGenerateAIReelsFunction(inngest: Inngest) {
   return inngest.createFunction(
   {
     id: 'ai-reels-generation',
     name: 'AI Reels Generation',
     retries: 2, // Повторить 2 раза при ошибке
-    throttle: {
+    rateLimit: {
       limit: 5, // Максимум 5 одновременных генераций
       period: '1m',
       key: 'event.data.telegramId',
@@ -116,7 +116,7 @@ export function createGenerateAIReelsFunction(inngest: Inngest.Any) {
             prompt: wan25Prompt,
             image_url: imageUrl,
             duration: "5",
-            resolution: resolution,
+            resolution: resolution as '720p' | '1080p',
             enable_prompt_expansion: true,
           },
         }

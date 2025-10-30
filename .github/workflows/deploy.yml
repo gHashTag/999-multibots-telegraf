@@ -171,7 +171,7 @@ jobs:
           set -e
           
           echo "📦 Extracting deployment package..."
-          cd /opt/app/999-multibots-telegraf
+          cd /opt/app/bot-farm
           
           # Останавливаем сервисы
           if [ -f "docker-compose.yml" ]; then

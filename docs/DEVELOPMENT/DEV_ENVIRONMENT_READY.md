@@ -40,7 +40,7 @@ ssh -i ~/.ssh/id_rsa root@999-multibots-dev-u14194.vm.elestio.app
 
 ### 2. Управление контейнерами:
 ```bash
-cd /opt/app/999-multibots-telegraf
+cd /opt/app/bot-farm
 
 # Статус
 docker-compose -f docker-compose.dev.yml ps

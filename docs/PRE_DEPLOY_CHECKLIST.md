@@ -84,11 +84,11 @@ echo "✅ Docker build works locally"
 git checkout production
 git merge main  # or your feature branch
 git push origin production
-# Watch: https://github.com/gHashTag/999-multibots-telegraf/actions
+# Watch: https://github.com/gHashTag/bot-farm/actions
 ```
 
 ### Option 2: Manual Trigger
-1. Go to: https://github.com/gHashTag/999-multibots-telegraf/actions
+1. Go to: https://github.com/gHashTag/bot-farm/actions
 2. Click "Production Auto-Deploy"
 3. Click "Run workflow"
 4. Select branch: `production`
@@ -206,8 +206,8 @@ docker stop 999-multibots && docker rm 999-multibots
 - **Full Documentation**: `docs/PRODUCTION_DEPLOYMENT_FIX.md`
 - **Quick Commands**: `docs/DEPLOYMENT_QUICK_REFERENCE.md`
 - **Summary**: `docs/DEPLOYMENT_FIX_SUMMARY.md`
-- **Repository**: https://github.com/gHashTag/999-multibots-telegraf
-- **Actions**: https://github.com/gHashTag/999-multibots-telegraf/actions
+- **Repository**: https://github.com/gHashTag/bot-farm
+- **Actions**: https://github.com/gHashTag/bot-farm/actions
 
 ## 🎯 Success Indicators
 
