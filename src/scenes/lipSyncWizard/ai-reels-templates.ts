@@ -11,7 +11,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 
 export enum AIReelsTemplate {
-  WAN25 = 'wan25',
+  WAN25 = 'veo31', // Оставляем внутренний идентификатор для совместимости
   INNGEST = 'inngest',
 }
 
@@ -43,23 +43,23 @@ export const AI_REELS_TEMPLATES: Record<
   [AIReelsTemplate.WAN25]: {
     id: AIReelsTemplate.WAN25,
     name: {
-      ru: 'Шаблон 1',
-      en: 'Template 1',
+      ru: 'Шаблон 1 (Veo 3.1)',
+      en: 'Template 1 (Veo 3.1)',
     },
     description: {
-      ru: 'Создание AI Reels видео. Результат за 2-3 минуты.',
-      en: 'AI Reels video creation. Result in 2-3 minutes.',
+      ru: 'Создание AI Reels видео через Google Veo 3.1. Результат за 2-3 минуты.',
+      en: 'AI Reels video creation via Google Veo 3.1. Result in 2-3 minutes.',
     },
     features: {
       ru: [
         '🎬 Lip-sync видео',
-        '🎥 4 видео сцены',
+        '🎥 Google Veo 3.1 генерация',
         '🔗 Склеивание в единый ролик',
         '💰 Стоимость: 240 ⭐',
       ],
       en: [
         '🎬 Lip-sync video',
-        '🎥 4 video scenes',
+        '🎥 Google Veo 3.1 generation',
         '🔗 Merge into single reel',
         '💰 Cost: 240 ⭐',
       ],
@@ -137,7 +137,7 @@ export async function showTemplateSelection(ctx: MyContext): Promise<void> {
     parse_mode: 'HTML',
     reply_markup: Markup.keyboard([
       [
-        isRu ? '⚡ Быстрый (WAN 2.5)' : '⚡ Fast (WAN 2.5)',
+        isRu ? '⚡ Быстрый (Veo 3.1)' : '⚡ Fast (Veo 3.1)',
         isRu ? '🔄 Надежный (Inngest)' : '🔄 Reliable (Inngest)',
       ],
       [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
@@ -158,7 +158,8 @@ export function parseTemplateSelection(text: string): AIReelsTemplate | null {
   if (
     lowerText.includes('быстрый') ||
     lowerText.includes('fast') ||
-    lowerText.includes('wan')
+    lowerText.includes('wan') ||
+    lowerText.includes('veo')
   ) {
     return AIReelsTemplate.WAN25
   }
