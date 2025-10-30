@@ -1,5 +1,5 @@
-import {
 import { logger } from '@/utils/enhancedLogger'
+import {
   getUsdToRubRate,
   rubToStars,
   usdToStars,
