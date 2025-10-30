@@ -15,7 +15,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 
 export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
-  'face_swap',
+  'faceSwapWizard',
 
   // Step 0: Request target image
   async ctx => {
