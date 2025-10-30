@@ -24,6 +24,7 @@ import {
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
+import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -1317,20 +1318,28 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         hasHedraSettings: !!payload.avatar_settings.hedra,
       })
 
-      // 💰 Шаблон 2: Динамическая стоимость по длине lip-sync
-      // Наценка x1.5 применена к базовым ценам
-      const duration = ctx.session.aiReelsRender.estimatedDuration || 10
-      const veo3Cost = 240 // 160⭐ × 1.5
-      const hedraPerSecond = 7 // ~4.9⭐/сек × 1.5
-      const estimatedCost = veo3Cost + duration * hedraPerSecond
+      // 💰 Шаблон 2: Динамическая стоимость на основе длины текста
+      // Расчет включает B-роллы (Veo 3.1), озвучку и аватар
+      const priceBreakdown = calculateAIReelsPrice({
+        text: ctx.session.aiReelsRender.text || '',
+        avatarService,
+        isOwnHeyGenKey: avatarService === 'heygen' && !!heygenApiKey,
+        markupMultiplier: 1.5, // Наценка x1.5 как в коде
+      })
+
+      const estimatedCost = priceBreakdown.finalPrice
 
       console.log('🔴 [STEP 6] Dynamic cost calculation:', {
-        duration,
-        veo3Cost,
-        hedraPerSecond,
-        estimatedCost,
-        markup: 1.5,
+        textLength: ctx.session.aiReelsRender.text?.length,
+        audioDuration: priceBreakdown.audioDuration,
+        bRollCount: priceBreakdown.bRollCount,
+        estimatedCost: priceBreakdown.finalPrice,
+        priceInRubles: priceBreakdown.priceInRubles,
+        breakdown: priceBreakdown,
       })
+
+      // Показываем детальный расчет стоимости пользователю
+      await ctx.reply(formatPriceMessage(priceBreakdown, isRu))
 
       // Проверка баланса
       console.log('🔴 [STEP 6] Getting user balance...')
@@ -1340,11 +1349,13 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       console.log('🔴 [STEP 6] Checking if balance sufficient...')
       if (currentBalance === null || currentBalance < estimatedCost) {
         console.log('🔴 [STEP 6] INSUFFICIENT BALANCE!')
-        await ctx.reply(
-          isRu
-            ? `💰 Недостаточно средств\n\nТребуется: ${estimatedCost}⭐\nУ вас: ${(currentBalance || 0).toFixed(2)}⭐`
-            : `💰 Insufficient funds\n\nRequired: ${estimatedCost}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`
-        )
+
+        // Показываем детальную информацию о недостатке средств
+        const insufficientMessage = isRu
+          ? `💰 Недостаточно средств\n\n${formatPriceMessage(priceBreakdown, isRu)}\n\n❌ У вас: ${(currentBalance || 0).toFixed(0)}⭐\n💳 Необходимо пополнить: ${(estimatedCost - (currentBalance || 0)).toFixed(0)}⭐`
+          : `💰 Insufficient funds\n\n${formatPriceMessage(priceBreakdown, false)}\n\n❌ You have: ${(currentBalance || 0).toFixed(0)}⭐\n💳 Need to top up: ${(estimatedCost - (currentBalance || 0)).toFixed(0)}⭐`
+
+        await ctx.reply(insufficientMessage)
         return ctx.scene.leave()
       }
 
