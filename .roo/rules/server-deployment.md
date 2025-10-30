@@ -9,7 +9,7 @@ alwaysApply: true
 ```bash
 SSH_KEY=~/.ssh/id_rsa
 SERVER=root@999-multibots-u14194.vm.elestio.app
-PROJECT_PATH=/opt/app/999-multibots-telegraf
+PROJECT_PATH=/opt/app/bot-farm
 ```
 
 ## 📜 Священный порядок развертывания

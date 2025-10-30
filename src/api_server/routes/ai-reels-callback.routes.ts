@@ -12,7 +12,7 @@ const router: Router = express.Router()
  * Реальный формат: { download_url: "https://.../jobs/telegram-ID-timestamp/results/file.mp4" }
  */
 interface AIReelsCallbackPayload {
-  download_url?: string  // Railway format
+  download_url?: string // Railway format
   job_id?: string
   status?: 'completed' | 'failed' | 'processing'
   result_url?: string
@@ -44,23 +44,27 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
     timestamp: new Date().toISOString(),
     headers: req.headers,
     bodyKeys: Object.keys(req.body || {}),
-    bodyPreview: JSON.stringify(req.body).substring(0, 200)
+    bodyPreview: JSON.stringify(req.body).substring(0, 200),
   })
 
   try {
     // ✅ Быстро отвечаем 202 Accepted согласно best practices
     res.status(202).json({
-      message: 'AI Reels callback received and will be processed asynchronously',
-      timestamp: new Date().toISOString()
+      message:
+        'AI Reels callback received and will be processed asynchronously',
+      timestamp: new Date().toISOString(),
     })
+
+    logger.info('🔔 [AI REELS CALLBACK] Inside try block');
 
     const payload: AIReelsCallbackPayload = req.body
 
     // Railway отправляет download_url вместо структурированного payload
     // Извлекаем job_id из download_url: .../jobs/telegram-ID-timestamp/results/...
     let jobId = payload.job_id
-    let videoUrl = payload.result_url || payload.video_url || payload.download_url
-    let status = payload.status || 'completed' // Default to completed if we have download_url
+    const videoUrl =
+      payload.result_url || payload.video_url || payload.download_url
+    const status = payload.status || 'completed' // Default to completed if we have download_url
 
     if (!jobId && payload.download_url) {
       const match = payload.download_url.match(/jobs\/(telegram-\d+-\d+)\//)
@@ -74,7 +78,7 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
       status,
       videoUrl,
       hasError: !!payload.error,
-      rawPayload: payload
+      rawPayload: payload,
     })
 
     // Валидация обязательных полей
@@ -89,21 +93,26 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
     }
 
     // Извлекаем Telegram ID из metadata или job_id
-    const telegramId = payload.metadata?.telegram_id ||
-                       payload.metadata?.chat_id ||
-                       extractTelegramIdFromJobId(jobId)
+    const telegramId =
+      payload.metadata?.telegram_id ||
+      payload.metadata?.chat_id ||
+      extractTelegramIdFromJobId(jobId)
 
     if (!telegramId) {
       logger.error('❌ [AI REELS CALLBACK] Cannot extract Telegram ID', {
         jobId,
-        metadata: payload.metadata
+        metadata: payload.metadata,
       })
       return
     }
 
     // Обработка в зависимости от статуса
     if (status === 'completed') {
-      await handleCompletedRender(telegramId, { ...payload, job_id: jobId, result_url: videoUrl })
+      await handleCompletedRender(telegramId, {
+        ...payload,
+        job_id: jobId,
+        result_url: videoUrl,
+      })
     } else if (status === 'failed') {
       await handleFailedRender(telegramId, { ...payload, job_id: jobId })
     } else if (status === 'processing') {
@@ -114,15 +123,29 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
     logger.info('✅ [AI REELS CALLBACK] Processed successfully', {
       jobId,
       status,
-      duration: `${duration}ms`
+      duration: `${duration}ms`,
     })
-
   } catch (error) {
+    logger.error('❌ [AI REELS CALLBACK] CAUGHT ERROR', { error });
     logger.error('❌ [AI REELS CALLBACK] Processing error', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      body: req.body
+      body: req.body,
     })
+  }
+})
+
+// 🔎 Health/ping endpoint for reverse proxy and healthchecks
+// GET /api/telegram/ai-reels-callback should return 200 OK quickly
+router.get('/telegram/ai-reels-callback', async (_req: any, res: any) => {
+  try {
+    return res.status(200).json({
+      status: 'ok',
+      service: 'ai-reels-callback',
+      timestamp: new Date().toISOString(),
+    })
+  } catch {
+    return res.status(200).end()
   }
 })
 
@@ -137,7 +160,7 @@ function extractTelegramIdFromJobId(jobId: string): string | null {
   } catch (error) {
     logger.error('❌ [AI REELS CALLBACK] Error extracting Telegram ID', {
       jobId,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
     return null
   }
@@ -146,24 +169,32 @@ function extractTelegramIdFromJobId(jobId: string): string | null {
 /**
  * Обработка успешного рендеринга
  */
-async function handleCompletedRender(telegramId: string, payload: AIReelsCallbackPayload) {
+async function handleCompletedRender(
+  telegramId: string,
+  payload: AIReelsCallbackPayload
+) {
   // Определяем правильного бота в начале функции
   const botName = payload.bot_name || payload.metadata?.bot_name
-  const { bot, error } = botName ? getBotByName(botName) : { bot: defaultBot, error: null }
+  const { bot, error } = botName
+    ? getBotByName(botName)
+    : { bot: defaultBot, error: null }
 
   if (error) {
-    logger.warn(`⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`)
+    logger.warn(
+      `⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`
+    )
   }
 
   const botToUse = bot || defaultBot
 
   try {
-    const videoUrl = payload.result_url || payload.video_url || payload.download_url
+    const videoUrl =
+      payload.result_url || payload.video_url || payload.download_url
 
     if (!videoUrl) {
       logger.error('❌ [AI REELS CALLBACK] Completed render but no video URL', {
         jobId: payload.job_id,
-        telegramId
+        telegramId,
       })
 
       await botToUse.telegram.sendMessage(
@@ -177,7 +208,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
       telegramId,
       jobId: payload.job_id,
       videoUrl,
-      botName: botName || 'defaultBot'
+      botName: botName || 'defaultBot',
     })
 
     // Скачиваем видео с Selectel S3 и отправляем как Buffer
@@ -185,7 +216,7 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
       responseType: 'arraybuffer',
       timeout: 120000, // 120 секунд таймаут для больших файлов
       maxContentLength: 100 * 1024 * 1024, // 100MB max
-      maxBodyLength: 100 * 1024 * 1024
+      maxBodyLength: 100 * 1024 * 1024,
     })
 
     const videoBuffer = Buffer.from(videoResponse.data)
@@ -194,31 +225,34 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
       telegramId,
       size: videoBuffer.length,
       sizeKB: Math.round(videoBuffer.length / 1024),
-      sizeMB: (videoBuffer.length / (1024 * 1024)).toFixed(2)
+      sizeMB: (videoBuffer.length / (1024 * 1024)).toFixed(2),
     })
 
     // ✅ Telegram лимит: 50MB. Если видео больше - отправляем URL
     const TELEGRAM_VIDEO_LIMIT = 50 * 1024 * 1024 // 50MB
 
     if (videoBuffer.length > TELEGRAM_VIDEO_LIMIT) {
-      logger.warn('⚠️ [AI REELS CALLBACK] Video exceeds Telegram limit, sending URL', {
-        telegramId,
-        videoSize: videoBuffer.length,
-        limit: TELEGRAM_VIDEO_LIMIT
-      })
+      logger.warn(
+        '⚠️ [AI REELS CALLBACK] Video exceeds Telegram limit, sending URL',
+        {
+          telegramId,
+          videoSize: videoBuffer.length,
+          limit: TELEGRAM_VIDEO_LIMIT,
+        }
+      )
 
       // Отправляем URL вместо файла
       await botToUse.telegram.sendMessage(
         telegramId,
         `✅ Ваше AI Reels видео готово!\n\n` +
-        `⚠️ Видео слишком большое для Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n` +
-        `📥 Скачайте видео по ссылке:\n${videoUrl}\n\n` +
-        `🎬 Создано с помощью Template 2 (Inngest + Railway)`
+          `⚠️ Видео слишком большое для Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n` +
+          `📥 Скачайте видео по ссылке:\n${videoUrl}\n\n` +
+          `🎬 Создано с помощью Template 2 (Inngest + Railway)`
       )
 
       logger.info('✅ [AI REELS CALLBACK] URL sent successfully', {
         telegramId,
-        jobId: payload.job_id
+        jobId: payload.job_id,
       })
       return
     }
@@ -228,20 +262,20 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
       telegramId,
       Input.fromBuffer(videoBuffer, `ai-reels-${Date.now()}.mp4`),
       {
-        caption: '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Railway)'
+        caption:
+          '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Railway)',
       }
     )
 
     logger.info('✅ [AI REELS CALLBACK] Video sent successfully', {
       telegramId,
-      jobId: payload.job_id
+      jobId: payload.job_id,
     })
-
   } catch (error) {
     logger.error('❌ [AI REELS CALLBACK] Error sending completed video', {
       telegramId,
       jobId: payload.job_id,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
 
     // Отправляем сообщение об ошибке пользователю
@@ -252,7 +286,8 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
       )
     } catch (sendError) {
       logger.error('❌ [AI REELS CALLBACK] Failed to send error message', {
-        error: sendError instanceof Error ? sendError.message : String(sendError)
+        error:
+          sendError instanceof Error ? sendError.message : String(sendError),
       })
     }
   }
@@ -261,22 +296,30 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
 /**
  * Обработка ошибки рендеринга
  */
-async function handleFailedRender(telegramId: string, payload: AIReelsCallbackPayload) {
+async function handleFailedRender(
+  telegramId: string,
+  payload: AIReelsCallbackPayload
+) {
   try {
-    const errorMessage = payload.error || payload.error_message || 'Неизвестная ошибка'
+    const errorMessage =
+      payload.error || payload.error_message || 'Неизвестная ошибка'
 
     logger.error('❌ [AI REELS CALLBACK] Render failed', {
       telegramId,
       jobId: payload.job_id,
-      error: errorMessage
+      error: errorMessage,
     })
 
     // Определяем правильного бота для отправки
     const botName = payload.bot_name || payload.metadata?.bot_name
-    const { bot, error } = botName ? getBotByName(botName) : { bot: defaultBot, error: null }
+    const { bot, error } = botName
+      ? getBotByName(botName)
+      : { bot: defaultBot, error: null }
 
     if (error) {
-      logger.warn(`⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`)
+      logger.warn(
+        `⚠️ [AI REELS CALLBACK] Bot not found: ${botName}, using defaultBot`
+      )
     }
 
     const botToUse = bot || defaultBot
@@ -285,12 +328,11 @@ async function handleFailedRender(telegramId: string, payload: AIReelsCallbackPa
       telegramId,
       `❌ Ошибка при создании видео:\n\n${errorMessage}\n\nПопробуйте ещё раз или выберите другой шаблон.`
     )
-
   } catch (error) {
     logger.error('❌ [AI REELS CALLBACK] Error handling failed render', {
       telegramId,
       jobId: payload.job_id,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 }
@@ -298,11 +340,14 @@ async function handleFailedRender(telegramId: string, payload: AIReelsCallbackPa
 /**
  * Обработка промежуточного статуса (processing)
  */
-async function handleProcessingUpdate(telegramId: string, payload: AIReelsCallbackPayload) {
+async function handleProcessingUpdate(
+  telegramId: string,
+  payload: AIReelsCallbackPayload
+) {
   try {
     logger.info('⏳ [AI REELS CALLBACK] Render in progress', {
       telegramId,
-      jobId: payload.job_id
+      jobId: payload.job_id,
     })
 
     // Опционально: можно отправить обновление статуса пользователю
@@ -310,12 +355,11 @@ async function handleProcessingUpdate(telegramId: string, payload: AIReelsCallba
     //   telegramId,
     //   '⏳ Ваше видео создаётся... Пожалуйста, подождите.'
     // )
-
   } catch (error) {
     logger.error('❌ [AI REELS CALLBACK] Error handling processing update', {
       telegramId,
       jobId: payload.job_id,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 }
