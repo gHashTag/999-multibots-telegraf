@@ -49,10 +49,10 @@
 
 ## 🌐 Webhook Configuration
 
-**Domain**: `http://test-render-farm.ru`  
-**Path**: `/webhook`  
+**Domain**: `${WEBHOOK_DOMAIN}`  
+**Path**: `${WEBHOOK_PATH:-/webhook}`  
 **Mode**: Webhook (not polling)  
-**SSL**: HTTP (no SSL required for this domain)  
+**SSL**: Managed by Let’s Encrypt on Zomro (e.g. 999-agents.site, three-head-dragon.shop)  
 
 ### Nginx Proxy
 - **Container**: `bot-proxy`
@@ -66,7 +66,7 @@
 ### Critical Settings
 ```bash
 NODE_ENV=production
-WEBHOOK_DOMAIN=http://test-render-farm.ru
+WEBHOOK_DOMAIN=https://999-agents.site
 WEBHOOK_PATH=/webhook
 ```
 
@@ -113,7 +113,7 @@ docker run -d --name 999-multibots \
 
 1. **Missing Environment Variables**: Fixed by using `--env-file .env`
 2. **Development Mode Override**: Disabled `TEST_BOT_NAME` variable
-3. **Webhook Domain**: Corrected from `999-multibots-telegraf-u14194.vm.elestio.app` to `test-render-farm.ru`
+3. **Webhook Domain**: Managed via `WEBHOOK_DOMAIN`
 4. **Container Restart Loop**: Resolved by proper environment configuration
 
 ---

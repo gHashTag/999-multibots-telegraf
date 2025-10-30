@@ -19,10 +19,10 @@ async function setupWebhooksFromEnv(): Promise<void> {
   console.log('========================')
 
   // Get configuration from environment
-  const webhookDomain = process.env.WEBHOOK_DOMAIN || 'http://test-render-farm.ru'
+  const webhookDomain = process.env.WEBHOOK_DOMAIN || process.env.ORIGIN || ''
   const webhookPath = process.env.WEBHOOK_PATH || '/webhook'
   
-  console.log(`📍 Domain: ${webhookDomain}`)
+  console.log(`📍 Domain: ${webhookDomain || '(not set)'}`)
   console.log(`📍 Path: ${webhookPath}`)
   console.log('')
 
@@ -44,6 +44,11 @@ async function setupWebhooksFromEnv(): Promise<void> {
       const port = 3000 + i
       botConfigs.push({ name, token, port })
     }
+  }
+
+  if (!webhookDomain) {
+    console.error('❌ WEBHOOK_DOMAIN/ORIGIN не задан. Укажите домен через переменные окружения.')
+    process.exit(1)
   }
 
   if (botConfigs.length === 0) {
@@ -122,7 +127,7 @@ Commands:
   help      Show this help message
 
 Environment Variables:
-  WEBHOOK_DOMAIN    Domain for webhooks (default: http://test-render-farm.ru)
+  WEBHOOK_DOMAIN    Domain for webhooks (required)
   WEBHOOK_PATH      Path for webhooks (default: /webhook)
   BOT_TOKEN_1-10    Bot tokens
 

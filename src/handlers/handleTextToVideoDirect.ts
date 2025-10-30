@@ -230,9 +230,96 @@ async function monitorVideoGeneration(
   messageId: number
 ): Promise<void> {
   const is_ru = isRussianFromState(ctx)
-  const maxAttempts = 60 // 5 минут максимум
+  const modelId = ctx.session.videoModelId
+  const isSoraModel = modelId && ['sora-2', 'sora-2-pro'].includes(modelId)
+  const maxAttempts = isSoraModel ? 36 : 60 // Sora: 3 минуты (36 * 5s), другие: 5 минут
   let attempts = 0
 
+  // Для Sora моделей используем прямой Kie.ai polling
+  if (isSoraModel) {
+    const { KieAiProvider } = await import('@/services/video-providers/KieAiProvider')
+    const kieProvider = new KieAiProvider()
+
+    const checkInterval = setInterval(async () => {
+      attempts++
+
+      try {
+        const soraResponse = await kieProvider.pollSoraTaskStatus(jobId, 5000)
+
+        logger.info('[monitorVideoGeneration] Sora status check:', {
+          jobId,
+          success: soraResponse.success,
+          hasVideoUrl: !!soraResponse.data?.videoUrl,
+          attempts
+        })
+
+        if (soraResponse.success && soraResponse.data?.videoUrl) {
+          clearInterval(checkInterval)
+          await handleVideoReady(
+            ctx,
+            soraResponse.data.videoUrl,
+            ctx.session.videoPrompt || '',
+            (ctx.session.videoModelId as VideoModelId) || 'sora-2',
+            10, // Sora всегда 10 секунд
+            messageId
+          )
+
+          // Очищаем сессию
+          delete ctx.session.videoJobId
+          delete ctx.session.videoPrompt
+          delete ctx.session.videoModelId
+          delete ctx.session.videoDuration
+          delete ctx.session.videoMessageId
+        } else if (!soraResponse.success && soraResponse.error) {
+          clearInterval(checkInterval)
+          if (ctx && ctx.telegram && ctx.chat) {
+            await ctx.telegram.editMessageText(
+              ctx.chat.id,
+              messageId,
+              undefined,
+              is_ru
+                ? `❌ Ошибка генерации Sora: ${soraResponse.error}`
+                : `❌ Sora generation error: ${soraResponse.error}`
+            )
+          }
+        } else if (attempts >= maxAttempts) {
+          clearInterval(checkInterval)
+          if (ctx && ctx.telegram && ctx.chat) {
+            await ctx.telegram.editMessageText(
+              ctx.chat.id,
+              messageId,
+              undefined,
+              is_ru
+                ? '⏱️ Генерация Sora видео заняла слишком много времени.'
+                : '⏱️ Sora video generation took too long.'
+            )
+          }
+          delete ctx.session.videoJobId
+          delete ctx.session.videoPrompt
+          delete ctx.session.videoModelId
+          delete ctx.session.videoDuration
+          delete ctx.session.videoMessageId
+        }
+      } catch (error) {
+        clearInterval(checkInterval)
+        logger.error('[monitorVideoGeneration] Sora polling error:', error)
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            messageId,
+            undefined,
+            is_ru
+              ? '❌ Ошибка при проверке статуса Sora генерации.'
+              : '❌ Error checking Sora generation status.'
+          )
+        }
+      }
+    }, 5000) // Проверяем каждые 5 секунд
+
+    return
+  }
+
+  // Для других моделей используем стандартный API polling
   const checkInterval = setInterval(async () => {
     attempts++
 
@@ -261,7 +348,7 @@ async function monitorVideoGeneration(
           ctx,
           statusResponse.videoUrl,
           ctx.session.videoPrompt || '',
-          (ctx.session.videoModelId as VideoModelId) || 'veo-3-fast',
+          (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
           ctx.session.videoDuration,
           messageId
         )
@@ -272,8 +359,16 @@ async function monitorVideoGeneration(
         delete ctx.session.videoModelId
         delete ctx.session.videoDuration
         delete ctx.session.videoMessageId
-      } else if (!statusResponse.success) {
-        // Ошибка генерации
+      } else if (statusResponse.success && !statusResponse.videoUrl) {
+        // Видео еще генерируется, продолжаем ждать
+        logger.info('[monitorVideoGeneration] Video still generating, continue polling', {
+          jobId,
+          attempts,
+          message: statusResponse.message
+        })
+        // Ничего не делаем, просто продолжаем цикл проверки
+      } else if (!statusResponse.success && statusResponse.error) {
+        // Реальная ошибка генерации
         clearInterval(checkInterval)
         if (ctx && ctx.telegram && ctx.chat) {
           await ctx.telegram.editMessageText(
@@ -285,7 +380,10 @@ async function monitorVideoGeneration(
               : `❌ Generation error: ${statusResponse.error}`
           )
         }
-      } else if (attempts >= maxAttempts) {
+      }
+      
+      // Проверка таймаута после всех других проверок
+      if (attempts >= maxAttempts) {
         // Таймаут
         clearInterval(checkInterval)
         if (ctx && ctx.telegram && ctx.chat) {
@@ -298,6 +396,12 @@ async function monitorVideoGeneration(
               : '⏱️ Video generation took too long. Please try again later.'
           )
         }
+        // Очищаем сессию при таймауте
+        delete ctx.session.videoJobId
+        delete ctx.session.videoPrompt
+        delete ctx.session.videoModelId
+        delete ctx.session.videoDuration
+        delete ctx.session.videoMessageId
       }
     } catch (error) {
       clearInterval(checkInterval)
@@ -391,10 +495,9 @@ async function handleVideoReady(
       telegram_id
     })
 
-    // Отправляем видео пользователю
+    // Отправляем видео с минимальной подписью
     await ctx.replyWithVideo(Input.fromURL(uploadedUrl), {
       caption:
-        `🎬 ${prompt}\n\n` +
         `🤖 ${is_ru ? 'Модель' : 'Model'}: ${modelName}\n` +
         (duration
           ? `⏱️ ${is_ru ? 'Длительность' : 'Duration'}: ${duration} ${
@@ -404,6 +507,39 @@ async function handleVideoReady(
         `⚡ ${is_ru ? 'Сгенерировано через' : 'Generated with'} AI`,
       parse_mode: 'Markdown',
     })
+
+    // Отправляем полный промпт отдельным сообщением
+    // Проверяем, нужно ли разбить промпт на несколько сообщений (лимит Telegram 4096 символов)
+    const MAX_MESSAGE_LENGTH = 4000 // Оставляем запас для форматирования
+    const promptHeader = is_ru ? '📝 Ваш запрос:\n\n' : '📝 Your prompt:\n\n'
+    const fullPromptMessage = promptHeader + prompt
+    
+    if (fullPromptMessage.length > MAX_MESSAGE_LENGTH) {
+      // Разбиваем на несколько сообщений, если очень длинный
+      const chunks = []
+      let currentChunk = promptHeader
+      const words = prompt.split(' ')
+      
+      for (const word of words) {
+        if ((currentChunk + ' ' + word).length > MAX_MESSAGE_LENGTH) {
+          chunks.push(currentChunk)
+          currentChunk = word
+        } else {
+          currentChunk += (currentChunk === promptHeader ? '' : ' ') + word
+        }
+      }
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk)
+      }
+      
+      // Отправляем каждый чанк
+      for (const chunk of chunks) {
+        await ctx.reply(chunk)
+      }
+    } else {
+      // Отправляем одним сообщением
+      await ctx.reply(fullPromptMessage)
+    }
 
     // Списываем баланс
     const price = getModelPriceInStars(modelId, duration)
@@ -445,6 +581,35 @@ async function handleVideoReady(
       modelId,
       price,
     })
+
+    // Отправляем видео в pulse канал
+    try {
+      const { sendMediaToPulse } = await import('@/helpers/pulse')
+      await sendMediaToPulse({
+        mediaType: 'video',
+        mediaSource: uploadedUrl,
+        telegramId: telegram_id,
+        username: ctx.from?.username,
+        language: is_ru ? 'ru' : 'en',
+        serviceType: modelName,
+        prompt: prompt,
+        botName: 'HaimGroupMedia_bot',
+        additionalInfo: {
+          'Model': modelName,
+          'Duration': duration ? `${duration} sec` : 'N/A',
+          'Price': `${price} stars`
+        }
+      })
+      
+      logger.info('[handleVideoReady] Video sent to pulse channel', {
+        telegram_id,
+        modelId,
+        uploadedUrl
+      })
+    } catch (pulseError) {
+      logger.error('[handleVideoReady] Error sending to pulse channel:', pulseError)
+      // Не прерываем выполнение, если pulse не сработал
+    }
   } catch (error) {
     logger.error('[handleVideoReady] Error sending video:', error)
 
@@ -487,7 +652,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx,
         statusResponse.videoUrl,
         ctx.session.videoPrompt || '',
-        (ctx.session.videoModelId as VideoModelId) || 'veo-3-fast',
+        (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
         ctx.session.videoDuration,
         ctx.session.videoMessageId || 0
       )

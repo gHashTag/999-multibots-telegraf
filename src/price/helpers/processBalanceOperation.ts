@@ -26,15 +26,22 @@ export const processBalanceOperation = async ({
   })
   console.log('Context available:', !!ctx)
 
-  // 🎁 ЛИДMАГНЕТ: Проверяем флаг обхода платежа
-  if (ctx?.session?.bypass_payment_check) {
-    console.log('🎁 [LEAD MAGNET] Bypassing payment check - FREE usage!', {
+  // 🎁 ЛИДMАГНЕТ: Проверяем флаг обхода платежа (ТОЛЬКО для AvatarTransform!)
+  // ✅ БЕЗОПАСНОСТЬ: Bypass работает ТОЛЬКО для mode = 'AvatarTransform'
+  const isAvatarTransformMode = ctx?.session?.mode === 'AvatarTransform'
+
+  if (ctx?.session?.bypass_payment_check && isAvatarTransformMode) {
+    console.log('🎁 [LEAD MAGNET] Bypassing payment check - FREE AvatarTransform only!', {
       telegram_id,
+      mode: ctx.session.mode,
       bypassFlag: ctx.session.bypass_payment_check,
     })
 
     // Получаем текущий баланс для отображения (но не списываем)
     const currentBalance = await getUserBalance(telegram_id.toString())
+
+    // ✅ БЕЗОПАСНОСТЬ: Очищаем флаг после использования (одноразовый bypass)
+    delete ctx.session.bypass_payment_check
 
     return {
       newBalance: currentBalance, // Баланс НЕ изменился
@@ -43,6 +50,18 @@ export const processBalanceOperation = async ({
       paymentAmount: 0, // РЕАЛЬНО списано 0
       currentBalance,
     }
+  }
+
+  // ✅ БЕЗОПАСНОСТЬ: Если bypass_payment_check установлен, но режим НЕ AvatarTransform - ИГНОРИРУЕМ!
+  if (ctx?.session?.bypass_payment_check && !isAvatarTransformMode) {
+    console.warn('⚠️ [SECURITY] bypass_payment_check detected in non-AvatarTransform mode - IGNORING!', {
+      telegram_id,
+      mode: ctx.session.mode,
+      bypassFlag: ctx.session.bypass_payment_check,
+    })
+
+    // Очищаем флаг для безопасности
+    delete ctx.session.bypass_payment_check
   }
 
   try {

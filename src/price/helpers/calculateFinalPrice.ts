@@ -20,8 +20,8 @@ export function calculateFinalPrice(
     return 0 // Или бросить ошибку?
   }
 
-  // ФИКСИРОВАННЫЕ ЦЕНЫ для наших Veo моделей
-  if (modelKey === 'veo-3-fast') {
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для специальных моделей
+  if (modelKey === 'veo3_fast') {
     logger.info('calculateFinalPrice: Using fixed price for Veo 3 Fast', {
       modelKey,
       fixedPriceInStars: 40,
@@ -29,13 +29,34 @@ export function calculateFinalPrice(
     return 40
   }
 
-  if (modelKey === 'veo-3') {
+  if (modelKey === 'veo3') {
     logger.info('calculateFinalPrice: Using fixed price for Veo 3', {
       modelKey,
-      fixedPriceInStars: 202,
+      fixedPriceInStars: 120,
     })
-    return 202
+    return 120
   }
+
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для Kling v1.6 Pro Image to Video
+  if (modelKey === 'kling-v1.6-pro') {
+    logger.info('calculateFinalPrice: Using fixed price for Kling v1.6 Pro', {
+      modelKey,
+      fixedPriceInStars: 60,
+    })
+    return 60
+  }
+
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для Minimax Image to Video
+  if (modelKey === 'minimax') {
+    logger.info('calculateFinalPrice: Using fixed price for Minimax', {
+      modelKey,
+      fixedPriceInStars: 50,
+    })
+    return 50
+  }
+
+  // Удаляем фиксированные цены для Kling v2.1 - пусть они рассчитываются динамически
+  // так как они используют стандартную длительность 5 секунд, а не 10
 
   // --- Новый порядок расчета (с учетом цены за секунду и разрешения) ---
   // 1. Определяем базовую цену с учетом разрешения

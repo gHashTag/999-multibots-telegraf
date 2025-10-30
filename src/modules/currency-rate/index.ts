@@ -80,6 +80,11 @@ export async function getCurrentRate(
       throw new Error(`API error: ${data.ret_msg}`)
     }
 
+    // Проверяем наличие данных
+    if (!data.result || !data.result.items || !Array.isArray(data.result.items)) {
+      throw new Error('Invalid API response: missing items array')
+    }
+
     // Находим все доступные цены
     const prices = data.result.items
       .map(item => parseFloat(item.price))

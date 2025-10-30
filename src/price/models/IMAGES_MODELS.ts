@@ -1,7 +1,7 @@
 import { SYSTEM_CONFIG } from '../constants'
 
 export function calculateFinalImageCostInStars(baseCost: number): number {
-  const finalCostInDollars = baseCost * (1 + SYSTEM_CONFIG.interestRate)
+  const finalCostInDollars = baseCost * SYSTEM_CONFIG.interestRate
   return Math.ceil(finalCostInDollars / SYSTEM_CONFIG.starCost)
 }
 
@@ -246,6 +246,97 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     description_ru: `Stable Diffusion 3.5 Medium — это текстово-изображённая модель с 2.5 миллиардами параметров, разработанная Stability AI. Она использует архитектуру MMDiT-X, обеспечивая улучшенное качество изображений, типографику и понимание сложных промптов. Модель разработана для эффективного использования ресурсов и поддерживает как текстовые, так и визуальные входные данные.`,
     previewImage:
       'https://replicate.delivery/yhqm/b8ZWW3KneUSuca1q7wzUrSpRsElbIdLtFqXEMaZetgrLaprTA/R8_sd3.5L_00001_.webp',
+    costPerImage: calculateFinalImageCostInStars(0.035),
+    inputType: ['text', 'image'],
+  },
+  // AI Photoshop & Image Editing Models
+  'black-forest-labs/flux-kontext-pro': {
+    shortName: 'FLUX Kontext [pro]',
+    description_en: `FLUX.1 Kontext [pro] is the state-of-the-art model for high-quality, consistent, and natural language-guided image transformations. It's 8x faster than GPT-Image-1 with integrated support in Adobe Photoshop Beta.\n\nKey capabilities:\n- Text-to-edit: Edit images using natural language instructions\n- Character consistency: Maintain subject identity across transformations\n- Local editing: Make targeted modifications without affecting the rest\n- High precision: Excellent prompt following and consistent results\n\nIntegrated into Adobe Photoshop Beta for professional workflows.`,
+    description_ru: `FLUX.1 Kontext [pro] — это передовая модель для высококачественных, последовательных и управляемых естественным языком трансформаций изображений. В 8 раз быстрее GPT-Image-1 с интеграцией в Adobe Photoshop Beta.\n\nОсновные возможности:\n- Редактирование текстом: Изменяйте изображения с помощью инструкций на естественном языке\n- Постоянство персонажей: Сохраняйте идентичность объектов при трансформациях\n- Локальное редактирование: Целевые изменения без влияния на остальное\n- Высокая точность: Отличное следование промптам и стабильные результаты\n\nИнтегрирован в Adobe Photoshop Beta для профессиональных рабочих процессов.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.05),
+    inputType: ['text', 'image'],
+  },
+  'bytedance/seededit-3.0': {
+    shortName: 'SeedEdit 3.0',
+    description_en: `SeedEdit 3.0 achieves industry-leading usability rate of 56.1% and processes 4K images with exceptional detail preservation. Built on Seedream 3.0, it excels at portrait retouching, background changes, perspective shifts, and lighting adjustments.\n\nKey strengths:\n- 4K image support with natural, precise editing\n- Superior detail preservation in non-edited areas\n- Outperforms GPT-4o (37.1%) and Gemini 2.0 (30.3%) in usability\n- Specialized reward models for quality assurance\n\nIdeal for professional image editing requiring high fidelity and consistency.`,
+    description_ru: `SeedEdit 3.0 достигает лидирующего в отрасли показателя удобства использования 56.1% и обрабатывает изображения 4K с исключительной сохранностью деталей. Построен на Seedream 3.0, превосходит в ретуши портретов, смене фона, изменении перспективы и настройке освещения.\n\nОсновные преимущества:\n- Поддержка 4K с естественным, точным редактированием\n- Превосходное сохранение деталей в нередактируемых областях\n- Превосходит GPT-4o (37.1%) и Gemini 2.0 (30.3%) по удобству использования\n- Специализированные модели вознаграждения для контроля качества\n\nИдеально для профессионального редактирования, требующего высокой точности и стабильности.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.05),
+    inputType: ['text', 'image'],
+  },
+  'bytedance/seedream-4': {
+    shortName: 'Seedream 4.0',
+    description_en: `Seedream 4.0 ranks #1 on the Artificial Analysis Image Editing Leaderboard with ELO score of 1,205, surpassing Google's Gemini 2.5 Flash. It combines text-to-image generation and image editing into a single architecture.\n\nPerformance highlights:\n- Ultra-fast: 2K high-resolution generation in 1.8 seconds\n- Top-tier quality: Leads in visual quality benchmarks\n- Comprehensive editing: Background replacement, object manipulation, style transfer, lighting modification\n- Natural language understanding: Simply describe changes in plain English\n\nBest for fast, high-quality image generation and professional editing workflows.`,
+    description_ru: `Seedream 4.0 занимает 1-е место в таблице лидеров Artificial Analysis Image Editing с ELO 1,205, превосходя Google Gemini 2.5 Flash. Объединяет генерацию текста в изображение и редактирование изображений в единую архитектуру.\n\nОсновные показатели производительности:\n- Сверхбыстрая: Генерация 2K высокого разрешения за 1.8 секунды\n- Высшее качество: Лидирует в бенчмарках визуального качества\n- Комплексное редактирование: Замена фона, манипуляция объектами, передача стиля, модификация освещения\n- Понимание естественного языка: Просто опишите изменения на обычном английском\n\nЛучший для быстрой, высококачественной генерации изображений и профессиональных рабочих процессов редактирования.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.04),
+    inputType: ['text', 'image'],
+  },
+  'google/nano-banana': {
+    shortName: 'Nano Banana',
+    description_en: `Google's latest image editing model in Gemini 2.5 Flash, described as "could truly be the end of Photoshop". Integrated into Adobe Photoshop Beta alongside FLUX.1 Kontext [pro].\n\nKey features:\n- Multi-image input support for complex edits\n- Excellent instruction following\n- Fast generation with professional quality\n- Text editing and typography preservation\n- Style transfer while maintaining original resemblance\n\nOptimized for rapid, high-quality image transformations with natural language control.`,
+    description_ru: `Последняя модель редактирования изображений Google в Gemini 2.5 Flash, описанная как "может действительно стать концом Photoshop". Интегрирована в Adobe Photoshop Beta вместе с FLUX.1 Kontext [pro].\n\nОсновные функции:\n- Поддержка мультиизображений для сложных правок\n- Отличное следование инструкциям\n- Быстрая генерация с профессиональным качеством\n- Редактирование текста и сохранение типографики\n- Передача стиля с сохранением оригинального сходства\n\nОптимизирована для быстрых, высококачественных трансформаций изображений с управлением естественным языком.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.03),
+    inputType: ['text', 'image'],
+  },
+  'qwen/qwen-image-edit': {
+    shortName: 'Qwen Image Edit',
+    description_en: `Qwen-Image-Edit from Alibaba achieves state-of-the-art (SOTA) performance in image editing tasks. Built on the 20B Qwen-Image backbone, it supports bilingual (Chinese and English) text editing.\n\nUnique capabilities:\n- Dual editing modes: Low-level visual appearance + high-level semantic editing\n- Bilingual text editing: Add, delete, modify text while preserving original font, size, and style\n- Explicit mask inputs for inpainting/outpainting\n- Region-aware prompts: Apply changes only within specified bounding boxes\n- Multi-turn chained edits: Iteratively refine outputs\n- Ultra-fast: Edits in less than 3 seconds\n\nOpen-source with commercial use allowed. Perfect for precise, controllable image editing.`,
+    description_ru: `Qwen-Image-Edit от Alibaba достигает передового (SOTA) уровня производительности в задачах редактирования изображений. Построен на основе 20B Qwen-Image, поддерживает двуязычное редактирование текста (китайский и английский).\n\nУникальные возможности:\n- Двойные режимы редактирования: Низкоуровневый визуальный вид + высокоуровневое семантическое редактирование\n- Двуязычное редактирование текста: Добавляйте, удаляйте, изменяйте текст, сохраняя оригинальный шрифт, размер и стиль\n- Явные входы масок для inpainting/outpainting\n- Промпты с учетом регионов: Применяйте изменения только в указанных ограничивающих рамках\n- Многоходовые цепные правки: Итеративное уточнение выходов\n- Сверхбыстрая: Редактирование менее чем за 3 секунды\n\nОткрытый исходный код с разрешением на коммерческое использование. Идеально для точного, контролируемого редактирования изображений.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.025),
+    inputType: ['text', 'image'],
+  },
+  'qwen/qwen-image-edit-plus': {
+    shortName: 'Qwen Image Edit Plus',
+    description_en: `Improved version of Qwen-Image-Edit with enhanced multi-image editing capabilities and superior single-image consistency. Maintains all SOTA features of the base model with additional refinements.\n\nEnhancements:\n- Better multi-image editing coordination\n- Improved single-image consistency across edits\n- Enhanced semantic understanding\n- Faster processing with maintained quality\n\nBuilds upon the proven Qwen-Image-Edit foundation with performance optimizations for professional workflows.`,
+    description_ru: `Улучшенная версия Qwen-Image-Edit с расширенными возможностями редактирования множественных изображений и превосходной постоянством одиночных изображений. Сохраняет все SOTA функции базовой модели с дополнительными улучшениями.\n\nУлучшения:\n- Лучшая координация редактирования множественных изображений\n- Улучшенная постоянство одиночных изображений в правках\n- Расширенное семантическое понимание\n- Более быстрая обработка с сохранением качества\n\nОснована на проверенном фундаменте Qwen-Image-Edit с оптимизациями производительности для профессиональных рабочих процессов.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.03),
+    inputType: ['text', 'image'],
+  },
+  'bria/genfill': {
+    shortName: 'Bria GenFill',
+    description_en: `High-quality object addition and visual transformation model from Bria AI. Specializes in seamlessly adding new objects to images or transforming existing elements while maintaining photorealistic quality.\n\nKey features:\n- Precise object addition with context awareness\n- Visual element transformation\n- Natural integration with existing scene\n- High-quality results for commercial use\n\nIdeal for product placement, scene enhancement, and creative visual modifications.`,
+    description_ru: `Модель высококачественного добавления объектов и визуальной трансформации от Bria AI. Специализируется на бесшовном добавлении новых объектов к изображениям или трансформации существующих элементов с сохранением фотореалистичного качества.\n\nОсновные функции:\n- Точное добавление объектов с учетом контекста\n- Трансформация визуальных элементов\n- Естественная интеграция с существующей сценой\n- Высококачественные результаты для коммерческого использования\n\nИдеально для размещения продуктов, улучшения сцен и творческих визуальных модификаций.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.04),
+    inputType: ['text', 'image'],
+  },
+  'bria/eraser': {
+    shortName: 'Bria Eraser',
+    description_en: `Precise removal of unwanted objects from images with intelligent background reconstruction. Professional-grade eraser tool for clean, natural results.\n\nCapabilities:\n- One-click object removal\n- Intelligent background inpainting\n- Natural seamless results\n- No artifacts or visible edits\n\nPerfect for product photography cleanup, unwanted element removal, and professional image refinement.`,
+    description_ru: `Точное удаление нежелательных объектов с изображений с интеллектуальной реконструкцией фона. Профессиональный инструмент для чистых, естественных результатов.\n\nВозможности:\n- Удаление объектов одним щелчком\n- Интеллектуальное inpainting фона\n- Естественные бесшовные результаты\n- Без артефактов или видимых правок\n\nИдеально для очистки фотографий продуктов, удаления нежелательных элементов и профессионального улучшения изображений.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.035),
+    inputType: ['image'],
+  },
+  'bria/expand-image': {
+    shortName: 'Bria Expand',
+    description_en: `Expand images beyond their borders in high quality using intelligent outpainting. Extends images naturally while maintaining style, lighting, and composition consistency.\n\nFeatures:\n- High-quality border expansion\n- Style-consistent outpainting\n- Natural edge blending\n- Maintains original composition integrity\n\nIdeal for resizing images, changing aspect ratios, and creative composition expansion.`,
+    description_ru: `Расширяйте изображения за их границы в высоком качестве с помощью интеллектуального outpainting. Расширяет изображения естественно, сохраняя постоянство стиля, освещения и композиции.\n\nФункции:\n- Высококачественное расширение границ\n- Outpainting с сохранением стиля\n- Естественное смешивание краев\n- Сохранение целостности оригинальной композиции\n\nИдеально для изменения размера изображений, изменения соотношений сторон и творческого расширения композиции.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.04),
+    inputType: ['image'],
+  },
+  'bria/generate-background': {
+    shortName: 'Bria Background',
+    description_en: `Efficiently swap backgrounds in images via text prompts. Professional background replacement that maintains subject integrity and lighting consistency.\n\nCapabilities:\n- Text-based background generation\n- Automatic subject detection and preservation\n- Lighting and color matching\n- Natural integration of new backgrounds\n\nPerfect for product photography, portrait enhancement, and creative scene composition.`,
+    description_ru: `Эффективно меняйте фоны на изображениях через текстовые промпты. Профессиональная замена фона, сохраняющая целостность объекта и постоянство освещения.\n\nВозможности:\n- Генерация фона на основе текста\n- Автоматическое обнаружение и сохранение объекта\n- Согласование освещения и цвета\n- Естественная интеграция новых фонов\n\nИдеально для фотографии продуктов, улучшения портретов и творческой композиции сцен.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
     costPerImage: calculateFinalImageCostInStars(0.035),
     inputType: ['text', 'image'],
   },

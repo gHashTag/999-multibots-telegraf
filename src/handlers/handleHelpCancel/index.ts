@@ -37,8 +37,8 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
 
     if (text === (isRu ? 'справка по команде' : 'help for the command')) {
       console.log('✅ [handleHelpCancel] HELP DETECTED - Processing help')
+      // ✅ Входим в helpScene и остаёмся там (убрали .leave())
       await ctx.scene.enter('helpScene')
-      await ctx.scene.leave()
       return true
     }
 

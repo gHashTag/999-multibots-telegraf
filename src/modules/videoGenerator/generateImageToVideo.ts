@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
+import { createHash } from 'crypto'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import {
@@ -11,7 +12,8 @@ import { replicate } from '@/core/replicate'
 import {
   downloadFileHelper,
   getUserHelper,
-  processBalanceVideoOperationHelper,
+  checkBalanceVideoOperationHelper,
+  deductBalanceAfterSuccess,
   saveVideoUrlHelper,
   updateUserLevelHelper,
 } from './helpers'
@@ -19,6 +21,104 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Markup } from 'telegraf'
+import axios from 'axios'
+import { isAxiosError } from 'axios'
+import { API_URL, SECRET_API_KEY } from '@/config'
+import { safeSendMessage, markUserAsBlocked } from '@/utils/blockedUsersCheck'
+import { videoTaskCache } from './taskCache'
+
+// Функция для отправки уведомления админу
+async function notifyAdminAboutServerIssue(
+  error: string,
+  telegram_id: string,
+  videoModel: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+    
+    if (!botResult.bot) return
+    
+    // Экранируем специальные символы для HTML
+    const escapeHtml = (text: string) => {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;')
+    }
+    
+    const errorMessage = `🚨 <b>SERVER DOWN ALERT (I2V)</b>\n\n` +
+      `📍 План Б АКТИВИРОВАН для Image to Video\n` +
+      `👤 User: ${escapeHtml(telegram_id)}\n` +
+      `🎬 Model: ${escapeHtml(videoModel)}\n` +
+      `❌ Server Error: ${escapeHtml(error)}\n` +
+      `✅ Используется прямой API Veo 3 (Plan B)\n\n` +
+      `⚠️ Проверьте сервер: https://three-head-dragon.shop`
+    
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
+        parse_mode: 'HTML'
+      })
+    }
+    
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
+      adminIds,
+      error
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+  }
+}
+
+async function notifyAdminAboutPlanBSuccess(
+  telegram_id: string,
+  videoModel: string,
+  taskId: string,
+  videoUrl: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName('neuro_blogger_bot')
+
+    if (!botResult.bot) return
+
+    // Экранируем специальные символы для HTML
+    const escapeHtml = (text: string) => {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;')
+    }
+    
+    const successMessage = `✅ <b>PLAN B SUCCESS (I2V)</b>\n\n` +
+      `📍 Видео успешно сгенерировано через Plan B\n` +
+      `👤 User: ${escapeHtml(telegram_id)}\n` +
+      `🎬 Model: ${escapeHtml(videoModel)}\n` +
+      `🔗 Task ID: ${escapeHtml(taskId)}\n` +
+      `🎥 Video URL: ${escapeHtml(videoUrl.substring(0, 50))}...\n\n` +
+      `✅ Fallback механизм работает корректно`
+
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, successMessage, {
+        parse_mode: 'HTML'
+      })
+    }
+
+    logger.info('[ADMIN NOTIFICATION] Plan B success reported to admins', {
+      adminIds,
+      telegram_id,
+      taskId
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins about Plan B success', notifyError)
+  }
+}
 
 export const generateImageToVideo = async (
   telegramId: string,
@@ -34,7 +134,8 @@ export const generateImageToVideo = async (
   telegramInstance: Telegraf<MyContext>['telegram'],
   chatId: number,
   selectedResolution?: string, // Добавлен параметр для разрешения Seedance
-  selectedAspectRatio?: string // Добавлен параметр для соотношения сторон Kie.ai моделей
+  selectedAspectRatio?: string, // Добавлен параметр для соотношения сторон Kie.ai моделей
+  ctx?: MyContext // ✅ FIX: Added ctx to save videoJobId in session
 ): Promise<void> => {
   let localVideoPath: string | undefined
   const notificationMessage = isRu
@@ -44,6 +145,38 @@ export const generateImageToVideo = async (
   let newBalanceForNotification: number | undefined
 
   try {
+    // Усекаем длинный промпт, чтобы избежать ошибок Telegram "message too long"
+    const maxPromptLength = 2000 // Безопасный лимит для промпта
+    let processedPrompt = prompt
+    if (processedPrompt && processedPrompt.length > maxPromptLength) {
+      processedPrompt = processedPrompt.substring(0, maxPromptLength) + '...'
+      logger.warn('[I2V BG] Prompt truncated due to length', {
+        telegramId,
+        originalLength: prompt.length,
+        truncatedLength: processedPrompt.length
+      })
+    }
+
+    // ✅ FIX: Проверка на дублирующиеся запросы генерации через новый кеш
+    // Проверяем, есть ли уже активная задача для этого пользователя и модели
+    if (videoTaskCache.hasActiveTask(telegramId, modelId)) {
+      const existingTask = videoTaskCache.getActiveTask(telegramId, modelId)
+      logger.warn('[I2V BG] ⚠️ Duplicate request detected - blocking multiple generation', {
+        telegramId,
+        existingTaskId: existingTask?.taskId,
+        modelId,
+        cacheStats: videoTaskCache.getStats()
+      })
+
+      await telegramInstance.sendMessage(
+        chatId,
+        isRu
+          ? `⚠️ Видео с моделью ${modelConfig.title} уже генерируется для вас. Пожалуйста, дождитесь завершения (обычно 2-3 минуты).`
+          : `⚠️ Video with ${modelConfig.title} model is already being generated for you. Please wait for completion (usually 2-3 minutes).`
+      )
+      return
+    }
+
     const modelConfig = VIDEO_MODELS_CONFIG[modelId]
     if (!modelConfig) {
       logger.error(
@@ -64,7 +197,7 @@ export const generateImageToVideo = async (
       telegramId,
       isMorphing,
       hasImageUrl: !!imageUrl,
-      hasPrompt: !!prompt,
+      hasPrompt: !!processedPrompt,
       hasImageA: !!imageAUrl,
       hasImageB: !!imageBUrl,
     })
@@ -88,7 +221,7 @@ export const generateImageToVideo = async (
       }
       logger.info('[I2V BG] Morphing mode validated', { telegramId })
     } else {
-      if (!imageUrl || !prompt) {
+      if (!imageUrl || !processedPrompt) {
         await telegramInstance.sendMessage(
           chatId,
           '❌ Ошибка: Изображение и промпт обязательны для стандартного режима.'
@@ -126,14 +259,26 @@ export const generateImageToVideo = async (
         })
       }
     }
-    const userAspectRatio =
-      selectedAspectRatio || (userExists.aspect_ratio ?? '9:16')
+    // Определяем aspect ratio с учетом вертикальных фото
+    let userAspectRatio = selectedAspectRatio || (userExists.aspect_ratio ?? '9:16')
 
-    const balanceResult = await processBalanceVideoOperationHelper(
+    // Если модель поддерживает разные соотношения сторон, используем оптимальное для вертикальных фото
+    if (modelConfig.aspectRatioOptions && modelConfig.aspectRatioOptions.includes('9:16')) {
+      // Для моделей с поддержкой 9:16 используем вертикальное соотношение по умолчанию
+      if (!selectedAspectRatio) {
+        userAspectRatio = '9:16'
+        logger.info('[I2V BG] Using vertical aspect ratio for better compatibility', {
+          telegramId,
+          modelId,
+          aspectRatio: userAspectRatio
+        })
+      }
+    }
+
+    const balanceResult = await checkBalanceVideoOperationHelper(
       telegramId,
       modelId,
       isRu,
-      botName,
       'image_to_video'
     )
 
@@ -153,13 +298,16 @@ export const generateImageToVideo = async (
       )
       return
     }
-    paymentAmountForNotification = balanceResult.paymentAmount
-    newBalanceForNotification = balanceResult.newBalance
-    logger.info('[I2V BG] Balance sufficient and deducted', {
+    // Баланс проверен, деньги будут сняты только после успешной генерации
+    logger.info('[I2V BG] Balance check passed, payment will be deducted after successful generation', {
       telegramId,
-      paymentAmount: paymentAmountForNotification,
-      newBalance: newBalanceForNotification,
+      currentBalance: balanceResult.currentBalance,
+      paymentAmount: balanceResult.paymentAmount,
     })
+
+    // Инициализируем значения для уведомлений (будут обновлены после снятия денег)
+    paymentAmountForNotification = balanceResult.paymentAmount || 0
+    newBalanceForNotification = balanceResult.currentBalance
 
     const replicateModelId: string = modelConfig.api.model
     let modelInput: any = {}
@@ -170,7 +318,7 @@ export const generateImageToVideo = async (
           ...modelConfig.api.input,
           [modelConfig.imageKey]: imageAUrl,
           end_image: imageBUrl,
-          prompt: prompt || '',
+          prompt: processedPrompt || '',
         }
         logger.info('[I2V BG] Prepared Replicate input for Kling morphing', {
           telegramId,
@@ -181,7 +329,7 @@ export const generateImageToVideo = async (
           ...modelConfig.api.input,
           image_a: imageAUrl,
           image_b: imageBUrl,
-          prompt: prompt || '',
+          prompt: processedPrompt || '',
         }
         logger.info('[I2V BG] Prepared Replicate input for generic morphing', {
           telegramId,
@@ -189,7 +337,7 @@ export const generateImageToVideo = async (
         })
       }
     } else {
-      if (!imageUrl || !prompt || !modelConfig.imageKey) {
+      if (!imageUrl || !processedPrompt || !modelConfig.imageKey) {
         logger.error('[I2V BG] Internal validation failed (standard mode)', {
           telegramId,
         })
@@ -198,31 +346,827 @@ export const generateImageToVideo = async (
         )
       }
 
-      // Специальная обработка для Google Veo 3 моделей (поддерживают image-to-video)
-      if (modelConfig.id === 'veo-3' || modelConfig.id === 'veo-3-fast') {
-        modelInput = {
-          prompt,
-          image: imageUrl,
-          duration_seconds: modelConfig.api.input.duration_seconds || 8,
-          aspect_ratio: userAspectRatio,
-          enable_audio: modelConfig.api.input.enable_audio || true,
-        }
-        // Добавляем prompt_optimizer только если он есть в конфиге
-        if (modelConfig.api.input.prompt_optimizer) {
-          modelInput.prompt_optimizer = true
-        }
-        logger.info(`[I2V BG] ${modelConfig.title} model input prepared:`, {
+      // Специальная обработка для Google Veo 3 моделей (используем План А/Б)
+      if (modelConfig.id === 'veo3' || modelConfig.id === 'veo3_fast') {
+        // Флаг для переключения планов: true = План А (сервер), false = План Б (локальный)
+        // По умолчанию пробуем сервер сначала (План А), при ошибке переключаемся на План Б
+        const USE_PLAN_A = true // Сначала пробуем через сервер
+
+        logger.info(`[I2V BG] Veo model detected, using Plan A/B system`, {
           telegramId,
           modelId: modelConfig.id,
+          aspectRatio: userAspectRatio,
           hasImage: !!imageUrl,
-          fullInput: modelInput,
+        })
+
+        // ПЛАН А: Сначала пробуем через наш сервер
+        if (USE_PLAN_A) {
+        logger.info('[PLAN A] Trying server first for Veo model', {
+          modelId: modelConfig.id,
+          serverUrl: API_URL
+        })
+        
+        try {
+          const baseUrl = API_URL
+          
+          // Проверяем доступность сервера (пропускаем localhost для тестов)
+          if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {
+            const url = `${baseUrl}/api/v1/veo/generate`
+            
+            const requestBody = {
+              model: modelConfig.id === 'veo3_fast' ? 'veo3_fast' : 'veo3',
+              prompt: processedPrompt || '',
+              imageUrl: imageUrl,
+              aspectRatio: userAspectRatio || '9:16',
+              enableFallback: false,
+              enableTranslation: true,
+              telegram_id: telegramId,
+              username: username || 'unknown',
+              is_ru: isRu || false,
+              bot_name: botName || 'unknown',
+            }
+            
+            logger.info('[PLAN A] ТОЧНЫЙ ЗАПРОС НА СЕРВЕР:', {
+              url,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-secret-key': SECRET_API_KEY ? 'PRESENT' : 'MISSING',
+              },
+              requestBody: {
+                ...requestBody,
+                prompt: `[PROMPT LENGTH: ${processedPrompt?.length || 0} chars]`,
+                imageUrl: imageUrl ? 'PRESENT' : 'MISSING',
+              },
+              serverBaseUrl: baseUrl,
+            })
+            
+            const response = await axios.post(url, requestBody, {
+              headers: {
+                'Content-Type': 'application/json',
+                'x-secret-key': SECRET_API_KEY,
+              },
+              timeout: 10000, // 10 секунд таймаут для проверки сервера
+            })
+            
+            logger.info('[PLAN A] Server response received', {
+              status: response.status,
+              success: response.data.success,
+              hasJobId: !!response.data.jobId,
+              hasVideoUrl: !!response.data.videoUrl,
+            })
+            
+            // Если сервер ответил успешно с videoUrl - обрабатываем видео
+            if (response.data.success && response.data.videoUrl) {
+              logger.info('[PLAN A] Server returned video URL - processing video', {
+                telegramId,
+                videoUrl: response.data.videoUrl
+              })
+
+              // Скачиваем видео с сервера
+              const videoUrl = response.data.videoUrl
+              const videoBuffer = await downloadFileHelper(videoUrl)
+              logger.info('[PLAN A] Video downloaded from server', { telegramId, url: videoUrl })
+
+              // Сохраняем видео локально
+              const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+              await mkdir(dirPath, { recursive: true })
+              const timestamp = Date.now()
+              const uniqueFilename = `${timestamp}_server_video.mp4`
+              localVideoPath = path.join(dirPath, uniqueFilename)
+              const u8 = new Uint8Array(videoBuffer)
+              await writeFile(localVideoPath, u8)
+              logger.info('[PLAN A] Video saved locally from server', {
+                telegramId,
+                path: localVideoPath,
+              })
+
+              // Сохраняем информацию о видео в БД
+              await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+              logger.info('[PLAN A] Video info saved to DB from server', { telegramId })
+
+              // Снимаем деньги ТОЛЬКО после успешного получения видео
+              const deductSuccess = await deductBalanceAfterSuccess(
+                telegramId,
+                modelId,
+                botName,
+                balanceResult.paymentAmount || 0,
+                'image_to_video'
+              )
+
+              if (!deductSuccess) {
+                logger.error('[PLAN A] Failed to deduct payment after successful video generation', {
+                  telegramId,
+                  modelId,
+                  paymentAmount: balanceResult.paymentAmount
+                })
+                // Все равно отправляем видео, но логируем ошибку
+              } else {
+                logger.info('[PLAN A] Payment deducted after successful video generation', {
+                  telegramId,
+                  modelId,
+                  paymentAmount: balanceResult.paymentAmount
+                })
+              }
+
+              // Отправляем видео пользователю
+              const caption = isRu
+                ? `✨ Ваше видео (${modelConfig.title}) готово через сервер!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+                : `✨ Your video (${modelConfig.title}) is ready via server!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+
+              await telegramInstance.sendVideo(
+                chatId,
+                { source: localVideoPath },
+                { caption }
+              )
+
+              // Отправляем видео в pulse канал (Plan A)
+              try {
+                const { sendMediaToPulse } = await import('@/helpers/pulse')
+                await sendMediaToPulse({
+                  mediaType: 'video',
+                  mediaSource: videoUrl,
+                  telegramId: telegramId,
+                  username: username,
+                  language: isRu ? 'ru' : 'en',
+                  serviceType: modelConfig.title,
+                  prompt: processedPrompt || '',
+                  botName: botName,
+                  additionalInfo: {
+                    'Model': modelConfig.title,
+                    'Price': `${paymentAmountForNotification} stars`,
+                    'Generation Type': 'Image to Video (Plan A)'
+                  }
+                })
+                
+                logger.info('[PLAN A] Video sent to pulse channel', {
+                  telegramId,
+                  modelId: modelConfig.id,
+                  videoUrl
+                })
+              } catch (pulseError) {
+                logger.error('[PLAN A] Error sending to pulse channel:', pulseError)
+              }
+
+              // Добавляем финальные кнопки
+              logger.info('[PLAN A] Sending final buttons to user after server video', { telegramId })
+
+              const keyboard = Markup.keyboard([
+                [
+                  isRu
+                    ? '🎬 Новое видео'
+                    : '🎬 New Video',
+                ],
+                [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+              ]).resize()
+
+              await telegramInstance.sendMessage(
+                chatId,
+                isRu
+                  ? 'Ваше видео готово! Что дальше?'
+                  : 'Your video is ready! What next?',
+                keyboard
+              )
+              return // Выходим из функции, так как видео уже отправлено
+            }
+
+            // Если сервер ответил success но без videoUrl - переходим к плану Б
+            if (response.data.success && !response.data.videoUrl) {
+              logger.warn('[PLAN A] Server success but no videoUrl - switching to PLAN B', {
+                telegramId,
+                hasJobId: !!response.data.jobId
+              })
+              // Продолжаем к плану Б
+            }
+          }
+        } catch (serverError) {
+          // Сервер недоступен, переключаемся на План Б
+          const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
+          
+          // ДЕТАЛЬНАЯ ДИАГНОСТИКА ОШИБКИ СЕРВЕРА
+          if (isAxiosError(serverError)) {
+            logger.error('[PLAN A] ДЕТАЛИ ОШИБКИ СЕРВЕРА:', {
+              status: serverError.response?.status,
+              statusText: serverError.response?.statusText,
+              data: serverError.response?.data,
+              url: serverError.config?.url,
+              code: serverError.code,
+              message: serverError.message,
+              fullError: JSON.stringify(serverError.response?.data || {}, null, 2)
+            })
+          }
+          
+          logger.warn('[PLAN A] Server failed, switching to PLAN B', {
+            error: errorMessage,
+            modelId: modelConfig.id
+          })
+          
+          // Уведомляем админа о проблеме с сервером
+          await notifyAdminAboutServerIssue(errorMessage, telegramId, modelConfig.id)
+        }
+        } else {
+          // План А отключен, сразу переходим к Плану Б
+          logger.info('[PLAN A] Skipped - going directly to PLAN B', {
+            modelId: modelConfig.id
+          })
+        }
+        
+        // ПЛАН Б: Используем прямую интеграцию с API Veo 3
+        logger.info('[PLAN B] Using direct Veo 3 API', {
+          modelId: modelConfig.id,
+          aspectRatio: userAspectRatio,
+          hasImage: !!imageUrl,
+          telegramId,
+          username
+        })
+
+        // Уведомляем пользователя о переходе к Плану Б
+        // M-Admin: План Б активирован - прямой API Veo 3
+        logger.info('[M-Admin] 🔄 Plan B activated - using direct Veo 3 API', {
+          telegramId,
+          modelId,
+          userAspectRatio
+        })
+        
+        // Импортируем KieAiProvider
+        const { KieAiProvider } = await import('@/services/video-providers/KieAiProvider')
+        const kieProvider = new KieAiProvider()
+        
+        // Преобразуем aspectRatio в формат Kie.ai
+        const kieAspectRatio = userAspectRatio as '16:9' | '9:16' | '1:1' | undefined
+        
+        logger.info('[PLAN B] Calling Veo 3 generateVideo with params:', {
+          model: modelConfig.id,
+          promptLength: processedPrompt?.length || 0,
+          aspectRatio: kieAspectRatio || '9:16',
+          hasImage: !!imageUrl
+        })
+
+        // M-Admin: Начинаем генерацию видео через Kie.ai
+        logger.info('[M-Admin] 🎬 Starting video generation via Kie.ai', {
+          telegramId,
+          modelId: modelConfig.id,
+          modelTitle: modelConfig.title,
+          prompt: processedPrompt?.substring(0, 100) + '...',
+          aspectRatio: kieAspectRatio,
+          hasImage: !!imageUrl
+        })
+        
+        // Проверяем наличие изображения перед отправкой в Kie.ai
+        if (!imageUrl) {
+          logger.error('[PLAN B] CRITICAL ERROR: No image URL provided for image-to-video generation', {
+            telegramId,
+            modelId: modelConfig.id,
+            prompt: processedPrompt || 'no prompt'
+          })
+
+          await telegramInstance.sendMessage(
+            chatId,
+            isRu
+              ? `❌ Ошибка: Для генерации видео из изображения необходимо предоставить изображение!`
+              : `❌ Error: Image is required for image-to-video generation!`
+          )
+
+          // Возвращаем деньги пользователю
+          const refundResult = await updateUserBalance(
+            telegramId,
+            balanceResult.paymentAmount || 0,
+            PaymentType.MONEY_INCOME,
+            `Refund for failed ${modelConfig.title} generation - no image provided`,
+            {
+              bot_name: botName,
+              service_type: 'image-to-video-refund',
+              model_name: modelConfig.id,
+              original_error: 'No image URL provided for image-to-video generation',
+              refund_amount: balanceResult.paymentAmount || 0,
+            }
+          )
+
+          return
+        }
+        
+        // Генерируем видео через Kie.ai
+        logger.info('[PLAN B] Sending request to Kie.ai:', {
+          model: modelConfig.id,
+          prompt: processedPrompt ? `${processedPrompt.substring(0, 100)}...` : 'no prompt',
+          aspectRatio: kieAspectRatio || '9:16',
+          hasImageUrl: !!imageUrl,
+          imageUrl: imageUrl ? `${imageUrl.substring(0, 100)}...` : 'no image',
+        })
+
+        const kieResponse = await kieProvider.generateVideo({
+          model: modelConfig.id,
+          prompt: processedPrompt || '',
+          aspectRatio: kieAspectRatio || '9:16',
+          imageUrl: imageUrl,
+        })
+        
+        logger.info('[PLAN B] Veo 3 API response received:', {
+          success: kieResponse.success,
+          hasData: !!kieResponse.data,
+          hasVideoUrl: !!kieResponse.data?.videoUrl,
+          hasTaskId: !!kieResponse.data?.taskId,
+          taskId: kieResponse.data?.taskId,
+          error: kieResponse.error
+        })
+        
+        if (kieResponse.success) {
+          if (kieResponse.data?.videoUrl) {
+            // Видео готово сразу - обрабатываем его
+            const videoUrl = kieResponse.data.videoUrl
+            const videoBuffer = await downloadFileHelper(videoUrl)
+            logger.info('[I2V BG] Video downloaded from Plan B', { telegramId, url: videoUrl })
+            
+            const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+            await mkdir(dirPath, { recursive: true })
+            const timestamp = Date.now()
+            const uniqueFilename = `${timestamp}_video.mp4`
+            localVideoPath = path.join(dirPath, uniqueFilename)
+            const u8 = new Uint8Array(videoBuffer)
+            await writeFile(localVideoPath, u8)
+            logger.info('[I2V BG] Video saved locally from Plan B', {
+              telegramId,
+              path: localVideoPath,
+            })
+            
+            await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+            logger.info('[I2V BG] Video info saved to DB', { telegramId })
+            
+            const caption = isRu
+              ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+              : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+
+            // Логируем для админа, что видео было создано через Plan B
+            logger.info('[M-Admin] 🎬 Video successfully generated via Plan B', {
+              telegramId,
+              modelId: modelConfig.id,
+              videoUrl: videoUrl.substring(0, 100) + '...'
+            })
+            
+            await telegramInstance.sendVideo(
+              chatId,
+              { source: localVideoPath },
+              { caption }
+            )
+            
+            // Отправляем видео в pulse канал (Plan B - direct)
+            try {
+              const { sendMediaToPulse } = await import('@/helpers/pulse')
+              await sendMediaToPulse({
+                mediaType: 'video',
+                mediaSource: videoUrl,
+                telegramId: telegramId,
+                username: username,
+                language: isRu ? 'ru' : 'en',
+                serviceType: modelConfig.title,
+                prompt: processedPrompt || '',
+                botName: botName,
+                additionalInfo: {
+                  'Model': modelConfig.title,
+                  'Price': `${paymentAmountForNotification} stars`,
+                  'Generation Type': 'Image to Video (Plan B - Direct)'
+                }
+              })
+              
+              logger.info('[PLAN B] Video sent to pulse channel (direct)', {
+                telegramId,
+                modelId: modelConfig.id,
+                videoUrl
+              })
+            } catch (pulseError) {
+              logger.error('[PLAN B] Error sending to pulse channel:', pulseError)
+            }
+            
+            // Добавляем финальные кнопки
+            logger.info('[I2V BG] Sending final buttons to user', { telegramId })
+            
+            const keyboard = Markup.keyboard([
+              [
+                isRu
+                  ? '🎬 Новое видео'
+                  : '🎬 New Video',
+              ],
+              [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+            ]).resize()
+            
+            await telegramInstance.sendMessage(
+              chatId,
+              isRu
+                ? 'Ваше видео готово! Что дальше?'
+                : 'Your video is ready! What next?',
+              keyboard
+            )
+            return // Выходим из функции, так как видео уже отправлено
+          } else if (kieResponse.data?.taskId) {
+            // Если есть taskId, но нет videoUrl - видео еще генерируется
+            logger.info('[I2V BG] Plan B: Starting job polling for taskId', {
+              telegramId,
+              taskId: kieResponse.data.taskId
+            })
+
+            // Реализуем polling для Kie.ai API
+            const taskId = kieResponse.data.taskId
+
+            // ✅ FIX: Сохраняем taskId в новый кеш для предотвращения дублирующихся запросов
+            videoTaskCache.addTask(telegramId, modelId, taskId, processedPrompt || prompt || '', imageUrl || undefined)
+            logger.info('[I2V BG] ✅ TaskId saved to cache for deduplication', {
+              telegramId,
+              taskId,
+              modelId
+            })
+
+            // ✅ FIX: Save taskId to session so "Update status" button works
+            if (ctx && ctx.session) {
+              ctx.session.videoJobId = taskId
+              ctx.session.videoPrompt = processedPrompt || prompt || ''
+              ctx.session.videoModelId = modelId as any
+              ctx.session.videoMessageId = 0 // Will be updated later
+              logger.info('[I2V BG] ✅ Saved taskId to session for status updates', {
+                telegramId,
+                taskId,
+                sessionHasContext: !!ctx.session
+              })
+            } else {
+              logger.warn('[I2V BG] ⚠️ Cannot save taskId - ctx or session missing', {
+                telegramId,
+                taskId,
+                hasCtx: !!ctx,
+                hasSession: !!ctx?.session
+              })
+            }
+
+            const maxPollingAttempts = 300 // 300 попыток = ~10 минут (2 сек * 300) - увеличено для VEO 3
+            const pollingInterval = 2000 // 2 секунды между проверками
+
+            let attempts = 0
+            let lastProgressMessage = ''
+
+            // M-Admin: Начато polling для отслеживания статуса генерации
+            logger.info('[M-Admin] 🎬 Started polling for video generation status', {
+              telegramId,
+              taskId,
+              maxPollingAttempts,
+              pollingInterval,
+              estimatedTime: '~10 minutes'
+            })
+
+            while (attempts < maxPollingAttempts) {
+              attempts++
+
+              try {
+                // Проверяем статус задачи
+                const statusResponse = await kieProvider.checkVideoStatus(taskId)
+
+                logger.info(`[I2V BG] Plan B polling attempt ${attempts}/${maxPollingAttempts}`, {
+                  telegramId,
+                  taskId,
+                  success: statusResponse.success,
+                  hasVideoUrl: !!statusResponse.data?.videoUrl,
+                  error: statusResponse.error
+                })
+
+                // Проверяем на ошибки генерации
+                if (!statusResponse.success) {
+                  // Ошибка генерации (например, unsafe image upload)
+                  const errorMessage = statusResponse.error || 'Unknown generation error'
+
+                  logger.error('[I2V BG] Plan B: Video generation failed', {
+                    telegramId,
+                    taskId,
+                    error: errorMessage,
+                    attempts
+                  })
+
+                  // ✅ FIX: Очищаем кеш при ошибке генерации
+                  videoTaskCache.removeTask(telegramId, modelId)
+                  logger.info('[I2V BG] 🧹 Cache cleaned on error', {
+                    telegramId,
+                    taskId,
+                    modelId,
+                    error: errorMessage
+                  })
+
+                  // Создаем клавиатуру для ошибки
+                  const errorKeyboard = Markup.keyboard([
+                    [
+                      isRu
+                        ? '🎬 Попробовать снова'
+                        : '🎬 Try Again',
+                    ],
+                    [
+                      isRu
+                        ? '🏠 Главное меню'
+                        : '🏠 Main Menu',
+                    ],
+                  ])
+                    .resize()
+                    .oneTime()
+
+                  // Уведомляем пользователя об ошибке
+                  const { getBotByName } = await import('@/core/bot')
+                  const botResult = getBotByName('neuro_blogger_bot')
+
+                  if (botResult.bot) {
+                    const errorMessage = isRu
+                      ? `❌ Ошибка генерации видео: ${statusResponse.error || 'Unknown generation error'}\n\n${
+                          statusResponse.error?.includes('English prompts')
+                            ? '🔤 Пожалуйста, используйте английский язык для промпта.\n💰 Деньги НЕ были списаны.'
+                            : 'Попробуйте другое изображение или измените промпт.'
+                        }`
+                      : `❌ Video generation error: ${statusResponse.error || 'Unknown generation error'}\n\n${
+                          statusResponse.error?.includes('English prompts')
+                            ? '🔤 Please use English language for prompts.\n💰 No money was charged.'
+                            : 'Try a different image or modify the prompt.'
+                        }`
+
+                    // Используем безопасную отправку с проверкой блокировки
+                    const sent = await safeSendMessage(
+                      { telegram: botResult.bot.telegram } as any,
+                      telegramId,
+                      errorMessage,
+                      { reply_markup: errorKeyboard.reply_markup }
+                    )
+
+                    if (!sent) {
+                      logger.info('[I2V BG] User has blocked the bot, stopping polling', {
+                        telegramId,
+                        taskId
+                      })
+                      return // Прекращаем попытки если пользователь заблокировал бота
+                    }
+                  }
+                  return // Выходим из функции
+                }
+
+                if (statusResponse.success && statusResponse.data?.videoUrl) {
+                  // Видео готово! Обрабатываем результат
+                  logger.info('[I2V BG] Plan B: Video is ready!', {
+                    telegramId,
+                    taskId,
+                    videoUrl: statusResponse.data.videoUrl
+                  })
+
+                  // M-Admin: Видео успешно сгенерировано
+                  logger.info('[M-Admin] ✅ Video successfully generated via Plan B', {
+                    telegramId,
+                    taskId,
+                    totalAttempts: attempts,
+                    videoUrl: statusResponse.data.videoUrl,
+                    generationTime: attempts * pollingInterval / 1000 + ' seconds'
+                  })
+
+                  // Уведомляем админа об успешном завершении Plan B
+                  await notifyAdminAboutPlanBSuccess(telegramId, modelConfig.id, taskId, statusResponse.data.videoUrl)
+
+                  // Скачиваем и обрабатываем видео
+                  const videoUrl = statusResponse.data.videoUrl
+                  const videoBuffer = await downloadFileHelper(videoUrl)
+                  logger.info('[I2V BG] Video downloaded from Plan B polling', { telegramId, url: videoUrl })
+
+                  // Сохраняем видео локально
+                  const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+                  await mkdir(dirPath, { recursive: true })
+                  const timestamp = Date.now()
+                  const uniqueFilename = `${timestamp}_plan_b_polling.mp4`
+                  localVideoPath = path.join(dirPath, uniqueFilename)
+                  const u8 = new Uint8Array(videoBuffer)
+                  await writeFile(localVideoPath, u8)
+                  logger.info('[I2V BG] Video saved locally from Plan B polling', {
+                    telegramId,
+                    path: localVideoPath,
+                  })
+
+                  // Сохраняем информацию о видео в БД
+                  await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+                  logger.info('[I2V BG] Video info saved to DB from Plan B polling', { telegramId })
+
+                  // Снимаем деньги ТОЛЬКО после успешного получения видео
+                  const deductSuccess = await deductBalanceAfterSuccess(
+                    telegramId,
+                    modelId,
+                    botName,
+                    balanceResult.paymentAmount || 0,
+                    'image_to_video'
+                  )
+
+                  if (!deductSuccess) {
+                    logger.error('[I2V BG] Failed to deduct payment after successful video generation', {
+                      telegramId,
+                      modelId,
+                      paymentAmount: balanceResult.paymentAmount
+                    })
+                    // Все равно отправляем видео, но логируем ошибку
+                  } else {
+                    logger.info('[I2V BG] Payment deducted after successful video generation', {
+                      telegramId,
+                      modelId,
+                      paymentAmount: balanceResult.paymentAmount
+                    })
+                  }
+
+                  // Обновляем значения для уведомления
+                  paymentAmountForNotification = balanceResult.paymentAmount || 0
+                  newBalanceForNotification = balanceResult.currentBalance - (balanceResult.paymentAmount || 0)
+
+                  // Отправляем видео пользователю
+                  const caption = isRu
+                    ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+                    : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+
+                  // Логируем для админа, что видео было создано через Plan B polling
+                  logger.info('[M-Admin] 🎬 Video successfully generated via Plan B polling', {
+                    telegramId,
+                    modelId: modelConfig.id,
+                    taskId,
+                    videoUrl: videoUrl.substring(0, 100) + '...'
+                  })
+
+                  // Уведомляем админа об успешном завершении Plan B polling
+                  await notifyAdminAboutPlanBSuccess(telegramId, modelConfig.id, taskId, videoUrl)
+
+                  await telegramInstance.sendVideo(
+                    chatId,
+                    { source: localVideoPath },
+                    { caption }
+                  )
+
+                  // Отправляем видео в pulse канал (Plan B - polling)
+                  try {
+                    const { sendMediaToPulse } = await import('@/helpers/pulse')
+                    await sendMediaToPulse({
+                      mediaType: 'video',
+                      mediaSource: videoUrl,
+                      telegramId: telegramId,
+                      username: username,
+                      language: isRu ? 'ru' : 'en',
+                      serviceType: modelConfig.title,
+                      prompt: processedPrompt || '',
+                      botName: botName,
+                      additionalInfo: {
+                        'Model': modelConfig.title,
+                        'Price': `${paymentAmountForNotification} stars`,
+                        'Generation Type': 'Image to Video (Plan B - Polling)',
+                        'Task ID': taskId,
+                        'Polling Attempts': attempts.toString()
+                      }
+                    })
+                    
+                    logger.info('[PLAN B] Video sent to pulse channel (polling)', {
+                      telegramId,
+                      modelId: modelConfig.id,
+                      taskId,
+                      videoUrl
+                    })
+                  } catch (pulseError) {
+                    logger.error('[PLAN B] Error sending to pulse channel (polling):', pulseError)
+                  }
+
+                  // Добавляем финальные кнопки
+                  logger.info('[I2V BG] Sending final buttons after Plan B polling', { telegramId })
+
+                  const keyboard = Markup.keyboard([
+                    [
+                      isRu
+                        ? '🎬 Новое видео'
+                        : '🎬 New Video',
+                    ],
+                    [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+                  ]).resize()
+
+                  await telegramInstance.sendMessage(
+                    chatId,
+                    isRu
+                      ? 'Ваше видео готово! Что дальше?'
+                      : 'Your video is ready! What next?',
+                    keyboard
+                  )
+
+                  // ✅ FIX: Очищаем кеш после успешной генерации и отправки видео
+                  videoTaskCache.removeTask(telegramId, modelId)
+                  logger.info('[I2V BG] 🧹 Cache cleaned on success', {
+                    telegramId,
+                    taskId,
+                    modelId,
+                    videoUrl: videoUrl.substring(0, 50) + '...'
+                  })
+
+                  return // Выходим из функции, так как видео уже отправлено
+                }
+
+                // Отправляем уведомление о прогрессе каждые 15 попыток (30 секунд)
+                if (attempts % 15 === 0 && attempts > 0) {
+                  const progressPercent = Math.round((attempts / maxPollingAttempts) * 100)
+                  const progressMessage = isRu
+                    ? `⏳ Видео генерируется... (${progressPercent}%)`
+                    : `⏳ Video is being generated... (${progressPercent}%)`
+
+                  if (progressMessage !== lastProgressMessage) {
+                    // M-Admin: Прогресс генерации видео через Plan B
+                    logger.info('[M-Admin] ⏳ Video generation progress (Plan B)', {
+                      telegramId,
+                      taskId,
+                      attempt: attempts,
+                      progress: progressPercent + '%',
+                      remainingAttempts: maxPollingAttempts - attempts
+                    })
+                    lastProgressMessage = progressMessage
+                  }
+                }
+
+                // Ждем перед следующей проверкой
+                if (attempts < maxPollingAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, pollingInterval))
+                }
+
+              } catch (pollError: any) {
+                // Проверяем, заблокировал ли пользователь бота
+                if (pollError?.message?.includes('bot was blocked') || 
+                    pollError?.message?.includes('Forbidden') ||
+                    pollError?.response?.error_code === 403) {
+                  
+                  markUserAsBlocked(telegramId)
+                  logger.info('[I2V BG] User blocked bot, stopping polling', {
+                    telegramId,
+                    taskId,
+                    attempt: attempts
+                  })
+                  
+                  // Прекращаем polling для заблокированного пользователя
+                  return
+                }
+                
+                logger.error('[I2V BG] Plan B polling error', {
+                  telegramId,
+                  taskId,
+                  attempt: attempts,
+                  error: pollError instanceof Error ? pollError.message : 'Unknown polling error'
+                })
+
+                // M-Admin: Ошибка при проверке статуса видео
+                if (attempts % 5 === 0) { // Каждые 5 попыток логируем ошибку
+                  logger.warn('[M-Admin] ⚠️ Video status check error', {
+                    telegramId,
+                    taskId,
+                    attempt: attempts,
+                    error: pollError instanceof Error ? pollError.message : 'Unknown polling error',
+                    willRetry: attempts < maxPollingAttempts
+                  })
+                }
+
+                // Ждем перед следующей попыткой даже при ошибке
+                if (attempts < maxPollingAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, pollingInterval))
+                }
+              }
+            }
+
+            // Если после всех попыток видео не готово
+            logger.error('[I2V BG] Plan B polling timeout - video not ready', {
+              telegramId,
+              taskId,
+              attempts,
+              maxPollingAttempts
+            })
+
+            // M-Admin: Превышено время ожидания генерации видео
+            logger.error('[M-Admin] ❌ Video generation timeout via Plan B', {
+              telegramId,
+              taskId,
+              attempts,
+              maxPollingAttempts,
+              totalTime: attempts * pollingInterval / 1000 + ' seconds',
+              reason: 'Maximum polling attempts exceeded'
+            })
+
+            // Уведомляем пользователя о превышении времени ожидания
+            const timeoutMessage = isRu
+              ? `⏱️ Превышено время ожидания генерации видео (${attempts * pollingInterval / 1000} секунд).\n\n` +
+                `🔄 Видео все еще генерируется. Task ID: ${taskId}\n` +
+                `💡 Попробуйте проверить статус позже или создайте новое видео.\n` +
+                `💰 Деньги НЕ были списаны.`
+              : `⏱️ Video generation timeout exceeded (${attempts * pollingInterval / 1000} seconds).\n\n` +
+                `🔄 Video is still being generated. Task ID: ${taskId}\n` +
+                `💡 Try checking status later or create a new video.\n` +
+                `💰 No money was charged.`
+
+            await telegramInstance.sendMessage(chatId, timeoutMessage)
+
+            throw new Error('Plan B polling timeout - video generation failed')
+          }
+        }
+        
+        // Если Plan B не сработал, продолжаем с обычным Replicate API
+        logger.warn('[I2V BG] Plan B failed, falling back to standard Replicate API', {
+          telegramId,
+          error: kieResponse.error
         })
       }
+      
       // Специальная обработка для Seedance-1-Pro моделей
       else if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
         modelInput = {
           ...modelConfig.api.input, // ИСПРАВЛЕНИЕ: Включаем базовые параметры API
-          prompt,
+          prompt: processedPrompt,
           resolution: selectedResolution, // ИСПРАВЛЕНО: используем 'resolution' вместо 'target_resolution'
           [modelConfig.imageKey]: imageUrl,
         }
@@ -261,7 +1205,7 @@ export const generateImageToVideo = async (
 
         modelInput = {
           ...modelConfig.api.input,
-          prompt,
+          prompt: processedPrompt,
           target_resolution: wanResolution, // WAN использует специфичный формат
           [modelConfig.imageKey]: imageUrl,
         }
@@ -278,7 +1222,7 @@ export const generateImageToVideo = async (
         // Стандартная обработка для остальных моделей
         modelInput = {
           ...modelConfig.api.input,
-          prompt,
+          prompt: processedPrompt,
           aspect_ratio: userAspectRatio,
           [modelConfig.imageKey]: imageUrl,
         }
@@ -369,19 +1313,42 @@ export const generateImageToVideo = async (
       { caption }
     )
 
+    // Отправляем видео в pulse канал (Standard Replicate)
+    try {
+      const { sendMediaToPulse } = await import('@/helpers/pulse')
+      await sendMediaToPulse({
+        mediaType: 'video',
+        mediaSource: videoUrl,
+        telegramId: telegramId,
+        username: username,
+        language: isRu ? 'ru' : 'en',
+        serviceType: modelConfig.title,
+        prompt: processedPrompt || '',
+        botName: botName,
+        additionalInfo: {
+          'Model': modelConfig.title,
+          'Price': `${paymentAmountForNotification} stars`,
+          'Generation Type': 'Image to Video (Standard Replicate)'
+        }
+      })
+      
+      logger.info('[I2V BG] Video sent to pulse channel (standard)', {
+        telegramId,
+        modelId: modelConfig.id,
+        videoUrl
+      })
+    } catch (pulseError) {
+      logger.error('[I2V BG] Error sending to pulse channel (standard):', pulseError)
+    }
+
     // Добавляем финальные кнопки после успешной генерации видео
     logger.info('[I2V BG] Sending final buttons to user', { telegramId })
 
     const keyboard = Markup.keyboard([
       [
         isRu
-          ? '✨ Создать еще (Изображение в Видео)'
-          : '✨ Create More (Image to Video)',
-      ],
-      [
-        isRu
-          ? '🖼 Выбрать другую модель (Видео)'
-          : '🖼 Select Another Model (Video)',
+          ? '🎬 Новое видео'
+          : '🎬 New Video',
       ],
       [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
     ]).resize()
@@ -400,52 +1367,12 @@ export const generateImageToVideo = async (
       telegramId,
     })
 
-    // Универсальный возврат средств для всех моделей при ошибке
-    const modelConfig = VIDEO_MODELS_CONFIG[modelId]
-    if (modelConfig && paymentAmountForNotification) {
-      logger.warn(
-        '[I2V BG] Image-to-video generation failed, attempting refund',
-        {
+    // Деньги не снимались заранее, поэтому возврат не требуется
+    logger.warn('[I2V BG] Image-to-video generation failed - no payment was deducted', {
           telegramId,
-          model: modelConfig.id,
-          error: error.message,
-          refundAmount: paymentAmountForNotification,
-        }
-      )
-
-      try {
-        // Возвращаем средства обратно
-        const refundResult = await updateUserBalance(
-          telegramId,
-          paymentAmountForNotification,
-          PaymentType.MONEY_INCOME,
-          `Refund for failed ${modelConfig.title} generation (I2V)`,
-          {
-            bot_name: botName,
-            service_type: 'image-to-video-refund',
-            model_name: modelConfig.id,
-            original_error: error.message,
-            refund_amount: paymentAmountForNotification,
-          }
-        )
-
-        logger.info(
-          '[I2V BG] Refund processed for image-to-video generation failure',
-          {
-            telegramId,
-            model: modelConfig.id,
-            refund_amount: paymentAmountForNotification,
-            refund_result: refundResult,
-          }
-        )
-      } catch (refundError) {
-        logger.error('[I2V BG] Failed to process refund', {
-          telegramId,
-          model: modelConfig.id,
-          refund_error: refundError.message,
-        })
-      }
-    }
+      modelId,
+      error: error?.message,
+    })
 
     const errorMessage =
       error?.message ||
@@ -457,12 +1384,16 @@ export const generateImageToVideo = async (
       : ' Funds have been refunded to your balance.'
 
     try {
-      await telegramInstance.sendMessage(
-        chatId,
-        isRu
+      const fullErrorMessage = isRu
           ? `❌ Ошибка генерации видео: ${errorMessage}${refundMessage}`
           : `❌ Video generation error: ${errorMessage}${refundMessage}`
-      )
+
+      // Усекаем сообщение, если оно слишком длинное для Telegram (4096 символов)
+      const truncatedMessage = fullErrorMessage.length > 4000
+        ? fullErrorMessage.substring(0, 4000) + '...'
+        : fullErrorMessage
+
+      await telegramInstance.sendMessage(chatId, truncatedMessage)
     } catch (sendError: any) {
       logger.error('[I2V BG] Failed to send error message to user', {
         originalError: error?.message,

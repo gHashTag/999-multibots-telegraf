@@ -196,7 +196,9 @@ emailWizard.on('text', async ctx => {
           console.error('❌ Password not found')
           return
         }
-        const invId = Math.floor(Math.random() * 1000000)
+        // ✅ ИСПРАВЛЕНИЕ: Используем Date.now() для уникального возрастающего InvId
+        // Robokassa требует уникальный InvId как счётчик (1 <= InvId <= 2147483647)
+        const invId = Date.now() % 2147483647
         // Получение invoiceID
         const invoiceURL = await getInvoiceId(
           merchantLogin,
