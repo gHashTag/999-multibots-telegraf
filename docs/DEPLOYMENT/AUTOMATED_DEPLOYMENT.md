@@ -59,7 +59,7 @@ Ensure the following environment variables are set on the production server:
 ```bash
 # Production environment
 NODE_ENV=production
-WEBHOOK_DOMAIN=http://test-render-farm.ru
+WEBHOOK_DOMAIN=https://999-agents.site
 WEBHOOK_PATH=/webhook
 
 # Bot tokens
@@ -145,7 +145,7 @@ docker logs 999-multibots --tail 50
 npm run webhook:verify
 
 # Test specific webhook URL
-npm run webhook:verify test http://test-render-farm.ru/webhook
+npm run webhook:verify test https://your-domain.tld/webhook
 ```
 
 ### Log Analysis
@@ -185,7 +185,7 @@ docker logs 999-multibots | grep "инициализирован"
 3. **API server unreachable**:
    ```bash
    # Check if domain is accessible
-   curl -I http://test-render-farm.ru/
+   curl -I ${WEBHOOK_DOMAIN}
    
    # Check nginx configuration
    docker logs bot-proxy
