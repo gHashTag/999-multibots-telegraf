@@ -2,7 +2,7 @@
  * 🎬 AI REELS ENTRY WIZARD
  *
  * Точка входа для выбора метода генерации AI Reels
- * - Локальная генерация (lip-sync + WAN 2.5 + merging)
+ * - Локальная генерация (lip-sync + Google Veo 3.1 + merging)
  * - Render Server (Hedra/HeyGen через Railway)
  */
 

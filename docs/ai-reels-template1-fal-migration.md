@@ -1,4 +1,4 @@
-# ✅ AI Reels Template 1 (WAN25) - Миграция на Fal.ai
+# ✅ AI Reels Template 1 (Veo 3.1) - Миграция на Fal.ai
 
 ## 🎯 Что изменилось
 
@@ -84,7 +84,7 @@ logger.info('🎭 [AI REELS] Запуск генерации lip-sync через
 
 **Включает**:
 1. ✅ **Lip-sync** (Fal.ai Veed Fabric 1.0 Fast) - ~187⭐/10сек
-2. **WAN 2.5** (Kie.ai image-to-video) - ~160⭐
+2. **Google Veo 3.1** (Kie.ai image-to-video) - ~160⭐
 3. **FFmpeg склеивание** - бесплатно
 
 **Примечание**: Цена 240⭐ осталась фиксированной. Может потребоваться перерасчёт после тестирования реальной длительности видео.
@@ -98,7 +98,7 @@ FAL_KEY=71230666-ca55-444...  # ✅ Настроен в .env
 
 **Не требуется для lip-sync**:
 ```bash
-KIE_AI_API_KEY=...  # Используется только для WAN 2.5
+KIE_AI_API_KEY=...  # Используется только для Google Veo 3.1
 BASE_WEBHOOK_URL=... # Не используется для Fal.ai
 ```
 
