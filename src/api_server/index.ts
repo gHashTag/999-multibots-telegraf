@@ -7,6 +7,7 @@ import aiReelsCallbackRouter from './routes/ai-reels-callback.routes'
 import replicateWebhookRouter from './routes/replicate-webhook.routes'
 import { serve } from 'inngest/express'
 import { inngest, functions as inngestFunctions } from '../inngest_app/client'
+import { logger } from '@/utils/logger'
 
 // Определяем порт. Берем из process.env.PORT, если есть, иначе 4000 (совместимо с reverse proxy).
 const PORT = process.env.PORT || '4000'
@@ -26,8 +27,6 @@ export function startApiServer(): void {
     next()
   })
 
-  import { logger } from '@/utils/logger';
-  
   // ... (other imports)
   
   // ... (app setup)
