@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
+import { sendEnhancedCompletionNotification } from '@/helpers/completionNotification'
 
 const router = Router()
 
@@ -145,7 +146,11 @@ router.post('/replicate', async (req: any, res: any) => {
             message = `❌ Ошибка тренировки модели\n\n📦 Модель: ${modelName}\n🆔 Training ID: ${payload.id}\n\n⚠️ Причина: ${payload.error || 'Unknown error'}\n\nПопробуйте запустить тренировку заново или обратитесь в поддержку.`
           }
 
-          await bot.telegram.sendMessage(userId, message)
+          // Send message with sound notification
+          await bot.telegram.sendMessage(userId, message, {
+            disable_notification: false, // Enable sound notification
+            parse_mode: 'HTML'
+          })
 
           logger.info('[REPLICATE WEBHOOK] User notified', {
             training_id: payload.id,
