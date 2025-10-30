@@ -488,12 +488,15 @@ export const handleMenu = async (ctx: MyContext) => {
         logger.info(`🔄 [handleMenu] Запуск Face Swap wizard`)
 
         try {
-          await ctx.scene.enter(ModeEnum.FaceSwap)
-          logger.info(`✅ [handleMenu] Успешно вошли в face_swap wizard`, {
+          ctx.session.mode = ModeEnum.FaceSwap
+          console.log(`🔄 [handleMenu] Вход в сцену ${ModeEnum.FaceSwap}`)
+          await ctx.scene.enter('faceSwapWizard')
+          logger.info(`✅ [handleMenu] Успешно вошли в faceSwapWizard`, {
             currentScene: ctx.scene.current?.id,
           })
         } catch (error) {
-          logger.error(`❌ [handleMenu] Ошибка входа в face_swap`, { error })
+          logger.error(`❌ [handleMenu] Ошибка входа в faceSwapWizard`, { error })
+          console.error('Face swap enter error:', error)
           await ctx.reply(
             isRu
               ? '❌ Ошибка запуска замены лица. Попробуйте позже.'

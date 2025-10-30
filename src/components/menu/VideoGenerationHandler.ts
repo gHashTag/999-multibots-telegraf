@@ -221,10 +221,26 @@ export class VideoGenerationHandler implements BaseHandler {
         })
 
         try {
-          // Check subscription if required
-          const hasSubscription = await checkSubscriptionGuard(ctx, action.feature)
-          if (!hasSubscription) {
-            return true
+          // Post-generation buttons (regenerate/change model) should NOT check subscription
+          // These are only shown after successful generation, meaning user already has access
+          const isPostGenerationButton =
+            text.includes('Создать еще') || text.includes('Create More') ||
+            text.includes('Выбрать другую модель') || text.includes('Select Another Model') ||
+            text.includes('Новый промт') || text.includes('New Prompt') ||
+            text.includes('Новое видео') || text.includes('New Video')
+
+          // Only check subscription for initial access, not for post-generation actions
+          if (!isPostGenerationButton) {
+            const hasSubscription = await checkSubscriptionGuard(ctx, action.feature)
+            if (!hasSubscription) {
+              return true
+            }
+          } else {
+            logger.info('VideoHandler: Skipping subscription check for post-generation button', {
+              telegramId: ctx.from?.id,
+              text,
+              feature: action.feature
+            })
           }
 
           // Special handling for different actions
