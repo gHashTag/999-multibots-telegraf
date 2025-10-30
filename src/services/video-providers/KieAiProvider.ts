@@ -773,7 +773,7 @@ export class KieAiProvider {
       const taskId = response.data.data.taskId
 
       // Calculate cost based on model, duration, and quality
-      const costUSD = this.calculateSoraCost(model, duration, size)
+      const costUSD = this.calculateSoraCost(model as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video', duration, size)
       const costStars = this.usdToStars(costUSD)
 
       logger.info('[KieAiProvider] Sora 2 task created successfully:', {

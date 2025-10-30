@@ -124,7 +124,6 @@ export function getLipSyncManager(): LipSyncModelManager {
     globalManager = new LipSyncModelManager({
       defaultModel: 'kling',
       retryAttempts: 3,
-      timeoutSeconds: 120,
       enableCaching: true,
       cacheExpirationHours: 24,
     })
