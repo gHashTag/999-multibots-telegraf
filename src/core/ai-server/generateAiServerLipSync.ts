@@ -72,11 +72,11 @@ export async function generateAiServerLipSync(
       error: result.error,
       urls: {
         get: `${
-          process.env.SERVER_API_URL ||
+          // ✅ ИСПРАВЛЕНО: Используем только наш домен
           'https://three-head-dragon.shop'
         }/api/lipsync/${result.id}`,
         cancel: `${
-          process.env.SERVER_API_URL ||
+          // ✅ ИСПРАВЛЕНО: Используем только наш домен
           'https://three-head-dragon.shop'
         }/api/lipsync/${result.id}/cancel`,
       },
@@ -120,11 +120,11 @@ export async function getAiServerLipSyncStatus(
       error: result.error,
       urls: {
         get: `${
-          process.env.SERVER_API_URL ||
+          // ✅ ИСПРАВЛЕНО: Используем только наш домен
           'https://three-head-dragon.shop'
         }/api/lipsync/${result.id}`,
         cancel: `${
-          process.env.SERVER_API_URL ||
+          // ✅ ИСПРАВЛЕНО: Используем только наш домен
           'https://three-head-dragon.shop'
         }/api/lipsync/${result.id}/cancel`,
       },
