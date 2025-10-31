@@ -9,7 +9,7 @@ import voiceAvatarRouter from './routes/voice-avatar.routes'
 import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
 import { serve } from 'inngest/express'
-import { inngest, functions as inngestFunctions } from '../inngest_app/client'
+// import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 import { logger } from '@/utils/logger'
 
 // Определяем порт. Берем из process.env.PORT, если есть, иначе 4000 (совместимо с reverse proxy).
@@ -75,8 +75,8 @@ export function startApiServer(): void {
   app.use('/api', competitorRouter)
 
   // Интеграция Inngest с API (актуальная сигнатура serve)
-  const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
-  app.use('/api/inngest', inngestHandler)
+//   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
+//   app.use('/api/inngest', inngestHandler)
 
   // Запуск основного сервера
   app.listen(PORT, () => {
