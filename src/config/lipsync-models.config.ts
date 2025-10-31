@@ -88,11 +88,11 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
   },
   [LipSyncModelType.FAL_VEED_FABRIC]: {
     id: 'fal_veed_fabric',
-    name: '🚀 Fal Fabric',
+    name: '🚀 Fal.ai Veed Fabric 1.0 Fast',
     description:
       'Быстрая и стабильная модель от Fal.ai для создания talking video с естественной синхронизацией губ. Поддерживает 720p и 480p качество. Более стабильная альтернатива.',
     provider: 'fal',
-    modelId: 'fal-fabric',
+    modelId: 'fal-veed-fabric-1.0-fast',
     costPerSecond: 0.1, // ✅ ИСПРАВЛЕНО: $0.10 per second для 480p (базовая цена)
     costPerSecond720p: 0.2, // ✅ ИСПРАВЛЕНО: $0.20 per second для 720p (базовая цена)
     costPerSecondStars480p: 9.375, // ✅ ИСПРАВЛЕНО: 9.375⭐/сек для 480p с наценкой 50% ($0.10 × 1.5 / $0.016)
