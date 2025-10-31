@@ -33,7 +33,7 @@
     "check:build": "./scripts/check-build-health.sh",
     "check:quick": "./scripts/quick-build-check.sh",
     "check:merge": "./scripts/pre-merge-check.sh",
-    "deploy:production": "chmod +x scripts/deploy-production.sh && ./scripts/deploy-production.sh",
+    "deploy:production": "npm run deploy",
     "deploy": "chmod +x scripts/deploy.sh && ./scripts/deploy.sh",
     "webhook:setup": "bun run src/utils/webhook-setup-cli.ts",
     "webhook:verify": "bun run src/utils/webhook-verify-cli.ts",
