@@ -79,7 +79,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             '• Готовые профессиональные аватары\n' +
             '• Премиум качество (4-5 мин)\n' +
             '• Выбор из коллекции\n\n' +
-            '🎯 <b>Fal (Fabric)</b>\n' +
+            '🎯 <b>Fabric</b>\n' +
             '• Загрузите свое фото\n' +
             '• Высокое качество lip-sync\n' +
             '• Оптимальная скорость (3-4 мин)'
@@ -93,7 +93,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             '• Ready professional avatars\n' +
             '• Premium quality (4-5 min)\n' +
             '• Choose from collection\n\n' +
-            '🎯 <b>Fal (Fabric)</b>\n' +
+            '🎯 <b>Fabric</b>\n' +
             '• Upload your photo\n' +
             '• High quality lip-sync\n' +
             '• Optimal speed (3-4 min)',
@@ -114,7 +114,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           ],
           [
             Markup.button.callback(
-              isRu ? '🎯 Fal (Fabric)' : '🎯 Fal (Fabric)',
+              isRu ? '🎯 Fabric' : '🎯 Fabric',
               'service_fal'
             ),
           ],
@@ -201,8 +201,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       await ctx.answerCbQuery()
       await ctx.editMessageText(
         isRu
-          ? '✅ Выбран: 🎯 Fal (Fabric)\n\n📸 Отправьте фото или URL изображения с лицом для аватара.'
-          : '✅ Selected: 🎯 Fal (Fabric)\n\n📸 Send a photo or image URL with a face for avatar.'
+          ? '✅ Выбран: 🎯 Fabric\n\n📸 Отправьте фото или URL изображения с лицом для аватара.'
+          : '✅ Selected: 🎯 Fabric\n\n📸 Send a photo or image URL with a face for avatar.'
       )
 
       logger.info('🎬 [AI REELS RENDER] Fal selected, requesting photo', {
