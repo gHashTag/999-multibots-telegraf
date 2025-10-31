@@ -17,6 +17,8 @@ import { getUserDetailsSubscription } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // ✅ ДОБАВЛЯЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+// ✅ ДОБАВЛЯЕМ ADMIN_IDS ДЛЯ ПРОВЕРКИ АДМИНОВ
+import { ADMIN_IDS_ARRAY } from '@/config'
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
   stars: number // Баланс
@@ -350,6 +352,30 @@ checkBalanceScene.enter(async ctx => {
       isSubscriptionActive: userDetails.isSubscriptionActive,
       stars: userDetails.stars,
     })
+
+    // 👑 ПРОВЕРКА ДЛЯ АДМИНОВ - АВТОМАТИЧЕСКИЙ ДОСТУП
+    const telegramIdNum = parseInt(telegramId, 10)
+    const isAdmin = ADMIN_IDS_ARRAY.includes(telegramIdNum)
+
+    console.log(`🔍 [CheckBalanceScene] Проверка админа для ${telegramId}:`, {
+      isAdmin,
+      adminIds: ADMIN_IDS_ARRAY,
+    })
+
+    if (isAdmin) {
+      console.log(`✅ [CheckBalanceScene] Админ ${telegramId} автоматически получает доступ без проверки подписки`)
+      logger.info({
+        message: `[CheckBalanceScene] Админ ${telegramId} пропускает проверку подписки и баланса`,
+        telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'admin_access_granted',
+        mode,
+      })
+
+      // Пропускаем все проверки и идем к целевой сцене
+      await enterTargetScene(ctx, async () => {}, mode, 0) // Стоимость 0 для админов
+      return
+    }
 
     logger.info({
       message: `[CheckBalanceScene] Данные пользователя получены`,
