@@ -1,0 +1,61 @@
+{
+    "env": {
+      "ANTHROPIC_BASE_URL": "https://api.minimax.io/anthropic",
+      "ANTHROPIC_AUTH_TOKEN": "__PUT_YOUR_MINIMAX_API_KEY_HERE__",
+      "API_TIMEOUT_MS": "3000000",
+      "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1,
+      "ANTHROPIC_MODEL": "MiniMax-M2",
+      "ANTHROPIC_SMALL_FAST_MODEL": "MiniMax-M2",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M2",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M2",
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M2"
+    },
+    "permissions": {
+      "allow": [
+        "Bash(npm run lint)",
+        "Bash(npm run test:*)",
+        "Bash(npm test *)",
+        "Bash(git status)",
+        "Bash(git diff *)",
+        "Bash(git log *)",
+        "Bash(git add *)",
+        "Bash(git commit *)",
+        "Bash(git push)",
+        "Bash(git config *)",
+        "Bash(git tag *)",
+        "Bash(git branch *)",
+        "Bash(git checkout *)",
+        "Bash(git stash *)",
+        "Bash(git reset *)",
+        "Bash(git rev-parse *)",
+        "Bash(git ls-files *)",
+        "Bash(gh *)",
+        "Bash(node *)",
+        "Bash(which *)",
+        "Bash(pwd)",
+        "Bash(ls *)",
+        "Bash(jq *)",
+        "Bash(test *)",
+        "Bash(find *)",
+        "Bash(grep *)",
+        "Bash(sed *)",
+        "Bash(awk *)",
+        "Bash(curl *)",
+        "Bash(mkdir *)",
+        "Bash(cd *)",
+        "Bash(cat *)",
+        "Bash(echo *)"
+      ],
+      "deny": [
+        "Bash(rm -rf /)",
+        "Bash(eval *)"
+      ]
+    },
+    "hooks": {},
+    "statusLine": {
+      "type": "command",
+      "command": "input=$(cat); model_name=$(echo \"$input\" | jq -r '.model.display_name'); current_dir=$(echo \"$input\" | jq -r '.workspace.current_dir'); project_dir=$(echo \"$input\" | jq -r '.workspace.project_dir'); relative_path=$(echo \"${current_dir#$project_dir}\"); if [ \"$relative_path\" = \"$current_dir\" ]; then display_path=$(basename \"$current_dir\"); else display_path=\"$(basename \"$project_dir\")${relative_path}\"; fi; printf \"$(whoami)@$(hostname -s):${display_path} [${model_name}]\""
+    },
+    "includeCoAuthoredBy": true,
+    "enabledMcpjsonServers": []
+  }

@@ -55,7 +55,7 @@ export function createWizardCallbackHandler<T = any>(
         return ctx.answerCbQuery(message)
       }
 
-      const callbackData = sanitizeInput(ctx.callbackQuery.data, 64)
+      const callbackData = sanitizeInput(ctx.callbackQuery.data)
       logger.debug(`[${handlerName}] Processing callback`, {
         telegramId: ctx.from?.id,
         callbackData,
@@ -163,13 +163,7 @@ export function createWizardCallbackHandler<T = any>(
         stack: errorObj.stack
       })
 
-      handleButtonError(errorObj, `${handlerName} callback handler`, async () => {
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла непредвиденная ошибка. Попробуйте снова.'
-            : '❌ An unexpected error occurred. Please try again.'
-        )
-      })
+      handleButtonError(ctx, errorObj, `${handlerName} callback handler`)
     }
   }
 }
@@ -237,7 +231,7 @@ export function validateWizardTextInput(
     }
   }
 
-  const sanitized = sanitizeInput(text, options.maxLength || 1000)
+  const sanitized = sanitizeInput(text)
 
   if (options.minLength && sanitized.length < options.minLength) {
     return {
@@ -296,19 +290,7 @@ export function createWizardErrorBoundary(
         stack: errorObj.stack
       })
 
-      handleButtonError(errorObj, operationName, async () => {
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка. Попробуйте позже.'
-            : '❌ An error occurred. Please try later.'
-        )
-
-        if (fallbackToMainMenu) {
-          const { handleMenu } = await import('@/handlers')
-          await handleMenu(ctx)
-          await ctx.scene.leave()
-        }
-      })
+      handleButtonError(ctx, errorObj, operationName)
 
       throw errorObj // Re-throw for caller to handle if needed
     }

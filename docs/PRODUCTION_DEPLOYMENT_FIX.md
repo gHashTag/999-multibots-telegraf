@@ -7,7 +7,7 @@
 **Solution**: Updated workflow to use correct path `/root/bot-farm`
 
 ### 2. **Git SSH Access Failure**
-**Problem**: Server's git remote uses `git@github.com:gHashTag/999-multibots-telegraf.git` (SSH) but server doesn't have GitHub SSH keys configured, causing `git pull` to fail
+**Problem**: Server's git remote uses `git@github.com:gHashTag/bot-farm.git` (SSH) but server doesn't have GitHub SSH keys configured, causing `git pull` to fail
 **Solution**: Switched to rsync as primary deployment method (reliable and doesn't need GitHub access from server)
 
 ### 3. **SSH Key Format Issues**

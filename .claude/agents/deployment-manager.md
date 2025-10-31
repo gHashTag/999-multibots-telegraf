@@ -71,7 +71,7 @@ docker run -d --name 999-multibots --restart=always \
 
 **Как добавлялось:**
 ```bash
-cat ~/.ssh/zomro | gh secret set SSH_PRIVATE_KEY -R gHashTag/999-multibots-telegraf
+cat ~/.ssh/zomro | gh secret set SSH_PRIVATE_KEY -R gHashTag/bot-farm
 ```
 
 ## 🎯 ТРИ СПОСОБА ДЕПЛОЯ

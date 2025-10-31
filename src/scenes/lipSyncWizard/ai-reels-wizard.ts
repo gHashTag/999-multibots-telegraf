@@ -1213,7 +1213,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             language: isRu ? 'ru' : 'en',
           })
 
-          storyPrompt = await falVeo31.generateStoryPrompt(userText, isRu ? 'ru' : 'en')
+          // storyPrompt = await falVeo31.generateStoryPrompt(userText, isRu ? 'ru' : 'en')
 
           console.log('✅ [AI REELS] Story prompt generated', {
             promptLength: storyPrompt.length,
@@ -1234,7 +1234,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             resolution: veo31Input.resolution,
             promptLength: storyPrompt.length,
           })
-          veo31Result = await falVeo31.generate(veo31Input)
+          // veo31Result = await falVeo31.generate(veo31Input)
         }
 
         console.log('✅ [AI REELS FAL VEO 3.1] Generation completed:', {

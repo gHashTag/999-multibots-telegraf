@@ -215,6 +215,10 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     needsVoiceCreation?: boolean // Флаг необходимости создания голоса
   }
   returnToVeedFabricAfterVoice?: boolean // Флаг возврата в Veed Fabric после создания голоса
+  ttsTextToConvert?: string
+  pendingTtsText?: string
+  voiceMode?: 'avatar' | 'transcribe'
+  lastTranscribedText?: string
 
   aiReels?: {
     // Данные для AI Reels wizard (lip-sync + WAN v2.2-5b + merging)
@@ -225,6 +229,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     startTime?: number
     needsVoiceCreation?: boolean // Флаг необходимости создания голоса
     resolution?: '720p' | '1080p' // Разрешение видео
+    useInngest?: boolean
     aspectRatio?: '16:9' | '9:16' | '1:1' // Соотношение сторон видео (по умолчанию 9:16 для соцсетей)
     firstVideoUrl?: string  // URL первого видео (lip-sync)
     secondVideoUrl?: string // URL второго видео (WAN v2.2-5b)
