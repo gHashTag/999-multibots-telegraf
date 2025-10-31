@@ -81,7 +81,21 @@ echo "⚠️  Это ОБЯЗАТЕЛЬНО при изменении TypeScript
 docker build --no-cache -t 999-multibots .
 
 echo "🚀 Запускаем новый контейнер с обновленным кодом..."
-docker run -d --name 999-multibots --restart=always -p 3001:3001 -v /root/999-agents-telegraf/.env:/app/.env:ro 999-multibots
+docker run -d --name 999-multibots --restart=always \
+  -p 2999:2999 \
+  -p 3000:3000 \
+  -p 3001:3001 \
+  -p 3002:3002 \
+  -p 3003:3003 \
+  -p 3004:3004 \
+  -p 3005:3005 \
+  -p 3006:3006 \
+  -p 3007:3007 \
+  -p 3008:3008 \
+  -p 3009:3009 \
+  -p 3010:3010 \
+  --env-file /root/999-agents-telegraf/.env \
+  999-multibots
 
 echo "⏳ Ждем 15 секунд для полного запуска системы..."
 sleep 15
