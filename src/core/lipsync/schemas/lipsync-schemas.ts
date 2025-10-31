@@ -157,12 +157,12 @@ export const LipSyncInputBuilder = {
   },
 
   /**
-   * Создать входные данные для Fal Fabric модели
+   * Создать входные данные для Fal.ai Veed Fabric 1.0 Fast модели
    * @param imageUrl - URL изображения для lip-sync
    * @param audioUrl - URL аудиофайла
    * @param telegramId - ID пользователя Telegram
    * @param options - Дополнительные опции
-   * @returns Объект входных данных для Fal Fabric
+   * @returns Объект входных данных для Fal.ai Veed Fabric
    */
   forFalVeedFabric: (
     imageUrl: string,
@@ -179,13 +179,13 @@ export const LipSyncInputBuilder = {
         audioUrl,
         telegramId,
   provider: 'fal'
-  modelId: 'fal-fabric'
+  modelId: 'fal-veed-fabric-1.0-fast'
         botName: options?.botName || 'unknown_bot',
         resolution: options?.resolution || '720p',
       }
     } catch (error) {
       throw new Error(
-        `Failed to create Fal Fabric input: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+        `Failed to create Fal.ai Veed Fabric input: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
         `Input data: imageUrl=${imageUrl?.substring(0, 50)}, ` +
         `audioUrl=${audioUrl?.substring(0, 50)}, ` +
         `telegramId=${telegramId}, ` +
