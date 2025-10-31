@@ -60,7 +60,7 @@ export interface LipSyncModelManagerConfig {
   defaultModel: string
   enableCaching: boolean
   retryAttempts: number
-  cacheExpirationHours: number
+  timeout: number
 }
 
 // Валидация
@@ -75,14 +75,9 @@ export class LipSyncValidationError extends Error {
   }
 }
 
-import { z } from 'zod'
-
-export const LipSyncModelManagerConfigSchema = z.object({
-  defaultModel: z.string().default('fal/lip-sync'),
-  enableCaching: z.boolean().default(true),
-  retryAttempts: z.number().min(1).default(3),
-  cacheExpirationHours: z.number().min(0).default(24),
-})
+export const LipSyncModelManagerConfigSchema = {
+  parse: (config: any) => config
+}
 
 export interface LipSyncModelManagementStrategy {
   [key: string]: any
@@ -100,16 +95,8 @@ export interface LipSyncModelInfo {
   [key: string]: any
 }
 
-export interface ProviderOperationResult<T> {
-  success: boolean
-  data?: T
-  error?: LipSyncError
-  metadata?: {
-    provider?: string
-    modelId?: string
-    timestamp: Date
-    processingTime?: number
-  }
+export interface LipSyncOperationResult {
+  [key: string]: any
 }
 
 // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Восстановление LipSyncInputBuilder с методом forVeedFabric

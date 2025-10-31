@@ -344,7 +344,7 @@ checkBalanceScene.enter(async ctx => {
       step: 'fetching_user_data',
     })
 
-    const userDetails = await getUserDetailsSubscription(telegramId)
+    let userDetails = await getUserDetailsSubscription(telegramId)
     console.log('🚀 [DEBUG] Step 4 DONE, userDetails:', {
       isExist: userDetails.isExist,
       isSubscriptionActive: userDetails.isSubscriptionActive,
@@ -365,20 +365,58 @@ checkBalanceScene.enter(async ctx => {
     // --- ШАГ 3: ПРОВЕРКА СУЩЕСТВОВАНИЯ ---
     if (!userDetails.isExist) {
       logger.warn({
-        message: `[CheckBalanceScene] Пользователь ${telegramId} не найден в БД. Перенаправление в StartScene.`,
+        message: `[CheckBalanceScene] Пользователь ${telegramId} не найден в БД. Автоматическое создание профиля.`,
         telegramId,
         function: 'checkBalanceScene.enter',
         step: 'user_not_found',
-        result: 'redirect_to_start',
+        result: 'auto_create_user',
       })
+
       await ctx.reply(
         isRu
-          ? '❌ Не удалось найти ваш профиль. Пожалуйста, перезапустите бота командой /start.'
-          : '❌ Could not find your profile. Please restart the bot with /start.'
+          ? '🔄 Создаю ваш профиль...'
+          : '🔄 Creating your profile...'
       )
-      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
-      await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.StartScene) // Выход, если пользователь не существует
+
+      // Автоматически создаем пользователя
+      try {
+        const { createUserByTelegramId } = await import('@/core/supabase/getUserByTelegramId')
+        await createUserByTelegramId(ctx)
+
+        logger.info({
+          message: `[CheckBalanceScene] Пользователь ${telegramId} успешно создан. Повторная проверка данных.`,
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'user_created_recheck',
+        })
+
+        // Получаем обновленные данные пользователя
+        const userDetailsAfterCreate = await getUserDetailsSubscription(telegramId)
+
+        if (!userDetailsAfterCreate.isExist) {
+          throw new Error('User still not found after creation')
+        }
+
+        // Обновляем переменную для дальнейшего использования
+        userDetails = userDetailsAfterCreate
+      } catch (createError) {
+        logger.error({
+          message: `[CheckBalanceScene] Ошибка при автосоздании пользователя ${telegramId}. Перенаправление в StartScene.`,
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'user_auto_create_failed',
+          error: createError,
+        })
+
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось создать профиль. Пожалуйста, перезапустите бота командой /start.'
+            : '❌ Could not create profile. Please restart the bot with /start.'
+        )
+
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.StartScene)
+      }
     }
 
     // Шаг 4: ПРОВЕРКА ПОДПИСКИ (кроме платных функций без требования подписки)
