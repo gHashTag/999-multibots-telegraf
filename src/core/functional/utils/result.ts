@@ -90,8 +90,8 @@ export const tryCatch = <A>(task: () => A): Either<Error, A> => {
   }
 }
 
-export const tryCatchAsync = <A>(task: () => Promise<A>): Promise<Either<Error, A>> =>
-  task().then(value => right(value)).catch(error => left(error instanceof Error ? error : new Error(String(error))))
+export const tryCatchAsync = <A>(task: () => Promise<A>): TaskEither<Error, A> =>
+  () => task().then(value => right(value)).catch(error => left(error instanceof Error ? error : new Error(String(error))))
 
 // ===== TASK (ASYNC) =====
 
