@@ -415,6 +415,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       // ✅ FIX: Специальная обработка ошибок для Wan 2.2 модели
       const selectedModel = ctx.session.selectedVideoModel
+      const isRu = isRussianFromState(ctx) // Определяем isRu в области видимости блока catch
       if (selectedModel === 'wan-2.2-t2v-fast') {
         logger.error('[WIZARD] Wan 2.2 error detected:', {
           modelId: selectedModel,
