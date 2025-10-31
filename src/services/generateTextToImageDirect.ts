@@ -196,6 +196,13 @@ export const generateTextToImageDirect = async (
             errorMessageToUser = is_ru
               ? '❌ Обнаружен NSFW контент. Пожалуйста, попробуйте другой запрос.'
               : '❌ NSFW content detected. Please try another prompt.'
+          } else if (
+            error.message.includes('failed to get HTTP URL content') ||
+            error.message.includes('Bad Request')
+          ) {
+            errorMessageToUser = is_ru
+              ? `❌ Не удалось загрузить изображение от модели ${modelConfig?.shortName || model_type}. Попробуйте другую модель.`
+              : `❌ Failed to load image from ${modelConfig?.shortName || model_type} model. Try another model.`
           } else if (error.message) {
             const match = error.message.match(/{"detail":"(.*?)"/)
             if (match && match[1]) {
