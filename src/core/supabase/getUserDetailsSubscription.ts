@@ -20,6 +20,8 @@ import { SubscriptionType } from '@/interfaces/subscription.interface'
 // <<<=== ИМПОРТ ДЛЯ ПОЛУЧЕНИЯ БАЛАНСА ИЗ PAYMENTS_V2 ===>>>
 import { getUserBalance } from './getUserBalance'
 import { PaymentStatus } from '@/interfaces/payments.interface'
+// <<<=== ИМПОРТ ADMIN_IDS ===>>>
+import { ADMIN_IDS_ARRAY } from '@/config'
 // Импорт интерфейса (убедись, что он не содержит level)
 
 // Экспортируем интерфейс
@@ -153,7 +155,24 @@ export const getUserDetailsSubscription = async (
     let finalSubscriptionType: SubscriptionType | null = null
     let startDateDb: string | null = null
 
-    try {
+    // 👑 ПРОВЕРКА ДЛЯ АДМИНОВ - АВТОМАТИЧЕСКИ ДАЕМ NEUROTESTER ПОДПИСКУ
+    const telegramIdNum = parseInt(telegramIdStr, 10)
+    const isAdmin = ADMIN_IDS_ARRAY.includes(telegramIdNum)
+
+    console.log(`🔍 [getUserDetailsSubscription] Проверка админа для ${telegramIdStr}:`, {
+      isAdmin,
+      adminIds: ADMIN_IDS_ARRAY,
+    })
+
+    if (isAdmin) {
+      console.log(`✅ [getUserDetailsSubscription] Админ ${telegramIdStr} автоматически получает подписку NEUROTESTER`)
+      isActive = true
+      finalSubscriptionType = SubscriptionType.NEUROTESTER
+      startDateDb = new Date().toISOString()
+    } else {
+      console.log(`ℹ️ [getUserDetailsSubscription] Пользователь ${telegramIdStr} не админ, проверяем подписку через payments_v2`)
+
+      try {
       // Ищем активные подписки по приоритету: NEUROTESTER > NEUROVIDEO > NEUROPHOTO
       const subscriptionPriority = [
         SubscriptionType.NEUROTESTER,
@@ -248,20 +267,21 @@ export const getUserDetailsSubscription = async (
         }
       }
 
-      if (!isActive) {
-        logger.info(
-          `[getUserDetailsSubscription v4.0 FIXED Step 3 INFO] Активных подписок не найдено`,
-          { telegramId: telegramIdStr }
+        if (!isActive) {
+          logger.info(
+            `[getUserDetailsSubscription v4.0 FIXED Step 3 INFO] Активных подписок не найдено`,
+            { telegramId: telegramIdStr }
+          )
+        }
+      } catch (subCheckError) {
+        logger.error(
+          `[getUserDetailsSubscription v4.0 FIXED Step 3 FAIL] Непредвиденная ошибка при проверке подписки User: ${telegramIdStr}`,
+          { error: subCheckError, telegramId: telegramIdStr }
         )
+        isActive = false
+        finalSubscriptionType = null
+        startDateDb = null
       }
-    } catch (subCheckError) {
-      logger.error(
-        `[getUserDetailsSubscription v4.0 FIXED Step 3 FAIL] Непредвиденная ошибка при проверке подписки User: ${telegramIdStr}`,
-        { error: subCheckError, telegramId: telegramIdStr }
-      )
-      isActive = false
-      finalSubscriptionType = null
-      startDateDb = null
     }
 
     // --- ШАГ 4: Собираем финальный результат ---
