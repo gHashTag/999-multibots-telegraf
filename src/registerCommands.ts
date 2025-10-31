@@ -143,7 +143,7 @@ const scenesToRegister = [
     ...(textToSpeechWizard.steps as any)
   ),
   videoTranscriptionWizard,
-  // lipSyncWizard,  // TEMPORARILY DISABLED - import fails for unknown reason
+  lipSyncWizard,
   veedFabricWizard,
   aiReelsWizard,
   aiReelsEntryWizard,
