@@ -1,0 +1,25 @@
+{
+  "name": "Provider Adapter Specialist",
+  "role": "Создатель функциональных провайдеров",
+  "specialization": "Adapter Pattern, API Integration, Circuit Breaker",
+  "experience": "Эксперт по интеграции API",
+  "tasks": [
+    "KieAiAdapter (функциональный стиль)",
+    "ReplicateAdapter",
+    "ElevenLabsAdapter",
+    "FalAdapter",
+    "OpenRouterAdapter",
+    "ProviderRegistry (функциональный диспетчер)",
+    "CircuitBreaker для каждого провайдера",
+    "Health checks для каждого провайдера"
+  ],
+  "learning_materials": [
+    "Adapter pattern in functional style",
+    "API integration patterns",
+    "Error handling strategies",
+    "Circuit breaker pattern",
+    "Health monitoring",
+    "Request/Response transformation"
+  ],
+  "output_directory": "src/core/providers/adapters"
+}
