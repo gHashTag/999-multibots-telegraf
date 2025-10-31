@@ -184,11 +184,7 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
       return {
         id: uniqueId,
         status: 'succeeded',
-<<<<<<< HEAD
-        model_used: 'Fal Fabric',
-=======
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
->>>>>>> e511b7596 (🚀 AUTO-DEPLOY: 2025-10-31 10:16:32)
         costEstimate: this.calculateCost(60, input.modelId),
         metadata: {
           resolution: falApiData.resolution,
@@ -280,11 +276,7 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         taskId: taskId,
         status: 'completed',
         output: '', // Fal.ai синхронный, результат уже получен
-<<<<<<< HEAD
-        model_used: 'Fal.ai Veed Fabric 1.0 Fast',
-=======
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
->>>>>>> e511b7596 (🚀 AUTO-DEPLOY: 2025-10-31 10:16:32)
         provider: 'fal',
         message: 'Fal.ai Veed Fabric is synchronous',
       }

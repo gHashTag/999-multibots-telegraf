@@ -880,14 +880,10 @@ export const generateImageToVideo = async (
                         }`
 
                     // Используем безопасную отправку с проверкой блокировки
-<<<<<<< HEAD
-                    await safeSendMessage(ctx, errorMessage)
-=======
                     await safeSendMessage(
                       ctx,
                       errorMessage
                     )
->>>>>>> e511b7596 (🚀 AUTO-DEPLOY: 2025-10-31 10:16:32)
                   }
                   return // Выходим из функции
                 }
