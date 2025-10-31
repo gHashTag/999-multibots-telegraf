@@ -207,7 +207,7 @@ scenesToRegister.forEach((scene, index) => {
   }
 })
 
-export const stage = new Scenes.Stage<MyContext>(scenesToRegister)
+export const stage = new Scenes.Stage<MyContext>(scenesToRegister as any)
 
 // Проверяем зарегистрированные сцены
 console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
@@ -1300,6 +1300,34 @@ If not, continue on your own and click the "I myself" button`
         sessionExists: !!ctx.session,
         sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
       })
+
+      // ВАЖНО: Проверяем, находится ли пользователь в AI Reels wizard
+      const currentSceneId = ctx.scene?.current?.id
+      if (currentSceneId === 'ai_reels_wizard' ||
+          currentSceneId === 'ai_reels_entry' ||
+          currentSceneId === 'ai_reels_render_wizard') {
+        logger.info('🎬 GLOBAL PHOTO HANDLER: Photo is for AI Reels wizard, skipping global handler', {
+          telegramId: ctx.from?.id,
+          currentScene: currentSceneId,
+        })
+        // НЕ обрабатываем фото глобально, пусть wizard сам обработает
+        return
+      }
+
+      // Проверяем, находится ли пользователь в других wizard'ах, которые обрабатывают фото
+      const photoWizards = [
+        'neuro_photo', 'neuro_photo_v2', 'face_swap', 'image_to_video',
+        'ai_photoshop_scene', 'morphing_wizard', 'avatar_transform',
+        'digital_avatar_body', 'digital_avatar_body_2', 'veed_fabric_lipsync'
+      ]
+
+      if (currentSceneId && photoWizards.includes(currentSceneId)) {
+        logger.info('📸 GLOBAL PHOTO HANDLER: Photo is for wizard scene, skipping global handler', {
+          telegramId: ctx.from?.id,
+          currentScene: currentSceneId,
+        })
+        return
+      }
 
       // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
       if (ctx.session?.awaitingFluxKontextImage) {

@@ -33,6 +33,8 @@ RUN ls -la dist/ || echo "Директория dist не существует и
 # Финальный этап
 FROM node:20-alpine
 
+ENV NODE_ENV=production
+
 WORKDIR /app
 
 # Устанавливаем только необходимые системные зависимости
@@ -75,8 +77,8 @@ RUN mkdir -p /app/scripts
 COPY scripts/docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Экспортируем порт для API и боты
-EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010 2999
+# Экспортируем порт для API и боты (+ 4000 для Inngest HTTP endpoint)
+EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010 2999 4000
 
 # Используем наш entrypoint скрипт для подготовки окружения
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

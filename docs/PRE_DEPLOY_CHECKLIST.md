@@ -84,11 +84,11 @@ echo "✅ Docker build works locally"
 git checkout production
 git merge main  # or your feature branch
 git push origin production
-# Watch: https://github.com/gHashTag/999-multibots-telegraf/actions
+# Watch: https://github.com/gHashTag/bot-farm/actions
 ```
 
 ### Option 2: Manual Trigger
-1. Go to: https://github.com/gHashTag/999-multibots-telegraf/actions
+1. Go to: https://github.com/gHashTag/bot-farm/actions
 2. Click "Production Auto-Deploy"
 3. Click "Run workflow"
 4. Select branch: `production`
@@ -116,7 +116,7 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 50'
 
 # API responding?
 curl http://212.86.115.30:3000/health
-curl http://test-render-farm.ru/
+curl -I ${WEBHOOK_DOMAIN}
 ```
 
 ## ✅ Post-Deployment Verification
@@ -206,8 +206,8 @@ docker stop 999-multibots && docker rm 999-multibots
 - **Full Documentation**: `docs/PRODUCTION_DEPLOYMENT_FIX.md`
 - **Quick Commands**: `docs/DEPLOYMENT_QUICK_REFERENCE.md`
 - **Summary**: `docs/DEPLOYMENT_FIX_SUMMARY.md`
-- **Repository**: https://github.com/gHashTag/999-multibots-telegraf
-- **Actions**: https://github.com/gHashTag/999-multibots-telegraf/actions
+- **Repository**: https://github.com/gHashTag/bot-farm
+- **Actions**: https://github.com/gHashTag/bot-farm/actions
 
 ## 🎯 Success Indicators
 

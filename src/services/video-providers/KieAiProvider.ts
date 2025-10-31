@@ -260,8 +260,8 @@ export class KieAiProvider {
     let endpoint = '/veo/generate'
 
     if (isSoraModel) {
-      // Sora 2 models
-      if (model === 'sora-2' || model === 'sora2') {
+      // Sora 2 models - handle all variants
+      if (model === 'sora-2' || model === 'sora2' || model === 'sora-2-text-to-video') {
         kieModel = 'sora2'
         provider = 'Sora 2 API'
         endpoint = '/sora/generate'
@@ -272,7 +272,7 @@ export class KieAiProvider {
           mode: imageUrl ? 'image-to-video' : 'text-to-video',
           expectedCost: '~94 stars per 10sec'
         })
-      } else if (model === 'sora-2-pro' || model === 'sora2-pro') {
+      } else if (model === 'sora-2-pro' || model === 'sora2-pro' || model === 'sora-2-pro-text-to-video') {
         kieModel = 'sora2-pro'
         provider = 'Sora 2 Pro API'
         endpoint = '/sora/generate'
@@ -282,6 +282,30 @@ export class KieAiProvider {
           hasImage: !!imageUrl,
           mode: imageUrl ? 'image-to-video' : 'text-to-video',
           expectedCost: '~125 stars per 10sec'
+        })
+      } else if (model === 'sora-2-i2v' || model === 'sora-2-image-to-video') {
+        // ✅ FIX: Handle Sora 2 Image-to-Video variant
+        kieModel = 'sora-2-image-to-video'
+        provider = 'Sora 2 I2V API'
+        endpoint = '/jobs/createTask' // Use jobs endpoint for async generation
+        logger.info('[KieAiProvider] Sora 2 I2V selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: 'image-to-video',
+          expectedCost: '~94 stars per 10sec'
+        })
+      } else if (model === 'sora-2-pro-i2v' || model === 'sora-2-pro-image-to-video') {
+        // ✅ FIX: Handle Sora 2 Pro Image-to-Video variant
+        kieModel = 'sora-2-pro-image-to-video'
+        provider = 'Sora 2 Pro I2V API'
+        endpoint = '/jobs/createTask' // Use jobs endpoint for async generation
+        logger.info('[KieAiProvider] Sora 2 Pro I2V selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: 'image-to-video',
+          expectedCost: '~280 stars per 10sec'
         })
       }
     } else if (model === 'veo3_fast') {
@@ -311,6 +335,26 @@ export class KieAiProvider {
       provider = 'Runway API'
     }
     
+    // ✅ FIX: For Sora I2V models, use the dedicated jobs API method
+    if (endpoint === '/jobs/createTask') {
+      logger.info('[KieAiProvider] Using Sora jobs API for I2V generation:', {
+        model: kieModel,
+        hasImage: !!imageUrl,
+        promptLength: prompt.length
+      })
+
+      // Delegate to generateSoraVideo method which handles jobs API properly
+      return await this.generateSoraVideo(
+        prompt,
+        kieModel as any,
+        aspectRatio === '9:16' ? 'portrait' : 'landscape',
+        false, // removeWatermark
+        10, // duration
+        'standard', // size
+        imageUrl
+      )
+    }
+
     // Формируем правильный callback URL из переменной окружения
     const callbackUrl = process.env.BASE_WEBHOOK_URL
       ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
@@ -729,7 +773,7 @@ export class KieAiProvider {
       const taskId = response.data.data.taskId
 
       // Calculate cost based on model, duration, and quality
-      const costUSD = this.calculateSoraCost(model, duration, size)
+      const costUSD = this.calculateSoraCost(model as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video', duration, size)
       const costStars = this.usdToStars(costUSD)
 
       logger.info('[KieAiProvider] Sora 2 task created successfully:', {
