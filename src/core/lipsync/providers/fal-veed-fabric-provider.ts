@@ -16,7 +16,7 @@ import type {
 export class FalVeedFabricProvider implements ILipSyncProvider {
   readonly providerId = 'fal' as const
   readonly providerName = 'Fal.ai Veed Fabric 1.0 Fast'
-this.supportedModels = ['fal-veed-fabric-1.0-fast']
+  readonly supportedModels = ['fal-veed-fabric-1.0-fast']
 
   private config: {
     baseUrl: string
@@ -60,8 +60,8 @@ this.supportedModels = ['fal-veed-fabric-1.0-fast']
       ) {
         return {
           message: 'Invalid input for Fal Veed Fabric provider',
-error: `Expected provider: fal, modelId: fal-veed-fabric-1.0-fast`,
-  provider: 'fal',
+          error: `Expected provider: fal, modelId: fal-veed-fabric-1.0-fast`,
+          provider: 'fal',
           modelId: input.modelId,
         }
       }
@@ -184,7 +184,7 @@ error: `Expected provider: fal, modelId: fal-veed-fabric-1.0-fast`,
       return {
         id: uniqueId,
         status: 'succeeded',
-modelUsed: 'Fal Fabric',
+        model_used: 'Fal Fabric',
         costEstimate: this.calculateCost(60, input.modelId),
         metadata: {
           resolution: falApiData.resolution,
@@ -276,9 +276,10 @@ modelUsed: 'Fal Fabric',
         taskId: taskId,
         status: 'completed',
         output: '', // Fal.ai синхронный, результат уже получен
-      modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
+        model_used: 'Fal.ai Veed Fabric 1.0 Fast',
         provider: 'fal',
-        message: 'Fal.ai Veed Fabric is synchronous',      }
+        message: 'Fal.ai Veed Fabric is synchronous',
+      }
     } catch (error: any) {
       logger.error('❌ [FAL PROVIDER] Error checking status', {
         taskId,
