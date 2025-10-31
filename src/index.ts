@@ -219,6 +219,9 @@ async function initializeBots() {
     }
 
     // Запускаем бота в polling режиме
+    console.log(`🔍 [DEBUG] Начинаем запуск bot.launch() в polling режиме...`)
+    console.log(`🔍 [DEBUG] Bot instance валиден:`, Boolean(bot))
+    console.log(`🔍 [DEBUG] Bot username:`, foundBotInfo.username)
     await bot.launch({
       allowedUpdates: [
         'message',
