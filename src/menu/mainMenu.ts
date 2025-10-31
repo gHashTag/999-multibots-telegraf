@@ -151,6 +151,11 @@ export const levels: Record<number, Level> = {
     title_ru: '🦸‍♂️ ИИ Герои',
     title_en: '🦸‍♂️ AI Heroes',
   },
+  // Plus button for adding new models in Digital Avatar Body
+  112: {
+    title_ru: '➕ Добавить модель',
+    title_en: '➕ Add New Model',
+  },
 }
 
 // Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
