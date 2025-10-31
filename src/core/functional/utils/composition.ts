@@ -5,7 +5,22 @@
 
 // ===== PIPE (LEFT-TO-RIGHT) =====
 
-export const pipe = <A>(value: A): A => value
+export const pipe = ((...args: any[]) => {
+  if (args.length === 1) {
+    return args[0]
+  }
+  const [value, ...fns] = args
+  return fns.reduce((acc, fn) => fn(acc), value)
+}) as {
+  <A>(value: A): A
+  <A, B>(value: A, fn: (a: A) => B): B
+  <A, B, C>(value: A, fn1: (a: A) => B, fn2: (b: B) => C): C
+  <A, B, C, D>(value: A, fn1: (a: A) => B, fn2: (b: B) => C, fn3: (c: C) => D): D
+  <A, B, C, D, E>(value: A, fn1: (a: A) => B, fn2: (b: B) => C, fn3: (c: C) => D, fn4: (d: D) => E): E
+  <A, B, C, D, E, F>(value: A, fn1: (a: A) => B, fn2: (b: B) => C, fn3: (c: C) => D, fn4: (d: D) => E, fn5: (e: E) => F): F
+  <A, B, C, D, E, F, G>(value: A, fn1: (a: A) => B, fn2: (b: B) => C, fn3: (c: C) => D, fn4: (d: D) => E, fn5: (e: E) => F, fn6: (f: F) => G): G
+  <A, R>(value: A, ...fns: ((a: any) => R)[]): R
+}
 
 export const pipe2 = <A, B, R>(a: A, f: (a: A) => B, g: (b: B) => R): R => g(f(a))
 
@@ -62,7 +77,21 @@ export const pipeFlow = <T extends any[], R>(
 
 // ===== FLOW (RIGHT-TO-LEFT) =====
 
-export const flow = <R>(fn: () => R): () => R => fn
+export const flow = ((...fns: any[]) => {
+  if (fns.length === 0) {
+    return (x: any) => x
+  }
+  return (value: any) => fns.reduce((acc, fn) => fn(acc), value)
+}) as {
+  (): (x: any) => any
+  <A, B>(fn: (a: A) => B): (a: A) => B
+  <A, B, C>(f: (a: A) => B, g: (b: B) => C): (a: A) => C
+  <A, B, C, D>(f: (a: A) => B, g: (b: B) => C, h: (c: C) => D): (a: A) => D
+  <A, B, C, D, E>(f: (a: A) => B, g: (b: B) => C, h: (c: C) => D, i: (d: D) => E): (a: A) => E
+  <A, B, C, D, E, F>(f: (a: A) => B, g: (b: B) => C, h: (c: C) => D, i: (d: D) => E, j: (e: E) => F): (a: A) => F
+  <A, B, C, D, E, F, G>(f: (a: A) => B, g: (b: B) => C, h: (c: C) => D, i: (d: D) => E, j: (e: E) => F, k: (f: F) => G): (a: A) => G
+  <A, R>(...fns: ((a: any) => R)[]): (a: A) => R
+}
 
 export const flow2 = <A, R>(f: (a: A) => R, g: (r: R) => R): (a: A) => R => a => g(f(a))
 
