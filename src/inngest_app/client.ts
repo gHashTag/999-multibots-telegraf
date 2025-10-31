@@ -5,12 +5,11 @@ const config = {
   name: 'telegram-bot-client',
   id: 'telegram-bot-client',
   // Подключение к нашему Inngest Dev Server
+  // ✅ ИСПРАВЛЕНО: Используем только наш домен для Inngest
   baseUrl:
     process.env.NODE_ENV === 'development'
-      ? 'http://localhost:8288' // Наш dev server
-      : (process.env.SERVER_API_URL ||
-          'https://three-head-dragon.shop') +
-        '/api/inngest', // Продакшн сервер
+      ? 'http://localhost:3000' // Локальный dev server
+      : 'https://three-head-dragon.shop/api/inngest', // Только наш домен в продакшене
   isDev: process.env.NODE_ENV === 'development',
   // Event key только для production
   eventKey:

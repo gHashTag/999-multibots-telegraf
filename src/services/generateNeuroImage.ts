@@ -40,27 +40,19 @@ export async function generateNeuroImage(
   await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
   try {
-    const url = `${isDev ? LOCAL_SERVER_URL : API_URL}/generate/neuro-photo`
-    console.log(url, 'url')
+    // ✅ ИСПРАВЛЕНО: Используем локальный AI сервис напрямую
+    // Не обращаемся к внешнему API
 
-    const response = await axios.post(
-      url,
-      {
-        prompt,
-        model_url,
-        num_images: numImages || 1,
-        telegram_id,
-        username: ctx.from?.username,
-        is_ru: isRussianFromState(ctx),
-        bot_name: botName,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-secret-key': SECRET_API_KEY,
-        },
-      }
-    )
+    // Используем локальные AI сервисы для генерации
+    const { generateNeuroPhotoHybrid } = await import('./generateNeuroPhotoHybrid')
+
+    logger.info('Using local AI service for neuro image generation')
+
+    const response = await generateNeuroPhotoHybrid({
+      prompt,
+      telegram_id,
+      bot_name: botName
+    })
     logger.info('Neuro image generation response received', {
       hasData: !!response.data,
       dataType: typeof response.data,
