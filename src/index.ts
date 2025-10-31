@@ -127,6 +127,9 @@ async function initializeBots() {
       process.env.BOT_TOKEN_10,
     ].filter((token): token is string => Boolean(token))
 
+    // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
+    const botPromises: Promise<void>[] = []
+
     for (const token of botTokens) {
       if (await validateBotToken(token)) {
         const bot = new Telegraf<MyContext>(token, {
@@ -181,8 +184,8 @@ async function initializeBots() {
           console.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
         }
 
-        // Запускаем бот в polling режиме (каждый бот отдельно)
-        await bot.launch({
+        // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
+        const botPromise = bot.launch({
           allowedUpdates: [
             'message',
             'callback_query',
@@ -190,9 +193,20 @@ async function initializeBots() {
             'successful_payment' as any,
           ],
         })
-        console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
+          .then(() => {
+            console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
+          })
+          .catch((error) => {
+            console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
+          })
+
+        botPromises.push(botPromise)
       }
     }
+
+    // Ждём завершения инициализации всех ботов
+    await Promise.all(botPromises)
+    console.log(`✅ Все боты успешно запущены в polling режиме`)
   } else if (mode === 'webhook') {
     // В продакшене используем все активные боты
     const botTokens = [
