@@ -104,19 +104,42 @@ deploy() {
         # Создание nginx конфигурации с HTTPS
         mkdir -p /root/nginx-config
 
-        # Создание self-signed SSL сертификата (для теста)
-        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-          -keyout /root/nginx-config/three-head-dragon.shop.key \
-          -out /root/nginx-config/three-head-dragon.shop.crt \
-          -subj '/C=RU/ST=Moscow/L=Moscow/O=999-agents/CN=three-head-dragon.shop' 2>/dev/null || true
+        # Let's Encrypt SSL сертификат (автообновляется)
+        # Копируем из /etc/letsencrypt если есть, иначе self-signed для совместимости
+        if [ -f '/etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem' ]; then
+          cp /etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem /root/nginx-config/three-head-dragon.shop.crt
+          cp /etc/letsencrypt/live/three-head-dragon.shop/privkey.pem /root/nginx-config/three-head-dragon.shop.key
+          echo \"Using Let's Encrypt SSL certificate\"
+        else
+          openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout /root/nginx-config/three-head-dragon.shop.key \
+            -out /root/nginx-config/three-head-dragon.shop.crt \
+            -subj '/C=RU/ST=Moscow/L=Moscow/O=999-agents/CN=three-head-dragon.shop' 2>/dev/null || true
+          echo \"Using self-signed SSL certificate (for testing)\"
+        fi
 
-        # HTTPS конфигурация с редиректом HTTP→HTTPS
+        # HTTPS конфигурация с HTTP callback для Railway compatibility
         cat > /root/nginx-config/default.conf << 'NGINX_EOF'
-# HTTP to HTTPS redirect
+# HTTP Server (redirect to HTTPS, except callback endpoint)
 server {
     listen 80;
     server_name three-head-dragon.shop;
-    return 301 https://\$server_name\$request_uri;
+
+    # ✅ Allow callback endpoint on HTTP (for Railway render-server compatibility)
+    location = /api/telegram/ai-reels-callback {
+        # ⚠️ HTTP callback - Railway render-server doesn't follow redirects
+        proxy_pass http://999-multibots:3000/api/telegram/ai-reels-callback;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto http;
+    }
+
+    # All other HTTP requests → redirect to HTTPS
+    location / {
+        return 301 https://\$server_name\$request_uri;
+    }
 }
 
 # HTTPS server
@@ -129,6 +152,17 @@ server {
     ssl_certificate_key /etc/nginx/ssl/three-head-dragon.shop.key;
     ssl_protocols TLSv1.2 TLSv1.3;
 
+    # ✅ Callback endpoint on HTTPS (for other services)
+    location = /api/telegram/ai-reels-callback {
+        proxy_pass http://999-multibots:3000/api/telegram/ai-reels-callback;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    # All other API endpoints
     location /api/ {
         proxy_pass http://999-multibots:3000/api/;
         proxy_http_version 1.1;
