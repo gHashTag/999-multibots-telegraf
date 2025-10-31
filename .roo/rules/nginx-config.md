@@ -8,7 +8,7 @@ alwaysApply: false
 **⚠️ ВНИМАНИЕ! НЕ ИЗМЕНЯТЬ БЕЗ ТРОЙНОГО СОГЛАСОВАНИЯ! ⚠️**
 **Каждый параметр критически важен для стабильности!**
 
-/Users/playra/999-multibots-telegraf/nginx-config/default.conf
+/Users/playra/bot-farm/nginx-config/default.conf
 
 Nginx используется как обратный прокси-сервер для нашего приложения.
 

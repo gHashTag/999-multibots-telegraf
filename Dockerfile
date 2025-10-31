@@ -33,6 +33,8 @@ RUN ls -la dist/ || echo "Директория dist не существует и
 # Финальный этап
 FROM node:20-alpine
 
+ENV NODE_ENV=production
+
 WORKDIR /app
 
 # Устанавливаем только необходимые системные зависимости

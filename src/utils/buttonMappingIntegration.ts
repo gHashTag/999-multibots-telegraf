@@ -125,10 +125,7 @@ export async function setupModelSelectionStep(
     if (options.onError) {
       await options.onError(ctx, errorObj)
     } else {
-      await handleSystemError(ctx, errorObj, {
-        telegramId: ctx.from?.id?.toString(),
-        operationName: 'model_selection_setup'
-      })
+      await handleSystemError(errorObj)
     }
 
     return { success: false, error: errorObj.message }
