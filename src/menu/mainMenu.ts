@@ -68,8 +68,8 @@ export const levels: Record<number, Level> = {
   },
   // text_to_image
   11: {
-    title_ru: '🖼️ Генерация изображений',
-    title_en: '🖼️ Generate Images',
+    title_ru: '🖼️ Текст в фото',
+    title_en: '🖼️ Text to Photo',
   },
   // ai_photoshop (formerly flux_kontext)
   12: {
@@ -151,11 +151,7 @@ export const levels: Record<number, Level> = {
     title_ru: '🦸‍♂️ ИИ Герои',
     title_en: '🦸‍♂️ AI Heroes',
   },
-  // Plus button for adding new models in Digital Avatar Body
-  112: {
-    title_ru: '➕ Добавить модель',
-    title_en: '➕ Add New Model',
-  },
+  // Removed: Plus button for adding new models - not needed in production menu
 }
 
 // Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
