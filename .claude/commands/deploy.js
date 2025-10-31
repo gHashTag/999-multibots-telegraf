@@ -301,7 +301,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     this.logStep('Перезапуск сервисов на продакшн');
 
     // Перезапускаем основной сервис
-    const restart = await this.sshExec(`cd ${CONFIG.PRODUCTION_SERVER.PROJECT_PATH} && docker-compose restart ${CONFIG.PRODUCTION_SERVER.SERVICE_NAME}`);
+    const restart = await this.sshExec(`cd ${CONFIG.PRODUCTION_SERVER.PROJECT_PATH} && docker compose restart ${CONFIG.PRODUCTION_SERVER.SERVICE_NAME}`);
     if (!restart.success) {
       this.logError('Не удалось перезапустить сервис');
       this.log(restart.output, CONFIG.COLORS.RED);
@@ -321,7 +321,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     this.logStep('Проверка статуса развертывания');
 
     // Проверяем статус контейнера
-    const status = await this.sshExec(`cd ${CONFIG.PRODUCTION_SERVER.PROJECT_PATH} && docker-compose ps ${CONFIG.PRODUCTION_SERVER.SERVICE_NAME}`);
+    const status = await this.sshExec(`cd ${CONFIG.PRODUCTION_SERVER.PROJECT_PATH} && docker compose ps ${CONFIG.PRODUCTION_SERVER.SERVICE_NAME}`);
     if (!status.success) {
       this.logError('Не удалось получить статус сервиса');
       return false;
@@ -331,7 +331,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     this.log(status.output);
 
     // Проверяем логи на наличие ошибок
-    const logs = await this.sshExec(`cd ${CONFIG.PRODUCTION_SERVER.PROJECT_PATH} && docker-compose logs --tail=20 ${CONFIG.PRODUCTION_SERVER.SERVICE_NAME}`);
+    const logs = await this.sshExec(`cd ${CONFIG.PRODUCTION_SERVER.PROJECT_PATH} && docker compose logs --tail=20 ${CONFIG.PRODUCTION_SERVER.SERVICE_NAME}`);
     if (logs.success) {
       const hasErrors = logs.output.includes('ERROR') || logs.output.includes('error') || logs.output.includes('Error');
       if (hasErrors) {
@@ -343,7 +343,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     }
 
     // Проверяем что боты успешно запустились
-    const botLogs = await this.sshExec(`cd ${CONFIG.PRODUCTION_SERVER.PROJECT_PATH} && docker-compose logs ${CONFIG.PRODUCTION_SERVER.SERVICE_NAME} | grep "успешно запущены" | tail -1`);
+    const botLogs = await this.sshExec(`cd ${CONFIG.PRODUCTION_SERVER.PROJECT_PATH} && docker compose logs ${CONFIG.PRODUCTION_SERVER.SERVICE_NAME} | grep "успешно запущены" | tail -1`);
     if (botLogs.success && botLogs.output.includes('успешно запущены')) {
       this.logSuccess('Боты успешно запущены');
     } else {
