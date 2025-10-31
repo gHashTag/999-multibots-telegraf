@@ -163,7 +163,9 @@ export function createWizardCallbackHandler<T = any>(
         stack: errorObj.stack
       })
 
-      handleButtonError(ctx, errorObj, `${handlerName} callback handler`)
+      handleButtonError(ctx, errorObj, async () => {
+        logger.error(`[${handlerName}] Error in callback handler`, { error: errorObj.message })
+      })
     }
   }
 }
@@ -290,7 +292,9 @@ export function createWizardErrorBoundary(
         stack: errorObj.stack
       })
 
-      handleButtonError(ctx, errorObj, operationName)
+      handleButtonError(ctx, errorObj, async () => {
+        logger.error(`[${operationName}] Operation failed`, { error: errorObj.message })
+      })
 
       throw errorObj // Re-throw for caller to handle if needed
     }

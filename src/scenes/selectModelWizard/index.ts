@@ -42,9 +42,27 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
       const keyboard = Markup.keyboard(buttons).resize().oneTime()
 
+      // ✅ FIX: Добавляем описание к выбору модели ИИ
       await ctx.reply(
-        isRu ? '🧠 Выберите модель:' : '🧠 Select AI Model:',
-        keyboard
+        isRu
+          ? '🤖 <b>Выбор модели ИИ</b>\n\n' +
+              'Здесь вы можете выбрать модель искусственного интеллекта для генерации контента.\n' +
+              'Каждая модель имеет свои особенности и специализацию:\n\n' +
+              '• <b>GPT-4</b> - для текстов и сложных задач\n' +
+              '• <b>DALL-E</b> - для генерации изображений\n' +
+              '• <b>Claude</b> - для анализа и помощи\n\n' +
+              '💡 Выберите модель из списка ниже:'
+          : '🤖 <b>Choose AI Model</b>\n\n' +
+              'Here you can select an AI model for content generation.\n' +
+              'Each model has its own features and specialization:\n\n' +
+              '• <b>GPT-4</b> - for texts and complex tasks\n' +
+              '• <b>DALL-E</b> - for image generation\n' +
+              '• <b>Claude</b> - for analysis and assistance\n\n' +
+              '💡 Select a model from the list below:',
+        {
+          parse_mode: 'HTML',
+          ...keyboard.reply_markup,
+        }
       )
 
       return ctx.wizard.next()
