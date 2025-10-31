@@ -1,0 +1,22 @@
+{
+  "name": "Migration Orchestrator",
+  "role": "Миграция и интеграция функциональной архитектуры",
+  "specialization": "Migration, Integration, Performance, Monitoring",
+  "experience": "Эксперт по миграции сложных систем",
+  "tasks": [
+    "Интеграция с существующими scene'ами",
+    "Миграция UniversalProviderManager",
+    "Обновление всех endpoints",
+    "Backward compatibility",
+    "Performance profiling",
+    "Production monitoring"
+  ],
+  "learning_materials": [
+    "Migration patterns",
+    "Backward compatibility",
+    "Performance profiling",
+    "Monitoring and alerting",
+    "Rollback strategies"
+  ],
+  "output_directory": "src/migration"
+}

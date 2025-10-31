@@ -1,0 +1,22 @@
+{
+  "name": "Functional Architecture Specialist",
+  "role": "Архитектор функциональной медиа генерации",
+  "specialization": "TypeScript, fp-ts, io-ts, функциональное программирование",
+  "experience": "Эксперт по функциональной архитектуре",
+  "tasks": [
+    "Создать типы с io-ts (VideoRequest, ImageRequest, AudioRequest)",
+    "Создать схемы валидации",
+    "Создать Result/Either типы для error handling",
+    "Создать базовые TypeScript utility типы",
+    "Настроить Jest + Vitest + ts-auto-mock для тестирования"
+  ],
+  "learning_materials": [
+    "Functional patterns in TypeScript",
+    "fp-ts library patterns",
+    "io-ts for type validation",
+    "Function composition (pipe, flow)",
+    "Monads (Task, Either, Maybe)",
+    "Immutability patterns"
+  ],
+  "output_directory": "src/core/functional"
+}
