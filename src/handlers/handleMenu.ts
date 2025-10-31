@@ -1039,16 +1039,6 @@ export const handleMenu = async (ctx: MyContext) => {
       },
     }
 
-    // ✅ ОТЛАДКА: Выводим все ключи actions для диагностики
-    const actionKeys = Object.keys(actions)
-    console.log('🔧 [DEBUG] Available action keys:', actionKeys)
-    console.log('🔧 [DEBUG] Looking for key:', normalizedText)
-    console.log('🔧 [DEBUG] levels[11].title_ru:', levels[11].title_ru)
-    console.log(
-      '🔧 [DEBUG] Exact match check:',
-      actionKeys.includes(normalizedText)
-    )
-
     // Выполняем действие, если оно существует
     if (actions[normalizedText]) {
       logger.info({
@@ -1059,9 +1049,7 @@ export const handleMenu = async (ctx: MyContext) => {
         result: 'action_found',
       })
       console.log('CASE: handleMenuCommand.if', normalizedText)
-      console.log('🚨 [DEBUG] CALLING actions[normalizedText]()')
       await actions[normalizedText]()
-      console.log('✅ [DEBUG] actions[normalizedText]() completed')
     } else if (normalizedText.startsWith(isRu ? levels[111].title_ru : levels[111].title_en)) {
       // ✅ ИСПРАВЛЕНИЕ: Обработка AI Heroes с любым badge (♾️, 🚫, или счетчиком)
       logger.info({
@@ -1092,18 +1080,8 @@ export const handleMenu = async (ctx: MyContext) => {
         result: 'action_not_found',
       })
       console.log('CASE: handleMenuCommand.else', normalizedText)
-      console.log('🚨 [DEBUG] ACTION NOT FOUND! Details:')
-      console.log('  - normalizedText:', normalizedText)
-      console.log('  - isRu:', isRu)
-      console.log('  - levels[11].title_ru:', levels[11].title_ru)
-      console.log('  - levels[11].title_en:', levels[11].title_en)
-      console.log('  - actionKeys:', actionKeys)
-      console.log('  - Does actionKeys include title_ru?', actionKeys.includes(levels[11].title_ru))
-      console.log('  - Does actionKeys include title_en?', actionKeys.includes(levels[11].title_en))
-      
+
       // Проверяем, ожидается ли ввод username конкурента
-      console.log('🔍 [handleMenu] Checking competitor username input...')
-      console.log('Session competitor monitoring state:', ctx.session.competitorMonitoring)
       
       if (ctx.session.competitorMonitoring?.waitingForUsername) {
         console.log('✅ [handleMenu] User is waiting for username input, processing...')
