@@ -100,7 +100,8 @@ export async function sendAIReelsEvent(
  * Проверяет доступность Inngest
  */
 export async function checkInngestAvailability(): Promise<boolean> {
-  const baseUrl = process.env.SERVER_API_URL || 'https://three-head-dragon.shop'
+  // ✅ ИСПРАВЛЕНО: Используем локальный endpoint для проверки
+  const baseUrl = 'http://localhost:3000'
 
   try {
     const response = await fetch(`${baseUrl}/api/inngest`, {

@@ -17,7 +17,7 @@ import {
   getAvailableLipSyncModels,
   calculateLipSyncCost,
 } from '@/config/lipsync-models.config'
-// TEMPORARILY DISABLED: import { FalVeo31Provider } from '@/core/lipsync/providers/fal-veo31-provider'
+import { FalVeo31Provider } from '@/core/lipsync/providers/fal-veo31-provider'
 
 // Интерфейс для aiReels теперь определен в MySession interface
 
@@ -1202,8 +1202,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           }
         } else {
           // ✅ СИНХРОННЫЙ ВЫЗОВ Google Veo 3.1 с story continuation промптом
-          throw new Error("Fal Veo 3.1 temporarily disabled - missing @fal-ai/client");
-          // const falVeo31 = new FalVeo31Provider()
+          const falVeo31 = new FalVeo31Provider()
 
           // 🎨 ГЕНЕРАЦИЯ STORY PROMPT на основе текста пользователя
           const userText = ctx.session.aiReels?.text || ''
