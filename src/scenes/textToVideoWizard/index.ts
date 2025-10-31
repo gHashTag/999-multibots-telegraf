@@ -412,7 +412,67 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       
     } catch (error) {
       console.error('🎬 [WIZARD] Step 3 ERROR:', error)
-      await ctx.reply('❌ Ошибка в третьем шаге wizard')
+
+      // ✅ FIX: Специальная обработка ошибок для Wan 2.2 модели
+      const selectedModel = ctx.session.selectedVideoModel
+      if (selectedModel === 'wan-2.2-t2v-fast') {
+        logger.error('[WIZARD] Wan 2.2 error detected:', {
+          modelId: selectedModel,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+
+        // Определяем тип ошибки
+        let errorMessage = '❌ Ошибка генерации видео'
+        if (error instanceof Error) {
+          const msg = error.message.toLowerCase()
+          if (msg.includes('403') || msg.includes('authorization') || msg.includes('forbidden')) {
+            errorMessage = isRu
+              ? '🚫 Ошибка авторизации API для модели WAN 2.2.\n\nПопробуйте позже или выберите другую модель.'
+              : '🚫 API authorization error for WAN 2.2 model.\n\nTry later or choose another model.'
+          } else if (msg.includes('timeout')) {
+            errorMessage = isRu
+              ? '⏱️ Превышено время ожидания для модели WAN 2.2.\n\nПопробуйте позже.'
+              : '⏱️ Timeout exceeded for WAN 2.2 model.\n\nTry again later.'
+          } else if (msg.includes('quota') || msg.includes('limit')) {
+            errorMessage = isRu
+              ? '📊 Превышена квота для модели WAN 2.2.\n\nПопробуйте позже или выберите другую модель.'
+              : '📊 Quota exceeded for WAN 2.2 model.\n\nTry later or choose another model.'
+          }
+        }
+
+        await ctx.reply(errorMessage)
+
+        // Предлагаем альтернативы
+        const keyboard = Markup.keyboard([
+          [
+            isRu ? '🔄 Попробовать снова (другая модель)' : '🔄 Try Again (different model)',
+          ],
+          [
+            isRu ? '🎬 WAN 2.2 T2V Fast (480p)' : '🎬 WAN 2.2 T2V Fast (480p)',
+            isRu ? '🎬 WAN 2.2 T2V Fast (720p)' : '🎬 WAN 2.2 T2V Fast (720p)',
+          ],
+          [
+            isRu ? '🎬 Veo 3 Fast' : '🎬 Veo 3 Fast',
+            isRu ? '🎬 Sora 2' : '🎬 Sora 2',
+          ],
+          [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+        ]).resize()
+
+        await ctx.reply(
+          isRu
+            ? '💡 Рекомендуем попробовать другие модели:\n• WAN 2.2 (другие разрешения)\n• Veo 3 Fast\n• Sora 2'
+            : '💡 Try other models:\n• WAN 2.2 (different resolutions)\n• Veo 3 Fast\n• Sora 2',
+          keyboard
+        )
+
+        return ctx.scene.leave()
+      }
+
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка генерации видео. Попробуйте позже.'
+          : '❌ Video generation error. Try again later.'
+      )
       return ctx.scene.leave()
     }
   }
