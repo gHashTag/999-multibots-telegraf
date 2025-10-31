@@ -1,10 +1,10 @@
-import { Router } from 'express'
+import express, { Router } from 'express'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 import { sendEnhancedCompletionNotification } from '@/helpers/completionNotification'
 
-const router = Router()
+const router: import('express-serve-static-core').Router = Router()
 
 interface ReplicateWebhookPayload {
   id: string // training ID
