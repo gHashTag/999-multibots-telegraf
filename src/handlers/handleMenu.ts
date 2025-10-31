@@ -341,16 +341,16 @@ export const handleMenu = async (ctx: MyContext) => {
           telegramId,
           function: 'handleMenu',
           action: 'text_to_image',
-          nextScene: ModeEnum.CheckBalanceScene,
+          nextScene: ModeEnum.TextToImage,
         })
         console.log('CASE: 🖼️ Текст в фото')
         ctx.session.mode = ModeEnum.TextToImage
         console.log(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.TextToImage}`
         )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        await ctx.scene.enter(ModeEnum.TextToImage)
         console.log(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.TextToImage}`
         )
       },
       [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
