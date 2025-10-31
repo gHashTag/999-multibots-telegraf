@@ -41,7 +41,13 @@ const CONFIG = {
       '.env',
       '.env.example',
       'docs/',
-      'README.md'
+      'README.md',
+      'replicate-webhook.routes.ts',
+      '.claude/commands/deploy.js',
+      'src/core/lipsync/',
+      'src/modules/',
+      'src/utils/',
+      'src/scenes/'
     ]
   },
   COLORS: {
