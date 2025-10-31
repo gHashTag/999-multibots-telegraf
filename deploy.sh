@@ -93,7 +93,7 @@ deploy() {
         echo 'Контейнер запущен'
     "
 
-    log_info "5. Настройка nginx reverse proxy..."
+    log_info "5. Настройка nginx reverse proxy с HTTPS..."
     ssh_exec "
         # Создание custom network если не существует
         docker network ls | grep -q app-network || docker network create app-network
@@ -101,24 +101,46 @@ deploy() {
         # Подключение контейнера к сети
         docker network connect app-network $CONTAINER_NAME 2>/dev/null || true
 
-        # Создание nginx конфигурации
+        # Создание nginx конфигурации с HTTPS
         mkdir -p /root/nginx-config
+
+        # Создание self-signed SSL сертификата (для теста)
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+          -keyout /root/nginx-config/three-head-dragon.shop.key \
+          -out /root/nginx-config/three-head-dragon.shop.crt \
+          -subj '/C=RU/ST=Moscow/L=Moscow/O=999-agents/CN=three-head-dragon.shop' 2>/dev/null || true
+
+        # HTTPS конфигурация с редиректом HTTP→HTTPS
         cat > /root/nginx-config/default.conf << 'NGINX_EOF'
+# HTTP to HTTPS redirect
 server {
     listen 80;
     server_name three-head-dragon.shop;
+    return 301 https://\$server_name\$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    server_name three-head-dragon.shop;
     client_max_body_size 100M;
+
+    ssl_certificate /etc/nginx/ssl/three-head-dragon.shop.crt;
+    ssl_certificate_key /etc/nginx/ssl/three-head-dragon.shop.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
 
     location /api/ {
         proxy_pass http://999-multibots:3000/api/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
     }
 
     location /health {
         proxy_pass http://999-multibots:3000/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
     }
 
     location / {
@@ -126,12 +148,12 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
     }
 }
 NGINX_EOF
 
-        # Запуск/обновление nginx
+        # Запуск/обновление nginx с HTTPS
         docker stop bot-proxy 2>/dev/null || true
         docker rm bot-proxy 2>/dev/null || true
         docker run -d \
@@ -141,8 +163,9 @@ NGINX_EOF
           -p 80:80 \
           -p 443:443 \
           -v /root/nginx-config:/etc/nginx/conf.d:ro \
+          -v /root/nginx-config:/etc/nginx/ssl:ro \
           nginx:alpine
-        echo 'Nginx настроен'
+        echo 'Nginx с HTTPS настроен'
     "
 
     log_info "6. Ожидание инициализации (30 сек)..."

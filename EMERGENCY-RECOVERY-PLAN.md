@@ -52,15 +52,29 @@ docker network connect app-network 999-multibots
 
 ### 📝 Nginx Config (/root/nginx-config/default.conf):
 ```nginx
+# HTTP to HTTPS redirect
 server {
     listen 80;
     server_name three-head-dragon.shop;
+    return 301 https://$server_name$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    server_name three-head-dragon.shop;
     client_max_body_size 100M;
+
+    ssl_certificate /etc/nginx/ssl/three-head-dragon.shop.crt;
+    ssl_certificate_key /etc/nginx/ssl/three-head-dragon.shop.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
 
     location /api/ {
         proxy_pass http://999-multibots:3000/api/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
     }
 
     location /health {
@@ -69,9 +83,15 @@ server {
 
     location / {
         proxy_pass http://999-multibots:3000/;
+        proxy_set_header X-Forwarded-Proto https;
     }
 }
 ```
+
+### 🔒 SSL СЕРТИФИКАТ:
+- **Self-signed** сертификат создаётся автоматически при деплое
+- **Расположение:** `/root/nginx-config/three-head-dragon.shop.crt` и `.key`
+- **Альтернатива:** Можно заменить на Let's Encrypt сертификат
 
 ---
 
@@ -97,16 +117,19 @@ docker network ls
 
 ### Шаг 3: Проверка callback
 ```bash
-# Локально на сервере
-curl http://localhost/api/telegram/ai-reels-callback
+# Локально на сервере (HTTPS)
+curl -k https://localhost/api/telegram/ai-reels-callback
 
-# Снаружи
+# Снаружи (HTTPS)
+curl -k https://three-head-dragon.shop/api/telegram/ai-reels-callback
+
+# HTTP редирект на HTTPS (опционально)
 curl http://three-head-dragon.shop/api/telegram/ai-reels-callback
 ```
 
 ### Шаг 4: Если callback не работает
 ```bash
-# Восстановление nginx
+# Восстановление nginx с HTTPS
 ssh -i ~/.ssh/zomro root@212.86.115.30 "
   # Убеждаемся что network есть
   docker network create app-network 2>/dev/null || true
@@ -118,16 +141,28 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 "
   docker stop bot-proxy 2>/dev/null || true
   docker rm bot-proxy 2>/dev/null || true
 
-  # Создаем nginx config
+  # Создаем SSL сертификат
   mkdir -p /root/nginx-config
+  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /root/nginx-config/three-head-dragon.shop.key \
+    -out /root/nginx-config/three-head-dragon.shop.crt \
+    -subj '/C=RU/ST=Moscow/L=Moscow/O=999-agents/CN=three-head-dragon.shop' 2>/dev/null || true
+
+  # Создаем nginx HTTPS config
   cat > /root/nginx-config/default.conf << 'EOF'
 server {
     listen 80;
     server_name three-head-dragon.shop;
+    return 301 https://\$server_name\$request_uri;
+}
+server {
+    listen 443 ssl http2;
+    server_name three-head-dragon.shop;
+    ssl_certificate /etc/nginx/ssl/three-head-dragon.shop.crt;
+    ssl_certificate_key /etc/nginx/ssl/three-head-dragon.shop.key;
     location /api/ {
         proxy_pass http://999-multibots:3000/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto https;
     }
     location /health {
         proxy_pass http://999-multibots:3000/health;
@@ -135,12 +170,14 @@ server {
 }
 EOF
 
-  # Запускаем nginx
+  # Запускаем nginx с HTTPS
   docker run -d \
     --name bot-proxy \
     --network app-network \
     -p 80:80 \
+    -p 443:443 \
     -v /root/nginx-config:/etc/nginx/conf.d:ro \
+    -v /root/nginx-config:/etc/nginx/ssl:ro \
     nginx:alpine
 "
 ```
@@ -216,13 +253,16 @@ echo "=== ПРОВЕРКА СИСТЕМЫ ==="
 echo "1. Контейнеры:"
 docker ps --format 'table {{.Names}}\t{{.Status}}'
 
-echo -e "\n2. Callback:"
-curl -s http://three-head-dragon.shop/api/telegram/ai-reels-callback | head -3
+echo -e "\n2. HTTPS Callback:"
+curl -k -s https://three-head-dragon.shop/api/telegram/ai-reels-callback | head -3
 
-echo -e "\n3. Health:"
-curl -s http://three-head-dragon.shop/health | head -3
+echo -e "\n3. HTTP Redirect (должен редиректить на HTTPS):"
+curl -I http://three-head-dragon.shop/api/telegram/ai-reels-callback 2>/dev/null | head -3
 
-echo -e "\n4. Боты:"
+echo -e "\n4. Health (HTTPS):"
+curl -k -s https://three-head-dragon.shop/health | head -3
+
+echo -e "\n5. Боты:"
 docker logs 999-multibots 2>&1 | grep 'Бот.*инициализирован' | wc -l
 ```
 
@@ -236,7 +276,8 @@ docker logs 999-multibots 2>&1 | grep 'Бот.*инициализирован' |
 | `./deploy.sh status` | Проверка статуса |
 | `./deploy.sh logs 100` | Логи |
 | `./rollback.sh <snapshot>` | Откат |
-| `curl http://three-head-dragon.shop/api/telegram/ai-reels-callback` | Проверка callback |
+| `curl -k https://three-head-dragon.shop/api/telegram/ai-reels-callback` | Проверка HTTPS callback |
+| `curl http://three-head-dragon.shop/api/telegram/ai-reels-callback` | HTTP (редирект на HTTPS) |
 
 ---
 
