@@ -880,11 +880,7 @@ export const generateImageToVideo = async (
                         }`
 
                     // Используем безопасную отправку с проверкой блокировки
-                    await safeSendMessage(
-                      ctx,
-                      telegramId,
-                      errorMessage
-                    )
+                    await safeSendMessage(ctx, errorMessage)
                   }
                   return // Выходим из функции
                 }
