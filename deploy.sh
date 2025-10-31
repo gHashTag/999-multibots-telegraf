@@ -87,13 +87,71 @@ deploy() {
         docker run -d \
           --name $CONTAINER_NAME \
           --restart unless-stopped \
+          --network app-network \
           -p 2999-3010:2999-3010 \
           999-agents-telegraf:latest
         echo 'Контейнер запущен'
     "
 
-    log_info "5. Ожидание инициализации (30 сек)..."
+    log_info "5. Настройка nginx reverse proxy..."
+    ssh_exec "
+        # Создание custom network если не существует
+        docker network ls | grep -q app-network || docker network create app-network
+
+        # Подключение контейнера к сети
+        docker network connect app-network $CONTAINER_NAME 2>/dev/null || true
+
+        # Создание nginx конфигурации
+        mkdir -p /root/nginx-config
+        cat > /root/nginx-config/default.conf << 'NGINX_EOF'
+server {
+    listen 80;
+    server_name three-head-dragon.shop;
+    client_max_body_size 100M;
+
+    location /api/ {
+        proxy_pass http://999-multibots:3000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /health {
+        proxy_pass http://999-multibots:3000/health;
+    }
+
+    location / {
+        proxy_pass http://999-multibots:3000/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+}
+NGINX_EOF
+
+        # Запуск/обновление nginx
+        docker stop bot-proxy 2>/dev/null || true
+        docker rm bot-proxy 2>/dev/null || true
+        docker run -d \
+          --name bot-proxy \
+          --restart unless-stopped \
+          --network app-network \
+          -p 80:80 \
+          -p 443:443 \
+          -v /root/nginx-config:/etc/nginx/conf.d:ro \
+          nginx:alpine
+        echo 'Nginx настроен'
+    "
+
+    log_info "6. Ожидание инициализации (30 сек)..."
     sleep 30
+
+    log_info "7. Проверка статуса..."
+    check_status
+
+    log_success "=== DEPLOY ЗАВЕРШЁН УСПЕШНО ==="
 
     log_info "6. Проверка статуса..."
     check_status
