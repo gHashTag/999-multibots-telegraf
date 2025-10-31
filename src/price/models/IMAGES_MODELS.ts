@@ -340,4 +340,32 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.035),
     inputType: ['text', 'image'],
   },
+  // ✅ ADD: Midjourney integration
+  'midjourney/midjourney-v6': {
+    shortName: 'Midjourney v6',
+    description_en: `Midjourney v6 is a state-of-the-art AI image generation model renowned for its artistic style, exceptional prompt interpretation, and high-quality outputs. It excels at creating stunning visuals with rich detail and artistic flair.
+
+Key features:
+- Superior prompt following and interpretation
+- Artistic and creative image generation
+- High-quality output with rich detail
+- Wide range of styles and aesthetics
+- Popular among artists and designers
+
+Perfect for creative projects, artistic visualizations, and high-end image generation.`,
+    description_ru: `Midjourney v6 — это передовая модель генерации изображений с ИИ, известная своим художественным стилем, исключительной интерпретацией промптов и высококачественными результатами. Она превосходит в создании потрясающих визуальных образов с богатыми деталями и художественным чутьем.
+
+Основные функции:
+- Превосходное следование и интерпретация промптов
+- Художественная и творческая генерация изображений
+- Высококачественные результаты с богатыми деталями
+- Широкий спектр стилей и эстетики
+- Популярна среди художников и дизайнеров
+
+Идеально для творческих проектов, художественных визуализаций и высококачественной генерации изображений.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.25),
+    inputType: ['text'],
+  },
 }
