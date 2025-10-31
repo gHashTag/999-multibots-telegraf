@@ -163,7 +163,7 @@ export function createWizardCallbackHandler<T = any>(
         stack: errorObj.stack
       })
 
-      handleButtonError(ctx, errorObj, `${handlerName} callback handler`)
+      handleButtonError(ctx, errorObj) // Убираем третий параметр
     }
   }
 }
@@ -290,7 +290,7 @@ export function createWizardErrorBoundary(
         stack: errorObj.stack
       })
 
-      handleButtonError(ctx, errorObj, operationName)
+      handleButtonError(ctx, errorObj) // Убираем третий параметр
 
       throw errorObj // Re-throw for caller to handle if needed
     }
