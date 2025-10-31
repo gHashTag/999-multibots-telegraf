@@ -23,6 +23,16 @@
 
 ### Откат к предыдущей версии:
 ```bash
+# К версии с исправлением нейрофото (рекомендуется)
+./rollback.sh NEUROPHOTO-FIX-20251031_235025
+
+# К версии с HTTP callback для Railway
+./rollback.sh HTTP-CALLBACK-RAILWAY-20251031_232545
+
+# К версии с Let's Encrypt SSL
+./rollback.sh SSL-LETSENCRYPT-20251031_160946
+
+# К альтернативной версии
 ./rollback.sh prod-stable-20251031_151934
 ```
 
@@ -98,12 +108,27 @@
 ### Автоматические снапшоты
 При каждом деплое автоматически создаётся снапшот:
 ```
-/root/docker-snapshot-prod-stable-20251031_151934.tar.gz
+/root/docker-snapshot-NEUROPHOTO-FIX-20251031_235025.tar.gz
 ```
 
 ### Формат имени:
 ```
-prod-stable-YYYYMMDD_HHMMSS.tar.gz
+NEUROPHOTO-FIX-YYYYMMDD_HHMMSS.tar.gz (с исправлением нейрофото)
+HTTP-CALLBACK-RAILWAY-YYYYMMDD_HHMMSS.tar.gz (с HTTP callback для Railway)
+SSL-LETSENCRYPT-YYYYMMDD_HHMMSS.tar.gz (с Let's Encrypt SSL)
+prod-stable-YYYYMMDD_HHMMSS.tar.gz (старое название)
+```
+
+### Рекомендуемые снапшоты:
+```bash
+# ⭐ С исправлением нейрофото (РЕКОМЕНДУЕТСЯ)
+NEUROPHOTO-FIX-20251031_235025.tar.gz (183M)
+
+# Альтернатива с HTTP callback
+HTTP-CALLBACK-RAILWAY-20251031_232545.tar.gz (183M)
+
+# С Let's Encrypt SSL (старая версия)
+SSL-LETSENCRYPT-20251031_160946.tar.gz (183M)
 ```
 
 ### Ручное создание снапшота:
@@ -114,7 +139,10 @@ docker save 999-agents-telegraf:latest | gzip > /root/my-snapshot.tar.gz
 
 ### Загрузка снапшота:
 ```bash
-# На сервере
+# На сервере (с Let's Encrypt SSL)
+docker load < /root/docker-snapshot-SSL-LETSENCRYPT-20251031_160946.tar.gz
+
+# Или старая версия
 docker load < /root/docker-snapshot-prod-stable-20251031_151934.tar.gz
 ```
 
@@ -242,6 +270,9 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 "docker exec 999-multibots ps aux"
 3. При необходимости откатиться: `./rollback.sh <snapshot>`
 
 ### Журнал изменений:
+- **2025-10-31** - ✅ Исправлено нейрофото (после выбора модели теперь работает переход к следующему шагу)
+- **2025-10-31** - ✅ Исправлен Railway callback (HTTP endpoint работает + HTTPS endpoint работает)
+- **2025-10-31** - ✅ Установлен Let's Encrypt SSL сертификат
 - **2025-10-31** - Создан deploy.sh и rollback.sh
 - **2025-10-31** - Добавлена автоматическая система снапшотов
 - **2025-10-31** - Настроен polling режим для всех 10 ботов
@@ -255,7 +286,11 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 "docker exec 999-multibots ps aux"
 ✅ Боты: 10/10 инициализированы
 ✅ Режим: polling
 ✅ API: UP
-✅ Снапшот: prod-stable-20251031_151934
+✅ SSL: Let's Encrypt (до 2026-01-29)
+✅ HTTP Callback: ✅ 200 OK (Railway compatibility)
+✅ HTTPS Callback: ✅ 200 OK (other services)
+✅ Нейрофото: ✅ Исправлено (выбор модели работает)
+✅ Снапшот: NEUROPHOTO-FIX-20251031_235025
 ✅ Deploy: автоматизирован
 ✅ Rollback: доступен
 ```
