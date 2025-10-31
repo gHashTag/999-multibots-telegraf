@@ -344,7 +344,7 @@ checkBalanceScene.enter(async ctx => {
       step: 'fetching_user_data',
     })
 
-    const userDetails = await getUserDetailsSubscription(telegramId)
+    let userDetails = await getUserDetailsSubscription(telegramId)
     console.log('🚀 [DEBUG] Step 4 DONE, userDetails:', {
       isExist: userDetails.isExist,
       isSubscriptionActive: userDetails.isSubscriptionActive,
