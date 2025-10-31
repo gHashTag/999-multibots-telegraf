@@ -116,7 +116,8 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         const destination = `${REPLICATE_USERNAME}/${eventData.modelName}`
 
         // ✅ ВАЖНО: Webhook URL для получения callback от Replicate
-        const webhookUrl = `${process.env.SERVER_API_URL || 'https://999-agents.site'}/webhooks/replicate`
+        // Используем локальный сервер вместо внешнего ai-server
+        const webhookUrl = `http://localhost:3000/webhooks/replicate`
 
         logger.info('[INNGEST TRAINING] Creating Replicate training...', {
           destination,
