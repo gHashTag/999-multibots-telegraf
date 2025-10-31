@@ -30,19 +30,19 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '🎭 <b>Замена лица</b>\n\n' +
-          'Загрузите фото человека, на которого хотите заменить лицо.\n\n' +
-          '📋 <b>Требования:</b>\n' +
-          '• Лицо чётко видно\n' +
-          '• Анфас (прямо в камеру)\n' +
-          '• Хорошее освещение\n\n' +
-          '💰 <b>Стоимость:</b> 10 ⭐'
+            'Загрузите фото человека, на которого хотите заменить лицо.\n\n' +
+            '📋 <b>Требования:</b>\n' +
+            '• Лицо чётко видно\n' +
+            '• Анфас (прямо в камеру)\n' +
+            '• Хорошее освещение\n\n' +
+            '💰 <b>Стоимость:</b> 10 ⭐'
         : '🎭 <b>Face Swap</b>\n\n' +
-          'Upload photo of the person whose face you want to swap.\n\n' +
-          '📋 <b>Requirements:</b>\n' +
-          '• Face clearly visible\n' +
-          '• Frontal angle\n' +
-          '• Good lighting\n\n' +
-          '💰 <b>Cost:</b> 10 ⭐',
+            'Upload photo of the person whose face you want to swap.\n\n' +
+            '📋 <b>Requirements:</b>\n' +
+            '• Face clearly visible\n' +
+            '• Frontal angle\n' +
+            '• Good lighting\n\n' +
+            '💰 <b>Cost:</b> 10 ⭐',
       { parse_mode: 'HTML' }
     )
 
@@ -62,9 +62,7 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     // Validate photo received
     if (!('message' in ctx.update) || !('photo' in ctx.update.message)) {
       await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, отправьте фото.'
-          : '❌ Please send a photo.'
+        isRu ? '❌ Пожалуйста, отправьте фото.' : '❌ Please send a photo.'
       )
       return
     }
@@ -88,9 +86,9 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '✅ Фото получено!\n\n' +
-          'Теперь загрузите второе фото - с лицом, которое хотите использовать.'
+            'Теперь загрузите второе фото - с лицом, которое хотите использовать.'
         : '✅ Photo received!\n\n' +
-          'Now upload the second photo - with the face you want to use.',
+            'Now upload the second photo - with the face you want to use.',
       { parse_mode: 'HTML' }
     )
 
@@ -110,9 +108,7 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     // Validate photo received
     if (!('message' in ctx.update) || !('photo' in ctx.update.message)) {
       await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, отправьте фото.'
-          : '❌ Please send a photo.'
+        isRu ? '❌ Пожалуйста, отправьте фото.' : '❌ Please send a photo.'
       )
       return
     }

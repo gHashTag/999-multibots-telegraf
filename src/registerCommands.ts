@@ -129,7 +129,6 @@ const scenesToRegister = [
   imageToVideoWizard,
   imageToPromptWizard,
   imageUpscalerWizard,
-  faceSwapWizard,
   improvePromptWizard,
   trainFluxModelWizard,
   uploadTrainFluxModelScene,
@@ -143,7 +142,7 @@ const scenesToRegister = [
     ...(textToSpeechWizard.steps as any)
   ),
   videoTranscriptionWizard,
-  // lipSyncWizard,  // TEMPORARILY DISABLED - import fails for unknown reason
+  lipSyncWizard,
   veedFabricWizard,
   aiReelsWizard,
   aiReelsEntryWizard,
@@ -172,7 +171,7 @@ const sceneNames = [
   'rublePaymentScene', 'starPaymentScene', 'subscriptionScene', 'subscriptionCheckScene',
   'checkBalanceScene', 'balanceScene', 'neuroPhotoWizard', 'neuroPhotoWizardV2',
   'textToImageWizard', 'textToVideoWizard', 'imageToVideoWizard', 'imageToPromptWizard',
-  'imageUpscalerWizard', 'faceSwapWizard', 'improvePromptWizard', 'trainFluxModelWizard',
+  'imageUpscalerWizard', 'improvePromptWizard', 'trainFluxModelWizard',
   'uploadTrainFluxModelScene', 'uploadVideoScene', 'sizeWizard', 'aiPhotoshopScene',
   'morphingWizard', 'voiceWizard_wrapped', 'textToSpeechWizard_wrapped',
   'videoTranscriptionWizard', 'lipSyncWizard', 'veedFabricWizard', 'aiReelsWizard',
