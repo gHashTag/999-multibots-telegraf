@@ -51,8 +51,9 @@ jobs:
           fi
           
           # Определяем сервер в зависимости от окружения
+          # ✅ ИСПРАВЛЕНИЕ: Все деплои идут на ТОТ ЖЕ продакшен сервер 212.86.115.30
           if [ "$DEPLOY_ENV" == "production" ]; then
-            SERVER_HOST="999-multibots-u14194.vm.elestio.app"
+            SERVER_HOST="212.86.115.30"
             SHOULD_DEPLOY="true"
           elif [ "$DEPLOY_ENV" == "development" ]; then
             SERVER_HOST="999-multibots-dev-u14194.vm.elestio.app"
@@ -203,12 +204,18 @@ jobs:
             npm ci --production
           fi
           
-          # Запускаем сервисы
-          echo "🚀 Starting services..."
+          # Запускаем сервисы с полной пересборкой БЕЗ КЕША
+          echo "🚀 Starting services with NO CACHE..."
           if [ "'$DEPLOY_ENV'" == "development" ]; then
-            docker-compose -f docker-compose.dev.yml up -d --build
+            echo "🔨 Building Docker image without cache..."
+            docker-compose -f docker-compose.dev.yml build --no-cache
+            echo "🚀 Starting services..."
+            docker-compose -f docker-compose.dev.yml up -d
           else
-            docker-compose up -d --build
+            echo "🔨 Building Docker image without cache..."
+            docker-compose build --no-cache
+            echo "🚀 Starting services..."
+            docker-compose up -d
           fi
           
           # Ждем запуска
