@@ -18,10 +18,9 @@ import {
   tapLeft,
   tryCatch,
   tryCatchAsync,
-  fromPromise,
-  pipe,
-  flow
+  fromPromise
 } from '../../../src/core/functional/utils/result'
+import { pipe, flow } from '../../../src/core/functional/utils/composition'
 
 describe('Either Type', () => {
   describe('Constructors', () => {
