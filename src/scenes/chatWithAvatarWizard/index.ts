@@ -39,6 +39,9 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
+        // Показываем индикатор "печатает..." пока готовим ответ
+        await ctx.sendChatAction('typing')
+
         const { answerAi } = await import('../../core/openai/requests')
         const { getUserData, getUserModel } = await import(
           '../../core/supabase'
@@ -54,6 +57,9 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         const prompt = ctx.message.text
         const model = userModel || 'deepseek-chat'
 
+        // Отправляем еще один индикатор перед вызовом AI (для долгих запросов)
+        await ctx.sendChatAction('typing')
+        
         const response = await answerAi(model, userData, prompt, languageCode)
         await ctx.reply(response)
 

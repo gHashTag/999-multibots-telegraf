@@ -23,7 +23,7 @@ export async function generateImageFromPrompt(
     size,
   })
 
-  const AI_SERVER_URL = process.env.SERVER_API_URL || "https://ai-server-production-production-8e2d.up.railway.app"
+  const AI_SERVER_URL = process.env.SERVER_API_URL || "https://three-head-dragon.shop"
   
   try {
     const requestData = {

@@ -1,0 +1,14 @@
+{
+  "id": "CODER-1758548380075",
+  "name": "agent-1758548380075",
+  "type": "CODER",
+  "status": "active",
+  "activeTasks": 0,
+  "lastActivity": 1758548380075,
+  "capabilities": [
+    "Research",
+    "Analysis",
+    "Code Generation"
+  ],
+  "createdAt": 1758548380075
+}

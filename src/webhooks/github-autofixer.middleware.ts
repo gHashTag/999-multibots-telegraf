@@ -1,7 +1,7 @@
 import express from 'express'
 import { logger } from '@/utils/enhancedLogger'
 
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 
 export const githubWebhookRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
@@ -11,13 +11,21 @@ export const githubWebhookRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // ✅ ИСПРАВЛЕНИЕ: Правильная конфигурация для работы с nginx прокси и IPv6
+  keyGenerator: (req: any) => {
+    // Используем X-Forwarded-For заголовок для определения реального IP
+    const forwarded = req.get('X-Forwarded-For')
+    const realIp = req.get('X-Real-IP')
+    const clientIp = forwarded
+      ? forwarded.split(',')[0].trim()
+      : realIp || req.ip
+
+    // ✅ Используем ipKeyGenerator helper для правильной обработки IPv6
+    return ipKeyGenerator(req, clientIp)
+  },
 })
 
-export const validateGitHubHeaders = (
-  req: any,
-  res: any,
-  next: any
-): void => {
+export const validateGitHubHeaders = (req: any, res: any, next: any): void => {
   const userAgent = req.get('User-Agent')
   const event = req.get('X-GitHub-Event')
 
@@ -58,11 +66,7 @@ export const validatePullRequestEvent = (
   next()
 }
 
-export const logWebhookRequest = (
-  req: any,
-  res: any,
-  next: any
-): void => {
+export const logWebhookRequest = (req: any, res: any, next: any): void => {
   const timestamp = new Date().toISOString()
   const event = req.githubEvent || 'unknown'
   const action = req.body?.action || 'unknown'
@@ -75,22 +79,8 @@ export const logWebhookRequest = (
   next()
 }
 
-export const enableRawBody = (
-  req: any,
-  res: any,
-  next: any
-): void => {
+export const enableRawBody = (req: any, res: any, next: any): void => {
   // Сохраняем raw body для валидации подписи
   req.rawBody = JSON.stringify(req.body)
   next()
-}
-
-// Типы для расширения Request
-declare global {
-  namespace Express {
-    interface Request {
-      githubEvent?: string
-      rawBody?: string
-    }
-  }
 }

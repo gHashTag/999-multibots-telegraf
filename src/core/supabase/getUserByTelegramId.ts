@@ -3,6 +3,7 @@ import { supabase } from './client'
 import { logger } from '@/utils/enhancedLogger'
 import { User } from '@/interfaces/user.interface'
 import { MyContext } from '@/interfaces'
+import { deduplicateUsers } from './deduplicateUsers'
 
 export async function getUserByTelegramId(
   ctxOrTelegramId: MyContext | string
@@ -23,30 +24,56 @@ export async function getUserByTelegramId(
     }
     logger.info({ message: '[getUserByTelegramId] Fetching user', telegramId })
 
-    const { data: user, error: dbError } = await supabase
+    // 🛡️ BEST PRACTICE: Robust query with duplicate handling
+    const { data: users, error: dbError } = await supabase
       .from('users')
       .select('*')
       .eq('telegram_id', telegramId)
-      .single()
+      .order('updated_at', { ascending: false }) // Latest first
+      .limit(10) // Safety limit
 
     if (dbError) {
       logger.error(
         `[getUserByTelegramId] Supabase error for telegramId ${telegramId}:`,
         dbError
       )
-    } else {
-      logger.info(
-        `[getUserByTelegramId] Supabase result for telegramId ${telegramId}: ${
-          user ? 'User found' : 'User not found'
-        }`
-      )
+      return null
     }
 
-    if (!user && !dbError) {
-      logger.warn(
-        `[getUserByTelegramId] No user data returned from Supabase for telegramId ${telegramId}, but no DB error reported.`
+    if (!users || users.length === 0) {
+      logger.info(
+        `[getUserByTelegramId] No user found for telegramId ${telegramId}`
       )
+      return null
     }
+
+    // 🚨 BEST PRACTICE: Handle duplicates gracefully
+    if (users.length > 1) {
+      logger.warn(
+        `[getUserByTelegramId] DUPLICATE WARNING: Found ${users.length} users for telegramId ${telegramId}. Using most recent.`,
+        {
+          telegramId,
+          duplicateCount: users.length,
+          userIds: users.map(u => u.id),
+          createdDates: users.map(u => u.created_at)
+        }
+      )
+      
+      // 🧹 BEST PRACTICE: Auto-cleanup duplicates in background
+      deduplicateUsers(telegramId).catch(error => {
+        logger.error(`[getUserByTelegramId] Failed to deduplicate users for ${telegramId}:`, error)
+      })
+    }
+
+    const user = users[0] // Most recent user
+    logger.info(
+      `[getUserByTelegramId] User found for telegramId ${telegramId}`,
+      {
+        telegramId,
+        userId: user.id,
+        duplicatesFound: users.length > 1
+      }
+    )
 
     return user
   } catch (error) {
@@ -70,14 +97,26 @@ export const createUserByTelegramId = async (ctx: Context) => {
 
     const telegramId = ctx.from.id.toString()
 
-    const { data: existingUser } = await supabase
+    // 🛡️ BEST PRACTICE: Check for existing user with duplicate handling
+    const { data: existingUsers } = await supabase
       .from('users')
       .select('*')
       .eq('telegram_id', telegramId)
-      .single()
+      .order('updated_at', { ascending: false })
+      .limit(5)
 
-    if (existingUser) {
-      return existingUser
+    if (existingUsers && existingUsers.length > 0) {
+      if (existingUsers.length > 1) {
+        logger.warn(
+          `[createUserByTelegramId] DUPLICATE WARNING: Found ${existingUsers.length} existing users for telegramId ${telegramId}`,
+          {
+            telegramId,
+            duplicateCount: existingUsers.length,
+            userIds: existingUsers.map(u => u.id)
+          }
+        )
+      }
+      return existingUsers[0] // Return most recent
     }
 
     const { data: newUser } = await supabase

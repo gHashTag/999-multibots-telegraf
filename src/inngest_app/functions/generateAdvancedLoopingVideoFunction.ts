@@ -10,7 +10,7 @@ import { downloadFile } from '../../helpers'
 const inngest = new Inngest({
   name: '999-multibots-telegraf',
   id: '999-multibots-telegraf-kling-morph-v7',
-  eventKey: process.env.INNGEST_EVENT_KEY,
+  eventKey: process.env.BOT_INNGEST_EVENT_KEY,
 })
 
 const replicateApi = {

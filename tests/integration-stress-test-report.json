@@ -1,0 +1,177 @@
+{
+  "timestamp": "2025-09-18T13:10:29.514Z",
+  "testSuite": "Integration and Stress Testing",
+  "summary": {
+    "totalTests": 48,
+    "passed": 36,
+    "failed": 12,
+    "successRate": 0.75
+  },
+  "results": [
+    {
+      "timestamp": "2025-09-18T13:09:44.893Z",
+      "type": "start",
+      "message": "🚀 Starting comprehensive integration and stress test suite"
+    },
+    {
+      "timestamp": "2025-09-18T13:09:44.895Z",
+      "type": "test",
+      "message": "Testing server connection and responsiveness..."
+    },
+    {
+      "timestamp": "2025-09-18T13:09:46.835Z",
+      "type": "success",
+      "message": "✅ Connection test 'status': 1940ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:09:47.982Z",
+      "type": "success",
+      "message": "✅ Connection test 'agent list': 1147ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:09:49.194Z",
+      "type": "success",
+      "message": "✅ Connection test 'config': 1212ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:09:50.478Z",
+      "type": "success",
+      "message": "✅ Connection test 'help': 1284ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:09:50.478Z",
+      "type": "info",
+      "message": "Connection summary: 4/4 successful, avg: 1395.75ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:09:50.479Z",
+      "type": "test",
+      "message": "Establishing performance baseline..."
+    },
+    {
+      "timestamp": "2025-09-18T13:09:53.935Z",
+      "type": "info",
+      "message": "📊 Simple Status: avg 1152.00ms, min 1077ms, max 1282ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:09:57.424Z",
+      "type": "info",
+      "message": "📊 Agent List: avg 1162.67ms, min 1100ms, max 1231ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:00.744Z",
+      "type": "info",
+      "message": "📊 Single Agent Spawn: avg 1106.33ms, min 1091ms, max 1124ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:04.088Z",
+      "type": "info",
+      "message": "📊 Help Command: avg 1114.33ms, min 1096ms, max 1149ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:04.088Z",
+      "type": "test",
+      "message": "Testing concurrent agent spawning..."
+    },
+    {
+      "timestamp": "2025-09-18T13:10:04.088Z",
+      "type": "test",
+      "message": "Testing concurrency level: 3"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:05.420Z",
+      "type": "success",
+      "message": "✅ Concurrency 3: 3/3 successful in 1332ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:07.420Z",
+      "type": "test",
+      "message": "Testing concurrency level: 5"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:09.169Z",
+      "type": "success",
+      "message": "✅ Concurrency 5: 5/5 successful in 1748ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:11.169Z",
+      "type": "test",
+      "message": "Testing concurrency level: 8"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:13.994Z",
+      "type": "success",
+      "message": "✅ Concurrency 8: 8/8 successful in 2824ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:15.995Z",
+      "type": "test",
+      "message": "Testing concurrency level: 10"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:19.458Z",
+      "type": "success",
+      "message": "✅ Concurrency 10: 10/10 successful in 3463ms"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:21.459Z",
+      "type": "test",
+      "message": "Testing system resilience and error recovery..."
+    },
+    {
+      "timestamp": "2025-09-18T13:10:22.604Z",
+      "type": "success",
+      "message": "✅ Resilience test 1: system remained stable"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:23.749Z",
+      "type": "success",
+      "message": "✅ Resilience test 2: system remained stable"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:24.846Z",
+      "type": "success",
+      "message": "✅ Resilience test 3: system remained stable"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:27.183Z",
+      "type": "success",
+      "message": "✅ Resilience test 4: system remained stable"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:28.366Z",
+      "type": "success",
+      "message": "✅ Resilience test 5: system remained stable"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:29.513Z",
+      "type": "success",
+      "message": "✅ Resilience test 6: system remained stable"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:29.514Z",
+      "type": "info",
+      "message": "Resilience score: 6/6 (100.0%)"
+    },
+    {
+      "timestamp": "2025-09-18T13:10:29.514Z",
+      "type": "report",
+      "message": "Generating comprehensive test report..."
+    }
+  ],
+  "recommendations": [
+    "Implement continuous monitoring for agent spawning",
+    "Set up automated stress testing in CI/CD pipeline",
+    "Add performance metrics dashboard",
+    "Implement graceful degradation for high load scenarios"
+  ],
+  "criticalIssues": 0,
+  "performanceMetrics": {
+    "totalTests": 48,
+    "passed": 36,
+    "failed": 12,
+    "averageResponseTime": 1133.8333333333333,
+    "maxConcurrency": 10,
+    "errors": []
+  }
+}

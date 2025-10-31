@@ -118,10 +118,11 @@ interface BotReportData {
 export async function generateAdminExcelReport(
   botName: string
 ): Promise<Buffer> {
-  throw new Error('Excel export temporarily disabled - xlsx package not available')
+  // 🔥 QA FIX: Excel functionality restored - xlsx package is available
+  return generateAdminExcelReport_RESTORED(botName)
 }
 
-export async function generateAdminExcelReport_DISABLED(
+export async function generateAdminExcelReport_RESTORED(
   botName: string
 ): Promise<Buffer> {
   try {

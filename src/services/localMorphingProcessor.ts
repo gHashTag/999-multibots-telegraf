@@ -84,6 +84,8 @@ interface MorphingVideoOptions {
   ) => Promise<void>
   // ✅ Возобновление с определенного клипа (для восстановления после ошибок)
   resumeFromClip?: number
+  // ✅ Кастомный промпт для переходов (если не указан - используется дефолтный кинематографичный)
+  customPrompt?: string
 }
 
 interface ReplicateClient {
@@ -98,19 +100,35 @@ interface ReplicateClient {
 const MAX_RETRIES = 5 // Максимум 5 попыток для каждого клипа
 const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
 
-// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (ТОЛЬКО 1.6 ВЕРСИИ!)
+// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ
+// 🔥 КРИТИЧЕСКИ ВАЖНО: v2.1 Pro ОБЯЗАТЕЛЬНА ДЛЯ МОРФИНГА (поддерживает start_image + end_image)
+// ⚠️ v2.5 Turbo Pro НЕ ПОДДЕРЖИВАЕТ МОРФИНГ - у него нет параметров start_image/end_image!
 const FALLBACK_KLING_MODELS = [
+  {
+    id: 'kwaivgi/kling-v2.1',
+    name: 'Kling v2.1 Pro',
+    variant: 'pro',
+    cost: 0.9, // $0.09/сек * 10 сек = $0.9 за клип
+    description: '1080p, ЕДИНСТВЕННАЯ модель с поддержкой морфинга (start_image + end_image)',
+  },
+  {
+    id: 'kwaivgi/kling-v2.1',
+    name: 'Kling v2.1 Standard',
+    variant: 'standard',
+    cost: 0.5, // $0.05/сек * 10 сек = $0.5 за клип (НЕ поддерживает end_image!)
+    description: '720p, НЕ поддерживает морфинг с end_image - только для single image',
+  },
   {
     id: 'kwaivgi/kling-v1.6-pro',
     name: 'Kling v1.6 Pro',
-    cost: 1.96, // ~$1.96 за 10-сек клип (лучшее качество для морфинга)
-    description: '1080p, основная модель для морфинга',
+    cost: 1.96, // ~$1.96 за 10-сек клип (старый fallback)
+    description: '1080p, старая резервная модель если v2.x не работает',
   },
   {
     id: 'kwaivgi/kling-v1.6-standard',
     name: 'Kling v1.6 Standard',
-    cost: 0.56, // ~$0.56 за 10-сек клип (запасная модель)
-    description: '720p, fallback модель если Pro отказалась',
+    cost: 0.56, // ~$0.56 за 10-сек клип (последний резерв)
+    description: '720p, последний резерв если все остальные модели не работают',
   },
 ] as const
 
@@ -304,11 +322,12 @@ export async function createMorphingVideo(
         `🧬 Generating morph clip ${clipIndex + 1}/${imagePairs.length}`
       )
 
-      // ✅ ГЕНЕРАЦИЯ КЛИПА С RETRY ЛОГИКОЙ
+      // ✅ ГЕНЕРАЦИЯ КЛИПА С RETRY ЛОГИКОЙ (с кастомным промптом если передан)
       const videoUrl = await generateSingleClipWithRetry(
         pair,
         clipIndex + 1,
-        imagePairs.length
+        imagePairs.length,
+        options.customPrompt
       )
       videoClipUrls.push(videoUrl)
 
@@ -507,8 +526,9 @@ export async function createMorphingVideo(
     } else {
       // Для нескольких клипов создаем concat файл
       const concatFilePath = path.join(tempDir, 'concat_list.txt')
+      // ✅ ИСПРАВЛЕНО: Используем полные абсолютные пути вместо basename
       const concatContent = normalizedClipPaths
-        .map(clipPath => `file '${path.basename(clipPath)}'`)
+        .map(clipPath => `file '${clipPath}'`)
         .join('\n')
 
       fs.writeFileSync(concatFilePath, concatContent)
@@ -586,7 +606,8 @@ async function downloadFile(
 async function generateSingleClipWithRetry(
   pair: any,
   clipNumber: number,
-  totalClips: number
+  totalClips: number,
+  customPrompt?: string
 ): Promise<string> {
   const Replicate = require('replicate')
   const replicate: ReplicateClient = new Replicate({
@@ -595,19 +616,20 @@ async function generateSingleClipWithRetry(
 
   let currentModelIndex = 0 // Начинаем с первой модели
 
+  // ✅ УЛУЧШЕННЫЙ ДЕФОЛТНЫЙ ПРОМПТ: Кинематографичный smooth transition (на основе исследования best practices 2025)
+  const defaultPrompt = 'smooth cinematic transition, elegant morphing between frames, constant camera movement, soft cinematic lighting, professional cinematography, motion blur, 4k quality'
+
   const baseInput: {
     start_image: any
     end_image: any
     prompt: string
     duration: number
-    cfg_scale: number
-    mode?: string // ✅ Добавляем опциональное свойство mode
+    mode?: string // Для v2.1: 'pro' или 'standard'
   } = {
     start_image: pair.start,
     end_image: pair.end,
-    prompt: 'cinematic video, beautiful, hd, 4k, morphing effect',
+    prompt: customPrompt || defaultPrompt, // ✅ Используем кастомный промпт если передан, иначе дефолтный
     duration: 5, // 5 секунд
-    cfg_scale: 0.5,
   }
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -617,12 +639,22 @@ async function generateSingleClipWithRetry(
 
       // Адаптируем параметры под разные модели Kling
       const input = { ...baseInput }
-      if (currentModel.includes('pro')) {
-        input.mode = 'pro'
-      } else if (currentModel.includes('standard')) {
-        input.mode = 'std' // standard mode
+
+      // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА: используем mode для всех моделей Kling
+      if (currentModel === 'kwaivgi/kling-v2.1') {
+        // 🔥 КРИТИЧЕСКИ ВАЖНО: end_image (морфинг) ТРЕБУЕТ mode='pro'!
+        // Источник: https://replicate.com/kwaivgi/kling-v2.1 - "end_image parameter requires pro mode"
+        input.mode = 'pro' // ВСЕГДА pro для морфинга (end_image требует pro!)
+        logger.info(`🆕 Using Kling v2.1 with mode: pro (REQUIRED for morphing with end_image)`)
       } else {
-        input.mode = 'std' // по умолчанию standard для v1.6 и v2.0
+        // Для старых моделей v1.6 используем старую логику mode
+        if (currentModel.includes('pro')) {
+          input.mode = 'pro'
+        } else if (currentModel.includes('standard')) {
+          input.mode = 'std' // standard mode
+        } else {
+          input.mode = 'std' // по умолчанию standard для v1.6
+        }
       }
 
       logger.info(
@@ -701,26 +733,22 @@ async function generateSingleClipWithRetry(
             })
 
             const userErrorRu =
-              '🛡️ Ваши изображения были отклонены ВСЕМИ версиями Kling AI после 5 попыток на каждой модели.\n\n' +
+              '🛡️ Ваши изображения не подходят для создания Infinity Морфинга.\n\n' +
               '📋 Возможные причины:\n' +
               '• Изображения содержат лица людей\n' +
               '• Защищенный контент (персонажи, знаменитости)\n' +
               '• Автоматические фильтры безопасности\n\n' +
               '💡 Решение: Попробуйте использовать другие изображения (пейзажи, предметы, абстракции)\n' +
-              `🔄 Попробованы модели: ${FALLBACK_KLING_MODELS.map(
-                m => m.name
-              ).join(', ')}`
+              '🤖 Модель: Kling v2.1 Pro (новейшая версия)'
 
             const userErrorEn =
-              '🛡️ Your images were rejected by ALL Kling AI models after 5 attempts per model.\n\n' +
+              '🛡️ Your images are not suitable for creating Infinity Morphing.\n\n' +
               '📋 Possible reasons:\n' +
               '• Images contain human faces\n' +
               '• Protected content (characters, celebrities)\n' +
               '• Automatic security filters\n\n' +
               '💡 Solution: Try using different images (landscapes, objects, abstractions)\n' +
-              `🔄 Attempted models: ${FALLBACK_KLING_MODELS.map(
-                m => m.name
-              ).join(', ')}`
+              '🤖 Model: Kling v2.1 Pro (latest version)'
 
             throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
           }
@@ -747,16 +775,16 @@ async function generateSingleClipWithRetry(
       )
 
       const finalErrorRu =
-        `❌ Не удалось создать видео переход ${clipNumber}/${totalClips} после ${MAX_RETRIES} попыток.\n\n` +
-        `🔍 Детали ошибки: ${errorMessage}\n\n` +
+        `❌ Не удалось создать Infinity Морфинг после ${MAX_RETRIES} попыток.\n\n` +
+        `🤖 Модель: Kling v2.1 Pro (новейшая версия)\n` +
         `💡 Попробуйте:\n` +
         `• Использовать другие изображения\n` +
         `• Перезапустить процесс позже\n` +
         `• Обратиться в поддержку`
 
       const finalErrorEn =
-        `❌ Failed to create video transition ${clipNumber}/${totalClips} after ${MAX_RETRIES} attempts.\n\n` +
-        `🔍 Error details: ${errorMessage}\n\n` +
+        `❌ Failed to create Infinity Morphing after ${MAX_RETRIES} attempts.\n\n` +
+        `🤖 Model: Kling v2.1 Pro (latest version)\n` +
         `💡 Try to:\n` +
         `• Use different images\n` +
         `• Restart the process later\n` +

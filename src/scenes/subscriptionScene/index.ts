@@ -238,7 +238,13 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
 
       // ✅ ИСПРАВЛЕНИЕ: Добавляем try-catch для безопасной отправки сообщения
       try {
-        await ctx.reply(textForTelegram, {
+        // Убеждаемся, что отправляем сообщение правильному пользователю
+        const userChatId = ctx.from?.id
+        if (!userChatId) {
+          throw new Error('User chat ID not found')
+        }
+        
+        await ctx.telegram.sendMessage(userChatId, textForTelegram, {
           reply_markup: inlineKeyboard.reply_markup,
           parse_mode: 'MarkdownV2',
         })
@@ -252,9 +258,14 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
 
         // Fallback: отправляем простое сообщение без markdown
         try {
-          await ctx.reply(messageText, {
-            reply_markup: inlineKeyboard.reply_markup,
-          })
+          const userChatId = ctx.from?.id
+          if (userChatId) {
+            await ctx.telegram.sendMessage(userChatId, messageText, {
+              reply_markup: inlineKeyboard.reply_markup,
+            })
+          } else {
+            throw new Error('User chat ID not found in fallback')
+          }
         } catch (fallbackError) {
           logger.error(`❌ Error sending fallback subscription message:`, {
             error:
@@ -269,9 +280,12 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
             ? 'Выберите план подписки из кнопок ниже.'
             : 'Choose a subscription plan from the buttons below.'
 
-          await ctx.reply(simpleMessage, {
-            reply_markup: inlineKeyboard.reply_markup,
-          })
+          const userChatId = ctx.from?.id
+          if (userChatId) {
+            await ctx.telegram.sendMessage(userChatId, simpleMessage, {
+              reply_markup: inlineKeyboard.reply_markup,
+            })
+          }
         }
       }
     }

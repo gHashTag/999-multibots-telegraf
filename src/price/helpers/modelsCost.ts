@@ -33,7 +33,7 @@ export const BASE_COSTS: BaseCosts = {
   // DigitalAvatarBody - рассчитывается отдельно по шагам
 
   // 🧬 МОРФИНГ СЕРВИСЫ
-  [ModeEnum.MorphingWizard]: 2.0, // ~126⭐ = $2.0 - базовая цена для Kling морфинга
+  [ModeEnum.MorphingWizard]: 0.8, // ~50⭐ = $0.8 - новая цена для Kling v2.1 Standard морфинга
 
   // 🔧 СИСТЕМНЫЕ ОПЕРАЦИИ (бесплатные)
   [ModeEnum.Avatar]: 0,

@@ -1,49 +1,14 @@
 import axios, { isAxiosError } from 'axios'
-import {
-  isDev,
-  SECRET_API_KEY,
-  API_SERVER_URL,
-  LOCAL_SERVER_URL,
-} from '@/config'
+import { isDev, SECRET_API_KEY, API_URL, LOCAL_SERVER_URL } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/enhancedLogger'
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
-import { Markup } from 'telegraf'
 
-// Создание клавиатуры для результатов нейрофотографий с кнопкой Upscale
-const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
-  return Markup.inlineKeyboard([
-    [
-      Markup.button.callback(
-        is_ru ? '🆕 Новый промпт' : '🆕 New prompt',
-        'new_neurophoto_prompt'
-      ),
-      Markup.button.callback(
-        is_ru ? '📐 Изменить размер' : '📐 Change size',
-        'change_size'
-      ),
-    ],
-    [
-      Markup.button.callback(
-        is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
-        'improve_prompt'
-      ),
-      Markup.button.callback(
-        is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale Quality',
-        'upscale_neurophoto_image'
-      ),
-    ],
-    [
-      Markup.button.callback(
-        is_ru ? '🏠 Главное меню' : '🏠 Main menu',
-        'go_main_menu'
-      ),
-    ],
-  ])
-}
+// 🚨 ФУНКЦИЯ УДАЛЕНА: Reply keyboard теперь создаётся в wizard'е
+// Это предотвращает дублирование кнопок
 
 /**
  * Гибридная функция для генерации neuro_photo:
@@ -68,9 +33,9 @@ export async function generateNeuroPhotoHybrid(
     numImages,
     telegram_id,
     botName,
-    explicitAspectRatio
+    explicitAspectRatio,
   })
-  
+
   logger.info({
     message: '🔄 [HYBRID] Начало гибридной генерации neuro_photo',
     telegram_id,
@@ -122,7 +87,8 @@ export async function generateNeuroPhotoHybrid(
 
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
-    const url = `${API_SERVER_URL}/generate/neuro-photo`
+    // ИСПРАВЛЕНИЕ: Используем синхронный endpoint для получения результатов сразу
+    const url = `${API_URL}/generate/neuro-photo-sync`
 
     const serverPayload = {
       prompt,
@@ -145,6 +111,7 @@ export async function generateNeuroPhotoHybrid(
       url,
       exact_cost_per_image: exactCostPerImage,
       exact_total_cost: exactTotalCost,
+      serverPayload: JSON.stringify(serverPayload, null, 2),
     })
 
     const response = await axios.post(url, serverPayload, {
@@ -182,21 +149,31 @@ export async function generateNeuroPhotoHybrid(
       throw new Error(`Server error: ${response.data.error}`)
     }
 
-    // Проверяем тип ответа от сервера
-    if (response.data.urls && Array.isArray(response.data.urls) && response.data.urls.length > 0) {
-      // СЦЕНАРИЙ 1: Сервер вернул готовые изображения
+    // Проверяем тип ответа от синхронного сервера
+    if (
+      response.data.success &&
+      response.data.images &&
+      Array.isArray(response.data.images) &&
+      response.data.images.length > 0
+    ) {
+      // СЦЕНАРИЙ 1: Синхронный сервер вернул готовые изображения
       logger.info({
-        message: '📸 [HYBRID] Отправка фотографий пользователю',
+        message:
+          '📸 [HYBRID] План А успешен - получены изображения от синхронного сервера',
         telegram_id,
-        urls_count: response.data.urls.length,
+        images_count: response.data.images.length,
+        server_count: response.data.count,
       })
 
+      // Извлекаем URL изображений из формата сервера
+      const imageUrls = response.data.images.map(img => img.url)
+
       // СОХРАНЯЕМ последний URL в сессии для upscaler'а
-      const lastUrl = response.data.urls[response.data.urls.length - 1]
+      const lastUrl = imageUrls[imageUrls.length - 1]
       if (ctx.session) {
         ctx.session.lastNeuroPhotoImageUrl = lastUrl
         ctx.session.lastNeuroPhotoPrompt = prompt
-        
+
         logger.info({
           message: '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
           description: 'Neurophoto URL saved in session for upscaler',
@@ -204,60 +181,74 @@ export async function generateNeuroPhotoHybrid(
           savedUrl: lastUrl.substring(0, 50) + '...',
           savedPrompt: prompt.substring(0, 50) + '...',
           sessionExists: true,
-          urlsCount: response.data.urls.length,
+          urlsCount: imageUrls.length,
         })
       }
 
-      // Отправляем все фотографии с клавиатурой
-      for (const url of response.data.urls) {
+      // Отправляем все фотографии БЕЗ клавиатуры (как в AI сервере)
+      for (let i = 0; i < imageUrls.length; i++) {
+        const url = imageUrls[i]
         try {
-          const caption = isRussianFromState(ctx)
-            ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${exactCostPerImage} ⭐`
-            : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${exactCostPerImage} ⭐`
-
-          await ctx.telegram.sendPhoto(telegram_id, { url }, {
-            caption,
-            reply_markup: createNeuroPhotoResultKeyboard(isRussianFromState(ctx)).reply_markup,
-          })
+          await ctx.telegram.sendPhoto(telegram_id, { url })
 
           logger.info({
-            message: '✅ [HYBRID] Фотография отправлена',
+            message: '✅ [HYBRID] Фотография отправлена без клавиатуры',
             telegram_id,
-            url,
+            url: url.substring(0, 50) + '...',
+            imageNumber: i + 1,
+            totalImages: imageUrls.length,
           })
         } catch (sendError) {
           logger.error({
             message: '❌ [HYBRID] Ошибка при отправке фотографии',
             telegram_id,
-            url,
+            url: url.substring(0, 50) + '...',
             error: sendError,
           })
         }
       }
-      
-      return response.data
-      
-    } else if (response.data.jobId) {
-      // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
-      logger.info({
-        message: '✅ [HYBRID] План А успешен - сервер принял задачу и будет обрабатывать асинхронно',
-        telegram_id,
-        jobId: response.data.jobId,
-      })
-      
-      // Сервер сам отправит изображение через webhook после обработки
-      // Просто возвращаем успешный результат
-      return response.data
-      
+
+      // 🚨 ИСПРАВЛЕНИЕ: Отправляем итоговое сообщение БЕЗ кнопок
+      // Reply keyboard будет добавлена в wizard отдельным сообщением
+      const totalCost = exactCostPerImage * imageUrls.length
+      const finalMessage = isRussianFromState(ctx)
+        ? `✅ Готово! Успешно сгенерировано ${imageUrls.length} из ${numImages} изображений.\nСписано: ${totalCost.toFixed(2)} ⭐️\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
+        : `✅ Done! Successfully generated ${imageUrls.length} out of ${numImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
+
+      try {
+        // Отправляем ТОЛЬКО текст, БЕЗ кнопок (ни inline, ни reply)
+        await ctx.telegram.sendMessage(telegram_id, finalMessage)
+
+        logger.info({
+          message: '✅ [HYBRID] Итоговое сообщение отправлено (без кнопок)',
+          telegram_id,
+          totalImages: imageUrls.length,
+          totalCost,
+        })
+      } catch (sendError) {
+        logger.error({
+          message: '❌ [HYBRID] Ошибка при отправке итогового сообщения',
+          telegram_id,
+          error: sendError,
+        })
+      }
+
+      // Возвращаем единый формат как План Б
+      return {
+        data: 'Processing completed',
+        success: true,
+        urls: imageUrls,
+      }
     } else {
-      // СЦЕНАРИЙ 3: Неожиданный формат ответа
+      // СЦЕНАРИЙ 2: Неожиданный формат ответа от синхронного сервера
       logger.error({
-        message: '❌ [HYBRID] Неожиданный формат ответа от сервера',
+        message: '❌ [HYBRID] Неожиданный формат ответа от синхронного сервера',
         telegram_id,
         responseData: JSON.stringify(response.data).substring(0, 200),
+        expected_format: 'success=true, images=[{url, prompt_id}], count=N',
       })
-      
-      throw new Error('Unexpected response format from server')
+
+      throw new Error('Unexpected response format from sync server')
     }
   } catch (error) {
     // Логируем ошибку сервера

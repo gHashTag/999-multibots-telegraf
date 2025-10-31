@@ -10,13 +10,11 @@ export const checkSubscriptionByTelegramId = async (
   id: string
 ): Promise<string> => {
   try {
-    // Получаем последнюю запись о платеже пользователя
+    // Получаем информацию о пользователе из таблицы users вместо payments_v2
     const { data, error } = await supabase
-      .from('payments_v2')
+      .from('users')
       .select('id, created_at, subscription, level')
       .eq('telegram_id', id)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .single()
 
     // Обрабатываем ошибку запроса

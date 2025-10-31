@@ -1,4 +1,5 @@
 import { KieAiProvider } from './video-providers/KieAiProvider'
+import { generateFaceSwap, FaceSwapRequest } from './generateFaceSwap'
 import { logger } from '@/utils/logger'
 
 interface VideoGenerationRequest {
@@ -6,6 +7,11 @@ interface VideoGenerationRequest {
   duration?: number
   aspectRatio?: '16:9' | '9:16' | '1:1'
   imageUrl?: string
+  userId?: string
+  projectId?: number
+}
+
+interface FaceSwapGenerationRequest extends FaceSwapRequest {
   userId?: string
   projectId?: number
 }
@@ -34,7 +40,7 @@ interface MusicGenerationRequest {
 interface ModelInfo {
   id: string
   name: string
-  type: 'video' | 'image' | 'music'
+  type: 'video' | 'image' | 'music' | 'faceswap'
   provider: string
   description: string
   pricePerUnit: number
@@ -56,7 +62,7 @@ export class UniversalProviderManager {
     // Video models
     const videoModels: ModelInfo[] = [
       {
-        id: 'veo-3-fast',
+        id: 'veo3_fast',
         name: 'Google Veo 3 Fast',
         type: 'video',
         provider: 'Kie.ai',
@@ -65,7 +71,7 @@ export class UniversalProviderManager {
         supportedFeatures: ['text-to-video', 'image-to-video'],
       },
       {
-        id: 'veo-3',
+        id: 'veo3',
         name: 'Google Veo 3 Quality',
         type: 'video',
         provider: 'Kie.ai',
@@ -155,8 +161,21 @@ export class UniversalProviderManager {
       },
     ]
 
+    // FaceSwap models
+    const faceSwapModels: ModelInfo[] = [
+      {
+        id: 'face-swap',
+        name: 'FaceSwap',
+        type: 'faceswap',
+        provider: 'Replicate',
+        description: 'Swap faces between two images using AI',
+        pricePerUnit: 0.01, // per swap
+        supportedFeatures: ['face-swap', 'image-processing'],
+      },
+    ]
+
     // Register all models
-    ;[...videoModels, ...imageModels, ...musicModels].forEach(model => {
+    ;[...videoModels, ...imageModels, ...musicModels, ...faceSwapModels].forEach(model => {
       this.models.set(model.id, model)
     })
 
@@ -281,6 +300,41 @@ export class UniversalProviderManager {
     }
   }
 
+  async performFaceSwap(
+    modelId: string,
+    request: FaceSwapGenerationRequest
+  ): Promise<any> {
+    const model = this.models.get(modelId)
+
+    if (!model) {
+      throw new Error(`Unknown model: ${modelId}`)
+    }
+
+    if (model.type !== 'faceswap') {
+      throw new Error(`Model ${modelId} is not a face-swap model`)
+    }
+
+    logger.info(`👤 Starting face swap`, {
+      model: modelId,
+      provider: model.provider,
+      targetImageUrl: request.targetImageUrl.substring(0, 100),
+      swapImageUrl: request.swapImageUrl.substring(0, 100),
+    })
+
+    switch (model.provider) {
+      case 'Replicate':
+        return await generateFaceSwap({
+          targetImageUrl: request.targetImageUrl,
+          swapImageUrl: request.swapImageUrl,
+        })
+
+      default:
+        throw new Error(
+          `Provider ${model.provider} not supported for face-swap`
+        )
+    }
+  }
+
   getProviderForModel(modelId: string): string | null {
     const model = this.models.get(modelId)
     return model ? model.provider : null
@@ -290,7 +344,7 @@ export class UniversalProviderManager {
     return Array.from(this.models.values())
   }
 
-  getModelsByType(type: 'video' | 'image' | 'music'): ModelInfo[] {
+  getModelsByType(type: 'video' | 'image' | 'music' | 'faceswap'): ModelInfo[] {
     return Array.from(this.models.values()).filter(model => model.type === type)
   }
 

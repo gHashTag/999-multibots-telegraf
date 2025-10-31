@@ -12,6 +12,8 @@ import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger, logSessionSafely } from '@/utils/enhancedLogger'
 import { getUserBalance, getUserData } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { sendImprovedPrompt } from '@/helpers/sendLongMessage'
+import { sendCompletionNotification } from '@/helpers/completionNotification'
 const MAX_ATTEMPTS = 10
 
 export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
@@ -66,7 +68,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Ошибка идентификации пользователя' : 'User identification error'
       )
-      return ctx.scene.leave()
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
 
     ctx.session.attempts = 0 // Инициализируем счетчик попыток
@@ -75,21 +78,23 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
     if (!prompt) {
       await sendPromptImprovementFailureMessage(ctx, isRu)
-      return ctx.scene.leave()
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
 
     const improvedPrompt = await upgradePrompt(prompt)
     if (!improvedPrompt) {
       await sendPromptImprovementFailureMessage(ctx, isRu)
-      return ctx.scene.leave()
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
 
     ctx.session.prompt = improvedPrompt
 
-    await ctx.reply(
-      isRu
-        ? 'Улучшенный промпт:\n```\n' + improvedPrompt + '\n```'
-        : 'Improved prompt:\n```\n' + improvedPrompt + '\n```',
+    await sendImprovedPrompt(
+      ctx,
+      improvedPrompt,
+      isRu,
       {
         reply_markup: Markup.keyboard([
           [
@@ -124,16 +129,19 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             ? 'Ошибка идентификации пользователя'
             : 'User identification error'
         )
-        return ctx.scene.leave()
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
       }
 
       if (!ctx.session.prompt) {
         await sendPromptImprovementFailureMessage(ctx, isRu)
-        return ctx.scene.leave()
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
       }
       if (!ctx.session.mode) {
         await sendPromptImprovementFailureMessage(ctx, isRu)
-        return ctx.scene.leave()
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.MainMenu)
       }
       switch (text) {
         case isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?': {
@@ -169,7 +177,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ? 'Ошибка: Не удалось получить данные пользователя.'
                 : 'Error: Could not retrieve user data.'
             )
-            return ctx.scene.leave()
+            await ctx.scene.leave()
+            return ctx.scene.enter(ModeEnum.MainMenu)
           }
 
           logger.debug(mode, 'mode')
@@ -204,6 +213,9 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                   ctx,
                   ctx.botInfo?.username
                 )
+
+                // Send completion notification
+                await sendCompletionNotification(ctx, isRu, 'neuro_photo')
                 break
               }
               case 'text_to_video':
@@ -231,6 +243,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                   ctx.session.selectedResolution // Добавляем недостающий параметр
                 )
 
+                // Send completion notification
+                await sendCompletionNotification(ctx, isRu, 'text_to_video')
                 break
               case 'text_to_image': {
                 if (!ctx.session.selectedImageModel) {
@@ -243,7 +257,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                       ? 'Ошибка: Не удалось определить выбранную модель изображения.'
                       : 'Error: Could not determine the selected image model.'
                   )
-                  return ctx.scene.leave()
+                  await ctx.scene.leave()
+                  return ctx.scene.enter(ModeEnum.MainMenu)
                 }
                 await generateTextToImageDirect(
                   ctx.session.prompt,
@@ -258,6 +273,9 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 const currentBalance = await getUserBalance(
                   ctx.from.id.toString()
                 )
+
+                // Send completion notification
+                await sendCompletionNotification(ctx, isRu, 'text_to_image')
 
                 await ctx.reply(
                   isRu
@@ -309,9 +327,11 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               telegramId: ctx.from.id,
             })
             await sendGenericErrorMessage(ctx, isRu)
-            return ctx.scene.leave()
+            await ctx.scene.leave()
+            return ctx.scene.enter(ModeEnum.MainMenu)
           }
-          return ctx.scene.leave()
+          await ctx.scene.leave()
+          return ctx.scene.enter(ModeEnum.MainMenu)
         }
 
         case isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again': {
@@ -323,7 +343,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 ? 'Достигнуто максимальное количество попыток улучшения промпта.'
                 : 'Maximum number of prompt improvement attempts reached.'
             )
-            return ctx.scene.leave()
+            await ctx.scene.leave()
+            return ctx.scene.enter(ModeEnum.MainMenu)
           }
 
           await ctx.reply(
@@ -333,20 +354,22 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           )
           if (!ctx.session.prompt) {
             await sendPromptImprovementFailureMessage(ctx, isRu)
-            return ctx.scene.leave()
+            await ctx.scene.leave()
+            return ctx.scene.enter(ModeEnum.MainMenu)
           }
           const improvedPrompt = await upgradePrompt(ctx.session.prompt)
           if (!improvedPrompt) {
             await sendPromptImprovementFailureMessage(ctx, isRu)
-            return ctx.scene.leave()
+            await ctx.scene.leave()
+            return ctx.scene.enter(ModeEnum.MainMenu)
           }
 
           ctx.session.prompt = improvedPrompt
 
-          await ctx.reply(
-            isRu
-              ? 'Улучшенный промпт:\n```\n' + improvedPrompt + '\n```'
-              : 'Improved prompt:\n```\n' + improvedPrompt + '\n```',
+          await sendImprovedPrompt(
+            ctx,
+            improvedPrompt,
+            isRu,
             {
               reply_markup: Markup.keyboard([
                 [
@@ -369,12 +392,14 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
         case isRu ? '❌ Отмена' : '❌ Cancel': {
           await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled')
-          return ctx.scene.leave()
+          await ctx.scene.leave()
+          return ctx.scene.enter(ModeEnum.MainMenu)
         }
 
         default: {
           await sendGenericErrorMessage(ctx, isRu)
-          return ctx.scene.leave()
+          await ctx.scene.leave()
+          return ctx.scene.enter(ModeEnum.MainMenu)
         }
       }
     }

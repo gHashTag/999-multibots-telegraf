@@ -80,8 +80,19 @@ export async function getTranslation({
     }
   }
 
-  // ✅ ИСПРАВЛЯЕМ: используем новую централизованную систему (STATE ONLY!)
-  const userLanguage = getUserLanguageFromState(ctx)
+  // ✅ ENHANCED: Используем централизованную систему с fallback
+  let userLanguage: string
+  try {
+    userLanguage = getUserLanguageFromState(ctx)
+  } catch (error) {
+    // Fallback to Telegram language if state fails
+    userLanguage = ctx.from?.language_code?.startsWith('ru') ? 'ru' : 'en'
+    logger.warn('[getTranslation] State language failed, using Telegram fallback', {
+      telegramId: ctx.from?.id,
+      fallbackLanguage: userLanguage,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
   const language_code = userLanguage // 'ru' | 'en'
 
   // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В getTranslation
@@ -100,48 +111,83 @@ export async function getTranslation({
   const botName = bot_name ? bot_name : getBotNameByToken(token).bot_name
 
   const fetchTranslation = async (name: string) => {
-    return await supabase
+    const { data, error } = await supabase
       .from('translations')
       .select('translation, url, buttons')
       .eq('language_code', language_code)
       .eq('key', key)
       .eq('bot_name', name)
-      .single()
+      .limit(1)
+
+    // Convert array result to single object format, or null if no results
+    const singleData = data && data.length > 0 ? data[0] : null
+
+    return {
+      data: singleData,
+      error: !singleData && !error ? { message: 'No translation found' } : error
+    }
   }
   try {
     let { data, error } = await fetchTranslation(botName)
 
     if (error) {
       logger.warn({
-        message: `Ошибка получения перевода/кнопок с текущим токеном для ключа "${key}"`,
+        message: `Translation not found for key "${key}" with current bot`,
         bot_name: botName,
         language_code,
         key,
         error: error.message,
+        telegram_id: telegramId
       })
 
-      // Пробуем найти для DEFAULT_BOT_NAME
+      // Try with DEFAULT_BOT_NAME fallback
       const defaultBot = DEFAULT_BOT_NAME
       ;({ data, error } = await fetchTranslation(defaultBot))
 
-      // Если и для DEFAULT_BOT_NAME не найдено, пробуем общие переводы
+      // If still not found, try common translations
       if (error) {
         logger.warn({
-          message: `Ошибка получения перевода/кнопок с DEFAULT_BOT_NAME для ключа "${key}"`,
+          message: `Translation not found with DEFAULT_BOT_NAME for key "${key}"`,
           bot_name: defaultBot,
           language_code,
           key,
           error: error.message,
+          telegram_id: telegramId
         })
+
+        // Try common bot translations
         ;({ data, error } = await fetchTranslation(COMMON_BOT_NAME))
 
         if (!error) {
           logger.info({
-            message: `Использован общий перевод для ключа "${key}"`,
+            message: `Using common translation for key "${key}"`,
             bot_name: COMMON_BOT_NAME,
             language_code,
             key,
+            telegram_id: telegramId
           })
+        } else {
+          // Ultimate fallback - try opposite language
+          const fallbackLanguage = language_code === 'ru' ? 'en' : 'ru'
+          const fallbackResult = await supabase
+            .from('translations')
+            .select('translation, url, buttons')
+            .eq('language_code', fallbackLanguage)
+            .eq('key', key)
+            .eq('bot_name', COMMON_BOT_NAME)
+            .limit(1)
+
+          if (fallbackResult.data && fallbackResult.data.length > 0) {
+            data = fallbackResult.data[0]
+            error = null
+            logger.info({
+              message: `Using fallback language translation for key "${key}"`,
+              original_language: language_code,
+              fallback_language: fallbackLanguage,
+              key,
+              telegram_id: telegramId
+            })
+          }
         }
       }
     }
@@ -186,32 +232,54 @@ export async function getTranslation({
       logger.warn(`Поле buttons отсутствует или пусто для ключа "${key}"`)
     }
 
-    // ✅ ИСПРАВЛЯЕМ: Добавляем дефолтные кнопки для ключа digitalAvatar, если buttons отсутствуют
-    if (key === 'digitalAvatar' && buttons.length === 0) {
+    // ✅ ENHANCED: Default buttons with better error handling
+    const keysNeedingDefaultButtons = ['digitalAvatar', 'subscriptionScene', 'menu']
+
+    if (keysNeedingDefaultButtons.includes(key) && buttons.length === 0) {
       buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
       logger.info(
-        `[getTranslation] Использованы дефолтные кнопки для ключа "${key}", язык: ${language_code}`,
+        `[getTranslation] Applied default buttons for key "${key}"`,
         {
           telegramId,
           key,
           language_code,
           buttonsCount: buttons.length,
+          buttonsApplied: 'DEFAULT_FALLBACK'
         }
       )
     }
 
-    // ✅ ИСПРАВЛЕНИЕ: Добавляем дефолтные кнопки для ключа subscriptionScene
-    if (key === 'subscriptionScene' && buttons.length === 0) {
-      buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
-      logger.info(
-        `[getTranslation] Использованы дефолтные кнопки для ключа "${key}", язык: ${language_code}`,
-        {
+    // ✅ FINAL FALLBACK: If still no translation, provide minimal default
+    if (!data?.translation && !error) {
+      const defaultTranslations: Record<string, Record<string, string>> = {
+        'digitalAvatar': {
+          'ru': '📸 НейроФото - создание уникальных аватаров',
+          'en': '📸 NeuroPhoto - create unique avatars'
+        },
+        'menu': {
+          'ru': '🏠 Главное меню',
+          'en': '🏠 Main menu'
+        },
+        'subscriptionScene': {
+          'ru': '💳 Подписки и тарифы',
+          'en': '💳 Subscriptions and plans'
+        }
+      }
+
+      const defaultTranslation = defaultTranslations[key]?.[language_code]
+      if (defaultTranslation) {
+        data = {
+          translation: defaultTranslation,
+          url: '',
+          buttons: null
+        }
+        logger.info('[getTranslation] Applied emergency default translation', {
           telegramId,
           key,
           language_code,
-          buttonsCount: buttons.length,
-        }
-      )
+          source: 'EMERGENCY_DEFAULT'
+        })
+      }
     }
 
     // ✅ ФИНАЛЬНОЕ ЛОГИРОВАНИЕ РЕЗУЛЬТАТА
@@ -235,28 +303,53 @@ export async function getTranslation({
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : String(e)
     logger.error({
-      message: `Критическая ошибка при получении перевода/кнопок для ключа "${key}"`,
+      message: `Critical error getting translation for key "${key}"`,
       error: errorMessage,
       bot_name: botName,
       language_code,
       key,
       telegramId,
+      stack: e instanceof Error ? e.stack : undefined
     })
 
-    // ✅ ЛОГИРОВАНИЕ FALLBACK РЕЗУЛЬТАТА
-    logger.info(`[getTranslation] 🚨 FALLBACK RESULT (ERROR):`, {
+    // ✅ EMERGENCY FALLBACK with basic translations
+    const emergencyTranslations: Record<string, Record<string, string>> = {
+      'digitalAvatar': {
+        'ru': '📸 НейроФото',
+        'en': '📸 NeuroPhoto'
+      },
+      'menu': {
+        'ru': '🏠 Меню',
+        'en': '🏠 Menu'
+      },
+      'start': {
+        'ru': '🚀 Добро пожаловать!',
+        'en': '🚀 Welcome!'
+      }
+    }
+
+    const emergencyTranslation = emergencyTranslations[key]?.[language_code] ||
+                                emergencyTranslations[key]?.['en'] ||
+                                `⚠️ Translation unavailable (${key})`
+
+    const emergencyButtons = (key === 'digitalAvatar' || key === 'subscriptionScene' || key === 'menu')
+      ? (language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN)
+      : []
+
+    logger.info(`[getTranslation] 🆘 EMERGENCY FALLBACK APPLIED:`, {
       telegramId,
       key,
       language_code,
-      translation: '',
-      buttons: [],
+      translation: emergencyTranslation,
+      buttonsCount: emergencyButtons.length,
       error: errorMessage,
+      source: 'EMERGENCY_HARDCODED'
     })
 
     return {
-      translation: '',
+      translation: emergencyTranslation,
       url: '',
-      buttons: [],
+      buttons: emergencyButtons,
     }
   }
 }

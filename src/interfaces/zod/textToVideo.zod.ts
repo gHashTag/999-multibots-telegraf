@@ -58,16 +58,18 @@ export const validateTextToVideoRequest = (request: any): TextToVideoRequest => 
 // Константы для валидации
 export const TEXT_TO_VIDEO_CONSTANTS = {
   MIN_PROMPT_LENGTH: 3,
-  MAX_PROMPT_LENGTH: 1000,
+  MAX_PROMPT_LENGTH: 10000, // Увеличен лимит для поддержки длинных промптов
   DEFAULT_ASPECT_RATIO: '9:16' as const,
-  DEFAULT_MODEL: 'veo-3-fast' as const,
+  DEFAULT_MODEL: 'veo3_fast' as const,
   SUPPORTED_MODELS: [
-    'veo-3-fast',
-    'veo-3',
+    'veo3_fast',
+    'veo3',
     'runway-aleph',
     'minimax',
     'hunyuan-video-fast',
     'wan-text-to-video',
     'wan-2.2-t2v-fast',
+    'sora-2',
+    'sora-2-pro',
   ] as const,
 } as const
