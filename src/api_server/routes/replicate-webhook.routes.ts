@@ -4,7 +4,11 @@ import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 import { sendEnhancedCompletionNotification } from '@/helpers/completionNotification'
 
+<<<<<<< HEAD
 const router: express.Router = Router()
+=======
+const router: import('express-serve-static-core').Router = Router()
+>>>>>>> e511b7596 (🚀 AUTO-DEPLOY: 2025-10-31 10:16:32)
 
 interface ReplicateWebhookPayload {
   id: string // training ID
