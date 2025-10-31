@@ -1,4 +1,4 @@
-import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { MyContext } from '@/interfaces'
 import { Markup } from 'telegraf'
 import { levels, HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
