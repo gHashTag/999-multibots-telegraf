@@ -82,13 +82,13 @@ pnpm deploy:test
 После деплоя вы можете проверить статус контейнеров:
 
 ```bash
-ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/999-multibots-telegraf && docker compose ps'
+ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/bot-farm && docker compose ps'
 ```
 
 И просмотреть логи приложения:
 
 ```bash
-ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/999-multibots-telegraf && docker compose logs --tail=100 app'
+ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/bot-farm && docker compose logs --tail=100 app'
 ```
 
 ## Настройка Nginx (для продакшн окружения)
@@ -102,7 +102,7 @@ ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/999-multibots-telegraf &&
 Если вам нужно перезапустить приложение без деплоя новой версии:
 
 ```bash
-ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/999-multibots-telegraf && docker compose restart app'
+ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/bot-farm && docker compose restart app'
 ```
 
 ## Обновление конфигурации
@@ -118,19 +118,19 @@ ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/999-multibots-telegraf &&
 ### Проверка логов
 
 ```bash
-ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/999-multibots-telegraf && docker compose logs --tail=100 app'
+ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/bot-farm && docker compose logs --tail=100 app'
 ```
 
 ### Проверка статуса контейнеров
 
 ```bash
-ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/999-multibots-telegraf && docker compose ps'
+ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/bot-farm && docker compose ps'
 ```
 
 ### Принудительная пересборка контейнеров
 
 ```bash
-ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/999-multibots-telegraf && docker compose down && docker compose up -d --build'
+ssh -i ~/.ssh/id_rsa root@your-server.com 'cd /opt/app/bot-farm && docker compose down && docker compose up -d --build'
 ```
 
 ## Безопасность

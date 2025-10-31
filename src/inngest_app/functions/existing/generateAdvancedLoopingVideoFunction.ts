@@ -8,8 +8,8 @@ import { addMusic, combineVideos } from '../../helpers/video-helpers'
 import { downloadFile } from '../../helpers'
 
 const inngest = new Inngest({
-  name: '999-multibots-telegraf',
-  id: '999-multibots-telegraf-kling-morph-v7',
+  name: 'bot-farm',
+  id: 'bot-farm-kling-morph-v7',
   eventKey: process.env.BOT_INNGEST_EVENT_KEY,
 })
 

@@ -34,7 +34,9 @@ export class LipSyncModelManager {
     cacheManager?: ICacheManager,
     monitor?: ILipSyncMonitor
   ) {
-    this.config = LipSyncModelManagerConfigSchema.parse(config)
+    this.config = LipSyncModelManagerConfigSchema.parse(
+      config
+    ) as LipSyncModelManagerConfig
     this.cacheManager = cacheManager
     this.monitor = monitor
 
@@ -49,7 +51,7 @@ export class LipSyncModelManager {
    * Регистрирует новый провайдер
    */
   registerProvider(provider: ILipSyncProvider): void {
-    this.providers.set(provider.providerId, provider)
+    this.providers.set(provider.providerId as LipSyncProvider, provider)
 
     logger.info('📝 Зарегистрирован новый провайдер', {
       providerId: provider.providerId,
@@ -131,7 +133,7 @@ export class LipSyncModelManager {
       logger.info('🎬 Начинаем генерацию lip-sync', {
         modelId: targetModelId,
         provider: model.provider,
-        telegramId: validatedInput.telegramId,
+        telegramId: (validatedInput as any).telegramId,
       })
 
       // Проверяем кэш (если включен)
