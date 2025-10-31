@@ -312,6 +312,9 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 checkBalanceScene.enter(async ctx => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
 
+  console.log(`🔍 [CheckBalanceScene] ENTER CALLED for user ${telegramId}`)
+  console.log(`🔍 [CheckBalanceScene] Session mode: ${ctx.session?.mode}`)
+
   logger.info({
     message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
     telegramId,
@@ -324,6 +327,28 @@ checkBalanceScene.enter(async ctx => {
     // Get user ID and mode
     const { telegramId: userId } = await getUserInfo(ctx)
     const mode = ctx.session.mode as ModeEnum
+
+    // 👑 КРИТИЧЕСКАЯ ПРОВЕРКА АДМИНОВ - ПЕРЕД ВСЕМИ ДРУГИМИ ПРОВЕРКАМИ
+    const telegramIdNum = parseInt(userId, 10)
+    const isAdmin = ADMIN_IDS_ARRAY.includes(telegramIdNum)
+
+    console.log(`🚨 [CheckBalanceScene] CRITICAL: Checking admin status for ${userId}: ${isAdmin}`)
+
+    if (isAdmin) {
+      console.log(`✅ [CheckBalanceScene] GRANTING IMMEDIATE ACCESS TO ADMIN ${userId}`)
+      logger.info({
+        message: `[CheckBalanceScene] IMMEDIATE ACCESS: Admin ${userId} bypassing all checks`,
+        telegramId: userId,
+        function: 'checkBalanceScene.enter',
+        step: 'admin_immediate_access',
+        mode,
+      })
+      // Пропускаем ВСЕ проверки и идем прямо к целевой сцене
+      await enterTargetScene(ctx, async () => {}, mode, 0)
+      return
+    }
+
+    console.log(`ℹ️ [CheckBalanceScene] User ${userId} is not admin, proceeding with normal checks`)
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
@@ -352,30 +377,6 @@ checkBalanceScene.enter(async ctx => {
       isSubscriptionActive: userDetails.isSubscriptionActive,
       stars: userDetails.stars,
     })
-
-    // 👑 ПРОВЕРКА ДЛЯ АДМИНОВ - АВТОМАТИЧЕСКИЙ ДОСТУП
-    const telegramIdNum = parseInt(telegramId, 10)
-    const isAdmin = ADMIN_IDS_ARRAY.includes(telegramIdNum)
-
-    console.log(`🔍 [CheckBalanceScene] Проверка админа для ${telegramId}:`, {
-      isAdmin,
-      adminIds: ADMIN_IDS_ARRAY,
-    })
-
-    if (isAdmin) {
-      console.log(`✅ [CheckBalanceScene] Админ ${telegramId} автоматически получает доступ без проверки подписки`)
-      logger.info({
-        message: `[CheckBalanceScene] Админ ${telegramId} пропускает проверку подписки и баланса`,
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'admin_access_granted',
-        mode,
-      })
-
-      // Пропускаем все проверки и идем к целевой сцене
-      await enterTargetScene(ctx, async () => {}, mode, 0) // Стоимость 0 для админов
-      return
-    }
 
     logger.info({
       message: `[CheckBalanceScene] Данные пользователя получены`,
