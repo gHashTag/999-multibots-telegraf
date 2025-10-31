@@ -60,7 +60,7 @@ export interface LipSyncModelManagerConfig {
   defaultModel: string
   enableCaching: boolean
   retryAttempts: number
-  timeout: number
+  cacheExpirationHours: number
 }
 
 // Валидация
@@ -75,9 +75,14 @@ export class LipSyncValidationError extends Error {
   }
 }
 
-export const LipSyncModelManagerConfigSchema = {
-  parse: (config: any) => config
-}
+import { z } from 'zod'
+
+export const LipSyncModelManagerConfigSchema = z.object({
+  defaultModel: z.string().default('fal/lip-sync'),
+  enableCaching: z.boolean().default(true),
+  retryAttempts: z.number().min(1).default(3),
+  cacheExpirationHours: z.number().min(0).default(24),
+})
 
 export interface LipSyncModelManagementStrategy {
   [key: string]: any
@@ -95,8 +100,16 @@ export interface LipSyncModelInfo {
   [key: string]: any
 }
 
-export interface LipSyncOperationResult {
-  [key: string]: any
+export interface ProviderOperationResult<T> {
+  success: boolean
+  data?: T
+  error?: LipSyncError
+  metadata?: {
+    provider?: string
+    modelId?: string
+    timestamp: Date
+    processingTime?: number
+  }
 }
 
 // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Восстановление LipSyncInputBuilder с методом forVeedFabric
@@ -165,8 +178,8 @@ export const LipSyncInputBuilder = {
         imageUrl,
         audioUrl,
         telegramId,
-        provider: 'fal',
-        modelId: 'fal-veed-fabric-1.0-fast',
+  provider: 'fal'
+  modelId: 'fal-veed-fabric-1.0-fast'
         botName: options?.botName || 'unknown_bot',
         resolution: options?.resolution || '720p',
       }

@@ -6,32 +6,32 @@ alwaysApply: false
 # 🌐 Правила подключения к серверу
 
 ## 📜 Основная информация
-- Сервер: `999-multibots-u14194.vm.elestio.app`
-- Путь к SSH ключу: `~/.ssh/id_rsa`
-- Рабочая директория: `/opt/app/999-multibots-telegraf`
+- Сервер: `212.86.115.30`
+- Путь к SSH ключу: `~/.ssh/zomro`
+- Рабочая директория: `/opt/app/bot-farm`
 
 ## 🔑 SSH подключение
 
 ### Базовое подключение
 ```bash
-ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app
+ssh -i ~/.ssh/zomro root@212.86.115.30
 ```
 
 ### Быстрые команды
 
 #### Перезапуск с обновлением
 ```bash
-ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app 'cd /opt/app/999-multibots-telegraf && docker-compose down && docker-compose up --build -d'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /opt/app/bot-farm && docker-compose down && docker-compose up --build -d'
 ```
 
 #### Проверка логов
 ```bash
-ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app 'cd /opt/app/999-multibots-telegraf && docker-compose logs -f'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /opt/app/bot-farm && docker-compose logs -f'
 ```
 
 #### Проверка статуса
 ```bash
-ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app 'cd /opt/app/999-multibots-telegraf && docker-compose ps'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'cd /opt/app/bot-farm && docker-compose ps'
 ```
 
 ## 🚀 Деплой

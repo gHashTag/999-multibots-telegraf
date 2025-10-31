@@ -29,7 +29,7 @@ jobs:
             
             if (userContributions.total_count <= 1) {
               const welcomeMessage = `
-            🎉 **Welcome to 999-multibots-telegraf, @${contributor.login}!**
+            🎉 **Welcome to bot-farm, @${contributor.login}!**
             
             Thank you for your ${isIssue ? 'issue' : 'pull request'}! We're excited to have you contributing to our multi-bot Telegram system.
             

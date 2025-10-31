@@ -2,8 +2,8 @@ import { Inngest } from 'inngest'
 import { logger } from '@/utils/logger'
 
 const inngest = new Inngest({
-  name: '999-multibots-telegraf',
-  id: '999-multibots-telegraf-test',
+  name: 'bot-farm',
+  id: 'bot-farm-test',
   eventKey: process.env.BOT_INNGEST_EVENT_KEY,
 })
 

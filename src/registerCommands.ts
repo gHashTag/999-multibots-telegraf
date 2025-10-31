@@ -207,7 +207,7 @@ scenesToRegister.forEach((scene, index) => {
   }
 })
 
-export const stage = new Scenes.Stage<MyContext>(scenesToRegister)
+export const stage = new Scenes.Stage<MyContext>(scenesToRegister as any)
 
 // Проверяем зарегистрированные сцены
 console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {

@@ -93,7 +93,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             '• Ready professional avatars\n' +
             '• Premium quality (4-5 min)\n' +
             '• Choose from collection\n\n' +
-            '🎯 <b>Fal (Fabric)</b>\n' +
+            '🎯 <b>Fabric</b>\n' +
             '• Upload your photo\n' +
             '• High quality lip-sync\n' +
             '• Optimal speed (3-4 min)',
