@@ -24,7 +24,10 @@ import {
 } from '@/helpers/centralizedLanguage'
 import { getParsingAccess } from '@/menu/mainMenu'
 // Импортируем функции мониторинга конкурентов
-import { handleCompetitorMonitoring, handleCompetitorUsernameInput } from '@/services/competitorSubscriptionService'
+import {
+  handleCompetitorMonitoring,
+  handleCompetitorUsernameInput,
+} from '@/services/competitorSubscriptionService'
 import { competitorMonitoringApi } from '@/services/competitorMonitoringApiService'
 
 // Получаем ID администраторов из переменных окружения
@@ -34,16 +37,20 @@ logger.info('[handleMenu] adminIds from env:', adminIds)
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  
+
   // ВАЖНО: Не обрабатываем команды
-  if (ctx.message && 'text' in ctx.message && ctx.message.text?.startsWith('/')) {
+  if (
+    ctx.message &&
+    'text' in ctx.message &&
+    ctx.message.text?.startsWith('/')
+  ) {
     logger.info('handleMenu skipping command', {
       telegramId,
       command: ctx.message.text,
     })
     return
   }
-  
+
   logger.info({
     message: '🚀 [handleMenu] Обработка команды меню',
     telegramId,
@@ -320,13 +327,20 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: ModeEnum.CheckBalanceScene,
         })
         console.log('CASE: 🎬 Видео из текста')
-        
+
         // ✅ Добавляем немедленную обратную связь пользователю
-        await ctx.reply(isRu ? '🎬 Загружаем генератор видео...' : '🎬 Loading video generator...')
-        
+        await ctx.reply(
+          isRu
+            ? '🎬 Загружаем генератор видео...'
+            : '🎬 Loading video generator...'
+        )
+
         console.log('🎬 [handleMenu] SETTING MODE TO:', ModeEnum.TextToVideo)
         ctx.session.mode = ModeEnum.TextToVideo
-        console.log('🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:', ctx.session.mode)
+        console.log(
+          '🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:',
+          ctx.session.mode
+        )
         console.log(
           `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
         )
@@ -421,7 +435,10 @@ export const handleMenu = async (ctx: MyContext) => {
           ctx,
           isRu ? '🎤 Синхронизация губ' : '🎤 Lip Sync'
         )
-        console.log('🔵 [DEBUG 4] checkSubscriptionGuard returned:', hasSubscription)
+        console.log(
+          '🔵 [DEBUG 4] checkSubscriptionGuard returned:',
+          hasSubscription
+        )
 
         console.log('🔵 [DEBUG 5] After checkSubscriptionGuard')
         logger.info('🔧 [handleMenu DEBUG] After checkSubscriptionGuard', {
@@ -447,16 +464,23 @@ export const handleMenu = async (ctx: MyContext) => {
         logger.info(`🔄 [handleMenu] Запуск Veed Fabric wizard`)
 
         try {
-          console.log('🟢 [DEBUG 9] Calling ctx.scene.enter("veed_fabric_lipsync")')
+          console.log(
+            '🟢 [DEBUG 9] Calling ctx.scene.enter("veed_fabric_lipsync")'
+          )
           await ctx.scene.enter('veed_fabric_lipsync')
           console.log('🟢 [DEBUG 10] Successfully entered veed_fabric_lipsync')
-          logger.info(`✅ [handleMenu] Успешно вошли в veed_fabric_lipsync wizard`, {
-            currentScene: ctx.scene.current?.id,
-            wizardStep: (ctx.wizard as any)?.cursor,
-          })
+          logger.info(
+            `✅ [handleMenu] Успешно вошли в veed_fabric_lipsync wizard`,
+            {
+              currentScene: ctx.scene.current?.id,
+              wizardStep: (ctx.wizard as any)?.cursor,
+            }
+          )
         } catch (error) {
           console.log('🔴 [DEBUG 11] Error entering wizard:', error)
-          logger.error(`❌ [handleMenu] Ошибка входа в veed_fabric_lipsync`, { error })
+          logger.error(`❌ [handleMenu] Ошибка входа в veed_fabric_lipsync`, {
+            error,
+          })
           await ctx.reply(
             isRu
               ? '❌ Ошибка запуска wizard. Попробуйте позже.'
@@ -568,23 +592,26 @@ export const handleMenu = async (ctx: MyContext) => {
           nextScene: 'instagram_parser_scene',
         })
         console.log('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
-        
+
         // Проверяем доступ к парсингу
         const userId = ctx.from?.id?.toString()
         const botToken = ctx.telegram.token
-        
+
         if (!userId) {
           await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
           return
         }
-        
+
         const parsingAccess = getParsingAccess(userId, botToken)
-        
+
         if (!parsingAccess.hasAccess) {
-          logger.warn('Instagram parsing access denied via competitor monitoring button', {
-            telegramId,
-            userId,
-          })
+          logger.warn(
+            'Instagram parsing access denied via competitor monitoring button',
+            {
+              telegramId,
+              userId,
+            }
+          )
           await ctx.reply(
             isRu
               ? '❌ У вас нет доступа к Instagram парсингу.'
@@ -592,13 +619,16 @@ export const handleMenu = async (ctx: MyContext) => {
           )
           return
         }
-        
-        logger.info('✅ Instagram parsing access granted via competitor monitoring', {
-          telegramId,
-          userId,
-          parsingAccess
-        })
-        
+
+        logger.info(
+          '✅ Instagram parsing access granted via competitor monitoring',
+          {
+            telegramId,
+            userId,
+            parsingAccess,
+          }
+        )
+
         // Переходим в Instagram parser scene
         ctx.session.mode = ModeEnum.InstagramParserScene
         console.log(
@@ -661,9 +691,7 @@ export const handleMenu = async (ctx: MyContext) => {
 
         // ИИ Герои используют avatar transform scene для трансформации
         ctx.session.mode = ModeEnum.AvatarTransform
-        console.log(
-          `🔄 [handleMenu] Вход в сцену avatarTransformScene`
-        )
+        console.log(`🔄 [handleMenu] Вход в сцену avatarTransformScene`)
         await ctx.scene.enter('avatar_transform')
         console.log(
           `✅ [handleMenu] Завершен вход в сцену avatarTransformScene`
@@ -695,11 +723,17 @@ export const handleMenu = async (ctx: MyContext) => {
           })
 
           // Если у пользователя есть активная подписка - разрешаем пополнение баланса
-          if (userDetails.isSubscriptionActive && userDetails.subscriptionType) {
-            logger.info('[handleMenu] User has active subscription - proceeding to top-up', {
-              telegramId,
-              subscriptionType: userDetails.subscriptionType,
-            })
+          if (
+            userDetails.isSubscriptionActive &&
+            userDetails.subscriptionType
+          ) {
+            logger.info(
+              '[handleMenu] User has active subscription - proceeding to top-up',
+              {
+                telegramId,
+                subscriptionType: userDetails.subscriptionType,
+              }
+            )
 
             ctx.session.mode = ModeEnum.PaymentScene
 
@@ -725,10 +759,13 @@ export const handleMenu = async (ctx: MyContext) => {
             )
           } else {
             // Если подписки нет - предлагаем купить подписку
-            logger.info('[handleMenu] User has no active subscription - offering subscription purchase', {
-              telegramId,
-              stars: userDetails.stars,
-            })
+            logger.info(
+              '[handleMenu] User has no active subscription - offering subscription purchase',
+              {
+                telegramId,
+                stars: userDetails.stars,
+              }
+            )
 
             const message = isRu
               ? '💎 Для пополнения баланса требуется активная подписка.\n\n' +
@@ -1031,7 +1068,11 @@ export const handleMenu = async (ctx: MyContext) => {
       })
       console.log('CASE: handleMenuCommand.if', normalizedText)
       await actions[normalizedText]()
-    } else if (normalizedText.startsWith(isRu ? levels[111].title_ru : levels[111].title_en)) {
+    } else if (
+      normalizedText.startsWith(
+        isRu ? levels[111].title_ru : levels[111].title_en
+      )
+    ) {
       // ✅ ИСПРАВЛЕНИЕ: Обработка AI Heroes с любым badge (♾️, 🚫, или счетчиком)
       logger.info({
         message: `🦸‍♂️ [handleMenu] AI Heroes с badge обнаружен: "${normalizedText}"`,
@@ -1044,13 +1085,9 @@ export const handleMenu = async (ctx: MyContext) => {
 
       // ИИ Герои используют avatar transform scene для трансформации
       ctx.session.mode = ModeEnum.AvatarTransform
-      console.log(
-        `🔄 [handleMenu] Вход в сцену avatarTransformScene`
-      )
+      console.log(`🔄 [handleMenu] Вход в сцену avatarTransformScene`)
       await ctx.scene.enter('avatar_transform')
-      console.log(
-        `✅ [handleMenu] Завершен вход в сцену avatarTransformScene`
-      )
+      console.log(`✅ [handleMenu] Завершен вход в сцену avatarTransformScene`)
     } else {
       // Логика для необработанного текста (если нужна)
       logger.warn({
@@ -1061,13 +1098,18 @@ export const handleMenu = async (ctx: MyContext) => {
         result: 'action_not_found',
       })
       console.log('CASE: handleMenuCommand.else', normalizedText)
-      
+
       // Проверяем, ожидается ли ввод username конкурента
       console.log('🔍 [handleMenu] Checking competitor username input...')
-      console.log('Session competitor monitoring state:', ctx.session.competitorMonitoring)
-      
+      console.log(
+        'Session competitor monitoring state:',
+        ctx.session.competitorMonitoring
+      )
+
       if (ctx.session.competitorMonitoring?.waitingForUsername) {
-        console.log('✅ [handleMenu] User is waiting for username input, processing...')
+        console.log(
+          '✅ [handleMenu] User is waiting for username input, processing...'
+        )
         logger.info({
           message: `🔍 [handleMenu] Обрабатываем ввод username конкурента: "${normalizedText}"`,
           telegramId,
@@ -1075,24 +1117,35 @@ export const handleMenu = async (ctx: MyContext) => {
           text: normalizedText,
           result: 'competitor_username_input',
         })
-        
+
         try {
           // Импортируем и вызываем функцию обработки username
-          const handled = await handleCompetitorUsernameInput(ctx, normalizedText)
+          const handled = await handleCompetitorUsernameInput(
+            ctx,
+            normalizedText
+          )
           if (handled) {
-            console.log('✅ [handleMenu] Successfully handled competitor username input')
+            console.log(
+              '✅ [handleMenu] Successfully handled competitor username input'
+            )
             return // Завершаем обработку
           }
         } catch (error) {
-          console.log('❌ [handleMenu] Error handling competitor username input:', error)
-          logger.error('[handleMenu] Error handling competitor username input', {
-            error: error instanceof Error ? error.message : String(error),
-            telegramId,
-            username: normalizedText
-          })
+          console.log(
+            '❌ [handleMenu] Error handling competitor username input:',
+            error
+          )
+          logger.error(
+            '[handleMenu] Error handling competitor username input',
+            {
+              error: error instanceof Error ? error.message : String(error),
+              telegramId,
+              username: normalizedText,
+            }
+          )
         }
       }
-      
+
       // Возможно, здесь не нужно ничего делать или отправить сообщение типа "Неизвестная команда"
     }
   } else {
@@ -1125,15 +1178,18 @@ export const handleMenu = async (ctx: MyContext) => {
       logger.info('[handleMenu] add_new_competitor callback triggered', {
         telegramId,
         userId: ctx.from?.id,
-        sessionBefore: ctx.session
+        sessionBefore: ctx.session,
       })
-      
+
       const isRu = isRussianFromState(ctx)
-      
+
       // Проверяем права администратора
       const userId = ctx.from?.id?.toString()
       if (!userId || !adminIds.includes(userId)) {
-        logger.warn('[handleMenu] User not admin, denying access', { userId, adminIds })
+        logger.warn('[handleMenu] User not admin, denying access', {
+          userId,
+          adminIds,
+        })
         await ctx.answerCbQuery()
         await ctx.reply(
           isRu
@@ -1142,15 +1198,20 @@ export const handleMenu = async (ctx: MyContext) => {
         )
         return
       }
-      
+
       await ctx.answerCbQuery('✅')
       console.log('Before importing promptForCompetitorUsername')
-      const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
+      const { promptForCompetitorUsername } = await import(
+        '@/services/competitorSubscriptionService'
+      )
       console.log('After importing, before calling promptForCompetitorUsername')
       await promptForCompetitorUsername(ctx, isRu)
-      console.log('After calling promptForCompetitorUsername, session:', ctx.session)
+      console.log(
+        'After calling promptForCompetitorUsername, session:',
+        ctx.session
+      )
       logger.info('[handleMenu] add_new_competitor callback completed', {
-        sessionAfter: ctx.session
+        sessionAfter: ctx.session,
       })
       return
     }
@@ -1165,27 +1226,36 @@ export const handleMenu = async (ctx: MyContext) => {
     if (callbackData.startsWith('delete_subscription_')) {
       const subscriptionId = callbackData.replace('delete_subscription_', '')
       const isRu = isRussianFromState(ctx)
-      
-      console.log(`🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`)
-      
+
+      console.log(
+        `🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`
+      )
+
       try {
-        const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
-        
+        const result = await competitorMonitoringApi.deleteSubscription(
+          ctx,
+          subscriptionId
+        )
+
         if (result.success) {
-          console.log(`✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`)
+          console.log(
+            `✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`
+          )
           await ctx.answerCbQuery(result.message)
-          
+
           // Обновляем список подписок после удаления
           await handleCompetitorMonitoring(ctx)
         } else {
-          console.log(`❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`)
+          console.log(
+            `❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`
+          )
           await ctx.answerCbQuery(result.message)
         }
       } catch (error) {
         console.log(`💥 [handleMenu] Error deleting subscription: ${error}`)
         await ctx.answerCbQuery(
-          isRu 
-            ? '❌ Ошибка при удалении подписки' 
+          isRu
+            ? '❌ Ошибка при удалении подписки'
             : '❌ Error deleting subscription'
         )
       }
