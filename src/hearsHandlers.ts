@@ -521,7 +521,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.TextToImage
-      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+      await ctx.scene.enter(ModeEnum.TextToImage)
     }
   )
 
