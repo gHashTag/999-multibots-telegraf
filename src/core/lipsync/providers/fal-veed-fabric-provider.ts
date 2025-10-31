@@ -61,6 +61,7 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         return {
           message: 'Invalid input for Fal Veed Fabric provider',
           error: `Expected provider: fal, modelId: fal-veed-fabric-1.0-fast`,
+          code: 'INVALID_INPUT',
           provider: 'fal',
           modelId: input.modelId,
         }
@@ -184,8 +185,9 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
       return {
         id: uniqueId,
         status: 'succeeded',
+        output: videoUrl,
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
-        costEstimate: this.calculateCost(60, input.modelId),
+        costEstimate: this.calculateCost(falApiData.resolution),
         metadata: {
           resolution: falApiData.resolution,
           contentType: result.data?.video?.content_type || 'video/mp4',
@@ -299,35 +301,16 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
   /**
    * Рассчитывает стоимость генерации с централизованной наценкой
    */
-  calculateCost(durationSeconds: number, modelId: string): number {
+  private calculateCost(resolution: string): number {
     // ✅ ИСПРАВЛЕНО: Реальные цены Fal.ai Veed Fabric 1.0 Fast с наценкой
     const baseCost480p = 0.1 // $0.10 за секунду для 480p (базовая цена)
     const baseCost720p = 0.2 // $0.20 за секунду для 720p (базовая цена)
 
     // Применяем централизованную наценку 50% (MARKUP_MULTIPLIER = 1.5)
     const costWithMarkup =
-      this.config.defaultResolution === '720p' ? baseCost720p * 1.5 : baseCost480p * 1.5
+      resolution === '720p' ? baseCost720p * 1.5 : baseCost480p * 1.5
 
-    return costWithMarkup * durationSeconds
-  }
-
-  getModelsConfig(): LipSyncModelConfig[] {
-    return this.supportedModels.map(modelId => ({
-      id: modelId,
-      provider: this.providerId,
-      isAvailable: true, // Fal.ai обычно доступен
-      title: 'Veed Fabric 1.0 Fast',
-      description: 'Быстрая и стабильная модель для lip-sync от Fal.ai',
-      maxDuration: 60,
-    }))
-  }
-
-  supportsModel(modelId: string): boolean {
-    return this.supportedModels.includes(modelId)
-  }
-
-  async isAvailable(): Promise<boolean> {
-    return !!process.env.FAL_KEY
+    return costWithMarkup
   }
 
   /**
@@ -344,4 +327,8 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
 export interface FalVeedFabricInput extends UniversalLipSyncInput {
   provider: 'fal'
   modelId: 'fal-veed-fabric-1.0-fast'
+  imageUrl: string
+  audioUrl: string
+  resolution?: '480p' | '720p'
+  telegramId: string
 }
