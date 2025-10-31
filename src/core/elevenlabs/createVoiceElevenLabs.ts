@@ -71,7 +71,8 @@ async function createVoiceViaAiServer({
     logger.warn('[createVoiceViaAiServer] ConfigManager error, using environment fallback', {
       error: error.message
     })
-    AI_SERVER_URL = process.env.API_SERVER_URL || process.env.SERVER_API_URL
+    // ✅ ИСПРАВЛЕНО: Используем только наш домен для voice services
+    AI_SERVER_URL = process.env.API_SERVER_URL || 'https://three-head-dragon.shop'
     if (!AI_SERVER_URL) {
       throw new Error('AI Server URL not available')
     }
