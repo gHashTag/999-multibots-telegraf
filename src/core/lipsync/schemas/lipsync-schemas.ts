@@ -178,8 +178,8 @@ export const LipSyncInputBuilder = {
         imageUrl,
         audioUrl,
         telegramId,
-  provider: 'fal'
-  modelId: 'fal-veed-fabric-1.0-fast'
+        provider: 'fal',
+        modelId: 'fal-veed-fabric-1.0-fast',
         botName: options?.botName || 'unknown_bot',
         resolution: options?.resolution || '720p',
       }
