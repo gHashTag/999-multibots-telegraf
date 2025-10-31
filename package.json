@@ -85,7 +85,7 @@
     "adm-zip": "^0.5.16",
     "apify-client": "^2.12.5",
     "archiver": "^7.0.1",
-    "axios": "1.8.2",
+    "axios": "1.13.1",
     "bcrypt": "^5.1.1",
     "commander": "^14.0.1",
     "cors": "^2.8.5",
