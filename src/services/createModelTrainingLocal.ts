@@ -164,9 +164,10 @@ export async function createModelTrainingLocal(
     })
 
     // ✅ Webhook URL для уведомлений о завершении тренировки
-    const webhookUrl = process.env.SERVER_API_URL
-      ? `${process.env.SERVER_API_URL}/api/webhooks/replicate`
-      : 'https://999-agents.site/api/webhooks/replicate'
+    // ИСПРАВЛЕНО: Используем локальный webhook вместо внешнего ai-server
+    const webhookUrl = process.env.API_SERVER_URL
+      ? `${process.env.API_SERVER_URL}/api/webhooks/replicate`
+      : 'http://localhost:3000/api/webhooks/replicate'
 
     logger.info('[LOCAL TRAINING] Webhook configuration', {
       webhookUrl,
