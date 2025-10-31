@@ -128,13 +128,11 @@ export async function generateInstagramScraping(
       telegram_id
     })
 
+    // ✅ ИСПРАВЛЕНО: Используем локальный Inngest endpoint
+    const localInngestUrl = 'localhost:3000/api/inngest'
     console.log(
-      `✅ [${process.env.NODE_ENV?.toUpperCase()}] Event sent via SDK to:`,
-      process.env.NODE_ENV === 'development'
-        ? 'localhost:8288'
-        : (process.env.SERVER_API_URL?.replace('https://', '') ||
-            'three-head-dragon.shop') +
-            '/api/inngest'
+      `✅ [${process.env.NODE_ENV?.toUpperCase()}] Event sent via SDK to LOCAL Inngest:`,
+      localInngestUrl
     )
     console.log(
       `🔥 [DEBUG] Event sent with debug_session_id: ${debugSessionId}`
