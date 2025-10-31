@@ -672,6 +672,32 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену avatarTransformScene`
         )
       },
+      // ✅ FIX: Добавляем обработчик для кнопки "+ Добавить модель"
+      [isRu ? levels[112].title_ru : levels[112].title_en]: async () => {
+        logger.info({
+          message: '➕ [handleMenu] Добавление новой модели',
+          telegramId,
+          function: 'handleMenu',
+          action: 'add_new_model',
+        })
+        console.log('CASE: ➕ Добавить модель')
+
+        // Отправляем инструкцию по добавлению модели
+        await ctx.reply(
+          isRu
+            ? '➕ <b>Добавление новой модели</b>\n\n' +
+              'Для добавления новой модели обратитесь к администратору:\n' +
+              '👨‍💻 @neuro_coder\n\n' +
+              'Или используйте одну из существующих моделей в разделе "🤖 Выбор модели ИИ".'
+            : '➕ <b>Add New Model</b>\n\n' +
+              'To add a new model, contact administrator:\n' +
+              '👨‍💻 @neuro_coder\n\n' +
+              'Or use one of the existing models in "🤖 Choose AI Model" section.',
+          {
+            parse_mode: 'HTML',
+          }
+        )
+      },
       // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
       //   console.log('CASE: 🎥 Видео в URL')
       //   ctx.session.mode = 'video_in_url'

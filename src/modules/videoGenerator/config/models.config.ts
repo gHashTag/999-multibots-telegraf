@@ -369,7 +369,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       '🎬 OpenAI Sora 2 Image-to-Video - 10 сек - 9⭐',
     basePrice: 0.015, // 9⭐ за 10 сек = 0.15 USD за 10 сек = 0.015/сек (Kie.ai pricing)
     api: {
-      model: 'sora-2-image-to-video', // Kie.ai provider
+      model: 'sora-2-i2v', // ✅ FIX: Исправлено название модели с sora-2-image-to-video на sora-2-i2v
       input: {
         duration: 10,
         aspect_ratio: (userAspect: string) =>
@@ -389,7 +389,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       '✨ OpenAI Sora 2 Pro Image-to-Video - 10 сек - 28⭐',
     basePrice: 0.045, // 28⭐ за 10 сек standard = 0.45 USD за 10 сек = 0.045/сек (Kie.ai pricing)
     api: {
-      model: 'sora-2-pro-image-to-video', // Kie.ai provider
+      model: 'sora-2-pro-i2v', // ✅ FIX: Исправлено название модели с sora-2-pro-image-to-video на sora-2-pro-i2v
       input: {
         duration: 10,
         aspect_ratio: (userAspect: string) =>
