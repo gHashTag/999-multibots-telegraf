@@ -16,7 +16,6 @@ import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { defaultSession } from '@/store'
 import { handleMenu } from '@/handlers/handleMenu'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
-import { shouldSkipOnboarding, shouldSkipOnboardingCached } from '@/helpers/getUserUsageCount'
 
 interface StartSceneState {
   initialDisplayDone?: boolean
@@ -38,81 +37,14 @@ export const startScene = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const currentBotName = ctx.botInfo.username
 
-    // ✅ OPTIMIZED LOGIC: High-performance user experience detection
-    // Uses cached analysis to minimize database load while maintaining accuracy
-    try {
-      const skipOnboarding = await shouldSkipOnboardingCached(telegramId, currentBotName)
-
-      if (skipOnboarding) {
-        logger.info({
-          message: `[StartScene] Experienced user detected via optimized check - redirecting to main menu`,
-          telegramId,
-          botName: currentBotName,
-          optimizationType: 'cached_analysis',
-          function: 'startScene.experiencedUserRedirect',
-        })
-
-        // Immediate redirect to main menu for experienced users
-        ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
-      }
-
-      logger.info({
-        message: `[StartScene] New or inexperienced user detected via optimized check - proceeding with full onboarding`,
-        telegramId,
-        botName: currentBotName,
-        optimizationType: 'cached_analysis',
-        function: 'startScene.newUserOnboarding',
-      })
-    } catch (error) {
-      // Enhanced error handling with fallback to non-cached version
-      logger.warn({
-        message: `[StartScene] Error in optimized user experience check, attempting fallback`,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        telegramId,
-        botName: currentBotName,
-        function: 'startScene.optimizedCheckError',
-      })
-
-      // Fallback to non-cached version
-      try {
-        const skipOnboardingFallback = await shouldSkipOnboarding(telegramId, currentBotName)
-
-        if (skipOnboardingFallback) {
-          logger.info({
-            message: `[StartScene] Experienced user detected via fallback check - redirecting to main menu`,
-            telegramId,
-            botName: currentBotName,
-            optimizationType: 'fallback_analysis',
-            function: 'startScene.experiencedUserRedirect',
-          })
-
-          ctx.session.mode = ModeEnum.MainMenu
-          await ctx.scene.leave()
-          return ctx.scene.enter(ModeEnum.MainMenu)
-        }
-
-        logger.info({
-          message: `[StartScene] New user confirmed via fallback check - proceeding with onboarding`,
-          telegramId,
-          botName: currentBotName,
-          optimizationType: 'fallback_analysis',
-          function: 'startScene.newUserOnboarding',
-        })
-      } catch (fallbackError) {
-        // Ultimate fallback: proceed with normal flow for safety
-        logger.error({
-          message: `[StartScene] Both optimized and fallback checks failed - proceeding with normal flow for safety`,
-          originalError: error instanceof Error ? error.message : String(error),
-          fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
-          telegramId,
-          botName: currentBotName,
-          function: 'startScene.allChecksFailedFallback',
-        })
-      }
-    }
+    // ✅ ИСПРАВЛЕНИЕ ОТКЛЮЧЕНО: УБРАЛИ OPTIMIZED LOGIC
+    // Все пользователи проходят полный онбординг, как в оригинальном нейроблогер боте
+    logger.info({
+      message: `[StartScene] Proceeding with full onboarding for all users (original neuroblogger behavior)`,
+      telegramId,
+      botName: currentBotName,
+      function: 'startScene.fullOnboarding',
+    })
 
     // ✅ ИСПРАВЛЕНИЕ: Проверяем, является ли это ПРОМО-командой (не всеми командами с параметрами!)
     if (ctx.message && 'text' in ctx.message) {
