@@ -312,9 +312,6 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 checkBalanceScene.enter(async ctx => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
 
-  console.log(`🔍 [CheckBalanceScene] ENTER CALLED for user ${telegramId}`)
-  console.log(`🔍 [CheckBalanceScene] Session mode: ${ctx.session?.mode}`)
-
   logger.info({
     message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
     telegramId,
