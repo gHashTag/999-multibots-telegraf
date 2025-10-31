@@ -12,14 +12,16 @@ export const handleMenu = async (ctx: MyContext) => {
     const text = ctx.message.text || ''
     console.log('CASE: handleMenuCommand.text', text)
 
-    // 🔍 ДИАГНОСТИКА ЯЗЫКА
+    // 🔍 ДИАГНОСТИКА ЯЗЫКА + ЗАЩИТА ОТ UNDEFINED
     console.log('🔍 [LANG DEBUG] handleMenu:', {
       isRu,
       userLanguage: ctx.from?.language_code,
       sessionLanguage: ctx.session?.userLanguage,
-      levels2TitleRu: levels[2].title_ru,
-      levels2TitleEn: levels[2].title_en,
-      currentKey: isRu ? levels[2].title_ru : levels[2].title_en,
+      levelsDefined: !!levels,
+      levelsKeys: Object.keys(levels),
+      levels2TitleRu: levels?.[2]?.title_ru || 'undefined',
+      levels2TitleEn: levels?.[2]?.title_en || 'undefined',
+      currentKey: isRu ? (levels?.[2]?.title_ru || 'undefined') : (levels?.[2]?.title_en || 'undefined'),
       receivedText: text,
     })
 
@@ -32,148 +34,175 @@ export const handleMenu = async (ctx: MyContext) => {
     console.log('🔍 [STEP DEBUG] levels[0]:', levels ? levels[0] : 'undefined')
 
     // Создаем объект для сопоставления текста с действиями
-    const actions = {
-      [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
-        console.log('CASE: 💫 Оформление подписки')
-        ctx.session.mode = ModeEnum.Subscribe
-        await ctx.scene.enter('subscriptionScene')
-      },
-      [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
-        console.log('CASE: 🤖 Цифровое тело')
-        ctx.session.mode = ModeEnum.DigitalAvatarBody
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2']: async () => {
-        console.log('CASE: 🤖 Цифровое тело 2')
-        ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
-        console.log('CASE handleMenu: 📸 Нейрофото')
-        ctx.session.mode = ModeEnum.NeuroPhoto
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2']: async () => {
-        console.log('CASE: 📸 Нейрофото 2')
-        ctx.session.mode = ModeEnum.NeuroPhotoV2
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
-        console.log('CASE: 🔍 Промпт из фото')
-        ctx.session.mode = ModeEnum.ImageToPrompt
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
-        console.log('CASE: 🧠 Мозг аватара')
-        ctx.session.mode = ModeEnum.Avatar
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {
-        console.log('CASE: 💭 Чат с аватаром')
-        ctx.session.mode = ModeEnum.ChatWithAvatar
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
-        console.log('CASE: 🤖 Выбор модели ИИ')
-        ctx.session.mode = ModeEnum.SelectModel
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
-        console.log('CASE: 🎤 Голос аватара')
-        ctx.session.mode = ModeEnum.Voice
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[8].title_ru : levels[8].title_en]: async () => {
-        console.log('CASE: 🎙️ Текст в голос')
-        ctx.session.mode = ModeEnum.TextToSpeech
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[9].title_ru : levels[9].title_en]: async () => {
-        console.log('CASE: 🎥 Фото в видео')
-        ctx.session.mode = ModeEnum.ImageToVideo
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
-        console.log('CASE:  Видео из текста')
-        ctx.session.mode = ModeEnum.TextToVideo
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
-        console.log('CASE: 🖼️ Текст в фото')
-        ctx.session.mode = ModeEnum.TextToImage
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      },
-      // [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
-      //   console.log('CASE: 🎤 Синхронизация губ')
-      //   ctx.session.mode = 'lip_sync'
-      //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      // },
-      // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
-      //   console.log('CASE: 🎥 Видео в URL')
-      //   ctx.session.mode = 'video_in_url'
-      //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-      // },
-      [isRu ? levels[100].title_ru : levels[100].title_en]: async () => {
-        console.log('CASE: 💎 Пополнить баланс')
-        ctx.session.mode = ModeEnum.TopUpBalance
-        await ctx.scene.enter('paymentScene')
-      },
-      [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
-        console.log('CASE: 🤑 Баланс')
-        ctx.session.mode = ModeEnum.Balance
-        await ctx.scene.enter('balanceScene')
-      },
-      [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
-        console.log('CASE: 👥 Пригласить друга')
-        ctx.session.mode = ModeEnum.Invite
-        await ctx.scene.enter('inviteScene')
-      },
-      [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
-        console.log('CASE: ❓ Помощь')
-        ctx.session.mode = ModeEnum.Help
-        await ctx.scene.enter('helpScene')
-      },
-      [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
-        console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter('menuScene')
-      },
-      '/invite': async () => {
-        console.log('CASE: 👥 Пригласить друга')
-        ctx.session.mode = ModeEnum.Invite
-        await ctx.scene.enter('inviteScene')
-      },
-      '/price': async () => {
-        console.log('CASE: 💰 Цена')
-        ctx.session.mode = ModeEnum.Price
-        await priceCommand(ctx)
-      },
-      '/buy': async () => {
-        console.log('CASE: 💰 Пополнить баланс')
-        ctx.session.mode = ModeEnum.TopUpBalance
-        await ctx.scene.enter('paymentScene')
-      },
-      '/balance': async () => {
-        console.log('CASE: 💰 Баланс')
-        ctx.session.mode = ModeEnum.Balance
-        await ctx.scene.enter('balanceScene')
-      },
-      '/help': async () => {
-        console.log('CASE: ❓ Помощь')
-        ctx.session.mode = ModeEnum.Help
-        await ctx.scene.enter('helpScene')
-      },
-      '/menu': async () => {
-        console.log('CASE: 🏠 Главное меню')
-        ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter('menuScene')
-      },
-      '/start': async () => {
-        console.log('CASE: 🚀 Начать обучение')
+    const actions: Record<string, () => Promise<void>> = {}
 
-        await ctx.scene.enter('startScene')
-      },
+    // Безопасное добавление action
+    const addAction = (key: number, actionFn: () => Promise<void>) => {
+      if (levels?.[key] && levels[key].title_ru && levels[key].title_en) {
+        const actionKey = isRu ? levels[key].title_ru : levels[key].title_en
+        actions[actionKey] = actionFn
+        console.log(`✅ Added action for level ${key}: ${actionKey}`)
+      } else {
+        console.warn(`⚠️ levels[${key}] is not defined properly`)
+      }
     }
+
+    addAction(105, async () => {
+      console.log('CASE: 💫 Оформление подписки')
+      ctx.session.mode = ModeEnum.Subscribe
+      await ctx.scene.enter('subscriptionScene')
+    })
+
+    addAction(1, async () => {
+      console.log('CASE: 🤖 Цифровое тело')
+      ctx.session.mode = ModeEnum.DigitalAvatarBody
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    actions['🤖 Цифровое тело 2'] = async () => {
+      console.log('CASE: 🤖 Цифровое тело 2')
+      ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+
+    addAction(2, async () => {
+      console.log('CASE handleMenu: 📸 Нейрофото')
+      ctx.session.mode = ModeEnum.NeuroPhoto
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    actions['📸 Нейрофото 2'] = async () => {
+      console.log('CASE: 📸 Нейрофото 2')
+      ctx.session.mode = ModeEnum.NeuroPhotoV2
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+
+    addAction(3, async () => {
+      console.log('CASE: 🔍 Промпт из фото')
+      ctx.session.mode = ModeEnum.ImageToPrompt
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(4, async () => {
+      console.log('CASE: 🧠 Мозг аватара')
+      ctx.session.mode = ModeEnum.Avatar
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(5, async () => {
+      console.log('CASE: 💭 Чат с аватаром')
+      ctx.session.mode = ModeEnum.ChatWithAvatar
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(6, async () => {
+      console.log('CASE: 🤖 Выбор модели ИИ')
+      ctx.session.mode = ModeEnum.SelectModel
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(7, async () => {
+      console.log('CASE: 🎤 Голос аватара')
+      ctx.session.mode = ModeEnum.Voice
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(8, async () => {
+      console.log('CASE: 🎙️ Текст в голос')
+      ctx.session.mode = ModeEnum.TextToSpeech
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(9, async () => {
+      console.log('CASE: 🎥 Фото в видео')
+      ctx.session.mode = ModeEnum.ImageToVideo
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(10, async () => {
+      console.log('CASE:  Видео из текста')
+      ctx.session.mode = ModeEnum.TextToVideo
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(11, async () => {
+      console.log('CASE: 🖼️ Текст в фото')
+      ctx.session.mode = ModeEnum.TextToImage
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(100, async () => {
+      console.log('CASE: 💎 Пополнить баланс')
+      ctx.session.mode = ModeEnum.TopUpBalance
+      await ctx.scene.enter('paymentScene')
+    })
+
+    addAction(101, async () => {
+      console.log('CASE: 🤑 Баланс')
+      ctx.session.mode = ModeEnum.Balance
+      await ctx.scene.enter('balanceScene')
+    })
+
+    addAction(102, async () => {
+      console.log('CASE: 👥 Пригласить друга')
+      ctx.session.mode = ModeEnum.Invite
+      await ctx.scene.enter('inviteScene')
+    })
+
+    addAction(103, async () => {
+      console.log('CASE: ❓ Помощь')
+      ctx.session.mode = ModeEnum.Help
+      await ctx.scene.enter('helpScene')
+    })
+
+    addAction(104, async () => {
+      console.log('CASE: 🏠 Главное меню')
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter('menuScene')
+    })
+
+    actions['/invite'] = async () => {
+      console.log('CASE: 👥 Пригласить друга')
+      ctx.session.mode = ModeEnum.Invite
+      await ctx.scene.enter('inviteScene')
+    }
+
+    actions['/price'] = async () => {
+      console.log('CASE: 💰 Цена')
+      ctx.session.mode = ModeEnum.Price
+      await priceCommand(ctx)
+    }
+
+    actions['/buy'] = async () => {
+      console.log('CASE: 💰 Пополнить баланс')
+      ctx.session.mode = ModeEnum.TopUpBalance
+      await ctx.scene.enter('paymentScene')
+    }
+
+    actions['/balance'] = async () => {
+      console.log('CASE: 💰 Баланс')
+      ctx.session.mode = ModeEnum.Balance
+      await ctx.scene.enter('balanceScene')
+    }
+
+    actions['/help'] = async () => {
+      console.log('CASE: ❓ Помощь')
+      ctx.session.mode = ModeEnum.Help
+      await ctx.scene.enter('helpScene')
+    }
+
+    actions['/menu'] = async () => {
+      console.log('CASE: 🏠 Главное меню')
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter('menuScene')
+    }
+
+    actions['/start'] = async () => {
+      console.log('CASE: 🚀 Начать обучение')
+      await ctx.scene.enter('startScene')
+    }
+
+    console.log('🔍 [ACTIONS DEBUG] Actions created:', Object.keys(actions))
 
     // 🔍 ДИАГНОСТИКА ОБЪЕКТА ACTIONS
     console.log('🔍 [ACTIONS DEBUG] Available action keys:', Object.keys(actions))
@@ -192,6 +221,7 @@ export const handleMenu = async (ctx: MyContext) => {
       console.log('🔍 Scene stack:', ctx.scene.session?.sceneStack)
     } else {
       console.log('CASE: handleMenuCommand.else', text)
+      console.log('🔍 [MISSING ACTION] Available actions:', Object.keys(actions))
       // ctx.session.mode = 'main_menu'
       // await ctx.scene.enter('menuScene')
     }
