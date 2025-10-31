@@ -353,6 +353,43 @@ export const handleMenu = async (ctx: MyContext) => {
           `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.TextToImage}`
         )
       },
+      // ✅ ДОПОЛНИТЕЛЬНЫЙ ОБРАБОТЧИК для гарантии срабатывания
+      '🖼️ Текст в фото': async () => {
+        logger.info({
+          message: '🖼️ [handleMenu] Переход к тексту в фото (запасной обработчик)',
+          telegramId,
+          function: 'handleMenu',
+          action: 'text_to_image_fallback',
+          nextScene: ModeEnum.TextToImage,
+        })
+        console.log('CASE: 🖼️ Текст в фото (fallback)')
+        ctx.session.mode = ModeEnum.TextToImage
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.TextToImage}`
+        )
+        await ctx.scene.enter(ModeEnum.TextToImage)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.TextToImage}`
+        )
+      },
+      '🖼️ Text to Photo': async () => {
+        logger.info({
+          message: '🖼️ [handleMenu] Переход к тексту в фото (EN fallback)',
+          telegramId,
+          function: 'handleMenu',
+          action: 'text_to_image_fallback_en',
+          nextScene: ModeEnum.TextToImage,
+        })
+        console.log('CASE: 🖼️ Text to Photo (fallback EN)')
+        ctx.session.mode = ModeEnum.TextToImage
+        console.log(
+          `🔄 [handleMenu] Вход в сцену ${ModeEnum.TextToImage}`
+        )
+        await ctx.scene.enter(ModeEnum.TextToImage)
+        console.log(
+          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.TextToImage}`
+        )
+      },
       [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
         logger.info({
           message: '🎨 [handleMenu] Переход к ИИ Фотошоп',
@@ -1040,6 +1077,13 @@ export const handleMenu = async (ctx: MyContext) => {
     }
 
     // Выполняем действие, если оно существует
+    console.log('🔍 [DEBUG] Available action keys:', Object.keys(actions))
+    console.log('🔍 [DEBUG] normalizedText:', normalizedText)
+    console.log('🔍 [DEBUG] isRu:', isRu)
+    console.log('🔍 [DEBUG] levels[11].title_ru:', levels[11].title_ru)
+    console.log('🔍 [DEBUG] levels[11].title_en:', levels[11].title_en)
+    console.log('🔍 [DEBUG] action key check:', actions[normalizedText])
+
     if (actions[normalizedText]) {
       logger.info({
         message: `✅ [handleMenu] Найдено действие для текста: "${normalizedText}"`,
