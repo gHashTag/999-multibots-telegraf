@@ -28,20 +28,26 @@ const menuCommandStep = async (ctx: MyContext) => {
   // 🚨 КРИТИЧЕСКАЯ ПРОВЕРКА: НЕ обрабатываем если пользователь УЖЕ в другой сцене!
   const currentSceneId = ctx.scene.current?.id
   const telegramId = ctx.from?.id?.toString()
-  
+
   if (currentSceneId !== ModeEnum.MainMenu) {
-    console.log(`🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`, {
-      telegramId,
-      currentSceneId,
-      mainMenuId: ModeEnum.MainMenu
-    })
+    console.log(
+      `🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`,
+      {
+        telegramId,
+        currentSceneId,
+        mainMenuId: ModeEnum.MainMenu,
+      }
+    )
     return // НЕ обрабатываем, если пользователь в другой сцене
   }
 
-  console.log(`✅ [menuCommandStep] User is in main menu scene, processing menuCommand`, {
-    telegramId,
-    currentSceneId
-  })
+  console.log(
+    `✅ [menuCommandStep] User is in main menu scene, processing menuCommand`,
+    {
+      telegramId,
+      currentSceneId,
+    }
+  )
 
   // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MENUSCENE
   logger.info(`[menuCommandStep] 🎭 SCENE STARTED:`, {
@@ -501,19 +507,23 @@ const menuNextStep = async (ctx: MyContext) => {
     }
 
     // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ вызываем handleMenu, если пользователь уже в другой сцене
-    // Проблема: после входа в wizard, пользователь получает ответ первого шага, 
+    // Проблема: после входа в wizard, пользователь получает ответ первого шага,
     // но menuScene продолжает обрабатывать это как новую команду
     const currentSceneId = ctx.scene.current?.id
     console.log('🎯 URGENT DEBUG: menuNextStep called!', {
       currentSceneId,
       text: text.substring(0, 50),
-      telegramId: ctx.from?.id
+      telegramId: ctx.from?.id,
     })
-    
+
     if (currentSceneId !== ModeEnum.MainMenu) {
       logger.info(
         `[menuNextStep] User is in different scene (${currentSceneId}), NOT calling handleMenu`,
-        { telegramId: ctx.from?.id, currentSceneId, text: text.substring(0, 50) }
+        {
+          telegramId: ctx.from?.id,
+          currentSceneId,
+          text: text.substring(0, 50),
+        }
       )
       return // НЕ обрабатываем, если пользователь в другой сцене
     }
@@ -521,7 +531,10 @@ const menuNextStep = async (ctx: MyContext) => {
     logger.info(
       `[menuNextStep] User still in menuScene, forwarding to handleMenu: ${text}`
     )
+    console.log('🔄 [menuNextStep] Calling handleMenu...')
     await handleMenu(ctx)
+    console.log('🔄 [menuNextStep] handleMenu completed. Current scene:', ctx.scene.current?.id)
+    console.log('🔄 [menuNextStep] Session mode:', ctx.session?.mode)
   } else {
     // Handle other update types or leave if unhandled
     logger.warn(
