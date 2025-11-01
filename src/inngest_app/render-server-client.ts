@@ -226,17 +226,10 @@ export function createRenderAvatarPayload(
   const isHeygen = options?.avatarService === 'heygen'
   const isFal = options?.avatarService === 'fal'
 
-  // Выбираем правильный HeyGen API токен в зависимости от бота
+  // HeyGen доступен во всех ботах - используем основной токен
   let heygenApiKey = ''
   if (isHeygen) {
-    // clip_maker_neuro_bot использует CocoAge токен
-    if (options?.botName === 'clip_maker_neuro_bot') {
-      heygenApiKey = process.env.HEYGEN_COCOAGE_API_KEY || ''
-    }
-    // Другие боты используют Haim токен
-    else {
-      heygenApiKey = process.env.HEYGEN_HAIM_API_KEY || ''
-    }
+    heygenApiKey = process.env.HEYGEN_HAIM_API_KEY || ''
   }
 
   logger.info('🎬 [RENDER PAYLOAD] Creating payload', {
