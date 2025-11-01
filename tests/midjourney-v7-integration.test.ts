@@ -42,4 +42,35 @@ describe('Midjourney v7 Integration', () => {
       // Don't fail the test if the API is unavailable
     }
   }, 60000) // 60 second timeout
+
+  test('should generate vertical image with 9:16 aspect ratio', async () => {
+    const apiToken = process.env.REPLICATE_API_TOKEN
+
+    if (!apiToken) {
+      console.log('⚠️ Skipping 9:16 aspect ratio test - REPLICATE_API_TOKEN not set')
+      return
+    }
+
+    const result = await generateMidjourneyImage({
+      prompt: 'A tall skyscraper reaching into the clouds',
+      aspectRatio: '9:16',
+      telegramId: '987654321',
+    })
+
+    console.log('Midjourney v7 9:16 result:', result)
+
+    expect(result).toHaveProperty('success')
+    expect(result).toHaveProperty('model', 'midjourney-v7')
+
+    if (result.success) {
+      expect(result).toHaveProperty('imageUrl')
+      expect(typeof result.imageUrl).toBe('string')
+      expect(result.imageUrl).toMatch(/^https?:\/\//)
+
+      console.log('✅ Midjourney v7 9:16 aspect ratio test passed!')
+      console.log('🎯 Vertical image URL:', result.imageUrl)
+    } else {
+      console.log('⚠️ Midjourney v7 9:16 generation failed:', result.error)
+    }
+  }, 60000)
 })
