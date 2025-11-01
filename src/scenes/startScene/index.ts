@@ -16,8 +16,6 @@ import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { defaultSession } from '@/store'
 import { handleMenu } from '@/handlers/handleMenu'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
-import { shouldSkipOnboarding, shouldSkipOnboardingCached } from '@/helpers/getUserUsageCount'
-
 interface StartSceneState {
   initialDisplayDone?: boolean
 }
