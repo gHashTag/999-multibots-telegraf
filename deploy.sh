@@ -69,10 +69,10 @@ deploy() {
         echo 'Код обновлён'
     "
 
-    log_info "2. Пересборка Docker образа..."
+    log_info "2. Пересборка Docker образа (БЕЗ КЕША - ОБЯЗАТЕЛЬНО!)..."
     ssh_exec "
         cd $PROJECT_PATH
-        docker build -t 999-agents-telegraf:latest . 2>&1 | tail -5
+        docker build --no-cache -t 999-agents-telegraf:latest . 2>&1 | tail -5
     "
 
     log_info "3. Остановка старого контейнера..."
