@@ -1306,10 +1306,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg', // ✅ Используем обложку от пользователя или дефолтную
           introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
           introText2: ctx.session.aiReelsRender.introText2 || 'News',
-          // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId - используем из сессии!
+          // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId, heygenAvatarSet - используем из сессии!
           avatarService,
           heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
           heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
+          heygenAvatarSet: avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenAvatarSet : undefined,
           // ✅ FAL support
           falApiKey: avatarService === 'fal' ? ctx.session.aiReelsRender.falApiKey : undefined,
           falResolution: avatarService === 'fal' ? ctx.session.aiReelsRender.falResolution : undefined,
