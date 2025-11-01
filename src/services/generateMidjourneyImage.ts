@@ -58,69 +58,46 @@ export async function generateMidjourneyImage(
       input.image_url = request.imageUrl
     }
 
-    // Set dimensions based on aspect ratio for FLUX model
+    // Set aspect ratio for adminconteudosflix/midjourney-allcraft
     if (request.aspectRatio) {
-      switch (request.aspectRatio) {
-        case '1:1':
-          input.width = 1024
-          input.height = 1024
-          break
-        case '16:9':
-          input.width = 1368
-          input.height = 768
-          break
-        case '9:16':
-          input.width = 768
-          input.height = 1368
-          break
-        case '4:3':
-          input.width = 1024
-          input.height = 768
-          break
-        case '3:4':
-          input.width = 768
-          input.height = 1024
-          break
-        default:
-          input.width = 1024
-          input.height = 1024
-      }
-      logger.info('[Midjourney v7] Using aspect ratio dimensions', {
+      input.aspect_ratio = request.aspectRatio
+      logger.info('[Midjourney v7] Using aspect_ratio parameter', {
         aspectRatio: request.aspectRatio,
-        width: input.width,
-        height: input.height,
-      })
-    } else if (request.width && request.height) {
-      input.width = request.width
-      input.height = request.height
-      logger.info('[Midjourney v7] Using custom dimensions', {
-        width: request.width,
-        height: request.height,
+        aspect_ratio: request.aspectRatio,
       })
     } else {
-      input.width = 1024
-      input.height = 1024
-      logger.info('[Midjourney v7] Using default dimensions', {
-        width: 1024,
-        height: 1024,
+      input.aspect_ratio = '1:1'
+      logger.info('[Midjourney v7] Using default aspect_ratio', {
+        aspect_ratio: '1:1',
       })
     }
 
     // Set number of images
-    input.num_images = request.numImages || 1
+    input.num_outputs = request.numImages || 1
+
+    // Set additional parameters for better quality (matching working example)
+    input.go_fast = true
+    input.lora_scale = 1
+    input.megapixels = '1'
+    input.num_outputs = request.numImages || 1
+    input.output_format = 'webp'
+    input.guidance_scale = 3
+    input.output_quality = 100
+    input.prompt_strength = 0.8
+    input.extra_lora_scale = 1
+    input.num_inference_steps = 38
 
     logger.info('[Midjourney v7] Final input params', {
-      model: 'black-forest-labs/flux-1.1-pro',
-      width: input.width,
-      height: input.height,
-      num_images: input.num_images,
+      model: 'adminconteudosflix/midjourney-allcraft',
+      aspect_ratio: input.aspect_ratio,
+      num_outputs: input.num_outputs,
       hasImageUrl: !!input.image_url,
     })
 
-    // Run FLUX model via Replicate (high-quality alternative to Midjourney)
+    // Run Midjourney model via Replicate
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'black-forest-labs/flux-1.1-pro',
+      'adminconteudosflix/midjourney-allcraft:40ab9b32cc4584bc069e22027fffb97e79ed550d4e7c20ed6d5d7ef89e8f08f5',
       {
         input,
       }
@@ -175,7 +152,8 @@ export async function generateMidjourneyImage(
       try {
         const response = await axios.head(url, { timeout: 5000 })
         const contentType = response.headers['content-type'] || ''
-        if (contentType.startsWith('image/')) {
+        // Accept images or octet-stream (Replicate URLs sometimes return this initially)
+        if (contentType.startsWith('image/') || contentType === 'application/octet-stream') {
           validatedUrls.push(url)
         } else {
           logger.warn('[Midjourney v7] Skipping URL - not an image', {
