@@ -179,6 +179,15 @@ export const createDefaultRegistry = (): ProviderRegistry => {
       rateLimit: {
         requestsPerMinute: 60
       }
+    },
+    {
+      name: 'replicate' as const,
+      apiKey: process.env.REPLICATE_API_TOKEN || '',
+      baseUrl: 'https://api.replicate.com',
+      timeout: 30000,
+      rateLimit: {
+        requestsPerMinute: 60
+      }
     }
   ]
 

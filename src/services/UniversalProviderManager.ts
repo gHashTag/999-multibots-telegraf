@@ -1,5 +1,6 @@
 import { KieAiProvider } from './video-providers/KieAiProvider'
 import { generateFaceSwap, FaceSwapRequest } from './generateFaceSwap'
+import { generateMidjourneyImage } from './generateMidjourneyImage'
 import { logger } from '@/utils/logger'
 
 interface VideoGenerationRequest {
@@ -105,10 +106,10 @@ export class UniversalProviderManager {
         id: 'midjourney-v7',
         name: 'Midjourney v7',
         type: 'image',
-        provider: 'Kie.ai',
+        provider: 'Replicate',
         description: 'Artistic styles and high quality',
         pricePerUnit: 0.15, // per image
-        supportedFeatures: ['text-to-image', 'artistic-styles'],
+        supportedFeatures: ['text-to-image', 'image-to-image', 'artistic-styles'],
       },
       {
         id: 'flux-1-kontext',
@@ -254,6 +255,20 @@ export class UniversalProviderManager {
           style: request.style,
           imageUrl: request.imageUrl,
         })
+
+      case 'Replicate':
+        if (modelId === 'midjourney-v7') {
+          return await generateMidjourneyImage({
+            prompt: request.prompt,
+            imageUrl: request.imageUrl,
+            width: request.width,
+            height: request.height,
+            style: request.style,
+            numImages: request.numImages,
+            telegramId: request.userId?.toString() || '0',
+          })
+        }
+        throw new Error(`Model ${modelId} not supported on Replicate provider`)
 
       default:
         throw new Error(

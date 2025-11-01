@@ -1145,7 +1145,6 @@ export class KieAiProvider {
   private calculateImageCost(model: string, numImages: number): number {
     const pricing: Record<string, number> = {
       'gpt-4o-image': 0.1,
-      'midjourney-v7': 0.15,
       'flux-1-kontext': 0.08,
     }
 
