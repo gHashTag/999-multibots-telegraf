@@ -14,6 +14,7 @@ import { generateMidjourneyImage } from './generateMidjourneyImage'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
+import axios from 'axios'
 // import { PaymentType } from '@/interfaces/payments.interface'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -147,13 +148,37 @@ export const generateTextToImageDirect = async (
 
         // Special handling for Midjourney v7 via Replicate
         if (model_type.toLowerCase() === 'midjourney-v7') {
+          logger.info('[generateTextToImageDirect] Calling generateMidjourneyImage', {
+            prompt: prompt.substring(0, 100),
+            hasSize: !!inputParams.size,
+            size: inputParams.size,
+            hasAspectRatio: !!inputParams.aspect_ratio,
+            aspectRatio: inputParams.aspect_ratio,
+            telegramId: telegram_id,
+          })
+
+          const width = inputParams.size ? parseInt(inputParams.size.split('x')[0]) : 1024
+          const height = inputParams.size ? parseInt(inputParams.size.split('x')[1]) : 1024
+
+          logger.info('[generateTextToImageDirect] Calculated dimensions', {
+            width,
+            height,
+          })
+
           const midjourneyResult = await generateMidjourneyImage({
             prompt,
-            width: inputParams.size ? parseInt(inputParams.size.split('x')[0]) : 1024,
-            height: inputParams.size ? parseInt(inputParams.size.split('x')[1]) : 1024,
+            width,
+            height,
             aspectRatio: inputParams.aspect_ratio,
             numImages: 1,
             telegramId: telegram_id,
+          })
+
+          logger.info('[generateTextToImageDirect] Midjourney result', {
+            success: midjourneyResult.success,
+            hasImageUrl: !!midjourneyResult.imageUrl,
+            imageUrl: midjourneyResult.imageUrl?.substring(0, 100),
+            error: midjourneyResult.error,
           })
 
           if (!midjourneyResult.success || !midjourneyResult.imageUrl) {

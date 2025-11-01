@@ -100,14 +100,23 @@ export async function generateMidjourneyImage(
 
     const processingTime = Date.now() - startTime
 
+    logger.info('[Midjourney v7] Processing output', {
+      outputType: typeof output,
+      isArray: Array.isArray(output),
+      hasOutput: !!output,
+    })
+
     // Extract image URLs from output with multiple formats support
     let imageUrls: string[] = []
 
     if (Array.isArray(output)) {
+      logger.info('[Midjourney v7] Output is array', { length: output.length })
       imageUrls = output.filter(url => typeof url === 'string')
     } else if (typeof output === 'string') {
+      logger.info('[Midjourney v7] Output is string', { length: output.length })
       imageUrls = [output]
     } else if (output && typeof output === 'object') {
+      logger.info('[Midjourney v7] Output is object', { keys: Object.keys(output) })
       // Handle object format: { output: [...], ... }
       if (Array.isArray(output.output)) {
         imageUrls = output.output.filter(url => typeof url === 'string')
@@ -118,7 +127,17 @@ export async function generateMidjourneyImage(
       }
     }
 
+    logger.info('[Midjourney v7] Extracted URLs', {
+      count: imageUrls.length,
+      urls: imageUrls.map(url => url.substring(0, 100)),
+    })
+
     if (imageUrls.length === 0) {
+      logger.error('[Midjourney v7] No URLs extracted', {
+        outputType: typeof output,
+        isArray: Array.isArray(output),
+        outputKeys: output ? Object.keys(output) : null,
+      })
       throw new Error(`No image URLs returned from model. Output type: ${typeof output}, Output: ${JSON.stringify(output)}`)
     }
 
