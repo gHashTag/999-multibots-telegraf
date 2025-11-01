@@ -5,6 +5,12 @@
 # Автоматизированный деплой на production сервер
 # Использование: ./deploy.sh [команда]
 # Команды: deploy | rollback | status | logs | help
+#
+# ОСОБЕННОСТИ:
+# - ✅ Автоматическое создание снапшотов при каждом деплое
+# - ✅ Автоочистка старых снапшотов (оставляет последние 5)
+# - ✅ Docker rebuild БЕЗ кеша (--no-cache)
+# - ✅ Настройка nginx с HTTPS
 ################################################################################
 
 set -e  # Остановка при любой ошибке
@@ -69,10 +75,10 @@ deploy() {
         echo 'Код обновлён'
     "
 
-    log_info "2. Пересборка Docker образа..."
+    log_info "2. Пересборка Docker образа (БЕЗ КЕША - ОБЯЗАТЕЛЬНО!)..."
     ssh_exec "
         cd $PROJECT_PATH
-        docker build -t 999-agents-telegraf:latest . 2>&1 | tail -5
+        docker build --no-cache -t 999-agents-telegraf:latest . 2>&1 | tail -5
     "
 
     log_info "3. Остановка старого контейнера..."
@@ -88,12 +94,32 @@ deploy() {
           --name $CONTAINER_NAME \
           --restart unless-stopped \
           --network app-network \
+          -p 3000:3000 \
           -p 2999-3010:2999-3010 \
+          -p 4000:4000 \
           999-agents-telegraf:latest
         echo 'Контейнер запущен'
     "
 
-    log_info "5. Настройка nginx reverse proxy с HTTPS..."
+    log_info "5. Создание снапшота перед деплоем..."
+    ssh_exec "
+        TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
+        echo \"Создаю снапшот prod-stable-\${TIMESTAMP}...\"
+        docker save 999-agents-telegraf:latest | gzip > /root/docker-snapshot-prod-stable-\${TIMESTAMP}.tar.gz
+        echo \"Снапшот создан\"
+
+        # Очистка старых снапшотов (оставляем последние 5)
+        echo \"Очищаю старые снапшоты (оставляю последние 5)...\"
+        cd /root
+        ls -t docker-snapshot-*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm -f
+        echo \"Очистка завершена\"
+
+        # Показываем текущие снапшоты
+        echo \"Текущие снапшоты: \"
+        ls -lh docker-snapshot-*.tar.gz 2>/dev/null | awk '{print \$9, \$5}' | head -5
+    "
+
+    log_info "7. Настройка nginx reverse proxy с HTTPS..."
     ssh_exec "
         # Создание custom network если не существует
         docker network ls | grep -q app-network || docker network create app-network
@@ -202,10 +228,10 @@ NGINX_EOF
         echo 'Nginx с HTTPS настроен'
     "
 
-    log_info "6. Ожидание инициализации (30 сек)..."
+    log_info "8. Ожидание инициализации (30 сек)..."
     sleep 30
 
-    log_info "7. Проверка статуса..."
+    log_info "9. Проверка статуса..."
     check_status
 
     log_success "=== DEPLOY ЗАВЕРШЁН УСПЕШНО ==="
@@ -308,8 +334,15 @@ help() {
     echo "  ./deploy.sh rollback prod-stable-20251031_151934"
     echo "  ./deploy.sh logs 50"
     echo ""
-    echo "Снапшоты автоматически создаются при каждом деплое."
-    echo "Хранятся в /root/docker-snapshot-*.tar.gz"
+    echo "ОСОБЕННОСТИ:"
+    echo "✅ Автосоздание снапшотов при каждом деплое"
+    echo "✅ Автоочистка старых снапшотов (оставляет последние 5)"
+    echo "✅ Docker сборка БЕЗ кеша (--no-cache)"
+    echo ""
+    echo "Снапшоты:"
+    echo "- Автоматически создаются: prod-stable-YYYYMMDD_HHMMSS.tar.gz"
+    echo "- Расположение: /root/docker-snapshot-*.tar.gz"
+    echo "- ВНИМАНИЕ: Хранятся только последние 5!"
 }
 
 # Главная логика
