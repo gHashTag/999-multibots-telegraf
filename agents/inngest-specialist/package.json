@@ -1,0 +1,76 @@
+{
+  "name": "inngest-specialist-agent",
+  "version": "1.0.0",
+  "description": "Claude Code Inngest Functions Specialist - эксперт по созданию Inngest функций для проекта 999-agents-telegraf",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write .",
+    "docs:generate": "typedoc --plugin typedoc-plugin-markdown"
+  },
+  "keywords": [
+    "claude-code",
+    "inngest",
+    "functions",
+    "typescript",
+    "telegraf",
+    "agents",
+    "automation"
+  ],
+  "author": {
+    "name": "Claude Code",
+    "url": "https://claude.com/claude-code"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gHashTag/999-agents-telegraf.git",
+    "directory": "agents/inngest-specialist"
+  },
+  "bugs": {
+    "url": "https://github.com/gHashTag/999-agents-telegraf/issues"
+  },
+  "homepage": "https://github.com/gHashTag/999-agents-telegraf/tree/main/agents/inngest-specialist#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "inngest": "^3.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0",
+    "jest": "^29.6.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.0.0",
+    "typedoc": "^0.25.0",
+    "typedoc-plugin-markdown": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "index.ts",
+    "agent-config.json",
+    "agent-instructions.md",
+    "examples.md",
+    "reference-functions.md",
+    "function-template.ts"
+  ],
+  "directories": {
+    "doc": "./"
+  },
+  "config": {
+    "project_root": "/Users/playra/999-agents-telegraf/worktrees/transfer-server",
+    "inngest_dir": "src/inngest_app",
+    "functions_dir": "src/inngest_app/functions",
+    "register_file": "src/inngest_app/registerFunctions.ts",
+    "rules_file": "INNGEST_DEVELOPMENT_RULES.md"
+  }
+}
