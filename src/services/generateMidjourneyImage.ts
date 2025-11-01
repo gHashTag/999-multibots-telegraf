@@ -58,7 +58,7 @@ export async function generateMidjourneyImage(
       input.image_url = request.imageUrl
     }
 
-    // Set dimensions based on aspect ratio
+    // Set dimensions based on aspect ratio for FLUX model
     if (request.aspectRatio) {
       switch (request.aspectRatio) {
         case '1:1':
@@ -72,6 +72,14 @@ export async function generateMidjourneyImage(
         case '9:16':
           input.width = 768
           input.height = 1368
+          break
+        case '4:3':
+          input.width = 1024
+          input.height = 768
+          break
+        case '3:4':
+          input.width = 768
+          input.height = 1024
           break
         default:
           input.width = 1024
@@ -109,7 +117,7 @@ export async function generateMidjourneyImage(
       hasImageUrl: !!input.image_url,
     })
 
-    // Run FLUX model via Replicate (stable alternative)
+    // Run FLUX model via Replicate (high-quality alternative to Midjourney)
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
       'black-forest-labs/flux-1.1-pro',
