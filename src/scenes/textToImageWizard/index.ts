@@ -126,7 +126,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     try {
-      await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
+      await ctx.reply(isRu ? '⏳ Загрузка информации о модели...' : '⏳ Loading model information...')
 
       if (!ctx.botInfo?.username) {
         console.error('❌ Bot username не найден')
