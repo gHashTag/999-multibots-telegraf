@@ -73,7 +73,29 @@ REPLICATE_API_TOKEN=your_token npm test -- midjourney-v7-integration.test.ts
 ```
 [Midjourney v7] Starting image generation
 [Midjourney v7] Image generation completed successfully
+[generateTextToImageDirect] Image URL validated
 ```
+
+## Дополнительные исправления (версия 2)
+
+### Проблема #2: "wrong type of the web page content"
+Вторая ошибка при отправке изображения в Telegram - "Bad Request: wrong type of the web page content"
+
+**Решение:**
+1. **Проверка URL** - добавлена валидация Content-Type перед обработкой
+2. **Множественные форматы** - поддержка разных форматов ответа от FLUX
+3. **Fallback отправка** - отправка через URL, если файл недоступен
+4. **Подробные логи** - детальная информация для отладки
+
+### Изменения в generateMidjourneyImage.ts:
+- Добавлена поддержка object формата ответа: `{ output: [...] }`
+- Проверка Content-Type каждого URL через HEAD запрос
+- Валидация доступности изображений
+
+### Изменения в generateTextToImageDirect.ts:
+- Валидация URL перед скачиванием
+- Проверка существования файла перед отправкой
+- Fallback отправка через URL при ошибках файловой отправки
 
 ## Ценообразование
 - Стоимость: 15 ⭐️ за изображение (0.15 USD)

@@ -1,5 +1,6 @@
 import { replicate } from '@/core/replicate'
 import { logger } from '@/utils/logger'
+import axios from 'axios'
 
 export interface MidjourneyRequest {
   prompt: string
@@ -99,16 +100,52 @@ export async function generateMidjourneyImage(
 
     const processingTime = Date.now() - startTime
 
-    // Extract image URLs from output
+    // Extract image URLs from output with multiple formats support
     let imageUrls: string[] = []
+
     if (Array.isArray(output)) {
       imageUrls = output.filter(url => typeof url === 'string')
     } else if (typeof output === 'string') {
       imageUrls = [output]
+    } else if (output && typeof output === 'object') {
+      // Handle object format: { output: [...], ... }
+      if (Array.isArray(output.output)) {
+        imageUrls = output.output.filter(url => typeof url === 'string')
+      } else if (typeof output.output === 'string') {
+        imageUrls = [output.output]
+      } else if (typeof output.url === 'string') {
+        imageUrls = [output.url]
+      }
     }
 
     if (imageUrls.length === 0) {
-      throw new Error('No image URLs returned from Midjourney model')
+      throw new Error(`No image URLs returned from model. Output type: ${typeof output}, Output: ${JSON.stringify(output)}`)
+    }
+
+    // Validate that URLs are accessible and are images
+    const validatedUrls: string[] = []
+    for (const url of imageUrls) {
+      try {
+        const response = await axios.head(url, { timeout: 5000 })
+        const contentType = response.headers['content-type'] || ''
+        if (contentType.startsWith('image/')) {
+          validatedUrls.push(url)
+        } else {
+          logger.warn('[Midjourney v7] Skipping URL - not an image', {
+            url: url.substring(0, 100),
+            contentType,
+          })
+        }
+      } catch (error) {
+        logger.warn('[Midjourney v7] Failed to validate URL', {
+          url: url.substring(0, 100),
+          error: error instanceof Error ? error.message : 'Unknown',
+        })
+      }
+    }
+
+    if (validatedUrls.length === 0) {
+      throw new Error('All returned URLs are invalid or not images')
     }
 
     // Calculate cost
@@ -118,16 +155,16 @@ export async function generateMidjourneyImage(
 
     logger.info('[Midjourney v7] Image generation completed successfully', {
       processingTime,
-      imageCount: imageUrls.length,
-      firstImageUrl: imageUrls[0]?.substring(0, 100),
+      imageCount: validatedUrls.length,
+      firstImageUrl: validatedUrls[0]?.substring(0, 100),
       costUSD,
       costStars,
     })
 
     return {
       success: true,
-      imageUrl: imageUrls[0],
-      imageUrls,
+      imageUrl: validatedUrls[0],
+      imageUrls: validatedUrls,
       processingTime,
       cost: {
         usd: costUSD,

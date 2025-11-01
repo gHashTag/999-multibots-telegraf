@@ -169,6 +169,25 @@ export const generateTextToImageDirect = async (
           imageUrl = await processApiResponse(output)
         }
 
+        // Validate image URL before downloading
+        try {
+          const response = await axios.head(imageUrl, { timeout: 10000 })
+          const contentType = response.headers['content-type'] || ''
+          if (!contentType.startsWith('image/')) {
+            throw new Error(`Invalid content type: ${contentType}`)
+          }
+          logger.info('[generateTextToImageDirect] Image URL validated', {
+            url: imageUrl.substring(0, 100),
+            contentType,
+          })
+        } catch (error) {
+          logger.error('[generateTextToImageDirect] Image URL validation failed', {
+            url: imageUrl.substring(0, 100),
+            error: error instanceof Error ? error.message : 'Unknown',
+          })
+          throw new Error('Generated image URL is not accessible or invalid')
+        }
+
         const imageLocalPath = await saveFileLocally(
           telegram_id,
           imageUrl,
@@ -187,11 +206,30 @@ export const generateTextToImageDirect = async (
           Number(telegram_id)
         )
 
+        // Check if file exists before sending
+        if (!fs.existsSync(imageLocalPath)) {
+          logger.error('[generateTextToImageDirect] Image file not found', {
+            filePath: imageLocalPath,
+            imageUrl: imageUrl.substring(0, 100),
+          })
+          throw new Error('Failed to save or access generated image file')
+        }
+
         const image = await downloadFile(imageUrl)
 
-        await ctx.telegram.sendPhoto(telegram_id, {
-          source: fs.createReadStream(imageLocalPath),
-        })
+        // Try to send photo, with fallback to URL if file-based sending fails
+        try {
+          await ctx.telegram.sendPhoto(telegram_id, {
+            source: fs.createReadStream(imageLocalPath),
+          })
+        } catch (fileError) {
+          logger.warn('[generateTextToImageDirect] File-based send failed, trying URL', {
+            fileError: fileError instanceof Error ? fileError.message : 'Unknown',
+            imageUrl: imageUrl.substring(0, 100),
+          })
+          // Fallback: send using URL directly
+          await ctx.telegram.sendPhoto(telegram_id, imageUrl)
+        }
 
         await pulse(
           imageLocalPath,
