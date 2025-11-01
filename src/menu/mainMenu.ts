@@ -369,6 +369,14 @@ export async function mainMenu({
   for (const lvl of availableLevels) {
     let buttonText = isRu ? lvl.title_ru : lvl.title_en
 
+    // 🔍 ДИАГНОСТИКА: Логируем создание кнопки ИИ Фотошоп
+    if (lvl === levels[12]) {
+      console.log(`🔍 [MAIN_MENU] Creating button for level 12 (ИИ Фотошоп): "${buttonText}"`)
+      console.log(`   Available levels count: ${availableLevels.length}`)
+      console.log(`   Level 12 in availableLevels: ${availableLevels.includes(levels[12])}`)
+      console.log(`   Level 12 object:`, lvl)
+    }
+
     // Если это AI Heroes (level 111), добавляем информацию о лимитах
     if (lvl === levels[111] && telegramId) {
       try {
