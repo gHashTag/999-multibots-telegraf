@@ -58,61 +58,43 @@ export async function generateMidjourneyImage(
       input.image_url = request.imageUrl
     }
 
-    // Set dimensions based on aspect ratio
+    // Set aspect ratio for adminconteudosflix/midjourney-allcraft
     if (request.aspectRatio) {
-      switch (request.aspectRatio) {
-        case '1:1':
-          input.width = 1024
-          input.height = 1024
-          break
-        case '16:9':
-          input.width = 1368
-          input.height = 768
-          break
-        case '9:16':
-          input.width = 768
-          input.height = 1368
-          break
-        default:
-          input.width = 1024
-          input.height = 1024
-      }
-      logger.info('[Midjourney v7] Using aspect ratio dimensions', {
+      input.aspect_ratio = request.aspectRatio
+      logger.info('[Midjourney v7] Using aspect_ratio parameter', {
         aspectRatio: request.aspectRatio,
-        width: input.width,
-        height: input.height,
-      })
-    } else if (request.width && request.height) {
-      input.width = request.width
-      input.height = request.height
-      logger.info('[Midjourney v7] Using custom dimensions', {
-        width: request.width,
-        height: request.height,
+        aspect_ratio: request.aspectRatio,
       })
     } else {
-      input.width = 1024
-      input.height = 1024
-      logger.info('[Midjourney v7] Using default dimensions', {
-        width: 1024,
-        height: 1024,
+      input.aspect_ratio = '1:1'
+      logger.info('[Midjourney v7] Using default aspect_ratio', {
+        aspect_ratio: '1:1',
       })
     }
 
     // Set number of images
     input.num_images = request.numImages || 1
 
+    // Set additional parameters for better quality
+    input.model = 'dev'
+    input.go_fast = true
+    input.lora_scale = 1
+    input.output_format = 'webp'
+    input.output_quality = 100
+    input.guidance_scale = 3
+    input.num_inference_steps = 38
+
     logger.info('[Midjourney v7] Final input params', {
-      model: 'black-forest-labs/flux-1.1-pro',
-      width: input.width,
-      height: input.height,
+      model: 'adminconteudosflix/midjourney-allcraft',
+      aspect_ratio: input.aspect_ratio,
       num_images: input.num_images,
       hasImageUrl: !!input.image_url,
     })
 
-    // Run FLUX model via Replicate (stable alternative)
+    // Run Midjourney model via Replicate
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'black-forest-labs/flux-1.1-pro',
+      'adminconteudosflix/midjourney-allcraft',
       {
         input,
       }
