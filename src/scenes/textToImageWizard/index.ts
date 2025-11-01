@@ -358,6 +358,20 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     } else if (text === (isRu ? '📐 Изменить размер' : '📐 Change size')) {
       // Переход к мастеру изменения размера
       return ctx.scene.enter(sizeWizard.id)
+    } else if (text === (isRu ? '🎨 Создать новое' : '🎨 Create new')) {
+      // Очищаем предыдущий промпт и возвращаемся к выбору модели
+      ctx.session.prompt = undefined
+      ctx.session.selectedImageModel = undefined
+      ctx.session.lastGeneratedModel = undefined
+
+      await ctx.reply(
+        isRu
+          ? '🎨 Выберите модель для генерации нового изображения:'
+          : '🎨 Choose a model to generate a new image:',
+      )
+      // Возвращаемся к первому шагу (выбор модели)
+      ctx.wizard.selectStep(0)
+      return
     } else if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
       await handleMenu(ctx, isRu)
       return ctx.scene.leave()
