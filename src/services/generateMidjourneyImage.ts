@@ -80,9 +80,22 @@ export async function generateMidjourneyImage(
     // Set number of images
     input.num_images = request.numImages || 1
 
+    // Set model version (dev or schnell)
+    input.model = 'dev'
+
+    logger.info('[Midjourney v7] Final input params', {
+      model: 'adminconteudosflix/midjourney-allcraft:dev',
+      accept_ratio: input.accept_ratio,
+      width: input.width,
+      height: input.height,
+      num_images: input.num_images,
+      hasImageUrl: !!input.image_url,
+    })
+
     // Run Midjourney model via Replicate
+    logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'adminconteudosflix/midjourney-allcraft',
+      'adminconteudosflix/midjourney-allcraft:dev',
       {
         input,
       }
