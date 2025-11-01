@@ -50,7 +50,7 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(105, async () => {
       console.log('CASE: 💫 Оформление подписки')
       ctx.session.mode = ModeEnum.Subscribe
-      await ctx.scene.enter('subscriptionScene')
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
     })
 
     addAction(1, async () => {
@@ -140,31 +140,31 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(101, async () => {
       console.log('CASE: 🤑 Баланс')
       ctx.session.mode = ModeEnum.Balance
-      await ctx.scene.enter('balanceScene')
+      await ctx.scene.enter(ModeEnum.BalanceScene)
     })
 
     addAction(102, async () => {
       console.log('CASE: 👥 Пригласить друга')
       ctx.session.mode = ModeEnum.Invite
-      await ctx.scene.enter('inviteScene')
+      await ctx.scene.enter(ModeEnum.InviteScene)
     })
 
     addAction(103, async () => {
       console.log('CASE: ❓ Помощь')
       ctx.session.mode = ModeEnum.Help
-      await ctx.scene.enter('helpScene')
+      await ctx.scene.enter(ModeEnum.HelpScene)
     })
 
     addAction(104, async () => {
       console.log('CASE: 🏠 Главное меню')
       ctx.session.mode = ModeEnum.MainMenu
-      await ctx.scene.enter('menuScene')
+      await ctx.scene.enter(ModeEnum.MainMenu)
     })
 
     actions['/invite'] = async () => {
       console.log('CASE: 👥 Пригласить друга')
       ctx.session.mode = ModeEnum.Invite
-      await ctx.scene.enter('inviteScene')
+      await ctx.scene.enter(ModeEnum.InviteScene)
     }
 
     actions['/price'] = async () => {
@@ -182,24 +182,24 @@ export const handleMenu = async (ctx: MyContext) => {
     actions['/balance'] = async () => {
       console.log('CASE: 💰 Баланс')
       ctx.session.mode = ModeEnum.Balance
-      await ctx.scene.enter('balanceScene')
+      await ctx.scene.enter(ModeEnum.BalanceScene)
     }
 
     actions['/help'] = async () => {
       console.log('CASE: ❓ Помощь')
       ctx.session.mode = ModeEnum.Help
-      await ctx.scene.enter('helpScene')
+      await ctx.scene.enter(ModeEnum.HelpScene)
     }
 
     actions['/menu'] = async () => {
       console.log('CASE: 🏠 Главное меню')
       ctx.session.mode = ModeEnum.MainMenu
-      await ctx.scene.enter('menuScene')
+      await ctx.scene.enter(ModeEnum.MainMenu)
     }
 
     actions['/start'] = async () => {
       console.log('CASE: 🚀 Начать обучение')
-      await ctx.scene.enter('startScene')
+      await ctx.scene.enter(ModeEnum.StartScene)
     }
 
     console.log('🔍 [ACTIONS DEBUG] Actions created:', Object.keys(actions))
