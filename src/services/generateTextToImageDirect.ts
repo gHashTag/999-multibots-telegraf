@@ -191,7 +191,8 @@ export const generateTextToImageDirect = async (
         try {
           const response = await axios.head(imageUrl, { timeout: 10000 })
           const contentType = response.headers['content-type'] || ''
-          if (!contentType.startsWith('image/')) {
+          // Accept images or octet-stream (Replicate URLs sometimes return this initially)
+          if (!contentType.startsWith('image/') && contentType !== 'application/octet-stream') {
             throw new Error(`Invalid content type: ${contentType}`)
           }
           logger.info('[generateTextToImageDirect] Image URL validated', {
