@@ -133,9 +133,18 @@ export const handleMenu = async (ctx: MyContext) => {
     })
 
     addAction(12, async () => {
-      console.log('CASE: 🎨 ИИ Фотошоп')
-      ctx.session.mode = ModeEnum.AiPhotoshop
-      await ctx.scene.enter('ai_photoshop_scene')
+      console.log('CASE: 🎨 ИИ Фотошоп - НАЧАЛО ОБРАБОТКИ')
+      console.log('🔍 [AI_PHOTOSHOP] User ID:', ctx.from?.id)
+      console.log('🔍 [AI_PHOTOSHOP] Session before:', ctx.session?.mode)
+      try {
+        ctx.session.mode = ModeEnum.AiPhotoshop
+        console.log('🔍 [AI_PHOTOSHOP] Session set, entering scene...')
+        await ctx.scene.enter('ai_photoshop_scene')
+        console.log('✅ CASE: 🎨 ИИ Фотошоп - УСПЕШНО ЗАВЕРШЕНО')
+      } catch (error) {
+        console.error('❌ CASE: 🎨 ИИ Фотошоп - ОШИБКА:', error)
+        throw error
+      }
     })
 
     addAction(13, async () => {
