@@ -46,6 +46,7 @@ const createGenerationResultKeyboard = (is_ru: boolean) => {
     [
       { text: is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
       { text: is_ru ? '📐 Изменить размер' : '📐 Change size' },
+      { text: is_ru ? '🎨 Создать новое' : '🎨 Create new' },
     ],
     [{ text: is_ru ? '🏠 Главное меню' : '🏠 Main menu' }],
   ])
