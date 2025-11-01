@@ -221,15 +221,24 @@ export function createRenderAvatarPayload(
     falResolution?: '720p' | '1080p'
     // Bot name для правильной отправки callback
     botName?: string
+    // HeyGen набор аватаров для выбора API ключа
+    heygenAvatarSet?: string
   }
 ): RenderRiddlePayload {
   const isHeygen = options?.avatarService === 'heygen'
   const isFal = options?.avatarService === 'fal'
 
-  // HeyGen доступен во всех ботах - используем основной токен
+  // HeyGen - выбираем API ключ в зависимости от набора аватаров
   let heygenApiKey = ''
   if (isHeygen) {
-    heygenApiKey = process.env.HEYGEN_HAIM_API_KEY || ''
+    // cocoage = шаблон 2 (кастомный)
+    if (options?.heygenAvatarSet === 'cocoage') {
+      heygenApiKey = process.env.HEYGEN_COCOAGE_API_KEY || ''
+    }
+    // haim = остальные шаблоны
+    else {
+      heygenApiKey = process.env.HEYGEN_HAIM_API_KEY || ''
+    }
   }
 
   logger.info('🎬 [RENDER PAYLOAD] Creating payload', {
