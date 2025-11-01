@@ -17,6 +17,8 @@ import { getUserDetailsSubscription } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // ✅ ДОБАВЛЯЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+// ✅ ДОБАВЛЯЕМ ADMIN_IDS ДЛЯ ПРОВЕРКИ АДМИНОВ
+import { ADMIN_IDS_ARRAY } from '@/config'
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
   stars: number // Баланс
@@ -322,6 +324,28 @@ checkBalanceScene.enter(async ctx => {
     // Get user ID and mode
     const { telegramId: userId } = await getUserInfo(ctx)
     const mode = ctx.session.mode as ModeEnum
+
+    // 👑 КРИТИЧЕСКАЯ ПРОВЕРКА АДМИНОВ - ПЕРЕД ВСЕМИ ДРУГИМИ ПРОВЕРКАМИ
+    const telegramIdNum = parseInt(userId, 10)
+    const isAdmin = ADMIN_IDS_ARRAY.includes(telegramIdNum)
+
+    console.log(`🚨 [CheckBalanceScene] CRITICAL: Checking admin status for ${userId}: ${isAdmin}`)
+
+    if (isAdmin) {
+      console.log(`✅ [CheckBalanceScene] GRANTING IMMEDIATE ACCESS TO ADMIN ${userId}`)
+      logger.info({
+        message: `[CheckBalanceScene] IMMEDIATE ACCESS: Admin ${userId} bypassing all checks`,
+        telegramId: userId,
+        function: 'checkBalanceScene.enter',
+        step: 'admin_immediate_access',
+        mode,
+      })
+      // Пропускаем ВСЕ проверки и идем прямо к целевой сцене
+      await enterTargetScene(ctx, async () => {}, mode, 0)
+      return
+    }
+
+    console.log(`ℹ️ [CheckBalanceScene] User ${userId} is not admin, proceeding with normal checks`)
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
