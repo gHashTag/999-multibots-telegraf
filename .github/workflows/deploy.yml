@@ -51,9 +51,11 @@ jobs:
           fi
           
           # Определяем сервер в зависимости от окружения
-          # ✅ ИСПРАВЛЕНИЕ: Все деплои идут на ТОТ ЖЕ продакшен сервер 212.86.115.30
+          # ✅ ПРАВИЛЬНАЯ КОНФИГУРАЦИЯ:
+          # main → three-head-dev.shop (сертификаты в /etc/letsencrypt/live/)
+          # production → 212.86.115.30 (IP сервер)
           if [ "$DEPLOY_ENV" == "production" ]; then
-            SERVER_HOST="212.86.115.30"
+            SERVER_HOST="three-head-dev.shop"
             SHOULD_DEPLOY="true"
           elif [ "$DEPLOY_ENV" == "development" ]; then
             SERVER_HOST="999-multibots-dev-u14194.vm.elestio.app"
