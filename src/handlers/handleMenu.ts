@@ -135,13 +135,13 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(12, async () => {
       console.log('CASE: 🎨 ИИ Фотошоп')
       ctx.session.mode = ModeEnum.AiPhotoshop
-      await ctx.scene.enter('aiPhotoshopScene')
+      await ctx.scene.enter('ai_photoshop_scene')
     })
 
     addAction(13, async () => {
       console.log('CASE: 🌀 Infinity Морфинг')
       ctx.session.mode = ModeEnum.MorphingWizard
-      await ctx.scene.enter('morphingWizard')
+      await ctx.scene.enter('morphing_wizard')
     })
 
     addAction(15, async () => {
