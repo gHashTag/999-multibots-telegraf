@@ -359,18 +359,18 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       // Переход к мастеру изменения размера
       return ctx.scene.enter(sizeWizard.id)
     } else if (text === (isRu ? '🎨 Создать новое' : '🎨 Create new')) {
-      // Очищаем предыдущий промпт и возвращаемся к выбору модели
+      // Очищаем только промпт, но сохраняем выбранную модель
       ctx.session.prompt = undefined
-      ctx.session.selectedImageModel = undefined
-      ctx.session.lastGeneratedModel = undefined
 
+      // Просим ввести новый промпт для той же модели
       await ctx.reply(
         isRu
-          ? '🎨 Выберите модель для генерации нового изображения:'
-          : '🎨 Choose a model to generate a new image:',
+          ? `Пожалуйста, введите текст для генерации нового изображения с моделью "${ctx.session.lastGeneratedModel}".`
+          : 'Please enter text to generate a new image.',
+        createHelpCancelKeyboard(isRu)
       )
-      // Возвращаемся к первому шагу (выбор модели)
-      ctx.wizard.selectStep(0)
+      // Переходим к шагу ввода промпта (step 3)
+      ctx.wizard.selectStep(2)
       return
     } else if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
       await handleMenu(ctx, isRu)
