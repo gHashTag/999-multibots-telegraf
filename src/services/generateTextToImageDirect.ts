@@ -10,6 +10,7 @@ import {
   getUserBalance,
 } from '@/core/supabase'
 import { IMAGES_MODELS } from '@/price/models'
+import { generateMidjourneyImage } from './generateMidjourneyImage'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
@@ -142,10 +143,31 @@ export const generateTextToImageDirect = async (
           )
         }
 
-        const output: ApiResponse = (await replicate.run(modelId, {
-          input: inputParams,
-        })) as ApiResponse
-        const imageUrl = await processApiResponse(output)
+        let imageUrl: string
+
+        // Special handling for Midjourney v7 via Replicate
+        if (model_type.toLowerCase() === 'midjourney-v7') {
+          const midjourneyResult = await generateMidjourneyImage({
+            prompt,
+            width: inputParams.size ? parseInt(inputParams.size.split('x')[0]) : 1024,
+            height: inputParams.size ? parseInt(inputParams.size.split('x')[1]) : 1024,
+            aspectRatio: inputParams.aspect_ratio,
+            numImages: 1,
+            telegramId: telegram_id,
+          })
+
+          if (!midjourneyResult.success || !midjourneyResult.imageUrl) {
+            throw new Error(midjourneyResult.error || 'Failed to generate image with Midjourney v7')
+          }
+
+          imageUrl = midjourneyResult.imageUrl
+        } else {
+          // Standard Replicate model handling
+          const output: ApiResponse = (await replicate.run(modelId, {
+            input: inputParams,
+          })) as ApiResponse
+          imageUrl = await processApiResponse(output)
+        }
 
         const imageLocalPath = await saveFileLocally(
           telegram_id,
