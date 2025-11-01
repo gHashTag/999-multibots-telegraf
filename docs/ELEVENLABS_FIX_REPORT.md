@@ -183,7 +183,7 @@ if (!userVoiceId) {
 ## 📞 Контакты
 - **Исполнитель**: Claude Code AI Agent
 - **Координация**: hive-mind swarm system
-- **Репозиторий**: github.com/gHashTag/999-multibots-telegraf
+- **Репозиторий**: github.com/gHashTag/bot-farm
 - **Ветка**: production
 - **Коммит**: 938c4a8d
 

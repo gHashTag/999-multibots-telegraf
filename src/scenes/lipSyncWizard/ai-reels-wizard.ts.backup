@@ -7,8 +7,8 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { lipSyncOrchestrator } from '@/core/lipsync/lipsync-orchestrator'
 import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
 import { logger } from '@/utils/logger'
+import { combineVideos } from '@/helpers/video-helpers'
 import { downloadFile } from '@/helpers/file-helpers'
-import { createCircleCompositionWithFaceDetection } from '@/helpers/face-circle-composer'
 import path from 'path'
 import fs from 'fs/promises'
 import os from 'os'
@@ -17,21 +17,18 @@ import {
   getAvailableLipSyncModels,
   calculateLipSyncCost,
 } from '@/config/lipsync-models.config'
+// TEMPORARILY DISABLED: import { FalVeo31Provider } from '@/core/lipsync/providers/fal-veo31-provider'
 
 // Интерфейс для aiReels теперь определен в MySession interface
 
 /**
- * ИИ Рилс Wizard - создает композицию из lip-sync видео и фонового видео
+ * ИИ Рилс Wizard - создает два видео (lip-sync + Google Veo 3.1) и склеивает их
  *
- * Шаблон 1 (WAN25):
- * 1. Получение изображения (фото с лицом для lip-sync)
- * 2. Получение текста/голоса
- * 3. Генерация lip-sync видео из фото
- * 4. Загрузка фонового видео от пользователя
- * 5. Композиция: lip-sync в кружочке поверх фонового видео
- *    - Автоматическая детекция лица (face-api.js)
- *    - Динамический размер круга (80% margin от лица)
- *    - Автоматическое выравнивание по левому нижнему углу
+ * Последовательность:
+ * 1. Получение изображения и текста/голоса
+ * 2. Генерация первого видео (lip-sync)
+ * 3. Генерация второго видео (Google Veo 3.1 reference-to-video)
+ * 4. Склеивание двух видео в итоговый ролик
  */
 export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_wizard',
@@ -99,23 +96,21 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '🎬 ИИ Рилс - создание композиции из двух видео\n\n' +
-            '📸 Шаг 1: Отправьте фото с лицом для lip-sync видео.\n\n' +
+        ? '🎬 ИИ Рилс - создание двух видео\n\n' +
+            '📸 Отправьте фото или URL изображения с лицом для lip-sync видео.\n\n' +
             '🎯 Процесс:\n' +
-            '1️⃣ Создадим lip-sync видео из вашего фото\n' +
-            '2️⃣ Вы загрузите фоновое видео\n' +
-            '3️⃣ Создадим композицию: ваше лицо в кружочке поверх фона\n' +
-            '   (автоматическая детекция лица и позиционирование)\n\n' +
+            '1️⃣ Создадим lip-sync видео из вашего изображения\n' +
+            '2️⃣ Создадим дополнительное видео через Google Veo 3.1\n' +
+            '3️⃣ Склеим оба видео в единый ролик\n\n' +
             '📝 На следующем шаге выберите:\n' +
             '• Текст (будет озвучен вашим голосом аватара)\n' +
             '• 🎤 Голосовое сообщение (до 30 сек)'
-        : '🎬 AI Reels - creating composition from two videos\n\n' +
-            '📸 Step 1: Send a photo with a face for lip-sync video.\n\n' +
+        : '🎬 AI Reels - creating two videos\n\n' +
+            '📸 Send a photo or image URL with a face for lip-sync video.\n\n' +
             '🎯 Process:\n' +
-            '1️⃣ Create lip-sync video from your photo\n' +
-            '2️⃣ You upload background video\n' +
-            '3️⃣ Create composition: your face in circle over background\n' +
-            '   (automatic face detection and positioning)\n\n' +
+            '1️⃣ Create lip-sync video from your image\n' +
+            '2️⃣ Create additional video via Google Veo 3.1\n' +
+            '3️⃣ Merge both videos into final reel\n\n' +
             '📝 On the next step choose:\n' +
             '• Text (will be voiced with your avatar)\n' +
             '• 🎤 Voice message (up to 30 sec)',
@@ -243,12 +238,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         isRu
           ? '✅ Изображение получено!\n\n' +
               '📝 Теперь отправьте:\n' +
-              '• Текст (до 500 символов) - будет озвучен голосом вашего аватара для lip-sync\n' +
+              '• Текст (до 5000 символов) - будет озвучен голосом вашего аватара для lip-sync\n' +
               '• ИЛИ голосовое сообщение - будет использовано напрямую\n\n' +
               '💡 Этот текст/голос будет использован для первого видео (lip-sync)'
           : '✅ Image received!\n\n' +
               '📝 Now send:\n' +
-              '• Text (up to 500 characters) - will be voiced with your avatar for lip-sync\n' +
+              '• Text (up to 5000 characters) - will be voiced with your avatar for lip-sync\n' +
               '• OR voice message - will be used directly\n\n' +
               '💡 This text/voice will be used for the first video (lip-sync)'
       )
@@ -327,11 +322,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(
         isRu
-          ? `🎬 Создаем второе видео (Google Veo 3.1)...\n⏳ Это займет 5-10 минут...`
-          : `🎬 Creating second video (Google Veo 3.1)...\n⏳ This will take 5-10 minutes...`
+          ? `🎬 Создаем второе видео (WAN 2.5)...\n⏳ Это займет 5-10 минут...`
+          : `🎬 Creating second video (WAN 2.5)...\n⏳ This will take 5-10 minutes...`
       )
 
-      console.log('🔄 [AI REELS TEST MODE] Skipping to Step 3 (Google Veo 3.1):', {
+      console.log('🔄 [AI REELS TEST MODE] Skipping to Step 3 (Veo 3.1):', {
         telegramId,
         testVideoUrl: TEST_LIPSYNC_VIDEO_URL,
       })
@@ -463,11 +458,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             return ctx.scene.leave()
           }
 
-          if (text.length > 500) {
+          if (text.length > 5000) {
             await ctx.reply(
               isRu
-                ? `❌ Текст слишком длинный (${text.length} символов). Максимум: 500 символов.`
-                : `❌ Text is too long (${text.length} characters). Maximum: 500 characters.`
+                ? `❌ Текст слишком длинный (${text.length} символов). Максимум: 5000 символов.`
+                : `❌ Text is too long (${text.length} characters). Maximum: 5000 characters.`
             )
             return ctx.scene.leave()
           }
@@ -528,7 +523,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       logger.info('💰 AI Reels Шаблон 1 - фиксированная стоимость', {
         totalCost,
-        template: 'Template 1 (WAN25)',
+        template: 'Template 1 (Veo 3.1)',
         markup: 1.5,
       })
 
@@ -999,19 +994,57 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           lipSyncVideoUrl: lipSyncVideoUrl.substring(0, 100),
         })
 
-        // ✅ Переходим к Step 3 (запрос фонового видео)
-        console.log('🔄 [AI REELS] Переходим к Step 3 (запрос фонового видео):', {
+        // ✅ ОТПРАВЛЯЕМ LIP-SYNC ВИДЕО ПОЛЬЗОВАТЕЛЮ (промежуточный результат)
+        await ctx.reply(
+          isRu
+            ? `✅ Первое видео (lip-sync) готово!`
+            : `✅ First video (lip-sync) ready!`
+        )
+
+        console.log('📤 [AI REELS] Отправляем lip-sync видео пользователю:', {
+          telegramId,
+          url: lipSyncVideoUrl.substring(0, 100),
+        })
+
+        await ctx.replyWithVideo(
+          { url: lipSyncVideoUrl },
+          {
+            caption: isRu
+              ? `🎬 Промежуточный результат - Lip-sync видео`
+              : `🎬 Intermediate result - Lip-sync video`,
+          }
+        )
+
+        await ctx.reply(
+          isRu
+            ? `🎬 Создаем второе видео (Google Veo 3.1)...\n⏳ Это займет 5-10 минут...`
+            : `🎬 Creating second video (Google Veo 3.1)...\n⏳ This will take 5-10 minutes...`
+        )
+
+        console.log('🔄 [AI REELS] Переходим к Step 3 (Veo 3.1):', {
           telegramId,
           currentStep: ctx.wizard?.cursor,
         })
 
-        logger.info('✅ [AI REELS] Lip-sync видео готово, переход к запросу фонового видео', {
-          telegramId,
-          lipSyncVideoUrl: lipSyncVideoUrl.substring(0, 100),
-        })
+        // ✅ ПЕРЕХОДИМ К STEP 3 (Veo 3.1 генерация) и ВЫЗЫВАЕМ его вручную
+        await ctx.wizard.next()
 
-        // Переходим к следующему шагу (Step 3 сам покажет видео и попросит загрузить фоновое)
-        return ctx.wizard.next()
+        // Вручную вызываем следующий step
+        const nextStep = (ctx.wizard as any).steps[ctx.wizard.cursor]
+        if (nextStep && typeof nextStep === 'function') {
+          console.log('🔄 [AI REELS] Manually executing Step 3...', {
+            telegramId,
+            cursor: ctx.wizard.cursor,
+          })
+          return await nextStep(ctx)
+        } else {
+          console.error('❌ [AI REELS] Next step not found!', {
+            telegramId,
+            cursor: ctx.wizard.cursor,
+            totalSteps: (ctx.wizard as any).steps.length,
+          })
+          return ctx.scene.leave()
+        }
       } catch (genError) {
         // ✅ УЛУЧШЕНО: Детальное логирование с полной информацией об ошибке
         logger.error(
@@ -1088,7 +1121,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // Step 3: Запрос фонового видео от пользователя
+  // Step 3: Генерация второго видео через Google Veo 3.1
   async ctx => {
     console.log('🎬🎬🎬 [AI REELS] STEP 3 EXECUTING!')
 
@@ -1104,7 +1137,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     })
 
     logger.info(
-      '🎬 [AI REELS WIZARD] Step 3 STARTED - Запрос фонового видео',
+      '🎬 [AI REELS WIZARD] Step 3 STARTED - Генерация Google Veo 3.1 видео',
       {
         telegramId,
         function: 'aiReelsWizard.step3',
@@ -1132,240 +1165,261 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    console.log('✅ [AI REELS] Step 3 - Validation passed, requesting background video')
-
-    // Показываем промежуточный результат - lip-sync видео
-    await ctx.reply(
-      isRu
-        ? '✅ Шаг 3/5 завершён: Lip-sync видео создано!'
-        : '✅ Step 3/5 completed: Lip-sync video created!'
-    )
-
-    if (ctx.session.aiReels?.firstVideoUrl) {
-      await ctx.replyWithVideo(
-        { url: ctx.session.aiReels.firstVideoUrl },
-        {
-          caption: isRu
-            ? '🎬 Ваше lip-sync видео (промежуточный результат)'
-            : '🎬 Your lip-sync video (intermediate result)',
-        }
-      )
-    }
-
-    // Запрашиваем фоновое видео от пользователя С КНОПКОЙ
-    await ctx.reply(
-      isRu
-        ? '🎬 Шаг 4/5: Загрузите фоновое видео\n\n' +
-            '📹 Отправьте видео для композиции.\n\n' +
-            '💡 Ваше лицо из lip-sync появится в кружочке поверх этого видео.\n' +
-            '🤖 Автоматическая детекция лица и позиционирование\n\n' +
-            '⚠️ Рекомендации:\n' +
-            '• Вертикальное видео (9:16) для Reels/TikTok\n' +
-            '• Длительность: до 30 секунд\n' +
-            '• Размер: до 50 MB'
-        : '🎬 Step 4/5: Upload background video\n\n' +
-            '📹 Send a video for composition.\n\n' +
-            '💡 Your face from lip-sync will appear in a circle over this video.\n' +
-            '🤖 Automatic face detection and positioning\n\n' +
-            '⚠️ Recommendations:\n' +
-            '• Vertical video (9:16) for Reels/TikTok\n' +
-            '• Duration: up to 30 seconds\n' +
-            '• Size: up to 50 MB',
-      {
-        reply_markup: {
-          keyboard: [
-            [{ text: isRu ? '📹 Загрузить видео' : '📹 Upload Video', request_video: true }],
-            [{ text: isRu ? '❌ Отмена' : '❌ Cancel' }],
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: false,
-        },
-      }
-    )
-
-    logger.info('📹 [AI REELS] Requesting background video from user', {
-      telegramId,
-      function: 'aiReelsWizard.step3',
-    })
-
-    return ctx.wizard.next()
-  },
-
-  // Step 4: Обработка загруженного фонового видео
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
-    const message = ctx.message
-    let backgroundVideoUrl: string | null = null
-
-    logger.info('🎬 [AI REELS WIZARD] Step 4 STARTED - Обработка фонового видео', {
-      telegramId,
-      hasMessage: !!message,
-      messageType: message && 'video' in message ? 'video' : message && 'text' in message ? 'text' : 'other',
-      function: 'aiReelsWizard.step4',
-    })
-
-    // Обработка кнопки "Отмена"
-    if (message && 'text' in message) {
-      const text = message.text
-      if (text === '❌ Отмена' || text === '❌ Cancel' || text === '/cancel') {
-        await ctx.reply(
-          isRu
-            ? '❌ Создание AI Reels отменено.\n\nДля начала снова используйте /start'
-            : '❌ AI Reels creation cancelled.\n\nUse /start to begin again',
-          { reply_markup: { remove_keyboard: true } }
-        )
-        return ctx.scene.leave()
-      }
-    }
+    console.log('✅ [AI REELS] Step 3 - Validation passed, proceeding with Google Veo 3.1')
 
     try {
-      // Обработка видео из Telegram
-      if (message && 'video' in message && message.video) {
-        const video = message.video
+      const imageUrl = ctx.session.aiReels.imageUrl
 
-        logger.info('📹 Скачиваем видео из Telegram для AI Reels', {
-          fileId: video.file_id,
-          duration: video.duration,
-          fileSize: video.file_size,
+      logger.info('🔥 [AI REELS] Генерация Google Veo 3.1 через Fal.ai', {
+        telegramId,
+        imageUrl: imageUrl.substring(0, 100),
+        resolution: ctx.session.aiReels?.resolution || '720p',
+      })
+
+      console.log('📦 [AI REELS FAL VEO 3.1] REQUEST:', {
+        telegramId,
+        provider: 'fal',
+        model: 'fal-ai/veo3.1/reference-to-video',
+        image_url: imageUrl.substring(0, 100) + '...',
+        resolution: ctx.session.aiReels?.resolution || '720p',
+      })
+
+      try {
+        // ✅ ТЕСТОВЫЙ РЕЖИМ - отдельный флаг для Veo 3.1
+        const isDev = process.env.NODE_ENV === 'development'
+        const useTestVeo31 = isDev && process.env.USE_TEST_VEO31 === 'true'
+        const TEST_VEO31_VIDEO_URL = 'https://storage.googleapis.com/falserverless/example_outputs/veo31-r2v-output.mp4'
+
+        let veo31Result: { videoUrl?: string; output?: string; error?: string }
+        let storyPrompt: string
+
+        if (useTestVeo31) {
+          console.log('🧪 [AI REELS TEST MODE] Using test Veo 3.1 video URL (no API call)')
+          storyPrompt = 'The person from the reference image speaks confidently to camera. Professional studio setup, cinematic lighting, engaging delivery.' // fallback промпт
+          veo31Result = {
+            videoUrl: TEST_VEO31_VIDEO_URL,
+            output: TEST_VEO31_VIDEO_URL,
+          }
+        } else {
+          // ✅ СИНХРОННЫЙ ВЫЗОВ Google Veo 3.1 с story continuation промптом
+          throw new Error("Fal Veo 3.1 temporarily disabled - missing @fal-ai/client");
+          // const falVeo31 = new FalVeo31Provider()
+
+          // 🎨 ГЕНЕРАЦИЯ STORY PROMPT на основе текста пользователя
+          const userText = ctx.session.aiReels?.text || ''
+
+          console.log('📖 [AI REELS] Generating story continuation prompt from user text', {
+            userText: userText.substring(0, 100),
+            language: isRu ? 'ru' : 'en',
+          })
+
+          // storyPrompt = await falVeo31.generateStoryPrompt(userText, isRu ? 'ru' : 'en')
+
+          console.log('✅ [AI REELS] Story prompt generated', {
+            promptLength: storyPrompt.length,
+            preview: storyPrompt.substring(0, 200) + '...',
+          })
+
+          const veo31Input = {
+            imageUrl,
+            prompt: storyPrompt, // используем сгенерированный story prompt
+            telegramId,
+            botName: ctx.botInfo?.username || 'unknown_bot',
+            resolution: (ctx.session.aiReels?.resolution || '720p') as '720p' | '1080p',
+            provider: 'fal' as const,
+            modelId: 'fal-veo31',
+          }
+
+          console.log('🚀 [AI REELS FAL VEO 3.1] Calling Fal.ai synchronously...', {
+            resolution: veo31Input.resolution,
+            promptLength: storyPrompt.length,
+          })
+          // veo31Result = await falVeo31.generate(veo31Input)
+        }
+
+        console.log('✅ [AI REELS FAL VEO 3.1] Generation completed:', {
+          hasOutput: !!veo31Result.output,
+          hasVideoUrl: !!veo31Result.videoUrl,
+          hasError: !!veo31Result.error,
+          videoUrl: veo31Result.output?.substring(0, 100),
+        })
+
+        if (veo31Result.error || !veo31Result.output) {
+          throw new Error(veo31Result.error || 'Fal.ai Veo 3.1 generation failed')
+        }
+
+        const secondVideoUrl = veo31Result.output
+
+        // Сохраняем URL второго видео и story prompt
+        ctx.session.aiReels = {
+          ...ctx.session.aiReels,
+          secondVideoUrl,
+          wan25Prompt: storyPrompt, // сохраняем как wan25Prompt для совместимости
+          step: 'merging',
+        }
+
+        logger.info('✅ [AI REELS] Второе видео (Google Veo 3.1) сгенерировано', {
+          telegramId,
+          secondVideoUrl: secondVideoUrl.substring(0, 100),
+          storyPromptUsed: storyPrompt.substring(0, 150),
+        })
+
+        // ✅ ОТПРАВЛЯЕМ VEO 3.1 ВИДЕО ПОЛЬЗОВАТЕЛЮ (промежуточный результат)
+        await ctx.reply(
+          isRu
+            ? `✅ Второе видео (Google Veo 3.1 - 8 сек) готово!\n\n📖 История:\n${storyPrompt.substring(0, 200)}${storyPrompt.length > 200 ? '...' : ''}`
+            : `✅ Second video (Google Veo 3.1 - 8s) ready!\n\n📖 Story:\n${storyPrompt.substring(0, 200)}${storyPrompt.length > 200 ? '...' : ''}`
+        )
+
+        await ctx.replyWithVideo(
+          { url: secondVideoUrl },
+          {
+            caption: isRu
+              ? `🎬 Промежуточный результат - Google Veo 3.1 видео (8 сек)`
+              : `🎬 Intermediate result - Google Veo 3.1 video (8s)`,
+          }
+        )
+      } catch (veo31Error) {
+        // 🔥 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ОШИБКИ VEO 3.1
+        console.error('❌ [AI REELS VEO 3.1] ERROR CAUGHT:', {
+          error: veo31Error,
+          errorMessage:
+            veo31Error instanceof Error ? veo31Error.message : String(veo31Error),
+          errorStack: veo31Error instanceof Error ? veo31Error.stack : undefined,
+          errorName: veo31Error instanceof Error ? veo31Error.name : typeof veo31Error,
           telegramId,
         })
 
-        try {
-          const fileLink = await ctx.telegram.getFileLink(video.file_id)
-          const response = await fetch(fileLink.href)
+        logger.error('❌ [AI REELS] Ошибка генерации Veo 3.1', {
+          error: veo31Error,
+          errorMessage:
+            veo31Error instanceof Error ? veo31Error.message : String(veo31Error),
+        })
 
-          if (!response.ok) {
-            throw new Error(`Failed to download video: ${response.statusText}`)
-          }
+        // Проверяем, является ли это timeout ошибкой
+        const isTimeout =
+          veo31Error instanceof Error && veo31Error.message.includes('timeout')
 
-          const videoBuffer = Buffer.from(await response.arrayBuffer())
-
-          // Загружаем в Supabase Storage
-          const { createClient } = await import('@supabase/supabase-js')
-          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
-            '@/config'
-          )
-
-          const serviceClient = createClient(
-            SUPABASE_URL!,
-            SUPABASE_SERVICE_ROLE_KEY!
-          )
-          const fileName = `ai-reels-videos/${telegramId}/${Date.now()}.mp4`
-
-          const { error: uploadError } = await serviceClient.storage
-            .from('videos')
-            .upload(fileName, videoBuffer, {
-              contentType: 'video/mp4',
-              upsert: false,
-            })
-
-          if (uploadError) {
-            logger.error('❌ Ошибка загрузки видео в Supabase', { uploadError })
-            throw uploadError
-          }
-
-          const { data: urlData } = serviceClient.storage
-            .from('videos')
-            .getPublicUrl(fileName)
-
-          backgroundVideoUrl = urlData.publicUrl
-
-          logger.info('✅ Видео загружено в Supabase', {
-            backgroundVideoUrl,
-            fileName,
-          })
-        } catch (error) {
-          logger.error('❌ Ошибка обработки видео', { error })
-          await ctx.reply(
-            isRu
-              ? '❌ Не удалось обработать видео. Попробуйте другой файл.'
-              : '❌ Failed to process video. Try another file.'
-          )
-          return
-        }
-      } else {
         await ctx.reply(
           isRu
-            ? '❌ Пожалуйста, отправьте видео файл.'
-            : '❌ Please send a video file.'
+            ? isTimeout
+              ? '⏱️ Генерация Veo 3.1 видео заняла больше времени, чем ожидалось.\n' +
+                'Но первое видео готово!'
+              : '❌ Ошибка генерации второго видео. Но первое видео готово!'
+            : isTimeout
+              ? '⏱️ Veo 3.1 video generation took longer than expected.\n' +
+                'But first video is ready!'
+              : '❌ Error generating second video. But first video is ready!'
         )
-        return
+
+        // ✅ Отправляем первое видео (lip-sync) файлом
+        if (ctx.session.aiReels?.firstVideoUrl) {
+          await ctx.replyWithVideo(
+            { url: ctx.session.aiReels.firstVideoUrl },
+            {
+              caption: isRu
+                ? `🎬 Ваше lip-sync видео`
+                : `🎬 Your lip-sync video`,
+            }
+          )
+        }
+
+        return ctx.scene.leave()
       }
 
-      // Сохраняем URL фонового видео
-      ctx.session.aiReels = {
-        ...ctx.session.aiReels,
-        secondVideoUrl: backgroundVideoUrl,
-        step: 'merging',
-      }
+      // ✅ WAN v2.2-5b генерация завершена успешно, переходим к склеиванию
+      // Выносим Step 4 invocation ВНЕ try-catch блока WAN 2.5, чтобы ошибки Step 4
+      // не ловились как ошибки WAN 2.5
 
-      logger.info('✅ [AI REELS] Фоновое видео загружено', {
+      await ctx.reply(
+        isRu
+          ? `3️⃣ Склеиваем два видео в финальный ролик...\n⏳ Это займет 30-45 секунд...`
+          : `3️⃣ Merging two videos into final reel...\n⏳ This will take 30-45 seconds...`
+      )
+
+      // Переходим к следующему шагу (склеивание) и ВЫЗЫВАЕМ его вручную
+      console.log('🔄 [AI REELS] Before ctx.wizard.next():', {
         telegramId,
-        secondVideoUrl: backgroundVideoUrl.substring(0, 100),
+        currentCursor: ctx.wizard.cursor,
+        totalSteps: (ctx.wizard as any).steps.length,
       })
 
-      await ctx.reply(
-        isRu
-          ? `✅ Шаг 4/5 завершён: Фоновое видео загружено!\n\n` +
-            `📊 Размер файла: ${(videoBuffer.length / 1024 / 1024).toFixed(2)} MB\n` +
-            `⏱️ Длительность: ${video.duration}с`
-          : `✅ Step 4/5 completed: Background video uploaded!\n\n` +
-            `📊 File size: ${(videoBuffer.length / 1024 / 1024).toFixed(2)} MB\n` +
-            `⏱️ Duration: ${video.duration}s`
-      )
-
-      await ctx.reply(
-        isRu
-          ? `🎬 Шаг 5/5: Создаём композицию\n\n` +
-            `🤖 Автоматическая детекция лица (face-api.js)\n` +
-            `⭕ Создание кружочка с lip-sync поверх фона\n` +
-            `📐 Автоматическое позиционирование\n\n` +
-            `⏳ Ожидайте 30-45 секунд...\n\n` +
-            `▓▓▓▓▓░░░░░ 50%`
-          : `🎬 Step 5/5: Creating composition\n\n` +
-            `🤖 Automatic face detection (face-api.js)\n` +
-            `⭕ Creating circle with lip-sync over background\n` +
-            `📐 Automatic positioning\n\n` +
-            `⏳ Please wait 30-45 seconds...\n\n` +
-            `▓▓▓▓▓░░░░░ 50%`,
-        { reply_markup: { remove_keyboard: true } }
-      )
-
-      // Переходим к Step 5 (композиция)
       await ctx.wizard.next()
+
+      console.log('🔄 [AI REELS] After ctx.wizard.next():', {
+        telegramId,
+        newCursor: ctx.wizard.cursor,
+        totalSteps: (ctx.wizard as any).steps.length,
+      })
 
       // Вручную вызываем следующий step
       const nextStep = (ctx.wizard as any).steps[ctx.wizard.cursor]
 
+      console.log('🔍 [AI REELS] Next step info:', {
+        telegramId,
+        hasNextStep: !!nextStep,
+        isFunction: typeof nextStep === 'function',
+        nextStepType: typeof nextStep,
+        cursor: ctx.wizard.cursor,
+      })
+
       if (nextStep && typeof nextStep === 'function') {
-        console.log('✅ [AI REELS] Manually executing Step 5 (composition)...', {
+        console.log('✅ [AI REELS] Manually executing Step 4...', {
           telegramId,
           cursor: ctx.wizard.cursor,
         })
         return await nextStep(ctx)
+      } else {
+        console.error('❌ [AI REELS] Step 4 not found!', {
+          telegramId,
+          cursor: ctx.wizard.cursor,
+          totalSteps: (ctx.wizard as any).steps.length,
+          allSteps: (ctx.wizard as any).steps.map((s: any, i: number) => ({
+            index: i,
+            type: typeof s,
+            isFunction: typeof s === 'function',
+          })),
+        })
+        return ctx.scene.leave()
       }
     } catch (error) {
-      logger.error('❌ [AI REELS] Ошибка в Step 4 (обработка фонового видео)', {
+      logger.error('❌ [AI REELS] Ошибка в Step 3 (Veo 3.1 или склеивание)', {
         error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
       })
 
       await ctx.reply(
         isRu
-          ? '❌ Произошла ошибка при обработке видео.'
-          : '❌ Error occurred while processing video.'
+          ? '❌ Произошла ошибка при обработке видео. Но первое видео готово!'
+          : '❌ Error occurred while processing video. But first video is ready!'
       )
+
+      // ✅ Отправляем первое видео (lip-sync) файлом
+      if (ctx.session.aiReels?.firstVideoUrl) {
+        await ctx.replyWithVideo(
+          { url: ctx.session.aiReels.firstVideoUrl },
+          {
+            caption: isRu ? `🎬 Ваше lip-sync видео` : `🎬 Your lip-sync video`,
+          }
+        )
+      }
 
       return ctx.scene.leave()
     }
   },
 
-  // Step 5: Композиция двух видео (был Step 5)
+  // Step 4: Склеивание двух видео
   async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
+    console.log('🔥🔥🔥 [AI REELS STEP 4] Line 1: Function started')
 
-    console.log('🚀🚀🚀 [AI REELS] STEP 5 ENTRY POINT', {
+    const isRu = isRussianFromState(ctx)
+    console.log('🔥 [AI REELS STEP 4] Line 2: isRu =', isRu)
+
+    const telegramId = ctx.from?.id?.toString()
+    console.log('🔥 [AI REELS STEP 4] Line 3: telegramId =', telegramId)
+
+    console.log('🚀🚀🚀 [AI REELS] STEP 4 ENTRY POINT', {
       telegramId,
       hasSession: !!ctx.session,
       hasAiReels: !!ctx.session?.aiReels,
@@ -1374,16 +1428,16 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       step: ctx.session?.aiReels?.step,
     })
 
-    console.log('🔥 [AI REELS STEP 5] About to call logger.info')
+    console.log('🔥 [AI REELS STEP 4] Line 4: About to call logger.info')
 
-    logger.info('🎬 [AI REELS WIZARD] Step 5 STARTED - Композиция видео', {
+    logger.info('🎬 [AI REELS WIZARD] Step 4 STARTED - Склеивание видео', {
       telegramId,
-      function: 'aiReelsWizard.step5',
+      function: 'aiReelsWizard.step4',
     })
 
-    console.log('🔥 [AI REELS STEP 5] logger.info completed')
+    console.log('🔥 [AI REELS STEP 4] Line 5: logger.info completed')
 
-    console.log('🔥 [AI REELS STEP 5] Checking validation', {
+    console.log('🔥 [AI REELS STEP 4] Line 6: Checking validation', {
       hasTelegramId: !!telegramId,
       hasFirstVideoUrl: !!ctx.session?.aiReels?.firstVideoUrl,
       hasSecondVideoUrl: !!ctx.session?.aiReels?.secondVideoUrl,
@@ -1394,7 +1448,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       !ctx.session.aiReels?.firstVideoUrl ||
       !ctx.session.aiReels?.secondVideoUrl
     ) {
-      console.log('❌❌❌ [AI REELS] Step 5 VALIDATION FAILED:', {
+      console.log('❌❌❌ [AI REELS] Step 4 VALIDATION FAILED:', {
         hasTelegramId: !!telegramId,
         hasFirstVideoUrl: !!ctx.session?.aiReels?.firstVideoUrl,
         hasSecondVideoUrl: !!ctx.session?.aiReels?.secondVideoUrl,
@@ -1409,111 +1463,104 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    console.log('✅✅✅ [AI REELS STEP 5] Line 7: Validation PASSED!')
+    console.log('✅✅✅ [AI REELS STEP 4] Line 7: Validation PASSED!')
 
     try {
-      console.log('🔥 [AI REELS STEP 5] Line 8: Extracting URLs from session')
+      console.log('🔥 [AI REELS STEP 4] Line 8: Extracting URLs from session')
 
       const firstVideoUrl = ctx.session.aiReels.firstVideoUrl
       const secondVideoUrl = ctx.session.aiReels.secondVideoUrl
 
-      console.log('🔥 [AI REELS STEP 5] Line 9: URLs extracted', {
+      console.log('🔥 [AI REELS STEP 4] Line 9: URLs extracted', {
         firstVideoUrl: firstVideoUrl.substring(0, 50),
         secondVideoUrl: secondVideoUrl.substring(0, 50),
       })
 
-      console.log('🔥 [AI REELS STEP 5] Line 10: About to call logger.info for merging')
+      console.log('🔥 [AI REELS STEP 4] Line 10: About to call logger.info for merging')
 
-      logger.info('🔗 [AI REELS] Создаем circle composition (lip-sync в кружочке)', {
+      logger.info('🔗 [AI REELS] Начинаем склеивание видео', {
         telegramId,
-        lipSyncVideoUrl: firstVideoUrl.substring(0, 100),
-        backgroundVideoUrl: secondVideoUrl.substring(0, 100),
+        firstVideoUrl: firstVideoUrl.substring(0, 100),
+        secondVideoUrl: secondVideoUrl.substring(0, 100),
       })
 
-      console.log('🔥 [AI REELS STEP 5] Line 11: logger.info completed')
+      console.log('🔥 [AI REELS STEP 4] Line 11: logger.info completed')
 
       // Создаем временную директорию для работы с видео
-      console.log('🔥 [AI REELS STEP 5] Line 12: Creating temp directory...')
+      console.log('🔥 [AI REELS STEP 4] Line 12: Creating temp directory...')
 
       const tempDir = path.join(
         os.tmpdir(),
         `ai-reels-${telegramId}-${Date.now()}`
       )
 
-      console.log('🔥 [AI REELS STEP 5] Line 13: Temp dir path =', tempDir)
+      console.log('🔥 [AI REELS STEP 4] Line 13: Temp dir path =', tempDir)
 
       await fs.mkdir(tempDir, { recursive: true })
 
-      console.log('🔥 [AI REELS STEP 5] Line 14: Temp dir created successfully')
+      console.log('🔥 [AI REELS STEP 4] Line 14: Temp dir created successfully')
 
       try {
-        console.log('🔥 [AI REELS STEP 5] Line 15: Defining video paths...')
+        console.log('🔥 [AI REELS STEP 4] Line 15: Defining video paths...')
 
         // Скачиваем оба видео
         const firstVideoPath = path.join(tempDir, 'first-video.mp4')
         const secondVideoPath = path.join(tempDir, 'second-video.mp4')
         const finalVideoPath = path.join(tempDir, 'final-reels.mp4')
 
-        console.log('🔥 [AI REELS STEP 5] Line 16: Video paths defined', {
+        console.log('🔥 [AI REELS STEP 4] Line 16: Video paths defined', {
           firstVideoPath,
           secondVideoPath,
           finalVideoPath,
         })
 
-        console.log('🔥 [AI REELS STEP 5] Line 17: About to download videos...')
+        console.log('🔥 [AI REELS STEP 4] Line 17: About to download videos...')
 
         logger.info('📥 [AI REELS] Скачиваем видео', {
           telegramId,
           tempDir,
         })
 
-        console.log('🔥 [AI REELS STEP 5] Line 18: Starting Promise.all for downloads...')
+        console.log('🔥 [AI REELS STEP 4] Line 18: Starting Promise.all for downloads...')
 
         await Promise.all([
           downloadFile(firstVideoUrl, firstVideoPath),
           downloadFile(secondVideoUrl, secondVideoPath),
         ])
 
-        console.log('🔥 [AI REELS STEP 5] Line 19: Downloads completed!')
+        console.log('🔥 [AI REELS STEP 4] Line 19: Downloads completed!')
 
         const firstVideoSize = (await fs.stat(firstVideoPath)).size
         const secondVideoSize = (await fs.stat(secondVideoPath)).size
 
-        console.log('🔥 [AI REELS STEP 5] Line 20: File sizes checked', {
+        console.log('🔥 [AI REELS STEP 4] Line 20: File sizes checked', {
           firstVideoSize,
           secondVideoSize,
         })
 
-        logger.info('✅ [AI REELS] Видео скачаны, создаем композицию с кружочком', {
+        logger.info('✅ [AI REELS] Видео скачаны, начинаем склеивание', {
           telegramId,
-          lipSyncSize: firstVideoSize,
-          backgroundSize: secondVideoSize,
+          firstVideoSize,
+          secondVideoSize,
         })
 
-        console.log('🔥 [AI REELS STEP 5] Line 21: About to call createCircleComposition...')
+        console.log('🔥 [AI REELS STEP 4] Line 21: About to call combineVideos...')
 
-        // Создаем композицию: lip-sync в кружочке поверх фонового видео
-        // ✅ Автоматическая детекция лица (face-api.js)
-        // ✅ Динамический размер круга (80% margin от размера лица)
-        // ✅ Автоматическое выравнивание по левому нижнему углу (65% высоты от верха)
-        // firstVideoPath - lip-sync видео (вырезаем лицо из него)
-        // secondVideoPath - фоновое видео (загруженное пользователем)
-        await createCircleCompositionWithFaceDetection(
-          secondVideoPath, // background video (от пользователя)
-          firstVideoPath,  // lip-sync video (вырезаем лицо в кружочек)
-          finalVideoPath
-          // marginPercent = 80% (default) - автоматический динамический размер
-          // позиционирование = автоматически левый нижний угол
+        // Склеиваем видео с помощью FFmpeg
+        await combineVideos(
+          [firstVideoPath, secondVideoPath],
+          finalVideoPath,
+          'none', // без перехода для простоты
+          0
         )
 
-        console.log('🔥 [AI REELS STEP 5] Line 22: createCircleComposition completed!')
+        console.log('🔥 [AI REELS STEP 4] Line 22: combineVideos completed!')
 
         const finalVideoStats = await fs.stat(finalVideoPath)
-        logger.info('🎬 [AI REELS] Circle composition создана, отправляем файл', {
+        logger.info('🎬 [AI REELS] Видео склеено, отправляем файл напрямую', {
           telegramId,
           finalVideoSize: finalVideoStats.size,
           finalVideoPath,
-          method: 'circle_composition_with_face_detection',
         })
 
         // Обновляем сессию
@@ -1527,22 +1574,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           fileSize: finalVideoStats.size,
         })
 
-        // Показываем завершение обработки
-        await ctx.reply(
-          isRu
-            ? '✅ Шаг 5/5 завершён!\n\n▓▓▓▓▓▓▓▓▓▓ 100%\n\n🎬 Отправляем готовое видео...'
-            : '✅ Step 5/5 completed!\n\n▓▓▓▓▓▓▓▓▓▓ 100%\n\n🎬 Sending your video...',
-          { reply_markup: { remove_keyboard: true } }
-        )
-
         // ✅ ОТПРАВЛЯЕМ ФАЙЛ НАПРЯМУЮ из локального хранилища
         const { createReadStream } = await import('fs')
         await ctx.replyWithVideo(
           { source: createReadStream(finalVideoPath) as any },
           {
             caption: isRu
-              ? `🎬 Ваш AI Reels готов!\n\n✨ Шаблон: Композиция с кружочком\n🤖 Face detection: Автоматическое позиционирование\n\n💫 Приятного просмотра!`
-              : `🎬 Your AI Reels is ready!\n\n✨ Template: Circle composition\n🤖 Face detection: Auto-positioning\n\n💫 Enjoy!`,
+              ? `🎬 Ваш AI Reels готов!\n\n✨ Приятного просмотра!`
+              : `🎬 Your AI Reels is ready!\n\n✨ Enjoy!`,
           }
         )
 
@@ -1552,8 +1591,8 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         await ctx.reply(
           isRu
-            ? `✨ Спасибо за использование AI Reels!\n\n📊 Время обработки: ${Math.round((Date.now() - (ctx.session.aiReels?.startTime || Date.now())) / 1000)}с`
-            : `✨ Thanks for using AI Reels!\n\n📊 Processing time: ${Math.round((Date.now() - (ctx.session.aiReels?.startTime || Date.now())) / 1000)}s`
+            ? `✨ Спасибо за использование AI Reels!`
+            : `✨ Thanks for using AI Reels!`
         )
 
         logger.info('🎉 [AI REELS] Финальный ролик готов', {
@@ -1579,16 +1618,16 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         }
       }
     } catch (error) {
-      logger.error('❌ [AI REELS] Ошибка создания circle composition', { error })
+      logger.error('❌ [AI REELS] Ошибка склеивания видео', { error })
 
       await ctx.reply(
         isRu
-          ? '❌ Ошибка создания композиции. Но оба видео готовы по отдельности!\n\n' +
+          ? '❌ Ошибка склеивания видео. Но оба видео готовы по отдельности!\n\n' +
               `🎬 Lip-sync видео: ${ctx.session.aiReels?.firstVideoUrl}\n` +
-              `🎬 Фоновое видео: ${ctx.session.aiReels?.secondVideoUrl}`
-          : '❌ Error creating composition. But both videos are ready separately!\n\n' +
+              `🎬 WAN 2.5 видео: ${ctx.session.aiReels?.secondVideoUrl}`
+          : '❌ Error merging videos. But both videos are ready separately!\n\n' +
               `🎬 Lip-sync video: ${ctx.session.aiReels?.firstVideoUrl}\n` +
-              `🎬 Background video: ${ctx.session.aiReels?.secondVideoUrl}`
+              `🎬 WAN 2.5 video: ${ctx.session.aiReels?.secondVideoUrl}`
       )
 
       return ctx.scene.leave()

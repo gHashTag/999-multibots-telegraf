@@ -3,8 +3,8 @@ import { logger } from '@/utils/enhancedLogger'
 import { Telegraf } from 'telegraf'
 
 const inngest = new Inngest({
-  name: '999-multibots-telegraf',
-  id: '999-multibots-telegraf',
+  name: 'bot-farm',
+  id: 'bot-farm',
   eventKey: process.env.BOT_INNGEST_EVENT_KEY,
 })
 

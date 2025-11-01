@@ -1,5 +1,4 @@
 import { isDev } from './config'
-import { logger } from '@/utils/enhancedLogger'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
@@ -105,118 +104,110 @@ async function initializeBots() {
     )
   }
 
-  if (isDev) {
-    // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
-    const targetBotUsername = process.env.TEST_BOT_NAME
-    if (!targetBotUsername) {
-      throw new Error(
-        '❌ Переменная окружения TEST_BOT_NAME не установлена. Укажите username бота для запуска в development.'
-      )
-    }
+  // 🔧 FIX: В development режиме ВСЕГДА используем polling (один бот)
+  // В production - по умолчанию webhook (все боты)
+  const mode = isDev ? 'polling' : (process.env.MODE || 'webhook')
 
-    logger.debug(`🔧 Ищем тестового бота с username: ${targetBotUsername}`)
+  logger.debug(`🎯 [MODE] Выбран режим: ${mode} (isDev: ${isDev})`)
 
-    // Собираем все потенциальные токены из env
-    const potentialTokens = Object.entries(process.env)
-      .filter(([key]) => key.startsWith('BOT_TOKEN'))
-      .map(([, value]) => value)
-      .filter(Boolean) as string[]
+  if (mode === 'polling') {
+    // 🔧 POLLING MODE: Запускаем ВСЕ боты в polling режиме (как в webhook, но без портов)
+    logger.debug(`🔄 [POLLING] Запуск всех доступных ботов в polling режиме`)
 
-    let bot: Telegraf<MyContext> | null = null
-    let foundBotInfo: Awaited<
-      ReturnType<Telegraf<MyContext>['telegram']['getMe']>
-    > | null = null
+    const botTokens = [
+      process.env.BOT_TOKEN_1,
+      process.env.BOT_TOKEN_2,
+      process.env.BOT_TOKEN_3,
+      process.env.BOT_TOKEN_4,
+      process.env.BOT_TOKEN_5,
+      process.env.BOT_TOKEN_6,
+      process.env.BOT_TOKEN_7,
+      process.env.BOT_TOKEN_8,
+      process.env.BOT_TOKEN_9,
+      process.env.BOT_TOKEN_10,
+    ].filter((token): token is string => Boolean(token))
 
-    for (const token of potentialTokens) {
-      try {
-        const tempBot = new Telegraf<MyContext>(token, {
+    // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
+    const botPromises: Promise<void>[] = []
+
+    for (const token of botTokens) {
+      if (await validateBotToken(token)) {
+        const bot = new Telegraf<MyContext>(token, {
           handlerTimeout: Infinity,
         })
-        const botInfo = await tempBot.telegram.getMe()
-        if (botInfo.username === targetBotUsername) {
-          logger.debug(`✅ Найден бот ${botInfo.username}`)
-          bot = tempBot // Используем этого бота
-          foundBotInfo = botInfo
-          break // Прерываем цикл, бот найден
+        bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
+
+        // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
+        bot.use(session()) // 1. Сессия (из bot.ts)
+        bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+
+        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
+        setupErrorHandler(bot)
+
+        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
+        setupNotificationProcessor(bot)
+
+        registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
+        // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
+        setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
+        // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
+        bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
+        bot.on('successful_payment', handleSuccessfulPayment as any)
+        // Инициализация обработчиков hears из отдельного файла
+        setupHearsHandlers(bot) // 4. Hears
+
+        // Обработчик текстовых сообщений по умолчанию - должен быть последним
+        // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
+        // bot.on(message('text'), handleTextMessage)
+        // <<<---------------------------------------------------->>>
+
+        botInstances.push(bot)
+        const botInfo = await bot.telegram.getMe()
+        logger.debug(`🤖 Бот ${botInfo.username} инициализирован`)
+
+        // Используем импортированную функцию setBotCommands
+        await setBotCommands(bot)
+
+        // 🔧 FIX: Очистка webhook перед polling
+        try {
+          const webhookInfo = await bot.telegram.getWebhookInfo()
+          if (webhookInfo.url) {
+            logger.debug(
+              `🔌 [WEBHOOK] Обнаружен активный вебхук для ${botInfo.username}: ${webhookInfo.url}. Удаляю...`
+            )
+            await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+            logger.debug('✅ [WEBHOOK] Вебхук удалён, переходим к polling')
+          } else {
+            logger.debug('🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling')
+          }
+        } catch (error) {
+          logger.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
         }
-      } catch (error) {
-        // Игнорируем ошибки валидации токенов, просто ищем дальше
-        // logger.warn(`⚠️ Ошибка проверки токена ${token.substring(0, 10)}...: ${error.message}`);
+
+        // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
+        const botPromise = bot.launch({
+          allowedUpdates: [
+            'message',
+            'callback_query',
+            'pre_checkout_query' as any,
+            'successful_payment' as any,
+          ],
+        })
+          .then(() => {
+            logger.debug(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
+          })
+          .catch((error) => {
+            logger.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
+          })
+
+        botPromises.push(botPromise)
       }
     }
 
-    if (!bot || !foundBotInfo) {
-      throw new Error(
-        `❌ Бот с username '${targetBotUsername}' не найден среди токенов в .env или токен невалиден.`
-      )
-    }
-
-    // Добавляем логи перед регистрацией команд
-    logger.debug(
-      '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
-    )
-    //
-    // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
-    bot.use(session()) // 1. Сессия (из bot.ts)
-    bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
-    bot.use(Telegraf.log(console.log)) // 3. Log all Telegraf updates and middleware flow
-
-    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
-    setupErrorHandler(bot)
-
-    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
-    setupNotificationProcessor(bot)
-
-    registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
-    // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
-    setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
-    // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
-    bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-    bot.on('successful_payment', handleSuccessfulPayment as any)
-    // Инициализация обработчиков hears из отдельного файла
-    setupHearsHandlers(bot) // 4. Hears
-
-    // Обработчик текстовых сообщений по умолчанию - должен быть последним
-    // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
-    // bot.on(message('text'), handleTextMessage)
-    // <<<---------------------------------------------------->>>
-
-    // Используем импортированную функцию setBotCommands
-    await setBotCommands(bot)
-
-    botInstances.push(bot)
-    // Используем уже полученную информацию о боте
-    logger.debug(`🤖 Тестовый бот ${foundBotInfo.username} инициализирован`)
-
-    // 🔧 FIX 409: Очистка webhook перед polling в dev режиме
-    try {
-      const webhookInfo = await bot.telegram.getWebhookInfo()
-      if (webhookInfo.url) {
-        logger.debug(
-          `🔌 [WEBHOOK] Обнаружен активный вебхук для ${foundBotInfo.username}: ${webhookInfo.url}. Удаляю...`
-        )
-        await bot.telegram.deleteWebhook({ drop_pending_updates: true })
-        logger.debug('✅ [WEBHOOK] Вебхук удалён, переходим к polling')
-      } else {
-        logger.debug('🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling')
-      }
-    } catch (error) {
-      logger.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
-    }
-
-    // В режиме разработки используем polling
-    await bot.launch({
-      allowedUpdates: [
-        'message',
-        'callback_query',
-        'pre_checkout_query' as any,
-        'successful_payment' as any,
-      ],
-    })
-    logger.debug(
-      `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
-    )
-  } else {
+    // Ждём завершения инициализации всех ботов
+    await Promise.all(botPromises)
+    logger.debug(`✅ Все боты успешно запущены в polling режиме`)
+  } else if (mode === 'webhook') {
     // В продакшене используем все активные боты
     const botTokens = [
       process.env.BOT_TOKEN_1,
@@ -331,6 +322,10 @@ async function initializeBots() {
         }
       }
     }
+  } else {
+    throw new Error(
+      `❌ Неизвестный режим MODE="${mode}". Допустимые значения: "polling" или "webhook"`
+    )
   }
 
   logger.debug('🔍 Инициализация сцен...')
@@ -340,24 +335,6 @@ async function initializeBots() {
 
   // После регистрации всех сцен добавляю итоговый лог:
   logger.debug('✅ Все сцены успешно зарегистрированы')
-
-  // ✅ ИНИЦИАЛИЗАЦИЯ АСИНХРОННОГО LIPSYNC МЕНЕДЖЕРА
-  try {
-    const { asyncLipSyncManager } = await import(
-      './core/lipsync/async-lipsync-manager'
-    )
-
-    // Устанавливаем первый бот как основной для отправки сообщений
-    if (botInstances.length > 0) {
-      asyncLipSyncManager.setBotInstance(botInstances[0])
-      logger.info('✅ Асинхронный LipSync менеджер инициализирован')
-    }
-  } catch (error) {
-    logger.error(
-      '❌ Ошибка инициализации асинхронного LipSync менеджера:',
-      error
-    )
-  }
 }
 
 // Асинхронная функция для остановки

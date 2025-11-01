@@ -1,1003 +1,230 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { Markup } from 'telegraf'
 import { levels } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
-import { handlePriceCommand } from '@/commands/priceCommand'
+import { priceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
-// ✅ ИСПОЛЬЗУЕМ УЛУЧШЕННЫЙ LOGGER
-import { logger } from '@/utils/enhancedLogger'
-import { handleTechSupport } from '@/commands/handleTechSupport'
-// Импортируем функцию перезапуска видео сцены
-import { handleRestartVideoGeneration } from './handleVideoRestart'
-import { PaymentType } from '@/interfaces/payments.interface'
-import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
-// ✅ Обновляем импорты для новых функций языка
-// ✅ НОВАЯ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ЯЗЫКОВ (БЕЗ ЗАПРОСОВ К БД!)
-import {
-  getUserLanguageFromState,
-  isRussianFromState,
-  setUserLanguageInState,
-} from '@/helpers/centralizedLanguage'
-import { getParsingAccess } from '@/menu/mainMenu'
-// Импортируем функции мониторинга конкурентов
-import { handleCompetitorMonitoring, handleCompetitorUsernameInput } from '@/services/competitorSubscriptionService'
-import { competitorMonitoringApi } from '@/services/competitorMonitoringApiService'
-
-// Получаем ID администраторов из переменных окружения
-const adminIds = process.env.ADMIN_IDS?.split(',') || []
-logger.info('[handleMenu] adminIds from env', { adminIds })
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  logger.info('[handleMenu] Processing menu command', {
-    telegramId,
-    hasSession: !!ctx.session,
-  })
-
-  logger.debug('[handleMenu] handleMenuCommand started', {
-    telegramId,
-  })
-  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-  const isRu = isRussianFromState(ctx)
-
-  // Логируем текущий язык из state
-  const currentLanguage = getUserLanguageFromState(ctx)
-  logger.info('[handleMenu] Current user language:', {
-    telegramId,
-    currentLanguage,
-    telegramLanguage: ctx.from?.language_code,
-  })
-
+  logger.debug('CASE: handleMenuCommand')
+  const isRu = isRussian(ctx)
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text || ''
-    const normalizedText = text.replace(/\s+/g, ' ').trim()
-    logger.info({
-      message: `📝 [handleMenu] Получен текст команды: "${normalizedText}"`,
-      telegramId,
-      function: 'handleMenu',
-      text: normalizedText,
+    logger.debug('CASE: handleMenuCommand.text', text)
+
+    // 🔍 ДИАГНОСТИКА ЯЗЫКА + ЗАЩИТА ОТ UNDEFINED
+    logger.debug('🔍 [LANG DEBUG] handleMenu:', {
+      isRu,
+      userLanguage: ctx.from?.language_code,
+      sessionLanguage: ctx.session?.userLanguage,
+      levelsDefined: !!levels,
+      levelsKeys: Object.keys(levels),
+      levels2TitleRu: levels?.[2]?.title_ru || 'undefined',
+      levels2TitleEn: levels?.[2]?.title_en || 'undefined',
+      currentKey: isRu ? (levels?.[2]?.title_ru || 'undefined') : (levels?.[2]?.title_en || 'undefined'),
+      receivedText: text,
     })
 
-    logger.debug('CASE: handleMenuCommand.text', normalizedText)
+    // 🔍 ДИАГНОСТИКА ПЕРЕД СОЗДАНИЕМ ACTIONS
+    logger.debug('🔍 [STEP DEBUG] About to create actions object')
+    logger.debug('🔍 [STEP DEBUG] Session mode:', ctx.session?.mode)
+    logger.debug('🔍 [STEP DEBUG] Current scene:', ctx.scene?.current?.id)
+    logger.debug('🔍 [STEP DEBUG] levels object:', levels)
+    logger.debug('🔍 [STEP DEBUG] levels length:', levels ? Object.keys(levels).length : 'undefined')
+    logger.debug('🔍 [STEP DEBUG] levels[0]:', levels ? levels[0] : 'undefined')
 
     // Создаем объект для сопоставления текста с действиями
-    const actions: Record<string, () => Promise<void>> = {
-      [isRu ? levels[105].title_ru : levels[105].title_en]: async () => {
-        logger.info({
-          message: '💫 [handleMenu] Оформление подписки',
-          telegramId,
-          function: 'handleMenu',
-          action: 'subscribe',
-          nextScene: ModeEnum.SubscriptionScene,
-        })
-        logger.debug('CASE: 💫 Оформление подписки')
-        ctx.session.mode = ModeEnum.SubscriptionScene
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.SubscriptionScene}`
-        )
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SubscriptionScene}`
-        )
-      },
-      // Обработчики для отдельных кнопок подписки убраны - теперь используется единая кнопка "💫 Оформить подписку"
-      [isRu ? levels[1].title_ru : levels[1].title_en]: async () => {
-        logger.info({
-          message: '🤖 [handleMenu] Переход к цифровому телу',
-          telegramId,
-          function: 'handleMenu',
-          action: 'digital_avatar_body',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🤖 Цифровое тело')
-        ctx.session.mode = ModeEnum.DigitalAvatarBody
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2']: async () => {
-        logger.info({
-          message: '🤖 [handleMenu] Переход к цифровому телу 2',
-          telegramId,
-          function: 'handleMenu',
-          action: 'digital_avatar_body_v2',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🤖 Цифровое тело 2')
-        ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[2].title_ru : levels[2].title_en]: async () => {
-        logger.info({
-          message: '📸 [handleMenu] Переход к нейрофото',
-          telegramId,
-          function: 'handleMenu',
-          action: 'neurophoto',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE handleMenu: 📸 Нейрофото')
-        ctx.session.mode = ModeEnum.NeuroPhoto
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2']: async () => {
-        logger.info({
-          message: '📸 [handleMenu] Переход к нейрофото 2',
-          telegramId,
-          function: 'handleMenu',
-          action: 'neurophoto_v2',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 📸 Нейрофото 2')
-        ctx.session.mode = ModeEnum.NeuroPhotoV2
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      // Обработка варианта с двойным пробелом (например, если кнопка содержит лишний пробел)
-      [isRu ? '📸 Нейрофото 2' : '📸 NeuroPhoto 2']: async () => {
-        logger.info({
-          message: '📸 [handleMenu] Переход к нейрофото 2 (двойной пробел)',
-          telegramId,
-          function: 'handleMenu',
-          action: 'neurophoto_v2',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 📸  Нейрофото 2 (двойной пробел)')
-        ctx.session.mode = ModeEnum.NeuroPhotoV2
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[3].title_ru : levels[3].title_en]: async () => {
-        logger.info({
-          message: '🔍 [handleMenu] Переход к промпту из фото',
-          telegramId,
-          function: 'handleMenu',
-          action: 'image_to_prompt',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🔍 Промпт из фото')
-        ctx.session.mode = ModeEnum.ImageToPrompt
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[4].title_ru : levels[4].title_en]: async () => {
-        logger.info({
-          message: '🧠 [handleMenu] Переход к мозгу аватара',
-          telegramId,
-          function: 'handleMenu',
-          action: 'avatar_brain',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🧠 Мозг аватара')
-        ctx.session.mode = ModeEnum.Avatar
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[5].title_ru : levels[5].title_en]: async () => {
-        logger.info({
-          message: '💭 [handleMenu] Переход к чату с аватаром',
-          telegramId,
-          function: 'handleMenu',
-          action: ModeEnum.ChatWithAvatar,
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 💭 Чат с аватаром')
-        ctx.session.mode = ModeEnum.ChatWithAvatar
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[6].title_ru : levels[6].title_en]: async () => {
-        logger.info({
-          message: '🤖 [handleMenu] Переход к выбору модели ИИ',
-          telegramId,
-          function: 'handleMenu',
-          action: 'select_model',
-          nextScene: ModeEnum.SelectModel,
-        })
-        logger.debug('CASE: 🤖 Выбор модели ИИ')
-        ctx.session.mode = ModeEnum.SelectModel
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.SelectModel}`)
-        await ctx.scene.enter(ModeEnum.SelectModel)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.SelectModel}`
-        )
-      },
-      [isRu ? levels[7].title_ru : levels[7].title_en]: async () => {
-        logger.info({
-          message: '🎤 [handleMenu] Переход к голосу аватара',
-          telegramId,
-          function: 'handleMenu',
-          action: 'voice_avatar',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🎤 Голос аватара')
-        ctx.session.mode = ModeEnum.Voice
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[8].title_ru : levels[8].title_en]: async () => {
-        logger.info({
-          message: '🎙️ [handleMenu] Переход к тексту в голос',
-          telegramId,
-          function: 'handleMenu',
-          action: 'text_to_speech',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🎙️ Текст в голос')
-        ctx.session.mode = ModeEnum.TextToSpeech
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[9].title_ru : levels[9].title_en]: async () => {
-        logger.info({
-          message: '🎥 [handleMenu] Переход к фото в видео',
-          telegramId,
-          function: 'handleMenu',
-          action: 'image_to_video',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🎥 Фото в видео')
-        ctx.session.mode = ModeEnum.ImageToVideo
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[10].title_ru : levels[10].title_en]: async () => {
-        logger.info({
-          message: '🎬 [handleMenu] Переход к видео из текста',
-          telegramId,
-          function: 'handleMenu',
-          action: 'text_to_video',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🎬 Видео из текста')
-        
-        // ✅ Добавляем немедленную обратную связь пользователю
-        await ctx.reply(isRu ? '🎬 Загружаем генератор видео...' : '🎬 Loading video generator...')
-        
-        logger.debug('🎬 [handleMenu] SETTING MODE TO:', ModeEnum.TextToVideo)
-        ctx.session.mode = ModeEnum.TextToVideo
-        logger.debug('🎬 [handleMenu] MODE SET, CURRENT SESSION MODE:', ctx.session.mode)
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[11].title_ru : levels[11].title_en]: async () => {
-        logger.info({
-          message: '🖼️ [handleMenu] Переход к тексту в фото',
-          telegramId,
-          function: 'handleMenu',
-          action: 'text_to_image',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🖼️ Текст в фото')
-        ctx.session.mode = ModeEnum.TextToImage
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[12].title_ru : levels[12].title_en]: async () => {
-        logger.info({
-          message: '🎨 [handleMenu] Переход к FLUX Kontext',
-          telegramId,
-          function: 'handleMenu',
-          action: 'flux_kontext',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 🎨 FLUX Kontext')
+    const actions: Record<string, () => Promise<void>> = {}
 
-        // ✅ ЗАЩИТА: Проверяем подписку перед входом в FLUX Kontext
-        const hasSubscription = await checkSubscriptionGuard(
-          ctx,
-          '🎨 FLUX Kontext'
-        )
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
-        }
-
-        // Устанавливаем режим FLUX Kontext и идем через checkBalanceScene
-        ctx.session.mode = ModeEnum.FluxKontext
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
-        logger.info({
-          message: '🧬 [handleMenu] Переход к морфингу',
-          telegramId,
-          function: 'handleMenu',
-          action: 'morphing',
-          nextScene: 'morphing_wizard',
-        })
-        logger.debug('CASE: 🧬 Морфинг')
-
-        // ✅ ЗАЩИТА: Проверяем подписку перед входом в морфинг
-        const hasSubscription = await checkSubscriptionGuard(ctx, '🧬 Морфинг')
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
-        }
-
-        // Устанавливаем режим морфинга и переходим напрямую в morphing_wizard
-        ctx.session.mode = 'morphing' as any
-        logger.debug(`🔄 [handleMenu] Вход в сцену morphing_wizard`)
-        await ctx.scene.enter('morphing_wizard')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену morphing_wizard`)
-      },
-      [isRu ? levels[14].title_ru : levels[14].title_en]: async () => {
-        logger.info({
-          message: '🎤 [handleMenu] Переход к Kling Lip Sync',
-          telegramId,
-          function: 'handleMenu',
-          action: 'lip_sync',
-          nextScene: 'lip_sync',
-        })
-        logger.debug('CASE: 🎤 Kling Lip Sync')
-
-        // ✅ ЗАЩИТА: Проверяем подписку перед входом в липсинк
-        const hasSubscription = await checkSubscriptionGuard(
-          ctx,
-          '🎤 Kling Lip Sync'
-        )
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
-        }
-
-        // Устанавливаем режим LipSync и переходим напрямую в lip_sync scene
-        ctx.session.mode = ModeEnum.LipSync
-        logger.debug(`🔄 [handleMenu] Вход в сцену lip_sync`)
-        await ctx.scene.enter('lip_sync')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену lip_sync`)
-      },
-      [isRu ? levels[107].title_ru : levels[107].title_en]: async () => {
-        logger.info({
-          message: '⬆️ [handleMenu] Переход к увеличению качества фото',
-          telegramId,
-          function: 'handleMenu',
-          action: 'image_upscaler',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: ⬆️ Увеличить качество')
-
-        // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
-        const hasSubscription = await checkSubscriptionGuard(
-          ctx,
-          '⬆️ Увеличить качество'
-        )
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
-        }
-
-        // Устанавливаем режим ImageUpscaler и идем через checkBalanceScene
-        ctx.session.mode = ModeEnum.ImageUpscaler
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[108].title_ru : levels[108].title_en]: async () => {
-        logger.info({
-          message: '📺 [handleMenu] Переход к транскрибации видео',
-          telegramId,
-          function: 'handleMenu',
-          action: 'video_transcription',
-          nextScene: ModeEnum.CheckBalanceScene,
-        })
-        logger.debug('CASE: 📺 Транскрибация Reels')
-
-        // ✅ ЗАЩИТА: Проверяем подписку перед входом в транскрибацию
-        const hasSubscription = await checkSubscriptionGuard(
-          ctx,
-          '📺 Транскрибация Reels'
-        )
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
-        }
-
-        // Устанавливаем режим VideoTranscription и идем через checkBalanceScene
-        ctx.session.mode = ModeEnum.VideoTranscription
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.CheckBalanceScene}`
-        )
-      },
-      [isRu ? levels[109].title_ru : levels[109].title_en]: async () => {
-        logger.info({
-          message: '🔍 [handleMenu] Переход к Instagram парсеру',
-          telegramId,
-          function: 'handleMenu',
-          action: 'instagram_parser',
-          nextScene: 'instagram_parser_scene',
-        })
-        logger.debug('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
-        
-        // Проверяем доступ к парсингу
-        const userId = ctx.from?.id?.toString()
-        const botToken = ctx.telegram.token
-        
-        if (!userId) {
-          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
-          return
-        }
-        
-        const parsingAccess = getParsingAccess(userId, botToken)
-        
-        if (!parsingAccess.hasAccess) {
-          logger.warn('Instagram parsing access denied via competitor monitoring button', {
-            telegramId,
-            userId,
-          })
-          await ctx.reply(
-            isRu
-              ? '❌ У вас нет доступа к Instagram парсингу.'
-              : '❌ You do not have access to Instagram parsing.'
-          )
-          return
-        }
-        
-        logger.info('✅ Instagram parsing access granted via competitor monitoring', {
-          telegramId,
-          userId,
-          parsingAccess
-        })
-        
-        // Переходим в Instagram parser scene
-        ctx.session.mode = ModeEnum.InstagramParserScene
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
-        )
-        await ctx.scene.enter(ModeEnum.InstagramParserScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
-        )
-      },
-      // [isRu ? levels[13].title_ru : levels[13].title_en]: async () => {
-      //   logger.debug('CASE: 🎥 Видео в URL')
-      //   ctx.session.mode = 'video_in_url'
-      //   await ctx.scene.enter('checkBalanceScene')
-      // },
-      [isRu ? levels[100].title_ru : levels[100].title_en]: async () => {
-        logger.info({
-          message: '💎 [handleMenu] Переход к пополнению баланса',
-          telegramId,
-          function: 'handleMenu',
-          action: 'topup_balance',
-          nextScene: ModeEnum.PaymentScene,
-        })
-        logger.debug('CASE: 💎 Пополнить баланс')
-        ctx.session.mode = ModeEnum.PaymentScene
-
-        // Очищаем/инициализируем selectedPayment для контекста пополнения баланса
-        ctx.session.selectedPayment = {
-          amount: 0, // Сумма будет определена в payment_scene
-          stars: 0, // Количество звезд будет определено в payment_scene
-          subscription: null, // Явно указываем, что это не покупка подписки
-          type: PaymentType.MONEY_INCOME, // Тип операции - пополнение
-        }
-        logger.info(
-          '[handleMenu] Initialized ctx.session.selectedPayment for top-up',
-          {
-            telegramId,
-            selectedPayment: ctx.session.selectedPayment,
-          }
-        )
-
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.PaymentScene}`)
-        await ctx.scene.enter(ModeEnum.PaymentScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.PaymentScene}`
-        )
-      },
-      [isRu ? levels[101].title_ru : levels[101].title_en]: async () => {
-        logger.info({
-          message: '🤑 [handleMenu] Переход к балансу',
-          telegramId,
-          function: 'handleMenu',
-          action: 'balance',
-          nextScene: 'balanceScene',
-        })
-        logger.debug('CASE: 🤑 Баланс')
-        ctx.session.mode = ModeEnum.Balance
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
-        await ctx.scene.enter('balanceScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
-      },
-      [isRu ? levels[102].title_ru : levels[102].title_en]: async () => {
-        logger.info({
-          message: '👥 [handleMenu] Переход к приглашению друга',
-          telegramId,
-          function: 'handleMenu',
-          action: 'invite',
-          nextScene: 'inviteScene',
-        })
-        logger.debug('CASE: 👥 Пригласить друга')
-        ctx.session.mode = ModeEnum.Invite
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
-        await ctx.scene.enter('inviteScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
-      },
-      [isRu ? levels[103].title_ru : levels[103].title_en]: async () => {
-        logger.info({
-          message: '❓ [handleMenu] Переход к помощи',
-          telegramId,
-          function: 'handleMenu',
-          action: 'help',
-          nextScene: ModeEnum.Help,
-        })
-        logger.debug('CASE: ❓ Помощь')
-        ctx.session.mode = ModeEnum.Help
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
-        await handleTechSupport(ctx)
-        logger.debug(`✅ [handleMenu] Завершен вызов handleTechSupport`)
-      },
-      [isRu ? levels[104].title_ru : levels[104].title_en]: async () => {
-        logger.info({
-          message: '🏠 [handleMenu] Переход к главному меню',
-          telegramId,
-          function: 'handleMenu',
-          action: 'main_menu',
-          nextScene: ModeEnum.MainMenu,
-        })
-        logger.debug('CASE: 🏠 Главное меню')
-        // Re-enter the menu scene
-        ctx.session.mode = ModeEnum.MainMenu
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
-        await ctx.scene.enter(ModeEnum.MainMenu)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
-        )
-      },
-      [isRu ? levels[109].title_ru : levels[109].title_en]: async () => {
-        logger.info({
-          message: '🔍 [handleMenu] Переход к Instagram парсеру',
-          telegramId,
-          function: 'handleMenu',
-          action: 'instagram_parser',
-          nextScene: 'instagram_parser_scene',
-        })
-        logger.debug('CASE: 🔍 Мониторинг конкурентов → Instagram Parser')
-        
-        // Проверяем доступ к парсингу
-        const userId = ctx.from?.id?.toString()
-        const botToken = ctx.telegram.token
-        
-        if (!userId) {
-          await ctx.reply('❌ Ошибка: не удалось определить пользователя.')
-          return
-        }
-        
-        const parsingAccess = getParsingAccess(userId, botToken)
-        
-        if (!parsingAccess.hasAccess) {
-          logger.warn('Instagram parsing access denied via competitor monitoring button', {
-            telegramId,
-            userId,
-          })
-          await ctx.reply(
-            isRu
-              ? '❌ У вас нет доступа к Instagram парсингу.'
-              : '❌ You do not have access to Instagram parsing.'
-          )
-          return
-        }
-        
-        logger.info('✅ Instagram parsing access granted via competitor monitoring', {
-          telegramId,
-          userId,
-          parsingAccess
-        })
-        
-        // Переходим в Instagram parser scene
-        ctx.session.mode = ModeEnum.InstagramParserScene
-        logger.debug(
-          `🔄 [handleMenu] Вход в сцену ${ModeEnum.InstagramParserScene}`
-        )
-        await ctx.scene.enter(ModeEnum.InstagramParserScene)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену instagram_parser_scene`
-        )
-      },
-      ['/support']: async () => {
-        logger.info({
-          message: '❓ [handleMenu] Переход к помощи',
-          telegramId,
-          function: 'handleMenu',
-          action: 'help',
-          nextScene: ModeEnum.Help,
-        })
-        logger.debug('CASE: ❓ Помощь')
-        ctx.session.mode = ModeEnum.Help
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
-        await handleTechSupport(ctx)
-        logger.debug(`✅ [handleMenu] Завершен вызов handleTechSupport`)
-      },
-      '/invite': async () => {
-        logger.info({
-          message:
-            '👥 [handleMenu] Команда /invite - переход к приглашению друга',
-          telegramId,
-          function: 'handleMenu',
-          action: 'invite_command',
-          nextScene: 'inviteScene',
-        })
-        logger.debug('CASE: 👥 Пригласить друга')
-        ctx.session.mode = ModeEnum.Invite
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${'inviteScene'}`)
-        await ctx.scene.enter('inviteScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${'inviteScene'}`)
-      },
-      '/price': async () => {
-        logger.info({
-          message: '💰 [handleMenu] Команда /price - переход к ценам',
-          telegramId,
-          function: 'handleMenu',
-          action: 'price_command',
-          nextScene: 'priceScene',
-        })
-        logger.debug('CASE: 💰 Цены')
-        await handlePriceCommand(ctx)
-      },
-
-      '/balance': async () => {
-        logger.info({
-          message: '💰 [handleMenu] Команда /balance - переход к балансу',
-          telegramId,
-          function: 'handleMenu',
-          action: 'balance_command',
-          nextScene: 'balanceScene',
-        })
-        logger.debug('CASE: 💰 Баланс')
-        ctx.session.mode = ModeEnum.Balance
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${'balanceScene'}`)
-        await ctx.scene.enter('balanceScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${'balanceScene'}`)
-      },
-      '/help': async () => {
-        logger.info({
-          message: '❓ [handleMenu] Команда /help - переход к помощи',
-          telegramId,
-          function: 'handleMenu',
-          action: 'help_command',
-          nextScene: 'helpScene',
-        })
-        logger.debug('CASE: ❓ Помощь')
-        ctx.session.mode = ModeEnum.Help
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.Help}`)
-        await ctx.scene.enter('helpScene')
-        logger.debug(`✅ [handleMenu] Завершен вход в сцену ${ModeEnum.Help}`)
-      },
-      '/menu': async () => {
-        logger.info({
-          message: '🏠 [handleMenu] Команда /menu - переход к главному меню',
-          telegramId,
-          function: 'handleMenu',
-          action: 'menu_command',
-          nextScene: ModeEnum.MainMenu,
-        })
-        logger.debug('CASE: 🏠 Главное меню')
-        // Re-enter the menu scene
-        ctx.session.mode = ModeEnum.MainMenu
-        logger.debug(`🔄 [handleMenu] Вход в сцену ${ModeEnum.MainMenu}`)
-        await ctx.scene.enter(ModeEnum.MainMenu)
-        logger.debug(
-          `✅ [handleMenu] Завершен вход в сцену ${ModeEnum.MainMenu}`
-        )
-      },
-      // УБРАН КОНФЛИКТУЮЩИЙ ОБРАБОТЧИК /start - команды обрабатываются только в registerCommands.ts
-      Отмена: async () => {
-        // Исправленный обработчик для 'Отмена'
-        logger.info('[handleMenu] Обработка Отмены')
-        await ctx.reply(
-          isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.',
-          Markup.removeKeyboard()
-        )
-        await ctx.scene.leave() // Покидаем текущую сцену (вероятно, menuScene)
-        await ctx.scene.enter(ModeEnum.MainMenu) // Входим в главное меню
-      },
-      Cancel: async () => {
-        // Исправленный обработчик для 'Cancel'
-        logger.info('[handleMenu] Handling Cancel')
-        await ctx.reply('❌ Process cancelled.', Markup.removeKeyboard())
-        await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.MainMenu)
-      },
-      // ✅ Добавляем обработчики для ОБЕИХ языковых кнопок явно
-      '🌐 EN': async () => {
-        logger.info({
-          message: '🌐 [handleMenu] Переключение на английский язык',
-          telegramId,
-          function: 'handleMenu',
-          action: 'language_toggle_to_en',
-          currentLanguage: getUserLanguageFromState(ctx),
-        })
-        logger.debug('CASE: 🌐 EN - Переключение на английский')
-
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
-        await setUserLanguageInState(ctx, 'en')
-
-        // Уведомляем пользователя о смене языка
-        await ctx.reply('🌐 Language changed to English')
-
-        logger.info({
-          message: '✅ [handleMenu] Язык успешно переключен на английский',
-          telegramId,
-          function: 'handleMenu',
-          newLanguage: 'en',
-        })
-
-        // Перезагружаем главное меню с новым языком
-        ctx.session.mode = ModeEnum.MainMenu
-        logger.debug(`🔄 [handleMenu] Перезагрузка меню с английским языком`)
-        await ctx.scene.enter(ModeEnum.MainMenu)
-        logger.debug(`✅ [handleMenu] Меню перезагружено с языком: en`)
-      },
-      '🌐 RU': async () => {
-        logger.info({
-          message: '🌐 [handleMenu] Переключение на русский язык',
-          telegramId,
-          function: 'handleMenu',
-          action: 'language_toggle_to_ru',
-          currentLanguage: getUserLanguageFromState(ctx),
-        })
-        logger.debug('CASE: 🌐 RU - Переключение на русский')
-
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
-        await setUserLanguageInState(ctx, 'ru')
-
-        // Уведомляем пользователя о смене языка
-        await ctx.reply('🌐 Язык изменен на русский')
-
-        logger.info({
-          message: '✅ [handleMenu] Язык успешно переключен на русский',
-          telegramId,
-          function: 'handleMenu',
-          newLanguage: 'ru',
-        })
-
-        // Перезагружаем главное меню с новым языком
-        ctx.session.mode = ModeEnum.MainMenu
-        logger.debug(`🔄 [handleMenu] Перезагрузка меню с русским языком`)
-        await ctx.scene.enter(ModeEnum.MainMenu)
-        logger.debug(`✅ [handleMenu] Меню перезагружено с языком: ru`)
-      },
+    // Безопасное добавление action
+    const addAction = (key: number, actionFn: () => Promise<void>) => {
+      if (levels?.[key] && levels[key].title_ru && levels[key].title_en) {
+        const actionKey = isRu ? levels[key].title_ru : levels[key].title_en
+        actions[actionKey] = actionFn
+        logger.debug(`✅ Added action for level ${key}: ${actionKey}`)
+      } else {
+        logger.warn(`⚠️ levels[${key}] is not defined properly`)
+      }
     }
 
-    // ✅ ОТЛАДКА: Выводим все ключи actions для диагностики
-    const actionKeys = Object.keys(actions)
-    logger.debug('🔧 [DEBUG] Available action keys:', actionKeys)
-    logger.debug('🔧 [DEBUG] Looking for key:', normalizedText)
-    logger.debug('🔧 [DEBUG] levels[10].title_ru:', levels[10].title_ru)
-    logger.debug(
-      '🔧 [DEBUG] Exact match check:',
-      actionKeys.includes(normalizedText)
-    )
+    addAction(105, async () => {
+      logger.debug('CASE: 💫 Оформление подписки')
+      ctx.session.mode = ModeEnum.Subscribe
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+    })
 
-    // Выполняем действие, если оно существует
-    if (actions[normalizedText]) {
-      logger.info({
-        message: `✅ [handleMenu] Найдено действие для текста: "${normalizedText}"`,
-        telegramId,
-        function: 'handleMenu',
-        text: normalizedText,
-        result: 'action_found',
-      })
-      logger.debug('CASE: handleMenuCommand.if', normalizedText)
-      await actions[normalizedText]()
+    addAction(1, async () => {
+      logger.debug('CASE: 🤖 Цифровое тело')
+      ctx.session.mode = ModeEnum.DigitalAvatarBody
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    actions['🤖 Цифровое тело 2'] = async () => {
+      logger.debug('CASE: 🤖 Цифровое тело 2')
+      ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+
+    addAction(2, async () => {
+      logger.debug('CASE handleMenu: 📸 Нейрофото')
+      ctx.session.mode = ModeEnum.NeuroPhoto
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    actions['📸 Нейрофото 2'] = async () => {
+      logger.debug('CASE: 📸 Нейрофото 2')
+      ctx.session.mode = ModeEnum.NeuroPhotoV2
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+
+    addAction(3, async () => {
+      logger.debug('CASE: 🔍 Промпт из фото')
+      ctx.session.mode = ModeEnum.ImageToPrompt
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(4, async () => {
+      logger.debug('CASE: 🧠 Мозг аватара')
+      ctx.session.mode = ModeEnum.Avatar
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(5, async () => {
+      logger.debug('CASE: 💭 Чат с аватаром')
+      ctx.session.mode = ModeEnum.ChatWithAvatar
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(6, async () => {
+      logger.debug('CASE: 🤖 Выбор модели ИИ')
+      ctx.session.mode = ModeEnum.SelectModel
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(7, async () => {
+      logger.debug('CASE: 🎤 Голос аватара')
+      ctx.session.mode = ModeEnum.Voice
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(8, async () => {
+      logger.debug('CASE: 🎙️ Текст в голос')
+      ctx.session.mode = ModeEnum.TextToSpeech
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(9, async () => {
+      logger.debug('CASE: 🎥 Фото в видео')
+      ctx.session.mode = ModeEnum.ImageToVideo
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(10, async () => {
+      logger.debug('CASE:  Видео из текста')
+      ctx.session.mode = ModeEnum.TextToVideo
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(11, async () => {
+      logger.debug('CASE: 🖼️ Текст в фото')
+      ctx.session.mode = ModeEnum.TextToImage
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(100, async () => {
+      logger.debug('CASE: 💎 Пополнить баланс')
+      ctx.session.mode = ModeEnum.TopUpBalance
+      await ctx.scene.enter('paymentScene')
+    })
+
+    addAction(101, async () => {
+      logger.debug('CASE: 🤑 Баланс')
+      ctx.session.mode = ModeEnum.Balance
+      await ctx.scene.enter(ModeEnum.BalanceScene)
+    })
+
+    addAction(102, async () => {
+      logger.debug('CASE: 👥 Пригласить друга')
+      ctx.session.mode = ModeEnum.Invite
+      await ctx.scene.enter(ModeEnum.InviteScene)
+    })
+
+    addAction(103, async () => {
+      logger.debug('CASE: ❓ Помощь')
+      ctx.session.mode = ModeEnum.Help
+      await ctx.scene.enter(ModeEnum.HelpScene)
+    })
+
+    addAction(104, async () => {
+      logger.debug('CASE: 🏠 Главное меню')
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    })
+
+    actions['/invite'] = async () => {
+      logger.debug('CASE: 👥 Пригласить друга')
+      ctx.session.mode = ModeEnum.Invite
+      await ctx.scene.enter(ModeEnum.InviteScene)
+    }
+
+    actions['/price'] = async () => {
+      logger.debug('CASE: 💰 Цена')
+      ctx.session.mode = ModeEnum.Price
+      await priceCommand(ctx)
+    }
+
+    actions['/buy'] = async () => {
+      logger.debug('CASE: 💰 Пополнить баланс')
+      ctx.session.mode = ModeEnum.TopUpBalance
+      await ctx.scene.enter('paymentScene')
+    }
+
+    actions['/balance'] = async () => {
+      logger.debug('CASE: 💰 Баланс')
+      ctx.session.mode = ModeEnum.Balance
+      await ctx.scene.enter(ModeEnum.BalanceScene)
+    }
+
+    actions['/help'] = async () => {
+      logger.debug('CASE: ❓ Помощь')
+      ctx.session.mode = ModeEnum.Help
+      await ctx.scene.enter(ModeEnum.HelpScene)
+    }
+
+    actions['/menu'] = async () => {
+      logger.debug('CASE: 🏠 Главное меню')
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    actions['/start'] = async () => {
+      logger.debug('CASE: 🚀 Начать обучение')
+      await ctx.scene.enter(ModeEnum.StartScene)
+    }
+
+    logger.debug('🔍 [ACTIONS DEBUG] Actions created:', Object.keys(actions))
+
+    // 🔍 ДИАГНОСТИКА ОБЪЕКТА ACTIONS
+    logger.debug('🔍 [ACTIONS DEBUG] Available action keys:', Object.keys(actions))
+    logger.debug('🔍 [ACTIONS DEBUG] Checking key existence:', {
+      text,
+      keyExists: text in actions,
+      actionValue: actions[text]
+    })
+
+    // Выполняем действие, если оно существует, иначе переходим в главное меню
+    if (actions[text]) {
+      logger.debug('CASE: handleMenuCommand.if', text)
+      await actions[text]()
+      logger.debug('✅ Action executed. Checking scene...')
+      logger.debug('🔍 Current scene after action:', ctx.scene.current?.id)
+      logger.debug('🔍 Scene stack:', ctx.scene.session?.sceneStack)
     } else {
-      // Логика для необработанного текста (если нужна)
-      logger.warn({
-        message: `⚠️ [handleMenu] Не найдено действие для текста: "${normalizedText}"`,
-        telegramId,
-        function: 'handleMenu',
-        text: normalizedText,
-        result: 'action_not_found',
-      })
-      logger.debug('CASE: handleMenuCommand.else', normalizedText)
-      
-      // Проверяем, ожидается ли ввод username конкурента
-      logger.debug('🔍 [handleMenu] Checking competitor username input...')
-      logger.debug('Session competitor monitoring state:', ctx.session.competitorMonitoring)
-      
-      if (ctx.session.competitorMonitoring?.waitingForUsername) {
-        logger.debug('✅ [handleMenu] User is waiting for username input, processing...')
-        logger.info({
-          message: `🔍 [handleMenu] Обрабатываем ввод username конкурента: "${normalizedText}"`,
-          telegramId,
-          function: 'handleMenu',
-          text: normalizedText,
-          result: 'competitor_username_input',
-        })
-        
-        try {
-          // Импортируем и вызываем функцию обработки username
-          const handled = await handleCompetitorUsernameInput(ctx, normalizedText)
-          if (handled) {
-            logger.debug('✅ [handleMenu] Successfully handled competitor username input')
-            return // Завершаем обработку
-          }
-        } catch (error) {
-          logger.debug('❌ [handleMenu] Error handling competitor username input:', error)
-          logger.error('[handleMenu] Error handling competitor username input', {
-            error: error instanceof Error ? error.message : String(error),
-            telegramId,
-            username: normalizedText
-          })
-        }
-      }
-      
-      // Возможно, здесь не нужно ничего делать или отправить сообщение типа "Неизвестная команда"
+      logger.debug('CASE: handleMenuCommand.else', text)
+      logger.debug('🔍 [MISSING ACTION] Available actions:', Object.keys(actions))
+      // ctx.session.mode = 'main_menu'
+      // await ctx.scene.enter('menuScene')
     }
-  } else {
-    // Логика для нетекстовых сообщений
-    logger.warn({
-      message: '⚠️ [handleMenu] Получено не текстовое сообщение',
-      telegramId,
-      function: 'handleMenu',
-      messageType: ctx.message ? typeof ctx.message : 'undefined',
-      result: 'non_text_message',
-    })
-  }
-
-  // Обработка callback queries (inline кнопок)
-  if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-    const callbackData = ctx.callbackQuery.data
-
-    logger.info({
-      message: `📱 [handleMenu] Получен callback: "${callbackData}"`,
-      telegramId,
-      function: 'handleMenu',
-      callbackData,
-    })
-
-    logger.debug('CASE: handleMenuCommand.callback', callbackData)
-
-    // Проверяем callback для мониторинга конкурентов
-    if (callbackData === 'add_new_competitor') {
-      logger.debug('➕ [handleMenu] add_new_competitor callback')
-      logger.info('[handleMenu] add_new_competitor callback triggered', {
-        telegramId,
-        userId: ctx.from?.id,
-        sessionBefore: ctx.session
-      })
-      
-      const isRu = isRussianFromState(ctx)
-      
-      // Проверяем права администратора
-      const userId = ctx.from?.id?.toString()
-      if (!userId || !adminIds.includes(userId)) {
-        logger.warn('[handleMenu] User not admin, denying access', { userId, adminIds })
-        await ctx.answerCbQuery()
-        await ctx.reply(
-          isRu
-            ? '❌ У вас нет прав для добавления конкурентов'
-            : '❌ You do not have permission to add competitors'
-        )
-        return
-      }
-      
-      await ctx.answerCbQuery('✅')
-      logger.debug('Before importing promptForCompetitorUsername')
-      const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
-      logger.debug('After importing, before calling promptForCompetitorUsername')
-      await promptForCompetitorUsername(ctx, isRu)
-      logger.debug('After calling promptForCompetitorUsername, session:', ctx.session)
-      logger.info('[handleMenu] add_new_competitor callback completed', {
-        sessionAfter: ctx.session
-      })
-      return
-    }
-
-    if (callbackData === 'refresh_subscriptions') {
-      logger.debug('🔄 [handleMenu] refresh_subscriptions callback')
-      await ctx.answerCbQuery()
-      await handleCompetitorMonitoring(ctx)
-      return
-    }
-
-    if (callbackData.startsWith('delete_subscription_')) {
-      const subscriptionId = callbackData.replace('delete_subscription_', '')
-      const isRu = isRussianFromState(ctx)
-      
-      logger.debug(`🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`)
-      
-      try {
-        const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
-        
-        if (result.success) {
-          logger.debug(`✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`)
-          await ctx.answerCbQuery(result.message)
-          
-          // Обновляем список подписок после удаления
-          await handleCompetitorMonitoring(ctx)
-        } else {
-          logger.debug(`❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`)
-          await ctx.answerCbQuery(result.message)
-        }
-      } catch (error) {
-        logger.debug(`💥 [handleMenu] Error deleting subscription: ${error}`)
-        await ctx.answerCbQuery(
-          isRu 
-            ? '❌ Ошибка при удалении подписки' 
-            : '❌ Error deleting subscription'
-        )
-      }
-      return
-    }
-
-    // Отвечаем на неизвестные callback queries
-    await ctx.answerCbQuery()
   }
 }
 

@@ -28,12 +28,32 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     logger.debug('CASE: text_to_speech')
     const isRu = isRussianFromState(ctx)
-    await ctx.reply(
-      isRu
-        ? '🎙️ Отправьте текст, для преобразования его в голос'
-        : '🎙️ Send text, to convert it to voice',
-      createHelpCancelKeyboard(isRu)
-    )
+
+    // Check if we have pre-filled text from voice transcription
+    if (ctx.session.ttsTextToConvert) {
+      const prefilledText = ctx.session.ttsTextToConvert
+      // Clear the pre-filled text from session
+      delete ctx.session.ttsTextToConvert
+
+      // Show the text and ask for confirmation
+      await ctx.reply(
+        isRu
+          ? `📝 Текст для озвучивания:\n\n<i>${prefilledText}</i>\n\n✅ Нажмите /convert чтобы озвучить или отправьте другой текст`
+          : `📝 Text to convert:\n\n<i>${prefilledText}</i>\n\n✅ Send /convert to proceed or send different text`,
+        { parse_mode: 'HTML', ...createHelpCancelKeyboard(isRu) }
+      )
+
+      // Store text temporarily for next step
+      ctx.session.pendingTtsText = prefilledText
+    } else {
+      await ctx.reply(
+        isRu
+          ? '🎙️ Отправьте текст, для преобразования его в голос'
+          : '🎙️ Send text, to convert it to voice',
+        createHelpCancelKeyboard(isRu)
+      )
+    }
+
     ctx.wizard.next()
     return
   },
@@ -42,8 +62,17 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let audioPath: string | null = null
+    let textToConvert: string | undefined
 
-    if (!message || !('text' in message)) {
+    // Check for /convert command with pending text
+    if (message && 'text' in message && message.text === '/convert' && ctx.session.pendingTtsText) {
+      textToConvert = ctx.session.pendingTtsText
+      delete ctx.session.pendingTtsText
+    } else if (message && 'text' in message && message.text !== '/convert') {
+      // Use the new text provided by user
+      textToConvert = message.text
+      delete ctx.session.pendingTtsText // Clear any pending text
+    } else if (!message || !('text' in message)) {
       await ctx.reply(
         isRu ? '✍️ Пожалуйста, отправьте текст' : '✍️ Please send text'
       )
@@ -54,7 +83,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     if (isCancel) {
       ctx.scene.leave()
       return
-    } else {
+    } else if (textToConvert) {
       try {
         if (!ctx.from?.id) {
           logger.error('❌ Telegram ID не найден')
@@ -83,11 +112,11 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         }
 
         logger.info('[textToSpeechWizard] Calling createAudioFileFromText', {
-          text: message.text.substring(0, 20) + '...',
+          text: textToConvert.substring(0, 20) + '...',
           voice_id,
         })
         audioPath = await createAudioFileFromText({
-          text: message.text,
+          text: textToConvert,
           voice_id,
           telegram_id: ctx.from.id.toString(),
         })

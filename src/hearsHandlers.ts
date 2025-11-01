@@ -404,9 +404,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   bot.hears(
     [levels[11].title_ru, levels[11].title_en],
     async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Генерация изображений от ${ctx.from?.id}`)
+      logger.debug(`Получен hears для Текст в фото от ${ctx.from?.id}`)
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед входом в генерацию изображений
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в текст в фото
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
         isRussianFromState(ctx) ? levels[11].title_ru : levels[11].title_en
@@ -416,7 +416,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.TextToImage
-      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+      await ctx.scene.enter(ModeEnum.TextToImage)
     }
   )
 
