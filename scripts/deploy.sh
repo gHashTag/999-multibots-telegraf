@@ -44,7 +44,7 @@ fi
 
 # Пушим изменения в production branch
 echo "📤 Отправляем изменения в production branch..."
-git push origin production
+git push --force origin production
 
 echo "✅ Изменения отправлены в репозиторий"
 
