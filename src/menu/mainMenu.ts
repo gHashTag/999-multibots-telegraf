@@ -305,15 +305,10 @@ export async function mainMenu({
 
   let availableLevels: Level[] = []
 
-  // ✅ НОВАЯ ЛОГИКА: ПОКАЗЫВАЕМ ВСЕ КНОПКИ ВСЕМ ПОЛЬЗОВАТЕЛЯМ
+  // ✅ ПОКАЗЫВАЕМ ВСЕ КНОПКИ ВСЕМ ПОЛЬЗОВАТЕЛЯМ (ИСПРАВЛЕНО)
   // Проверка доступа будет происходить при нажатии на кнопку
-  if (
-    currentSubscription === SubscriptionType.NEUROVIDEO ||
-    currentSubscription === SubscriptionType.NEUROTESTER
-  ) {
-    hasFullAccess = true
-    console.log(`[mainMenu LOG] Full access for ${currentSubscription}`)
-  }
+  hasFullAccess = true
+  console.log(`[mainMenu LOG] Full access for all subscriptions (FIXED)`)
 
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
@@ -328,6 +323,7 @@ export async function mainMenu({
     `[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`
   )
 
+  // Показываем кнопки всем пользователям, НЕ зависимо от подписки
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
     .filter(level => {

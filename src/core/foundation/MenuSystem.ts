@@ -134,13 +134,6 @@ export class MenuSystem {
         sceneToEnter: 'ai_photoshop_scene',
       },
       {
-        titleRu: levels[13].title_ru, // '🌀 Infinity Морфинг'
-        titleEn: levels[13].title_en,
-        mode: ModeEnum.MorphingWizard,
-        requiresSubscription: true,
-        sceneToEnter: 'morphingWizard',
-      },
-      {
         titleRu: levels[107].title_ru, // '⬆️ Увеличить качество фото'
         titleEn: levels[107].title_en,
         mode: ModeEnum.ImageUpscaler,
