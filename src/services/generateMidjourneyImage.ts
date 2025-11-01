@@ -58,44 +58,61 @@ export async function generateMidjourneyImage(
       input.image_url = request.imageUrl
     }
 
-    // Set dimensions
-    if (request.width && request.height) {
+    // Set dimensions based on aspect ratio
+    if (request.aspectRatio) {
+      switch (request.aspectRatio) {
+        case '1:1':
+          input.width = 1024
+          input.height = 1024
+          break
+        case '16:9':
+          input.width = 1368
+          input.height = 768
+          break
+        case '9:16':
+          input.width = 768
+          input.height = 1368
+          break
+        default:
+          input.width = 1024
+          input.height = 1024
+      }
+      logger.info('[Midjourney v7] Using aspect ratio dimensions', {
+        aspectRatio: request.aspectRatio,
+        width: input.width,
+        height: input.height,
+      })
+    } else if (request.width && request.height) {
       input.width = request.width
       input.height = request.height
-    } else if (request.aspectRatio) {
-      // For adminconteudosflix/midjourney-allcraft, use accept_ratio parameter
-      input.accept_ratio = request.aspectRatio
-      logger.info('[Midjourney v7] Using accept_ratio parameter', {
-        aspectRatio: request.aspectRatio,
-        accept_ratio: request.aspectRatio,
+      logger.info('[Midjourney v7] Using custom dimensions', {
+        width: request.width,
+        height: request.height,
       })
     } else {
-      // Default to 1:1
-      input.accept_ratio = '1:1'
-      logger.info('[Midjourney v7] Using default accept_ratio', {
-        accept_ratio: '1:1',
+      input.width = 1024
+      input.height = 1024
+      logger.info('[Midjourney v7] Using default dimensions', {
+        width: 1024,
+        height: 1024,
       })
     }
 
     // Set number of images
     input.num_images = request.numImages || 1
 
-    // Set model version (dev or schnell)
-    input.model = 'dev'
-
     logger.info('[Midjourney v7] Final input params', {
-      model: 'adminconteudosflix/midjourney-allcraft:dev',
-      accept_ratio: input.accept_ratio,
+      model: 'black-forest-labs/flux-1.1-pro',
       width: input.width,
       height: input.height,
       num_images: input.num_images,
       hasImageUrl: !!input.image_url,
     })
 
-    // Run Midjourney model via Replicate
+    // Run FLUX model via Replicate (stable alternative)
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'adminconteudosflix/midjourney-allcraft:dev',
+      'black-forest-labs/flux-1.1-pro',
       {
         input,
       }
