@@ -226,12 +226,26 @@ export function createRenderAvatarPayload(
   const isHeygen = options?.avatarService === 'heygen'
   const isFal = options?.avatarService === 'fal'
 
+  // Выбираем правильный HeyGen API токен в зависимости от бота
+  let heygenApiKey = ''
+  if (isHeygen) {
+    // clip_maker_neuro_bot использует CocoAge токен
+    if (options?.botName === 'clip_maker_neuro_bot') {
+      heygenApiKey = process.env.HEYGEN_COCOAGE_API_KEY || ''
+    }
+    // Другие боты используют Haim токен
+    else {
+      heygenApiKey = process.env.HEYGEN_HAIM_API_KEY || ''
+    }
+  }
+
   logger.info('🎬 [RENDER PAYLOAD] Creating payload', {
     telegramId,
     avatarService: options?.avatarService || 'hedra',
     isHeygen,
     isFal,
-    hasHeygenApiKey: !!options?.heygenApiKey,
+    botName: options?.botName,
+    hasHeygenApiKey: !!heygenApiKey,
     hasHeygenAvatarId: !!options?.heygenAvatarId,
     hasFalApiKey: !!options?.falApiKey,
   })
@@ -243,18 +257,18 @@ export function createRenderAvatarPayload(
     cover_url: options?.coverUrl || '',
     intro_text_1: {
       text: options?.introText1 || '',
-      position: [540, 860], // ✅ Обновлено: правильное позиционирование для первого текста
+      position: [540, 860],
       font_size: 100,
     },
     intro_text_2: {
       text: options?.introText2 || '',
-      position: [540, 960], // ✅ Обновлено: правильное позиционирование для второго текста
+      position: [540, 960],
       font_size: 75,
     },
     avatar_settings: {
       heygen: isHeygen
         ? {
-            api_key: options?.heygenApiKey || '',
+            api_key: heygenApiKey, // Используем выбранный токен
             avatar_id: options?.heygenAvatarId || '',
             voice_id: voiceId,
             avatar_speech: text,
@@ -283,6 +297,6 @@ export function createRenderAvatarPayload(
       options?.callbackUrl !== undefined
         ? options.callbackUrl
         : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
-    bot_name: options?.botName, // Передаем имя бота для callback
+    bot_name: options?.botName,
   }
 }
