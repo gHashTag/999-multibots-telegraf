@@ -1,8 +1,9 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { levels } from '@/menu/mainMenu'
+import { levels, HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
+import { ADMIN_IDS_ARRAY } from '@/config'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
@@ -131,6 +132,42 @@ export const handleMenu = async (ctx: MyContext) => {
       await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     })
 
+    addAction(12, async () => {
+      console.log('CASE: 🎨 ИИ Фотошоп')
+      ctx.session.mode = ModeEnum.AiPhotoshop
+      await ctx.scene.enter('aiPhotoshopScene')
+    })
+
+    addAction(13, async () => {
+      console.log('CASE: 🌀 Infinity Морфинг')
+      ctx.session.mode = ModeEnum.MorphingWizard
+      await ctx.scene.enter('morphingWizard')
+    })
+
+    addAction(15, async () => {
+      console.log('CASE: 🎭 Замена лица')
+      ctx.session.mode = ModeEnum.FaceSwap
+      await ctx.scene.enter('faceSwapWizard')
+    })
+
+    addAction(107, async () => {
+      console.log('CASE: ⬆️ Увеличить качество фото')
+      ctx.session.mode = ModeEnum.ImageUpscaler
+      await ctx.scene.enter('imageUpscalerWizard')
+    })
+
+    addAction(108, async () => {
+      console.log('CASE: 📺 Транскрибация Reels')
+      ctx.session.mode = ModeEnum.VideoTranscription
+      await ctx.scene.enter('videoTranscriptionWizard')
+    })
+
+    addAction(111, async () => {
+      console.log('CASE: 🦸‍♂️ ИИ Герои')
+      ctx.session.mode = ModeEnum.AIHeroes
+      await ctx.scene.enter('avatarTransformScene')
+    })
+
     addAction(100, async () => {
       console.log('CASE: 💎 Пополнить баланс')
       ctx.session.mode = ModeEnum.TopUpBalance
@@ -159,6 +196,83 @@ export const handleMenu = async (ctx: MyContext) => {
       console.log('CASE: 🏠 Главное меню')
       ctx.session.mode = ModeEnum.MainMenu
       await ctx.scene.enter(ModeEnum.MainMenu)
+    })
+
+    addAction(106, async () => {
+      console.log('CASE: 🌐 Смена языка')
+      // Переключаем язык пользователя
+      const currentLang = ctx.session?.userLanguage
+      const newLang = currentLang === 'ru' ? 'en' : 'ru'
+      ctx.session.userLanguage = newLang
+
+      await ctx.reply(
+        newLang === 'ru'
+          ? '✅ Язык изменён на русский'
+          : '✅ Language changed to English'
+      )
+
+      // Показываем главное меню на новом языке
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    })
+
+    // Competitor monitoring button handler (level 109)
+    addAction(109, async () => {
+      console.log('CASE: 🔍 Мониторинг конкурентов')
+
+      // Проверяем права администратора или сотрудников Хаим Групп
+      const userId = ctx.from?.id?.toString()
+      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        console.log('[handleMenu] Competitor monitoring access denied - not admin/staff', {
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ У вас нет доступа к мониторингу конкурентов. Функция доступна только администраторам.'
+            : '❌ You do not have access to competitor monitoring. This feature is admin only.'
+        )
+        return
+      }
+
+      // Запускаем Instagram Parser Wizard
+      console.log(`🔄 [handleMenu] Вход в сцену instagramParserWizard`)
+      await ctx.scene.enter('instagramParserWizard')
+      console.log(`✅ [handleMenu] Завершен вход в сцену instagramParserWizard`)
+    })
+
+    // AI Reels button handler (level 110)
+    addAction(110, async () => {
+      console.log('CASE: 🎬 ИИ Рилс - Entry Wizard')
+
+      // Проверяем права администратора или сотрудников Хаим Групп
+      const userId = ctx.from?.id?.toString()
+      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        console.log('[handleMenu] AI Reels access denied - not admin/staff', {
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ У вас нет доступа к ИИ Рилс. Функция доступна только администраторам.'
+            : '❌ You do not have access to AI Reels. This feature is admin only.'
+        )
+        return
+      }
+
+      // Запускаем AI Reels entry wizard (выбор метода)
+      console.log(`🔄 [handleMenu] Вход в сцену ai_reels_entry`)
+      await ctx.scene.enter('ai_reels_entry')
+      console.log(`✅ [handleMenu] Завершен вход в сцену ai_reels_entry`)
     })
 
     actions['/invite'] = async () => {
