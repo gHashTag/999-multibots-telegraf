@@ -157,18 +157,11 @@ export const generateTextToImageDirect = async (
             telegramId: telegram_id,
           })
 
-          const width = inputParams.size ? parseInt(inputParams.size.split('x')[0]) : 1024
-          const height = inputParams.size ? parseInt(inputParams.size.split('x')[1]) : 1024
-
-          logger.info('[generateTextToImageDirect] Calculated dimensions', {
-            width,
-            height,
-          })
-
+          // 🔥 ВАЖНО: Для midjourney-v7 используем aspect_ratio, а НЕ width/height из inputParams
+          // Так как в generateMidjourneyImage приоритет у width/height, и aspectRatio будет проигнорирован
           const midjourneyResult = await generateMidjourneyImage({
             prompt,
-            width,
-            height,
+            // width, height - НЕ передаем, чтобы использовать aspectRatio в generateMidjourneyImage
             aspectRatio: inputParams.aspect_ratio,
             numImages: 1,
             telegramId: telegram_id,

@@ -4,7 +4,7 @@ import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance, getAspectRatio } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   sendBalanceMessage,
@@ -302,6 +302,39 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
             : `⏳ Generating ${numImages} image${numImages > 1 ? 's' : ''}...`
         )
 
+        // 🔥 ВАЖНО: Для midjourney-v7 передаем aspectRatio, а НЕ width/height
+        // Это нужно чтобы aspectRatio корректно обрабатывался в generateMidjourneyImage
+        const userAspectRatio = await getAspectRatio(ctx.from.id)
+        const aspectRatioToUse = userAspectRatio || '1:1'
+
+        // Создаем inputParams для генерации
+        const inputParams: {
+          prompt: string
+          size?: string
+          aspect_ratio?: string
+        } = {
+          prompt,
+        }
+
+        if (model.toLowerCase().startsWith('recraft-ai/')) {
+          // Recraft модели используют size
+          const [widthRatio, heightRatio] = aspectRatioToUse.split(':').map(Number)
+          const baseWidth = 1024
+          const calculatedHeight = Math.round(
+            (baseWidth / widthRatio) * heightRatio
+          )
+          const calculatedSize = `${baseWidth}x${calculatedHeight}`
+          inputParams.size = ['1024x1024', '1365x1024', '1024x1365'].includes(calculatedSize)
+            ? calculatedSize
+            : '1024x1024'
+        } else {
+          // Остальные модели (включая midjourney-v7) используют aspect_ratio
+          inputParams.aspect_ratio = aspectRatioToUse
+        }
+
+        logger.info('[textToImageWizard step 4] Input params for generation', inputParams)
+
+        // Вызываем generateTextToImageDirect с новым количеством изображений
         await generateTextToImageDirect(
           prompt,
           model,
