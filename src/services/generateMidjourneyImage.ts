@@ -63,36 +63,26 @@ export async function generateMidjourneyImage(
       input.width = request.width
       input.height = request.height
     } else if (request.aspectRatio) {
-      // Calculate dimensions based on aspect ratio
-      switch (request.aspectRatio) {
-        case '1:1':
-          input.width = 1024
-          input.height = 1024
-          break
-        case '16:9':
-          input.width = 1368
-          input.height = 768
-          break
-        case '9:16':
-          input.width = 768
-          input.height = 1368
-          break
-        default:
-          input.width = 1024
-          input.height = 1024
-      }
+      // For adminconteudosflix/midjourney-allcraft, use accept_ratio parameter
+      input.accept_ratio = request.aspectRatio
+      logger.info('[Midjourney v7] Using accept_ratio parameter', {
+        aspectRatio: request.aspectRatio,
+        accept_ratio: request.aspectRatio,
+      })
     } else {
-      // Default to 1024x1024
-      input.width = 1024
-      input.height = 1024
+      // Default to 1:1
+      input.accept_ratio = '1:1'
+      logger.info('[Midjourney v7] Using default accept_ratio', {
+        accept_ratio: '1:1',
+      })
     }
 
     // Set number of images
     input.num_images = request.numImages || 1
 
-    // Run FLUX model via Replicate (stable alternative to Midjourney)
+    // Run Midjourney model via Replicate
     const output = await replicate.run(
-      'black-forest-labs/flux-1.1-pro',
+      'adminconteudosflix/midjourney-allcraft',
       {
         input,
       }
