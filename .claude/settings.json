@@ -39,7 +39,11 @@
     ],
     "deny": [
       "Bash(rm -rf /)",
-      "Bash(eval *)"
+      "Bash(eval *)",
+      "Bash(git push origin production)",
+      "Bash(deploy to production)",
+      "Bash(.*212\.86\.115\.30.*)",
+      "Bash(force push to main)"
     ]
   },
   "hooks": {},
