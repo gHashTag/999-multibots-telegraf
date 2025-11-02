@@ -88,19 +88,19 @@ const TEST_MODE = process.env.NODE_ENV === 'test' || process.env.LIPSYNC_TEST_MO
 export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_wizard',
 
-  // Step 0: Запрос пользовательского видео (фон)
+  // Step 0: Запрос фото для lip-sync
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    console.log('🎬 [DEBUG] Step 0 - Запрос видео (фон)', {
+    console.log('🎬 [DEBUG] Step 0 - Запрос фото', {
       telegramId,
       hasMessage: !!ctx.message,
-      messageType: ctx.message?.['text'] ? 'text' : ctx.message?.['video'] ? 'video' : 'other',
+      messageType: ctx.message?.['photo'] ? 'photo' : ctx.message?.['text'] ? 'text' : 'other',
       sceneId: ctx.scene?.current?.id,
     })
 
-    logger.info('🎬 [SIMPLE LIPSYNC] Step 0 STARTED - Запрос видео (фон)', {
+    logger.info('🎬 [SIMPLE LIPSYNC] Step 0 STARTED - Запрос фото', {
       telegramId,
       function: 'simpleLipSyncWizard.step0',
     })
@@ -112,7 +112,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
     // Обычный флоу: инициализируем сессию
     ctx.session.aiReels = {
-      step: 'video',
+      step: 'photo',
       startTime: Date.now(),
       telegramId,
       isSimple: true, // Флаг для отличия от Full template
@@ -121,26 +121,30 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '🎬 <b>Шаблон 1 - Lip-sync в кружочке</b>\n\n' +
-          '📹 <b>Шаг 1:</b> Отправьте видео (до 30 секунд) - это будет фон.\n\n' +
+          '📷 <b>Шаг 1:</b> Отправьте фото лица для создания lip-sync.\n\n' +
+          '📹 <b>Шаг 2:</b> Потом отправьте видео (до 30 сек) - это будет фон.\n\n' +
           '💡 Что делает:\n' +
-          '• Использует ваше видео как фон\n' +
-          '• Создает lip-sync поверх лица\n' +
+          '• Использует фото для lip-sync\n' +
+          '• Накладывает поверх вашего видео\n' +
           '• Делает красивый кружочек\n\n' +
           '💰 Стоимость: 120⭐'
         : '🎬 <b>Template 1 - Lip-sync in Circle</b>\n\n' +
-          '📹 <b>Step 1:</b> Send a video (up to 30 seconds) - this will be the background.\n\n' +
+          '📷 <b>Step 1:</b> Send a photo of a face for lip-sync.\n\n' +
+          '📹 <b>Step 2:</b> Then send a video (up to 30 sec) - this will be the background.\n\n' +
           '💡 What it does:\n' +
-          '• Uses your video as background\n' +
-          '• Creates lip-sync on face\n' +
+          '• Uses photo for lip-sync\n' +
+          '• Overlays on your video\n' +
           '• Makes a beautiful circle\n\n' +
           '💰 Cost: 120⭐',
       { parse_mode: 'HTML' }
     )
 
-    logger.info('✅ [SIMPLE LIPSYNC] Step 0 completed - видео (фон) запрошено', { telegramId })
+    logger.info('✅ [SIMPLE LIPSYNC] Step 0 completed - фото запрошено', { telegramId })
+
+    return ctx.wizard.next()
   },
 
-  // Step 1: Получение видео (фон)
+  // Step 1: Получение фото для lip-sync
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
@@ -149,11 +153,84 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    console.log('📹 [DEBUG] Step 1 - Получение видео (фон)', {
+    console.log('📷 [DEBUG] Step 1 - Получение фото', {
       telegramId,
       hasMessage: !!ctx.message,
-      messageType: ctx.message?.['text'] ? 'text' : ctx.message?.['video'] ? 'video' : 'other',
+      messageType: ctx.message?.['photo'] ? 'photo' : ctx.message?.['text'] ? 'text' : 'other',
       hasFrom: !!ctx.from,
+    })
+
+    // Проверяем наличие фото
+    const photo = ctx.message?.photo?.[0] // Берем первое (самое большое разрешение)
+    if (!photo) {
+      await ctx.reply(
+        isRu
+          ? '❌ Это не фото. Пожалуйста, отправьте фото лица.'
+          : '❌ This is not a photo. Please send a photo of a face.'
+      )
+      return
+    }
+
+    // Сохраняем информацию о фото
+    ctx.session.aiReels.photoFileId = photo.file_id
+    ctx.session.aiReels.photoUrl = await ctx.telegram.getFileLink(photo.file_id)
+    ctx.session.aiReels.step = 'video'
+
+    logger.info('📷 [SIMPLE LIPSYNC] Фото получено', {
+      telegramId,
+      fileId: photo.file_id,
+      size: photo.file_size,
+    })
+
+    await ctx.reply(
+      isRu
+        ? '✅ Фото получено!\n\n' +
+          '📹 <b>Шаг 2:</b> Теперь отправьте видео (до 30 сек) - это будет фон для кружочка.\n\n' +
+          '💡 Lip-sync будет наложен поверх этого видео.'
+        : '✅ Photo received!\n\n' +
+          '📹 <b>Step 2:</b> Now send a video (up to 30 sec) - this will be the background for the circle.\n\n' +
+          '💡 Lip-sync will be overlaid on this video.'
+    )
+
+    // Переходим к следующему шагу
+    return ctx.wizard.next()
+  },
+
+  // Step 2: Запрос видео (фон)
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      return ctx.scene.leave()
+    }
+
+    console.log('📹 [DEBUG] Step 2 - Запрос видео (фон)', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      messageType: ctx.message?.['video'] ? 'video' : ctx.message?.['text'] ? 'text' : 'other',
+    })
+
+    await ctx.reply(
+      isRu
+        ? '📹 Отправьте видео файл (до 30 секунд).'
+        : '📹 Send a video file (up to 30 seconds).'
+    )
+  },
+
+  // Step 3: Получение видео (фон)
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      return ctx.scene.leave()
+    }
+
+    console.log('📹 [DEBUG] Step 3 - Получение видео (фон)', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      messageType: ctx.message?.['video'] ? 'video' : ctx.message?.['text'] ? 'text' : 'other',
     })
 
     // Проверяем наличие видео
@@ -181,7 +258,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     // Сохраняем информацию о видео как фон
     ctx.session.aiReels.backgroundVideoFileId = video.file_id
     ctx.session.aiReels.backgroundVideoUrl = await ctx.telegram.getFileLink(video.file_id)
-    ctx.session.aiReels.step = 'photo'
+    ctx.session.aiReels.step = 'text'
 
     logger.info('📹 [SIMPLE LIPSYNC] Видео (фон) получено', {
       telegramId,
@@ -192,69 +269,18 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '✅ Видео получено!\n\n' +
-          '📷 <b>Шаг 2:</b> Отправьте фото лица для создания lip-sync.\n\n' +
-          '💡 Это фото будет использовано для генерации движений губ.'
+          '✍️ <b>Шаг 3:</b> Теперь введите текст для lip-sync.\n\n' +
+          '💡 Или отправьте голосовое сообщение.'
         : '✅ Video received!\n\n' +
-          '📷 <b>Step 2:</b> Send a photo of a face for lip-sync.\n\n' +
-          '💡 This photo will be used to generate lip movements.'
+          '✍️ <b>Step 3:</b> Now enter text for lip-sync.\n\n' +
+          '💡 Or send a voice message.'
     )
 
     // Переходим к следующему шагу
     return ctx.wizard.next()
   },
 
-  // Step 2: Запрос фото для lip-sync
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
-
-    if (!telegramId) {
-      return ctx.scene.leave()
-    }
-
-    console.log('📷 [DEBUG] Step 2 - Запрос фото', {
-      telegramId,
-      hasMessage: !!ctx.message,
-      messageType: ctx.message?.['photo'] ? 'photo' : ctx.message?.['text'] ? 'text' : 'other',
-    })
-
-    // Проверяем наличие фото
-    const photo = ctx.message?.photo?.[0] // Берем первое (самое большое разрешение)
-    if (!photo) {
-      await ctx.reply(
-        isRu
-          ? '❌ Это не фото. Пожалуйста, отправьте фото лица.'
-          : '❌ This is not a photo. Please send a photo of a face.'
-      )
-      return
-    }
-
-    // Сохраняем информацию о фото
-    ctx.session.aiReels.photoFileId = photo.file_id
-    ctx.session.aiReels.photoUrl = await ctx.telegram.getFileLink(photo.file_id)
-    ctx.session.aiReels.step = 'text'
-
-    logger.info('📷 [SIMPLE LIPSYNC] Фото получено', {
-      telegramId,
-      fileId: photo.file_id,
-      size: photo.file_size,
-    })
-
-    await ctx.reply(
-      isRu
-        ? '✅ Фото получено!\n\n' +
-          '✍️ <b>Шаг 3:</b> Теперь введите текст, который будет произносить персонаж.\n\n' +
-          '💡 Или отправьте голосовое сообщение с текстом.'
-        : '✅ Photo received!\n\n' +
-          '✍️ <b>Step 3:</b> Now enter the text that will be spoken by the character.\n\n' +
-          '💡 Or send a voice message with the text.'
-    )
-
-    // Переходим к следующему шагу
-    return ctx.wizard.next()
-  },
-
-  // Step 3: Получение текста
+  // Step 4: Получение текста
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
