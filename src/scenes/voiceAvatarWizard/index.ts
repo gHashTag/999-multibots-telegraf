@@ -43,7 +43,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     if (message && 'text' in message) {
       // Check which option was selected
-      if (message.text === (isRu ? '🎙️ Создать голосовой аватар' : '9️ Create voice avatar')) {
+      if (message.text === (isRu ? '🎙️ Создать голосовой аватар' : '🎙️ Create voice avatar')) {
         ctx.session.voiceMode = 'avatar'
         await ctx.reply(
           isRu
@@ -73,7 +73,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         ? '❌ Пожалуйста, выберите одну из опций'
         : '❌ Please select one of the options'
     )
-    return
+    return ctx.wizard.selectStep(ctx.wizard.step - 1)
   },
   // Step 3: Process voice message
   async ctx => {
