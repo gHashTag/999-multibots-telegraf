@@ -96,7 +96,7 @@ import { isRussian } from '@/helpers/language'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { registerPaymentActions } from './handlers/paymentActions'
-// handleTextMessage и setupHearsHandlers теперь импортируются в bot.ts
+// setupHearsHandlers отключен - используется только handleMenu из menuScene
 // Убираем импорт handleMenu, так как он не используется здесь напрямую
 // import { handleMenu } from './handlers/handleMenu'
 //https://github.com/telegraf/telegraf/issues/705
@@ -1974,8 +1974,8 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    // ВАЖНО: setupHearsHandlers и handleTextMessage теперь регистрируются в bot.ts
-    // чтобы hears обработчики срабатывали до общего текстового обработчика
+    // ВАЖНО: setupHearsHandlers отключен - используется только handleMenu из menuScene
+    // чтобы избежать конфликта двух систем обработки кнопок
 
     // ✅ РЕГИСТРИРУЕМ MULTI-PHOTO ACTION HANDLERS
     logger.info('🔧 [MULTI-PHOTO] Registering multi-photo action handlers')
