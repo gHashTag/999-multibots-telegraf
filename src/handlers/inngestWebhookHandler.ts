@@ -30,7 +30,7 @@ interface InngestWebhookPayload {
 export function createInngestWebhookHandler(bot: Telegraf<MyContext>) {
   bot.webhook('/inngest-webhook', async (ctx) => {
     try {
-      const payload: InngestWebhookPayload = ctx.request.body
+      const payload = ctx.request.body as InngestWebhookPayload
 
       logger.info('📨 [WEBHOOK] Received Inngest webhook', {
         type: payload.type,

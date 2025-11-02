@@ -88,7 +88,7 @@ export async function sendInngestEvent(
       id: `${eventName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     })
 
-    const eventId = response.ids[0]
+    const eventId = response.ids?.[0] || `event-${Date.now()}`
 
     logger.info(`✅ [INNGEST] Event sent: ${eventName} (ID: ${eventId})`)
 
