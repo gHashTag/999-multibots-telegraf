@@ -10,9 +10,11 @@ import {
   getUserBalance,
 } from '@/core/supabase'
 import { IMAGES_MODELS } from '@/price/models'
+import { generateMidjourneyImage } from './generateMidjourneyImage'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
+import axios from 'axios'
 // import { PaymentType } from '@/interfaces/payments.interface'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -44,6 +46,7 @@ const createGenerationResultKeyboard = (is_ru: boolean) => {
     [
       { text: is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
       { text: is_ru ? '📐 Изменить размер' : '📐 Change size' },
+      { text: is_ru ? '🎨 Создать новое' : '🎨 Create new' },
     ],
     [{ text: is_ru ? '🏠 Главное меню' : '🏠 Main menu' }],
   ])
@@ -142,10 +145,68 @@ export const generateTextToImageDirect = async (
           )
         }
 
-        const output: ApiResponse = (await replicate.run(modelId, {
-          input: inputParams,
-        })) as ApiResponse
-        const imageUrl = await processApiResponse(output)
+        let imageUrl: string
+
+        // Special handling for Midjourney v7 via Replicate
+        if (model_type.toLowerCase() === 'midjourney-v7') {
+          logger.info('[generateTextToImageDirect] Calling generateMidjourneyImage', {
+            prompt: prompt.substring(0, 100),
+            hasSize: !!inputParams.size,
+            size: inputParams.size,
+            hasAspectRatio: !!inputParams.aspect_ratio,
+            aspectRatio: inputParams.aspect_ratio,
+            telegramId: telegram_id,
+          })
+
+          // 🔥 ВАЖНО: Для midjourney-v7 используем aspect_ratio, а НЕ width/height из inputParams
+          // Так как в generateMidjourneyImage приоритет у width/height, и aspectRatio будет проигнорирован
+          const midjourneyResult = await generateMidjourneyImage({
+            prompt,
+            // width, height - НЕ передаем, чтобы использовать aspectRatio в generateMidjourneyImage
+            aspectRatio: inputParams.aspect_ratio,
+            numImages: 1,
+            telegramId: telegram_id,
+          })
+
+          logger.info('[generateTextToImageDirect] Midjourney result', {
+            success: midjourneyResult.success,
+            hasImageUrl: !!midjourneyResult.imageUrl,
+            imageUrl: midjourneyResult.imageUrl?.substring(0, 100),
+            error: midjourneyResult.error,
+          })
+
+          if (!midjourneyResult.success || !midjourneyResult.imageUrl) {
+            throw new Error(midjourneyResult.error || 'Failed to generate image with Midjourney v7')
+          }
+
+          imageUrl = midjourneyResult.imageUrl
+        } else {
+          // Standard Replicate model handling
+          const output: ApiResponse = (await replicate.run(modelId, {
+            input: inputParams,
+          })) as ApiResponse
+          imageUrl = await processApiResponse(output)
+        }
+
+        // Validate image URL before downloading
+        try {
+          const response = await axios.head(imageUrl, { timeout: 10000 })
+          const contentType = response.headers['content-type'] || ''
+          // Accept images or octet-stream (Replicate URLs sometimes return this initially)
+          if (!contentType.startsWith('image/') && contentType !== 'application/octet-stream') {
+            throw new Error(`Invalid content type: ${contentType}`)
+          }
+          logger.info('[generateTextToImageDirect] Image URL validated', {
+            url: imageUrl.substring(0, 100),
+            contentType,
+          })
+        } catch (error) {
+          logger.error('[generateTextToImageDirect] Image URL validation failed', {
+            url: imageUrl.substring(0, 100),
+            error: error instanceof Error ? error.message : 'Unknown',
+          })
+          throw new Error('Generated image URL is not accessible or invalid')
+        }
 
         const imageLocalPath = await saveFileLocally(
           telegram_id,
@@ -165,11 +226,30 @@ export const generateTextToImageDirect = async (
           Number(telegram_id)
         )
 
+        // Check if file exists before sending
+        if (!fs.existsSync(imageLocalPath)) {
+          logger.error('[generateTextToImageDirect] Image file not found', {
+            filePath: imageLocalPath,
+            imageUrl: imageUrl.substring(0, 100),
+          })
+          throw new Error('Failed to save or access generated image file')
+        }
+
         const image = await downloadFile(imageUrl)
 
-        await ctx.telegram.sendPhoto(telegram_id, {
-          source: fs.createReadStream(imageLocalPath),
-        })
+        // Try to send photo, with fallback to URL if file-based sending fails
+        try {
+          await ctx.telegram.sendPhoto(telegram_id, {
+            source: fs.createReadStream(imageLocalPath),
+          })
+        } catch (fileError) {
+          logger.warn('[generateTextToImageDirect] File-based send failed, trying URL', {
+            fileError: fileError instanceof Error ? fileError.message : 'Unknown',
+            imageUrl: imageUrl.substring(0, 100),
+          })
+          // Fallback: send using URL directly
+          await ctx.telegram.sendPhoto(telegram_id, imageUrl)
+        }
 
         await pulse(
           imageLocalPath,
