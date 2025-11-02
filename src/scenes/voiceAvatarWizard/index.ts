@@ -81,6 +81,19 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const mode = ctx.session.voiceMode || 'avatar' // Default to avatar if not set
 
+    // Проверяем команды отмены
+    if (message && 'text' in message) {
+      const text = message.text
+
+      if (text === '/menu' || text === '/cancel') {
+        await ctx.reply(
+          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+          { reply_markup: { remove_keyboard: true } }
+        )
+        return ctx.scene.leave()
+      }
+    }
+
     if (
       !message ||
       !('voice' in message || 'audio' in message)
