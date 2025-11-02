@@ -239,7 +239,7 @@ export { HAIM_GROUP_STAFF_IDS, METAMUSE_STAFF_IDS, getParsingAccess }
 
 export async function mainMenu({
   isRu,
-  subscription = SubscriptionType.STARS,
+  subscription = SubscriptionType.NO_SUBSCRIPTION,
   ctx,
 }: {
   isRu: boolean
@@ -260,7 +260,7 @@ export async function mainMenu({
   })
 
   const currentSubscription =
-    subscription === null ? SubscriptionType.STARS : subscription
+    subscription === null ? SubscriptionType.NO_SUBSCRIPTION : subscription
   console.log(
     `[mainMenu LOG] Subscription: ${subscription}, Effective: ${currentSubscription}`
   )
@@ -283,7 +283,7 @@ export async function mainMenu({
 
   // Определяем тип подписки
   const currentSubscription =
-    subscription === null ? SubscriptionType.STARS : subscription
+    subscription === null ? SubscriptionType.NO_SUBSCRIPTION : subscription
 
   // Проверяем доступ только для админских кнопок
   const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
@@ -292,7 +292,7 @@ export async function mainMenu({
 
   // ✅ ЛОГИКА УРОВНЕЙ ПОДПИСОК (как было раньше)
   const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
-    [SubscriptionType.STARS]: [], // STARS - только служебные кнопки
+    [SubscriptionType.NO_SUBSCRIPTION]: [], // STARS - только служебные кнопки
     [SubscriptionType.NEUROPHOTO]: [
       levels[1],   // 🤖 Цифровое тело
       levels[2],   // 📸 Нейрофото
@@ -325,7 +325,7 @@ export async function mainMenu({
   let availableLevels: Level[] = []
 
   // STARS: показываем ТОЛЬКО служебные кнопки
-  if (currentSubscription === SubscriptionType.STARS) {
+  if (currentSubscription === SubscriptionType.NO_SUBSCRIPTION) {
     availableLevels = [
       levels[100], // 💎 Пополнить баланс
       levels[101], // 💰 Баланс

@@ -1,9 +1,13 @@
 export enum SubscriptionType {
   NEUROPHOTO = 'NEUROPHOTO',
   NEUROVIDEO = 'NEUROVIDEO',
-  STARS = 'STARS',
+  NO_SUBSCRIPTION = 'NO_SUBSCRIPTION', // Пользователи без подписки (покупают только звёзды)
+  STARS = 'STARS', // Устаревший алиас для NO_SUBSCRIPTION (для обратной совместимости)
   NEUROTESTER = 'NEUROTESTER',
 }
+
+// ✅ Алиас для обратной совместимости
+export type StarsSubscriptionType = SubscriptionType.NO_SUBSCRIPTION
 
 export interface Subscription {
   id: string

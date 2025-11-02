@@ -29,7 +29,7 @@ const FEATURE_IDS = {
 
 // Карта доступных функций для каждого типа подписки (используем ID)
 export const SUBSCRIPTION_FEATURES = {
-  [SubscriptionType.STARS]: {
+  [SubscriptionType.NO_SUBSCRIPTION]: {
     available: [
       FEATURE_IDS.INVITE_FRIEND,
       FEATURE_IDS.SUPPORT,
@@ -180,7 +180,7 @@ export function isFeatureAvailable(
   subscriptionType: SubscriptionType | null
 ): boolean {
   if (!subscriptionType) {
-    subscriptionType = SubscriptionType.STARS
+    subscriptionType = SubscriptionType.NO_SUBSCRIPTION
   }
 
   const features = SUBSCRIPTION_FEATURES[subscriptionType]
@@ -202,12 +202,12 @@ export function getSubscriptionMessage(
   isRu: boolean,
   attemptedFeature?: string
 ): string {
-  const subscription = subscriptionType || SubscriptionType.STARS
+  const subscription = subscriptionType || SubscriptionType.NO_SUBSCRIPTION
   const features = SUBSCRIPTION_FEATURES[subscription]
 
   let message = ''
 
-  if (subscription === SubscriptionType.STARS) {
+  if (subscription === SubscriptionType.NO_SUBSCRIPTION) {
     // Сообщение для пользователей без подписки
     if (isRu) {
       message = `❌ <b>Эта функция недоступна без подписки</b>\n\n`
@@ -296,7 +296,7 @@ export function getSubscriptionName(
   subscriptionType: SubscriptionType | null,
   isRu: boolean
 ): string {
-  if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
+  if (!subscriptionType || subscriptionType === SubscriptionType.NO_SUBSCRIPTION) {
     return isRu ? 'Без подписки' : 'No subscription'
   }
 
