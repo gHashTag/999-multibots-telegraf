@@ -124,22 +124,23 @@ export const tapTask = <E, R>(f: (r: R) => void) =>
 
 // ===== VALIDATION HELPERS =====
 
-export const fromValidation = <A>(result: t.Validation<A>): Either<t.Errors, A> =>
-  result._tag === 'Right' ? right(result.right) : left(result.left)
+// Temporary disable - io-ts not installed
+// export const fromValidation = <A>(result: t.Validation<A>): Either<t.Errors, A> =>
+//   result._tag === 'Right' ? right(result.right) : left(result.left)
 
-export const validate = <A>(codec: t.Decoder<unknown, A>, input: unknown): TaskEither<ValidationError, A> =>
-  () => {
-    const result = codec.decode(input)
-    if (result._tag === 'Right') {
-      return Promise.resolve(right(result.right))
-    }
-    return Promise.resolve(left({
-      message: 'Validation failed',
-      path: [],
-      expected: '',
-      received: input
-    }))
-  }
+// export const validate = <A>(codec: t.Decoder<unknown, A>, input: unknown): TaskEither<Error, A> =>
+//   () => {
+//     const result = codec.decode(input)
+//     if (result._tag === 'Right') {
+//       return Promise.resolve(right(result.right))
+//     }
+//     return Promise.resolve(left({
+//       message: 'Validation failed',
+//       path: [],
+//       expected: '',
+//       received: input
+//     }))
+//   }
 
 // ===== COMPOSITION HELPERS =====
 
@@ -238,8 +239,8 @@ export default {
   mapTask,
   chainTask,
   tapTask,
-  fromValidation,
-  validate,
+  // fromValidation,
+  // validate,
   andThen,
   flatMap,
   flatten,

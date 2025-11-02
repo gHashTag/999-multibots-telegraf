@@ -63,6 +63,11 @@
     "src/__tests__/**/*",
     "src/**/*.test.ts",
     "src/**/__tests__/**",
-    "src/models/zot/tests/**/*"
+    "src/models/zot/tests/**/*",
+    "src/core/functional_disabled/**/*",
+    "src/core/pipeline_disabled/**/*",
+    "src/core/providers_disabled/**/*",
+    "src/inngest_app/functions/**_disabled/**/*",
+    "src/api_server/routes/**_disabled/**/*"
   ]
 }

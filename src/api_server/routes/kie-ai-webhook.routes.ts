@@ -26,8 +26,6 @@ interface KieAiWebhookPayload {
     errorMessage?: string
     duration?: number
   }
-  data?: any; // Allow nested data object
-  code?: number; // Allow 'code' for success/failure detection
 }
 
 /**
