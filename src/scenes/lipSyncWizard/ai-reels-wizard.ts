@@ -20,6 +20,8 @@ import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { logger } from '@/utils/logger'
 import { downloadFile } from '@/helpers/file-helpers'
 import { createCircleCompositionWithFaceDetection } from '@/helpers/face-circle-composer'
+import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-provider'
+import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
@@ -403,27 +405,41 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         logger.info('✅ [SIMPLE LIPSYNC] TTS аудио создано', { telegramId })
       }
 
-      // ШАГ 2: Применяем lip-sync (мок для тестирования)
-      logger.info('🎬 [SIMPLE LIPSYNC] Применение lip-sync', { telegramId })
+      // ШАГ 2: Применяем lip-sync через Fal.ai Veed Fabric
+      logger.info('🎬 [SIMPLE LIPSYNC] Применение lip-sync через Fal.ai', { telegramId })
 
-      // В реальном проекте здесь был бы вызов к Fal.ai Veed Fabric
-      // const lipSyncProvider = new FalVeedFabricProvider()
-      // const result = await lipSyncProvider.generate({...})
+      // Уведомляем пользователя
+      await ctx.reply(
+        isRu
+          ? `🎬 Создаем lip-sync видео...\n⏳ Подождите 30-60 секунд...`
+          : `🎬 Creating lip-sync video...\n⏳ Please wait 30-60 seconds...`
+      )
 
-      // Для тестирования используем готовый asset
-      const lipSyncResult = {
-        videoUrl: TEST_ASSETS.LIPSYNC_RESULT,
-        output: TEST_ASSETS.LIPSYNC_RESULT,
+      // Создаем input для Fal.ai провайдера
+      const falInput = LipSyncInputBuilder.forFalVeedFabric(
+        ctx.session.aiReels.imageUrl!,
+        audioUrl!,
+        telegramId,
+        {
+          botName: ctx.botInfo?.username || 'unknown_bot',
+          resolution: '720p',
+        }
+      )
+
+      // Создаем провайдер и генерируем lip-sync
+      const falProvider = new FalVeedFabricProvider()
+      const lipSyncResult = await falProvider.generate(falInput)
+
+      // Проверяем результат
+      if ('error' in lipSyncResult || !lipSyncResult.output) {
+        throw new Error(`Lip-sync generation failed: ${lipSyncResult.message || lipSyncResult.error}`)
       }
 
-      // Проверяем что у нас есть результат
-      if (!lipSyncResult.videoUrl) {
-        throw new Error('Lip-sync generation failed')
-      }
+      logger.info('✅ [SIMPLE LIPSYNC] Lip-sync создан успешно', { telegramId })
 
-      // ШАГ 3: Получаем длительность липсинка и обрезаем оригинальное видео
+      // ШАГ 3: Получаем длительность липсинка
       const tempDir = os.tmpdir()
-      let finalVideoUrl = lipSyncResult.videoUrl
+      let finalVideoUrl = lipSyncResult.output
 
       if (audioUrl && !TEST_MODE) {
         try {
@@ -433,25 +449,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           const audioDuration = await getMediaDuration(audioUrl)
           logger.info('📏 [SIMPLE LIPSYNC] Длительность аудио', { telegramId, duration: audioDuration })
 
-          // Скачиваем исходное видео
-          const originalVideoPath = path.join(tempDir, `original_${Date.now()}.mp4`)
-          await downloadFile(ctx.session.aiReels.firstVideoUrl!, originalVideoPath)
-
-          // Обрезаем видео до длительности аудио
-          const trimmedVideoPath = path.join(tempDir, `trimmed_${Date.now()}.mp4`)
-          await trimVideo(originalVideoPath, trimmedVideoPath, audioDuration)
-
-          // TODO: В реальном проекте здесь был бы вызов к lip-sync провайдеру
-          // с обрезанным видео. Сейчас просто используем тестовый результат.
-          // Если бы был реальный lip-sync, мы бы отправили trimmedVideoPath вместо originalVideoPath
-
-          // Очищаем временные файлы
-          await fs.unlink(originalVideoPath)
-          await fs.unlink(trimmedVideoPath)
-
-          logger.info('✅ [SIMPLE LIPSYNC] Видео обрезано', { telegramId, duration: audioDuration })
+          // Lip-sync видео уже создано нужной длины, обрезка не требуется
+          logger.info('✅ [SIMPLE LIPSYNC] Lip-sync видео уже нужной длины', { telegramId, duration: audioDuration })
         } catch (trimError) {
-          logger.warn('⚠️ [SIMPLE LIPSYNC] Не удалось обрезать видео, используем оригинал', {
+          logger.warn('⚠️ [SIMPLE LIPSYNC] Ошибка при получении длительности', {
             telegramId,
             error: trimError,
           })
@@ -471,7 +472,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         // Скачиваем lip-sync видео если это URL
         const lipSyncVideoPath = path.join(compositionTempDir, `lipsync_${telegramId}_${Date.now()}.mp4`)
-        await downloadFile(lipSyncResult.videoUrl, lipSyncVideoPath)
+        await downloadFile(lipSyncResult.output, lipSyncVideoPath)
 
         // Скачиваем фоновое видео
         const backgroundVideoPath = path.join(compositionTempDir, `background_${telegramId}_${Date.now()}.mp4`)
