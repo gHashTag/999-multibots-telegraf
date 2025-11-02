@@ -19,7 +19,7 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { logger } from '@/utils/logger'
 import { downloadFile } from '@/helpers/file-helpers'
-import { createCircleCompositionWithFaceDetection } from '@/helpers/face-circle-composer'
+import { createAiReelsCircleComposition } from '@/helpers/ai-reels-circle-composer'
 import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-provider'
 import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
 import { exec } from 'child_process'
@@ -459,12 +459,16 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         const backgroundVideoPath = path.join(compositionTempDir, `background_${telegramId}_${Date.now()}.mp4`)
         await downloadFile(ctx.session.aiReels.secondVideoUrl!, backgroundVideoPath)
 
-        // Создаем композицию: фоновое видео + lip-sync в круге
-        await createCircleCompositionWithFaceDetection(
+        // Создаем композицию: фоновое видео + lip-sync в круге (с face detection)
+        await createAiReelsCircleComposition(
           backgroundVideoPath,
           lipSyncVideoPath,
           compositionOutput,
-          photoPath
+          {
+            circleSize: 400,
+            circlePosition: 'bottom-center',
+            duration: 10 // Ограничиваем до 10 секунд для теста
+          }
         )
 
         logger.info('✅ [SIMPLE LIPSYNC] Композиция создана', { telegramId })
