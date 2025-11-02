@@ -121,8 +121,8 @@ export function createGenerateAIReelsFunction(inngest: Inngest) {
           },
         }
 
-        // Импортируем функции из ai-reels-wizard
-        const { createWAN25Task, waitForWAN25Task } = await import('./wan25-helpers')
+        // Импортируем функции из helpers
+        const { createWAN25Task, waitForWAN25Task } = await import('../helpers/wan25-helpers')
 
         const taskResponse = await createWAN25Task(wan25Request)
 
@@ -174,7 +174,7 @@ export function createGenerateAIReelsFunction(inngest: Inngest) {
           )
 
           // Загружаем в Supabase
-          const { uploadVideoToSupabase } = await import('./video-upload-helper')
+          const { uploadVideoToSupabase } = await import('../helpers/video-upload-helper')
           const finalVideoUrl = await uploadVideoToSupabase(
             finalVideoPath,
             `ai-reels-inngest-${telegramId}-${Date.now()}.mp4`,
