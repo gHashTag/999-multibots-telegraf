@@ -1094,5 +1094,206 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       await ctx.reply('❌ Произошла ошибка при запуске парсинга. Попробуйте позже.')
     }
   })
+
+  // === ДОПОЛНИТЕЛЬНЫЕ ОБРАБОТЧИКИ УРОВНЕЙ ===
+
+  // Обработчик для кнопки "🌀 Infinity Морфинг" (уровень 13)
+  bot.hears(
+    [levels[13].title_ru, levels[13].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Infinity Морфинг от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[13].title_ru : levels[13].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      ctx.session.mode = ModeEnum.MorphingWizard
+      await ctx.scene.enter('morphing_wizard')
+    }
+  )
+
+  // Обработчик для кнопки "🎭 Замена лица" (уровень 15)
+  bot.hears(
+    [levels[15].title_ru, levels[15].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Замена лица от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[15].title_ru : levels[15].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      ctx.session.mode = ModeEnum.FaceSwap
+      await ctx.scene.enter('faceSwapWizard')
+    }
+  )
+
+  // Обработчик для кнопки "🦸‍♂️ ИИ Герои" (уровень 111)
+  bot.hears(
+    [levels[111].title_ru, levels[111].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для ИИ Герои от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[111].title_ru : levels[111].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      ctx.session.mode = ModeEnum.AIHeroes
+      await ctx.scene.enter('avatarTransformScene')
+    }
+  )
+
+  // Обработчик для кнопки "🏠 Главное меню" (уровень 104)
+  bot.hears(
+    [levels[104].title_ru, levels[104].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Главное меню от ${ctx.from?.id}`)
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    }
+  )
+
+  // Обработчик для кнопки "💫 Оформить подписку" (уровень 105)
+  bot.hears(
+    [levels[105].title_ru, levels[105].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Оформить подписку от ${ctx.from?.id}`)
+      ctx.session.mode = ModeEnum.SubscriptionScene
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+    }
+  )
+
+  // Обработчик для кнопки "🔍 Мониторинг конкурентов" (уровень 109) - админская
+  bot.hears(
+    [levels[109].title_ru, levels[109].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Мониторинг конкурентов от ${ctx.from?.id}`)
+
+      const userId = ctx.from?.id?.toString()
+      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        logger.warn('Competitor monitoring access denied', {
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ У вас нет доступа к мониторингу конкурентов. Функция доступна только администраторам.'
+            : '❌ You do not have access to competitor monitoring. This feature is admin only.'
+        )
+        return
+      }
+
+      await ctx.scene.leave()
+      await ctx.scene.enter('instagramParserWizard')
+    }
+  )
+
+  // Обработчик для кнопки "🎬 ИИ Рилс" (уровень 110) - админская
+  bot.hears(
+    [levels[110].title_ru, levels[110].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для ИИ Рилс от ${ctx.from?.id}`)
+
+      const userId = ctx.from?.id?.toString()
+      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        logger.warn('AI Reels access denied', {
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ У вас нет доступа к ИИ Рилс. Функция доступна только администраторам.'
+            : '❌ You do not have access to AI Reels. This feature is admin only.'
+        )
+        return
+      }
+
+      await ctx.scene.leave()
+      await ctx.scene.enter('ai_reels_entry')
+    }
+  )
+
+  // Обработчик для кнопки "🌐 Смена языка" (уровень 106)
+  bot.hears(
+    [levels[106].title_ru, levels[106].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Смена языка от ${ctx.from?.id}`)
+
+      // Переключаем язык пользователя
+      const currentLang = ctx.session?.userLanguage
+      const newLang = currentLang === 'ru' ? 'en' : 'ru'
+      ctx.session.userLanguage = newLang
+
+      await ctx.reply(
+        newLang === 'ru'
+          ? '✅ Язык изменён на русский'
+          : '✅ Language changed to English'
+      )
+
+      // Показываем главное меню на новом языке
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    }
+  )
+
+  // === СПЕЦИАЛЬНЫЕ КНОПКИ ДЛЯ ЛИПСИНКА (уровень 14) - только админы ===
+  bot.hears(
+    [levels[14].title_ru, levels[14].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Синхронизация губ от ${ctx.from?.id}`)
+
+      // 🔒 Только для админов
+      const userId = ctx.from?.id
+      const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+      if (!isAdmin) {
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ Кнопка в разработке. Будет доступна в ближайшее время.'
+            : '❌ Button under development. Coming soon.'
+        )
+        return
+      }
+
+      // ✅ ЗАЩИТА: Проверяем подписку
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[14].title_ru : levels[14].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      // Здесь будет код для липсинка, пока заглушка
+      await ctx.reply(
+        isRussianFromState(ctx)
+          ? '🎤 Функция синхронизации губ в разработке. Скоро будет доступна!'
+          : '🎤 Lip sync feature under development. Coming soon!'
+      )
+    }
+  )
 }
 //
