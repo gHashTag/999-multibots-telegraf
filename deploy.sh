@@ -94,7 +94,9 @@ deploy() {
           --name $CONTAINER_NAME \
           --restart unless-stopped \
           --network app-network \
+          -p 3000:3000 \
           -p 2999-3010:2999-3010 \
+          -p 4000:4000 \
           999-agents-telegraf:latest
         echo 'Контейнер запущен'
     "
