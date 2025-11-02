@@ -1,6 +1,8 @@
 import { Markup } from 'telegraf'
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
+import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
+import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
 import { logger } from '@/utils/logger'
@@ -257,6 +259,12 @@ export async function mainMenu({
     telegramLanguage: ctx.from?.language_code,
   })
 
+  const currentSubscription =
+    subscription === null ? SubscriptionType.STARS : subscription
+  console.log(
+    `[mainMenu LOG] Subscription: ${subscription}, Effective: ${currentSubscription}`
+  )
+
   // ✅ ПРОВЕРЯЕМ АСИНХРОННУЮ ФУНКЦИЮ ЯЗЫКА (БД ONLY!)
   const dbLanguage = await getUserLanguage(ctx)
   const isRussianFromDB = await isRussianWithUserChoice(ctx)
@@ -270,23 +278,56 @@ export async function mainMenu({
     sessionExists: !!ctx.session,
   })
 
-  // ✅ ПРОСТАЯ ЛОГИКА: Показываем ВСЕ кнопки ВСЕМ пользователям
+  // ✅ ЛОГИКА ПОДПИСОК: Показываем разные кнопки в зависимости от подписки
   // Проверка подписки происходит только при нажатии на кнопку (в handleMenu)
+
+  // Определяем тип подписки
+  const currentSubscription =
+    subscription === null ? SubscriptionType.STARS : subscription
 
   // Проверяем доступ только для админских кнопок
   const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
   const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
   const hasAdminAccess = isMainAdmin || isHaimStaff
 
-  // Показываем ВСЕ кнопки, кроме тех, которые помечены как admin_only
-  let availableLevels: Level[] = Object.values(levels).filter(level => {
-    // Исключаем кнопку языка (106) из основного меню
-    if (level === levels[106]) {
-      return false
-    }
-    // Включаем только если это не admin_only или у пользователя есть админ доступ
-    return !(level.admin_only && !hasAdminAccess)
-  })
+  // ✅ ЛОГИКА УРОВНЕЙ ПОДПИСОК (как было раньше)
+  const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
+    [SubscriptionType.STARS]: [], // STARS - только служебные кнопки
+    [SubscriptionType.NEUROPHOTO]: [
+      levels[1],   // 🤖 Цифровое тело
+      levels[2],   // 📸 Нейрофото
+      levels[3],   // 🔍 Промпт из фото
+      levels[107], // ⬆️ Увеличить качество фото
+      levels[108], // 📺 Транскрибация Reels
+    ],
+    [SubscriptionType.NEUROVIDEO]: Object.values(levels), // Все
+    [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все для тестера
+  }
+
+  let availableLevels: Level[] = []
+
+  // STARS: показываем ТОЛЬКО служебные кнопки
+  if (currentSubscription === SubscriptionType.STARS) {
+    availableLevels = [
+      levels[100], // 💎 Пополнить баланс
+      levels[101], // 💰 Баланс
+      levels[102], // 👥 Пригласить друга
+      levels[103], // 💬 Техподдержка
+      levels[104], // 🏠 Главное меню
+      levels[105], // 💫 Оформить подписку
+    ]
+  } else {
+    // NEUROPHOTO, NEUROVIDEO, NEUROTESTER: показываем кнопки согласно уровням
+    const baseLevels = subscriptionLevelsMap[currentSubscription] || []
+    availableLevels = baseLevels.filter(level => {
+      // Исключаем кнопку языка (106) из основного меню
+      if (level === levels[106]) {
+        return false
+      }
+      // Включаем только если это не admin_only или у пользователя есть админ доступ
+      return !(level.admin_only && !hasAdminAccess)
+    })
+  }
 
   // Добавляем кнопку мониторинга конкурентов для админов и сотрудников Хаим Групп
   if (userId && levels[109]) {
