@@ -133,37 +133,37 @@ export const handleMenu = async (ctx: MyContext) => {
     })
 
     addAction(12, async () => {
-      console.log('CASE: 🎨 ИИ Фотошоп')
+      logger.debug('CASE: 🎨 ИИ Фотошоп')
       ctx.session.mode = ModeEnum.AiPhotoshop
       await ctx.scene.enter('aiPhotoshopScene')
     })
 
     addAction(13, async () => {
-      console.log('CASE: 🌀 Infinity Морфинг')
+      logger.debug('CASE: 🌀 Infinity Морфинг')
       ctx.session.mode = ModeEnum.MorphingWizard
       await ctx.scene.enter('morphingWizard')
     })
 
     addAction(15, async () => {
-      console.log('CASE: 🎭 Замена лица')
+      logger.debug('CASE: 🎭 Замена лица')
       ctx.session.mode = ModeEnum.FaceSwap
       await ctx.scene.enter('faceSwapWizard')
     })
 
     addAction(107, async () => {
-      console.log('CASE: ⬆️ Увеличить качество фото')
+      logger.debug('CASE: ⬆️ Увеличить качество фото')
       ctx.session.mode = ModeEnum.ImageUpscaler
       await ctx.scene.enter('imageUpscalerWizard')
     })
 
     addAction(108, async () => {
-      console.log('CASE: 📺 Транскрибация Reels')
+      logger.debug('CASE: 📺 Транскрибация Reels')
       ctx.session.mode = ModeEnum.VideoTranscription
       await ctx.scene.enter('videoTranscriptionWizard')
     })
 
     addAction(111, async () => {
-      console.log('CASE: 🦸‍♂️ ИИ Герои')
+      logger.debug('CASE: 🦸‍♂️ ИИ Герои')
       ctx.session.mode = ModeEnum.AIHeroes
       await ctx.scene.enter('avatarTransformScene')
     })
@@ -199,7 +199,7 @@ export const handleMenu = async (ctx: MyContext) => {
     })
 
     addAction(106, async () => {
-      console.log('CASE: 🌐 Смена языка')
+      logger.debug('CASE: 🌐 Смена языка')
       // Переключаем язык пользователя
       const currentLang = ctx.session?.userLanguage
       const newLang = currentLang === 'ru' ? 'en' : 'ru'
@@ -217,7 +217,7 @@ export const handleMenu = async (ctx: MyContext) => {
 
     // Competitor monitoring button handler (level 109)
     addAction(109, async () => {
-      console.log('CASE: 🔍 Мониторинг конкурентов')
+      logger.debug('CASE: 🔍 Мониторинг конкурентов')
 
       // Проверяем права администратора или сотрудников Хаим Групп
       const userId = ctx.from?.id?.toString()
@@ -226,7 +226,7 @@ export const handleMenu = async (ctx: MyContext) => {
       const hasAccess = isMainAdmin || isHaimStaff
 
       if (!hasAccess) {
-        console.log('[handleMenu] Competitor monitoring access denied - not admin/staff', {
+        logger.debug('[handleMenu] Competitor monitoring access denied - not admin/staff', {
           userId,
           isMainAdmin,
           isHaimStaff,
@@ -240,14 +240,14 @@ export const handleMenu = async (ctx: MyContext) => {
       }
 
       // Запускаем Instagram Parser Wizard
-      console.log(`🔄 [handleMenu] Вход в сцену instagramParserWizard`)
+      logger.debug(`🔄 [handleMenu] Вход в сцену instagramParserWizard`)
       await ctx.scene.enter('instagramParserWizard')
-      console.log(`✅ [handleMenu] Завершен вход в сцену instagramParserWizard`)
+      logger.debug(`✅ [handleMenu] Завершен вход в сцену instagramParserWizard`)
     })
 
     // AI Reels button handler (level 110)
     addAction(110, async () => {
-      console.log('CASE: 🎬 ИИ Рилс - Entry Wizard')
+      logger.debug('CASE: 🎬 ИИ Рилс - Entry Wizard')
 
       // Проверяем права администратора или сотрудников Хаим Групп
       const userId = ctx.from?.id?.toString()
@@ -256,7 +256,7 @@ export const handleMenu = async (ctx: MyContext) => {
       const hasAccess = isMainAdmin || isHaimStaff
 
       if (!hasAccess) {
-        console.log('[handleMenu] AI Reels access denied - not admin/staff', {
+        logger.debug('[handleMenu] AI Reels access denied - not admin/staff', {
           userId,
           isMainAdmin,
           isHaimStaff,
@@ -270,9 +270,9 @@ export const handleMenu = async (ctx: MyContext) => {
       }
 
       // Запускаем AI Reels entry wizard (выбор метода)
-      console.log(`🔄 [handleMenu] Вход в сцену ai_reels_entry`)
+      logger.debug(`🔄 [handleMenu] Вход в сцену ai_reels_entry`)
       await ctx.scene.enter('ai_reels_entry')
-      console.log(`✅ [handleMenu] Завершен вход в сцену ai_reels_entry`)
+      logger.debug(`✅ [handleMenu] Завершен вход в сцену ai_reels_entry`)
     })
 
     actions['/invite'] = async () => {
