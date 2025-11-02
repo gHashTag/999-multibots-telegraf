@@ -151,12 +151,6 @@ export const levels: Record<number, Level> = {
     title_ru: '🦸‍♂️ ИИ Герои',
     title_en: '🦸‍♂️ AI Heroes',
   },
-  // Simple Lip-sync - Direct access to Simple Lip-sync wizard
-  112: {
-    title_ru: '✨ Простой Lip-sync',
-    title_en: '✨ Simple Lip-sync',
-    // Доступно всем пользователям с подпиской
-  },
   // Removed: Plus button for adding new models - not needed in production menu
 }
 

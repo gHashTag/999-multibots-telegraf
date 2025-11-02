@@ -168,13 +168,6 @@ export const handleMenu = async (ctx: MyContext) => {
       await ctx.scene.enter('avatarTransformScene')
     })
 
-    addAction(112, async () => {
-      console.log('CASE: ✨ Простой Lip-sync')
-      ctx.session.mode = ModeEnum.SimpleLipSync
-      // Прямой переход в Simple Lip-sync wizard (минуя меню выбора шаблонов)
-      await ctx.scene.enter('simple_lipsync')
-    })
-
     addAction(100, async () => {
       console.log('CASE: 💎 Пополнить баланс')
       ctx.session.mode = ModeEnum.TopUpBalance

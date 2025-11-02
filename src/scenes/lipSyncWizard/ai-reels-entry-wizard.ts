@@ -42,17 +42,13 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Показываем выбор шаблона
-    const template1 = AI_REELS_TEMPLATES[AIReelsTemplate.WAN25]
-    const templateSimple = AI_REELS_TEMPLATES[AIReelsTemplate.SIMPLE_LIPSYNC]
-    const template2 = AI_REELS_TEMPLATES[AIReelsTemplate.INNGEST]
+    const template1 = AI_REELS_TEMPLATES[AIReelsTemplate.WAN25] // Шаблон 1 - Простой Lip-sync
+    const template2 = AI_REELS_TEMPLATES[AIReelsTemplate.INNGEST] // Шаблон 2
 
     await ctx.reply(
       isRu
         ? '🎬 <b>ИИ Рилс — Выбор шаблона</b>\n\n' +
             '🎯 Выберите шаблон генерации:\n\n' +
-            `<b>${templateSimple.name.ru}</b>\n` +
-            `${templateSimple.description.ru}\n` +
-            `${templateSimple.features.ru.join('\n')}\n\n` +
             `<b>${template1.name.ru}</b>\n` +
             `${template1.description.ru}\n` +
             `${template1.features.ru.join('\n')}\n\n` +
@@ -62,9 +58,6 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
             `⚠️ <i>Цена Шаблона 2 зависит от длины lip-sync видео</i>`
         : '🎬 <b>AI Reels - Template Selection</b>\n\n' +
             '🎯 Choose template:\n\n' +
-            `<b>${templateSimple.name.en}</b>\n` +
-            `${templateSimple.description.en}\n` +
-            `${templateSimple.features.en.join('\n')}\n\n` +
             `<b>${template1.name.en}</b>\n` +
             `${template1.description.en}\n` +
             `${template1.features.en.join('\n')}\n\n` +
@@ -75,14 +68,6 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [
-            Markup.button.callback(
-              isRu
-                ? `${templateSimple.icon} ${templateSimple.name.ru}`
-                : `${templateSimple.icon} ${templateSimple.name.en}`,
-              'ai_reels_template_simple_lipsync'
-            ),
-          ],
           [
             Markup.button.callback(
               isRu
@@ -144,31 +129,20 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
     // Обрабатываем только callback_query
     if (!('callback_query' in ctx.update)) {
       // Повторно показываем меню, чтобы пользователь мог нажать кнопки
-      const template1 = AI_REELS_TEMPLATES[AIReelsTemplate.WAN25]
-      const templateSimple = AI_REELS_TEMPLATES[AIReelsTemplate.SIMPLE_LIPSYNC]
-      const template2 = AI_REELS_TEMPLATES[AIReelsTemplate.INNGEST]
+      const template1 = AI_REELS_TEMPLATES[AIReelsTemplate.WAN25] // Шаблон 1 - Простой Lip-sync
+      const template2 = AI_REELS_TEMPLATES[AIReelsTemplate.INNGEST] // Шаблон 2
 
       await ctx.reply(
         isRu
           ? '❌ Пожалуйста, выберите одну из предложенных моделей\n\n' +
-              `<b>${templateSimple.icon} ${templateSimple.name.ru}</b> — ${templateSimple.description.ru}\n\n` +
               `<b>${template1.icon} ${template1.name.ru}</b> — ${template1.description.ru}\n\n` +
               `<b>${template2.icon} ${template2.name.ru}</b> — ${template2.description.ru}`
           : '❌ Please choose one of the models\n\n' +
-              `${templateSimple.icon} ${templateSimple.name.en} — ${templateSimple.description.en}\n\n` +
               `${template1.icon} ${template1.name.en} — ${template1.description.en}\n\n` +
               `${template2.icon} ${template2.name.en} — ${template2.description.en}`,
         {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                isRu
-                  ? `${templateSimple.icon} ${templateSimple.name.ru}`
-                  : `${templateSimple.icon} ${templateSimple.name.en}`,
-                'ai_reels_template_simple_lipsync'
-              ),
-            ],
             [
               Markup.button.callback(
                 isRu
@@ -210,23 +184,12 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.answerCbQuery()
 
-    if (choice === 'ai_reels_template_simple_lipsync') {
-      // Simple Lip-sync
+    if (choice === 'ai_reels_template_wan25') {
+      // Шаблон 1 - Простой Lip-sync
       await ctx.editMessageText(
         isRu
-          ? '✅ Выбран Simple Lip-sync!\n\n⏳ Переходим к настройке...'
-          : '✅ Simple Lip-sync selected!\n\n⏳ Proceeding to setup...'
-      )
-
-      // Переходим к Simple Lip-sync wizard
-      await ctx.scene.enter('simple_lipsync')
-      return
-    } else if (choice === 'ai_reels_template_wan25') {
-      // Шаблон 1
-      await ctx.editMessageText(
-        isRu
-          ? '✅ Выбран Шаблон 1!\n\n⏳ Переходим к настройке...'
-          : '✅ Template 1 selected!\n\n⏳ Proceeding to setup...'
+          ? '✅ Выбран Шаблон 1 - Простой Lip-sync!\n\n⏳ Переходим к настройке...'
+          : '✅ Template 1 - Simple Lip-sync selected!\n\n⏳ Proceeding to setup...'
       )
 
       // Переходим к wizard для Шаблона 1

@@ -11,9 +11,8 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 
 export enum AIReelsTemplate {
-  WAN25 = 'veo31', // Оставляем внутренний идентификатор для совместимости
-  SIMPLE_LIPSYNC = 'simple_lipsync',
-  INNGEST = 'inngest',
+  WAN25 = 'veo31', // Шаблон 1 - Простой Lip-sync
+  INNGEST = 'inngest', // Шаблон 2
 }
 
 export interface AIReelsTemplateConfig {
@@ -44,34 +43,7 @@ export const AI_REELS_TEMPLATES: Record<
   [AIReelsTemplate.WAN25]: {
     id: AIReelsTemplate.WAN25,
     name: {
-      ru: 'Шаблон 1 (Veo 3.1)',
-      en: 'Template 1 (Veo 3.1)',
-    },
-    description: {
-      ru: 'Создание AI Reels видео через Google Veo 3.1. Результат за 2-3 минуты.',
-      en: 'AI Reels video creation via Google Veo 3.1. Result in 2-3 minutes.',
-    },
-    features: {
-      ru: [
-        '🎬 Lip-sync видео',
-        '🎥 Google Veo 3.1 генерация',
-        '🔗 Склеивание в единый ролик',
-        '💰 Стоимость: 240 ⭐',
-      ],
-      en: [
-        '🎬 Lip-sync video',
-        '🎥 Google Veo 3.1 generation',
-        '🔗 Merge into single reel',
-        '💰 Cost: 240 ⭐',
-      ],
-    },
-    icon: '1️⃣',
-    recommended: true,
-  },
-  [AIReelsTemplate.SIMPLE_LIPSYNC]: {
-    id: AIReelsTemplate.SIMPLE_LIPSYNC,
-    name: {
-      ru: 'Шаблон 1 (Simple Lip-sync)',
+      ru: 'Шаблон 1 (Простой Lip-sync)',
       en: 'Template 1 (Simple Lip-sync)',
     },
     description: {
@@ -92,7 +64,7 @@ export const AI_REELS_TEMPLATES: Record<
         '✨ Simple and clear',
       ],
     },
-    icon: '✨',
+    icon: '1️⃣',
     recommended: true,
   },
   [AIReelsTemplate.INNGEST]: {
@@ -186,31 +158,29 @@ export async function showTemplateSelection(ctx: MyContext): Promise<void> {
 export function parseTemplateSelection(text: string): AIReelsTemplate | null {
   const lowerText = text.toLowerCase()
 
-  // Простой Lip-sync
+  // Шаблон 1 (Simple Lip-sync)
   if (
+    lowerText.includes('шаблон 1') ||
+    lowerText.includes('template 1') ||
     lowerText.includes('простой') ||
     lowerText.includes('simple') ||
-    lowerText.includes('lip-sync') ||
-    lowerText.includes('lip sync')
-  ) {
-    return AIReelsTemplate.SIMPLE_LIPSYNC
-  }
-
-  // Полный Template (Veo 3.1)
-  if (
     lowerText.includes('полный') ||
     lowerText.includes('full') ||
     lowerText.includes('wan') ||
-    lowerText.includes('veo')
+    lowerText.includes('veo') ||
+    lowerText.includes('1️⃣')
   ) {
     return AIReelsTemplate.WAN25
   }
 
-  // Надежный (Inngest)
+  // Шаблон 2 (Inngest)
   if (
+    lowerText.includes('шаблон 2') ||
+    lowerText.includes('template 2') ||
     lowerText.includes('надежный') ||
     lowerText.includes('reliable') ||
-    lowerText.includes('inngest')
+    lowerText.includes('inngest') ||
+    lowerText.includes('2️⃣')
   ) {
     return AIReelsTemplate.INNGEST
   }

@@ -24,7 +24,6 @@ export enum ModeEnum {
   AvatarTransform = 'avatar_transform',
   FaceSwap = 'face_swap',
   AIHeroes = 'ai_heroes',
-  SimpleLipSync = 'simple_lipsync',
   Subscribe = 'subscribe',
   TopUpBalance = 'top_up_balance',
   Avatar = 'avatar',
