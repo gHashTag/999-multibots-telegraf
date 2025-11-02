@@ -12,50 +12,55 @@ import { MAIN_MENU } from './constants/sceneIds'
 import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
 import { ADMIN_IDS_ARRAY } from './config'
 
-// Список всех сцен с их ID и названиями
+// ✅ РЕАЛЬНЫЕ ID СЦЕН из registerCommands.ts
 export const ALL_SCENES = [
   // Генерация изображений
-  { sceneId: 'neuro_photo', nameRu: '📸 Нейрофото', nameEn: '📸 NeuroPhoto', needsSubscription: true },
-  { sceneId: 'text_to_image', nameRu: '🖼️ Текст в фото', nameEn: '🖼️ Text to Photo', needsSubscription: true },
-  { sceneId: 'image_upscaler', nameRu: '⬆️ Увеличить качество', nameEn: '⬆️ Upscale Quality', needsSubscription: true },
+  { sceneId: 'neuroPhotoWizard', nameRu: '📸 Нейрофото', nameEn: '📸 NeuroPhoto', needsSubscription: true },
+  { sceneId: 'textToImageWizard', nameRu: '🖼️ Текст в фото', nameEn: '🖼️ Text to Photo', needsSubscription: true },
+  { sceneId: 'imageUpscalerWizard', nameRu: '⬆️ Увеличить качество', nameEn: '⬆️ Upscale Quality', needsSubscription: true },
+  { sceneId: 'imageToPromptWizard', nameRu: '🔍 Промпт из фото', nameEn: '🔍 Prompt from Photo', needsSubscription: true },
 
   // Генерация видео
-  { sceneId: 'image_to_video', nameRu: '🎥 Фото в видео', nameEn: '🎥 Photo to Video', needsSubscription: true },
-  { sceneId: 'text_to_video', nameRu: '🎥 Видео из текста', nameEn: '🎥 Text to Video', needsSubscription: true },
+  { sceneId: 'imageToVideoWizard', nameRu: '🎥 Фото в видео', nameEn: '🎥 Photo to Video', needsSubscription: true },
+  { sceneId: 'textToVideoWizard', nameRu: '🎥 Видео из текста', nameEn: '🎥 Text to Video', needsSubscription: true },
 
   // AI обработка
-  { sceneId: 'ai_photoshop_scene', nameRu: '🎨 ИИ Фотошоп', nameEn: '🎨 AI Photoshop', needsSubscription: true },
-  { sceneId: 'morphing_wizard', nameRu: '🌀 Морфинг', nameEn: '🌀 Morphing', needsSubscription: true },
+  { sceneId: 'aiPhotoshopScene', nameRu: '🎨 ИИ Фотошоп', nameEn: '🎨 AI Photoshop', needsSubscription: true },
+  { sceneId: 'morphingWizard', nameRu: '🌀 Морфинг', nameEn: '🌀 Morphing', needsSubscription: true },
   { sceneId: 'faceSwapWizard', nameRu: '🎭 Замена лица', nameEn: '🎭 Face Swap', needsSubscription: true },
 
   // Аватары
-  { sceneId: 'avatar_transform', nameRu: '🦸‍♂️ ИИ Герои', nameEn: '🦸‍♂️ AI Heroes', needsSubscription: true },
-  { sceneId: 'avatar', nameRu: '🧠 Мозг аватара', nameEn: '🧠 Avatar Brain', needsSubscription: true },
-  { sceneId: 'chat_with_avatar', nameRu: '💭 Чат с аватаром', nameEn: '💭 Chat with Avatar', needsSubscription: true },
+  { sceneId: 'avatarTransformScene', nameRu: '🦸‍♂️ ИИ Герои', nameEn: '🦸‍♂️ AI Heroes', needsSubscription: true },
+  { sceneId: 'avatarBrainWizard', nameRu: '🧠 Мозг аватара', nameEn: '🧠 Avatar Brain', needsSubscription: true },
+  { sceneId: 'chatWithAvatarWizard', nameRu: '💭 Чат с аватаром', nameEn: '💭 Chat with Avatar', needsSubscription: true },
 
   // Голос
   { sceneId: 'voice', nameRu: '🎤 Голос аватара', nameEn: '🎤 Avatar Voice', needsSubscription: true },
-  { sceneId: 'text_to_speech', nameRu: '🎙️ Текст в голос', nameEn: '🎙️ Text to Speech', needsSubscription: true },
+  { sceneId: 'textToSpeechWizard', nameRu: '🎙️ Текст в голос', nameEn: '🎙️ Text to Speech', needsSubscription: true },
 
   // Транскрибация
-  { sceneId: 'video_transcription', nameRu: '📺 Транскрибация Reels', nameEn: '📺 Transcribe Reels', needsSubscription: true },
+  { sceneId: 'videoTranscriptionWizard', nameRu: '📺 Транскрибация Reels', nameEn: '📺 Transcribe Reels', needsSubscription: true },
 
   // Служебные
   { sceneId: 'balanceScene', nameRu: '💰 Баланс', nameEn: '💰 Balance', needsSubscription: true },
   { sceneId: 'paymentScene', nameRu: '💎 Пополнить баланс', nameEn: '💎 Top Up Balance', needsSubscription: true },
-  { sceneId: 'invite_scene', nameRu: '👥 Пригласить друга', nameEn: '👥 Invite Friend', needsSubscription: false },
+  { sceneId: 'inviteScene', nameRu: '👥 Пригласить друга', nameEn: '👥 Invite Friend', needsSubscription: false },
   { sceneId: 'helpScene', nameRu: '💬 Техподдержка', nameEn: '💬 Support', needsSubscription: false },
   { sceneId: 'subscriptionScene', nameRu: '💫 Оформить подписку', nameEn: '💫 Subscribe', needsSubscription: false },
 
   // Админские
-  { sceneId: 'instagram_parser_scene', nameRu: '🔍 Мониторинг конкурентов', nameEn: '🔍 Competitor Monitoring', needsSubscription: true, adminOnly: true },
+  { sceneId: 'instagramParserScene', nameRu: '🔍 Мониторинг конкурентов', nameEn: '🔍 Competitor Monitoring', needsSubscription: true, adminOnly: true },
   { sceneId: 'ai_reels_entry', nameRu: '🎬 ИИ Рилс', nameEn: '🎬 AI Reels', needsSubscription: true, adminOnly: true },
 ]
 
 export async function showSimpleSceneMenu(ctx: MyContext) {
-  const isRu = isRussianFromState(ctx)
-  const telegramId = ctx.from?.id?.toString() || ''
-  const isAdmin = telegramId && ADMIN_IDS_ARRAY.includes(parseInt(telegramId))
+  console.log('🔍 [showSimpleSceneMenu] START', { telegramId: ctx.from?.id })
+  try {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString() || ''
+    const isAdmin = telegramId && ADMIN_IDS_ARRAY.includes(parseInt(telegramId))
+
+    console.log('🔍 [showSimpleSceneMenu] Parsed params:', { isRu, telegramId, isAdmin })
 
   // Создаем кнопки для каждой сцены
   const keyboard: any[][] = []
@@ -80,6 +85,11 @@ export async function showSimpleSceneMenu(ctx: MyContext) {
   await ctx.replyWithHTML(message, {
     reply_markup: Markup.inlineKeyboard(keyboard),
   })
+  console.log('✅ [showSimpleSceneMenu] Menu sent successfully')
+  } catch (error) {
+    console.error('❌ [showSimpleSceneMenu] ERROR:', error)
+    await ctx.reply('❌ Ошибка при показе меню. Попробуйте /start')
+  }
 }
 
 // Обработчик для callback кнопок меню
