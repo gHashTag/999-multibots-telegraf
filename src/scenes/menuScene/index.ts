@@ -11,7 +11,7 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
-import { handleMenu } from '@/handlers/handleMenu'
+// ✅ УДАЛЕН: импорт handleMenu - больше не используется
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
@@ -261,12 +261,12 @@ const menuCommandStep = async (ctx: MyContext) => {
       }
     }
 
-    // Ensure the wizard progresses to handle button clicks
+    // ✅ АРХИТЕКТУРА ИЗМЕНЕНА: После показа меню завершаем сцену
+    // Кнопки обрабатываются глобальными hearsHandlers, а не в сцене
     logger.info(
-      '[menuCommandStep] Calling ctx.wizard.next() to enable button handling'
+      '[menuCommandStep] Menu displayed, leaving scene to allow global handlers'
     )
-    ctx.wizard.next()
-    logger.info(`[menuCommandStep] Current wizard cursor: ${ctx.wizard.cursor}`)
+    await ctx.scene.leave()
   } catch (error) {
     console.error('Error in menu command:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
@@ -529,12 +529,13 @@ const menuNextStep = async (ctx: MyContext) => {
     }
 
     logger.info(
-      `[menuNextStep] User still in menuScene, forwarding to handleMenu: ${text}`
+      `[menuNextStep] User still in menuScene, using global hears handlers for: ${text}`
     )
-    console.log('🔄 [menuNextStep] Calling handleMenu...')
-    await handleMenu(ctx)
-    console.log('🔄 [menuNextStep] handleMenu completed. Current scene:', ctx.scene.current?.id)
-    console.log('🔄 [menuNextStep] Session mode:', ctx.session?.mode)
+    console.log('🔄 [menuNextStep] Allowing global hears handlers to process button...')
+
+    // ✅ ИСПОЛЬЗУЕМ ТОЛЬКО ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ
+    // Дублирующая система handleMenu удалена для избежания конфликтов
+    // Все кнопки обрабатываются единообразно через hearsHandlers.ts
   } else {
     // Handle other update types or leave if unhandled
     logger.warn(
@@ -549,10 +550,13 @@ const menuNextStep = async (ctx: MyContext) => {
   }
 }
 
+// ✅ ИЗМЕНЕНА АРХИТЕКТУРА: menuScene стал одношаговым для избежания конфликтов
+// Кнопки теперь обрабатываются ТОЛЬКО через глобальные hearsHandlers
+// После показа меню сцена завершается, позволяя глобальным обработчикам работать
+
 export const menuScene = new Scenes.WizardScene(
   ModeEnum.MainMenu,
-  menuCommandStep,
-  menuNextStep
+  menuCommandStep
 )
 
 // Обработчик для inline кнопки "Оформить подписку"
