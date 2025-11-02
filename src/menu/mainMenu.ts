@@ -1,8 +1,6 @@
 import { Markup } from 'telegraf'
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
-import { checkFullAccess } from '../handlers/checkFullAccess'
 import { MyContext } from '../interfaces/telegram-bot.interface'
-import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
 import { logger } from '@/utils/logger'
@@ -259,12 +257,6 @@ export async function mainMenu({
     telegramLanguage: ctx.from?.language_code,
   })
 
-  const currentSubscription =
-    subscription === null ? SubscriptionType.STARS : subscription
-  console.log(
-    `[mainMenu LOG] Input subscription: ${subscription}, Effective subscription: ${currentSubscription}`
-  )
-
   // ✅ ПРОВЕРЯЕМ АСИНХРОННУЮ ФУНКЦИЮ ЯЗЫКА (БД ONLY!)
   const dbLanguage = await getUserLanguage(ctx)
   const isRussianFromDB = await isRussianWithUserChoice(ctx)
@@ -278,63 +270,23 @@ export async function mainMenu({
     sessionExists: !!ctx.session,
   })
 
-  let hasFullAccess = checkFullAccess(currentSubscription)
-  console.log(`[mainMenu LOG] hasFullAccess: ${hasFullAccess}`)
+  // ✅ ПРОСТАЯ ЛОГИКА: Показываем ВСЕ кнопки ВСЕМ пользователям
+  // Проверка подписки происходит только при нажатии на кнопку (в handleMenu)
 
-  const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
-    [SubscriptionType.STARS]: [],
-    [SubscriptionType.NEUROPHOTO]: [
-      levels[1],
-      levels[2],
-      levels[3],
-      levels[107],
-      levels[108],
-    ],
-    [SubscriptionType.NEUROVIDEO]: Object.values(levels), // Все
-    [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все возможности для тестера
-  }
-
-  const filterServiceLevels = (lvl: Level) =>
-    lvl !== levels[100] &&
-    lvl !== levels[101] &&
-    lvl !== levels[102] &&
-    lvl !== levels[103] &&
-    lvl !== levels[104] &&
-    lvl !== levels[105] &&
-    lvl !== levels[106] // ✅ ИСКЛЮЧАЕМ кнопку языка из основных кнопок
-
-  let availableLevels: Level[] = []
-
-  // ✅ ПОКАЗЫВАЕМ ВСЕ КНОПКИ ВСЕМ ПОЛЬЗОВАТЕЛЯМ (ИСПРАВЛЕНО)
-  // Проверка доступа будет происходить при нажатии на кнопку
-  hasFullAccess = true
-  console.log(`[mainMenu LOG] Full access for all subscriptions (FIXED)`)
-
-  // Показываем ВСЕ основные функции ВСЕМ пользователям
-  // Фильтруем только служебные кнопки и админские функции
-  // Используем ADMIN_IDS_ARRAY для единой проверки (уже импортирован в начале файла)
-
-  // Проверяем доступ для админов и сотрудников Хаим Групп
+  // Проверяем доступ только для админских кнопок
   const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
   const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
   const hasAdminAccess = isMainAdmin || isHaimStaff
 
-  console.log(
-    `[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`
-  )
-
-  // Показываем кнопки всем пользователям, НЕ зависимо от подписки
-  // ✅ ИСПРАВЛЕНИЕ: НЕ фильтруем служебные кнопки - показываем ВСЕ кнопки ВСЕМ
-  availableLevels = Object.values(levels)
-    .filter(level => {
-      const shouldInclude = !(level.admin_only && !hasAdminAccess)
-      if (level.admin_only) {
-        console.log(
-          `[mainMenu DEBUG] Admin-only level ${level.title_ru}: hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`
-        )
-      }
-      return shouldInclude
-    })
+  // Показываем ВСЕ кнопки, кроме тех, которые помечены как admin_only
+  let availableLevels: Level[] = Object.values(levels).filter(level => {
+    // Исключаем кнопку языка (106) из основного меню
+    if (level === levels[106]) {
+      return false
+    }
+    // Включаем только если это не admin_only или у пользователя есть админ доступ
+    return !(level.admin_only && !hasAdminAccess)
+  })
 
   // Добавляем кнопку мониторинга конкурентов для админов и сотрудников Хаим Групп
   if (userId && levels[109]) {
