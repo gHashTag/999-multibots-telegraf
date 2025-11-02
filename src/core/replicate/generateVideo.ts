@@ -1,4 +1,4 @@
-import { replicate } from '.'
+import replicate from '.'
 import { supabase } from '@/core/supabase'
 import axios, { isAxiosError } from 'axios'
 
