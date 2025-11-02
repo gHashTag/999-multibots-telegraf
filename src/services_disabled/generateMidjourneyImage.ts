@@ -1,6 +1,31 @@
-import { replicate } from '@/core/replicate'
+/**
+ * 🚨 🚨 🚨 CRITICAL WARNING 🚨 🚨 🚨
+ * 
+ * DO NOT MODIFY THIS FILE WITHOUT UNDERSTANDING!
+ * 
+ * Midjourney v7 configuration is protected by commit ae06c56e
+ * 
+ * REQUIREMENTS:
+ * - Model MUST include version hash: adminconteudosflix/midjourney-allcraft:40ab9b32cc4584bc069e22027fffb97e79ed550d4e7c20ed6d5d7ef89e8f08f5
+ * - Without version hash, model returns 404 and breaks Midjourney generation
+ * - All parameters (go_fast, lora_scale, megapixels, etc.) are REQUIRED
+ * 
+ * PROTECTED FILES:
+ * 1. generateMidjourneyImage.ts - DO NOT CHANGE MODEL URL
+ * 2. IMAGES_MODELS.ts - previewImage URL must be valid
+ * 3. imageModelPrices.ts - pricing config
+ * 4. textToImageWizard/index.ts - Create new button logic
+ * 5. generateTextToImageDirect.ts - octet-stream validation
+ * 
+ * Breaking these files will cause Midjourney v7 to fail in production!
+ * 
+ * 🤖 Generated with [Claude Code](https://claude.com/claude-code)
+ * 
+ */
+
 import { logger } from '@/utils/logger'
 import axios from 'axios'
+import replicate from '@/core/replicate'
 
 export interface MidjourneyRequest {
   prompt: string
@@ -73,28 +98,31 @@ export async function generateMidjourneyImage(
     }
 
     // Set number of images
-    input.num_images = request.numImages || 1
+    input.num_outputs = request.numImages || 1
 
-    // Set additional parameters for better quality
-    input.model = 'dev'
+    // Set additional parameters for better quality (matching working example)
     input.go_fast = true
     input.lora_scale = 1
+    input.megapixels = '1'
+    input.num_outputs = request.numImages || 1
     input.output_format = 'webp'
-    input.output_quality = 100
     input.guidance_scale = 3
+    input.output_quality = 100
+    input.prompt_strength = 0.8
+    input.extra_lora_scale = 1
     input.num_inference_steps = 38
 
     logger.info('[Midjourney v7] Final input params', {
       model: 'adminconteudosflix/midjourney-allcraft',
       aspect_ratio: input.aspect_ratio,
-      num_images: input.num_images,
+      num_outputs: input.num_outputs,
       hasImageUrl: !!input.image_url,
     })
 
     // Run Midjourney model via Replicate
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'adminconteudosflix/midjourney-allcraft',
+      'adminconteudosflix/midjourney-allcraft:40ab9b32cc4584bc069e22027fffb97e79ed550d4e7c20ed6d5d7ef89e8f08f5',
       {
         input,
       }
@@ -149,7 +177,8 @@ export async function generateMidjourneyImage(
       try {
         const response = await axios.head(url, { timeout: 5000 })
         const contentType = response.headers['content-type'] || ''
-        if (contentType.startsWith('image/')) {
+        // Accept images or octet-stream (Replicate URLs sometimes return this initially)
+        if (contentType.startsWith('image/') || contentType === 'application/octet-stream') {
           validatedUrls.push(url)
         } else {
           logger.warn('[Midjourney v7] Skipping URL - not an image', {
