@@ -158,7 +158,7 @@ function convertOptimizedStatsToDisplayFormat(stats: OptimizedBalanceStats) {
 }
 
 export const balanceScene = new Scenes.WizardScene<MyContext>(
-  'balanceScene',
+  'balance_scene',
   async (ctx: MyContext) => {
     try {
       console.log('CASE: balanceScene')
@@ -167,7 +167,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
       // Получаем баланс и детализацию через оптимизированную функцию
       const balance = await getUserBalance(userId)
-      
+
       // Пробуем получить данные через оптимизированную функцию
       const optimizedStats = await getUserBalanceStatsOptimized(userId)
       const spendingDetails = optimizedStats
@@ -380,9 +380,27 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
             ],
           },
         })
+
+        // Добавляем reply кнопки для навигации
+        await ctx.reply(
+          isRu ? '👆 Выберите действие выше или используйте кнопки ниже:' : '👆 Choose an action above or use the buttons below:',
+          {
+            reply_markup: {
+              keyboard: [
+                [
+                  isRu ? '❌ Отмена' : '❌ Cancel',
+                  isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                ],
+              ],
+              resize_keyboard: true,
+              one_time_keyboard: false,
+            },
+          }
+        )
       }
 
-      // Не переходим в меню автоматически, ждем действий пользователя
+      // Переходим к следующему шагу для обработки reply кнопок
+      return ctx.wizard.next()
     } catch (error) {
       console.error('Error in balanceScene:', error)
       const isRu = isRussianFromState(ctx)
@@ -393,6 +411,44 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       )
       await ctx.scene.enter(ModeEnum.MainMenu)
     }
+  },
+  // Шаг 2: Обработка reply кнопок
+  async (ctx: MyContext) => {
+    const isRu = isRussianFromState(ctx)
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      return
+    }
+
+    const text = ctx.message.text
+
+    // Отмена
+    if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+      await ctx.reply(
+        isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+        { reply_markup: { remove_keyboard: true } }
+      )
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Главное меню
+    if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+      await ctx.reply(
+        isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
+        { reply_markup: { remove_keyboard: true } }
+      )
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    // Игнорируем другие сообщения
+    await ctx.reply(
+      isRu ? '👆 Пожалуйста, используйте кнопки выше' : '👆 Please use the buttons above',
+      { reply_markup: { remove_keyboard: true } }
+    )
+    await ctx.scene.leave()
+    return ctx.scene.enter(ModeEnum.MainMenu)
   }
 )
 
