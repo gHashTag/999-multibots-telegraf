@@ -96,8 +96,8 @@ import { isRussian } from '@/helpers/language'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { registerPaymentActions } from './handlers/paymentActions'
-// ✅ ПОДКЛЮЧАЕМ setupHearsHandlers для обработки всех кнопок меню
-import { setupHearsHandlers } from './hearsHandlers'
+// setupHearsHandlers отключен - используется только handleMenu из menuScene
+// import { setupHearsHandlers } from './hearsHandlers'
 //https://github.com/telegraf/telegraf/issues/705
 
 // Проверяем что textToVideoWizard загружен
@@ -1492,9 +1492,9 @@ If not, continue on your own and click the "I myself" button`
     logger.info('🔧 [MULTI-PHOTO] Registering multi-photo action handlers')
     registerMultiPhotoActions(bot)
 
-    // ✅ РЕГИСТРИРУЕМ HEARS HANDLERS для всех кнопок меню
-    logger.info('🔧 [HEARS] Registering global hears handlers for menu buttons')
-    setupHearsHandlers(bot)
+    // setupHearsHandlers отключен - используется только handleMenu
+    // logger.info('🔧 [HEARS] Registering global hears handlers for menu buttons')
+    // setupHearsHandlers(bot)
 
     console.log('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
     logger.info('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
