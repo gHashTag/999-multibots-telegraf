@@ -1,10 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { UserModel } from '../../interfaces'
 
-import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
-// ✅ IMPORT MULTI-PHOTO SUPPORT
-import { generateNeuroPhotoMulti } from '@/services/generateNeuroPhotoMulti'
-import { detectMultiPhotoUpload, handleMultiPhotoNeurophoto, checkMultiPhotoEvents } from '@/handlers/multiPhotoHandler'
+// ✅ УДАЛЯЕМ СТАРЫЕ ИМПОРТЫ - теперь используем Inngest!
 import {
   getLatestUserModel,
   getReferalsCountAndUserData,
@@ -25,40 +22,35 @@ import { Scenes } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
-// ✅ ЗАМЕНЯЕМ НА НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-// ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
 import { getBotNameByToken } from '@/core/bot'
 
+// ✅ НОВЫЙ ИМПОРТ - Inngest!
+import { sendInngestEvent, INNGEST_EVENTS } from '@/inngest_app/inngestClient'
+import { logger } from '@/utils/logger'
+
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
-  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
   try {
-    console.log('CASE 1: neuroPhotoConversationV2')
-
-    // ✅ CHECK FOR PENDING MULTI-PHOTO EVENTS
-    const hasMultiPhotoEvent = await checkMultiPhotoEvents(ctx)
-    if (hasMultiPhotoEvent) {
-      console.log('✅ Multi-photo event detected, handled')
-      return
-    }
+    logger.info('🖼️ [NEURO-PHOTO-V2] Starting conversation', {
+      userId: ctx.from?.id,
+    })
 
     const { telegramId } = await getUserInfo(ctx)
 
     // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
     const botToken = ctx.telegram.token
     const { bot_name } = getBotNameByToken(botToken)
-    console.log(
-      `🤖 Определен бот V2: ${bot_name} для пользователя ${telegramId}`
-    )
+
+    logger.info('🤖 [NEURO-PHOTO-V2] Bot determined', {
+      bot_name,
+      telegramId,
+    })
 
     // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ВСЕХ БОТОВ - ИЩЕМ И BFL И REPLICATE МОДЕЛИ
     let userModel = null
 
-    console.log(`🔍 [V2] Ищем модель для бота: ${bot_name}, пользователь: ${telegramId}`)
-
-    // Сначала пробуем replicate модели (они более распространены)
-    console.log('🔄 Пробуем replicate модели...')
+    // Сначала пробуем replicate модели
     if (bot_name === 'HaimGroupMedia_bot') {
       userModel = await getLatestUserModelForHaim(
         Number(telegramId),
@@ -71,7 +63,9 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     // Если нет replicate модели, пробуем BFL
     if (!userModel) {
-      console.log('🔄 Replicate модель не найдена, пробуем BFL')
+      logger.info('🔄 [NEURO-PHOTO-V2] Replicate model not found, trying BFL', {
+        telegramId,
+      })
       if (bot_name === 'HaimGroupMedia_bot') {
         userModel = await getLatestUserModelForHaim(
           Number(telegramId),
@@ -83,30 +77,22 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       }
     }
 
-    console.log('userModel V2', userModel)
-
-    // 🔍 ДИАГНОСТИКА: Проверяем все модели пользователя для диагностики
-    try {
-      const { data: allModels, error: allModelsError } = await supabase
-        .from('model_trainings')
-        .select('id, api, status, model_name, bot_name, created_at')
-        .eq('telegram_id', telegramId)
-        .order('created_at', { ascending: false })
-        .limit(10)
-
-      if (allModels && allModels.length > 0) {
-        console.log(`🔍 [DIAGNOSTIC] Найдено ${allModels.length} моделей для пользователя ${telegramId}:`, allModels)
-      } else {
-        console.log(`❌ [DIAGNOSTIC] Модели НЕ НАЙДЕНЫ для пользователя ${telegramId}`)
+    // ✅ ОБРАБАТЫВАЕМ ОБЩИЕ МОДЕЛИ
+    let modelToUse = userModel
+    const isSharedModel = userModel?.id?.toString().startsWith('shared_')
+    if (isSharedModel) {
+      modelToUse = {
+        ...userModel,
+        id: userModel.id.toString().replace('shared_', ''),
       }
-    } catch (diagError) {
-      console.error(`❌ [DIAGNOSTIC] Ошибка при получении всех моделей:`, diagError)
+      logger.info('✅ [NEURO-PHOTO-V2] Using shared model', {
+        modelName: userModel.model_name,
+      })
     }
 
-    const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
-
     if (!userModel) {
-      // Более детальное сообщение об ошибке с информацией о боте
+      const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
+
       await ctx.reply(
         isRu
           ? `❌ У вас нет обученных моделей для этого бота (${bot_name}).\n\nВозможно, модели были созданы на другом боте или с другим API.\n\nИспользуйте команду "🤖 Цифровое тело аватара", чтобы создать новую модель.`
@@ -127,45 +113,33 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       return ctx.scene.leave()
     }
 
-    // ✅ ОБРАБАТЫВАЕМ ОБЩИЕ МОДЕЛИ (УБИРАЕМ ПРЕФИКС shared_ ДЛЯ ИСПОЛЬЗОВАНИЯ)
-    let modelToUse = userModel
-    const isSharedModel = userModel.id.toString().startsWith('shared_')
-    if (isSharedModel) {
-      modelToUse = {
-        ...userModel,
-        id: userModel.id.toString().replace('shared_', ''), // Убираем префикс для использования
-      }
-      console.log(`✅ Используем общую модель V2: ${userModel.model_name}`)
-    }
-
     ctx.session.userModel = modelToUse as UserModel
 
     await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
 
-    // ✅ STANDARD MESSAGE - MULTI-PHOTO MOVED TO AI PHOTOSHOP
-    // Multi-photo functionality moved to AI Photoshop scene
-
     const isCancel = await handleHelpCancel(ctx)
-    console.log('isCancel', isCancel)
     if (isCancel) {
       return ctx.scene.leave()
     }
-    console.log('CASE: neuroPhotoConversation V2 next')
 
     return ctx.wizard.next()
   } catch (error) {
-    console.error('Error in neuroPhotoConversationStep V2:', error)
+    logger.error('❌ [NEURO-PHOTO-V2] Error in conversation step', {
+      error: error instanceof Error ? error.message : String(error),
+      userId: ctx.from?.id,
+    })
     await sendGenericErrorMessage(ctx, isRu, error as Error)
     throw error
   }
 }
 
 const neuroPhotoPromptStep = async (ctx: MyContext) => {
-  console.log('CASE 2: neuroPhotoPromptStep')
-  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+  logger.info('📝 [NEURO-PHOTO-V2] Prompt step', {
+    userId: ctx.from?.id,
+  })
+
   const isRu = isRussianFromState(ctx)
   const promptMsg = ctx.message
-  console.log(promptMsg, 'promptMsg')
 
   if (promptMsg && 'text' in promptMsg) {
     const promptText = promptMsg.text
@@ -174,202 +148,210 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
     if (isCancel) {
       return ctx.scene.leave()
-    } else {
-      ctx.session.prompt = promptText
+    }
 
-      const trigger_word = ctx.session.userModel.trigger_word as string
+    ctx.session.prompt = promptText
 
-      const userId = ctx.from?.id
-      if (!userId) {
-        console.error('❌ User ID не найден')
-        return
+    const trigger_word = ctx.session.userModel.trigger_word as string
+    const userId = ctx.from?.id
+
+    if (!userId) {
+      logger.error('❌ [NEURO-PHOTO-V2] User ID not found')
+      return
+    }
+
+    if (trigger_word) {
+      const userData = await getUserData(userId.toString())
+      let genderPromptPart = 'person'
+      if (userData?.gender === 'female') {
+        genderPromptPart = 'female'
+      } else if (userData?.gender === 'male') {
+        genderPromptPart = 'male'
       }
-      if (trigger_word) {
-        const userData = await getUserData(userId.toString())
-        let genderPromptPart = 'person'
-        if (userData?.gender === 'female') {
-          genderPromptPart = 'female'
-        } else if (userData?.gender === 'male') {
-          genderPromptPart = 'male'
-        }
-        const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
 
-        console.log(
-          `[neuroPhotoWizardV2] Determined gender for prompt: ${genderPromptPart}`
-        )
+      const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
 
-        const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
+      const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
 
-        // ✅ CHECK FOR MULTI-IMAGE PROCESSING
+      // ✅ НОВАЯ ЛОГИКА С INNGEST - Вместо прямого вызова API!
+      try {
+        // Проверяем multi-photo
         const multiPhotoUrls = ctx.session?.multiPhotoUrls
         const multiPhotoCount = ctx.session?.multiPhotoCount
 
         if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
-          console.log('🎨 Processing multi-image neurophoto series')
-          await generateNeuroPhotoMulti(
-            fullPrompt,
-            ctx.session.userModel.model_url as any,
-            multiPhotoCount,
-            userId.toString(),
-            ctx,
-            ctx.botInfo?.username,
-            undefined,
-            multiPhotoUrls // Pass multiple image URLs
+          logger.info('🎨 [NEURO-PHOTO-V2] Processing multi-image', {
+            userId,
+            count: multiPhotoCount,
+          })
+
+          // ✅ Отправляем событие в Inngest для multi-photo
+          const eventId = await sendInngestEvent(
+            INNGEST_EVENTS.NEURO_IMAGE_GENERATION,
+            {
+              prompt: fullPrompt,
+              modelUrl: ctx.session.userModel.model_url,
+              count: multiPhotoCount,
+              userId: userId.toString(),
+              telegramId: userId.toString(),
+              botUsername: ctx.botInfo?.username,
+              multiPhotoUrls,
+              metadata: {
+                type: 'multi-photo',
+                triggerWord: trigger_word,
+                gender: genderPromptPart,
+              },
+            }
           )
 
-          // Clear multi-photo session data
+          // ✅ Мгновенно отвечаем пользователю
+          await ctx.reply(
+            isRu
+              ? `⏳ Создаю ${multiPhotoCount} изображения...\n\nID задачи: ${eventId.substring(0, 8)}...\n\nВы получите уведомление когда будет готово! 🎉`
+              : `⏳ Creating ${multiPhotoCount} images...\n\nTask ID: ${eventId.substring(0, 8)}...\n\nYou'll receive a notification when ready! 🎉`,
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: isRu ? '🔄 Проверить статус' : '🔄 Check status',
+                      callback_data: `status_${eventId}`,
+                    },
+                  ],
+                  [
+                    {
+                      text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                      callback_data: 'go_main_menu',
+                    },
+                  ],
+                ],
+              },
+            }
+          )
+
+          // Очищаем multi-photo данные
           ctx.session.multiPhotoUrls = undefined
           ctx.session.multiPhotoCount = undefined
           ctx.session.awaitingMultiPhotoConfirmation = false
         } else {
-          console.log('🎨 Processing single neurophoto')
-          await generateNeuroPhotoHybrid(
-            fullPrompt,
-            ctx.session.userModel.model_url as any,
-            1,
-            userId.toString(),
-            ctx,
-            ctx.botInfo?.username
+          logger.info('🎨 [NEURO-PHOTO-V2] Processing single image', {
+            userId,
+          })
+
+          // ✅ Отправляем событие в Inngest для single photo
+          const eventId = await sendInngestEvent(
+            INNGEST_EVENTS.NEURO_IMAGE_GENERATION,
+            {
+              prompt: fullPrompt,
+              modelUrl: ctx.session.userModel.model_url,
+              count: 1,
+              userId: userId.toString(),
+              telegramId: userId.toString(),
+              botUsername: ctx.botInfo?.username,
+              metadata: {
+                type: 'single-photo',
+                triggerWord: trigger_word,
+                gender: genderPromptPart,
+              },
+            }
+          )
+
+          // ✅ Мгновенно отвечаем пользователю
+          await ctx.reply(
+            isRu
+              ? `⏳ Создаю изображение...\n\nID задачи: ${eventId.substring(0, 8)}...\n\nВы получите уведомление когда будет готово! 🎉`
+              : `⏳ Creating image...\n\nTask ID: ${eventId.substring(0, 8)}...\n\nYou'll receive a notification when ready! 🎉`,
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: isRu ? '🔄 Проверить статус' : '🔄 Check status',
+                      callback_data: `status_${eventId}`,
+                    },
+                  ],
+                  [
+                    {
+                      text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                      callback_data: 'go_main_menu',
+                    },
+                  ],
+                ],
+              },
+            }
           )
         }
 
         ctx.wizard.next()
         return
-      } else {
-        await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
+      } catch (error) {
+        logger.error('❌ [NEURO-PHOTO-V2] Failed to send Inngest event', {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+        })
+
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при запуске генерации. Попробуйте позже.'
+            : '❌ An error occurred while starting generation. Please try again later.'
+        )
         ctx.scene.leave()
         return
       }
+    } else {
+      await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
+      ctx.scene.leave()
+      return
     }
   }
 }
 
 const neuroPhotoButtonStep = async (ctx: MyContext) => {
-  console.log('CASE 3: neuroPhotoButtonStep')
+  logger.info('🔘 [NEURO-PHOTO-V2] Button step', {
+    userId: ctx.from?.id,
+  })
+
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
-    console.log(`CASE: Нажата кнопка ${text}`)
-    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+
     const isRu = isRussianFromState(ctx)
 
-    // НОВАЯ ОБРАБОТКА: кнопка "🆕 Новый промпт"
+    // Обработка кнопки "🆕 Новый промпт"
     if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {
-      console.log('CASE: Новый промпт - возврат к началу сцены V2')
-      // Сбрасываем состояние и возвращаемся к первому шагу
+      logger.info('🔄 [NEURO-PHOTO-V2] New prompt requested', {
+        userId: ctx.from?.id,
+      })
       ctx.session.prompt = undefined
-      ctx.wizard.selectStep(0) // Возвращаемся к neuroPhotoConversationStep
-      // Явно вызываем первый шаг
+      ctx.wizard.selectStep(0)
       return neuroPhotoConversationStep(ctx)
     }
 
     // Обработка кнопок "Улучшить промпт" и "Изменить размер"
     if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
-      console.log('CASE: Улучшить промпт')
       await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
       return
     }
 
     if (text === '📐 Изменить размер' || text === '📐 Change size') {
-      console.log('CASE: Изменить размер')
       await ctx.scene.enter(ModeEnum.SizeWizard)
       return
     }
 
     if (text === levels[104].title_ru || text === levels[104].title_en) {
-      console.log('CASE: Главное меню')
       await handleMenu(ctx)
       return
     }
 
     await handleMenu(ctx)
-
-    // Обработка кнопок с числами
-    const numImages = parseInt(text[0])
-    const prompt = ctx.session.prompt
-    const userId = ctx.from?.id
-    const trigger_word = ctx.session.userModel.trigger_word as string
-
-    if (!userId) {
-      console.error('❌ User ID не найден')
-      return
-    }
-    if (!ctx.botInfo?.username) {
-      console.error('❌ Bot username не найден')
-      return
-    }
-
-    // ИСПРАВЛЕНИЕ: Получаем пол пользователя для правильного промпта
-    const userData = await getUserData(userId.toString())
-    let genderPromptPart = 'person'
-    if (userData?.gender === 'female') {
-      genderPromptPart = 'female'
-    } else if (userData?.gender === 'male') {
-      genderPromptPart = 'male'
-    }
-
-    console.log(
-      `[neuroPhotoWizardV2 ButtonStep] Determined gender for prompt: ${genderPromptPart}`
-    )
-
-    const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
-
-    // ПРАВИЛЬНЫЙ промпт с учетом пола
-    const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
-
-    const generate = async (num: number) => {
-      // ✅ CHECK FOR MULTI-IMAGE PROCESSING
-      const multiPhotoUrls = ctx.session?.multiPhotoUrls
-      const multiPhotoCount = ctx.session?.multiPhotoCount
-
-      if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
-        console.log(`🎨 Generating ${num} images for each of ${multiPhotoCount} input photos`)
-        await generateNeuroPhotoMulti(
-          fullPrompt,
-          ctx.session.userModel.model_url as any,
-          num,
-          userId.toString(),
-          ctx,
-          ctx.botInfo?.username,
-          undefined,
-          multiPhotoUrls // Pass multiple image URLs
-        )
-
-        // Clear multi-photo session data
-        ctx.session.multiPhotoUrls = undefined
-        ctx.session.multiPhotoCount = undefined
-        ctx.session.awaitingMultiPhotoConfirmation = false
-      } else {
-        console.log(`🎨 Generating ${num} single neurophoto(s)`)
-        await generateNeuroPhotoHybrid(
-          fullPrompt,
-          ctx.session.userModel.model_url as any,
-          num,
-          userId.toString(),
-          ctx,
-          ctx.botInfo?.username
-        )
-      }
-    }
-
-    if (numImages >= 1 && numImages <= 4) {
-      await generate(numImages)
-      return ctx.scene.leave()
-    } else {
-      const { subscriptionType } = await getReferalsCountAndUserData(
-        ctx.from?.id?.toString() || ''
-      )
-      await mainMenu({
-        isRu,
-        subscription: subscriptionType,
-        ctx,
-      })
-    }
   }
 }
 
+// ✅ СОЗДАЕМ СЦЕНУ С НОВОЙ ЛОГИКОЙ
 export const neuroPhotoWizardV2 = new Scenes.WizardScene<MyContext>(
   'neuro_photo_v2',
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep
 )
+
+export default neuroPhotoWizardV2

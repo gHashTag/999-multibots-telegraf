@@ -74,19 +74,25 @@ export type InngestEventName = typeof INNGEST_EVENTS[keyof typeof INNGEST_EVENTS
 export async function sendInngestEvent(
   eventName: InngestEventName,
   data: any
-): Promise<void> {
+): Promise<string> {
   try {
     logger.info(`📤 [INNGEST] Sending event: ${eventName}`, {
       eventName,
       dataKeys: Object.keys(data),
     })
 
-    await inngest.send({
+    const response = await inngest.send({
       name: eventName,
       data,
+      // Генерируем уникальный ID для отслеживания
+      id: `${eventName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     })
 
-    logger.info(`✅ [INNGEST] Event sent: ${eventName}`)
+    const eventId = response.ids[0]
+
+    logger.info(`✅ [INNGEST] Event sent: ${eventName} (ID: ${eventId})`)
+
+    return eventId
   } catch (error) {
     logger.error(`❌ [INNGEST] Failed to send event: ${eventName}`, {
       error: error instanceof Error ? error.message : String(error),

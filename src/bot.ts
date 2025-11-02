@@ -167,6 +167,10 @@ async function initializeBots() {
     // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
     setupNotificationProcessor(bot)
 
+    // ✅ ДОБАВЛЯЕМ WEBHOOK HANDLER ДЛЯ INNGEST
+    const { createInngestWebhookHandler } = await import('./handlers/inngestWebhookHandler')
+    createInngestWebhookHandler(bot)
+
     registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
