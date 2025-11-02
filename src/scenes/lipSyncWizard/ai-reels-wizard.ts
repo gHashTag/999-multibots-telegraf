@@ -18,6 +18,58 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { logger } from '@/utils/logger'
+import { downloadFile } from '@/helpers/file-helpers'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import path from 'path'
+import fs from 'fs/promises'
+import os from 'os'
+
+const execAsync = promisify(exec)
+
+/**
+ * Получает длительность медиафайла (видео или аудио) в секундах
+ */
+async function getMediaDuration(fileUrl: string): Promise<number> {
+  try {
+    const tempDir = os.tmpdir()
+    const tempPath = path.join(tempDir, `temp_${Date.now()}.mp4`)
+
+    await downloadFile(fileUrl, tempPath)
+
+    const { stdout } = await execAsync(
+      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${tempPath}"`
+    )
+
+    const duration = parseFloat(stdout.trim())
+    await fs.unlink(tempPath)
+
+    return duration
+  } catch (error) {
+    logger.error('❌ Failed to get media duration', { error, fileUrl })
+    throw error
+  }
+}
+
+/**
+ * Обрезает видео до нужной длительности
+ */
+async function trimVideo(
+  inputPath: string,
+  outputPath: string,
+  targetDuration: number
+): Promise<void> {
+  logger.info('✂️ Trimming video to target duration', {
+    inputPath,
+    targetDuration,
+  })
+
+  // Обрезаем видео до нужной длительности
+  const command = `ffmpeg -i "${inputPath}" -t ${targetDuration} -c copy -y "${outputPath}"`
+  await execAsync(command)
+
+  logger.info('✅ Video trimmed successfully')
+}
 
 // Тестовые данные для моков
 const TEST_ASSETS = {
@@ -28,6 +80,9 @@ const TEST_ASSETS = {
 
 // Простая цена - только lip-sync, без Veo 3.1
 const SIMPLE_LIPSYNC_PRICE = 120 // звезд (вдвое дешевле!)
+
+// Режим тестирования - бесплатно для проверки монтажа
+const TEST_MODE = process.env.NODE_ENV === 'test' || process.env.LIPSYNC_TEST_MODE === 'true'
 
 export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_wizard',
@@ -207,44 +262,55 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    logger.info('💰 [SIMPLE LIPSYNC] Проверка баланса', { telegramId })
+    logger.info('💰 [SIMPLE LIPSYNC] Проверка баланса', { telegramId, isTestMode: TEST_MODE })
 
-    // Проверяем баланс
-    const userBalance = await getUserBalance(telegramId)
-    if (!userBalance || userBalance.balance < SIMPLE_LIPSYNC_PRICE) {
+    // В тестовом режиме не проверяем баланс и не списываем деньги
+    if (!TEST_MODE) {
+      // Проверяем баланс
+      const userBalance = await getUserBalance(telegramId)
+      if (!userBalance || userBalance.balance < SIMPLE_LIPSYNC_PRICE) {
+        await ctx.reply(
+          isRu
+            ? `❌ Недостаточно звезд для создания lip-sync.\n\n` +
+              `Требуется: ${SIMPLE_LIPSYNC_PRICE}⭐\n` +
+              `Ваш баланс: ${userBalance?.balance || 0}⭐\n\n` +
+              `Пополните баланс через /start → 💎 Пополнить баланс`
+            : `❌ Insufficient stars to create lip-sync.\n\n` +
+              `Required: ${SIMPLE_LIPSYNC_PRICE}⭐\n` +
+              `Your balance: ${userBalance?.balance || 0}⭐\n\n` +
+              `Top up via /start → 💎 Top up balance`
+        )
+        return ctx.scene.leave()
+      }
+
+      // Списываем деньги
+      await updateUserBalance(
+        telegramId,
+        SIMPLE_LIPSYNC_PRICE,
+        PaymentType.MONEY_OUTCOME,
+        'Simple Lip-sync generation',
+        { bot_name: ctx.botInfo?.username }
+      )
+
+      logger.info('💰 [SIMPLE LIPSYNC] Деньги списаны', {
+        telegramId,
+        amount: SIMPLE_LIPSYNC_PRICE,
+      })
+
       await ctx.reply(
         isRu
-          ? `❌ Недостаточно звезд для создания lip-sync.\n\n` +
-            `Требуется: ${SIMPLE_LIPSYNC_PRICE}⭐\n` +
-            `Ваш баланс: ${userBalance?.balance || 0}⭐\n\n` +
-            `Пополните баланс через /start → 💎 Пополнить баланс`
-          : `❌ Insufficient stars to create lip-sync.\n\n` +
-            `Required: ${SIMPLE_LIPSYNC_PRICE}⭐\n` +
-            `Your balance: ${userBalance?.balance || 0}⭐\n\n` +
-            `Top up via /start → 💎 Top up balance`
+          ? `💳 Списано ${SIMPLE_LIPSYNC_PRICE}⭐\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Это займет 1-2 минуты...`
+          : `💳 Charged ${SIMPLE_LIPSYNC_PRICE}⭐\n\n🎬 Starting lip-sync video creation...\n⏳ This will take 1-2 minutes...`
       )
-      return ctx.scene.leave()
+    } else {
+      // Тестовый режим
+      await ctx.reply(
+        isRu
+          ? `🧪 <b>ТЕСТОВЫЙ РЕЖИМ</b> - Бесплатно!\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Тестирование монтажа...`
+          : `🧪 <b>TEST MODE</b> - Free!\n\n🎬 Starting lip-sync video creation...\n⏳ Testing composition...`,
+        { parse_mode: 'HTML' }
+      )
     }
-
-    // Списываем деньги
-    await updateUserBalance(
-      telegramId,
-      SIMPLE_LIPSYNC_PRICE,
-      PaymentType.MONEY_OUTCOME,
-      'Simple Lip-sync generation',
-      { bot_name: ctx.botInfo?.username }
-    )
-
-    logger.info('💰 [SIMPLE LIPSYNC] Деньги списаны', {
-      telegramId,
-      amount: SIMPLE_LIPSYNC_PRICE,
-    })
-
-    await ctx.reply(
-      isRu
-        ? `💳 Списано ${SIMPLE_LIPSYNC_PRICE}⭐\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Это займет 1-2 минуты...`
-        : `💳 Charged ${SIMPLE_LIPSYNC_PRICE}⭐\n\n🎬 Starting lip-sync video creation...\n⏳ This will take 1-2 minutes...`
-    )
 
     try {
       // ШАГ 1: Создаем TTS аудио (если текст)
@@ -284,13 +350,50 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         throw new Error('Lip-sync generation failed')
       }
 
+      // ШАГ 3: Получаем длительность липсинка и обрезаем оригинальное видео
+      const tempDir = os.tmpdir()
+      let finalVideoUrl = lipSyncResult.videoUrl
+
+      if (audioUrl && !TEST_MODE) {
+        try {
+          logger.info('✂️ [SIMPLE LIPSYNC] Обрезка видео по длине липсинка', { telegramId })
+
+          // Получаем длительность аудио (липсинка)
+          const audioDuration = await getMediaDuration(audioUrl)
+          logger.info('📏 [SIMPLE LIPSYNC] Длительность аудио', { telegramId, duration: audioDuration })
+
+          // Скачиваем исходное видео
+          const originalVideoPath = path.join(tempDir, `original_${Date.now()}.mp4`)
+          await downloadFile(ctx.session.aiReels.videoUrl!, originalVideoPath)
+
+          // Обрезаем видео до длительности аудио
+          const trimmedVideoPath = path.join(tempDir, `trimmed_${Date.now()}.mp4`)
+          await trimVideo(originalVideoPath, trimmedVideoPath, audioDuration)
+
+          // TODO: В реальном проекте здесь был бы вызов к lip-sync провайдеру
+          // с обрезанным видео. Сейчас просто используем тестовый результат.
+          // Если бы был реальный lip-sync, мы бы отправили trimmedVideoPath вместо originalVideoPath
+
+          // Очищаем временные файлы
+          await fs.unlink(originalVideoPath)
+          await fs.unlink(trimmedVideoPath)
+
+          logger.info('✅ [SIMPLE LIPSYNC] Видео обрезано', { telegramId, duration: audioDuration })
+        } catch (trimError) {
+          logger.warn('⚠️ [SIMPLE LIPSYNC] Не удалось обрезать видео, используем оригинал', {
+            telegramId,
+            error: trimError,
+          })
+        }
+      }
+
       logger.info('✅ [SIMPLE LIPSYNC] Lip-sync готово', {
         telegramId,
-        resultUrl: lipSyncResult.videoUrl,
+        resultUrl: finalVideoUrl,
       })
 
       // Сохраняем в session
-      ctx.session.aiReels.resultVideoUrl = lipSyncResult.videoUrl
+      ctx.session.aiReels.resultVideoUrl = finalVideoUrl
 
       await ctx.reply(
         isRu
@@ -300,11 +403,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       // Отправляем результат
       await ctx.replyWithVideo(
-        { url: lipSyncResult.videoUrl },
+        { url: finalVideoUrl },
         {
           caption: isRu
-            ? '🎬 Ваш lip-sync готов!\n✨ Приятного просмотра!'
-            : '🎬 Your lip-sync is ready!\n✨ Enjoy!',
+            ? `🎬 Ваш lip-sync готов!\n${TEST_MODE ? '🧪 Тестовый режим' : ''}\n✨ Приятного просмотра!`
+            : `🎬 Your lip-sync is ready!\n${TEST_MODE ? '🧪 Test mode' : ''}\n✨ Enjoy!`,
         }
       )
 
@@ -320,24 +423,36 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       logger.error('❌ [SIMPLE LIPSYNC] Ошибка генерации', {
         error,
         telegramId,
+        isTestMode: TEST_MODE,
       })
 
-      // Возвращаем деньги
-      await updateUserBalance(
-        telegramId,
-        SIMPLE_LIPSYNC_PRICE,
-        PaymentType.MONEY_INCOME,
-        'Simple Lip-sync refund - generation error',
-        { bot_name: ctx.botInfo?.username }
-      )
+      // Возвращаем деньги только если не тестовый режим
+      if (!TEST_MODE) {
+        await updateUserBalance(
+          telegramId,
+          SIMPLE_LIPSYNC_PRICE,
+          PaymentType.MONEY_INCOME,
+          'Simple Lip-sync refund - generation error',
+          { bot_name: ctx.botInfo?.username }
+        )
 
-      await ctx.reply(
-        isRu
-          ? `❌ Произошла ошибка при создании lip-sync.\n` +
-            `Средства возвращены (${SIMPLE_LIPSYNC_PRICE}⭐).`
-          : `❌ An error occurred while creating lip-sync.\n` +
-            `Funds refunded (${SIMPLE_LIPSYNC_PRICE}⭐).`
-      )
+        await ctx.reply(
+          isRu
+            ? `❌ Произошла ошибка при создании lip-sync.\n` +
+              `Средства возвращены (${SIMPLE_LIPSYNC_PRICE}⭐).`
+            : `❌ An error occurred while creating lip-sync.\n` +
+              `Funds refunded (${SIMPLE_LIPSYNC_PRICE}⭐).`
+        )
+      } else {
+        // Тестовый режим - просто сообщаем об ошибке
+        await ctx.reply(
+          isRu
+            ? `❌ Произошла ошибка при создании lip-sync.\n` +
+              `🧪 Тестовый режим - деньги не списывались.`
+            : `❌ An error occurred while creating lip-sync.\n` +
+              `🧪 Test mode - no funds were charged.`
+        )
+      }
     }
 
     ctx.scene.leave()
