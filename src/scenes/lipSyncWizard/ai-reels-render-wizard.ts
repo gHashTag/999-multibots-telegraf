@@ -24,6 +24,7 @@ import {
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
+import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -77,7 +78,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             '🎬 <b>HeyGen</b>\n' +
             '• Готовые профессиональные аватары\n' +
             '• Премиум качество (4-5 мин)\n' +
-            '• Выбор из коллекции'
+            '• Выбор из коллекции\n\n' +
+            '🎯 <b>Fal (Fabric)</b>\n' +
+            '• Загрузите свое фото\n' +
+            '• Высокое качество lip-sync\n' +
+            '• Оптимальная скорость (3-4 мин)'
         : '🎬 <b>AI Reels - Template 2</b>\n\n' +
             '🎯 Choose avatar generation service:\n\n' +
             '🎭 <b>Hedra</b>\n' +
@@ -87,7 +92,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             '🎬 <b>HeyGen</b>\n' +
             '• Ready professional avatars\n' +
             '• Premium quality (4-5 min)\n' +
-            '• Choose from collection',
+            '• Choose from collection\n\n' +
+            '🎯 <b>Fabric</b>\n' +
+            '• Upload your photo\n' +
+            '• High quality lip-sync\n' +
+            '• Optimal speed (3-4 min)',
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
@@ -101,6 +110,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             Markup.button.callback(
               isRu ? '🎬 HeyGen' : '🎬 HeyGen',
               'service_heygen'
+            ),
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '🎯 Fal (Fabric)' : '🎯 Fal (Fabric)',
+              'service_fal'
             ),
           ],
           [
@@ -170,6 +185,31 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       // ✅ ИСПРАВЛЕНИЕ: Переход напрямую на Step 2 (индекс 4), пропуская HeyGen шаги
       // Структура: 0, 1, 1a, 1b, 2, 2.5(cover), 3, 4, 5, 6
       // Step 2 (Hedra photo) = индекс 4
+      ctx.wizard.selectStep(4)
+      return
+    } else if (callbackData === 'service_fal') {
+      // ВЕТКА FAL: Запрос фото пользователя (похоже на Hedra)
+      ctx.session.aiReelsRender = {
+        ...ctx.session.aiReelsRender,
+        avatarService: 'fal',
+        step: 'image',
+        // Hardcoded FAL API key (можно вынести в env позже)
+        falApiKey: 'bddcfbd0-cc52-49fd-977b-6c5a4a012f47:f6fe3c46d4c593b6a41863e720204db4',
+        falResolution: '720p', // Default resolution
+      }
+
+      await ctx.answerCbQuery()
+      await ctx.editMessageText(
+        isRu
+          ? '✅ Выбран: 🎯 Fal (Fabric)\n\n📸 Отправьте фото или URL изображения с лицом для аватара.'
+          : '✅ Selected: 🎯 Fal (Fabric)\n\n📸 Send a photo or image URL with a face for avatar.'
+      )
+
+      logger.info('🎬 [AI REELS RENDER] Fal selected, requesting photo', {
+        telegramId,
+      })
+
+      // Переход напрямую на Step 2 (индекс 4), как у Hedra
       ctx.wizard.selectStep(4)
       return
     } else if (callbackData === 'service_heygen') {
@@ -1270,6 +1310,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           avatarService,
           heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
           heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
+          // ✅ FAL support
+          falApiKey: avatarService === 'fal' ? ctx.session.aiReelsRender.falApiKey : undefined,
+          falResolution: avatarService === 'fal' ? ctx.session.aiReelsRender.falResolution : undefined,
+          // ✅ Передаем имя бота для правильной отправки видео через callback
+          botName: ctx.botInfo?.username || 'MetaMuse_Manifest_bot',
         }
       )
       // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
@@ -1315,20 +1360,29 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         hasHedraSettings: !!payload.avatar_settings.hedra,
       })
 
-      // 💰 Шаблон 2: Динамическая стоимость по длине lip-sync
-      // Наценка x1.5 применена к базовым ценам
-      const duration = ctx.session.aiReelsRender.estimatedDuration || 10
-      const veo3Cost = 240 // 160⭐ × 1.5
-      const hedraPerSecond = 7 // ~4.9⭐/сек × 1.5
-      const estimatedCost = veo3Cost + duration * hedraPerSecond
+      // 💰 Шаблон 2: Динамическая стоимость на основе длины текста
+      // Расчет включает B-роллы (Veo 3.1), озвучку и аватар
+      const priceBreakdown = calculateAIReelsPrice({
+        text: ctx.session.aiReelsRender.text || '',
+        avatarService,
+        isOwnHeyGenKey: avatarService === 'heygen' && !!heygenApiKey,
+        isOwnFalKey: avatarService === 'fal' && !!ctx.session.aiReelsRender.falApiKey && ctx.session.aiReelsRender.falApiKey !== 'bddcfbd0-cc52-49fd-977b-6c5a4a012f47:f6fe3c46d4c593b6a41863e720204db4', // Не наш ключ
+        markupMultiplier: 1.5, // Наценка x1.5 как в коде
+      })
+
+      const estimatedCost = priceBreakdown.finalPrice
 
       console.log('🔴 [STEP 6] Dynamic cost calculation:', {
-        duration,
-        veo3Cost,
-        hedraPerSecond,
-        estimatedCost,
-        markup: 1.5,
+        textLength: ctx.session.aiReelsRender.text?.length,
+        audioDuration: priceBreakdown.audioDuration,
+        bRollCount: priceBreakdown.bRollCount,
+        estimatedCost: priceBreakdown.finalPrice,
+        priceInRubles: priceBreakdown.priceInRubles,
+        breakdown: priceBreakdown,
       })
+
+      // Показываем детальный расчет стоимости пользователю
+      await ctx.reply(formatPriceMessage(priceBreakdown, isRu))
 
       // Проверка баланса
       console.log('🔴 [STEP 6] Getting user balance...')
@@ -1338,11 +1392,13 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       console.log('🔴 [STEP 6] Checking if balance sufficient...')
       if (currentBalance === null || currentBalance < estimatedCost) {
         console.log('🔴 [STEP 6] INSUFFICIENT BALANCE!')
-        await ctx.reply(
-          isRu
-            ? `💰 Недостаточно средств\n\nТребуется: ${estimatedCost}⭐\nУ вас: ${(currentBalance || 0).toFixed(2)}⭐`
-            : `💰 Insufficient funds\n\nRequired: ${estimatedCost}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`
-        )
+
+        // Показываем детальную информацию о недостатке средств
+        const insufficientMessage = isRu
+          ? `💰 Недостаточно средств\n\n${formatPriceMessage(priceBreakdown, isRu)}\n\n❌ У вас: ${(currentBalance || 0).toFixed(0)}⭐\n💳 Необходимо пополнить: ${(estimatedCost - (currentBalance || 0)).toFixed(0)}⭐`
+          : `💰 Insufficient funds\n\n${formatPriceMessage(priceBreakdown, false)}\n\n❌ You have: ${(currentBalance || 0).toFixed(0)}⭐\n💳 Need to top up: ${(estimatedCost - (currentBalance || 0)).toFixed(0)}⭐`
+
+        await ctx.reply(insufficientMessage)
         return ctx.scene.leave()
       }
 

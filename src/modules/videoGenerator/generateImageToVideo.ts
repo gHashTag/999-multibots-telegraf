@@ -159,6 +159,7 @@ export const generateImageToVideo = async (
 
     // ✅ FIX: Проверка на дублирующиеся запросы генерации через новый кеш
     // Проверяем, есть ли уже активная задача для этого пользователя и модели
+    const modelConfig = VIDEO_MODELS_CONFIG[modelId]
     if (videoTaskCache.hasActiveTask(telegramId, modelId)) {
       const existingTask = videoTaskCache.getActiveTask(telegramId, modelId)
       logger.warn('[I2V BG] ⚠️ Duplicate request detected - blocking multiple generation', {
@@ -177,7 +178,6 @@ export const generateImageToVideo = async (
       return
     }
 
-    const modelConfig = VIDEO_MODELS_CONFIG[modelId]
     if (!modelConfig) {
       logger.error(
         '[generateImageToVideo BG] Invalid modelId, config not found:',
@@ -880,20 +880,10 @@ export const generateImageToVideo = async (
                         }`
 
                     // Используем безопасную отправку с проверкой блокировки
-                    const sent = await safeSendMessage(
-                      { telegram: botResult.bot.telegram } as any,
-                      telegramId,
-                      errorMessage,
-                      { reply_markup: errorKeyboard.reply_markup }
+                    await safeSendMessage(
+                      ctx,
+                      errorMessage
                     )
-
-                    if (!sent) {
-                      logger.info('[I2V BG] User has blocked the bot, stopping polling', {
-                        telegramId,
-                        taskId
-                      })
-                      return // Прекращаем попытки если пользователь заблокировал бота
-                    }
                   }
                   return // Выходим из функции
                 }

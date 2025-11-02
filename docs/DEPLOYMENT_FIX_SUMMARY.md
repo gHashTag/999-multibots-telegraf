@@ -2,7 +2,7 @@
 
 ## 🎯 What Was Fixed
 
-The GitHub Actions deployment workflow for `999-multibots-telegraf` was completely broken and has been fixed to work properly.
+The GitHub Actions deployment workflow for `bot-farm` was completely broken and has been fixed to work properly.
 
 ## ❌ Previous Issues
 
@@ -44,7 +44,7 @@ cat ~/.ssh/zomro
 ```
 
 Then:
-1. Go to: https://github.com/gHashTag/999-multibots-telegraf/settings/secrets/actions
+1. Go to: https://github.com/gHashTag/bot-farm/settings/secrets/actions
 2. Click "New repository secret"
 3. Name: `SSH_PRIVATE_KEY`
 4. Value: Paste entire key content (including BEGIN/END lines)
@@ -61,13 +61,13 @@ git push origin production
 ```
 
 **Option B: Manual trigger**
-1. Go to: https://github.com/gHashTag/999-multibots-telegraf/actions
+1. Go to: https://github.com/gHashTag/bot-farm/actions
 2. Click "Production Auto-Deploy"
 3. Click "Run workflow" → Select `production` → Click "Run workflow"
 
 ### 3. Monitor Deployment
 
-Watch logs at: https://github.com/gHashTag/999-multibots-telegraf/actions
+Watch logs at: https://github.com/gHashTag/bot-farm/actions
 
 Expected output:
 ```
@@ -90,7 +90,7 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 'docker ps | grep 999-multibots'
 ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 30'
 
 # Test API
-curl http://test-render-farm.ru/
+curl -I ${WEBHOOK_DOMAIN}
 ```
 
 ## 📁 Files Modified
@@ -188,7 +188,7 @@ After confirming first deployment works:
 
 - **Full docs**: See `docs/PRODUCTION_DEPLOYMENT_FIX.md`
 - **Quick commands**: See `docs/DEPLOYMENT_QUICK_REFERENCE.md`
-- **Repository**: https://github.com/gHashTag/999-multibots-telegraf
+- **Repository**: https://github.com/gHashTag/bot-farm
 - **Workflow**: `.github/workflows/production-deploy.yml`
 
 ---

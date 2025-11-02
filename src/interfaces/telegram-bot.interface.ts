@@ -215,6 +215,14 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     needsVoiceCreation?: boolean // Флаг необходимости создания голоса
   }
   returnToVeedFabricAfterVoice?: boolean // Флаг возврата в Veed Fabric после создания голоса
+  ttsTextToConvert?: string
+  pendingTtsText?: string
+  voiceMode?: 'avatar' | 'transcribe'
+  lastTranscribedText?: string
+  avatarPhoto?: {
+    file_id: string
+    unique_id: string
+  }
 
   aiReels?: {
     // Данные для AI Reels wizard (lip-sync + WAN v2.2-5b + merging)
@@ -225,6 +233,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     startTime?: number
     needsVoiceCreation?: boolean // Флаг необходимости создания голоса
     resolution?: '720p' | '1080p' // Разрешение видео
+    useInngest?: boolean
     aspectRatio?: '16:9' | '9:16' | '1:1' // Соотношение сторон видео (по умолчанию 9:16 для соцсетей)
     firstVideoUrl?: string  // URL первого видео (lip-sync)
     secondVideoUrl?: string // URL второго видео (WAN v2.2-5b)
@@ -235,7 +244,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   returnToAIReelsAfterVoice?: boolean // Флаг возврата в AI Reels после создания голоса
 
   aiReelsRender?: {
-    // Данные для AI Reels Render wizard (генерация через render-server с Hedra/HeyGen)
+    // Данные для AI Reels Render wizard (генерация через render-server с Hedra/HeyGen/Fal)
     step?: 'image' | 'text' | 'intro_text' | 'intro_text_2' | 'avatar_service' | 'avatar_set_selection' | 'processing'
     imageUrl?: string
     text?: string
@@ -243,10 +252,13 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     introText1?: string // Текст для первого поля интро
     introText2?: string // Текст для второго поля интро
     upperIntroText?: string // Верхний текст интро
-    avatarService?: 'hedra' | 'heygen' // Выбранный сервис генерации аватара
+    coverUrl?: string // URL обложки для видео
+    avatarService?: 'hedra' | 'heygen' | 'fal' // Выбранный сервис генерации аватара
     heygenAvatarSet?: string // Выбранный набор аватаров HeyGen (cocoage/haim)
     heygenAvatarId?: string // ID выбранного аватара HeyGen
     heygenApiKey?: string // API ключ для выбранного набора аватаров HeyGen
+    falApiKey?: string // API ключ для Fal
+    falResolution?: '720p' | '1080p' // Разрешение для Fal
     startTime?: number
     eventId?: string // ID события Inngest для отслеживания
     estimatedDuration?: number // Оценка длительности для расчета стоимости

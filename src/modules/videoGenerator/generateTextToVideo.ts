@@ -267,7 +267,20 @@ export async function generateTextToVideo(
       ? 'Произошла ошибка при создании видео на стороне Replicate.'
       : 'An error occurred while creating the video via Replicate.'
 
-    if (error.response && error.response.data && error.response.data.detail) {
+    // ✅ FIX: Специальная обработка для ошибки 403 (Wan API)
+    if (isAxiosError(error) && error.response?.status === 403) {
+      logger.error('[generateTextToVideo] WAN API 403 error - authorization failed', {
+        telegram_id,
+        modelId: modelConfig.id,
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      })
+
+      errorMessage = is_ru
+        ? '🚫 Ошибка авторизации API. Проверьте настройки API ключей или обратитесь к администратору.'
+        : '🚫 API authorization error. Check API key settings or contact administrator.'
+    } else if (error.response && error.response.data && error.response.data.detail) {
       errorMessage = `Replicate error: ${error.response.data.detail}`
     } else if (error.message) {
       errorMessage = error.message

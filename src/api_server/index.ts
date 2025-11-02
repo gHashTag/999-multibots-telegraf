@@ -5,11 +5,15 @@ import githubAutoFixerRouter from './routes/github-autofixer.routes'
 import kieAiWebhookRouter from './routes/kie-ai-webhook.routes'
 import aiReelsCallbackRouter from './routes/ai-reels-callback.routes'
 import replicateWebhookRouter from './routes/replicate-webhook.routes'
+import voiceAvatarRouter from './routes/voice-avatar.routes'
+import neuroPhotoRouter from './routes/neuro-photo.routes'
+import competitorRouter from './routes/competitor.routes'
 import { serve } from 'inngest/express'
-import { inngest, functions as inngestFunctions } from '../inngest_app/client'
+// import { inngest, functions as inngestFunctions } from '../inngest_app/client'
+import { logger } from '@/utils/logger'
 
-// Определяем порт. Берем из process.env.PORT, если есть, иначе 2999 (для соответствия docker-compose).
-const PORT = process.env.PORT || '2999'
+// Определяем порт. Берем из process.env.PORT, если есть, иначе 4000 (совместимо с reverse proxy).
+const PORT = '3000'
 
 export function startApiServer(): void {
   const app: any = express()
@@ -26,21 +30,30 @@ export function startApiServer(): void {
     next()
   })
 
+  // ... (other imports)
+  
+  // ... (app setup)
+  
   // Middleware для парсинга JSON с установленным лимитом в 10MB
   app.use(express.json({ limit: '10mb' }) as any)
-
-  // ✅ Раздача статических файлов из temp/ директории для морфинга
+  
+  // Раздача статических файлов из temp/ директории для морфинга
   app.use('/temp', express.static('temp') as any)
-
-  // Простой middleware для логгирования запросов
+  
+  // Улучшенный middleware для логгирования запросов с использованием logger
   app.use((req: any, res: any, next: any) => {
-    console.log(`[API] ${new Date().toISOString()} | ${req.method} ${req.url}`)
-    next()
-  })
-
+    logger.info(`[API] Request received`, {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body ? JSON.stringify(req.body).substring(0, 200) + '...' : '{}'
+    });
+    next();
+  });
+  
   // Регистрируем маршруты для проверки работоспособности
   app.use('/', healthRouter)
-
+  
   // Регистрируем маршруты для Robokassa webhook
   app.use('/api', robokassaRouter)
 
@@ -56,20 +69,25 @@ export function startApiServer(): void {
   // Регистрируем маршруты для Replicate webhook (уведомления о тренировке моделей)
   app.use('/api/webhooks', replicateWebhookRouter)
 
+  // Регистрируем локальные routes для изоляции от внешнего сервера
+  app.use('/api', voiceAvatarRouter)
+  app.use('/api', neuroPhotoRouter)
+  app.use('/api', competitorRouter)
+
   // Интеграция Inngest с API (актуальная сигнатура serve)
-  const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
-  app.use('/api/inngest', inngestHandler)
+//   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
+//   app.use('/api/inngest', inngestHandler)
 
   // Запуск основного сервера
   app.listen(PORT, () => {
     console.log(`[API] Server started on port ${PORT}`)
   })
 
-  // Запуск дублирующего сервера для обратного прокси на порту 8080
-  const PROXY_PORT = process.env.PROXY_PORT || '8080'
-  app.listen(PROXY_PORT, () => {
-    console.log(`[API] Proxy server started on port ${PROXY_PORT}`)
-  })
+  // Удаляем дополнительный сервер на 8080: используем только один порт для reverse proxy
+  // const PROXY_PORT = process.env.PROXY_PORT || '8080'
+  // app.listen(PROXY_PORT, () => {
+  //   console.log(`[API] Proxy server started on port ${PROXY_PORT}`)
+  // })
 }
 
 // Если этот файл будет запускаться напрямую (например, для тестов или отдельного инстанса)
