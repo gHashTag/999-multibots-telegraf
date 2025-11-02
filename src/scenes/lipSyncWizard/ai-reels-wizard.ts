@@ -112,31 +112,30 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
     // Обычный флоу: инициализируем сессию
     ctx.session.aiReels = {
-      step: 'photo',
+      step: 'image',
       startTime: Date.now(),
-      telegramId,
-      isSimple: true, // Флаг для отличия от Full template
+      telegramId: telegramId as any,
+      isSimple: true as any, // Флаг для отличия от Full template
     }
 
     await ctx.reply(
       isRu
-        ? '🎬 <b>Шаблон 1 - Lip-sync в кружочке</b>\n\n' +
-          '📷 <b>Шаг 1:</b> Отправьте фото лица для создания lip-sync.\n\n' +
-          '📹 <b>Шаг 2:</b> Потом отправьте видео (до 30 сек) - это будет фон.\n\n' +
+        ? '🎬 Шаблон 1 - Lip-sync в кружочке\n\n' +
+          '📷 Шаг 1: Отправьте фото лица для создания lip-sync.\n\n' +
+          '📹 Шаг 2: Потом отправьте видео (до 30 сек) - это будет фон.\n\n' +
           '💡 Что делает:\n' +
           '• Использует фото для lip-sync\n' +
           '• Накладывает поверх вашего видео\n' +
           '• Делает красивый кружочек\n\n' +
           '💰 Стоимость: 120⭐'
-        : '🎬 <b>Template 1 - Lip-sync in Circle</b>\n\n' +
-          '📷 <b>Step 1:</b> Send a photo of a face for lip-sync.\n\n' +
-          '📹 <b>Step 2:</b> Then send a video (up to 30 sec) - this will be the background.\n\n' +
+        : '🎬 Template 1 - Lip-sync in Circle\n\n' +
+          '📷 Step 1: Send a photo of a face for lip-sync.\n\n' +
+          '📹 Step 2: Then send a video (up to 30 sec) - this will be the background.\n\n' +
           '💡 What it does:\n' +
           '• Uses photo for lip-sync\n' +
           '• Overlays on your video\n' +
           '• Makes a beautiful circle\n\n' +
-          '💰 Cost: 120⭐',
-      { parse_mode: 'HTML' }
+          '💰 Cost: 120⭐'
     )
 
     logger.info('✅ [SIMPLE LIPSYNC] Step 0 completed - фото запрошено', { telegramId })
@@ -161,7 +160,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     })
 
     // Проверяем наличие фото
-    const photo = ctx.message?.photo?.[0] // Берем первое (самое большое разрешение)
+    const photo = (ctx.message as any)?.photo?.[0] // Берем первое (самое большое разрешение)
     if (!photo) {
       await ctx.reply(
         isRu
@@ -172,9 +171,8 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Сохраняем информацию о фото
-    ctx.session.aiReels.photoFileId = photo.file_id
-    ctx.session.aiReels.photoUrl = await ctx.telegram.getFileLink(photo.file_id)
-    ctx.session.aiReels.step = 'video'
+    ctx.session.aiReels.imageUrl = (await ctx.telegram.getFileLink(photo.file_id)).toString()
+    ctx.session.aiReels.step = 'text'
 
     logger.info('📷 [SIMPLE LIPSYNC] Фото получено', {
       telegramId,
@@ -185,10 +183,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '✅ Фото получено!\n\n' +
-          '📹 <b>Шаг 2:</b> Теперь отправьте видео (до 30 сек) - это будет фон для кружочка.\n\n' +
+          '📹 Шаг 2: Теперь отправьте видео (до 30 сек) - это будет фон для кружочка.\n\n' +
           '💡 Lip-sync будет наложен поверх этого видео.'
         : '✅ Photo received!\n\n' +
-          '📹 <b>Step 2:</b> Now send a video (up to 30 sec) - this will be the background for the circle.\n\n' +
+          '📹 Step 2: Now send a video (up to 30 sec) - this will be the background for the circle.\n\n' +
           '💡 Lip-sync will be overlaid on this video.'
     )
 
@@ -212,7 +210,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     })
 
     // Проверяем наличие видео
-    const video = ctx.message?.video
+    const video = (ctx.message as any)?.video
     if (!video) {
       await ctx.reply(
         isRu
@@ -234,9 +232,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Сохраняем информацию о видео как фон
-    ctx.session.aiReels.backgroundVideoFileId = video.file_id
-    ctx.session.aiReels.backgroundVideoUrl = await ctx.telegram.getFileLink(video.file_id)
-    ctx.session.aiReels.step = 'text'
+    ctx.session.aiReels.secondVideoUrl = (await ctx.telegram.getFileLink(video.file_id)).toString()
 
     logger.info('📹 [SIMPLE LIPSYNC] Видео (фон) получено', {
       telegramId,
@@ -247,10 +243,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '✅ Видео получено!\n\n' +
-          '✍️ <b>Шаг 3:</b> Теперь введите текст для lip-sync.\n\n' +
+          '✍️ Шаг 3: Теперь введите текст для lip-sync.\n\n' +
           '💡 Или отправьте голосовое сообщение.'
         : '✅ Video received!\n\n' +
-          '✍️ <b>Step 3:</b> Now enter text for lip-sync.\n\n' +
+          '✍️ Step 3: Now enter text for lip-sync.\n\n' +
           '💡 Or send a voice message.'
     )
 
@@ -270,12 +266,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     let text = ''
 
     // Проверяем текст
-    if (ctx.message?.text) {
-      text = ctx.message.text
+    if ((ctx.message as any)?.text) {
+      text = (ctx.message as any).text
     }
     // Проверяем голосовое сообщение
-    else if (ctx.message?.voice) {
-      const voice = ctx.message.voice
+    else if ((ctx.message as any)?.voice) {
+      const voice = (ctx.message as any).voice
       logger.info('🎤 [SIMPLE LIPSYNC] Голосовое сообщение получено', {
         telegramId,
         duration: voice.duration,
@@ -284,7 +280,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       // Просто сохраняем файл, в реальном проекте нужен speech-to-text
       const audioUrl = await ctx.telegram.getFileLink(voice.file_id)
-      ctx.session.aiReels.voiceAudioUrl = audioUrl
+      ctx.session.aiReels.audioUrl = audioUrl.toString()
 
       await ctx.reply(
         isRu
@@ -295,7 +291,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             'Using it to create speech...\n\n' +
             '💰 Checking balance...'
       )
-      ctx.session.aiReels.step = 'processing'
+      ctx.session.aiReels.step = 'lipsync_generation'
       return ctx.wizard.next()
     }
     else {
@@ -315,7 +311,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
 
     ctx.session.aiReels.text = text
-    ctx.session.aiReels.step = 'processing'
+    ctx.session.aiReels.step = 'lipsync_generation'
 
     await ctx.reply(
       isRu
@@ -379,15 +375,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       // Тестовый режим
       await ctx.reply(
         isRu
-          ? `🧪 <b>ТЕСТОВЫЙ РЕЖИМ</b> - Бесплатно!\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Тестирование монтажа...`
-          : `🧪 <b>TEST MODE</b> - Free!\n\n🎬 Starting lip-sync video creation...\n⏳ Testing composition...`,
-        { parse_mode: 'HTML' }
+          ? `🧪 ТЕСТОВЫЙ РЕЖИМ - Бесплатно!\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Тестирование монтажа...`
+          : `🧪 TEST MODE - Free!\n\n🎬 Starting lip-sync video creation...\n⏳ Testing composition...`
       )
     }
 
     try {
       // ШАГ 1: Создаем TTS аудио (если текст)
-      let audioUrl = ctx.session.aiReels.voiceAudioUrl
+      let audioUrl = ctx.session.aiReels.audioUrl
 
       if (!audioUrl && ctx.session.aiReels.text) {
         logger.info('🎤 [SIMPLE LIPSYNC] Создание TTS аудио', { telegramId })
@@ -437,7 +432,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
           // Скачиваем исходное видео
           const originalVideoPath = path.join(tempDir, `original_${Date.now()}.mp4`)
-          await downloadFile(ctx.session.aiReels.videoUrl!, originalVideoPath)
+          await downloadFile(ctx.session.aiReels.firstVideoUrl!, originalVideoPath)
 
           // Обрезаем видео до длительности аудио
           const trimmedVideoPath = path.join(tempDir, `trimmed_${Date.now()}.mp4`)
@@ -469,7 +464,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       try {
         // Скачиваем фото для face detection
-        await downloadFile(ctx.session.aiReels.photoUrl!, photoPath)
+        await downloadFile(ctx.session.aiReels.imageUrl!, photoPath)
 
         // Скачиваем lip-sync видео если это URL
         const lipSyncVideoPath = path.join(compositionTempDir, `lipsync_${telegramId}_${Date.now()}.mp4`)
@@ -477,7 +472,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         // Скачиваем фоновое видео
         const backgroundVideoPath = path.join(compositionTempDir, `background_${telegramId}_${Date.now()}.mp4`)
-        await downloadFile(ctx.session.aiReels.backgroundVideoUrl!, backgroundVideoPath)
+        await downloadFile(ctx.session.aiReels.secondVideoUrl!, backgroundVideoPath)
 
         // Создаем композицию: фоновое видео + lip-sync в круге
         await createCircleCompositionWithFaceDetection(
@@ -510,7 +505,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       })
 
       // Сохраняем в session
-      ctx.session.aiReels.resultVideoUrl = finalVideoUrl
+      ctx.session.aiReels.finalVideoUrl = finalVideoUrl
 
       await ctx.reply(
         isRu
