@@ -1,16 +1,10 @@
 #!/bin/bash
 
 ################################################################################
-# 🎯 ЕДИНЫЙ DEPLOY СКРИПТ ДЛЯ 999-AGENTS-TELEGRAF
-# Автоматизированный деплой на production сервер
-# Использование: ./deploy.sh [команда]
+# 🎯 ЕДИНЫЙ DEPLOY СКРИПТ ДЛЯ MAIN (THREE-HEAD-DEV.SHOP)
+# Автоматизированный деплой на main сервер
+# Использование: ./deploy-main.sh [команда]
 # Команды: deploy | rollback | status | logs | help
-#
-# ОСОБЕННОСТИ:
-# - ✅ Автоматическое создание снапшотов при каждом деплое
-# - ✅ Автоочистка старых снапшотов (оставляет последние 5)
-# - ✅ Docker rebuild БЕЗ кеша (--no-cache)
-# - ✅ Настройка nginx с HTTPS
 ################################################################################
 
 set -e  # Остановка при любой ошибке
@@ -22,12 +16,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Конфигурация
-CONTAINER_NAME="999-multibots"
-SERVER_URL="212.86.115.30"
+# Конфигурация для MAIN
+CONTAINER_NAME="999-multibots-main"
+SERVER_URL="three-head-dev.shop"
 SERVER_USER="root"
-SSH_KEY="~/.ssh/zomro"
-PROJECT_PATH="/root/999-agents-telegraf"
+SSH_KEY="~/.ssh/id_rsa"
+PROJECT_PATH="/root/999-agents-telegraf-main"
 
 # Функции логирования
 log_info() {
@@ -64,21 +58,21 @@ check_server() {
 
 # Функция deploy
 deploy() {
-    log_info "=== DEPLOY НАЧАЛО ==="
+    log_info "=== DEPLOY НАЧАЛО (MAIN) ==="
     check_server
 
     log_info "1. Обновление кода с git..."
     ssh_exec "
         cd $PROJECT_PATH
-        git fetch origin production
-        git reset --hard origin/production
+        git fetch origin main
+        git reset --hard origin/main
         echo 'Код обновлён'
     "
 
-    log_info "2. Пересборка Docker образа (БЕЗ КЕША - ОБЯЗАТЕЛЬНО!)..."
+    log_info "2. Пересборка Docker образа..."
     ssh_exec "
         cd $PROJECT_PATH
-        docker build --no-cache -t 999-agents-telegraf:latest . 2>&1 | tail -5
+        docker build -t 999-agents-telegraf-main:latest . 2>&1 | tail -5
     "
 
     log_info "3. Остановка старого контейнера..."
@@ -93,66 +87,49 @@ deploy() {
         docker run -d \
           --name $CONTAINER_NAME \
           --restart unless-stopped \
-          --network app-network \
+          --network app-network-main \
           -p 2999-3010:2999-3010 \
-          999-agents-telegraf:latest
+          999-agents-telegraf-main:latest
         echo 'Контейнер запущен'
     "
 
-    log_info "5. Создание снапшота перед деплоем..."
-    ssh_exec "
-        TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
-        echo \"Создаю снапшот prod-stable-\${TIMESTAMP}...\"
-        docker save 999-agents-telegraf:latest | gzip > /root/docker-snapshot-prod-stable-\${TIMESTAMP}.tar.gz
-        echo \"Снапшот создан\"
-
-        # Очистка старых снапшотов (оставляем последние 5)
-        echo \"Очищаю старые снапшоты (оставляю последние 5)...\"
-        cd /root
-        ls -t docker-snapshot-*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm -f
-        echo \"Очистка завершена\"
-
-        # Показываем текущие снапшоты
-        echo \"Текущие снапшоты: \"
-        ls -lh docker-snapshot-*.tar.gz 2>/dev/null | awk '{print \$9, \$5}' | head -5
-    "
-
-    log_info "7. Настройка nginx reverse proxy с HTTPS..."
+    log_info "5. Настройка nginx reverse proxy с HTTPS..."
     ssh_exec "
         # Создание custom network если не существует
-        docker network ls | grep -q app-network || docker network create app-network
+        docker network ls | grep -q app-network-main || docker network create app-network-main
 
         # Подключение контейнера к сети
-        docker network connect app-network $CONTAINER_NAME 2>/dev/null || true
+        docker network connect app-network-main $CONTAINER_NAME 2>/dev/null || true
 
         # Создание nginx конфигурации с HTTPS
-        mkdir -p /root/nginx-config
+        mkdir -p /root/nginx-config-main
 
-        # Let's Encrypt SSL сертификат (автообновляется)
-        # Копируем из /etc/letsencrypt если есть, иначе self-signed для совместимости
-        if [ -f '/etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem' ]; then
-          cp /etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem /root/nginx-config/three-head-dragon.shop.crt
-          cp /etc/letsencrypt/live/three-head-dragon.shop/privkey.pem /root/nginx-config/three-head-dragon.shop.key
-          echo \"Using Let's Encrypt SSL certificate\"
+        # Let's Encrypt SSL сертификат для three-head-dev.shop
+        # Копируем из /etc/letsencrypt/live/ если есть
+        if [ -f '/etc/letsencrypt/live/three-head-dev.shop/fullchain.pem' ]; then
+          cp /etc/letsencrypt/live/three-head-dev.shop/fullchain.pem /root/nginx-config-main/three-head-dev.shop.crt
+          cp /etc/letsencrypt/live/three-head-dev.shop/privkey.pem /root/nginx-config-main/three-head-dev.shop.key
+          echo \"✅ Using Let's Encrypt SSL certificate for three-head-dev.shop\"
         else
+          log_warning 'SSL certificates not found, using self-signed'
           openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-            -keyout /root/nginx-config/three-head-dragon.shop.key \
-            -out /root/nginx-config/three-head-dragon.shop.crt \
-            -subj '/C=RU/ST=Moscow/L=Moscow/O=999-agents/CN=three-head-dragon.shop' 2>/dev/null || true
-          echo \"Using self-signed SSL certificate (for testing)\"
+            -keyout /root/nginx-config-main/three-head-dev.shop.key \
+            -out /root/nginx-config-main/three-head-dev.shop.crt \
+            -subj '/C=RU/ST=Moscow/L=Moscow/O=999-agents/CN=three-head-dev.shop' 2>/dev/null || true
+          echo \"⚠️ Using self-signed SSL certificate (for testing)\"
         fi
 
         # HTTPS конфигурация с HTTP callback для Railway compatibility
-        cat > /root/nginx-config/default.conf << 'NGINX_EOF'
+        cat > /root/nginx-config-main/default.conf << 'NGINX_EOF'
 # HTTP Server (redirect to HTTPS, except callback endpoint)
 server {
     listen 80;
-    server_name three-head-dragon.shop;
+    server_name three-head-dev.shop;
 
     # ✅ Allow callback endpoint on HTTP (for Railway render-server compatibility)
     location = /api/telegram/ai-reels-callback {
         # ⚠️ HTTP callback - Railway render-server doesn't follow redirects
-        proxy_pass http://999-multibots:3000/api/telegram/ai-reels-callback;
+        proxy_pass http://999-multibots-main:3000/api/telegram/ai-reels-callback;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -169,16 +146,16 @@ server {
 # HTTPS server
 server {
     listen 443 ssl http2;
-    server_name three-head-dragon.shop;
+    server_name three-head-dev.shop;
     client_max_body_size 100M;
 
-    ssl_certificate /etc/nginx/ssl/three-head-dragon.shop.crt;
-    ssl_certificate_key /etc/nginx/ssl/three-head-dragon.shop.key;
+    ssl_certificate /etc/nginx/ssl/three-head-dev.shop.crt;
+    ssl_certificate_key /etc/nginx/ssl/three-head-dev.shop.key;
     ssl_protocols TLSv1.2 TLSv1.3;
 
     # ✅ Callback endpoint on HTTPS (for other services)
     location = /api/telegram/ai-reels-callback {
-        proxy_pass http://999-multibots:3000/api/telegram/ai-reels-callback;
+        proxy_pass http://999-multibots-main:3000/api/telegram/ai-reels-callback;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -188,7 +165,7 @@ server {
 
     # All other API endpoints
     location /api/ {
-        proxy_pass http://999-multibots:3000/api/;
+        proxy_pass http://999-multibots-main:3000/api/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -196,13 +173,13 @@ server {
     }
 
     location /health {
-        proxy_pass http://999-multibots:3000/health;
+        proxy_pass http://999-multibots-main:3000/health;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
     }
 
     location / {
-        proxy_pass http://999-multibots:3000/;
+        proxy_pass http://999-multibots-main:3000/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -212,32 +189,27 @@ server {
 NGINX_EOF
 
         # Запуск/обновление nginx с HTTPS
-        docker stop bot-proxy 2>/dev/null || true
-        docker rm bot-proxy 2>/dev/null || true
+        docker stop bot-proxy-main 2>/dev/null || true
+        docker rm bot-proxy-main 2>/dev/null || true
         docker run -d \
-          --name bot-proxy \
+          --name bot-proxy-main \
           --restart unless-stopped \
-          --network app-network \
+          --network app-network-main \
           -p 80:80 \
           -p 443:443 \
-          -v /root/nginx-config:/etc/nginx/conf.d:ro \
-          -v /root/nginx-config:/etc/nginx/ssl:ro \
+          -v /root/nginx-config-main:/etc/nginx/conf.d:ro \
+          -v /root/nginx-config-main:/etc/nginx/ssl:ro \
           nginx:alpine
-        echo 'Nginx с HTTPS настроен'
+        echo '✅ Nginx с HTTPS настроен для three-head-dev.shop'
     "
 
-    log_info "8. Ожидание инициализации (30 сек)..."
+    log_info "6. Ожидание инициализации (30 сек)..."
     sleep 30
 
-    log_info "9. Проверка статуса..."
+    log_info "7. Проверка статуса..."
     check_status
 
-    log_success "=== DEPLOY ЗАВЕРШЁН УСПЕШНО ==="
-
-    log_info "6. Проверка статуса..."
-    check_status
-
-    log_success "=== DEPLOY ЗАВЕРШЁН УСПЕШНО ==="
+    log_success "=== DEPLOY ЗАВЕРШЁН УСПЕШНО (MAIN) ==="
 }
 
 # Функция проверки статуса
@@ -262,7 +234,7 @@ check_status() {
 rollback() {
     local SNAPSHOT="$1"
     if [ -z "$SNAPSHOT" ]; then
-        log_error "Укажите снапшот: ./deploy.sh rollback prod-stable-YYYYMMDD_HHMMSS"
+        log_error "Укажите снапшот: ./deploy-main.sh rollback main-stable-YYYYMMDD_HHMMSS"
         exit 1
     fi
 
@@ -278,8 +250,8 @@ rollback() {
     log_info "2. Загрузка снапшота..."
     ssh_exec "
         cd /root
-        if [ -f 'docker-snapshot-${SNAPSHOT}.tar.gz' ]; then
-            docker load < docker-snapshot-${SNAPSHOT}.tar.gz
+        if [ -f 'docker-snapshot-main-${SNAPSHOT}.tar.gz' ]; then
+            docker load < docker-snapshot-main-${SNAPSHOT}.tar.gz
             echo 'Снапшот загружен'
         else
             echo 'Снапшот не найден!'
@@ -293,7 +265,7 @@ rollback() {
           --name $CONTAINER_NAME \
           --restart unless-stopped \
           -p 2999-3010:2999-3010 \
-          999-agents-telegraf:latest
+          999-agents-telegraf-main:latest
 
         sleep 20
         check_status
@@ -311,13 +283,13 @@ logs() {
 # Функция списка снапшотов
 list_snapshots() {
     log_info "Доступные снапшоты:"
-    ssh_exec "ls -lh /root/docker-snapshot-*.tar.gz 2>/dev/null | awk '{print \$9, \$5}' || echo 'Снапшоты не найдены'"
+    ssh_exec "ls -lh /root/docker-snapshot-main-*.tar.gz 2>/dev/null | awk '{print \$9, \$5}' || echo 'Снапшоты не найдены'"
 }
 
 # Функция помощи
 help() {
-    echo -e "${GREEN}999-AGENTS-TELEGRAF DEPLOY TOOL${NC}\n"
-    echo "Использование: ./deploy.sh [команда] [параметры]"
+    echo -e "${GREEN}999-AGENTS-TELEGRAF DEPLOY TOOL (MAIN)${NC}\n"
+    echo "Использование: ./deploy-main.sh [команда] [параметры]"
     echo ""
     echo "Команды:"
     echo "  deploy                    - Полный деплой (git pull + rebuild + restart)"
@@ -328,19 +300,12 @@ help() {
     echo "  help                      - Показать эту справку"
     echo ""
     echo "Примеры:"
-    echo "  ./deploy.sh deploy"
-    echo "  ./deploy.sh rollback prod-stable-20251031_151934"
-    echo "  ./deploy.sh logs 50"
+    echo "  ./deploy-main.sh deploy"
+    echo "  ./deploy-main.sh rollback main-stable-20251101_151934"
+    echo "  ./deploy-main.sh logs 50"
     echo ""
-    echo "ОСОБЕННОСТИ:"
-    echo "✅ Автосоздание снапшотов при каждом деплое"
-    echo "✅ Автоочистка старых снапшотов (оставляет последние 5)"
-    echo "✅ Docker сборка БЕЗ кеша (--no-cache)"
-    echo ""
-    echo "Снапшоты:"
-    echo "- Автоматически создаются: prod-stable-YYYYMMDD_HHMMSS.tar.gz"
-    echo "- Расположение: /root/docker-snapshot-*.tar.gz"
-    echo "- ВНИМАНИЕ: Хранятся только последние 5!"
+    echo "Снапшоты автоматически создаются при каждом деплое."
+    echo "Хранятся в /root/docker-snapshot-main-*.tar.gz"
 }
 
 # Главная логика
