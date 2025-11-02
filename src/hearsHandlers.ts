@@ -1191,7 +1191,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
       // Запускаем Instagram Parser Wizard
       await ctx.scene.leave()
-      await ctx.scene.enter('instagramParserWizard')
+      await ctx.scene.enter('instagram_parser_wizard')
     }
   )
 
