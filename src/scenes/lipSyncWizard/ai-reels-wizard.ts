@@ -408,37 +408,23 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         )
       }
 
-      // ШАГ 2: Применяем lip-sync через Fal.ai Veed Fabric
-      logger.info('🎬 [SIMPLE LIPSYNC] Применение lip-sync через Fal.ai', { telegramId })
+      // ШАГ 2: Используем тестовое видео для lip-sync (экономия средств)
+      logger.info('🧪 [SIMPLE LIPSYNC] Используем тестовое видео', { telegramId })
 
-      // Уведомляем пользователя
       await ctx.reply(
         isRu
-          ? `🎬 Создаем lip-sync видео...\n⏳ Подождите 30-60 секунд...`
-          : `🎬 Creating lip-sync video...\n⏳ Please wait 30-60 seconds...`
+          ? `🧪 ТЕСТОВЫЙ РЕЖИМ: Используем готовое тестовое видео\n🎬 Создаем композицию с кругом...`
+          : `🧪 TEST MODE: Using test video\n🎬 Creating circle composition...`
       )
 
-      // Создаем input для Fal.ai провайдера
-      const falInput = LipSyncInputBuilder.forFalVeedFabric(
-        ctx.session.aiReels.imageUrl!,
-        audioUrl!,
-        telegramId,
-        {
-          botName: ctx.botInfo?.username || 'unknown_bot',
-          resolution: '720p',
-        }
-      )
-
-      // Создаем провайдер и генерируем lip-sync
-      const falProvider = new FalVeedFabricProvider()
-      const lipSyncResult = await falProvider.generate(falInput)
-
-      // Проверяем результат
-      if ('error' in lipSyncResult || !lipSyncResult.output) {
-        throw new Error(`Lip-sync generation failed: ${lipSyncResult.message || lipSyncResult.error}`)
+      // Используем тестовое видео вместо генерации
+      const TEST_LIPSYNC_VIDEO = '/Users/playra/999-agents-telegraf/avatar_brain/test1.mp4'
+      const lipSyncResult = {
+        output: TEST_LIPSYNC_VIDEO,
+        message: 'Test video used for composition'
       }
 
-      logger.info('✅ [SIMPLE LIPSYNC] Lip-sync создан успешно', { telegramId })
+      logger.info('✅ [SIMPLE LIPSYNC] Тестовое видео готово', { telegramId })
 
       // ШАГ 3: Получаем длительность липсинка
       const tempDir = os.tmpdir()
@@ -473,9 +459,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         // Скачиваем фото для face detection
         await downloadFile(ctx.session.aiReels.imageUrl!, photoPath)
 
-        // Скачиваем lip-sync видео если это URL
+        // Lip-sync видео уже локальный файл, копируем его
         const lipSyncVideoPath = path.join(compositionTempDir, `lipsync_${telegramId}_${Date.now()}.mp4`)
-        await downloadFile(lipSyncResult.output, lipSyncVideoPath)
+        await fs.copyFile(lipSyncResult.output, lipSyncVideoPath)
 
         // Скачиваем фоновое видео
         const backgroundVideoPath = path.join(compositionTempDir, `background_${telegramId}_${Date.now()}.mp4`)
@@ -516,8 +502,8 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(
         isRu
-          ? '✅ Lip-sync видео готово!'
-          : '✅ Lip-sync video ready!'
+          ? '✅ Композиция готово!'
+          : '✅ Composition ready!'
       )
 
       // Отправляем результат
@@ -525,8 +511,8 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         { url: finalVideoUrl },
         {
           caption: isRu
-            ? `🎬 Ваш lip-sync готов в кружочке!\n${TEST_MODE ? '🧪 Тестовый режим' : ''}\n✨ Приятного просмотра!`
-            : `🎬 Your lip-sync is ready in circle!\n${TEST_MODE ? '🧪 Test mode' : ''}\n✨ Enjoy!`,
+            ? `🎬 Ваш результат готов!\n🧪 Тестовое видео + композиция\n✨ Приятного просмотра!`
+            : `🎬 Your result is ready!\n🧪 Test video + composition\n✨ Enjoy!`,
         }
       )
 
