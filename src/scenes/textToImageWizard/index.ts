@@ -3,6 +3,7 @@ import { MyContext } from '../../interfaces'
 import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
+import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { getUserBalance } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
@@ -17,18 +18,11 @@ import { handleMenu } from '@/handlers/handleMenu'
 import { improvePromptWizard } from '../improvePromptWizard'
 import { sizeWizard } from '../sizeWizard'
 
-// ✅ НОВЫЙ ИМПОРТ - Inngest!
-import { sendInngestEvent, INNGEST_EVENTS } from '@/inngest_app/inngestClient'
-
 export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',
-
-  // ШАГ 1: Выбор модели
   async ctx => {
     const isRu = isRussianFromState(ctx)
-    logger.info('🎨 [TEXT-TO-IMAGE] Step 1: Model selection', {
-      userId: ctx.from?.id,
-    })
+    console.log('CASE: text_to_image STEP 1', ctx.from?.id)
 
     if (!ctx.from?.id) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -43,7 +37,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
           (model.inputType.includes('text') &&
             model.inputType.includes('image')))
     )
-
+    console.log('filteredModels', filteredModels)
     const modelButtons = filteredModels.map(model =>
       Markup.button.text(model.shortName)
     )
@@ -73,19 +67,13 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         reply_markup: keyboard.reply_markup,
       }
     )
-
     ctx.wizard.next()
     return
   },
-
-  // ШАГ 2: Подтверждение модели и показ промпта
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
-    logger.info('🎨 [TEXT-TO-IMAGE] Step 2: Model confirmation', {
-      userId: ctx.from?.id,
-      hasMessage: !!message,
-    })
+    console.log('CASE: text_to_image STEP 2', message)
 
     if (!message || !('text' in message)) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -93,7 +81,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!ctx.from?.id) {
-      logger.error('❌ [TEXT-TO-IMAGE] Telegram ID not found')
+      console.error('❌ Telegram ID не найден')
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -109,7 +97,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     )
 
     if (!selectedModelEntry) {
-      logger.error('❌ [TEXT-TO-IMAGE] Model not found:', modelShortName)
+      console.error('Model not found:', modelShortName)
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -131,21 +119,17 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       isRu,
       ctx
     )
+    console.log('price', price)
 
     if (price === null) {
       return ctx.scene.leave()
     }
 
     try {
-      // ✅ БЫСТРЫЙ ОТВЕТ - модель выбрана
-      await ctx.reply(
-        isRu
-          ? '✅ Модель выбрана! Теперь введите промпт...'
-          : '✅ Model selected! Now enter a prompt...'
-      )
+      await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
 
       if (!ctx.botInfo?.username) {
-        logger.error('❌ [TEXT-TO-IMAGE] Bot username not found')
+        console.error('❌ Bot username не найден')
         await sendGenericErrorMessage(ctx, isRu)
         return ctx.scene.leave()
       }
@@ -174,23 +158,14 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next()
     } catch (error) {
-      logger.error('❌ [TEXT-TO-IMAGE] Error in model confirmation:', {
-        error: error instanceof Error ? error.message : String(error),
-        userId: ctx.from?.id,
-      })
+      console.error('Error generating image:', error)
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
   },
-
-  // ШАГ 3: Получение промпта и запуск генерации
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
-    logger.info('🎨 [TEXT-TO-IMAGE] Step 3: Prompt received', {
-      userId: ctx.from?.id,
-      hasMessage: !!message,
-    })
 
     if (!message || !('text' in message)) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -198,7 +173,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!ctx.from?.id) {
-      logger.error('❌ [TEXT-TO-IMAGE] Telegram ID not found')
+      console.error('❌ Telegram ID не найден')
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -210,141 +185,104 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
     const prompt = message.text
 
+    // Используем обновленный хелпер
+    const { profile, settings } = await getUserProfileAndSettings(ctx.from.id)
+    if (!profile || !settings) {
+      logger.error(
+        'Не удалось получить профиль или настройки в textToImageWizard',
+        { telegramId: ctx.from.id }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось получить данные пользователя.'
+          : 'Error: Could not retrieve user data.'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Устанавливаем выбранную модель в настройки ПЕРЕД вызовом
+    if (ctx.session.selectedImageModel) {
+      settings.imageModel = ctx.session.selectedImageModel
+    } else {
+      logger.error('Не найдена выбранная модель в сессии в textToImageWizard', {
+        telegramId: ctx.from.id,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось определить выбранную модель.'
+          : 'Error: Could not determine the selected model.'
+      )
+      return ctx.scene.leave()
+    }
+
     try {
-      // Используем обновленный хелпер для профиля
-      const { profile, settings } = await getUserProfileAndSettings(ctx.from.id)
-      if (!profile || !settings) {
-        logger.error(
-          '❌ [TEXT-TO-IMAGE] Failed to get profile or settings',
-          { telegramId: ctx.from.id }
-        )
-        await ctx.reply(
-          isRu
-            ? 'Ошибка: Не удалось получить данные пользователя.'
-            : 'Error: Could not retrieve user data.'
-        )
-        return ctx.scene.leave()
-      }
+      // Используем новую сигнатуру generateTextToImageDirect
+      // TODO: Определить, как получать num_images (пока захардкожено 1)
+      const generationResult = await generateTextToImageDirect(
+        prompt,
+        ctx.session.selectedImageModel,
+        1, // num_images
+        ctx.from.id.toString(),
+        ctx.from.username ?? 'unknown',
+        isRu,
+        ctx
+      )
 
-      // Устанавливаем выбранную модель в настройки
-      if (ctx.session.selectedImageModel) {
-        settings.imageModel = ctx.session.selectedImageModel
-      } else {
-        logger.error('❌ [TEXT-TO-IMAGE] Selected model not found in session', {
-          telegramId: ctx.from.id,
-        })
-        await ctx.reply(
-          isRu
-            ? 'Ошибка: Не удалось определить выбранную модель.'
-            : 'Error: Could not determine the selected model.'
-        )
-        return ctx.scene.leave()
-      }
+      // Получаем текущий баланс ПОСЛЕ операции
+      const currentBalance = await getUserBalance(ctx.from.id.toString())
 
-      // ✅ НОВАЯ ЛОГИКА С INNGEST - вместо прямого вызова API!
-      try {
-        logger.info('🎨 [TEXT-TO-IMAGE] Sending generation request to Inngest', {
-          userId: ctx.from.id,
-          model: ctx.session.selectedImageModel,
-          promptLength: prompt.length,
-        })
+      // Сохраняем промпт в сессию для возможного улучшения
+      ctx.session.prompt = prompt
 
-        // ✅ Отправляем событие в Inngest
-        const eventId = await sendInngestEvent(
-          INNGEST_EVENTS.NEURO_IMAGE_GENERATION,
-          {
-            prompt,
-            modelId: ctx.session.selectedImageModel,
-            modelName: imageModelPrices[ctx.session.selectedImageModel]?.shortName || 'unknown',
-            numImages: 1,
-            userId: ctx.from.id.toString(),
-            telegramId: ctx.from.id.toString(),
-            username: ctx.from.username ?? 'unknown',
-            isRu,
-            metadata: {
-              type: 'text-to-image',
-              wizard: 'text_to_image',
-              modelId: ctx.session.selectedImageModel,
-            },
-          }
-        )
-
-        // ✅ Мгновенно отвечаем пользователю
-        await ctx.reply(
-          isRu
-            ? `⏳ Генерирую изображение...\n\nID задачи: ${eventId.substring(0, 8)}...\n\nВы получите уведомление когда будет готово! 🎉`
-            : `⏳ Generating image...\n\nTask ID: ${eventId.substring(0, 8)}...\n\nYou'll receive a notification when ready! 🎉`,
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: isRu ? '🔄 Проверить статус' : '🔄 Check status',
-                    callback_data: `status_${eventId}`,
-                  },
-                ],
-                [
-                  {
-                    text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
-                    callback_data: 'improve_prompt',
-                  },
-                  {
-                    text: isRu ? '📐 Изменить размер' : '📐 Change size',
-                    callback_data: 'change_size',
-                  },
-                ],
-                [
-                  {
-                    text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
-                    callback_data: 'go_main_menu',
-                  },
-                ],
-              ],
-            },
-          }
-        )
-
-        // Сохраняем промпт в сессию для возможного улучшения
-        ctx.session.prompt = prompt
-
-        logger.info('✅ [TEXT-TO-IMAGE] Generation started successfully', {
-          userId: ctx.from.id,
-          eventId,
-        })
-
-        // ✅ Выходим из сцены - генерация работает в фоне
-        return ctx.scene.leave()
-      } catch (error) {
-        logger.error('❌ [TEXT-TO-IMAGE] Failed to send Inngest event', {
-          error: error instanceof Error ? error.message : String(error),
-          userId: ctx.from.id,
-          prompt: prompt.substring(0, 50),
-        })
-
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при запуске генерации. Попробуйте позже.'
-            : '❌ An error occurred while starting generation. Please try again later.'
-        )
-        return ctx.scene.leave()
-      }
+      // После успешной генерации (сообщение теперь отправляет generateTextToImageDirect),
+      // мы просто покидаем сцену.
+      return ctx.scene.leave() // Покидаем сцену
     } catch (error) {
-      logger.error('❌ [TEXT-TO-IMAGE] Error in prompt processing:', {
-        error: error instanceof Error ? error.message : String(error),
+      logger.error('Ошибка при генерации изображения в textToImageWizard:', {
+        error,
         telegramId: ctx.from.id,
       })
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
   },
-
-  // ШАГ 4: Обработка кнопок (fallback для случаев, когда не покинули сцену)
+  // ЭТОТ ШАГ, СКОРЕЕ ВСЕГО, БОЛЬШЕ НЕ НУЖЕН ИЛИ ДОЛЖЕН БЫТЬ ПУСТЫМ,
+  // ТАК КАК ПРЕДЫДУЩИЙ ШАГ ЗАВЕРШАЕТСЯ ctx.scene.leave()
+  // ИЛИ ОБРАБОТКА ПЕРЕХОДИТ К HEARS HANDLERS
   async ctx => {
+    // УДАЛЯЕМ СТРОКУ С "TODO" ОТСЮДА ИЛИ ВЕСЬ ЭТОТ ШАГ, ЕСЛИ ОН НЕ НУЖЕН
+    // logger.info(
+    //   `textToImageWizard step 4: User ${ctx.from?.id} ` +
+    //     ` ${ctx.message && 'text' in ctx.message ? ctx.message.text : 'no text'}`
+    // )
+    // const message = ctx.message
+    // if (message && 'text' in message) {
+    //   const text = message.text
+    //   const numImages = parseInt(text[0])
+    //   if (!isNaN(numImages) && numImages >= 1 && numImages <= 4) {
+    //     // TODO: Реализовать повторную генерацию с numImages
+    //     // await ctx.reply(
+    //     //   `Запущена повторная генерация ${numImages} изображений... (TODO)`
+    //     // )
+    //     // Здесь нужно вызвать generateTextToImageDirect или аналогичную логику,
+    //     // а затем снова показать клавиатуру, как на предыдущем шаге.
+    //     // Однако, это уже делается через hearsHandlers, поэтому этот шаг избыточен.
+    //   } else if (text === (isRussian(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt')) {
+    //     return ctx.scene.enter(improvePromptWizard.id)
+    //   } else if (text === (isRussian(ctx) ? '📐 Изменить размер' : '📐 Change size')) {
+    //     // TODO: Передать ID изображения или другую инфу в sizeWizard, если нужно
+    //     return ctx.scene.enter(sizeWizard.id)
+    //   } else if (text === (isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu')) {
+    //     await handleMenu(ctx, true) // Возвращаемся в главное меню
+    //     return ctx.scene.leave()
+    //   }
+    // }
+    // Этот шаг, скорее всего, не будет достигнут, если предыдущий завершается ctx.scene.leave()
+    // или если пользователь нажимает кнопки, обрабатываемые hearsHandlers.
+    // Оставляем его пустым или удаляем, чтобы избежать неожиданного поведения.
     logger.warn(
-      `⚠️ [TEXT-TO-IMAGE] Reached unexpected step for user ${ctx.from?.id}. Leaving scene.`
+      `Reached an unexpected step in textToImageWizard for user ${ctx.from?.id}. Leaving scene.`
     )
     return ctx.scene.leave()
   }
 )
-
-export default textToImageWizard
