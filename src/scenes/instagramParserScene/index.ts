@@ -360,7 +360,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
       if (action === 'main_menu') {
         await ctx.answerCbQuery()
-        await ctx.scene.enter('menuScene')
+        await ctx.scene.enter('main_menu')
         return
       }
 
