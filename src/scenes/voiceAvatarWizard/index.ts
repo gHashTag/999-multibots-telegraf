@@ -99,14 +99,11 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.enter('veed_fabric_lipsync')
         }
 
-        // ✅ ИСПРАВЛЕНИЕ: Выходим из сцены вместо перехода в text_to_speech (избегаем зависания)
+        // ✅ ИСПРАВЛЕНИЕ: Выходим из сцены в главное меню (без кнопки)
         await ctx.reply(
           isRu
-            ? '✅ Голосовой аватар успешно создан!\n\n🎙️ Теперь вы можете использовать функцию "🎙️ Текст в голос" в главном меню для озвучивания текста вашим голосом.'
-            : '✅ Voice avatar successfully created!\n\n🎙️ Now you can use "🎙️ Text to speech" function in the main menu to convert text to speech with your voice.',
-          Markup.keyboard([
-            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
-          ]).resize()
+            ? '✅ Голосовой аватар успешно создан!\n\n🎙️ Теперь вы можете использовать команду "🎙️ Текст в голос" или найти её в главном меню.'
+            : '✅ Voice avatar successfully created!\n\n🎙️ Now you can use the "🎙️ Text to speech" command or find it in the main menu.'
         )
         return ctx.scene.leave()
       } catch (error) {
