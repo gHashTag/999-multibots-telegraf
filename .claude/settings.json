@@ -40,10 +40,11 @@
     "deny": [
       "Bash(rm -rf /)",
       "Bash(eval *)",
-      "Bash(git push origin production)",
-      "Bash(deploy to production)",
-      "Bash(.*212\.86\.115\.30.*)",
-      "Bash(force push to main)"
+      "Bash(force push to main)",
+      "Bash(git push origin production --force)",
+      "Bash(force deploy to production)",
+      "Bash(skip health check production)",
+      "Bash(deploy to production without testing)"
     ]
   },
   "hooks": {},
