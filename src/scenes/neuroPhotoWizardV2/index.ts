@@ -9,6 +9,7 @@ import {
   getLatestUserModel,
   getReferalsCountAndUserData,
   getUserData,
+  supabase,
 } from '@/core/supabase'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
 import { getLatestUserModelForHaim } from '@/core/supabase/getLatestUserModelForHaim'
@@ -51,43 +52,65 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       `🤖 Определен бот V2: ${bot_name} для пользователя ${telegramId}`
     )
 
-    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
+    // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ВСЕХ БОТОВ - ИЩЕМ И BFL И REPLICATE МОДЕЛИ
     let userModel = null
 
+    console.log(`🔍 [V2] Ищем модель для бота: ${bot_name}, пользователь: ${telegramId}`)
+
+    // Сначала пробуем replicate модели (они более распространены)
+    console.log('🔄 Пробуем replicate модели...')
     if (bot_name === 'HaimGroupMedia_bot') {
-      console.log('🎯 Используем расширенную функцию V2 для HaimGroupMedia_bot')
       userModel = await getLatestUserModelForHaim(
         Number(telegramId),
-        'bfl',
+        'replicate',
         bot_name
       )
+    } else {
+      userModel = await getLatestUserModel(Number(telegramId), 'replicate')
+    }
 
-      // Если нет BFL модели, пробуем replicate
-      if (!userModel) {
-        console.log(
-          '🔄 BFL модель не найдена, пробуем replicate для HaimGroupMedia_bot'
-        )
+    // Если нет replicate модели, пробуем BFL
+    if (!userModel) {
+      console.log('🔄 Replicate модель не найдена, пробуем BFL')
+      if (bot_name === 'HaimGroupMedia_bot') {
         userModel = await getLatestUserModelForHaim(
           Number(telegramId),
-          'replicate',
+          'bfl',
           bot_name
         )
+      } else {
+        userModel = await getLatestUserModel(Number(telegramId), 'bfl')
       }
-    } else {
-      console.log('🔧 Используем стандартную функцию V2 для обычного бота')
-      // Сначала пробуем BFL модели
-      userModel = await getLatestUserModel(Number(telegramId), 'bfl')
     }
 
     console.log('userModel V2', userModel)
 
+    // 🔍 ДИАГНОСТИКА: Проверяем все модели пользователя для диагностики
+    try {
+      const { data: allModels, error: allModelsError } = await supabase
+        .from('model_trainings')
+        .select('id, api, status, model_name, bot_name, created_at')
+        .eq('telegram_id', telegramId)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (allModels && allModels.length > 0) {
+        console.log(`🔍 [DIAGNOSTIC] Найдено ${allModels.length} моделей для пользователя ${telegramId}:`, allModels)
+      } else {
+        console.log(`❌ [DIAGNOSTIC] Модели НЕ НАЙДЕНЫ для пользователя ${telegramId}`)
+      }
+    } catch (diagError) {
+      console.error(`❌ [DIAGNOSTIC] Ошибка при получении всех моделей:`, diagError)
+    }
+
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
     if (!userModel) {
+      // Более детальное сообщение об ошибке с информацией о боте
       await ctx.reply(
         isRu
-          ? '❌ У вас нет обученных моделей.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото в вашим лицом. '
-          : "❌ You don't have any trained models.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face.",
+          ? `❌ У вас нет обученных моделей для этого бота (${bot_name}).\n\nВозможно, модели были созданы на другом боте или с другим API.\n\nИспользуйте команду "🤖 Цифровое тело аватара", чтобы создать новую модель.`
+          : `❌ You don't have any trained models for this bot (${bot_name}).\n\nPerhaps models were created on another bot or with different API.\n\nUse "🤖 Digital avatar body" to create a new model.`,
         {
           reply_markup: {
             keyboard: (

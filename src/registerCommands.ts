@@ -129,7 +129,6 @@ const scenesToRegister = [
   imageToVideoWizard,
   imageToPromptWizard,
   imageUpscalerWizard,
-  faceSwapWizard,
   improvePromptWizard,
   trainFluxModelWizard,
   uploadTrainFluxModelScene,
@@ -143,7 +142,7 @@ const scenesToRegister = [
     ...(textToSpeechWizard.steps as any)
   ),
   videoTranscriptionWizard,
-  // lipSyncWizard,  // TEMPORARILY DISABLED - import fails for unknown reason
+  lipSyncWizard,
   veedFabricWizard,
   aiReelsWizard,
   aiReelsEntryWizard,
@@ -164,6 +163,8 @@ const scenesToRegister = [
   instagramScrapingWizard,
   autoFixerConfigScene,
   instagramParserScene,
+  instagramParserWizard,
+  faceSwapWizard,
 ]
 
 // 🔍 DEBUG: Print scene names from array definition
@@ -172,7 +173,7 @@ const sceneNames = [
   'rublePaymentScene', 'starPaymentScene', 'subscriptionScene', 'subscriptionCheckScene',
   'checkBalanceScene', 'balanceScene', 'neuroPhotoWizard', 'neuroPhotoWizardV2',
   'textToImageWizard', 'textToVideoWizard', 'imageToVideoWizard', 'imageToPromptWizard',
-  'imageUpscalerWizard', 'faceSwapWizard', 'improvePromptWizard', 'trainFluxModelWizard',
+  'imageUpscalerWizard', 'improvePromptWizard', 'trainFluxModelWizard',
   'uploadTrainFluxModelScene', 'uploadVideoScene', 'sizeWizard', 'aiPhotoshopScene',
   'morphingWizard', 'voiceWizard_wrapped', 'textToSpeechWizard_wrapped',
   'videoTranscriptionWizard', 'lipSyncWizard', 'veedFabricWizard', 'aiReelsWizard',
@@ -180,7 +181,7 @@ const sceneNames = [
   'avatarBrainWizard_wrapped', 'chatWithAvatarWizard_wrapped', 'selectModelWizard',
   'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
   'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
-  'autoFixerConfigScene', 'instagramParserScene'
+  'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
 ]
 
 // 🔍 DEBUG: Validate each scene
@@ -213,7 +214,10 @@ export const stage = new Scenes.Stage<MyContext>(scenesToRegister as any)
 console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
   totalScenes: stage.scenes.size,
   hasTextToVideoWizard: stage.scenes.has('text_to_video'),
-  sceneNames: Array.from(stage.scenes.keys()),
+  hasInstagramParser: stage.scenes.has('instagram_parser_wizard'),
+  hasFaceSwapWizard: stage.scenes.has('faceSwapWizard'),
+  hasPaymentScene: stage.scenes.has('payment_scene'),
+  allSceneNames: Array.from(stage.scenes.keys()).sort(),
 })
 
 // Function to send the promotional message
