@@ -186,12 +186,12 @@ export const imageModelPrices: Record<string, ModelInfo> = {
   // Midjourney v7 - High quality artistic image generation
   'midjourney-v7': {
     shortName: 'Midjourney v7',
-    description_en: `Midjourney v7 is the latest version of the renowned AI image generation model, known for its exceptional artistic styles and high-quality output. Perfect for creative projects, artistic visions, and imaginative compositions.`,
-    description_ru: `Midjourney v7 — это последняя версия знаменитой модели генерации изображений, известной своим исключительным художественным стилем и высококачественным результатом. Идеально подходит для творческих проектов, художественных видений и воображаемых композиций.`,
+    description_en: `Midjourney v7 is the latest version of the renowned AI image generation model, known for its exceptional artistic styles and high-quality output. Supports both text-to-image and image-to-image generation. Perfect for creative projects, artistic visions, and imaginative compositions.`,
+    description_ru: `Midjourney v7 — это последняя версия знаменитой модели генерации изображений, известной своим исключительным художественным стилем и высококачественным результатом. Поддерживает как генерацию из текста, так и из изображений. Идеально подходит для творческих проектов, художественных видений и воображаемых композиций.`,
     previewImage:
-      'https://replicate.delivery/pbxt/6h1XxXX1jDDWMXmkvzrQnslY4fT8r4Xx9kLP0g6lZCZAfuEJA/output-0.png',
+      'https://replicate.delivery/xezq/98efrLgtDWnGfoNVAJrmfF7A8vAXyIeZmejGQ2TYdFfFSsTPKA/out-0.webp',
     costPerImage: calculateFinalImageCostInStars(0.15),
-    inputType: ['text'],
+    inputType: ['text', 'image'],
   },
   'recraft-ai/recraft-20b': {
     shortName: 'Recraft 20b',

@@ -96,9 +96,8 @@ import { isRussian } from '@/helpers/language'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { registerPaymentActions } from './handlers/paymentActions'
-// setupHearsHandlers отключен - используется только handleMenu из menuScene
-// Убираем импорт handleMenu, так как он не используется здесь напрямую
-// import { handleMenu } from './handlers/handleMenu'
+// ✅ ПОДКЛЮЧАЕМ setupHearsHandlers для обработки всех кнопок меню
+import { setupHearsHandlers } from './hearsHandlers'
 //https://github.com/telegraf/telegraf/issues/705
 
 // Проверяем что textToVideoWizard загружен
@@ -163,6 +162,8 @@ const scenesToRegister = [
   instagramScrapingWizard,
   autoFixerConfigScene,
   instagramParserScene,
+  instagramParserWizard,
+  faceSwapWizard,
 ]
 
 // 🔍 DEBUG: Print scene names from array definition
@@ -179,7 +180,7 @@ const sceneNames = [
   'avatarBrainWizard_wrapped', 'chatWithAvatarWizard_wrapped', 'selectModelWizard',
   'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
   'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
-  'autoFixerConfigScene', 'instagramParserScene'
+  'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
 ]
 
 // 🔍 DEBUG: Validate each scene
@@ -212,7 +213,10 @@ export const stage = new Scenes.Stage<MyContext>(scenesToRegister as any)
 console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
   totalScenes: stage.scenes.size,
   hasTextToVideoWizard: stage.scenes.has('text_to_video'),
-  sceneNames: Array.from(stage.scenes.keys()),
+  hasInstagramParser: stage.scenes.has('instagram_parser_wizard'),
+  hasFaceSwapWizard: stage.scenes.has('faceSwapWizard'),
+  hasPaymentScene: stage.scenes.has('payment_scene'),
+  allSceneNames: Array.from(stage.scenes.keys()).sort(),
 })
 
 // Function to send the promotional message
@@ -1878,6 +1882,10 @@ If not, continue on your own and click the "I myself" button`
     // ✅ РЕГИСТРИРУЕМ MULTI-PHOTO ACTION HANDLERS
     logger.info('🔧 [MULTI-PHOTO] Registering multi-photo action handlers')
     registerMultiPhotoActions(bot)
+
+    // ✅ РЕГИСТРИРУЕМ HEARS HANDLERS для всех кнопок меню
+    logger.info('🔧 [HEARS] Registering global hears handlers for menu buttons')
+    setupHearsHandlers(bot)
 
     console.log('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
     logger.info('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
