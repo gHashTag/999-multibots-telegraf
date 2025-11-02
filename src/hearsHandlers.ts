@@ -311,29 +311,30 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  bot.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async (ctx: MyContext) => {
-    logger.debug(`Получен hears для Нейрофото 2 от ${ctx.from?.id}`)
-
-    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
-    const { ADMIN_IDS_ARRAY } = await import('@/config')
-    const userId = ctx.from?.id
-    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-    
-    if (!isAdmin) {
-      await ctx.reply('❌ У вас нет доступа к этой функции.')
-      return
-    }
-
-    // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
-    const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
-    if (!hasSubscription) {
-      return // Пользователь перенаправлен в subscriptionScene
-    }
-
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.NeuroPhotoV2
-    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  })
+  // TEMPORARILY HIDDEN - кнопка "Нейрофото 2"
+  // bot.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async (ctx: MyContext) => {
+  //   logger.debug(`Получен hears для Нейрофото 2 от ${ctx.from?.id}`)
+  //
+  //   // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+  //   const { ADMIN_IDS_ARRAY } = await import('@/config')
+  //   const userId = ctx.from?.id
+  //   const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+  //
+  //   if (!isAdmin) {
+  //     await ctx.reply('❌ У вас нет доступа к этой функции.')
+  //     return
+  //   }
+  //
+  //   // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
+  //   const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
+  //   if (!hasSubscription) {
+  //     return // Пользователь перенаправлен в subscriptionScene
+  //   }
+  //
+  //   await ctx.scene.leave()
+  //   ctx.session.mode = ModeEnum.NeuroPhotoV2
+  //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+  // })
 
   bot.hears(
     [levels[3].title_ru, levels[3].title_en],
@@ -946,60 +947,62 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   )
 
   // === АДМИНСКИЕ КНОПКИ ===
-  bot.hears('🤖 Цифровое тело 2', async ctx => {
-    logger.info('GLOBAL HEARS: Цифровое тело 2 (Admin)', {
-      telegramId: ctx.from?.id,
-    })
+  // TEMPORARILY HIDDEN - кнопка "Цифровое тело 2"
+  // bot.hears('🤖 Цифровое тело 2', async ctx => {
+  //   logger.info('GLOBAL HEARS: Цифровое тело 2 (Admin)', {
+  //     telegramId: ctx.from?.id,
+  //   })
+  //
+  //   // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+  //   const { ADMIN_IDS_ARRAY } = await import('@/config')
+  //   const userId = ctx.from?.id
+  //   const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+  //
+  //   if (!isAdmin) {
+  //     await ctx.reply('❌ У вас нет доступа к этой функции.')
+  //     return
+  //   }
+  //
+  //   // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
+  //   const hasSubscription = await checkSubscriptionGuard(
+  //     ctx,
+  //     '🤖 Цифровое тело 2'
+  //   )
+  //   if (!hasSubscription) {
+  //     return // Пользователь перенаправлен в subscriptionScene
+  //   }
+  //
+  //   await ctx.scene.leave()
+  //   ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+  //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+  // })
 
-    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
-    const { ADMIN_IDS_ARRAY } = await import('@/config')
-    const userId = ctx.from?.id
-    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-    
-    if (!isAdmin) {
-      await ctx.reply('❌ У вас нет доступа к этой функции.')
-      return
-    }
-
-    // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
-    const hasSubscription = await checkSubscriptionGuard(
-      ctx,
-      '🤖 Цифровое тело 2'
-    )
-    if (!hasSubscription) {
-      return // Пользователь перенаправлен в subscriptionScene
-    }
-
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  })
-
-  bot.hears('📸 Нейрофото 2', async ctx => {
-    logger.info('GLOBAL HEARS: Нейрофото 2 (Admin)', {
-      telegramId: ctx.from?.id,
-    })
-
-    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
-    const { ADMIN_IDS_ARRAY } = await import('@/config')
-    const userId = ctx.from?.id
-    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-    
-    if (!isAdmin) {
-      await ctx.reply('❌ У вас нет доступа к этой функции.')
-      return
-    }
-
-    // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
-    const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
-    if (!hasSubscription) {
-      return // Пользователь перенаправлен в subscriptionScene
-    }
-
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.NeuroPhoto
-    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  })
+  // TEMPORARILY HIDDEN - кнопка "Нейрофото 2" (дубликат)
+  // bot.hears('📸 Нейрофото 2', async ctx => {
+  //   logger.info('GLOBAL HEARS: Нейрофото 2 (Admin)', {
+  //     telegramId: ctx.from?.id,
+  //   })
+  //
+  //   // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+  //   const { ADMIN_IDS_ARRAY } = await import('@/config')
+  //   const userId = ctx.from?.id
+  //   const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+  //
+  //   if (!isAdmin) {
+  //     await ctx.reply('❌ У вас нет доступа к этой функции.')
+  //     return
+  //   }
+  //
+  //   // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
+  //   const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
+  //   if (!hasSubscription) {
+  //     return // Пользователь перенаправлен в subscriptionScene
+  //   }
+  //
+  //   await ctx.scene.leave()
+  //   ctx.session.mode = ModeEnum.NeuroPhoto
+  //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+  // })
 
   // === FLUX KONTEXT ОБРАБОТЧИКИ ===
   bot.hears(['💼 FLUX Kontext Pro'], async ctx => {
