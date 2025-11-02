@@ -400,13 +400,14 @@ export async function mainMenu({
   const adminSpecificButtons = []
 
   // Админские кнопки для основных админов
-  if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
-    adminSpecificButtons.push(
-      Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
-    )
-    console.log('[mainMenu LOG] Added admin buttons.')
-  }
+  // TEMPORARILY HIDDEN - кнопки "Цифровое тело 2" и "Нейрофото 2"
+  // if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
+  //   adminSpecificButtons.push(
+  //     Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
+  //     Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
+  //   )
+  //   console.log('[mainMenu LOG] Added admin buttons.')
+  // }
 
   // --- Создаем кнопки, которые нужны почти всегда ---
   const supportButton = Markup.button.text(
