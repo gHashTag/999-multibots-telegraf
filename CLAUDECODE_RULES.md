@@ -15,6 +15,49 @@
 
 **ВСЕГДА ЧИТАЙ ЭТОТ ФАЙЛ ПЕРЕД ЛЮБОЙ ОПЕРАЦИЕЙ ДЕПЛОЯ!**
 
+### 🚀 DEPLOYMENT_COMMANDS.md
+**БЫСТРЫЙ ДОСТУП**: Команды для безопасного деплоя!
+
+Содержит:
+- ✅ Быстрые команды (make check-all, make deploy-dev, etc.)
+- ✅ Защитные механизмы (5 слоев защиты!)
+- ✅ Серверы (Development: 2 бота, Production: 10 ботов)
+- ✅ Emergency procedures
+- ✅ Quick decision tree
+
+**ИСПОЛЬЗУЙ ЭТОТ ФАЙЛ ДЛЯ БЫСТРОГО ДОСТУПА К КОМАНДАМ!**
+
+### 🔒 MULTI-LAYER PROTECTION
+**5 СЛОЕВ ЗАЩИТЫ ОТ СЛОМАННОГО PRODUCTION:**
+
+#### Layer 1: Git Hooks
+- Pre-push: Блокирует пуши в production ветку
+- Pre-commit: Валидирует изменения
+- Commit-msg: Формат коммитов
+- **Команда**: `make install-hooks`
+
+#### Layer 2: Agent Permissions
+- Блокирует опасные команды в настройках
+- Предотвращает force push
+- Защищает от несанкционированного деплоя
+
+#### Layer 3: Validation Scripts
+- deployment-validator.sh: Комплексная проверка
+- auto-deployment-check.sh: Автоматическая проверка
+- git-protection-hooks.sh: Установка защиты
+
+#### Layer 4: Makefile Commands
+- Безопасные команды через make
+- Встроенные предупреждения
+- Четкое разделение функций
+
+#### Layer 5: Documentation
+- MASTER_DEPLOYMENT_GUIDE.md: Полный гайд (573 строки)
+- README_DEPLOYMENT.md: Навигация
+- DEPLOYMENT_COMMANDS.md: Быстрые команды
+
+**ВСЕ 5 СЛОЕВ ДОЛЖНЫ БЫТЬ ОБОЙДЕНЫ ДЛЯ СЛОМКИ PRODUCTION!**
+
 ---
 
 ## 📚 Расширенная Документация
