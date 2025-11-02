@@ -39,7 +39,6 @@ import { message } from 'telegraf/filters'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
-import { setupHearsHandlers } from './hearsHandlers'
 import { setupSceneMenuCallbacks } from './simpleSceneMenu'
 
 // Инициализация ботов
@@ -174,9 +173,7 @@ async function initializeBots() {
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
     bot.on('successful_payment', handleSuccessfulPayment as any)
-    // Инициализация обработчиков hears из отдельного файла
-    setupHearsHandlers(bot) // 4. Hears
-    // 5. Обработчики callback для простого меню сцен
+    // 4. Обработчики callback для простого меню сцен
     setupSceneMenuCallbacks(bot) // <--- НОВАЯ СИСТЕМА БЕЗ УРОВНЕЙ
 
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
@@ -259,9 +256,7 @@ async function initializeBots() {
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)
-        // Инициализация обработчиков hears из отдельного файла
-        setupHearsHandlers(bot) // 4. Hears
-        // 5. Обработчики callback для простого меню сцен
+        // 4. Обработчики callback для простого меню сцен
         setupSceneMenuCallbacks(bot) // <--- НОВАЯ СИСТЕМА БЕЗ УРОВНЕЙ
 
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
