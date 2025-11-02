@@ -86,7 +86,7 @@ export const levels: Record<number, Level> = {
   14: {
     title_ru: '🎤 Синхронизация губ',
     title_en: '🎤 Lip Sync',
-    admin_only: true, // 🔒 ВРЕМЕННО: только для админов пока тестируется интеграция
+    // Доступно всем пользователям
   },
   // face_swap - замена лица на видео/фото
   15: {
