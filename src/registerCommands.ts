@@ -1783,7 +1783,7 @@ If not, continue on your own and click the "I myself" button`
       logger.info('🔄 GLOBAL ACTION: update_video_status', {
         telegramId: ctx.from?.id,
       })
-      
+
       try {
         await handleVideoStatusUpdate(ctx)
       } catch (error) {
@@ -1791,6 +1791,103 @@ If not, continue on your own and click the "I myself" button`
           error,
           telegramId: ctx.from?.id,
         })
+      }
+    })
+
+    // ✅ ОБРАБОТЧИК СТАТУСА ГЕНЕРАЦИИ INNGEST
+    bot.action(/^status_(.+)$/, async ctx => {
+      const eventId = ctx.match[1]
+      const isRu = isRussianFromState(ctx)
+
+      logger.info('🔍 [STATUS] Checking generation status', {
+        eventId,
+        telegramId: ctx.from?.id,
+      })
+
+      try {
+        await ctx.answerCbQuery(
+          isRu
+            ? '⏳ Проверяю статус...'
+            : '⏳ Checking status...'
+        )
+
+        // Импортируем Inngest клиент
+        const { inngest } = await import('@/inngest_app/inngestClient')
+
+        // Получаем статус события
+        const event = await inngest.getEvent(eventId)
+
+        if (!event) {
+          await ctx.editMessageText(
+            isRu
+              ? '⚠️ Задача не найдена. Возможно, она уже завершена или истёк срок хранения.'
+              : '⚠️ Task not found. Maybe it\'s already completed or expired.'
+          )
+          return
+        }
+
+        // Определяем статус
+        let statusText = ''
+        let statusEmoji = ''
+
+        if (event.data?.status === 'completed') {
+          statusEmoji = '✅'
+          statusText = isRu ? 'Готово!' : 'Completed!'
+        } else if (event.data?.status === 'failed') {
+          statusEmoji = '❌'
+          statusText = isRu ? 'Ошибка' : 'Failed'
+        } else if (event.data?.status === 'processing') {
+          statusEmoji = '⏳'
+          statusText = isRu ? 'В обработке...' : 'Processing...'
+        } else {
+          statusEmoji = '🔄'
+          statusText = isRu ? 'Неизвестно' : 'Unknown'
+        }
+
+        // Обновляем сообщение
+        await ctx.editMessageText(
+          `${statusEmoji} ${statusText}\n\n` +
+          `ID: ${eventId.substring(0, 8)}...\n` +
+          (event.data?.metadata?.prompt
+            ? `Промпт: ${event.data.metadata.prompt.substring(0, 50)}...`
+            : ''),
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: isRu ? '🔄 Обновить' : '🔄 Refresh',
+                    callback_data: `status_${eventId}`,
+                  },
+                  {
+                    text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                    callback_data: 'go_main_menu',
+                  },
+                ],
+              ],
+            },
+          }
+        )
+
+        // Если готово и есть результат, уведомляем
+        if (event.data?.status === 'completed') {
+          logger.info('✅ [STATUS] Generation completed', {
+            eventId,
+            telegramId: ctx.from?.id,
+          })
+        }
+      } catch (error) {
+        logger.error('❌ [STATUS] Error checking status', {
+          error: error instanceof Error ? error.message : String(error),
+          eventId,
+          telegramId: ctx.from?.id,
+        })
+
+        await ctx.editMessageText(
+          isRu
+            ? '❌ Не удалось получить статус. Попробуйте позже.'
+            : '❌ Failed to get status. Try again later.'
+        )
       }
     })
 
