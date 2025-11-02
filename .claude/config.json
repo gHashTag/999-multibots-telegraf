@@ -77,20 +77,52 @@
         "status_tracking": "Active - 🔄 Check status button"
       }
     },
-    "critical_warning": {
+    "server_configuration": {
       "production_server": "212.86.115.30",
-      "message": "⚠️ НЕ ЛОМАТЬ ПРОДАКШН! ТОЛЬКО 2 БОТА В DEV РЕЖИМЕ!",
-      "development_only": "Production server should run ONLY 2 bots in development mode",
+      "development_server": "45.66.11.152",
+      "production_config": {
+        "bot_count": 10,
+        "mode": "production",
+        "description": "Full production bot farm with 10 bots"
+      },
+      "development_config": {
+        "bot_count": 2,
+        "mode": "development",
+        "description": "Development environment with 2 bots for testing"
+      },
+      "deployment_rules": {
+        "production": {
+          "server": "212.86.115.30",
+          "bots": 10,
+          "mode": "production",
+          "description": "Live production environment",
+          "deployment_allowed": true,
+          "test_first": true
+        },
+        "development": {
+          "server": "45.66.11.152",
+          "bots": 2,
+          "mode": "development",
+          "description": "Development and testing environment",
+          "deployment_allowed": true,
+          "test_first": false,
+          "purpose": "Safe testing and development"
+        }
+      },
       "forbidden_actions": [
-        "Deploy to 212.86.115.30 production server",
-        "Run full bot farm on production",
-        "Production deployment without explicit permission",
-        "Stop/restart production containers"
+        "Deploy to production without testing on development",
+        "Force push to main branch",
+        "Skip health checks after deployment"
       ],
       "emergency_procedure": {
-        "if_production_broken": "Immediately stop all containers on 212.86.115.30",
-        "restore_command": "Only run 2 development bots, NOT full deployment",
+        "if_production_broken": "Immediately investigate and fix",
+        "health_check": "curl -f http://212.86.115.30:3000/health",
+        "rollback_command": "Redeploy from last known good state",
         "contact": "Notify immediately if production is affected"
+      },
+      "ssl_certificates": {
+        "production": "/etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem",
+        "development": "/etc/letsencrypt/live/three-head-dev.shop/privkey.pem"
       }
     }
   }
