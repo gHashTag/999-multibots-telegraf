@@ -95,8 +95,18 @@ async function createVoiceViaAiServer({
   ]
 
   let lastError: any = null
+  const endpointTimeout = 10000 // 10 секунд на эндпоинт
+  const maxTotalTime = 30000 // Максимум 30 секунд на все попытки
+
+  const startTime = Date.now()
 
   for (const endpoint of endpoints) {
+    // Проверяем общий таймаут
+    if (Date.now() - startTime > maxTotalTime) {
+      logger.warn(`⚠️ Превышен общий таймаут ${maxTotalTime}ms для AI Server, переходим к fallback`)
+      break
+    }
+
     try {
       logger.info(`🔍 Пробуем эндпоинт: ${endpoint}`)
 
@@ -113,7 +123,7 @@ async function createVoiceViaAiServer({
             'Authorization': `Bearer ${process.env.AI_SERVER_API_KEY}`
           })
         },
-        timeout: 60000
+        timeout: endpointTimeout
       })
 
       if (response.status === 200 || response.status === 201) {
@@ -214,8 +224,8 @@ export async function createVoiceElevenLabs({
         'Accept': 'application/json',
         'Accept-Language': 'en-US,en;q=0.9',
       },
-      timeout: 30000, // 30 seconds timeout
-      maxRedirects: 5,
+      timeout: 20000, // 20 seconds timeout (уменьшено с 30)
+      maxRedirects: 3, // Уменьшено с 5 для быстрейшего ответа
     })
     logger.info('[createVoiceElevenLabs] Axios POST to ElevenLabs finished.', {
       username,
