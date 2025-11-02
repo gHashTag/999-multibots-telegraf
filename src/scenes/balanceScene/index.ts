@@ -393,7 +393,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           ? '❌ Произошла ошибка при получении информации о балансе'
           : '❌ Error occurred while getting balance information'
       )
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.enter(MAIN_MENU)
     }
   }
 )

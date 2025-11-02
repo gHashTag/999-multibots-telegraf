@@ -11,6 +11,7 @@ import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { escapeMarkdownV2 } from '@/helpers/escapeMarkdown'
+import { MAIN_MENU } from '@/constants/sceneIds'
 
 // Проверка валидности типа подписки
 export function isValidPaymentSubscription(value: string): boolean {
@@ -204,7 +205,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       await ctx.reply(fallbackMessage)
 
       // Возвращаемся в главное меню
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      return ctx.scene.enter(MAIN_MENU)
     } else {
       const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
 
@@ -373,7 +374,7 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         } */
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        return ctx.scene.enter(MAIN_MENU)
       } else {
         // Этот блок теперь действительно означает неизвестный callback_data
         console.warn('[Callback Handler] Unknown callback_data received:', text)

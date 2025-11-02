@@ -3,6 +3,7 @@ import { message, callbackQuery } from 'telegraf/filters'
 import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
+import { MAIN_MENU } from './constants/sceneIds'
 import { levels } from './menu/mainMenu'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
@@ -477,8 +478,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           }
 
           // Если подписка есть, входим в главное меню
-          ctx.session.mode = ModeEnum.MainMenu
-          await ctx.scene.enter(ModeEnum.MainMenu)
+          ctx.session.mode = MAIN_MENU
+          await ctx.scene.enter(MAIN_MENU)
         } catch (subscriptionError) {
           // Если ошибка с проверкой подписки, всё равно показываем меню
           logger.warn(
@@ -492,8 +493,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
             }
           )
 
-          ctx.session.mode = ModeEnum.MainMenu
-          await ctx.scene.enter(ModeEnum.MainMenu)
+          ctx.session.mode = MAIN_MENU
+          await ctx.scene.enter(MAIN_MENU)
         }
       } catch (error) {
         logger.error('Error in /menu command:', {
@@ -1183,7 +1184,7 @@ If not, continue on your own and click the "I myself" button`
       try {
         await ctx.answerCbQuery()
         await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.enter(MAIN_MENU)
       } catch (error) {
         logger.error('Error in go_main_menu action:', {
           error,
@@ -1829,7 +1830,7 @@ If not, continue on your own and click the "I myself" button`
           // Игнорируем ошибку если сообщение уже удалено
         })
         // Переходим в главное меню
-        await ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.enter(MAIN_MENU)
       } catch (error) {
         logger.error('Error in main_menu action:', {
           error,
