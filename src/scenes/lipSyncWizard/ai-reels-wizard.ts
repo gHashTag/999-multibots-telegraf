@@ -165,15 +165,33 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '✅ Фото получено!\n\n' +
-          '📹 Шаг 2: Теперь отправьте видео (до 30 сек) - это будет фон для кружочка.'
+          '📹 Теперь отправьте видео (до 30 сек) - это будет фон для кружочка.'
         : '✅ Photo received!\n\n' +
-          '📹 Step 2: Now send a video (up to 30 sec) - this will be the background for the circle.'
+          '📹 Now send a video (up to 30 sec) - this will be the background for the circle.'
     )
 
     return ctx.wizard.next()
   },
 
-  // Step 2: Получение видео (фон)
+  // Step 2: Запрос видео
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      return ctx.scene.leave()
+    }
+
+    await ctx.reply(
+      isRu
+        ? '📹 Шаг 2: Отправьте видео (фон до 30 сек)\n\n💡 Это будет фон для кружочка с lip-sync.'
+        : '📹 Step 2: Send a video (background up to 30 sec)\n\n💡 This will be the background for the lip-sync circle.'
+    )
+
+    return ctx.wizard.next()
+  },
+
+  // Step 3: Получение видео (фон)
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
@@ -214,15 +232,15 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '✅ Видео получено!\n\n' +
-          '✍️ Шаг 3: Введите текст или отправьте голосовое.'
+          '✍️ Теперь введите текст или отправьте голосовое.'
         : '✅ Video received!\n\n' +
-          '✍️ Step 3: Enter text or send a voice message.'
+          '✍️ Now enter text or send a voice message.'
     )
 
     return ctx.wizard.next()
   },
 
-  // Step 3: Получение текста
+  // Step 4: Запрос текста
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
@@ -231,7 +249,25 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    logger.info('✍️ [SIMPLE LIPSYNC] Step 3 STARTED - Получение текста', { telegramId })
+    await ctx.reply(
+      isRu
+        ? '✍️ Шаг 3: Введите текст для lip-sync.\n\n💡 Или отправьте голосовое сообщение.'
+        : '✍️ Step 3: Enter text for lip-sync.\n\n💡 Or send a voice message.'
+    )
+
+    return ctx.wizard.next()
+  },
+
+  // Step 5: Получение текста
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      return ctx.scene.leave()
+    }
+
+    logger.info('✍️ [SIMPLE LIPSYNC] Step 5 STARTED - Получение текста', { telegramId })
 
     // Обработка голосового сообщения
     if ((ctx.message as any)?.voice) {
@@ -276,7 +312,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
 
-  // Step 4: Проверка баланса и создание lip-sync
+  // Step 6: Генерация lip-sync
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
@@ -286,7 +322,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
 
     ctx.session.aiReels.step = 'lipsync_generation'
-    logger.info('🎬 [SIMPLE LIPSYNC] Step 4 STARTED', { telegramId })
+    logger.info('🎬 [SIMPLE LIPSYNC] Step 6 STARTED', { telegramId })
 
     let finalPrice = 0
 
