@@ -163,6 +163,8 @@ const scenesToRegister = [
   instagramScrapingWizard,
   autoFixerConfigScene,
   instagramParserScene,
+  instagramParserWizard,
+  faceSwapWizard,
 ]
 
 // 🔍 DEBUG: Print scene names from array definition
@@ -179,7 +181,7 @@ const sceneNames = [
   'avatarBrainWizard_wrapped', 'chatWithAvatarWizard_wrapped', 'selectModelWizard',
   'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
   'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
-  'autoFixerConfigScene', 'instagramParserScene'
+  'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
 ]
 
 // 🔍 DEBUG: Validate each scene
@@ -212,7 +214,10 @@ export const stage = new Scenes.Stage<MyContext>(scenesToRegister as any)
 console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
   totalScenes: stage.scenes.size,
   hasTextToVideoWizard: stage.scenes.has('text_to_video'),
-  sceneNames: Array.from(stage.scenes.keys()),
+  hasInstagramParser: stage.scenes.has('instagram_parser_wizard'),
+  hasFaceSwapWizard: stage.scenes.has('faceSwapWizard'),
+  hasPaymentScene: stage.scenes.has('payment_scene'),
+  allSceneNames: Array.from(stage.scenes.keys()).sort(),
 })
 
 // Function to send the promotional message
