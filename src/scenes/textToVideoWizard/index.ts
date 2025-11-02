@@ -239,7 +239,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Кнопки назад и отмена
       keyboardRows.push([
         isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
-        isRu ? 'Отмена' : 'Cancel'
+        isRu ? '❌ Отмена' : '❌ Cancel'
       ])
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
@@ -292,6 +292,16 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       if (selectedText.includes('Назад') || selectedText.includes('Back')) {
         console.log('🎬 [WIZARD] Step 2: Going back to menu')
         await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
+        return ctx.scene.leave()
+      }
+
+      // Отмена
+      if (selectedText.includes('Отмена') || selectedText.includes('Cancel')) {
+        console.log('🎬 [WIZARD] Step 2: Cancelled')
+        await ctx.reply(
+          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+          { reply_markup: { remove_keyboard: true } }
+        )
         return ctx.scene.leave()
       }
 
