@@ -31,7 +31,7 @@ INNGEST_SIGNING_KEY_RENDER=signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435
 # Render Server Settings
 # ======================================
 RENDER_SERVER_URL=https://render-v3-production.up.railway.app
-HEDRA_API_KEY=sk_hedra_jTiPa9kEiQ25EwjwkAoaCPmxcMfZZalnSUi-tQOjZrBISgz9jqKtK0j96YzreHQ3
+HEDRA_API_KEY=YOUR_HEDRA_API_KEY_HERE
 ```
 
 ## Использование в коде

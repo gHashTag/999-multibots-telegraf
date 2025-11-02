@@ -4,44 +4,60 @@ import { isRussian } from '@/helpers/language'
 import { priceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { logger } from '@/utils/enhancedLogger'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
   logger.debug('CASE: handleMenuCommand')
   const isRu = isRussian(ctx)
+
+  // Получаем текст из message или из update
+  let text = ''
   if (ctx.message && 'text' in ctx.message) {
-    const text = ctx.message.text || ''
-    logger.debug('CASE: handleMenuCommand.text', text)
+    text = ctx.message.text || ''
+    logger.debug('CASE: handleMenuCommand.text from message:', text)
+  } else if (ctx.update.message && 'text' in ctx.update.message) {
+    text = ctx.update.message.text || ''
+    logger.debug('CASE: handleMenuCommand.text from update.message:', text)
+  } else if (ctx.update.callback_query && 'data' in ctx.update.callback_query) {
+    text = ctx.update.callback_query.data || ''
+    logger.debug('CASE: handleMenuCommand.text from callback_query:', text)
+  } else {
+    logger.debug('CASE: handleMenuCommand - no text found in ctx')
+    return
+  }
 
-    // 🔍 ДИАГНОСТИКА ЯЗЫКА + ЗАЩИТА ОТ UNDEFINED
-    logger.debug('🔍 [LANG DEBUG] handleMenu:', {
-      isRu,
-      userLanguage: ctx.from?.language_code,
-      sessionLanguage: ctx.session?.userLanguage,
-      levelsDefined: !!levels,
-      levelsKeys: Object.keys(levels),
-      levels2TitleRu: levels?.[2]?.title_ru || 'undefined',
-      levels2TitleEn: levels?.[2]?.title_en || 'undefined',
-      currentKey: isRu ? (levels?.[2]?.title_ru || 'undefined') : (levels?.[2]?.title_en || 'undefined'),
-      receivedText: text,
-    })
+  logger.debug('CASE: handleMenuCommand.processing text:', text)
 
-    // 🔍 ДИАГНОСТИКА ПЕРЕД СОЗДАНИЕМ ACTIONS
-    logger.debug('🔍 [STEP DEBUG] About to create actions object')
-    logger.debug('🔍 [STEP DEBUG] Session mode:', ctx.session?.mode)
-    logger.debug('🔍 [STEP DEBUG] Current scene:', ctx.scene?.current?.id)
-    logger.debug('🔍 [STEP DEBUG] levels object:', levels)
-    logger.debug('🔍 [STEP DEBUG] levels length:', levels ? Object.keys(levels).length : 'undefined')
-    logger.debug('🔍 [STEP DEBUG] levels[0]:', levels ? levels[0] : 'undefined')
+  // 🔍 ДИАГНОСТИКА ЯЗЫКА + ЗАЩИТА ОТ UNDEFINED
+  logger.debug('🔍 [LANG DEBUG] handleMenu:', {
+    isRu,
+    userLanguage: ctx.from?.language_code,
+    sessionLanguage: ctx.session?.userLanguage,
+    levelsDefined: !!levels,
+    levelsKeys: Object.keys(levels),
+    levels2TitleRu: levels?.[2]?.title_ru || 'undefined',
+    levels2TitleEn: levels?.[2]?.title_en || 'undefined',
+    currentKey: isRu ? (levels?.[2]?.title_ru || 'undefined') : (levels?.[2]?.title_en || 'undefined'),
+    receivedText: text,
+  })
 
-    // Создаем объект для сопоставления текста с действиями
-    const actions: Record<string, () => Promise<void>> = {}
+  // 🔍 ДИАГНОСТИКА ПЕРЕД СОЗДАНИЕМ ACTIONS
+  logger.debug('🔍 [STEP DEBUG] About to create actions object')
+  logger.debug('🔍 [STEP DEBUG] Session mode:', ctx.session?.mode)
+  logger.debug('🔍 [STEP DEBUG] Current scene:', ctx.scene?.current?.id)
+  logger.debug('🔍 [STEP DEBUG] levels object:', levels)
+  logger.debug('🔍 [STEP DEBUG] levels length:', levels ? Object.keys(levels).length : 'undefined')
+  logger.debug('🔍 [STEP DEBUG] levels[0]:', levels ? levels[0] : 'undefined')
 
-    // Безопасное добавление action
-    const addAction = (key: number, actionFn: () => Promise<void>) => {
-      if (levels?.[key] && levels[key].title_ru && levels[key].title_en) {
-        const actionKey = isRu ? levels[key].title_ru : levels[key].title_en
-        actions[actionKey] = actionFn
+  // Создаем объект для сопоставления текста с действиями
+  const actions: Record<string, () => Promise<void>> = {}
+
+  // Безопасное добавление action
+  const addAction = (key: number, actionFn: () => Promise<void>) => {
+    if (levels?.[key] && levels[key].title_ru && levels[key].title_en) {
+      const actionKey = isRu ? levels[key].title_ru : levels[key].title_en
+      actions[actionKey] = actionFn
         logger.debug(`✅ Added action for level ${key}: ${actionKey}`)
       } else {
         logger.warn(`⚠️ levels[${key}] is not defined properly`)
@@ -135,13 +151,29 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(12, async () => {
       logger.debug('CASE: 🎨 ИИ Фотошоп')
       ctx.session.mode = ModeEnum.AiPhotoshop
-      await ctx.scene.enter('aiPhotoshopScene')
+      await ctx.scene.enter('ai_photoshop_scene')
     })
 
     addAction(13, async () => {
       logger.debug('CASE: 🌀 Infinity Морфинг')
       ctx.session.mode = ModeEnum.MorphingWizard
-      await ctx.scene.enter('morphingWizard')
+      await ctx.scene.enter('morphing_wizard')
+    })
+
+    addAction(14, async () => {
+      logger.debug('CASE: 🎤 Синхронизация губ')
+      // Проверяем админские права
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+      const userId = ctx.from?.id
+      const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+      if (!isAdmin) {
+        await ctx.reply('❌ Функция доступна только администраторам.')
+        return
+      }
+
+      // Входим в сцену lipSync
+      await ctx.scene.enter('lip_sync')
     })
 
     addAction(15, async () => {
@@ -159,7 +191,7 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(108, async () => {
       logger.debug('CASE: 📺 Транскрибация Reels')
       ctx.session.mode = ModeEnum.VideoTranscription
-      await ctx.scene.enter('videoTranscriptionWizard')
+      await ctx.scene.enter('video_transcription')
     })
 
     addAction(111, async () => {
@@ -240,9 +272,9 @@ export const handleMenu = async (ctx: MyContext) => {
       }
 
       // Запускаем Instagram Parser Wizard
-      logger.debug(`🔄 [handleMenu] Вход в сцену instagramParserWizard`)
-      await ctx.scene.enter('instagramParserWizard')
-      logger.debug(`✅ [handleMenu] Завершен вход в сцену instagramParserWizard`)
+      logger.debug(`🔄 [handleMenu] Вход в сцену instagram_parser_wizard`)
+      await ctx.scene.enter('instagram_parser_wizard')
+      logger.debug(`✅ [handleMenu] Завершен вход в сцену instagram_parser_wizard`)
     })
 
     // AI Reels button handler (level 110)
@@ -339,7 +371,6 @@ export const handleMenu = async (ctx: MyContext) => {
       // ctx.session.mode = 'main_menu'
       // await ctx.scene.enter('menuScene')
     }
-  }
 }
 
 // Экспортируем функцию, если она будет использоваться в другом месте

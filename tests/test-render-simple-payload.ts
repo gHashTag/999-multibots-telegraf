@@ -58,7 +58,7 @@ async function testSimplePayload() {
     kie_api_key: 'c98141e4b2b6413688fbea2a9b78f127',
     avatar_gen_service: 'hedra',
     avatar_settings: {
-      api_key: 'sk_hedra_jTiPa9kEiQ25EwjwkAoaCPmxcMfZZalnSUi-tQOjZrBISgz9jqKtK0j96YzreHQ3',
+      api_key: 'YOUR_HEDRA_API_KEY_HERE',
       avatar_photo_url:
         'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/avatar-dima.jpg',
       voice_id: '0BcDz9UPwL3MpsnTeUlO',
