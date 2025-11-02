@@ -227,25 +227,28 @@ export async function createCircleCompositionWithFaceDetection(
     const targetWidth = 1080
     const targetHeight = 1920
 
-    // Если не удалось определить лицо, используем fallback позицию
+    // Позиция для Instagram Reels: снизу по центру
     let circleCenterX: number
     let circleCenterY: number
     let circleRadius: number
 
     if (faceCoords) {
-      // Используем координаты лица
+      // Вырезаем аватар по координатам лица и масштабируем
       const scaleX = targetWidth / faceCoords.width
       const scaleY = targetHeight / faceCoords.height
       const scale = Math.min(scaleX, scaleY)
 
-      circleCenterX = faceCoords.centerX * scale + (targetWidth - faceCoords.width * scale) / 2
-      circleCenterY = faceCoords.centerY * scale + (targetHeight - faceCoords.height * scale) / 2
-      circleRadius = faceCoords.radius * scale
+      // Размер круга = размер лица * 1.5 (чтобы захватить голову и плечи)
+      circleRadius = faceCoords.radius * scale * 1.5
+
+      // Позиционируем круг снизу по центру экрана
+      circleCenterX = targetWidth / 2 // по центру по горизонтали
+      circleCenterY = targetHeight * 0.78 // 78% от верха (снизу)
     } else {
-      // Fallback: левый нижний угол (65% от верха)
-      circleRadius = 300
-      circleCenterX = circleRadius + 60 // отступ от левого края
-      circleCenterY = targetHeight * 0.65 // 65% от верха
+      // Fallback: круг снизу по центру
+      circleRadius = 350
+      circleCenterX = targetWidth / 2 // по центру
+      circleCenterY = targetHeight * 0.78 // 78% от верха (снизу)
     }
 
     logger.info('📐 [CIRCLE COMPOSITION] Circle position', {
