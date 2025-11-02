@@ -19,8 +19,6 @@ import {
   LipsyncErrorSchema
 } from '@/interfaces/zod/lipsync.zod'
 import { z } from 'zod'
-import { Markup } from 'telegraf'
-import { createCancelButton, handleCancelButton } from '@/utils/cancelButton'
 
 // НОВОЕ: Проверка админских прав для LipSync с Zod валидацией
 const adminIds = process.env.ADMIN_IDS?.split(',') || []
@@ -68,9 +66,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
         {
-          reply_markup: Markup.keyboard([
-            createCancelButton(isRu)
-          ]).resize().oneTime(),
+          reply_markup: { remove_keyboard: true },
         }
       )
       return ctx.wizard.next()
@@ -155,12 +151,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? 'Видео получено! Теперь отправьте аудио, голосовое сообщение или URL аудио'
-          : 'Video received! Now send an audio, voice message, or audio URL',
-        {
-          reply_markup: Markup.keyboard([
-            createCancelButton(isRu)
-          ]).resize().oneTime(),
-        }
+          : 'Video received! Now send an audio, voice message, or audio URL'
       )
       return ctx.wizard.next()
       
@@ -182,12 +173,6 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let audioInput: any
-
-    // Проверяем нажатие кнопки "Отмена"
-    const isCancel = await handleCancelButton(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
 
     try {
       if (message && 'audio' in message) {
