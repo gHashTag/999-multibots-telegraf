@@ -135,13 +135,13 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(12, async () => {
       console.log('CASE: 🎨 ИИ Фотошоп')
       ctx.session.mode = ModeEnum.AiPhotoshop
-      await ctx.scene.enter('ai_photoshop_scene')
+      await ctx.scene.enter('aiPhotoshopScene')
     })
 
     addAction(13, async () => {
       console.log('CASE: 🌀 Infinity Морфинг')
       ctx.session.mode = ModeEnum.MorphingWizard
-      await ctx.scene.enter('morphing_wizard')
+      await ctx.scene.enter('morphingWizard')
     })
 
     addAction(15, async () => {
@@ -159,19 +159,19 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(108, async () => {
       console.log('CASE: 📺 Транскрибация Reels')
       ctx.session.mode = ModeEnum.VideoTranscription
-      await ctx.scene.enter('video_transcription')
+      await ctx.scene.enter('videoTranscriptionWizard')
     })
 
     addAction(111, async () => {
       console.log('CASE: 🦸‍♂️ ИИ Герои')
       ctx.session.mode = ModeEnum.AIHeroes
-      await ctx.scene.enter('avatar_transform')
+      await ctx.scene.enter('avatarTransformScene')
     })
 
     addAction(100, async () => {
       console.log('CASE: 💎 Пополнить баланс')
       ctx.session.mode = ModeEnum.TopUpBalance
-      await ctx.scene.enter('payment_scene')
+      await ctx.scene.enter('paymentScene')
     })
 
     addAction(101, async () => {
@@ -240,9 +240,9 @@ export const handleMenu = async (ctx: MyContext) => {
       }
 
       // Запускаем Instagram Parser Wizard
-      console.log(`🔄 [handleMenu] Вход в сцену instagram_parser_wizard`)
-      await ctx.scene.enter('instagram_parser_wizard')
-      console.log(`✅ [handleMenu] Завершен вход в сцену instagram_parser_wizard`)
+      console.log(`🔄 [handleMenu] Вход в сцену instagramParserWizard`)
+      await ctx.scene.enter('instagramParserWizard')
+      console.log(`✅ [handleMenu] Завершен вход в сцену instagramParserWizard`)
     })
 
     // AI Reels button handler (level 110)
@@ -290,7 +290,7 @@ export const handleMenu = async (ctx: MyContext) => {
     actions['/buy'] = async () => {
       console.log('CASE: 💰 Пополнить баланс')
       ctx.session.mode = ModeEnum.TopUpBalance
-      await ctx.scene.enter('payment_scene')
+      await ctx.scene.enter('paymentScene')
     }
 
     actions['/balance'] = async () => {
