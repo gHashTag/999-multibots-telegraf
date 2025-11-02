@@ -158,7 +158,7 @@ function convertOptimizedStatsToDisplayFormat(stats: OptimizedBalanceStats) {
 }
 
 export const balanceScene = new Scenes.WizardScene<MyContext>(
-  'balanceScene',
+  'balance_scene',
   async (ctx: MyContext) => {
     try {
       console.log('CASE: balanceScene')
