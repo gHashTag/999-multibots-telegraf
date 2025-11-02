@@ -81,11 +81,23 @@ const TEST_ASSETS = {
   LIPSYNC_RESULT: 'https://storage.googleapis.com/falserverless/example_outputs/veed-fabric-lipsync.mp4',
 }
 
-// Простая цена - только lip-sync, без Veo 3.1
-const SIMPLE_LIPSYNC_PRICE = 120 // звезд (вдвое дешевле!)
-
 // Режим тестирования - бесплатно для проверки монтажа
 const TEST_MODE = process.env.NODE_ENV === 'test' || process.env.LIPSYNC_TEST_MODE === 'true'
+
+/**
+ * Рассчитывает стоимость lip-sync по длительности аудио
+ * Базовая стоимость: 120⭐ за 10 секунд (12⭐/сек)
+ * Минимальная стоимость: 60⭐ (за 5 сек)
+ * Максимальная стоимость: 360⭐ (за 30 сек)
+ */
+function calculateLipSyncPrice(audioDuration: number): number {
+  const basePricePerSecond = 12 // 12 звезд за секунду
+  const minPrice = 60
+  const maxPrice = 360
+
+  const calculatedPrice = Math.round(audioDuration * basePricePerSecond)
+  return Math.max(minPrice, Math.min(maxPrice, calculatedPrice))
+}
 
 export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_wizard',
@@ -246,10 +258,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       isRu
         ? '✅ Видео получено!\n\n' +
           '✍️ Шаг 3: Теперь введите текст для lip-sync.\n\n' +
-          '💡 Или отправьте голосовое сообщение.'
+          '💡 Или отправьте голосовое сообщение.\n\n' +
+          '💰 Стоимость будет рассчитана по длине аудио.'
         : '✅ Video received!\n\n' +
           '✍️ Step 3: Now enter text for lip-sync.\n\n' +
-          '💡 Or send a voice message.'
+          '💡 Or send a voice message.\n\n' +
+          '💰 Cost will be calculated by audio duration.'
     )
 
     // Переходим к следующему шагу
@@ -260,6 +274,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
+
+    console.log('✍️ [DEBUG] Step 3 - Получение текста', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      messageType: ctx.message?.['text'] ? 'text' : ctx.message?.['voice'] ? 'voice' : 'other',
+    })
+
+    logger.info('✍️ [SIMPLE LIPSYNC] Step 3 STARTED - Получение текста', { telegramId })
 
     if (!telegramId) {
       return ctx.scene.leave()
@@ -336,54 +358,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     // Устанавливаем шаг генерации
     ctx.session.aiReels.step = 'lipsync_generation'
 
-    logger.info('💰 [SIMPLE LIPSYNC] Проверка баланса', { telegramId, isTestMode: TEST_MODE })
+    logger.info('🎬 [SIMPLE LIPSYNC] Начинаем создание lip-sync', { telegramId })
 
-    // В тестовом режиме не проверяем баланс и не списываем деньги
-    if (!TEST_MODE) {
-      // Проверяем баланс
-      const userBalance = await getUserBalance(telegramId)
-      if (!userBalance || userBalance.balance < SIMPLE_LIPSYNC_PRICE) {
-        await ctx.reply(
-          isRu
-            ? `❌ Недостаточно звезд для создания lip-sync.\n\n` +
-              `Требуется: ${SIMPLE_LIPSYNC_PRICE}⭐\n` +
-              `Ваш баланс: ${userBalance?.balance || 0}⭐\n\n` +
-              `Пополните баланс через /start → 💎 Пополнить баланс`
-            : `❌ Insufficient stars to create lip-sync.\n\n` +
-              `Required: ${SIMPLE_LIPSYNC_PRICE}⭐\n` +
-              `Your balance: ${userBalance?.balance || 0}⭐\n\n` +
-              `Top up via /start → 💎 Top up balance`
-        )
-        return ctx.scene.leave()
-      }
-
-      // Списываем деньги
-      await updateUserBalance(
-        telegramId,
-        SIMPLE_LIPSYNC_PRICE,
-        PaymentType.MONEY_OUTCOME,
-        'Simple Lip-sync generation',
-        { bot_name: ctx.botInfo?.username }
-      )
-
-      logger.info('💰 [SIMPLE LIPSYNC] Деньги списаны', {
-        telegramId,
-        amount: SIMPLE_LIPSYNC_PRICE,
-      })
-
-      await ctx.reply(
-        isRu
-          ? `💳 Списано ${SIMPLE_LIPSYNC_PRICE}⭐\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Это займет 1-2 минуты...`
-          : `💳 Charged ${SIMPLE_LIPSYNC_PRICE}⭐\n\n🎬 Starting lip-sync video creation...\n⏳ This will take 1-2 minutes...`
-      )
-    } else {
-      // Тестовый режим
-      await ctx.reply(
-        isRu
-          ? `🧪 ТЕСТОВЫЙ РЕЖИМ - Бесплатно!\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Тестирование монтажа...`
-          : `🧪 TEST MODE - Free!\n\n🎬 Starting lip-sync video creation...\n⏳ Testing composition...`
-      )
-    }
+    // Переменная для хранения рассчитанной стоимости (для возврата при ошибке)
+    let finalPrice = 0
 
     try {
       // ШАГ 1: Создаем TTS аудио (если текст)
@@ -403,6 +381,68 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         }
 
         logger.info('✅ [SIMPLE LIPSYNC] TTS аудио создано', { telegramId })
+      }
+
+      // Получаем длительность аудио для расчета стоимости
+      const audioDuration = await getMediaDuration(audioUrl)
+      finalPrice = calculateLipSyncPrice(audioDuration)
+
+      logger.info('💰 [SIMPLE LIPSYNC] Расчет стоимости', {
+        telegramId,
+        duration: audioDuration,
+        price: finalPrice,
+      })
+
+      // Проверка и списание баланса (кроме тестового режима)
+      if (!TEST_MODE) {
+        logger.info('💰 [SIMPLE LIPSYNC] Проверка баланса', {
+          telegramId,
+          requiredPrice: finalPrice,
+        })
+
+        const userBalance = await getUserBalance(telegramId)
+        if (!userBalance || userBalance.balance < finalPrice) {
+          await ctx.reply(
+            isRu
+              ? `❌ Недостаточно звезд для создания lip-sync.\n\n` +
+                `Требуется: ${finalPrice}⭐ (за ${audioDuration.toFixed(1)} сек)\n` +
+                `Ваш баланс: ${userBalance?.balance || 0}⭐\n\n` +
+                `Пополните баланс через /start → 💎 Пополнить баланс`
+              : `❌ Insufficient stars to create lip-sync.\n\n` +
+                `Required: ${finalPrice}⭐ (for ${audioDuration.toFixed(1)} sec)\n` +
+                `Your balance: ${userBalance?.balance || 0}⭐\n\n` +
+                `Top up via /start → 💎 Top up balance`
+          )
+          return ctx.scene.leave()
+        }
+
+        // Списываем деньги
+        await updateUserBalance(
+          telegramId,
+          finalPrice,
+          PaymentType.MONEY_OUTCOME,
+          'Simple Lip-sync generation',
+          { bot_name: ctx.botInfo?.username }
+        )
+
+        logger.info('💰 [SIMPLE LIPSYNC] Деньги списаны', {
+          telegramId,
+          amount: finalPrice,
+          duration: audioDuration,
+        })
+
+        await ctx.reply(
+          isRu
+            ? `💳 Списано ${finalPrice}⭐ (${audioDuration.toFixed(1)} сек)\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Это займет 30-60 секунд...`
+            : `💳 Charged ${finalPrice}⭐ (${audioDuration.toFixed(1)} sec)\n\n🎬 Starting lip-sync video creation...\n⏳ This will take 30-60 seconds...`
+        )
+      } else {
+        // Тестовый режим
+        await ctx.reply(
+          isRu
+            ? `🧪 ТЕСТОВЫЙ РЕЖИМ - Бесплатно!\n💰 Стоимость составила бы: ${finalPrice}⭐ за ${audioDuration.toFixed(1)} сек\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Тестирование монтажа...`
+            : `🧪 TEST MODE - Free!\n💰 Cost would be: ${finalPrice}⭐ for ${audioDuration.toFixed(1)} sec\n\n🎬 Starting lip-sync video creation...\n⏳ Testing composition...`
+        )
       }
 
       // ШАГ 2: Применяем lip-sync через Fal.ai Veed Fabric
@@ -540,13 +580,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         error,
         telegramId,
         isTestMode: TEST_MODE,
+        finalPrice,
       })
 
       // Возвращаем деньги только если не тестовый режим
-      if (!TEST_MODE) {
+      if (!TEST_MODE && finalPrice > 0) {
         await updateUserBalance(
           telegramId,
-          SIMPLE_LIPSYNC_PRICE,
+          finalPrice,
           PaymentType.MONEY_INCOME,
           'Simple Lip-sync refund - generation error',
           { bot_name: ctx.botInfo?.username }
@@ -555,9 +596,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         await ctx.reply(
           isRu
             ? `❌ Произошла ошибка при создании lip-sync.\n` +
-              `Средства возвращены (${SIMPLE_LIPSYNC_PRICE}⭐).`
+              `Средства возвращены (${finalPrice}⭐).`
             : `❌ An error occurred while creating lip-sync.\n` +
-              `Funds refunded (${SIMPLE_LIPSYNC_PRICE}⭐).`
+              `Funds refunded (${finalPrice}⭐).`
         )
       } else {
         // Тестовый режим - просто сообщаем об ошибке
