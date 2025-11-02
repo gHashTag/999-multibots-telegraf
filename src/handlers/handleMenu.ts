@@ -204,7 +204,7 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(103, async () => {
       console.log('CASE: ❓ Помощь')
       ctx.session.mode = ModeEnum.Help
-      await ctx.scene.enter(ModeEnum.Help)
+      await ctx.scene.enter(ModeEnum.HelpScene)
     })
 
     addAction(104, async () => {
@@ -317,7 +317,7 @@ export const handleMenu = async (ctx: MyContext) => {
     actions['/help'] = async () => {
       console.log('CASE: ❓ Помощь')
       ctx.session.mode = ModeEnum.Help
-      await ctx.scene.enter(ModeEnum.Help)
+      await ctx.scene.enter(ModeEnum.HelpScene)
     }
 
     actions['/menu'] = async () => {
