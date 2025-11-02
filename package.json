@@ -82,6 +82,7 @@
     "@types/archiver": "^7.0.0",
     "@types/pg": "^8.15.4",
     "@types/ssh2": "^1.15.5",
+    "@vladmandic/face-api": "^1.7.15",
     "adm-zip": "^0.5.16",
     "apify-client": "^2.12.5",
     "archiver": "^7.0.1",

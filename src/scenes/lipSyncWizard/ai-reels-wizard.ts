@@ -19,6 +19,7 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
 import { logger } from '@/utils/logger'
 import { downloadFile } from '@/helpers/file-helpers'
+import { createCircleCompositionWithFaceDetection } from '@/helpers/face-circle-composer'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
@@ -404,9 +405,55 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         }
       }
 
-      logger.info('✅ [SIMPLE LIPSYNC] Lip-sync готово', {
+      // ШАГ 4: Создаем композицию с кругом
+      logger.info('🎨 [SIMPLE LIPSYNC] Создание композиции с кругом', { telegramId })
+
+      const compositionTempDir = os.tmpdir()
+      const compositionOutput = path.join(compositionTempDir, `composition_${telegramId}_${Date.now()}.mp4`)
+      const faceFramePath = path.join(compositionTempDir, `face_frame_${telegramId}_${Date.now()}.jpg`)
+
+      try {
+        // Извлекаем первый кадр из видео пользователя для face detection
+        await execAsync(
+          `ffmpeg -i "${ctx.session.aiReels.videoUrl}" -vf "select=eq(n\\,0)" -frames:v 1 "${faceFramePath}" -y`
+        )
+
+        // Скачиваем lip-sync видео если это URL
+        const lipSyncVideoPath = path.join(compositionTempDir, `lipsync_${telegramId}_${Date.now()}.mp4`)
+        await downloadFile(lipSyncResult.videoUrl, lipSyncVideoPath)
+
+        // Скачиваем видео пользователя если это URL
+        const backgroundVideoPath = path.join(compositionTempDir, `background_${telegramId}_${Date.now()}.mp4`)
+        await downloadFile(ctx.session.aiReels.videoUrl!, backgroundVideoPath)
+
+        // Создаем композицию: фоновое видео + lip-sync в круге
+        await createCircleCompositionWithFaceDetection(
+          backgroundVideoPath,
+          lipSyncVideoPath,
+          compositionOutput,
+          faceFramePath
+        )
+
+        logger.info('✅ [SIMPLE LIPSYNC] Композиция создана', { telegramId })
+
+        // Очищаем временные файлы
+        await fs.unlink(lipSyncVideoPath).catch(() => {})
+        await fs.unlink(backgroundVideoPath).catch(() => {})
+        await fs.unlink(faceFramePath).catch(() => {})
+
+        // Сохраняем URL итогового видео
+        finalVideoUrl = `file://${compositionOutput}`
+      } catch (compositionError) {
+        logger.warn('⚠️ [SIMPLE LIPSYNC] Не удалось создать композицию, используем lip-sync без круга', {
+          telegramId,
+          error: compositionError,
+        })
+      }
+
+      logger.info('✅ [SIMPLE LIPSYNC] Lip-sync готов', {
         telegramId,
         resultUrl: finalVideoUrl,
+        hasComposition: finalVideoUrl.startsWith('file://'),
       })
 
       // Сохраняем в session
@@ -423,8 +470,8 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         { url: finalVideoUrl },
         {
           caption: isRu
-            ? `🎬 Ваш lip-sync готов!\n${TEST_MODE ? '🧪 Тестовый режим' : ''}\n✨ Приятного просмотра!`
-            : `🎬 Your lip-sync is ready!\n${TEST_MODE ? '🧪 Test mode' : ''}\n✨ Enjoy!`,
+            ? `🎬 Ваш lip-sync готов в кружочке!\n${TEST_MODE ? '🧪 Тестовый режим' : ''}\n✨ Приятного просмотра!`
+            : `🎬 Your lip-sync is ready in circle!\n${TEST_MODE ? '🧪 Test mode' : ''}\n✨ Enjoy!`,
         }
       )
 
