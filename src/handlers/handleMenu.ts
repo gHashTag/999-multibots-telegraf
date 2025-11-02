@@ -159,6 +159,22 @@ export const handleMenu = async (ctx: MyContext) => {
       await ctx.scene.enter('morphing_wizard')
     })
 
+    addAction(14, async () => {
+      console.log('CASE: 🎤 Синхронизация губ')
+      // Проверяем админские права
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+      const userId = ctx.from?.id
+      const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+      if (!isAdmin) {
+        await ctx.reply('❌ Функция доступна только администраторам.')
+        return
+      }
+
+      // Входим в сцену lipSync
+      await ctx.scene.enter('lip_sync')
+    })
+
     addAction(15, async () => {
       console.log('CASE: 🎭 Замена лица')
       ctx.session.mode = ModeEnum.FaceSwap
