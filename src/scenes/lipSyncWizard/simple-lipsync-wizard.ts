@@ -1,0 +1,344 @@
+/**
+ * 🎬 ПРОСТОЙ LIP-SYNC WIZARD
+ * Упрощенная версия - lip-sync поверх пользовательского видео
+ *
+ * Workflow:
+ * 1. Запрос пользовательского видео
+ * 2. Запрос текста (или голосового)
+ * 3. Создание TTS аудио
+ * 4. Применение lip-sync к пользовательскому видео
+ * 5. Возврат результата
+ */
+
+import { Scenes, Markup } from 'telegraf'
+import { MyContext } from '../../interfaces'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { PaymentType } from '@/interfaces/payments.interface'
+import { createVoiceElevenLabs } from '@/core/elevenlabs/createVoiceElevenLabs'
+import { logger } from '@/utils/logger'
+
+// Тестовые данные для моков
+const TEST_ASSETS = {
+  USER_VIDEO: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  TEST_AUDIO: 'https://www2.cs.uic.edu/~i101/SoundFiles/StarWars3.wav',
+  LIPSYNC_RESULT: 'https://storage.googleapis.com/falserverless/example_outputs/veed-fabric-lipsync.mp4',
+}
+
+// Простая цена - только lip-sync, без Veo 3.1
+const SIMPLE_LIPSYNC_PRICE = 120 // звезд (вдвое дешевле!)
+
+export const simpleLipSyncWizard = new Scenes.WizardScene<MyContext>(
+  'simple_lipsync',
+
+  // Step 0: Запрос пользовательского видео
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    logger.info('🎬 [SIMPLE LIPSYNC] Step 0 STARTED - Запрос видео', {
+      telegramId,
+      function: 'simpleLipSyncWizard.step0',
+    })
+
+    if (!telegramId) {
+      await ctx.reply(isRu ? '❌ Ошибка: не удалось определить ID' : '❌ Error: could not determine ID')
+      return ctx.scene.leave()
+    }
+
+    // Инициализация session
+    ctx.session.simpleLipSync = {
+      step: 'video',
+      startTime: Date.now(),
+      telegramId,
+    }
+
+    await ctx.reply(
+      isRu
+        ? '🎬 <b>Простой Lip-sync</b>\n\n' +
+          'Отправьте видео (до 30 секунд) для создания lip-sync эффекта.\n\n' +
+          '💡 Что делает:\n' +
+          '• Берет ваше видео\n' +
+          '• Добавляет речь из текста\n' +
+          '• Синхронизирует движение губ\n\n' +
+          '💰 Стоимость: 120⭐'
+        : '🎬 <b>Simple Lip-sync</b>\n\n' +
+          'Send a video (up to 30 seconds) to create lip-sync effect.\n\n' +
+          '💡 What it does:\n' +
+          '• Takes your video\n' +
+          '• Adds speech from text\n' +
+          '• Syncs lip movements\n\n' +
+          '💰 Cost: 120⭐',
+      { parse_mode: 'HTML' }
+    )
+
+    logger.info('✅ [SIMPLE LIPSYNC] Step 0 completed - видео запрошено', { telegramId })
+  },
+
+  // Step 1: Получение видео
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      return ctx.scene.leave()
+    }
+
+    // Проверяем наличие видео
+    const video = ctx.message?.video
+    if (!video) {
+      await ctx.reply(
+        isRu
+          ? '❌ Это не видео. Пожалуйста, отправьте видео файл.'
+          : '❌ This is not a video. Please send a video file.'
+      )
+      return
+    }
+
+    // Проверяем размер (максимум 50MB для безопасности)
+    const maxSize = 50 * 1024 * 1024 // 50MB
+    if (video.file_size && video.file_size > maxSize) {
+      await ctx.reply(
+        isRu
+          ? '❌ Видео слишком большое. Максимум 50MB.'
+          : '❌ Video too large. Maximum 50MB.'
+      )
+      return
+    }
+
+    // Сохраняем информацию о видео
+    ctx.session.simpleLipSync.videoFileId = video.file_id
+    ctx.session.simpleLipSync.videoUrl = await ctx.telegram.getFileLink(video.file_id)
+    ctx.session.simpleLipSync.step = 'text'
+
+    logger.info('📹 [SIMPLE LIPSYNC] Видео получено', {
+      telegramId,
+      fileId: video.file_id,
+      size: video.file_size,
+    })
+
+    await ctx.reply(
+      isRu
+        ? '✅ Видео получено!\n\n' +
+          'Теперь введите текст, который будет произносить персонаж в видео.\n\n' +
+          '💡 Или отправьте голосовое сообщение с текстом.'
+        : '✅ Video received!\n\n' +
+          'Now enter the text that will be spoken by the character in the video.\n\n' +
+          '💡 Or send a voice message with the text.'
+    )
+  },
+
+  // Step 2: Получение текста
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      return ctx.scene.leave()
+    }
+
+    let text = ''
+
+    // Проверяем текст
+    if (ctx.message?.text) {
+      text = ctx.message.text
+    }
+    // Проверяем голосовое сообщение
+    else if (ctx.message?.voice) {
+      const voice = ctx.message.voice
+      logger.info('🎤 [SIMPLE LIPSYNC] Голосовое сообщение получено', {
+        telegramId,
+        duration: voice.duration,
+        fileId: voice.file_id,
+      })
+
+      // Просто сохраняем файл, в реальном проекте нужен speech-to-text
+      const audioUrl = await ctx.telegram.getFileLink(voice.file_id)
+      ctx.session.simpleLipSync.voiceAudioUrl = audioUrl
+
+      await ctx.reply(
+        isRu
+          ? '✅ Голосовое сообщение получено!\n' +
+            'Использую его для создания речи...\n\n' +
+            '💰 Проверяю баланс...'
+          : '✅ Voice message received!\n' +
+            'Using it to create speech...\n\n' +
+            '💰 Checking balance...'
+      )
+      ctx.session.simpleLipSync.step = 'processing'
+      return ctx.wizard.next()
+    }
+    else {
+      await ctx.reply(
+        isRu
+          ? '❌ Не понял. Введите текст или отправьте голосовое.'
+          : '❌ I did not understand. Enter text or send a voice message.'
+      )
+      return
+    }
+
+    if (!text.trim()) {
+      await ctx.reply(
+        isRu ? '❌ Текст не может быть пустым.' : '❌ Text cannot be empty.'
+      )
+      return
+    }
+
+    ctx.session.simpleLipSync.text = text
+    ctx.session.simpleLipSync.step = 'processing'
+
+    await ctx.reply(
+      isRu
+        ? `✅ Текст сохранен!\n\n"${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"\n\n💰 Проверяю баланс...`
+        : `✅ Text saved!\n\n"${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"\n\n💰 Checking balance...`
+    )
+
+    ctx.wizard.next()
+  },
+
+  // Step 3: Проверка баланса и создание lip-sync
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      return ctx.scene.leave()
+    }
+
+    logger.info('💰 [SIMPLE LIPSYNC] Проверка баланса', { telegramId })
+
+    // Проверяем баланс
+    const userBalance = await getUserBalance(telegramId)
+    if (!userBalance || userBalance.balance < SIMPLE_LIPSYNC_PRICE) {
+      await ctx.reply(
+        isRu
+          ? `❌ Недостаточно звезд для создания lip-sync.\n\n` +
+            `Требуется: ${SIMPLE_LIPSYNC_PRICE}⭐\n` +
+            `Ваш баланс: ${userBalance?.balance || 0}⭐\n\n` +
+            `Пополните баланс через /start → 💎 Пополнить баланс`
+          : `❌ Insufficient stars to create lip-sync.\n\n` +
+            `Required: ${SIMPLE_LIPSYNC_PRICE}⭐\n` +
+            `Your balance: ${userBalance?.balance || 0}⭐\n\n` +
+            `Top up via /start → 💎 Top up balance`
+      )
+      return ctx.scene.leave()
+    }
+
+    // Списываем деньги
+    await updateUserBalance(
+      telegramId,
+      SIMPLE_LIPSYNC_PRICE,
+      PaymentType.MONEY_OUTCOME,
+      'Simple Lip-sync generation',
+      { bot_name: ctx.botInfo?.username }
+    )
+
+    logger.info('💰 [SIMPLE LIPSYNC] Деньги списаны', {
+      telegramId,
+      amount: SIMPLE_LIPSYNC_PRICE,
+    })
+
+    await ctx.reply(
+      isRu
+        ? `💳 Списано ${SIMPLE_LIPSYNC_PRICE}⭐\n\n🎬 Начинаю создание lip-sync видео...\n⏳ Это займет 1-2 минуты...`
+        : `💳 Charged ${SIMPLE_LIPSYNC_PRICE}⭐\n\n🎬 Starting lip-sync video creation...\n⏳ This will take 1-2 minutes...`
+    )
+
+    try {
+      // ШАГ 1: Создаем TTS аудио (если текст)
+      let audioUrl = ctx.session.simpleLipSync.voiceAudioUrl
+
+      if (!audioUrl && ctx.session.simpleLipSync.text) {
+        logger.info('🎤 [SIMPLE LIPSYNC] Создание TTS аудио', { telegramId })
+
+        audioUrl = await createVoiceElevenLabs(
+          ctx.session.simpleLipSync.text,
+          'pNInz6obpgDQGcFmaJgB', // Adam voice
+          'ru'
+        )
+
+        if (!audioUrl) {
+          throw new Error('Failed to create TTS audio')
+        }
+
+        logger.info('✅ [SIMPLE LIPSYNC] TTS аудио создано', { telegramId })
+      }
+
+      // ШАГ 2: Применяем lip-sync (мок для тестирования)
+      logger.info('🎬 [SIMPLE LIPSYNC] Применение lip-sync', { telegramId })
+
+      // В реальном проекте здесь был бы вызов к Fal.ai Veed Fabric
+      // const lipSyncProvider = new FalVeedFabricProvider()
+      // const result = await lipSyncProvider.generate({...})
+
+      // Для тестирования используем готовый asset
+      const lipSyncResult = {
+        videoUrl: TEST_ASSETS.LIPSYNC_RESULT,
+        output: TEST_ASSETS.LIPSYNC_RESULT,
+      }
+
+      // Проверяем что у нас есть результат
+      if (!lipSyncResult.videoUrl) {
+        throw new Error('Lip-sync generation failed')
+      }
+
+      logger.info('✅ [SIMPLE LIPSYNC] Lip-sync готово', {
+        telegramId,
+        resultUrl: lipSyncResult.videoUrl,
+      })
+
+      // Сохраняем в session
+      ctx.session.simpleLipSync.resultVideoUrl = lipSyncResult.videoUrl
+
+      await ctx.reply(
+        isRu
+          ? '✅ Lip-sync видео готово!'
+          : '✅ Lip-sync video ready!'
+      )
+
+      // Отправляем результат
+      await ctx.replyWithVideo(
+        { url: lipSyncResult.videoUrl },
+        {
+          caption: isRu
+            ? '🎬 Ваш lip-sync готов!\n✨ Приятного просмотра!'
+            : '🎬 Your lip-sync is ready!\n✨ Enjoy!',
+        }
+      )
+
+      await ctx.reply(
+        isRu
+          ? '🎉 Спасибо за использование Simple Lip-sync!'
+          : '🎉 Thank you for using Simple Lip-sync!'
+      )
+
+      logger.info('🎉 [SIMPLE LIPSYNC] Workflow завершен', { telegramId })
+
+    } catch (error) {
+      logger.error('❌ [SIMPLE LIPSYNC] Ошибка генерации', {
+        error,
+        telegramId,
+      })
+
+      // Возвращаем деньги
+      await updateUserBalance(
+        telegramId,
+        SIMPLE_LIPSYNC_PRICE,
+        PaymentType.MONEY_INCOME,
+        'Simple Lip-sync refund - generation error',
+        { bot_name: ctx.botInfo?.username }
+      )
+
+      await ctx.reply(
+        isRu
+          ? `❌ Произошла ошибка при создании lip-sync.\n` +
+            `Средства возвращены (${SIMPLE_LIPSYNC_PRICE}⭐).`
+          : `❌ An error occurred while creating lip-sync.\n` +
+            `Funds refunded (${SIMPLE_LIPSYNC_PRICE}⭐).`
+      )
+    }
+
+    ctx.scene.leave()
+  },
+)

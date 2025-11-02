@@ -66,6 +66,7 @@ import {
   aiReelsWizard,
   aiReelsEntryWizard,
   aiReelsRenderWizard,
+  simpleLipSyncWizard,
   startScene,
   chatWithAvatarWizard,
   helpScene,
@@ -147,6 +148,7 @@ const scenesToRegister = [
   aiReelsWizard,
   aiReelsEntryWizard,
   aiReelsRenderWizard,
+  simpleLipSyncWizard,
   avatarTransformScene,
   new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
   new Scenes.WizardScene(
