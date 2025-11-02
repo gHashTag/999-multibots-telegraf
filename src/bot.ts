@@ -40,6 +40,7 @@ import { message } from 'telegraf/filters'
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
 import { setupHearsHandlers } from './hearsHandlers'
+import { setupSceneMenuCallbacks } from './simpleSceneMenu'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -175,6 +176,8 @@ async function initializeBots() {
     bot.on('successful_payment', handleSuccessfulPayment as any)
     // Инициализация обработчиков hears из отдельного файла
     setupHearsHandlers(bot) // 4. Hears
+    // 5. Обработчики callback для простого меню сцен
+    setupSceneMenuCallbacks(bot) // <--- НОВАЯ СИСТЕМА БЕЗ УРОВНЕЙ
 
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
     // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
@@ -258,6 +261,8 @@ async function initializeBots() {
         bot.on('successful_payment', handleSuccessfulPayment as any)
         // Инициализация обработчиков hears из отдельного файла
         setupHearsHandlers(bot) // 4. Hears
+        // 5. Обработчики callback для простого меню сцен
+        setupSceneMenuCallbacks(bot) // <--- НОВАЯ СИСТЕМА БЕЗ УРОВНЕЙ
 
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен

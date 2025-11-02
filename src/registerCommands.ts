@@ -4,6 +4,7 @@ import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 import { MAIN_MENU } from './constants/sceneIds'
+import { showSimpleSceneMenu } from './simpleSceneMenu'
 import { levels } from './menu/mainMenu'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
@@ -430,85 +431,20 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     bot.command('menu', async ctx => {
       if (ctx.chat.type !== 'private') {
-        // В группах команда /menu не должна работать так же, как /start
-        // Можно либо ничего не делать, либо отправить другое сообщение
         return // Просто игнорируем в группе
       }
-      logger.info('COMMAND /menu: Переход к главному меню', {
+      logger.info('COMMAND /menu: Переход к простому главному меню', {
         telegramId: ctx.from?.id,
       })
       try {
-        await ctx.scene.leave() // Выходим из текущей, если есть
-
-        // 🚀 УПРОЩЕННАЯ ЛОГИКА: Всегда показываем меню, но тип зависит от подписки
-        const telegramId = ctx.from?.id?.toString() || 'unknown'
-
-        try {
-          const { getUserDetailsSubscription } = await import('@/core/supabase')
-          const { simulateSubscriptionForDev } = await import(
-            '@/scenes/menuScene/helpers/simulateSubscription'
-          )
-          const { isDev } = await import('@/config')
-
-          const userDetails = await getUserDetailsSubscription(telegramId)
-          const effectiveSubscription = simulateSubscriptionForDev(
-            userDetails?.subscriptionType || null,
-            isDev
-          )
-
-          logger.info('COMMAND /menu: Checking subscription', {
-            telegramId,
-            originalSubscription: userDetails?.subscriptionType,
-            effectiveSubscription,
-            isDev,
-          })
-
-          // Если нет подписки, показываем subscription scene, но не блокируем /menu
-          if (!effectiveSubscription || effectiveSubscription === 'STARS') {
-            logger.info(
-              'COMMAND /menu: No subscription, showing subscription options',
-              {
-                telegramId,
-                effectiveSubscription,
-              }
-            )
-            ctx.session.mode = ModeEnum.SubscriptionScene
-            await ctx.scene.enter(ModeEnum.SubscriptionScene)
-            return
-          }
-
-          // Если подписка есть, входим в главное меню
-          ctx.session.mode = MAIN_MENU
-          await ctx.scene.enter(MAIN_MENU)
-        } catch (subscriptionError) {
-          // Если ошибка с проверкой подписки, всё равно показываем меню
-          logger.warn(
-            'COMMAND /menu: Subscription check failed, showing menu anyway',
-            {
-              telegramId,
-              error:
-                subscriptionError instanceof Error
-                  ? subscriptionError.message
-                  : String(subscriptionError),
-            }
-          )
-
-          ctx.session.mode = MAIN_MENU
-          await ctx.scene.enter(MAIN_MENU)
-        }
+        await ctx.scene.leave()
+        await showSimpleSceneMenu(ctx)
       } catch (error) {
         logger.error('Error in /menu command:', {
           error,
           telegramId: ctx.from?.id,
         })
-        try {
-          // В случае критической ошибки, всё равно пытаемся показать что-то полезное
-          await ctx.reply(
-            '🏠 Главное меню временно недоступно. Попробуйте /start'
-          )
-        } catch {
-          /* ignore */
-        }
+        await ctx.reply('🏠 Ошибка меню. Попробуйте /start')
       }
     })
 
