@@ -24,7 +24,11 @@ export * from './neuroCoderScene'
 export { lipSyncWizard } from './lipSyncWizard'
 export { veedFabricWizard } from './lipSyncWizard/veed-fabric-wizard'
 export { aiReelsWizard } from './lipSyncWizard/ai-reels-wizard'
+
+console.log('🎬 [SCENES/INDEX] ИМПОРТ aiReelsWizardSimple...')
 export { aiReelsWizardSimple } from './lipSyncWizard/ai-reels-wizard-simple'
+console.log('🎬 [SCENES/INDEX] aiReelsWizardSimple ИМПОРТИРОВАН!')
+
 export { aiReelsEntryWizard } from './lipSyncWizard/ai-reels-entry-wizard'
 export { aiReelsRenderWizard } from './lipSyncWizard/ai-reels-render-wizard'
 export { simpleLipSyncWizard } from './lipSyncWizard/simple-lipsync-wizard'

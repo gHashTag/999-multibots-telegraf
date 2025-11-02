@@ -147,7 +147,11 @@ const scenesToRegister = [
   lipSyncWizard,
   veedFabricWizard,
   aiReelsWizard,
+
+console.log('🎬 [REGISTER] ДОБАВЛЯЕМ aiReelsWizardSimple В СЦЕНЫ')
   aiReelsWizardSimple,
+console.log('🎬 [REGISTER] aiReelsWizardSimple ДОБАВЛЕН В СЦЕНЫ!')
+
   aiReelsEntryWizard,
   aiReelsRenderWizard,
   simpleLipSyncWizard,

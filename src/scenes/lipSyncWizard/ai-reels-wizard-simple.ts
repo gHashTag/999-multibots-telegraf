@@ -14,6 +14,8 @@ import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 
+console.log('🎬 [SIMPLE] ИМПОРТ ВЫПОЛНЕН - ai-reels-wizard-simple.ts загружен!')
+
 export const aiReelsWizardSimple = new Scenes.WizardScene<MyContext>(
   'ai_reels_wizard_simple',
 
@@ -22,7 +24,8 @@ export const aiReelsWizardSimple = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    console.log('🎬 [SIMPLE] Step 0 STARTED')
+    console.log('🎬 [SIMPLE] Step 0 STARTED - ПРОСТОЙ WIZARD АКТИВИРОВАН!')
+    console.log('🎬 [SIMPLE] Scene ID:', ctx.scene?.current?.id)
 
     if (!telegramId) {
       return ctx.scene.leave()
@@ -49,7 +52,8 @@ export const aiReelsWizardSimple = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    console.log('📷 [SIMPLE] Step 1 STARTED')
+    console.log('📷 [SIMPLE] Step 1 STARTED - ПОЛУЧЕНИЕ ФОТО')
+    console.log('📷 [SIMPLE] Scene ID:', ctx.scene?.current?.id)
 
     if (!telegramId) {
       return ctx.scene.leave()
@@ -88,7 +92,8 @@ export const aiReelsWizardSimple = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    console.log('📹 [SIMPLE] Step 2 STARTED')
+    console.log('📹 [SIMPLE] Step 2 STARTED - ПОЛУЧЕНИЕ ВИДЕО')
+    console.log('📹 [SIMPLE] Scene ID:', ctx.scene?.current?.id)
 
     if (!telegramId) {
       return ctx.scene.leave()
@@ -127,7 +132,8 @@ export const aiReelsWizardSimple = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    console.log('✍️ [SIMPLE] Step 3 STARTED')
+    console.log('✍️ [SIMPLE] Step 3 STARTED - ПОЛУЧЕНИЕ ТЕКСТА')
+    console.log('✍️ [SIMPLE] Scene ID:', ctx.scene?.current?.id)
 
     if (!telegramId) {
       return ctx.scene.leave()
@@ -165,7 +171,8 @@ export const aiReelsWizardSimple = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    console.log('🎬 [SIMPLE] Step 4 STARTED')
+    console.log('🎬 [SIMPLE] Step 4 STARTED - ГЕНЕРАЦИЯ LIP-SYNC!')
+    console.log('🎬 [SIMPLE] Scene ID:', ctx.scene?.current?.id)
     console.log('🎬 [SIMPLE] Session:', ctx.session.simpleLipsync)
 
     if (!telegramId) {
@@ -178,7 +185,7 @@ export const aiReelsWizardSimple = new Scenes.WizardScene<MyContext>(
         : '✅ LIP-SYNC READY!\n\nThis is test version. Real version will have Fal.ai lip-sync.'
     )
 
-    console.log('🎬 [SIMPLE] Step 4 COMPLETED')
+    console.log('🎬 [SIMPLE] Step 4 COMPLETED - ПРОСТОЙ WIZARD РАБОТАЕТ!')
 
     return ctx.scene.leave()
   },
