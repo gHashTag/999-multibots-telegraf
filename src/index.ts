@@ -38,7 +38,6 @@ import { message } from 'telegraf/filters'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
-import { setupHearsHandlers } from './hearsHandlers'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -153,9 +152,6 @@ async function initializeBots() {
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)
-        // Инициализация обработчиков hears из отдельного файла
-        setupHearsHandlers(bot) // 4. Hears
-
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
         // bot.on(message('text'), handleTextMessage)
@@ -247,9 +243,6 @@ async function initializeBots() {
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)
-        // Инициализация обработчиков hears из отдельного файла
-        setupHearsHandlers(bot) // 4. Hears
-
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
         // bot.on(message('text'), handleTextMessage)
