@@ -782,14 +782,17 @@ If not, continue on your own and click the "I myself" button`
     })
 
     // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
-    bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
-      console.log('CASE bot.hears: 💬 Техподдержка / Support')
-      await ctx.scene.leave() // Теперь ctx.scene должен быть доступен
-      await handleTechSupport(ctx)
-    })
+    // 🚫 ОТКЛЮЧЕНО: Эти кнопки должны обрабатываться через menuScene + handleMenu
+    // bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
+    //   console.log('CASE bot.hears: 💬 Техподдержка / Support')
+    //   await ctx.scene.leave()
+    //   await handleTechSupport(ctx)
+    // })
 
     // ПРОСТОЙ GLOBAL HEARS для кнопки подписки - ВСЕГДА работает!
     // Ловим все варианты кнопок подписки (и старые с 💳, и новые с 💫)
+    // 🚫 ОТКЛЮЧЕНО: Эти кнопки должны обрабатываться через menuScene + handleMenu
+    /*
     bot.hears(
       [
         levels[105].title_ru,
@@ -836,6 +839,7 @@ If not, continue on your own and click the "I myself" button`
         }
       }
     )
+    */
 
     // Обработчик для текстовой кнопки "🆕 Новый промпт"
     bot.hears(['🆕 Новый промпт', '🆕 New prompt'], async ctx => {
@@ -1140,6 +1144,8 @@ If not, continue on your own and click the "I myself" button`
     })
 
     // ✅ ОБРАБОТЧИК ДЛЯ КНОПКИ МОРФИНГА
+    // 🚫 ОТКЛЮЧЕНО: Эти кнопки должны обрабатываться через menuScene + handleMenu
+    /*
     bot.hears([levels[13].title_ru, levels[13].title_en], async ctx => {
       logger.info('HEARS: morphing_button', {
         telegramId: ctx.from?.id,
@@ -1173,6 +1179,7 @@ If not, continue on your own and click the "I myself" button`
         )
       }
     })
+    */
 
     // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
 
