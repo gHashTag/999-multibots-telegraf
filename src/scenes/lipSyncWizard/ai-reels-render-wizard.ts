@@ -1504,7 +1504,23 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                 `📢 You will receive notification when video is ready\n\n` +
                 `💰 Charged: ${estimatedCost}⭐\n` +
                 `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`,
-          { parse_mode: 'HTML' }
+          {
+            parse_mode: 'HTML',
+            ...Markup.inlineKeyboard([
+              [
+                Markup.button.callback(
+                  isRu ? '🔄 Проверить статус' : '🔄 Check status',
+                  `status_${eventId}`
+                ),
+              ],
+              [
+                Markup.button.callback(
+                  isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                  'go_main_menu'
+                ),
+              ],
+            ])
+          }
         )
         console.log('🔴 [STEP 6] Reply sent to user!')
 

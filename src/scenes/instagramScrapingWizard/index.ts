@@ -825,6 +825,9 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
               '🚨 [DEBUG] SUCCESS! Sending success message to user...'
             )
             try {
+              // ✅ Добавляем eventId для статуса трекинга
+              const eventId = `instagram-scraper-${ctx.from!.id}-${sessionData.targetUsername}-${Date.now()}`
+
               await ctx.reply(
                 isRu
                   ? `🚀 Анализ конкурентов запущен успешно!\n\n📁 Проект: ${
@@ -840,7 +843,25 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                       sessionData.targetUsername
                     }\n📊 Competitors: ${
                       sessionData.maxCompetitors
-                    }\n\n⏰ Processing time: 5-15 minutes\n📬 We'll notify you when the analysis is ready!\n\n💡 You can continue using the bot`
+                    }\n\n⏰ Processing time: 5-15 minutes\n📬 We'll notify you when the analysis is ready!\n\n💡 You can continue using the bot`,
+                {
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        {
+                          text: isRu ? '🔄 Проверить статус' : '🔄 Check status',
+                          callback_data: `status_${eventId}`,
+                        },
+                      ],
+                      [
+                        {
+                          text: isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                          callback_data: 'go_main_menu',
+                        },
+                      ],
+                    ],
+                  },
+                }
               )
               console.log('🚨 [DEBUG] Success message sent successfully!')
             } catch (error) {
