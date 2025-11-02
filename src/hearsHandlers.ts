@@ -1226,5 +1226,76 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       await ctx.scene.enter('ai_reels_entry')
     }
   )
+
+  // === ПОСЛЕДНИЕ НЕДОСТАЮЩИЕ КНОПКИ ===
+
+  // Кнопка 13: 🌀 Infinity Морфинг
+  bot.hears(
+    [levels[13].title_ru, levels[13].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Infinity Морфинг от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в морфинг
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[13].title_ru : levels[13].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.MorphingWizard
+      await ctx.scene.enter(ModeEnum.MorphingWizard)
+    }
+  )
+
+  // Кнопка 14: 🎤 Синхронизация губ (только для админов)
+  bot.hears(
+    [levels[14].title_ru, levels[14].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Синхронизация губ от ${ctx.from?.id}`)
+
+      // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+      const userId = ctx.from?.id
+      const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+      if (!isAdmin) {
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ У вас нет доступа к синхронизации губ. Функция в разработке.'
+            : '❌ You do not have access to lip sync. Feature in development.'
+        )
+        return
+      }
+
+      // Переходим к выбору модели lip-sync
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.LipSync
+      await ctx.scene.enter(ModeEnum.LipSync)
+    }
+  )
+
+  // Кнопка 111: 🦸‍♂️ ИИ Герои
+  bot.hears(
+    [levels[111].title_ru, levels[111].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для ИИ Герои от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в ИИ Герои
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[111].title_ru : levels[111].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.AIHeroes
+      await ctx.scene.enter(ModeEnum.AvatarTransform)
+    }
+  )
 }
 //
