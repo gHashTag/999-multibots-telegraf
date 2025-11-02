@@ -76,6 +76,22 @@
         "webhook_handler": "Connected - automatic results",
         "status_tracking": "Active - 🔄 Check status button"
       }
+    },
+    "critical_warning": {
+      "production_server": "212.86.115.30",
+      "message": "⚠️ НЕ ЛОМАТЬ ПРОДАКШН! ТОЛЬКО 2 БОТА В DEV РЕЖИМЕ!",
+      "development_only": "Production server should run ONLY 2 bots in development mode",
+      "forbidden_actions": [
+        "Deploy to 212.86.115.30 production server",
+        "Run full bot farm on production",
+        "Production deployment without explicit permission",
+        "Stop/restart production containers"
+      ],
+      "emergency_procedure": {
+        "if_production_broken": "Immediately stop all containers on 212.86.115.30",
+        "restore_command": "Only run 2 development bots, NOT full deployment",
+        "contact": "Notify immediately if production is affected"
+      }
     }
   }
 }
