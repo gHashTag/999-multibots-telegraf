@@ -54,7 +54,7 @@ export async function checkSubscriptionGuard(
 
     // Проверяем, доступна ли функция для текущей подписки
     const isRu = isRussianFromState(ctx)
-    const subscription = effectiveSubscription || SubscriptionType.STARS
+    const subscription = effectiveSubscription || SubscriptionType.NO_SUBSCRIPTION
 
     // Проверяем доступность функции
     if (!isFeatureAvailable(commandName, subscription)) {

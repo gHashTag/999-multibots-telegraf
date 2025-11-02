@@ -97,7 +97,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   if (
     user.subscription === SubscriptionType.NEUROPHOTO ||
     user.subscription === SubscriptionType.NEUROVIDEO ||
-    user.subscription === SubscriptionType.STARS
+    user.subscription === SubscriptionType.NO_SUBSCRIPTION
   ) {
     logger.info({
       message:

@@ -219,7 +219,7 @@ emailWizard.on('text', async ctx => {
           status: PaymentStatus.PENDING,
           stars,
           payment_method: 'Robokassa',
-          subscription_type: SubscriptionType.STARS,
+          subscription_type: SubscriptionType.NO_SUBSCRIPTION,
           bot_name,
           language: getUserLanguageFromState(ctx) || 'ru',
           type: PaymentType.MONEY_INCOME,

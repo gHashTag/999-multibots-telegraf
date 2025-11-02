@@ -773,7 +773,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
       const isRu = isRussianFromState(ctx)
 
-      if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
+      if (!subscriptionType || subscriptionType === SubscriptionType.NO_SUBSCRIPTION) {
         // Пользователь без подписки - показываем информативное сообщение
         const message = isRu
           ? '❌ <b>Пополнение баланса недоступно без подписки</b>\n\n' +
@@ -817,7 +817,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
       const isRu = isRussianFromState(ctx)
 
-      if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
+      if (!subscriptionType || subscriptionType === SubscriptionType.NO_SUBSCRIPTION) {
         // Пользователь без подписки - показываем информативное сообщение
         const message = isRu
           ? '❌ <b>Просмотр баланса недоступен без подписки</b>\n\n' +

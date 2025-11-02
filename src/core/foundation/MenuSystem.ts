@@ -322,7 +322,7 @@ export class MenuSystem {
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
     const isRu = isRussianFromState(ctx)
 
-    if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
+    if (!subscriptionType || subscriptionType === SubscriptionType.NO_SUBSCRIPTION) {
       const message = isRu
         ? '❌ <b>Пополнение баланса недоступно без подписки</b>\n\n💫 Нажмите "Оформить подписку" в главном меню'
         : '❌ <b>Balance top-up is not available without subscription</b>\n\n💫 Press "Subscribe" in the main menu'
@@ -356,7 +356,7 @@ export class MenuSystem {
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
     const isRu = isRussianFromState(ctx)
 
-    if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
+    if (!subscriptionType || subscriptionType === SubscriptionType.NO_SUBSCRIPTION) {
       const message = isRu
         ? '❌ <b>Просмотр баланса недоступен без подписки</b>\n\n💫 Нажмите "Оформить подписку" в главном меню'
         : '❌ <b>Balance view is not available without subscription</b>\n\n💫 Press "Subscribe" in the main menu'

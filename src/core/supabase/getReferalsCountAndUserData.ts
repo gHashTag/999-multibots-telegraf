@@ -34,7 +34,7 @@ export const getReferalsCountAndUserData = async (
       return {
         count: 0,
         level: 0,
-        subscriptionType: SubscriptionType.STARS,
+        subscriptionType: SubscriptionType.NO_SUBSCRIPTION,
         userData: null,
         isExist: false,
       }
@@ -76,7 +76,7 @@ export const getReferalsCountAndUserData = async (
         subError
       )
       // Продолжаем выполнение, но используем дефолтную подписку STARS
-      subscriptionInfo = { type: SubscriptionType.STARS, isActive: false }
+      subscriptionInfo = { type: SubscriptionType.NO_SUBSCRIPTION, isActive: false }
     }
 
     // Теперь ищем рефералов по UUID
@@ -91,7 +91,7 @@ export const getReferalsCountAndUserData = async (
       return {
         count: 0,
         level: userData.level || 0,
-        subscriptionType: subscriptionInfo.type || SubscriptionType.STARS,
+        subscriptionType: subscriptionInfo.type || SubscriptionType.NO_SUBSCRIPTION,
         userData: userData as UserType,
         isExist: true,
       }
@@ -100,7 +100,7 @@ export const getReferalsCountAndUserData = async (
     return {
       count: count || 0,
       level: userData.level || 0,
-      subscriptionType: subscriptionInfo.type || SubscriptionType.STARS,
+      subscriptionType: subscriptionInfo.type || SubscriptionType.NO_SUBSCRIPTION,
       userData: userData as UserType,
       isExist: true,
     }
@@ -109,7 +109,7 @@ export const getReferalsCountAndUserData = async (
     return {
       count: 0,
       level: 0,
-      subscriptionType: SubscriptionType.STARS,
+      subscriptionType: SubscriptionType.NO_SUBSCRIPTION,
       userData: null,
       isExist: false,
     }

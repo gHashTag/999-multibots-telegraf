@@ -23,11 +23,11 @@ export const defaultSession: any = {
   targetUserId: 0,
   steps: 0,
   selectedSize: '',
-  subscription: SubscriptionType.STARS,
+  subscription: SubscriptionType.NO_SUBSCRIPTION,
   selectedPayment: {
     amount: 0,
     stars: 0,
-    subscription: SubscriptionType.STARS,
+    subscription: SubscriptionType.NO_SUBSCRIPTION,
     type: PaymentType.MONEY_OUTCOME,
   },
   videoUrl: '',
