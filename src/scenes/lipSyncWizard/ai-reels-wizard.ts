@@ -92,6 +92,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
+    console.log('🎬 [DEBUG] Step 0 - Запрос видео', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      messageType: ctx.message?.['text'] ? 'text' : ctx.message?.['video'] ? 'video' : 'other',
+      sceneId: ctx.scene?.current?.id,
+    })
+
     logger.info('🎬 [SIMPLE LIPSYNC] Step 0 STARTED - Запрос видео', {
       telegramId,
       function: 'simpleLipSyncWizard.step0',
@@ -141,6 +148,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    console.log('📹 [DEBUG] Step 1 - Получение видео', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      messageType: ctx.message?.['text'] ? 'text' : ctx.message?.['video'] ? 'video' : 'other',
+      hasFrom: !!ctx.from,
+    })
+
     // Проверяем наличие видео
     const video = ctx.message?.video
     if (!video) {
@@ -183,6 +197,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           'Now enter the text that will be spoken by the character in the video.\n\n' +
           '💡 Or send a voice message with the text.'
     )
+
+    // Переходим к следующему шагу
+    return ctx.wizard.next()
   },
 
   // Step 2: Получение текста
