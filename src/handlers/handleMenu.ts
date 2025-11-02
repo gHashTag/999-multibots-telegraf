@@ -8,25 +8,39 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
   console.log('CASE: handleMenuCommand')
+  console.log('🔍 [DEBUG] Full ctx:', {
+    hasMessage: !!ctx.message,
+    hasUpdate: !!ctx.update,
+    hasCallbackQuery: !!ctx.update?.callback_query,
+    updateType: ctx.update?.update_id
+  })
+
   const isRu = isRussian(ctx)
 
   // Получаем текст из message или из update
   let text = ''
+  let textSource = 'unknown'
+
   if (ctx.message && 'text' in ctx.message) {
     text = ctx.message.text || ''
+    textSource = 'ctx.message'
     console.log('CASE: handleMenuCommand.text from message:', text)
   } else if (ctx.update.message && 'text' in ctx.update.message) {
     text = ctx.update.message.text || ''
+    textSource = 'ctx.update.message'
     console.log('CASE: handleMenuCommand.text from update.message:', text)
   } else if (ctx.update.callback_query && 'data' in ctx.update.callback_query) {
     text = ctx.update.callback_query.data || ''
+    textSource = 'ctx.update.callback_query'
     console.log('CASE: handleMenuCommand.text from callback_query:', text)
   } else {
     console.log('CASE: handleMenuCommand - no text found in ctx')
+    console.log('🔍 [DEBUG] ctx.message:', ctx.message)
+    console.log('🔍 [DEBUG] ctx.update:', ctx.update)
     return
   }
 
-  console.log('CASE: handleMenuCommand.processing text:', text)
+  console.log('CASE: handleMenuCommand.processing text:', text, 'source:', textSource)
 
   // 🔍 ДИАГНОСТИКА ЯЗЫКА + ЗАЩИТА ОТ UNDEFINED
   console.log('🔍 [LANG DEBUG] handleMenu:', {
