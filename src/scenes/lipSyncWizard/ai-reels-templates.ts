@@ -12,6 +12,7 @@ import { logger } from '@/utils/logger'
 
 export enum AIReelsTemplate {
   WAN25 = 'veo31', // Оставляем внутренний идентификатор для совместимости
+  SIMPLE_LIPSYNC = 'simple_lipsync',
   INNGEST = 'inngest',
 }
 
@@ -65,6 +66,33 @@ export const AI_REELS_TEMPLATES: Record<
       ],
     },
     icon: '1️⃣',
+    recommended: true,
+  },
+  [AIReelsTemplate.SIMPLE_LIPSYNC]: {
+    id: AIReelsTemplate.SIMPLE_LIPSYNC,
+    name: {
+      ru: 'Шаблон 1 (Simple Lip-sync)',
+      en: 'Template 1 (Simple Lip-sync)',
+    },
+    description: {
+      ru: 'Простое создание lip-sync видео. Быстро и доступно!',
+      en: 'Simple lip-sync video creation. Fast and affordable!',
+    },
+    features: {
+      ru: [
+        '🎬 Lip-sync поверх вашего видео',
+        '⚡ Быстрая генерация (1-2 мин)',
+        '💰 Стоимость: 120 ⭐',
+        '✨ Простое и понятное',
+      ],
+      en: [
+        '🎬 Lip-sync on your video',
+        '⚡ Fast generation (1-2 min)',
+        '💰 Cost: 120 ⭐',
+        '✨ Simple and clear',
+      ],
+    },
+    icon: '✨',
     recommended: true,
   },
   [AIReelsTemplate.INNGEST]: {
@@ -137,7 +165,10 @@ export async function showTemplateSelection(ctx: MyContext): Promise<void> {
     parse_mode: 'HTML',
     reply_markup: Markup.keyboard([
       [
-        isRu ? '⚡ Быстрый (Veo 3.1)' : '⚡ Fast (Veo 3.1)',
+        isRu ? '✨ Простой (Lip-sync)' : '✨ Simple (Lip-sync)',
+        isRu ? '⚡ Полный (Veo 3.1)' : '⚡ Full (Veo 3.1)',
+      ],
+      [
         isRu ? '🔄 Надежный (Inngest)' : '🔄 Reliable (Inngest)',
       ],
       [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
@@ -155,15 +186,27 @@ export async function showTemplateSelection(ctx: MyContext): Promise<void> {
 export function parseTemplateSelection(text: string): AIReelsTemplate | null {
   const lowerText = text.toLowerCase()
 
+  // Простой Lip-sync
   if (
-    lowerText.includes('быстрый') ||
-    lowerText.includes('fast') ||
+    lowerText.includes('простой') ||
+    lowerText.includes('simple') ||
+    lowerText.includes('lip-sync') ||
+    lowerText.includes('lip sync')
+  ) {
+    return AIReelsTemplate.SIMPLE_LIPSYNC
+  }
+
+  // Полный Template (Veo 3.1)
+  if (
+    lowerText.includes('полный') ||
+    lowerText.includes('full') ||
     lowerText.includes('wan') ||
     lowerText.includes('veo')
   ) {
     return AIReelsTemplate.WAN25
   }
 
+  // Надежный (Inngest)
   if (
     lowerText.includes('надежный') ||
     lowerText.includes('reliable') ||
