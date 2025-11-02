@@ -114,6 +114,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       sceneId: ctx.scene?.current?.id,
     })
 
+    console.log('🚨 [DEBUG] ВСЕ СООБЩЕНИЯ В SCENE:', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      messageType: ctx.message ? Object.keys(ctx.message).join(',') : 'no message',
+      sceneId: ctx.scene?.current?.id,
+      wizardCursor: (ctx as any).wizard?.cursor,
+    })
+
     logger.info('🎬 [SIMPLE LIPSYNC] Step 0 STARTED - Запрос фото', {
       telegramId,
       function: 'simpleLipSyncWizard.step0',
@@ -161,6 +169,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
+
+    console.log('📷 [DEBUG] Step 1 - ПОЛУЧЕНИЕ ФОТО НАЧАТО', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      wizardCursor: (ctx as any).wizard?.cursor,
+    })
 
     if (!telegramId) {
       return ctx.scene.leave()
@@ -212,6 +226,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
+
+    console.log('📹 [DEBUG] Step 2 - ПОЛУЧЕНИЕ ВИДЕО НАЧАТО', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      wizardCursor: (ctx as any).wizard?.cursor,
+    })
 
     if (!telegramId) {
       return ctx.scene.leave()
@@ -265,6 +285,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           '💡 Or send a voice message.\n\n' +
           '💰 Cost will be calculated by audio duration.'
     )
+
+    console.log('🔄 [DEBUG] Step 2 - ЗАВЕРШАЕМ И ПЕРЕХОДИМ К Step 3', {
+      telegramId,
+      wizardCursor: (ctx as any).wizard?.cursor,
+    })
 
     // Переходим к следующему шагу
     return ctx.wizard.next()
