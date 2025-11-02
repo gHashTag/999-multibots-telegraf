@@ -34,6 +34,19 @@
     ]
   },
   "deployment": {
+    "master_guide": {
+      "file": "MASTER_DEPLOYMENT_GUIDE.md",
+      "description": "COMPREHENSIVE deployment guide - MUST READ!",
+      "critical": true,
+      "mandatory_reading": true,
+      "summary": "All deployment rules, server architecture, workflows, and emergency procedures in one place",
+      "required_for": [
+        "any deployment operation",
+        "production server access",
+        "bot management",
+        "inngest integration"
+      ]
+    },
     "rules": {
       "description": "Critical deployment safety rules",
       "production_server": "212.86.115.30",
