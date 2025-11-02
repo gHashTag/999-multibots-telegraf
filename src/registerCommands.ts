@@ -64,7 +64,6 @@ import {
   lipSyncWizard,
   veedFabricWizard,
   aiReelsWizard,
-  aiReelsWizardSimple,
   aiReelsEntryWizard,
   aiReelsRenderWizard,
   simpleLipSyncWizard,
@@ -147,11 +146,6 @@ const scenesToRegister = [
   lipSyncWizard,
   veedFabricWizard,
   aiReelsWizard,
-
-console.log('🎬 [REGISTER] ДОБАВЛЯЕМ aiReelsWizardSimple В СЦЕНЫ')
-  aiReelsWizardSimple,
-console.log('🎬 [REGISTER] aiReelsWizardSimple ДОБАВЛЕН В СЦЕНЫ!')
-
   aiReelsEntryWizard,
   aiReelsRenderWizard,
   simpleLipSyncWizard,
@@ -183,7 +177,7 @@ const sceneNames = [
   'uploadTrainFluxModelScene', 'uploadVideoScene', 'sizeWizard', 'aiPhotoshopScene',
   'morphingWizard', 'voiceWizard_wrapped', 'textToSpeechWizard_wrapped',
   'videoTranscriptionWizard', 'lipSyncWizard', 'veedFabricWizard', 'aiReelsWizard',
-  'aiReelsWizardSimple', 'aiReelsEntryWizard', 'aiReelsRenderWizard', 'avatarTransformScene',
+  'aiReelsEntryWizard', 'aiReelsRenderWizard', 'avatarTransformScene',
   'avatarBrainWizard_wrapped', 'chatWithAvatarWizard_wrapped', 'selectModelWizard',
   'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
   'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
