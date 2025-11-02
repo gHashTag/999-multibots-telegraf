@@ -324,8 +324,8 @@ export async function mainMenu({
   )
 
   // Показываем кнопки всем пользователям, НЕ зависимо от подписки
+  // ✅ ИСПРАВЛЕНИЕ: НЕ фильтруем служебные кнопки - показываем ВСЕ кнопки ВСЕМ
   availableLevels = Object.values(levels)
-    .filter(filterServiceLevels)
     .filter(level => {
       const shouldInclude = !(level.admin_only && !hasAdminAccess)
       if (level.admin_only) {
