@@ -29,6 +29,19 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
 
+    // Проверяем команды отмены
+    if (message && 'text' in message) {
+      const text = message.text
+
+      if (text === '/menu' || text === '/cancel') {
+        await ctx.reply(
+          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+          { reply_markup: { remove_keyboard: true } }
+        )
+        return ctx.scene.enter('main_menu')
+      }
+    }
+
     if (
       !message ||
       !('voice' in message || 'audio' in message || 'text' in message)
@@ -43,7 +56,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
-      return ctx.scene.leave()
+      return ctx.scene.enter('main_menu')
     } else {
       const fileId =
         'voice' in message
@@ -57,7 +70,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
             ? 'Ошибка: не удалось получить идентификатор файла'
             : 'Error: could not retrieve file ID'
         )
-        return ctx.scene.leave()
+        return ctx.scene.enter('main_menu')
       }
 
       try {
