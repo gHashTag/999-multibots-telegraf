@@ -32,5 +32,50 @@
       "optimization",
       "maintenance"
     ]
+  },
+  "deployment": {
+    "rules": {
+      "description": "Critical deployment safety rules",
+      "production_server": "212.86.115.30",
+      "dev_server": "45.66.11.152",
+      "workflow": "temp-main → main (DEV) → production (MANUAL ONLY!)",
+      "main_branch": {
+        "server": "45.66.11.152",
+        "status": "ALLOWED - All experiments permitted",
+        "description": "DEV/Staging server - safe for all changes"
+      },
+      "production_branch": {
+        "server": "212.86.115.30",
+        "status": "FORBIDDEN - LIVE system protected",
+        "description": "Production server - NEVER deploy without explicit permission"
+      },
+      "prohibited_actions": [
+        "git push origin production",
+        "Direct deployment to 212.86.115.30",
+        "Force push to main branch",
+        "Deployment without testing"
+      ],
+      "required_actions": [
+        "Always test changes in main branch first",
+        "Ask for permission before production deployment",
+        "Check logs after any deployment",
+        "Follow the workflow: temp-main → main → production"
+      ]
+    },
+    "inngest_migration": {
+      "status": "COMPLETE",
+      "deployed_scenes": [
+        "neuroPhotoWizardV2 (40% users) - 98% faster",
+        "textToImageWizard (20% users) - 95% faster",
+        "aiReelsWizard (15% users) - 90% faster",
+        "aiReelsRenderWizard - Status tracking added",
+        "instagramScrapingWizard - Status tracking added"
+      ],
+      "infrastructure": {
+        "inngest_client": "Active - returns eventId",
+        "webhook_handler": "Connected - automatic results",
+        "status_tracking": "Active - 🔄 Check status button"
+      }
+    }
   }
 }
