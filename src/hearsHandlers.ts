@@ -28,7 +28,7 @@ import { upscaleFluxKontextImage } from './services/generateFluxKontext'
 import { getParsingAccess } from './menu/mainMenu'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
-  logger.info('Настройка обработчиков hears...')
+  logger.info('🎯 [HEARS] Настройка обработчиков hears для бота: ' + bot.botInfo?.username)
 
   // ✅ WIZARD CALLBACK HANDLING: Wizards обрабатываются через stage.middleware()
   // stage.middleware() запускается ПЕРЕД этим handler'ом и устанавливает ctx.scene.current
