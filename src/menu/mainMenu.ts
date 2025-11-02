@@ -299,6 +299,13 @@ export async function mainMenu({
       levels[3],   // 🔍 Промпт из фото
       levels[107], // ⬆️ Увеличить качество фото
       levels[108], // 📺 Транскрибация Reels
+      // Добавляем служебные кнопки для NEUROPHOTO
+      levels[100], // 💎 Пополнить баланс
+      levels[101], // 💰 Баланс
+      levels[102], // 👥 Пригласить друга
+      levels[103], // 💬 Техподдержка
+      levels[104], // 🏠 Главное меню
+      levels[105], // 💫 Оформить подписку
     ],
     [SubscriptionType.NEUROVIDEO]: [
       ...Object.values(levels),
