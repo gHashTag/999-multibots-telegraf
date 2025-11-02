@@ -47,6 +47,9 @@ import { generateAIReelsFunction } from './functions/existing/generateAIReelsFun
 import { generateAdvancedLoopingVideoFunction } from './functions/existing/generateAdvancedLoopingVideoFunction'
 import { generateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 
+// Test Functions
+import { testSimpleFunction } from './functions/test'
+
 // Collect all functions
 export const allInngestFunctions = [
   // Content (6)
@@ -87,6 +90,9 @@ export const allInngestFunctions = [
   generateAIReelsFunction,
   generateAdvancedLoopingVideoFunction,
   generateModelTrainingFunction,
+
+  // Test (1)
+  testSimpleFunction,
 ]
 
 // Log all registered functions
@@ -117,6 +123,7 @@ export function getFunctionStatus(): {
       broadcast: 1,
       render: 3,
       existing: 3,
+      test: 1,
     },
   }
 }

@@ -41,29 +41,50 @@ export { generateAIReelsFunction } from './existing/generateAIReelsFunction'
 export { generateAdvancedLoopingVideoFunction } from './existing/generateAdvancedLoopingVideoFunction'
 export { generateModelTrainingFunction } from './existing/generateModelTrainingFunction'
 
+// Test Functions (development and testing)
+export { testSimpleFunction } from './test'
+
 // Helper functions for all Inngest functions
 export const getAllFunctions = () => [
+  // Content functions
   analyzeCompetitorReelsFunction,
   extractTopContentFunction,
   findCompetitorsFunction,
   generateContentScriptsFunction,
   generateDetailedScriptFunction,
   generateScenarioClipsFunction,
+
+  // Instagram functions
   instagramScraperV2Function,
   instagramScraperV2SimpleFunction,
+
+  // Monitoring functions
   criticalErrorMonitorFunction,
   logMonitorFunction,
+
+  // Training functions
   modelTrainingV2Function,
   morphImagesFunction,
+
+  // Generation functions
   neuroImageGenerationFunction,
+
+  // Payment functions
   paymentProcessingFunction,
+
+  // Broadcast functions
   broadcastMessageFunction,
+
   // Render functions
   renderFunction,
   renderAvatarVideoFunction,
   renderRiddleFunction,
+
   // Existing functions
   generateAIReelsFunction,
   generateAdvancedLoopingVideoFunction,
-  generateModelTrainingFunction
+  generateModelTrainingFunction,
+
+  // Test functions
+  testSimpleFunction,
 ]
