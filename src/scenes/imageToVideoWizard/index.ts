@@ -157,7 +157,10 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         isRu
           ? '🖼️ Отправьте изображение для создания видео:'
           : '🖼️ Send an image to create video:',
-        Markup.removeKeyboard()
+        Markup.keyboard([
+          [isRu ? '❌ Отмена' : '❌ Cancel'],
+          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+        ]).resize()
       )
 
       console.log('🎬 [I2V WIZARD] Step 1: ✅ REPLY SENT! Moving to next step...')
@@ -185,6 +188,29 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
         return ctx.scene.leave()
+      }
+
+      // Обработка reply кнопок из шага 1
+      if (ctx.message && 'text' in ctx.message) {
+        const text = ctx.message.text
+
+        // Отмена
+        if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+          await ctx.reply(
+            isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+            { reply_markup: { remove_keyboard: true } }
+          )
+          return ctx.scene.leave()
+        }
+
+        // Главное меню
+        if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+          await ctx.reply(
+            isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
+            { reply_markup: { remove_keyboard: true } }
+          )
+          return ctx.scene.leave()
+        }
       }
 
       // Проверяем, что это фото

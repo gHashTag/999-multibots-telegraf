@@ -28,6 +28,7 @@
     "format": "bunx prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "check:translations": "bun run scripts/check_ai_stars_translations.ts",
+    "test:webhook-health": "npx ts-node tests/test-webhook-endpoint-health.ts",
     "generate:translations-sql": "bun run scripts/check_ai_stars_translations.ts --generate-sql",
     "build:production": "bun install && bun run build:nocheck",
     "check:build": "./scripts/check-build-health.sh",
