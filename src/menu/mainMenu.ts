@@ -259,8 +259,10 @@ export async function mainMenu({
     telegramLanguage: ctx.from?.language_code,
   })
 
+  // Определяем тип подписки
   const currentSubscription =
     subscription === null ? SubscriptionType.NO_SUBSCRIPTION : subscription
+
   console.log(
     `[mainMenu LOG] Subscription: ${subscription}, Effective: ${currentSubscription}`
   )
@@ -281,10 +283,6 @@ export async function mainMenu({
   // ✅ ЛОГИКА ПОДПИСОК: Показываем разные кнопки в зависимости от подписки
   // Проверка подписки происходит только при нажатии на кнопку (в handleMenu)
 
-  // Определяем тип подписки
-  const currentSubscription =
-    subscription === null ? SubscriptionType.NO_SUBSCRIPTION : subscription
-
   // Проверяем доступ только для админских кнопок
   const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
   const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
@@ -293,39 +291,19 @@ export async function mainMenu({
   // ✅ ЛОГИКА УРОВНЕЙ ПОДПИСОК (как было раньше)
   const subscriptionLevelsMap: Record<SubscriptionType, Level[]> = {
     [SubscriptionType.NO_SUBSCRIPTION]: [], // STARS - только служебные кнопки
+    [SubscriptionType.STARS]: [], // Устаревший алиас для обратной совместимости
     [SubscriptionType.NEUROPHOTO]: [
       levels[1],   // 🤖 Цифровое тело
       levels[2],   // 📸 Нейрофото
       levels[3],   // 🔍 Промпт из фото
       levels[107], // ⬆️ Увеличить качество фото
       levels[108], // 📺 Транскрибация Reels
-      // Добавляем служебные кнопки для NEUROPHOTO
-      levels[100], // 💎 Пополнить баланс
-      levels[101], // 💰 Баланс
-      levels[102], // 👥 Пригласить друга
-      levels[103], // 💬 Техподдержка
-      levels[104], // 🏠 Главное меню
-      levels[105], // 💫 Оформить подписку
     ],
     [SubscriptionType.NEUROVIDEO]: [
       ...Object.values(levels),
-      // Добавляем служебные кнопки для NEUROVIDEO
-      levels[100], // 💎 Пополнить баланс
-      levels[101], // 💰 Баланс
-      levels[102], // 👥 Пригласить друга
-      levels[103], // 💬 Техподдержка
-      levels[104], // 🏠 Главное меню
-      levels[105], // 💫 Оформить подписку
     ],
     [SubscriptionType.NEUROTESTER]: [
       ...Object.values(levels),
-      // Добавляем служебные кнопки для NEUROTESTER
-      levels[100], // 💎 Пополнить баланс
-      levels[101], // 💰 Баланс
-      levels[102], // 👥 Пригласить друга
-      levels[103], // 💬 Техподдержка
-      levels[104], // 🏠 Главное меню
-      levels[105], // 💫 Оформить подписку
     ],
   }
 
@@ -338,7 +316,6 @@ export async function mainMenu({
       levels[101], // 💰 Баланс
       levels[102], // 👥 Пригласить друга
       levels[103], // 💬 Техподдержка
-      levels[104], // 🏠 Главное меню
       levels[105], // 💫 Оформить подписку
     ]
   } else {
@@ -347,6 +324,10 @@ export async function mainMenu({
     availableLevels = baseLevels.filter(level => {
       // Исключаем кнопку языка (106) из основного меню
       if (level === levels[106]) {
+        return false
+      }
+      // Исключаем кнопку "🏠 Главное меню" (104) из основного меню
+      if (level === levels[104]) {
         return false
       }
       // Включаем только если это не admin_only или у пользователя есть админ доступ
@@ -386,9 +367,8 @@ export async function mainMenu({
   const levelButtons = []
   for (const lvl of availableLevels) {
     let buttonText = isRu ? lvl.title_ru : lvl.title_en
-
-
-  
+    levelButtons.push(Markup.button.text(buttonText))
+  }
 
   const adminSpecificButtons = []
 
