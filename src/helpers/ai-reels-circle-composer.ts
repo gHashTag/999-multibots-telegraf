@@ -198,10 +198,10 @@ export async function createAiReelsCircleComposition(
     })
 
     // FFmpeg команда с face detection кадрированием
-    // Если есть face box, кадрируем по нему, иначе масштабируем
-    const scaleFilter = faceBox
-      ? `scale=${circleSize}:${circleSize}:crop=${faceBox.width}:${faceBox.height}:${faceBox.x}:${faceBox.y}`
-      : `scale=${circleSize}:${circleSize}`
+    // Вырезаем квадратик ПО ЛИЦУ (НЕ масштабируем!)
+    const cropFilter = faceBox
+      ? `crop=${circleSize}:${circleSize}:${faceBox.x}:${faceBox.y}`
+      : `crop=${circleSize}:${circleSize}:168:456` // Центр lip-sync видео
 
     const ffmpegCommand = `ffmpeg -y \\
       -i "${backgroundVideoPath}" \\
@@ -209,9 +209,9 @@ export async function createAiReelsCircleComposition(
       -i "${maskPath}" \\
       -filter_complex \\
       "[0:v]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2[bg]; \\
-       [1:v]${scaleFilter}[scaled]; \\
-       [scaled][2:v]alphamerge[masked]; \\
-       [bg][masked]overlay=${overlayX}:${overlayY}[outv]" \\
+       [1:v]${cropFilter},format=yuva420p[sq]; \\
+       [sq][2:v]alphamerge[circle]; \\
+       [bg][circle]overlay=${overlayX}:${overlayY}[outv]" \\
       -map "[outv]" \\
       -map 1:a \\
       -c:v libx264 \\
