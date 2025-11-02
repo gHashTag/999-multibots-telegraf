@@ -144,6 +144,12 @@ export const handleMenu = async (ctx: MyContext) => {
       await ctx.scene.enter('morphingWizard')
     })
 
+    addAction(14, async () => {
+      console.log('CASE: 🎤 Синхронизация губ')
+      ctx.session.mode = ModeEnum.LipSync
+      await ctx.scene.enter('ai_reels_wizard')
+    })
+
     addAction(15, async () => {
       console.log('CASE: 🎭 Замена лица')
       ctx.session.mode = ModeEnum.FaceSwap
