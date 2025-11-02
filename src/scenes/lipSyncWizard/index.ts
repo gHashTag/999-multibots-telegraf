@@ -89,8 +89,16 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     let videoInput: any
 
+    console.log('📝 [lipSync Step 2] Message received:', {
+      hasMessage: !!message,
+      messageType: message ? Object.keys(message) : 'no message',
+      telegramId: ctx.from?.id,
+      text: message && 'text' in message ? message.text : 'not text',
+    })
+
     // Проверяем нажатие кнопки "Отмена"
     const isCancel = await handleCancelButton(ctx)
+    console.log('📝 [lipSync Step 2] handleCancelButton result:', { isCancel })
     if (isCancel) {
       return ctx.scene.leave()
     }
