@@ -221,17 +221,33 @@ export function createRenderAvatarPayload(
     falResolution?: '720p' | '1080p'
     // Bot name для правильной отправки callback
     botName?: string
+    // HeyGen набор аватаров для выбора API ключа
+    heygenAvatarSet?: string
   }
 ): RenderRiddlePayload {
   const isHeygen = options?.avatarService === 'heygen'
   const isFal = options?.avatarService === 'fal'
+
+  // HeyGen - выбираем API ключ в зависимости от набора аватаров
+  let heygenApiKey = ''
+  if (isHeygen) {
+    // cocoage = шаблон 2 (кастомный)
+    if (options?.heygenAvatarSet === 'cocoage') {
+      heygenApiKey = process.env.HEYGEN_COCOAGE_API_KEY || ''
+    }
+    // haim = остальные шаблоны
+    else {
+      heygenApiKey = process.env.HEYGEN_HAIM_API_KEY || ''
+    }
+  }
 
   logger.info('🎬 [RENDER PAYLOAD] Creating payload', {
     telegramId,
     avatarService: options?.avatarService || 'hedra',
     isHeygen,
     isFal,
-    hasHeygenApiKey: !!options?.heygenApiKey,
+    botName: options?.botName,
+    hasHeygenApiKey: !!heygenApiKey,
     hasHeygenAvatarId: !!options?.heygenAvatarId,
     hasFalApiKey: !!options?.falApiKey,
   })
@@ -243,18 +259,18 @@ export function createRenderAvatarPayload(
     cover_url: options?.coverUrl || '',
     intro_text_1: {
       text: options?.introText1 || '',
-      position: [540, 860], // ✅ Обновлено: правильное позиционирование для первого текста
+      position: [540, 860],
       font_size: 100,
     },
     intro_text_2: {
       text: options?.introText2 || '',
-      position: [540, 960], // ✅ Обновлено: правильное позиционирование для второго текста
+      position: [540, 960],
       font_size: 75,
     },
     avatar_settings: {
       heygen: isHeygen
         ? {
-            api_key: options?.heygenApiKey || '',
+            api_key: heygenApiKey, // Используем выбранный токен
             avatar_id: options?.heygenAvatarId || '',
             voice_id: voiceId,
             avatar_speech: text,
@@ -283,6 +299,6 @@ export function createRenderAvatarPayload(
       options?.callbackUrl !== undefined
         ? options.callbackUrl
         : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
-    bot_name: options?.botName, // Передаем имя бота для callback
+    bot_name: options?.botName,
   }
 }

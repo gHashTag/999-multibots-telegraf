@@ -43,7 +43,16 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
             '• Frontal angle\n' +
             '• Good lighting\n\n' +
             '💰 <b>Cost:</b> 10 ⭐',
-      { parse_mode: 'HTML' }
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          keyboard: [
+            [isRu ? '❌ Отмена' : '❌ Cancel'],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: false,
+        },
+      }
     )
 
     return ctx.wizard.next()
@@ -58,6 +67,18 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
       telegramId,
       hasPhoto: !!('message' in ctx.update && 'photo' in ctx.update.message),
     })
+
+    // Проверка команды отмены
+    if ('message' in ctx.update && 'text' in ctx.update.message) {
+      const text = ctx.update.message.text
+      if (text === '/menu' || text === '/cancel') {
+        await ctx.reply(
+          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+          { reply_markup: { remove_keyboard: true } }
+        )
+        return ctx.scene.leave()
+      }
+    }
 
     // Validate photo received
     if (!('message' in ctx.update) || !('photo' in ctx.update.message)) {
@@ -140,6 +161,17 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     // Check user balance
     const balance = await getUserBalance(telegramId!)
     const requiredStars = 10 // Face swap costs 10 stars
+
+    // Проверка получения баланса
+    if (balance === null || balance === undefined || isNaN(balance)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при проверке доступа. Пожалуйста, попробуйте еще раз или начните сначала /start.'
+          : '❌ Error checking access. Please try again or start over with /start.'
+      )
+      logger.error('🎭 [FACE SWAP] Invalid balance received:', { telegramId, balance })
+      return ctx.scene.leave()
+    }
 
     if (balance < requiredStars) {
       await ctx.reply(
