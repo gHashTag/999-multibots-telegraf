@@ -47,6 +47,66 @@
         "inngest integration"
       ]
     },
+    "protection_mechanisms": {
+      "git_hooks": {
+        "enabled": true,
+        "description": "Git protection hooks prevent accidental production pushes",
+        "hooks": [
+          "pre-push: Blocks production branch pushes",
+          "pre-commit: Validates changes",
+          "commit-msg: Enforces commit format"
+        ],
+        "installation": "make install-hooks"
+      },
+      "validation_scripts": {
+        "enabled": true,
+        "description": "Automated validation before deployment",
+        "scripts": [
+          "deployment-validator.sh: Comprehensive validation",
+          "auto-deployment-check.sh: Quick automated check",
+          "git-protection-hooks.sh: Install protection hooks"
+        ],
+        "usage": [
+          "make check-deploy: Run deployment validation",
+          "make check-auto: Run automatic check",
+          "make check-all: Run all validations"
+        ]
+      },
+      "makefile": {
+        "enabled": true,
+        "description": "Safe deployment commands via Make",
+        "commands": {
+          "pre_deployment": [
+            "make check-all: Validate everything",
+            "make install-hooks: Install git protection",
+            "make check-hooks: Verify hooks installed"
+          ],
+          "deployment": [
+            "make deploy-dev: Deploy to development",
+            "make deploy-prod: Deploy to production (with warnings)"
+          ],
+          "monitoring": [
+            "make health-dev: Check development bots",
+            "make health-prod: Check production bots"
+          ],
+          "emergency": [
+            "make emergency-stop-prod: Stop production",
+            "make emergency-stop-dev: Stop development"
+          ]
+        }
+      },
+      "multi_layer_protection": {
+        "description": "Multiple layers of protection prevent production breakage",
+        "layers": [
+          "Layer 1: Git hooks (prevents push)",
+          "Layer 2: Agent permissions (blocks commands)",
+          "Layer 3: Validation scripts (checks safety)",
+          "Layer 4: Makefile commands (safe interface)",
+          "Layer 5: Documentation (education)"
+        ],
+        "critical": "All layers must be bypassed to break production!"
+      }
+    },
     "rules": {
       "description": "Critical deployment safety rules",
       "production_server": "212.86.115.30",
