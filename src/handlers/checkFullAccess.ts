@@ -1,9 +1,8 @@
 export const checkFullAccess = (subscription: string): boolean => {
   const fullAccessSubscriptions = [
-    'neurophoto',
+    // ✅ NEUROVIDEO и NEUROTESTER имеют ПОЛНЫЙ доступ ко всем функциям
     'neurovideo',
     'neurotester',
-    'NEUROPHOTO',
     'NEUROVIDEO',
     'NEUROTESTER',
   ]

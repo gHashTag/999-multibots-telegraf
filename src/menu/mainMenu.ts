@@ -300,8 +300,26 @@ export async function mainMenu({
       levels[107], // ⬆️ Увеличить качество фото
       levels[108], // 📺 Транскрибация Reels
     ],
-    [SubscriptionType.NEUROVIDEO]: Object.values(levels), // Все
-    [SubscriptionType.NEUROTESTER]: Object.values(levels), // Все для тестера
+    [SubscriptionType.NEUROVIDEO]: [
+      ...Object.values(levels),
+      // Добавляем служебные кнопки для NEUROVIDEO
+      levels[100], // 💎 Пополнить баланс
+      levels[101], // 💰 Баланс
+      levels[102], // 👥 Пригласить друга
+      levels[103], // 💬 Техподдержка
+      levels[104], // 🏠 Главное меню
+      levels[105], // 💫 Оформить подписку
+    ],
+    [SubscriptionType.NEUROTESTER]: [
+      ...Object.values(levels),
+      // Добавляем служебные кнопки для NEUROTESTER
+      levels[100], // 💎 Пополнить баланс
+      levels[101], // 💰 Баланс
+      levels[102], // 👥 Пригласить друга
+      levels[103], // 💬 Техподдержка
+      levels[104], // 🏠 Главное меню
+      levels[105], // 💫 Оформить подписку
+    ],
   }
 
   let availableLevels: Level[] = []
