@@ -311,7 +311,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
 
     ctx.session.aiReels.text = text
-    ctx.session.aiReels.step = 'lipsync_generation'
+    ctx.session.aiReels.step = 'text'
 
     await ctx.reply(
       isRu
@@ -319,7 +319,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         : `✅ Text saved!\n\n"${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"\n\n💰 Checking balance...`
     )
 
-    ctx.wizard.next()
+    return ctx.wizard.next()
   },
 
   // Step 4: Проверка баланса и создание lip-sync
@@ -330,6 +330,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     if (!telegramId) {
       return ctx.scene.leave()
     }
+
+    // Устанавливаем шаг генерации
+    ctx.session.aiReels.step = 'lipsync_generation'
 
     logger.info('💰 [SIMPLE LIPSYNC] Проверка баланса', { telegramId, isTestMode: TEST_MODE })
 
