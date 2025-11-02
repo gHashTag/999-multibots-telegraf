@@ -5,7 +5,7 @@
  * Модель: codeplugtech/face-swap
  */
 
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
@@ -13,6 +13,7 @@ import { generateFaceSwap } from '@/services/generateFaceSwap'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { createCancelButton, handleCancelButton } from '@/utils/cancelButton'
 
 export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
   'faceSwapWizard',
@@ -29,29 +30,13 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '🎭 <b>Замена лица</b>\n\n' +
-            'Загрузите фото человека, на которого хотите заменить лицо.\n\n' +
-            '📋 <b>Требования:</b>\n' +
-            '• Лицо чётко видно\n' +
-            '• Анфас (прямо в камеру)\n' +
-            '• Хорошее освещение\n\n' +
-            '💰 <b>Стоимость:</b> 10 ⭐'
-        : '🎭 <b>Face Swap</b>\n\n' +
-            'Upload photo of the person whose face you want to swap.\n\n' +
-            '📋 <b>Requirements:</b>\n' +
-            '• Face clearly visible\n' +
-            '• Frontal angle\n' +
-            '• Good lighting\n\n' +
-            '💰 <b>Cost:</b> 10 ⭐',
+        ? 'Замена лица\n\nЗагрузите фото человека, на которого хотите заменить лицо.\n\nТребования:\n• Лицо чётко видно\n• Анфас (прямо в камеру)\n• Хорошее освещение\n\nСтоимость: 10 ⭐'
+        : 'Face Swap\n\nUpload photo of the person whose face you want to swap.\n\nRequirements:\n• Face clearly visible\n• Frontal angle\n• Good lighting\n\nCost: 10 ⭐',
       {
         parse_mode: 'HTML',
-        reply_markup: {
-          keyboard: [
-            [isRu ? '❌ Отмена' : '❌ Cancel'],
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: false,
-        },
+        reply_markup: Markup.keyboard([
+          createCancelButton(isRu)
+        ]).resize().oneTime(),
       }
     )
 
@@ -69,15 +54,9 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     })
 
     // Проверка команды отмены
-    if ('message' in ctx.update && 'text' in ctx.update.message) {
-      const text = ctx.update.message.text
-      if (text === '/menu' || text === '/cancel') {
-        await ctx.reply(
-          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
-          { reply_markup: { remove_keyboard: true } }
-        )
-        return ctx.scene.leave()
-      }
+    const isCancel = await handleCancelButton(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
     }
 
     // Validate photo received
