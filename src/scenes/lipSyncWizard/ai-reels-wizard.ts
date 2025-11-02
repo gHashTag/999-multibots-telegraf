@@ -314,9 +314,19 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
     let text = ''
 
+    console.log('🔍 [DEBUG] Step 3 - Анализ сообщения', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      messageType: ctx.message ? Object.keys(ctx.message).join(',') : 'none',
+      hasText: !!ctx.message?.text,
+      hasVoice: !!ctx.message?.voice,
+      rawText: (ctx.message as any)?.text,
+    })
+
     // Проверяем текст
     if ((ctx.message as any)?.text) {
       text = (ctx.message as any).text
+      console.log('✅ [DEBUG] Step 3 - Текст найден:', text.substring(0, 50))
     }
     // Проверяем голосовое сообщение
     else if ((ctx.message as any)?.voice) {
@@ -353,11 +363,18 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!text.trim()) {
+      console.log('❌ [DEBUG] Step 3 - Текст пустой!')
       await ctx.reply(
         isRu ? '❌ Текст не может быть пустым.' : '❌ Text cannot be empty.'
       )
       return
     }
+
+    console.log('✅ [DEBUG] Step 3 - Сохраняем текст в session', {
+      telegramId,
+      textLength: text.length,
+      textPreview: text.substring(0, 50),
+    })
 
     ctx.session.aiReels.text = text
     ctx.session.aiReels.step = 'text'
@@ -368,6 +385,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         : `✅ Text saved!\n\n"${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"\n\n💰 Checking balance...`
     )
 
+    console.log('🔄 [DEBUG] Step 3 - ПЕРЕХОДИМ К Step 4', {
+      telegramId,
+      wizardCursor: (ctx as any).wizard?.cursor,
+    })
+
     return ctx.wizard.next()
   },
 
@@ -375,6 +397,12 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
+
+    console.log('💰 [DEBUG] Step 4 - НАЧАЛИСЬ!', {
+      telegramId,
+      hasSession: !!ctx.session,
+      wizardCursor: (ctx as any).wizard?.cursor,
+    })
 
     if (!telegramId) {
       return ctx.scene.leave()
