@@ -2,13 +2,19 @@ import { Scenes } from 'telegraf'
 import { getReferalsCountAndUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { INVITE_SCENE } from '@/constants/sceneIds'
+import { INVITE_SCENE, MAIN_MENU } from '@/constants/sceneIds'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 export const inviteScene = new Scenes.BaseScene<MyContext>(INVITE_SCENE)
 
 inviteScene.enter(async ctx => {
-  const isRu = isRussianFromState(ctx)
+  // Обработка отмены
+  const isCancel = await handleHelpCancel(ctx)
+  if (isCancel) {
+    return ctx.scene.leave()
+  }
 
+  const isRu = isRussianFromState(ctx)
   const botUsername = ctx.botInfo.username
   const telegram_id = ctx.from?.id?.toString() || ''
 
@@ -32,7 +38,7 @@ inviteScene.enter(async ctx => {
 
     await ctx.reply(introText, { parse_mode: 'HTML' })
     await ctx.reply(linkText, { parse_mode: 'HTML' })
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.enter(MAIN_MENU)
   } catch (error) {
     console.error('Error fetching referral count:', error)
     await ctx.reply(

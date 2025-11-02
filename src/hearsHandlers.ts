@@ -755,15 +755,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     logger.debug(`Получен hears для Отмена от ${ctx.from?.id}`)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
-    const telegram_id = ctx.from?.id?.toString() || ''
-    const { subscriptionType } = await getReferalsCountAndUserData(telegram_id)
 
-    await mainMenu({
-      isRu,
-      subscription: subscriptionType,
-      ctx,
-    })
     await ctx.scene.leave()
+    await ctx.scene.enter(MAIN_MENU)
   })
 
   bot.hears(
@@ -803,12 +797,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
         await ctx.replyWithHTML(message)
 
-        // Возвращаем в главное меню
-        await mainMenu({
-          isRu,
-          subscription: subscriptionType,
-          ctx,
-        })
+        // Переходим в главное меню
+        await ctx.scene.enter(MAIN_MENU)
         return
       }
 
@@ -847,12 +837,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
         await ctx.replyWithHTML(message)
 
-        // Возвращаем в главное меню
-        await mainMenu({
-          isRu,
-          subscription: subscriptionType,
-          ctx,
-        })
+        // Переходим в главное меню
+        await ctx.scene.enter(MAIN_MENU)
         return
       }
 

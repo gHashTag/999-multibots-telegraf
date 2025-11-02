@@ -2,7 +2,8 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
-import { BALANCE_SCENE } from '@/constants/sceneIds'
+import { BALANCE_SCENE, MAIN_MENU } from '@/constants/sceneIds'
+import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import {
   getServiceEmoji,
   getServiceDisplayTitle,
@@ -400,6 +401,12 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 // Обработчик для кнопки скачивания Excel отчета
 balanceScene.action('download_excel_report', async (ctx: MyContext) => {
   try {
+    // Обработка отмены
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
     const isRu = isRussianFromState(ctx)
     const userId = ctx.from?.id.toString() || ''
 
@@ -494,7 +501,7 @@ balanceScene.action('download_excel_report', async (ctx: MyContext) => {
 // Обработчик для кнопки "Назад в меню"
 balanceScene.action('back_to_menu', async (ctx: MyContext) => {
   await ctx.answerCbQuery()
-  await ctx.scene.enter(ModeEnum.MainMenu)
+  await ctx.scene.enter(MAIN_MENU)
 })
 
 // Функция getServiceEmoji теперь импортируется из @/utils/serviceMapping

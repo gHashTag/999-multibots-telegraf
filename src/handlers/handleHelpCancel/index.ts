@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { MAIN_MENU, HELP_SCENE } from '@/constants/sceneIds'
 
 export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
   console.log('🔍 [handleHelpCancel] STARTED', {
@@ -30,7 +30,7 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
       console.log(
         '✅ [handleHelpCancel] CANCEL MESSAGE SENT - Entering MainMenu'
       )
-      ctx.scene.enter(ModeEnum.MainMenu)
+      ctx.scene.enter(MAIN_MENU)
       console.log('✅ [handleHelpCancel] ENTERING MAIN MENU SCENE')
       return true
     }
@@ -38,7 +38,7 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
     if (text === (isRu ? 'справка по команде' : 'help for the command')) {
       console.log('✅ [handleHelpCancel] HELP DETECTED - Processing help')
       // ✅ Входим в helpScene и остаёмся там (убрали .leave())
-      await ctx.scene.enter('helpScene')
+      await ctx.scene.enter(HELP_SCENE)
       return true
     }
 
