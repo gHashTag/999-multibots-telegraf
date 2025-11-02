@@ -163,6 +163,8 @@ const scenesToRegister = [
   instagramScrapingWizard,
   autoFixerConfigScene,
   instagramParserScene,
+  instagramParserWizard,
+  faceSwapWizard,
 ]
 
 // 🔍 DEBUG: Print scene names from array definition
@@ -179,7 +181,7 @@ const sceneNames = [
   'avatarBrainWizard_wrapped', 'chatWithAvatarWizard_wrapped', 'selectModelWizard',
   'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
   'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
-  'autoFixerConfigScene', 'instagramParserScene'
+  'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
 ]
 
 // 🔍 DEBUG: Validate each scene
