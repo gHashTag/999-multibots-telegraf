@@ -240,9 +240,9 @@ export const handleMenu = async (ctx: MyContext) => {
       }
 
       // Запускаем Instagram Parser Wizard
-      console.log(`🔄 [handleMenu] Вход в сцену instagramParserWizard`)
-      await ctx.scene.enter('instagramParserWizard')
-      console.log(`✅ [handleMenu] Завершен вход в сцену instagramParserWizard`)
+      console.log(`🔄 [handleMenu] Вход в сцену instagram_parser_wizard`)
+      await ctx.scene.enter('instagram_parser_wizard')
+      console.log(`✅ [handleMenu] Завершен вход в сцену instagram_parser_wizard`)
     })
 
     // AI Reels button handler (level 110)
