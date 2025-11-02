@@ -229,14 +229,6 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       size: video.file_size,
     })
 
-    await ctx.reply(
-      isRu
-        ? '✅ Видео получено!\n\n' +
-          '✍️ Теперь введите текст или отправьте голосовое.'
-        : '✅ Video received!\n\n' +
-          '✍️ Now enter text or send a voice message.'
-    )
-
     return ctx.wizard.next()
   },
 

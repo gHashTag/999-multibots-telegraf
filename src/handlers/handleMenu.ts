@@ -147,7 +147,7 @@ export const handleMenu = async (ctx: MyContext) => {
     addAction(14, async () => {
       console.log('CASE: 🎤 Синхронизация губ')
       ctx.session.mode = ModeEnum.LipSync
-      await ctx.scene.enter('ai_reels_wizard_simple')
+      await ctx.scene.enter('ai_reels_wizard')
     })
 
     addAction(15, async () => {
