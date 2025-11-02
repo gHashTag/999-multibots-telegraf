@@ -81,25 +81,41 @@ deploy() {
         docker build --no-cache -t 999-agents-telegraf:latest . 2>&1 | tail -5
     "
 
-    log_info "3. Остановка старого контейнера..."
+    log_info "3. Полная очистка всех контейнеров и сетей..."
     ssh_exec "
-        docker stop $CONTAINER_NAME 2>/dev/null || true
-        docker rm $CONTAINER_NAME 2>/dev/null || true
-        echo 'Старый контейнер удалён'
+        # Останавливаем все контейнеры
+        docker stop 999-multibots 2>/dev/null || true
+        docker rm 999-multibots 2>/dev/null || true
+        docker stop bot-proxy 2>/dev/null || true
+        docker rm bot-proxy 2>/dev/null || true
+
+        # Удаляем сети
+        docker network rm app-network 2>/dev/null || true
+
+        # Убиваем процессы на портах
+        fuser -k 80/tcp 2>/dev/null || true
+        fuser -k 443/tcp 2>/dev/null || true
+        fuser -k 3000/tcp 2>/dev/null || true
+
+        echo 'Все контейнеры и сети удалены'
     "
 
     log_info "4. Запуск нового контейнера..."
     ssh_exec "
         docker run -d \
-          --name $CONTAINER_NAME \
+          --name 999-multibots \
           --restart unless-stopped \
-          --network app-network \
+          -p 3000:3000 \
           -p 2999-3010:2999-3010 \
+          -p 4000:4000 \
           999-agents-telegraf:latest
         echo 'Контейнер запущен'
     "
 
-    log_info "5. Создание снапшота перед деплоем..."
+    log_info "5. Ожидание инициализации приложения (20 сек)..."
+    sleep 20
+
+    log_info "6. Создание снапшота перед деплоем..."
     ssh_exec "
         TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
         echo \"Создаю снапшот prod-stable-\${TIMESTAMP}...\"
@@ -117,19 +133,13 @@ deploy() {
         ls -lh docker-snapshot-*.tar.gz 2>/dev/null | awk '{print \$9, \$5}' | head -5
     "
 
-    log_info "7. Настройка nginx reverse proxy с HTTPS..."
+    log_info "7. Настройка nginx reverse proxy..."
     ssh_exec "
-        # Создание custom network если не существует
-        docker network ls | grep -q app-network || docker network create app-network
-
-        # Подключение контейнера к сети
-        docker network connect app-network $CONTAINER_NAME 2>/dev/null || true
-
-        # Создание nginx конфигурации с HTTPS
+        # Создание nginx конфигурации
         mkdir -p /root/nginx-config
+        rm -rf /root/nginx-config/*
 
         # Let's Encrypt SSL сертификат (автообновляется)
-        # Копируем из /etc/letsencrypt если есть, иначе self-signed для совместимости
         if [ -f '/etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem' ]; then
           cp /etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem /root/nginx-config/three-head-dragon.shop.crt
           cp /etc/letsencrypt/live/three-head-dragon.shop/privkey.pem /root/nginx-config/three-head-dragon.shop.key
@@ -138,21 +148,20 @@ deploy() {
           openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
             -keyout /root/nginx-config/three-head-dragon.shop.key \
             -out /root/nginx-config/three-head-dragon.shop.crt \
-            -subj '/C=RU/ST=Moscow/L=Moscow/O=999-agents/CN=three-head-dragon.shop' 2>/dev/null || true
+            -subj '/C=RU/ST=Moscow/L=Moscow/O=999-agents/CN=three-head-dragon.shop' 2>/dev/null
           echo \"Using self-signed SSL certificate (for testing)\"
         fi
 
-        # HTTPS конфигурация с HTTP callback для Railway compatibility
+        # Простая и надежная nginx конфигурация
         cat > /root/nginx-config/default.conf << 'NGINX_EOF'
-# HTTP Server (redirect to HTTPS, except callback endpoint)
 server {
-    listen 80;
+    listen 80 default_server;
+    listen [::]:80 default_server;
     server_name three-head-dragon.shop;
+    client_max_body_size 100M;
 
-    # ✅ Allow callback endpoint on HTTP (for Railway render-server compatibility)
     location = /api/telegram/ai-reels-callback {
-        # ⚠️ HTTP callback - Railway render-server doesn't follow redirects
-        proxy_pass http://999-multibots:3000/api/telegram/ai-reels-callback;
+        proxy_pass http://127.0.0.1:3000/api/telegram/ai-reels-callback;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -160,70 +169,42 @@ server {
         proxy_set_header X-Forwarded-Proto http;
     }
 
-    # All other HTTP requests → redirect to HTTPS
-    location / {
-        return 301 https://\$server_name\$request_uri;
-    }
-}
-
-# HTTPS server
-server {
-    listen 443 ssl http2;
-    server_name three-head-dragon.shop;
-    client_max_body_size 100M;
-
-    ssl_certificate /etc/nginx/ssl/three-head-dragon.shop.crt;
-    ssl_certificate_key /etc/nginx/ssl/three-head-dragon.shop.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-
-    # ✅ Callback endpoint on HTTPS (for other services)
-    location = /api/telegram/ai-reels-callback {
-        proxy_pass http://999-multibots:3000/api/telegram/ai-reels-callback;
+    location /api/ {
+        proxy_pass http://127.0.0.1:3000/api/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-    }
-
-    # All other API endpoints
-    location /api/ {
-        proxy_pass http://999-multibots:3000/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-Proto https;
     }
 
     location /health {
-        proxy_pass http://999-multibots:3000/health;
+        proxy_pass http://127.0.0.1:3000/health;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
     }
 
     location / {
-        proxy_pass http://999-multibots:3000/;
+        proxy_pass http://127.0.0.1:3000/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 }
 NGINX_EOF
 
-        # Запуск/обновление nginx с HTTPS
+        # Запуск nginx с host network для прямого доступа к localhost
         docker stop bot-proxy 2>/dev/null || true
         docker rm bot-proxy 2>/dev/null || true
         docker run -d \
           --name bot-proxy \
           --restart unless-stopped \
-          --network app-network \
-          -p 80:80 \
-          -p 443:443 \
+          --network host \
           -v /root/nginx-config:/etc/nginx/conf.d:ro \
           -v /root/nginx-config:/etc/nginx/ssl:ro \
           nginx:alpine
-        echo 'Nginx с HTTPS настроен'
+
+        echo 'Nginx с HTTP настроен'
     "
 
     log_info "8. Ожидание инициализации (30 сек)..."
