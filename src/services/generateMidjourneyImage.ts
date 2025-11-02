@@ -25,6 +25,7 @@
 
 import { logger } from '@/utils/logger'
 import axios from 'axios'
+import replicate from '@/core/replicate'
 
 export interface MidjourneyRequest {
   prompt: string
