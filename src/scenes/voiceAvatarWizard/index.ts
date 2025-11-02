@@ -215,9 +215,16 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.enter('veed_fabric_lipsync')
         }
 
-        // Если createVoiceAvatar выполнился успешно (не выбросил исключение),
-        // переходим в сцену text_to_speech вместо выхода из текущей сцены.
-        return ctx.scene.enter('text_to_speech');
+        // ✅ ИСПРАВЛЕНИЕ: Выходим из сцены вместо перехода (избегаем зависания)
+        await ctx.reply(
+          isRu
+            ? '✅ Голосовой аватар успешно создан!\n\n🎙️ Теперь вы можете использовать функцию "🎙️ Текст в голос" в главном меню для озвучивания текста вашим голосом.'
+            : '✅ Voice avatar successfully created!\n\n🎙️ Now you can use "🎙️ Text to speech" function in the main menu to convert text to speech with your voice.',
+          Markup.keyboard([
+            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
+          ]).resize()
+        )
+        return ctx.scene.leave()
       }
     } catch (error: any) {
       console.error('Error in handleVoiceMessage (Plan B):', error)
@@ -226,6 +233,8 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
           : '❌ An error occurred while creating the voice avatar. Please try again later.'
       )
+      // ✅ ИСПРАВЛЕНИЕ: Обязательный выход из сцены при ошибке
+      return ctx.scene.leave()
     }
   }
 )
