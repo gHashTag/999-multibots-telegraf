@@ -196,7 +196,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
 
-  // Step 2: Запрос видео (фон)
+  // Step 2: Получение видео (фон)
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
@@ -205,29 +205,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    console.log('📹 [DEBUG] Step 2 - Запрос видео (фон)', {
-      telegramId,
-      hasMessage: !!ctx.message,
-      messageType: ctx.message?.['video'] ? 'video' : ctx.message?.['text'] ? 'text' : 'other',
-    })
-
-    await ctx.reply(
-      isRu
-        ? '📹 Отправьте видео файл (до 30 секунд).'
-        : '📹 Send a video file (up to 30 seconds).'
-    )
-  },
-
-  // Step 3: Получение видео (фон)
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
-
-    if (!telegramId) {
-      return ctx.scene.leave()
-    }
-
-    console.log('📹 [DEBUG] Step 3 - Получение видео (фон)', {
+    console.log('📹 [DEBUG] Step 2 - Получение видео (фон)', {
       telegramId,
       hasMessage: !!ctx.message,
       messageType: ctx.message?.['video'] ? 'video' : ctx.message?.['text'] ? 'text' : 'other',
@@ -280,7 +258,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
 
-  // Step 4: Получение текста
+  // Step 3: Получение текста
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
