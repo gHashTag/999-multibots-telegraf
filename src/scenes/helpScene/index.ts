@@ -1,5 +1,6 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
+import { HELP_SCENE } from '@/constants/sceneIds'
 import {
   handleLevel1,
   handleLevel2,
@@ -26,7 +27,7 @@ import { Markup } from 'telegraf'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
-export const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
+export const helpScene = new Scenes.BaseScene<MyContext>(HELP_SCENE)
 
 helpScene.enter(async ctx => {
   const mode = ctx.session.mode

@@ -2,6 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+import { BALANCE_SCENE } from '@/constants/sceneIds'
 import {
   getServiceEmoji,
   getServiceDisplayTitle,
@@ -158,7 +159,7 @@ function convertOptimizedStatsToDisplayFormat(stats: OptimizedBalanceStats) {
 }
 
 export const balanceScene = new Scenes.WizardScene<MyContext>(
-  'balanceScene',
+  BALANCE_SCENE,
   async (ctx: MyContext) => {
     try {
       console.log('CASE: balanceScene')

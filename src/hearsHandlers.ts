@@ -26,6 +26,18 @@ import {
 // Импортируем функцию upscaling
 import { upscaleFluxKontextImage } from './services/generateFluxKontext'
 import { getParsingAccess } from './menu/mainMenu'
+// ✅ ЦЕНТРАЛИЗОВАННЫЕ КОНСТАНТЫ ДЛЯ SCENE IDs
+import {
+  INVITE_SCENE,
+  AI_PHOTOSHOP_SCENE,
+  AI_REELS_ENTRY_WIZARD,
+  AVATAR_TRANSFORM_SCENE,
+  FACE_SWAP_WIZARD,
+  INSTAGRAM_PARSER_SCENE,
+  MAIN_MENU,
+  SUBSCRIPTION_SCENE,
+  MORPHING_WIZARD,
+} from '@/constants/sceneIds'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('🎯 [HEARS] Настройка обработчиков hears для бота: ' + bot.botInfo?.username)
@@ -131,7 +143,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           await ctx.scene.enter(ModeEnum.NeuroPhoto)
           return
         case 'main_menu':
-          await ctx.scene.enter(ModeEnum.MainMenu)
+          await ctx.scene.enter(MAIN_MENU)
           return
         default:
           // Неизвестный callback - передаем другим обработчикам (может быть wizard)
@@ -541,7 +553,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
       // Входим в сцену выбора модели AI Photoshop
       await ctx.scene.leave()
-      await ctx.scene.enter('ai_photoshop_scene')
+      await ctx.scene.enter(AI_PHOTOSHOP_SCENE)
     }
   )
 
@@ -667,7 +679,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         if (ctx.scene.current) {
           await ctx.scene.leave()
         }
-        await ctx.scene.enter('morphing_wizard')
+        await ctx.scene.enter(MORPHING_WIZARD)
       } catch (error) {
         logger.error(
           'Error entering morphing_wizard from "Создать еще морфинг" hears:',
@@ -857,7 +869,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
       // Пригласить друга доступно всем пользователям
       ctx.session.mode = ModeEnum.Invite
-      await ctx.scene.enter('inviteScene')
+      await ctx.scene.enter(INVITE_SCENE)
     }
   )
 
@@ -1040,7 +1052,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
     // Возвращаемся к AI Photoshop сцене
     await ctx.scene.leave()
-    await ctx.scene.enter('ai_photoshop_scene')
+    await ctx.scene.enter(AI_PHOTOSHOP_SCENE)
   })
 
   // === ПАРСИНГ INSTAGRAM ДЛЯ АДМИНОВ (НОВЫЙ WIZARD БЕЗ CALLBACKS) ===
@@ -1113,7 +1125,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.MorphingWizard
-      await ctx.scene.enter('morphing_wizard')
+      await ctx.scene.enter(MORPHING_WIZARD)
     }
   )
 
@@ -1133,7 +1145,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.FaceSwap
-      await ctx.scene.enter('faceSwapWizard')
+      await ctx.scene.enter(FACE_SWAP_WIZARD)
     }
   )
 
@@ -1153,7 +1165,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.AIHeroes
-      await ctx.scene.enter('avatarTransformScene')
+      await ctx.scene.enter(AVATAR_TRANSFORM_SCENE)
     }
   )
 
@@ -1163,7 +1175,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Главное меню от ${ctx.from?.id}`)
       await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.enter(MAIN_MENU)
     }
   )
 
@@ -1173,7 +1185,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     async (ctx: MyContext) => {
       logger.debug(`Получен hears для Оформить подписку от ${ctx.from?.id}`)
       ctx.session.mode = ModeEnum.SubscriptionScene
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+      await ctx.scene.enter(SUBSCRIPTION_SCENE)
     }
   )
 
@@ -1203,7 +1215,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       await ctx.scene.leave()
-      await ctx.scene.enter('instagramParserWizard')
+      await ctx.scene.enter(INSTAGRAM_PARSER_SCENE)
     }
   )
 
@@ -1233,7 +1245,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       await ctx.scene.leave()
-      await ctx.scene.enter('ai_reels_entry')
+      await ctx.scene.enter(AI_REELS_ENTRY_WIZARD)
     }
   )
 
@@ -1255,7 +1267,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       )
 
       // Показываем главное меню на новом языке
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.enter(MAIN_MENU)
     }
   )
 
