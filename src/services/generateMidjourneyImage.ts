@@ -73,28 +73,31 @@ export async function generateMidjourneyImage(
     }
 
     // Set number of images
-    input.num_images = request.numImages || 1
+    input.num_outputs = request.numImages || 1
 
-    // Set additional parameters for better quality
-    input.model = 'dev'
+    // Set additional parameters for better quality (matching working example)
     input.go_fast = true
     input.lora_scale = 1
+    input.megapixels = '1'
+    input.num_outputs = request.numImages || 1
     input.output_format = 'webp'
-    input.output_quality = 100
     input.guidance_scale = 3
+    input.output_quality = 100
+    input.prompt_strength = 0.8
+    input.extra_lora_scale = 1
     input.num_inference_steps = 38
 
     logger.info('[Midjourney v7] Final input params', {
       model: 'adminconteudosflix/midjourney-allcraft',
       aspect_ratio: input.aspect_ratio,
-      num_images: input.num_images,
+      num_outputs: input.num_outputs,
       hasImageUrl: !!input.image_url,
     })
 
     // Run Midjourney model via Replicate
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'adminconteudosflix/midjourney-allcraft',
+      'adminconteudosflix/midjourney-allcraft:40ab9b32cc4584bc069e22027fffb97e79ed550d4e7c20ed6d5d7ef89e8f08f5',
       {
         input,
       }
@@ -149,7 +152,8 @@ export async function generateMidjourneyImage(
       try {
         const response = await axios.head(url, { timeout: 5000 })
         const contentType = response.headers['content-type'] || ''
-        if (contentType.startsWith('image/')) {
+        // Accept images or octet-stream (Replicate URLs sometimes return this initially)
+        if (contentType.startsWith('image/') || contentType === 'application/octet-stream') {
           validatedUrls.push(url)
         } else {
           logger.warn('[Midjourney v7] Skipping URL - not an image', {

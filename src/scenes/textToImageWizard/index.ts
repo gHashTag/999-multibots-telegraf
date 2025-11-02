@@ -4,7 +4,7 @@ import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance, getAspectRatio } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   sendBalanceMessage,
@@ -126,7 +126,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     try {
-      await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
+      await ctx.reply(isRu ? '⏳ Загрузка информации о модели...' : '⏳ Loading model information...')
 
       if (!ctx.botInfo?.username) {
         console.error('❌ Bot username не найден')
@@ -217,7 +217,6 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
     try {
       // Используем новую сигнатуру generateTextToImageDirect
-      // TODO: Определить, как получать num_images (пока захардкожено 1)
       const generationResult = await generateTextToImageDirect(
         prompt,
         ctx.session.selectedImageModel,
@@ -228,15 +227,15 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         ctx
       )
 
+      // Сохраняем промпт в сессию для возможного улучшения
+      ctx.session.prompt = prompt
+      ctx.session.lastGeneratedModel = ctx.session.selectedImageModel
+
       // Получаем текущий баланс ПОСЛЕ операции
       const currentBalance = await getUserBalance(ctx.from.id.toString())
 
-      // Сохраняем промпт в сессию для возможного улучшения
-      ctx.session.prompt = prompt
-
-      // После успешной генерации (сообщение теперь отправляет generateTextToImageDirect),
-      // мы просто покидаем сцену.
-      return ctx.scene.leave() // Покидаем сцену
+      // НЕ покидаем сцену, а переходим к следующему шагу для обработки кнопок
+      return ctx.wizard.next()
     } catch (error) {
       logger.error('Ошибка при генерации изображения в textToImageWizard:', {
         error,
@@ -246,43 +245,143 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
   },
-  // ЭТОТ ШАГ, СКОРЕЕ ВСЕГО, БОЛЬШЕ НЕ НУЖЕН ИЛИ ДОЛЖЕН БЫТЬ ПУСТЫМ,
-  // ТАК КАК ПРЕДЫДУЩИЙ ШАГ ЗАВЕРШАЕТСЯ ctx.scene.leave()
-  // ИЛИ ОБРАБОТКА ПЕРЕХОДИТ К HEARS HANDLERS
+  // Шаг 4: Обработка кнопок после генерации
   async ctx => {
-    // УДАЛЯЕМ СТРОКУ С "TODO" ОТСЮДА ИЛИ ВЕСЬ ЭТОТ ШАГ, ЕСЛИ ОН НЕ НУЖЕН
-    // logger.info(
-    //   `textToImageWizard step 4: User ${ctx.from?.id} ` +
-    //     ` ${ctx.message && 'text' in ctx.message ? ctx.message.text : 'no text'}`
-    // )
-    // const message = ctx.message
-    // if (message && 'text' in message) {
-    //   const text = message.text
-    //   const numImages = parseInt(text[0])
-    //   if (!isNaN(numImages) && numImages >= 1 && numImages <= 4) {
-    //     // TODO: Реализовать повторную генерацию с numImages
-    //     // await ctx.reply(
-    //     //   `Запущена повторная генерация ${numImages} изображений... (TODO)`
-    //     // )
-    //     // Здесь нужно вызвать generateTextToImageDirect или аналогичную логику,
-    //     // а затем снова показать клавиатуру, как на предыдущем шаге.
-    //     // Однако, это уже делается через hearsHandlers, поэтому этот шаг избыточен.
-    //   } else if (text === (isRussian(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt')) {
-    //     return ctx.scene.enter(improvePromptWizard.id)
-    //   } else if (text === (isRussian(ctx) ? '📐 Изменить размер' : '📐 Change size')) {
-    //     // TODO: Передать ID изображения или другую инфу в sizeWizard, если нужно
-    //     return ctx.scene.enter(sizeWizard.id)
-    //   } else if (text === (isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu')) {
-    //     await handleMenu(ctx, true) // Возвращаемся в главное меню
-    //     return ctx.scene.leave()
-    //   }
-    // }
-    // Этот шаг, скорее всего, не будет достигнут, если предыдущий завершается ctx.scene.leave()
-    // или если пользователь нажимает кнопки, обрабатываемые hearsHandlers.
-    // Оставляем его пустым или удаляем, чтобы избежать неожиданного поведения.
-    logger.warn(
-      `Reached an unexpected step in textToImageWizard for user ${ctx.from?.id}. Leaving scene.`
-    )
-    return ctx.scene.leave()
+    const isRu = isRussianFromState(ctx)
+    const message = ctx.message
+
+    if (!message || !('text' in message)) {
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
+    if (!ctx.from?.id) {
+      console.error('❌ Telegram ID не найден')
+      await sendGenericErrorMessage(ctx, isRu)
+      return ctx.scene.leave()
+    }
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    const text = message.text
+
+    // 🚨 ОБРАБОТКА КНОПОК 1️⃣,2️⃣,3️⃣,4️⃣ И ЧИСЕЛ 1,2,3,4
+    if (
+      ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text) ||
+      ['1', '2', '3', '4'].includes(text)
+    ) {
+      console.log(`CASE: Генерация ${text} изображений`)
+      let numImages: number
+      if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text)) {
+        numImages = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].indexOf(text) + 1
+      } else {
+        numImages = parseInt(text)
+      }
+
+      const prompt = ctx.session.prompt
+      const model = ctx.session.lastGeneratedModel
+
+      if (!prompt || !model) {
+        console.error('Error: prompt or model not found in session')
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка: данные для генерации не найдены. Попробуйте начать заново.'
+            : '❌ Error: generation data not found. Please start over.'
+        )
+        await handleMenu(ctx, isRu)
+        return ctx.scene.leave()
+      }
+
+      try {
+        await ctx.reply(
+          isRu
+            ? `⏳ Генерирую ${numImages} изображение${numImages > 1 ? 'я' : 'е'}...`
+            : `⏳ Generating ${numImages} image${numImages > 1 ? 's' : ''}...`
+        )
+
+        // 🔥 ВАЖНО: Для midjourney-v7 передаем aspectRatio, а НЕ width/height
+        // Это нужно чтобы aspectRatio корректно обрабатывался в generateMidjourneyImage
+        const userAspectRatio = await getAspectRatio(ctx.from.id)
+        const aspectRatioToUse = userAspectRatio || '1:1'
+
+        // Создаем inputParams для генерации
+        const inputParams: {
+          prompt: string
+          size?: string
+          aspect_ratio?: string
+        } = {
+          prompt,
+        }
+
+        if (model.toLowerCase().startsWith('recraft-ai/')) {
+          // Recraft модели используют size
+          const [widthRatio, heightRatio] = aspectRatioToUse.split(':').map(Number)
+          const baseWidth = 1024
+          const calculatedHeight = Math.round(
+            (baseWidth / widthRatio) * heightRatio
+          )
+          const calculatedSize = `${baseWidth}x${calculatedHeight}`
+          inputParams.size = ['1024x1024', '1365x1024', '1024x1365'].includes(calculatedSize)
+            ? calculatedSize
+            : '1024x1024'
+        } else {
+          // Остальные модели (включая midjourney-v7) используют aspect_ratio
+          inputParams.aspect_ratio = aspectRatioToUse
+        }
+
+        logger.info('[textToImageWizard step 4] Input params for generation', inputParams)
+
+        // Вызываем generateTextToImageDirect с новым количеством изображений
+        await generateTextToImageDirect(
+          prompt,
+          model,
+          numImages,
+          ctx.from.id.toString(),
+          ctx.from.username ?? 'unknown',
+          isRu,
+          ctx
+        )
+
+        // После генерации остаемся в этом же шаге для дальнейших действий
+        return
+      } catch (error) {
+        console.error('Error generating additional images:', error)
+        await sendGenericErrorMessage(ctx, isRu)
+        return ctx.scene.leave()
+      }
+    } else if (text === (isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt')) {
+      // Переход к мастеру улучшения промпта
+      return ctx.scene.enter(improvePromptWizard.id)
+    } else if (text === (isRu ? '📐 Изменить размер' : '📐 Change size')) {
+      // Переход к мастеру изменения размера
+      return ctx.scene.enter(sizeWizard.id)
+    } else if (text === (isRu ? '🎨 Создать новое' : '🎨 Create new')) {
+      // Очищаем только промпт, но сохраняем выбранную модель
+      ctx.session.prompt = undefined
+
+      // Просим ввести новый промпт для той же модели
+      await ctx.reply(
+        isRu
+          ? `Пожалуйста, введите текст для генерации нового изображения с моделью "${ctx.session.lastGeneratedModel}".`
+          : 'Please enter text to generate a new image.',
+        createHelpCancelKeyboard(isRu)
+      )
+      // Переходим к шагу ввода промпта (step 3)
+      ctx.wizard.selectStep(2)
+      return
+    } else if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+      await handleMenu(ctx, isRu)
+      return ctx.scene.leave()
+    } else {
+      // Неизвестная команда - возвращаем в главное меню
+      logger.warn(
+        `Unknown command in textToImageWizard step 4: ${text} for user ${ctx.from?.id}`
+      )
+      await handleMenu(ctx, isRu)
+      return ctx.scene.leave()
+    }
   }
 )
