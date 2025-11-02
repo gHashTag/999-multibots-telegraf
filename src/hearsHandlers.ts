@@ -567,6 +567,26 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  // Кнопка 15: 🎭 Замена лица
+  bot.hears(
+    [levels[15].title_ru, levels[15].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Замена лица от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в face swap
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[15].title_ru : levels[15].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      ctx.session.mode = ModeEnum.FaceSwap
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+  )
+
   // bot.hears(
   //   ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
   //   async (ctx: MyContext) => {
@@ -1094,5 +1114,117 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       await ctx.reply('❌ Произошла ошибка при запуске парсинга. Попробуйте позже.')
     }
   })
+
+  // === НЕДОСТАЮЩИЕ ОБРАБОТЧИКИ КНОПОК МЕНЮ ===
+
+  // Кнопка 104: 🏠 Главное меню
+  bot.hears(
+    [levels[104].title_ru, levels[104].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Главное меню от ${ctx.from?.id}`)
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    }
+  )
+
+  // Кнопка 105: 💫 Оформить подписку (уже есть в registerCommands, но добавим для консистентности)
+  bot.hears(
+    [levels[105].title_ru, levels[105].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Оформить подписку от ${ctx.from?.id}`)
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.SubscriptionScene
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
+    }
+  )
+
+  // Кнопка 106: 🌐 Смена языка
+  bot.hears(
+    [levels[106].title_ru, levels[106].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Смена языка от ${ctx.from?.id}`)
+
+      const isRu = isRussianFromState(ctx)
+      const currentLang = ctx.session?.userLanguage
+      const newLang = currentLang === 'ru' ? 'en' : 'ru'
+      ctx.session.userLanguage = newLang
+
+      await ctx.reply(
+        newLang === 'ru'
+          ? '✅ Язык изменён на русский'
+          : '✅ Language changed to English'
+      )
+
+      // Показываем главное меню на новом языке
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    }
+  )
+
+  // Кнопка 109: 🔍 Мониторинг конкурентов (только для админов и сотрудников Haim Group)
+  bot.hears(
+    [levels[109].title_ru, levels[109].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для Мониторинг конкурентов от ${ctx.from?.id}`)
+
+      const userId = ctx.from?.id?.toString()
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        logger.warn('Competitor monitoring access denied - not admin/staff', {
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ У вас нет доступа к мониторингу конкурентов. Функция доступна только администраторам.'
+            : '❌ You do not have access to competitor monitoring. This feature is admin only.'
+        )
+        return
+      }
+
+      // Запускаем Instagram Parser Wizard
+      await ctx.scene.leave()
+      await ctx.scene.enter('instagramParserWizard')
+    }
+  )
+
+  // Кнопка 110: 🎬 ИИ Рилс (только для админов и сотрудников Haim Group)
+  bot.hears(
+    [levels[110].title_ru, levels[110].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для ИИ Рилс от ${ctx.from?.id}`)
+
+      const userId = ctx.from?.id?.toString()
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        logger.warn('AI Reels access denied - not admin/staff', {
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ У вас нет доступа к ИИ Рилс. Функция доступна только администраторам.'
+            : '❌ You do not have access to AI Reels. This feature is admin only.'
+        )
+        return
+      }
+
+      // Запускаем AI Reels entry wizard (выбор метода)
+      await ctx.scene.leave()
+      await ctx.scene.enter('ai_reels_entry')
+    }
+  )
 }
 //
