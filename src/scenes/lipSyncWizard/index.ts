@@ -7,8 +7,8 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { BASE_COSTS } from '@/scenes/checkBalanceScene'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { createHelpCancelKeyboard } from '@/menu/createHelpCancelKeyboard/createHelpCancelKeyboard'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { createCancelButton, handleCancelButton } from '@/utils/cancelButton'
+import { Markup } from 'telegraf'
 import {
   validateVideoInput,
   validateAudioInput,
@@ -69,13 +69,13 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
         {
           reply_markup: {
-            ...createHelpCancelKeyboard(isRu).reply_markup
+            ...Markup.keyboard(createCancelButton(isRu)).resize()
           },
         }
       )
 
       // Проверяем отмену перед переходом к следующему шагу
-      const isCancel = await handleHelpCancel(ctx)
+      const isCancel = await handleCancelButton(ctx)
       if (isCancel) {
         return ctx.scene.leave()
       }
@@ -97,7 +97,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     let videoInput: any
 
     // Проверяем отмену сразу после получения сообщения
-    const isCancel = await handleHelpCancel(ctx)
+    const isCancel = await handleCancelButton(ctx)
     if (isCancel) {
       return ctx.scene.leave()
     }
@@ -164,13 +164,13 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           : '✅ Video received! Now send an audio, voice message, or audio URL',
         {
           reply_markup: {
-            ...createHelpCancelKeyboard(isRu).reply_markup
+            ...Markup.keyboard(createCancelButton(isRu)).resize()
           },
         }
       )
 
       // Проверяем отмену перед переходом к следующему шагу
-      const isCancel = await handleHelpCancel(ctx)
+      const isCancel = await handleCancelButton(ctx)
       if (isCancel) {
         return ctx.scene.leave()
       }
@@ -197,7 +197,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     let audioInput: any
 
     // Проверяем отмену сразу после получения сообщения
-    const isCancel = await handleHelpCancel(ctx)
+    const isCancel = await handleCancelButton(ctx)
     if (isCancel) {
       return ctx.scene.leave()
     }
