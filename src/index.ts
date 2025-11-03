@@ -103,9 +103,9 @@ async function initializeBots() {
     )
   }
 
-  // 🔧 FIX: В development режиме ВСЕГДА используем polling (один бот)
-  // В production - по умолчанию webhook (все боты)
-  const mode = isDev ? 'polling' : (process.env.MODE || 'webhook')
+  // 🔧 FIX: ВСЕГДА используем polling во всех режимах
+  // Для production правильно использовать polling (webhook требует домен)
+  const mode = 'polling'
 
   console.log(`🎯 [MODE] Выбран режим: ${mode} (isDev: ${isDev})`)
 
