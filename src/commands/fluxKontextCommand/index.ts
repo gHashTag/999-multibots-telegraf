@@ -10,7 +10,6 @@ import { cancelHelpArray } from '@/menu/cancelHelpArray'
 import { ModeEnum } from '@/interfaces'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { sendGenericErrorMessage } from '@/menu'
-import { handleMenu } from '@/handlers/handleMenu'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 // Создание клавиатуры выбора модели

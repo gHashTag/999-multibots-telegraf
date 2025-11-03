@@ -237,8 +237,8 @@ export const ErrorRecoveryStrategies = {
         : '❌ An error occurred. Returning to main menu.'
     )
 
-    const { handleMenu } = await import('@/handlers/handleMenu')
-    await handleMenu(ctx)
+    const { УДАЛЁН } = await import('@/handlers/УДАЛЁН')
+    return
 
     if (ctx.scene.current) {
       await ctx.scene.leave()

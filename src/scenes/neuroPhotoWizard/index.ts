@@ -19,7 +19,6 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 // ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
@@ -213,8 +212,8 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           ? '❌ Произошла ошибка: модель не выбрана. Попробуйте начать заново.'
           : '❌ Error: model not selected. Please start over.'
       )
-      // handleMenu сам определит язык и подписку
-      await handleMenu(ctx)
+      // УДАЛЁН УДАЛЁН - используется setupHearsHandlers
+      return ctx.scene.leave()
       return
     }
 
@@ -335,7 +334,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
             ? '❌ Произошла ошибка: данные для генерации не найдены. Попробуйте начать заново.'
             : '❌ Error: generation data not found. Please start over.'
         )
-        await handleMenu(ctx)
+        return ctx.scene.leave()
         return
       }
 
@@ -390,7 +389,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       text === levels[104].title_en
     ) {
       console.log('CASE: Главное меню')
-      await handleMenu(ctx)
+      return ctx.scene.leave()
       return
     }
 
@@ -420,7 +419,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
             ? '❌ Произошла ошибка: данные для генерации не найдены. Попробуйте начать заново.'
             : '❌ Error: generation data not found. Please start over.'
         )
-        await handleMenu(ctx)
+        return ctx.scene.leave()
         return
       }
 
@@ -526,13 +525,13 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     console.log(
       'CASE: Неизвестный ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
     )
-    await handleMenu(ctx)
+    return ctx.scene.leave()
     return
   } else {
     console.log(
       'CASE: Нетекстовый или отсутствующий ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
     )
-    await handleMenu(ctx)
+    return ctx.scene.leave()
     return
   }
 }
@@ -561,7 +560,7 @@ neuroPhotoWizard.action('cancel_neuro_photo', async ctx => {
   delete ctx.session.prompt
   delete ctx.session.userModel
 
-  await handleMenu(ctx)
+  return ctx.scene.leave()
   return ctx.scene.leave()
 })
 
@@ -610,7 +609,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
             ? '❌ Произошла ошибка: данные для генерации не найдены. Попробуйте начать заново.'
             : '❌ Error: generation data not found. Please start over.'
         )
-        await handleMenu(ctx)
+        return ctx.scene.leave()
         return
       }
 
@@ -681,7 +680,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
     if (callbackData === 'main_menu') {
       console.log('CASE: Главное меню через callback')
-      await handleMenu(ctx)
+      return ctx.scene.leave()
       return ctx.scene.leave()
     }
 
@@ -719,7 +718,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
       if (result.shouldCancel) {
         await ctx.reply(isRu ? 'Отменено.' : 'Cancelled.')
-        await handleMenu(ctx)
+        return ctx.scene.leave()
         return ctx.scene.leave()
       }
 
@@ -745,8 +744,8 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
 // ✅ ОБРАБАТЫВАЕМ УНИВЕРСАЛЬНЫЕ КОМАНДЫ ВОКРУГ СЦЕНЫ (МЕНЮ, HELP И Т.Д.)
 neuroPhotoWizard.command('menu', async ctx => {
-  // handleMenu сам определит язык и подписку
-  await handleMenu(ctx)
+  // УДАЛЁН УДАЛЁН - используется setupHearsHandlers
+  return ctx.scene.leave()
   return ctx.scene.leave()
 })
 

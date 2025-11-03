@@ -1485,8 +1485,8 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    // ВАЖНО: setupHearsHandlers отключен - используется только handleMenu из menuScene
-    // чтобы избежать конфликта двух систем обработки кнопок
+    // ✅ ВАЖНО: УДАЛЁН ПОЛНОСТЬЮ УДАЛЁН
+    // Все кнопки обрабатываются через setupHearsHandlers из hearsHandlers.ts
 
     // ✅ РЕГИСТРИРУЕМ MULTI-PHOTO ACTION HANDLERS
     logger.info('🔧 [MULTI-PHOTO] Registering multi-photo action handlers')
