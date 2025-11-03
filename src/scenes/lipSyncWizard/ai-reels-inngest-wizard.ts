@@ -376,4 +376,3 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default aiReelsInngestWizard

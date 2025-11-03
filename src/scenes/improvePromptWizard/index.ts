@@ -406,4 +406,3 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default improvePromptWizard

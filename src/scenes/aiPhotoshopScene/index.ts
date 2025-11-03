@@ -5617,4 +5617,3 @@ aiPhotoshopScene.action('ai_photoshop_back_to_main', async ctx => {
   }
 })
 
-export default aiPhotoshopScene

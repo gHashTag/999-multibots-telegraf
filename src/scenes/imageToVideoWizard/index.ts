@@ -530,4 +530,3 @@ imageToVideoWizard.leave(async ctx => {
 
 console.log('🎬 [I2V WIZARD] imageToVideoWizard loaded successfully')
 
-export default imageToVideoWizard

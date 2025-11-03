@@ -241,4 +241,3 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default avatarBrainWizard

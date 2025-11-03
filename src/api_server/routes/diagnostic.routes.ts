@@ -1,7 +1,8 @@
 import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
-import { inngestProvider } from '@/inngest_app/inngest-provider'
+// import { inngestProvider } from '@/inngest_app/inngest-provider'
+// Временно отключено
 
 const router: Router = express.Router()
 

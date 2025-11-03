@@ -225,4 +225,3 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default faceSwapWizard

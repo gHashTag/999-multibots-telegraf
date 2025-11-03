@@ -98,4 +98,3 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default chatWithAvatarWizard

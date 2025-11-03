@@ -353,4 +353,4 @@ simpleTextToVideoWizard.leave(async ctx => {
   })
 })
 
-export default simpleTextToVideoWizard
+export { simpleTextToVideoWizard }

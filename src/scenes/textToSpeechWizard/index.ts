@@ -194,4 +194,3 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default textToSpeechWizard

@@ -3005,4 +3005,3 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default avatarTransformScene

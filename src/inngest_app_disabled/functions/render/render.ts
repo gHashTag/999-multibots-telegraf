@@ -23,7 +23,8 @@
  * - callback_url: Optional callback URL
  */
 
-import { inngest } from '@/core/inngest/clients'
+// import { inngest } from '@/core/inngest/clients'
+// Временно закомментировано
 import type { RenderEventData } from './types'
 import {
   createJobFolder,

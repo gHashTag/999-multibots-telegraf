@@ -1,6 +1,6 @@
 import { MyContext } from '../interfaces'
 import { logger } from '@/utils/logger'
-import { inngest } from '../inngest_app/client'
+// import { inngest } from '../inngest_app/client'
 
 /**
  * Обработчик команды /hello_world

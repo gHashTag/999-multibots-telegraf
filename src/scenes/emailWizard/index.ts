@@ -282,4 +282,3 @@ You can now top up your balance with any number of stars and use them for variou
   }
 })
 
-export default emailWizard

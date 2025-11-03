@@ -902,4 +902,3 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default veedFabricWizard

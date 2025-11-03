@@ -165,4 +165,3 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default selectModelWizard

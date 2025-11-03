@@ -410,4 +410,3 @@ lipSyncWizard.action('lipsync_cancel', async (ctx) => {
   await ctx.scene.leave()
 })
 
-export default lipSyncWizard

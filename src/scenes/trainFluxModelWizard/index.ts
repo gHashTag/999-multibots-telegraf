@@ -345,4 +345,3 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default trainFluxModelWizard

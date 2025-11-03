@@ -100,4 +100,3 @@ uploadTrainFluxModelScene.enter(async ctx => {
   }
 })
 
-export default uploadTrainFluxModelScene

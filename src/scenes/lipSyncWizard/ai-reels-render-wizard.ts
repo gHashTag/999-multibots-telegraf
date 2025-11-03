@@ -18,11 +18,12 @@ import { logger } from '@/utils/logger'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
-import {
-  sendRenderAvatarVideoEvent,
-  checkRenderServerAvailability,
-  createRenderAvatarPayload,
-} from '@/inngest_app/render-server-client'
+// import {
+//   sendRenderAvatarVideoEvent,
+//   checkRenderServerAvailability,
+//   createRenderAvatarPayload,
+// } from '@/inngest_app/render-server-client'
+// Временно отключено
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
 import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
 
@@ -1610,4 +1611,3 @@ aiReelsRenderWizard.action('ai_reels_cancel', async ctx => {
   }
 })
 
-export default aiReelsRenderWizard

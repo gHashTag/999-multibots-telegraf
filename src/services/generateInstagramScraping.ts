@@ -1,4 +1,4 @@
-import { inngest } from '@/inngest_app/client'
+// import { inngest } from '@/inngest_app/client'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'

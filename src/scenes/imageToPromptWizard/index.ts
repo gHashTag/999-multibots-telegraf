@@ -107,4 +107,3 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default imageToPromptWizard

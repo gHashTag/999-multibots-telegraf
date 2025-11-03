@@ -42,5 +42,3 @@ inviteScene.enter(async ctx => {
     )
   }
 })
-
-export default inviteScene

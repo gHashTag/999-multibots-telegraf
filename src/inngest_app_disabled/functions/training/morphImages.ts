@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+// import { inngest } from '@/core/inngest/clients' // Временно закомментировано'
 import { logger } from '@/utils/logger'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { getUserByTelegramId } from '@/core/supabase'

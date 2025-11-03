@@ -106,4 +106,3 @@ export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
 imageUpscalerWizard.help(handleHelpCancel)
 imageUpscalerWizard.command('cancel', handleHelpCancel)
 
-export default imageUpscalerWizard

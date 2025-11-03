@@ -133,4 +133,3 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-export default voiceAvatarWizard

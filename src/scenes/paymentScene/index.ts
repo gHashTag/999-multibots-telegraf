@@ -182,4 +182,3 @@ paymentScene.on('message', async ctx => {
   await ctx.reply(replyText, { reply_markup: keyboard.reply_markup })
 })
 
-export default paymentScene

@@ -1,4 +1,5 @@
-import { inngest } from '@/core/inngest/clients'
+// import { inngest } from '@/core/inngest/clients'
+// Временно закомментировано - используется стандартный импорт
 import { updateUserBalance } from '@/core/supabase'
 import { sendPaymentNotification } from '@/price/helpers'
 import { createBotByName } from '@/config'

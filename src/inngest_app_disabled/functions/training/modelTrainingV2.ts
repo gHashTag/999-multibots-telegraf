@@ -1,4 +1,4 @@
-import { inngest } from '../core/inngest/clients'
+// import { inngest } from '@/core/inngest/clients' // Временно закомментировано'
 import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,

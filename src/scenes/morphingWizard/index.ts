@@ -1303,4 +1303,3 @@ morphingWizard.action('morphing_resume', async ctx => {
   }
 })
 
-export default morphingWizard
