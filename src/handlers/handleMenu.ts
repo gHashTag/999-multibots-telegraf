@@ -57,11 +57,11 @@ export const handleMenu = async (ctx: MyContext) => {
     if (levels?.[key] && levels[key].title_ru && levels[key].title_en) {
       const actionKey = isRu ? levels[key].title_ru : levels[key].title_en
       actions[actionKey] = actionFn
-        console.log(`✅ Added action for level ${key}: ${actionKey}`)
-      } else {
-        console.warn(`⚠️ levels[${key}] is not defined properly`)
-      }
+      console.log(`✅ Added action for level ${key}: ${actionKey}`)
+    } else {
+      console.warn(`⚠️ levels[${key}] is not defined properly`)
     }
+  }
 
     addAction(105, async () => {
       console.log('CASE: 💫 Оформление подписки')
