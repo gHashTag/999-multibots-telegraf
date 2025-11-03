@@ -196,9 +196,9 @@ export function createStandardWizardHandlers(
           isRu ? 'Отменено.' : 'Cancelled.'
         )
 
-        // Import handleMenu dynamically to avoid circular imports
-        const { handleMenu } = await import('@/handlers')
-        await handleMenu(ctx)
+        // Import УДАЛЁН dynamically to avoid circular imports
+        const { УДАЛЁН } = await import('@/handlers')
+        return
       }
 
       return {

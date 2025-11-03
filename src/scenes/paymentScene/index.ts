@@ -9,7 +9,6 @@ import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { handleSelectStars } from '@/handlers/handleSelectStars'
 import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { starAmounts } from '@/price/helpers/starAmounts'
-import { handleMenu } from '@/handlers/handleMenu'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа
@@ -157,7 +156,7 @@ paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx
     telegram_id: ctx.from?.id,
   })
   await ctx.scene.leave()
-  await handleMenu(ctx) // Вызываем handleMenu, чтобы показать главное меню
+  return // Вызываем УДАЛЁН, чтобы показать главное меню
 })
 
 // Обработка непредвиденных сообщений

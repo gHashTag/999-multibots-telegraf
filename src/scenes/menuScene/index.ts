@@ -11,7 +11,7 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
-// ✅ УДАЛЕН: импорт handleMenu - больше не используется
+// ✅ УДАЛЕН: импорт УДАЛЁН - больше не используется
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
@@ -311,10 +311,9 @@ const menuNextStep = async (ctx: MyContext) => {
       ctx.session.mode = ModeEnum.SubscriptionScene
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
     } else {
-      // Assuming other callbacks might be handled by handleMenu if they represent scene entries
-      // or specific actions defined as callbacks
-      logger.info(`[menuNextStep] Forwarding callback to handleMenu: ${text}`)
-      await handleMenu(ctx) // handleMenu can process known callback_data
+      // Все callback_data обрабатываются через глобальные обработчики
+      // УДАЛЁН УДАЛЁН - используется setupHearsHandlers
+      logger.info(`[menuNextStep] Callback forwarded to global handlers: ${text}`)
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
@@ -452,13 +451,8 @@ const menuNextStep = async (ctx: MyContext) => {
       return // Explicitly handled
     }
 
-    // If the text is not a specific button handled above,
-    // and not a command (which should be handled globally),
-    // we can consider it an unhandled text message within the menu scene.
-    // For now, we can log it and do nothing, or re-send the menu.
-    // However, handleMenu is designed to map button texts to actions.
-    // If the text matches a known menu button text, handleMenu will process it.
-    // This means regular menu button presses (not commands, not callbacks) will still work.
+    // Все остальные кнопки меню обрабатываются глобальными hearsHandlers
+    // УДАЛЁН УДАЛЁН из проекта - используется setupHearsHandlers
 
     // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ перехватываем команды (начинающиеся с /)
     // Команды должны обрабатываться ГЛОБАЛЬНО в registerCommands.ts
@@ -506,7 +500,7 @@ const menuNextStep = async (ctx: MyContext) => {
       return // Позволяем глобальным обработчикам команд обработать это
     }
 
-    // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ вызываем handleMenu, если пользователь уже в другой сцене
+    // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: УДАЛЁН УДАЛЁН - используется setupHearsHandlers
     // Проблема: после входа в wizard, пользователь получает ответ первого шага,
     // но menuScene продолжает обрабатывать это как новую команду
     const currentSceneId = ctx.scene.current?.id
@@ -518,7 +512,7 @@ const menuNextStep = async (ctx: MyContext) => {
 
     if (currentSceneId !== ModeEnum.MainMenu) {
       logger.info(
-        `[menuNextStep] User is in different scene (${currentSceneId}), NOT calling handleMenu`,
+        `[menuNextStep] User is in different scene (${currentSceneId}), УДАЛЁН УДАЛЁН`,
         {
           telegramId: ctx.from?.id,
           currentSceneId,
@@ -534,7 +528,7 @@ const menuNextStep = async (ctx: MyContext) => {
     console.log('🔄 [menuNextStep] Allowing global hears handlers to process button...')
 
     // ✅ ИСПОЛЬЗУЕМ ТОЛЬКО ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ
-    // Дублирующая система handleMenu удалена для избежания конфликтов
+    // УДАЛЁН ПОЛНОСТЬЮ УДАЛЁН - используется setupHearsHandlers
     // Все кнопки обрабатываются единообразно через hearsHandlers.ts
   } else {
     // Handle other update types or leave if unhandled

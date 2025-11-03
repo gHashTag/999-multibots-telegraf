@@ -23,7 +23,6 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { Scenes } from 'telegraf'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
-import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 // ✅ ЗАМЕНЯЕМ НА НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -277,11 +276,11 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
     if (text === levels[104].title_ru || text === levels[104].title_en) {
       console.log('CASE: Главное меню')
-      await handleMenu(ctx)
+      return
       return
     }
 
-    await handleMenu(ctx)
+    return
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])

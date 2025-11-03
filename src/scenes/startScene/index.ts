@@ -14,7 +14,6 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { defaultSession } from '@/store'
-import { handleMenu } from '@/handlers/handleMenu'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 interface StartSceneState {
   initialDisplayDone?: boolean
@@ -713,7 +712,7 @@ Click "Training" and dive with us.
         return handleTechSupport(ctx)
       }
 
-      // ✅ ИСПРАВЛЕНИЕ: Перехватываем команды РАНЬШЕ, чем пересылать в handleMenu
+      // ✅ ИСПРАВЛЕНИЕ: Перехватываем команды РАНЬШЕ, чем пересылать в УДАЛЁН
       if (text.startsWith('/')) {
         logger.info({
           message: `🔧 [StartScene Step 2] Command detected, processing directly: ${text}`,
@@ -725,17 +724,17 @@ Click "Training" and dive with us.
         // Выходим из startScene, чтобы глобальные обработчики команд могли сработать
         await ctx.scene.leave()
 
-        // НЕ вызываем handleMenu для команд - пусть обработает registerCommands.ts
+        // НЕ вызываем УДАЛЁН для команд - пусть обработает registerCommands.ts
         return
       }
 
-      // Для остальных сообщений используем handleMenu
+      // Для остальных сообщений используем УДАЛЁН
       logger.info({
-        message: `📝 [StartScene] Forwarding text to handleMenu: ${text}`,
+        message: `📝 [StartScene] Forwarding text to УДАЛЁН: ${text}`,
         telegramId,
         text,
       })
-      await handleMenu(ctx)
+      return
       return
     }
 

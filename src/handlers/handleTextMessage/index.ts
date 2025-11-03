@@ -6,7 +6,6 @@ import { handleFluxKontextPrompt } from '../../commands/fluxKontextCommand'
 import { handleHelpCancel } from '../handleHelpCancel'
 import { Scenes } from 'telegraf'
 import { sendGenericErrorMessage } from '../../menu'
-import { handleMenu } from '../handleMenu'
 
 import { logger } from '@/utils/logger'
 import {
