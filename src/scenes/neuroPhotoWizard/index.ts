@@ -223,12 +223,14 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     const trigger_word = ctx.session.userModel.trigger_word as string
     console.log(`🔍 [DEBUG] model_url: ${model_url}`)
     console.log(`🔍 [DEBUG] trigger_word: ${trigger_word}`)
+    console.log(`🔍 [DEBUG] gender from model_trainings: ${ctx.session.userModel.gender}`)
 
-    const userData = await getUserData(userId?.toString() ?? '')
+    // ✅ ИСПРАВЛЕНИЕ БАГА: Получаем пол из model_trainings, а не из users
+    // Это обеспечивает соответствие модели полу, который был указан при создании
     let genderPromptPart = 'person'
-    if (userData?.gender === 'female') {
+    if (ctx.session.userModel.gender === 'female') {
       genderPromptPart = 'female'
-    } else if (userData?.gender === 'male') {
+    } else if (ctx.session.userModel.gender === 'male') {
       genderPromptPart = 'male'
     }
 

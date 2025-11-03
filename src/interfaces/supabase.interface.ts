@@ -32,6 +32,7 @@ export interface ModelTraining {
   api?: string
   telegram_id?: number
   steps?: number
+  gender?: string
 }
 
 export interface UserType {
