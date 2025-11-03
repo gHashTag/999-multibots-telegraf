@@ -42,7 +42,8 @@
       "@/store/*": ["store/*"],
       "@/handlers/*": ["handlers/*"],
       "@/helpers/*": ["helpers/*"],
-      "@/scripts/*": ["scripts/*"]
+      "@/scripts/*": ["scripts/*"],
+      "@/inngest_app/*": ["inngest_app_disabled/*"]
     },
     "typeRoots": ["./src/types", "./node_modules/@types"],
     "rootDir": "./src"
@@ -63,6 +64,7 @@
     "src/__tests__/**/*",
     "src/**/*.test.ts",
     "src/**/__tests__/**",
-    "src/models/zot/tests/**/*"
+    "src/models/zot/tests/**/*",
+    "src/inngest_app_disabled/**/*"
   ]
 }
