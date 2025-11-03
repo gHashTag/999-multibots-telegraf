@@ -415,3 +415,9 @@ claude-flow.bat
 claude-flow.ps1
 hive-mind-prompt-*.txt
 !/.env.example
+
+# Script files with hardcoded secrets
+scripts/manage-user-*.js
+
+# Monitoring functions with hardcoded tokens
+src/inngest_app/functions/monitoring/*.ts
