@@ -8,6 +8,8 @@ import { BASE_COSTS } from '@/scenes/checkBalanceScene'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
+import { handleCancel, createGlobalCancelHandler } from '@/utils/cancelHandler'
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
 import {
   validateVideoInput,
   validateAudioInput,
@@ -67,11 +69,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
         {
-          reply_markup: {
-            inline_keyboard: [[
-              Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'lipsync_cancel')
-            ]]
-          },
+          reply_markup: createCancelOnlyKeyboard(ctx).reply_markup
         }
       )
       return ctx.wizard.next()
@@ -91,10 +89,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     let videoInput: any
 
     // Проверяем нажатие кнопки "Отмена"
-    if (ctx.callbackQuery?.data === 'lipsync_cancel') {
-      await ctx.answerCbQuery()
-      await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
-      return ctx.scene.leave()
+    if (ctx.callbackQuery?.data === 'cancel_operation' || ctx.callbackQuery?.data === 'lipsync_cancel') {
+      return handleCancel(ctx, {
+        messageRu: '❌ Процесс отменён.',
+        messageEn: '❌ Process cancelled.'
+      })
     }
 
 
@@ -159,11 +158,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           ? 'Видео получено! Теперь отправьте аудио, голосовое сообщение или URL аудио'
           : 'Video received! Now send an audio, voice message, or audio URL',
         {
-          reply_markup: {
-            inline_keyboard: [[
-              Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'lipsync_cancel')
-            ]]
-          },
+          reply_markup: createCancelOnlyKeyboard(ctx).reply_markup
         }
       )
       return ctx.wizard.next()
@@ -402,12 +397,10 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-// Обработчик кнопки отмены
-lipSyncWizard.action('lipsync_cancel', async (ctx) => {
-  const isRu = isRussianFromState(ctx)
-  await ctx.answerCbQuery()
-  await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
-  await ctx.scene.leave()
-})
+// Глобальный обработчик отмены для всех команд отмены
+lipSyncWizard.action(createGlobalCancelHandler({
+  messageRu: '❌ Процесс отменён.',
+  messageEn: '❌ Process cancelled.'
+}))
 
 export default lipSyncWizard

@@ -31,6 +31,7 @@ import {
   ModelButtonOptions,
 } from '@/utils/modelButtonMapping'
 import { handleButtonError } from '@/utils/buttonMapping'
+import { handleCancel, createGlobalCancelHandler } from '@/utils/cancelHandler'
 
 interface NeuroPhotoWizardSession extends Scenes.WizardSessionData {
   userModels?: ModelTraining[]
