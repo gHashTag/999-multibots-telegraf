@@ -126,14 +126,42 @@ class InngestProvider {
     eventName: string,
     data: any
   ): Promise<{ eventId: string } | null> {
+    logger.info(`🔴 [INNGEST PROVIDER] sendEvent() called`, {
+      instance,
+      eventName,
+      timestamp: Date.now(),
+    })
+
     this.ensureInitialized()
+
+    logger.info(`🔴 [INNGEST PROVIDER] ensureInitialized() completed`, {
+      instance,
+      hasConfigs: this.configs.size,
+      initialized: this.initialized,
+    })
+
     const config = this.getConfig(instance)
 
+    logger.info(`🔴 [INNGEST PROVIDER] getConfig() result`, {
+      instance,
+      hasConfig: !!config,
+      configKeys: config ? Object.keys(config) : [],
+    })
+
     if (!config) {
+      logger.error(`❌ [INNGEST PROVIDER] Inngest instance "${instance}" not configured`)
       throw new Error(`Inngest instance "${instance}" not configured`)
     }
 
     if (!config.client) {
+      logger.error(`❌ [INNGEST PROVIDER] Inngest client not initialized for instance "${instance}"`)
+      logger.error(`🔴 [INNGEST PROVIDER] Config details`, {
+        instance,
+        hasEventKey: !!config.eventKey,
+        hasSigningKey: !!config.signingKey,
+        hasBaseUrl: !!config.baseUrl,
+        hasClient: !!config.client,
+      })
       throw new Error(
         `Inngest client not initialized for instance "${instance}"`
       )
@@ -144,6 +172,7 @@ class InngestProvider {
       instance,
       baseUrl: config.baseUrl,
       hasClient: !!config.client,
+      eventKeyPrefix: config.eventKey?.substring(0, 10),
     })
 
     try {
@@ -153,6 +182,8 @@ class InngestProvider {
         payloadKeys: Object.keys(data),
         dataSize: JSON.stringify(data).length,
       })
+
+      logger.info(`🔴 [INNGEST PROVIDER] About to call config.client.send()`)
 
       // ✅ Отправляем событие в Inngest Cloud
       // Inngest Cloud вызовет функцию на Railway render-server
@@ -177,6 +208,7 @@ class InngestProvider {
     } catch (error) {
       logger.error(`❌ [INNGEST PROVIDER] Error sending event to ${instance}`, {
         error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
         eventName,
       })
       throw error

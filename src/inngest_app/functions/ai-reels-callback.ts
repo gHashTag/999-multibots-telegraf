@@ -1,0 +1,182 @@
+/**
+ * AI Reels Callback Handler для Railway render-server
+ * Это Inngest функция, которая обрабатывает callback после завершения рендеринга видео
+ *
+ * ВЫЗЫВАЕТСЯ ЧЕРЕЗ: POST событие 'ai-reels-callback'
+ * ИСТОЧНИК: Railway render-server
+ * НАЗНАЧЕНИЕ: Отправка готового видео пользователю в Telegram
+ */
+
+import { inngest } from '../../core/inngest/clients'
+import axios from 'axios'
+import { Input } from 'telegraf'
+import { logger } from '@/utils/logger'
+
+/**
+ * Interface для callback payload от Railway render-server
+ */
+interface AIReelsCallbackPayload {
+  download_url?: string
+  job_id?: string
+  status?: 'completed' | 'failed' | 'processing'
+  result_url?: string
+  video_url?: string
+  error?: string
+  error_message?: string
+  bot_name?: string
+  metadata?: {
+    telegram_id?: string
+    chat_id?: string
+    message_id?: number
+    duration?: number
+    bot_name?: string
+    [key: string]: any
+  }
+}
+
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN_AI_STARS || process.env.TELEGRAM_BOT_TOKEN
+const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`
+const TELEGRAM_VIDEO_LIMIT = 50 * 1024 * 1024
+
+function extractTelegramIdFromJobId(jobId: string): string | null {
+  try {
+    const match = jobId.match(/telegram-(\d+)-/)
+    return match ? match[1] : null
+  } catch {
+    return null
+  }
+}
+
+async function sendTelegramMessage(telegramId: string, text: string): Promise<void> {
+  if (!TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN not configured')
+
+  await axios.post(`${TELEGRAM_API_URL}/sendMessage`, {
+    chat_id: telegramId,
+    text,
+    parse_mode: 'HTML',
+  })
+}
+
+async function sendTelegramVideo(
+  telegramId: string,
+  videoBuffer: Buffer,
+  filename: string,
+  caption: string
+): Promise<void> {
+  if (!TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN not configured')
+
+  const url = `${TELEGRAM_API_URL}/sendVideo`
+  const formData = new FormData()
+  formData.append('chat_id', telegramId)
+  formData.append('video', new Blob([videoBuffer]), filename)
+  formData.append('caption', caption)
+
+  await axios.post(url, formData, {
+    headers: formData.getHeaders(),
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+  })
+}
+
+async function handleCompletedRender(telegramId: string, payload: AIReelsCallbackPayload): Promise<void> {
+  const videoUrl = payload.result_url || payload.video_url || payload.download_url
+
+  if (!videoUrl) {
+    await sendTelegramMessage(telegramId, '⚠️ Видео готово, но произошла ошибка при получении ссылки.')
+    return
+  }
+
+  const videoResponse = await axios.get(videoUrl, {
+    responseType: 'arraybuffer',
+    timeout: 120000,
+    maxContentLength: 100 * 1024 * 1024,
+  })
+
+  const videoBuffer = Buffer.from(videoResponse.data)
+
+  if (videoBuffer.length > TELEGRAM_VIDEO_LIMIT) {
+    await sendTelegramMessage(
+      telegramId,
+      `✅ Ваше AI Reels видео готово!\n\n` +
+        `⚠️ Видео слишком большое (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB)\n\n` +
+        `📥 Скачайте видео: ${videoUrl}\n\n` +
+        `🎬 Template 2 (Inngest + Railway)`
+    )
+    return
+  }
+
+  await sendTelegramVideo(
+    telegramId,
+    videoBuffer,
+    `ai-reels-${Date.now()}.mp4`,
+    '✅ Ваше AI Reels видео готово!\n\n🎬 Template 2 (Inngest + Railway)'
+  )
+}
+
+async function handleFailedRender(telegramId: string, payload: AIReelsCallbackPayload): Promise<void> {
+  const errorMessage = payload.error || payload.error_message || 'Неизвестная ошибка'
+  await sendTelegramMessage(
+    telegramId,
+    `❌ Ошибка при создании видео:\n\n${errorMessage}\n\nПопробуйте ещё раз.`
+  )
+}
+
+async function handleProcessingUpdate(telegramId: string, payload: AIReelsCallbackPayload): Promise<void> {
+  logger.info('Render in progress', { telegramId, jobId: payload.job_id })
+}
+
+export const aiReelsCallbackFunction = inngest.createFunction(
+  {
+    id: 'ai-reels-callback',
+    name: '🔔 AI Reels Callback Handler',
+    retries: 3,
+  },
+  { event: 'ai-reels-callback' },
+  async ({ event, step, logger }) => {
+    const startTime = Date.now()
+    const payload: AIReelsCallbackPayload = event.data
+
+    logger.info('AI Reels callback received', {
+      eventId: event.id,
+      bodyKeys: Object.keys(payload),
+    })
+
+    let jobId = payload.job_id
+    const videoUrl = payload.result_url || payload.video_url || payload.download_url
+    const status = payload.status || 'completed'
+
+    if (!jobId && payload.download_url) {
+      const match = payload.download_url.match(/jobs\/(telegram-\d+-\d+)\//)
+      if (match) jobId = match[1]
+    }
+
+    if (!jobId) throw new Error('Cannot extract job_id')
+    if (!videoUrl && status === 'completed') throw new Error('No video URL found')
+
+    const telegramId =
+      payload.metadata?.telegram_id ||
+      payload.metadata?.chat_id ||
+      extractTelegramIdFromJobId(jobId)
+
+    if (!telegramId) throw new Error('Cannot extract Telegram ID')
+
+    if (status === 'completed') {
+      await step.run('send-completed-video', async () => {
+        return handleCompletedRender(telegramId, { ...payload, job_id: jobId!, result_url: videoUrl })
+      })
+    } else if (status === 'failed') {
+      await step.run('send-failed-message', async () => {
+        return handleFailedRender(telegramId, { ...payload, job_id: jobId! })
+      })
+    } else if (status === 'processing') {
+      await step.run('send-processing-update', async () => {
+        return handleProcessingUpdate(telegramId, { ...payload, job_id: jobId! })
+      })
+    }
+
+    const duration = Date.now() - startTime
+    logger.info('✅ Callback processed successfully', { jobId, status, duration: `${duration}ms` })
+
+    return { success: true, jobId, status, telegramId }
+  }
+)
