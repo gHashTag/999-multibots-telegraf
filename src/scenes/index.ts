@@ -1,7 +1,11 @@
 export * from './avatarBrainWizard'
 export * from './imageToPromptWizard'
 export * from './imageUpscalerWizard'
+<<<<<<< HEAD
 export { faceSwapWizard } from './faceSwapWizard'
+=======
+export { default as faceSwapWizard } from './faceSwapWizard'
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 export * from './emailWizard'
 export * from './improvePromptWizard'
 export * from './sizeWizard'

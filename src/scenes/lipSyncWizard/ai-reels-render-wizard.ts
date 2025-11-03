@@ -1306,7 +1306,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           avatarService,
           heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
           heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
+<<<<<<< HEAD
           heygenAvatarSet: avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenAvatarSet : undefined,
+=======
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
           // ✅ FAL support
           falApiKey: avatarService === 'fal' ? ctx.session.aiReelsRender.falApiKey : undefined,
           falResolution: avatarService === 'fal' ? ctx.session.aiReelsRender.falResolution : undefined,

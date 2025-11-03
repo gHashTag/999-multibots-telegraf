@@ -219,10 +219,13 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   pendingTtsText?: string
   voiceMode?: 'avatar' | 'transcribe'
   lastTranscribedText?: string
+<<<<<<< HEAD
   avatarPhoto?: {
     file_id: string
     unique_id: string
   }
+=======
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 
   aiReels?: {
     // Данные для AI Reels wizard (lip-sync + WAN v2.2-5b + merging)

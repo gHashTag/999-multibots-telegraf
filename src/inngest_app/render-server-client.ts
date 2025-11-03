@@ -221,12 +221,16 @@ export function createRenderAvatarPayload(
     falResolution?: '720p' | '1080p'
     // Bot name для правильной отправки callback
     botName?: string
+<<<<<<< HEAD
     // HeyGen набор аватаров для выбора API ключа
     heygenAvatarSet?: string
+=======
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
   }
 ): RenderRiddlePayload {
   const isHeygen = options?.avatarService === 'heygen'
   const isFal = options?.avatarService === 'fal'
+<<<<<<< HEAD
 
   // HeyGen - выбираем API ключ в зависимости от набора аватаров
   let heygenApiKey = ''
@@ -240,14 +244,20 @@ export function createRenderAvatarPayload(
       heygenApiKey = process.env.HEYGEN_HAIM_API_KEY || ''
     }
   }
+=======
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 
   logger.info('🎬 [RENDER PAYLOAD] Creating payload', {
     telegramId,
     avatarService: options?.avatarService || 'hedra',
     isHeygen,
     isFal,
+<<<<<<< HEAD
     botName: options?.botName,
     hasHeygenApiKey: !!heygenApiKey,
+=======
+    hasHeygenApiKey: !!options?.heygenApiKey,
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
     hasHeygenAvatarId: !!options?.heygenAvatarId,
     hasFalApiKey: !!options?.falApiKey,
   })
@@ -298,7 +308,12 @@ export function createRenderAvatarPayload(
     callback_url:
       options?.callbackUrl !== undefined
         ? options.callbackUrl
+<<<<<<< HEAD
         : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
     bot_name: options?.botName,
+=======
+        : 'http://three-head-dragon.shop/api/telegram/ai-reels-callback',
+    bot_name: options?.botName, // Передаем имя бота для callback
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
   }
 }

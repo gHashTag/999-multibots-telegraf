@@ -8,7 +8,10 @@ import replicateWebhookRouter from './routes/replicate-webhook.routes'
 import voiceAvatarRouter from './routes/voice-avatar.routes'
 import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
+<<<<<<< HEAD
 import diagnosticRouter from './routes/diagnostic.routes'
+=======
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 import { serve } from 'inngest/express'
 // import { inngest, functions as inngestFunctions } from '../inngest_app/client'
 import { logger } from '@/utils/logger'
@@ -75,9 +78,12 @@ export function startApiServer(): void {
   app.use('/api', neuroPhotoRouter)
   app.use('/api', competitorRouter)
 
+<<<<<<< HEAD
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
+=======
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
   // Интеграция Inngest с API (актуальная сигнатура serve)
 //   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
 //   app.use('/api/inngest', inngestHandler)
