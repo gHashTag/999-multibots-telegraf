@@ -381,16 +381,16 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           )
           await ctx.scene.enter(ModeEnum.CreateUserScene)
         } else {
-          // Если пользователь существует, переходим к AI Demo
+          // Если пользователь существует, переходим в startScene
           console.log(
-            '✅ [START COMMAND] User exists, entering AvatarTransform scene',
+            '✅ [START COMMAND] User exists, entering startScene',
             {
               telegramId,
               userId: userDetails.id,
               createdAt: userDetails.created_at,
             }
           )
-          await ctx.scene.enter(ModeEnum.AvatarTransform)
+          await ctx.scene.enter('startScene')
         }
       } catch (error) {
         console.error('❌ [START COMMAND] Error:', error)
@@ -479,9 +479,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
             return
           }
 
-          // Если подписка есть, входим в главное меню
-          ctx.session.mode = ModeEnum.MainMenu
-          await ctx.scene.enter(ModeEnum.MainMenu)
+          // Если подписка есть, переходим в startScene
+          await ctx.scene.enter('startScene')
         } catch (subscriptionError) {
           // Если ошибка с проверкой подписки, всё равно показываем меню
           logger.warn(
