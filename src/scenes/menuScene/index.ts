@@ -556,7 +556,8 @@ const menuNextStep = async (ctx: MyContext) => {
 
 export const menuScene = new Scenes.WizardScene(
   ModeEnum.MainMenu,
-  menuCommandStep
+  menuCommandStep,
+  menuNextStep
 )
 
 // Обработчик для inline кнопки "Оформить подписку"
