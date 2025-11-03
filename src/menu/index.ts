@@ -1,7 +1,6 @@
 export * from './mainMenu'
 export * from './imageModelMenu'
-export * from './mainMenu'
-export * from './imageModelMenu'
+export * from './simpleMenu'  // ✅ НОВЫЙ ПРОСТОЙ МЕНЮ
 export * from './startMenu'
 export * from './videoModelMenu'
 export * from './cancelMenu'
