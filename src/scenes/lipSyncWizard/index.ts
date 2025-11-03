@@ -7,6 +7,7 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { BASE_COSTS } from '@/scenes/checkBalanceScene'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { Markup } from 'telegraf'
 import {
   validateVideoInput,
   validateAudioInput,
@@ -66,7 +67,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
         {
-          reply_markup: { remove_keyboard: true },
+          reply_markup: {
+            inline_keyboard: [[
+              Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'lipsync_cancel')
+            ]]
+          },
         }
       )
       return ctx.wizard.next()
@@ -86,8 +91,9 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     let videoInput: any
 
     // Проверяем нажатие кнопки "Отмена"
-    const isCancel = await handleCancelButton(ctx)
-    if (isCancel) {
+    if (ctx.callbackQuery?.data === 'lipsync_cancel') {
+      await ctx.answerCbQuery()
+      await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
       return ctx.scene.leave()
     }
 
@@ -151,7 +157,14 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? 'Видео получено! Теперь отправьте аудио, голосовое сообщение или URL аудио'
-          : 'Video received! Now send an audio, voice message, or audio URL'
+          : 'Video received! Now send an audio, voice message, or audio URL',
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'lipsync_cancel')
+            ]]
+          },
+        }
       )
       return ctx.wizard.next()
       
@@ -388,5 +401,13 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     return ctx.scene.leave()
   }
 )
+
+// Обработчик кнопки отмены
+lipSyncWizard.action('lipsync_cancel', async (ctx) => {
+  const isRu = isRussianFromState(ctx)
+  await ctx.answerCbQuery()
+  await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
+  await ctx.scene.leave()
+})
 
 export default lipSyncWizard
