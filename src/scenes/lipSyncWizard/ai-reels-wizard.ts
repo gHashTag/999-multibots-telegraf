@@ -107,29 +107,44 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
+    logger.info('🚀 [SIMPLE LIPSYNC] Step 0 STARTED', {
+      telegramId,
+      fromUsername: ctx.from?.username,
+      hasSession: !!ctx.session,
+    })
+
     if (!telegramId) {
+      logger.error('❌ [SIMPLE LIPSYNC] No telegramId in step 0', { telegramId })
       await ctx.reply(isRu ? '❌ Ошибка: не удалось определить ID' : '❌ Error: could not determine ID')
       return ctx.scene.leave()
     }
 
+    // Инициализируем сессию
     ctx.session.aiReels = {
       step: 'image',
       startTime: Date.now(),
       isSimple: true as any,
     }
 
-    await ctx.reply(
-      isRu
-        ? '🎬 Шаблон 1 - Lip-sync в кружочке\n\n' +
-          '📷 Шаг 1: Отправьте фото лица для создания lip-sync.\n\n' +
-          '📹 Шаг 2: Потом отправьте видео (до 30 сек) - это будет фон.\n\n' +
-          '💰 Стоимость: 120⭐'
-        : '🎬 Template 1 - Lip-sync in Circle\n\n' +
-          '📷 Step 1: Send a photo of a face for lip-sync.\n\n' +
-          '📹 Step 2: Then send a video (up to 30 sec) - this will be the background.\n\n' +
-          '💰 Cost: 120⭐'
-    )
+    logger.info('📝 [SIMPLE LIPSYNC] Session initialized', {
+      telegramId,
+      step: ctx.session.aiReels.step,
+    })
 
+    // Отправляем приветственное сообщение
+    const welcomeMessage = isRu
+      ? '🎬 Шаблон 1 - Lip-sync в кружочке\n\n' +
+        '📷 Шаг 1: Отправьте фото лица для создания lip-sync.\n\n' +
+        '📹 Шаг 2: Потом отправьте видео (до 30 сек) - это будет фон.\n\n' +
+        '💰 Стоимость: 120⭐'
+      : '🎬 Template 1 - Lip-sync in Circle\n\n' +
+        '📷 Step 1: Send a photo of a face for lip-sync.\n\n' +
+        '📹 Step 2: Then send a video (up to 30 sec) - this will be the background.\n\n' +
+        '💰 Cost: 120⭐'
+
+    await ctx.reply(welcomeMessage)
+
+    logger.info('✅ [SIMPLE LIPSYNC] Welcome message sent, moving to Step 1', { telegramId })
     return ctx.wizard.next()
   },
 
@@ -153,24 +168,45 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    ctx.session.aiReels.imageUrl = (await ctx.telegram.getFileLink(photo.file_id)).toString()
-    ctx.session.aiReels.step = 'text'
+    try {
+      // Получаем ссылку на фото
+      const photoUrl = await ctx.telegram.getFileLink(photo.file_id)
+      ctx.session.aiReels.imageUrl = photoUrl.toString()
+      ctx.session.aiReels.step = 'text'
 
-    logger.info('📷 [SIMPLE LIPSYNC] Фото получено', {
-      telegramId,
-      fileId: photo.file_id,
-      size: photo.file_size,
-    })
+      logger.info('📷 [SIMPLE LIPSYNC] Фото получено', {
+        telegramId,
+        fileId: photo.file_id,
+        size: photo.file_size,
+        urlLength: photoUrl.length,
+      })
 
-    await ctx.reply(
-      isRu
-        ? '✅ Фото получено!\n\n' +
-          '📹 Теперь отправьте видео (до 30 сек) - это будет фон для кружочка.'
-        : '✅ Photo received!\n\n' +
-          '📹 Now send a video (up to 30 sec) - this will be the background for the circle.'
-    )
+      // Отправляем подтверждение
+      await ctx.reply(
+        isRu
+          ? '✅ Фото получено!\n\n' +
+            '📹 Теперь отправьте видео (до 30 сек) - это будет фон для кружочка.'
+          : '✅ Photo received!\n\n' +
+            '📹 Now send a video (up to 30 sec) - this will be the background for the circle.'
+      )
 
-    return ctx.wizard.next()
+      logger.info('🚀 [SIMPLE LIPSYNC] Переходим к Step 2', { telegramId })
+      const nextResult = ctx.wizard.next()
+      logger.info('✅ [SIMPLE LIPSYNC] Step 2 запущен', { telegramId, nextResult })
+      return nextResult
+    } catch (error) {
+      logger.error('❌ [SIMPLE LIPSYNC] Ошибка при получении фото', {
+        telegramId,
+        error,
+        fileId: photo.file_id,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при обработке фото. Попробуйте еще раз.'
+          : '❌ Error processing photo. Try again.'
+      )
+      return
+    }
   },
 
   // Step 2: Запрос видео
@@ -196,13 +232,26 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
+    logger.info('📹 [SIMPLE LIPSYNC] Step 3 STARTED', {
+      telegramId,
+      hasMessage: !!ctx.message,
+      messageType: ctx.message ? (ctx.message as any).type : 'undefined',
+    })
+
     if (!telegramId) {
+      logger.error('❌ [SIMPLE LIPSYNC] No telegramId', { telegramId })
       return ctx.scene.leave()
     }
 
     // Проверяем наличие видео
     const video = (ctx.message as any)?.video
     if (!video) {
+      logger.warn('⚠️ [SIMPLE LIPSYNC] No video in message', {
+        telegramId,
+        messageKeys: ctx.message ? Object.keys(ctx.message) : [],
+        hasVideo: !!(ctx.message as any)?.video,
+      })
+
       await ctx.reply(
         isRu
           ? '❌ Это не видео. Пожалуйста, отправьте видео файл.'
@@ -221,15 +270,41 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    ctx.session.aiReels.secondVideoUrl = (await ctx.telegram.getFileLink(video.file_id)).toString()
+    try {
+      const videoUrl = await ctx.telegram.getFileLink(video.file_id)
+      ctx.session.aiReels.secondVideoUrl = videoUrl.toString()
 
-    logger.info('📹 [SIMPLE LIPSYNC] Видео (фон) получено', {
-      telegramId,
-      fileId: video.file_id,
-      size: video.file_size,
-    })
+      logger.info('📹 [SIMPLE LIPSYNC] Видео (фон) получено', {
+        telegramId,
+        fileId: video.file_id,
+        size: video.file_size,
+        duration: video.duration,
+        urlLength: videoUrl.length,
+      })
 
-    return ctx.wizard.next()
+      await ctx.reply(
+        isRu
+          ? '✅ Видео получено!\n\n✍️ Теперь введите текст для lip-sync.'
+          : '✅ Video received!\n\n✍️ Now enter text for lip-sync.'
+      )
+
+      logger.info('🚀 [SIMPLE LIPSYNC] Переходим к Step 4', { telegramId })
+      const nextResult = ctx.wizard.next()
+      logger.info('✅ [SIMPLE LIPSYNC] Step 4 запущен', { telegramId, nextResult })
+      return nextResult
+    } catch (error) {
+      logger.error('❌ [SIMPLE LIPSYNC] Ошибка при получении видео', {
+        telegramId,
+        error,
+        fileId: video.file_id,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при обработке видео. Попробуйте еще раз.'
+          : '❌ Error processing video. Try again.'
+      )
+      return
+    }
   },
 
   // Step 4: Запрос текста
