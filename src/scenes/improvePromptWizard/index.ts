@@ -185,20 +185,23 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           try {
             switch (mode) {
               case ModeEnum.NeuroPhoto: {
-                // ИСПРАВЛЕНИЕ: Формируем правильный промпт с учетом пола и trigger_word
+                // ✅ ИСПРАВЛЕНО: Определяем пол на основе настроек модели, а не пользователя
                 const trigger_word = ctx.session.userModel
                   .trigger_word as string
 
-                const userData = await getUserData(ctx.from.id.toString())
+                const modelGender = ctx.session.userModel.gender
                 let genderPromptPart = 'person'
-                if (userData?.gender === 'female') {
+                if (modelGender === 'female') {
                   genderPromptPart = 'female'
-                } else if (userData?.gender === 'male') {
+                } else if (modelGender === 'male') {
                   genderPromptPart = 'male'
+                } else if (modelGender) {
+                  // Если указан другой пол, используем его
+                  genderPromptPart = modelGender
                 }
 
                 console.log(
-                  `[improvePromptWizard] Determined gender for prompt: ${genderPromptPart}`
+                  `[improvePromptWizard] Determined gender for prompt from model: ${genderPromptPart} (modelGender: ${modelGender})`
                 )
 
                 const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`

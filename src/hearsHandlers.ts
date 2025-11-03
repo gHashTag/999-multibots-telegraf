@@ -86,13 +86,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         const userId = ctx.from?.id
         const prompt = ctx.session.prompt
 
-        // Получаем данные пола для промпта
-        const userData = await getUserData(userId?.toString() ?? '')
+        // ✅ ИСПРАВЛЕНО: Определяем пол на основе настроек модели, а не пользователя
+        const modelGender = ctx.session.userModel.gender
         let genderPromptPart = 'person'
-        if (userData?.gender === 'female') {
+        if (modelGender === 'female') {
           genderPromptPart = 'female'
-        } else if (userData?.gender === 'male') {
+        } else if (modelGender === 'male') {
           genderPromptPart = 'male'
+        } else if (modelGender) {
+          // Если указан другой пол, используем его
+          genderPromptPart = modelGender
         }
 
         const trigger_word = ctx.session.userModel.trigger_word as string

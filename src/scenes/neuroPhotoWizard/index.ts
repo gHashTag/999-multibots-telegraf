@@ -224,16 +224,20 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     console.log(`🔍 [DEBUG] model_url: ${model_url}`)
     console.log(`🔍 [DEBUG] trigger_word: ${trigger_word}`)
 
-    const userData = await getUserData(userId?.toString() ?? '')
+    // ✅ ИСПРАВЛЕНО: Определяем пол на основе настроек модели, а не пользователя
+    const modelGender = ctx.session.userModel.gender
     let genderPromptPart = 'person'
-    if (userData?.gender === 'female') {
+    if (modelGender === 'female') {
       genderPromptPart = 'female'
-    } else if (userData?.gender === 'male') {
+    } else if (modelGender === 'male') {
       genderPromptPart = 'male'
+    } else if (modelGender) {
+      // Если указан другой пол, используем его
+      genderPromptPart = modelGender
     }
 
     console.log(
-      `[neuroPhotoWizard PromptStep] Determined gender for prompt: ${genderPromptPart}`
+      `[neuroPhotoWizard PromptStep] Determined gender for prompt from model: ${genderPromptPart} (modelGender: ${modelGender})`
     )
 
     const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
@@ -340,12 +344,16 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       }
 
       const trigger_word = ctx.session.userModel.trigger_word as string
-      const userData = await getUserData(userId?.toString() ?? '')
+      // ✅ ИСПРАВЛЕНО: Определяем пол на основе настроек модели, а не пользователя
+      const modelGender = ctx.session.userModel.gender
       let genderPromptPart = 'person'
-      if (userData?.gender === 'female') {
+      if (modelGender === 'female') {
         genderPromptPart = 'female'
-      } else if (userData?.gender === 'male') {
+      } else if (modelGender === 'male') {
         genderPromptPart = 'male'
+      } else if (modelGender) {
+        // Если указан другой пол, используем его
+        genderPromptPart = modelGender
       }
 
       const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
@@ -425,12 +433,16 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       }
 
       const trigger_word = ctx.session.userModel.trigger_word as string
-      const userData = await getUserData(userId?.toString() ?? '')
+      // ✅ ИСПРАВЛЕНО: Определяем пол на основе настроек модели, а не пользователя
+      const modelGender = ctx.session.userModel.gender
       let genderPromptPart = 'person'
-      if (userData?.gender === 'female') {
+      if (modelGender === 'female') {
         genderPromptPart = 'female'
-      } else if (userData?.gender === 'male') {
+      } else if (modelGender === 'male') {
         genderPromptPart = 'male'
+      } else if (modelGender) {
+        // Если указан другой пол, используем его
+        genderPromptPart = modelGender
       }
 
       const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
@@ -617,12 +629,16 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       console.log(`🚀 [CALLBACK] Генерация ${numImages} изображений...`)
 
       const trigger_word = ctx.session.userModel.trigger_word as string
-      const userData = await getUserData(userId?.toString() ?? '')
+      // ✅ ИСПРАВЛЕНО: Определяем пол на основе настроек модели, а не пользователя
+      const modelGender = ctx.session.userModel.gender
       let genderPromptPart = 'person'
-      if (userData?.gender === 'female') {
+      if (modelGender === 'female') {
         genderPromptPart = 'female'
-      } else if (userData?.gender === 'male') {
+      } else if (modelGender === 'male') {
         genderPromptPart = 'male'
+      } else if (modelGender) {
+        // Если указан другой пол, используем его
+        genderPromptPart = modelGender
       }
 
       const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
