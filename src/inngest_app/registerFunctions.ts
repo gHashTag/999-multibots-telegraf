@@ -37,6 +37,9 @@ import { paymentProcessingFunction } from './functions/payments/paymentProcessin
 // Broadcast Functions
 import { broadcastMessageFunction } from './functions/broadcast/broadcastMessage'
 
+// Callback Functions
+import { aiReelsCallbackFunction } from './functions/ai-reels-callback'
+
 // Render Functions
 import { renderFunction } from './functions/render/render'
 import { renderAvatarVideoFunction } from './functions/render/renderAvatarVideo'
@@ -78,6 +81,9 @@ export const allInngestFunctions = [
   // Broadcast (1)
   broadcastMessageFunction,
 
+  // Callback (1)
+  aiReelsCallbackFunction,
+
   // Render (3)
   renderFunction,
   renderAvatarVideoFunction,
@@ -115,6 +121,7 @@ export function getFunctionStatus(): {
       generation: 1,
       payment: 1,
       broadcast: 1,
+      callback: 1,
       render: 3,
       existing: 3,
     },
