@@ -33,6 +33,9 @@ export { paymentProcessingFunction } from './payments/paymentProcessing'
 // Broadcast Functions
 export { broadcastMessageFunction } from './broadcast/broadcastMessage'
 
+// Callback Functions
+export { aiReelsCallbackFunction } from './ai-reels-callback'
+
 // Render Functions (complete module)
 export * from './render'
 
@@ -58,6 +61,7 @@ export const getAllFunctions = () => [
   neuroImageGenerationFunction,
   paymentProcessingFunction,
   broadcastMessageFunction,
+  aiReelsCallbackFunction,
   // Render functions
   renderFunction,
   renderAvatarVideoFunction,
