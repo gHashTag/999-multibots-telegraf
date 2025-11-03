@@ -1082,7 +1082,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                 `• 4 видео VEO3 Fast: 160⭐\n` +
                 `• Hedra lip-sync: ${estimatedDuration} × 14⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
                 `• <b>Итого: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
-                `✅ Генерация через ${serviceName}\n\n⏳ Отправляем запрос на render-server...`
+                `✅ Генерация через ${serviceName}`
             : `✅ <b>Composite title created:</b>\n` +
                 `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
                 `📊 <b>Cost calculation:</b>\n` +
@@ -1090,22 +1090,18 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                 `• 4 VEO3 Fast videos: 160⭐\n` +
                 `• Hedra lip-sync: ${estimatedDuration} × 14⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
                 `• <b>Total: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
-                `✅ Generating with ${serviceName}\n\n⏳ Sending request to render-server...`,
+                `✅ Generating with ${serviceName}`,
           { parse_mode: 'HTML' }
         )
 
-        // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6
+        // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6 (НЕ вызываем напрямую)
         logger.info('🎬 [AI REELS RENDER] Service already selected, proceeding to Step 6', {
           telegramId,
           avatarService: service,
         })
 
-        // Переключаем на Step 6 (индекс 9, после добавления cover шага)
-        ctx.wizard.selectStep(9)
-
-        // ✅ Вызываем handler Step 6 напрямую
-        // @ts-ignore - steps is private but we need direct invocation
-        return await (ctx.wizard as any).steps[ctx.wizard.cursor](ctx)
+        // Просто переходим к следующему шагу (Step 6 покажет сообщение "Отправляем запрос..." и отправит запрос)
+        return ctx.wizard.next()
       }
 
       // ❌ УСТАРЕВШИЙ ПУТЬ: Если сервис НЕ выбран (только для Hedra flow из старого кода)
