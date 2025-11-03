@@ -91,9 +91,14 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     let videoInput: any
 
     // Проверяем нажатие кнопки "Отмена"
+<<<<<<< HEAD
     if (ctx.callbackQuery?.data === 'lipsync_cancel') {
       await ctx.answerCbQuery()
       await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
+=======
+    const isCancel = await handleCancelButton(ctx)
+    if (isCancel) {
+>>>>>>> template-2
       return ctx.scene.leave()
     }
 
@@ -157,6 +162,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? 'Видео получено! Теперь отправьте аудио, голосовое сообщение или URL аудио'
+<<<<<<< HEAD
           : 'Video received! Now send an audio, voice message, or audio URL',
         {
           reply_markup: {
@@ -165,6 +171,9 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
             ]]
           },
         }
+=======
+          : 'Video received! Now send an audio, voice message, or audio URL'
+>>>>>>> template-2
       )
       return ctx.wizard.next()
       
