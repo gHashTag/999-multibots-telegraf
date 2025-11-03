@@ -5,6 +5,7 @@ import { createMainMenuKeyboard, MAIN_MENU_BUTTONS } from '@/menu/simpleMenu'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getUserData } from '@/core/supabase'
 import { getBotNameByToken } from '@/core/bot'
+import { getBotWelcomeMessage } from '@/core/supabase/getBotWelcomeMessage'
 
 /**
  * ✅ ПРОСТАЯ START SCENE
@@ -33,20 +34,23 @@ const startScene = new Scenes.WizardScene<MyContext>(
 
       // Определяем имя для приветствия
       const name = fullName || username || (isRu ? 'друг' : 'friend')
-      
-      // Получаем информацию о боте
+
+      // Получаем информацию о боте и его приветственное сообщение
       let botName = 'AI Bot'
+      let welcomeMessage = '🤖 Добро пожаловать!'
       try {
         const botInfo = await getBotNameByToken(process.env.BOT_TOKEN_1 || '')
         botName = botInfo?.bot_name || 'AI Bot'
+        // Получаем приветственное сообщение для конкретного бота
+        welcomeMessage = await getBotWelcomeMessage(botName, isRu)
       } catch (error) {
         console.warn('⚠️ Не удалось получить имя бота:', error)
       }
 
       // Создаем приветственное сообщение
       const welcomeText = isRu
-        ? `👋 Привет, ${name}!\n\n🤖 Добро пожаловать в ${botName}!\n\n🎯 Выберите нужную функцию из меню ниже:`
-        : `👋 Hello, ${name}!\n\n🤖 Welcome to ${botName}!\n\n🎯 Select the function you need from the menu below:`
+        ? `👋 Привет, ${name}!\n\n🤖 ${welcomeMessage}\n\n🎯 Выберите нужную функцию из меню ниже:`
+        : `👋 Hello, ${name}!\n\n🤖 ${welcomeMessage}\n\n🎯 Select the function you need from the menu below:`
 
       // Создаем клавиатуру с главным меню
       const keyboard = createMainMenuKeyboard(ctx)
