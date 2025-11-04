@@ -17,8 +17,8 @@ export { instagramScraperV2 as instagramScraperV2Function } from './instagram/in
 export { instagramReelsTest as instagramScraperV2SimpleFunction } from './instagram/instagramScraper-v2-simple'
 
 // Monitoring Functions
-export { criticalErrorMonitor as criticalErrorMonitorFunction } from './monitoring/criticalErrorMonitor'
-export { logMonitor as logMonitorFunction } from './monitoring/logMonitor'
+export { criticalErrorMonitor as criticalErrorMonitorFunction, healthCheck as healthCheckFunction } from './monitoring/criticalErrorMonitor'
+export { logMonitor as logMonitorFunction, triggerLogMonitor as triggerLogMonitorFunction } from './monitoring/logMonitor'
 
 // Training Functions
 export { modelTrainingV2 as modelTrainingV2Function } from './training/modelTrainingV2'
@@ -60,8 +60,8 @@ import { generateDetailedScript } from './content/generateDetailedScript'
 import { generateScenarioClips } from './content/generateScenarioClips'
 import { instagramScraperV2 } from './instagram/instagramScraper-v2'
 import { instagramReelsTest as instagramScraperV2Simple } from './instagram/instagramScraper-v2-simple'
-import { criticalErrorMonitor } from './monitoring/criticalErrorMonitor'
-import { logMonitor } from './monitoring/logMonitor'
+import { criticalErrorMonitor, healthCheck } from './monitoring/criticalErrorMonitor'
+import { logMonitor, triggerLogMonitor } from './monitoring/logMonitor'
 import { modelTrainingV2 } from './training/modelTrainingV2'
 import { morphImages } from './training/morphImages'
 import { neuroImageGeneration } from './generation/neuroImageGeneration'
@@ -90,7 +90,9 @@ export const getAllFunctions = () => {
     instagramScraperV2Simple,
     // Monitoring Functions
     criticalErrorMonitor,
+    healthCheck,
     logMonitor,
+    triggerLogMonitor,
     // Training Functions
     modelTrainingV2,
     morphImages,
