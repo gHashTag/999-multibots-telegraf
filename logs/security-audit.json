@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/playra/999-agents-telegraf/worktrees/reels-callback-1/logs/security-audit.json",
+    "files": [
+        {
+            "date": 1762246339167,
+            "name": "/Users/playra/999-agents-telegraf/worktrees/reels-callback-1/logs/security-2025-11-04.log",
+            "hash": "4febccf8edc58968a5c36f2243462f95b1dfbb2894b9c3b012a5a09df49c77ab"
+        }
+    ],
+    "hashType": "sha256"
+}
