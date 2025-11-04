@@ -360,6 +360,25 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         ctx.botInfo?.username,
         userAspectRatio
       )
+
+      // 🚨 ДОБАВЛЯЕМ REPLY KEYBOARD ВНИЗУ после генерации (ИСПРАВЛЕНИЕ ПРОПАДАНИЯ КНОПОК)
+      await ctx.reply(isRu ? '👇 Выберите действие:' : '👇 Choose an action:', {
+        reply_markup: {
+          keyboard: [
+            [{ text: '1️⃣' }, { text: '2️⃣' }, { text: '3️⃣' }, { text: '4️⃣' }],
+            [
+              { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+              { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
+            ],
+            [
+              { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
+              { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
+            ],
+          ],
+          resize_keyboard: true,
+        },
+      })
+      console.log('✅ [NUM_IMAGES] Reply keyboard отправлена после генерации')
       return
     }
 

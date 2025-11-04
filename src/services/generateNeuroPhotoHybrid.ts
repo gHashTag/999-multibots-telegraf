@@ -208,12 +208,12 @@ export async function generateNeuroPhotoHybrid(
         }
       }
 
-      // 🚨 ИСПРАВЛЕНИЕ: Отправляем итоговое сообщение БЕЗ кнопок
+      // 🚨 ИСПРАВЛЕНИЕ: Отправляем итоговое сообщение БЕЗ кнопок и БЕЗ технического промпта
       // Reply keyboard будет добавлена в wizard отдельным сообщением
       const totalCost = exactCostPerImage * imageUrls.length
       const finalMessage = isRussianFromState(ctx)
-        ? `✅ Готово! Успешно сгенерировано ${imageUrls.length} из ${numImages} изображений.\nСписано: ${totalCost.toFixed(2)} ⭐️\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
-        : `✅ Done! Successfully generated ${imageUrls.length} out of ${numImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
+        ? `✅ Готово! Успешно сгенерировано ${imageUrls.length} из ${numImages} изображений.\n💰 Списано: ${totalCost.toFixed(2)} ⭐️`
+        : `✅ Done! Successfully generated ${imageUrls.length} out of ${numImages} images.\n💰 Deducted: ${totalCost.toFixed(2)} ⭐️`
 
       try {
         // Отправляем ТОЛЬКО текст, БЕЗ кнопок (ни inline, ни reply)
