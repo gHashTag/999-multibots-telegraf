@@ -564,3 +564,216 @@
 2025-11-04 16:13:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
 2025-11-04 16:13:55 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
 2025-11-04 16:13:55 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:13:58 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:03 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:08 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:13 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:18 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:23 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:28 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:33 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:38 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:43 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:48 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:53 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:14:54 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:14:55 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:14:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:14:55 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:14:55 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:14:58 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:03 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:08 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:13 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:18 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:23 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:28 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:33 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:38 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:43 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:48 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:53 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:15:54 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:15:55 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:15:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:15:55 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:15:55 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:15:58 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:03 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:08 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:13 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:18 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:23 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:28 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:33 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:38 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:43 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:48 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:53 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:16:55 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:16:55 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:16:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:16:56 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:16:56 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:16:58 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:03 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:08 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:13 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:18 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:23 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:28 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:33 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:38 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:44 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:49 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:54 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:17:54 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:17:55 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:17:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:17:55 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:17:55 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:17:59 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:04 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:09 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:14 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:19 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:24 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:29 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:34 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:39 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:44 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:49 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:54 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:18:54 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:18:55 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:18:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:18:55 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:18:55 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:18:59 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:19:04 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:19:09 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:19:14 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:19:19 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:19:24 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:19:29 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:19:34 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:19:34 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:19:34 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:19:34 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:19:34 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:19:34 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:19:34 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:19:34 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:19:34 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:19:34 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:19:35 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:19:35 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:19:35 [INFO]: Registering bot commands and handlers
+2025-11-04 16:19:35 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:19:35 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:19:35 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:19:35 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:19:35 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:19:35 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
+2025-11-04 16:19:41 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":false}
+2025-11-04 16:19:41 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 16:19:41 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 16:19:41 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535400,"updateType":"message","messageText":"/menu"}
+2025-11-04 16:19:41 [INFO]: COMMAND /menu: Переход к главному меню {"telegramId":144022504}
+2025-11-04 16:19:41 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 16:19:41 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 16:19:41 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 16:19:41 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 16:19:42 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 16:19:42 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T09:19:42.060Z"}}
+2025-11-04 16:19:42 [INFO]: [DEV SIMULATION] Debug env variable {"DEV_SIMULATE_SUBSCRIPTION":"","originalSubscription":"NEUROTESTER"}
+2025-11-04 16:19:42 [INFO]: [DEV SIMULATION] No simulation variable set, using original subscription {"original":"NEUROTESTER"}
+2025-11-04 16:19:42 [INFO]: COMMAND /menu: Checking subscription {"telegramId":"144022504","originalSubscription":"NEUROTESTER","effectiveSubscription":"NEUROTESTER","isDev":true}
+2025-11-04 16:19:42 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:19:42 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:19:42 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:19:42 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:19:42 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:19:42 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:19:44 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":true}
+2025-11-04 16:19:44 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 16:19:44 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 16:19:44 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535401,"updateType":"message","messageText":"🤖 Выбор модели ИИ"}
+2025-11-04 16:19:44 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:19:44 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:19:44 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:19:44 [INFO]: [SubscriptionGuard] 🤖 Выбор модели ИИ: ADMIN ACCESS GRANTED {"telegramId":"144022504","command":"🤖 Выбор модели ИИ","adminId":144022504,"bypass":"subscription_check"}
+2025-11-04 16:19:44 [INFO]: 🚀 [CheckBalanceScene] Вход в сцену проверки баланса {"telegramId":"144022504","function":"checkBalanceScene.enter","sessionMode":"select_model","sessionData":"{\"__scenes\":{\"current\":\"check_balance_scene\",\"state\":{}},\"mode\":\"select_model\"}"}
+2025-11-04 16:19:44 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:19:44 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:19:44 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:19:44 [INFO]: [CheckBalanceScene] IMMEDIATE ACCESS: Admin 144022504 bypassing all checks {"telegramId":"144022504","function":"checkBalanceScene.enter","step":"admin_immediate_access","mode":"select_model"}
+2025-11-04 16:19:44 [INFO]: [EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим select_model {"telegramId":"144022504","mode":"select_model","cost":0,"function":"enterTargetSceneWrapper"}
+2025-11-04 16:19:44 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 16:19:44 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 16:19:44 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 16:19:44 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 16:19:45 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 16:19:45 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T09:19:45.197Z"}}
+2025-11-04 16:19:45 [INFO]: [EnterTargetSceneWrapper] Режим select_model бесплатный, звезды не списываются {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:19:45 [INFO]: [EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:19:45 [INFO]: [EnterTargetSceneWrapper] ✅ Переход в целевую сцену select_model {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:19:45 [INFO]: [EnterTargetSceneWrapper] 🎯 ПЕРЕХОД В СЦЕНУ: select_model {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:19:45 [INFO]: 🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: select_model {"telegramId":"144022504","mode":"select_model","currentScene":"check_balance_scene","function":"enterTargetSceneWrapper","step":"calling_scene_enter"}
+2025-11-04 16:19:45 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:19:45 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:19:45 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:19:45 [INFO]: ✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: select_model {"telegramId":"144022504","mode":"select_model","newScene":"select_model","function":"enterTargetSceneWrapper","step":"scene_enter_completed"}
+2025-11-04 16:19:45 [INFO]: [EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену select_model выполнен {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:20:09 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"682085327","telegramLanguage":"en","hasSession":false}
+2025-11-04 16:20:09 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"682085327","source":"database","dbLanguage":"ru"}
+2025-11-04 16:20:09 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"682085327","finalLanguage":"ru","source":"database"}
+2025-11-04 16:20:09 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535402,"updateType":"message","messageText":"/start"}
+2025-11-04 16:20:09 [INFO]: [START] Starting with AI transformation demo first {"telegramId":682085327,"step":"command_start","chatType":"private","username":"abbosjonov_said"}
+2025-11-04 16:20:09 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 682085327 {"telegramId":"682085327"}
+2025-11-04 16:20:09 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"682085327"}
+2025-11-04 16:20:10 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"682085327","stars":0}
+2025-11-04 16:20:10 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 0 {"telegramId":"682085327"}
+2025-11-04 16:20:10 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"682085327"}
+2025-11-04 16:20:11 [INFO]: [getUserDetailsSubscription v4.0 FIXED Step 3 INFO] Активных подписок не найдено {"telegramId":"682085327"}
+2025-11-04 16:20:11 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"682085327","details":{"id":0,"created_at":"","stars":0,"subscriptionType":null,"isSubscriptionActive":false,"isExist":true,"subscriptionStartDate":null}}
+2025-11-04 16:20:11 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"682085327","stateLanguage":"ru","telegramLanguage":"en","hasState":true}
+2025-11-04 16:20:11 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"682085327","source":"state"}
+2025-11-04 16:20:11 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"682085327","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:20:11 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"682085327","stateLanguage":"ru","telegramLanguage":"en","hasState":true}
+2025-11-04 16:20:11 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"682085327","source":"state"}
+2025-11-04 16:20:11 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"682085327","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:20:35 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:20:35 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:20:35 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:20:35 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:20:35 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:21:35 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:21:35 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:21:35 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:21:35 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:21:35 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:22:11 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:22:11 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:22:11 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:22:11 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:22:11 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:22:11 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:22:11 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:22:11 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:22:11 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:22:11 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:22:12 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:22:12 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:22:12 [INFO]: Registering bot commands and handlers
+2025-11-04 16:22:12 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:22:12 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:22:12 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:22:12 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:22:12 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:22:12 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
+2025-11-04 16:23:12 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:23:12 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:23:12 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:23:12 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:23:12 [INFO]: ✅ Нет уведомлений для отправки
