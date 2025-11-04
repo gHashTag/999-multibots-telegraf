@@ -4,13 +4,14 @@ import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,
 } from '@/price/helpers'
 import { logger } from '@/utils/logger'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserProfileAndSettings } from '@/db/userSettings'
@@ -124,6 +125,9 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    // Сохраняем цену в сессию для последующего списания
+    ctx.session.imageGenerationPrice = price
+
     try {
       await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
 
@@ -226,6 +230,37 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         isRu,
         ctx
       )
+
+      // ✅ СПИСЫВАЕМ БАЛАНС после успешной генерации
+      const price = ctx.session.imageGenerationPrice || 0
+      if (price > 0) {
+        const charged = await updateUserBalance(
+          ctx.from.id.toString(),
+          price,
+          PaymentType.MONEY_OUTCOME,
+          `Image generation: ${ctx.session.selectedImageModel}`,
+          { service_type: 'TEXT_TO_IMAGE' }
+        )
+
+        if (!charged) {
+          logger.error('❌ Failed to charge user for image generation', {
+            telegram_id: ctx.from.id.toString(),
+            price,
+            model: ctx.session.selectedImageModel
+          })
+          await ctx.reply(
+            isRu
+              ? '⚠️ Изображение создано, но произошла ошибка при списании средств. Обратитесь в поддержку.'
+              : '⚠️ Image created, but there was an error charging your balance. Please contact support.'
+          )
+        } else {
+          logger.info('✅ Successfully charged user for image generation', {
+            telegram_id: ctx.from.id.toString(),
+            price,
+            model: ctx.session.selectedImageModel
+          })
+        }
+      }
 
       // Получаем текущий баланс ПОСЛЕ операции
       const currentBalance = await getUserBalance(ctx.from.id.toString())
