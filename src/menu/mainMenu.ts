@@ -428,9 +428,9 @@ export async function mainMenu({
     buttonRows.push(allFunctionalButtons.slice(i, i + 2))
   }
 
-  const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом (Подписка)
+  const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом
 
-  // Добавляем кнопки "Баланс" и "Пополнить баланс" для всех пользователей
+  // Создаем кнопки баланса, пополнения, приглашения
   const balanceButton = Markup.button.text(
     isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
   )
@@ -442,27 +442,34 @@ export async function mainMenu({
   )
 
   console.log(
-    `[mainMenu LOG] Adding balance and top-up buttons for subscription: ${currentSubscription}`
+    `[mainMenu LOG] Adding buttons for subscription: ${currentSubscription}`
   )
 
-  // Баланс и Пополнить идут в основные ряды для всех пользователей
-  buttonRows.push([balanceButton, topUpButton])
+  // 🎯 ПРАВИЛЬНЫЙ ПОРЯДОК:
+  // 1. Нейрофункции (уже в buttonRows)
+  // 2. Оформить подписку (добавляем ПЕРВОЙ в финальную клавиатуру)
+  // 3. Баланс + Пополнить баланс (служебные кнопки внизу)
+  // 4. Пригласить + Техподдержка
+  // 5. Язык
 
-  // Пригласить и Поддержка идут в предпоследний ряд
-  bottomRowButtons.push([inviteButton, supportButton])
+  // Собираем все ряды с нейрофункциями
+  const finalKeyboard = [...buttonRows]
 
-  // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
-  bottomRowButtons.push([languageButton])
-  console.log(
-    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
-  )
-
-  // Собираем все ряды, КРОМЕ последнего (Подписка)
-  const finalKeyboard = [...buttonRows, ...bottomRowButtons]
-
-  // Добавляем кнопку "Оформить подписку" для ВСЕХ пользователей (включая STARS)
+  // ✅ Добавляем кнопку "Оформить подписку" СРАЗУ после нейрофункций
   console.log(`[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`)
   finalKeyboard.push([subscribeButton])
+
+  // 📍 СЛУЖЕБНЫЕ КНОПКИ ВНИЗУ: Баланс и Пополнить баланс
+  finalKeyboard.push([balanceButton, topUpButton])
+
+  // Пригласить и Техподдержка
+  finalKeyboard.push([inviteButton, supportButton])
+
+  // ✅ Кнопка языка в самом низу
+  finalKeyboard.push([languageButton])
+  console.log(
+    `[mainMenu LOG] Final keyboard order: Neuro functions → Subscribe → Balance/TopUp → Invite/Support → Language`
+  )
 
   console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
   console.log(
