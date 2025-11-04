@@ -229,3 +229,88 @@
 2025-11-04 15:52:37 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
 2025-11-04 15:52:37 [INFO]: ✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: select_model {"telegramId":"144022504","mode":"select_model","newScene":"select_model","function":"enterTargetSceneWrapper","step":"scene_enter_completed"}
 2025-11-04 15:52:37 [INFO]: [EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену select_model выполнен {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 15:53:19 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 15:53:20 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 15:53:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 15:53:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 15:53:20 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 15:54:19 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 15:54:20 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 15:54:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 15:54:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 15:54:20 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 15:55:19 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 15:55:20 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 15:55:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 15:55:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 15:55:20 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 15:55:53 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":true}
+2025-11-04 15:55:53 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 15:55:53 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 15:55:53 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535394,"updateType":"message","messageText":"/menu"}
+2025-11-04 15:55:53 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:55:53 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:55:53 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 15:56:07 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":true}
+2025-11-04 15:56:07 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 15:56:07 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 15:56:07 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535395,"updateType":"message","messageText":"Отмена"}
+2025-11-04 15:56:07 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:56:07 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:56:07 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 15:56:07 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:56:07 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:56:07 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 15:56:07 [INFO]: [menuCommandStep] 🎭 SCENE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","sessionExists":true}
+2025-11-04 15:56:07 [INFO]: [getUserLanguage] 🌍 LANGUAGE CHECK (DB ONLY): {"telegramId":"144022504","telegramLanguage":"ru","sessionExists":true}
+2025-11-04 15:56:07 [INFO]: [getUserLanguage] 🔍 Checking DATABASE for telegram_id: 144022504
+2025-11-04 15:56:08 [INFO]: [getUserLanguage] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 15:56:08 [INFO]: [isRussianWithUserChoice] ASYNC Russian check: {"telegramId":"144022504","detectedLanguage":"ru","isRussian":true}
+2025-11-04 15:56:08 [INFO]: [menuCommandStep] Language determination: {"telegramId":"144022504","isRu":true,"telegramLanguage":"ru","functionUsed":"isRussianWithUserChoice"}
+2025-11-04 15:56:08 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 15:56:08 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 15:56:08 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 15:56:08 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 15:56:08 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 15:56:08 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T08:56:08.661Z"}}
+2025-11-04 15:56:08 [INFO]: [DEV SIMULATION] Debug env variable {"DEV_SIMULATE_SUBSCRIPTION":"","originalSubscription":"NEUROTESTER"}
+2025-11-04 15:56:08 [INFO]: [DEV SIMULATION] No simulation variable set, using original subscription {"original":"NEUROTESTER"}
+2025-11-04 15:56:08 [INFO]: [menuCommandStep] Subscription: NEUROTESTER. Using translation key: 'menu'
+2025-11-04 15:56:08 [INFO]: [menuCommandStep] Getting translation for key: menu, Bot: clip_maker_neuro_bot
+2025-11-04 15:56:08 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:56:08 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:56:08 [INFO]: [getTranslation] 🌍 LANGUAGE CHECK: {"telegramId":"144022504","key":"menu","userLanguage":"ru","language_code":"ru","telegramLanguage":"ru","source":"getUserLanguage_DB_ONLY"}
+2025-11-04 15:56:08 [WARN]: Translation not found for key "menu" with current bot {"bot_name":"clip_maker_neuro_bot","language_code":"ru","key":"menu","error":"No translation found","telegram_id":"144022504"}
+2025-11-04 15:56:09 [WARN]: Поле buttons отсутствует или пусто для ключа "menu"
+2025-11-04 15:56:09 [INFO]: [getTranslation] Generating menu buttons from levels for "menu" {"telegramId":"144022504","language_code":"ru","totalLevels":27}
+2025-11-04 15:56:09 [INFO]: [getTranslation] Generated 27 menu buttons from levels for key "menu" {"telegramId":"144022504","key":"menu","language_code":"ru","buttonsCount":27,"buttonsApplied":"GENERATED_FROM_LEVELS"}
+2025-11-04 15:56:09 [INFO]: [getTranslation] 🏁 RESULT: {"telegramId":"144022504","key":"menu","language_code":"ru","translationFound":true,"translationLength":42,"buttonsCount":27,"urlExists":false}
+2025-11-04 15:56:09 [INFO]: [menuCommandStep] Got 27 buttons from translation for key: menu
+2025-11-04 15:56:09 [INFO]: [mainMenu] 🎹 MENU CREATION STARTED: {"telegramId":"144022504","inputIsRu":true,"subscription":"NEUROTESTER","telegramLanguage":"ru"}
+2025-11-04 15:56:09 [INFO]: [getUserLanguage] 🌍 LANGUAGE CHECK (DB ONLY): {"telegramId":"144022504","telegramLanguage":"ru","sessionExists":true}
+2025-11-04 15:56:09 [INFO]: [getUserLanguage] 🔍 Checking DATABASE for telegram_id: 144022504
+2025-11-04 15:56:09 [INFO]: [getUserLanguage] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 15:56:09 [INFO]: [getUserLanguage] 🌍 LANGUAGE CHECK (DB ONLY): {"telegramId":"144022504","telegramLanguage":"ru","sessionExists":true}
+2025-11-04 15:56:09 [INFO]: [getUserLanguage] 🔍 Checking DATABASE for telegram_id: 144022504
+2025-11-04 15:56:09 [INFO]: [getUserLanguage] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 15:56:09 [INFO]: [isRussianWithUserChoice] ASYNC Russian check: {"telegramId":"144022504","detectedLanguage":"ru","isRussian":true}
+2025-11-04 15:56:09 [INFO]: [mainMenu] Language consistency check: {"telegramId":"144022504","inputIsRu":true,"dbLanguage":"ru","isRussianFromDB":true,"areConsistent":true,"sessionExists":true}
+2025-11-04 15:56:09 [INFO]: [checkSuperheroGenerationUsage] Checking superhero generation limits {"telegram_id":"144022504"}
+2025-11-04 15:56:09 [INFO]: [checkSuperheroGenerationUsage] Admin detected - unlimited access {"telegram_id":"144022504"}
+2025-11-04 15:56:09 [INFO]: [menuCommandStep] Sending DB message: "🏠 Главное меню\nВыберите нужный раздел 👇...", Photo URL: null
+2025-11-04 15:56:09 [INFO]: [menuCommandStep] Menu displayed, leaving scene to allow global handlers
+2025-11-04 15:56:19 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 15:56:20 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 15:56:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 15:56:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 15:56:20 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 15:57:19 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 15:57:20 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 15:57:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 15:57:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 15:57:20 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 15:58:19 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 15:58:20 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 15:58:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 15:58:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 15:58:20 [INFO]: ✅ Нет уведомлений для отправки
