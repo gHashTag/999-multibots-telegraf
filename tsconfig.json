@@ -45,7 +45,7 @@
       "@/scripts/*": ["scripts/*"]
     },
     "typeRoots": ["./src/types", "./node_modules/@types"],
-    "rootDir": "./src"
+    "rootDir": "."
   },
   "typeAcquisition": {
     "enable": true
