@@ -21,6 +21,7 @@ export { criticalErrorMonitor as criticalErrorMonitorFunction, healthCheck as he
 export { logMonitor as logMonitorFunction, triggerLogMonitor as triggerLogMonitorFunction } from './monitoring/logMonitor'
 
 // Training Functions
+export { generateModelTraining as generateModelTrainingOriginalFunction } from './training/generateModelTraining'
 export { modelTrainingV2 as modelTrainingV2Function } from './training/modelTrainingV2'
 export { morphImages as morphImagesFunction } from './training/morphImages'
 
@@ -62,6 +63,7 @@ import { instagramScraperV2 } from './instagram/instagramScraper-v2'
 import { instagramReelsTest as instagramScraperV2Simple } from './instagram/instagramScraper-v2-simple'
 import { criticalErrorMonitor, healthCheck } from './monitoring/criticalErrorMonitor'
 import { logMonitor, triggerLogMonitor } from './monitoring/logMonitor'
+import { generateModelTraining } from './training/generateModelTraining'
 import { modelTrainingV2 } from './training/modelTrainingV2'
 import { morphImages } from './training/morphImages'
 import { neuroImageGeneration } from './generation/neuroImageGeneration'
@@ -94,6 +96,7 @@ export const getAllFunctions = () => {
     logMonitor,
     triggerLogMonitor,
     // Training Functions
+    generateModelTraining,
     modelTrainingV2,
     morphImages,
     // Generation Functions
