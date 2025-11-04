@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { openai } from '@/core/openai'
 
 // Тип для модели с рейтингом
@@ -7,9 +8,13 @@ interface ModelWithRating {
   rating: number // чем выше, тем популярнее
   provider: string
   category?: string // категория модели
+  pricing?: {
+    prompt: number
+    completion: number
+  }
 }
 
-// Категории моделей по рейтингу
+// Категории моделей по рейтинг
 enum ModelCategory {
   TOP = 'топовые',
   HIGH = 'продвинутые',
@@ -17,86 +22,97 @@ enum ModelCategory {
   BASIC = 'базовые',
 }
 
-// Список популярных моделей с рейтингом (ТОП-10) - Актуальные модели 2025
-const popularModels: ModelWithRating[] = [
-  // OpenAI модели (приоритет)
-  {
-    id: 'openai/gpt-4.5',
-    name: 'GPT-4.5',
-    rating: 100,
-    provider: 'openai',
-    category: ModelCategory.TOP,
-  },
-  {
-    id: 'openai/gpt-4.1-turbo',
-    name: 'GPT-4.1 Turbo',
-    rating: 99,
-    provider: 'openai',
-    category: ModelCategory.TOP,
-  },
-  {
-    id: 'openai/gpt-4o',
-    name: 'GPT-4o',
-    rating: 98,
-    provider: 'openai',
-    category: ModelCategory.TOP,
-  },
-  {
-    id: 'openai/gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    rating: 96,
-    provider: 'openai',
-    category: ModelCategory.HIGH,
-  },
+// Функция для получения моделей с OpenRouter API
+async function fetchOpenRouterModels(): Promise<ModelWithRating[]> {
+  try {
+    console.log('🔍 Получаем модели с OpenRouter API...')
 
-  // Anthropic модели
-  {
-    id: 'anthropic/claude-3-5-sonnet-latest',
-    name: 'Claude 3.5 Sonnet',
-    rating: 95,
-    provider: 'anthropic',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'anthropic/claude-3-5-haiku-latest',
-    name: 'Claude 3.5 Haiku',
-    rating: 93,
-    provider: 'anthropic',
-    category: ModelCategory.HIGH,
-  },
+    const response = await axios.get('https://openrouter.ai/api/v1/models', {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY || 'demo'}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    })
 
-  // Google модели
-  {
-    id: 'google/gemini-2.0-flash-exp',
-    name: 'Gemini 2.0 Flash',
-    rating: 92,
-    provider: 'google',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'google/gemini-1.5-pro-latest',
-    name: 'Gemini 1.5 Pro',
-    rating: 90,
-    provider: 'google',
-    category: ModelCategory.MEDIUM,
-  },
+    if (!response.data?.data) {
+      throw new Error('Некорректный ответ от API')
+    }
 
-  // Другие популярные
-  {
-    id: 'deepseek/deepseek-reasoner',
-    name: 'DeepSeek Reasoner',
-    rating: 88,
-    provider: 'deepseek',
-    category: ModelCategory.MEDIUM,
-  },
-  {
-    id: 'meta-llama/llama-3.3-70b-versatile',
-    name: 'Llama 3.3 70B',
-    rating: 85,
-    provider: 'meta-llama',
-    category: ModelCategory.MEDIUM,
-  },
-]
+    const models = response.data.data
+      .filter((model: any) => model.top_provider?.is_moderated === true)
+      .sort((a: any, b: any) => {
+        // Сортируем по популярности ( Context Length * Top Provider Score )
+        const scoreA = (a.context_length || 0) * (a.top_provider?.score || 0)
+        const scoreB = (b.context_length || 0) * (b.top_provider?.score || 0)
+        return scoreB - scoreA
+      })
+      .slice(0, 10) // Топ 10 моделей
+      .map((model: any) => ({
+        id: model.id,
+        name: model.name || model.id,
+        rating: Math.round((model.top_provider?.score || 0) * 100),
+        provider: model.id.split('/')[0] || 'unknown',
+        category: ModelCategory.TOP,
+        pricing: {
+          prompt: model.pricing?.prompt || 0,
+          completion: model.pricing?.completion || 0,
+        },
+      }))
+
+    console.log(`✅ Получено ${models.length} моделей с OpenRouter API`)
+    return models
+  } catch (error) {
+    console.error('❌ Ошибка при получении моделей с OpenRouter:', error.message)
+    return []
+  }
+}
+
+// Функция для получения топ моделей (API + fallback)
+export async function getAvailableModels(): Promise<SelectableModel[]> {
+  try {
+    console.log('🔍 Получаем список доступных моделей... [Getting list of available models]')
+
+    // Пытаемся получить модели с OpenRouter API
+    const apiModels = await fetchOpenRouterModels()
+
+    if (apiModels.length > 0) {
+      console.log('✅ Используем модели из OpenRouter API')
+      return apiModels
+        .slice(0, 10)
+        .map(model => ({ id: model.id, name: model.name }))
+    }
+
+    // Fallback: используем статический список
+    console.log('⚠️ Используем fallback список моделей')
+    return [
+      { id: 'openai/gpt-4o', name: 'GPT-4o' },
+      { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
+      { id: 'anthropic/claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
+      { id: 'anthropic/claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
+      { id: 'google/gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
+      { id: 'google/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
+      { id: 'deepseek/deepseek-reasoner', name: 'DeepSeek Reasoner' },
+      { id: 'meta-llama/llama-3.3-70b-versatile', name: 'Llama 3.3 70B' },
+      { id: 'mistralai/mistral-large-latest', name: 'Mistral Large' },
+      { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
+    ]
+  } catch (error) {
+    console.error('🚨 Ошибка при получении моделей:', error)
+
+    // Крайний fallback
+    return [
+      { id: 'openai/gpt-4o', name: 'GPT-4o' },
+      { id: 'anthropic/claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
+      { id: 'google/gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
+    ]
+  }
+}
+
+export interface SelectableModel {
+  id: string
+  name: string
+}
 
 // Опции для фильтрации моделей
 interface ModelFilterOptions {
@@ -111,103 +127,6 @@ function getProviderFromFullId(fullId: string): string {
   return fullId.includes('/') ? fullId.split('/')[0] : ''
 }
 
-export interface SelectableModel {
-  id: string
-  name: string
-}
-
-export async function getAvailableModels(
-  options: ModelFilterOptions = {}
-): Promise<SelectableModel[]> {
-  try {
-    console.log(
-      '🔍 Получаем список доступных моделей... [Getting list of available models]'
-    )
-
-    // Устанавливаем значения по умолчанию
-    const { minRating = 0, maxResults = 50, category, provider } = options
-
-    // Фильтруем популярные модели по рейтингу, категории и провайдеру
-    const filteredPopularModels = popularModels
-      .filter(
-        model =>
-          model.rating >= minRating &&
-          (category ? model.category === category : true) &&
-          (provider
-            ? getProviderFromFullId(model.id) === provider ||
-              model.provider === provider
-            : true)
-      )
-      .map(model => ({ id: model.id, name: model.name }))
-
-    // Объединяем с моделями OpenAI
-    const combinedModels = [...filteredPopularModels]
-
-    // Удаляем дубликаты (учитывая полные ID с провайдером)
-    const uniqueModels = Array.from(
-      new Set(combinedModels.map(model => JSON.stringify(model)))
-    ).map(strModel => JSON.parse(strModel) as SelectableModel)
-
-    // Сортируем модели по рейтингу (популярные сначала)
-    const sortedModels = uniqueModels.sort((a, b) => {
-      const modelAInfo = popularModels.find(m => m.id === a.id)
-      const modelBInfo = popularModels.find(m => m.id === b.id)
-
-      // Если обе модели найдены в списке популярных, сравниваем их рейтинги
-      if (modelAInfo && modelBInfo) {
-        return modelBInfo.rating - modelAInfo.rating
-      }
-
-      // Если только одна модель найдена, она получает приоритет
-      if (modelAInfo) return -1
-      if (modelBInfo) return 1
-
-      // Если ни одна модель не найдена, сохраняем исходный порядок
-      return 0
-    })
-
-    console.log('models', sortedModels)
-
-    // Ограничиваем количество результатов
-    return sortedModels.slice(0, maxResults)
-  } catch (error) {
-    console.error(
-      '🚨 Ошибка при получении моделей: [Error fetching models:]',
-      error
-    )
-
-    // Фильтруем модели по умолчанию с тем же минимальным рейтингом
-    const minRating = options.minRating || 0
-    const category = options.category
-    const provider = options.provider
-
-    // Список моделей по умолчанию (первые 10 моделей из списка)
-    const defaultModels = popularModels
-      .slice(0, 10)
-      .map(model => ({ id: model.id, name: model.name }))
-
-    const maxResults = 20
-
-    // Если указан минимальный рейтинг, фильтруем модели по умолчанию
-    if (minRating > 0 || category || provider) {
-      return popularModels
-        .filter(
-          model =>
-            model.rating >= minRating &&
-            (category ? model.category === category : true) &&
-            (provider
-              ? getProviderFromFullId(model.id) === provider ||
-                model.provider === provider
-              : true)
-        )
-        .map(model => ({ id: model.id, name: model.name }))
-        .slice(0, maxResults)
-    }
-
-    return defaultModels
-  }
-}
-
 // Функция для получения моделей по категории
 export async function getModelsByCategory(
   category: ModelCategory
@@ -217,7 +136,7 @@ export async function getModelsByCategory(
 
 // Функция для получения топовых моделей
 export async function getTopModels(count = 5): Promise<SelectableModel[]> {
-  return getAvailableModels({ minRating: 95, maxResults: count })
+  return getAvailableModels({ maxResults: count })
 }
 
 // Функция для получения моделей конкретного провайдера
