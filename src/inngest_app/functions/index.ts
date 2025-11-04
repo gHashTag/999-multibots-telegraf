@@ -44,11 +44,6 @@ export { generateAIReelsFunction } from './existing/generateAIReelsFunction'
 export { generateAdvancedLoopingVideoFunction } from './existing/generateAdvancedLoopingVideoFunction'
 export { generateModelTrainingFunction } from './existing/generateModelTrainingFunction'
 
-// Test Functions
-export { testSimpleFunction } from './testSimpleFunction'
-export { testSimpleMessageFunction } from './testSimpleMessageFunction'
-export { testAdvancedLoopFunction } from './testAdvancedLoopFunction'
-
 // Helper Functions
 export { videoUploadHelper } from './video-upload-helper'
 export { wan25Helpers } from './wan25-helpers'
@@ -76,9 +71,6 @@ import { aiReelsCallbackFunction } from './ai-reels-callback'
 import { generateAIReelsFunction } from './existing/generateAIReelsFunction'
 import { generateAdvancedLoopingVideoFunction } from './existing/generateAdvancedLoopingVideoFunction'
 import { generateModelTrainingFunction } from './existing/generateModelTrainingFunction'
-import { testSimpleFunction } from './testSimpleFunction'
-import { testSimpleMessageFunction } from './testSimpleMessageFunction'
-import { testAdvancedLoopFunction } from './testAdvancedLoopFunction'
 import { videoUploadHelper } from './video-upload-helper'
 import { wan25Helpers } from './wan25-helpers'
 
@@ -118,10 +110,6 @@ export const getAllFunctions = () => {
     generateAIReelsFunction,
     generateAdvancedLoopingVideoFunction,
     generateModelTrainingFunction,
-    // Test Functions
-    testSimpleFunction,
-    testSimpleMessageFunction,
-    testAdvancedLoopFunction,
     // Helper Functions
     videoUploadHelper,
     wan25Helpers,
