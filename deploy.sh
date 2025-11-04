@@ -67,7 +67,18 @@ deploy() {
     log_info "=== DEPLOY НАЧАЛО ==="
     check_server
 
-    log_info "1. Обновление кода с git..."
+    log_info "1. Бэкап .env файла (сохранение токенов)..."
+    ssh_exec "
+        cd $PROJECT_PATH
+        if [ -f .env ]; then
+            cp .env .env.backup
+            echo '✅ .env файл сохранён в .env.backup'
+        else
+            echo '⚠️  .env файл не найден, бэкап не создан'
+        fi
+    "
+
+    log_info "2. Обновление кода с git..."
     ssh_exec "
         cd $PROJECT_PATH
         git fetch origin production
@@ -75,13 +86,24 @@ deploy() {
         echo 'Код обновлён'
     "
 
-    log_info "2. Пересборка Docker образа (БЕЗ КЕША - ОБЯЗАТЕЛЬНО!)..."
+    log_info "3. Восстановление .env файла (восстановление токенов)..."
+    ssh_exec "
+        cd $PROJECT_PATH
+        if [ -f .env.backup ]; then
+            cp .env.backup .env
+            echo '✅ .env файл восстановлен из бэкапа'
+        else
+            echo '⚠️  .env.backup не найден, используется .env из git'
+        fi
+    "
+
+    log_info "4. Пересборка Docker образа (БЕЗ КЕША - ОБЯЗАТЕЛЬНО!)..."
     ssh_exec "
         cd $PROJECT_PATH
         docker build --no-cache -t 999-agents-telegraf:latest . 2>&1 | tail -5
     "
 
-    log_info "3. Полная очистка всех контейнеров и сетей..."
+    log_info "5. Полная очистка всех контейнеров и сетей..."
     ssh_exec "
         # Останавливаем все контейнеры
         docker stop 999-multibots 2>/dev/null || true
@@ -100,7 +122,7 @@ deploy() {
         echo 'Все контейнеры и сети удалены'
     "
 
-    log_info "4. Запуск нового контейнера..."
+    log_info "6. Запуск нового контейнера..."
     ssh_exec "
         docker run -d \
           --name 999-multibots \
@@ -110,10 +132,10 @@ deploy() {
         echo 'Контейнер запущен'
     "
 
-    log_info "5. Ожидание инициализации приложения (20 сек)..."
+    log_info "7. Ожидание инициализации приложения (20 сек)..."
     sleep 20
 
-    log_info "6. Создание снапшота перед деплоем..."
+    log_info "8. Создание снапшота перед деплоем..."
     ssh_exec "
         TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
         echo \"Создаю снапшот prod-stable-\${TIMESTAMP}...\"
@@ -131,7 +153,7 @@ deploy() {
         ls -lh docker-snapshot-*.tar.gz 2>/dev/null | awk '{print \$9, \$5}' | head -5
     "
 
-    log_info "7. Настройка nginx reverse proxy..."
+    log_info "9. Настройка nginx reverse proxy..."
     ssh_exec "
         # Создание nginx конфигурации
         mkdir -p /root/nginx-config
@@ -205,15 +227,10 @@ NGINX_EOF
         echo 'Nginx с HTTP настроен'
     "
 
-    log_info "8. Ожидание инициализации (30 сек)..."
+    log_info "10. Ожидание инициализации (30 сек)..."
     sleep 30
 
-    log_info "9. Проверка статуса..."
-    check_status
-
-    log_success "=== DEPLOY ЗАВЕРШЁН УСПЕШНО ==="
-
-    log_info "6. Проверка статуса..."
+    log_info "11. Проверка статуса..."
     check_status
 
     log_success "=== DEPLOY ЗАВЕРШЁН УСПЕШНО ==="
