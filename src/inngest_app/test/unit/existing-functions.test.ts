@@ -18,14 +18,14 @@ import {
 import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
 
 // Mock зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -39,7 +39,7 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/replicate', () => ({
+vi.mock('../../core/replicate', () => ({
   replicate: {
     run: vi.fn(),
     models: {
@@ -48,14 +48,14 @@ vi.mock('@/core/replicate', () => ({
   },
 }))
 
-vi.mock('@/core/video-generator', () => ({
+vi.mock('../../core/video-generator', () => ({
   videoGenerator: {
     generate: vi.fn(),
     processVideo: vi.fn(),
   },
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -63,9 +63,9 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { generateAIReelsFunction } from '@/inngest_app/functions/existing/generateAIReelsFunction'
-import { generateAdvancedLoopingVideoFunction } from '@/inngest_app/functions/existing/generateAdvancedLoopingVideoFunction'
-import { generateModelTrainingFunction } from '@/inngest_app/functions/existing/generateModelTrainingFunction'
+import { generateAIReelsFunction } from '../../functions/existing/generateAIReelsFunction'
+import { generateAdvancedLoopingVideoFunction } from '../../functions/existing/generateAdvancedLoopingVideoFunction'
+import { generateModelTrainingFunction } from '../../functions/existing/generateModelTrainingFunction'
 
 describe('Existing Functions', () => {
   let mockStep: any

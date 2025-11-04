@@ -10,14 +10,14 @@ import { aiReelsCallbackData, callbackExpectedResults, callbackErrors } from '..
 import { setupInngestMocks, createMockLogger, expectSuccessResponse, expectFailureResponse } from '../utils/test-helpers'
 
 // Mock функций
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -31,12 +31,12 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/telegram', () => ({
+vi.mock('../../core/telegram', () => ({
   sendMessage: vi.fn(),
   sendVideo: vi.fn(),
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { aiReelsCallback } from '@/inngest_app/functions/ai-reels-callback'
+import { aiReelsCallback } from '../../functions/ai-reels-callback'
 
 describe('ai-reels-callback', () => {
   let mockStep: any

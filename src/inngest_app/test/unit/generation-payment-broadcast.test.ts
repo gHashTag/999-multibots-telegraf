@@ -26,14 +26,14 @@ import {
 import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
 
 // Mock зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -47,7 +47,7 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/replicate', () => ({
+vi.mock('../../core/replicate', () => ({
   replicate: {
     run: vi.fn(),
     models: {
@@ -56,7 +56,7 @@ vi.mock('@/core/replicate', () => ({
   },
 }))
 
-vi.mock('@/core/payment-service', () => ({
+vi.mock('../../core/payment-service', () => ({
   paymentService: {
     processStars: vi.fn(),
     processMoney: vi.fn(),
@@ -64,7 +64,7 @@ vi.mock('@/core/payment-service', () => ({
   },
 }))
 
-vi.mock('@/services/broadcast.service', () => ({
+vi.mock('../../services/broadcast.service', () => ({
   broadcastService: {
     sendMessage: vi.fn(),
     sendPhoto: vi.fn(),
@@ -72,13 +72,13 @@ vi.mock('@/services/broadcast.service', () => ({
   },
 }))
 
-vi.mock('@/core/ai-service', () => ({
+vi.mock('../../core/ai-service', () => ({
   aiService: {
     generateImage: vi.fn(),
   },
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -86,9 +86,9 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { neuroImageGeneration } from '@/inngest_app/functions/generation/neuroImageGeneration'
-import { paymentProcessing } from '@/inngest_app/functions/payments/paymentProcessing'
-import { broadcastMessage } from '@/inngest_app/functions/broadcast/broadcastMessage'
+import { neuroImageGeneration } from '../../functions/generation/neuroImageGeneration'
+import { paymentProcessing } from '../../functions/payments/paymentProcessing'
+import { broadcastMessage } from '../../functions/broadcast/broadcastMessage'
 
 describe('Generation, Payment, Broadcast Functions', () => {
   let mockStep: any

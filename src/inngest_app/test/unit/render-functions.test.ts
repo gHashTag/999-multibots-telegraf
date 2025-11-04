@@ -12,14 +12,14 @@ import { renderData, renderExpectedResults, renderErrors } from '../fixtures/ren
 import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
 
 // Mock зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -33,14 +33,14 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/render-client', () => ({
+vi.mock('../../core/render-client', () => ({
   renderClient: {
     render: vi.fn(),
     getRenderStatus: vi.fn(),
   },
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -48,9 +48,9 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { render } from '@/inngest_app/functions/render/render'
-import { renderAvatarVideo } from '@/inngest_app/functions/render/renderAvatarVideo'
-import { renderRiddle } from '@/inngest_app/functions/render/renderRiddle'
+import { render } from '../../functions/render/render'
+import { renderAvatarVideo } from '../../functions/render/renderAvatarVideo'
+import { renderRiddle } from '../../functions/render/renderRiddle'
 
 describe('Render Functions', () => {
   let mockStep: any

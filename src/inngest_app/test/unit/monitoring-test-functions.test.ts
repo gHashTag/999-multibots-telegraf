@@ -23,14 +23,14 @@ import {
 import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
 
 // Mock зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -44,25 +44,25 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/monitoring-service', () => ({
+vi.mock('../../core/monitoring-service', () => ({
   monitoringService: {
     checkSystemHealth: vi.fn(),
     getErrorLogs: vi.fn(),
   },
 }))
 
-vi.mock('@/core/log-service', () => ({
+vi.mock('../../core/log-service', () => ({
   logService: {
     fetchLogs: vi.fn(),
     filterLogs: vi.fn(),
   },
 }))
 
-vi.mock('@/core/telegram', () => ({
+vi.mock('../../core/telegram', () => ({
   sendMessage: vi.fn(),
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -71,11 +71,11 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { criticalErrorMonitor } from '@/inngest_app/functions/monitoring/criticalErrorMonitor'
-import { logMonitor } from '@/inngest_app/functions/monitoring/logMonitor'
-import { testSimpleFunction } from '@/inngest_app/functions/testSimpleFunction'
-import { testSimpleMessageFunction } from '@/inngest_app/functions/testSimpleMessageFunction'
-import { testAdvancedLoopFunction } from '@/inngest_app/functions/testAdvancedLoopFunction'
+import { criticalErrorMonitor } from '../../functions/monitoring/criticalErrorMonitor'
+import { logMonitor } from '../../functions/monitoring/logMonitor'
+import { testSimpleFunction } from '../../functions/testSimpleFunction'
+import { testSimpleMessageFunction } from '../../functions/testSimpleMessageFunction'
+import { testAdvancedLoopFunction } from '../../functions/testAdvancedLoopFunction'
 
 describe('Monitoring & Test Functions', () => {
   let mockStep: any
