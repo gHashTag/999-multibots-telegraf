@@ -28,7 +28,7 @@ RUN find src -name "__tests__" -type d -exec rm -rf {} + 2>/dev/null || true && 
 RUN (npx tsc --skipLibCheck --skipDefaultLibCheck --noEmitOnError false --project tsconfig.build.json || true) && npx tsc-alias --project tsconfig.build.json
 
 # Проверяем, что файлы сборки созданы
-RUN ls -la dist/ || echo "Директория dist не существует или пуста"
+RUN ls -la dist/ && echo "✅ Директория dist создана успешно" || echo "❌ Директория dist не существует или пуста"
 
 # Финальный этап
 FROM node:20-alpine
@@ -58,12 +58,11 @@ COPY package*.json ./
 # При установке пропускаем скрипт prepare, который запускает husky install
 RUN npm install --omit=dev --ignore-scripts --legacy-peer-deps
 
-# Копируем скомпилированные файлы из локальной директории dist/
-# dist/ находится в Docker build контексте
-COPY dist/ ./dist/
+# Копируем скомпилированные файлы из builder stage
+COPY --from=builder /app/dist ./dist/
 
 # Финальная проверка
-RUN ls -la dist/ || echo "⚠️  Директория dist не существует"
+RUN ls -la dist/ && echo "✅ Файлы из builder скопированы успешно" || echo "⚠️  Директория dist не существует"
 
 # Копируем .env файл (workflow создает его перед сборкой)
 COPY .env ./
