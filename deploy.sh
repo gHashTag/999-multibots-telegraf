@@ -105,9 +105,7 @@ deploy() {
         docker run -d \
           --name 999-multibots \
           --restart unless-stopped \
-          -p 3000:3000 \
-          -p 2999-3010:2999-3010 \
-          -p 4000:4000 \
+          --network host \
           999-agents-telegraf:latest
         echo 'Контейнер запущен'
     "
@@ -273,7 +271,7 @@ rollback() {
         docker run -d \
           --name $CONTAINER_NAME \
           --restart unless-stopped \
-          -p 2999-3010:2999-3010 \
+          --network host \
           999-agents-telegraf:latest
 
         sleep 20
