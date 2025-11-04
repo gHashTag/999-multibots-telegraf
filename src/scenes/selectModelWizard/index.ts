@@ -46,19 +46,29 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? '🤖 <b>Выбор модели ИИ</b>\n\n' +
-              'Здесь вы можете выбрать модель искусственного интеллекта для генерации контента.\n' +
-              'Каждая модель имеет свои особенности и специализацию:\n\n' +
-              '• <b>GPT-5</b> - последняя версия от OpenAI\n' +
-              '• <b>Club Code</b> - специализация на коде\n' +
-              '• <b>Claude</b> - для анализа и помощи\n\n' +
-              '💡 Выберите модель из списка ниже:'
+              'Эта модель будет использоваться во ВСЕХ функциях бота, где требуется искусственный интеллект:\n\n' +
+              '• Генерация текстов и статей\n' +
+              '• Анализ и обработка изображений\n' +
+              '• Создание контента для Reels\n' +
+              '• Обработка аудио и видео\n' +
+              '• Перевод и локализация\n\n' +
+              '<b>ТОП модели 2025:</b>\n' +
+              '• <b>GPT-4.5</b> - новейшая от OpenAI\n' +
+              '• <b>Claude 3.5 Sonnet</b> - от Anthropic\n' +
+              '• <b>Gemini 2.0 Flash</b> - от Google\n\n' +
+              '💡 Выберите модель, которая лучше всего подходит для ваших задач:'
           : '🤖 <b>Choose AI Model</b>\n\n' +
-              'Here you can select an AI model for content generation.\n' +
-              'Each model has its own features and specialization:\n\n' +
-              '• <b>GPT-5</b> - latest version from OpenAI\n' +
-              '• <b>Club Code</b> - specialization in code\n' +
-              '• <b>Claude</b> - for analysis and assistance\n\n' +
-              '💡 Select a model from the list below:',
+              'This model will be used in ALL bot functions that require artificial intelligence:\n\n' +
+              '• Text and article generation\n' +
+              '• Image analysis and processing\n' +
+              '• Reels content creation\n' +
+              '• Audio and video processing\n' +
+              '• Translation and localization\n\n' +
+              '<b>TOP models 2025:</b>\n' +
+              '• <b>GPT-4.5</b> - latest from OpenAI\n' +
+              '• <b>Claude 3.5 Sonnet</b> - from Anthropic\n' +
+              '• <b>Gemini 2.0 Flash</b> - from Google\n\n' +
+              '💡 Choose the model that best fits your tasks:',
         {
           parse_mode: 'HTML',
         }

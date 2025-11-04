@@ -17,79 +17,83 @@ enum ModelCategory {
   BASIC = 'базовые',
 }
 
-// Список популярных моделей с рейтингом (ТОП-10)
+// Список популярных моделей с рейтингом (ТОП-10) - Актуальные модели 2025
 const popularModels: ModelWithRating[] = [
   // OpenAI модели (приоритет)
   {
-    id: 'openai/gpt-5',
-    name: 'GPT-5',
+    id: 'openai/gpt-4.5',
+    name: 'GPT-4.5',
     rating: 100,
     provider: 'openai',
     category: ModelCategory.TOP,
   },
   {
-    id: 'openai/club-code',
-    name: 'Club Code',
+    id: 'openai/gpt-4.1-turbo',
+    name: 'GPT-4.1 Turbo',
     rating: 99,
-    provider: 'openai',
-    category: ModelCategory.TOP,
-  },
-  {
-    id: 'openai/gpt-4.1',
-    name: 'GPT-4.1',
-    rating: 98,
     provider: 'openai',
     category: ModelCategory.TOP,
   },
   {
     id: 'openai/gpt-4o',
     name: 'GPT-4o',
-    rating: 97,
+    rating: 98,
     provider: 'openai',
     category: ModelCategory.TOP,
   },
   {
     id: 'openai/gpt-4o-mini',
     name: 'GPT-4o Mini',
-    rating: 95,
+    rating: 96,
     provider: 'openai',
     category: ModelCategory.HIGH,
   },
 
-  // Другие провайдеры
+  // Anthropic модели
   {
-    id: 'anthropic/claude-opus-4',
-    name: 'Claude Opus 4',
-    rating: 94,
+    id: 'anthropic/claude-3-5-sonnet-latest',
+    name: 'Claude 3.5 Sonnet',
+    rating: 95,
     provider: 'anthropic',
     category: ModelCategory.HIGH,
   },
   {
-    id: 'google/gemini-2.5-pro-preview',
-    name: 'Gemini 2.5 Pro Preview',
+    id: 'anthropic/claude-3-5-haiku-latest',
+    name: 'Claude 3.5 Haiku',
     rating: 93,
+    provider: 'anthropic',
+    category: ModelCategory.HIGH,
+  },
+
+  // Google модели
+  {
+    id: 'google/gemini-2.0-flash-exp',
+    name: 'Gemini 2.0 Flash',
+    rating: 92,
     provider: 'google',
     category: ModelCategory.HIGH,
   },
   {
-    id: 'deepseek/deepseek-v3-0324:free',
-    name: 'DeepSeek V3 (Free)',
-    rating: 92,
-    provider: 'deepseek',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'meta-llama/llama-3.3-70b-instruct',
-    name: 'Llama 3.3 70B Instruct',
+    id: 'google/gemini-1.5-pro-latest',
+    name: 'Gemini 1.5 Pro',
     rating: 90,
-    provider: 'meta-llama',
+    provider: 'google',
+    category: ModelCategory.MEDIUM,
+  },
+
+  // Другие популярные
+  {
+    id: 'deepseek/deepseek-reasoner',
+    name: 'DeepSeek Reasoner',
+    rating: 88,
+    provider: 'deepseek',
     category: ModelCategory.MEDIUM,
   },
   {
-    id: 'mistralai/mistral-nemo',
-    name: 'Mistral Nemo',
+    id: 'meta-llama/llama-3.3-70b-versatile',
+    name: 'Llama 3.3 70B',
     rating: 85,
-    provider: 'mistralai',
+    provider: 'meta-llama',
     category: ModelCategory.MEDIUM,
   },
 ]
