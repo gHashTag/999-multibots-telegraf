@@ -129,7 +129,7 @@ deploy() {
           --name 999-multibots \
           --restart unless-stopped \
           --network host \
-          --env-file .env \
+          -v $PROJECT_PATH/.env:/app/.env:ro \
           999-agents-telegraf:latest
         echo 'Контейнер запущен'
     "
