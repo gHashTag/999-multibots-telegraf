@@ -17,20 +17,21 @@ enum ModelCategory {
   BASIC = 'базовые',
 }
 
-// Список популярных моделей с рейтингом
+// Список популярных моделей с рейтингом (ТОП-10)
 const popularModels: ModelWithRating[] = [
+  // OpenAI модели (приоритет)
   {
-    id: 'google/gemini-2.5-pro-preview',
-    name: 'Gemini 2.5 Pro Preview',
+    id: 'openai/gpt-5',
+    name: 'GPT-5',
     rating: 100,
-    provider: 'google',
+    provider: 'openai',
     category: ModelCategory.TOP,
   },
   {
-    id: 'anthropic/claude-opus-4',
-    name: 'Claude Opus 4',
+    id: 'openai/club-code',
+    name: 'Club Code',
     rating: 99,
-    provider: 'anthropic',
+    provider: 'openai',
     category: ModelCategory.TOP,
   },
   {
@@ -41,32 +42,55 @@ const popularModels: ModelWithRating[] = [
     category: ModelCategory.TOP,
   },
   {
+    id: 'openai/gpt-4o',
+    name: 'GPT-4o',
+    rating: 97,
+    provider: 'openai',
+    category: ModelCategory.TOP,
+  },
+  {
+    id: 'openai/gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    rating: 95,
+    provider: 'openai',
+    category: ModelCategory.HIGH,
+  },
+
+  // Другие провайдеры
+  {
+    id: 'anthropic/claude-opus-4',
+    name: 'Claude Opus 4',
+    rating: 94,
+    provider: 'anthropic',
+    category: ModelCategory.HIGH,
+  },
+  {
+    id: 'google/gemini-2.5-pro-preview',
+    name: 'Gemini 2.5 Pro Preview',
+    rating: 93,
+    provider: 'google',
+    category: ModelCategory.HIGH,
+  },
+  {
     id: 'deepseek/deepseek-v3-0324:free',
     name: 'DeepSeek V3 (Free)',
-    rating: 97,
+    rating: 92,
     provider: 'deepseek',
-    category: ModelCategory.TOP,
+    category: ModelCategory.HIGH,
   },
   {
     id: 'meta-llama/llama-3.3-70b-instruct',
     name: 'Llama 3.3 70B Instruct',
-    rating: 95,
+    rating: 90,
     provider: 'meta-llama',
-    category: ModelCategory.TOP,
+    category: ModelCategory.MEDIUM,
   },
   {
     id: 'mistralai/mistral-nemo',
     name: 'Mistral Nemo',
-    rating: 90,
-    provider: 'mistralai',
-    category: ModelCategory.HIGH,
-  },
-  {
-    id: 'nousresearch/hermes-3-llama-3.1-405b',
-    name: 'Hermes 3 Llama 3.1 405B',
     rating: 85,
-    provider: 'nousresearch',
-    category: ModelCategory.HIGH,
+    provider: 'mistralai',
+    category: ModelCategory.MEDIUM,
   },
 ]
 
