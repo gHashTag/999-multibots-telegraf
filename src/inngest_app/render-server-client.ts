@@ -241,6 +241,10 @@ export function createRenderAvatarPayload(
     }
   }
 
+  // ✅ ElevenLabs - ВСЕГДА используем НАШ ключ (для transcription нужны расширенные права)
+  // Клиентский ключ HeyGen не имеет разрешения speech_to_text
+  const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || ''
+
   logger.info('🎬 [RENDER PAYLOAD] Creating payload', {
     telegramId,
     avatarService: options?.avatarService || 'hedra',
@@ -250,11 +254,12 @@ export function createRenderAvatarPayload(
     hasHeygenApiKey: !!heygenApiKey,
     hasHeygenAvatarId: !!options?.heygenAvatarId,
     hasFalApiKey: !!options?.falApiKey,
+    elevenLabsKeyType: 'default (our key with full permissions)',
   })
 
   return {
     job_id: `telegram-${telegramId}-${Date.now()}`,
-    eleven_labs_api_key: process.env.ELEVENLABS_API_KEY || '',
+    eleven_labs_api_key: elevenLabsApiKey,
     kie_api_key: process.env.KIE_AI_API_KEY || '',
     cover_url: options?.coverUrl || '',
     intro_text_1: {

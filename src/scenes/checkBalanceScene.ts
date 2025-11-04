@@ -17,6 +17,8 @@ import { getUserDetailsSubscription } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // ✅ ДОБАВЛЯЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+// ✅ ДОБАВЛЯЕМ ADMIN_IDS ДЛЯ ПРОВЕРКИ АДМИНОВ
+import { ADMIN_IDS_ARRAY } from '@/config'
 // Интерфейс для возвращаемого значения
 export interface UserStatus {
   stars: number // Баланс
@@ -308,10 +310,7 @@ function getCostValue(cost: number | ((param?: any) => number)): number {
 // ==================================================================
 
 checkBalanceScene.enter(async ctx => {
-  logger.debug('🚀 [DEBUG] checkBalanceScene.enter STARTED!')
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  logger.debug('🚀 [DEBUG] telegramId:', telegramId)
-  logger.debug('🚀 [DEBUG] session.mode:', ctx.session?.mode)
 
   logger.info({
     message: '🚀 [CheckBalanceScene] Вход в сцену проверки баланса',
@@ -321,31 +320,35 @@ checkBalanceScene.enter(async ctx => {
     sessionData: JSON.stringify(ctx.session || {}),
   })
 
-  logger.debug('💵 CASE: checkBalanceScene')
-
   try {
-    // Шаг 1: Получаем ID и режим
-    logger.debug('🚀 [DEBUG] Step 1: Getting user info...')
+    // Get user ID and mode
     const { telegramId: userId } = await getUserInfo(ctx)
-    logger.debug('🚀 [DEBUG] Step 1 DONE, userId:', userId)
-
-    logger.debug('🚀 [DEBUG] Step 2: Getting mode...')
     const mode = ctx.session.mode as ModeEnum
-    logger.debug('🚀 [DEBUG] Step 2 DONE, mode:', mode)
-    logger.debug('🚀 [DEBUG] Step 2: mode typeof:', typeof mode)
-    logger.debug(
-      '🚀 [DEBUG] Step 2: ModeEnum.TextToVideo:',
-      ModeEnum.TextToVideo
-    )
-    logger.debug(
-      '🚀 [DEBUG] Step 2: mode === ModeEnum.TextToVideo:',
-      mode === ModeEnum.TextToVideo
-    )
+
+    // 👑 КРИТИЧЕСКАЯ ПРОВЕРКА АДМИНОВ - ПЕРЕД ВСЕМИ ДРУГИМИ ПРОВЕРКАМИ
+    const telegramIdNum = parseInt(userId, 10)
+    const isAdmin = ADMIN_IDS_ARRAY.includes(telegramIdNum)
+
+    logger.debug(`🚨 [CheckBalanceScene] CRITICAL: Checking admin status for ${userId}: ${isAdmin}`)
+
+    if (isAdmin) {
+      logger.debug(`✅ [CheckBalanceScene] GRANTING IMMEDIATE ACCESS TO ADMIN ${userId}`)
+      logger.info({
+        message: `[CheckBalanceScene] IMMEDIATE ACCESS: Admin ${userId} bypassing all checks`,
+        telegramId: userId,
+        function: 'checkBalanceScene.enter',
+        step: 'admin_immediate_access',
+        mode,
+      })
+      // Пропускаем ВСЕ проверки и идем прямо к целевой сцене
+      await enterTargetScene(ctx, async () => {}, mode, 0)
+      return
+    }
+
+    logger.debug(`ℹ️ [CheckBalanceScene] User ${userId} is not admin, proceeding with normal checks`)
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    logger.debug('🚀 [DEBUG] Step 3: Getting language...')
     const isRu = isRussianFromState(ctx)
-    logger.debug('🚀 [DEBUG] Step 3 DONE, isRu:', isRu)
 
     logger.info({
       message: `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
@@ -365,7 +368,7 @@ checkBalanceScene.enter(async ctx => {
       step: 'fetching_user_data',
     })
 
-    const userDetails = await getUserDetailsSubscription(telegramId)
+    let userDetails = await getUserDetailsSubscription(telegramId)
     logger.debug('🚀 [DEBUG] Step 4 DONE, userDetails:', {
       isExist: userDetails.isExist,
       isSubscriptionActive: userDetails.isSubscriptionActive,
@@ -386,24 +389,68 @@ checkBalanceScene.enter(async ctx => {
     // --- ШАГ 3: ПРОВЕРКА СУЩЕСТВОВАНИЯ ---
     if (!userDetails.isExist) {
       logger.warn({
-        message: `[CheckBalanceScene] Пользователь ${telegramId} не найден в БД. Перенаправление в StartScene.`,
+        message: `[CheckBalanceScene] Пользователь ${telegramId} не найден в БД. Автоматическое создание профиля.`,
         telegramId,
         function: 'checkBalanceScene.enter',
         step: 'user_not_found',
-        result: 'redirect_to_start',
+        result: 'auto_create_user',
       })
+
       await ctx.reply(
         isRu
-          ? '❌ Не удалось найти ваш профиль. Пожалуйста, перезапустите бота командой /start.'
-          : '❌ Could not find your profile. Please restart the bot with /start.'
+          ? '🔄 Создаю ваш профиль...'
+          : '🔄 Creating your profile...'
       )
-      // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
-      await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.StartScene) // Выход, если пользователь не существует
+
+      // Автоматически создаем пользователя
+      try {
+        const { createUserByTelegramId } = await import('@/core/supabase/getUserByTelegramId')
+        await createUserByTelegramId(ctx)
+
+        logger.info({
+          message: `[CheckBalanceScene] Пользователь ${telegramId} успешно создан. Повторная проверка данных.`,
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'user_created_recheck',
+        })
+
+        // Получаем обновленные данные пользователя
+        const userDetailsAfterCreate = await getUserDetailsSubscription(telegramId)
+
+        if (!userDetailsAfterCreate.isExist) {
+          throw new Error('User still not found after creation')
+        }
+
+        // Обновляем переменную для дальнейшего использования
+        userDetails = userDetailsAfterCreate
+      } catch (createError) {
+        logger.error({
+          message: `[CheckBalanceScene] Ошибка при автосоздании пользователя ${telegramId}. Перенаправление в StartScene.`,
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'user_auto_create_failed',
+          error: createError,
+        })
+
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось создать профиль. Пожалуйста, перезапустите бота командой /start.'
+            : '❌ Could not create profile. Please restart the bot with /start.'
+        )
+
+        await ctx.scene.leave()
+        return ctx.scene.enter(ModeEnum.StartScene)
+      }
     }
 
-    // Шаг 4: ПРОВЕРКА ПОДПИСКИ
-    if (!userDetails.isSubscriptionActive) {
+    // Шаг 4: ПРОВЕРКА ПОДПИСКИ (кроме платных функций без требования подписки)
+    // 🎙️ TextToSpeech доступен БЕЗ подписки за звезды
+    const modesWithoutSubscriptionRequired = [
+      ModeEnum.TextToSpeech,
+      // Можно добавить другие режимы, доступные за звезды без подписки
+    ]
+
+    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
       logger.warn({
         message: `[CheckBalanceScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`,
         telegramId,
@@ -418,12 +465,13 @@ checkBalanceScene.enter(async ctx => {
       return ctx.scene.enter(ModeEnum.StartScene)
     } else {
       logger.info({
-        message: `[CheckBalanceScene] Подписка активна для пользователя ${telegramId}. Тип: ${userDetails.subscriptionType}`,
+        message: `[CheckBalanceScene] Проверка подписки пройдена для режима ${mode}. ${userDetails.isSubscriptionActive ? `Тип подписки: ${userDetails.subscriptionType}` : 'Режим доступен без подписки'}`,
         telegramId,
         function: 'checkBalanceScene.enter',
         step: 'subscription_check_passed',
         subscriptionType: userDetails.subscriptionType,
         mode,
+        isSubscriptionRequired: !modesWithoutSubscriptionRequired.includes(mode),
       })
     }
 
@@ -444,7 +492,8 @@ checkBalanceScene.enter(async ctx => {
     })
 
     // Шаг 6: Показываем баланс и стоимость, если функция платная
-    if (costValue > 0) {
+    // Исключение для VideoTranscription - баланс показывается после транскрипции
+    if (costValue > 0 && mode !== ModeEnum.VideoTranscription) {
       logger.info({
         message: `[CheckBalanceScene] Отображение информации о балансе для платной функции`,
         telegramId,
@@ -603,7 +652,7 @@ export const enterTargetScene = async (
     cost
   )
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  logger.debug('🎯 [DEBUG] enterTargetScene telegramId:', telegramId)
+  // Enter target scene based on user details
 
   logger.info({
     message: `[EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим ${mode}`,
@@ -643,7 +692,14 @@ export const enterTargetScene = async (
     logger.debug(
       '🎯 [DEBUG] enterTargetScene: Step B - Checking subscription...'
     )
-    if (!userDetails.isSubscriptionActive) {
+
+    // 🎙️ Режимы, доступные БЕЗ подписки за звезды
+    const modesWithoutSubscriptionRequired = [
+      ModeEnum.TextToSpeech,
+      // Можно добавить другие режимы
+    ]
+
+    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
       logger.debug(
         '🎯 [DEBUG] enterTargetScene: Subscription not active, returning...'
       )
@@ -658,7 +714,7 @@ export const enterTargetScene = async (
       return
     }
     logger.debug(
-      '🎯 [DEBUG] enterTargetScene: Step B DONE - Subscription is active'
+      `🎯 [DEBUG] enterTargetScene: Step B DONE - Subscription check passed ${userDetails.isSubscriptionActive ? '(active)' : '(not required for this mode)'}`
     )
 
     logger.debug('🎯 [DEBUG] enterTargetScene: Step C - Checking balance...')
@@ -745,20 +801,20 @@ export const enterTargetScene = async (
       mode
     )
 
-    // Специальная логика для FluxKontext - направляем в флюкс-контекст сцену
+    // Специальная логика для FluxKontext - направляем в AI Photoshop сцену
     if (mode === ModeEnum.FluxKontext) {
       logger.debug(
-        '🎯 [DEBUG] enterTargetScene: FluxKontext mode detected, entering flux_kontext_scene'
+        '🎯 [DEBUG] enterTargetScene: FluxKontext mode (legacy) detected, entering ai_photoshop_scene'
       )
       logger.info({
-        message: `[EnterTargetSceneWrapper] FluxKontext режим - переход в flux_kontext_scene`,
+        message: `[EnterTargetSceneWrapper] FluxKontext режим (legacy) - переход в ai_photoshop_scene`,
         telegramId,
         mode,
         function: 'enterTargetSceneWrapper',
       })
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
-      await ctx.scene.enter('flux_kontext_scene')
+      await ctx.scene.enter('ai_photoshop_scene')
       return
     }
 

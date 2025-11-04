@@ -13,8 +13,8 @@ import {
 import { levels } from '@/menu/mainMenu'
 import path from 'path'
 import fs from 'fs'
-import { directPaymentProcessor } from '@/core/supabase/directPayment'
-import { PaidServiceEnum } from '@/interfaces/paidServices'
+import { updateUserBalance, getUserBalance } from '@/core/supabase'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
   'video_transcription',
@@ -139,46 +139,53 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      // Списываем стоимость транскрипции
+      // ✅ СПИСЫВАЕМ стоимость транскрипции (ОБНОВЛЕНО НА updateUserBalance)
       try {
         const costInStars = 3 // Стоимость транскрипции
-        const paymentResult = await directPaymentProcessor({
-          telegram_id: ctx.from.id.toString(),
-          amount: costInStars,
-          type: 'MONEY_OUTCOME',
-          description: 'Транскрибация видео',
-          bot_name: ctx.botInfo.username || 'clip_maker_neuro_bot',
-          service_type: PaidServiceEnum.VideoTranscription,
-          metadata: {
+        const charged = await updateUserBalance(
+          ctx.from.id.toString(),
+          costInStars,
+          PaymentType.MONEY_OUTCOME,
+          'Транскрибация видео',
+          {
+            service_type: 'VIDEO_TRANSCRIPTION',
             isFromUrl,
             videoUrl: isFromUrl ? videoUrl : undefined,
             textLength: transcriptionResult.text.length,
-          },
-        })
+          }
+        )
 
-        if (paymentResult.success) {
-          logger.info('[VideoTranscription] Payment processed successfully', {
+        if (charged) {
+          const newBalance = await getUserBalance(ctx.from.id.toString())
+
+          logger.info('✅ [VideoTranscription] Payment processed successfully', {
             telegramId: ctx.from.id,
             cost: costInStars,
-            newBalance: paymentResult.balanceChange?.after,
+            newBalance,
           })
 
           // Отправляем сообщение о стоимости и балансе
           await ctx.reply(
             isRu
-              ? `💰 Стоимость: ${costInStars} ⭐\nВаш баланс: ${paymentResult.balanceChange?.after || 0} ⭐`
-              : `💰 Cost: ${costInStars} ⭐\nYour balance: ${paymentResult.balanceChange?.after || 0} ⭐`
+              ? `💰 Стоимость: ${costInStars} ⭐\nВаш баланс: ${newBalance.toFixed(2)} ⭐`
+              : `💰 Cost: ${costInStars} ⭐\nYour balance: ${newBalance.toFixed(2)} ⭐`
           )
         } else {
-          logger.error('[VideoTranscription] Payment processing failed', {
+          logger.error('❌ [VideoTranscription] Payment processing failed - insufficient funds', {
             telegramId: ctx.from.id,
-            error: paymentResult.error,
+            cost: costInStars,
           })
+
+          await ctx.reply(
+            isRu
+              ? '❌ Недостаточно средств для транскрибации видео.'
+              : '❌ Insufficient funds for video transcription.'
+          )
         }
       } catch (paymentError) {
-        logger.error('[VideoTranscription] Error processing payment', {
+        logger.error('❌ [VideoTranscription] Error processing payment', {
           telegramId: ctx.from.id,
-          error: paymentError.message,
+          error: paymentError instanceof Error ? paymentError.message : String(paymentError),
         })
       }
 

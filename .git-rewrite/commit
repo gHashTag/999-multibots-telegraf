@@ -1,0 +1,6 @@
+tree 94805dc130929237280e0d51bfe29456817281d6
+parent df11fb67c4017044e54bdc70b03ea52a1575693f
+author Production Admin <admin@999-agents.com> 1757078295 +0000
+committer Production Admin <admin@999-agents.com> 1757078295 +0000
+
+fix: обновить bot-farm субмодуль до актуального состояния production ветки

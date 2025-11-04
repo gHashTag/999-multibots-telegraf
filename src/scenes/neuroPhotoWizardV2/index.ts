@@ -1,5 +1,5 @@
-import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/enhancedLogger'
+import { MyContext } from '@/interfaces'
 import { UserModel } from '../../interfaces'
 
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
@@ -10,6 +10,7 @@ import {
   getLatestUserModel,
   getReferalsCountAndUserData,
   getUserData,
+  supabase,
 } from '@/core/supabase'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
 import { getLatestUserModelForHaim } from '@/core/supabase/getLatestUserModelForHaim'
@@ -23,7 +24,6 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { Scenes } from 'telegraf'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
-import { handleMenu } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 // ✅ ЗАМЕНЯЕМ НА НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -39,7 +39,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     // ✅ CHECK FOR PENDING MULTI-PHOTO EVENTS
     const hasMultiPhotoEvent = await checkMultiPhotoEvents(ctx)
     if (hasMultiPhotoEvent) {
-      console.log('✅ Multi-photo event detected, handled')
+      logger.debug('✅ Multi-photo event detected, handled')
       return
     }
 
@@ -52,43 +52,65 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       `🤖 Определен бот V2: ${bot_name} для пользователя ${telegramId}`
     )
 
-    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
+    // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ВСЕХ БОТОВ - ИЩЕМ И BFL И REPLICATE МОДЕЛИ
     let userModel = null
 
+    logger.debug(`🔍 [V2] Ищем модель для бота: ${bot_name}, пользователь: ${telegramId}`)
+
+    // Сначала пробуем replicate модели (они более распространены)
+    logger.debug('🔄 Пробуем replicate модели...')
     if (bot_name === 'HaimGroupMedia_bot') {
-      logger.debug('🎯 Используем расширенную функцию V2 для HaimGroupMedia_bot')
       userModel = await getLatestUserModelForHaim(
         Number(telegramId),
-        'bfl',
+        'replicate',
         bot_name
       )
+    } else {
+      userModel = await getLatestUserModel(Number(telegramId), 'replicate')
+    }
 
-      // Если нет BFL модели, пробуем replicate
-      if (!userModel) {
-        logger.debug(
-          '🔄 BFL модель не найдена, пробуем replicate для HaimGroupMedia_bot'
-        )
+    // Если нет replicate модели, пробуем BFL
+    if (!userModel) {
+      logger.debug('🔄 Replicate модель не найдена, пробуем BFL')
+      if (bot_name === 'HaimGroupMedia_bot') {
         userModel = await getLatestUserModelForHaim(
           Number(telegramId),
-          'replicate',
+          'bfl',
           bot_name
         )
+      } else {
+        userModel = await getLatestUserModel(Number(telegramId), 'bfl')
       }
-    } else {
-      logger.debug('🔧 Используем стандартную функцию V2 для обычного бота')
-      // Сначала пробуем BFL модели
-      userModel = await getLatestUserModel(Number(telegramId), 'bfl')
     }
 
     logger.debug('userModel V2', userModel)
 
+    // 🔍 ДИАГНОСТИКА: Проверяем все модели пользователя для диагностики
+    try {
+      const { data: allModels, error: allModelsError } = await supabase
+        .from('model_trainings')
+        .select('id, api, status, model_name, bot_name, created_at')
+        .eq('telegram_id', telegramId)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (allModels && allModels.length > 0) {
+        logger.debug(`🔍 [DIAGNOSTIC] Найдено ${allModels.length} моделей для пользователя ${telegramId}:`, allModels)
+      } else {
+        logger.debug(`❌ [DIAGNOSTIC] Модели НЕ НАЙДЕНЫ для пользователя ${telegramId}`)
+      }
+    } catch (diagError) {
+      logger.error(`❌ [DIAGNOSTIC] Ошибка при получении всех моделей:`, diagError)
+    }
+
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
     if (!userModel) {
+      // Более детальное сообщение об ошибке с информацией о боте
       await ctx.reply(
         isRu
-          ? '❌ У вас нет обученных моделей.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото в вашим лицом. '
-          : "❌ You don't have any trained models.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face.",
+          ? `❌ У вас нет обученных моделей для этого бота (${bot_name}).\n\nВозможно, модели были созданы на другом боте или с другим API.\n\nИспользуйте команду "🤖 Цифровое тело аватара", чтобы создать новую модель.`
+          : `❌ You don't have any trained models for this bot (${bot_name}).\n\nPerhaps models were created on another bot or with different API.\n\nUse "🤖 Digital avatar body" to create a new model.`,
         {
           reply_markup: {
             keyboard: (
@@ -183,7 +205,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         const multiPhotoCount = ctx.session?.multiPhotoCount
 
         if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
-          console.log('🎨 Processing multi-image neurophoto series')
+          logger.debug('🎨 Processing multi-image neurophoto series')
           await generateNeuroPhotoMulti(
             fullPrompt,
             ctx.session.userModel.model_url as any,
@@ -200,7 +222,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           ctx.session.multiPhotoCount = undefined
           ctx.session.awaitingMultiPhotoConfirmation = false
         } else {
-          console.log('🎨 Processing single neurophoto')
+          logger.debug('🎨 Processing single neurophoto')
           await generateNeuroPhotoHybrid(
             fullPrompt,
             ctx.session.userModel.model_url as any,
@@ -255,11 +277,11 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
     if (text === levels[104].title_ru || text === levels[104].title_en) {
       logger.debug('CASE: Главное меню')
-      await handleMenu(ctx)
+      return
       return
     }
 
-    await handleMenu(ctx)
+    return
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])
@@ -300,7 +322,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       const multiPhotoCount = ctx.session?.multiPhotoCount
 
       if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
-        console.log(`🎨 Generating ${num} images for each of ${multiPhotoCount} input photos`)
+        logger.debug(`🎨 Generating ${num} images for each of ${multiPhotoCount} input photos`)
         await generateNeuroPhotoMulti(
           fullPrompt,
           ctx.session.userModel.model_url as any,
@@ -317,7 +339,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         ctx.session.multiPhotoCount = undefined
         ctx.session.awaitingMultiPhotoConfirmation = false
       } else {
-        console.log(`🎨 Generating ${num} single neurophoto(s)`)
+        logger.debug(`🎨 Generating ${num} single neurophoto(s)`)
         await generateNeuroPhotoHybrid(
           fullPrompt,
           ctx.session.userModel.model_url as any,

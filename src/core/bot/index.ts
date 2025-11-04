@@ -12,7 +12,7 @@ import { Telegraf, type Context, type Middleware } from 'telegraf'
 //   }
 // }
 
-import { NODE_ENV } from '@/config'
+import { NODE_ENV, isDev } from '@/config'
 import { MyContext, BotName } from '@/interfaces'
 import { logger } from '@/utils/enhancedLogger'
 import { toBotName } from '@/helpers/botName.helper'
@@ -81,7 +81,7 @@ export const BOT_URLS: Partial<Record<BotName, string>> = {
 }
 
 export const BOT_TOKENS =
-  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
+  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_PROD
 
 export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
 
@@ -99,9 +99,7 @@ export const bots: Record<BotName, Telegraf<MyContext>> = {} as any
 Object.entries(BOT_NAMES)
   .filter(([, token]) => token)
   .filter(([name, token]) => {
-    if (NODE_ENV === 'development') {
-      return BOT_TOKENS_TEST.includes(token)
-    }
+    // Исключаем тестовых ботов во всех режимах, кроме специально заданного
     return BOT_TOKENS_PROD.includes(token)
   })
   .forEach(([name, token]) => {
@@ -112,7 +110,7 @@ Object.entries(BOT_NAMES)
 logger.info('🌟 Инициализировано ботов:', {
   description: 'Bots initialized',
   count: Object.keys(bots).length,
-  bot_names: Object.keys(BOT_NAMES),
+  bot_names: Object.keys(bots),
 })
 
 export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1

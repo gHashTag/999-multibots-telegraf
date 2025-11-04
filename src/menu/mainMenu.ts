@@ -5,7 +5,7 @@ import { MyContext } from '../interfaces/telegram-bot.interface'
 import { SubscriptionType } from '../interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { getUserLanguage, isRussianWithUserChoice } from '@/helpers/language'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { getBotNameByToken } from '../core/bot'
 import { getGenerationStatusBadgeAsync } from '@/helpers/getGenerationLimitMessage'
 
@@ -428,9 +428,9 @@ export async function mainMenu({
     buttonRows.push(allFunctionalButtons.slice(i, i + 2))
   }
 
-  const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом (Подписка)
+  const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом
 
-  // Добавляем кнопки "Баланс" и "Пополнить баланс" для всех пользователей
+  // Создаем кнопки баланса, пополнения, приглашения
   const balanceButton = Markup.button.text(
     isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
   )
@@ -442,27 +442,35 @@ export async function mainMenu({
   )
 
   logger.debug(
-    `[mainMenu LOG] Adding balance and top-up buttons for subscription: ${currentSubscription}`
+    `[mainMenu LOG] Adding buttons for subscription: ${currentSubscription}`
   )
 
-  // Баланс и Пополнить идут в основные ряды для всех пользователей
-  buttonRows.push([balanceButton, topUpButton])
+  // 🎯 ПРАВИЛЬНЫЙ ПОРЯДОК (ПО ТРЕБОВАНИЮ ПОЛЬЗОВАТЕЛЯ):
+  // 1. Нейрофункции (уже в buttonRows)
+  // 2. Пригласить + Техподдержка
+  // 3. Язык
+  // 4. 💫 Оформить подписку + 💎 Пополнить баланс (САМЫЙ НИЗ!)
+  // 5. Баланс (если нужен)
 
-  // Пригласить и Поддержка идут в предпоследний ряд
-  bottomRowButtons.push([inviteButton, supportButton])
+  // Собираем все ряды с нейрофункциями
+  const finalKeyboard = [...buttonRows]
 
-  // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
-  bottomRowButtons.push([languageButton])
+  // Пригласить и Техподдержка
+  finalKeyboard.push([inviteButton, supportButton])
+
+  // ✅ Кнопка языка
+  finalKeyboard.push([languageButton])
+
+  // 📍 САМЫЙ НИЗ: Оформить подписку и Пополнить баланс
+  logger.debug(`[mainMenu LOG] Adding payment buttons at THE BOTTOM: ${subscribeButton.text}, ${topUpButton.text}`)
+  finalKeyboard.push([subscribeButton, topUpButton])
+
+  // 💰 Баланс отдельной строкой под оплатой
+  finalKeyboard.push([balanceButton])
+
   logger.debug(
-    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
+    `[mainMenu LOG] Final keyboard order: Neuro functions → Invite/Support → Language → Subscribe/TopUp (BOTTOM!) → Balance`
   )
-
-  // Собираем все ряды, КРОМЕ последнего (Подписка)
-  const finalKeyboard = [...buttonRows, ...bottomRowButtons]
-
-  // Добавляем кнопку "Оформить подписку" для ВСЕХ пользователей (включая STARS)
-  logger.debug(`[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`)
-  finalKeyboard.push([subscribeButton])
 
   logger.debug(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
   logger.debug(

@@ -1,5 +1,4 @@
-import { Scenes } from 'telegraf'
-import { logger } from '@/utils/enhancedLogger'
+import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createVoiceAvatar } from '@/services/plan_b/createVoiceAvatar'
 import { isRussian } from '@/helpers/language'
@@ -11,6 +10,7 @@ import {
 } from '@/price/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
+import { logger } from '@/utils/logger'
 
 export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
   'voice',
@@ -29,6 +29,19 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
 
+    // Проверяем команды отмены
+    if (message && 'text' in message) {
+      const text = message.text
+
+      if (text === '/menu' || text === '/cancel') {
+        await ctx.reply(
+          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+          { reply_markup: { remove_keyboard: true } }
+        )
+        return ctx.scene.enter('main_menu')
+      }
+    }
+
     if (
       !message ||
       !('voice' in message || 'audio' in message || 'text' in message)
@@ -43,7 +56,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
-      return ctx.scene.leave()
+      return ctx.scene.enter('main_menu')
     } else {
       const fileId =
         'voice' in message
@@ -57,7 +70,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
             ? 'Ошибка: не удалось получить идентификатор файла'
             : 'Error: could not retrieve file ID'
         )
-        return ctx.scene.leave()
+        return ctx.scene.enter('main_menu')
       }
 
       try {
@@ -99,17 +112,25 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.enter('veed_fabric_lipsync')
         }
 
-        // Если createVoiceAvatar выполнился успешно (не выбросил исключение),
-        // переходим в сцену text_to_speech вместо выхода из текущей сцены.
-        return ctx.scene.enter('text_to_speech')
+        // ✅ ИСПРАВЛЕНИЕ: Переходим в главное меню после создания голоса
+        await ctx.reply(
+          isRu
+            ? '✅ Голосовой аватар успешно создан!\n\n🎙️ Теперь вы можете использовать команду "🎙️ Текст в голос" или найти её в главном меню.'
+            : '✅ Voice avatar successfully created!\n\n🎙️ Now you can use the "🎙️ Text to speech" command or find it in the main menu.'
+        )
+        return ctx.scene.enter('main_menu')
       } catch (error) {
-        logger.error('Error in handleVoiceMessage (Plan B):', error)
+        logger.error('Error in handleVoiceMessage (Plan B):', { error: error.message || String(error) })
         await ctx.reply(
           isRu
             ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
             : '❌ An error occurred while creating the voice avatar. Please try again later.'
         )
+        // ✅ ИСПРАВЛЕНИЕ: Переходим в главное меню при ошибке
+        return ctx.scene.enter('main_menu')
       }
     }
   }
 )
+
+export default voiceAvatarWizard

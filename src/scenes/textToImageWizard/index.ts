@@ -4,18 +4,17 @@ import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,
 } from '@/price/helpers'
-// ✅ ИСПОЛЬЗУЕМ УЛУЧШЕННЫЙ LOGGER
 import { logger } from '@/utils/enhancedLogger'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserProfileAndSettings } from '@/db/userSettings'
-import { handleMenu } from '@/handlers/handleMenu'
 import { improvePromptWizard } from '../improvePromptWizard'
 import { sizeWizard } from '../sizeWizard'
 
@@ -23,10 +22,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',
   async ctx => {
     const isRu = isRussianFromState(ctx)
-    logger.info('[TextToImageWizard] Starting step 1', {
-      telegramId: ctx.from?.id,
-      step: 1,
-    })
+    logger.debug('CASE: text_to_image STEP 1', ctx.from?.id)
 
     if (!ctx.from?.id) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -41,10 +37,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
           (model.inputType.includes('text') &&
             model.inputType.includes('image')))
     )
-    logger.debug('[TextToImageWizard] Filtered models', {
-      telegramId: ctx.from?.id,
-      modelCount: filteredModels.length,
-    })
+    logger.debug('filteredModels', filteredModels)
     const modelButtons = filteredModels.map(model =>
       Markup.button.text(model.shortName)
     )
@@ -80,11 +73,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
-    logger.info('[TextToImageWizard] Starting step 2', {
-      telegramId: ctx.from?.id,
-      step: 2,
-      hasMessage: !!message,
-    })
+    logger.debug('CASE: text_to_image STEP 2', message)
 
     if (!message || !('text' in message)) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -92,9 +81,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!ctx.from?.id) {
-      logger.error('[TextToImageWizard] Telegram ID not found in step 2', {
-        step: 2,
-      })
+      logger.error('❌ Telegram ID не найден')
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -110,10 +97,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     )
 
     if (!selectedModelEntry) {
-      logger.error('[TextToImageWizard] Model not found', {
-        modelShortName,
-        telegramId: ctx.from?.id,
-      })
+      logger.error('Model not found:', modelShortName)
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -135,22 +119,20 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       isRu,
       ctx
     )
-    logger.debug('[TextToImageWizard] Price calculated', {
-      price,
-      telegramId: ctx.from?.id,
-    })
+    logger.debug('price', price)
 
     if (price === null) {
       return ctx.scene.leave()
     }
 
+    // Сохраняем цену в сессию для последующего списания
+    ctx.session.imageGenerationPrice = price
+
     try {
       await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
 
       if (!ctx.botInfo?.username) {
-        logger.error('[TextToImageWizard] Bot username not found', {
-          telegramId: ctx.from?.id,
-        })
+        logger.error('❌ Bot username не найден')
         await sendGenericErrorMessage(ctx, isRu)
         return ctx.scene.leave()
       }
@@ -179,10 +161,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next()
     } catch (error) {
-      logger.error('[TextToImageWizard] Error in step 2', {
-        error: error instanceof Error ? error.message : String(error),
-        telegramId: ctx.from?.id,
-      })
+      logger.error('Error generating image:', error)
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -190,10 +169,6 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
-    logger.info('[TextToImageWizard] Starting step 3', {
-      telegramId: ctx.from?.id,
-      step: 3,
-    })
 
     if (!message || !('text' in message)) {
       await sendGenericErrorMessage(ctx, isRu)
@@ -201,9 +176,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!ctx.from?.id) {
-      logger.error('[TextToImageWizard] Telegram ID not found in step 3', {
-        step: 3,
-      })
+      logger.error('❌ Telegram ID не найден')
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
@@ -258,6 +231,37 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         ctx
       )
 
+      // ✅ СПИСЫВАЕМ БАЛАНС после успешной генерации
+      const price = ctx.session.imageGenerationPrice || 0
+      if (price > 0) {
+        const charged = await updateUserBalance(
+          ctx.from.id.toString(),
+          price,
+          PaymentType.MONEY_OUTCOME,
+          `Image generation: ${ctx.session.selectedImageModel}`,
+          { service_type: 'TEXT_TO_IMAGE' }
+        )
+
+        if (!charged) {
+          logger.error('❌ Failed to charge user for image generation', {
+            telegram_id: ctx.from.id.toString(),
+            price,
+            model: ctx.session.selectedImageModel
+          })
+          await ctx.reply(
+            isRu
+              ? '⚠️ Изображение создано, но произошла ошибка при списании средств. Обратитесь в поддержку.'
+              : '⚠️ Image created, but there was an error charging your balance. Please contact support.'
+          )
+        } else {
+          logger.info('✅ Successfully charged user for image generation', {
+            telegram_id: ctx.from.id.toString(),
+            price,
+            model: ctx.session.selectedImageModel
+          })
+        }
+      }
+
       // Получаем текущий баланс ПОСЛЕ операции
       const currentBalance = await getUserBalance(ctx.from.id.toString())
 
@@ -303,7 +307,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     //     // TODO: Передать ID изображения или другую инфу в sizeWizard, если нужно
     //     return ctx.scene.enter(sizeWizard.id)
     //   } else if (text === (isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu')) {
-    //     await handleMenu(ctx, true) // Возвращаемся в главное меню
+    //     await УДАЛЁН(ctx, true) // Возвращаемся в главное меню
     //     return ctx.scene.leave()
     //   }
     // }

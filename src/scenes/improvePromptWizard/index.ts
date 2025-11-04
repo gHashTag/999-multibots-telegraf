@@ -107,7 +107,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
               isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again'
             ),
           ],
-          [Markup.button.text(isRu ? '❌ Отмена' : '❌ Cancel')],
+          [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
         ]).resize().reply_markup,
         parse_mode: 'MarkdownV2',
       }
@@ -382,7 +382,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                     isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again'
                   ),
                 ],
-                [Markup.button.text(isRu ? '❌ Отмена' : '❌ Cancel')],
+                [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
               ]).resize().reply_markup,
               parse_mode: 'MarkdownV2',
             }
@@ -390,7 +390,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           break
         }
 
-        case isRu ? '❌ Отмена' : '❌ Cancel': {
+        case isRu ? 'Отмена' : 'Cancel': {
           await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled')
           await ctx.scene.leave()
           return ctx.scene.enter(ModeEnum.MainMenu)

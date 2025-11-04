@@ -64,11 +64,10 @@ COPY --from=builder /app/dist ./dist/
 # Проверяем, что файлы сборки скопированы
 RUN ls -la dist/ || echo "Директория dist не существует или пуста"
 
-# Копируем .env файл (workflow создает его перед сборкой)
-COPY .env ./
-
-# Создаем пустой .env файл если его нет (для локальной разработки)
-RUN touch .env
+# Копируем .env файл если он существует (опциональная копия)
+# На production сервере .env уже есть и используется через docker run --env-file
+COPY .env.example .env.example
+RUN touch .env || true
 
 # Создаём директорию для скриптов
 RUN mkdir -p /app/scripts

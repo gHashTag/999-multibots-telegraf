@@ -275,7 +275,7 @@ export async function getTranslation({
             return {
               row: parseInt(key) > 100 ? 2 : 1, // Admin buttons on second row
               text: language_code === 'ru' ? level.title_ru : level.title_en,
-              // No callback_data - buttons will be handled by text in handleMenu/hearsHandlers
+              // No callback_data - buttons will be handled by text in УДАЛЁН/hearsHandlers
               subscription: subscriptionMap[parseInt(key)] || SubscriptionType.NEUROPHOTO,
               stars_price: 476,
               en_price: 15,

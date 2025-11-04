@@ -1,5 +1,5 @@
-import { Scenes } from 'telegraf'
 import { logger } from '@/utils/enhancedLogger'
+import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { getUserBalance, supabase } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
@@ -389,7 +389,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
             reply_markup: {
               keyboard: [
                 [
-                  isRu ? '❌ Отмена' : '❌ Cancel',
+                  isRu ? 'Отмена' : 'Cancel',
                   isRu ? '🏠 Главное меню' : '🏠 Main menu',
                 ],
               ],
@@ -424,7 +424,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
     const text = ctx.message.text
 
     // Отмена
-    if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+    if (text === (isRu ? 'Отмена' : 'Cancel')) {
       await ctx.reply(
         isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
         { reply_markup: { remove_keyboard: true } }

@@ -103,7 +103,7 @@ export function createSafeModelSelectionKeyboard(
     // Добавляем кнопку отмены
     keyboard.push([
       {
-        text: isRu ? '❌ Отмена' : '❌ Cancel',
+        text: isRu ? 'Отмена' : 'Cancel',
         callback_data: 'cancel_model_selection',
       },
     ])

@@ -1,67 +1,78 @@
-# 🚀 Команды для деплоя в production
+# 🚀 Единый скрипт деплоя на production
 
-## 1. Остановка текущих контейнеров
+## ⚡ ГЛАВНАЯ КОМАНДА (используйте только её!)
+
 ```bash
-docker-compose down
+./deploy.sh deploy
 ```
 
-## 2. Пересборка Docker образа без кэша
+Этот скрипт автоматически:
+1. ✅ **Бэкапит .env** - сохраняет токены перед обновлением
+2. ✅ **Обновляет код** - делает git pull из production ветки
+3. ✅ **Восстанавливает .env** - возвращает токены на место
+4. ✅ **Пересобирает Docker** - без кеша (--no-cache)
+5. ✅ **Перезапускает контейнеры** - с nginx reverse proxy
+6. ✅ **Создаёт снапшот** - для быстрого отката
+7. ✅ **Проверяет статус** - показывает результат
+
+## 🔧 Другие команды
+
+### Проверить статус
 ```bash
-docker-compose build --no-cache
+./deploy.sh status
 ```
 
-## 3. Запуск контейнеров
+### Посмотреть логи
 ```bash
-docker-compose up -d
+./deploy.sh logs [количество_строк]
+# Пример:
+./deploy.sh logs 50
 ```
 
-## 4. Проверка статуса
+### Откатиться к снапшоту
 ```bash
-docker-compose ps
-docker-compose logs app
+./deploy.sh list  # Посмотреть доступные снапшоты
+./deploy.sh rollback prod-stable-20251104_130530
 ```
 
-## 5. Проверка healthcheck
+### Помощь
 ```bash
-curl http://localhost:2999/health
+./deploy.sh help
 ```
 
-## Альтернативный способ (если используется Docker directly):
-```bash
-# Сборка без кэша
-docker build --no-cache -t neuro-blogger-telegram-bot .
+## 🔒 Защита токенов
 
-# Остановка старого контейнера
-docker stop 999-multibots 2>/dev/null || true
-docker rm 999-multibots 2>/dev/null || true
+**ВАЖНО:** Файл `.env` больше НЕ в git! Он только на сервере.
 
-# Запуск нового контейнера
-docker run -d \
-  --name 999-multibots \
-  --restart unless-stopped \
-  --network app-network \
-  -p 2999:2999 \
-  -p 3000:3000 \
-  -p 3001:3001 \
-  -p 3002:3002 \
-  -p 3003:3003 \
-  -p 3004:3004 \
-  -p 3005:3005 \
-  -p 3006:3006 \
-  -p 3007:3007 \
-  -p 3008:3008 \
-  -p 3009:3009 \
-  -p 3010:3010 \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /etc/nginx:/etc/nginx \
-  -v /etc/pki:/etc/pki \
-  -v files-volume:/etc/nginx/html/files \
-  --env-file .env \
-  neuro-blogger-telegram-bot
-```
+- ✅ При деплое токены **автоматически сохраняются** и восстанавливаются
+- ✅ Файл `.env.backup` создаётся при каждом деплое
+- ✅ Токены больше **никогда не теряются**
 
-## Проверка тега:
-```bash
-git tag -l | grep fix-buttons-27-27-working
-git log --oneline --decorate | head -5
-```
+## 📦 Снапшоты
+
+- Автоматически создаются при каждом деплое
+- Хранятся последние **5 снапшотов**
+- Старые снапшоты автоматически удаляются
+- Используйте для быстрого отката в случае проблем
+
+## ❌ НЕ ИСПОЛЬЗУЙТЕ старые команды:
+
+~~docker-compose up/down~~ ❌
+~~docker build~~ ❌
+~~git pull на сервере вручную~~ ❌
+
+**Используйте только `./deploy.sh deploy`** ✅
+
+## 🎯 Workflow
+
+1. Делайте изменения в коде локально
+2. Коммитите и пушите в `production` ветку
+3. Запускайте `./deploy.sh deploy`
+4. Готово! 🎉
+
+---
+
+**Сервер:** 212.86.115.30
+**Проект:** /root/bot-farm
+**Контейнер:** 999-multibots
+**SSH ключ:** ~/.ssh/zomro

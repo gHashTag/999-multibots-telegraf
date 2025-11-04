@@ -1,6 +1,6 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { handleMenu } from '@/handlers'
+// УДАЛЁН УДАЛЁН - используется setupHearsHandlers
 import { getTranslation, getUserDetailsSubscription } from '@/core/supabase'
 import { isRussian } from '@/helpers'
 import { ModeEnum } from '@/interfaces/modes'
@@ -418,11 +418,11 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         return // Остаемся в сцене подписки
       }
 
-      // ✅ ОБРАБОТКА ДРУГИХ ТЕКСТОВЫХ КОМАНД через handleMenu
-      handleMenu(ctx)
+      // ✅ ОБРАБОТКА ДРУГИХ ТЕКСТОВЫХ КОМАНД - УДАЛЁН УДАЛЁН
+      // Все кнопки обрабатываются глобальными обработчиками
       return ctx.scene.leave()
     } else {
-      handleMenu(ctx)
+      // УДАЛЁН УДАЛЁН - используется setupHearsHandlers
       return ctx.scene.leave()
     }
   }

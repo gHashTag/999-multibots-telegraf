@@ -2,7 +2,7 @@ import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
-import { logger } from '@/utils/logger'
+import { logger } from '@/utils/enhancedLogger'
 import { ModeEnum } from '@/interfaces/modes'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
@@ -872,7 +872,7 @@ const createMarvelPromptByGender = (
 
   if (!heroPrompt) {
     // 🔥 CRITICAL ERROR: Герой в списке, но промпта нет!
-    console.error(
+    logger.error(
       `🚨 [HERO VALIDATION ERROR] Hero "${heroName}" is in heroes list but has NO prompt!`,
       {
         heroName,
@@ -889,7 +889,7 @@ const createMarvelPromptByGender = (
   }
 
   // ✅ Промпт найден
-  console.log(`✅ [HERO VALIDATION] Hero "${heroName}" has valid prompt`, {
+  logger.debug(`✅ [HERO VALIDATION] Hero "${heroName}" has valid prompt`, {
     heroName,
     gender,
     promptLength: heroPrompt.length,
@@ -1119,7 +1119,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style',
           ],
           [
-            isRu ? '❌ Отмена' : '❌ Cancel',
+            isRu ? 'Отмена' : 'Cancel',
             isRu ? '🏠 Главное меню' : '🏠 Main menu',
           ],
         ]).resize().reply_markup,
@@ -1169,7 +1169,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Отмена
-    if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+    if (text === (isRu ? 'Отмена' : 'Cancel')) {
       await ctx.reply(
         isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
         { reply_markup: { remove_keyboard: true } }
@@ -1219,7 +1219,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
           ],
           [
-            isRu ? '❌ Отмена' : '❌ Cancel',
+            isRu ? 'Отмена' : 'Cancel',
             isRu ? '🔙 Назад' : '🔙 Back',
           ],
         ]).resize().reply_markup,
@@ -1259,7 +1259,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Отмена
-    if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+    if (text === (isRu ? 'Отмена' : 'Cancel')) {
       await ctx.reply(
         isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
         { reply_markup: { remove_keyboard: true } }
@@ -2371,7 +2371,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // 🌟 Используем выбранную модель для трансформации
       const selectedModel = ctx.session.selectedModel || 'flux-kontext' // По умолчанию FLUX Kontext
 
-      console.log(
+      logger.debug(
         '🔥🔥🔥 [AvatarTransformScene] BEFORE CALLING AI MODEL 🔥🔥🔥',
         {
           telegramId,
@@ -2404,7 +2404,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             ? ['nano-banana', 'flux-kontext', 'seedream4']
             : ['flux-kontext', 'seedream4', 'nano-banana']
 
-      console.log('🎯 Starting AI generation with fallback logic:', {
+      logger.debug('🎯 Starting AI generation with fallback logic:', {
         telegramId,
         selectedModel,
         modelPriority,
@@ -2415,12 +2415,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
         try {
           attemptedModels.push(modelToTry)
-          console.log(`🤖 Attempting generation with ${modelToTry}...`, {
+          logger.debug(`🤖 Attempting generation with ${modelToTry}...`, {
             telegramId,
           })
 
           if (modelToTry === 'seedream4') {
-            console.log('🎭 Using SeeDream-4...', { telegramId })
+            logger.debug('🎭 Using SeeDream-4...', { telegramId })
             const seedreamResult = await generateSeeDream4({
               telegram_id: telegramId,
               prompt: prompt,
@@ -2435,13 +2435,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
             if (seedreamResult?.image) {
               result = 'success'
-              console.log('✅ SeeDream-4 generation successful!', {
+              logger.debug('✅ SeeDream-4 generation successful!', {
                 telegramId,
               })
               break
             }
           } else if (modelToTry === 'nano-banana') {
-            console.log('🍌 Using Nano Banana...', { telegramId })
+            logger.debug('🍌 Using Nano Banana...', { telegramId })
             const nanoBananaResult = await generateNanoBanana({
               telegram_id: telegramId,
               promptText: prompt,
@@ -2455,13 +2455,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
             if (nanoBananaResult) {
               result = 'success'
-              console.log('✅ Nano Banana generation successful!', {
+              logger.debug('✅ Nano Banana generation successful!', {
                 telegramId,
               })
               break
             }
           } else if (modelToTry === 'flux-kontext') {
-            console.log('🤖 Using FLUX Kontext Max...', { telegramId })
+            logger.debug('🤖 Using FLUX Kontext Max...', { telegramId })
 
             try {
               // Try new FLUX Kontext Max service first
@@ -2478,13 +2478,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
               if (fluxMaxResult?.image) {
                 result = 'success'
-                console.log('✅ FLUX Kontext Max generation successful!', {
+                logger.debug('✅ FLUX Kontext Max generation successful!', {
                   telegramId,
                 })
                 break
               }
             } catch (fluxMaxError) {
-              console.log('⚠️ FLUX Kontext Max failed, trying legacy FLUX...', {
+              logger.debug('⚠️ FLUX Kontext Max failed, trying legacy FLUX...', {
                 telegramId,
               })
 
@@ -2502,7 +2502,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
               if (fluxLegacyResult?.image) {
                 result = 'success'
-                console.log('✅ Legacy FLUX Kontext generation successful!', {
+                logger.debug('✅ Legacy FLUX Kontext generation successful!', {
                   telegramId,
                 })
                 break
@@ -2510,7 +2510,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             }
           }
         } catch (modelError) {
-          console.error(`❌ ${modelToTry} generation failed:`, {
+          logger.error(`❌ ${modelToTry} generation failed:`, {
             telegramId,
             modelError:
               modelError instanceof Error ? modelError.message : 'Unknown',
@@ -2535,7 +2535,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       // If all models failed
       if (!result) {
-        console.error('🚨 ALL AI MODELS FAILED!', {
+        logger.error('🚨 ALL AI MODELS FAILED!', {
           telegramId,
           attemptedModels,
           selectedModel,
@@ -2558,7 +2558,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      console.log(
+      logger.debug(
         '🎯🎯🎯 [AvatarTransformScene] AFTER AI MODEL GENERATION 🎯🎯🎯',
         {
           telegramId,
