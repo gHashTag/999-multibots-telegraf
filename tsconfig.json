@@ -62,6 +62,7 @@
     "src/__tests__/**/*",
     "src/**/*.test.ts",
     "src/**/__tests__/**",
-    "src/models/zot/tests/**/*"
+    "src/models/zot/tests/**/*",
+    "src/inngest_app/**/*"
   ]
 }
