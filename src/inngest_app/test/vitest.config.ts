@@ -4,6 +4,15 @@ import { defineConfig } from 'vitest/config'
 import path from 'path'
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, '../../../src'),
+      '@/inngest_app': path.resolve(__dirname, '..'),
+      '@/utils': path.resolve(__dirname, '../../../src/utils'),
+      '@/core': path.resolve(__dirname, '../../../src/core'),
+      '@/helpers': path.resolve(__dirname, '../../../src/helpers'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
@@ -30,7 +39,7 @@ export default defineConfig({
         },
       },
     },
-    include: ['test/**/*.test.ts'],
+    include: ['**/*.test.ts'],
     testTimeout: 30000,
     hookTimeout: 10000,
     cache: false,
