@@ -18,11 +18,12 @@ import { logger } from '@/utils/logger'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
-import {
-  sendRenderAvatarVideoEvent,
-  checkRenderServerAvailability,
-  createRenderAvatarPayload,
-} from '@/inngest_app/render-server-client'
+// ВРЕМЕННО ОТКЛЮЧЕНО: inngest_app удалён
+// import {
+//   sendRenderAvatarVideoEvent,
+//   checkRenderServerAvailability,
+//   createRenderAvatarPayload,
+// } from '@/inngest_app/render-server-client'
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
 import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
 
@@ -50,7 +51,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Проверяем доступность render-server
-    const isAvailable = await checkRenderServerAvailability()
+    // ВРЕМЕННО: inngest отключён
+    const isAvailable = false // await checkRenderServerAvailability()
 
     if (!isAvailable) {
       await ctx.reply(
@@ -1290,30 +1292,30 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         fromSession: true,
       })
 
-      // Создание payload с ПРАВИЛЬНЫМ voice_id (HeyGen default или user) и NEW API STRUCTURE
+      // ВРЕМЕННО: inngest отключён
+      const payload: any = {} // Заглушка
+      /*
       const payload = createRenderAvatarPayload(
         telegramId,
         ctx.session.aiReelsRender.text || '',
         ctx.session.aiReelsRender.imageUrl || '',
-        voiceIdToUse, // ✅ Используем дефолтный voice_id для HeyGen или user voice_id для Hedra
+        voiceIdToUse,
         {
           coverUrl:
             ctx.session.aiReelsRender.coverUrl ||
-            'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg', // ✅ Используем обложку от пользователя или дефолтную
+            'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
           introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
           introText2: ctx.session.aiReelsRender.introText2 || 'News',
-          // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId, heygenAvatarSet - используем из сессии!
           avatarService,
           heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
           heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
           heygenAvatarSet: avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenAvatarSet : undefined,
-          // ✅ FAL support
           falApiKey: avatarService === 'fal' ? ctx.session.aiReelsRender.falApiKey : undefined,
           falResolution: avatarService === 'fal' ? ctx.session.aiReelsRender.falResolution : undefined,
-          // ✅ Передаем имя бота для правильной отправки видео через callback
           botName: ctx.botInfo?.username || 'MetaMuse_Manifest_bot',
         }
       )
+      */
       // ✅ ВАЛИДАЦИЯ: Проверяем что токен ElevenLabs есть
       const elevenLabsToken = process.env.ELEVENLABS_API_KEY
       if (!elevenLabsToken) {
@@ -1481,7 +1483,9 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         console.log(
           '🔴 [STEP 6] About to call sendRenderAvatarVideoEvent()...'
         )
-        const { eventId } = await sendRenderAvatarVideoEvent(payload)
+        // ВРЕМЕННО: inngest отключён
+        const eventId = 'disabled_' + Date.now()
+        // const { eventId } = await sendRenderAvatarVideoEvent(payload)
         console.log('🔴 [STEP 6] Event sent! Event ID:', eventId)
 
         console.log('🔴 [STEP 6] Sending success reply to user...')

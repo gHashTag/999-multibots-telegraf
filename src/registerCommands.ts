@@ -194,10 +194,13 @@ scenesToRegister.forEach((scene, index) => {
   if (!isValid || scene === undefined || scene === null) {
     console.error(`❌❌❌ [SCENE ${index}] CRITICAL: ${sceneNames[index]} is invalid/undefined!`)
     console.error(`   - Variable name: ${sceneNames[index]}`)
-    console.error(`   - Actual value: ${scene}`)
+    console.error(`   - Actual value:`, JSON.stringify(scene, null, 2))
     console.error(`   - Type: ${typeof scene}`)
     console.error(`   - Has ID: ${hasId}`)
     console.error(`   - Has middleware: ${hasMiddleware}`)
+    console.error(`   - Keys:`, Object.keys(scene || {}))
+    // ОСТАНОВКА ВЫПОЛНЕНИЯ
+    throw new Error(`CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`)
   }
 })
 
