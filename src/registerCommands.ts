@@ -265,7 +265,58 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       return next()
     })
 
-    // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
+    // 3. ГЛОБАЛЬНЫЙ ПЕРЕХВАТЧИК для кнопок навигации (ДО stage.middleware)
+    // Это позволяет выйти из любой сцены через "🏠 Главное меню" или "❌ Отмена"
+    bot.use(async (ctx, next) => {
+      if (ctx.message && 'text' in ctx.message) {
+        const text = ctx.message.text
+        const isRu = ctx.from?.language_code === 'ru'
+
+        // Глобальная кнопка "Главное меню" - работает ВЕЗДЕ
+        if (text === '🏠 Главное меню' || text === '🏠 Main menu') {
+          logger.info('🔥 [GLOBAL INTERCEPTOR] Main Menu pressed', {
+            telegramId: ctx.from?.id,
+            currentScene: ctx.scene?.current?.id
+          })
+          try {
+            await ctx.scene.leave()
+            await ctx.scene.enter(ModeEnum.MainMenu)
+            return // Останавливаем дальнейшую обработку
+          } catch (error) {
+            logger.error('❌ [GLOBAL INTERCEPTOR] Error leaving scene:', {
+              error,
+              telegramId: ctx.from?.id
+            })
+          }
+        }
+
+        // Глобальная кнопка "Отмена" - работает ВЕЗДЕ
+        if (text === '❌ Отмена' || text === '❌ Cancel') {
+          logger.info('🔥 [GLOBAL INTERCEPTOR] Cancel pressed', {
+            telegramId: ctx.from?.id,
+            currentScene: ctx.scene?.current?.id
+          })
+          try {
+            await ctx.reply(
+              isRu ? '❌ Операция отменена' : '❌ Operation cancelled',
+              { reply_markup: { remove_keyboard: true } }
+            )
+            await ctx.scene.leave()
+            await ctx.scene.enter(ModeEnum.MainMenu)
+            return // Останавливаем дальнейшую обработку
+          } catch (error) {
+            logger.error('❌ [GLOBAL INTERCEPTOR] Error cancelling:', {
+              error,
+              telegramId: ctx.from?.id
+            })
+          }
+        }
+      }
+
+      return next()
+    })
+
+    // 4. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
     bot.use(stage.middleware())
 
     // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ
