@@ -1,27 +1,13 @@
 /**
- * Database Validation for Instagram Module
- * Заглушки для валидации базы данных Instagram
+ * Database Validation Stubs
  */
 
-/**
- * Валидирует проект в рамках шага Inngest
- */
-export async function validateProjectInStep(projectId: string): Promise<any> {
-  // Заглушка для валидации проекта
-  console.log(`Validating project: ${projectId}`)
-  return { valid: true, projectId }
+export async function validateProjectInStep(step: any, projectId: string) {
+  console.log('[DB Validation Stub] validateProjectInStep', projectId);
+  return { valid: true };
 }
 
-/**
- * Проверяет существование таблицы проектов и создает её если необходимо
- */
-export async function ensureProjectsTableExists(): Promise<any> {
-  // Заглушка для проверки таблицы проектов
-  console.log('Ensuring projects table exists')
-  return { created: true }
-}
-
-export default {
-  validateProjectInStep,
-  ensureProjectsTableExists,
+export async function ensureProjectsTableExists() {
+  console.log('[DB Validation Stub] ensureProjectsTableExists');
+  return { exists: true };
 }

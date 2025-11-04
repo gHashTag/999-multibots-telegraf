@@ -1,78 +1,102 @@
 /**
- * KieAI Service
- * Заглушка для сервиса KieAI
+ * KieAI Service Stub
+ * Заглушка для функциональности KieAI (генерация видео)
  */
 
-export interface KieAITask {
-  id: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  result_url?: string
+export interface KieVideoRequest {
+  prompt: string
+  seeds: number
+  jobId?: string
+  apiKey?: string
+  brollPromptId?: string
+  model?: string
+  aspectRatio?: string
+}
+
+export interface KieVideoResponse {
+  taskId: string
+  status: string
+}
+
+export interface KieVideoStatus {
+  status: 'processing' | 'success' | 'failed'
+  video_urls?: string[]
   error?: string
 }
 
-export interface KieAIRequest {
-  prompt: string
-  type: 'video' | 'image' | 'audio'
-  params?: Record<string, any>
-}
-
-/**
- * Класс для работы с KieAI API
- */
 export class KieAIService {
   private apiKey: string
+  private supabase?: any
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, supabase?: any) {
     this.apiKey = apiKey
+    this.supabase = supabase
+    console.log('[KIE AI STUB] Service initialized (stub mode)')
   }
 
-  /**
-   * Создает задачу генерации
-   */
-  async createTask(request: KieAIRequest): Promise<string> {
-    console.log(`Creating KieAI task: ${request.type}`)
-    return `kieai-task-${Date.now()}`
-  }
+  async createVideo(request: KieVideoRequest): Promise<KieVideoResponse> {
+    console.log('[KIE AI STUB] Creating video', {
+      prompt: request.prompt.substring(0, 50),
+      seeds: request.seeds,
+      model: request.model,
+      aspectRatio: request.aspectRatio
+    })
 
-  /**
-   * Получает статус задачи
-   */
-  async getTaskStatus(taskId: string): Promise<KieAITask> {
-    console.log(`Getting KieAI task status: ${taskId}`)
+    const taskId = `kie_${Date.now()}_${Math.random().toString(36).substring(7)}`
+
+    // If supabase is provided, save to database
+    if (this.supabase && request.jobId && request.brollPromptId) {
+      await this.supabase
+        .from('kie_veo3_videos')
+        .insert({
+          job_id: request.jobId,
+          broll_prompt_id: request.brollPromptId,
+          task_id: taskId,
+          prompt: request.prompt,
+          seeds: request.seeds,
+          status: 'processing'
+        })
+        .catch((err: any) => {
+          console.error('[KIE AI STUB] Failed to save to database:', err)
+        })
+    }
+
     return {
-      id: taskId,
-      status: 'completed',
-      result_url: 'https://example.com/result.mp4',
+      taskId,
+      status: 'processing'
     }
   }
 
-  /**
-   * Ждет завершения задачи
-   */
-  async waitForTask(taskId: string, maxWaitTime: number = 300000): Promise<KieAITask> {
-    console.log(`Waiting for KieAI task: ${taskId}`)
+  async checkStatus(taskId: string): Promise<KieVideoStatus> {
+    console.log(`[KIE AI STUB] Checking status: ${taskId}`)
+
     return {
-      id: taskId,
-      status: 'completed',
-      result_url: 'https://example.com/result.mp4',
+      status: 'success',
+      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`]
     }
   }
 
-  /**
-   * Генерирует видео
-   */
-  async generateVideo(prompt: string): Promise<string> {
-    console.log(`Generating video with prompt: ${prompt.substring(0, 50)}...`)
-    return this.createTask({ prompt, type: 'video' })
+  async waitForCompletion(
+    taskId: string,
+    maxWaitMs: number = 300000,
+    pollIntervalMs: number = 5000
+  ): Promise<KieVideoStatus> {
+    console.log(`[KIE AI STUB] Waiting for completion: ${taskId}`)
+
+    // Stub: return success immediately
+    return {
+      status: 'success',
+      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`]
+    }
   }
 
-  /**
-   * Генерирует изображение
-   */
-  async generateImage(prompt: string): Promise<string> {
-    console.log(`Generating image with prompt: ${prompt.substring(0, 50)}...`)
-    return this.createTask({ prompt, type: 'image' })
+  async getVideo(taskId: string): Promise<any> {
+    console.log(`[KIE AI STUB] Getting video: ${taskId}`)
+
+    return {
+      task_id: taskId,
+      status: 'success',
+      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`]
+    }
   }
 }
-
-export default KieAIService

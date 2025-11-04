@@ -5,33 +5,33 @@
  */
 
 // Content Functions
-export { analyzeCompetitorReelsFunction } from './content/analyzeCompetitorReels'
-export { extractTopContentFunction } from './content/extractTopContent'
-export { findCompetitorsFunction } from './content/findCompetitors'
-export { generateContentScriptsFunction } from './content/generateContentScripts'
-export { generateDetailedScriptFunction } from './content/generateDetailedScript'
-export { generateScenarioClipsFunction } from './content/generateScenarioClips'
+export { analyzeCompetitorReels as analyzeCompetitorReelsFunction } from './content/analyzeCompetitorReels'
+export { extractTopContent as extractTopContentFunction } from './content/extractTopContent'
+export { findCompetitors as findCompetitorsFunction } from './content/findCompetitors'
+export { generateContentScripts as generateContentScriptsFunction } from './content/generateContentScripts'
+export { generateDetailedScript as generateDetailedScriptFunction } from './content/generateDetailedScript'
+export { generateScenarioClips as generateScenarioClipsFunction } from './content/generateScenarioClips'
 
 // Instagram Functions
-export { instagramScraperV2Function } from './instagram/instagramScraper-v2'
-export { instagramScraperV2SimpleFunction } from './instagram/instagramScraper-v2-simple'
+export { instagramScraperV2 as instagramScraperV2Function } from './instagram/instagramScraper-v2'
+export { instagramReelsTest as instagramScraperV2SimpleFunction } from './instagram/instagramScraper-v2-simple'
 
 // Monitoring Functions
-export { criticalErrorMonitorFunction } from './monitoring/criticalErrorMonitor'
-export { logMonitorFunction } from './monitoring/logMonitor'
+export { criticalErrorMonitor as criticalErrorMonitorFunction } from './monitoring/criticalErrorMonitor'
+export { logMonitor as logMonitorFunction } from './monitoring/logMonitor'
 
 // Training Functions
-export { modelTrainingV2Function } from './training/modelTrainingV2'
-export { morphImagesFunction } from './training/morphImages'
+export { modelTrainingV2 as modelTrainingV2Function } from './training/modelTrainingV2'
+export { morphImages as morphImagesFunction } from './training/morphImages'
 
 // Generation Functions
-export { neuroImageGenerationFunction } from './generation/neuroImageGeneration'
+export { neuroImageGeneration as neuroImageGenerationFunction } from './generation/neuroImageGeneration'
 
 // Payment Functions
-export { paymentProcessingFunction } from './payments/paymentProcessing'
+export { processPayment as paymentProcessingFunction } from './payments/paymentProcessing'
 
 // Broadcast Functions
-export { broadcastMessageFunction } from './broadcast/broadcastMessage'
+export { broadcastMessage as broadcastMessageFunction } from './broadcast/broadcastMessage'
 
 // Callback Functions
 export { aiReelsCallbackFunction } from './ai-reels-callback'
@@ -53,40 +53,83 @@ export { testAdvancedLoopFunction } from './testAdvancedLoopFunction'
 export { videoUploadHelper } from './video-upload-helper'
 export { wan25Helpers } from './wan25-helpers'
 
+// Import render functions explicitly
+import { renderFunction, renderAvatarVideoFunction, renderRiddleFunction } from './render'
+
+// Import all other functions for getAllFunctions
+import { analyzeCompetitorReels } from './content/analyzeCompetitorReels'
+import { extractTopContent } from './content/extractTopContent'
+import { findCompetitors } from './content/findCompetitors'
+import { generateContentScripts } from './content/generateContentScripts'
+import { generateDetailedScript } from './content/generateDetailedScript'
+import { generateScenarioClips } from './content/generateScenarioClips'
+import { instagramScraperV2 } from './instagram/instagramScraper-v2'
+import { instagramReelsTest as instagramScraperV2Simple } from './instagram/instagramScraper-v2-simple'
+import { criticalErrorMonitor } from './monitoring/criticalErrorMonitor'
+import { logMonitor } from './monitoring/logMonitor'
+import { modelTrainingV2 } from './training/modelTrainingV2'
+import { morphImages } from './training/morphImages'
+import { neuroImageGeneration } from './generation/neuroImageGeneration'
+import { processPayment } from './payments/paymentProcessing'
+import { broadcastMessage } from './broadcast/broadcastMessage'
+import { aiReelsCallbackFunction } from './ai-reels-callback'
+import { generateAIReelsFunction } from './existing/generateAIReelsFunction'
+import { generateAdvancedLoopingVideoFunction } from './existing/generateAdvancedLoopingVideoFunction'
+import { generateModelTrainingFunction } from './existing/generateModelTrainingFunction'
+import { testSimpleFunction } from './testSimpleFunction'
+import { testSimpleMessageFunction } from './testSimpleMessageFunction'
+import { testAdvancedLoopFunction } from './testAdvancedLoopFunction'
+import { videoUploadHelper } from './video-upload-helper'
+import { wan25Helpers } from './wan25-helpers'
+
 // Helper functions for all Inngest functions
-export const getAllFunctions = () => [
-  analyzeCompetitorReelsFunction,
-  extractTopContentFunction,
-  findCompetitorsFunction,
-  generateContentScriptsFunction,
-  generateDetailedScriptFunction,
-  generateScenarioClipsFunction,
-  instagramScraperV2Function,
-  instagramScraperV2SimpleFunction,
-  criticalErrorMonitorFunction,
-  logMonitorFunction,
-  modelTrainingV2Function,
-  morphImagesFunction,
-  neuroImageGenerationFunction,
-  paymentProcessingFunction,
-  broadcastMessageFunction,
-  aiReelsCallbackFunction,
-  // Render functions
-  renderFunction,
-  renderAvatarVideoFunction,
-  renderRiddleFunction,
-  // Existing functions
-  generateAIReelsFunction,
-  generateAdvancedLoopingVideoFunction,
-  generateModelTrainingFunction,
-  // Test functions
-  testSimpleFunction,
-  testSimpleMessageFunction,
-  testAdvancedLoopFunction,
-  // Helper functions
-  videoUploadHelper,
-  wan25Helpers,
-]
+export const getAllFunctions = () => {
+  // Return array with all Inngest function exports, filtering out undefined
+  const allFunctions = [
+    // Content Functions
+    analyzeCompetitorReels,
+    extractTopContent,
+    findCompetitors,
+    generateContentScripts,
+    generateDetailedScript,
+    generateScenarioClips,
+    // Instagram Functions
+    instagramScraperV2,
+    instagramScraperV2Simple,
+    // Monitoring Functions
+    criticalErrorMonitor,
+    logMonitor,
+    // Training Functions
+    modelTrainingV2,
+    morphImages,
+    // Generation Functions
+    neuroImageGeneration,
+    // Payment Functions
+    processPayment,
+    // Broadcast Functions
+    broadcastMessage,
+    // Callback Functions
+    aiReelsCallbackFunction,
+    // Render Functions
+    renderFunction,
+    renderAvatarVideoFunction,
+    renderRiddleFunction,
+    // Existing Functions
+    generateAIReelsFunction,
+    generateAdvancedLoopingVideoFunction,
+    generateModelTrainingFunction,
+    // Test Functions
+    testSimpleFunction,
+    testSimpleMessageFunction,
+    testAdvancedLoopFunction,
+    // Helper Functions
+    videoUploadHelper,
+    wan25Helpers,
+  ]
+
+  // Filter out undefined functions
+  return allFunctions.filter(fn => fn !== undefined && fn !== null)
+}
 
 export const getFunctionById = (id: string) => {
   const all = getAllFunctions()
