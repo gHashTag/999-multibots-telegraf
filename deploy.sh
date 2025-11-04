@@ -124,10 +124,12 @@ deploy() {
 
     log_info "6. Запуск нового контейнера..."
     ssh_exec "
+        cd $PROJECT_PATH
         docker run -d \
           --name 999-multibots \
           --restart unless-stopped \
           --network host \
+          --env-file .env \
           999-agents-telegraf:latest
         echo 'Контейнер запущен'
     "
