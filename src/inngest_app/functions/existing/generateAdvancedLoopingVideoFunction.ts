@@ -4,8 +4,8 @@ import path from 'path'
 import fs from 'fs/promises'
 import { Telegraf } from 'telegraf'
 import fetch from 'node-fetch'
-import { addMusic, combineVideos } from '../../helpers/video-helpers'
-import { downloadFile } from '../../helpers'
+import { addMusic, combineVideos } from '@/helpers/video-helpers'
+import { downloadFile } from '@/helpers'
 
 const inngest = new Inngest({
   name: 'bot-farm',

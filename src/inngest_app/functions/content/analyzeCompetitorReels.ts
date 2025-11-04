@@ -6,7 +6,7 @@
 
 import { slugify } from 'inngest'
 import axios from 'axios'
-import { inngest } from '../../../inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import {
   InstagramContentAgentDB,
   type ReelsAnalysisData,

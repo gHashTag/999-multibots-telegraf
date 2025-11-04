@@ -13,7 +13,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 
 // Используем основной Inngest клиент
-import { inngest } from '../../../inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 
 // Импортируем Zod-схемы
 import {
@@ -33,7 +33,7 @@ import {
   type CreateInstagramUserEvent,
   type CreateUserResult,
   CreateUserResultSchema,
-} from '../core/instagram/schemas'
+} from '@/core/instagram/schemas'
 
 // Simple logger
 const log = {

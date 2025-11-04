@@ -3,7 +3,7 @@
  * Генерация детального скрипта раскадровки с положением камеры и детальными промптами
  */
 
-import { inngest } from '../../../inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import OpenAI from 'openai'
 import { supabase } from '@/core/supabase'
 import { z } from 'zod'

@@ -23,7 +23,7 @@
  * - callback_url: Optional callback URL
  */
 
-import { inngest } from '../../../inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import type { RenderEventData } from './types'
 import {
   createJobFolder,

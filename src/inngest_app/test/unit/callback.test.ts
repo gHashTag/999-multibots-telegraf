@@ -44,7 +44,7 @@ vi.mock('../../utils/logger', () => ({
   },
 }))
 
-import { aiReelsCallback } from '../../functions/ai-reels-callback'
+import { aiReelsCallbackFunctionFunction } from '../../functions/ai-reels-callback'
 
 describe('ai-reels-callback', () => {
   let mockStep: any
@@ -65,10 +65,10 @@ describe('ai-reels-callback', () => {
     it('должен обработать completed callback', async () => {
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.valid_completed,
+        data: aiReelsCallbackFunctionData.valid_completed,
       }
 
-      const result = await aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('status', 'completed')
@@ -90,10 +90,10 @@ describe('ai-reels-callback', () => {
     it('должен обработать failed callback', async () => {
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.valid_failed,
+        data: aiReelsCallbackFunctionData.valid_failed,
       }
 
-      const result = await aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('status', 'failed')
@@ -115,10 +115,10 @@ describe('ai-reels-callback', () => {
     it('должен обработать processing callback', async () => {
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.valid_processing,
+        data: aiReelsCallbackFunctionData.valid_processing,
       }
 
-      const result = await aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('status', 'processing')
@@ -130,11 +130,11 @@ describe('ai-reels-callback', () => {
     it('должен отклонять payload без статуса', async () => {
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.invalid_missing_status,
+        data: aiReelsCallbackFunctionData.invalid_missing_status,
       }
 
       await expect(
-        aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+        aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
       ).rejects.toThrow('Status is required')
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -146,11 +146,11 @@ describe('ai-reels-callback', () => {
     it('должен отклонять payload без job_id', async () => {
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.invalid_missing_job_id,
+        data: aiReelsCallbackFunctionData.invalid_missing_job_id,
       }
 
       await expect(
-        aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+        aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
       ).rejects.toThrow('job_id is required')
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -164,10 +164,10 @@ describe('ai-reels-callback', () => {
 
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.valid_completed,
+        data: aiReelsCallbackFunctionData.valid_completed,
       }
 
-      await aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+      await aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
 
       const durationLog = mockLogger.info.mock.calls.find((call) =>
         call[0].includes('duration_ms')
@@ -184,10 +184,10 @@ describe('ai-reels-callback', () => {
     it('должен извлекать telegram_id из metadata', async () => {
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.valid_completed,
+        data: aiReelsCallbackFunctionData.valid_completed,
       }
 
-      await aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+      await aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'extract-telegram-id',
@@ -198,10 +198,10 @@ describe('ai-reels-callback', () => {
     it('должен использовать извлеченный telegram_id для отправки', async () => {
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.valid_completed,
+        data: aiReelsCallbackFunctionData.valid_completed,
       }
 
-      await aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+      await aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
 
       // Проверяем что отправка использует правильный telegram_id
       const sendVideoCall = mockStep.run.mock.calls.find(
@@ -217,23 +217,23 @@ describe('ai-reels-callback', () => {
       const event = {
         name: 'ai-reels-callback',
         data: {
-          ...aiReelsCallbackData.valid_completed,
+          ...aiReelsCallbackFunctionData.valid_completed,
           status: 'unknown_status' as any,
         },
       }
 
       await expect(
-        aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+        aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
       ).rejects.toThrow('Unknown status')
     })
 
     it('должен логировать все важные события', async () => {
       const event = {
         name: 'ai-reels-callback',
-        data: aiReelsCallbackData.valid_completed,
+        data: aiReelsCallbackFunctionData.valid_completed,
       }
 
-      await aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+      await aiReelsCallbackFunction.handler({ event, step: mockStep, logger: mockLogger })
 
       expect(mockLogger.info).toHaveBeenCalled()
       expect(mockLogger.info.mock.calls.length).toBeGreaterThan(0)
