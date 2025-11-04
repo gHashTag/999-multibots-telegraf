@@ -398,3 +398,160 @@
 2025-11-04 16:01:48 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
 2025-11-04 16:01:48 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
 2025-11-04 16:01:48 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:02:24 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":false}
+2025-11-04 16:02:24 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 16:02:24 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 16:02:24 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535398,"updateType":"message","messageText":"/menu"}
+2025-11-04 16:02:24 [INFO]: COMMAND /menu: Переход к главному меню {"telegramId":144022504}
+2025-11-04 16:02:24 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 16:02:24 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 16:02:25 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 16:02:25 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 16:02:25 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 16:02:25 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T09:02:25.460Z"}}
+2025-11-04 16:02:25 [INFO]: [DEV SIMULATION] Debug env variable {"DEV_SIMULATE_SUBSCRIPTION":"","originalSubscription":"NEUROTESTER"}
+2025-11-04 16:02:25 [INFO]: [DEV SIMULATION] No simulation variable set, using original subscription {"original":"NEUROTESTER"}
+2025-11-04 16:02:25 [INFO]: COMMAND /menu: Checking subscription {"telegramId":"144022504","originalSubscription":"NEUROTESTER","effectiveSubscription":"NEUROTESTER","isDev":true}
+2025-11-04 16:02:25 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:02:25 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:02:25 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:02:25 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:02:25 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:02:25 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:02:33 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":true}
+2025-11-04 16:02:33 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 16:02:33 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 16:02:33 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535399,"updateType":"message","messageText":"🤖 Выбор модели ИИ"}
+2025-11-04 16:02:33 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:02:33 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:02:33 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:02:33 [INFO]: [SubscriptionGuard] 🤖 Выбор модели ИИ: ADMIN ACCESS GRANTED {"telegramId":"144022504","command":"🤖 Выбор модели ИИ","adminId":144022504,"bypass":"subscription_check"}
+2025-11-04 16:02:33 [INFO]: 🚀 [CheckBalanceScene] Вход в сцену проверки баланса {"telegramId":"144022504","function":"checkBalanceScene.enter","sessionMode":"select_model","sessionData":"{\"__scenes\":{\"current\":\"check_balance_scene\",\"state\":{}},\"mode\":\"select_model\"}"}
+2025-11-04 16:02:33 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:02:33 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:02:33 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:02:33 [INFO]: [CheckBalanceScene] IMMEDIATE ACCESS: Admin 144022504 bypassing all checks {"telegramId":"144022504","function":"checkBalanceScene.enter","step":"admin_immediate_access","mode":"select_model"}
+2025-11-04 16:02:33 [INFO]: [EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим select_model {"telegramId":"144022504","mode":"select_model","cost":0,"function":"enterTargetSceneWrapper"}
+2025-11-04 16:02:33 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 16:02:33 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 16:02:33 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 16:02:33 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 16:02:33 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 16:02:33 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T09:02:33.928Z"}}
+2025-11-04 16:02:33 [INFO]: [EnterTargetSceneWrapper] Режим select_model бесплатный, звезды не списываются {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:02:33 [INFO]: [EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:02:33 [INFO]: [EnterTargetSceneWrapper] ✅ Переход в целевую сцену select_model {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:02:33 [INFO]: [EnterTargetSceneWrapper] 🎯 ПЕРЕХОД В СЦЕНУ: select_model {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:02:33 [INFO]: 🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: select_model {"telegramId":"144022504","mode":"select_model","currentScene":"check_balance_scene","function":"enterTargetSceneWrapper","step":"calling_scene_enter"}
+2025-11-04 16:02:33 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:02:33 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:02:33 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:02:34 [INFO]: ✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: select_model {"telegramId":"144022504","mode":"select_model","newScene":"select_model","function":"enterTargetSceneWrapper","step":"scene_enter_completed"}
+2025-11-04 16:02:34 [INFO]: [EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену select_model выполнен {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:02:47 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:02:48 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:02:48 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:02:48 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:02:48 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:03:47 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:03:48 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:03:48 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:03:48 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:03:48 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:04:47 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:04:48 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:04:48 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:04:49 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:04:49 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:05:47 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:05:48 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:05:48 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:05:48 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:05:48 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:06:47 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:06:48 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:06:48 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:06:48 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:06:48 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:07:47 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:07:48 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:07:48 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:07:48 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:07:48 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:08:47 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:08:48 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:08:48 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:08:48 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:08:48 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:09:28 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:09:28 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:09:28 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:09:28 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:09:28 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:09:28 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:09:28 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:09:28 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:09:28 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:09:28 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:09:29 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:09:29 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:09:29 [INFO]: Registering bot commands and handlers
+2025-11-04 16:09:29 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:09:29 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:09:29 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:09:29 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:09:29 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:09:29 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
+2025-11-04 16:09:54 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:09:54 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:09:54 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:09:54 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:09:54 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:09:54 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:09:54 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:09:54 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:09:54 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:09:54 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:09:54 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:09:54 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:09:54 [INFO]: Registering bot commands and handlers
+2025-11-04 16:09:54 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:09:54 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:09:54 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:09:54 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:09:54 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:09:54 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
+2025-11-04 16:10:54 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:10:55 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:10:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:10:55 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:10:55 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:11:54 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:11:55 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:11:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:11:55 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:11:55 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:12:23 [INFO]: [API] Request received {"method":"GET","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","accept-encoding":"gzip"},"body":"{}"}
+2025-11-04 16:12:23 [INFO]: [API] Request received {"method":"GET","url":"/x/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","accept-encoding":"gzip"},"body":"{}"}
+2025-11-04 16:12:23 [INFO]: [API] Request received {"method":"GET","url":"/.netlify/functions/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","accept-encoding":"gzip"},"body":"{}"}
+2025-11-04 16:12:23 [INFO]: [API] Request received {"method":"GET","url":"/.redwood/functions/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","accept-encoding":"gzip"},"body":"{}"}
+2025-11-04 16:12:23 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:12:28 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:12:33 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:12:38 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:12:43 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:12:48 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:12:53 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:12:54 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:12:55 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:12:55 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:12:55 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:12:55 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:12:58 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:13:03 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:13:08 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:13:13 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:13:18 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:13:23 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:13:28 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:13:33 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
