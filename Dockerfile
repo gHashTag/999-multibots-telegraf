@@ -58,11 +58,8 @@ COPY package*.json ./
 # При установке пропускаем скрипт prepare, который запускает husky install
 RUN npm install --omit=dev --ignore-scripts --legacy-peer-deps
 
-# Копируем скомпилированные файлы (сначала из builder, потом локально)
-COPY --from=builder /app/dist ./dist/ 2>/dev/null || true
-
-# Копируем локально скомпилированные файлы (запасной вариант)
-# Это работает потому что dist/ находится в build контексте
+# Копируем скомпилированные файлы из локальной директории dist/
+# dist/ находится в Docker build контексте
 COPY dist/ ./dist/
 
 # Финальная проверка
