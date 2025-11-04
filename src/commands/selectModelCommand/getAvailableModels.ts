@@ -22,10 +22,43 @@ enum ModelCategory {
   BASIC = 'базовые',
 }
 
-// Функция для получения моделей с OpenRouter API
+// Специализированные модели для агентного кодинга
+const AGENTIC_CODING_MODELS = [
+  'openai/gpt-4o',
+  'openai/gpt-4o-mini',
+  'anthropic/claude-3-5-sonnet-latest',
+  'anthropic/claude-3-5-haiku-latest',
+  'google/gemini-2.0-flash-exp',
+  'deepseek/deepseek-reasoner',
+  'meta-llama/llama-3.3-70b-versatile',
+  'anthropic/claude-3-5-sonnet',
+  'openai/o3-mini',
+  'anthropic/claude-3-haiku',
+]
+
+// Функция для проверки, подходит ли модель для агентного кодинга
+function isAgenticCodingModel(model: any): boolean {
+  const id = model.id.toLowerCase()
+  const name = (model.name || '').toLowerCase()
+
+  // Ключевые слова для агентного кодинга
+  const codingKeywords = [
+    'code', 'coding', 'coder', 'programming',
+    'agent', 'reason', 'thinking', 'o3',
+    'claude', 'gpt-4', 'gemini',
+    'reasoner', ' Sonnet', ' Haiku'
+  ]
+
+  // Проверяем по ID и имени
+  return codingKeywords.some(keyword =>
+    id.includes(keyword.toLowerCase()) || name.includes(keyword.toLowerCase())
+  )
+}
+
+// Функция для получения моделей с OpenRouter API (только агентные для кодинга)
 async function fetchOpenRouterModels(): Promise<ModelWithRating[]> {
   try {
-    console.log('🔍 Получаем модели с OpenRouter API...')
+    console.log('🔍 Получаем AGENTIC CODING модели с OpenRouter API...')
 
     const response = await axios.get('https://openrouter.ai/api/v1/models', {
       headers: {
@@ -41,13 +74,14 @@ async function fetchOpenRouterModels(): Promise<ModelWithRating[]> {
 
     const models = response.data.data
       .filter((model: any) => model.top_provider?.is_moderated === true)
+      .filter(isAgenticCodingModel) // Фильтруем только агентные модели для кодинга
       .sort((a: any, b: any) => {
-        // Сортируем по популярности ( Context Length * Top Provider Score )
+        // Сортируем по популярности и способности к кодингу
         const scoreA = (a.context_length || 0) * (a.top_provider?.score || 0)
         const scoreB = (b.context_length || 0) * (b.top_provider?.score || 0)
         return scoreB - scoreA
       })
-      .slice(0, 10) // Топ 10 моделей
+      .slice(0, 10) // Топ 10 агентных моделей для кодинга
       .map((model: any) => ({
         id: model.id,
         name: model.name || model.id,
@@ -60,7 +94,7 @@ async function fetchOpenRouterModels(): Promise<ModelWithRating[]> {
         },
       }))
 
-    console.log(`✅ Получено ${models.length} моделей с OpenRouter API`)
+    console.log(`✅ Получено ${models.length} AGENTIC CODING моделей с OpenRouter API`)
     return models
   } catch (error) {
     console.error('❌ Ошибка при получении моделей с OpenRouter:', error.message)
@@ -83,28 +117,28 @@ export async function getAvailableModels(): Promise<SelectableModel[]> {
         .map(model => ({ id: model.id, name: model.name }))
     }
 
-    // Fallback: используем статический список
-    console.log('⚠️ Используем fallback список моделей')
+    // Fallback: используем статический список AGENTIC CODING моделей
+    console.log('⚠️ Используем fallback список AGENTIC CODING моделей')
     return [
       { id: 'openai/gpt-4o', name: 'GPT-4o' },
-      { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
+      { id: 'openai/o3-mini', name: 'o3 Mini (Reasoning)' },
       { id: 'anthropic/claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
       { id: 'anthropic/claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
+      { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
       { id: 'google/gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
-      { id: 'google/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
       { id: 'deepseek/deepseek-reasoner', name: 'DeepSeek Reasoner' },
       { id: 'meta-llama/llama-3.3-70b-versatile', name: 'Llama 3.3 70B' },
-      { id: 'mistralai/mistral-large-latest', name: 'Mistral Large' },
-      { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
+      { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku' },
+      { id: 'openai/gpt-4.1-turbo', name: 'GPT-4.1 Turbo' },
     ]
   } catch (error) {
     console.error('🚨 Ошибка при получении моделей:', error)
 
-    // Крайний fallback
+    // Крайний fallback - только топ-3 агентные модели
     return [
       { id: 'openai/gpt-4o', name: 'GPT-4o' },
       { id: 'anthropic/claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
-      { id: 'google/gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
+      { id: 'openai/o3-mini', name: 'o3 Mini' },
     ]
   }
 }

@@ -45,30 +45,36 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       // Отправляем текст
       await ctx.reply(
         isRu
-          ? '🤖 <b>Выбор модели ИИ</b>\n\n' +
-              'Эта модель будет использоваться во ВСЕХ функциях бота, где требуется искусственный интеллект:\n\n' +
-              '• Генерация текстов и статей\n' +
-              '• Анализ и обработка изображений\n' +
-              '• Создание контента для Reels\n' +
-              '• Обработка аудио и видео\n' +
-              '• Перевод и локализация\n\n' +
-              '<b>ТОП модели 2025:</b>\n' +
-              '• <b>GPT-4.5</b> - новейшая от OpenAI\n' +
-              '• <b>Claude 3.5 Sonnet</b> - от Anthropic\n' +
-              '• <b>Gemini 2.0 Flash</b> - от Google\n\n' +
-              '💡 Выберите модель, которая лучше всего подходит для ваших задач:'
-          : '🤖 <b>Choose AI Model</b>\n\n' +
-              'This model will be used in ALL bot functions that require artificial intelligence:\n\n' +
-              '• Text and article generation\n' +
-              '• Image analysis and processing\n' +
-              '• Reels content creation\n' +
-              '• Audio and video processing\n' +
-              '• Translation and localization\n\n' +
-              '<b>TOP models 2025:</b>\n' +
-              '• <b>GPT-4.5</b> - latest from OpenAI\n' +
-              '• <b>Claude 3.5 Sonnet</b> - from Anthropic\n' +
-              '• <b>Gemini 2.0 Flash</b> - from Google\n\n' +
-              '💡 Choose the model that best fits your tasks:',
+          ? '🤖 <b>AGENTIC CODING AI Models</b>\n\n' +
+              'Выбирайте специализированные модели для <b>агентного кодинга</b> и ИИ-агентов:\n\n' +
+              '🔧 <b>Агентные возможности:</b>\n' +
+              '• Автоматическое программирование\n' +
+              '• Сложные рассуждения и анализ\n' +
+              '• Многошаговые задачи\n' +
+              '• Генерация и отладка кода\n' +
+              '• Архитектурные решения\n\n' +
+              '<b>🔥 ТОП агентные модели:</b>\n' +
+              '• <b>o3 Mini</b> - новейшая reasoning модель OpenAI\n' +
+              '• <b>GPT-4o</b> - мультимодальная агентная модель\n' +
+              '• <b>Claude 3.5 Sonnet</b> - лучшая для кода\n' +
+              '• <b>DeepSeek Reasoner</b> - специализация на рассуждениях\n' +
+              '• <b>Gemini 2.0 Flash</b> - быстрая агентная модель\n\n' +
+              '💡 Выберите агентную модель для продвинутого ИИ:'
+          : '🤖 <b>AGENTIC CODING AI Models</b>\n\n' +
+              'Choose specialized models for <b>agentic coding</b> and AI agents:\n\n' +
+              '🔧 <b>Agentic capabilities:</b>\n' +
+              '• Automated programming\n' +
+              '• Complex reasoning and analysis\n' +
+              '• Multi-step tasks\n' +
+              '• Code generation and debugging\n' +
+              '• Architectural solutions\n\n' +
+              '<b>🔥 TOP agentic models:</b>\n' +
+              '• <b>o3 Mini</b> - latest reasoning model from OpenAI\n' +
+              '• <b>GPT-4o</b> - multimodal agentic model\n' +
+              '• <b>Claude 3.5 Sonnet</b> - best for coding\n' +
+              '• <b>DeepSeek Reasoner</b> - reasoning specialization\n' +
+              '• <b>Gemini 2.0 Flash</b> - fast agentic model\n\n' +
+              '💡 Choose an agentic model for advanced AI:',
         {
           parse_mode: 'HTML',
         }
