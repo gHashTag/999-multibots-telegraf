@@ -11,14 +11,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setupInngestMocks, createMockLogger } from '../utils/test-helpers'
 
 // Mock зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       insert: vi.fn(),
@@ -32,18 +32,18 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/storage-service', () => ({
+vi.mock('../../core/storage-service', () => ({
   storageService: {
     upload: vi.fn(),
     getUrl: vi.fn(),
   },
 }))
 
-vi.mock('@/core/telegram', () => ({
+vi.mock('../../core/telegram', () => ({
   sendVideo: vi.fn(),
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -51,9 +51,9 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { videoUploadHelper } from '@/inngest_app/functions/video-upload-helper'
-import { wan25Helpers } from '@/inngest_app/functions/wan25-helpers'
-import { functionsIndex } from '@/inngest_app/functions/index'
+import { videoUploadHelper } from '../../functions/video-upload-helper'
+import { wan25Helpers } from '../../functions/wan25-helpers'
+import { functionsIndex } from '../../functions/index'
 
 describe('Helper Functions', () => {
   let mockStep: any

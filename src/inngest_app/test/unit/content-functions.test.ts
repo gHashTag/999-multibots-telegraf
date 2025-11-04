@@ -24,14 +24,14 @@ import {
 import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
 
 // Mock зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -45,7 +45,7 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/instagram-scraper', () => ({
+vi.mock('../../core/instagram-scraper', () => ({
   instagramScraper: {
     analyzeCompetitor: vi.fn(),
     extractContent: vi.fn(),
@@ -53,7 +53,7 @@ vi.mock('@/core/instagram-scraper', () => ({
   },
 }))
 
-vi.mock('@/core/ai-service', () => ({
+vi.mock('../../core/ai-service', () => ({
   aiService: {
     generateScripts: vi.fn(),
     generateDetailedScript: vi.fn(),
@@ -61,7 +61,7 @@ vi.mock('@/core/ai-service', () => ({
   },
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -69,12 +69,12 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { analyzeCompetitorReels } from '@/inngest_app/functions/content/analyzeCompetitorReels'
-import { extractTopContent } from '@/inngest_app/functions/content/extractTopContent'
-import { findCompetitors } from '@/inngest_app/functions/content/findCompetitors'
-import { generateContentScripts } from '@/inngest_app/functions/content/generateContentScripts'
-import { generateDetailedScript } from '@/inngest_app/functions/content/generateDetailedScript'
-import { generateScenarioClips } from '@/inngest_app/functions/content/generateScenarioClips'
+import { analyzeCompetitorReels } from '../../functions/content/analyzeCompetitorReels'
+import { extractTopContent } from '../../functions/content/extractTopContent'
+import { findCompetitors } from '../../functions/content/findCompetitors'
+import { generateContentScripts } from '../../functions/content/generateContentScripts'
+import { generateDetailedScript } from '../../functions/content/generateDetailedScript'
+import { generateScenarioClips } from '../../functions/content/generateScenarioClips'
 
 describe('Content Functions', () => {
   let mockStep: any

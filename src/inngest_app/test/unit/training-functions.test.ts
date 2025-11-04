@@ -11,14 +11,14 @@ import { modelTrainingV2Data, morphImagesData, trainingExpectedResults, training
 import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
 
 // Mock зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -33,7 +33,7 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/training-client', () => ({
+vi.mock('../../core/training-client', () => ({
   trainingClient: {
     startTraining: vi.fn(),
     getTrainingStatus: vi.fn(),
@@ -41,7 +41,7 @@ vi.mock('@/core/training-client', () => ({
   },
 }))
 
-vi.mock('@/core/replicate', () => ({
+vi.mock('../../core/replicate', () => ({
   replicate: {
     models: {
       get: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock('@/core/replicate', () => ({
   },
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -57,8 +57,8 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { modelTrainingV2 } from '@/inngest_app/functions/training/modelTrainingV2'
-import { morphImages } from '@/inngest_app/functions/training/morphImages'
+import { modelTrainingV2 } from '../../functions/training/modelTrainingV2'
+import { morphImages } from '../../functions/training/morphImages'
 
 describe('Training Functions', () => {
   let mockStep: any

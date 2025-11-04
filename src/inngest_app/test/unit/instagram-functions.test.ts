@@ -16,14 +16,14 @@ import {
 import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
 
 // Mock зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -37,7 +37,7 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/instagram-scraper', () => ({
+vi.mock('../../core/instagram-scraper', () => ({
   instagramScraper: {
     scrapeProfile: vi.fn(),
     scrapeHashtag: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock('@/core/instagram-scraper', () => ({
   },
 }))
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -54,8 +54,8 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-import { instagramScraperV2 } from '@/inngest_app/functions/instagram/instagramScraper-v2'
-import { instagramScraperV2Simple } from '@/inngest_app/functions/instagram/instagramScraper-v2-simple'
+import { instagramScraperV2 } from '../../functions/instagram/instagramScraper-v2'
+import { instagramScraperV2Simple } from '../../functions/instagram/instagramScraper-v2-simple'
 
 describe('Instagram Functions', () => {
   let mockStep: any

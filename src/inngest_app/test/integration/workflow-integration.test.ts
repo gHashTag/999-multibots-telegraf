@@ -21,14 +21,14 @@ import {
 import { setupInngestMocks, createMockLogger } from '../utils/test-helpers'
 
 // Mock всех зависимостей
-vi.mock('@/inngest_app/inngestClient', () => ({
+vi.mock('../../inngestClient', () => ({
   inngest: {
     send: vi.fn(),
     createFunction: vi.fn(),
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -42,28 +42,28 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-vi.mock('@/core/telegram', () => ({
+vi.mock('../../core/telegram', () => ({
   sendMessage: vi.fn(),
   sendVideo: vi.fn(),
 }))
 
-vi.mock('@/core/render-client', () => ({
+vi.mock('../../core/render-client', () => ({
   renderClient: {
     render: vi.fn(),
     getRenderStatus: vi.fn(),
   },
 }))
 
-vi.mock('@/core/training-client', () => ({
+vi.mock('../../core/training-client', () => ({
   trainingClient: {
     startTraining: vi.fn(),
     getTrainingStatus: vi.fn(),
   },
 }))
 
-import { aiReelsCallback } from '@/inngest_app/functions/ai-reels-callback'
-import { render } from '@/inngest_app/functions/render/render'
-import { modelTrainingV2 } from '@/inngest_app/functions/training/modelTrainingV2'
+import { aiReelsCallback } from '../../functions/ai-reels-callback'
+import { render } from '../../functions/render/render'
+import { modelTrainingV2 } from '../../functions/training/modelTrainingV2'
 
 describe('Workflow Integration Tests', () => {
   let mockStep: any
@@ -116,7 +116,7 @@ describe('Workflow Integration Tests', () => {
       )
 
       // Проверяем что отправлено событие callback
-      const inngest = await import('@/inngest_app/inngestClient')
+      const inngest = await import('../../inngestClient')
       expect(inngest.inngest.send).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'ai-reels-callback',
@@ -185,7 +185,7 @@ describe('Workflow Integration Tests', () => {
       expect(stepCalls).toContain('track-progress')
 
       // Проверяем что отправлены события о прогрессе
-      const inngest = await import('@/inngest_app/inngestClient')
+      const inngest = await import('../../inngestClient')
       expect(inngest.inngest.send).toHaveBeenCalled()
     })
 
@@ -214,7 +214,7 @@ describe('Workflow Integration Tests', () => {
 
   describe('Cross-Function Communication', () => {
     it('должен передавать данные между функциями', async () => {
-      const inngest = await import('@/inngest_app/inngestClient')
+      const inngest = await import('../../inngestClient')
 
       // Первый вызов
       const event1 = {
@@ -403,7 +403,7 @@ describe('Workflow Integration Tests', () => {
 
   describe('Event-Driven Architecture', () => {
     it('должен отправлять события в правильном порядке', async () => {
-      const inngest = await import('@/inngest_app/inngestClient')
+      const inngest = await import('../../inngestClient')
 
       const event = {
         name: 'model-training-v2',
