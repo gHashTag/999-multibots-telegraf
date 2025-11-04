@@ -144,31 +144,35 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
       await updateUserModel(ctx.from.id.toString(), selectedModelObject.id)
 
+      // Отправляем подтверждение с объяснением
       await ctx.reply(
         isRu
-          ? `✅ Модель успешно изменена на ${selectedModelObject.name}`
-          : `✅ Model successfully changed to ${selectedModelObject.name}`,
+          ? `✅ <b>Модель успешно изменена на:</b> ${selectedModelObject.name}\n\n` +
+              `<b>💡 Зачем нужна эта модель:</b>\n` +
+              `Эта модель будет автоматически использоваться во ВСЕХ AI функциях бота:\n\n` +
+              `🔧 <b>Агентный кодинг:</b> Генерация и отладка кода\n` +
+              `📝 <b>Создание контента:</b> Статьи, посты, описания\n` +
+              `🎨 <b>Анализ изображений:</b> Описание и обработка фото\n` +
+              `🎬 <b>Создание Reels:</b> Сценарии и идеи для видео\n` +
+              `🔍 <b>Исследования:</b> Анализ данных и поиск информации\n\n` +
+              `🎯 Теперь переходим в главное меню для выбора функции!`
+          : `✅ <b>Model successfully changed to:</b> ${selectedModelObject.name}\n\n` +
+              `<b>💡 Why this model:</b>\n` +
+              `This model will be automatically used in ALL bot AI functions:\n\n` +
+              `🔧 <b>Agentic Coding:</b> Code generation and debugging\n` +
+              `📝 <b>Content Creation:</b> Articles, posts, descriptions\n` +
+              `🎨 <b>Image Analysis:</b> Photo description and processing\n` +
+              `🎬 <b>Reels Creation:</b> Scripts and video ideas\n` +
+              `🔍 <b>Research:</b> Data analysis and information search\n\n` +
+              `🎯 Now let's go to the main menu to select a function!`,
         {
+          parse_mode: 'HTML',
           reply_markup: { remove_keyboard: true },
         }
       )
 
-      const telegram_id = ctx.from?.id
-      if (!telegram_id) {
-        console.error('❌ Telegram ID не найден на этапе обновления уровня')
-        return ctx.scene.leave()
-      }
-
-      const userObject = await getUserByTelegramId(ctx)
-      if (!userObject) {
-        console.error(`User with ID ${telegram_id} does not exist.`)
-        return ctx.scene.leave()
-      }
-      const level = userObject.level
-      if (level === 5) {
-        await updateUserLevelPlusOne(telegram_id.toString(), level)
-      }
-      return ctx.scene.leave()
+      // Перенаправляем в главное меню
+      return ctx.scene.enter('main_menu')
     } else if (ctx.callbackQuery) {
       await ctx
         .answerCbQuery()
