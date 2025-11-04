@@ -1039,7 +1039,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
           // ✅ СНАЧАЛА списываем средства (ДО отправки запроса)
           const estimatedCost = finalCost
-          const { getUserBalance, updateUserBalance, PaymentType } = await import('@/core/supabase')
+          const { getUserBalance, updateUserBalance } = await import('@/core/supabase')
+          const { PaymentType } = await import('@/interfaces/payments.interface')
           const currentBalance = await getUserBalance(telegramId)
 
           console.log('🔴 [STEP 6 INLINE] Deducting balance:', {
