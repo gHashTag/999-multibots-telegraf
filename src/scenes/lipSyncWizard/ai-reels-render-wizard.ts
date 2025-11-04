@@ -992,13 +992,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           { parse_mode: 'HTML' }
         )
 
-        // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6 (НЕ вызываем напрямую)
+        // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6 (используем selectStep для прямого перехода)
         logger.info('🎬 [AI REELS RENDER] Service already selected, proceeding to Step 6', {
           telegramId,
           avatarService: service,
         })
 
-        // Просто переходим к следующему шагу (Step 6 покажет сообщение "Отправляем запрос..." и отправит запрос)
+        // Переходим к Step 6 (index 9): selectStep(8) + next() = Step 9
+        ctx.wizard.selectStep(8)
         return ctx.wizard.next()
       }
 
