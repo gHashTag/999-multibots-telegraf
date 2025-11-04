@@ -314,3 +314,82 @@
 2025-11-04 15:58:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
 2025-11-04 15:58:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
 2025-11-04 15:58:20 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 15:59:14 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":true}
+2025-11-04 15:59:14 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 15:59:14 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 15:59:14 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535396,"updateType":"message","messageText":"/menu"}
+2025-11-04 15:59:14 [INFO]: COMMAND /menu: Переход к главному меню {"telegramId":144022504}
+2025-11-04 15:59:14 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 15:59:14 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 15:59:14 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 15:59:14 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 15:59:14 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 15:59:14 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T08:59:14.962Z"}}
+2025-11-04 15:59:14 [INFO]: [DEV SIMULATION] Debug env variable {"DEV_SIMULATE_SUBSCRIPTION":"","originalSubscription":"NEUROTESTER"}
+2025-11-04 15:59:14 [INFO]: [DEV SIMULATION] No simulation variable set, using original subscription {"original":"NEUROTESTER"}
+2025-11-04 15:59:14 [INFO]: COMMAND /menu: Checking subscription {"telegramId":"144022504","originalSubscription":"NEUROTESTER","effectiveSubscription":"NEUROTESTER","isDev":true}
+2025-11-04 15:59:14 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:59:14 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:59:14 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 15:59:15 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:59:15 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:59:15 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 15:59:17 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":true}
+2025-11-04 15:59:17 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 15:59:17 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 15:59:17 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535397,"updateType":"message","messageText":"🤖 Выбор модели ИИ"}
+2025-11-04 15:59:17 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:59:17 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:59:17 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 15:59:17 [INFO]: [SubscriptionGuard] 🤖 Выбор модели ИИ: ADMIN ACCESS GRANTED {"telegramId":"144022504","command":"🤖 Выбор модели ИИ","adminId":144022504,"bypass":"subscription_check"}
+2025-11-04 15:59:17 [INFO]: 🚀 [CheckBalanceScene] Вход в сцену проверки баланса {"telegramId":"144022504","function":"checkBalanceScene.enter","sessionMode":"select_model","sessionData":"{\"__scenes\":{\"current\":\"check_balance_scene\",\"state\":{}},\"mode\":\"select_model\",\"prompt\":\"\",\"selectedModel\":\"\",\"userModel\":{\"model_name\":\"\",\"trigger_word\":\"\",\"model_url\":\"placeholder/placeholder:placeholder\",\"finetune_id\":\"\"},\"targetUserId\":0,\"steps\":0,\"selectedSize\":\"\",\"subscription\":\"STARS\",\"selectedPayment\":{\"amount\":0,\"stars\":0,\"subscription\":\"STARS\",\"type\":\"MONEY_OUTCOME\"},\"videoUrl\":\"\",\"imageUrl\":\"\",\"audioUrl\":\"\",\"email\":\"\",\"cursor\":0,\"images\":[],\"memory\":{\"messages\":[]},\"attempts\":0,\"amount\":0,\"modelName\":\"\",\"triggerWord\":\"\",\"videoModel\":\"\",\"translations\":[],\"buttons\":[],\"neuroPhotoInitialized\":false,\"lastStartCommand\":0}"}
+2025-11-04 15:59:17 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:59:17 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:59:17 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 15:59:17 [INFO]: [CheckBalanceScene] IMMEDIATE ACCESS: Admin 144022504 bypassing all checks {"telegramId":"144022504","function":"checkBalanceScene.enter","step":"admin_immediate_access","mode":"select_model"}
+2025-11-04 15:59:17 [INFO]: [EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим select_model {"telegramId":"144022504","mode":"select_model","cost":0,"function":"enterTargetSceneWrapper"}
+2025-11-04 15:59:17 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 15:59:17 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 15:59:18 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 15:59:18 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 15:59:18 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 15:59:18 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T08:59:18.345Z"}}
+2025-11-04 15:59:18 [INFO]: [EnterTargetSceneWrapper] Режим select_model бесплатный, звезды не списываются {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 15:59:18 [INFO]: [EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 15:59:18 [INFO]: [EnterTargetSceneWrapper] ✅ Переход в целевую сцену select_model {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 15:59:18 [INFO]: [EnterTargetSceneWrapper] 🎯 ПЕРЕХОД В СЦЕНУ: select_model {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 15:59:18 [INFO]: 🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: select_model {"telegramId":"144022504","mode":"select_model","currentScene":"check_balance_scene","function":"enterTargetSceneWrapper","step":"calling_scene_enter"}
+2025-11-04 15:59:18 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 15:59:18 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 15:59:18 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 15:59:18 [INFO]: ✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: select_model {"telegramId":"144022504","mode":"select_model","newScene":"select_model","function":"enterTargetSceneWrapper","step":"scene_enter_completed"}
+2025-11-04 15:59:18 [INFO]: [EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену select_model выполнен {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 15:59:19 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 15:59:20 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 15:59:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 15:59:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 15:59:20 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:00:19 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:00:20 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:00:20 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:00:20 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:00:20 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:00:47 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:00:47 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:00:47 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:00:47 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:00:47 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:00:47 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:00:47 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:00:47 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:00:47 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:00:47 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:00:47 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:00:47 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:00:47 [INFO]: Registering bot commands and handlers
+2025-11-04 16:00:47 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:00:47 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:00:47 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:00:47 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:00:47 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:00:47 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
