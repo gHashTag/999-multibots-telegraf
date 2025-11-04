@@ -44,7 +44,7 @@ vi.mock('../../utils/logger', () => ({
   },
 }))
 
-import { aiReelsCallbackFunctionFunction } from '../../functions/ai-reels-callback'
+import { aiReelsCallbackFunction } from '../../functions/ai-reels-callback'
 
 describe('ai-reels-callback', () => {
   let mockStep: any
