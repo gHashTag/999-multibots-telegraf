@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    setupFiles: [],
     coverage: {
       provider: 'istanbul',
       reporter: ['text', 'json', 'html'],
@@ -32,10 +33,6 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     testTimeout: 30000,
     hookTimeout: 10000,
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, '../'),
-    },
+    cache: false,
   },
 })

@@ -1,4 +1,4 @@
-import { inngest } from '../../../inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { getUserByTelegramId } from '@/core/supabase'

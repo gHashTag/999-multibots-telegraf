@@ -16,7 +16,7 @@
  * 10. Trigger render
  */
 
-import { inngest } from '../../inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { NonRetriableError } from 'inngest'
 import type { RenderRiddleEventData } from './types'
 import {

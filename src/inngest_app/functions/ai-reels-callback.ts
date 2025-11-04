@@ -7,7 +7,7 @@
  * НАЗНАЧЕНИЕ: Отправка готового видео пользователю в Telegram
  */
 
-import { inngest } from '../client'
+import { inngest } from '@/inngest_app/client'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import { logger } from '@/utils/logger'

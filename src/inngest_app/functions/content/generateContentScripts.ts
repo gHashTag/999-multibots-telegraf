@@ -1,4 +1,4 @@
-import { inngest } from '../../../inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { z } from 'zod'
 import { supabase } from '@/core/supabase'
 import OpenAI from 'openai'
