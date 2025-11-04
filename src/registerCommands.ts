@@ -135,11 +135,8 @@ const scenesToRegister = [
   sizeWizard,
   aiPhotoshopScene,
   morphingWizard,
-  new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.TextToSpeech,
-    ...(textToSpeechWizard.steps as any)
-  ),
+  voiceAvatarWizard,
+  textToSpeechWizard,
   videoTranscriptionWizard,
   lipSyncWizard,
   veedFabricWizard,
@@ -147,11 +144,8 @@ const scenesToRegister = [
   aiReelsEntryWizard,
   aiReelsRenderWizard,
   avatarTransformScene,
-  new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.ChatWithAvatar,
-    ...(chatWithAvatarWizard.steps as any)
-  ),
+  avatarBrainWizard,
+  chatWithAvatarWizard,
   selectModelWizard,
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
@@ -174,10 +168,10 @@ const sceneNames = [
   'textToImageWizard', 'textToVideoWizard', 'imageToVideoWizard', 'imageToPromptWizard',
   'imageUpscalerWizard', 'improvePromptWizard', 'trainFluxModelWizard',
   'uploadTrainFluxModelScene', 'uploadVideoScene', 'sizeWizard', 'aiPhotoshopScene',
-  'morphingWizard', 'voiceWizard_wrapped', 'textToSpeechWizard_wrapped',
+  'morphingWizard', 'voiceAvatarWizard', 'textToSpeechWizard',
   'videoTranscriptionWizard', 'lipSyncWizard', 'veedFabricWizard', 'aiReelsWizard',
   'aiReelsEntryWizard', 'aiReelsRenderWizard', 'avatarTransformScene',
-  'avatarBrainWizard_wrapped', 'chatWithAvatarWizard_wrapped', 'selectModelWizard',
+  'avatarBrainWizard', 'chatWithAvatarWizard', 'selectModelWizard',
   'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
   'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
   'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
