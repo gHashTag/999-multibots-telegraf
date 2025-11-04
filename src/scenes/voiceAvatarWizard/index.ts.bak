@@ -97,6 +97,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const mode = ctx.session.voiceMode || 'avatar' // Default to avatar if not set
 
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
     if (
       !message ||
       !('voice' in message || 'audio' in message)
@@ -156,6 +157,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
       if (!ctx.from?.id) {
         console.error('❌ Telegram ID не найден')
         return ctx.scene.leave()
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
       }
 
       // Branch based on mode
@@ -234,6 +236,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
       } else {
         // Original voice avatar creation mode
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
         await createVoiceAvatar(
           fileUrl,
           ctx.from.id.toString(),
@@ -276,6 +279,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         // Если createVoiceAvatar выполнился успешно (не выбросил исключение),
         // переходим в сцену text_to_speech вместо выхода из текущей сцены.
         return ctx.scene.enter('text_to_speech');
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
       }
     } catch (error: any) {
       console.error('Error in handleVoiceMessage (Plan B):', error)
@@ -324,4 +328,5 @@ voiceAvatarWizard.hears(
   }
 )
 
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 export default voiceAvatarWizard
