@@ -75,4 +75,4 @@ const startScene = new Scenes.WizardScene<MyContext>(
 )
 
 // ✅ ЭКСПОРТ
-export default startScene
+export { startScene }
