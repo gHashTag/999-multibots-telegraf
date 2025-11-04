@@ -63,13 +63,16 @@ export const HEYGEN_AVATAR_SETS: Record<string, HeyGenAvatarSet> = {
   cocoage: {
     name: 'Cocoage',
     apiKey: process.env.HEYGEN_COCOAGE_API_KEY || '',
-    voiceId: '2b2e1f15157b454487f1250ffe586d7a', // Голос Дианы "Вау" для Cocoage
+    voiceId:
+      process.env.HEYGEN_COCOAGE_VOICE_ID ||
+      '2b2e1f15157b454487f1250ffe586d7a', // Голос Дианы "Вау" для Cocoage
     avatars: COCOAGE_AVATARS,
   },
   haim: {
     name: 'Haim',
     apiKey: process.env.HEYGEN_HAIM_API_KEY || '',
-    voiceId: 'dc9cd149b0d741d6934a1d95e3f3ef00', // Голос для Haim
+    voiceId:
+      process.env.HEYGEN_HAIM_VOICE_ID || 'dc9cd149b0d741d6934a1d95e3f3ef00', // Голос для Haim
     avatars: HAIM_AVATARS,
   },
 }

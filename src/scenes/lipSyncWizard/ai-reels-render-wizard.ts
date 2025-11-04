@@ -1037,6 +1037,28 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             voiceIdToUse = userVoiceId
           }
 
+          // ✅ СНАЧАЛА списываем средства (ДО отправки запроса)
+          const estimatedCost = finalCost
+          const { getUserBalance, updateUserBalance, PaymentType } = await import('@/core/supabase')
+          const currentBalance = await getUserBalance(telegramId)
+
+          console.log('🔴 [STEP 6 INLINE] Deducting balance:', {
+            telegramId,
+            currentBalance,
+            cost: estimatedCost,
+            newBalance: currentBalance - estimatedCost
+          })
+
+          await updateUserBalance(
+            telegramId,
+            -estimatedCost,
+            PaymentType.SERVICE_PAYMENT,
+            `AI Reels Template 2 (${avatarService})`,
+            { bot_name: ctx.botInfo?.username || 'unknown_bot', service_type: 'ai_reels_render' }
+          )
+
+          console.log('🔴 [STEP 6 INLINE] Balance deducted successfully')
+
           // Создаем payload
           const heygenApiKey = avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenApiKey : undefined
           const heygenAvatarId = avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenAvatarId : undefined
@@ -1064,19 +1086,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           const { eventId } = await sendRenderAvatarVideoEvent(payload)
           console.log('🔴 [STEP 6 INLINE] Event sent! Event ID:', eventId)
 
-          // Списываем средства
-          const estimatedCost = finalCost
-          const { getUserBalance, updateUserBalance, PaymentType } = await import('@/core/supabase')
-          const currentBalance = await getUserBalance(telegramId)
-
-          await updateUserBalance(
-            telegramId,
-            -estimatedCost,
-            PaymentType.SERVICE_PAYMENT,
-            `AI Reels Template 2 (${avatarService})`,
-            { bot_name: ctx.botInfo?.username || 'unknown_bot', service_type: 'ai_reels_render' }
-          )
-
+          // ✅ Отправляем уведомление пользователю
           await ctx.reply(
             isRu
               ? `✅ Запрос отправлен на render-server!\n\n` +
@@ -1106,11 +1116,17 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         } catch (error) {
           console.log('🔴🔴🔴 [STEP 6 INLINE] ERROR!', error)
-          logger.error('❌ [AI REELS RENDER] Error sending event', { error })
+          logger.error('❌ [AI REELS RENDER] Error in inline execution', {
+            error,
+            errorMessage: error instanceof Error ? error.message : 'Unknown error',
+            errorStack: error instanceof Error ? error.stack : undefined
+          })
+
+          // Если ошибка произошла ПОСЛЕ отправки события, сообщаем пользователю
           await ctx.reply(
             isRu
-              ? '❌ Ошибка отправки запроса на render-server. Попробуйте позже.'
-              : '❌ Error sending request to render-server. Try later.'
+              ? '⚠️ Запрос отправлен, но произошла ошибка при обработке. Обратитесь в поддержку.'
+              : '⚠️ Request sent, but error occurred during processing. Contact support.'
           )
           return ctx.scene.leave()
         }
