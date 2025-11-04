@@ -743,114 +743,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        // ✅ ИСПРАВЛЕНИЕ: Генерируем аудио из текста через централизованную систему
-        logger.info('🎤 [AI REELS RENDER] Генерируем аудио из текста', {
+        // ✅ Template 2: НЕ генерируем аудио локально!
+        // Текст передается напрямую в render-server, который сам генерирует аудио
+        logger.info('📝 [AI REELS RENDER] Текст получен, будет передан в render-server', {
           telegramId,
           textLength: text.length,
         })
-
-        try {
-          const { createAudioFileFromText } = await import(
-            '@/core/elevenlabs/createAudioFileFromText'
-          )
-          const { getVoiceId } = await import('@/core/supabase/getVoiceId')
-
-          // Получаем voice_id пользователя через централизованную систему
-          const voiceId = await getVoiceId(telegramId)
-
-          if (!voiceId) {
-            throw new Error('User voice ID not found for audio generation')
-          }
-
-          logger.info(
-            '🎤 [AI REELS RENDER] Используем централизованную систему голосов',
-            {
-              telegramId,
-              voiceId,
-              textLength: text.length,
-            }
-          )
-
-          // Генерируем аудио через централизованную систему
-          const audioPath = await createAudioFileFromText({
-            text,
-            voice_id: voiceId,
-            telegram_id: telegramId,
-          })
-
-          if (!audioPath) {
-            throw new Error('Failed to generate audio from text')
-          }
-
-          // Загружаем сгенерированное аудио в Supabase Storage
-          const fs = await import('fs/promises')
-          const audioBuffer = await fs.readFile(audioPath)
-
-          const { createClient } = await import('@supabase/supabase-js')
-          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
-            '@/config'
-          )
-
-          const serviceClient = createClient(
-            SUPABASE_URL!,
-            SUPABASE_SERVICE_ROLE_KEY!
-          )
-          const fileName = `ai-reels-render-generated-audio/${telegramId}/${Date.now()}.mp3`
-
-          const { error: uploadError } = await serviceClient.storage
-            .from('images')
-            .upload(fileName, audioBuffer, {
-              contentType: 'audio/mpeg',
-              upsert: false,
-            })
-
-          if (uploadError) {
-            throw new Error(`Upload failed: ${uploadError.message}`)
-          }
-
-          const { data: urlData } = serviceClient.storage
-            .from('images')
-            .getPublicUrl(fileName)
-
-          audioUrl = urlData.publicUrl
-
-          // Удаляем временный файл
-          try {
-            await fs.unlink(audioPath)
-          } catch (cleanupError) {
-            logger.warn(
-              '⚠️ [AI REELS RENDER] Не удалось удалить временный файл',
-              {
-                audioPath,
-                error: cleanupError,
-              }
-            )
-          }
-
-          logger.info(
-            '✅ [AI REELS RENDER] Аудио сгенерировано через централизованную систему',
-            {
-              telegramId,
-              voiceId,
-              audioUrl: audioUrl.substring(0, 100),
-            }
-          )
-        } catch (audioError) {
-          logger.error(
-            '❌ [AI REELS RENDER] Ошибка генерации аудио из текста',
-            {
-              error: audioError,
-              telegramId,
-            }
-          )
-
-          await ctx.reply(
-            isRu
-              ? '❌ Ошибка генерации аудио из текста. Попробуйте отправить голосовое сообщение.'
-              : '❌ Error generating audio from text. Try sending a voice message.'
-          )
-          return ctx.scene.leave()
-        }
       } else {
         await ctx.reply(
           isRu
