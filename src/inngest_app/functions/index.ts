@@ -44,6 +44,15 @@ export { generateAIReelsFunction } from './existing/generateAIReelsFunction'
 export { generateAdvancedLoopingVideoFunction } from './existing/generateAdvancedLoopingVideoFunction'
 export { generateModelTrainingFunction } from './existing/generateModelTrainingFunction'
 
+// Test Functions
+export { testSimpleFunction } from './testSimpleFunction'
+export { testSimpleMessageFunction } from './testSimpleMessageFunction'
+export { testAdvancedLoopFunction } from './testAdvancedLoopFunction'
+
+// Helper Functions
+export { videoUploadHelper } from './video-upload-helper'
+export { wan25Helpers } from './wan25-helpers'
+
 // Helper functions for all Inngest functions
 export const getAllFunctions = () => [
   analyzeCompetitorReelsFunction,
@@ -69,5 +78,37 @@ export const getAllFunctions = () => [
   // Existing functions
   generateAIReelsFunction,
   generateAdvancedLoopingVideoFunction,
-  generateModelTrainingFunction
+  generateModelTrainingFunction,
+  // Test functions
+  testSimpleFunction,
+  testSimpleMessageFunction,
+  testAdvancedLoopFunction,
+  // Helper functions
+  videoUploadHelper,
+  wan25Helpers,
 ]
+
+export const getFunctionById = (id: string) => {
+  const all = getAllFunctions()
+  return all.find((f) => f.id === id)
+}
+
+export const getFunctionsByCategory = (category: string) => {
+  const all = getAllFunctions()
+  return all.filter((f) => f.category === category)
+}
+
+export const getFunctionStats = () => {
+  const all = getAllFunctions()
+  const byCategory: Record<string, number> = {}
+
+  all.forEach((f) => {
+    const category = f.category || 'uncategorized'
+    byCategory[category] = (byCategory[category] || 0) + 1
+  })
+
+  return {
+    total: all.length,
+    by_category: byCategory,
+  }
+}
