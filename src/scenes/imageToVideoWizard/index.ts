@@ -7,6 +7,9 @@ import { handleImageToVideoDirect } from '../../handlers/handleImageToVideoDirec
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
+// ✅ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ
+import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
+
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 
 // Функция создания кнопки для Image to Video
@@ -157,7 +160,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         isRu
           ? '🖼️ Отправьте изображение для создания видео:'
           : '🖼️ Send an image to create video:',
-        Markup.removeKeyboard()
+        {
+          reply_markup: createCancelOnlyKeyboard(ctx).reply_markup
+        }
       )
 
       console.log('🎬 [I2V WIZARD] Step 1: ✅ REPLY SENT! Moving to next step...')
@@ -185,6 +190,29 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
         return ctx.scene.leave()
+      }
+
+      // Обработка reply кнопок из шага 1
+      if (ctx.message && 'text' in ctx.message) {
+        const text = ctx.message.text
+
+        // Отмена
+        if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+          await ctx.reply(
+            isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+            { reply_markup: { remove_keyboard: true } }
+          )
+          return ctx.scene.leave()
+        }
+
+        // Главное меню
+        if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+          await ctx.reply(
+            isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
+            { reply_markup: { remove_keyboard: true } }
+          )
+          return ctx.scene.leave()
+        }
       }
 
       // Проверяем, что это фото

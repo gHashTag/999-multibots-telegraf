@@ -10,7 +10,10 @@ import {
 } from '@/price/helpers'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
+<<<<<<< HEAD
+=======
 import { transcribeAudioFromUrl } from '@/services/audioTranscription'
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 import { logger } from '@/utils/logger'
 
 export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
@@ -41,6 +44,21 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     const message = ctx.message
 
+<<<<<<< HEAD
+    // Проверяем команды отмены
+    if (message && 'text' in message) {
+      const text = message.text
+
+      if (text === '/menu' || text === '/cancel') {
+        await ctx.reply(
+          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+          { reply_markup: { remove_keyboard: true } }
+        )
+        return ctx.scene.enter('main_menu')
+      }
+    }
+
+=======
     if (message && 'text' in message) {
       // Check which option was selected
       if (message.text === (isRu ? '🎙️ Создать голосовой аватар' : '9️ Create voice avatar')) {
@@ -81,6 +99,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const mode = ctx.session.voiceMode || 'avatar' // Default to avatar if not set
 
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
     if (
       !message ||
       !('voice' in message || 'audio' in message)
@@ -95,6 +114,23 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
+<<<<<<< HEAD
+      return ctx.scene.enter('main_menu')
+    } else {
+      const fileId =
+        'voice' in message
+          ? message.voice.file_id
+          : 'audio' in message
+          ? message.audio.file_id
+          : undefined
+      if (!fileId) {
+        await ctx.reply(
+          isRu
+            ? 'Ошибка: не удалось получить идентификатор файла'
+            : 'Error: could not retrieve file ID'
+        )
+        return ctx.scene.enter('main_menu')
+=======
       return ctx.scene.leave()
     }
 
@@ -125,6 +161,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
       if (!ctx.from?.id) {
         console.error('❌ Telegram ID не найден')
         return ctx.scene.leave()
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
       }
 
       // Branch based on mode
@@ -190,8 +227,22 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
               : `❌ Failed to transcribe voice message: ${transcriptionResult.error || 'Unknown error'}`
           )
         }
+<<<<<<< HEAD
+
+        const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+
+        // Получаем текст сообщения безопасно
+        const messageText =
+          'text' in ctx.message ? ctx.message.text : 'No text provided'
+        if (!ctx.from?.id) {
+          logger.error('❌ Telegram ID не найден')
+          return
+        }
+
+=======
       } else {
         // Original voice avatar creation mode
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
         await createVoiceAvatar(
           fileUrl,
           ctx.from.id.toString(),
@@ -215,9 +266,28 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.enter('veed_fabric_lipsync')
         }
 
+<<<<<<< HEAD
+        // ✅ ИСПРАВЛЕНИЕ: Переходим в главное меню после создания голоса
+        await ctx.reply(
+          isRu
+            ? '✅ Голосовой аватар успешно создан!\n\n🎙️ Теперь вы можете использовать команду "🎙️ Текст в голос" или найти её в главном меню.'
+            : '✅ Voice avatar successfully created!\n\n🎙️ Now you can use the "🎙️ Text to speech" command or find it in the main menu.'
+        )
+        return ctx.scene.enter('main_menu')
+      } catch (error) {
+        logger.error('Error in handleVoiceMessage (Plan B):', { error: error.message || String(error) })
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'
+            : '❌ An error occurred while creating the voice avatar. Please try again later.'
+        )
+        // ✅ ИСПРАВЛЕНИЕ: Переходим в главное меню при ошибке
+        return ctx.scene.enter('main_menu')
+=======
         // Если createVoiceAvatar выполнился успешно (не выбросил исключение),
         // переходим в сцену text_to_speech вместо выхода из текущей сцены.
         return ctx.scene.enter('text_to_speech');
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
       }
     } catch (error: any) {
       console.error('Error in handleVoiceMessage (Plan B):', error)
@@ -230,6 +300,8 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
+<<<<<<< HEAD
+=======
 // Add handlers for transcription navigation buttons
 voiceAvatarWizard.hears(
   ['🎙️ Озвучить текст', '🎙️ Convert to speech'],
@@ -266,4 +338,5 @@ voiceAvatarWizard.hears(
   }
 )
 
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 export default voiceAvatarWizard

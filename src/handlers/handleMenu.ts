@@ -1,68 +1,67 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { Markup } from 'telegraf'
 import { levels, HAIM_GROUP_STAFF_IDS } from '@/menu/mainMenu'
 import { isRussian } from '@/helpers/language'
-import {
-  createLipSyncModelKeyboard,
-  createLipSyncModelsInfo,
-} from '@/menu/lipSyncModelSelection'
-import { handlePriceCommand } from '@/commands/priceCommand'
+import { priceCommand } from '@/commands/priceCommand'
 import { ModeEnum } from '@/interfaces/modes'
-import { logger } from '@/utils/logger'
-import { handleTechSupport } from '@/commands/handleTechSupport'
-// Импортируем функцию перезапуска видео сцены
-import { handleRestartVideoGeneration } from './handleVideoRestart'
-import { PaymentType } from '@/interfaces/payments.interface'
-import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
-import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
-// ✅ Обновляем импорты для новых функций языка
-// ✅ НОВАЯ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ЯЗЫКОВ (БЕЗ ЗАПРОСОВ К БД!)
-import {
-  getUserLanguageFromState,
-  isRussianFromState,
-  setUserLanguageInState,
-} from '@/helpers/centralizedLanguage'
-import { getParsingAccess } from '@/menu/mainMenu'
-// Импортируем функции мониторинга конкурентов
-import { handleCompetitorMonitoring, handleCompetitorUsernameInput } from '@/services/competitorSubscriptionService'
-import { competitorMonitoringApi } from '@/services/competitorMonitoringApiService'
-
-// Получаем ID администраторов из переменных окружения
-const adminIds = process.env.ADMIN_IDS?.split(',') || []
-logger.info('[handleMenu] adminIds from env:', adminIds)
+import { ADMIN_IDS_ARRAY } from '@/config'
 
 // Функция, которая обрабатывает логику сцены
 export const handleMenu = async (ctx: MyContext) => {
-  const telegramId = ctx.from?.id?.toString() || 'unknown'
-  
-  // ВАЖНО: Не обрабатываем команды
-  if (ctx.message && 'text' in ctx.message && ctx.message.text?.startsWith('/')) {
-    logger.info('handleMenu skipping command', {
-      telegramId,
-      command: ctx.message.text,
-    })
+  console.log('CASE: handleMenuCommand')
+  const isRu = isRussian(ctx)
+
+  // Получаем текст из message или из update
+  let text = ''
+  if (ctx.message && 'text' in ctx.message) {
+    text = ctx.message.text || ''
+    console.log('CASE: handleMenuCommand.text from message:', text)
+  } else if (ctx.update.message && 'text' in ctx.update.message) {
+    text = ctx.update.message.text || ''
+    console.log('CASE: handleMenuCommand.text from update.message:', text)
+  } else if (ctx.update.callback_query && 'data' in ctx.update.callback_query) {
+    text = ctx.update.callback_query.data || ''
+    console.log('CASE: handleMenuCommand.text from callback_query:', text)
+  } else {
+    console.log('CASE: handleMenuCommand - no text found in ctx')
     return
   }
-  
-  logger.info({
-    message: '🚀 [handleMenu] Обработка команды меню',
-    telegramId,
-    function: 'handleMenu',
-    sessionData: JSON.stringify(ctx.session || {}),
+
+  console.log('CASE: handleMenuCommand.processing text:', text)
+
+  // 🔍 ДИАГНОСТИКА ЯЗЫКА + ЗАЩИТА ОТ UNDEFINED
+  console.log('🔍 [LANG DEBUG] handleMenu:', {
+    isRu,
+    userLanguage: ctx.from?.language_code,
+    sessionLanguage: ctx.session?.userLanguage,
+    levelsDefined: !!levels,
+    levelsKeys: Object.keys(levels),
+    levels2TitleRu: levels?.[2]?.title_ru || 'undefined',
+    levels2TitleEn: levels?.[2]?.title_en || 'undefined',
+    currentKey: isRu ? (levels?.[2]?.title_ru || 'undefined') : (levels?.[2]?.title_en || 'undefined'),
+    receivedText: text,
   })
 
-  console.log('CASE: handleMenuCommand')
-  // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-  const isRu = isRussianFromState(ctx)
+  // 🔍 ДИАГНОСТИКА ПЕРЕД СОЗДАНИЕМ ACTIONS
+  console.log('🔍 [STEP DEBUG] About to create actions object')
+  console.log('🔍 [STEP DEBUG] Session mode:', ctx.session?.mode)
+  console.log('🔍 [STEP DEBUG] Current scene:', ctx.scene?.current?.id)
+  console.log('🔍 [STEP DEBUG] levels object:', levels)
+  console.log('🔍 [STEP DEBUG] levels length:', levels ? Object.keys(levels).length : 'undefined')
+  console.log('🔍 [STEP DEBUG] levels[0]:', levels ? levels[0] : 'undefined')
 
-  // Логируем текущий язык из state
-  const currentLanguage = getUserLanguageFromState(ctx)
-  logger.info('[handleMenu] Current user language:', {
-    telegramId,
-    currentLanguage,
-    telegramLanguage: ctx.from?.language_code,
-  })
+  // Создаем объект для сопоставления текста с действиями
+  const actions: Record<string, () => Promise<void>> = {}
 
+<<<<<<< HEAD
+  // Безопасное добавление action
+  const addAction = (key: number, actionFn: () => Promise<void>) => {
+    if (levels?.[key] && levels[key].title_ru && levels[key].title_en) {
+      const actionKey = isRu ? levels[key].title_ru : levels[key].title_en
+      actions[actionKey] = actionFn
+        console.log(`✅ Added action for level ${key}: ${actionKey}`)
+      } else {
+        console.warn(`⚠️ levels[${key}] is not defined properly`)
+=======
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text || ''
     const normalizedText = text.replace(/\s+/g, ' ').trim()
@@ -1094,110 +1093,317 @@ export const handleMenu = async (ctx: MyContext) => {
             username: normalizedText
           })
         }
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
       }
-      
-      // Возможно, здесь не нужно ничего делать или отправить сообщение типа "Неизвестная команда"
     }
-  } else {
-    // Логика для нетекстовых сообщений
-    logger.warn({
-      message: '⚠️ [handleMenu] Получено не текстовое сообщение',
-      telegramId,
-      function: 'handleMenu',
-      messageType: ctx.message ? typeof ctx.message : 'undefined',
-      result: 'non_text_message',
-    })
-  }
 
-  // Обработка callback queries (inline кнопок)
-  if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-    const callbackData = ctx.callbackQuery.data
-
-    logger.info({
-      message: `📱 [handleMenu] Получен callback: "${callbackData}"`,
-      telegramId,
-      function: 'handleMenu',
-      callbackData,
+    addAction(105, async () => {
+      console.log('CASE: 💫 Оформление подписки')
+      ctx.session.mode = ModeEnum.Subscribe
+      await ctx.scene.enter(ModeEnum.SubscriptionScene)
     })
 
-    console.log('CASE: handleMenuCommand.callback', callbackData)
+    addAction(1, async () => {
+      console.log('CASE: 🤖 Цифровое тело')
+      ctx.session.mode = ModeEnum.DigitalAvatarBody
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
 
-    // Проверяем callback для мониторинга конкурентов
-    if (callbackData === 'add_new_competitor') {
-      console.log('➕ [handleMenu] add_new_competitor callback')
-      logger.info('[handleMenu] add_new_competitor callback triggered', {
-        telegramId,
-        userId: ctx.from?.id,
-        sessionBefore: ctx.session
-      })
-      
-      const isRu = isRussianFromState(ctx)
-      
-      // Проверяем права администратора
+    actions['🤖 Цифровое тело 2'] = async () => {
+      console.log('CASE: 🤖 Цифровое тело 2')
+      ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+
+    addAction(2, async () => {
+      console.log('CASE handleMenu: 📸 Нейрофото')
+      ctx.session.mode = ModeEnum.NeuroPhoto
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    actions['📸 Нейрофото 2'] = async () => {
+      console.log('CASE: 📸 Нейрофото 2')
+      ctx.session.mode = ModeEnum.NeuroPhotoV2
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+
+    addAction(3, async () => {
+      console.log('CASE: 🔍 Промпт из фото')
+      ctx.session.mode = ModeEnum.ImageToPrompt
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(4, async () => {
+      console.log('CASE: 🧠 Мозг аватара')
+      ctx.session.mode = ModeEnum.Avatar
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(5, async () => {
+      console.log('CASE: 💭 Чат с аватаром')
+      ctx.session.mode = ModeEnum.ChatWithAvatar
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(6, async () => {
+      console.log('CASE: 🤖 Выбор модели ИИ')
+      ctx.session.mode = ModeEnum.SelectModel
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(7, async () => {
+      console.log('CASE: 🎤 Голос аватара')
+      ctx.session.mode = ModeEnum.Voice
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(8, async () => {
+      console.log('CASE: 🎙️ Текст в голос')
+      ctx.session.mode = ModeEnum.TextToSpeech
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(9, async () => {
+      console.log('CASE: 🎥 Фото в видео')
+      ctx.session.mode = ModeEnum.ImageToVideo
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(10, async () => {
+      console.log('CASE:  Видео из текста')
+      ctx.session.mode = ModeEnum.TextToVideo
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(11, async () => {
+      console.log('CASE: 🖼️ Текст в фото')
+      ctx.session.mode = ModeEnum.TextToImage
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    })
+
+    addAction(12, async () => {
+      console.log('CASE: 🎨 ИИ Фотошоп')
+      ctx.session.mode = ModeEnum.AiPhotoshop
+      await ctx.scene.enter('ai_photoshop_scene')
+    })
+
+    addAction(13, async () => {
+      console.log('CASE: 🌀 Infinity Морфинг')
+      ctx.session.mode = ModeEnum.MorphingWizard
+      await ctx.scene.enter('morphing_wizard')
+    })
+
+    addAction(14, async () => {
+      console.log('CASE: 🎤 Синхронизация губ')
+      // Проверяем админские права
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+      const userId = ctx.from?.id
+      const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+      if (!isAdmin) {
+        await ctx.reply('❌ Функция доступна только администраторам.')
+        return
+      }
+
+      // Входим в сцену lipSync
+      await ctx.scene.enter('lip_sync')
+    })
+
+    addAction(15, async () => {
+      console.log('CASE: 🎭 Замена лица')
+      ctx.session.mode = ModeEnum.FaceSwap
+      await ctx.scene.enter('faceSwapWizard')
+    })
+
+    addAction(107, async () => {
+      console.log('CASE: ⬆️ Увеличить качество фото')
+      ctx.session.mode = ModeEnum.ImageUpscaler
+      await ctx.scene.enter('imageUpscalerWizard')
+    })
+
+    addAction(108, async () => {
+      console.log('CASE: 📺 Транскрибация Reels')
+      ctx.session.mode = ModeEnum.VideoTranscription
+      await ctx.scene.enter('video_transcription')
+    })
+
+    addAction(111, async () => {
+      console.log('CASE: 🦸‍♂️ ИИ Герои')
+      ctx.session.mode = ModeEnum.AIHeroes
+      await ctx.scene.enter('avatarTransformScene')
+    })
+
+    addAction(100, async () => {
+      console.log('CASE: 💎 Пополнить баланс')
+      ctx.session.mode = ModeEnum.TopUpBalance
+      await ctx.scene.enter('paymentScene')
+    })
+
+    addAction(101, async () => {
+      console.log('CASE: 🤑 Баланс')
+      ctx.session.mode = ModeEnum.Balance
+      await ctx.scene.enter(ModeEnum.BalanceScene)
+    })
+
+    addAction(102, async () => {
+      console.log('CASE: 👥 Пригласить друга')
+      ctx.session.mode = ModeEnum.Invite
+      await ctx.scene.enter(ModeEnum.InviteScene)
+    })
+
+    addAction(103, async () => {
+      console.log('CASE: ❓ Помощь')
+      ctx.session.mode = ModeEnum.Help
+      await ctx.scene.enter(ModeEnum.HelpScene)
+    })
+
+    addAction(104, async () => {
+      console.log('CASE: 🏠 Главное меню')
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    })
+
+    addAction(106, async () => {
+      console.log('CASE: 🌐 Смена языка')
+      // Переключаем язык пользователя
+      const currentLang = ctx.session?.userLanguage
+      const newLang = currentLang === 'ru' ? 'en' : 'ru'
+      ctx.session.userLanguage = newLang
+
+      await ctx.reply(
+        newLang === 'ru'
+          ? '✅ Язык изменён на русский'
+          : '✅ Language changed to English'
+      )
+
+      // Показываем главное меню на новом языке
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    })
+
+    // Competitor monitoring button handler (level 109)
+    addAction(109, async () => {
+      console.log('CASE: 🔍 Мониторинг конкурентов')
+
+      // Проверяем права администратора или сотрудников Хаим Групп
       const userId = ctx.from?.id?.toString()
-      if (!userId || !adminIds.includes(userId)) {
-        logger.warn('[handleMenu] User not admin, denying access', { userId, adminIds })
-        await ctx.answerCbQuery()
+      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        console.log('[handleMenu] Competitor monitoring access denied - not admin/staff', {
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
         await ctx.reply(
           isRu
-            ? '❌ У вас нет прав для добавления конкурентов'
-            : '❌ You do not have permission to add competitors'
+            ? '❌ У вас нет доступа к мониторингу конкурентов. Функция доступна только администраторам.'
+            : '❌ You do not have access to competitor monitoring. This feature is admin only.'
         )
         return
       }
-      
-      await ctx.answerCbQuery('✅')
-      console.log('Before importing promptForCompetitorUsername')
-      const { promptForCompetitorUsername } = await import('@/services/competitorSubscriptionService')
-      console.log('After importing, before calling promptForCompetitorUsername')
-      await promptForCompetitorUsername(ctx, isRu)
-      console.log('After calling promptForCompetitorUsername, session:', ctx.session)
-      logger.info('[handleMenu] add_new_competitor callback completed', {
-        sessionAfter: ctx.session
-      })
-      return
-    }
 
-    if (callbackData === 'refresh_subscriptions') {
-      console.log('🔄 [handleMenu] refresh_subscriptions callback')
-      await ctx.answerCbQuery()
-      await handleCompetitorMonitoring(ctx)
-      return
-    }
+      // Запускаем Instagram Parser Wizard
+      console.log(`🔄 [handleMenu] Вход в сцену instagram_parser_wizard`)
+      await ctx.scene.enter('instagram_parser_wizard')
+      console.log(`✅ [handleMenu] Завершен вход в сцену instagram_parser_wizard`)
+    })
 
-    if (callbackData.startsWith('delete_subscription_')) {
-      const subscriptionId = callbackData.replace('delete_subscription_', '')
-      const isRu = isRussianFromState(ctx)
-      
-      console.log(`🗑️ [handleMenu] delete_subscription callback for ID: ${subscriptionId}`)
-      
-      try {
-        const result = await competitorMonitoringApi.deleteSubscription(ctx, subscriptionId)
-        
-        if (result.success) {
-          console.log(`✅ [handleMenu] Successfully deleted subscription: ${subscriptionId}`)
-          await ctx.answerCbQuery(result.message)
-          
-          // Обновляем список подписок после удаления
-          await handleCompetitorMonitoring(ctx)
-        } else {
-          console.log(`❌ [handleMenu] Failed to delete subscription: ${subscriptionId}`)
-          await ctx.answerCbQuery(result.message)
-        }
-      } catch (error) {
-        console.log(`💥 [handleMenu] Error deleting subscription: ${error}`)
-        await ctx.answerCbQuery(
-          isRu 
-            ? '❌ Ошибка при удалении подписки' 
-            : '❌ Error deleting subscription'
+    // AI Reels button handler (level 110)
+    addAction(110, async () => {
+      console.log('CASE: 🎬 ИИ Рилс - Entry Wizard')
+
+      // Проверяем права администратора или сотрудников Хаим Групп
+      const userId = ctx.from?.id?.toString()
+      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        console.log('[handleMenu] AI Reels access denied - not admin/staff', {
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ У вас нет доступа к ИИ Рилс. Функция доступна только администраторам.'
+            : '❌ You do not have access to AI Reels. This feature is admin only.'
         )
+        return
       }
-      return
+
+      // Запускаем AI Reels entry wizard (выбор метода)
+      console.log(`🔄 [handleMenu] Вход в сцену ai_reels_entry`)
+      await ctx.scene.enter('ai_reels_entry')
+      console.log(`✅ [handleMenu] Завершен вход в сцену ai_reels_entry`)
+    })
+
+    actions['/invite'] = async () => {
+      console.log('CASE: 👥 Пригласить друга')
+      ctx.session.mode = ModeEnum.Invite
+      await ctx.scene.enter(ModeEnum.InviteScene)
     }
 
-    // Отвечаем на неизвестные callback queries
-    await ctx.answerCbQuery()
-  }
+    actions['/price'] = async () => {
+      console.log('CASE: 💰 Цена')
+      ctx.session.mode = ModeEnum.Price
+      await priceCommand(ctx)
+    }
+
+    actions['/buy'] = async () => {
+      console.log('CASE: 💰 Пополнить баланс')
+      ctx.session.mode = ModeEnum.TopUpBalance
+      await ctx.scene.enter('paymentScene')
+    }
+
+    actions['/balance'] = async () => {
+      console.log('CASE: 💰 Баланс')
+      ctx.session.mode = ModeEnum.Balance
+      await ctx.scene.enter(ModeEnum.BalanceScene)
+    }
+
+    actions['/help'] = async () => {
+      console.log('CASE: ❓ Помощь')
+      ctx.session.mode = ModeEnum.Help
+      await ctx.scene.enter(ModeEnum.HelpScene)
+    }
+
+    actions['/menu'] = async () => {
+      console.log('CASE: 🏠 Главное меню')
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
+    actions['/start'] = async () => {
+      console.log('CASE: 🚀 Начать обучение')
+      await ctx.scene.enter(ModeEnum.StartScene)
+    }
+
+    console.log('🔍 [ACTIONS DEBUG] Actions created:', Object.keys(actions))
+
+    // 🔍 ДИАГНОСТИКА ОБЪЕКТА ACTIONS
+    console.log('🔍 [ACTIONS DEBUG] Available action keys:', Object.keys(actions))
+    console.log('🔍 [ACTIONS DEBUG] Checking key existence:', {
+      text,
+      keyExists: text in actions,
+      actionValue: actions[text]
+    })
+
+    // Выполняем действие, если оно существует, иначе переходим в главное меню
+    if (actions[text]) {
+      console.log('CASE: handleMenuCommand.if', text)
+      await actions[text]()
+      console.log('✅ Action executed. Checking scene...')
+      console.log('🔍 Current scene after action:', ctx.scene.current?.id)
+      console.log('🔍 Scene stack:', ctx.scene.session?.sceneStack)
+    } else {
+      console.log('CASE: handleMenuCommand.else', text)
+      console.log('🔍 [MISSING ACTION] Available actions:', Object.keys(actions))
+      // ctx.session.mode = 'main_menu'
+      // await ctx.scene.enter('menuScene')
+    }
 }
 
 // Экспортируем функцию, если она будет использоваться в другом месте

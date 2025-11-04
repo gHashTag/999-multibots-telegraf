@@ -13,6 +13,9 @@ import { logger } from '../../utils/logger'
 import { mainMenu } from '../../menu/mainMenu'
 import { getUserDetailsSubscription } from '../../core/supabase/getUserDetailsSubscription'
 
+// ✅ CENTRALIZED CANCEL SYSTEM
+import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
+
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string

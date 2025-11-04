@@ -31,6 +31,7 @@ import {
   ModelButtonOptions,
 } from '@/utils/modelButtonMapping'
 import { handleButtonError } from '@/utils/buttonMapping'
+import { handleCancel, createGlobalCancelHandler } from '@/utils/cancelHandler'
 
 interface NeuroPhotoWizardSession extends Scenes.WizardSessionData {
   userModels?: ModelTraining[]
@@ -723,7 +724,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
         return ctx.scene.leave()
       }
 
-      if (result.model) {
+      if (result.success && result.model) {
         console.log('Successfully selected model:', result.model.id)
         ctx.session.userModel = result.model as any
         await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)

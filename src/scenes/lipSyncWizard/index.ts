@@ -7,6 +7,9 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { BASE_COSTS } from '@/scenes/checkBalanceScene'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { Markup } from 'telegraf'
+import { handleCancel, createGlobalCancelHandler } from '@/utils/cancelHandler'
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
 import {
   validateVideoInput,
   validateAudioInput,
@@ -66,7 +69,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
         {
-          reply_markup: { remove_keyboard: true },
+          reply_markup: createCancelOnlyKeyboard(ctx).reply_markup
         }
       )
       return ctx.wizard.next()
@@ -84,6 +87,15 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let videoInput: any
+
+    // Проверяем нажатие кнопки "Отмена"
+    if (ctx.callbackQuery?.data === 'cancel_operation' || ctx.callbackQuery?.data === 'lipsync_cancel') {
+      return handleCancel(ctx, {
+        messageRu: '❌ Процесс отменён.',
+        messageEn: '❌ Process cancelled.'
+      })
+    }
+
 
     try {
       if (message && 'video' in message) {
@@ -143,8 +155,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(
         isRu
-          ? '✅ Видео получено! Теперь отправьте аудио, голосовое сообщение или URL аудио'
-          : '✅ Video received! Now send an audio, voice message, or audio URL'
+          ? 'Видео получено! Теперь отправьте аудио, голосовое сообщение или URL аудио'
+          : 'Video received! Now send an audio, voice message, or audio URL',
+        {
+          reply_markup: createCancelOnlyKeyboard(ctx).reply_markup
+        }
       )
       return ctx.wizard.next()
       
@@ -307,8 +322,8 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     const newBalance = currentBalance - LIPSYNC_COST
     await ctx.reply(
       isRu
-        ? `💰 Списано ${LIPSYNC_COST}⭐. Новый баланс: ${newBalance}⭐`
-        : `💰 Charged ${LIPSYNC_COST}⭐. New balance: ${newBalance}⭐`
+        ? `Списано ${LIPSYNC_COST}⭐. Новый баланс: ${newBalance}⭐`
+        : `Charged ${LIPSYNC_COST}⭐. New balance: ${newBalance}⭐`
     )
 
     if (!ctx.session.videoUrl || !ctx.session.audioUrl) {
@@ -336,8 +351,8 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(
         isRu
-          ? `🎥 Видео отправлено на обработку. Ждите результата`
-          : `🎥 Video sent for processing. Wait for the result`
+          ? 'Видео отправлено на обработку. Ждите результата.'
+          : 'Video sent for processing. Wait for the result.'
       )
     } catch (error) {
       console.error('❌ Error in generateLipSync:', error)
@@ -381,5 +396,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     return ctx.scene.leave()
   }
 )
+
+// Глобальный обработчик отмены для всех команд отмены
+lipSyncWizard.action(createGlobalCancelHandler({
+  messageRu: '❌ Процесс отменён.',
+  messageEn: '❌ Process cancelled.'
+}))
 
 export default lipSyncWizard

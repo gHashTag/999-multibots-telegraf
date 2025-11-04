@@ -5,7 +5,7 @@
  * Модель: codeplugtech/face-swap
  */
 
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
@@ -13,6 +13,7 @@ import { generateFaceSwap } from '@/services/generateFaceSwap'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { createCancelButton, handleCancelButton } from '@/utils/cancelButton'
 
 export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
   'faceSwapWizard',
@@ -29,21 +30,14 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
 
     await ctx.reply(
       isRu
-        ? '🎭 <b>Замена лица</b>\n\n' +
-          'Загрузите фото человека, на которого хотите заменить лицо.\n\n' +
-          '📋 <b>Требования:</b>\n' +
-          '• Лицо чётко видно\n' +
-          '• Анфас (прямо в камеру)\n' +
-          '• Хорошее освещение\n\n' +
-          '💰 <b>Стоимость:</b> 10 ⭐'
-        : '🎭 <b>Face Swap</b>\n\n' +
-          'Upload photo of the person whose face you want to swap.\n\n' +
-          '📋 <b>Requirements:</b>\n' +
-          '• Face clearly visible\n' +
-          '• Frontal angle\n' +
-          '• Good lighting\n\n' +
-          '💰 <b>Cost:</b> 10 ⭐',
-      { parse_mode: 'HTML' }
+        ? 'Замена лица\n\nЗагрузите фото человека, на которого хотите заменить лицо.\n\nТребования:\n• Лицо чётко видно\n• Анфас (прямо в камеру)\n• Хорошее освещение\n\nСтоимость: 10 ⭐'
+        : 'Face Swap\n\nUpload photo of the person whose face you want to swap.\n\nRequirements:\n• Face clearly visible\n• Frontal angle\n• Good lighting\n\nCost: 10 ⭐',
+      {
+        parse_mode: 'HTML',
+        reply_markup: Markup.keyboard([
+          createCancelButton(isRu)
+        ]).resize().oneTime(),
+      }
     )
 
     return ctx.wizard.next()
@@ -59,12 +53,16 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
       hasPhoto: !!('message' in ctx.update && 'photo' in ctx.update.message),
     })
 
+    // Проверка команды отмены
+    const isCancel = await handleCancelButton(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
     // Validate photo received
     if (!('message' in ctx.update) || !('photo' in ctx.update.message)) {
       await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, отправьте фото.'
-          : '❌ Please send a photo.'
+        isRu ? '❌ Пожалуйста, отправьте фото.' : '❌ Please send a photo.'
       )
       return
     }
@@ -88,9 +86,9 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       isRu
         ? '✅ Фото получено!\n\n' +
-          'Теперь загрузите второе фото - с лицом, которое хотите использовать.'
+            'Теперь загрузите второе фото - с лицом, которое хотите использовать.'
         : '✅ Photo received!\n\n' +
-          'Now upload the second photo - with the face you want to use.',
+            'Now upload the second photo - with the face you want to use.',
       { parse_mode: 'HTML' }
     )
 
@@ -110,9 +108,7 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     // Validate photo received
     if (!('message' in ctx.update) || !('photo' in ctx.update.message)) {
       await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, отправьте фото.'
-          : '❌ Please send a photo.'
+        isRu ? '❌ Пожалуйста, отправьте фото.' : '❌ Please send a photo.'
       )
       return
     }
@@ -144,6 +140,17 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     // Check user balance
     const balance = await getUserBalance(telegramId!)
     const requiredStars = 10 // Face swap costs 10 stars
+
+    // Проверка получения баланса
+    if (balance === null || balance === undefined || isNaN(balance)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при проверке доступа. Пожалуйста, попробуйте еще раз или начните сначала /start.'
+          : '❌ Error checking access. Please try again or start over with /start.'
+      )
+      logger.error('🎭 [FACE SWAP] Invalid balance received:', { telegramId, balance })
+      return ctx.scene.leave()
+    }
 
     if (balance < requiredStars) {
       await ctx.reply(

@@ -1,0 +1,26 @@
+{
+  "name": "Test Engineering Specialist",
+  "role": "QA архитектор функционального кода",
+  "specialization": "Jest, Vitest, fast-check, Property-based Testing",
+  "experience": "Эксперт по тестированию функционального кода",
+  "tasks": [
+    "Unit tests для всех функций (100% coverage)",
+    "Integration tests для провайдеров",
+    "Property-based tests с fast-check",
+    "Mock провайдеры для тестов",
+    "Test fixtures",
+    "Snapshot testing",
+    "Performance benchmarks",
+    "E2E тесты с реальными провайдерами"
+  ],
+  "learning_materials": [
+    "Jest best practices",
+    "Vitest advanced features",
+    "Property-based testing with fast-check",
+    "Mock strategies",
+    "Test fixtures",
+    "Snapshot testing",
+    "Performance testing"
+  ],
+  "output_directory": "tests"
+}

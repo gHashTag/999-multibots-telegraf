@@ -1,7 +1,11 @@
 export * from './avatarBrainWizard'
 export * from './imageToPromptWizard'
 export * from './imageUpscalerWizard'
+<<<<<<< HEAD
+export { faceSwapWizard } from './faceSwapWizard'
+=======
 export { default as faceSwapWizard } from './faceSwapWizard'
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 export * from './emailWizard'
 export * from './improvePromptWizard'
 export * from './sizeWizard'
@@ -21,7 +25,7 @@ export * from './paymentScene'
 export * from './textToImageWizard'
 export * from './levelQuestWizard'
 export * from './neuroCoderScene'
-export { lipSyncWizard } from './lipSyncWizard'  // ✅ EXPLICIT NAMED EXPORT
+export { lipSyncWizard } from './lipSyncWizard'
 export { veedFabricWizard } from './lipSyncWizard/veed-fabric-wizard'
 export { aiReelsWizard } from './lipSyncWizard/ai-reels-wizard'
 export { aiReelsEntryWizard } from './lipSyncWizard/ai-reels-entry-wizard'

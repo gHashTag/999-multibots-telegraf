@@ -233,7 +233,7 @@ export async function getTranslation({
     }
 
     // ✅ ENHANCED: Default buttons with better error handling
-    const keysNeedingDefaultButtons = ['digitalAvatar', 'subscriptionScene', 'menu']
+    const keysNeedingDefaultButtons = ['digitalAvatar', 'subscriptionScene']
 
     if (keysNeedingDefaultButtons.includes(key) && buttons.length === 0) {
       buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
@@ -247,6 +247,63 @@ export async function getTranslation({
           buttonsApplied: 'DEFAULT_FALLBACK'
         }
       )
+    }
+
+    // ✅ MENU: Generate all menu buttons from levels if buttons are missing
+    if (key === 'menu' && buttons.length === 0) {
+      try {
+        // Dynamically import to avoid circular dependency
+        const { levels } = await import('@/menu/mainMenu')
+        const { SubscriptionType } = await import('@/interfaces/subscription.interface')
+
+        logger.info(`[getTranslation] Generating menu buttons from levels for "${key}"`, {
+          telegramId,
+          language_code,
+          totalLevels: Object.keys(levels).length
+        })
+
+        buttons = Object.entries(levels)
+          .map(([key, level]: [string, any]) => {
+            // Create TranslationButton from Level
+            const subscriptionMap: Record<number, SubscriptionType> = {
+              1: SubscriptionType.NEUROPHOTO,
+              2: SubscriptionType.NEUROPHOTO,
+              9: SubscriptionType.NEUROVIDEO,
+              10: SubscriptionType.NEUROVIDEO,
+            }
+
+            return {
+              row: parseInt(key) > 100 ? 2 : 1, // Admin buttons on second row
+              text: language_code === 'ru' ? level.title_ru : level.title_en,
+              // No callback_data - buttons will be handled by text in handleMenu/hearsHandlers
+              subscription: subscriptionMap[parseInt(key)] || SubscriptionType.NEUROPHOTO,
+              stars_price: 476,
+              en_price: 15,
+              ru_price: 1110,
+              description: 'Menu button from levels',
+            }
+          })
+          .filter(btn => btn.text) // Remove empty buttons
+
+        logger.info(
+          `[getTranslation] Generated ${buttons.length} menu buttons from levels for key "${key}"`,
+          {
+            telegramId,
+            key,
+            language_code,
+            buttonsCount: buttons.length,
+            buttonsApplied: 'GENERATED_FROM_LEVELS'
+          }
+        )
+      } catch (error) {
+        logger.error(`[getTranslation] Failed to generate menu buttons from levels`, {
+          telegramId,
+          key,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        // Fallback to minimal default
+        buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
+      }
     }
 
     // ✅ FINAL FALLBACK: If still no translation, provide minimal default

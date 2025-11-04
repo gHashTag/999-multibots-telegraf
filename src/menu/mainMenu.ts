@@ -68,8 +68,8 @@ export const levels: Record<number, Level> = {
   },
   // text_to_image
   11: {
-    title_ru: '🖼️ Генерация изображений',
-    title_en: '🖼️ Generate Images',
+    title_ru: '🖼️ Текст в фото',
+    title_en: '🖼️ Text to Photo',
   },
   // ai_photoshop (formerly flux_kontext)
   12: {
@@ -151,6 +151,7 @@ export const levels: Record<number, Level> = {
     title_ru: '🦸‍♂️ ИИ Герои',
     title_en: '🦸‍♂️ AI Heroes',
   },
+  // Removed: Plus button for adding new models - not needed in production menu
 }
 
 // Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
@@ -399,13 +400,14 @@ export async function mainMenu({
   const adminSpecificButtons = []
 
   // Админские кнопки для основных админов
-  if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
-    adminSpecificButtons.push(
-      Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
-    )
-    console.log('[mainMenu LOG] Added admin buttons.')
-  }
+  // TEMPORARILY HIDDEN - кнопки "Цифровое тело 2" и "Нейрофото 2"
+  // if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
+  //   adminSpecificButtons.push(
+  //     Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
+  //     Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
+  //   )
+  //   console.log('[mainMenu LOG] Added admin buttons.')
+  // }
 
   // --- Создаем кнопки, которые нужны почти всегда ---
   const supportButton = Markup.button.text(

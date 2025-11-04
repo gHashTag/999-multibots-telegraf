@@ -45,8 +45,13 @@ exports.HAIM_AVATARS = [
 /**
  * ✅ БЕЗОПАСНО: API ключи читаются из переменных окружения (.env)
  * Добавьте в .env файл:
+<<<<<<< HEAD
+ * HEYGEN_COCOAGE_API_KEY=YOUR_HEYGEN_API_KEY_HERE
+ * HEYGEN_HAIM_API_KEY=YOUR_HEYGEN_API_KEY_HERE
+=======
  * HEYGEN_COCOAGE_API_KEY=sk_V2_hgu_...
  * HEYGEN_HAIM_API_KEY=sk_V2_hgu_...
+>>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
  */
 exports.HEYGEN_AVATAR_SETS = {
     cocoage: {
