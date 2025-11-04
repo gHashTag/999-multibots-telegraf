@@ -135,7 +135,7 @@ const scenesToRegister = [
   sizeWizard,
   aiPhotoshopScene,
   morphingWizard,
-  new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
+  voiceAvatarWizard,
   new Scenes.WizardScene(
     ModeEnum.TextToSpeech,
     ...(textToSpeechWizard.steps as any)
