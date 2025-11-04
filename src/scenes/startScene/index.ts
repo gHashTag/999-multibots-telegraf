@@ -11,9 +11,9 @@ import { getBotNameByToken } from '@/core/bot'
  * Показывает главное меню сразу при старте
  */
 
-const startScene = new Scenes.WizardScene<MyContext>(
+export const startScene = new Scenes.WizardScene<MyContext>(
   'startScene', // Уникальный ID сцены
-  
+
   // Шаг 1: Показываем меню и завершаем сцену
   async (ctx) => {
     const isRu = isRussianFromState(ctx)
