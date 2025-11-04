@@ -136,10 +136,7 @@ const scenesToRegister = [
   aiPhotoshopScene,
   morphingWizard,
   voiceAvatarWizard,
-  new Scenes.WizardScene(
-    ModeEnum.TextToSpeech,
-    ...(textToSpeechWizard.steps as any)
-  ),
+  textToSpeechWizard,
   videoTranscriptionWizard,
   lipSyncWizard,
   veedFabricWizard,
@@ -147,11 +144,8 @@ const scenesToRegister = [
   aiReelsEntryWizard,
   aiReelsRenderWizard,
   avatarTransformScene,
-  new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.ChatWithAvatar,
-    ...(chatWithAvatarWizard.steps as any)
-  ),
+  avatarBrainWizard,
+  chatWithAvatarWizard,
   selectModelWizard,
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
