@@ -6,6 +6,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { ADMIN_IDS_ARRAY } from '@/config'
 
 // ✅ ПРОСТАЯ СИСТЕМА КНОПОК (вместо сложной levels)
+// 🎯 ПОРЯДОК: Нейрофункции → Техподдержка → Язык → Оформить подписку + Пополнить баланс (ВНИЗУ!)
 export const MAIN_MENU_BUTTONS = [
   // Основные ИИ функции
   { ru: '🤖 Цифровое тело', en: '🤖 Digital Body', mode: ModeEnum.DigitalAvatarBody },
@@ -23,20 +24,23 @@ export const MAIN_MENU_BUTTONS = [
   { ru: '🌀 Infinity Морфинг', en: '🌀 Infinity Morphing', mode: 'morphing' },
   { ru: '🎤 Синхронизация губ', en: '🎤 Lip Sync', mode: 'lip_sync', admin_only: true },
   { ru: '🎭 Замена лица', en: '🎭 Face Swap', mode: 'face_swap' },
-
-  // Сервисные кнопки
-  { ru: '💎 Пополнить баланс', en: '💎 Top up balance', mode: 'top_up' },
-  { ru: '⚙️ Настройки', en: '⚙️ Settings', mode: 'settings' },
-  { ru: '📊 Статистика', en: '📊 Statistics', mode: 'statistics' },
-  { ru: '💬 Техподдержка', en: '💬 Tech Support', mode: 'tech_support' },
-  { ru: '🏷️ Промо', en: '🏷️ Promo', mode: 'promo' },
-  { ru: '💫 Оформить подписку', en: '💫 Subscribe', mode: 'subscription' },
-  { ru: '💰 Анализ расходов', en: '💰 Expense Analysis', mode: 'expense_analysis' },
-  { ru: '🔍 Мониторинг конкурентов', en: '🔍 Competitor Monitoring', mode: 'competitor_monitoring' },
+  { ru: '🔍 Мониторинг конкурентов', en: '🔍 Competitor Monitoring', mode: 'competitor_monitoring', admin_only: true },
   { ru: '🦸‍♂️ ИИ Герои', en: '🦸‍♂️ AI Heroes', mode: 'ai_heroes' },
-  { ru: '🎬 ИИ Рилс', en: '🎬 AI Reels', mode: 'ai_reels' },
-  { ru: 'ℹ️ Справка', en: 'ℹ️ Help', mode: 'help' },
-  { ru: '🎯 Улучшение промпта', en: '🎯 Prompt Improvement', mode: 'prompt_improvement' },
+  { ru: '🎬 ИИ Рилс', en: '🎬 AI Reels', mode: 'ai_reels', admin_only: true },
+
+  // Пригласить друга + Техподдержка
+  { ru: '👥 Пригласить друга', en: '👥 Invite a friend', mode: 'invite' },
+  { ru: '💬 Техподдержка', en: '💬 Tech Support', mode: 'tech_support' },
+
+  // Кнопка языка
+  { ru: '🌐 EN', en: '🌐 RU', mode: 'language' },
+
+  // 💫 ОПЛАТА ВНИЗУ (ПО ТРЕБОВАНИЮ ПОЛЬЗОВАТЕЛЯ!)
+  { ru: '💫 Оформить подписку', en: '💫 Subscribe', mode: 'subscription' },
+  { ru: '💎 Пополнить баланс', en: '💎 Top up balance', mode: 'top_up' },
+
+  // Баланс отдельной строкой под оплатой
+  { ru: '💰 Баланс', en: '💰 Balance', mode: 'balance' },
 ]
 
 // ✅ ПРОСТАЯ ФУНКЦИЯ СОЗДАНИЯ МЕНЮ
