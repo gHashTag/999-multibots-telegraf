@@ -777,3 +777,202 @@
 2025-11-04 16:23:12 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
 2025-11-04 16:23:12 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
 2025-11-04 16:23:12 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:24:10 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:24:10 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:24:10 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:24:10 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:24:10 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:24:10 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:24:10 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:24:10 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:24:10 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:24:10 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:24:11 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:24:11 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:24:11 [INFO]: Registering bot commands and handlers
+2025-11-04 16:24:11 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:24:11 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:24:11 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:24:11 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:24:11 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:24:11 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
+2025-11-04 16:24:20 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":false}
+2025-11-04 16:24:20 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 16:24:20 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 16:24:20 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535403,"updateType":"message","messageText":"/menu"}
+2025-11-04 16:24:20 [INFO]: COMMAND /menu: Переход к главному меню {"telegramId":144022504}
+2025-11-04 16:24:20 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 16:24:20 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 16:24:20 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 16:24:20 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 16:24:20 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 16:24:20 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T09:24:20.985Z"}}
+2025-11-04 16:24:20 [INFO]: [DEV SIMULATION] Debug env variable {"DEV_SIMULATE_SUBSCRIPTION":"","originalSubscription":"NEUROTESTER"}
+2025-11-04 16:24:20 [INFO]: [DEV SIMULATION] No simulation variable set, using original subscription {"original":"NEUROTESTER"}
+2025-11-04 16:24:20 [INFO]: COMMAND /menu: Checking subscription {"telegramId":"144022504","originalSubscription":"NEUROTESTER","effectiveSubscription":"NEUROTESTER","isDev":true}
+2025-11-04 16:24:20 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:24:20 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:24:20 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:24:21 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:24:21 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:24:21 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:24:28 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"144022504","telegramLanguage":"ru","hasSession":true}
+2025-11-04 16:24:28 [INFO]: [LanguageMiddleware] ✅ DATABASE FOUND: ru {"telegramId":"144022504","source":"database","dbLanguage":"ru"}
+2025-11-04 16:24:28 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: ru {"telegramId":"144022504","finalLanguage":"ru","source":"database"}
+2025-11-04 16:24:28 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535404,"updateType":"message","messageText":"🤖 Выбор модели ИИ"}
+2025-11-04 16:24:28 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:24:28 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:24:28 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:24:28 [INFO]: [SubscriptionGuard] 🤖 Выбор модели ИИ: ADMIN ACCESS GRANTED {"telegramId":"144022504","command":"🤖 Выбор модели ИИ","adminId":144022504,"bypass":"subscription_check"}
+2025-11-04 16:24:28 [INFO]: 🚀 [CheckBalanceScene] Вход в сцену проверки баланса {"telegramId":"144022504","function":"checkBalanceScene.enter","sessionMode":"select_model","sessionData":"{\"__scenes\":{\"current\":\"check_balance_scene\",\"state\":{}},\"mode\":\"select_model\"}"}
+2025-11-04 16:24:28 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:24:28 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:24:28 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:24:28 [INFO]: [CheckBalanceScene] IMMEDIATE ACCESS: Admin 144022504 bypassing all checks {"telegramId":"144022504","function":"checkBalanceScene.enter","step":"admin_immediate_access","mode":"select_model"}
+2025-11-04 16:24:28 [INFO]: [EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим select_model {"telegramId":"144022504","mode":"select_model","cost":0,"function":"enterTargetSceneWrapper"}
+2025-11-04 16:24:28 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 144022504 {"telegramId":"144022504"}
+2025-11-04 16:24:28 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"144022504"}
+2025-11-04 16:24:28 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"144022504","stars":195925558.64}
+2025-11-04 16:24:28 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 195925558.64 {"telegramId":"144022504"}
+2025-11-04 16:24:29 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"144022504"}
+2025-11-04 16:24:29 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"144022504","details":{"id":0,"created_at":"","stars":195925558.64,"subscriptionType":"NEUROTESTER","isSubscriptionActive":true,"isExist":true,"subscriptionStartDate":"2025-11-04T09:24:29.205Z"}}
+2025-11-04 16:24:29 [INFO]: [EnterTargetSceneWrapper] Режим select_model бесплатный, звезды не списываются {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:24:29 [INFO]: [EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:24:29 [INFO]: [EnterTargetSceneWrapper] ✅ Переход в целевую сцену select_model {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:24:29 [INFO]: [EnterTargetSceneWrapper] 🎯 ПЕРЕХОД В СЦЕНУ: select_model {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:24:29 [INFO]: 🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: select_model {"telegramId":"144022504","mode":"select_model","currentScene":"check_balance_scene","function":"enterTargetSceneWrapper","step":"calling_scene_enter"}
+2025-11-04 16:24:29 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"144022504","stateLanguage":"ru","telegramLanguage":"ru","hasState":true}
+2025-11-04 16:24:29 [INFO]: [getUserLanguageFromState] ✅ Using STATE: ru {"telegramId":"144022504","source":"state"}
+2025-11-04 16:24:29 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"144022504","language":"ru","isRussian":true,"source":"state"}
+2025-11-04 16:24:29 [INFO]: ✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: select_model {"telegramId":"144022504","mode":"select_model","newScene":"select_model","function":"enterTargetSceneWrapper","step":"scene_enter_completed"}
+2025-11-04 16:24:29 [INFO]: [EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену select_model выполнен {"telegramId":"144022504","mode":"select_model","function":"enterTargetSceneWrapper"}
+2025-11-04 16:25:11 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:25:11 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:25:11 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:25:12 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:25:12 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:26:11 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:26:12 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:26:12 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:26:12 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:26:12 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:26:37 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:26:37 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:26:37 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:26:37 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:26:37 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:26:37 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:26:37 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:26:37 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:26:37 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:26:37 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:26:37 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:26:37 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:26:37 [INFO]: Registering bot commands and handlers
+2025-11-04 16:26:37 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:26:37 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:26:37 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:26:37 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:26:37 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:26:37 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
+2025-11-04 16:27:37 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:27:38 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:27:38 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:27:38 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:27:38 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:28:17 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:28:17 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:28:17 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:28:17 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:28:17 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:28:17 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:28:17 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:28:17 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:28:17 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:28:17 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:28:18 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:28:18 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:28:18 [INFO]: Registering bot commands and handlers
+2025-11-04 16:28:18 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:28:18 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:28:18 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:28:18 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:28:18 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:28:18 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
+2025-11-04 16:29:06 [INFO]: 🤖 Инициализация defaultBot: {"description":"DefaultBot initialization","tokenLength":46}
+2025-11-04 16:29:06 [INFO]: 🌟 Инициализировано ботов: {"description":"Bots initialized","count":10,"bot_names":["neuro_blogger_bot","MetaMuse_Manifest_bot","ZavaraBot","LeeSolarbot","NeuroLenaAssistant_bot","NeurostylistShtogrina_bot","Gaia_Kamskaia_bot","Kaya_easy_art_bot","AI_STARS_bot","HaimGroupMedia_bot"]}
+2025-11-04 16:29:06 [INFO]: 🤖 Инициализация pulseBot: {"description":"PulseBot initialization","tokenLength":46}
+2025-11-04 16:29:06 [INFO]: 🔄 Использован алиас режима {"description":"Mode alias used","originalMode":"neuro_photo_v2","normalizedMode":"neuro_photo_v2"}
+2025-11-04 16:29:06 [INFO]: 🔧 [INNGEST PROVIDER] Initializing...
+2025-11-04 16:29:06 [INFO]: ⏳ [INNGEST PROVIDER] Lazy initialization enabled
+2025-11-04 16:29:06 [INFO]: 📦 [RENDER CLIENT] Module loaded, inngestProvider imported
+2025-11-04 16:29:06 [INFO]: 📦 [AI REELS RENDER WIZARD] Module loaded
+2025-11-04 16:29:06 [INFO]: 🚨 AI Photoshop: Scene module loading...
+2025-11-04 16:29:06 [INFO]: Safe console logging enabled - Buffer data will be sanitized
+2025-11-04 16:29:07 [INFO]: 🚀 Инициализация ГЛОБАЛЬНОЙ системы уведомлений...
+2025-11-04 16:29:07 [INFO]: ✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)
+2025-11-04 16:29:07 [INFO]: Registering bot commands and handlers
+2025-11-04 16:29:07 [INFO]: 🔧 [DEBUG] REGISTERING /instagram command handler NOW!
+2025-11-04 16:29:07 [INFO]: 🔧 [MULTI-PHOTO] Registering multi-photo action handlers
+2025-11-04 16:29:07 [INFO]: ✅ Multi-photo action handlers registered successfully
+2025-11-04 16:29:07 [INFO]: 🔧 [HEARS] Registering global hears handlers for menu buttons
+2025-11-04 16:29:07 [INFO]: Настройка обработчиков hears...
+2025-11-04 16:29:07 [INFO]: 🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!
+2025-11-04 16:29:30 [INFO]: [LanguageMiddleware] 🌍 LANGUAGE MIDDLEWARE STARTED: {"telegramId":"2095532246","telegramLanguage":"en","hasSession":false}
+2025-11-04 16:29:31 [WARN]: [getUserLanguageFromDB] User not found for telegram_id: 2095532246
+2025-11-04 16:29:31 [INFO]: [LanguageMiddleware] 🔄 DATABASE EMPTY, using Telegram: en {"telegramId":"2095532246","source":"telegram","telegramLanguage":"en","finalLanguage":"en"}
+2025-11-04 16:29:31 [INFO]: [LanguageMiddleware] 🎯 LANGUAGE SET: en {"telegramId":"2095532246","finalLanguage":"en","source":"telegram"}
+2025-11-04 16:29:31 [INFO]: >>> RAW UPDATE RECEIVED {"updateId":795535405,"updateType":"message","messageText":"/start"}
+2025-11-04 16:29:31 [INFO]: [START] Starting with AI transformation demo first {"telegramId":2095532246,"step":"command_start","chatType":"private","username":"Lucifer7294l"}
+2025-11-04 16:29:31 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 2095532246 {"telegramId":"2095532246"}
+2025-11-04 16:29:31 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"2095532246"}
+2025-11-04 16:29:31 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"2095532246","stars":0}
+2025-11-04 16:29:31 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 0 {"telegramId":"2095532246"}
+2025-11-04 16:29:31 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь 2095532246 НЕ найден в таблице users или недоступен (RLS?). {"telegramId":"2095532246"}
+2025-11-04 16:29:31 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: false {"telegramId":"2095532246"}
+2025-11-04 16:29:32 [INFO]: [getUserDetailsSubscription v4.0 FIXED Step 3 INFO] Активных подписок не найдено {"telegramId":"2095532246"}
+2025-11-04 16:29:32 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"2095532246","details":{"id":0,"created_at":"","stars":0,"subscriptionType":null,"isSubscriptionActive":false,"isExist":false,"subscriptionStartDate":null}}
+2025-11-04 16:29:32 [INFO]: 🆕 [CreateUserScene] Entering scene to create user {"telegram_id":2095532246,"inviteCode":"none","username":"Lucifer7294l","first_name":"Ammir"}
+2025-11-04 16:29:32 [INFO]: 🔄 [CreateUserScene] Calling createUserStep with data {"telegram_id":2095532246,"username":"Lucifer7294l","text":"/start"}
+2025-11-04 16:29:32 [INFO]: [extractPromo] Анализируем команду {"telegramId":"2095532246","messageText":"/start","function":"extractPromoFromContext"}
+2025-11-04 16:29:32 [INFO]: Попытка найти или создать пользователя {"telegramId":"2095532246","username":"Lucifer7294l","function":"createUser_ENTRY","inputUserData":{"username":"Lucifer7294l","telegram_id":"2095532246","first_name":"Ammir","last_name":null,"is_bot":false,"language_code":"en","photo_url":"https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/flux_pro.jpeg/levels/2095532246.jpg","chat_id":null,"mode":"clean","model":"gpt-4-turbo","count":0,"aspect_ratio":"9:16","inviter":null,"bot_name":"clip_maker_neuro_bot"}}
+2025-11-04 16:29:32 [INFO]: Пользователь 2095532246 не найден в 'users'. Проверяем 'payments_v2' для признаков прошлой активности... {"telegramId":"2095532246","function":"createUser_checkPaymentsV2_START"}
+2025-11-04 16:29:33 [INFO]: Записей в 'payments_v2' для 2095532246 не найдено. Это новый пользователь. {"telegramId":"2095532246","function":"createUser_checkPaymentsV2_NotFound"}
+2025-11-04 16:29:33 [INFO]: Шаг 2: Попытка создания новой записи в 'users' для 2095532246 {"telegramId":"2095532246","username":"Lucifer7294l","inviter":null,"inputUserDataForInsert":{"username":"Lucifer7294l","telegram_id":"2095532246","first_name":"Ammir","last_name":null,"is_bot":false,"language_code":"en","photo_url":"https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/flux_pro.jpeg/levels/2095532246.jpg","chat_id":null,"mode":"clean","model":"gpt-4-turbo","count":0,"aspect_ratio":"9:16","inviter":null,"bot_name":"clip_maker_neuro_bot"},"function":"createUser_STEP2_insertNew_START"}
+2025-11-04 16:29:33 [INFO]: Пользователь успешно создан в 'users' {"telegramId":"2095532246","userId":"265a3479-2fec-4647-a3d5-e8b304177db0","function":"createUser_STEP2_insertNew_Success"}
+2025-11-04 16:29:33 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"2095532246","stateLanguage":"en","telegramLanguage":"en","hasState":true}
+2025-11-04 16:29:33 [INFO]: [getUserLanguageFromState] ✅ Using STATE: en {"telegramId":"2095532246","source":"state"}
+2025-11-04 16:29:33 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"2095532246","language":"en","isRussian":false,"source":"state"}
+2025-11-04 16:29:33 [WARN]: ⚠️ [CreateUserScene] Не удалось отправить уведомление в канал админов (без реферала) (возможно, бот не участник или нет прав) {"telegramId":"2095532246","channel":"@neuro_blogger_pulse","botName":"clip_maker_neuro_bot","error":"403: Forbidden: bot is not a member of the supergroup chat","step":"admin_notification_no_referral_failed_403"}
+2025-11-04 16:29:33 [INFO]: 📸 [CreateUserScene] User created/verified, entering AvatarTransform {"telegram_id":"2095532246","wasCreated":true}
+2025-11-04 16:29:33 [INFO]: [getUserLanguageFromState] 🎯 GETTING LANGUAGE FROM STATE: {"telegramId":"2095532246","stateLanguage":"en","telegramLanguage":"en","hasState":true}
+2025-11-04 16:29:33 [INFO]: [getUserLanguageFromState] ✅ Using STATE: en {"telegramId":"2095532246","source":"state"}
+2025-11-04 16:29:33 [INFO]: [isRussianFromState] 🔍 RUSSIAN CHECK: {"telegramId":"2095532246","language":"en","isRussian":false,"source":"state"}
+2025-11-04 16:29:33 [INFO]: [AvatarTransformScene] Starting explanation and gender selection {"telegramId":"2095532246","step":"explanation_and_gender"}
+2025-11-04 16:29:33 [INFO]: [AvatarTransformScene] Checking superhero generation limits {"telegramId":"2095532246","step":"checking_generation_limits"}
+2025-11-04 16:29:33 [INFO]: [checkSuperheroGenerationUsage] Checking superhero generation limits {"telegram_id":"2095532246"}
+2025-11-04 16:29:33 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Start] Запрос деталей для User: 2095532246 {"telegramId":"2095532246"}
+2025-11-04 16:29:33 [INFO]: 🔍 Получение баланса пользователя из БД (без кэша): {"description":"Getting user balance from database (no cache)","telegram_id":"2095532246"}
+2025-11-04 16:29:34 [INFO]: ✅ Баланс пользователя получен из БД: {"description":"User balance retrieved from database","telegram_id":"2095532246","stars":0}
+2025-11-04 16:29:34 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 1 OK] Баланс: 0 {"telegramId":"2095532246"}
+2025-11-04 16:29:34 [INFO]: [getUserDetailsSubscription v4.0 SIMPLE Step 2 OK] Пользователь существует: true {"telegramId":"2095532246"}
+2025-11-04 16:29:35 [INFO]: [getUserDetailsSubscription v4.0 FIXED Step 3 INFO] Активных подписок не найдено {"telegramId":"2095532246"}
+2025-11-04 16:29:35 [INFO]: [getUserDetailsSubscription v4.0 FIXED Finish] Результат {"telegramId":"2095532246","details":{"id":0,"created_at":"","stars":0,"subscriptionType":null,"isSubscriptionActive":false,"isExist":true,"subscriptionStartDate":null}}
+2025-11-04 16:29:35 [INFO]: [checkSuperheroGenerationUsage] Usage check completed {"telegram_id":"2095532246","currentUsage":0,"maxUsage":3,"canGenerate":true,"subscriptionType":"none","isSubscriptionActive":false}
+2025-11-04 16:29:35 [INFO]: [AvatarTransformScene] Generation limit check result {"telegramId":"2095532246","canGenerate":true,"currentUsage":0,"maxUsage":3,"isAdmin":false,"hasUnlimitedAccess":false,"resetDate":"2025-11-30","reason":"0/3 generations used","step":"generation_limit_checked"}
+2025-11-04 16:29:35 [INFO]: [checkAvatarTransformUsage] Checking avatar transform usage {"telegram_id":"2095532246"}
+2025-11-04 16:29:35 [INFO]: [checkAvatarTransformUsage] Usage check completed {"telegram_id":"2095532246","hasUsedBefore":false,"canUse":true,"isAdmin":false}
+2025-11-04 16:29:35 [INFO]: [AvatarTransformScene] Legacy usage check (for user creation) {"telegramId":"2095532246","canUse":true,"isAdmin":false,"hasUsedBefore":false,"step":"legacy_check_completed"}
+2025-11-04 16:29:35 [INFO]: [AvatarTransformScene] Regular user - generation allowed {"telegramId":"2095532246","step":"first_usage"}
+2025-11-04 16:29:35 [INFO]: [AvatarTransformScene] Lead magnet enabled - FREE transformation {"telegramId":"2095532246","step":"lead_magnet_enabled"}
+2025-11-04 16:30:03 [INFO]: [API] Request received {"method":"GET","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","accept-encoding":"gzip"},"body":"{}"}
+2025-11-04 16:30:03 [INFO]: [API] Request received {"method":"GET","url":"/x/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","accept-encoding":"gzip"},"body":"{}"}
+2025-11-04 16:30:03 [INFO]: [API] Request received {"method":"GET","url":"/.netlify/functions/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","accept-encoding":"gzip"},"body":"{}"}
+2025-11-04 16:30:03 [INFO]: [API] Request received {"method":"GET","url":"/.redwood/functions/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","accept-encoding":"gzip"},"body":"{}"}
+2025-11-04 16:30:03 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
+2025-11-04 16:30:07 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+2025-11-04 16:30:07 [INFO]: ✅ Подключение к Supabase успешно
+2025-11-04 16:30:07 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+2025-11-04 16:30:07 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,"hasError":false}
+2025-11-04 16:30:07 [INFO]: ✅ Нет уведомлений для отправки
+2025-11-04 16:30:09 [INFO]: [API] Request received {"method":"PUT","url":"/api/inngest","headers":{"host":"localhost:3000","user-agent":"Go-http-client/1.1","content-length":"43","content-type":"application/json","x-inngest-server-kind":"dev","accept-encoding":"gzip"},"body":"{\"url\":\"http://localhost:3000/api/inngest\"}..."}
