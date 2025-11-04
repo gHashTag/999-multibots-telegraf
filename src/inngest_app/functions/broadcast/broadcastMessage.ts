@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '../../../inngest_app/client'
 import { broadcastService } from '@/services/broadcast.service'
 import { logger } from '@utils/logger'
 import { slugify } from 'inngest' // For v3 migration

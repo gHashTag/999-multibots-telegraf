@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '../../../inngest_app/client'
 import { updateUserBalance } from '@/core/supabase'
 import { sendPaymentNotification } from '@/price/helpers'
 import { createBotByName } from '@/config'
