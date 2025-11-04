@@ -1,12 +1,20 @@
 /**
- * Hedra Service
- * Заглушка для сервиса Hedra
+ * Hedra Service Stub
+ * Заглушка для функциональности Hedra (генерация аватаров)
  */
 
 export interface HedraAsset {
   id: string
-  type: string
-  url: string
+  type: 'image' | 'audio'
+  status: string
+  upload_url?: string
+}
+
+export interface HedraGeneration {
+  id: string
+  status: string
+  url?: string
+  progress?: number
 }
 
 export class HedraService {
@@ -14,32 +22,69 @@ export class HedraService {
 
   constructor(apiKey: string) {
     this.apiKey = apiKey
+    console.log('[HEDRA STUB] Service initialized (stub mode)')
   }
 
-  async createAsset(name: string, type: string): Promise<HedraAsset> {
-    // Заглушка для создания ассета
-    console.log(`Creating Hedra asset: ${name} (${type})`)
+  async createAsset(name: string, type: 'image' | 'audio'): Promise<HedraAsset> {
+    console.log(`[HEDRA STUB] Creating ${type} asset: ${name}`)
     return {
-      id: `hedra-asset-${Date.now()}`,
+      id: `hedra_asset_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       type,
-      url: 'https://example.com/placeholder.jpg',
+      status: 'ready',
+      upload_url: 'https://stub.hedra.com/upload'
     }
   }
 
-  async generateAvatar(imageAssetId: string, audioAssetId?: string): Promise<string> {
-    // Заглушка для генерации аватара
-    console.log(`Generating Hedra avatar with image: ${imageAssetId}`)
-    return `hedra-generation-${Date.now()}`
+  async uploadAsset(assetId: string, sourceUrl: string): Promise<void> {
+    console.log(`[HEDRA STUB] Uploading asset ${assetId} from ${sourceUrl}`)
+    // Stub: no actual upload
   }
 
-  async getGenerationStatus(generationId: string): Promise<any> {
-    // Заглушка для получения статуса генерации
-    console.log(`Checking Hedra generation status: ${generationId}`)
+  async startGeneration(
+    imageAssetId: string,
+    audioAssetId: string,
+    textPrompt?: string,
+    resolution?: string,
+    aspectRatio?: string
+  ): Promise<HedraGeneration> {
+    console.log('[HEDRA STUB] Starting generation', {
+      imageAssetId,
+      audioAssetId,
+      textPrompt,
+      resolution,
+      aspectRatio
+    })
+
     return {
+      id: `hedra_gen_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      status: 'processing'
+    }
+  }
+
+  async waitForCompletion(
+    generationId: string,
+    maxWaitMs: number = 300000,
+    pollIntervalMs: number = 5000
+  ): Promise<HedraGeneration> {
+    console.log(`[HEDRA STUB] Waiting for completion: ${generationId}`)
+
+    // Stub: return success immediately
+    return {
+      id: generationId,
       status: 'completed',
-      video_url: 'https://example.com/generated-video.mp4',
+      url: `https://stub.hedra.com/videos/${generationId}.mp4`,
+      progress: 100
+    }
+  }
+
+  async getGeneration(generationId: string): Promise<HedraGeneration> {
+    console.log(`[HEDRA STUB] Getting generation status: ${generationId}`)
+
+    return {
+      id: generationId,
+      status: 'completed',
+      url: `https://stub.hedra.com/videos/${generationId}.mp4`,
+      progress: 100
     }
   }
 }
-
-export default HedraService

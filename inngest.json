@@ -1,0 +1,10 @@
+{
+  "name": "telegraf-inngest-functions",
+  "sdk-url": ["http://localhost:3000/api/inngest"],
+  "dev": {
+    "port": 8288,
+    "no-discovery": false
+  },
+  "description": "Telegraf Bot Farm - Inngest Functions Integration",
+  "version": "1.0.0"
+}
