@@ -7,6 +7,9 @@ import { handleImageToVideoDirect } from '../../handlers/handleImageToVideoDirec
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
+// ✅ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ
+import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
+
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 
 // Функция создания кнопки для Image to Video
@@ -157,10 +160,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         isRu
           ? '🖼️ Отправьте изображение для создания видео:'
           : '🖼️ Send an image to create video:',
-        Markup.keyboard([
-          [isRu ? '❌ Отмена' : '❌ Cancel'],
-          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
-        ]).resize()
+        {
+          reply_markup: createCancelOnlyKeyboard(ctx).reply_markup
+        }
       )
 
       console.log('🎬 [I2V WIZARD] Step 1: ✅ REPLY SENT! Moving to next step...')

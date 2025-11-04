@@ -10,6 +10,9 @@ import {
 } from '@/interfaces/zod/textToVideo.zod'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
+// ✅ CENTRALIZED CANCEL SYSTEM
+import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
+
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
 
 // Функция для расчета стоимости в звездах из конфига
