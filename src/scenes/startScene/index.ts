@@ -37,7 +37,8 @@ const startScene = new Scenes.WizardScene<MyContext>(
       // Получаем информацию о боте
       let botName = 'AI Bot'
       try {
-        botName = await getBotNameByToken(process.env.BOT_TOKEN || '')
+        const result = getBotNameByToken(process.env.BOT_TOKEN || '')
+        botName = result.bot_name
       } catch (error) {
         console.warn('⚠️ Не удалось получить имя бота:', error)
       }
