@@ -6,11 +6,11 @@
 
 import { slugify } from 'inngest'
 import axios from 'axios'
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '../../../inngest_app/client'
 import {
   InstagramContentAgentDB,
   type CompetitorData,
-} from '@/core/instagram/database-v2'
+} from '@/core/instagram'
 import type {
   FindCompetitorsEvent,
   FindCompetitorsEventPayload,

@@ -13,7 +13,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 
 // Используем основной Inngest клиент
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '../../../inngest_app/client'
 
 // Импортируем Zod-схемы
 import {

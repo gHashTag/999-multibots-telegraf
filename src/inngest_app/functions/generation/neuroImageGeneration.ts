@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '../../../inngest_app/client'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { savePrompt } from '@/core/supabase/savePrompt'
