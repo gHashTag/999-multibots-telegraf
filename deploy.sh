@@ -174,14 +174,15 @@ deploy() {
           echo \"Using self-signed SSL certificate (for testing)\"
         fi
 
-        # Простая и надежная nginx конфигурация
+        # NGINX конфигурация с HTTP и HTTPS
         cat > /root/nginx-config/default.conf << 'NGINX_EOF'
+# HTTP Server (callback on HTTP + redirect to HTTPS)
 server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 80;
     server_name three-head-dragon.shop;
     client_max_body_size 100M;
 
+    # ✅ Callback endpoint on HTTP (Railway render-server compatibility)
     location = /api/telegram/ai-reels-callback {
         proxy_pass http://127.0.0.1:3000/api/telegram/ai-reels-callback;
         proxy_http_version 1.1;
@@ -191,26 +192,63 @@ server {
         proxy_set_header X-Forwarded-Proto http;
     }
 
+    # All other HTTP requests → redirect to HTTPS
+    location / {
+        return 301 https://\$server_name\$request_uri;
+    }
+}
+
+# HTTPS Server
+server {
+    listen 443 ssl http2;
+    server_name three-head-dragon.shop;
+    client_max_body_size 100M;
+
+    # SSL Configuration (Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/three-head-dragon.shop/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # ✅ Callback endpoint on HTTPS
+    location = /api/telegram/ai-reels-callback {
+        proxy_pass http://127.0.0.1:3000/api/telegram/ai-reels-callback;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    # All other API endpoints
     location /api/ {
         proxy_pass http://127.0.0.1:3000/api/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
+    # Main API
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Health Check
     location /health {
         proxy_pass http://127.0.0.1:3000/health;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:3000/;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 }
 NGINX_EOF
@@ -223,10 +261,10 @@ NGINX_EOF
           --restart unless-stopped \
           --network host \
           -v /root/nginx-config:/etc/nginx/conf.d:ro \
-          -v /root/nginx-config:/etc/nginx/ssl:ro \
+          -v /etc/letsencrypt:/etc/letsencrypt:ro \
           nginx:alpine
 
-        echo 'Nginx с HTTP настроен'
+        echo 'Nginx с HTTP и HTTPS настроен'
     "
 
     log_info "10. Ожидание инициализации (30 сек)..."

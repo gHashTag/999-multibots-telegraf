@@ -303,7 +303,7 @@ export function createRenderAvatarPayload(
     callback_url:
       options?.callbackUrl !== undefined
         ? options.callbackUrl
-        : 'http://three-head-dragon.shop/api/telegram/ai-reels-callback',
+        : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
     bot_name: options?.botName,
   }
 }
