@@ -40,29 +40,34 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       ]
       buttons.push(cancelHelpButtons)
 
-      const keyboard = Markup.keyboard(buttons).resize().oneTime()
+      const keyboard = Markup.keyboard(buttons).resize()
 
-      // ✅ FIX: Добавляем описание к выбору модели ИИ
+      // Отправляем текст
       await ctx.reply(
         isRu
           ? '🤖 <b>Выбор модели ИИ</b>\n\n' +
               'Здесь вы можете выбрать модель искусственного интеллекта для генерации контента.\n' +
               'Каждая модель имеет свои особенности и специализацию:\n\n' +
-              '• <b>GPT-4</b> - для текстов и сложных задач\n' +
-              '• <b>DALL-E</b> - для генерации изображений\n' +
+              '• <b>GPT-5</b> - последняя версия от OpenAI\n' +
+              '• <b>Club Code</b> - специализация на коде\n' +
               '• <b>Claude</b> - для анализа и помощи\n\n' +
               '💡 Выберите модель из списка ниже:'
           : '🤖 <b>Choose AI Model</b>\n\n' +
               'Here you can select an AI model for content generation.\n' +
               'Each model has its own features and specialization:\n\n' +
-              '• <b>GPT-4</b> - for texts and complex tasks\n' +
-              '• <b>DALL-E</b> - for image generation\n' +
+              '• <b>GPT-5</b> - latest version from OpenAI\n' +
+              '• <b>Club Code</b> - specialization in code\n' +
               '• <b>Claude</b> - for analysis and assistance\n\n' +
               '💡 Select a model from the list below:',
         {
           parse_mode: 'HTML',
-          ...keyboard.reply_markup,
         }
+      )
+
+      // Отправляем клавиатуру отдельным сообщением
+      await ctx.reply(
+        isRu ? 'Выберите модель:' : 'Select model:',
+        keyboard
       )
 
       return ctx.wizard.next()
