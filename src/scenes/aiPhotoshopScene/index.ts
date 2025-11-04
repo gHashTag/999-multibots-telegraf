@@ -1219,7 +1219,7 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
               ],
               [
                 {
-                  text: isRu ? '❌ Отмена' : '❌ Cancel',
+                  text: isRu ? 'Отмена' : 'Cancel',
                   callback_data: 'ai_photoshop_multi_cancel',
                 },
               ],
@@ -2073,7 +2073,7 @@ aiPhotoshopScene.on('text', async ctx => {
               ],
               [
                 {
-                  text: isRu ? '❌ Отмена' : '❌ Cancel',
+                  text: isRu ? 'Отмена' : 'Cancel',
                   callback_data: 'ai_photoshop_multi_cancel',
                 },
               ],
@@ -4162,7 +4162,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     // Add cancel button
     keyboard.push([
       {
-        text: isRu ? '❌ Отмена' : '❌ Cancel',
+        text: isRu ? 'Отмена' : 'Cancel',
         callback_data: 'ai_photoshop_multi_cancel',
       },
     ])
@@ -4248,7 +4248,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
               inline_keyboard: [
                 [
                   {
-                    text: isRu ? '❌ Отмена' : '❌ Cancel',
+                    text: isRu ? 'Отмена' : 'Cancel',
                     callback_data: 'ai_photoshop_multi_cancel',
                   },
                 ],

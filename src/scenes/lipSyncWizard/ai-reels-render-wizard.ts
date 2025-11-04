@@ -122,7 +122,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           ],
           [
             Markup.button.callback(
-              isRu ? '❌ Отмена' : '❌ Cancel',
+              isRu ? 'Отмена' : 'Cancel',
               'ai_reels_cancel'
             ),
           ],
@@ -245,7 +245,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             ],
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'ai_reels_cancel'
               ),
             ],
@@ -342,7 +342,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       // Добавляем кнопку отмены
       avatarButtons.push([
         Markup.button.callback(
-          isRu ? '❌ Отмена' : '❌ Cancel',
+          isRu ? 'Отмена' : 'Cancel',
           'ai_reels_cancel'
         ),
       ])
@@ -1157,7 +1157,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             ],
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'ai_reels_cancel'
               ),
             ],

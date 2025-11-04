@@ -69,7 +69,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         {
           reply_markup: {
             inline_keyboard: [[
-              Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'lipsync_cancel')
+              Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'lipsync_cancel')
             ]]
           },
         }
@@ -161,7 +161,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         {
           reply_markup: {
             inline_keyboard: [[
-              Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'lipsync_cancel')
+              Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'lipsync_cancel')
             ]]
           },
         }

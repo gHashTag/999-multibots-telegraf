@@ -269,7 +269,7 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
     const keyboard = Markup.keyboard([
       [
         Markup.button.text(isRu ? '✅ Подтвердить' : '✅ Confirm'),
-        Markup.button.text(isRu ? '❌ Отмена' : '❌ Cancel')
+        Markup.button.text(isRu ? 'Отмена' : 'Cancel')
       ],
       [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
     ]).resize().oneTime()
@@ -324,7 +324,7 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
 
     const text = message.text.trim()
 
-    if (text === '❌ Отмена' || text === '❌ Cancel') {
+    if (text === 'Отмена' || text === 'Cancel') {
       await ctx.reply(
         isRu ? '❌ Парсинг отменен.' : '❌ Parsing cancelled.',
         Markup.removeKeyboard()

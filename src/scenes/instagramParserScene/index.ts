@@ -65,7 +65,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           Markup.inlineKeyboard([
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'cancel'
               ),
             ],
@@ -84,7 +84,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           Markup.inlineKeyboard([
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'cancel'
               ),
             ],
@@ -426,7 +426,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
               'count_200'
             ),
           ],
-          [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
+          [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
         ])
       )
     }

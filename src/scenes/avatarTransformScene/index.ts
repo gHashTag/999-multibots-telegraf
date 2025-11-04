@@ -1119,7 +1119,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style',
           ],
           [
-            isRu ? '❌ Отмена' : '❌ Cancel',
+            isRu ? 'Отмена' : 'Cancel',
             isRu ? '🏠 Главное меню' : '🏠 Main menu',
           ],
         ]).resize().reply_markup,
@@ -1169,7 +1169,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Отмена
-    if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+    if (text === (isRu ? 'Отмена' : 'Cancel')) {
       await ctx.reply(
         isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
         { reply_markup: { remove_keyboard: true } }
@@ -1219,7 +1219,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
           ],
           [
-            isRu ? '❌ Отмена' : '❌ Cancel',
+            isRu ? 'Отмена' : 'Cancel',
             isRu ? '🔙 Назад' : '🔙 Back',
           ],
         ]).resize().reply_markup,
@@ -1259,7 +1259,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Отмена
-    if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+    if (text === (isRu ? 'Отмена' : 'Cancel')) {
       await ctx.reply(
         isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
         { reply_markup: { remove_keyboard: true } }

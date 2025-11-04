@@ -266,7 +266,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     })
 
     // 3. ГЛОБАЛЬНЫЙ ПЕРЕХВАТЧИК для кнопок навигации (ДО stage.middleware)
-    // Это позволяет выйти из любой сцены через "🏠 Главное меню" или "❌ Отмена"
+    // Это позволяет выйти из любой сцены через "🏠 Главное меню" или "Отмена"
     bot.use(async (ctx, next) => {
       if (ctx.message && 'text' in ctx.message) {
         const text = ctx.message.text
@@ -291,7 +291,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
         }
 
         // Глобальная кнопка "Отмена" - работает ВЕЗДЕ
-        if (text === '❌ Отмена' || text === '❌ Cancel') {
+        if (text === 'Отмена' || text === 'Cancel') {
           logger.info('🔥 [GLOBAL INTERCEPTOR] Cancel pressed', {
             telegramId: ctx.from?.id,
             currentScene: ctx.scene?.current?.id

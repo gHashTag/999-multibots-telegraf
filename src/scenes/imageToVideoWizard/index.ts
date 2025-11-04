@@ -158,7 +158,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
           ? '🖼️ Отправьте изображение для создания видео:'
           : '🖼️ Send an image to create video:',
         Markup.keyboard([
-          [isRu ? '❌ Отмена' : '❌ Cancel'],
+          [isRu ? 'Отмена' : 'Cancel'],
           [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
         ]).resize()
       )
@@ -195,7 +195,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         const text = ctx.message.text
 
         // Отмена
-        if (text === (isRu ? '❌ Отмена' : '❌ Cancel')) {
+        if (text === (isRu ? 'Отмена' : 'Cancel')) {
           await ctx.reply(
             isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
             { reply_markup: { remove_keyboard: true } }
