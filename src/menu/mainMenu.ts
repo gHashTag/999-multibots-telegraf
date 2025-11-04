@@ -445,30 +445,31 @@ export async function mainMenu({
     `[mainMenu LOG] Adding buttons for subscription: ${currentSubscription}`
   )
 
-  // 🎯 ПРАВИЛЬНЫЙ ПОРЯДОК:
+  // 🎯 ПРАВИЛЬНЫЙ ПОРЯДОК (ПО ТРЕБОВАНИЮ ПОЛЬЗОВАТЕЛЯ):
   // 1. Нейрофункции (уже в buttonRows)
-  // 2. Оформить подписку (добавляем ПЕРВОЙ в финальную клавиатуру)
-  // 3. Баланс + Пополнить баланс (служебные кнопки внизу)
-  // 4. Пригласить + Техподдержка
-  // 5. Язык
+  // 2. Пригласить + Техподдержка
+  // 3. Язык
+  // 4. 💫 Оформить подписку + 💎 Пополнить баланс (САМЫЙ НИЗ!)
+  // 5. Баланс (если нужен)
 
   // Собираем все ряды с нейрофункциями
   const finalKeyboard = [...buttonRows]
 
-  // ✅ Добавляем кнопку "Оформить подписку" СРАЗУ после нейрофункций
-  console.log(`[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`)
-  finalKeyboard.push([subscribeButton])
-
-  // 📍 СЛУЖЕБНЫЕ КНОПКИ ВНИЗУ: Баланс и Пополнить баланс
-  finalKeyboard.push([balanceButton, topUpButton])
-
   // Пригласить и Техподдержка
   finalKeyboard.push([inviteButton, supportButton])
 
-  // ✅ Кнопка языка в самом низу
+  // ✅ Кнопка языка
   finalKeyboard.push([languageButton])
+
+  // 📍 САМЫЙ НИЗ: Оформить подписку и Пополнить баланс
+  console.log(`[mainMenu LOG] Adding payment buttons at THE BOTTOM: ${subscribeButton.text}, ${topUpButton.text}`)
+  finalKeyboard.push([subscribeButton, topUpButton])
+
+  // 💰 Баланс отдельной строкой под оплатой
+  finalKeyboard.push([balanceButton])
+
   console.log(
-    `[mainMenu LOG] Final keyboard order: Neuro functions → Subscribe → Balance/TopUp → Invite/Support → Language`
+    `[mainMenu LOG] Final keyboard order: Neuro functions → Invite/Support → Language → Subscribe/TopUp (BOTTOM!) → Balance`
   )
 
   console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
