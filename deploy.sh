@@ -27,7 +27,7 @@ CONTAINER_NAME="999-multibots"
 SERVER_URL="212.86.115.30"
 SERVER_USER="root"
 SSH_KEY="~/.ssh/zomro"
-PROJECT_PATH="/root/999-agents-telegraf"
+PROJECT_PATH="/root/bot-farm"
 
 # Функции логирования
 log_info() {
