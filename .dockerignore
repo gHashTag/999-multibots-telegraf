@@ -1,7 +1,6 @@
 # compiled output
 .vscode
 /node_modules
-dist/
 
 # macOS metadata files
 ._*
