@@ -101,15 +101,16 @@ export class UniversalProviderManager {
         pricePerUnit: 0.1, // per image
         supportedFeatures: ['text-to-image', 'text-rendering'],
       },
-      {
-        id: 'midjourney-v7',
-        name: 'Midjourney v7',
-        type: 'image',
-        provider: 'Kie.ai',
-        description: 'Artistic styles and high quality',
-        pricePerUnit: 0.15, // per image
-        supportedFeatures: ['text-to-image', 'artistic-styles'],
-      },
+      // ❌ УДАЛЕНО: Midjourney v7 не доступен на Replicate
+      // {
+      //   id: 'midjourney-v7',
+      //   name: 'Midjourney v7',
+      //   type: 'image',
+      //   provider: 'Kie.ai',
+      //   description: 'Artistic styles and high quality',
+      //   pricePerUnit: 0.15, // per image
+      //   supportedFeatures: ['text-to-image', 'artistic-styles'],
+      // },
       {
         id: 'flux-1-kontext',
         name: 'FLUX.1 Kontext',

@@ -1249,12 +1249,7 @@ If not, continue on your own and click the "I myself" button`
         await ctx.scene.leave()
         ctx.session.mode = ModeEnum.TextToVideo
         await ctx.scene.enter(ModeEnum.TextToVideo)
-
-        await ctx.reply(
-          isRu
-            ? '🎬 Создаем новое видео из текста! Выберите модель:'
-            : '🎬 Creating a new video from text! Select a model:'
-        )
+        // ✅ ИСПРАВЛЕНО: Убрано лишнее сообщение - wizard сам запросит промпт
       } catch (error) {
         logger.error('Error in create_more_text_to_video action:', {
           error,
@@ -1290,12 +1285,7 @@ If not, continue on your own and click the "I myself" button`
         await ctx.scene.leave()
         ctx.session.mode = ModeEnum.ImageToVideo
         await ctx.scene.enter(ModeEnum.ImageToVideo)
-
-        await ctx.reply(
-          isRu
-            ? '🖼️ Создаем новое видео из изображения! Выберите модель:'
-            : '🖼️ Creating a new video from image! Select a model:'
-        )
+        // ✅ ИСПРАВЛЕНО: Убрано лишнее сообщение - wizard сам запросит изображение
       } catch (error) {
         logger.error('Error in create_more_image_to_video action:', {
           error,

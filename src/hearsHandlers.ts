@@ -712,6 +712,48 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  // ОБРАБОТЧИК ДЛЯ "НОВОЕ ВИДЕО" (Image-to-Video)
+  bot.hears(
+    ['🎬 Новое видео', '🎬 New Video'],
+    async (ctx: MyContext) => {
+      logger.info('HEARS: Новое видео (Image-to-Video)', {
+        telegramId: ctx.from?.id,
+      })
+      try {
+        // ✅ ЗАЩИТА: Проверяем подписку
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          'Image-to-Video'
+        )
+        if (!hasSubscription) {
+          return // Пользователь перенаправлен в subscriptionScene
+        }
+
+        ctx.session.mode = ModeEnum.ImageToVideo
+        if (ctx.scene.current) {
+          await ctx.scene.leave()
+        }
+        await ctx.scene.enter(ModeEnum.ImageToVideo)
+      } catch (error) {
+        logger.error(
+          'Error entering imageToVideoWizard from "Новое видео" hears:',
+          {
+            error: error,
+            errorString: String(error),
+            errorJson: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+            telegramId: ctx.from?.id,
+          }
+        )
+        const isRu = isRussianFromState(ctx)
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка при попытке начать новую генерацию видео. Попробуйте вернуться в главное меню.'
+            : 'An error occurred while trying to start a new video generation. Please try returning to the main menu.'
+        )
+      }
+    }
+  )
+
   // УБРАНО: Кнопки 1️⃣,2️⃣,3️⃣,4️⃣ теперь будут inline кнопками в клавиатуре после генерации
 
   bot.hears(
