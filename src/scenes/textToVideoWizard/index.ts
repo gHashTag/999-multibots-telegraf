@@ -239,7 +239,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Кнопки назад и отмена
       keyboardRows.push([
         isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
-        isRu ? 'Отмена' : 'Cancel'
+        isRu ? '❌ Отмена' : '❌ Cancel'
       ])
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
@@ -502,41 +502,12 @@ textToVideoWizard.enter(async ctx => {
   console.log('🎬 [WIZARD] Scene ID:', ctx.scene.current?.id)
   console.log('🎬 [WIZARD] Current step:', ctx.wizard?.cursor)
 
-  try {
-    // Инициализируем сессию при входе в wizard
-    
-    console.log('🎬 [WIZARD] Initial session initialized for textToVideoWizard')
-    
-    logger.info('[TextToVideoWizard] Wizard entered successfully', {
-      telegramId: ctx.from?.id,
-      sceneId: ctx.scene.current?.id,
-      currentStep: ctx.wizard?.cursor,
-      timestamp: new Date().toISOString(),
-    })
-
-    // Initialize cursor to step 0 (as expected by tests)
-    console.log('🎬 [WIZARD] Setting wizard cursor to step 0')
-    if (ctx.wizard && ctx.wizard.selectStep) {
-      ctx.wizard.selectStep(0)
-    } else {
-      console.error('🎬 [WIZARD] ctx.wizard or selectStep is undefined!')
-    }
-    
-    // КРИТИЧЕСКИ ВАЖНО: Вызываем первый шаг вручную!
-    console.log('🎬 [WIZARD] Manually calling first step...')
-    const firstStep = textToVideoWizard.steps[0]
-    if (typeof firstStep === 'function') {
-      await firstStep(ctx, () => Promise.resolve())
-    } else {
-      console.error('🎬 [WIZARD] First step is not a function!')
-    }
-  } catch (error) {
-    console.error('🎬 [WIZARD] Error initializing wizard session:', error)
-    logger.error('[TextToVideoWizard] Session initialization error', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id,
-    })
-  }
+  logger.info('[TextToVideoWizard] Wizard entered successfully', {
+    telegramId: ctx.from?.id,
+    sceneId: ctx.scene.current?.id,
+    currentStep: ctx.wizard?.cursor,
+    timestamp: new Date().toISOString(),
+  })
 })
 
 // Обработчик выхода из wizard
