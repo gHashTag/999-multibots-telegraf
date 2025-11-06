@@ -8,7 +8,6 @@ import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.conf
 import { calculateFinalPrice as calculateVideoFinalPrice } from '@/price/helpers'
 import { Markup } from 'telegraf'
 import { getAvailableModels } from '../selectModelCommand/getAvailableModels'
-import { handleMenu } from '@/handlers/handleMenu'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 // Helper function to handle potential function types in modeCosts.

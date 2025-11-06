@@ -15,9 +15,7 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
 
     // Проверяем ENV переменные
     const envVars = {
-      RENDER_INNGEST_EVENT_KEY: !!process.env.RENDER_INNGEST_EVENT_KEY,
       BOT_INNGEST_EVENT_KEY: !!process.env.BOT_INNGEST_EVENT_KEY,
-      RENDER_INNGEST_SIGNING_KEY: !!process.env.RENDER_INNGEST_SIGNING_KEY,
       BOT_INNGEST_SIGNING_KEY: !!process.env.BOT_INNGEST_SIGNING_KEY,
       ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY,
       HEDRA_API_KEY: !!process.env.HEDRA_API_KEY,
@@ -31,8 +29,8 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
     const diagnostic = {
       timestamp: new Date().toISOString(),
       status: 'ok',
-      template: 'template-2',
-      version: '2025.11.03',
+      template: 'centralized-inngest',
+      version: '2025.11.06',
       environment: {
         nodeEnv: process.env.NODE_ENV || 'development',
         hasEnvFile: !!process.env.DOTENV_CONFIGURATION,
@@ -40,7 +38,6 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
       envVars: {
         ...envVars,
         // Не показываем реальные ключи, только факт наличия
-        RENDER_INNGEST_EVENT_KEY_preview: process.env.RENDER_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
         BOT_INNGEST_EVENT_KEY_preview: process.env.BOT_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
       },
       inngestProvider: {
@@ -50,28 +47,24 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
       },
       checks: {
         envVarsOk: Object.values(envVars).every(v => v === true),
-        inngestAvailable: inngestStatus.RENDER?.available || inngestStatus.BOT?.available,
-        renderConfigured: inngestStatus.RENDER?.configured,
+        inngestAvailable: inngestStatus.BOT?.available,
         botConfigured: inngestStatus.BOT?.configured,
       },
       recommendations: [] as string[],
     }
 
     // Добавляем рекомендации на основе проверок
-    if (!envVars.RENDER_INNGEST_EVENT_KEY) {
-      diagnostic.recommendations.push('❌ RENDER_INNGEST_EVENT_KEY не настроен')
-    }
     if (!envVars.BOT_INNGEST_EVENT_KEY) {
       diagnostic.recommendations.push('❌ BOT_INNGEST_EVENT_KEY не настроен')
     }
     if (!envVars.ELEVENLABS_API_KEY) {
       diagnostic.recommendations.push('⚠️ ELEVENLABS_API_KEY не настроен (может потребоваться)')
     }
-    if (!inngestStatus.RENDER?.configured) {
-      diagnostic.recommendations.push('❌ RENDER Inngest инстанс не сконфигурирован')
+    if (!inngestStatus.BOT?.configured) {
+      diagnostic.recommendations.push('❌ BOT Inngest инстанс не сконфигурирован')
     }
-    if (!inngestStatus.RENDER?.available) {
-      diagnostic.recommendations.push('❌ RENDER Inngest инстанс недоступен')
+    if (!inngestStatus.BOT?.available) {
+      diagnostic.recommendations.push('❌ BOT Inngest инстанс недоступен')
     }
 
     if (diagnostic.recommendations.length === 0) {

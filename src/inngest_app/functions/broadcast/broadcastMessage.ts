@@ -1,6 +1,6 @@
-import { inngest } from '@/core/inngest/clients'
-import { broadcastService } from '@/services/broadcast.service'
-import { logger } from '@utils/logger'
+import { inngest } from '@/inngest_app/client'
+import { broadcastService } from '@/services/plan_b/broadcast.service'
+import { logger } from '@/utils/logger'
 import { slugify } from 'inngest' // For v3 migration
 // Интерфейс для данных события
 export interface BroadcastEventData {

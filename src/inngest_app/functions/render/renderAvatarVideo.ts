@@ -15,7 +15,7 @@
  * 10. Trigger render workflow
  */
 
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest_app/client'
 import type { RenderAvatarVideoEventData } from './types'
 import { NonRetriableError } from 'inngest'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'

@@ -3,7 +3,7 @@
  * 🎬 Генерация текстовых сценариев для блогеров и цифровых творцов
  */
 
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest_app/client'
 import OpenAI from 'openai'
 import { supabase } from '@/core/supabase'
 import * as fs from 'fs'

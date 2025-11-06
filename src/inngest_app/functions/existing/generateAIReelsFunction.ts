@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger'
-import type { Inngest } from 'inngest'
+import { inngest } from '@/inngest_app/client'
 
 /**
  * 🎬 AI REELS GENERATION FUNCTION
@@ -38,10 +38,9 @@ export interface AIReelsResult {
 }
 
 /**
- * ✅ Factory function для создания Inngest функции (избегаем circular dependency)
+ * ✅ Inngest function for AI Reels generation
  */
-export function createGenerateAIReelsFunction(inngest: Inngest) {
-  return inngest.createFunction(
+export const generateAIReelsFunction = inngest.createFunction(
   {
     id: 'ai-reels-generation',
     name: 'AI Reels Generation',
@@ -266,5 +265,4 @@ export function createGenerateAIReelsFunction(inngest: Inngest) {
       throw error
     }
   }
-  )
-}
+)

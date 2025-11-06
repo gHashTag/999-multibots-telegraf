@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'

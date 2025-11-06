@@ -9,7 +9,9 @@ import { Telegraf, Markup } from 'telegraf'
 import { HAIM_GROUP_STAFF_IDS } from './menu/mainMenu'
 import { generateNeuroPhotoHybrid } from './services/generateNeuroPhotoHybrid'
 import { handleSizeSelection } from './handlers'
-import { levels, mainMenu } from './menu'
+import { levels, MAIN_MENU_BUTTONS, handleMenuButtonPress, createMainMenuKeyboard } from './menu'
+// ✅ НОВЫЕ ИМПОРТЫ ИЗ simpleMenu
+import { simpleLevels, simpleMainMenu } from './menu/simpleMenu'
 import { getReferalsCountAndUserData, getUserData } from './core/supabase'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
@@ -1300,5 +1302,25 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       await ctx.scene.enter(ModeEnum.AvatarTransform)
     }
   )
+
+  // ✅ НОВЫЙ ПРОСТОЙ ОБРАБОТЧИК ДЛЯ ГЛАВНОГО МЕНЮ
+  // Ловим ВСЕ кнопки из MAIN_MENU_BUTTONS
+  const menuButtonTexts = MAIN_MENU_BUTTONS.map(btn => [btn.ru, btn.en]).flat()
+
+  bot.hears(menuButtonTexts, async (ctx: MyContext) => {
+    const text = ctx.message?.text
+    if (!text) return
+
+    console.log('🎯 [SIMPLE MENU] Button pressed:', text)
+
+    // Передаем кнопку в новую простую функцию
+    const handled = await handleMenuButtonPress(ctx, text)
+
+    if (handled) {
+      console.log('✅ [SIMPLE MENU] Button handled successfully')
+    } else {
+      console.log('⚠️ [SIMPLE MENU] Button not recognized:', text)
+    }
+  })
 }
 //

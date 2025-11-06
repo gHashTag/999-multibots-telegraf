@@ -8,12 +8,10 @@ import replicateWebhookRouter from './routes/replicate-webhook.routes'
 import voiceAvatarRouter from './routes/voice-avatar.routes'
 import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
-<<<<<<< HEAD
 import diagnosticRouter from './routes/diagnostic.routes'
-=======
->>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
 import { serve } from 'inngest/express'
-// import { inngest, functions as inngestFunctions } from '../inngest_app/client'
+import { inngest } from '../inngest_app/client'
+import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 
 // Определяем порт. Берем из process.env.PORT, если есть, иначе 4000 (совместимо с reverse proxy).
@@ -78,15 +76,15 @@ export function startApiServer(): void {
   app.use('/api', neuroPhotoRouter)
   app.use('/api', competitorRouter)
 
-<<<<<<< HEAD
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
-=======
->>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
-  // Интеграция Inngest с API (актуальная сигнатура serve)
-//   const inngestHandler = serve(inngest as any, inngestFunctions as any) as any
-//   app.use('/api/inngest', inngestHandler)
+  // Интеграция Inngest с API (используем правильный формат serve)
+  const inngestHandler = serve({
+    client: inngest as any,
+    functions: allInngestFunctions as any,
+  }) as any
+  app.use('/api/inngest', inngestHandler)
 
   // Запуск основного сервера
   app.listen(PORT, () => {

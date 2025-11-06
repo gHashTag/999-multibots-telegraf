@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { Telegraf as Bot } from 'telegraf'
 import { OpenAI } from 'openai'

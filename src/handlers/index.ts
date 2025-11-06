@@ -10,6 +10,7 @@ export * from './getSubScribeChannel'
 export * from './getPhotoUrl'
 export * from './getBotToken'
 export * from './getUserInfo'
-export * from './handleMenu'
+// УДАЛЁН УДАЛЁН - используется setupHearsHandlers из hearsHandlers.ts
+// export * from './УДАЛЁН'
 export * from './checkFullAccess'
 export * from './handleSelectRubAmount'

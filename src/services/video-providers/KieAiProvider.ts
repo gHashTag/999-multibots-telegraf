@@ -285,11 +285,7 @@ export class KieAiProvider {
         })
       } else if (model === 'sora-2-i2v' || model === 'sora-2-image-to-video') {
         // ✅ FIX: Handle Sora 2 Image-to-Video variant
-<<<<<<< HEAD
         kieModel = 'sora-2-i2v'
-=======
-        kieModel = 'sora-2-image-to-video'
->>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
         provider = 'Sora 2 I2V API'
         endpoint = '/jobs/createTask' // Use jobs endpoint for async generation
         logger.info('[KieAiProvider] Sora 2 I2V selected:', {
@@ -301,11 +297,7 @@ export class KieAiProvider {
         })
       } else if (model === 'sora-2-pro-i2v' || model === 'sora-2-pro-image-to-video') {
         // ✅ FIX: Handle Sora 2 Pro Image-to-Video variant
-<<<<<<< HEAD
         kieModel = 'sora-2-pro-i2v'
-=======
-        kieModel = 'sora-2-pro-image-to-video'
->>>>>>> a439e5e3a6835afff1d55154e4e7140dd8ad0e13
         provider = 'Sora 2 Pro I2V API'
         endpoint = '/jobs/createTask' // Use jobs endpoint for async generation
         logger.info('[KieAiProvider] Sora 2 Pro I2V selected:', {

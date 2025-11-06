@@ -1,4 +1,4 @@
-import { inngest } from '../core/inngest/clients'
+import { inngest } from '@/inngest_app/client'
 import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
@@ -11,7 +11,7 @@ import { processBalanceOperation } from '@/price/helpers'
 // import { modeCosts } from '@/price/helpers/modelsCost' // Проверьте, нужен ли modeCosts здесь
 import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers/modelsCost' // Импортируем calculateModeCost, если он нужен
-import { errorMessageAdmin } from '@/helpers/errorMessageAdmin'
+import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'

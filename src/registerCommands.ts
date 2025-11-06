@@ -96,8 +96,8 @@ import { isRussian } from '@/helpers/language'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { registerPaymentActions } from './handlers/paymentActions'
-// setupHearsHandlers отключен - используется только handleMenu из menuScene
-// import { setupHearsHandlers } from './hearsHandlers'
+// ✅ ВОССТАНОВЛЕН: setupHearsHandlers - все кнопки меню обрабатываются здесь
+import { setupHearsHandlers } from './hearsHandlers'
 //https://github.com/telegraf/telegraf/issues/705
 
 // Проверяем что textToVideoWizard загружен
@@ -381,16 +381,16 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           )
           await ctx.scene.enter(ModeEnum.CreateUserScene)
         } else {
-          // Если пользователь существует, переходим к AI Demo
+          // Если пользователь существует, переходим в startScene
           console.log(
-            '✅ [START COMMAND] User exists, entering AvatarTransform scene',
+            '✅ [START COMMAND] User exists, entering startScene',
             {
               telegramId,
               userId: userDetails.id,
               createdAt: userDetails.created_at,
             }
           )
-          await ctx.scene.enter(ModeEnum.AvatarTransform)
+          await ctx.scene.enter('startScene')
         }
       } catch (error) {
         console.error('❌ [START COMMAND] Error:', error)
@@ -479,9 +479,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
             return
           }
 
-          // Если подписка есть, входим в главное меню
-          ctx.session.mode = ModeEnum.MainMenu
-          await ctx.scene.enter(ModeEnum.MainMenu)
+          // Если подписка есть, переходим в startScene
+          await ctx.scene.enter('startScene')
         } catch (subscriptionError) {
           // Если ошибка с проверкой подписки, всё равно показываем меню
           logger.warn(
@@ -1485,16 +1484,16 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    // ВАЖНО: setupHearsHandlers отключен - используется только handleMenu из menuScene
-    // чтобы избежать конфликта двух систем обработки кнопок
+    // ✅ ВАЖНО: УДАЛЁН ПОЛНОСТЬЮ УДАЛЁН
+    // Все кнопки обрабатываются через setupHearsHandlers из hearsHandlers.ts
 
     // ✅ РЕГИСТРИРУЕМ MULTI-PHOTO ACTION HANDLERS
     logger.info('🔧 [MULTI-PHOTO] Registering multi-photo action handlers')
     registerMultiPhotoActions(bot)
 
-    // setupHearsHandlers отключен - используется только handleMenu
-    // logger.info('🔧 [HEARS] Registering global hears handlers for menu buttons')
-    // setupHearsHandlers(bot)
+    // ✅ ВОССТАНОВЛЕНЫ ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ
+    logger.info('🔧 [HEARS] Registering global hears handlers for menu buttons')
+    setupHearsHandlers(bot)
 
     console.log('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
     logger.info('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')

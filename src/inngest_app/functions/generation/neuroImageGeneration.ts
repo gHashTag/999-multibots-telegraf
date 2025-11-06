@@ -1,4 +1,4 @@
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest_app/client'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { savePrompt } from '@/core/supabase/savePrompt'
@@ -7,7 +7,7 @@ import {
   updateUserLevelPlusOne,
   updateUserBalance,
 } from '@/core/supabase'
-import { processApiResponse } from '@/helpers/processApiResponse'
+import { processApiResponse } from '@/helpers/error/processApiResponse'
 
 import { saveFileLocally } from '@/helpers'
 import { pulse } from '@/helpers/pulse'

@@ -16,7 +16,7 @@
  * 10. Trigger render
  */
 
-import { inngest } from '@/core/inngest/clients'
+import { inngest } from '@/inngest_app/client'
 import { NonRetriableError } from 'inngest'
 import type { RenderRiddleEventData } from './types'
 import {
@@ -384,7 +384,7 @@ export const renderRiddleFunction = inngest.createFunction(
  * Matches Python trigger_render_riddle function
  */
 export async function triggerRenderRiddle(eventData: RenderRiddleEventData) {
-  const { inngest } = await import('@/core/inngest/clients')
+  const { inngest } = await import('../../inngest_app/client')
   const { v4: uuid } = await import('uuid')
 
   await inngest.send({
