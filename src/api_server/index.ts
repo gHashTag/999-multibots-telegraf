@@ -79,8 +79,11 @@ export function startApiServer(): void {
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
-  // Интеграция Inngest с API (актуальная сигнатура serve)
-  const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
+  // Интеграция Inngest с API (используем правильный формат serve)
+  const inngestHandler = serve({
+    client: inngest as any,
+    functions: allInngestFunctions as any,
+  }) as any
   app.use('/api/inngest', inngestHandler)
 
   // Запуск основного сервера
