@@ -71,24 +71,46 @@ router.post('/kie-ai/sora-callback', async (req: any, res: any) => {
 
     const payload: KieAiWebhookPayload = req.body
 
-    // ✅ Валидация обязательных полей
-    if (!payload.taskId) {
-      logger.error('❌ [SORA WEBHOOK] Missing taskId', { payload })
-      return
-    }
+    // ✅ ИСПРАВЛЕНИЕ: Kie.ai отправляет taskId в data.taskId
+    const taskId = payload.taskId || (payload.data as any)?.taskId
+    const successFlag = payload.successFlag !== undefined
+      ? payload.successFlag
+      : ((payload.data as any)?.state === 'success' ? 1 : 2)
 
-    if (typeof payload.successFlag !== 'number') {
-      logger.error('❌ [SORA WEBHOOK] Missing or invalid successFlag', {
+    // ✅ Валидация обязательных полей
+    if (!taskId) {
+      logger.error('❌ [SORA WEBHOOK] Missing taskId', {
         payload,
-        successFlagType: typeof payload.successFlag
+        hasData: !!payload.data,
+        dataKeys: payload.data ? Object.keys(payload.data) : []
       })
       return
     }
 
-    // ✅ Асинхронная обработка Sora видео в фоне
-    processSoraWebhookAsync(payload).catch(error => {
+    // Нормализуем payload
+    // Kie.ai отправляет resultJson как строку JSON, нужно распарсить
+    let resultUrls: string[] | undefined
+    try {
+      if ((payload.data as any)?.resultJson) {
+        const resultJson = JSON.parse((payload.data as any).resultJson)
+        resultUrls = resultJson.resultUrls
+      }
+    } catch (e) {
+      logger.warn('[SORA WEBHOOK] Failed to parse resultJson', { error: e })
+    }
+
+    const normalizedPayload: KieAiWebhookPayload = {
+      ...payload,
+      taskId,
+      successFlag,
+      resultUrls: payload.resultUrls || resultUrls || (payload.data as any)?.resultUrls,
+      videoUrl: payload.videoUrl || resultUrls?.[0] || (payload.data as any)?.resultUrls?.[0]
+    }
+
+    // ✅ Асинхронная обработка Sora видео в фоне с нормализованным payload
+    processSoraWebhookAsync(normalizedPayload).catch(error => {
       logger.error('❌ [SORA WEBHOOK] Error in async processing', {
-        taskId: payload.taskId,
+        taskId: normalizedPayload.taskId,
         error: error.message,
         stack: error.stack
       })
