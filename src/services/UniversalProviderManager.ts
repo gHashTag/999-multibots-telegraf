@@ -88,6 +88,42 @@ export class UniversalProviderManager {
         pricePerUnit: 0.3, // per second
         supportedFeatures: ['text-to-video', 'image-to-video'],
       },
+      {
+        id: 'sora-2',
+        name: 'Sora 2',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 text-to-video generation',
+        pricePerUnit: 0.015, // ~94⭐ per 10 seconds
+        supportedFeatures: ['text-to-video'],
+      },
+      {
+        id: 'sora-2-pro',
+        name: 'Sora 2 Pro',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 Pro high-quality text-to-video',
+        pricePerUnit: 0.02, // ~125⭐ per 10 seconds
+        supportedFeatures: ['text-to-video'],
+      },
+      {
+        id: 'sora-2-i2v',
+        name: 'Sora 2 Image-to-Video',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 image-to-video generation',
+        pricePerUnit: 0.015, // ~94⭐ per 10 seconds
+        supportedFeatures: ['image-to-video'],
+      },
+      {
+        id: 'sora-2-pro-i2v',
+        name: 'Sora 2 Pro Image-to-Video',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 Pro high-quality image-to-video',
+        pricePerUnit: 0.028, // ~280⭐ per 10 seconds
+        supportedFeatures: ['image-to-video'],
+      },
     ]
 
     // Image models
