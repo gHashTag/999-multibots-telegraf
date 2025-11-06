@@ -292,7 +292,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 const menuNextStep = async (ctx: MyContext) => {
   console.log('🎯 URGENT DEBUG: menuNextStep called!')
   logger.info('CASE 1: menuScene.next')
-  logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard.cursor}`)
+  logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard?.cursor ?? 0}`)
   logger.info(
     `[menuNextStep] Update keys: ${Object.keys(ctx.update).join(', ')}`
   )

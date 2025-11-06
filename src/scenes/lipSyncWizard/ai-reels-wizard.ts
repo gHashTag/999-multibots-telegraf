@@ -1140,7 +1140,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         console.log('🔄 [AI REELS] Переходим к Step 3 (Veo 3.1):', {
           telegramId,
-          currentStep: ctx.wizard?.cursor,
+          currentStep: ctx.wizard?.cursor ?? 0,
         })
 
         // ✅ ПЕРЕХОДИМ К STEP 3 (Veo 3.1 генерация) и ВЫЗЫВАЕМ его вручную
@@ -1151,13 +1151,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         if (nextStep && typeof nextStep === 'function') {
           console.log('🔄 [AI REELS] Manually executing Step 3...', {
             telegramId,
-            cursor: ctx.wizard.cursor,
+            cursor: ctx.wizard?.cursor ?? 0,
           })
           return await nextStep(ctx)
         } else {
           console.error('❌ [AI REELS] Next step not found!', {
             telegramId,
-            cursor: ctx.wizard.cursor,
+            cursor: ctx.wizard?.cursor ?? 0,
             totalSteps: (ctx.wizard as any).steps.length,
           })
           return ctx.scene.leave()
@@ -1456,7 +1456,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       // Переходим к следующему шагу (склеивание) и ВЫЗЫВАЕМ его вручную
       console.log('🔄 [AI REELS] Before ctx.wizard.next():', {
         telegramId,
-        currentCursor: ctx.wizard.cursor,
+        currentCursor: ctx.wizard?.cursor ?? 0,
         totalSteps: (ctx.wizard as any).steps.length,
       })
 
@@ -1464,31 +1464,31 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🔄 [AI REELS] After ctx.wizard.next():', {
         telegramId,
-        newCursor: ctx.wizard.cursor,
+        newCursor: ctx.wizard?.cursor ?? 0,
         totalSteps: (ctx.wizard as any).steps.length,
       })
 
       // Вручную вызываем следующий step
-      const nextStep = (ctx.wizard as any).steps[ctx.wizard.cursor]
+      const nextStep = (ctx.wizard as any).steps[ctx.wizard?.cursor ?? 0]
 
       console.log('🔍 [AI REELS] Next step info:', {
         telegramId,
         hasNextStep: !!nextStep,
         isFunction: typeof nextStep === 'function',
         nextStepType: typeof nextStep,
-        cursor: ctx.wizard.cursor,
+        cursor: ctx.wizard?.cursor ?? 0,
       })
 
       if (nextStep && typeof nextStep === 'function') {
         console.log('✅ [AI REELS] Manually executing Step 4...', {
           telegramId,
-          cursor: ctx.wizard.cursor,
+          cursor: ctx.wizard?.cursor ?? 0,
         })
         return await nextStep(ctx)
       } else {
         console.error('❌ [AI REELS] Step 4 not found!', {
           telegramId,
-          cursor: ctx.wizard.cursor,
+          cursor: ctx.wizard?.cursor ?? 0,
           totalSteps: (ctx.wizard as any).steps.length,
           allSteps: (ctx.wizard as any).steps.map((s: any, i: number) => ({
             index: i,

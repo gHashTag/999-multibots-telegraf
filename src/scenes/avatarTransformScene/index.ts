@@ -1796,7 +1796,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         '[AvatarTransformScene] Back button pressed, returning to action selection',
         {
           telegramId,
-          currentStep: ctx.wizard.cursor,
+          currentStep: ctx.wizard?.cursor ?? 0,
         }
       )
 

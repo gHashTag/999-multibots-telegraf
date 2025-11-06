@@ -12,7 +12,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     console.log('🎬 [SIMPLE] Step 1: Model selection started')
     logger.info('[SimpleTextToVideoWizard] Step 1: Model selection', {
       telegramId: ctx.from?.id,
-      step: ctx.wizard.cursor,
+      step: ctx.wizard?.cursor ?? 0,
     })
 
     const isRu = isRussianFromState(ctx)
@@ -39,7 +39,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     console.log('🎬 [SIMPLE] Step 2: Model processing and parameters')
     logger.info('[SimpleTextToVideoWizard] Step 2: Processing model choice', {
       telegramId: ctx.from?.id,
-      step: ctx.wizard.cursor,
+      step: ctx.wizard?.cursor ?? 0,
       messageText:
         ctx.message && 'text' in ctx.message ? ctx.message.text : 'NO_TEXT',
     })
@@ -112,7 +112,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     console.log('🎬 [SIMPLE] Step 3: Aspect ratio processing')
     logger.info('[SimpleTextToVideoWizard] Step 3: Processing aspect ratio', {
       telegramId: ctx.from?.id,
-      step: ctx.wizard.cursor,
+      step: ctx.wizard?.cursor ?? 0,
       messageText:
         ctx.message && 'text' in ctx.message ? ctx.message.text : 'NO_TEXT',
     })
@@ -175,7 +175,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     console.log('🎬 [SIMPLE] Step 4: Prompt processing and generation')
     logger.info('[SimpleTextToVideoWizard] Step 4: Processing prompt', {
       telegramId: ctx.from?.id,
-      step: ctx.wizard.cursor,
+      step: ctx.wizard?.cursor ?? 0,
       messageText:
         ctx.message && 'text' in ctx.message
           ? ctx.message.text?.substring(0, 50)
@@ -319,7 +319,7 @@ simpleTextToVideoWizard.enter(async ctx => {
   console.log('🎬 [SIMPLE] Wizard entered! User:', ctx.from?.id)
   logger.info('[SimpleTextToVideoWizard] Wizard entered', {
     telegramId: ctx.from?.id,
-    step: ctx.wizard?.cursor,
+    step: ctx.wizard?.cursor ?? 0,
   })
   
   // ОКАЗЫВАЕТСЯ TELEGRAF НЕ ВЫЗЫВАЕТ ПЕРВЫЙ ШАГ АВТОМАТИЧЕСКИ!
@@ -328,7 +328,7 @@ simpleTextToVideoWizard.enter(async ctx => {
   
   try {
     // Проверяем что это первый вход (cursor = undefined)
-    if (ctx.wizard.cursor === undefined) {
+    if (ctx.wizard?.cursor === undefined) {
       console.log('🎬 [SIMPLE] Fresh wizard entry, executing first step...')
       const firstStepHandler = (ctx.wizard as any).steps[0]
       if (typeof firstStepHandler === 'function') {
@@ -338,7 +338,7 @@ simpleTextToVideoWizard.enter(async ctx => {
         console.error('🎬 [SIMPLE] ❌ First step handler is not a function:', typeof firstStepHandler)
       }
     } else {
-      console.log('🎬 [SIMPLE] Wizard already has cursor:', ctx.wizard.cursor, '- NOT executing first step')
+      console.log('🎬 [SIMPLE] Wizard already has cursor:', ctx.wizard?.cursor ?? 0, '- NOT executing first step')
     }
   } catch (error) {
     console.error('🎬 [SIMPLE] ❌ ERROR executing first step from .enter():', error)
