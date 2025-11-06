@@ -27,7 +27,7 @@ async function notifyAdminAboutServerIssue(
       `🤖 Bot: ${botName}\n` +
       `❌ Error: ${error}\n` +
       `🔄 Используется локальная обработка\n\n` +
-      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+      `⚠️ Проверьте сервер: ${API_SERVER_URL || 'API_SERVER_URL не настроен'}`
 
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {

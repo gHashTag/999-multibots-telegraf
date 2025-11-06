@@ -138,14 +138,10 @@ export const API_URL = forceProductionAPI
 
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
+// 🕉️ УНИФИЦИРОВАНО: Используем только API_SERVER_URL как единственный источник истины
 const BASE_PAYMENT_URL = isDev
-  ? API_SERVER_URL ||
-    process.env.SERVER_API_URL ||
-    'https://three-head-dragon.shop' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
-  : API_SERVER_URL ||
-    RESULT_URL2?.split('/payment-success')[0] ||
-    process.env.SERVER_API_URL ||
-    'https://three-head-dragon.shop'
+  ? API_SERVER_URL || RESULT_URL2?.split('/payment-success')[0]
+  : API_SERVER_URL || RESULT_URL2?.split('/payment-success')[0]
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 

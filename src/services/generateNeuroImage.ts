@@ -1,14 +1,11 @@
 import axios from 'axios'
 
-import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
+import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL, API_SERVER_URL } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
-// Используем заглушку, если переменная не установлена
-const API_URL =
-  process.env.SERVER_API_URL ||
-  'https://three-head-dragon.shop'
+// 🕉️ УНИФИЦИРОВАНО: Используем только API_SERVER_URL (не используется в этой функции, но оставлено для совместимости)
 
 export async function generateNeuroImage(
   prompt: string,

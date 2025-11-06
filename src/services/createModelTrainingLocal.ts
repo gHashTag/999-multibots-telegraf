@@ -171,7 +171,7 @@ export async function createModelTrainingLocal(
 
     logger.info('[LOCAL TRAINING] Webhook configuration', {
       webhookUrl,
-      hasServerApiUrl: !!process.env.SERVER_API_URL,
+      hasServerApiUrl: !!process.env.API_SERVER_URL,
     })
 
     const training = await replicate.trainings.create(

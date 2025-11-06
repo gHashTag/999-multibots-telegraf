@@ -934,29 +934,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   // })
 
-    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
-    const { ADMIN_IDS_ARRAY } = await import('@/config')
-    const userId = ctx.from?.id
-    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-
-    if (!isAdmin) {
-      await ctx.reply('❌ У вас нет доступа к этой функции.')
-      return
-    }
-
-    // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
-    const hasSubscription = await checkSubscriptionGuard(
-      ctx,
-      '🤖 Цифровое тело 2'
-    )
-    if (!hasSubscription) {
-      return // Пользователь перенаправлен в subscriptionScene
-    }
-
-    await ctx.scene.leave()
-    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  })
+  // TEMPORARILY HIDDEN - кнопка "Цифровое тело 2" закомментирована
+  // bot.hears('🤖 Цифровое тело 2', async ctx => { ... })
 
   bot.hears('📸 Нейрофото 2', async ctx => {
     logger.info('GLOBAL HEARS: Нейрофото 2 (Admin)', {
