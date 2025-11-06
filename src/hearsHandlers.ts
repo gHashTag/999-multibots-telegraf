@@ -754,7 +754,57 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  // УБРАНО: Кнопки 1️⃣,2️⃣,3️⃣,4️⃣ теперь будут inline кнопками в клавиатуре после генерации
+  // 🚨 ОБРАБОТКА КНОПОК 1️⃣,2️⃣,3️⃣,4️⃣ ДЛЯ ПОВТОРНОЙ ГЕНЕРАЦИИ ИЗОБРАЖЕНИЙ
+  bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async (ctx: MyContext) => {
+    if (!('text' in ctx.message)) {
+      logger.warn('Получено нетекстовое сообщение для числового hears')
+      return
+    }
+    const text = ctx.message.text
+    let numImages: number
+    if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text)) {
+      numImages = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].indexOf(text) + 1
+    } else {
+      return // Не должно случиться, но на всякий случай
+    }
+
+    const telegramId = ctx.from.id
+    const isRu = isRussianFromState(ctx)
+
+    logger.info(`🔢 Повторная генерация ${numImages} изображений для пользователя ${telegramId}`)
+
+    // Проверяем, есть ли сохранённый промпт и модель
+    if (!ctx.session.prompt || !ctx.session.selectedImageModel) {
+      logger.warn(`Нет сохранённого промпта или модели для ${telegramId}`)
+      await ctx.reply(
+        isRu
+          ? '❌ Не найдены данные для генерации. Пожалуйста, начните генерацию заново через /menu → 🖼️ Текст в фото'
+          : '❌ Generation data not found. Please start generation again via /menu → 🖼️ Text to Image'
+      )
+      return
+    }
+
+    try {
+      const { generateTextToImageDirect } = await import('./services/generateTextToImageDirect')
+
+      await generateTextToImageDirect(
+        ctx.session.prompt,
+        ctx.session.selectedImageModel,
+        numImages,
+        telegramId.toString(),
+        ctx.from.username ?? 'unknown',
+        isRu,
+        ctx
+      )
+    } catch (error) {
+      logger.error(`Ошибка при повторной генерации изображений для ${telegramId}:`, error)
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при генерации изображений. Попробуйте ещё раз.'
+          : '❌ An error occurred while generating images. Please try again.'
+      )
+    }
+  })
 
   bot.hears(
     ['⬆️ Улучшить промпт', '⬆️ Improve prompt'],

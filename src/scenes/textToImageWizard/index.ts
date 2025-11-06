@@ -152,20 +152,11 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         parse_mode: 'HTML',
       })
 
-      // Показываем кнопки выбора количества изображений
-      const quantityKeyboard = Markup.keyboard([
-        [{ text: '1️⃣' }, { text: '2️⃣' }, { text: '3️⃣' }, { text: '4️⃣' }],
-        [{ text: isRu ? 'Отмена' : 'Cancel' }],
-        [{ text: isRu ? '🏠 Главное меню' : '🏠 Main menu' }],
-      ])
-        .resize()
-        .oneTime(false)
-
       await ctx.reply(
         isRu
-          ? 'Сколько изображений сгенерировать? (1-4)'
-          : 'How many images to generate? (1-4)',
-        quantityKeyboard
+          ? 'Пожалуйста, введите текст для генерации изображения.'
+          : 'Please enter text to generate an image.',
+        createHelpCancelKeyboard(isRu)
       )
 
       return ctx.wizard.next()
@@ -174,58 +165,6 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
-  },
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const message = ctx.message
-    console.log('CASE: text_to_image STEP 3 - quantity selection', message)
-
-    if (!message || !('text' in message)) {
-      await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave()
-    }
-
-    if (!ctx.from?.id) {
-      console.error('❌ Telegram ID не найден')
-      await sendGenericErrorMessage(ctx, isRu)
-      return ctx.scene.leave()
-    }
-
-    const isCancel = await handleHelpCancel(ctx)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
-
-    const text = message.text
-
-    // 🚨 ОБРАБОТКА КНОПОК 1️⃣,2️⃣,3️⃣,4️⃣ И ЧИСЕЛ 1,2,3,4
-    let numImages: number
-    if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text)) {
-      numImages = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].indexOf(text) + 1
-    } else if (['1', '2', '3', '4'].includes(text)) {
-      numImages = parseInt(text)
-    } else {
-      await ctx.reply(
-        isRu
-          ? 'Пожалуйста, выберите количество изображений от 1 до 4, используя кнопки.'
-          : 'Please select the number of images from 1 to 4 using the buttons.'
-      )
-      return // Остаемся на том же шаге
-    }
-
-    console.log(`CASE: Генерация ${numImages} изображений`)
-
-    // Сохраняем количество в сессию
-    ctx.session.numImages = numImages
-
-    await ctx.reply(
-      isRu
-        ? 'Пожалуйста, введите текст для генерации изображения.'
-        : 'Please enter text to generate an image.',
-      createHelpCancelKeyboard(isRu)
-    )
-
-    return ctx.wizard.next()
   },
   async ctx => {
     const isRu = isRussianFromState(ctx)
@@ -280,12 +219,12 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     }
 
     try {
-      // Используем количество изображений из сессии
-      const numImages = ctx.session.numImages || 1
+      // Используем новую сигнатуру generateTextToImageDirect
+      // TODO: Определить, как получать num_images (пока захардкожено 1)
       const generationResult = await generateTextToImageDirect(
         prompt,
         ctx.session.selectedImageModel,
-        numImages,
+        1, // num_images
         ctx.from.id.toString(),
         ctx.from.username ?? 'unknown',
         isRu,
