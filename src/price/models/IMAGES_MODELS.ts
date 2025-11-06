@@ -368,14 +368,14 @@ Perfect for creative projects, artistic visualizations, and high-end image gener
     costPerImage: calculateFinalImageCostInStars(0.25),
     inputType: ['text'],
   },
-  // Midjourney v7 - Stable Diffusion fine-tuned on Midjourney v4 images (OpenJourney)
+  // Midjourney v7 - FLUX-based Midjourney-style generation (adminconteudosflix/midjourney-allcraft)
   'midjourney-v7': {
-    shortName: 'Midjourney v7',
-    description_en: `Midjourney-style artistic image generation via OpenJourney. This is Stable Diffusion fine-tuned on Midjourney v4 images, delivering exceptional artistic styles and high-quality output. Perfect for creative projects, artistic visions, and imaginative compositions. Via prompthero/openjourney on Replicate.`,
-    description_ru: `Генерация изображений в стиле Midjourney через OpenJourney. Это Stable Diffusion, дообученная на изображениях Midjourney v4, обеспечивающая исключительные художественные стили и высококачественный результат. Идеально подходит для творческих проектов, художественных видений и воображаемых композиций. Через prompthero/openjourney на Replicate.`,
+    shortName: 'Midjourney v7 (FLUX)',
+    description_en: `FLUX-based Midjourney-style image generation via midjourney-allcraft. Advanced FLUX model with Midjourney aesthetic, delivering exceptional artistic styles and high-quality output. Supports fast mode (fp8 quantized) for faster generation. Perfect for creative projects, artistic visions, and imaginative compositions. Via adminconteudosflix/midjourney-allcraft on Replicate.`,
+    description_ru: `Генерация изображений в стиле Midjourney на основе FLUX через midjourney-allcraft. Продвинутая модель FLUX с эстетикой Midjourney, обеспечивающая исключительные художественные стили и высококачественный результат. Поддерживает быстрый режим (fp8 квантизация) для ускоренной генерации. Идеально подходит для творческих проектов, художественных видений и воображаемых композиций. Через adminconteudosflix/midjourney-allcraft на Replicate.`,
     previewImage:
       'https://replicate.delivery/xezq/98efrLgtDWnGfoNVAJrmfF7A8vAXyIeZmejGQ2TYdFfFSsTPKA/out-0.webp',
-    costPerImage: calculateFinalImageCostInStars(0.035), // OpenJourney pricing
-    inputType: ['text'], // OpenJourney supports text-to-image
+    costPerImage: calculateFinalImageCostInStars(0.035), // FLUX-based model pricing
+    inputType: ['text'], // Supports text-to-image and image-to-image
   },
 }

@@ -139,12 +139,12 @@ export class UniversalProviderManager {
       },
       {
         id: 'midjourney-v7',
-        name: 'Midjourney v7',
+        name: 'Midjourney v7 (FLUX)',
         type: 'image',
         provider: 'Replicate',
-        description: 'Midjourney-style artistic images via prompthero/openjourney (Stable Diffusion fine-tuned on Midjourney v4)',
+        description: 'FLUX-based Midjourney-style image generation via adminconteudosflix/midjourney-allcraft',
         pricePerUnit: 0.035, // per image ($0.035 per run)
-        supportedFeatures: ['text-to-image', 'artistic-styles', 'aspect-ratio'],
+        supportedFeatures: ['text-to-image', 'artistic-styles', 'aspect-ratio', 'fast-mode'],
       },
       {
         id: 'flux-1-kontext',

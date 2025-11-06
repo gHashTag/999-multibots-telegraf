@@ -43,55 +43,35 @@ export async function generateMidjourneyImage(
       telegramId: request.telegramId,
     })
 
-    // Construct input for prompthero/openjourney model (Stable Diffusion fine-tuned on Midjourney v4)
-    // Map aspect ratio to width/height
-    let width = 512
-    let height = 512
-
-    if (request.aspectRatio) {
-      const aspectRatioMap: Record<string, { width: number; height: number }> = {
-        '1:1': { width: 512, height: 512 },
-        '16:9': { width: 768, height: 432 },
-        '9:16': { width: 432, height: 768 },
-        '4:3': { width: 768, height: 576 },
-        '3:4': { width: 576, height: 768 },
-      }
-
-      if (aspectRatioMap[request.aspectRatio]) {
-        width = aspectRatioMap[request.aspectRatio].width
-        height = aspectRatioMap[request.aspectRatio].height
-        logger.info('[Midjourney v7] Using aspect_ratio mapping', {
-          aspectRatio: request.aspectRatio,
-          width,
-          height,
-        })
-      }
-    }
-
-    // Add "mdjrny-v4 style" prefix for Midjourney aesthetic
-    const enhancedPrompt = `mdjrny-v4 style ${request.prompt}`
+    // Construct input for adminconteudosflix/midjourney-allcraft (FLUX-based with Midjourney style)
+    // Map aspect ratio for FLUX model
+    const aspectRatio = request.aspectRatio || '1:1'
 
     const input: any = {
-      prompt: enhancedPrompt,
-      width,
-      height,
-      num_outputs: 1,
-      guidance_scale: 7.5, // Creativity control (1-20)
-      num_inference_steps: 50, // Denoising steps (max 500)
+      prompt: request.prompt, // No prefix needed - model handles Midjourney style natively
+      aspect_ratio: aspectRatio, // FLUX uses aspect_ratio parameter directly
+      model: 'dev', // FLUX model variant (dev/pro)
+      go_fast: true, // Faster generation
+      lora_scale: 1, // LoRA scaling
+      megapixels: '1', // Image resolution
+      num_outputs: request.numImages || 1,
+      output_format: 'webp', // Modern format
+      guidance_scale: 3, // Creativity control
+      output_quality: 100, // Maximum quality
+      num_inference_steps: 38, // Denoising steps
     }
 
     logger.info('[Midjourney v7] Final input params', {
-      model: 'prompthero/openjourney',
-      width,
-      height,
+      model: 'adminconteudosflix/midjourney-allcraft',
+      aspectRatio,
       prompt: input.prompt.substring(0, 100),
     })
 
-    // Run OpenJourney model via Replicate (Stable Diffusion fine-tuned on Midjourney v4 images)
+    // Run midjourney-allcraft model via Replicate (FLUX-based with Midjourney aesthetic)
     // Using specific version to avoid 404 errors
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'prompthero/openjourney:ad59ca21177f9e217b9075e7300cf6e14f7e5b4505b87b9689dbd866e9768969',
+      'adminconteudosflix/midjourney-allcraft:40ab9b32cc4584bc069e22027fffb97e79ed550d4e7c20ed6d5d7ef89e8f08f5',
       {
         input,
       }
