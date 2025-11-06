@@ -41,6 +41,7 @@ import { startApiServer } from './api_server'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
+let mainBotInstance: Telegraf<MyContext> | null = null
 
 // Define the commands for private chats
 // const privateCommands: BotCommand[] = [
@@ -145,6 +146,12 @@ async function initializeBots() {
 
         // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
         setupNotificationProcessor(bot)
+
+        // ✅ Сохраняем первый bot instance для webhooks
+        if (!mainBotInstance) {
+          mainBotInstance = bot
+          console.log('✅ Main bot instance saved for webhooks')
+        }
 
         registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
         // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
@@ -346,14 +353,14 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 console.log('🏁 Запуск приложения')
 
-// Запускаем API сервер
-// Это будет выполнено при старте src/bot.ts
-startApiServer()
-
 // Возвращаем корректный запуск инициализации ботов
 initializeBots()
   .then(() => {
-    console.log('✅ Боты и API сервер успешно запущены') // Обновим сообщение
+    console.log('✅ Боты успешно запущены')
+
+    // ✅ Запускаем API сервер ПОСЛЕ инициализации ботов, передавая mainBotInstance
+    startApiServer(mainBotInstance || undefined)
+    console.log('✅ API сервер запущен с bot instance для webhooks')
   })
   .catch(error => {
     console.error(

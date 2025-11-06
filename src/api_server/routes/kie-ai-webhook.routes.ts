@@ -1,10 +1,21 @@
 import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
+import { videoTaskStore } from '@/services/video-task-store'
+import { Telegraf, Input } from 'telegraf'
+import { VIDEO_MODELS } from '@/services/videoModels'
+import type { VideoModelId } from '@/services/generateTextToVideo'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
 const router: Router = express.Router()
+
+// Получаем bot instance для отправки сообщений
+let botInstance: Telegraf | null = null
+export function setBotInstance(bot: Telegraf): void {
+  botInstance = bot
+  logger.info('✅ [KIE.AI WEBHOOK] Bot instance set for webhook handler')
+}
 
 /**
  * Interface для webhook payload от Kie.ai
@@ -26,8 +37,6 @@ interface KieAiWebhookPayload {
     errorMessage?: string
     duration?: number
   }
-  data?: any; // Allow nested data object
-  code?: number; // Allow 'code' for success/failure detection
 }
 
 /**
@@ -165,9 +174,85 @@ async function handleSoraSuccess(payload: KieAiWebhookPayload): Promise<void> {
     duration: 10 // Sora всегда 10 секунд
   })
 
-  // TODO: Уведомить пользователя о готовом видео через Telegram
-  // Можно использовать систему как в handleSuccessfulGeneration для LipSync
-  // Или хранить taskId -> telegram_id mapping для отправки видео
+  // Получаем контекст задачи
+  const taskContext = videoTaskStore.getTask(taskId)
+  if (!taskContext) {
+    logger.error('❌ [SORA WEBHOOK] Task context not found', { taskId })
+    return
+  }
+
+  if (!botInstance) {
+    logger.error('❌ [SORA WEBHOOK] Bot instance not initialized')
+    return
+  }
+
+  try {
+    // Обновляем сообщение о статусе
+    await botInstance.telegram.editMessageText(
+      taskContext.chatId,
+      taskContext.messageId,
+      undefined,
+      '✅ Видео успешно сгенерировано! Отправляю...'
+    )
+
+    // Получаем информацию о модели
+    const modelInfo = VIDEO_MODELS[taskContext.modelId as VideoModelId]
+    const modelName = modelInfo?.nameRu || 'Sora 2'
+
+    // Отправляем видео
+    await botInstance.telegram.sendVideo(
+      taskContext.chatId,
+      Input.fromURL(videoUrl),
+      {
+        caption:
+          `🤖 Модель: ${modelName}\n` +
+          `⏱️ Длительность: ${taskContext.duration} сек\n` +
+          `⚡ Сгенерировано через AI`,
+        parse_mode: 'Markdown',
+      }
+    )
+
+    // Отправляем промпт отдельным сообщением
+    await botInstance.telegram.sendMessage(
+      taskContext.chatId,
+      `📝 Ваш запрос:\n\n${taskContext.prompt}`,
+      { parse_mode: 'Markdown' }
+    )
+
+    // Удаляем сообщение о процессе генерации
+    try {
+      await botInstance.telegram.deleteMessage(taskContext.chatId, taskContext.messageId)
+    } catch (e) {
+      // Игнорируем ошибку, если сообщение уже удалено
+      logger.warn('[SORA WEBHOOK] Could not delete processing message', { error: e })
+    }
+
+    logger.info('✅ [SORA WEBHOOK] Video sent to user', {
+      taskId,
+      telegramId: taskContext.telegramId
+    })
+
+    // Удаляем задачу из хранилища
+    videoTaskStore.deleteTask(taskId)
+
+  } catch (error) {
+    logger.error('❌ [SORA WEBHOOK] Error sending video to user', {
+      taskId,
+      error: error instanceof Error ? error.message : String(error)
+    })
+
+    // Отправляем сообщение об ошибке
+    try {
+      await botInstance.telegram.editMessageText(
+        taskContext.chatId,
+        taskContext.messageId,
+        undefined,
+        '❌ Ошибка при отправке видео. Попробуйте позже.'
+      )
+    } catch (e) {
+      logger.error('[SORA WEBHOOK] Could not send error message', { error: e })
+    }
+  }
 }
 
 /**
@@ -182,7 +267,22 @@ async function handleSoraFailure(payload: KieAiWebhookPayload): Promise<void> {
     errorCode
   })
 
-  // TODO: Уведомить пользователя об ошибке
+  const taskContext = videoTaskStore.getTask(taskId)
+  if (!taskContext || !botInstance) {
+    return
+  }
+
+  try {
+    await botInstance.telegram.editMessageText(
+      taskContext.chatId,
+      taskContext.messageId,
+      undefined,
+      `❌ Ошибка генерации: ${errorMessage || 'Неизвестная ошибка'}`
+    )
+    videoTaskStore.deleteTask(taskId)
+  } catch (error) {
+    logger.error('[SORA WEBHOOK] Error sending failure notification', { error })
+  }
 }
 
 /**
@@ -197,7 +297,22 @@ async function handleSoraContentPolicy(payload: KieAiWebhookPayload): Promise<vo
     errorCode
   })
 
-  // TODO: Уведомить пользователя о нарушении политики
+  const taskContext = videoTaskStore.getTask(taskId)
+  if (!taskContext || !botInstance) {
+    return
+  }
+
+  try {
+    await botInstance.telegram.editMessageText(
+      taskContext.chatId,
+      taskContext.messageId,
+      undefined,
+      `🚫 Контент отклонен политикой безопасности. Попробуйте другой запрос.\n\n${errorMessage || ''}`
+    )
+    videoTaskStore.deleteTask(taskId)
+  } catch (error) {
+    logger.error('[SORA WEBHOOK] Error sending content policy notification', { error })
+  }
 }
 
 /**

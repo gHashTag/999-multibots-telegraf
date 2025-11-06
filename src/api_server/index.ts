@@ -2,13 +2,14 @@ import express from 'express'
 import healthRouter from './routes/health.routes'
 import robokassaRouter from './routes/robokassa.routes'
 import githubAutoFixerRouter from './routes/github-autofixer.routes'
-import kieAiWebhookRouter from './routes/kie-ai-webhook.routes'
+import kieAiWebhookRouter, { setBotInstance } from './routes/kie-ai-webhook.routes'
 import aiReelsCallbackRouter from './routes/ai-reels-callback.routes'
 import replicateWebhookRouter from './routes/replicate-webhook.routes'
 import voiceAvatarRouter from './routes/voice-avatar.routes'
 import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
 import diagnosticRouter from './routes/diagnostic.routes'
+import { Telegraf } from 'telegraf'
 // ВРЕМЕННО: inngest отключён
 // import { serve } from 'inngest/express'
 // import { inngest } from '../inngest_app/client'
@@ -18,7 +19,14 @@ import { logger } from '@/utils/logger'
 // Определяем порт. Берем из process.env.PORT, если есть, иначе 4000 (совместимо с reverse proxy).
 const PORT = '3000'
 
-export function startApiServer(): void {
+export function startApiServer(bot?: Telegraf): void {
+  // Если bot instance передан, инициализируем его в webhook router
+  if (bot) {
+    setBotInstance(bot)
+    logger.info('✅ [API SERVER] Bot instance initialized for webhooks')
+  } else {
+    logger.warn('⚠️ [API SERVER] Bot instance not provided - webhooks may not work')
+  }
   const app: any = express()
 
   // ✅ Безопасная конфигурация trust proxy для nginx
