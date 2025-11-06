@@ -142,7 +142,7 @@ export class UniversalProviderManager {
         name: 'Midjourney v7',
         type: 'image',
         provider: 'Replicate',
-        description: 'Artistic styles and high quality via adminconteudosflix/midjourney-allcraft',
+        description: 'Artistic styles and high quality via founderfeed/midjourney',
         pricePerUnit: 0.15, // per image
         supportedFeatures: ['text-to-image', 'artistic-styles', 'aspect-ratio'],
       },

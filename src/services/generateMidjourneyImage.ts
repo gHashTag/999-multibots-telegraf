@@ -43,27 +43,24 @@ export async function generateMidjourneyImage(
       telegramId: request.telegramId,
     })
 
-    // Construct input for FLUX model (emulating Midjourney style)
-    const input: any = {}
-
-    // Enhance prompt with Midjourney-style keywords
-    let enhancedPrompt = request.prompt
-    if (!enhancedPrompt.includes('--style') && !enhancedPrompt.includes('artistic')) {
-      enhancedPrompt += ', artistic style, highly detailed, 8k'
-    }
-    input.prompt = enhancedPrompt
-
-    // Add image if provided (for image-to-image)
-    if (request.imageUrl) {
-      input.image_url = request.imageUrl
+    // Construct input for founderfeed/midjourney model
+    const input: any = {
+      prompt: request.prompt,
+      version: '7', // Midjourney v7
+      quality: '1', // Standard quality (0.25, 0.5, 1, 2)
+      seed: -1, // Random seed
+      chaos: 0, // Chaos level (0-100)
+      stylize: 0, // Stylization level (0-1000)
+      weird: 0, // Weirdness factor (0-3000)
+      niji: 'close', // Not using Niji anime model
+      enable_base64_output: false,
     }
 
-    // Set aspect ratio for adminconteudosflix/midjourney-allcraft
+    // Set aspect ratio for founderfeed/midjourney
     if (request.aspectRatio) {
       input.aspect_ratio = request.aspectRatio
       logger.info('[Midjourney v7] Using aspect_ratio parameter', {
         aspectRatio: request.aspectRatio,
-        aspect_ratio: request.aspectRatio,
       })
     } else {
       input.aspect_ratio = '1:1'
@@ -72,29 +69,16 @@ export async function generateMidjourneyImage(
       })
     }
 
-    // Set number of images
-    input.num_images = request.numImages || 1
-
-    // Set additional parameters for better quality
-    input.model = 'dev'
-    input.go_fast = true
-    input.lora_scale = 1
-    input.output_format = 'webp'
-    input.output_quality = 100
-    input.guidance_scale = 3
-    input.num_inference_steps = 38
-
     logger.info('[Midjourney v7] Final input params', {
-      model: 'adminconteudosflix/midjourney-allcraft',
+      model: 'founderfeed/midjourney',
       aspect_ratio: input.aspect_ratio,
-      num_images: input.num_images,
-      hasImageUrl: !!input.image_url,
+      prompt: input.prompt.substring(0, 100),
     })
 
     // Run Midjourney model via Replicate
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'adminconteudosflix/midjourney-allcraft',
+      'founderfeed/midjourney',
       {
         input,
       }
