@@ -126,7 +126,11 @@ export async function generateMidjourneyImage(
       try {
         const response = await axios.head(url, { timeout: 5000 })
         const contentType = response.headers['content-type'] || ''
-        if (contentType.startsWith('image/')) {
+        // Replicate URLs often return application/octet-stream but are valid images
+        const isImage = contentType.startsWith('image/') ||
+                       contentType === 'application/octet-stream' ||
+                       url.includes('replicate.delivery')
+        if (isImage) {
           validatedUrls.push(url)
         } else {
           logger.warn('[Midjourney v7] Skipping URL - not an image', {
