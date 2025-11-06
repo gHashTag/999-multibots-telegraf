@@ -50,8 +50,8 @@ import { generateAIReelsFunction } from './functions/existing/generateAIReelsFun
 import { generateAdvancedLoopingVideoFunction } from './functions/existing/generateAdvancedLoopingVideoFunction'
 import { generateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 
-// Collect all functions
-export const allInngestFunctions = [
+// Collect all functions (raw array with potential undefined values)
+const allFunctionsRaw = [
   // Content (6)
   analyzeCompetitorReelsFunction,
   extractTopContentFunction,
@@ -95,14 +95,26 @@ export const allInngestFunctions = [
   generateModelTrainingFunction,
 ]
 
+// Filter out undefined functions and log warnings
+export const allInngestFunctions = allFunctionsRaw.filter((f, index) => {
+  if (!f) {
+    logger.warn(`⚠️ [INNGEST] Function at index ${index} is undefined - skipping`)
+    return false
+  }
+  return true
+})
+
 // Log all registered functions
 logger.info('🚀 [INNGEST] Registering functions', {
   count: allInngestFunctions.length,
   functions: allInngestFunctions.map(f => f.name || 'unnamed'),
 })
 
-// Create the Inngest handler for Express
-export const inngestHandler = serve(inngest, allInngestFunctions)
+// Create the Inngest handler for Express (v3 syntax)
+export const inngestHandler = serve({
+  client: inngest,
+  functions: allInngestFunctions,
+})
 
 // Helper to check function registration
 export function getFunctionStatus(): {
