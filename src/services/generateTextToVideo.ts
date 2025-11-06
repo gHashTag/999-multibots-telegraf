@@ -279,23 +279,23 @@ export async function generateTextToVideo(
       isDev,
     })
 
-    const baseUrl = API_URL
+    // ❌ DEPRECATED: Этот endpoint больше не существует!
+    // Используйте handleTextToVideoDirect вместо generateTextToVideo
+    logger.error('[generateTextToVideo] DEPRECATED: This function uses non-existent endpoint', {
+      message: 'Use handleTextToVideoDirect instead',
+      telegram_id,
+      videoModel
+    })
 
-    // 🔧 ВРЕМЕННАЯ ЗАГЛУШКА: Если сервер недоступен, возвращаем mock результат
-    // TODO: Убрать после восстановления работы AI сервера
-    if (!baseUrl || baseUrl === 'undefined') {
-      logger.warn(
-        'No valid server URL found, using mock response for development'
-      )
-      return {
-        success: true,
-        message: 'Mock: Video generation started',
-        videoUrl:
-          'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
-      }
+    // Возвращаем ошибку вместо попытки вызвать несуществующий endpoint
+    return {
+      success: false,
+      message: '❌ Эта функция устарела. Используйте handleTextToVideoDirect.',
+      error: 'DEPRECATED: /generate/text-to-video endpoint does not exist'
     }
 
-    const url = `${baseUrl}/generate/text-to-video`
+    // const baseUrl = API_URL
+    // const url = `${baseUrl}/generate/text-to-video`
 
     logger.info('Sending request to API server', { url, baseUrl })
 

@@ -467,7 +467,8 @@ console.log('🔥 [DEBUG] imageToVideoWizard steps count:', (imageToVideoWizard 
 imageToVideoWizard.enter(async ctx => {
   console.log('🎬 [I2V WIZARD] ✅ WIZARD ENTERED! User:', ctx.from?.id)
   console.log('🎬 [I2V WIZARD] Scene ID:', ctx.scene.current?.id)
-  console.log('🎬 [I2V WIZARD] Current step:', ctx.wizard?.cursor)
+  // ❌ НЕ обращаемся к ctx.wizard в .enter() - он ещё не инициализирован!
+  // Wizard будет создан ПОСЛЕ выполнения .enter() callback
 
   try {
     console.log('🎬 [I2V WIZARD] Initial session initialized for imageToVideoWizard')
@@ -475,7 +476,6 @@ imageToVideoWizard.enter(async ctx => {
     logger.info('[ImageToVideoWizard] Wizard entered successfully', {
       telegramId: ctx.from?.id,
       sceneId: ctx.scene.current?.id,
-      currentStep: ctx.wizard?.cursor,
       timestamp: new Date().toISOString(),
     })
 

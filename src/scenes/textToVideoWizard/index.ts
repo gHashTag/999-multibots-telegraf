@@ -195,7 +195,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   // ========== ШАГ 1: ВЫБОР МОДЕЛИ ==========
   async (ctx) => {
     console.log('🎬 [WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard.cursor)
+    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'not initialized yet')
     
     try {
       const isRu = isRussianFromState(ctx)
@@ -264,7 +264,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   // ========== ШАГ 2: ВЫБОР МОДЕЛИ + ПРОМПТ + ГЕНЕРАЦИЯ (ОБЪЕДИНЕННЫЙ ШАГ) ==========
   async (ctx) => {
     console.log('🎬 [WIZARD] 🔥 STEP 2 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard.cursor)
+    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'not initialized yet')
     
     try {
       const isRu = isRussianFromState(ctx)
@@ -345,7 +345,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   // ========== ШАГ 3: ОБРАБОТКА ПРОМПТА И ГЕНЕРАЦИЯ ==========
   async (ctx) => {
     console.log('🎬 [WIZARD] 🔥 STEP 3 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard.cursor)
+    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'not initialized yet')
     
     try {
       const isRu = isRussianFromState(ctx)
