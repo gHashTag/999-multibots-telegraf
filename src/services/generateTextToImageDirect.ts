@@ -156,11 +156,11 @@ export const generateTextToImageDirect = async (
             telegramId: telegram_id,
           })
 
-          if (!midjourneyResult.success || !midjourneyResult.data?.imageUrls || midjourneyResult.data.imageUrls.length === 0) {
+          if (!midjourneyResult.success || !midjourneyResult.imageUrls || midjourneyResult.imageUrls.length === 0) {
             throw new Error(midjourneyResult.error || 'Midjourney generation failed')
           }
 
-          imageUrl = midjourneyResult.data.imageUrls[0]
+          imageUrl = midjourneyResult.imageUrls[0]
         } else {
           output = (await replicate.run(modelId, {
             input: inputParams,
