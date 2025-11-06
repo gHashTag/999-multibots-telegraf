@@ -494,22 +494,6 @@ console.log('🔥 [DEBUG] textToVideoWizard steps count:', (textToVideoWizard as
 
 // ========== ОБРАБОТЧИКИ WIZARD'A ==========
 
-// ИСПРАВЛЕНИЕ: удаляем executeFirstStep - пусть wizard обрабатывает шаги стандартным способом
-
-// Обработчик входа в wizard
-textToVideoWizard.enter(async ctx => {
-  console.log('🎬 [WIZARD] ✅ WIZARD ENTERED! User:', ctx.from?.id)
-  console.log('🎬 [WIZARD] Scene ID:', ctx.scene.current?.id)
-  console.log('🎬 [WIZARD] Current step:', ctx.wizard?.cursor)
-
-  logger.info('[TextToVideoWizard] Wizard entered successfully', {
-    telegramId: ctx.from?.id,
-    sceneId: ctx.scene.current?.id,
-    currentStep: ctx.wizard?.cursor,
-    timestamp: new Date().toISOString(),
-  })
-})
-
 // Обработчик выхода из wizard
 textToVideoWizard.leave(async ctx => {
   console.log('🎬 [WIZARD] 👋 WIZARD LEFT! User:', ctx.from?.id)
