@@ -142,10 +142,31 @@ export const generateTextToImageDirect = async (
           )
         }
 
-        const output: ApiResponse = (await replicate.run(modelId, {
-          input: inputParams,
-        })) as ApiResponse
-        const imageUrl = await processApiResponse(output)
+        // ✅ FIX: Special handling for Midjourney v7
+        let output: ApiResponse
+        let imageUrl: string
+
+        if (modelId === 'midjourney-v7') {
+          logger.info('[generateTextToImageDirect] Using Midjourney generator')
+          const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
+          const midjourneyResult = await generateMidjourneyImage({
+            prompt: inputParams.prompt,
+            aspectRatio: inputParams.aspect_ratio,
+            numImages: 1,
+            telegramId: telegram_id,
+          })
+
+          if (!midjourneyResult.success || !midjourneyResult.data?.imageUrls || midjourneyResult.data.imageUrls.length === 0) {
+            throw new Error(midjourneyResult.error || 'Midjourney generation failed')
+          }
+
+          imageUrl = midjourneyResult.data.imageUrls[0]
+        } else {
+          output = (await replicate.run(modelId, {
+            input: inputParams,
+          })) as ApiResponse
+          imageUrl = await processApiResponse(output)
+        }
 
         const imageLocalPath = await saveFileLocally(
           telegram_id,
