@@ -151,6 +151,11 @@ async function initializeBots() {
         if (!mainBotInstance) {
           mainBotInstance = bot
           console.log('✅ Main bot instance saved for webhooks')
+
+          // ✅ Запускаем API сервер СРАЗУ после создания первого бота
+          // (до bot.launch(), чтобы не ждать бесконечного polling loop)
+          startApiServer(bot)
+          console.log('✅ API сервер запущен с bot instance для webhooks')
         }
 
         registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
@@ -354,13 +359,10 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 console.log('🏁 Запуск приложения')
 
 // Возвращаем корректный запуск инициализации ботов
+// API сервер теперь запускается внутри initializeBots() при создании первого бота
 initializeBots()
   .then(() => {
-    console.log('✅ Боты успешно запущены')
-
-    // ✅ Запускаем API сервер ПОСЛЕ инициализации ботов, передавая mainBotInstance
-    startApiServer(mainBotInstance || undefined)
-    console.log('✅ API сервер запущен с bot instance для webhooks')
+    console.log('✅ Все боты успешно инициализированы')
   })
   .catch(error => {
     console.error(

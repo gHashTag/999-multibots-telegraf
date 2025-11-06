@@ -6,7 +6,7 @@ dotenv.config()
 
 const API_KEY = process.env.KIE_AI_API_KEY!
 const BASE_URL = 'https://api.kie.ai/api/v1'
-const TEST_TASK_ID = '07dc86e13f0d38a75681851af8e102fe' // From logs
+const TEST_TASK_ID = '1a5ae90964526d61687678b07abb4d6f' // Latest task from user
 
 async function testEndpoints() {
   console.log('🧪 Testing Sora status endpoints with existing taskId:\n')
