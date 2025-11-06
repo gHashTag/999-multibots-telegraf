@@ -93,9 +93,9 @@ export function startApiServer(bot?: Telegraf): void {
   // const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
   // app.use('/api/inngest', inngestHandler)
 
-  // Запуск основного сервера
-  app.listen(PORT, () => {
-    console.log(`[API] Server started on port ${PORT}`)
+  // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[API] Server started on port ${PORT} (listening on 0.0.0.0)`)
   })
 
   // Удаляем дополнительный сервер на 8080: используем только один порт для reverse proxy
