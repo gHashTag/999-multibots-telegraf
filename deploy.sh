@@ -114,9 +114,8 @@ deploy() {
         # Удаляем сети
         docker network rm app-network 2>/dev/null || true
 
-        # Убиваем процессы на портах
-        fuser -k 80/tcp 2>/dev/null || true
-        fuser -k 443/tcp 2>/dev/null || true
+        # ❌ НЕ УБИВАЕМ ПРОЦЕССЫ НА ПОРТАХ 80/443 - ТАМ РАБОТАЕТ HOST NGINX!
+        # Убиваем только порт приложения (3000), если он занят не Docker контейнером
         fuser -k 3000/tcp 2>/dev/null || true
 
         echo 'Все контейнеры и сети удалены'
