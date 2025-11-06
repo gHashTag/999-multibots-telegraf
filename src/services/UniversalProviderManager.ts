@@ -101,16 +101,15 @@ export class UniversalProviderManager {
         pricePerUnit: 0.1, // per image
         supportedFeatures: ['text-to-image', 'text-rendering'],
       },
-      // ❌ УДАЛЕНО: Midjourney v7 не доступен на Replicate
-      // {
-      //   id: 'midjourney-v7',
-      //   name: 'Midjourney v7',
-      //   type: 'image',
-      //   provider: 'Kie.ai',
-      //   description: 'Artistic styles and high quality',
-      //   pricePerUnit: 0.15, // per image
-      //   supportedFeatures: ['text-to-image', 'artistic-styles'],
-      // },
+      {
+        id: 'midjourney-v7',
+        name: 'Midjourney v7',
+        type: 'image',
+        provider: 'Replicate',
+        description: 'Artistic styles and high quality via adminconteudosflix/midjourney-allcraft',
+        pricePerUnit: 0.15, // per image
+        supportedFeatures: ['text-to-image', 'artistic-styles', 'aspect-ratio'],
+      },
       {
         id: 'flux-1-kontext',
         name: 'FLUX.1 Kontext',
@@ -254,6 +253,19 @@ export class UniversalProviderManager {
           numImages: request.numImages,
           style: request.style,
           imageUrl: request.imageUrl,
+        })
+
+      case 'Replicate':
+        // Import and use Midjourney generator
+        const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
+        return await generateMidjourneyImage({
+          prompt: request.prompt,
+          imageUrl: request.imageUrl,
+          width: request.width,
+          height: request.height,
+          aspectRatio: request.style, // Can pass aspect ratio via style parameter
+          numImages: request.numImages,
+          telegramId: request.userId || 'unknown',
         })
 
       default:
