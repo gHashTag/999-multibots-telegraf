@@ -32,126 +32,82 @@ import { getParsingAccess } from './menu/mainMenu'
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
 
-  // ✅ WIZARD CALLBACK HANDLING: Wizards обрабатываются через stage.middleware()
-  // stage.middleware() запускается ПЕРЕД этим handler'ом и устанавливает ctx.scene.current
-  // Если wizard активен, мы пропускаем callback к wizard через return next()
-
-  // === INLINE КНОПКИ ДЛЯ НЕЙРОФОТО ===
-  bot.on('callback_query', async (ctx: MyContext, next) => {
-    if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
-      await ctx.answerCbQuery()
-      return next()
-    }
-
-    const data = ctx.callbackQuery.data
-    const telegramId = ctx.from.id
-
-    // ✅ КРИТИЧНО: Если wizard активен, пропускаем к wizard handler
-    // stage.middleware() уже запустился и установил ctx.scene.current
-    console.log('🔍 [GLOBAL CALLBACK] Checking wizard:', {
-      hasScene: !!ctx.scene,
-      hasCurrent: !!ctx.scene?.current,
-      wizardId: ctx.scene?.current?.id,
-      callback: data,
+  // 🏠 ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КНОПКИ "ГЛАВНОЕ МЕНЮ" - РАБОТАЕТ ВЕЗДЕ!
+  bot.hears([levels[104].title_ru, levels[104].title_en], async ctx => {
+    logger.info('🏠 GLOBAL HEARS: Main menu button pressed', {
+      telegramId: ctx.from?.id,
+      text: ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown',
     })
 
-    if (ctx.scene?.current?.id) {
-      console.log('🚨 [GLOBAL CALLBACK] Active wizard detected, passing to wizard:', {
-        wizardId: ctx.scene.current.id,
-        callback: data,
-      })
-      return next() // Передаём wizard handler'у
-    }
-
     try {
-      await ctx.answerCbQuery()
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
 
-      // Обработка кнопок генерации нейрофото
-      if (data.startsWith('neuro_generate_')) {
-        const numImages = parseInt(data.replace('neuro_generate_', ''))
+      // Покидаем текущую сцену
+      await ctx.scene.leave()
 
-        logger.info(`🔢 [INLINE] Запрошена генерация ${numImages} изображений пользователем ${telegramId}`)
+      // Устанавливаем режим главного меню
+      ctx.session.mode = ModeEnum.MainMenu
 
-        // Проверяем, есть ли активная сессия нейрофото с промптом и моделью
-        if (!ctx.session?.prompt || !ctx.session?.userModel || !ctx.session.userModel.model_url) {
-          const isRu = isRussianFromState(ctx)
-          await ctx.reply(
-            isRu
-              ? '❌ Для генерации нужно сначала выбрать модель и ввести промпт. Используйте команду "📸 Нейрофото".'
-              : '❌ To generate images, please first select a model and enter a prompt. Use "📸 NeuroPhoto" command.'
-          )
-          return
-        }
+      // Переходим в главное меню
+      await ctx.scene.enter(ModeEnum.MainMenu)
 
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRu = isRussianFromState(ctx)
-        const userId = ctx.from?.id
-        const prompt = ctx.session.prompt
-
-        // Получаем данные пола для промпта
-        const userData = await getUserData(userId?.toString() ?? '')
-        let genderPromptPart = 'person'
-        if (userData?.gender === 'female') {
-          genderPromptPart = 'female'
-        } else if (userData?.gender === 'male') {
-          genderPromptPart = 'male'
-        }
-
-        const trigger_word = ctx.session.userModel.trigger_word as string
-        const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
-        const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
-
-        // Получаем aspect ratio пользователя
-        const { getAspectRatio } = await import('./core/supabase')
-        const userAspectRatio = await getAspectRatio(userId || 0)
-
-        logger.info(`🚀 [INLINE] Начинаем генерацию ${numImages} изображений для пользователя ${telegramId}`)
-
-        // Запускаем генерацию
-        await generateNeuroPhotoHybrid(
-          fullPrompt,
-          ctx.session.userModel.model_url as any,
-          numImages,
-          userId?.toString() ?? '',
-          ctx,
-          ctx.botInfo?.username,
-          userAspectRatio
-        )
-        return
-      }
-
-      // Обработка других кнопок нейрофото
-      switch (data) {
-        case 'improve_prompt':
-          await ctx.scene.enter(ModeEnum.ImprovePromptWizard)
-          return
-        case 'change_size':
-          await ctx.scene.enter(ModeEnum.SizeWizard)
-          return
-        case 'new_prompt':
-          ctx.session.prompt = undefined
-          await ctx.scene.enter(ModeEnum.NeuroPhoto)
-          return
-        case 'main_menu':
-          await ctx.scene.enter(ModeEnum.MainMenu)
-          return
-        default:
-          // Неизвестный callback - передаем другим обработчикам (может быть wizard)
-          logger.debug(`Callback не обработан глобальным handler'ом, передаем дальше: ${data}`)
-          return next()
-      }
-
-    } catch (error) {
-      logger.error('Error in callback_query handler:', {
-        error,
-        telegramId,
-        data,
+      logger.info('✅ GLOBAL HEARS: Successfully entered main menu', {
+        telegramId: ctx.from?.id,
       })
+    } catch (error) {
+      logger.error('❌ GLOBAL HEARS: Error in main menu handler:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
       const isRuError = isRussianFromState(ctx)
       await ctx.reply(
         isRuError
-          ? '❌ Произошла ошибка при обработке команды.'
-          : '❌ An error occurred while processing the command.'
+          ? '❌ Произошла ошибка при переходе в главное меню.'
+          : '❌ Error occurred while entering main menu.'
+      )
+    }
+  })
+
+  // 🏠 ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КОМАНДЫ "/menu" - РАБОТАЕТ ВЕЗДЕ!
+  bot.command('menu', async ctx => {
+    logger.info('🏠 GLOBAL COMMAND: /menu command pressed', {
+      telegramId: ctx.from?.id,
+    })
+
+    try {
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const is_ru = isRussianFromState(ctx)
+
+      // Покидаем текущую сцену
+      await ctx.scene.leave()
+
+      // Устанавливаем режим главного меню
+      ctx.session.mode = ModeEnum.MainMenu
+
+      // Переходим в главное меню
+      await ctx.scene.enter(ModeEnum.MainMenu)
+
+      logger.info(
+        '✅ GLOBAL COMMAND: Successfully entered main menu via /menu',
+        {
+          telegramId: ctx.from?.id,
+        }
+      )
+    } catch (error) {
+      logger.error('❌ GLOBAL COMMAND: Error in /menu handler:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+      const isRuError = isRussianFromState(ctx)
+      await ctx.reply(
+        isRuError
+          ? '❌ Произошла ошибка при переходе в главное меню.'
+          : '❌ Error occurred while entering main menu.'
       )
     }
   })
@@ -313,30 +269,29 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  // TEMPORARILY HIDDEN - кнопка "Нейрофото 2"
-  // bot.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async (ctx: MyContext) => {
-  //   logger.debug(`Получен hears для Нейрофото 2 от ${ctx.from?.id}`)
-  //
-  //   // 🔒 ЗАЩИТА: Проверяем что пользователь админ
-  //   const { ADMIN_IDS_ARRAY } = await import('@/config')
-  //   const userId = ctx.from?.id
-  //   const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-  //
-  //   if (!isAdmin) {
-  //     await ctx.reply('❌ У вас нет доступа к этой функции.')
-  //     return
-  //   }
-  //
-  //   // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
-  //   const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
-  //   if (!hasSubscription) {
-  //     return // Пользователь перенаправлен в subscriptionScene
-  //   }
-  //
-  //   await ctx.scene.leave()
-  //   ctx.session.mode = ModeEnum.NeuroPhotoV2
-  //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  // })
+  bot.hears(['📸 Нейрофото 2', '📸 NeuroPhoto 2'], async (ctx: MyContext) => {
+    logger.debug(`Получен hears для Нейрофото 2 от ${ctx.from?.id}`)
+
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
+    const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    await ctx.scene.leave()
+    ctx.session.mode = ModeEnum.NeuroPhotoV2
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+  })
 
   bot.hears(
     [levels[3].title_ru, levels[3].title_en],
@@ -979,32 +934,55 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
   // })
 
-  // TEMPORARILY HIDDEN - кнопка "Нейрофото 2" (дубликат)
-  // bot.hears('📸 Нейрофото 2', async ctx => {
-  //   logger.info('GLOBAL HEARS: Нейрофото 2 (Admin)', {
-  //     telegramId: ctx.from?.id,
-  //   })
-  //
-  //   // 🔒 ЗАЩИТА: Проверяем что пользователь админ
-  //   const { ADMIN_IDS_ARRAY } = await import('@/config')
-  //   const userId = ctx.from?.id
-  //   const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-  //
-  //   if (!isAdmin) {
-  //     await ctx.reply('❌ У вас нет доступа к этой функции.')
-  //     return
-  //   }
-  //
-  //   // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
-  //   const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
-  //   if (!hasSubscription) {
-  //     return // Пользователь перенаправлен в subscriptionScene
-  //   }
-  //
-  //   await ctx.scene.leave()
-  //   ctx.session.mode = ModeEnum.NeuroPhoto
-  //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  // })
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
+    const hasSubscription = await checkSubscriptionGuard(
+      ctx,
+      '🤖 Цифровое тело 2'
+    )
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    await ctx.scene.leave()
+    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+  })
+
+  bot.hears('📸 Нейрофото 2', async ctx => {
+    logger.info('GLOBAL HEARS: Нейрофото 2 (Admin)', {
+      telegramId: ctx.from?.id,
+    })
+
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
+    const hasSubscription = await checkSubscriptionGuard(ctx, '📸 Нейрофото 2')
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    await ctx.scene.leave()
+    ctx.session.mode = ModeEnum.NeuroPhoto
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+  })
 
   // === FLUX KONTEXT ОБРАБОТЧИКИ ===
   bot.hears(['💼 FLUX Kontext Pro'], async ctx => {
@@ -1116,7 +1094,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         userId,
         error: error instanceof Error ? error.message : String(error),
       })
-      await ctx.reply('❌ Произошла ошибка при запуске парсинга. Попробуйте позже.')
+      await ctx.reply(
+        '❌ Произошла ошибка при запуске парсинга. Попробуйте позже.'
+      )
     }
   })
 

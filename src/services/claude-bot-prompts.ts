@@ -153,7 +153,7 @@ Example fixes:
 - Missing error handling for OpenAI calls
 - No cleanup for temporary files
 - Missing validation for user inputs
-`
+`,
 }
 
 export const BOT_FIX_PATTERNS = {
@@ -161,56 +161,59 @@ export const BOT_FIX_PATTERNS = {
   ASYNC_AWAIT_FIXES: [
     {
       pattern: /(bot\.(action|command|on|hears)\([^,]+,\s*)(\w+\s*=>)/g,
-      replacement: '$1async $3'
+      replacement: '$1async $3',
     },
     {
       pattern: /(scene\.(enter|action|command|on|hears)\([^,]+,\s*)(\w+\s*=>)/g,
-      replacement: '$1async $3'
+      replacement: '$1async $3',
     },
     {
       pattern: /(ctx\.reply\w*\([^)]+\))/g,
-      replacement: 'await $1'
+      replacement: 'await $1',
     },
     {
       pattern: /(ctx\.scene\.enter\([^)]+\))/g,
-      replacement: 'await $1'
-    }
+      replacement: 'await $1',
+    },
   ],
 
   SCENE_TYPE_FIXES: [
     {
       pattern: /new Scenes\.BaseScene\('([^']+)'\)/g,
-      replacement: "new Scenes.BaseScene<MyContext>('$1')"
+      replacement: "new Scenes.BaseScene<MyContext>('$1')",
     },
     {
       pattern: /new Scenes\.WizardScene\('([^']+)'/g,
-      replacement: "new Scenes.WizardScene<MyContext>('$1'"
-    }
+      replacement: "new Scenes.WizardScene<MyContext>('$1'",
+    },
   ],
 
   ERROR_HANDLING_ADDITIONS: [
     {
       pattern: /(async \([^)]+\) => \{)/g,
       replacement: `$1
-  try {`
-    }
+  try {`,
+    },
   ],
 
   IMPORT_FIXES: [
     {
-      condition: (content: string) => content.includes('MyContext') && !content.includes("import { MyContext }"),
-      fix: "import { MyContext } from '../interfaces'\n"
+      condition: (content: string) =>
+        content.includes('MyContext') &&
+        !content.includes('import { MyContext }'),
+      fix: "import { MyContext } from '../interfaces'\n",
     },
     {
-      condition: (content: string) => content.includes('Scenes.') && !content.includes("import { Scenes }"),
-      fix: "import { Scenes } from 'telegraf'\n"
-    }
-  ]
+      condition: (content: string) =>
+        content.includes('Scenes.') && !content.includes('import { Scenes }'),
+      fix: "import { Scenes } from 'telegraf'\n",
+    },
+  ],
 }
 
 export function buildContextualPrompt(
-  filePath: string, 
-  content: string, 
+  filePath: string,
+  content: string,
   knownIssues: string[]
 ): string {
   let prompt = BOT_ANALYSIS_PROMPTS.MAIN_ANALYSIS
@@ -227,7 +230,7 @@ export function buildContextualPrompt(
   }
 
   prompt += `\n\n## File to analyze: ${filePath}\n\n`
-  
+
   if (knownIssues.length > 0) {
     prompt += `## Known issues found:\n${knownIssues.join('\n')}\n\n`
   }

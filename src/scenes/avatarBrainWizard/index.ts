@@ -1,4 +1,4 @@
-import { Scenes } from 'telegraf'
+import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '../../core/supabase'
 import { isRussianFromState } from '../../helpers/centralizedLanguage'
@@ -10,8 +10,13 @@ import {
 } from '../../core/supabase'
 import { ModeEnum } from '../../interfaces/modes'
 import { logger } from '../../utils/logger'
-import { mainMenu } from '../../menu/mainMenu'
-import { getUserDetailsSubscription } from '../../core/supabase/getUserDetailsSubscription'
+
+// Максимальная длина для различных полей
+const MAX_LENGTHS = {
+  company: 100,
+  position: 100,
+  skills: 1000,
+}
 
 // ✅ CENTRALIZED CANCEL SYSTEM
 import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
@@ -19,228 +24,224 @@ import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/can
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string
+  skills?: string
 }
 
+// Функция для нормализации и валидации ввода
+const normalizeInput = (text: string, maxLength: number): string => {
+  return text.trim().slice(0, maxLength)
+}
+
+// Функция для проверки корректности ввода
+const validateInput = (text: string, maxLength: number): boolean => {
+  const normalized = text.trim()
+  return normalized.length > 0 && normalized.length <= maxLength
+}
+
+// Создание сцены для настройки мозга аватара
 export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.Avatar,
+  // Шаг 1: Запрос названия компании
   async ctx => {
     const isRu = isRussianFromState(ctx)
     await ctx.reply(
       isRu
-        ? '👋 Привет, как называется ваша компания?'
-        : '👋 Hello, what is your company name?',
+        ? '👋 Введите название вашей компании'
+        : '👋 Enter your company name',
       createHelpCancelKeyboard(isRu)
     )
     return ctx.wizard.next()
   },
 
+  // Шаг 2: Обработка названия компании и запрос должности
   async ctx => {
     const isRu = isRussianFromState(ctx)
-    if (ctx.message && 'text' in ctx.message) {
-      const isCancel = await handleHelpCancel(ctx)
-      if (!isCancel) {
-        ;(ctx.wizard.state as WizardSessionData).company = ctx.message.text
-        await ctx.reply(
-          isRu ? '💼 Какая у вас должность?' : '💼 What is your position?',
-          createHelpCancelKeyboard(isRu)
-        )
-        return ctx.wizard.next()
-      }
-    }
-    return ctx.scene.leave()
-  },
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    if (ctx.message && 'text' in ctx.message) {
-      const isCancel = await handleHelpCancel(ctx)
-      if (!isCancel) {
-        ;(ctx.wizard.state as WizardSessionData).position = ctx.message.text
-        await ctx.reply(
-          isRu ? '🛠️ Какие у тебя навыки?' : '🛠️ What are your skills?',
-          createHelpCancelKeyboard(isRu)
-        )
-        return ctx.wizard.next()
-      }
-    }
-    return ctx.scene.leave()
-  },
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    
-    if (ctx.message && 'text' in ctx.message) {
-      const isCancel = await handleHelpCancel(ctx)
-      if (!isCancel) {
-        const skills = ctx.message.text
-        const { company, position } = ctx.wizard.state as WizardSessionData
-        const userId = ctx.from?.id
-        
-        if (userId && company && position) {
-          try {
-            // Save the avatar brain data
-            await updateUserSoul(userId.toString(), company, position, skills)
-            
-            // Get user subscription details for menu display
-            const userDetails = await getUserDetailsSubscription(userId.toString())
-            
-            // Create comprehensive success message with emojis
-            const successMessage = isRu
-              ? `🎉 <b>Великолепно! Мозг аватара успешно настроен!</b> 🧠✨\n\n` +
-                `📊 <b>Сохраненная информация:</b>\n` +
-                `🏢 <b>Компания:</b> ${company}\n` +
-                `💼 <b>Должность:</b> ${position}\n` +
-                `🛠️ <b>Навыки:</b> ${skills}\n\n` +
-                `💡 <b>Как это используется:</b>\n` +
-                `• Ваш цифровой аватар теперь знает о вашей профессиональной деятельности\n` +
-                `• Эта информация поможет аватару давать более персонализированные ответы\n` +
-                `• Аватар сможет лучше понимать контекст ваших задач и вопросов\n\n` +
-                `🚀 <b>Что дальше?</b>\n` +
-                `Попробуйте функцию <b>"💭 Чат с аватаром"</b> прямо сейчас - ваш аватар готов к умным беседам!\n\n` +
-                `✅ <b>Готово!</b> Возвращаемся в главное меню...`
-              : `🎉 <b>Excellent! Avatar brain successfully configured!</b> 🧠✨\n\n` +
-                `📊 <b>Saved information:</b>\n` +
-                `🏢 <b>Company:</b> ${company}\n` +
-                `💼 <b>Position:</b> ${position}\n` +
-                `🛠️ <b>Skills:</b> ${skills}\n\n` +
-                `💡 <b>How this is used:</b>\n` +
-                `• Your digital avatar now knows about your professional activity\n` +
-                `• This information will help the avatar give more personalized responses\n` +
-                `• The avatar will better understand the context of your tasks and questions\n\n` +
-                `🚀 <b>What's next?</b>\n` +
-                `Try the <b>"💭 Chat with avatar"</b> feature right now - your avatar is ready for smart conversations!\n\n` +
-                `✅ <b>Done!</b> Returning to main menu...`
 
-            await ctx.reply(successMessage, { parse_mode: 'HTML' })
-            
-            // Level progression logic
-            const userExists = await getUserByTelegramId(ctx)
-            if (userExists && userExists.level === 3) {
-              await updateUserLevelPlusOne(userId.toString(), userExists.level)
-            }
-            
-            // Show main menu with proper keyboard
-            const keyboard = await mainMenu({
-              isRu,
-              subscription: userDetails.subscriptionType,
-              ctx
-            })
-            
-            const menuMessage = isRu
-              ? '🏠 Главное меню:'
-              : '🏠 Main menu:'
-              
-            await ctx.reply(menuMessage, keyboard)
-            
-            // Leave the wizard scene
-            return ctx.scene.leave()
-            
-          } catch (error) {
-            logger.error('[avatarBrainWizard] Error saving avatar brain data', {
-              error: error instanceof Error ? error.message : String(error),
-              userId: userId.toString(),
-              company,
-              position,
-              skills
-            })
-            
-            // Show positive completion message even on error (better UX)
-            const completionMessage = isRu
-              ? `✨ <b>Настройка мозга аватара завершена!</b> 🧠\n\n` +
-                `📊 <b>Полученная информация:</b>\n` +
-                `🏢 <b>Компания:</b> ${company}\n` +
-                `💼 <b>Должность:</b> ${position}\n` +
-                `🛠️ <b>Навыки:</b> ${skills.length > 200 ? skills.substring(0, 200) + '...' : skills}\n\n` +
-                `💡 <b>Что дальше?</b>\n` +
-                `Ваш аватар готов к работе! Попробуйте функцию <b>"💭 Чат с аватаром"</b> прямо сейчас!\n\n` +
-                `🏠 <b>Возвращаемся в главное меню...</b>`
-              : `✨ <b>Avatar brain setup completed!</b> 🧠\n\n` +
-                `📊 <b>Information received:</b>\n` +
-                `🏢 <b>Company:</b> ${company}\n` +
-                `💼 <b>Position:</b> ${position}\n` +
-                `🛠️ <b>Skills:</b> ${skills.length > 200 ? skills.substring(0, 200) + '...' : skills}\n\n` +
-                `💡 <b>What's next?</b>\n` +
-                `Your avatar is ready to work! Try the <b>"💭 Chat with avatar"</b> feature right now!\n\n` +
-                `🏠 <b>Returning to main menu...</b>`
-              
-            await ctx.reply(completionMessage, { parse_mode: 'HTML' })
-            
-            // Show main menu
-            try {
-              const userDetails = await getUserDetailsSubscription(userId.toString())
-              const keyboard = await mainMenu({
-                isRu,
-                subscription: userDetails.subscriptionType,
-                ctx
-              })
-              
-              const menuMessage = isRu
-                ? '📱 Главное меню:'
-                : '📱 Main menu:'
-                
-              await ctx.reply(menuMessage, keyboard)
-            } catch (menuError) {
-              logger.error('[avatarBrainWizard] Error showing main menu after error', {
-                error: menuError instanceof Error ? menuError.message : String(menuError),
-                userId: userId.toString()
-              })
-            }
-            
-            return ctx.scene.leave()
-          }
+    // Проверка на текстовое сообщение
+    if (!ctx.message || !('text' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, отправьте текстовое сообщение'
+          : '❌ Please send a text message'
+      )
+      return
+    }
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) return ctx.scene.leave()
+
+    const input = ctx.message.text
+
+    // Проверка длины ввода
+    if (!validateInput(input, MAX_LENGTHS.company)) {
+      await ctx.reply(
+        isRu
+          ? `❌ Название компании должно быть короче ${MAX_LENGTHS.company} символов`
+          : `❌ Company name must be less than ${MAX_LENGTHS.company} characters`
+      )
+      return
+    }
+
+    // Сохраняем нормализованное название компании
+    ;(ctx.wizard.state as WizardSessionData).company = normalizeInput(
+      input,
+      MAX_LENGTHS.company
+    )
+
+    // Запрашиваем должность
+    await ctx.reply(
+      isRu ? '💼 Укажите вашу должность' : '💼 Enter your position',
+      createHelpCancelKeyboard(isRu)
+    )
+    return ctx.wizard.next()
+  },
+
+  // Шаг 3: Обработка должности и запрос навыков
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+
+    if (!ctx.message || !('text' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, отправьте текстовое сообщение'
+          : '❌ Please send a text message'
+      )
+      return
+    }
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) return ctx.scene.leave()
+
+    const input = ctx.message.text
+
+    if (!validateInput(input, MAX_LENGTHS.position)) {
+      await ctx.reply(
+        isRu
+          ? `❌ Название должности должно быть короче ${MAX_LENGTHS.position} символов`
+          : `❌ Position name must be less than ${MAX_LENGTHS.position} characters`
+      )
+      return
+    }
+
+    // Сохраняем нормализованную должность
+    ;(ctx.wizard.state as WizardSessionData).position = normalizeInput(
+      input,
+      MAX_LENGTHS.position
+    )
+
+    // Запрашиваем навыки
+    await ctx.reply(
+      isRu
+        ? '🛠️ Опишите ваши профессиональные навыки'
+        : '🛠️ Describe your professional skills',
+      createHelpCancelKeyboard(isRu)
+    )
+    return ctx.wizard.next()
+  },
+
+  // Шаг 4: Финальная обработка и сохранение данных
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+
+    // Проверяем наличие текстового сообщения
+    if (!ctx.message || !('text' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, отправьте текстовое сообщение'
+          : '❌ Please send a text message'
+      )
+      return
+    }
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) return ctx.scene.leave()
+
+    const input = ctx.message.text
+
+    // Проверяем длину описания навыков
+    if (!validateInput(input, MAX_LENGTHS.skills)) {
+      await ctx.reply(
+        isRu
+          ? `❌ Описание навыков должно быть короче ${MAX_LENGTHS.skills} символов`
+          : `❌ Skills description must be less than ${MAX_LENGTHS.skills} characters`
+      )
+      return
+    }
+
+    // Получаем и проверяем все необходимые данные
+    const userId = ctx.from?.id
+    const { company, position } = ctx.wizard.state as WizardSessionData
+    const skills = normalizeInput(input, MAX_LENGTHS.skills)
+
+    if (!userId || !company || !position) {
+      logger.error('[avatarBrainWizard] Missing required data', {
+        userId,
+        company,
+        position,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не хватает необходимых данных. Пожалуйста, начните сначала.'
+          : '❌ Missing required data. Please start over.',
+        {
+          reply_markup: Markup.keyboard([
+            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+          ]).resize(),
+        }
+      )
+      return ctx.scene.leave()
+    }
+
+    try {
+      // Сохраняем данные
+      await updateUserSoul(userId.toString(), company, position, skills)
+
+      // Обновляем уровень пользователя если нужно
+      if (ctx.from) {
+        const userDetails = await getUserByTelegramId(ctx)
+        if (userDetails?.level === 3) {
+          await updateUserLevelPlusOne(
+            ctx.from.id.toString(),
+            userDetails.level
+          )
         }
       }
-    }
 
-    // Enhanced error handling for missing user data
-    if (!ctx.from) {
-      logger.error('[avatarBrainWizard] Telegram ID not found')
-      
-      const completionMessage = isRu
-        ? '✨ Настройка мозга аватара завершена! Возвращаемся в главное меню...'
-        : '✨ Avatar brain setup completed! Returning to main menu...'
-        
-      await ctx.reply(completionMessage)
-      return ctx.scene.leave()
-    }
-
-    const telegram_id = ctx.from.id
-    const userExists = await getUserByTelegramId(ctx)
-    
-    if (!userExists) {
-      logger.error(
-        `[avatarBrainWizard] User not found by getUserByTelegramId for telegramId: ${telegram_id}`
+      // Отправляем подтверждающее сообщение
+      await ctx.reply(
+        isRu
+          ? `✨ Мозг аватара успешно создан!\n\n📋 Сводка:\n• Компания: ${company}\n• Должность: ${position}\n• Навыки: ${skills}\n\nПереходим в главное меню.`
+          : `✨ Avatar's brain successfully created!\n\n📋 Summary:\n• Company: ${company}\n• Position: ${position}\n• Skills: ${skills}\n\nReturning to main menu.`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: Markup.keyboard([
+            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+          ]).resize(),
+        }
       )
-      
-      const completionMessage = isRu
-        ? '✨ Настройка завершена! Возвращаемся в главное меню...'
-        : '✨ Setup completed! Returning to main menu...'
-        
-      await ctx.reply(completionMessage)
-      
-      // Show main menu
-      try {
-        const userDetails = await getUserDetailsSubscription(telegram_id.toString())
-        const keyboard = await mainMenu({
-          isRu,
-          subscription: userDetails.subscriptionType,
-          ctx
-        })
-        
-        const menuMessage = isRu
-          ? '📱 Главное меню:'
-          : '📱 Main menu:'
-          
-        await ctx.reply(menuMessage, keyboard)
-      } catch (menuError) {
-        logger.error('[avatarBrainWizard] Error showing main menu after user not found', {
-          error: menuError instanceof Error ? menuError.message : String(menuError),
-          telegramId: telegram_id
-        })
-      }
-      
+
+      // Небольшая пауза для чтения сообщения
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Завершаем сцену и переходим в главное меню
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    } catch (error) {
+      logger.error('[avatarBrainWizard] Error saving data:', error)
+
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при сохранении данных. Пожалуйста, используйте команду /menu'
+          : '❌ Error saving data. Please use /menu command',
+        {
+          reply_markup: Markup.keyboard([
+            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+          ]).resize(),
+        }
+      )
+
       return ctx.scene.leave()
     }
-    
-    return ctx.scene.leave()
   }
 )
 
