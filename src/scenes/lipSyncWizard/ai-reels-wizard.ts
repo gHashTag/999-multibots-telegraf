@@ -485,7 +485,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           .eq('telegram_id', telegramId)
           .maybeSingle()
 
-        if (!userData?.voice_id_elevenlabs) {
+        const userVoiceId = userData?.voice_id_elevenlabs
+
+        if (!userVoiceId) {
           // Сохраняем состояние и предлагаем создать голос
           ctx.session.aiReels = {
             ...ctx.session.aiReels,
@@ -514,6 +516,67 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           await ctx.scene.enter(ModeEnum.CheckBalanceScene)
           return
         }
+
+        // ✅ ВАЛИДАЦИЯ: Проверяем существование голоса в ElevenLabs API
+        const { checkVoiceExists } = await import('@/core/elevenlabs')
+
+        logger.info('🔍 [AI REELS] Проверяем валидность voice_id в ElevenLabs', {
+          telegramId,
+          voiceId: userVoiceId,
+        })
+
+        const isVoiceValid = await checkVoiceExists(userVoiceId)
+
+        if (!isVoiceValid) {
+          logger.warn('❌ [AI REELS] Voice ID не найден в ElevenLabs API', {
+            telegramId,
+            voiceId: userVoiceId,
+          })
+
+          // Сохраняем состояние и предлагаем пересоздать голос
+          ctx.session.aiReels = {
+            ...ctx.session.aiReels,
+            imageUrl,
+            text,
+            step: 'text',
+            needsVoiceCreation: true,
+          }
+
+          await ctx.reply(
+            isRu
+              ? '❌ Ваш голос не найден в системе ElevenLabs.\n\n' +
+                  '🎤 Пожалуйста, пересоздайте свой голос командой /voice\n\n' +
+                  '💡 После создания голоса вы сможете продолжить создание AI Reels с сохраненными данными.'
+              : '❌ Your voice was not found in ElevenLabs system.\n\n' +
+                  '🎤 Please recreate your voice using /voice command\n\n' +
+                  '💡 After creating your voice, you can continue creating AI Reels with saved data.',
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    Markup.button.callback(
+                      isRu ? '🎤 Создать голос' : '🎤 Create voice',
+                      'create_voice_avatar'
+                    ),
+                  ],
+                  [
+                    Markup.button.callback(
+                      isRu ? '❌ Отмена' : '❌ Cancel',
+                      'ai_reels_cancel'
+                    ),
+                  ],
+                ],
+              },
+            }
+          )
+
+          return ctx.scene.leave()
+        }
+
+        logger.info('✅ [AI REELS] Voice ID валидный', {
+          telegramId,
+          voiceId: userVoiceId,
+        })
       }
 
       // 💰 Шаблон 1: Фиксированная стоимость 240⭐
@@ -650,6 +713,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
               '@/core/elevenlabs/createAudioFileFromText'
             )
             const { getVoiceId } = await import('@/core/supabase/getVoiceId')
+            const { checkVoiceExists } = await import('@/core/elevenlabs')
 
             // Получаем voice_id пользователя через централизованную систему
             const voiceId = await getVoiceId(telegramId)
@@ -658,8 +722,61 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
               throw new Error('User voice ID not found for audio generation')
             }
 
+            // ✅ ВАЛИДАЦИЯ: Проверяем существование голоса в ElevenLabs API
+            logger.info('🔍 [AI REELS] Проверяем валидность voice_id в ElevenLabs', {
+              telegramId,
+              voiceId,
+            })
+
+            const isVoiceValid = await checkVoiceExists(voiceId)
+
+            if (!isVoiceValid) {
+              logger.warn('❌ [AI REELS] Voice ID не найден в ElevenLabs API', {
+                telegramId,
+                voiceId,
+              })
+
+              // Сохраняем состояние и предлагаем создать голос
+              ctx.session.aiReels = {
+                ...ctx.session.aiReels,
+                imageUrl,
+                text,
+                needsVoiceCreation: true,
+              }
+
+              await ctx.reply(
+                isRu
+                  ? '❌ Ваш голос не найден в системе ElevenLabs.\n\n' +
+                      '🎤 Пожалуйста, сначала натренируйте свой голос командой /voice\n\n' +
+                      '💡 После создания голоса вы сможете продолжить создание AI Reels с сохраненными данными.'
+                  : '❌ Your voice was not found in ElevenLabs system.\n\n' +
+                      '🎤 Please train your voice first using /voice command\n\n' +
+                      '💡 After creating your voice, you can continue creating AI Reels with saved data.',
+                {
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        Markup.button.callback(
+                          isRu ? '🎤 Создать голос' : '🎤 Create voice',
+                          'create_voice_avatar'
+                        ),
+                      ],
+                      [
+                        Markup.button.callback(
+                          isRu ? '❌ Отмена' : '❌ Cancel',
+                          'ai_reels_cancel'
+                        ),
+                      ],
+                    ],
+                  },
+                }
+              )
+
+              return ctx.scene.leave()
+            }
+
             logger.info(
-              '🎤 [AI REELS] Используем централизованную систему голосов',
+              '✅ [AI REELS] Voice ID валидный, используем централизованную систему голосов',
               {
                 telegramId,
                 voiceId,
