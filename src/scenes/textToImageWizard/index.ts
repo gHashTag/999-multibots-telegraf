@@ -231,39 +231,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         ctx
       )
 
-      // ✅ СПИСЫВАЕМ БАЛАНС после успешной генерации
-      const price = ctx.session.imageGenerationPrice || 0
-      if (price > 0) {
-        const charged = await updateUserBalance(
-          ctx.from.id.toString(),
-          price,
-          PaymentType.MONEY_OUTCOME,
-          `Image generation: ${ctx.session.selectedImageModel}`,
-          { service_type: 'TEXT_TO_IMAGE' }
-        )
-
-        if (!charged) {
-          logger.error('❌ Failed to charge user for image generation', {
-            telegram_id: ctx.from.id.toString(),
-            price,
-            model: ctx.session.selectedImageModel
-          })
-          await ctx.reply(
-            isRu
-              ? '⚠️ Изображение создано, но произошла ошибка при списании средств. Обратитесь в поддержку.'
-              : '⚠️ Image created, but there was an error charging your balance. Please contact support.'
-          )
-        } else {
-          logger.info('✅ Successfully charged user for image generation', {
-            telegram_id: ctx.from.id.toString(),
-            price,
-            model: ctx.session.selectedImageModel
-          })
-        }
-      }
-
-      // Получаем текущий баланс ПОСЛЕ операции
-      const currentBalance = await getUserBalance(ctx.from.id.toString())
+      // ✅ БАЛАНС УЖЕ СПИСАН внутри generateTextToImageDirect через processBalanceOperation
+      // ❌ НЕ НУЖНО списывать повторно здесь!
 
       // Сохраняем промпт в сессию для возможного улучшения
       ctx.session.prompt = prompt
