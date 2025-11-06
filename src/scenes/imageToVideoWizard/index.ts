@@ -471,7 +471,7 @@ imageToVideoWizard.enter(async ctx => {
 
   try {
     console.log('🎬 [I2V WIZARD] Initial session initialized for imageToVideoWizard')
-    
+
     logger.info('[ImageToVideoWizard] Wizard entered successfully', {
       telegramId: ctx.from?.id,
       sceneId: ctx.scene.current?.id,
@@ -479,27 +479,9 @@ imageToVideoWizard.enter(async ctx => {
       timestamp: new Date().toISOString(),
     })
 
-    // Initialize cursor to step 0 (with safety check)
-    console.log('🎬 [I2V WIZARD] Setting wizard cursor to step 0')
-    if (ctx.wizard && ctx.wizard.selectStep) {
-      ctx.wizard.selectStep(0)
-      
-      // КРИТИЧЕСКИ ВАЖНО: Вызываем первый шаг вручную!
-      console.log('🎬 [I2V WIZARD] Manually calling first step...')
-      const firstStep = imageToVideoWizard.steps[0]
-      if (typeof firstStep === 'function') {
-        await firstStep(ctx, () => Promise.resolve())
-      } else {
-        console.error('🎬 [I2V WIZARD] First step is not a function!')
-      }
-    } else {
-      console.error('🎬 [I2V WIZARD] ctx.wizard or selectStep is undefined! Attempting manual step call...')
-      // Try to call the first step directly even without wizard context
-      const firstStep = imageToVideoWizard.steps[0]
-      if (typeof firstStep === 'function') {
-        await firstStep(ctx, () => Promise.resolve())
-      }
-    }
+    // ✅ FIX: НЕ вызываем первый шаг вручную - Telegraf сделает это автоматически
+    // Это исправляет проблему двойного запроса фото
+    console.log('🎬 [I2V WIZARD] Telegraf will automatically call step 0')
   } catch (error) {
     console.error('🎬 [I2V WIZARD] Error initializing wizard session:', error)
     logger.error('[ImageToVideoWizard] Session initialization error', {
