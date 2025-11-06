@@ -4,7 +4,14 @@
  * Отправляет результаты в Telegram ID: 144022504
  */
 
+import 'dotenv/config'
 import { inngest } from './client'
+
+// Проверка загрузки env
+console.log('🔐 ENV Check:', {
+  hasEventKey: !!process.env.BOT_INNGEST_EVENT_KEY,
+  eventKeyPrefix: process.env.BOT_INNGEST_EVENT_KEY?.substring(0, 10),
+})
 
 const TELEGRAM_ID = '144022504'
 const BOT_TOKEN = process.env.BOT_TOKEN_NEURO_BLOGGER || process.env.MAIN_BOT_TOKEN
