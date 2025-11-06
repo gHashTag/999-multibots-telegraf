@@ -269,6 +269,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   paymentAmount?: number
   botName?: string
   selectedImageModel?: string
+  numImages?: number // Number of images to generate (1-4)
+  imageGenerationPrice?: number // Price for image generation
   promoProcessed?: boolean
   subscriptionStep?:
     | 'LOADING_TRANSLATIONS'
