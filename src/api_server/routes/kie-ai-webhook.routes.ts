@@ -592,4 +592,140 @@ async function notifyJobCompletion(
   }
 }
 
+/**
+ * 🧪 DEBUG ENDPOINT: Тестирование Sora webhook с фейковыми данными
+ * POST /api/kie-ai/sora-callback-test
+ *
+ * Создаёт тестовую задачу в video-task-store и симулирует успешный callback
+ * Позволяет проверить всю цепочку отправки видео пользователю
+ */
+router.post('/kie-ai/sora-callback-test', async (req: any, res: any) => {
+  try {
+    logger.info('🧪 [SORA DEBUG] Test webhook endpoint called')
+
+    // Получаем telegramId из query параметров
+    const telegramId = parseInt(req.query.telegramId || req.body.telegramId || '144022504')
+    const testTaskId = `test-${Date.now()}`
+
+    // Создаём тестовую задачу в store
+    videoTaskStore.saveTask(testTaskId, {
+      telegramId: telegramId,
+      chatId: telegramId,
+      messageId: 999999, // Фейковый messageId
+      prompt: '🧪 TEST: Это тестовое видео для проверки webhook callback',
+      modelId: 'sora-2-text-to-video',
+      duration: 10,
+      createdAt: Date.now()
+    })
+
+    logger.info('🧪 [SORA DEBUG] Test task created', {
+      taskId: testTaskId,
+      telegramId,
+      storeSize: videoTaskStore.getAllTasks().size
+    })
+
+    // Быстрый ответ
+    res.status(200).json({
+      message: 'Test task created successfully',
+      taskId: testTaskId,
+      telegramId,
+      nextStep: `Send webhook callback to trigger video delivery: curl -X POST https://three-head-dragon.shop/api/kie-ai/sora-callback -H "Content-Type: application/json" -d '{"code":200,"data":{"taskId":"${testTaskId}","state":"success","resultJson":"{\\"resultUrls\\":[\\"https://via.placeholder.com/1920x1080.mp4\\"]}"}}' `
+    })
+
+  } catch (error) {
+    logger.error('❌ [SORA DEBUG] Error in test endpoint', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+    res.status(500).json({ error: 'Test endpoint failed' })
+  }
+})
+
+/**
+ * 🧪 DEBUG ENDPOINT: Полная эмуляция Sora callback
+ * POST /api/kie-ai/sora-full-test
+ *
+ * Создаёт тестовую задачу И сразу отправляет callback с результатом
+ * Query params:
+ * - telegramId: ID пользователя (default: 144022504)
+ */
+router.post('/kie-ai/sora-full-test', async (req: any, res: any) => {
+  try {
+    const telegramId = parseInt(req.query.telegramId || req.body.telegramId || '144022504')
+    const testTaskId = `test-full-${Date.now()}`
+
+    logger.info('🧪 [SORA FULL TEST] Starting full test', { telegramId, testTaskId })
+
+    // 1. Создаём тестовую задачу
+    videoTaskStore.saveTask(testTaskId, {
+      telegramId: telegramId,
+      chatId: telegramId,
+      messageId: 999999,
+      prompt: '🧪 FULL TEST: Автоматический тест webhook callback',
+      modelId: 'sora-2-text-to-video',
+      duration: 10,
+      createdAt: Date.now()
+    })
+
+    logger.info('🧪 [SORA FULL TEST] Task created', { testTaskId })
+
+    // 2. Симулируем успешный callback от Kie.ai
+    const testPayload: KieAiWebhookPayload = {
+      code: 200,
+      data: {
+        taskId: testTaskId,
+        state: 'success',
+        resultJson: JSON.stringify({
+          resultUrls: ['https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4']
+        })
+      } as any
+    }
+
+    // Парсим payload как в основном обработчике
+    const taskId = testPayload.taskId || (testPayload.data as any)?.taskId
+    const successFlag = (testPayload.data as any)?.state === 'success' ? 1 : 2
+
+    let resultUrls: string[] | undefined
+    try {
+      if ((testPayload.data as any)?.resultJson) {
+        const resultJson = JSON.parse((testPayload.data as any).resultJson)
+        resultUrls = resultJson.resultUrls
+      }
+    } catch (e) {
+      logger.warn('[SORA FULL TEST] Failed to parse resultJson', { error: e })
+    }
+
+    const normalizedPayload: KieAiWebhookPayload = {
+      ...testPayload,
+      taskId,
+      successFlag,
+      resultUrls: resultUrls,
+      videoUrl: resultUrls?.[0]
+    }
+
+    logger.info('🧪 [SORA FULL TEST] Calling processSoraWebhookAsync', { taskId, successFlag })
+
+    // 3. Обрабатываем асинхронно
+    processSoraWebhookAsync(normalizedPayload).catch(error => {
+      logger.error('❌ [SORA FULL TEST] Error in async processing', {
+        error: error.message
+      })
+    })
+
+    // Быстрый ответ
+    res.status(200).json({
+      message: 'Full test initiated - video should be sent to Telegram',
+      taskId: testTaskId,
+      telegramId,
+      videoUrl: resultUrls?.[0],
+      checkLogs: 'Check logs for "✅ [SORA WEBHOOK] Video sent to user"'
+    })
+
+  } catch (error) {
+    logger.error('❌ [SORA FULL TEST] Error', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+    res.status(500).json({ error: 'Full test failed' })
+  }
+})
+
 export default router
