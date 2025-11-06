@@ -221,7 +221,7 @@ async function handleSoraSuccess(payload: KieAiWebhookPayload): Promise<void> {
     const modelInfo = VIDEO_MODELS[taskContext.modelId as VideoModelId]
     const modelName = modelInfo?.nameRu || 'Sora 2'
 
-    // Отправляем видео
+    // Отправляем видео с простым текстом (без Markdown чтобы избежать ошибок парсинга)
     await botInstance.telegram.sendVideo(
       taskContext.chatId,
       Input.fromURL(videoUrl),
@@ -230,15 +230,13 @@ async function handleSoraSuccess(payload: KieAiWebhookPayload): Promise<void> {
           `🤖 Модель: ${modelName}\n` +
           `⏱️ Длительность: ${taskContext.duration} сек\n` +
           `⚡ Сгенерировано через AI`,
-        parse_mode: 'Markdown',
       }
     )
 
-    // Отправляем промпт отдельным сообщением
+    // Отправляем промпт отдельным сообщением (без Markdown)
     await botInstance.telegram.sendMessage(
       taskContext.chatId,
-      `📝 Ваш запрос:\n\n${taskContext.prompt}`,
-      { parse_mode: 'Markdown' }
+      `📝 Ваш запрос:\n\n${taskContext.prompt}`
     )
 
     // Удаляем сообщение о процессе генерации

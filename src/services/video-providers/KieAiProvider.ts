@@ -348,7 +348,7 @@ export class KieAiProvider {
         prompt,
         kieModel as any,
         aspectRatio === '9:16' ? 'portrait' : 'landscape',
-        false, // removeWatermark
+        true, // removeWatermark - по умолчанию БЕЗ ватермарки
         10, // duration
         'standard', // size
         imageUrl
@@ -682,7 +682,7 @@ export class KieAiProvider {
     prompt: string = '',
     model: 'sora-2-text-to-video' | 'sora-2-pro-text-to-video' | 'sora-2-image-to-video' | 'sora-2-pro-image-to-video' = 'sora-2-text-to-video',
     aspectRatio: 'landscape' | 'portrait' = 'landscape',
-    removeWatermark: boolean = false,
+    removeWatermark: boolean = true,
     duration: 10 | 15 = 10,
     size: 'standard' | 'high' = 'standard',
     imageUrl?: string
