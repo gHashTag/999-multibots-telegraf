@@ -43,42 +43,52 @@ export async function generateMidjourneyImage(
       telegramId: request.telegramId,
     })
 
-    // Construct input for founderfeed/midjourney model
-    const input: any = {
-      prompt: request.prompt,
-      version: '7', // Midjourney v7
-      quality: '1', // Standard quality (0.25, 0.5, 1, 2)
-      seed: -1, // Random seed
-      chaos: 0, // Chaos level (0-100)
-      stylize: 0, // Stylization level (0-1000)
-      weird: 0, // Weirdness factor (0-3000)
-      niji: 'close', // Not using Niji anime model
-      enable_base64_output: false,
+    // Construct input for tstramer/midjourney-diffusion model
+    // Map aspect ratio to width/height
+    let width = 768
+    let height = 768
+
+    if (request.aspectRatio) {
+      const aspectRatioMap: Record<string, { width: number; height: number }> = {
+        '1:1': { width: 768, height: 768 },
+        '16:9': { width: 1024, height: 576 },
+        '9:16': { width: 576, height: 1024 },
+        '4:3': { width: 1024, height: 768 },
+        '3:4': { width: 768, height: 1024 },
+      }
+
+      if (aspectRatioMap[request.aspectRatio]) {
+        width = aspectRatioMap[request.aspectRatio].width
+        height = aspectRatioMap[request.aspectRatio].height
+        logger.info('[Midjourney v7] Using aspect_ratio mapping', {
+          aspectRatio: request.aspectRatio,
+          width,
+          height,
+        })
+      }
     }
 
-    // Set aspect ratio for founderfeed/midjourney
-    if (request.aspectRatio) {
-      input.aspect_ratio = request.aspectRatio
-      logger.info('[Midjourney v7] Using aspect_ratio parameter', {
-        aspectRatio: request.aspectRatio,
-      })
-    } else {
-      input.aspect_ratio = '1:1'
-      logger.info('[Midjourney v7] Using default aspect_ratio', {
-        aspect_ratio: '1:1',
-      })
+    const input: any = {
+      prompt: request.prompt,
+      width,
+      height,
+      num_outputs: 1,
+      guidance_scale: 7.5, // Creativity control (1-20)
+      num_inference_steps: 50, // Denoising steps (max 500)
+      scheduler: 'DPMSolverMultistep', // Sampling method
     }
 
     logger.info('[Midjourney v7] Final input params', {
-      model: 'founderfeed/midjourney',
-      aspect_ratio: input.aspect_ratio,
+      model: 'tstramer/midjourney-diffusion',
+      width,
+      height,
       prompt: input.prompt.substring(0, 100),
     })
 
     // Run Midjourney model via Replicate
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'founderfeed/midjourney',
+      'tstramer/midjourney-diffusion',
       {
         input,
       }
