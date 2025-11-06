@@ -43,18 +43,18 @@ export async function generateMidjourneyImage(
       telegramId: request.telegramId,
     })
 
-    // Construct input for tstramer/midjourney-diffusion model
+    // Construct input for prompthero/openjourney model (Stable Diffusion fine-tuned on Midjourney v4)
     // Map aspect ratio to width/height
-    let width = 768
-    let height = 768
+    let width = 512
+    let height = 512
 
     if (request.aspectRatio) {
       const aspectRatioMap: Record<string, { width: number; height: number }> = {
-        '1:1': { width: 768, height: 768 },
-        '16:9': { width: 1024, height: 576 },
-        '9:16': { width: 576, height: 1024 },
-        '4:3': { width: 1024, height: 768 },
-        '3:4': { width: 768, height: 1024 },
+        '1:1': { width: 512, height: 512 },
+        '16:9': { width: 768, height: 432 },
+        '9:16': { width: 432, height: 768 },
+        '4:3': { width: 768, height: 576 },
+        '3:4': { width: 576, height: 768 },
       }
 
       if (aspectRatioMap[request.aspectRatio]) {
@@ -68,27 +68,30 @@ export async function generateMidjourneyImage(
       }
     }
 
+    // Add "mdjrny-v4 style" prefix for Midjourney aesthetic
+    const enhancedPrompt = `mdjrny-v4 style ${request.prompt}`
+
     const input: any = {
-      prompt: request.prompt,
+      prompt: enhancedPrompt,
       width,
       height,
       num_outputs: 1,
       guidance_scale: 7.5, // Creativity control (1-20)
       num_inference_steps: 50, // Denoising steps (max 500)
-      scheduler: 'DPMSolverMultistep', // Sampling method
     }
 
     logger.info('[Midjourney v7] Final input params', {
-      model: 'tstramer/midjourney-diffusion',
+      model: 'prompthero/openjourney',
       width,
       height,
       prompt: input.prompt.substring(0, 100),
     })
 
-    // Run Midjourney model via Replicate
+    // Run OpenJourney model via Replicate (Stable Diffusion fine-tuned on Midjourney v4 images)
+    // Using specific version to avoid 404 errors
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'tstramer/midjourney-diffusion',
+      'prompthero/openjourney:ad59ca21177f9e217b9075e7300cf6e14f7e5b4505b87b9689dbd866e9768969',
       {
         input,
       }

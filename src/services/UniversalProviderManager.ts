@@ -142,8 +142,8 @@ export class UniversalProviderManager {
         name: 'Midjourney v7',
         type: 'image',
         provider: 'Replicate',
-        description: 'Artistic styles and high quality via tstramer/midjourney-diffusion (1.6M runs)',
-        pricePerUnit: 0.072, // per image ($0.072 per run)
+        description: 'Midjourney-style artistic images via prompthero/openjourney (Stable Diffusion fine-tuned on Midjourney v4)',
+        pricePerUnit: 0.035, // per image ($0.035 per run)
         supportedFeatures: ['text-to-image', 'artistic-styles', 'aspect-ratio'],
       },
       {
