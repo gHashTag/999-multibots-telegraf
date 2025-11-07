@@ -4,186 +4,13 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
-import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
 import {
   TEXT_TO_VIDEO_CONSTANTS,
 } from '@/interfaces/zod/textToVideo.zod'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
 console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
-
-// Функция для расчета стоимости в звездах из конфига
-function calculateStarsFromConfig(modelId: string, duration?: number): number {
-  try {
-    const config = VIDEO_MODELS_CONFIG[modelId]
-    if (!config || !config.basePrice || config.basePrice <= 0) {
-      console.warn('🎬 [CALC] Invalid config for model:', modelId)
-      return 40 // fallback
-    }
-
-    let price = config.basePrice
-
-    // Для моделей с ценой за секунду
-    if (modelId.includes('kling') && duration && duration > 0) {
-      price = price * duration
-    }
-
-    // Конвертация в звезды: (price * 5 / 0.016) * 1.5
-    const stars = Math.floor(((price * 5) / 0.016) * 1.5)
-
-    console.log(
-      '🎬 [CALC] Model:',
-      modelId,
-      'Price:',
-      price,
-      'Duration:',
-      duration,
-      'Stars:',
-      stars
-    )
-    return stars
-  } catch (error) {
-    console.error(
-      '🎬 [CALC] Error calculating stars for model:',
-      modelId,
-      error
-    )
-    return 40 // fallback
-  }
-}
-
-// Функция создания кнопки с правильной ценой из конфига
-function createModelButton(
-  modelId: string,
-  aspectRatio: string,
-  isRu: boolean
-): string {
-  try {
-    const config = VIDEO_MODELS_CONFIG[modelId]
-    if (!config || !config.title) {
-      console.warn('🎬 [BUTTON] Invalid config for model:', modelId)
-      return `${modelId} | ${aspectRatio} (40⭐)`
-    }
-
-    const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
-
-    // Используем договоренные цены вместо расчета по базовой цене
-    let stars: number
-    switch (modelId) {
-      case 'veo3_fast':
-        stars = 40
-        break
-      case 'veo3':
-        stars = 120 // ✅ ИСПРАВЛЕНО: $1.92 / $0.016 = 120⭐ (было 202)
-        break
-      case 'runway-aleph':
-        stars = 182
-        break
-      case 'sora-2':
-        stars = 9 // ✅ ДОБАВЛЕНО: $0.15 за 10 сек / $0.016 = 9⭐ БЕЗ наценки
-        break
-      case 'sora-2-pro':
-        stars = 28 // ✅ ДОБАВЛЕНО: $0.45 за 10 сек / $0.016 = 28⭐ БЕЗ наценки
-        break
-      default:
-        // Для остальных моделей используем расчет из конфига
-        let price = config.basePrice
-        if (config.priceByResolution) {
-          price = Math.min(...Object.values(config.priceByResolution))
-        }
-        stars = Math.floor(((price * 5) / 0.016) * 1.5)
-        break
-    }
-
-    // Определяем длительность из описания или API конфига
-    let durationText = ''
-    if (config.description.includes('8 сек')) durationText = ' | 8s'
-    else if (config.description.includes('6 сек')) durationText = ' | 6s'
-    else if (config.description.includes('5 сек')) durationText = ' | 5s'
-    else if (config.api.input.duration) durationText = ` | ${config.api.input.duration}s`
-
-    return `${config.title}${durationText} | ${aspectIcon} (${stars}⭐)`
-  } catch (error) {
-    console.error(
-      '🎬 [BUTTON] Error creating button for model:',
-      modelId,
-      error
-    )
-    return `${modelId} | ${aspectRatio} (40⭐)`
-  }
-}
-
-// Функция парсинга выбранной модели из кнопки
-function parseModelSelection(buttonText: string): {
-  modelId: string
-  aspectRatio: string
-  duration?: number
-  cost: number
-} | null {
-  try {
-    console.log('🎬 [PARSE] Parsing button text:', buttonText)
-
-    // Определяем соотношение сторон по иконке
-    const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
-
-    // Парсим по названию модели из конфига
-    const foundModel = Object.entries(VIDEO_MODELS_CONFIG).find(([_, config]) => 
-      buttonText.includes(config.title)
-    )
-
-    if (foundModel) {
-      const [modelId, config] = foundModel
-      
-      // Используем договоренные цены
-      let stars: number
-      switch (modelId) {
-        case 'veo3_fast':
-          stars = 40
-          break
-        case 'veo3':
-          stars = 120 // ✅ ИСПРАВЛЕНО: $1.92 / $0.016 = 120⭐ (было 202)
-          break
-        case 'runway-aleph':
-          stars = 182
-          break
-        case 'sora-2':
-          stars = 9 // ✅ ДОБАВЛЕНО: $0.15 за 10 сек / $0.016 = 9⭐ БЕЗ наценки
-          break
-        case 'sora-2-pro':
-          stars = 28 // ✅ ДОБАВЛЕНО: $0.45 за 10 сек / $0.016 = 28⭐ БЕЗ наценки
-          break
-        default:
-          // Для остальных моделей используем расчет из конфига
-          let price = config.basePrice
-          if (config.priceByResolution) {
-            price = Math.min(...Object.values(config.priceByResolution))
-          }
-          stars = Math.floor(((price * 5) / 0.016) * 1.5)
-          break
-      }
-      
-      // Определяем длительность
-      let duration: number | undefined
-      if (config.api.input.duration) duration = config.api.input.duration
-      else if (config.description.includes('8 сек')) duration = 8
-      else if (config.description.includes('6 сек')) duration = 6
-      else if (config.description.includes('5 сек')) duration = 5
-
-      return { modelId, aspectRatio, duration, cost: stars }
-    }
-
-    console.warn('🎬 [PARSE] No match found for button text:', buttonText)
-    return { modelId: 'veo3_fast', aspectRatio, duration: 8, cost: 40 } // fallback
-  } catch (error) {
-    console.error('🎬 [PARSE] Error parsing button text:', buttonText, error)
-    return {
-      modelId: 'veo3_fast',
-      aspectRatio: '9:16',
-      duration: 8,
-      cost: 40,
-    } // safe fallback
-  }
-}
 
 // ========== INLINE WIZARD ФУНКЦИИ (КАК В РАБОЧИХ WIZARDS) ==========
 
@@ -201,39 +28,17 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isRu = isRussianFromState(ctx)
       console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
 
-      // Инициализируем сессию для текст-в-видео
-      
-      // Отбираем только text-to-video модели
-      const allModels = Object.entries(VIDEO_MODELS_CONFIG)
-      const textInputModels = allModels.filter(([_, config]) => config.inputType.includes('text'))
-      const textModels = textInputModels.filter(([modelId]) =>
-        TEXT_TO_VIDEO_CONSTANTS.SUPPORTED_MODELS.includes(modelId as any)
+      // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ
+      const keyboardRows = generateModelKeyboard(
+        'text',
+        isRu,
+        TEXT_TO_VIDEO_CONSTANTS.SUPPORTED_MODELS as string[]
       )
-        
-      if (textModels.length === 0) {
+
+      if (keyboardRows.length === 0) {
         console.error('🎬 [WIZARD] Step 1: NO TEXT MODELS FOUND!')
         await ctx.reply('❌ Модели не найдены. Попробуйте позже.')
         return ctx.scene.leave()
-      }
-
-      // Создаем кнопки с горизонтальными слева, вертикальными справа
-      const keyboardRows: string[][] = []
-      
-      // Собираем все кнопки по типам
-      const horizontalButtons: string[] = [] // 16:9 кнопки (слева)
-      const verticalButtons: string[] = []   // 9:16 кнопки (справа)
-      
-      textModels.forEach(([modelId, config]) => {
-        horizontalButtons.push(createModelButton(modelId, '16:9', isRu))
-        verticalButtons.push(createModelButton(modelId, '9:16', isRu))
-      })
-      
-      // Создаем ряды: горизонтальные слева, вертикальные справа
-      for (let i = 0; i < Math.max(horizontalButtons.length, verticalButtons.length); i++) {
-        const row: string[] = []
-        if (horizontalButtons[i]) row.push(horizontalButtons[i])
-        if (verticalButtons[i]) row.push(verticalButtons[i])
-        if (row.length > 0) keyboardRows.push(row)
       }
 
       // Кнопки назад и отмена
@@ -306,7 +111,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       }
 
       // ЛОГИКА 1: Если это выбор модели
-      const parsedModel = parseModelSelection(selectedText)
+      const parsedModel = parseModelButton(selectedText)
       if (parsedModel) {
         console.log('🎬 [WIZARD] Step 2: Model selected:', parsedModel)
         

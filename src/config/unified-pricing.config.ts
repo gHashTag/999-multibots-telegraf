@@ -5,6 +5,7 @@
  * Все расчёты должны использовать эти константы.
  */
 
+import { z } from 'zod'
 import { getCurrentRate } from '@/modules/currency-rate'
 
 // ============================================
@@ -149,15 +150,15 @@ export interface KieAiModelPrice {
 }
 
 export const KIE_AI_MODELS_PRICING: Record<string, KieAiModelPrice> = {
-  // Видео модели - КОНКУРЕНТНЫЕ ЦЕНЫ с наценкой +8.1% (2025)
+  // Видео модели - АКТУАЛЬНЫЕ ЦЕНЫ Kie.ai (2025)
   'veo3_fast': {
-    pricePerSecondUSD: 0.08, // 40⭐ за 8 сек = $0.64 за 8 сек = $0.08/сек
+    pricePerSecondUSD: 0.05, // ✅ ИСПРАВЛЕНО: $0.40 / 8 сек = $0.05/сек → 37⭐ за 8 сек
     supportedDurations: [8], // VEO FAST поддерживает только 8 секунд
     defaultDuration: 8,
     maxDuration: 8,
   },
   'veo3': {
-    pricePerSecondUSD: 0.24, // 120⭐ за 8 сек = $1.92 за 8 сек = $0.24/сек (ФИКСИРОВАННАЯ ЦЕНА)
+    pricePerSecondUSD: 0.25, // ✅ ИСПРАВЛЕНО: $2.00 / 8 сек = $0.25/сек → 187⭐ за 8 сек
     supportedDurations: [2, 4, 6, 8, 10],
     defaultDuration: 8,
     maxDuration: 10,
@@ -275,6 +276,60 @@ export function calculateKieAiPriceInStars(
 }
 
 // ============================================
+// ZOD СХЕМЫ ВАЛИДАЦИИ
+// ============================================
+
+/**
+ * Схема для модели Kie.ai
+ */
+export const KieAiModelPriceSchema = z.object({
+  pricePerSecondUSD: z.number().positive().optional(),
+  pricePerImageUSD: z.number().positive().optional(),
+  priceBaseUSD: z.number().positive().optional(),
+  maxDuration: z.number().positive().optional(),
+  supportedDurations: z.array(z.number().positive()).optional(),
+  defaultDuration: z.number().positive().optional(),
+}).refine(
+  (data) => data.pricePerSecondUSD || data.pricePerImageUSD || data.priceBaseUSD,
+  { message: 'At least one pricing field must be defined' }
+)
+
+/**
+ * Схема для динамической видео-модели
+ */
+export const DynamicVideoPriceSchema = z.object({
+  pricePerSecondUSD: z.number().positive(),
+  supportedDurations: z.array(z.number().positive()),
+  defaultDuration: z.number().positive(),
+})
+
+/**
+ * Валидация конфигурации Kie.ai моделей
+ */
+export function validateKieAiPricing(): void {
+  Object.entries(KIE_AI_MODELS_PRICING).forEach(([modelId, config]) => {
+    try {
+      KieAiModelPriceSchema.parse(config)
+    } catch (error) {
+      throw new Error(`Invalid Kie.ai pricing config for model "${modelId}": ${error}`)
+    }
+  })
+}
+
+/**
+ * Валидация конфигурации VEO моделей
+ */
+export function validateVeoPricing(): void {
+  Object.entries(VEO_MODELS_PRICING).forEach(([modelId, config]) => {
+    try {
+      DynamicVideoPriceSchema.parse(config)
+    } catch (error) {
+      throw new Error(`Invalid VEO pricing config for model "${modelId}": ${error}`)
+    }
+  })
+}
+
+// ============================================
 // ВАЛИДАЦИЯ КОНФИГУРАЦИИ
 // ============================================
 
@@ -289,6 +344,16 @@ if (MARKUP_MULTIPLIER < 1) {
 
 if (USD_TO_RUB_RATE <= 0) {
   throw new Error('USD_TO_RUB_RATE must be positive')
+}
+
+// Валидируем конфигурации моделей
+try {
+  validateKieAiPricing()
+  validateVeoPricing()
+  console.log('✅ Pricing configuration validated successfully')
+} catch (error) {
+  console.error('❌ Pricing configuration validation failed:', error)
+  throw error
 }
 
 // ============================================
