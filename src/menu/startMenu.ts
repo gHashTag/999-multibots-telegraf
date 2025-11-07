@@ -1,6 +1,6 @@
 import { MyContext } from '../interfaces'
 import { Markup } from 'telegraf'
-import { levels } from './mainMenu'
+import { levels } from './simpleMenu'
 
 export async function startMenu(ctx: MyContext, isRu: boolean) {
   await ctx.reply(

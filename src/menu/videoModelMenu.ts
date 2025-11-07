@@ -6,7 +6,7 @@ import type { ReplyKeyboardMarkup } from 'telegraf/types'
 import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config' // Импортируем конфиг
 // Импортируем функцию расчета финальной цены
 import { calculateFinalPrice } from '@/price/helpers'
-import { levels } from './mainMenu'
+import { levels } from './simpleMenu'
 import { Translation } from '@/interfaces/translations.interface'
 
 export const videoModelKeyboard = (
