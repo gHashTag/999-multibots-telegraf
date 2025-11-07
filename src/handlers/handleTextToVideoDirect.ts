@@ -6,7 +6,7 @@ import {
 import {
   getValidDuration,
 } from '@/services/videoModels'
-import { getUnifiedModelConfig, getUnifiedModelPrice } from '@/config/unified-video-models.config'
+import { getUnifiedModelConfig, getUnifiedModelPrice, VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
@@ -186,10 +186,12 @@ export async function handleTextToVideoDirect(
       ctx.session.videoDuration = validDuration
       ctx.session.videoMessageId = processingMessage.message_id
 
-      // ✅ Для Sora и WAN моделей: сохраняем в videoTaskStore для webhook, БЕЗ polling
-      const isSoraModel = modelId.includes('sora')
+      // ✅ Для ВСЕХ Kie.ai моделей: сохраняем в videoTaskStore для webhook, БЕЗ polling
+      const modelConfig = VIDEO_MODELS_CONFIG[modelId]
+      const isKieAiModel = modelConfig?.provider === 'kie'
       const isWanModel = modelId.includes('wan')
-      if (isSoraModel || isWanModel) {
+
+      if (isKieAiModel) {
         videoTaskStore.saveTask(response.jobId, {
           telegramId: telegram_id ? parseInt(telegram_id) : 0,
           chatId: ctx.chat?.id || 0,
@@ -211,14 +213,14 @@ export async function handleTextToVideoDirect(
           )
         }
 
-        logger.info('[handleTextToVideoDirect] Async task saved for webhook', {
+        logger.info('[handleTextToVideoDirect] Async task saved for webhook (Kie.ai provider)', {
           taskId: response.jobId,
           telegram_id,
           modelId,
-          modelType: isWanModel ? 'WAN' : 'Sora'
+          provider: 'kie'
         })
       } else {
-        // Для НЕ-Sora моделей: используем polling как раньше
+        // Для НЕ-Kie.ai моделей: используем polling как раньше
         monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
         if (ctx && ctx.telegram && ctx.chat) {
           await ctx.telegram.editMessageText(
