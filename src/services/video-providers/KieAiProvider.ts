@@ -396,10 +396,24 @@ export class KieAiProvider {
         ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
         : undefined
 
+      // WAN 2.5 имеет лимит на длину промпта - обрезаем до 500 символов
+      const maxPromptLength = 500
+      const truncatedPrompt = prompt.length > maxPromptLength
+        ? prompt.substring(0, maxPromptLength) + '...'
+        : prompt
+
+      if (prompt.length > maxPromptLength) {
+        logger.warn('[KieAiProvider] Prompt truncated for WAN API:', {
+          originalLength: prompt.length,
+          truncatedLength: truncatedPrompt.length,
+          maxLength: maxPromptLength
+        })
+      }
+
       const wanRequestData: any = {
         model: kieModel,
         input: {
-          prompt: prompt,
+          prompt: truncatedPrompt,
           duration: String(duration || 5), // "5" или "10"
           resolution: '720p', // "720p" или "1080p"
           enable_prompt_expansion: true,
