@@ -68,11 +68,10 @@ const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
         is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
         'improve_prompt'
       ),
-      // ВРЕМЕННО СКРЫТО: Кнопка "Увеличить качество" не работает корректно
-      // Markup.button.callback(
-      //   is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale Quality',
-      //   'upscale_neurophoto_image'
-      // ),
+      Markup.button.callback(
+        is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale Quality',
+        'upscale_neurophoto_image'
+      ),
     ],
     [
       Markup.button.callback(
