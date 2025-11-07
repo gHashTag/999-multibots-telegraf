@@ -100,37 +100,34 @@ interface ReplicateClient {
 const MAX_RETRIES = 5 // Максимум 5 попыток для каждого клипа
 const BASE_RETRY_DELAY = 3000 // Базовая задержка 3 секунды (экспоненциальное увеличение)
 
-// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ
+// ✅ ИМПОРТ UNIFIED VIDEO MODELS CONFIG
+import { VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
+
+// ✅ СПИСОК KLING МОДЕЛЕЙ ПОДДЕРЖИВАЮЩИХ МОРФИНГ (используем unified config)
 // 🔥 КРИТИЧЕСКИ ВАЖНО: v2.1 Pro ОБЯЗАТЕЛЬНА ДЛЯ МОРФИНГА (поддерживает start_image + end_image)
 // ⚠️ v2.5 Turbo Pro НЕ ПОДДЕРЖИВАЕТ МОРФИНГ - у него нет параметров start_image/end_image!
-const FALLBACK_KLING_MODELS = [
-  {
-    id: 'kwaivgi/kling-v2.1',
-    name: 'Kling v2.1 Pro',
-    variant: 'pro',
-    cost: 0.9, // $0.09/сек * 10 сек = $0.9 за клип
-    description: '1080p, ЕДИНСТВЕННАЯ модель с поддержкой морфинга (start_image + end_image)',
-  },
-  {
-    id: 'kwaivgi/kling-v2.1',
-    name: 'Kling v2.1 Standard',
-    variant: 'standard',
-    cost: 0.5, // $0.05/сек * 10 сек = $0.5 за клип (НЕ поддерживает end_image!)
-    description: '720p, НЕ поддерживает морфинг с end_image - только для single image',
-  },
-  {
-    id: 'kwaivgi/kling-v1.6-pro',
-    name: 'Kling v1.6 Pro',
-    cost: 1.96, // ~$1.96 за 10-сек клип (старый fallback)
-    description: '1080p, старая резервная модель если v2.x не работает',
-  },
-  {
-    id: 'kwaivgi/kling-v1.6-standard',
-    name: 'Kling v1.6 Standard',
-    cost: 0.56, // ~$0.56 за 10-сек клип (последний резерв)
-    description: '720p, последний резерв если все остальные модели не работают',
-  },
+const FALLBACK_KLING_MODEL_IDS = [
+  'kling-v2.1-pro', // Основная модель для морфинга (1080p, поддержка end_image)
+  'kling-v1.6-pro', // Fallback 1 (старая версия Pro)
+  'kling-v1.6-standard', // Fallback 2 (последний резерв)
 ] as const
+
+// ✅ ПОЛУЧАЕМ КОНФИГУРАЦИИ МОДЕЛЕЙ ИЗ UNIFIED CONFIG
+const FALLBACK_KLING_MODELS = FALLBACK_KLING_MODEL_IDS.map(modelId => {
+  const config = VIDEO_MODELS_CONFIG[modelId]
+  if (!config) {
+    throw new Error(`Model config not found for morphing: ${modelId}`)
+  }
+
+  return {
+    id: config.apiModel, // Используем apiModel для Replicate (например 'kwaivgi/kling-v2.1')
+    configId: config.id, // ID из unified config (например 'kling-v2.1-pro')
+    name: config.title,
+    variant: config.api?.input?.mode || 'pro',
+    cost: 0.9, // Примерная стоимость за клип (для логирования)
+    description: config.description,
+  }
+})
 
 // ✅ CHECKPOINT SYSTEM (для возобновления процесса)
 interface MorphingCheckpoint {
@@ -640,21 +637,13 @@ async function generateSingleClipWithRetry(
       // Адаптируем параметры под разные модели Kling
       const input = { ...baseInput }
 
-      // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА: используем mode для всех моделей Kling
-      if (currentModel === 'kwaivgi/kling-v2.1') {
-        // 🔥 КРИТИЧЕСКИ ВАЖНО: end_image (морфинг) ТРЕБУЕТ mode='pro'!
-        // Источник: https://replicate.com/kwaivgi/kling-v2.1 - "end_image parameter requires pro mode"
-        input.mode = 'pro' // ВСЕГДА pro для морфинга (end_image требует pro!)
-        logger.info(`🆕 Using Kling v2.1 with mode: pro (REQUIRED for morphing with end_image)`)
-      } else {
-        // Для старых моделей v1.6 используем старую логику mode
-        if (currentModel.includes('pro')) {
-          input.mode = 'pro'
-        } else if (currentModel.includes('standard')) {
-          input.mode = 'std' // standard mode
-        } else {
-          input.mode = 'std' // по умолчанию standard для v1.6
-        }
+      // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА: используем mode из unified config
+      if (currentModelInfo.variant) {
+        input.mode = currentModelInfo.variant === 'standard' ? 'std' : currentModelInfo.variant
+        logger.info(`🆕 Using ${currentModelInfo.name} with mode: ${input.mode}`, {
+          modelId: currentModelInfo.configId,
+          apiModel: currentModel
+        })
       }
 
       logger.info(
