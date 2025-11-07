@@ -38,34 +38,11 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     priceFixed: 16,
     inputTypes: ['text', 'image'],
   },
-  'hunyuan-video-fast': {
-    id: 'hunyuan-video-fast',
-    name: 'Hunyuan Fast',
-    nameRu: 'Hunyuan Fast',
-    priceFixed: 18,
-    inputTypes: ['text'],
-  },
-  'wan-image-to-video': {
-    id: 'wan-image-to-video',
-    name: 'Wan-2.1 Image to Video',
-    nameRu: 'Wan-2.1 Изображение в видео',
-    priceFixed: 23,
-    inputTypes: ['image'],
-  },
-  'wan-text-to-video': {
-    id: 'wan-text-to-video',
-    name: 'Wan-2.1 Text to Video',
-    nameRu: 'Wan-2.1 Текст в видео',
-    priceFixed: 23,
-    inputTypes: ['text'],
-  },
-  minimax: {
-    id: 'minimax',
-    name: 'Minimax',
-    nameRu: 'Minimax',
-    priceFixed: 46,
-    inputTypes: ['text', 'image'],
-  },
+  // ❌ УДАЛЕНЫ устаревшие модели (404 ошибки):
+  // - hunyuan-video-fast (18⭐) - не работает
+  // - wan-image-to-video (23⭐) - не работает
+  // - wan-text-to-video (23⭐) - не работает
+  // - minimax (46⭐) - не работает
 
   // Kie.ai модели с конкурентными ценами
   'veo3_fast': {

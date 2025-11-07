@@ -27,21 +27,7 @@ export type VideoModelConfig = {
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
-  minimax: {
-    id: 'minimax',
-    title: 'Minimax',
-    inputType: ['text', 'image'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.5,
-    api: {
-      model: 'minimax/video-01',
-      input: {
-        prompt_optimizer: true,
-      },
-    },
-    imageKey: 'first_frame_image',
-    canMorph: false,
-  },
+  // ❌ УДАЛЕНА устаревшая модель minimax (46⭐) - не работает, 404 ошибка
   'haiper-video-2': {
     id: 'haiper-video-2',
     title: 'Haiper Video 2',
@@ -71,45 +57,9 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
     imageKey: 'start_image_url',
   },
-  'wan-image-to-video': {
-    id: 'wan-image-to-video',
-    title: 'Wan-2.1-i2v',
-    inputType: ['image'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.25,
-    api: {
-      model: 'wavespeedai/wan-2.1-i2v-720p',
-      input: {
-        fast_mode: 'Balanced',
-        num_frames: 81,
-        sample_shift: 5,
-        sample_steps: 30,
-        frames_per_second: 16,
-        sample_guide_scale: 5,
-        max_area: '720x1280',
-      },
-    },
-    imageKey: 'image',
-  },
-  'wan-text-to-video': {
-    id: 'wan-text-to-video',
-    title: 'Wan-2.1',
-    inputType: ['text'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.25,
-    api: {
-      model: 'wavespeedai/wan-2.1-t2v-720p',
-      input: {
-        fast_mode: 'Balanced',
-        num_frames: 81,
-        sample_shift: 5,
-        sample_steps: 30,
-        frames_per_second: 16,
-        sample_guide_scale: 5,
-        max_area: '720x1280',
-      },
-    },
-  },
+  // ❌ УДАЛЕНЫ устаревшие модели Wan-2.1 (23⭐ каждая) - не работают, 404 ошибки:
+  // - wan-image-to-video
+  // - wan-text-to-video
   'kling-v1.6-pro': {
     id: 'kling-v1.6-pro',
     title: 'Kling v1.6 Pro',
@@ -186,19 +136,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     imageKey: 'start_image',
     canMorph: true,
   },
-  'hunyuan-video-fast': {
-    id: 'hunyuan-video-fast',
-    title: 'Hunyuan Video Fast',
-    inputType: ['text'],
-    description: 'Быстрая анимация с оптимизацией промптов',
-    basePrice: 0.2,
-    api: {
-      model: 'wavespeedai/hunyuan-video-fast',
-      input: {
-        prompt_optimizer: true,
-      },
-    },
-  },
+  // ❌ УДАЛЕНА устаревшая модель hunyuan-video-fast (18⭐) - не работает, 404 ошибка
   'seedance-1-pro': {
     id: 'seedance-1-pro',
     title: 'Seedance Pro',

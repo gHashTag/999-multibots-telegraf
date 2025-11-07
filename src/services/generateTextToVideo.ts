@@ -10,10 +10,11 @@ import { logger } from '@/utils/logger'
 export type VideoModelId =
   | 'kling-v1.6-pro'
   | 'ray-v2'
-  | 'hunyuan-video-fast'
-  | 'wan-image-to-video'
-  | 'wan-text-to-video'
-  | 'minimax'
+  // ❌ УДАЛЕНЫ устаревшие модели (404 ошибки):
+  // | 'hunyuan-video-fast' - не работает
+  // | 'wan-image-to-video' - не работает
+  // | 'wan-text-to-video' - не работает
+  // | 'minimax' - не работает
   // Kie.ai модели
   | 'veo3_fast'
   | 'veo3'
