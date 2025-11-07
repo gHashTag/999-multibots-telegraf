@@ -264,12 +264,12 @@ export function createRenderAvatarPayload(
     cover_url: options?.coverUrl || '',
     intro_text_1: {
       text: options?.introText1 || '',
-      position: [540, 860],
+      position: [540, 1032],
       font_size: 100,
     },
     intro_text_2: {
       text: options?.introText2 || '',
-      position: [540, 960],
+      position: [540, 1152],
       font_size: 75,
     },
     avatar_settings: {
