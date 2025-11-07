@@ -1,6 +1,7 @@
-export * from './mainMenu'
+// ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ - simpleMenu (содержит levels, mainMenu, и всё остальное)
+export * from './simpleMenu'
 export * from './imageModelMenu'
-export * from './simpleMenu'  // ✅ НОВЫЙ ПРОСТОЙ МЕНЮ
+// export * from './mainMenu' // ❌ DEPRECATED - все экспорты теперь в simpleMenu
 export * from './startMenu'
 export * from './videoModelMenu'
 export * from './cancelMenu'

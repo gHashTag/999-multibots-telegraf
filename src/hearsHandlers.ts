@@ -6,7 +6,7 @@ import { isRussian } from './helpers/language'
 import { isRussianFromState } from './helpers/centralizedLanguage'
 import { MyContext } from './interfaces/'
 import { Telegraf, Markup } from 'telegraf'
-import { HAIM_GROUP_STAFF_IDS } from './menu/mainMenu'
+import { HAIM_GROUP_STAFF_IDS } from './menu/simpleMenu'
 import { generateNeuroPhotoHybrid } from './services/generateNeuroPhotoHybrid'
 import { handleSizeSelection } from './handlers'
 import { levels, mainMenu } from './menu'
@@ -25,7 +25,7 @@ import {
 
 // Импортируем функцию upscaling
 import { upscaleFluxKontextImage } from './services/generateFluxKontext'
-import { getParsingAccess } from './menu/mainMenu'
+import { getParsingAccess } from './menu/simpleMenu'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')

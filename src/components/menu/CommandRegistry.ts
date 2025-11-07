@@ -267,7 +267,7 @@ export class CommandRegistry {
           return
         }
 
-        const { getParsingAccess } = await import('@/menu/mainMenu')
+        const { getParsingAccess } = await import('@/menu/simpleMenu')
         const parsingAccess = getParsingAccess(userId, botToken)
 
         if (!parsingAccess.hasAccess) {

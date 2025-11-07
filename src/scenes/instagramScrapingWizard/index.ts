@@ -10,7 +10,7 @@ import { getBotToken } from '@/handlers/getBotToken'
 import { logger } from '@/utils/logger'
 import { levels } from '@/menu'
 import { getUserProjects, UserProject } from '@/core/supabase/getUserProjects'
-import { getParsingAccess } from '@/menu/mainMenu'
+import { getParsingAccess } from '@/menu/simpleMenu'
 
 // Интерфейс для сессии Instagram Scraping
 interface InstagramScrapingSessionData {

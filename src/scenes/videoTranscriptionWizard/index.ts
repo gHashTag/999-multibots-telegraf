@@ -10,7 +10,7 @@ import {
   transcribeInstagramReel,
   transcribeVideoFromDirectUrl,
 } from '@/services/videoTranscription'
-import { levels } from '@/menu/mainMenu'
+import { levels } from '@/menu/simpleMenu'
 import path from 'path'
 import fs from 'fs'
 import { updateUserBalance, getUserBalance } from '@/core/supabase'

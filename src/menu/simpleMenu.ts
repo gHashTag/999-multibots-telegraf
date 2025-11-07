@@ -4,6 +4,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 import { ModeEnum } from '@/interfaces/modes'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { getBotNameByToken } from '@/core/bot'
 
 // ✅ ПРОСТАЯ СИСТЕМА КНОПОК (вместо сложной levels)
 // 🎯 ПОРЯДОК: Нейрофункции → Техподдержка → Язык → Оформить подписку + Пополнить баланс (ВНИЗУ!)
@@ -24,6 +25,7 @@ export const MAIN_MENU_BUTTONS = [
   { ru: '🌀 Infinity Морфинг', en: '🌀 Infinity Morphing', mode: 'morphing' },
   { ru: '🎤 Синхронизация губ', en: '🎤 Lip Sync', mode: 'lip_sync', admin_only: true },
   { ru: '🎭 Замена лица', en: '🎭 Face Swap', mode: 'face_swap' },
+  { ru: '⬆️ Увеличить качество фото', en: '⬆️ Upscale Photo Quality', mode: ModeEnum.ImageUpscaler },  // ✅ ДОБАВЛЕНО: Кнопка увеличения качества
   { ru: '🔍 Мониторинг конкурентов', en: '🔍 Competitor Monitoring', mode: 'competitor_monitoring', admin_only: true },
   { ru: '🦸‍♂️ ИИ Герои', en: '🦸‍♂️ AI Heroes', mode: 'ai_heroes' },
   { ru: '🎬 ИИ Рилс', en: '🎬 AI Reels', mode: 'ai_reels', admin_only: true },
@@ -104,3 +106,97 @@ export const handleMenuButtonPress = async (ctx: MyContext, buttonText: string) 
 // Экспорт для обратной совместимости (другие имена)
 export const simpleLevels = MAIN_MENU_BUTTONS
 export const simpleMainMenu = MAIN_MENU_BUTTONS
+
+// ========================================
+// КОНСТАНТЫ ИЗ СТАРОГО mainMenu.ts
+// ========================================
+
+// 🤖 Массив сотрудников HaimGroupMedia_bot (ограниченный доступ к парсингу)
+export const HAIM_GROUP_STAFF_IDS = [
+  '144022504', // @neuro_coder - Главный админ и владелец проекта ID 37
+  '289259562', // @Vyacheslav_Neklyudov - Админ
+  '752224685', // @voskresenskaya13 - Админ
+  '7669741878', // @Arhustel - Админ
+  '164609458', // @artemfisenko - Админ
+  '1036512726', // Сотрудник - Полный доступ к ИИ Рилс
+]
+
+// 🤖 Массив сотрудников MetaMuse_Manifest_bot (полный доступ к парсингу)
+export const METAMUSE_STAFF_IDS = [
+  '144022504', // @neuro_coder - Админ
+  '352374518', // Админ
+  '1064902106', // Админ
+  '7669741878', // @Arhustel - Админ (общий)
+  '737300586', // Админ
+  '447979523', // Админ
+]
+
+// 🔍 Функция определения доступа к парсингу
+export function getParsingAccess(
+  userId: string,
+  botToken: string
+): {
+  hasAccess: boolean
+  allowedProjects?: string[]
+} {
+  const { bot_name } = getBotNameByToken(botToken)
+
+  // 👑 ГЛАВНЫЙ АДМИН ИМЕЕТ ДОСТУП КО ВСЕМ БОТАМ И ВСЕМ ПРОЕКТАМ
+  if (userId === '144022504') {
+    return {
+      hasAccess: true,
+      allowedProjects: ['all'], // Полный доступ ко всем проектам
+    }
+  }
+
+  // 🤖 Персонализированные правила для конкретных ботов
+  if (bot_name === 'HaimGroupMedia_bot') {
+    const hasAccess = HAIM_GROUP_STAFF_IDS.includes(userId)
+    return {
+      hasAccess,
+      allowedProjects: hasAccess
+        ? ['Coco Age', 'vyacheslav_nekludov']
+        : undefined,
+    }
+  }
+
+  if (bot_name === 'MetaMuse_Manifest_bot') {
+    const hasAccess = METAMUSE_STAFF_IDS.includes(userId)
+    return {
+      hasAccess,
+      allowedProjects: hasAccess ? ['all'] : undefined,
+    }
+  }
+
+  // 🚫 Для остальных ботов - нет доступа к парсингу
+  return {
+    hasAccess: false,
+  }
+}
+
+// ========================================
+// ОБЁРТКА ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ С levels[]
+// ========================================
+
+// Создаём объект levels из MAIN_MENU_BUTTONS для обратной совместимости
+export const levels: Record<number, { title_ru: string; title_en: string; admin_only?: boolean }> = {}
+
+MAIN_MENU_BUTTONS.forEach((btn, index) => {
+  levels[index + 1] = {
+    title_ru: btn.ru,
+    title_en: btn.en,
+    admin_only: btn.admin_only
+  }
+})
+
+// Добавляем служебные кнопки (100+)
+levels[100] = { title_ru: '💎 Пополнить баланс', title_en: '💎 Top up balance' }
+levels[101] = { title_ru: '💰 Баланс', title_en: '💰 Balance' }
+levels[102] = { title_ru: '👥 Пригласить друга', title_en: '👥 Invite a friend' }
+levels[103] = { title_ru: '💬 Техподдержка', title_en: '💬 Support' }
+levels[104] = { title_ru: '🏠 Главное меню', title_en: '🏠 Main menu' }
+levels[105] = { title_ru: '💫 Оформить подписку', title_en: '💫 Subscribe' }
+levels[106] = { title_ru: '🌐 EN', title_en: '🌐 RU' }
+
+// ✅ Функция mainMenu для обратной совместимости (теперь использует simpleMenu)
+export const mainMenu = createMainMenuKeyboard

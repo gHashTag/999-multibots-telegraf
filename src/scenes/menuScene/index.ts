@@ -19,7 +19,7 @@ import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
 import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { getParsingAccess } from '@/menu/mainMenu'
+import { getParsingAccess } from '@/menu/simpleMenu'
 import { getBotNameByToken } from '@/core/bot'
 
 const menuCommandStep = async (ctx: MyContext) => {

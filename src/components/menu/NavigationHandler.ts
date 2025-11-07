@@ -6,7 +6,7 @@ import { BaseHandler } from '../shared/types'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { levels } from '@/menu/mainMenu'
+import { levels } from '@/menu/simpleMenu'
 
 export class NavigationHandler implements BaseHandler {
   private actionHandlers: Map<string, (ctx: MyContext) => Promise<void>> = new Map()

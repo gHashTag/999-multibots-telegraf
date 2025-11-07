@@ -9,7 +9,7 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes.fixed'
 import { menuActionHandler, MenuAction } from './MenuActionHandler'
 import { configManager } from './ConfigManager'
-import { levels } from '@/menu/mainMenu'
+import { levels } from '@/menu/simpleMenu'
 import { logger } from '@/utils/logger'
 
 export class MenuSystem {

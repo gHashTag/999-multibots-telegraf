@@ -6,7 +6,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserBalance } from '../../core/supabase'
 import { logger } from '../../utils/logger'
 import { handleFluxKontextCommand } from '@/commands/fluxKontextCommand'
-import { levels } from '@/menu/mainMenu'
+import { levels } from '@/menu/simpleMenu'
 import { sendBalanceMessage } from '@/price/helpers'
 import { ModeEnum } from '@/interfaces'
 

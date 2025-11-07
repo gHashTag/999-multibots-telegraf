@@ -53,10 +53,10 @@ location /api {
 }
 ```
 
-**Стало:**
+**Стало (2025-11-07 - ИСПРАВЛЕНО на порт 3000):**
 ```nginx
 location /api {
-    proxy_pass http://127.0.0.1:2999;
+    proxy_pass http://127.0.0.1:3000;  # ⚠️ API слушает на порту 3000, НЕ 2999!
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -72,6 +72,8 @@ location /api {
 }
 ```
 
+> **⚠️ ВАЖНО:** Хотя порт 2999 пробрасывается в Docker, внутри контейнера API сервер работает на порту **3000**. Поэтому nginx должен проксировать на `http://127.0.0.1:3000`, а НЕ на 2999!
+
 ### 3. Применили best practices для webhook'ов
 
 Согласно [Stack Overflow](https://stackoverflow.com/questions/38346847/nginx-docker-container-502-bad-gateway-response) и [CloudPanel Blog](https://www.cloudpanel.io/blog/502-bad-gateway-nginx-fix/):
@@ -86,12 +88,12 @@ location /api {
 ### Локальная проверка:
 ```bash
 ssh -i ~/.ssh/zomro root@212.86.115.30
-curl -X POST http://localhost:2999/api/kie-ai/callback \
+curl -X POST http://localhost:3000/api/kie-ai/callback \
   -H "Content-Type: application/json" \
   -d '{"taskId":"test","successFlag":1}'
 
 # Ответ:
-# {"message":"Webhook received and will be processed asynchronously","timestamp":"2025-10-16T07:13:09.003Z"}
+# {"message":"Webhook received and will be processed asynchronously","timestamp":"2025-11-07T10:18:59.483Z"}
 ```
 
 ### Проверка через HTTPS:
@@ -156,13 +158,14 @@ curl -I http://localhost:2999/api/kie-ai/callback
 ## 🔗 Конфигурация
 
 ### Docker Ports:
+- `3000` - **API server для webhook callbacks (внутри контейнера)**
 - `3001` - Telegram bot webhooks (default bot)
-- `2999` - API server для webhook callbacks
+- `2999` - Проброшен наружу, но не используется внутри контейнера
 - `3002-3010` - Остальные боты
 
 ### Nginx:
 - `443` - HTTPS с Let's Encrypt сертификатом
-- `/api` → `http://127.0.0.1:2999`
+- `/api` → `http://127.0.0.1:3000` ⚠️ **НЕ 2999!**
 - `/` → бот webhooks (dynamic routing)
 
 ### Webhook URL:
@@ -177,13 +180,15 @@ https://three-head-dragon.shop/api/kie-ai/callback
 # Проверить что API сервер запущен
 docker logs 999-multibots | grep "API.*started"
 
-# Проверить порты
+# Проверить порты (API слушает на 3000 внутри контейнера!)
 docker port 999-multibots
-ss -tlnp | grep 2999
+ss -tlnp | grep -E ':3000|:2999'
+curl http://localhost:3000/api/kie-ai/callback  # должен подключиться
 
 # Проверить nginx
 systemctl status nginx
 nginx -t
+cat /etc/nginx/sites-available/three-head-dragon | grep -A 5 "location /api"
 ```
 
 ### Webhook не приходят:
@@ -191,8 +196,8 @@ nginx -t
 # Проверить логи webhook
 docker logs 999-multibots | grep "KIE.AI WEBHOOK"
 
-# Тестовый запрос
-curl -X POST http://localhost:2999/api/kie-ai/callback \
+# Тестовый запрос (порт 3000!)
+curl -X POST http://localhost:3000/api/kie-ai/callback \
   -H "Content-Type: application/json" \
   -d '{"taskId":"test","successFlag":1}'
 ```
@@ -226,6 +231,30 @@ docker run -d --name 999-multibots -p 3001:3001 -p 2999:2999 ...
 
 ---
 
-**Дата исправления:** 2025-10-16
+**Даты исправлений:**
+- 2025-10-16: Первоначальное исправление (порт 2999)
+- 2025-11-07: Финальное исправление (порт 3000) ✅
+
 **Автор:** Claude Code
-**Статус:** ✅ Исправлено и работает
+**Статус:** ✅ Полностью исправлено и работает
+
+## 📝 История изменений
+
+### 2025-11-07: Финальное исправление
+**Проблема:** Webhook возвращал 502 Bad Gateway
+
+**Причина:** Nginx проксировал на `http://127.0.0.1:2999`, но API сервер слушает на порту **3000** внутри контейнера.
+
+**Решение:**
+```bash
+# Изменили nginx конфигурацию
+sed -i 's|proxy_pass http://127.0.0.1:2999;|proxy_pass http://127.0.0.1:3000;|g' /etc/nginx/sites-available/three-head-dragon
+nginx -t
+systemctl reload nginx
+```
+
+**Проверка:**
+```bash
+curl -X POST https://three-head-dragon.shop/api/kie-ai/callback -H "Content-Type: application/json" -d '{"test": true}'
+# ✅ {"message":"Webhook received and will be processed asynchronously","timestamp":"2025-11-07T10:18:59.483Z"}
+```
