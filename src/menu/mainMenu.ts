@@ -93,6 +93,11 @@ export const levels: Record<number, Level> = {
     title_ru: '🎭 Замена лица',
     title_en: '🎭 Face Swap',
   },
+  // image_upscaler - увеличение качества фото
+  16: {
+    title_ru: '⬆️ Увеличить качество фото',
+    title_en: '⬆️ Upscale Photo Quality',
+  },
   // step0
   // paymentScene
   100: {
@@ -125,10 +130,6 @@ export const levels: Record<number, Level> = {
   106: {
     title_ru: '🌐 EN',
     title_en: '🌐 RU',
-  },
-  107: {
-    title_ru: '⬆️ Увеличить качество фото',
-    title_en: '⬆️ Upscale Photo Quality',
   },
   108: {
     title_ru: '📺 Транскрибация Reels',
@@ -287,7 +288,7 @@ export async function mainMenu({
       levels[1],
       levels[2],
       levels[3],
-      levels[107],
+      levels[16],  // ✅ Изменено с 107 на 16 - Увеличить качество фото
       levels[108],
     ],
     [SubscriptionType.NEUROVIDEO]: Object.values(levels), // Все

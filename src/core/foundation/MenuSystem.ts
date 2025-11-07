@@ -134,8 +134,8 @@ export class MenuSystem {
         sceneToEnter: 'ai_photoshop_scene',
       },
       {
-        titleRu: levels[107].title_ru, // '⬆️ Увеличить качество фото'
-        titleEn: levels[107].title_en,
+        titleRu: levels[16].title_ru, // '⬆️ Увеличить качество фото' - ✅ Изменено с 107 на 16
+        titleEn: levels[16].title_en,
         mode: ModeEnum.ImageUpscaler,
         requiresSubscription: true,
       },
