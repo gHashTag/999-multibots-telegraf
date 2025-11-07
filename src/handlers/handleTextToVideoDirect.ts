@@ -3,10 +3,7 @@ import {
   checkVideoGenerationStatus,
   VideoModelId,
 } from '@/services/generateTextToVideo'
-import {
-  getValidDuration,
-} from '@/services/videoModels'
-import { getUnifiedModelConfig, getUnifiedModelPrice, VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
+import { getUnifiedModelConfig, getUnifiedModelPrice, VIDEO_MODELS_CONFIG, getValidDuration } from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'

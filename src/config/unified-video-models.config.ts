@@ -16,7 +16,7 @@ import {
   calculateKieAiPriceInStars,
   KIE_AI_MODELS_PRICING,
   STAR_COST_USD,
-  MARKUP_MULTIPLIER
+  MARKUP_MULTIPLIER,
 } from './unified-pricing.config'
 
 /**
@@ -48,7 +48,12 @@ export interface UnifiedVideoModelConfig {
 
   // Ценообразование
   pricing: {
-    type: 'fixed' | 'per_second' | 'per_resolution' | 'per_duration' | 'per_duration_resolution'
+    type:
+      | 'fixed'
+      | 'per_second'
+      | 'per_resolution'
+      | 'per_duration'
+      | 'per_duration_resolution'
 
     // Для fixed: фиксированная цена в звездах
     fixedPriceStars?: number
@@ -114,7 +119,7 @@ export interface UnifiedVideoModelConfig {
 export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
   // ==================== KIE.AI MODELS ====================
 
-  'veo3_fast': {
+  veo3_fast: {
     id: 'veo3_fast',
     name: 'Veo 3 Fast',
     nameRu: 'Veo 3 Fast',
@@ -125,17 +130,17 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'fixed',
       fixedPriceStars: 37, // ✅ ИСПРАВЛЕНО: $0.40 × 1.5 / $0.016 = 37⭐
-      defaultDuration: 8
+      defaultDuration: 8,
     },
     apiSettings: {
       imageKey: 'imageUrl',
       aspectRatios: ['16:9', '9:16', '1:1'],
-      durations: [8]
+      durations: [8],
     },
-    status: 'active'
+    status: 'active',
   },
 
-  'veo3': {
+  veo3: {
     id: 'veo3',
     name: 'Veo 3',
     nameRu: 'Veo 3',
@@ -148,14 +153,14 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       // ✅ ИСПРАВЛЕНО: Актуальная цена Kie.ai
       // $2.00 × 1.5 markup / $0.016 = 187⭐ за 8 сек
       fixedPriceStars: 187, // Согласно актуальной цене Kie.ai ($2.00 за 8 сек)
-      defaultDuration: 8
+      defaultDuration: 8,
     },
     apiSettings: {
       aspectRatios: ['16:9', '9:16', '1:1'],
-      durations: [8]
+      durations: [8],
     },
     status: 'active',
-    notes: 'Цена согласована с unified-pricing.config.ts: 202⭐ за 8 секунд'
+    notes: 'Цена согласована с unified-pricing.config.ts: 202⭐ за 8 секунд',
   },
 
   'runway-aleph': {
@@ -176,9 +181,9 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       imageKey: 'imageUrl',
       aspectRatios: ['16:9', '9:16', '1:1'],
       durations: [5, 6, 10],
-      maxDuration: 10
+      maxDuration: 10,
     },
-    status: 'active'
+    status: 'active',
   },
 
   'sora-2': {
@@ -192,13 +197,13 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'fixed',
       fixedPriceStars: 12, // 10 сек БЕЗ watermark: $0.20 × 1.5 / $0.016 = 12⭐
-      defaultDuration: 10
+      defaultDuration: 10,
     },
     apiSettings: {
       aspectRatios: ['16:9', '9:16'],
-      durations: [10]
+      durations: [10],
     },
-    status: 'active'
+    status: 'active',
   },
 
   'sora-2-pro': {
@@ -212,13 +217,13 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'fixed',
       fixedPriceStars: 31, // 10 сек БЕЗ watermark: $0.50 × 1.5 / $0.016 = 31⭐
-      defaultDuration: 10
+      defaultDuration: 10,
     },
     apiSettings: {
       aspectRatios: ['16:9', '9:16'],
-      durations: [10]
+      durations: [10],
     },
-    status: 'active'
+    status: 'active',
   },
 
   'sora-2-i2v': {
@@ -232,14 +237,14 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'fixed',
       fixedPriceStars: 12, // 10 сек БЕЗ watermark: $0.20 × 1.5 / $0.016 = 12⭐
-      defaultDuration: 10
+      defaultDuration: 10,
     },
     apiSettings: {
       imageKey: 'imageUrl',
       aspectRatios: ['16:9', '9:16'],
-      durations: [10]
+      durations: [10],
     },
-    status: 'active'
+    status: 'active',
   },
 
   'sora-2-pro-i2v': {
@@ -253,14 +258,14 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'fixed',
       fixedPriceStars: 31, // 10 сек БЕЗ watermark: $0.50 × 1.5 / $0.016 = 31⭐
-      defaultDuration: 10
+      defaultDuration: 10,
     },
     apiSettings: {
       imageKey: 'imageUrl',
       aspectRatios: ['16:9', '9:16'],
-      durations: [10]
+      durations: [10],
     },
-    status: 'active'
+    status: 'active',
   },
 
   // ==================== REPLICATE MODELS ====================
@@ -275,7 +280,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['text', 'image'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 9 // Согласно videoModels.ts
+      fixedPriceStars: 9, // Согласно videoModels.ts
     },
     apiSettings: {
       imageKey: 'start_image',
@@ -283,10 +288,10 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       aspectRatios: ['16:9', '9:16'],
       baseInput: {
         prompt_optimizer: true,
-        cfg_scale: 0.5
-      }
+        cfg_scale: 0.5,
+      },
     },
-    status: 'active'
+    status: 'active',
   },
 
   'ray-v2': {
@@ -299,13 +304,13 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['text', 'image'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 16
+      fixedPriceStars: 16,
     },
     apiSettings: {
       imageKey: 'start_image_url',
-      aspectRatios: ['16:9', '9:16']
+      aspectRatios: ['16:9', '9:16'],
     },
-    status: 'active'
+    status: 'active',
   },
 
   'haiper-video-2': {
@@ -319,17 +324,17 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'fixed',
       // Рассчитываем из basePrice: $0.05 × 1.5 / $0.016 = 4.7⭐ ≈ 5⭐
-      fixedPriceStars: 5
+      fixedPriceStars: 5,
     },
     apiSettings: {
       imageKey: 'frame_image_url',
       aspectRatios: ['16:9', '9:16'],
       baseInput: {
         duration: 6,
-        use_prompt_enhancer: true
-      }
+        use_prompt_enhancer: true,
+      },
     },
-    status: 'active'
+    status: 'active',
   },
 
   'kling-v1.6-standard': {
@@ -343,14 +348,14 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_second',
       pricePerSecondUSD: 0.056,
-      defaultDuration: 5
+      defaultDuration: 5,
     },
     apiSettings: {
       imageKey: 'start_image',
       canMorph: true,
-      aspectRatios: ['16:9', '9:16']
+      aspectRatios: ['16:9', '9:16'],
     },
-    status: 'active'
+    status: 'active',
   },
 
   'kling-v2.0': {
@@ -364,14 +369,14 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_second',
       pricePerSecondUSD: 0.28,
-      defaultDuration: 5
+      defaultDuration: 5,
     },
     apiSettings: {
       imageKey: 'start_image',
       canMorph: false,
-      aspectRatios: ['16:9', '9:16']
+      aspectRatios: ['16:9', '9:16'],
     },
-    status: 'active'
+    status: 'active',
   },
 
   'kling-v2.1-standard': {
@@ -385,17 +390,17 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_second',
       pricePerSecondUSD: 0.05,
-      defaultDuration: 5
+      defaultDuration: 5,
     },
     apiSettings: {
       imageKey: 'start_image',
       canMorph: true,
       aspectRatios: ['16:9', '9:16'],
       baseInput: {
-        model_variant: 'standard'
-      }
+        model_variant: 'standard',
+      },
     },
-    status: 'active'
+    status: 'active',
   },
 
   'kling-v2.1-pro': {
@@ -409,17 +414,17 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_second',
       pricePerSecondUSD: 0.09,
-      defaultDuration: 5
+      defaultDuration: 5,
     },
     apiSettings: {
       imageKey: 'start_image',
       canMorph: true,
       aspectRatios: ['16:9', '9:16'],
       baseInput: {
-        model_variant: 'pro'
-      }
+        model_variant: 'pro',
+      },
     },
-    status: 'active'
+    status: 'active',
   },
 
   'seedance-1-pro': {
@@ -433,9 +438,9 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_resolution',
       priceByResolution: {
-        '480p': 3,  // $0.03 × 1.5 / $0.016 = 2.8⭐ ≈ 3⭐
-        '1080p': 14 // $0.15 × 1.5 / $0.016 = 14⭐
-      }
+        '480p': 3, // $0.03 × 1.5 / $0.016 = 2.8⭐ ≈ 3⭐
+        '1080p': 14, // $0.15 × 1.5 / $0.016 = 14⭐
+      },
     },
     apiSettings: {
       imageKey: 'image',
@@ -444,10 +449,10 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       aspectRatios: ['16:9', '9:16'],
       baseInput: {
         duration: 5,
-        fps: 24
-      }
+        fps: 24,
+      },
     },
-    status: 'active'
+    status: 'active',
   },
 
   // ==================== WAN 2.5 (Alibaba via Kie.ai) ====================
@@ -457,7 +462,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     id: 'wan-2.5-t2v',
     name: 'WAN 2.5 T2V',
     nameRu: 'WAN 2.5 T2V',
-    description: 'Cinematic AI video generation from text with native audio sync',
+    description:
+      'Cinematic AI video generation from text with native audio sync',
     provider: 'kie',
     apiModel: 'wan/2-5-text-to-video',
     inputTypes: ['text'],
@@ -470,17 +476,17 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       // 1080p 5 сек: 100 credits × $0.005 / $0.016 ≈ 31⭐
       priceMatrix: {
         '5': { '720p': 19, '1080p': 31 },
-        '10': { '720p': 38, '1080p': 62 }
-      }
+        '10': { '720p': 38, '1080p': 62 },
+      },
     },
     apiSettings: {
       resolutions: ['720p', '1080p'],
       aspectRatios: ['16:9'], // ⚠️ WAN API НЕ поддерживает aspect_ratio - только 16:9
       durations: [5, 10],
       supportsPromptExpansion: true,
-      supportsNegativePrompt: true
+      supportsNegativePrompt: true,
     },
-    status: 'active'
+    status: 'active',
   },
 
   // WAN 2.5 I2V - Image to Video через Kie.ai API
@@ -488,7 +494,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     id: 'wan-2.5-i2v',
     name: 'WAN 2.5 I2V',
     nameRu: 'WAN 2.5 I2V',
-    description: 'Cinematic AI video generation from image with native audio sync',
+    description:
+      'Cinematic AI video generation from image with native audio sync',
     provider: 'kie',
     apiModel: 'wan/2-5-image-to-video',
     inputTypes: ['image'],
@@ -496,8 +503,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       type: 'per_duration_resolution',
       priceMatrix: {
         '5': { '720p': 19, '1080p': 31 },
-        '10': { '720p': 38, '1080p': 62 }
-      }
+        '10': { '720p': 38, '1080p': 62 },
+      },
     },
     apiSettings: {
       imageKey: 'image_url',
@@ -505,9 +512,9 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       aspectRatios: ['16:9'], // ⚠️ WAN API НЕ поддерживает aspect_ratio - только 16:9
       durations: [5, 10],
       supportsPromptExpansion: true,
-      supportsNegativePrompt: true
+      supportsNegativePrompt: true,
     },
-    status: 'active'
+    status: 'active',
   },
 
   // Kling 2.5 Turbo Pro - самая новая версия Kling
@@ -515,24 +522,25 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     id: 'kling-v2.5-turbo-pro',
     name: 'Kling v2.5 Turbo Pro',
     nameRu: 'Kling v2.5 Turbo Pro',
-    description: 'Kling 2.5 Turbo Pro - премиум генерация с улучшенным качеством',
+    description:
+      'Kling 2.5 Turbo Pro - премиум генерация с улучшенным качеством',
     provider: 'replicate',
     apiModel: 'kwaivgi/kling-v2.5-turbo-pro',
     inputTypes: ['text', 'image'],
     pricing: {
       type: 'per_second',
       pricePerSecondUSD: 0.098, // $0.098/сек согласно Replicate
-      defaultDuration: 10
+      defaultDuration: 10,
     },
     apiSettings: {
       imageKey: 'start_image',
       aspectRatios: ['16:9', '9:16'],
       durations: [5, 10],
       baseInput: {
-        prompt_optimizer: true
-      }
+        prompt_optimizer: true,
+      },
     },
-    status: 'active'
+    status: 'active',
   },
 
   // Hailuo 2.3 - замена старого Minimax
@@ -540,25 +548,26 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     id: 'hailuo-2.3',
     name: 'Hailuo 2.3',
     nameRu: 'Hailuo 2.3',
-    description: 'Minimax Hailuo 2.3 - генерация 6s/10s видео в высоком качестве',
+    description:
+      'Minimax Hailuo 2.3 - генерация 6s/10s видео в высоком качестве',
     provider: 'replicate',
     apiModel: 'minimax/hailuo-2.3',
     inputTypes: ['text', 'image'],
     pricing: {
       type: 'per_duration',
       priceByDuration: {
-        6: 18,  // Примерная цена для 6 сек
-        10: 28  // Примерная цена для 10 сек
+        6: 18, // Примерная цена для 6 сек
+        10: 28, // Примерная цена для 10 сек
       },
-      defaultDuration: 6
+      defaultDuration: 6,
     },
     apiSettings: {
       imageKey: 'image',
       aspectRatios: ['16:9', '9:16'],
       durations: [6, 10],
-      resolutions: ['512p', '768p', '1080p']
+      resolutions: ['512p', '768p', '1080p'],
     },
-    status: 'active'
+    status: 'active',
   },
 
   'hailuo-2.3-fast': {
@@ -572,18 +581,18 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_duration',
       priceByDuration: {
-        6: 12,  // Примерная цена для 6 сек (дешевле чем обычная версия)
-        10: 18  // Примерная цена для 10 сек
+        6: 12, // Примерная цена для 6 сек (дешевле чем обычная версия)
+        10: 18, // Примерная цена для 10 сек
       },
-      defaultDuration: 6
+      defaultDuration: 6,
     },
     apiSettings: {
       imageKey: 'image',
       aspectRatios: ['16:9', '9:16'],
       durations: [6, 10],
-      resolutions: ['512p']
+      resolutions: ['512p'],
     },
-    status: 'active'
+    status: 'active',
   },
 
   // Google Veo 3.1 - ТОЛЬКО если дешевле чем Kie.ai
@@ -601,14 +610,15 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_second',
       pricePerSecondUSD: 0.75, // $0.75/сек = очень дорого!
-      defaultDuration: 8
+      defaultDuration: 8,
     },
     apiSettings: {
       aspectRatios: ['16:9', '9:16'],
-      durations: [8]
+      durations: [8],
     },
     status: 'deprecated', // ❌ НЕ использовать - дорого! Используйте Kie.ai
-    notes: '⚠️ В 3 раза дороже чем через Kie.ai! Используйте veo3 через Kie.ai вместо этой модели'
+    notes:
+      '⚠️ В 3 раза дороже чем через Kie.ai! Используйте veo3 через Kie.ai вместо этой модели',
   },
 
   'veo-3.1-fast': {
@@ -622,14 +632,15 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_second',
       pricePerSecondUSD: 0.75,
-      defaultDuration: 8
+      defaultDuration: 8,
     },
     apiSettings: {
       aspectRatios: ['16:9', '9:16'],
-      durations: [8]
+      durations: [8],
     },
     status: 'deprecated', // ❌ НЕ использовать - дорого! Используйте Kie.ai
-    notes: '⚠️ В 3 раза дороже чем через Kie.ai! Используйте veo3_fast через Kie.ai вместо этой модели'
+    notes:
+      '⚠️ В 3 раза дороже чем через Kie.ai! Используйте veo3_fast через Kie.ai вместо этой модели',
   },
 
   // Seedance Pro Fast
@@ -644,16 +655,16 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     pricing: {
       type: 'per_resolution',
       priceByResolution: {
-        '480p': 2,  // Быстрая версия дешевле
-        '1080p': 9
-      }
+        '480p': 2, // Быстрая версия дешевле
+        '1080p': 9,
+      },
     },
     apiSettings: {
       imageKey: 'image',
       resolutions: ['480p', '1080p'],
-      aspectRatios: ['16:9', '9:16']
+      aspectRatios: ['16:9', '9:16'],
     },
-    status: 'active'
+    status: 'active',
   },
 
   // PixVerse V5
@@ -672,10 +683,10 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     apiSettings: {
       imageKey: 'image',
       aspectRatios: ['16:9', '9:16'],
-      durations: [4, 8]
+      durations: [4, 8],
     },
-    status: 'active'
-  }
+    status: 'active',
+  },
 }
 
 /**
@@ -686,7 +697,9 @@ export type UnifiedVideoModelId = keyof typeof UNIFIED_VIDEO_MODELS
 /**
  * Получить конфигурацию модели по ID
  */
-export function getUnifiedModelConfig(modelId: string): UnifiedVideoModelConfig | undefined {
+export function getUnifiedModelConfig(
+  modelId: string
+): UnifiedVideoModelConfig | undefined {
   return UNIFIED_VIDEO_MODELS[modelId]
 }
 
@@ -715,7 +728,8 @@ export function getUnifiedModelPrice(
       return Math.round((priceUSD * MARKUP_MULTIPLIER) / STAR_COST_USD)
 
     case 'per_resolution':
-      const resolution = options?.resolution ||
+      const resolution =
+        options?.resolution ||
         model.apiSettings.resolutions?.[0] || // Use first supported resolution as default
         '720p'
       return model.pricing.priceByResolution![resolution] || 0
@@ -748,7 +762,9 @@ export function getUnifiedModelPrice(
 /**
  * Получить модели по типу входных данных
  */
-export function getModelsByInputType(inputType: VideoInputType): UnifiedVideoModelConfig[] {
+export function getModelsByInputType(
+  inputType: VideoInputType
+): UnifiedVideoModelConfig[] {
   return Object.values(UNIFIED_VIDEO_MODELS).filter(
     model => model.status === 'active' && model.inputTypes.includes(inputType)
   )
@@ -757,7 +773,9 @@ export function getModelsByInputType(inputType: VideoInputType): UnifiedVideoMod
 /**
  * Получить модели по провайдеру
  */
-export function getModelsByProvider(provider: VideoProvider): UnifiedVideoModelConfig[] {
+export function getModelsByProvider(
+  provider: VideoProvider
+): UnifiedVideoModelConfig[] {
   return Object.values(UNIFIED_VIDEO_MODELS).filter(
     model => model.status === 'active' && model.provider === provider
   )
@@ -797,12 +815,18 @@ const PricingSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('per_duration'),
-    priceByDuration: z.record(z.union([z.string(), z.number()]), z.number().positive()), // Ключи могут быть строками или числами
+    priceByDuration: z.record(
+      z.union([z.string(), z.number()]),
+      z.number().positive()
+    ), // Ключи могут быть строками или числами
     defaultDuration: z.number().positive().optional(),
   }),
   z.object({
     type: z.literal('per_duration_resolution'),
-    priceMatrix: z.record(z.string(), z.record(z.string(), z.number().positive())), // duration -> resolution -> price
+    priceMatrix: z.record(
+      z.string(),
+      z.record(z.string(), z.number().positive())
+    ), // duration -> resolution -> price
   }),
 ])
 
@@ -843,7 +867,9 @@ export function validateVideoModels(): void {
       UnifiedVideoModelConfigSchema.parse(config)
     } catch (error) {
       if (error instanceof z.ZodError) {
-        errors.push(`Model "${modelId}": ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`)
+        errors.push(
+          `Model "${modelId}": ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`
+        )
       }
     }
   })
@@ -852,7 +878,9 @@ export function validateVideoModels(): void {
     throw new Error(`Video models validation failed:\n${errors.join('\n')}`)
   }
 
-  console.log(`✅ Validated ${Object.keys(UNIFIED_VIDEO_MODELS).length} video models successfully`)
+  console.log(
+    `✅ Validated ${Object.keys(UNIFIED_VIDEO_MODELS).length} video models successfully`
+  )
 }
 
 // Валидируем при загрузке модуля
@@ -873,9 +901,9 @@ try {
 const GenerateButtonParamsSchema = z.object({
   modelId: z.string().min(1, 'modelId cannot be empty'),
   aspectRatio: z.enum(['16:9', '9:16'], {
-    errorMap: () => ({ message: 'aspectRatio must be "16:9" or "9:16"' })
+    errorMap: () => ({ message: 'aspectRatio must be "16:9" or "9:16"' }),
   }),
-  isRu: z.boolean()
+  isRu: z.boolean(),
 })
 
 /**
@@ -886,7 +914,7 @@ export const ParsedModelButtonSchema = z.object({
   aspectRatio: z.enum(['16:9', '9:16']),
   duration: z.number().positive().optional(),
   cost: z.number().nonnegative(),
-  resolution: z.string().optional()
+  resolution: z.string().optional(),
 })
 
 /**
@@ -900,7 +928,7 @@ export type ParsedModelButton = z.infer<typeof ParsedModelButtonSchema>
 const GenerateKeyboardParamsSchema = z.object({
   inputType: z.enum(['text', 'image', 'morph']),
   isRu: z.boolean(),
-  supportedModels: z.array(z.string()).optional()
+  supportedModels: z.array(z.string()).optional(),
 })
 
 /**
@@ -919,11 +947,17 @@ export function generateModelButton(
   isRu: boolean
 ): string {
   // ✅ ZOD ВАЛИДАЦИЯ ВХОДНЫХ ПАРАМЕТРОВ
-  const validated = GenerateButtonParamsSchema.parse({ modelId, aspectRatio, isRu })
+  const validated = GenerateButtonParamsSchema.parse({
+    modelId,
+    aspectRatio,
+    isRu,
+  })
 
   const config = getUnifiedModelConfig(validated.modelId)
   if (!config) {
-    throw new Error(`[generateModelButton] Model not found: ${validated.modelId}`)
+    throw new Error(
+      `[generateModelButton] Model not found: ${validated.modelId}`
+    )
   }
 
   const aspectIcon = validated.aspectRatio === '9:16' ? '📱' : '🖥️'
@@ -936,16 +970,23 @@ export function generateModelButton(
   let durationText = ''
   if (config.pricing.type === 'fixed' && config.pricing.defaultDuration) {
     durationText = ` | ${config.pricing.defaultDuration}s`
-  } else if (config.pricing.type === 'per_second' && config.pricing.defaultDuration) {
+  } else if (
+    config.pricing.type === 'per_second' &&
+    config.pricing.defaultDuration
+  ) {
     durationText = ` | ${config.pricing.defaultDuration}s`
-  } else if (config.pricing.type === 'per_duration' && config.pricing.defaultDuration) {
+  } else if (
+    config.pricing.type === 'per_duration' &&
+    config.pricing.defaultDuration
+  ) {
     durationText = ` | ${config.pricing.defaultDuration}s`
   }
 
   const displayName = validated.isRu ? config.nameRu : config.name
 
   // Добавляем разрешение для моделей с ценой за разрешение
-  const resolutionSuffix = config.pricing.type === 'per_resolution' ? ` ${resolution}` : ''
+  const resolutionSuffix =
+    config.pricing.type === 'per_resolution' ? ` ${resolution}` : ''
 
   return `${displayName}${resolutionSuffix}${durationText} | ${aspectIcon} (${stars}⭐)`
 }
@@ -962,12 +1003,15 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
   console.log('[parseModelButton] Parsing button text:', buttonText)
 
   // Определяем соотношение сторон по иконке
-  const aspectRatio: '16:9' | '9:16' = buttonText.includes('📱') ? '9:16' : '16:9'
+  const aspectRatio: '16:9' | '9:16' = buttonText.includes('📱')
+    ? '9:16'
+    : '16:9'
 
   // Парсим по названию модели из unified config
   const allModels = getActiveModels()
-  const foundModel = allModels.find(config =>
-    buttonText.includes(config.name) || buttonText.includes(config.nameRu)
+  const foundModel = allModels.find(
+    config =>
+      buttonText.includes(config.name) || buttonText.includes(config.nameRu)
   )
 
   let result: ParsedModelButton
@@ -981,11 +1025,20 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
 
     // Определяем длительность
     let duration: number | undefined
-    if (foundModel.pricing.type === 'fixed' && foundModel.pricing.defaultDuration) {
+    if (
+      foundModel.pricing.type === 'fixed' &&
+      foundModel.pricing.defaultDuration
+    ) {
       duration = foundModel.pricing.defaultDuration
-    } else if (foundModel.pricing.type === 'per_second' && foundModel.pricing.defaultDuration) {
+    } else if (
+      foundModel.pricing.type === 'per_second' &&
+      foundModel.pricing.defaultDuration
+    ) {
       duration = foundModel.pricing.defaultDuration
-    } else if (foundModel.pricing.type === 'per_duration' && foundModel.pricing.defaultDuration) {
+    } else if (
+      foundModel.pricing.type === 'per_duration' &&
+      foundModel.pricing.defaultDuration
+    ) {
       duration = foundModel.pricing.defaultDuration
     }
 
@@ -994,17 +1047,21 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
       aspectRatio,
       duration,
       cost: stars,
-      resolution
+      resolution,
     }
   } else {
-    console.warn('[parseModelButton] No match found for button text:', buttonText, '- using fallback')
+    console.warn(
+      '[parseModelButton] No match found for button text:',
+      buttonText,
+      '- using fallback'
+    )
     // ✅ ВСЕГДА возвращаем валидный fallback вместо null
     result = {
       modelId: 'veo3_fast',
       aspectRatio,
       duration: 8,
       cost: 37,
-      resolution: aspectRatio === '9:16' ? '480p' : '1080p'
+      resolution: aspectRatio === '9:16' ? '480p' : '1080p',
     }
   }
 
@@ -1028,7 +1085,11 @@ export function generateModelKeyboard(
   supportedModels?: string[]
 ): string[][] {
   // ✅ ZOD ВАЛИДАЦИЯ ВХОДНЫХ ПАРАМЕТРОВ
-  const validated = GenerateKeyboardParamsSchema.parse({ inputType, isRu, supportedModels })
+  const validated = GenerateKeyboardParamsSchema.parse({
+    inputType,
+    isRu,
+    supportedModels,
+  })
 
   // Получаем все активные модели для данного типа входа
   let models = getActiveModels().filter(config =>
@@ -1037,11 +1098,15 @@ export function generateModelKeyboard(
 
   // Фильтруем по списку поддерживаемых моделей, если он передан
   if (validated.supportedModels && validated.supportedModels.length > 0) {
-    models = models.filter(config => validated.supportedModels!.includes(config.id))
+    models = models.filter(config =>
+      validated.supportedModels!.includes(config.id)
+    )
   }
 
   if (models.length === 0) {
-    throw new Error(`[generateModelKeyboard] No models found for inputType: ${validated.inputType}`)
+    throw new Error(
+      `[generateModelKeyboard] No models found for inputType: ${validated.inputType}`
+    )
   }
 
   // Создаем ряды для каждой модели: 2 кнопки (16:9 + 9:16)
@@ -1050,9 +1115,107 @@ export function generateModelKeyboard(
   models.forEach(config => {
     keyboardRows.push([
       generateModelButton(config.id, '16:9', validated.isRu),
-      generateModelButton(config.id, '9:16', validated.isRu)
+      generateModelButton(config.id, '9:16', validated.isRu),
     ])
   })
 
   return keyboardRows
+}
+
+// ============================================
+// 🔄 BACKWARD COMPATIBILITY ALIASES
+// ============================================
+
+/**
+ * Алиас для обратной совместимости
+ * @deprecated Используйте UNIFIED_VIDEO_MODELS
+ */
+export const VIDEO_MODELS_CONFIG = UNIFIED_VIDEO_MODELS
+
+/**
+ * Алиас для обратной совместимости с videoModels.ts
+ * @deprecated Используйте getUnifiedModelPrice
+ */
+export function getModelPriceInStars(
+  modelId: string,
+  duration?: number
+): number {
+  return getUnifiedModelPrice(modelId, { duration })
+}
+
+/**
+ * Алиас для обратной совместимости с videoModels.ts
+ * @deprecated Используйте apiSettings.durations из unified config
+ */
+export function isDurationSupported(
+  modelId: string,
+  duration: number
+): boolean {
+  const config = getUnifiedModelConfig(modelId)
+  if (!config || !config.apiSettings.durations) {
+    return true
+  }
+  return config.apiSettings.durations.includes(duration)
+}
+
+/**
+ * Алиас для обратной совместимости с videoModels.ts
+ * @deprecated Используйте pricing.defaultDuration из unified config
+ */
+export function getValidDuration(
+  modelId: string,
+  requestedDuration?: number
+): number | undefined {
+  const config = getUnifiedModelConfig(modelId)
+  if (!config || !config.apiSettings.durations) {
+    return undefined
+  }
+
+  if (!requestedDuration) {
+    return config.pricing.defaultDuration
+  }
+
+  if (config.apiSettings.durations.includes(requestedDuration)) {
+    return requestedDuration
+  }
+
+  return config.pricing.defaultDuration
+}
+
+/**
+ * Алиас для обратной совместимости с videoModels.ts
+ * @deprecated Используйте getModelsByInputType('text')
+ */
+export function getTextToVideoModels() {
+  return getModelsByInputType('text')
+}
+
+/**
+ * Алиас для обратной совместимости с videoModels.ts
+ * @deprecated Используйте getModelsByInputType('image')
+ */
+export function getImageToVideoModels() {
+  return getModelsByInputType('image')
+}
+
+/**
+ * Алиас для обратной совместимости с videoModels.ts
+ * @deprecated Используйте generateModelButton
+ */
+export function formatModelInfo(
+  modelId: string,
+  duration?: number,
+  is_ru = false
+): string {
+  const config = getUnifiedModelConfig(modelId)
+  if (!config) return 'Unknown model'
+
+  const name = is_ru ? config.nameRu : config.name
+  const price = getUnifiedModelPrice(modelId, { duration })
+
+  if (config.apiSettings.durations && duration) {
+    return `${name} (${duration} сек) - ${price} ⭐`
+  }
+
+  return `${name} - ${price} ⭐`
 }

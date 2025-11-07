@@ -3,7 +3,7 @@ import { Router } from 'express'
 import { logger } from '@/utils/logger'
 import { videoTaskStore } from '@/services/video-task-store'
 import { Telegraf, Input } from 'telegraf'
-import { VIDEO_MODELS } from '@/services/videoModels'
+import { VIDEO_MODELS_CONFIG as VIDEO_MODELS } from '@/config/unified-video-models.config'
 import type { VideoModelId } from '@/services/generateTextToVideo'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
