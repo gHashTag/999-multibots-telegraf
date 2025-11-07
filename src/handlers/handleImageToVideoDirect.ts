@@ -17,8 +17,7 @@ export async function handleImageToVideoDirect(
   prompt: string,
   modelId: VideoModelId,
   duration?: number,
-  aspectRatio?: string,
-  removeWatermark?: boolean // 🆕 Для Sora I2V: удалять watermark или нет
+  aspectRatio?: string
 ): Promise<void> {
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'

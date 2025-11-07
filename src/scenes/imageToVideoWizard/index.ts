@@ -196,7 +196,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         ctx.session.selectedAspectRatio = parsedModel.aspectRatio
         ctx.session.selectedVideoCost = parsedModel.cost
         ctx.session.selectedDuration = parsedModel.duration
-        ctx.session.selectedRemoveWatermark = parsedModel.removeWatermark // 🆕 Сохраняем watermark опцию
         
         await ctx.reply(
           isRu 
@@ -301,8 +300,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
 
       const videoModelId = selectedModel as VideoModelId
-      const removeWatermark = ctx.session.selectedRemoveWatermark // 🆕 Получаем watermark опцию
-      await handleImageToVideoDirect(ctx, imageUrl, prompt, videoModelId, duration, aspectRatio, removeWatermark)
+      await handleImageToVideoDirect(ctx, imageUrl, prompt, videoModelId, duration, aspectRatio)
       console.log('🎬 [I2V WIZARD] Video generation success!')
 
       return ctx.scene.leave()

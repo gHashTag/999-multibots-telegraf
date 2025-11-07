@@ -5,16 +5,13 @@ import {
   VideoModelId,
 } from '@/services/generateTextToVideo'
 import {
-  VIDEO_MODELS,
-  getModelPriceInStars,
   getValidDuration,
-  formatModelInfo,
 } from '@/services/videoModels'
+import { getUnifiedModelConfig, getUnifiedModelPrice } from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
 import { uploadTelegramFileLocal } from '@/helpers/uploadTelegramFileLocal'
@@ -29,8 +26,7 @@ export async function handleTextToVideoDirect(
   prompt: string,
   modelId: VideoModelId,
   duration?: number,
-  aspectRatio?: string,
-  removeWatermark?: boolean // 🆕 Для Sora: удалять watermark или нет
+  aspectRatio?: string
 ): Promise<void> {
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
@@ -96,10 +92,10 @@ export async function handleTextToVideoDirect(
     return
   }
 
-  // Получаем информацию о модели
-  const modelInfo = VIDEO_MODELS[modelId]
-  const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
-  const price = getModelPriceInStars(modelId, validDuration)
+  // Получаем информацию о модели из unified config
+  const modelConfig = getUnifiedModelConfig(modelId)
+  const modelName = is_ru ? modelConfig.nameRu : modelConfig.name
+  const price = getUnifiedModelPrice(modelId, { duration: validDuration })
 
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(
@@ -135,7 +131,6 @@ export async function handleTextToVideoDirect(
       username,
       is_ru,
       bot_name,
-      removeWatermark, // 🆕 Передаем watermark опцию в API
     })
 
     if (!response.success) {
@@ -444,9 +439,9 @@ async function handleVideoReady(
       )
     }
 
-    // Получаем информацию о модели для подписи
-    const modelInfo = VIDEO_MODELS[modelId]
-    const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
+    // Получаем информацию о модели для подписи из unified config
+    const modelConfig = getUnifiedModelConfig(modelId)
+    const modelName = is_ru ? modelConfig.nameRu : modelConfig.name
 
     // Логирование перед отправкой видео
     logger.info('[handleVideoReady] Attempting to send video:', {
@@ -502,7 +497,7 @@ async function handleVideoReady(
     }
 
     // Списываем баланс
-    const price = getModelPriceInStars(modelId, duration)
+    const price = getUnifiedModelPrice(modelId, { duration })
 
     await updateUserBalance(
       telegram_id,
