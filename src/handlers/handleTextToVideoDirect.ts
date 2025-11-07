@@ -1,6 +1,5 @@
 import { MyContext } from '@/interfaces'
 import {
-  generateTextToVideo,
   checkVideoGenerationStatus,
   VideoModelId,
 } from '@/services/generateTextToVideo'
@@ -121,17 +120,26 @@ export async function handleTextToVideoDirect(
   )
 
   try {
-    // Запускаем генерацию видео
-    const response = await generateTextToVideo({
+    // ✅ Импортируем новый модуль videoGenerator
+    const { generateTextToVideo: generateTextToVideoNew } = await import('@/modules/videoGenerator')
+
+    // Запускаем генерацию видео через новый модуль
+    const videoUrl = await generateTextToVideoNew(
       prompt,
-      videoModel: modelId,
-      duration: validDuration,
-      aspectRatio: aspectRatio,
       telegram_id,
       username,
       is_ru,
       bot_name,
-    })
+      modelId,
+      undefined, // selectedResolution
+      validDuration,
+      aspectRatio
+    )
+
+    // Преобразуем ответ в старый формат для совместимости
+    const response = videoUrl
+      ? { success: true, videoUrl, jobId: undefined }
+      : { success: false, error: 'Video generation failed', jobId: undefined }
 
     if (!response.success) {
       if (ctx && ctx.telegram && ctx.chat) {
