@@ -595,14 +595,60 @@ async function notifyJobCompletion(
       errorMessage: result.message
     })
 
-    // ✅ Используем новый метод для обновления задачи по taskId
-    // ✅ EMERGENCY DISABLE: asyncLipSyncManager causing TypeScript errors
-    // const updated = await asyncLipSyncManager.completeJobByTaskId(taskId, result)
+    // ✅ Используем videoTaskStore для WAN/Sora моделей
+    const taskContext = videoTaskStore.getTask(taskId)
 
-    // ✅ EMERGENCY: Skip lip-sync job update
-    logger.info('✅ [KIE.AI WEBHOOK] Webhook processed (lip-sync disabled)', {
-      taskId
-    })
+    if (taskContext && botInstance) {
+      logger.info('📤 [KIE.AI WEBHOOK] Found task context, sending video to user', {
+        taskId,
+        telegramId: taskContext.telegramId,
+        hasVideoUrl: !!result.output
+      })
+
+      try {
+        if (result.success && result.output) {
+          // Успешная генерация - отправляем видео
+          await botInstance.telegram.sendVideo(
+            taskContext.chatId,
+            result.output,
+            {
+              caption: `✅ Видео готово!\n\n🎬 Модель: ${taskContext.modelId}\n⏱ Длительность: ${result.duration || 'N/A'} сек`,
+              reply_to_message_id: taskContext.messageId
+            }
+          )
+
+          logger.info('✅ [KIE.AI WEBHOOK] Video sent to user successfully', { taskId })
+
+          // Удаляем задачу из store после успешной отправки
+          videoTaskStore.deleteTask(taskId)
+        } else {
+          // Ошибка генерации - отправляем сообщение об ошибке
+          await botInstance.telegram.sendMessage(
+            taskContext.chatId,
+            `❌ Ошибка генерации видео: ${result.message || 'Неизвестная ошибка'}`,
+            { reply_to_message_id: taskContext.messageId }
+          )
+
+          logger.error('❌ [KIE.AI WEBHOOK] Generation failed, notified user', { taskId })
+          videoTaskStore.deleteTask(taskId)
+        }
+      } catch (sendError) {
+        logger.error('❌ [KIE.AI WEBHOOK] Error sending message to user', {
+          taskId,
+          error: sendError instanceof Error ? sendError.message : String(sendError)
+        })
+      }
+    } else {
+      logger.warn('⚠️ [KIE.AI WEBHOOK] No task context or bot instance', {
+        taskId,
+        hasTaskContext: !!taskContext,
+        hasBotInstance: !!botInstance
+      })
+
+      // Fallback: используем asyncLipSyncManager если он доступен (для lip-sync задач)
+      // ✅ EMERGENCY DISABLE: asyncLipSyncManager causing TypeScript errors
+      // const updated = await asyncLipSyncManager.completeJobByTaskId(taskId, result)
+    }
 
   } catch (error) {
     logger.error('❌ [KIE.AI WEBHOOK] Error notifying job completion', {
