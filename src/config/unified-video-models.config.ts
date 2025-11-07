@@ -475,7 +475,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     },
     apiSettings: {
       resolutions: ['720p', '1080p'],
-      aspectRatios: ['16:9', '9:16', '1:1'],
+      aspectRatios: ['16:9'], // ⚠️ WAN API НЕ поддерживает aspect_ratio - только 16:9
       durations: [5, 10],
       supportsPromptExpansion: true,
       supportsNegativePrompt: true
@@ -502,7 +502,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     apiSettings: {
       imageKey: 'image_url',
       resolutions: ['720p', '1080p'],
-      aspectRatios: ['16:9', '9:16', '1:1'],
+      aspectRatios: ['16:9'], // ⚠️ WAN API НЕ поддерживает aspect_ratio - только 16:9
       durations: [5, 10],
       supportsPromptExpansion: true,
       supportsNegativePrompt: true
