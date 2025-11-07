@@ -124,7 +124,7 @@ export async function handleTextToVideoDirect(
     const { generateTextToVideo: generateTextToVideoNew } = await import('@/modules/videoGenerator')
 
     // Запускаем генерацию видео через новый модуль
-    const videoUrl = await generateTextToVideoNew(
+    const result = await generateTextToVideoNew(
       prompt,
       telegram_id,
       username,
@@ -137,9 +137,18 @@ export async function handleTextToVideoDirect(
     )
 
     // Преобразуем ответ в старый формат для совместимости
-    const response = videoUrl
-      ? { success: true, videoUrl, jobId: undefined }
-      : { success: false, error: 'Video generation failed', jobId: undefined }
+    // result может быть: videoUrl (готовое видео) или taskId (async генерация)
+    let response: { success: boolean; videoUrl?: string; jobId?: string; error?: string }
+
+    if (!result) {
+      response = { success: false, error: 'Video generation failed' }
+    } else if (result.startsWith('http')) {
+      // Это готовый videoUrl
+      response = { success: true, videoUrl: result, jobId: undefined }
+    } else {
+      // Это taskId для async генерации
+      response = { success: true, videoUrl: undefined, jobId: result }
+    }
 
     if (!response.success) {
       if (ctx && ctx.telegram && ctx.chat) {
@@ -177,9 +186,10 @@ export async function handleTextToVideoDirect(
       ctx.session.videoDuration = validDuration
       ctx.session.videoMessageId = processingMessage.message_id
 
-      // ✅ Для Sora моделей: сохраняем в videoTaskStore для webhook, БЕЗ polling
+      // ✅ Для Sora и WAN моделей: сохраняем в videoTaskStore для webhook, БЕЗ polling
       const isSoraModel = modelId.includes('sora')
-      if (isSoraModel) {
+      const isWanModel = modelId.includes('wan')
+      if (isSoraModel || isWanModel) {
         videoTaskStore.saveTask(response.jobId, {
           telegramId: telegram_id ? parseInt(telegram_id) : 0,
           chatId: ctx.chat?.id || 0,
@@ -196,15 +206,16 @@ export async function handleTextToVideoDirect(
             processingMessage.message_id,
             undefined,
             is_ru
-              ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n🆔 Task ID: ${response.jobId}\n\n⏳ Видео будет отправлено автоматически через webhook. Это может занять 3-5 минут.`
-              : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n🆔 Task ID: ${response.jobId}\n\n⏳ The video will be sent automatically via webhook. This may take 3-5 minutes.`
+              ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n🆔 Task ID: ${response.jobId}\n\n⏳ Видео будет отправлено автоматически через webhook. Это может занять ${isWanModel ? '2-3' : '3-5'} минут.`
+              : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n🆔 Task ID: ${response.jobId}\n\n⏳ The video will be sent automatically via webhook. This may take ${isWanModel ? '2-3' : '3-5'} minutes.`
           )
         }
 
-        logger.info('[handleTextToVideoDirect] Sora task saved for webhook', {
+        logger.info('[handleTextToVideoDirect] Async task saved for webhook', {
           taskId: response.jobId,
           telegram_id,
-          modelId
+          modelId,
+          modelType: isWanModel ? 'WAN' : 'Sora'
         })
       } else {
         // Для НЕ-Sora моделей: используем polling как раньше

@@ -274,13 +274,16 @@ export async function generateTextToVideo(
         videoUrl = kieResponse.data.videoUrl
         logger.info('[generateTextToVideo] Video URL received from KieAi', { telegram_id, videoUrl })
       }
-      // Если асинхронная генерация (taskId) - возвращаем null, так как это не поддерживается в текущем flow
+      // Если асинхронная генерация (taskId) - для WAN моделей это нормально
       else if (kieResponse.data.taskId) {
-        logger.warn('[generateTextToVideo] Async generation not supported in this context', {
+        logger.info('[generateTextToVideo] Async generation started via KieAi', {
           telegram_id,
-          taskId: kieResponse.data.taskId
+          taskId: kieResponse.data.taskId,
+          modelId: modelConfig.id
         })
-        throw new Error('Async video generation via Kie.ai is not supported in text-to-video handler')
+        // Для WAN и других асинхронных моделей возвращаем taskId
+        // Вызывающая функция должна обработать это через jobId polling
+        return kieResponse.data.taskId
       } else {
         throw new Error('Kie.ai API returned neither videoUrl nor taskId')
       }
