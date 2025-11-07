@@ -34,6 +34,7 @@ interface TextToVideoRequest {
   username: string
   is_ru: boolean
   bot_name: string
+  removeWatermark?: boolean // 🆕 Для Sora: удалять watermark или нет (default: true для Sora)
 }
 
 interface TextToVideoResponse {
@@ -133,6 +134,7 @@ export async function generateTextToVideo(
     username,
     is_ru,
     bot_name,
+    removeWatermark = true, // 🆕 Default true для обратной совместимости (без watermark лучше)
   } = params
 
   // Валидация параметров
@@ -202,7 +204,7 @@ export async function generateTextToVideo(
           prompt,
           soraModel as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
           soraAspectRatio as 'landscape' | 'portrait',
-          false // remove_watermark
+          removeWatermark // 🆕 Передаем значение из параметров
         )
 
         logger.info('[SORA] API response received:', {

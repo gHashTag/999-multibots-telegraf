@@ -190,12 +190,13 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       const parsedModel = parseModelButton(selectedText)
       if (parsedModel) {
         console.log('🎬 [I2V WIZARD] Step 3: Model selected:', parsedModel)
-        
+
         // Сохраняем выбранную модель
         ctx.session.selectedVideoModel = parsedModel.modelId
         ctx.session.selectedAspectRatio = parsedModel.aspectRatio
         ctx.session.selectedVideoCost = parsedModel.cost
         ctx.session.selectedDuration = parsedModel.duration
+        ctx.session.selectedRemoveWatermark = parsedModel.removeWatermark // 🆕 Сохраняем watermark опцию
         
         await ctx.reply(
           isRu 
@@ -300,7 +301,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
 
       const videoModelId = selectedModel as VideoModelId
-      await handleImageToVideoDirect(ctx, imageUrl, prompt, videoModelId, duration, aspectRatio)
+      const removeWatermark = ctx.session.selectedRemoveWatermark // 🆕 Получаем watermark опцию
+      await handleImageToVideoDirect(ctx, imageUrl, prompt, videoModelId, duration, aspectRatio, removeWatermark)
       console.log('🎬 [I2V WIZARD] Video generation success!')
 
       return ctx.scene.leave()

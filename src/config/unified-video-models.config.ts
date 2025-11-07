@@ -64,6 +64,11 @@ export interface UnifiedVideoModelConfig {
 
     // Длительность по умолчанию (для динамических моделей)
     defaultDuration?: number
+
+    // 🆕 Цена за удаление watermark (только для Sora моделей)
+    // Если указано, то fixedPriceStars - это цена С watermark
+    // А fixedPriceStars + watermarkRemovalPriceStars - это цена БЕЗ watermark
+    watermarkRemovalPriceStars?: number
   }
 
   // Настройки API
@@ -182,7 +187,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['text'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 9, // 10 сек × $0.015/сек × 1.5 / $0.016 = 9⭐
+      fixedPriceStars: 9, // 10 сек × $0.015/сек × 1.5 / $0.016 = 9⭐ (С watermark)
+      watermarkRemovalPriceStars: 3, // +$0.05 / $0.016 = 3⭐ (БЕЗ watermark: 9 + 3 = 12⭐)
       defaultDuration: 10
     },
     apiSettings: {
@@ -202,7 +208,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['text'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 28, // 10 сек × $0.045/сек × 1.5 / $0.016 = 28⭐
+      fixedPriceStars: 28, // 10 сек × $0.045/сек × 1.5 / $0.016 = 28⭐ (С watermark)
+      watermarkRemovalPriceStars: 3, // +$0.05 / $0.016 = 3⭐ (БЕЗ watermark: 28 + 3 = 31⭐)
       defaultDuration: 10
     },
     apiSettings: {
@@ -222,7 +229,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['image'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 9,
+      fixedPriceStars: 9, // С watermark
+      watermarkRemovalPriceStars: 3, // БЕЗ watermark: 9 + 3 = 12⭐
       defaultDuration: 10
     },
     apiSettings: {
@@ -243,7 +251,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['image'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 28,
+      fixedPriceStars: 28, // С watermark
+      watermarkRemovalPriceStars: 3, // БЕЗ watermark: 28 + 3 = 31⭐
       defaultDuration: 10
     },
     apiSettings: {
@@ -881,7 +890,8 @@ const GenerateButtonParamsSchema = z.object({
   aspectRatio: z.enum(['16:9', '9:16'], {
     errorMap: () => ({ message: 'aspectRatio must be "16:9" or "9:16"' })
   }),
-  isRu: z.boolean()
+  isRu: z.boolean(),
+  removeWatermark: z.boolean().optional() // 🆕 Для Sora: false = с watermark, true = без watermark
 })
 
 /**
@@ -892,7 +902,8 @@ export const ParsedModelButtonSchema = z.object({
   aspectRatio: z.enum(['16:9', '9:16']),
   duration: z.number().positive().optional(),
   cost: z.number().nonnegative(),
-  resolution: z.string().optional()
+  resolution: z.string().optional(),
+  removeWatermark: z.boolean().optional() // 🆕 Для Sora: определяем по кнопке
 })
 
 /**
@@ -916,16 +927,18 @@ const GenerateKeyboardParamsSchema = z.object({
  * @param modelId - ID модели из UNIFIED_VIDEO_MODELS
  * @param aspectRatio - '16:9' или '9:16'
  * @param isRu - русский или английский язык
+ * @param removeWatermark - 🆕 Для Sora: false = с watermark (дешевле), true = без watermark (дороже)
  * @returns Строка для кнопки в формате "Название | 8s | 🖥️ (187⭐)"
  * @throws {z.ZodError} Если параметры не валидны
  */
 export function generateModelButton(
   modelId: string,
   aspectRatio: '16:9' | '9:16',
-  isRu: boolean
+  isRu: boolean,
+  removeWatermark?: boolean
 ): string {
   // ✅ ZOD ВАЛИДАЦИЯ ВХОДНЫХ ПАРАМЕТРОВ
-  const validated = GenerateButtonParamsSchema.parse({ modelId, aspectRatio, isRu })
+  const validated = GenerateButtonParamsSchema.parse({ modelId, aspectRatio, isRu, removeWatermark })
 
   const config = getUnifiedModelConfig(validated.modelId)
   if (!config) {
@@ -936,7 +949,13 @@ export function generateModelButton(
 
   // Расчет цены с учетом разрешения для per_resolution моделей
   const resolution = validated.aspectRatio === '9:16' ? '480p' : '1080p'
-  const stars = getUnifiedModelPrice(validated.modelId, { resolution })
+  let stars = getUnifiedModelPrice(validated.modelId, { resolution })
+
+  // 🆕 Добавляем цену за watermark removal, если указано
+  const isSoraModel = validated.modelId.includes('sora')
+  if (isSoraModel && validated.removeWatermark && config.pricing.watermarkRemovalPriceStars) {
+    stars += config.pricing.watermarkRemovalPriceStars
+  }
 
   // Определяем длительность из конфига
   let durationText = ''
@@ -953,7 +972,17 @@ export function generateModelButton(
   // Добавляем разрешение для моделей с ценой за разрешение
   const resolutionSuffix = config.pricing.type === 'per_resolution' ? ` ${resolution}` : ''
 
-  return `${displayName}${resolutionSuffix}${durationText} | ${aspectIcon} (${stars}⭐)`
+  // 🆕 Добавляем маркер watermark для Sora моделей
+  let watermarkMarker = ''
+  if (isSoraModel) {
+    if (validated.removeWatermark) {
+      watermarkMarker = ' ✨' // Блестящий значок = БЕЗ watermark
+    } else {
+      watermarkMarker = ' 💧' // Капля = С watermark
+    }
+  }
+
+  return `${displayName}${resolutionSuffix}${durationText} | ${aspectIcon}${watermarkMarker} (${stars}⭐)`
 }
 
 /**
@@ -970,6 +999,16 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
   // Определяем соотношение сторон по иконке
   const aspectRatio: '16:9' | '9:16' = buttonText.includes('📱') ? '9:16' : '16:9'
 
+  // 🆕 Определяем removeWatermark по маркеру (только для Sora моделей)
+  const hasWatermarkFreeMarker = buttonText.includes('✨')
+  const hasWatermarkMarker = buttonText.includes('💧')
+  let removeWatermark: boolean | undefined
+  if (hasWatermarkFreeMarker) {
+    removeWatermark = true // БЕЗ watermark
+  } else if (hasWatermarkMarker) {
+    removeWatermark = false // С watermark
+  }
+
   // Парсим по названию модели из unified config
   const allModels = getActiveModels()
   const foundModel = allModels.find(config =>
@@ -983,7 +1022,13 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
 
     // Используем unified config для расчета цены
     const resolution = aspectRatio === '9:16' ? '480p' : '1080p'
-    const stars = getUnifiedModelPrice(modelId, { resolution })
+    let stars = getUnifiedModelPrice(modelId, { resolution })
+
+    // 🆕 Добавляем watermark removal цену, если нужно
+    const isSoraModel = modelId.includes('sora')
+    if (isSoraModel && removeWatermark && foundModel.pricing.watermarkRemovalPriceStars) {
+      stars += foundModel.pricing.watermarkRemovalPriceStars
+    }
 
     // Определяем длительность
     let duration: number | undefined
@@ -1000,7 +1045,8 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
       aspectRatio,
       duration,
       cost: stars,
-      resolution
+      resolution,
+      removeWatermark // 🆕 Передаем флаг watermark
     }
   } else {
     console.warn('[parseModelButton] No match found for button text:', buttonText, '- using fallback')
@@ -1050,23 +1096,34 @@ export function generateModelKeyboard(
     throw new Error(`[generateModelKeyboard] No models found for inputType: ${validated.inputType}`)
   }
 
-  // Собираем все кнопки по типам
-  const horizontalButtons: string[] = [] // 16:9 кнопки (слева)
-  const verticalButtons: string[] = []   // 9:16 кнопки (справа)
+  // 🆕 Создаем ряды для каждой модели
+  // Для Sora: 4 кнопки (16:9 с/без watermark + 9:16 с/без watermark)
+  // Для других: 2 кнопки (16:9 + 9:16)
+  const keyboardRows: string[][] = []
 
   models.forEach(config => {
-    horizontalButtons.push(generateModelButton(config.id, '16:9', validated.isRu))
-    verticalButtons.push(generateModelButton(config.id, '9:16', validated.isRu))
-  })
+    const isSoraModel = config.id.includes('sora') && config.pricing.watermarkRemovalPriceStars
 
-  // Создаем ряды: горизонтальные слева, вертикальные справа
-  const keyboardRows: string[][] = []
-  for (let i = 0; i < Math.max(horizontalButtons.length, verticalButtons.length); i++) {
-    const row: string[] = []
-    if (horizontalButtons[i]) row.push(horizontalButtons[i])
-    if (verticalButtons[i]) row.push(verticalButtons[i])
-    if (row.length > 0) keyboardRows.push(row)
-  }
+    if (isSoraModel) {
+      // Для Sora создаем 2 ряда:
+      // Ряд 1: 16:9 с watermark + 16:9 без watermark
+      keyboardRows.push([
+        generateModelButton(config.id, '16:9', validated.isRu, false), // С watermark 💧
+        generateModelButton(config.id, '16:9', validated.isRu, true)   // БЕЗ watermark ✨
+      ])
+      // Ряд 2: 9:16 с watermark + 9:16 без watermark
+      keyboardRows.push([
+        generateModelButton(config.id, '9:16', validated.isRu, false), // С watermark 💧
+        generateModelButton(config.id, '9:16', validated.isRu, true)   // БЕЗ watermark ✨
+      ])
+    } else {
+      // Для остальных моделей создаем 1 ряд: 16:9 + 9:16
+      keyboardRows.push([
+        generateModelButton(config.id, '16:9', validated.isRu),
+        generateModelButton(config.id, '9:16', validated.isRu)
+      ])
+    }
+  })
 
   return keyboardRows
 }

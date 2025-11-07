@@ -29,7 +29,8 @@ export async function handleTextToVideoDirect(
   prompt: string,
   modelId: VideoModelId,
   duration?: number,
-  aspectRatio?: string
+  aspectRatio?: string,
+  removeWatermark?: boolean // 🆕 Для Sora: удалять watermark или нет
 ): Promise<void> {
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
@@ -134,6 +135,7 @@ export async function handleTextToVideoDirect(
       username,
       is_ru,
       bot_name,
+      removeWatermark, // 🆕 Передаем watermark опцию в API
     })
 
     if (!response.success) {

@@ -114,20 +114,21 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const parsedModel = parseModelButton(selectedText)
       if (parsedModel) {
         console.log('🎬 [WIZARD] Step 2: Model selected:', parsedModel)
-        
+
         // Сохраняем выбранную модель
         ctx.session.selectedVideoModel = parsedModel.modelId
         ctx.session.selectedAspectRatio = parsedModel.aspectRatio
         ctx.session.selectedVideoCost = parsedModel.cost
         ctx.session.selectedDuration = parsedModel.duration
-        
+        ctx.session.selectedRemoveWatermark = parsedModel.removeWatermark // 🆕 Сохраняем watermark опцию
+
         await ctx.reply(
-          isRu 
+          isRu
             ? `✅ Модель выбрана: ${selectedText}\n\n📝 Теперь опишите, что должно происходить в видео:`
             : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`,
           Markup.removeKeyboard()
         )
-        
+
         // Переходим к следующему шагу для ожидания промпта
         ctx.wizard.next()
         return
@@ -220,7 +221,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
 
       const videoModelId = selectedModel as VideoModelId
-      await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio)
+      const removeWatermark = ctx.session.selectedRemoveWatermark // 🆕 Получаем watermark опцию
+      await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio, removeWatermark)
       console.log('🎬 [WIZARD] Video generation success!')
 
       return ctx.scene.leave()
