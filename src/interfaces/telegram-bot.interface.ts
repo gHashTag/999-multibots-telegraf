@@ -204,20 +204,73 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedLipSyncModel?: string // ID выбранной модели lip-sync
   veedFabric?: {
     // Данные для Veed Fabric wizard
-    step?: 'image' | 'text' | 'processing'
+    step?: 'image' | 'text' | 'processing' | 'confirm'
     imageUrl?: string
     text?: string
+    audioUrl?: string // URL голосового сообщения из Supabase
+    duration?: number // Длительность в секундах
+    cost?: number // Стоимость генерации в звездах
     startTime?: number
     resolution?: '480p' | '720p' // Разрешение видео
     needsVoiceCreation?: boolean // Флаг необходимости создания голоса
   }
   returnToVeedFabricAfterVoice?: boolean // Флаг возврата в Veed Fabric после создания голоса
+  ttsTextToConvert?: string
+  pendingTtsText?: string
+  voiceMode?: 'avatar' | 'transcribe'
+  lastTranscribedText?: string
+  avatarPhoto?: {
+    file_id: string
+    unique_id: string
+  }
+
+  aiReels?: {
+    // Данные для AI Reels wizard (lip-sync + WAN v2.2-5b + merging)
+    step?: 'image' | 'text' | 'lipsync_generation' | 'wan_generation' | 'merging'
+    imageUrl?: string
+    text?: string
+    audioUrl?: string
+    startTime?: number
+    needsVoiceCreation?: boolean // Флаг необходимости создания голоса
+    resolution?: '720p' | '1080p' // Разрешение видео
+    useInngest?: boolean
+    aspectRatio?: '16:9' | '9:16' | '1:1' // Соотношение сторон видео (по умолчанию 9:16 для соцсетей)
+    firstVideoUrl?: string  // URL первого видео (lip-sync)
+    secondVideoUrl?: string // URL второго видео (WAN v2.2-5b)
+    finalVideoUrl?: string  // URL финального склеенного видео
+    wan25Prompt?: string    // Промпт для WAN v2.2-5b (генерируется из текста пользователя)
+    wan25TaskId?: string    // ID задачи WAN v2.2-5b для отслеживания
+  }
+  returnToAIReelsAfterVoice?: boolean // Флаг возврата в AI Reels после создания голоса
+
+  aiReelsRender?: {
+    // Данные для AI Reels Render wizard (генерация через render-server с Hedra/HeyGen/Fal)
+    step?: 'image' | 'text' | 'intro_text' | 'intro_text_2' | 'avatar_service' | 'avatar_set_selection' | 'processing'
+    imageUrl?: string
+    text?: string
+    audioUrl?: string
+    introText1?: string // Текст для первого поля интро
+    introText2?: string // Текст для второго поля интро
+    upperIntroText?: string // Верхний текст интро
+    coverUrl?: string // URL обложки для видео
+    avatarService?: 'hedra' | 'heygen' | 'fal' // Выбранный сервис генерации аватара
+    heygenAvatarSet?: string // Выбранный набор аватаров HeyGen (cocoage/haim)
+    heygenAvatarId?: string // ID выбранного аватара HeyGen
+    heygenApiKey?: string // API ключ для выбранного набора аватаров HeyGen
+    falApiKey?: string // API ключ для Fal
+    falResolution?: '720p' | '1080p' // Разрешение для Fal
+    startTime?: number
+    eventId?: string // ID события Inngest для отслеживания
+    estimatedDuration?: number // Оценка длительности для расчета стоимости
+  }
   email?: string
   inviteCode?: string
   inviter?: string
   paymentAmount?: number
   botName?: string
   selectedImageModel?: string
+  numImages?: number // Number of images to generate (1-4)
+  imageGenerationPrice?: number // Price for image generation
   promoProcessed?: boolean
   subscriptionStep?:
     | 'LOADING_TRANSLATIONS'

@@ -1,6 +1,6 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { getUserBalance, getVoiceId } from '../../core/supabase'
+import { getUserBalance, getVoiceId, updateUserBalance } from '../../core/supabase'
 import {
   sendBalanceMessage,
   // sendInsufficientStarsMessage, // Больше не используется здесь напрямую, т.к. проверка баланса выше
@@ -21,18 +21,40 @@ import fs from 'fs'
 import logger from '@/utils/logger'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
+import { sendCompletionNotification } from '@/helpers/completionNotification'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'text_to_speech',
   async ctx => {
     console.log('CASE: text_to_speech')
     const isRu = isRussianFromState(ctx)
-    await ctx.reply(
-      isRu
-        ? '🎙️ Отправьте текст, для преобразования его в голос'
-        : '🎙️ Send text, to convert it to voice',
-      createHelpCancelKeyboard(isRu)
-    )
+
+    // Check if we have pre-filled text from voice transcription
+    if (ctx.session.ttsTextToConvert) {
+      const prefilledText = ctx.session.ttsTextToConvert
+      // Clear the pre-filled text from session
+      delete ctx.session.ttsTextToConvert
+
+      // Show the text and ask for confirmation
+      await ctx.reply(
+        isRu
+          ? `📝 Текст для озвучивания:\n\n<i>${prefilledText}</i>\n\n✅ Нажмите /convert чтобы озвучить или отправьте другой текст`
+          : `📝 Text to convert:\n\n<i>${prefilledText}</i>\n\n✅ Send /convert to proceed or send different text`,
+        { parse_mode: 'HTML', ...createHelpCancelKeyboard(isRu) }
+      )
+
+      // Store text temporarily for next step
+      ctx.session.pendingTtsText = prefilledText
+    } else {
+      await ctx.reply(
+        isRu
+          ? '🎙️ Отправьте текст, для преобразования его в голос'
+          : '🎙️ Send text, to convert it to voice',
+        createHelpCancelKeyboard(isRu)
+      )
+    }
+
     ctx.wizard.next()
     return
   },
@@ -41,8 +63,17 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let audioPath: string | null = null
+    let textToConvert: string | undefined
 
-    if (!message || !('text' in message)) {
+    // Check for /convert command with pending text
+    if (message && 'text' in message && message.text === '/convert' && ctx.session.pendingTtsText) {
+      textToConvert = ctx.session.pendingTtsText
+      delete ctx.session.pendingTtsText
+    } else if (message && 'text' in message && message.text !== '/convert') {
+      // Use the new text provided by user
+      textToConvert = message.text
+      delete ctx.session.pendingTtsText // Clear any pending text
+    } else if (!message || !('text' in message)) {
       await ctx.reply(
         isRu ? '✍️ Пожалуйста, отправьте текст' : '✍️ Please send text'
       )
@@ -53,7 +84,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     if (isCancel) {
       ctx.scene.leave()
       return
-    } else {
+    } else if (textToConvert) {
       try {
         if (!ctx.from?.id) {
           console.error('❌ Telegram ID не найден')
@@ -82,11 +113,11 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         }
 
         logger.info('[textToSpeechWizard] Calling createAudioFileFromText', {
-          text: message.text.substring(0, 20) + '...',
+          text: textToConvert.substring(0, 20) + '...',
           voice_id,
         })
         audioPath = await createAudioFileFromText({
-          text: message.text,
+          text: textToConvert,
           voice_id,
           telegram_id: ctx.from.id.toString(),
         })
@@ -108,13 +139,44 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           audioPath,
         })
 
-        // --- Начало блока отправки сообщения о балансе ---
+        // Send completion notification with sound
+        await sendCompletionNotification(ctx, isRu, 'text_to_speech')
+
+        // --- Начало блока списания баланса ---
         const costResult = calculateModeCost({ mode: ModeEnum.TextToSpeech })
         const cost = costResult.stars
         const currentUserId = ctx.from?.id?.toString()
         const botName = ctx.botInfo?.username || 'unknown_bot'
 
         if (currentUserId) {
+          // ✅ СПИСЫВАЕМ БАЛАНС после успешной генерации аудио
+          if (cost > 0) {
+            const charged = await updateUserBalance(
+              currentUserId,
+              cost,
+              PaymentType.MONEY_OUTCOME,
+              `Text to Speech generation (${textToConvert.length} chars)`,
+              { service_type: 'TEXT_TO_SPEECH' }
+            )
+
+            if (!charged) {
+              logger.error('❌ Failed to charge user for TTS', {
+                telegram_id: currentUserId,
+                cost
+              })
+              await ctx.reply(
+                isRu
+                  ? '⚠️ Аудио создано, но произошла ошибка при списании средств. Обратитесь в поддержку.'
+                  : '⚠️ Audio created, but there was an error charging your balance. Please contact support.'
+              )
+            } else {
+              logger.info('✅ Successfully charged user for TTS', {
+                telegram_id: currentUserId,
+                cost
+              })
+            }
+          }
+
           const currentBalance = await getUserBalance(currentUserId)
           await sendBalanceMessage(ctx, currentBalance, cost, isRu, botName)
           logger.info('[textToSpeechWizard] Balance message sent to user.', {
@@ -126,7 +188,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
             '[textToSpeechWizard] Cannot send balance message, user ID not found.'
           )
         }
-        // --- Конец блока отправки сообщения о балансе ---
+        // --- Конец блока списания баланса ---
       } catch (error) {
         console.error('Error processing text_to_speech in wizard:', error)
 
@@ -153,7 +215,8 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
             )
           }
         }
-        ctx.scene.leave()
+        await ctx.scene.leave()
+        await ctx.scene.enter(ModeEnum.MainMenu)
       }
       return
     }

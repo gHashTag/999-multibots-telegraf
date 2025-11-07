@@ -125,10 +125,7 @@ export async function setupModelSelectionStep(
     if (options.onError) {
       await options.onError(ctx, errorObj)
     } else {
-      await handleSystemError(ctx, errorObj, {
-        telegramId: ctx.from?.id?.toString(),
-        operationName: 'model_selection_setup'
-      })
+      await handleSystemError(errorObj)
     }
 
     return { success: false, error: errorObj.message }
@@ -240,8 +237,8 @@ export const ErrorRecoveryStrategies = {
         : '❌ An error occurred. Returning to main menu.'
     )
 
-    const { handleMenu } = await import('@/handlers/handleMenu')
-    await handleMenu(ctx)
+    const { УДАЛЁН } = await import('@/handlers/УДАЛЁН')
+    return
 
     if (ctx.scene.current) {
       await ctx.scene.leave()
@@ -260,8 +257,8 @@ export const ErrorRecoveryStrategies = {
         : '❌ Error. Let\'s try again.'
     )
 
-    if (ctx.wizard && ctx.wizard.cursor > 0) {
-      ctx.wizard.selectStep(ctx.wizard.cursor)
+    if (ctx.wizard && (ctx.wizard?.cursor ?? 0) > 0) {
+      ctx.wizard.selectStep(ctx.wizard?.cursor ?? 0)
     }
   },
 

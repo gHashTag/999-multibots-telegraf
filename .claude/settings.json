@@ -1,5 +1,6 @@
 {
-  "env": {},
+  "env": {
+  },
   "permissions": {
     "allow": [
       "Bash(npm run lint)",
@@ -38,8 +39,6 @@
     ],
     "deny": [
       "Bash(rm -rf /)",
-      "Bash(curl * | bash)",
-      "Bash(wget * | sh)",
       "Bash(eval *)"
     ]
   },

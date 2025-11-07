@@ -8,6 +8,7 @@ export type VideoModelConfig = {
   description: string
   inputType: ('text' | 'image' | 'morph')[]
   basePrice: number
+  provider?: 'kie' | 'replicate' // ✅ FIX: Добавлено поле provider для выбора API
   api: {
     model: string
     input: Record<string, any>
@@ -26,21 +27,7 @@ export type VideoModelConfig = {
 }
 
 export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
-  minimax: {
-    id: 'minimax',
-    title: 'Minimax',
-    inputType: ['text', 'image'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.5,
-    api: {
-      model: 'minimax/video-01',
-      input: {
-        prompt_optimizer: true,
-      },
-    },
-    imageKey: 'first_frame_image',
-    canMorph: false,
-  },
+  // ❌ УДАЛЕНА устаревшая модель minimax (46⭐) - не работает, 404 ошибка
   'haiper-video-2': {
     id: 'haiper-video-2',
     title: 'Haiper Video 2',
@@ -70,45 +57,9 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     },
     imageKey: 'start_image_url',
   },
-  'wan-image-to-video': {
-    id: 'wan-image-to-video',
-    title: 'Wan-2.1-i2v',
-    inputType: ['image'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.25,
-    api: {
-      model: 'wavespeedai/wan-2.1-i2v-720p',
-      input: {
-        fast_mode: 'Balanced',
-        num_frames: 81,
-        sample_shift: 5,
-        sample_steps: 30,
-        frames_per_second: 16,
-        sample_guide_scale: 5,
-        max_area: '720x1280',
-      },
-    },
-    imageKey: 'image',
-  },
-  'wan-text-to-video': {
-    id: 'wan-text-to-video',
-    title: 'Wan-2.1',
-    inputType: ['text'],
-    description: 'Базовая модель для начального уровня',
-    basePrice: 0.25,
-    api: {
-      model: 'wavespeedai/wan-2.1-t2v-720p',
-      input: {
-        fast_mode: 'Balanced',
-        num_frames: 81,
-        sample_shift: 5,
-        sample_steps: 30,
-        frames_per_second: 16,
-        sample_guide_scale: 5,
-        max_area: '720x1280',
-      },
-    },
-  },
+  // ❌ УДАЛЕНЫ устаревшие модели Wan-2.1 (23⭐ каждая) - не работают, 404 ошибки:
+  // - wan-image-to-video
+  // - wan-text-to-video
   'kling-v1.6-pro': {
     id: 'kling-v1.6-pro',
     title: 'Kling v1.6 Pro',
@@ -185,19 +136,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     imageKey: 'start_image',
     canMorph: true,
   },
-  'hunyuan-video-fast': {
-    id: 'hunyuan-video-fast',
-    title: 'Hunyuan Video Fast',
-    inputType: ['text'],
-    description: 'Быстрая анимация с оптимизацией промптов',
-    basePrice: 0.2,
-    api: {
-      model: 'wavespeedai/hunyuan-video-fast',
-      input: {
-        prompt_optimizer: true,
-      },
-    },
-  },
+  // ❌ УДАЛЕНА устаревшая модель hunyuan-video-fast (18⭐) - не работает, 404 ошибка
   'seedance-1-pro': {
     id: 'seedance-1-pro',
     title: 'Seedance Pro',
@@ -288,7 +227,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
   'veo3': {
     id: 'veo3',
     title: 'Veo 3',
-    inputType: ['text'],
+    inputType: ['text', 'image'], // ✅ FIX: Added 'image' support
     description:
       '⭐ ПРЕМИУМ: 8 сек, 1080p, премиум качество - 202⭐ (экономия до 37%)',
     basePrice: 3.23, // $3.23 USD за 8 секунд = 202 звезды
@@ -300,6 +239,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
           userAspect === '9:16' ? '9:16' : '16:9', // Поддержка 9:16 и 16:9
       },
     },
+    imageKey: 'image', // ✅ FIX: Added imageKey for image-to-video support
     canMorph: false,
     aspectRatioOptions: ['16:9', '9:16'], // Вернул выбор соотношения сторон
   },
@@ -321,6 +261,86 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     imageKey: 'image',
     canMorph: false,
     aspectRatioOptions: ['16:9', '9:16'], // Поддерживаемые соотношения сторон
+  },
+  'sora-2': {
+    id: 'sora-2',
+    title: 'Sora 2',
+    inputType: ['text'],
+    description:
+      '🎬 OpenAI Sora 2 - высокое качество, 10 сек - 9⭐',
+    basePrice: 0.015, // 9⭐ за 10 сек БЕЗ наценки = $0.15 за 10 сек (Kie.ai pricing)
+    api: {
+      model: 'sora-2-text-to-video', // Kie.ai provider
+      input: {
+        duration: 10, // Фиксированная длительность 10 секунд
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? 'portrait' : 'landscape',
+        remove_watermark: false,
+      },
+    },
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'],
+  },
+  'sora-2-pro': {
+    id: 'sora-2-pro',
+    title: 'Sora 2 Pro',
+    inputType: ['text'],
+    description:
+      '✨ OpenAI Sora 2 Pro - максимальное качество, 10 сек - 28⭐',
+    basePrice: 0.045, // 28⭐ за 10 сек standard = 0.45 USD за 10 сек = 0.045/сек (Kie.ai pricing)
+    api: {
+      model: 'sora-2-pro-text-to-video', // Kie.ai provider
+      input: {
+        duration: 10, // Фиксированная длительность 10 секунд
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? 'portrait' : 'landscape',
+        remove_watermark: false,
+      },
+    },
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'],
+  },
+  'sora-2-i2v': {
+    id: 'sora-2-i2v',
+    title: 'Sora 2 I2V',
+    inputType: ['image'],
+    description:
+      '🎬 OpenAI Sora 2 Image-to-Video - 10 сек - 9⭐',
+    basePrice: 0.015, // 9⭐ за 10 сек = 0.15 USD за 10 сек = 0.015/сек (Kie.ai pricing)
+    provider: 'kie', // ✅ FIX: Используем Kie.ai API для Sora I2V
+    api: {
+      model: 'sora-2-i2v', // ✅ FIX: Исправлено название модели с sora-2-image-to-video на sora-2-i2v
+      input: {
+        duration: 10,
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? 'portrait' : 'landscape',
+        remove_watermark: false,
+      },
+    },
+    imageKey: 'image_urls',
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'],
+  },
+  'sora-2-pro-i2v': {
+    id: 'sora-2-pro-i2v',
+    title: 'Sora 2 Pro I2V',
+    inputType: ['image'],
+    description:
+      '✨ OpenAI Sora 2 Pro Image-to-Video - 10 сек - 28⭐',
+    basePrice: 0.045, // 28⭐ за 10 сек standard = 0.45 USD за 10 сек = 0.045/сек (Kie.ai pricing)
+    provider: 'kie', // ✅ FIX: Используем Kie.ai API для Sora Pro I2V
+    api: {
+      model: 'sora-2-pro-i2v', // ✅ FIX: Исправлено название модели с sora-2-pro-image-to-video на sora-2-pro-i2v
+      input: {
+        duration: 10,
+        aspect_ratio: (userAspect: string) =>
+          userAspect === '9:16' ? 'portrait' : 'landscape',
+        remove_watermark: false,
+      },
+    },
+    imageKey: 'image_urls',
+    canMorph: false,
+    aspectRatioOptions: ['16:9', '9:16'],
   },
 }
 

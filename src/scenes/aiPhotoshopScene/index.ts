@@ -811,9 +811,9 @@ aiPhotoshopScene.enter(async ctx => {
 
 ⬇️ *Выберите модель ИИ для обработки:*
 
-🎭 *SeeDream-4* - Генерация и трансформация (5⭐, до 10 фото)
-🍌 *Nano Banana* - ИИ редактирование Gemini 2.5 (7⭐, до 3 фото)
-🚀 *FLUX Kontext Max* - Профессиональное (13⭐, 1 фото)
+🎭 *SeeDream-4* - Генерация и трансформация (4⭐, до 10 фото)
+🍌 *Nano Banana* - ИИ редактирование Gemini 2.5 (5⭐, до 3 фото)
+🚀 *FLUX Multi-Kontext* - Профессиональное (4⭐, 1 фото)
 🎨 *Qwen Image Edit Plus* - Продвинутое (5⭐, до 10 фото)
 
 💡 *Или просто отправьте фото сразу для обработки SeeDream-4!*`
@@ -830,9 +830,9 @@ aiPhotoshopScene.enter(async ctx => {
 
 ⬇️ *Choose an AI model for processing:*
 
-🎭 *SeeDream-4* - Generation and transformation (5⭐, up to 10 photos)
-🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (7⭐, up to 3 photos)
-🚀 *FLUX Kontext Max* - Professional editing (13⭐, single photo)
+🎭 *SeeDream-4* - Generation and transformation (4⭐, up to 10 photos)
+🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (5⭐, up to 3 photos)
+🚀 *FLUX Multi-Kontext* - Professional editing (4⭐, single photo)
 🎨 *Qwen Image Edit Plus* - Advanced editing (5⭐, up to 10 photos)
 
 💡 *Or just send a photo directly for SeeDream-4 processing!*`
@@ -1219,7 +1219,7 @@ aiPhotoshopScene.action(/^ai_photoshop_size_(1K|2K|4K)$/, async ctx => {
               ],
               [
                 {
-                  text: isRu ? '❌ Отмена' : '❌ Cancel',
+                  text: isRu ? 'Отмена' : 'Cancel',
                   callback_data: 'ai_photoshop_multi_cancel',
                 },
               ],
@@ -2073,7 +2073,7 @@ aiPhotoshopScene.on('text', async ctx => {
               ],
               [
                 {
-                  text: isRu ? '❌ Отмена' : '❌ Cancel',
+                  text: isRu ? 'Отмена' : 'Cancel',
                   callback_data: 'ai_photoshop_multi_cancel',
                 },
               ],
@@ -2115,9 +2115,9 @@ async function showAiPhotoshopModels(ctx: MyContext): Promise<void> {
   const description = isRu
     ? `Выберите модель ИИ для обработки:
 
-🎭 *SeeDream-4* - Генерация и трансформация изображений (5⭐, до 10 фото)
-🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (7⭐, до 3 фото)
-🚀 *FLUX Kontext Max* - Профессиональное редактирование (13⭐, только 1 фото)
+🎭 *SeeDream-4* - Генерация и трансформация изображений (4⭐, до 10 фото)
+🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (5⭐, до 3 фото)
+🚀 *FLUX Multi-Kontext* - Профессиональное редактирование (4⭐, только 1 фото)
 🎨 *Qwen Image Edit Plus* - Продвинутое редактирование (5⭐, до 10 фото)
 
 📸 *Или сразу отправьте фото/альбом для быстрой обработки через SeeDream-4*
@@ -2125,9 +2125,9 @@ async function showAiPhotoshopModels(ctx: MyContext): Promise<void> {
 ✨ *Загружайте альбомы для пакетной обработки*`
     : `Choose an AI model for processing:
 
-🎭 *SeeDream-4* - Image generation and transformation (5⭐, up to 10 photos)
-🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (7⭐, up to 3 photos)
-🚀 *FLUX Kontext Max* - Professional editing (13⭐, single photo only)
+🎭 *SeeDream-4* - Image generation and transformation (4⭐, up to 10 photos)
+🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (5⭐, up to 3 photos)
+🚀 *FLUX Multi-Kontext* - Professional editing (4⭐, single photo only)
 🎨 *Qwen Image Edit Plus* - Advanced multi-image editing (5⭐, up to 10 photos)
 
 📸 *Or send photos/album directly for quick processing with SeeDream-4*
@@ -3940,14 +3940,14 @@ aiPhotoshopScene.action('ai_photoshop_back_to_models', async ctx => {
     const description = isRu
       ? `Выберите модель ИИ для обработки:
 
-🎭 *SeeDream-4* - Генерация и трансформация изображений (5⭐)
-🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (7⭐)
-🚀 *FLUX Kontext Max* - Профессиональное редактирование (13⭐)`
+🎭 *SeeDream-4* - Генерация и трансформация изображений (4⭐)
+🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (5⭐)
+🚀 *FLUX Multi-Kontext* - Профессиональное редактирование (4⭐)`
       : `Choose an AI model for processing:
 
-🎭 *SeeDream-4* - Image generation and transformation (5⭐)
-🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (7⭐)
-🚀 *FLUX Kontext Max* - Professional editing (13⭐)`
+🎭 *SeeDream-4* - Image generation and transformation (4⭐)
+🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (5⭐)
+🚀 *FLUX Multi-Kontext* - Professional editing (4⭐)`
 
     await ctx.editMessageText(title + '\n\n' + description, {
       parse_mode: 'Markdown',
@@ -4162,7 +4162,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_process', async ctx => {
     // Add cancel button
     keyboard.push([
       {
-        text: isRu ? '❌ Отмена' : '❌ Cancel',
+        text: isRu ? 'Отмена' : 'Cancel',
         callback_data: 'ai_photoshop_multi_cancel',
       },
     ])
@@ -4248,7 +4248,7 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
               inline_keyboard: [
                 [
                   {
-                    text: isRu ? '❌ Отмена' : '❌ Cancel',
+                    text: isRu ? 'Отмена' : 'Cancel',
                     callback_data: 'ai_photoshop_multi_cancel',
                   },
                 ],

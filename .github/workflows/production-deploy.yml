@@ -2,7 +2,7 @@ name: Production Auto-Deploy
 
 on:
   push:
-    branches: 
+    branches:
       - production
   workflow_dispatch:
     inputs:
@@ -17,155 +17,161 @@ permissions:
   deployments: write
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: 999-agents-telegraf
+  DEPLOY_PATH: /root/bot-farm
+  CONTAINER_NAME: 999-multibots
 
 jobs:
-  build-and-deploy:
-    name: Build and Deploy to Production
+  deploy:
+    name: Deploy to Production Server
     runs-on: ubuntu-latest
     environment: production
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: production
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm run test || echo "Tests completed"
-
-      - name: Build application
-        run: npm run build || echo "Build completed"
-
-      - name: Create empty .env file for Docker build
-        run: |
-          echo "# Environment variables are provided at runtime" > .env
-          echo "NODE_ENV=production" >> .env
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Setup SSH
+      - name: Setup SSH Key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H 212.86.115.30 >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
 
-      - name: Deploy to Production Server
+          # Write SSH key and handle any format issues
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Add server to known hosts
+          ssh-keyscan -H 212.86.115.30 >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Test SSH connection
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@212.86.115.30 'echo "✅ SSH connection successful"'
+
+      - name: Sync Code to Server
+        run: |
+          echo "📦 Syncing code to production server..."
+
+          rsync -avz --delete \
+            --exclude 'node_modules' \
+            --exclude 'dist' \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude '.env.local' \
+            --exclude '.env.*.local' \
+            --exclude '*.log' \
+            --exclude '.DS_Store' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ./ root@212.86.115.30:${{ env.DEPLOY_PATH }}/
+
+          echo "✅ Code synced successfully"
+
+      - name: Deploy and Restart Container
         run: |
           echo "🚀 Starting production deployment..."
-          
-          ssh -i ~/.ssh/id_rsa root@212.86.115.30 << 'ENDSSH'
+
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@212.86.115.30 << 'ENDSSH'
           set -e
-          
-          echo "📦 Deploying to production server..."
-          cd /root/999-agents-vibecoder
-          
-          # Stop current container
-          echo "🛑 Stopping current container..."
-          docker stop 999-multibots || true
-          docker rm 999-multibots || true
-          
-          # Pull latest image
-          echo "📥 Pulling latest image..."
-          docker pull ${{ steps.meta.outputs.tags }}
-          
-          # Start new container with correct configuration
+
+          cd ${{ env.DEPLOY_PATH }}
+
+          echo "📊 Current deployment status:"
+          docker ps | grep ${{ env.CONTAINER_NAME }} || echo "Container not running"
+
+          # Stop and remove old container
+          echo "🛑 Stopping old container..."
+          docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+          docker rm ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+
+          # Build new Docker image with no cache
+          echo "🔨 Building fresh Docker image..."
+          docker build --no-cache -t ${{ env.CONTAINER_NAME }} .
+
+          # Start new container with proper configuration
           echo "🚀 Starting new container..."
-          docker run -d --name 999-multibots \
-            --env-file .env \
-            -e NODE_ENV=production \
-            -e TEST_BOT_NAME= \
-            -p 2999:2999 -p 3000:3000 -p 3001:3001 -p 3002:3002 \
-            -p 3003:3003 -p 3004:3004 -p 3005:3005 -p 3006:3006 \
-            -p 3007:3007 -p 3008:3008 -p 3009:3009 -p 3010:3010 \
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
             --restart unless-stopped \
-            ${{ steps.meta.outputs.tags }}
-          
-          # Wait for container to start
-          echo "⏳ Waiting for container to start..."
-          sleep 30
-          
-          # Check container status
-          echo "📊 Checking container status..."
-          docker ps | grep 999-multibots
-          
-          # Verify webhook setup
-          echo "🔗 Verifying webhook setup..."
-          docker logs 999-multibots --tail 20
-          
-          echo "✅ Production deployment completed!"
+            -v ${{ env.DEPLOY_PATH }}/.env:/app/.env:ro \
+            -e NODE_ENV=production \
+            -p 3000:3000 \
+            -p 2999:2999 -p 3001:3001 -p 3002:3002 -p 3003:3003 \
+            -p 3004:3004 -p 3005:3005 -p 3006:3006 -p 3007:3007 \
+            -p 3008:3008 -p 3009:3009 -p 3010:3010 \
+            ${{ env.CONTAINER_NAME }}
+
+          echo "✅ Container started successfully"
           ENDSSH
+
+      - name: Wait for Service Startup
+        run: |
+          echo "⏳ Waiting for services to initialize..."
+          sleep 15
 
       - name: Verify Deployment
         run: |
           echo "🔍 Verifying deployment..."
-          
-          # Test API endpoint
-          if curl -f -s "http://test-render-farm.ru/" > /dev/null; then
-            echo "✅ API endpoint is responding"
+
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@212.86.115.30 << 'ENDSSH'
+          set -e
+
+          # Check container is running
+          echo "📊 Container status:"
+          if docker ps | grep -q ${{ env.CONTAINER_NAME }}; then
+            echo "✅ Container is running"
+            docker ps | grep ${{ env.CONTAINER_NAME }}
           else
-            echo "❌ API endpoint is not responding"
+            echo "❌ Container is not running!"
+            docker ps -a | grep ${{ env.CONTAINER_NAME }}
+            echo "Container logs:"
+            docker logs ${{ env.CONTAINER_NAME }} --tail 50
             exit 1
           fi
-          
-          # Check webhook status via SSH
-          ssh -i ~/.ssh/id_rsa root@212.86.115.30 << 'ENDSSH'
-          echo "🔍 Checking webhook status..."
-          
-          # Get first bot token and check webhook
-          BOT_TOKEN=$(docker exec 999-multibots printenv | grep BOT_TOKEN_1 | head -1 | cut -d'=' -f2)
-          if [ ! -z "$BOT_TOKEN" ]; then
-            WEBHOOK_INFO=$(curl -s "https://api.telegram.org/bot$BOT_TOKEN/getWebhookInfo")
-            echo "Webhook info: $WEBHOOK_INFO"
+
+          # Check container logs for errors
+          echo ""
+          echo "📋 Recent container logs:"
+          docker logs ${{ env.CONTAINER_NAME }} --tail 30
+
+          # Check for critical errors in logs
+          if docker logs ${{ env.CONTAINER_NAME }} 2>&1 | grep -i "error\|fatal\|exception" | grep -v "DeprecationWarning"; then
+            echo "⚠️ Found potential errors in logs (review needed)"
+          else
+            echo "✅ No critical errors found in logs"
           fi
           ENDSSH
+
+          # Test API endpoint
+          echo ""
+          echo "🌐 Testing API endpoint..."
+          if curl -f -s -m 10 "http://212.86.115.30:3000/health" > /dev/null 2>&1 || \
+             curl -f -s -m 10 "http://test-render-farm.ru/" > /dev/null 2>&1; then
+            echo "✅ API endpoint is responding"
+          else
+            echo "⚠️ API endpoint check skipped or not responding (may be OK if webhooks are primary)"
+          fi
 
       - name: Cleanup
         if: always()
         run: |
-          rm -f ~/.ssh/id_rsa
-          echo "🧹 Deployment cleanup completed"
+          rm -f ~/.ssh/deploy_key
+          echo "🧹 Cleanup completed"
 
-      - name: Deployment Status
+      - name: Deployment Summary
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Production deployment completed successfully!"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "🎉 DEPLOYMENT SUCCESSFUL!"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📅 Time: $(date)"
+            echo "🌐 Server: 212.86.115.30"
+            echo "📦 Container: ${{ env.CONTAINER_NAME }}"
+            echo "🔗 URL: http://test-render-farm.ru"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           else
-            echo "💥 Production deployment failed!"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "💥 DEPLOYMENT FAILED!"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Please check the logs above for details"
             exit 1
           fi

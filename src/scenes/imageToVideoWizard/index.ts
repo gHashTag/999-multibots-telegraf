@@ -6,120 +6,9 @@ import { ModeEnum } from '@/interfaces/modes'
 import { handleImageToVideoDirect } from '../../handlers/handleImageToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
 
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
-
-// Функция создания кнопки для Image to Video
-function createImageToVideoButton(
-  modelId: string,
-  aspectRatio: string,
-  isRu: boolean
-): string {
-  const aspectIcon = aspectRatio === '9:16' ? '📱' : '🖥️'
-
-  // Договоренные цены для Image to Video
-  let stars: number
-  let durationText = ''
-  
-  switch (modelId) {
-    case 'veo3_fast':
-      stars = 40
-      durationText = ' | 8s'
-      break
-    case 'veo3':
-      stars = 80
-      durationText = ' | 8s'
-      break
-    case 'kling-v1.6-pro':
-      stars = 60
-      durationText = ' | 6s'
-      break
-    case 'minimax':
-      stars = 50
-      durationText = ' | 6s'
-      break
-    case 'seedance-1-pro':
-      stars = aspectRatio === '9:16' ? 23 : 117 // 480p : 1080p
-      durationText = ' | 4s'
-      break
-    case 'wan-2.2-i2v-fast':
-      stars = 70
-      durationText = ' | 4s'
-      break
-    default:
-      stars = 40
-      durationText = ' | 8s'
-      break
-  }
-
-  const modelNames: Record<string, string> = {
-    'veo3_fast': 'Veo 3 Fast',
-    'veo3': 'Veo 3',
-    'kling-v1.6-pro': 'Kling v1.6 Pro',
-    'minimax': 'Minimax',
-    'seedance-1-pro': aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p',
-    'wan-2.2-i2v-fast': 'WAN 2.2 I2V Fast'
-  }
-
-  const modelName = modelNames[modelId] || modelId
-  return `${modelName}${durationText} | ${aspectIcon} (${stars}⭐)`
-}
-
-// Функция парсинга выбранной модели из кнопки
-function parseImageToVideoSelection(buttonText: string): {
-  modelId: string
-  aspectRatio: string
-  duration?: number
-  cost: number
-} | null {
-  try {
-    console.log('🎬 [I2V PARSE] Parsing button text:', buttonText)
-
-    // Определяем соотношение сторон по иконке
-    const aspectRatio = buttonText.includes('📱') ? '9:16' : '16:9'
-
-    // Парсим по названию модели
-    let modelId = 'veo3_fast' // default
-    let cost = 40
-    let duration = 8
-
-    if (buttonText.includes('Veo 3 Fast')) {
-      modelId = 'veo3_fast'
-      cost = 40
-      duration = 8
-    } else if (buttonText.includes('Veo 3') && !buttonText.includes('Fast')) {
-      modelId = 'veo3'
-      cost = 80
-      duration = 8
-    } else if (buttonText.includes('Kling')) {
-      modelId = 'kling-v1.6-pro'
-      cost = 60
-      duration = 6
-    } else if (buttonText.includes('Minimax')) {
-      modelId = 'minimax'
-      cost = 50
-      duration = 6
-    } else if (buttonText.includes('Seedance')) {
-      modelId = 'seedance-1-pro'
-      cost = aspectRatio === '9:16' ? 23 : 117
-      duration = 4
-    } else if (buttonText.includes('WAN')) {
-      modelId = 'wan-2.2-i2v-fast'
-      cost = 70
-      duration = 4
-    }
-
-    return { modelId, aspectRatio, duration, cost }
-  } catch (error) {
-    console.error('🎬 [I2V PARSE] Error parsing button text:', buttonText, error)
-    return {
-      modelId: 'veo3_fast',
-      aspectRatio: '9:16',
-      duration: 8,
-      cost: 40,
-    } // safe fallback
-  }
-}
 
 // ========== СОЗДАНИЕ WIZARD'A ПО АНАЛОГИИ С TEXT TO VIDEO ==========
 
@@ -139,7 +28,10 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         isRu
           ? '🖼️ Отправьте изображение для создания видео:'
           : '🖼️ Send an image to create video:',
-        Markup.removeKeyboard()
+        Markup.keyboard([
+          [isRu ? 'Отмена' : 'Cancel'],
+          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+        ]).resize()
       )
 
       console.log('🎬 [I2V WIZARD] Step 1: ✅ REPLY SENT! Moving to next step...')
@@ -167,6 +59,29 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
         return ctx.scene.leave()
+      }
+
+      // Обработка reply кнопок из шага 1
+      if (ctx.message && 'text' in ctx.message) {
+        const text = ctx.message.text
+
+        // Отмена
+        if (text === (isRu ? 'Отмена' : 'Cancel')) {
+          await ctx.reply(
+            isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+            { reply_markup: { remove_keyboard: true } }
+          )
+          return ctx.scene.leave()
+        }
+
+        // Главное меню
+        if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+          await ctx.reply(
+            isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
+            { reply_markup: { remove_keyboard: true } }
+          )
+          return ctx.scene.leave()
+        }
       }
 
       // Проверяем, что это фото
@@ -198,31 +113,17 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Создаем кнопки выбора модели (аналогично Text to Video)
       const supportedModels = [
         'veo3_fast',
-        'veo3', 
+        'veo3',
         'kling-v1.6-pro',
         'minimax',
         'seedance-1-pro',
-        'wan-2.2-i2v-fast'
+        'wan-2.2-i2v-fast',
+        'sora-2-i2v',
+        'sora-2-pro-i2v'
       ]
 
-      const keyboardRows: string[][] = []
-      
-      // Собираем все кнопки по типам
-      const horizontalButtons: string[] = [] // 16:9 кнопки (слева)
-      const verticalButtons: string[] = []   // 9:16 кнопки (справа)
-      
-      supportedModels.forEach((modelId) => {
-        horizontalButtons.push(createImageToVideoButton(modelId, '16:9', isRu))
-        verticalButtons.push(createImageToVideoButton(modelId, '9:16', isRu))
-      })
-      
-      // Создаем ряды: горизонтальные слева, вертикальные справа
-      for (let i = 0; i < Math.max(horizontalButtons.length, verticalButtons.length); i++) {
-        const row: string[] = []
-        if (horizontalButtons[i]) row.push(horizontalButtons[i])
-        if (verticalButtons[i]) row.push(verticalButtons[i])
-        if (row.length > 0) keyboardRows.push(row)
-      }
+      // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ
+      const keyboardRows = generateModelKeyboard('image', isRu, supportedModels)
 
       // Кнопки назад и отмена
       keyboardRows.push([
@@ -285,16 +186,17 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      // Парсим выбранную модель
-      const parsedModel = parseImageToVideoSelection(selectedText)
+      // ✅ Парсим выбранную модель через централизованную функцию
+      const parsedModel = parseModelButton(selectedText)
       if (parsedModel) {
         console.log('🎬 [I2V WIZARD] Step 3: Model selected:', parsedModel)
-        
+
         // Сохраняем выбранную модель
         ctx.session.selectedVideoModel = parsedModel.modelId
         ctx.session.selectedAspectRatio = parsedModel.aspectRatio
         ctx.session.selectedVideoCost = parsedModel.cost
         ctx.session.selectedDuration = parsedModel.duration
+        ctx.session.selectedRemoveWatermark = parsedModel.removeWatermark // 🆕 Сохраняем watermark опцию
         
         await ctx.reply(
           isRu 
@@ -399,7 +301,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
 
       const videoModelId = selectedModel as VideoModelId
-      await handleImageToVideoDirect(ctx, imageUrl, prompt, videoModelId, duration, aspectRatio)
+      const removeWatermark = ctx.session.selectedRemoveWatermark // 🆕 Получаем watermark опцию
+      await handleImageToVideoDirect(ctx, imageUrl, prompt, videoModelId, duration, aspectRatio, removeWatermark)
       console.log('🎬 [I2V WIZARD] Video generation success!')
 
       return ctx.scene.leave()
@@ -421,39 +324,21 @@ console.log('🔥 [DEBUG] imageToVideoWizard steps count:', (imageToVideoWizard 
 imageToVideoWizard.enter(async ctx => {
   console.log('🎬 [I2V WIZARD] ✅ WIZARD ENTERED! User:', ctx.from?.id)
   console.log('🎬 [I2V WIZARD] Scene ID:', ctx.scene.current?.id)
-  console.log('🎬 [I2V WIZARD] Current step:', ctx.wizard?.cursor)
+  // ❌ НЕ обращаемся к ctx.wizard в .enter() - он ещё не инициализирован!
+  // Wizard будет создан ПОСЛЕ выполнения .enter() callback
 
   try {
     console.log('🎬 [I2V WIZARD] Initial session initialized for imageToVideoWizard')
-    
+
     logger.info('[ImageToVideoWizard] Wizard entered successfully', {
       telegramId: ctx.from?.id,
       sceneId: ctx.scene.current?.id,
-      currentStep: ctx.wizard?.cursor,
       timestamp: new Date().toISOString(),
     })
 
-    // Initialize cursor to step 0 (with safety check)
-    console.log('🎬 [I2V WIZARD] Setting wizard cursor to step 0')
-    if (ctx.wizard && ctx.wizard.selectStep) {
-      ctx.wizard.selectStep(0)
-      
-      // КРИТИЧЕСКИ ВАЖНО: Вызываем первый шаг вручную!
-      console.log('🎬 [I2V WIZARD] Manually calling first step...')
-      const firstStep = imageToVideoWizard.steps[0]
-      if (typeof firstStep === 'function') {
-        await firstStep(ctx, () => Promise.resolve())
-      } else {
-        console.error('🎬 [I2V WIZARD] First step is not a function!')
-      }
-    } else {
-      console.error('🎬 [I2V WIZARD] ctx.wizard or selectStep is undefined! Attempting manual step call...')
-      // Try to call the first step directly even without wizard context
-      const firstStep = imageToVideoWizard.steps[0]
-      if (typeof firstStep === 'function') {
-        await firstStep(ctx, () => Promise.resolve())
-      }
-    }
+    // ✅ FIX: НЕ вызываем первый шаг вручную - Telegraf сделает это автоматически
+    // Это исправляет проблему двойного запроса фото
+    console.log('🎬 [I2V WIZARD] Telegraf will automatically call step 0')
   } catch (error) {
     console.error('🎬 [I2V WIZARD] Error initializing wizard session:', error)
     logger.error('[ImageToVideoWizard] Session initialization error', {

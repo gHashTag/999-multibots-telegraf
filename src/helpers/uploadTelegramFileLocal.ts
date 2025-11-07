@@ -48,14 +48,12 @@ export async function uploadTelegramFileLocal(
     // Сохраняем файл локально
     await fs.writeFile(filePath, response.data)
 
-    // Получаем публичный URL для Replicate API
-    // В development используем ngrok туннель, в production - внешний сервер
+    // ✅ ИСПРАВЛЕНО: Используем локальный сервер для всех окружений
+    // Не используем SERVER_API_URL чтобы избежать зависимости от внешнего сервера
     const API_URL =
       process.env.NODE_ENV === 'development'
-        ? 'https://44ed576f17a7.ngrok.app' // Ngrok туннель для локального development
-        : process.env.API_SERVER_URL ||
-          process.env.SERVER_API_URL ||
-          'https://ai-server-production-production-8e2d.up.railway.app'
+        ? 'http://localhost:3000' // Локальный development
+        : 'https://three-head-dragon.shop' // Только наш домен в production
 
     console.log(
       '🌐 [uploadLocal] Using public URL for Replicate access:',

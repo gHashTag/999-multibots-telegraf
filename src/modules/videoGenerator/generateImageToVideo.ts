@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
+import { createHash } from 'crypto'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import {
@@ -24,6 +25,7 @@ import axios from 'axios'
 import { isAxiosError } from 'axios'
 import { API_URL, SECRET_API_KEY } from '@/config'
 import { safeSendMessage, markUserAsBlocked } from '@/utils/blockedUsersCheck'
+import { videoTaskCache } from './taskCache'
 
 // Функция для отправки уведомления админу
 async function notifyAdminAboutServerIssue(
@@ -54,7 +56,7 @@ async function notifyAdminAboutServerIssue(
       `🎬 Model: ${escapeHtml(videoModel)}\n` +
       `❌ Server Error: ${escapeHtml(error)}\n` +
       `✅ Используется прямой API Veo 3 (Plan B)\n\n` +
-      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+      `⚠️ Проверьте сервер: https://three-head-dragon.shop`
     
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
@@ -155,7 +157,27 @@ export const generateImageToVideo = async (
       })
     }
 
+    // ✅ FIX: Проверка на дублирующиеся запросы генерации через новый кеш
+    // Проверяем, есть ли уже активная задача для этого пользователя и модели
     const modelConfig = VIDEO_MODELS_CONFIG[modelId]
+    if (videoTaskCache.hasActiveTask(telegramId, modelId)) {
+      const existingTask = videoTaskCache.getActiveTask(telegramId, modelId)
+      logger.warn('[I2V BG] ⚠️ Duplicate request detected - blocking multiple generation', {
+        telegramId,
+        existingTaskId: existingTask?.taskId,
+        modelId,
+        cacheStats: videoTaskCache.getStats()
+      })
+
+      await telegramInstance.sendMessage(
+        chatId,
+        isRu
+          ? `⚠️ Видео с моделью ${modelConfig.title} уже генерируется для вас. Пожалуйста, дождитесь завершения (обычно 2-3 минуты).`
+          : `⚠️ Video with ${modelConfig.title} model is already being generated for you. Please wait for completion (usually 2-3 minutes).`
+      )
+      return
+    }
+
     if (!modelConfig) {
       logger.error(
         '[generateImageToVideo BG] Invalid modelId, config not found:',
@@ -237,8 +259,21 @@ export const generateImageToVideo = async (
         })
       }
     }
-    const userAspectRatio =
-      selectedAspectRatio || (userExists.aspect_ratio ?? '9:16')
+    // Определяем aspect ratio с учетом вертикальных фото
+    let userAspectRatio = selectedAspectRatio || (userExists.aspect_ratio ?? '9:16')
+
+    // Если модель поддерживает разные соотношения сторон, используем оптимальное для вертикальных фото
+    if (modelConfig.aspectRatioOptions && modelConfig.aspectRatioOptions.includes('9:16')) {
+      // Для моделей с поддержкой 9:16 используем вертикальное соотношение по умолчанию
+      if (!selectedAspectRatio) {
+        userAspectRatio = '9:16'
+        logger.info('[I2V BG] Using vertical aspect ratio for better compatibility', {
+          telegramId,
+          modelId,
+          aspectRatio: userAspectRatio
+        })
+      }
+    }
 
     const balanceResult = await checkBalanceVideoOperationHelper(
       telegramId,
@@ -314,8 +349,8 @@ export const generateImageToVideo = async (
       // Специальная обработка для Google Veo 3 моделей (используем План А/Б)
       if (modelConfig.id === 'veo3' || modelConfig.id === 'veo3_fast') {
         // Флаг для переключения планов: true = План А (сервер), false = План Б (локальный)
-        // ВРЕМЕННО: Всегда используем План Б по запросу
-        const USE_PLAN_A = false // Принудительно используем План Б
+        // По умолчанию пробуем сервер сначала (План А), при ошибке переключаемся на План Б
+        const USE_PLAN_A = true // Сначала пробуем через сервер
 
         logger.info(`[I2V BG] Veo model detected, using Plan A/B system`, {
           telegramId,
@@ -732,6 +767,14 @@ export const generateImageToVideo = async (
             // Реализуем polling для Kie.ai API
             const taskId = kieResponse.data.taskId
 
+            // ✅ FIX: Сохраняем taskId в новый кеш для предотвращения дублирующихся запросов
+            videoTaskCache.addTask(telegramId, modelId, taskId, processedPrompt || prompt || '', imageUrl || undefined)
+            logger.info('[I2V BG] ✅ TaskId saved to cache for deduplication', {
+              telegramId,
+              taskId,
+              modelId
+            })
+
             // ✅ FIX: Save taskId to session so "Update status" button works
             if (ctx && ctx.session) {
               ctx.session.videoJobId = taskId
@@ -786,12 +829,21 @@ export const generateImageToVideo = async (
                 if (!statusResponse.success) {
                   // Ошибка генерации (например, unsafe image upload)
                   const errorMessage = statusResponse.error || 'Unknown generation error'
-                  
+
                   logger.error('[I2V BG] Plan B: Video generation failed', {
                     telegramId,
                     taskId,
                     error: errorMessage,
                     attempts
+                  })
+
+                  // ✅ FIX: Очищаем кеш при ошибке генерации
+                  videoTaskCache.removeTask(telegramId, modelId)
+                  logger.info('[I2V BG] 🧹 Cache cleaned on error', {
+                    telegramId,
+                    taskId,
+                    modelId,
+                    error: errorMessage
                   })
 
                   // Создаем клавиатуру для ошибки
@@ -813,11 +865,11 @@ export const generateImageToVideo = async (
                   // Уведомляем пользователя об ошибке
                   const { getBotByName } = await import('@/core/bot')
                   const botResult = getBotByName('neuro_blogger_bot')
-                  
+
                   if (botResult.bot) {
                     const errorMessage = isRu
                       ? `❌ Ошибка генерации видео: ${statusResponse.error || 'Unknown generation error'}\n\n${
-                          statusResponse.error?.includes('English prompts') 
+                          statusResponse.error?.includes('English prompts')
                             ? '🔤 Пожалуйста, используйте английский язык для промпта.\n💰 Деньги НЕ были списаны.'
                             : 'Попробуйте другое изображение или измените промпт.'
                         }`
@@ -826,22 +878,12 @@ export const generateImageToVideo = async (
                             ? '🔤 Please use English language for prompts.\n💰 No money was charged.'
                             : 'Try a different image or modify the prompt.'
                         }`
-                    
+
                     // Используем безопасную отправку с проверкой блокировки
-                    const sent = await safeSendMessage(
-                      { telegram: botResult.bot.telegram } as any,
-                      telegramId,
-                      errorMessage,
-                      { reply_markup: errorKeyboard.reply_markup }
+                    await safeSendMessage(
+                      ctx,
+                      errorMessage
                     )
-                    
-                    if (!sent) {
-                      logger.info('[I2V BG] User has blocked the bot, stopping polling', {
-                        telegramId,
-                        taskId
-                      })
-                      return // Прекращаем попытки если пользователь заблокировал бота
-                    }
                   }
                   return // Выходим из функции
                 }
@@ -988,6 +1030,16 @@ export const generateImageToVideo = async (
                       : 'Your video is ready! What next?',
                     keyboard
                   )
+
+                  // ✅ FIX: Очищаем кеш после успешной генерации и отправки видео
+                  videoTaskCache.removeTask(telegramId, modelId)
+                  logger.info('[I2V BG] 🧹 Cache cleaned on success', {
+                    telegramId,
+                    taskId,
+                    modelId,
+                    videoUrl: videoUrl.substring(0, 50) + '...'
+                  })
+
                   return // Выходим из функции, так как видео уже отправлено
                 }
 
@@ -1177,64 +1229,218 @@ export const generateImageToVideo = async (
       })
     }
 
-    logger.info('[I2V BG] Calling replicate.run', {
-      model: replicateModelId,
-      telegramId,
-    })
-    const replicateResult = await replicate.run(replicateModelId as any, {
-      input: modelInput,
-    })
-    logger.info('[I2V BG] replicate.run finished', { telegramId })
+    // ✅ FIX: Для моделей с provider: 'kie' используем KieAiProvider вместо Replicate
+    let videoUrl: string | undefined // Объявляем переменную заранее для обоих веток
 
-    let videoUrl: string | undefined
-    if (
-      Array.isArray(replicateResult) &&
-      replicateResult.length > 0 &&
-      typeof replicateResult[0] === 'string'
-    ) {
-      videoUrl = replicateResult[0]
-    } else if (typeof replicateResult === 'string') {
-      videoUrl = replicateResult
-    } else {
-      logger.error('[I2V BG] Failed to extract video URL from Replicate', {
+    if (modelConfig.provider === 'kie') {
+      logger.info('[I2V BG] Using KieAiProvider for Sora I2V model', {
+        modelId: modelConfig.id,
         telegramId,
-        replicateResult,
+        hasImageUrl: !!imageUrl,
+        hasPrompt: !!processedPrompt
       })
-      throw new Error(
-        isRu
-          ? 'Ошибка: Не удалось получить URL видео от Replicate'
-          : 'Error: Failed to get video URL from Replicate'
-      )
-    }
 
-    logger.info('[I2V BG] Video URL extracted', { telegramId, videoUrl })
+      // Импортируем KieAiProvider
+      const { KieAiProvider } = await import('@/services/video-providers/KieAiProvider')
+      const kieProvider = new KieAiProvider()
 
-    const videoBuffer = await downloadFileHelper(videoUrl)
-    logger.info('[I2V BG] Video downloaded', { telegramId, url: videoUrl })
+      // Преобразуем aspectRatio в формат Kie.ai
+      const kieAspectRatio = userAspectRatio as '16:9' | '9:16' | '1:1' | undefined
 
-    const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
-    await mkdir(dirPath, { recursive: true })
-    const timestamp = Date.now()
-    let baseFilename = 'video.mp4'
-    try {
-      baseFilename = path.basename(new URL(videoUrl).pathname)
-    } catch (urlError) {
-      logger.warn('[I2V BG] Could not parse filename from URL, using default', {
-        videoUrl,
-        urlError,
+      logger.info('[I2V BG] Calling KieAiProvider.generateVideo for Sora I2V', {
+        model: modelConfig.id,
+        promptLength: processedPrompt?.length || 0,
+        aspectRatio: kieAspectRatio || '9:16',
+        hasImage: !!imageUrl,
+        imageUrl: imageUrl ? `${imageUrl.substring(0, 100)}...` : 'no image'
       })
-    }
-    const uniqueFilename = `${timestamp}_${baseFilename}`
-    localVideoPath = path.join(dirPath, uniqueFilename)
-    const u8 = new Uint8Array(videoBuffer)
-    await writeFile(localVideoPath, u8)
-    logger.info('[I2V BG] Video saved locally', {
-      telegramId,
-      path: localVideoPath,
-    })
 
-    await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
-    logger.info('[I2V BG] Video info saved to DB', { telegramId })
+      // Генерируем видео через Kie.ai
+      const kieResponse = await kieProvider.generateVideo({
+        model: modelConfig.id,
+        prompt: processedPrompt || '',
+        aspectRatio: kieAspectRatio || '9:16',
+        imageUrl: imageUrl,
+      })
+
+      logger.info('[I2V BG] KieAiProvider response received for Sora I2V', {
+        success: kieResponse.success,
+        hasData: !!kieResponse.data,
+        hasVideoUrl: !!kieResponse.data?.videoUrl,
+        hasTaskId: !!kieResponse.data?.taskId,
+        taskId: kieResponse.data?.taskId,
+        error: kieResponse.error
+      })
+
+      if (!kieResponse.success || !kieResponse.data) {
+        throw new Error(kieResponse.error || 'Kie.ai API returned no data for Sora I2V model')
+      }
+
+      // Если видео готово сразу (синхронный ответ)
+      if (kieResponse.data.videoUrl) {
+        videoUrl = kieResponse.data.videoUrl
+        const videoBuffer = await downloadFileHelper(videoUrl)
+        logger.info('[I2V BG] Sora I2V video downloaded via KieAi', { telegramId, url: videoUrl })
+
+        const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+        await mkdir(dirPath, { recursive: true })
+        const timestamp = Date.now()
+        const uniqueFilename = `${timestamp}_video.mp4`
+        localVideoPath = path.join(dirPath, uniqueFilename)
+        const u8 = new Uint8Array(videoBuffer)
+        await writeFile(localVideoPath, u8)
+        logger.info('[I2V BG] Sora I2V video saved locally via KieAi', {
+          telegramId,
+          path: localVideoPath,
+        })
+
+        await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+        logger.info('[I2V BG] Sora I2V video info saved to DB', { telegramId })
+      }
+      // Если асинхронная генерация (taskId)
+      else if (kieResponse.data.taskId) {
+        const taskId = kieResponse.data.taskId
+
+        logger.info('[I2V BG] Sora I2V async generation started', {
+          telegramId,
+          taskId,
+          willUsePolling: true
+        })
+
+        // Polling для проверки статуса
+        const maxPollingAttempts = 60 // 5 минут (5 секунд * 60)
+        const pollingInterval = 5000 // 5 секунд
+        let attempts = 0
+
+        while (attempts < maxPollingAttempts) {
+          attempts++
+          await new Promise(resolve => setTimeout(resolve, pollingInterval))
+
+          try {
+            const statusResponse = await kieProvider.checkJobStatus(taskId)
+
+            logger.info('[I2V BG] Sora I2V polling attempt', {
+              telegramId,
+              taskId,
+              attempt: attempts,
+              success: statusResponse.success,
+              hasVideoUrl: !!statusResponse.data?.videoUrl,
+              isCompleted: statusResponse.data?.status === 'completed'
+            })
+
+            if (statusResponse.success && statusResponse.data?.videoUrl) {
+              videoUrl = statusResponse.data.videoUrl
+              const videoBuffer = await downloadFileHelper(videoUrl)
+              logger.info('[I2V BG] Sora I2V video downloaded after polling', { telegramId, url: videoUrl })
+
+              const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+              await mkdir(dirPath, { recursive: true })
+              const timestamp = Date.now()
+              const uniqueFilename = `${timestamp}_video.mp4`
+              localVideoPath = path.join(dirPath, uniqueFilename)
+              const u8 = new Uint8Array(videoBuffer)
+              await writeFile(localVideoPath, u8)
+              logger.info('[I2V BG] Sora I2V video saved locally after polling', {
+                telegramId,
+                path: localVideoPath,
+              })
+
+              await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+              logger.info('[I2V BG] Sora I2V video info saved to DB after polling', { telegramId })
+
+              break // Выходим из цикла polling
+            }
+          } catch (pollError) {
+            logger.error('[I2V BG] Sora I2V polling error', {
+              telegramId,
+              taskId,
+              attempt: attempts,
+              error: pollError instanceof Error ? pollError.message : 'Unknown polling error'
+            })
+          }
+        }
+
+        // Если после всех попыток видео не готово
+        if (!localVideoPath) {
+          logger.error('[I2V BG] Sora I2V polling timeout', {
+            telegramId,
+            taskId,
+            attempts,
+            maxPollingAttempts
+          })
+
+          throw new Error(`Sora I2V polling timeout after ${attempts} attempts`)
+        }
+      } else {
+        throw new Error('Kie.ai API returned neither videoUrl nor taskId for Sora I2V model')
+      }
+
+      // Пропускаем вызов replicate.run() для Kie.ai моделей
+      logger.info('[I2V BG] Skipping replicate.run for Kie.ai model', {
+        modelId: modelConfig.id,
+        telegramId
+      })
+    } else {
+      // Для моделей БЕЗ provider: 'kie' используем стандартный Replicate API
+      logger.info('[I2V BG] Calling replicate.run', {
+        model: replicateModelId,
+        telegramId,
+      })
+      const replicateResult = await replicate.run(replicateModelId as any, {
+        input: modelInput,
+      })
+      logger.info('[I2V BG] replicate.run finished', { telegramId })
+
+      // videoUrl уже объявлена выше
+      if (
+        Array.isArray(replicateResult) &&
+        replicateResult.length > 0 &&
+        typeof replicateResult[0] === 'string'
+      ) {
+        videoUrl = replicateResult[0]
+      } else if (typeof replicateResult === 'string') {
+        videoUrl = replicateResult
+      } else {
+        logger.error('[I2V BG] Failed to extract video URL from Replicate', {
+          telegramId,
+          replicateResult,
+        })
+        throw new Error(
+          isRu
+            ? 'Ошибка: Не удалось получить URL видео от Replicate'
+            : 'Error: Failed to get video URL from Replicate'
+        )
+      }
+
+      logger.info('[I2V BG] Video URL extracted', { telegramId, videoUrl })
+
+      const videoBuffer = await downloadFileHelper(videoUrl)
+      logger.info('[I2V BG] Video downloaded', { telegramId, url: videoUrl })
+
+      const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+      await mkdir(dirPath, { recursive: true })
+      const timestamp = Date.now()
+      let baseFilename = 'video.mp4'
+      try {
+        baseFilename = path.basename(new URL(videoUrl).pathname)
+      } catch (urlError) {
+        logger.warn('[I2V BG] Could not parse filename from URL, using default', {
+          videoUrl,
+          urlError,
+        })
+      }
+      const uniqueFilename = `${timestamp}_${baseFilename}`
+      localVideoPath = path.join(dirPath, uniqueFilename)
+      const u8 = new Uint8Array(videoBuffer)
+      await writeFile(localVideoPath, u8)
+      logger.info('[I2V BG] Video saved locally', {
+        telegramId,
+        path: localVideoPath,
+      })
+
+      await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
+      logger.info('[I2V BG] Video info saved to DB', { telegramId })
+    } // Закрываем блок else для Replicate моделей
 
     logger.info('[I2V BG] Success, sending video', {
       telegramId,

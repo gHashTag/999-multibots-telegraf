@@ -100,7 +100,7 @@ export async function generateNanoBananaKie({
     // Формируем callback URL для webhook (используем существующий endpoint на ai-server)
     const callbackUrl = process.env.BASE_WEBHOOK_URL
       ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
-      : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
+      : 'https://three-head-dragon.shop/api/kie-ai/callback'
 
     // Готовим запрос для KIE.AI
     const requestData = {
@@ -222,7 +222,9 @@ export async function generateNanoBananaKie({
 Проверьте логи для деталей.`
 
       for (const adminId of adminIds) {
-        await ctx.telegram.sendMessage(adminId, adminMessage).catch(err => {
+        await ctx.telegram.sendMessage(adminId, adminMessage, {
+          parse_mode: undefined // ✅ Отключаем парсинг для технических сообщений с промптами
+        }).catch(err => {
           // Only log errors that aren't "chat not found" (invalid admin IDs)
           if (!err.message?.includes('chat not found')) {
             console.error('Failed to notify admin:', err)

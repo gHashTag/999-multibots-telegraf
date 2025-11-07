@@ -5,7 +5,6 @@ import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { ADMIN_IDS_ARRAY } from '@/config'
-import { handleMenu } from '@/handlers'
 
 // Проверка существования пользователя
 const checkUserExists = async (ctx: MyContext) => {
@@ -147,7 +146,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
         currentMode: currentMode,
       })
       // Возможно, вернуться в главное меню или сообщить об ошибке
-      await handleMenu(ctx)
+      return
     }
   } else {
     // Если режим не является допустимым ModeEnum, обрабатываем как ошибку или возвращаемся в меню
@@ -159,7 +158,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
       telegramId: ctx.from?.id?.toString(),
       currentMode: currentMode,
     })
-    await handleMenu(ctx) // Возврат в главное меню как безопасный вариант
+    return // Возврат в главное меню как безопасный вариант
   }
 }
 

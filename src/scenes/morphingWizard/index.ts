@@ -196,7 +196,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
       telegramId: ctx.from?.id,
       username: ctx.from?.username,
       sessionExists: !!ctx.session,
-      currentCursor: ctx.wizard?.cursor,
+      currentCursor: ctx.wizard?.cursor ?? 0,
     })
 
     // Очищаем предыдущие данные
@@ -473,7 +473,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     console.log('🔄 [STEP 3] Loop Selection step STARTED!')
     const isRu = isRussianFromState(ctx)
 
-    console.log('🔄 [STEP 3] Current wizard cursor:', ctx.wizard.cursor)
+    console.log('🔄 [STEP 3] Current wizard cursor:', ctx.wizard?.cursor ?? 0)
     console.log(
       '🔄 [STEP 3] Images count:',
       ctx.session?.morphingImages?.length || 0
@@ -550,7 +550,7 @@ Which type do you prefer?`
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
 
-    console.log('🎬 [STEP 4] Current wizard cursor:', ctx.wizard.cursor)
+    console.log('🎬 [STEP 4] Current wizard cursor:', ctx.wizard?.cursor ?? 0)
     console.log(
       '🎬 [STEP 4] Morphing type:',
       ctx.session?.morphingType || 'unknown'
@@ -692,7 +692,7 @@ morphingWizard.action('morphing_start_generation', async ctx => {
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
-    console.log('🚀 [MORPHING_START] Current wizard cursor:', ctx.wizard.cursor)
+    console.log('🚀 [MORPHING_START] Current wizard cursor:', ctx.wizard?.cursor ?? 0)
     console.log(
       '🚀 [MORPHING_START] Images count:',
       ctx.session?.morphingImages?.length
@@ -710,13 +710,13 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 
     // ✅ ПЕРЕХОДИМ К ШАГУ ВЫБОРА ЛУПА (ШАГ 2)
     console.log('🚀 [MORPHING_START] About to go to step 2 (loop selection)')
-    console.log('🚀 [MORPHING_START] Current cursor before:', ctx.wizard.cursor)
+    console.log('🚀 [MORPHING_START] Current cursor before:', ctx.wizard?.cursor ?? 0)
 
     // Принудительно переходим к шагу 2 (выбор лупа)
     ctx.wizard.selectStep(2)
     console.log(
       '🚀 [MORPHING_START] After selectStep(2), new cursor:',
-      ctx.wizard.cursor
+      ctx.wizard?.cursor ?? 0
     )
 
     // ✅ ПРИНУДИТЕЛЬНО ВЫПОЛНЯЕМ ШАГИ ПОСЛЕ СМЕНЫ КУРСОРА

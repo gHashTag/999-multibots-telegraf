@@ -2,11 +2,12 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
-import { createModelTraining } from '@/services/createModelTraining'
+import { createModelTrainingLocal } from '@/services/createModelTrainingLocal' // ✅ Локальная тренировка
 import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
 import { sendGenericErrorMessage } from '@/menu'
 import { supabase } from '@/core/supabase'
+import { getBotNameByToken } from '@/core/bot' // ✅ For correct bot_name detection
 import fetch from 'node-fetch'
 import { API_URL, isDev } from '@/config'
 const fs = require('fs')
@@ -57,13 +58,20 @@ uploadTrainFluxModelScene.enter(async ctx => {
       return ctx.scene.leave()
     }
 
+    // ✅ Локальная тренировка на bot-farm (прямой вызов Replicate API)
+    console.log('[uploadTrainFluxModelScene] Using LOCAL training on bot-farm')
+
     await ctx.reply(
       isRu
         ? `⏳ Начинаю обучение модели...\n\nВаша модель будет натренирована через 1-2 часа. После завершения вы сможете проверить её работу, используя раздел "Модели" в Нейрофото.`
         : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
     )
 
-    await createModelTraining(
+    // ✅ Get correct bot name from token
+    const botToken = (ctx.telegram as any).token || (ctx as any).botInfo?.token
+    const { bot_name } = getBotNameByToken(botToken)
+
+    const response = await createModelTrainingLocal(
       {
         filePath: zipPath,
         triggerWord,
@@ -71,10 +79,18 @@ uploadTrainFluxModelScene.enter(async ctx => {
         steps: ctx.session.steps,
         telegram_id: ctx.session.targetUserId.toString(),
         is_ru: isRu,
-        botName: ctx.botInfo?.username,
+        botName: bot_name, // ✅ Use bot_name from token instead of ctx.botInfo?.username
         gender: gender,
       },
       ctx
+    )
+
+    console.log('[uploadTrainFluxModelScene] Training response:', response)
+
+    await ctx.reply(
+      isRu
+        ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${ctx.session.modelName}\n🆔 ID: ${response.training_id}\n⏱️ Время: ~1-2 часа`
+        : `✅ Model training started!\n\n📦 Model: ${ctx.session.modelName}\n🆔 ID: ${response.training_id}\n⏱️ Time: ~1-2 hours`
     )
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)

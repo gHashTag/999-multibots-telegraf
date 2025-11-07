@@ -37,32 +37,26 @@ export function calculateFinalPrice(
     return 120
   }
 
-  // ФИКСИРОВАННЫЕ ЦЕНЫ для Kling v2.1 морфинга (С ПРАВИЛЬНОЙ НАЦЕНКОЙ 1.5x)
-  if (modelKey === 'kling-v2.1-standard') {
-    // Расчет: $0.05 * 10 сек = $0.5 → $0.5 * 1.5 наценка = $0.75 → $0.75 / 0.016 = 46.875 → 46⭐
-    const fixedPriceInStars = 46
-    logger.info('calculateFinalPrice: Using fixed price for Kling v2.1 Standard WITH MARKUP', {
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для Kling v1.6 Pro Image to Video
+  if (modelKey === 'kling-v1.6-pro') {
+    logger.info('calculateFinalPrice: Using fixed price for Kling v1.6 Pro', {
       modelKey,
-      baseCostUSD: 0.5,
-      markupMultiplier: 1.5,
-      finalCostWithMarkupUSD: 0.75,
-      fixedPriceInStars,
+      fixedPriceInStars: 60,
     })
-    return fixedPriceInStars
+    return 60
   }
 
-  if (modelKey === 'kling-v2.1-pro') {
-    // Расчет: $0.09 * 10 сек = $0.9 → $0.9 * 1.5 наценка = $1.35 → $1.35 / 0.016 = 84.375 → 84⭐
-    const fixedPriceInStars = 84
-    logger.info('calculateFinalPrice: Using fixed price for Kling v2.1 Pro WITH MARKUP', {
+  // ФИКСИРОВАННЫЕ ЦЕНЫ для Minimax Image to Video
+  if (modelKey === 'minimax') {
+    logger.info('calculateFinalPrice: Using fixed price for Minimax', {
       modelKey,
-      baseCostUSD: 0.9,
-      markupMultiplier: 1.5,
-      finalCostWithMarkupUSD: 1.35,
-      fixedPriceInStars,
+      fixedPriceInStars: 50,
     })
-    return fixedPriceInStars
+    return 50
   }
+
+  // Удаляем фиксированные цены для Kling v2.1 - пусть они рассчитываются динамически
+  // так как они используют стандартную длительность 5 секунд, а не 10
 
   // --- Новый порядок расчета (с учетом цены за секунду и разрешения) ---
   // 1. Определяем базовую цену с учетом разрешения

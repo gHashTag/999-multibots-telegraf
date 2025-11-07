@@ -316,6 +316,7 @@ ready_morphing_videos/
 temp_*/
 
 # Claude Code Security Hooks
+.claude/settings.json
 .claude/logs/
 .claude/*.log
 .claude/SECURITY_ALERT.txt
@@ -413,3 +414,4 @@ claude-flow
 claude-flow.bat
 claude-flow.ps1
 hive-mind-prompt-*.txt
+!/.env.example

@@ -5,10 +5,10 @@ import { logger } from '@/utils/logger'
  * Заменяет прямые вызовы Replicate API
  */
 
+// ✅ ИСПРАВЛЕНО: Используем только наш домен для lipsync
 const AI_SERVER_URL =
   process.env.AI_SERVER_URL ||
-  process.env.SERVER_API_URL ||
-  'https://ai-server-production-production-8e2d.up.railway.app'
+  'https://three-head-dragon.shop'
 
 export interface AiServerLipSyncRequest {
   video_url: string

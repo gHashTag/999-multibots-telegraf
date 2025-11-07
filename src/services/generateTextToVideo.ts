@@ -10,14 +10,20 @@ import { logger } from '@/utils/logger'
 export type VideoModelId =
   | 'kling-v1.6-pro'
   | 'ray-v2'
-  | 'hunyuan-video-fast'
-  | 'wan-image-to-video'
-  | 'wan-text-to-video'
-  | 'minimax'
+  // ❌ УДАЛЕНЫ устаревшие модели (404 ошибки):
+  // | 'hunyuan-video-fast' - не работает
+  // | 'wan-image-to-video' - не работает
+  // | 'wan-text-to-video' - не работает
+  // | 'minimax' - не работает
   // Kie.ai модели
   | 'veo3_fast'
   | 'veo3'
   | 'runway-aleph'
+  | 'sora-2'
+  | 'sora-2-pro'
+  // Sora 2 Image-to-Video
+  | 'sora-2-i2v'
+  | 'sora-2-pro-i2v'
 
 interface TextToVideoRequest {
   prompt: string
@@ -28,6 +34,7 @@ interface TextToVideoRequest {
   username: string
   is_ru: boolean
   bot_name: string
+  removeWatermark?: boolean // 🆕 Для Sora: удалять watermark или нет (default: true для Sora)
 }
 
 interface TextToVideoResponse {
@@ -61,7 +68,7 @@ async function notifyAdminAboutServerIssue(
       `🎬 Model: ${videoModel}\n` +
       `❌ Error: ${error}\n` +
       `🔄 Используется прямой API Veo 3\n\n` +
-      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+      `⚠️ Проверьте сервер: https://three-head-dragon.shop`
     
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
@@ -127,6 +134,7 @@ export async function generateTextToVideo(
     username,
     is_ru,
     bot_name,
+    removeWatermark = true, // 🆕 Default true для обратной совместимости (без watermark лучше)
   } = params
 
   // Валидация параметров
@@ -160,67 +168,111 @@ export async function generateTextToVideo(
   })
 
   try {
-    // Проверяем, является ли это Veo моделью
-    const isVeoModel = ['veo3', 'veo3_fast', 'runway-aleph'].includes(videoModel)
-    
-    if (isVeoModel) {
-      // ПЛАН Б: Для Veo моделей используем прямую интеграцию с Kie.ai
-      // НЕ используем сервер, так как там нет поддержки этих моделей через Replicate
-      logger.info('[PLAN B] Using Kie.ai directly for Veo model', {
+    // Проверяем, является ли это Kie.ai моделью (Veo или Sora)
+    const isKieAiModel = ['veo3', 'veo3_fast', 'runway-aleph', 'sora-2', 'sora-2-pro'].includes(videoModel)
+    const isSoraModel = ['sora-2', 'sora-2-pro'].includes(videoModel)
+
+    if (isKieAiModel) {
+      // Для Kie.ai моделей используем прямую интеграцию
+      logger.info('[KIE.AI] Using Kie.ai directly', {
         videoModel,
-        reason: 'Veo models are not available on Replicate, using Kie.ai API directly'
+        isSoraModel,
+        reason: isSoraModel
+          ? 'Sora models use Kie.ai Sora API'
+          : 'Veo models are not available on Replicate'
       })
-      
+
       // Импортируем KieAiProvider
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
-      
-      // Преобразуем aspectRatio в формат Kie.ai
-      const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
-      
-      logger.info('[PLAN B] Calling Veo 3 generateVideo with params:', {
-        model: videoModel,
-        promptLength: prompt.length, // Логируем длину вместо обрезки
-        duration: duration || 8,
-        aspectRatio: kieAspectRatio || '9:16'
-      })
-      
-      // Генерируем видео через Kie.ai
-      const kieResponse = await kieProvider.generateVideo({
-        model: videoModel,
-        prompt,
-        duration: duration || 8,
-        aspectRatio: kieAspectRatio || '9:16',
-      })
-      
-      logger.info('[PLAN B] Veo 3 API response received:', {
-        success: kieResponse.success,
-        hasData: !!kieResponse.data,
-        hasVideoUrl: !!kieResponse.data?.videoUrl,
-        hasTaskId: !!kieResponse.data?.taskId,
-        taskId: kieResponse.data?.taskId,
-        error: kieResponse.error
-      })
-      
-      if (kieResponse.success) {
-        if (kieResponse.data?.videoUrl) {
+
+      if (isSoraModel) {
+        // Для Sora моделей используем специальный API
+        const soraAspectRatio = aspectRatio === '9:16' ? 'portrait' : 'landscape'
+        const soraModel = videoModel === 'sora-2-pro'
+          ? 'sora-2-pro-text-to-video'
+          : 'sora-2-text-to-video'
+
+        logger.info('[SORA] Calling Sora generateSoraVideo with params:', {
+          model: soraModel,
+          promptLength: prompt.length,
+          aspectRatio: soraAspectRatio,
+          duration: 10 // Sora всегда 10 секунд
+        })
+
+        const soraResponse = await kieProvider.generateSoraVideo(
+          prompt,
+          soraModel as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
+          soraAspectRatio as 'landscape' | 'portrait',
+          removeWatermark // 🆕 Передаем значение из параметров
+        )
+
+        logger.info('[SORA] API response received:', {
+          success: soraResponse.success,
+          hasData: !!soraResponse.data,
+          hasTaskId: !!soraResponse.data?.taskId,
+          taskId: soraResponse.data?.taskId,
+          error: soraResponse.error
+        })
+
+        if (soraResponse.success && soraResponse.data?.taskId) {
           return {
             success: true,
-            videoUrl: kieResponse.data.videoUrl,
-          }
-        } else if (kieResponse.data?.taskId) {
-          // Если есть taskId, но нет videoUrl - видео еще генерируется
-          return {
-            success: true,
-            jobId: kieResponse.data.taskId,
-            message: 'Video generation started',
+            jobId: soraResponse.data.taskId,
+            message: 'Sora video generation started',
           }
         }
-      }
-      
-      return {
-        success: false,
-        error: kieResponse.error || 'Failed to generate video',
+
+        return {
+          success: false,
+          error: soraResponse.error || 'Failed to generate Sora video',
+        }
+      } else {
+        // Для Veo моделей используем обычный generateVideo
+        const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
+
+        logger.info('[VEO] Calling Veo 3 generateVideo with params:', {
+          model: videoModel,
+          promptLength: prompt.length,
+          duration: duration || 8,
+          aspectRatio: kieAspectRatio || '9:16'
+        })
+
+        const kieResponse = await kieProvider.generateVideo({
+          model: videoModel,
+          prompt,
+          duration: duration || 8,
+          aspectRatio: kieAspectRatio || '9:16',
+        })
+
+        logger.info('[VEO] API response received:', {
+          success: kieResponse.success,
+          hasData: !!kieResponse.data,
+          hasVideoUrl: !!kieResponse.data?.videoUrl,
+          hasTaskId: !!kieResponse.data?.taskId,
+          taskId: kieResponse.data?.taskId,
+          error: kieResponse.error
+        })
+
+        if (kieResponse.success) {
+          if (kieResponse.data?.videoUrl) {
+            return {
+              success: true,
+              videoUrl: kieResponse.data.videoUrl,
+            }
+          } else if (kieResponse.data?.taskId) {
+            return {
+              success: true,
+              jobId: kieResponse.data.taskId,
+              message: 'Video generation started',
+            }
+          }
+        }
+
+        return {
+          success: false,
+          error: kieResponse.error || 'Failed to generate video',
+        }
       }
     }
     
@@ -230,23 +282,23 @@ export async function generateTextToVideo(
       isDev,
     })
 
-    const baseUrl = API_URL
+    // ❌ DEPRECATED: Этот endpoint больше не существует!
+    // Используйте handleTextToVideoDirect вместо generateTextToVideo
+    logger.error('[generateTextToVideo] DEPRECATED: This function uses non-existent endpoint', {
+      message: 'Use handleTextToVideoDirect instead',
+      telegram_id,
+      videoModel
+    })
 
-    // 🔧 ВРЕМЕННАЯ ЗАГЛУШКА: Если сервер недоступен, возвращаем mock результат
-    // TODO: Убрать после восстановления работы AI сервера
-    if (!baseUrl || baseUrl === 'undefined') {
-      logger.warn(
-        'No valid server URL found, using mock response for development'
-      )
-      return {
-        success: true,
-        message: 'Mock: Video generation started',
-        videoUrl:
-          'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
-      }
+    // Возвращаем ошибку вместо попытки вызвать несуществующий endpoint
+    return {
+      success: false,
+      message: '❌ Эта функция устарела. Используйте handleTextToVideoDirect.',
+      error: 'DEPRECATED: /generate/text-to-video endpoint does not exist'
     }
 
-    const url = `${baseUrl}/generate/text-to-video`
+    // const baseUrl = API_URL
+    // const url = `${baseUrl}/generate/text-to-video`
 
     logger.info('Sending request to API server', { url, baseUrl })
 

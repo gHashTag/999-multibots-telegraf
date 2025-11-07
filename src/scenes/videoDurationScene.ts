@@ -68,7 +68,7 @@ videoDurationScene.enter(async ctx => {
   // Добавляем кнопку отмены
   buttons.push([
     {
-      text: is_ru ? '❌ Отмена' : '❌ Cancel',
+      text: is_ru ? 'Отмена' : 'Cancel',
       callback_data: 'cancel_duration',
     },
   ])

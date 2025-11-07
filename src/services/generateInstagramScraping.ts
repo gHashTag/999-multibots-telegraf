@@ -1,4 +1,5 @@
-import { inngest } from '@/inngest_app/client'
+// ВРЕМЕННО: inngest отключён
+// import { inngest } from '@/inngest_app/client'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -120,7 +121,9 @@ export async function generateInstagramScraping(
       environment: process.env.NODE_ENV
     })
 
-    const sendResult = await inngest.send(inngestEvent)
+    // ВРЕМЕННО: inngest отключён
+    // const sendResult = await inngest.send(inngestEvent)
+    const sendResult = { ids: ["disabled"] }
     
     console.log('🔥 [DEBUG] Inngest send result:', sendResult)
     logger.info('✅ [Instagram Scraper] Event sent to Inngest with result', {
@@ -128,13 +131,11 @@ export async function generateInstagramScraping(
       telegram_id
     })
 
+    // ✅ ИСПРАВЛЕНО: Используем локальный Inngest endpoint
+    const localInngestUrl = 'localhost:3000/api/inngest'
     console.log(
-      `✅ [${process.env.NODE_ENV?.toUpperCase()}] Event sent via SDK to:`,
-      process.env.NODE_ENV === 'development'
-        ? 'localhost:8288'
-        : (process.env.SERVER_API_URL?.replace('https://', '') ||
-            'ai-server-production-production-8e2d.up.railway.app') +
-            '/api/inngest'
+      `✅ [${process.env.NODE_ENV?.toUpperCase()}] Event sent via SDK to LOCAL Inngest:`,
+      localInngestUrl
     )
     console.log(
       `🔥 [DEBUG] Event sent with debug_session_id: ${debugSessionId}`

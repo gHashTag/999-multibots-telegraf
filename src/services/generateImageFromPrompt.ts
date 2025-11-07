@@ -22,31 +22,36 @@ export async function generateImageFromPrompt(
     size,
   })
 
-  const AI_SERVER_URL = process.env.SERVER_API_URL || "https://ai-server-production-production-8e2d.up.railway.app"
-  
+  // ✅ ИСПРАВЛЕНО: Используем локальный text-to-image сервис вместо внешнего API
   try {
-    const requestData = {
-      prompt,
-      user_id: userId,
-      ...(style && { style }),
-      ...(negative_prompt && { negative_prompt }),
-      ...(size && { size })
-    }
+    // Используем локальные AI сервисы
+    const { generateNeuroImage } = await import('./generateNeuroImage')
+    const { generateFluxKontext } = await import('./generateFluxKontext')
 
-    const response = await fetch(`${AI_SERVER_URL}/api/generation/text-to-image`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestData)
+    // Пробуем локальный NeuroImage сначала
+    const localResult = await generateNeuroImage({
+      prompt,
+      telegram_id: userId.toString(),
+      bot_name: 'default'
     })
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    if (localResult?.imageUrl) {
+      return localResult.imageUrl
     }
 
-    const data = await response.json()
-    return data.image_url || data.url || "https://example.com/generated_image.png"
+    // Fallback на Flux
+    const fluxResult = await generateFluxKontext({
+      prompt,
+      telegramId: userId.toString()
+    })
+
+    if (fluxResult?.image_url) {
+      return fluxResult.image_url
+    }
+
+    // Если ничего не сработало, возвращаем заглушку
+    console.warn('⚠️ [generateImageFromPrompt] All local AI services failed, returning placeholder')
+    return "https://example.com/generated_image.png"
   } catch (error) {
     console.error("Ошибка генерации изображения:", error)
     throw error

@@ -1,369 +1,195 @@
 /**
- * Model Button Mapping Utilities
- *
- * Specialized utilities for handling model selection buttons in wizards
- * like neuroPhoto, with robust ID handling and callback data management.
+ * Model button mapping utilities
  */
 
-import { logger } from './logger'
-import {
-  createButtonMapping,
-  findByCallbackData,
-  validateCallbackData,
-  normalizeButtonText,
-  ButtonMappingOptions
-} from './buttonMapping'
-
+// ✅ IMPORT TYPES FROM INTERFACES
 export interface ModelTraining {
   id: string | number
   model_name?: string
-  created_at: string
-  steps?: number
-  model_url?: string
-  trigger_word?: string
+  name?: string
+  cost?: number
+  status?: string
+  [key: string]: any
 }
 
-export interface ModelButtonOptions extends ButtonMappingOptions {
-  /**
-   * Whether to include step count in button text
-   */
-  includeSteps?: boolean
-
-  /**
-   * Whether to include creation date if no model name
-   */
-  includeDate?: boolean
-
-  /**
-   * Maximum length for button text
-   */
-  maxTextLength?: number
-
-  /**
-   * Language preference
-   */
+export interface ModelButtonOptions {
   isRussian?: boolean
+  includeSteps?: boolean
+  includeDate?: boolean
+  maxTextLength?: number
+  debug?: boolean
+  [key: string]: any
 }
 
-/**
- * Generates appropriate text for a model button
- */
-export function generateModelButtonText(
-  model: ModelTraining,
-  index: number,
-  options: ModelButtonOptions = {}
-): string {
-  const isRu = options.isRussian ?? true
-  const maxLength = options.maxTextLength || 50
-  let buttonText = `${index + 1}. `
+// Заглушка для маппинга кнопок моделей
+export const modelButtonMappings = {
+  'flux-kontext-pro': 'Flux Kontext Pro',
+  'flux-kontext-multi': 'Flux Kontext Multi',
+  default: 'Default Model',
+}
 
-  // Get date string for fallback
-  const dateString = new Date(model.created_at).toLocaleDateString(
-    isRu ? 'ru-RU' : 'en-US'
+export function getModelDisplayName(modelKey: string): string {
+  return (
+    modelButtonMappings[modelKey as keyof typeof modelButtonMappings] ||
+    modelButtonMappings.default
   )
-
-  // Determine base text
-  if (model.model_name && model.model_name.trim() !== '') {
-    buttonText += model.model_name.trim()
-  } else {
-    buttonText += isRu ? `Модель ${dateString}` : `Model ${dateString}`
-  }
-
-  // Add steps information if requested and available
-  if (options.includeSteps && model.steps && model.steps > 0) {
-    const stepsText = isRu ? ` (${model.steps} шагов)` : ` (${model.steps} steps)`
-    buttonText += stepsText
-  }
-
-  // Truncate if too long
-  if (buttonText.length > maxLength) {
-    buttonText = buttonText.substring(0, maxLength - 3) + '...'
-  }
-
-  return normalizeButtonText(buttonText, options)
 }
 
-/**
- * Creates model selection buttons with proper callback handling
- */
-export function createModelSelectionButtons(
-  models: ModelTraining[],
-  callbackPrefix: string = 'select_model',
-  options: ModelButtonOptions = {}
-): Array<Array<{ text: string; callback_data: string }>> {
-  if (!models || models.length === 0) {
-    logger.warn('[ModelButtonMapping] No models provided for button creation')
-    return []
-  }
-
-  const buttons = models.map((model, index) => {
-    const buttonText = generateModelButtonText(model, index, options)
-    const mapping = createButtonMapping(buttonText, callbackPrefix, model.id, options)
-
-    if (options.debug) {
-      logger.debug('[ModelButtonMapping] Created model button', {
-        modelId: model.id,
-        buttonText: mapping.text,
-        callbackData: mapping.callback_data,
-        originalId: mapping.originalId,
-        shortId: mapping.shortId
-      })
-    }
-
-    return {
-      text: mapping.text,
-      callback_data: mapping.callback_data
-    }
-  })
-
-  // Arrange in single column for model selection
-  return buttons.map(button => [button])
+export function validateModelButton(modelKey: string): boolean {
+  return Object.keys(modelButtonMappings).includes(modelKey)
 }
 
-/**
- * Adds standard action buttons (like Cancel) to model selection
- */
-export function addModelSelectionActions(
-  modelButtons: Array<Array<{ text: string; callback_data: string }>>,
-  isRussian: boolean = true,
-  additionalActions?: Array<{ text: string; callback_data: string }>
-): Array<Array<{ text: string; callback_data: string }>> {
-  const buttons = [...modelButtons]
-
-  // Add additional actions if provided
-  if (additionalActions && additionalActions.length > 0) {
-    buttons.push(...additionalActions.map(action => [action]))
-  }
-
-  // Always add cancel button
-  buttons.push([
-    {
-      text: isRussian ? 'Отмена' : 'Cancel',
-      callback_data: 'cancel_model_selection'
-    }
-  ])
-
-  return buttons
-}
-
-/**
- * Finds a model by callback data with robust error handling
- */
-export function findModelByCallback(
-  models: ModelTraining[],
-  callbackData: string,
-  callbackPrefix: string = 'select_model',
-  options: ModelButtonOptions = {}
-): {
-  model?: ModelTraining
-  error?: string
-  isValid: boolean
-} {
-  // Validate callback data first
-  const validation = validateCallbackData(callbackData, callbackPrefix, options)
-  if (!validation.isValid) {
-    return {
-      isValid: false,
-      error: validation.error
-    }
-  }
-
-  // Find the model
-  const model = findByCallbackData(models, callbackData, callbackPrefix, options)
-
-  if (!model) {
-    const extractedId = validation.extractedId
-    logger.warn('[ModelButtonMapping] Model not found for callback', {
-      callbackData,
-      extractedId,
-      availableModelIds: models.map(m => m.id.toString())
-    })
-
-    return {
-      isValid: false,
-      error: `Model not found for ID: ${extractedId}`
-    }
-  }
-
-  if (options.debug) {
-    logger.debug('[ModelButtonMapping] Successfully found model', {
-      callbackData,
-      modelId: model.id,
-      modelName: model.model_name
-    })
-  }
-
-  return {
-    isValid: true,
-    model
-  }
-}
-
-/**
- * Validates model data before creating buttons
- */
-export function validateModelsForButtonCreation(
-  models: any[]
-): { isValid: boolean; validModels: ModelTraining[]; errors: string[] } {
-  const errors: string[] = []
-  const validModels: ModelTraining[] = []
-
-  if (!Array.isArray(models)) {
-    errors.push('Models must be an array')
-    return { isValid: false, validModels: [], errors }
-  }
-
-  if (models.length === 0) {
-    errors.push('No models provided')
-    return { isValid: false, validModels: [], errors }
-  }
-
-  for (let i = 0; i < models.length; i++) {
-    const model = models[i]
-
-    if (!model) {
-      errors.push(`Model at index ${i} is null or undefined`)
-      continue
-    }
-
-    if (!model.id) {
-      errors.push(`Model at index ${i} missing required field: id`)
-      continue
-    }
-
-    if (!model.created_at) {
-      errors.push(`Model at index ${i} missing required field: created_at`)
-      continue
-    }
-
-    // This model is valid
-    validModels.push(model as ModelTraining)
-  }
-
-  return {
-    isValid: errors.length === 0,
-    validModels,
-    errors
-  }
-}
-
-/**
- * Creates a complete model selection keyboard with error handling
- */
 export function createSafeModelSelectionKeyboard(
-  models: any[],
+  models: ModelTraining[],
   callbackPrefix: string = 'select_model',
   options: ModelButtonOptions = {}
-): {
-  keyboard: Array<Array<{ text: string; callback_data: string }>>
-  isValid: boolean
-  error?: string
-} {
+): { isValid: boolean; keyboard?: any[]; error?: string } {
   try {
-    // Validate models first
-    const validation = validateModelsForButtonCreation(models)
-    if (!validation.isValid) {
-      return {
-        keyboard: [],
-        isValid: false,
-        error: validation.errors.join('; ')
+    console.log(
+      `🔍 [createSafeModelSelectionKeyboard] Создание клавиатуры для ${models?.length || 0} моделей`
+    )
+
+    if (!models || models.length === 0) {
+      console.log(
+        `❌ [createSafeModelSelectionKeyboard] Нет моделей для создания клавиатуры`
+      )
+      return { isValid: false, error: 'No models provided' }
+    }
+
+    const keyboard: any[] = []
+    const isRu = options.isRussian || false
+    const maxTextLength = options.maxTextLength || 50
+
+    // Создаем кнопки для каждой модели
+    for (const model of models) {
+      const modelName =
+        model.model_name ||
+        model.name ||
+        model.id?.toString() ||
+        'Unknown Model'
+      const modelCost = model.cost || 0
+
+      // Ограничиваем длину текста кнопки
+      const buttonText =
+        modelName.length > maxTextLength
+          ? `${modelName.substring(0, maxTextLength - 3)}...`
+          : modelName
+
+      // Используем только название модели без стоимости
+      const fullButtonText = buttonText
+
+      // Создаем callback_data с ограничением длины
+      const callbackData = `${callbackPrefix}_${model.id}`
+      if (callbackData.length > 64) {
+        // Если слишком длинный, используем хеш
+        const shortId = model.id.toString().slice(-8)
+        const shortCallbackData = `${callbackPrefix}_${shortId}`
+        keyboard.push([
+          {
+            text: fullButtonText,
+            callback_data: shortCallbackData,
+          },
+        ])
+      } else {
+        keyboard.push([
+          {
+            text: fullButtonText,
+            callback_data: callbackData,
+          },
+        ])
       }
     }
 
-    // Create model buttons
-    const modelButtons = createModelSelectionButtons(
-      validation.validModels,
-      callbackPrefix,
-      options
-    )
+    // Добавляем кнопку отмены
+    keyboard.push([
+      {
+        text: isRu ? 'Отмена' : 'Cancel',
+        callback_data: 'cancel_model_selection',
+      },
+    ])
 
-    // Add standard actions
-    const keyboard = addModelSelectionActions(
-      modelButtons,
-      options.isRussian
+    console.log(
+      `✅ [createSafeModelSelectionKeyboard] Клавиатура создана успешно: ${keyboard.length} кнопок`
     )
-
-    return {
-      keyboard,
-      isValid: true
-    }
+    return { isValid: true, keyboard }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('[ModelButtonMapping] Error creating model selection keyboard', {
-      error: errorMessage,
-      modelCount: models?.length || 0
-    })
-
+    console.log(
+      `❌ [createSafeModelSelectionKeyboard] Ошибка создания клавиатуры:`,
+      error
+    )
     return {
-      keyboard: [],
       isValid: false,
-      error: `Failed to create keyboard: ${errorMessage}`
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
 }
 
-/**
- * Handles model selection callback with comprehensive error handling and logging
- */
 export function handleModelSelectionCallback(
-  models: ModelTraining[],
+  userModels: ModelTraining[],
   callbackData: string,
-  context: string = 'model_selection',
-  options: ModelButtonOptions = {}
+  operationName: string,
+  options: { isRussian?: boolean; debug?: boolean } = {}
 ): {
   success: boolean
   model?: ModelTraining
-  error?: string
   shouldCancel?: boolean
+  error?: string
 } {
   try {
-    // Handle cancel action
-    if (callbackData === 'cancel_model_selection') {
-      return {
-        success: true,
-        shouldCancel: true
-      }
-    }
-
-    // Find the model
-    const result = findModelByCallback(models, callbackData, 'select_model', {
-      ...options,
-      debug: true
+    console.log(`🔍 [handleModelSelectionCallback] Обработка выбора модели:`, {
+      callbackData,
+      userModelsCount: userModels?.length || 0,
+      operationName,
     })
 
-    if (!result.isValid || !result.model) {
-      logger.warn(`[ModelButtonMapping] Invalid model selection in ${context}`, {
-        callbackData,
-        error: result.error,
-        availableModels: models.length
-      })
-
-      return {
-        success: false,
-        error: result.error || 'Model not found'
-      }
+    if (!userModels || userModels.length === 0) {
+      console.log(`❌ [handleModelSelectionCallback] Нет моделей для выбора`)
+      return { success: false, error: 'No models available' }
     }
 
-    logger.info(`[ModelButtonMapping] Model selected successfully in ${context}`, {
-      callbackData,
-      modelId: result.model.id,
-      modelName: result.model.model_name
+    if (!callbackData || !callbackData.startsWith('select_model_')) {
+      console.log(
+        `❌ [handleModelSelectionCallback] Неверный callback: ${callbackData}`
+      )
+      return { success: false, error: 'Invalid callback data' }
+    }
+
+    // Извлекаем ID модели из callback_data
+    const modelId = callbackData.replace('select_model_', '')
+    console.log(
+      `🔍 [handleModelSelectionCallback] Ищем модель с ID: ${modelId}`
+    )
+
+    // Находим модель по ID
+    const selectedModel = userModels.find(
+      model => model.id.toString() === modelId
+    )
+
+    if (!selectedModel) {
+      console.log(
+        `❌ [handleModelSelectionCallback] Модель не найдена: ${modelId}`
+      )
+      return { success: false, error: 'Model not found' }
+    }
+
+    console.log(`✅ [handleModelSelectionCallback] Модель найдена:`, {
+      id: selectedModel.id,
+      name: selectedModel.model_name || selectedModel.name,
+      status: selectedModel.status,
     })
 
     return {
       success: true,
-      model: result.model
+      model: selectedModel,
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error(`[ModelButtonMapping] Error handling model selection in ${context}`, {
-      error: errorMessage,
-      callbackData
-    })
-
+    console.error(
+      `❌ [handleModelSelectionCallback] Ошибка обработки выбора модели:`,
+      error
+    )
     return {
       success: false,
-      error: `Selection failed: ${errorMessage}`
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
 }

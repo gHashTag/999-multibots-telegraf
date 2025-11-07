@@ -1,4 +1,4 @@
-# 🤝 Contributing to 999-multibots-telegraf
+# 🤝 Contributing to bot-farm
 
 Welcome! We're excited that you want to contribute to our multi-bot Telegram system.
 

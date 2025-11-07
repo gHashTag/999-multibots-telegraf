@@ -40,7 +40,7 @@ export interface NanoBananaServiceParams {
 // Nano Banana model configuration
 const NANO_BANANA_MODEL = {
   key: 'google/nano-banana',
-  costPerImage: 12, // Cost in stars
+  costPerImage: 5, // Cost in stars - fixed to match AI_PHOTOSHOP_PRICING (was incorrectly 12)
   name: 'Google Nano Banana',
   description_en: 'Google Nano Banana - Advanced image editing powered by Gemini 2.5',
   description_ru: 'Google Nano Banana - Продвинутое редактирование изображений на базе Gemini 2.5'
@@ -487,7 +487,9 @@ export async function generateNanoBanana(
 Проверьте логи для деталей.`
 
       for (const adminId of adminIds) {
-        await params.ctx.telegram.sendMessage(adminId, adminMessage).catch(err => {
+        await params.ctx.telegram.sendMessage(adminId, adminMessage, {
+          parse_mode: undefined // ✅ Отключаем парсинг для технических сообщений с промптами
+        }).catch(err => {
           // Only log errors that aren't "chat not found" (invalid admin IDs)
           if (!err.message?.includes('chat not found')) {
             console.error('Failed to notify admin:', err)

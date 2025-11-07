@@ -12,7 +12,7 @@ import {
 import { IMAGES_MODELS } from '@/price/models'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
-import { processBalanceOperation } from '@/price/helpers'
+import { processBalanceOperation, refundUser } from '@/price/helpers'
 // import { PaymentType } from '@/interfaces/payments.interface'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -78,10 +78,12 @@ export const generateTextToImageDirect = async (
       throw new Error(`Неподдерживаемый тип модели: ${model_type}`)
     }
 
+    // 💰 СПИСЫВАЕМ БАЛАНС ПЕРЕД генерацией
+    const totalCost = modelConfig.costPerImage * num_images
     const balanceCheck = await processBalanceOperation({
       ctx,
       telegram_id: Number(telegram_id),
-      paymentAmount: modelConfig.costPerImage * num_images,
+      paymentAmount: totalCost,
       is_ru,
     })
     console.log(balanceCheck, 'balanceCheck')
@@ -89,6 +91,10 @@ export const generateTextToImageDirect = async (
     if (!balanceCheck.success) {
       throw new Error('Not enough stars')
     }
+
+    // 🔄 СОХРАНЯЕМ СТОИМОСТЬ для возможного возврата при ошибке
+    let chargedAmount = totalCost
+    let successfulGenerations = 0
 
     const userAspectRatio = await getAspectRatio(Number(telegram_id))
     const aspectRatioToUse = userAspectRatio || '1:1'
@@ -142,10 +148,31 @@ export const generateTextToImageDirect = async (
           )
         }
 
-        const output: ApiResponse = (await replicate.run(modelId, {
-          input: inputParams,
-        })) as ApiResponse
-        const imageUrl = await processApiResponse(output)
+        // ✅ FIX: Special handling for Midjourney v7
+        let output: ApiResponse
+        let imageUrl: string
+
+        if (modelId === 'midjourney-v7') {
+          logger.info('[generateTextToImageDirect] Using Midjourney generator')
+          const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
+          const midjourneyResult = await generateMidjourneyImage({
+            prompt: inputParams.prompt,
+            aspectRatio: inputParams.aspect_ratio,
+            numImages: 1,
+            telegramId: telegram_id,
+          })
+
+          if (!midjourneyResult.success || !midjourneyResult.imageUrls || midjourneyResult.imageUrls.length === 0) {
+            throw new Error(midjourneyResult.error || 'Midjourney generation failed')
+          }
+
+          imageUrl = midjourneyResult.imageUrls[0]
+        } else {
+          output = (await replicate.run(modelId, {
+            input: inputParams,
+          })) as ApiResponse
+          imageUrl = await processApiResponse(output)
+        }
 
         const imageLocalPath = await saveFileLocally(
           telegram_id,
@@ -185,6 +212,7 @@ export const generateTextToImageDirect = async (
           throw new Error('prompt_id is null')
         }
         results.push({ image, prompt_id })
+        successfulGenerations++ // ✅ Увеличиваем счетчик успешных генераций
       } catch (error) {
         console.error(`Попытка не удалась для изображения ${i + 1}:`, error)
         let errorMessageToUser = '❌ Произошла ошибка.'
@@ -196,6 +224,13 @@ export const generateTextToImageDirect = async (
             errorMessageToUser = is_ru
               ? '❌ Обнаружен NSFW контент. Пожалуйста, попробуйте другой запрос.'
               : '❌ NSFW content detected. Please try another prompt.'
+          } else if (
+            error.message.includes('failed to get HTTP URL content') ||
+            error.message.includes('Bad Request')
+          ) {
+            errorMessageToUser = is_ru
+              ? `❌ Не удалось загрузить изображение от модели ${modelConfig?.shortName || model_type}. Попробуйте другую модель.`
+              : `❌ Failed to load image from ${modelConfig?.shortName || model_type} model. Try another model.`
           } else if (error.message) {
             const match = error.message.match(/{"detail":"(.*?)"/)
             if (match && match[1]) {
@@ -210,7 +245,22 @@ export const generateTextToImageDirect = async (
             : '❌ An error occurred. Please try again.'
         }
         await ctx.telegram.sendMessage(telegram_id, errorMessageToUser)
-        throw error
+
+        // 💸 ВОЗВРАЩАЕМ ДЕНЬГИ за неудачную генерацию
+        const failedImageCost = modelConfig.costPerImage
+        logger.info(`[generateTextToImageDirect] Refunding ${failedImageCost} stars for failed image ${i + 1}/${num_images}`, {
+          telegram_id,
+          failedImage: i + 1,
+          totalImages: num_images,
+        })
+
+        await refundUser(ctx, failedImageCost, true) // silent refund
+
+        // Если это была первая/единственная картинка - прокидываем ошибку дальше
+        if (num_images === 1 || i === 0) {
+          throw error
+        }
+        // Иначе просто продолжаем со следующей картинкой
       }
     }
 

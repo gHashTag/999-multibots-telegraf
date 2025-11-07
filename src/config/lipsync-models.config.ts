@@ -7,13 +7,14 @@ export enum LipSyncModelType {
   KLING = 'kling',
   SYNC_V2 = 'sync_v2',
   VEED_FABRIC = 'veed_fabric',
+  FAL_VEED_FABRIC = 'fal_veed_fabric',
 }
 
 export interface LipSyncModelConfig {
   id: string
   name: string
   description: string
-  provider: 'replicate' | 'sync' | 'kie'
+  provider: 'replicate' | 'sync' | 'kie' | 'fal'
   modelId: string
   costPerSecond: number // в долларах (с наценкой)
   costPerSecond720p?: number // для моделей с 720p опцией
@@ -68,24 +69,45 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
     id: 'veed_fabric',
     name: '🎭 Veed Fabric AI',
     description:
-      'AI talking video модель с естественной синхронизацией губ, выразительными движениями глаз и тонкими мимическими жестами. Использует голос аватара пользователя.',
+      'AI talking video модель с естественной синхронизацией губ, выразительными движениями глаз и тонкими мимическими жестами. Использует голос аватара пользователя. Качество 720p.',
     provider: 'kie',
     modelId: 'veed-fabric',
-    costPerSecond: 0.192, // ✅ ПРАВИЛЬНО: $0.08 × 2.4 наценка = $0.192/sec для 480p
-    costPerSecond720p: 0.36, // ✅ ПРАВИЛЬНО: $0.15 × 2.4 наценка = $0.36/sec для 720p
-    costPerSecondStars480p: 12, // ✅ $0.192 / 0.016 = 12⭐/sec
-    costPerSecondStars720p: 23, // ✅ $0.36 / 0.016 = 22.5⭐ ≈ 23⭐/sec
-    maxDuration: 30, // ✅ ПРАВИЛЬНО: fal.ai limit 30 секунд
+    costPerSecond: 0.216, // ✅ ТОЛЬКО 720p: $0.09 × 2.4 наценка = $0.216/сек (kie.ai: 18 credits)
+    maxDuration: 30, // kie.ai limit 30 секунд
     quality: 'high',
     isAvailable: true,
-    resolution: '480p', // default разрешение
+    resolution: '720p',
     features: [
       'Использует голос аватара пользователя',
-      'Естественная синхронизация губ',
+      'Естественная синхронизация губ (720p)',
       'Выразительные движения глаз',
       'Тонкие мимические жесты',
-      'Выбор качества: 480p (12⭐/сек) или 720p (23⭐/сек)',
+      'Высокое качество 720p - 14⭐/сек',
       'До 30 секунд видео',
+    ],
+  },
+  [LipSyncModelType.FAL_VEED_FABRIC]: {
+    id: 'fal_veed_fabric',
+    name: '🚀 Fal.ai Veed Fabric 1.0 Fast',
+    description:
+      'Быстрая и стабильная модель от Fal.ai для создания talking video с естественной синхронизацией губ. Поддерживает 720p и 480p качество. Более стабильная альтернатива.',
+    provider: 'fal',
+    modelId: 'fal-veed-fabric-1.0-fast',
+    costPerSecond: 0.1, // ✅ ИСПРАВЛЕНО: $0.10 per second для 480p (базовая цена)
+    costPerSecond720p: 0.2, // ✅ ИСПРАВЛЕНО: $0.20 per second для 720p (базовая цена)
+    costPerSecondStars480p: 9.375, // ✅ ИСПРАВЛЕНО: 9.375⭐/сек для 480p с наценкой 50% ($0.10 × 1.5 / $0.016)
+    costPerSecondStars720p: 18.75, // ✅ ИСПРАВЛЕНО: 18.75⭐/сек для 720p с наценкой 50% ($0.20 × 1.5 / $0.016)
+    maxDuration: 60,
+    quality: 'high',
+    isAvailable: true,
+    resolution: '720p',
+    features: [
+      'Быстрая и стабильная обработка',
+      'Поддержка 720p и 480p качества',
+      'Естественная синхронизация губ',
+      'Надежная инфраструктура Fal.ai',
+      'До 60 секунд видео',
+      'Обновленные реальные цены',
     ],
   },
 }
@@ -129,7 +151,11 @@ export function calculateLipSyncCost(
   }
 
   // Для Veed Fabric с выбором разрешения
-  if (modelId === 'veed_fabric' && resolution === '720p' && model.costPerSecond720p) {
+  if (
+    modelId === 'veed_fabric' &&
+    resolution === '720p' &&
+    model.costPerSecond720p
+  ) {
     return model.costPerSecond720p * durationSeconds
   }
 
@@ -149,17 +175,28 @@ export function calculateLipSyncCostStars(
     throw new Error(`Unknown lip-sync model: ${modelId}`)
   }
 
-  // Для Veed Fabric с выбором разрешения
+  // Для Veed Fabric только 720p: $0.216/сек
+  // 1⭐ ≈ $0.016, поэтому $0.216 / $0.016 = 13.5⭐ ≈ 14⭐/сек
   if (modelId === 'veed_fabric') {
-    const costPerSec = resolution === '720p'
-      ? (model.costPerSecondStars720p || 14)
-      : (model.costPerSecondStars480p || 7)
-    return costPerSec * durationSeconds
+    return 14 * durationSeconds // 720p quality
+  }
+
+  // ✅ ИСПРАВЛЕНО: Для Fal.ai Veed Fabric 1.0 Fast с централизованной наценкой
+  if (modelId === 'fal_veed_fabric') {
+    const {
+      MARKUP_MULTIPLIER,
+      STAR_COST_USD,
+    } = require('@/config/unified-pricing.config')
+    const costPerSecond = resolution === '720p' ? 0.2 : 0.1 // $0.20 для 720p, $0.10 для 480p
+    const totalCostUSD = costPerSecond * durationSeconds
+    const starsBeforeMarkup = totalCostUSD / STAR_COST_USD
+    const starsWithMarkup = starsBeforeMarkup * MARKUP_MULTIPLIER
+    return Math.floor(starsWithMarkup) // Применяем централизованную наценку 50%
   }
 
   // Для других моделей - конвертируем USD в звезды
   const starCost = 0.016 // $1 = 62.5⭐ → 1⭐ = $0.016
-  return Math.ceil(model.costPerSecond * durationSeconds / starCost)
+  return Math.ceil((model.costPerSecond * durationSeconds) / starCost)
 }
 
 /**

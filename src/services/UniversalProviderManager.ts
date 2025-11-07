@@ -1,4 +1,5 @@
 import { KieAiProvider } from './video-providers/KieAiProvider'
+import { generateFaceSwap, FaceSwapRequest } from './generateFaceSwap'
 import { logger } from '@/utils/logger'
 
 interface VideoGenerationRequest {
@@ -6,6 +7,11 @@ interface VideoGenerationRequest {
   duration?: number
   aspectRatio?: '16:9' | '9:16' | '1:1'
   imageUrl?: string
+  userId?: string
+  projectId?: number
+}
+
+interface FaceSwapGenerationRequest extends FaceSwapRequest {
   userId?: string
   projectId?: number
 }
@@ -34,7 +40,7 @@ interface MusicGenerationRequest {
 interface ModelInfo {
   id: string
   name: string
-  type: 'video' | 'image' | 'music'
+  type: 'video' | 'image' | 'music' | 'faceswap'
   provider: string
   description: string
   pricePerUnit: number
@@ -82,6 +88,42 @@ export class UniversalProviderManager {
         pricePerUnit: 0.3, // per second
         supportedFeatures: ['text-to-video', 'image-to-video'],
       },
+      {
+        id: 'sora-2',
+        name: 'Sora 2',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 text-to-video generation',
+        pricePerUnit: 0.015, // ~94⭐ per 10 seconds
+        supportedFeatures: ['text-to-video'],
+      },
+      {
+        id: 'sora-2-pro',
+        name: 'Sora 2 Pro',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 Pro high-quality text-to-video',
+        pricePerUnit: 0.02, // ~125⭐ per 10 seconds
+        supportedFeatures: ['text-to-video'],
+      },
+      {
+        id: 'sora-2-i2v',
+        name: 'Sora 2 Image-to-Video',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 image-to-video generation',
+        pricePerUnit: 0.015, // ~94⭐ per 10 seconds
+        supportedFeatures: ['image-to-video'],
+      },
+      {
+        id: 'sora-2-pro-i2v',
+        name: 'Sora 2 Pro Image-to-Video',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 Pro high-quality image-to-video',
+        pricePerUnit: 0.028, // ~280⭐ per 10 seconds
+        supportedFeatures: ['image-to-video'],
+      },
     ]
 
     // Image models
@@ -97,12 +139,12 @@ export class UniversalProviderManager {
       },
       {
         id: 'midjourney-v7',
-        name: 'Midjourney v7',
+        name: 'Midjourney v7 (FLUX)',
         type: 'image',
-        provider: 'Kie.ai',
-        description: 'Artistic styles and high quality',
-        pricePerUnit: 0.15, // per image
-        supportedFeatures: ['text-to-image', 'artistic-styles'],
+        provider: 'Replicate',
+        description: 'FLUX-based Midjourney-style image generation via adminconteudosflix/midjourney-allcraft',
+        pricePerUnit: 0.035, // per image ($0.035 per run)
+        supportedFeatures: ['text-to-image', 'artistic-styles', 'aspect-ratio', 'fast-mode'],
       },
       {
         id: 'flux-1-kontext',
@@ -155,8 +197,21 @@ export class UniversalProviderManager {
       },
     ]
 
+    // FaceSwap models
+    const faceSwapModels: ModelInfo[] = [
+      {
+        id: 'face-swap',
+        name: 'FaceSwap',
+        type: 'faceswap',
+        provider: 'Replicate',
+        description: 'Swap faces between two images using AI',
+        pricePerUnit: 0.01, // per swap
+        supportedFeatures: ['face-swap', 'image-processing'],
+      },
+    ]
+
     // Register all models
-    ;[...videoModels, ...imageModels, ...musicModels].forEach(model => {
+    ;[...videoModels, ...imageModels, ...musicModels, ...faceSwapModels].forEach(model => {
       this.models.set(model.id, model)
     })
 
@@ -236,6 +291,19 @@ export class UniversalProviderManager {
           imageUrl: request.imageUrl,
         })
 
+      case 'Replicate':
+        // Import and use Midjourney generator
+        const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
+        return await generateMidjourneyImage({
+          prompt: request.prompt,
+          imageUrl: request.imageUrl,
+          width: request.width,
+          height: request.height,
+          aspectRatio: request.style, // Can pass aspect ratio via style parameter
+          numImages: request.numImages,
+          telegramId: request.userId || 'unknown',
+        })
+
       default:
         throw new Error(
           `Provider ${model.provider} not supported for image generation`
@@ -281,6 +349,41 @@ export class UniversalProviderManager {
     }
   }
 
+  async performFaceSwap(
+    modelId: string,
+    request: FaceSwapGenerationRequest
+  ): Promise<any> {
+    const model = this.models.get(modelId)
+
+    if (!model) {
+      throw new Error(`Unknown model: ${modelId}`)
+    }
+
+    if (model.type !== 'faceswap') {
+      throw new Error(`Model ${modelId} is not a face-swap model`)
+    }
+
+    logger.info(`👤 Starting face swap`, {
+      model: modelId,
+      provider: model.provider,
+      targetImageUrl: request.targetImageUrl.substring(0, 100),
+      swapImageUrl: request.swapImageUrl.substring(0, 100),
+    })
+
+    switch (model.provider) {
+      case 'Replicate':
+        return await generateFaceSwap({
+          targetImageUrl: request.targetImageUrl,
+          swapImageUrl: request.swapImageUrl,
+        })
+
+      default:
+        throw new Error(
+          `Provider ${model.provider} not supported for face-swap`
+        )
+    }
+  }
+
   getProviderForModel(modelId: string): string | null {
     const model = this.models.get(modelId)
     return model ? model.provider : null
@@ -290,7 +393,7 @@ export class UniversalProviderManager {
     return Array.from(this.models.values())
   }
 
-  getModelsByType(type: 'video' | 'image' | 'music'): ModelInfo[] {
+  getModelsByType(type: 'video' | 'image' | 'music' | 'faceswap'): ModelInfo[] {
     return Array.from(this.models.values()).filter(model => model.type === type)
   }
 

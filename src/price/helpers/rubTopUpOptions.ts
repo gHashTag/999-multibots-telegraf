@@ -6,8 +6,10 @@ import {
 } from '@/config/unified-pricing.config'
 
 // Пакеты пополнения в рублях (фиксированные, для fallback)
+// ⚠️ ВАЖНО: Минимальная сумма Robokassa - 50-100₽ (зависит от настроек мерчанта)
 export const rubTopUpOptions: { amountRub: number; stars: number }[] = [
-  { amountRub: 10, stars: 6 },
+  // { amountRub: 10, stars: 6 }, // ❌ УБРАНО: Robokassa не поддерживает платежи < 50₽
+  { amountRub: 100, stars: 43 }, // ✅ ДОБАВЛЕНО: Минимальная безопасная сумма
   { amountRub: 500, stars: 217 },
   { amountRub: 1000, stars: 434 },
   { amountRub: 2000, stars: 869 },
@@ -36,7 +38,8 @@ export async function generateDynamicTopUpPackages(
     const currentRate = await getUsdToRubRate(fallback)
 
     // Базовые суммы в рублях для пакетов
-    const baseAmounts = [10, 500, 1000, 2000, 5000, 10000]
+    // ⚠️ ВАЖНО: Минимальная сумма Robokassa - 50-100₽
+    const baseAmounts = [100, 500, 1000, 2000, 5000, 10000]
 
     const dynamicPackages = baseAmounts.map(amountRub => {
       // Используем динамический курс для расчёта звёзд

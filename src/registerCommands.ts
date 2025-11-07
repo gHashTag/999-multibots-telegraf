@@ -43,6 +43,7 @@ import {
   neuroPhotoWizardV2,
   imageToPromptWizard,
   imageUpscalerWizard,
+  faceSwapWizard,
   improvePromptWizard,
   sizeWizard,
   textToImageWizard,
@@ -62,6 +63,9 @@ import {
   neuroCoderScene,
   lipSyncWizard,
   veedFabricWizard,
+  aiReelsWizard,
+  aiReelsEntryWizard,
+  aiReelsRenderWizard,
   startScene,
   chatWithAvatarWizard,
   helpScene,
@@ -92,9 +96,8 @@ import { isRussian } from '@/helpers/language'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { registerPaymentActions } from './handlers/paymentActions'
-// handleTextMessage и setupHearsHandlers теперь импортируются в bot.ts
-// Убираем импорт handleMenu, так как он не используется здесь напрямую
-// import { handleMenu } from './handlers/handleMenu'
+// ✅ ВОССТАНОВЛЕН: setupHearsHandlers - все кнопки меню обрабатываются здесь
+import { setupHearsHandlers } from './hearsHandlers'
 //https://github.com/telegraf/telegraf/issues/705
 
 // Проверяем что textToVideoWizard загружен
@@ -105,7 +108,8 @@ console.log('🚨 [SCENE_DEBUG] textToVideoWizard check:', {
   sceneType: typeof textToVideoWizard,
 })
 
-export const stage = new Scenes.Stage<MyContext>([
+// 🔍 DEBUG: Проверка всех сцен ПЕРЕД созданием Stage
+const scenesToRegister = [
   startScene,
   menuScene,
   helpScene,
@@ -131,20 +135,17 @@ export const stage = new Scenes.Stage<MyContext>([
   sizeWizard,
   aiPhotoshopScene,
   morphingWizard,
-  new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.TextToSpeech,
-    ...(textToSpeechWizard.steps as any)
-  ),
+  voiceAvatarWizard,
+  textToSpeechWizard,
   videoTranscriptionWizard,
   lipSyncWizard,
   veedFabricWizard,
+  aiReelsWizard,
+  aiReelsEntryWizard,
+  aiReelsRenderWizard,
   avatarTransformScene,
-  new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.ChatWithAvatar,
-    ...(chatWithAvatarWizard.steps as any)
-  ),
+  avatarBrainWizard,
+  chatWithAvatarWizard,
   selectModelWizard,
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
@@ -155,13 +156,64 @@ export const stage = new Scenes.Stage<MyContext>([
   instagramScrapingWizard,
   autoFixerConfigScene,
   instagramParserScene,
-])
+  instagramParserWizard,
+  faceSwapWizard,
+]
+
+// 🔍 DEBUG: Print scene names from array definition
+const sceneNames = [
+  'startScene', 'menuScene', 'helpScene', 'inviteScene', 'paymentScene',
+  'rublePaymentScene', 'starPaymentScene', 'subscriptionScene', 'subscriptionCheckScene',
+  'checkBalanceScene', 'balanceScene', 'neuroPhotoWizard', 'neuroPhotoWizardV2',
+  'textToImageWizard', 'textToVideoWizard', 'imageToVideoWizard', 'imageToPromptWizard',
+  'imageUpscalerWizard', 'improvePromptWizard', 'trainFluxModelWizard',
+  'uploadTrainFluxModelScene', 'uploadVideoScene', 'sizeWizard', 'aiPhotoshopScene',
+  'morphingWizard', 'voiceAvatarWizard', 'textToSpeechWizard',
+  'videoTranscriptionWizard', 'lipSyncWizard', 'veedFabricWizard', 'aiReelsWizard',
+  'aiReelsEntryWizard', 'aiReelsRenderWizard', 'avatarTransformScene',
+  'avatarBrainWizard', 'chatWithAvatarWizard', 'selectModelWizard',
+  'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
+  'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
+  'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
+]
+
+// 🔍 DEBUG: Validate each scene
+scenesToRegister.forEach((scene, index) => {
+  const hasId = scene?.id != null
+  const hasMiddleware = typeof scene?.middleware === 'function'
+  const isValid = hasId && hasMiddleware
+
+  console.log(`🔍 [SCENE ${index}] ${sceneNames[index] || 'ARRAY_INDEX_' + index}: ${scene?.id || 'UNKNOWN'}`, {
+    hasId,
+    hasMiddleware,
+    isValid,
+    isUndefined: scene === undefined,
+    isNull: scene === null,
+  })
+
+  if (!isValid || scene === undefined || scene === null) {
+    console.error(`❌❌❌ [SCENE ${index}] CRITICAL: ${sceneNames[index]} is invalid/undefined!`)
+    console.error(`   - Variable name: ${sceneNames[index]}`)
+    console.error(`   - Actual value:`, JSON.stringify(scene, null, 2))
+    console.error(`   - Type: ${typeof scene}`)
+    console.error(`   - Has ID: ${hasId}`)
+    console.error(`   - Has middleware: ${hasMiddleware}`)
+    console.error(`   - Keys:`, Object.keys(scene || {}))
+    // ОСТАНОВКА ВЫПОЛНЕНИЯ
+    throw new Error(`CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`)
+  }
+})
+
+export const stage = new Scenes.Stage<MyContext>(scenesToRegister as any)
 
 // Проверяем зарегистрированные сцены
 console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
   totalScenes: stage.scenes.size,
   hasTextToVideoWizard: stage.scenes.has('text_to_video'),
-  sceneNames: Array.from(stage.scenes.keys()),
+  hasInstagramParser: stage.scenes.has('instagram_parser_wizard'),
+  hasFaceSwapWizard: stage.scenes.has('faceSwapWizard'),
+  hasPaymentScene: stage.scenes.has('payment_scene'),
+  allSceneNames: Array.from(stage.scenes.keys()).sort(),
 })
 
 // Function to send the promotional message
@@ -213,7 +265,58 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       return next()
     })
 
-    // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
+    // 3. ГЛОБАЛЬНЫЙ ПЕРЕХВАТЧИК для кнопок навигации (ДО stage.middleware)
+    // Это позволяет выйти из любой сцены через "🏠 Главное меню" или "Отмена"
+    bot.use(async (ctx, next) => {
+      if (ctx.message && 'text' in ctx.message) {
+        const text = ctx.message.text
+        const isRu = ctx.from?.language_code === 'ru'
+
+        // Глобальная кнопка "Главное меню" - работает ВЕЗДЕ
+        if (text === '🏠 Главное меню' || text === '🏠 Main menu') {
+          logger.info('🔥 [GLOBAL INTERCEPTOR] Main Menu pressed', {
+            telegramId: ctx.from?.id,
+            currentScene: ctx.scene?.current?.id
+          })
+          try {
+            await ctx.scene.leave()
+            await ctx.scene.enter(ModeEnum.MainMenu)
+            return // Останавливаем дальнейшую обработку
+          } catch (error) {
+            logger.error('❌ [GLOBAL INTERCEPTOR] Error leaving scene:', {
+              error,
+              telegramId: ctx.from?.id
+            })
+          }
+        }
+
+        // Глобальная кнопка "Отмена" - работает ВЕЗДЕ
+        if (text === 'Отмена' || text === 'Cancel') {
+          logger.info('🔥 [GLOBAL INTERCEPTOR] Cancel pressed', {
+            telegramId: ctx.from?.id,
+            currentScene: ctx.scene?.current?.id
+          })
+          try {
+            await ctx.reply(
+              isRu ? '❌ Операция отменена' : '❌ Operation cancelled',
+              { reply_markup: { remove_keyboard: true } }
+            )
+            await ctx.scene.leave()
+            await ctx.scene.enter(ModeEnum.MainMenu)
+            return // Останавливаем дальнейшую обработку
+          } catch (error) {
+            logger.error('❌ [GLOBAL INTERCEPTOR] Error cancelling:', {
+              error,
+              telegramId: ctx.from?.id
+            })
+          }
+        }
+      }
+
+      return next()
+    })
+
+    // 4. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
     bot.use(stage.middleware())
 
     // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ
@@ -326,16 +429,16 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           )
           await ctx.scene.enter(ModeEnum.CreateUserScene)
         } else {
-          // Если пользователь существует, переходим к AI Demo
+          // Если пользователь существует, переходим в startScene
           console.log(
-            '✅ [START COMMAND] User exists, entering AvatarTransform scene',
+            '✅ [START COMMAND] User exists, entering startScene',
             {
               telegramId,
               userId: userDetails.id,
               createdAt: userDetails.created_at,
             }
           )
-          await ctx.scene.enter(ModeEnum.AvatarTransform)
+          await ctx.scene.enter('startScene')
         }
       } catch (error) {
         console.error('❌ [START COMMAND] Error:', error)
@@ -424,9 +527,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
             return
           }
 
-          // Если подписка есть, входим в главное меню
-          ctx.session.mode = ModeEnum.MainMenu
-          await ctx.scene.enter(ModeEnum.MainMenu)
+          // Если подписка есть, переходим в startScene
+          await ctx.scene.enter('startScene')
         } catch (subscriptionError) {
           // Если ошибка с проверкой подписки, всё равно показываем меню
           logger.warn(
@@ -730,400 +832,9 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    // 5. ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ДЛЯ КНОПОК (КРОМЕ НАВИГАЦИИ) (теперь ПОСЛЕ stage)
-    bot.hears([levels[103].title_ru, levels[103].title_en], async ctx => {
-      console.log('CASE bot.hears: 💬 Техподдержка / Support')
-      await ctx.scene.leave() // Теперь ctx.scene должен быть доступен
-      await handleTechSupport(ctx)
-    })
-
-    // ПРОСТОЙ GLOBAL HEARS для кнопки подписки - ВСЕГДА работает!
-    // Ловим все варианты кнопок подписки (и старые с 💳, и новые с 💫)
-    bot.hears(
-      [
-        levels[105].title_ru,
-        levels[105].title_en,
-        '💳 Оформить подписку',
-        '💳 Subscribe',
-      ],
-      async ctx => {
-        console.log('🎯 URGENT DEBUG: GLOBAL SUBSCRIPTION HEARS TRIGGERED!')
-        logger.info('🚀 GLOBAL HEARS: Оформить подписку / Subscribe', {
-          telegramId: ctx.from?.id,
-          messageText: ctx.message?.text,
-          currentScene: ctx.scene?.current?.id,
-        })
-        console.log('🚀 GLOBAL HEARS: Оформить подписку triggered!')
-
-        try {
-          logger.info(
-            'Attempting to leave current scene and enter subscription scene'
-          )
-          await ctx.scene.leave() // Выходим из любой текущей сцены
-          ctx.session.mode = ModeEnum.SubscriptionScene // Устанавливаем режим
-          logger.info('About to enter subscription scene')
-          await ctx.scene.enter(ModeEnum.SubscriptionScene) // Входим в сцену подписки
-          logger.info('Successfully entered subscription scene')
-        } catch (error) {
-          console.error('❌ Error in subscription hears handler:', error)
-          logger.error('Error in Оформить подписку hears:', {
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-            telegramId: ctx.from?.id,
-          })
-          // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-          const isRu = isRussianFromState(ctx)
-          try {
-            await ctx.reply(
-              isRu
-                ? '❌ Ошибка при переходе к оформлению подписки.'
-                : '❌ Error entering subscription.'
-            )
-          } catch (replyError) {
-            console.error('❌ Failed to send error message:', replyError)
-          }
-        }
-      }
-    )
-
-    // Обработчик для текстовой кнопки "🆕 Новый промпт"
-    bot.hears(['🆕 Новый промпт', '🆕 New prompt'], async ctx => {
-      logger.info('HEARS: new_neurophoto_prompt', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const is_ru = isRussianFromState(ctx)
-
-        // Переходим в сцену нейрофото
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.NeuroPhoto
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-
-        await ctx.reply(
-          is_ru
-            ? '🆕 Начинаем создание нового нейрофото! Опишите, какую фотографию вы хотите сгенерировать.'
-            : '🆕 Starting creation of a new neurophoto! Describe what kind of photo you want to generate.'
-        )
-      } catch (error) {
-        logger.error('Error in new_neurophoto_prompt hears:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-        const isRuError = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError
-            ? '❌ Произошла ошибка при создании нового промпта.'
-            : '❌ An error occurred while creating a new prompt.'
-        )
-      }
-    })
-
-    // Обработчики для кнопок "Создать еще" - Text-to-Video
-    bot.hears(
-      ['✨ Создать еще (Текст в Видео)', '✨ Create More (Text to Video)'],
-      async ctx => {
-        logger.info('HEARS: create_more_text_to_video', {
-          telegramId: ctx.from?.id,
-        })
-        try {
-          const isRu = isRussianFromState(ctx)
-
-          // ✅ ЗАЩИТА: Проверяем подписку перед использованием Text-to-Video
-          const hasSubscription = await checkSubscriptionGuard(
-            ctx,
-            'Text-to-Video'
-          )
-          if (!hasSubscription) {
-            return // Пользователь перенаправлен в subscriptionScene
-          }
-
-          await ctx.scene.leave()
-          ctx.session.mode = ModeEnum.TextToVideo
-          await ctx.scene.enter(ModeEnum.TextToVideo)
-
-          await ctx.reply(
-            isRu
-              ? '🎬 Создаем новое видео из текста! Выберите модель:'
-              : '🎬 Creating a new video from text! Select a model:'
-          )
-        } catch (error) {
-          logger.error('Error in create_more_text_to_video hears:', {
-            error,
-            telegramId: ctx.from?.id,
-          })
-          const isRuError = isRussianFromState(ctx)
-          await ctx.reply(
-            isRuError
-              ? '❌ Произошла ошибка при создании нового видео.'
-              : '❌ An error occurred while creating a new video.'
-          )
-        }
-      }
-    )
-
-    // Обработчики для кнопок "Создать еще" - Image-to-Video
-    bot.hears(
-      [
-        '✨ Создать еще (Изображение в Видео)',
-        '✨ Create More (Image to Video)',
-      ],
-      async ctx => {
-        logger.info('HEARS: create_more_image_to_video', {
-          telegramId: ctx.from?.id,
-        })
-        try {
-          const isRu = isRussianFromState(ctx)
-
-          // ✅ ЗАЩИТА: Проверяем подписку перед использованием Image-to-Video
-          const hasSubscription = await checkSubscriptionGuard(
-            ctx,
-            'Image-to-Video'
-          )
-          if (!hasSubscription) {
-            return // Пользователь перенаправлен в subscriptionScene
-          }
-
-          await ctx.scene.leave()
-          ctx.session.mode = ModeEnum.ImageToVideo
-          await ctx.scene.enter(ModeEnum.ImageToVideo)
-
-          await ctx.reply(
-            isRu
-              ? '🖼️ Создаем новое видео из изображения! Выберите модель:'
-              : '🖼️ Creating a new video from image! Select a model:'
-          )
-        } catch (error) {
-          logger.error('Error in create_more_image_to_video hears:', {
-            error,
-            telegramId: ctx.from?.id,
-          })
-          const isRuError = isRussianFromState(ctx)
-          await ctx.reply(
-            isRuError
-              ? '❌ Произошла ошибка при создании нового видео.'
-              : '❌ An error occurred while creating a new video.'
-          )
-        }
-      }
-    )
-
-    // Обработчик для кнопки "Выбрать другую модель (Видео)" - универсальный
-    bot.hears(
-      ['🖼 Выбрать другую модель (Видео)', '🖼 Select Another Model (Video)'],
-      async ctx => {
-        logger.info('HEARS: select_another_video_model', {
-          telegramId: ctx.from?.id,
-        })
-        try {
-          const isRu = isRussianFromState(ctx)
-
-          // ✅ ЗАЩИТА: Проверяем подписку перед выбором модели
-          const hasSubscription = await checkSubscriptionGuard(
-            ctx,
-            'Video Generation'
-          )
-          if (!hasSubscription) {
-            return // Пользователь перенаправлен в subscriptionScene
-          }
-
-          // Показываем пользователю выбор типа видео-генерации
-          await ctx.scene.leave()
-
-          await ctx.reply(
-            isRu
-              ? '🎬 Выберите тип генерации видео:'
-              : '🎬 Choose video generation type:',
-            Markup.keyboard([
-              [
-                isRu ? '📝 Текст в Видео' : '📝 Text to Video',
-                isRu ? '🖼️ Изображение в Видео' : '🖼️ Image to Video',
-              ],
-              [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
-            ]).resize()
-          )
-        } catch (error) {
-          logger.error('Error in select_another_video_model hears:', {
-            error,
-            telegramId: ctx.from?.id,
-          })
-          const isRuError = isRussianFromState(ctx)
-          await ctx.reply(
-            isRuError
-              ? '❌ Произошла ошибка при выборе модели.'
-              : '❌ An error occurred while selecting a model.'
-          )
-        }
-      }
-    )
-
-    // Обработчики для кнопок выбора типа видео-генерации
-    bot.hears(['📝 Текст в Видео', '📝 Text to Video'], async ctx => {
-      logger.info('HEARS: text_to_video_selection', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        const isRu = isRussianFromState(ctx)
-
-        // ✅ ЗАЩИТА: Проверяем подписку перед использованием Text-to-Video
-        const hasSubscription = await checkSubscriptionGuard(
-          ctx,
-          'Text-to-Video'
-        )
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
-        }
-
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.TextToVideo
-        await ctx.scene.enter(ModeEnum.TextToVideo)
-      } catch (error) {
-        logger.error('Error in text_to_video_selection hears:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        const isRuError = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError
-            ? '❌ Произошла ошибка при переходе к Text-to-Video.'
-            : '❌ An error occurred while switching to Text-to-Video.'
-        )
-      }
-    })
-
-    bot.hears(['🖼️ Изображение в Видео', '🖼️ Image to Video'], async ctx => {
-      logger.info('HEARS: image_to_video_selection', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        const isRu = isRussianFromState(ctx)
-
-        // ✅ ЗАЩИТА: Проверяем подписку перед использованием Image-to-Video
-        const hasSubscription = await checkSubscriptionGuard(
-          ctx,
-          'Image-to-Video'
-        )
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
-        }
-
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.ImageToVideo
-        await ctx.scene.enter(ModeEnum.ImageToVideo)
-      } catch (error) {
-        logger.error('Error in image_to_video_selection hears:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        const isRuError = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError
-            ? '❌ Произошла ошибка при переходе к Image-to-Video.'
-            : '❌ An error occurred while switching to Image-to-Video.'
-        )
-      }
-    })
-
-    // Обработчик для кнопки "Новый промт" после генерации видео (для text-to-video)
-    bot.hears(['🎬 Новый промт', '🎬 New Prompt'], async ctx => {
-      logger.info('HEARS: new_prompt_video', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        const isRu = isRussianFromState(ctx)
-        
-        // Проверяем, откуда пришел пользователь (из какого режима)
-        const lastMode = ctx.session.mode
-        
-        if (lastMode === ModeEnum.ImageToVideo) {
-          // Если был в режиме Image-to-Video, возвращаем туда
-          await ctx.scene.leave()
-          ctx.session.mode = ModeEnum.ImageToVideo
-          await ctx.scene.enter(ModeEnum.ImageToVideo)
-        } else {
-          // По умолчанию переходим в Text-to-Video
-          await ctx.scene.leave()
-          ctx.session.mode = ModeEnum.TextToVideo
-          await ctx.scene.enter(ModeEnum.TextToVideo)
-        }
-      } catch (error) {
-        logger.error('Error in new_prompt_video hears:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        const isRuError = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError
-            ? '❌ Произошла ошибка. Попробуйте выбрать режим из главного меню.'
-            : '❌ An error occurred. Please select a mode from the main menu.'
-        )
-      }
-    })
-
-    // Обработчик для кнопки "Новое видео" после генерации image-to-video
-    bot.hears(['🎬 Новое видео', '🎬 New Video'], async ctx => {
-      logger.info('HEARS: new_video_i2v', {
-        telegramId: ctx.from?.id,
-      })
-      try {
-        const isRu = isRussianFromState(ctx)
-
-        // Переходим в режим Image-to-Video для создания нового видео
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.ImageToVideo
-        await ctx.scene.enter(ModeEnum.ImageToVideo)
-
-      } catch (error: any) {
-        logger.error('Error in new_video_i2v handler', {
-          error: error?.message,
-          telegramId: ctx.from?.id,
-        })
-        const isRuError = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError
-            ? '❌ Произошла ошибка. Попробуйте выбрать режим из главного меню.'
-            : '❌ An error occurred. Please select a mode from the main menu.'
-        )
-      }
-    })
-
-    // ✅ ОБРАБОТЧИК ДЛЯ КНОПКИ МОРФИНГА
-    bot.hears([levels[13].title_ru, levels[13].title_en], async ctx => {
-      logger.info('HEARS: morphing_button', {
-        telegramId: ctx.from?.id,
-        messageText: ctx.message?.text,
-      })
-      try {
-        const isRu = isRussianFromState(ctx)
-
-        // ✅ ЗАЩИТА: Проверяем подписку перед использованием Morphing
-        const hasSubscription = await checkSubscriptionGuard(
-          ctx,
-          levels[13].title_ru // "🌀 Infinity Морфинг"
-        )
-        if (!hasSubscription) {
-          return // Пользователь перенаправлен в subscriptionScene
-        }
-
-        await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.MorphingWizard
-        await ctx.scene.enter(ModeEnum.MorphingWizard)
-      } catch (error) {
-        logger.error('Error in morphing hears handler:', {
-          error: error instanceof Error ? error.message : String(error),
-          telegramId: ctx.from?.id,
-        })
-        const isRuError = isRussianFromState(ctx)
-        await ctx.reply(
-          isRuError
-            ? '❌ Произошла ошибка при переходе к созданию морфинга.'
-            : '❌ An error occurred while switching to morphing creation.'
-        )
-      }
-    })
-
-    // ВСЕ ОСТАЛЬНЫЕ HEARS ОБРАБОТЧИКИ ПЕРЕНЕСЕНЫ В hearsHandlers.ts
+    // 5. УДАЛЕНЫ ДУБЛИРУЮЩИЕСЯ HEARS ОБРАБОТЧИКИ
+    // Все кнопки меню теперь обрабатываются через setupHearsHandlers
+    // для избежания конфликтов двух систем обработки кнопок
 
     // 6. ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ НАВИГАЦИИ (ACTION) (теперь ПОСЛЕ stage)
     bot.action('go_main_menu', async ctx => {
@@ -1248,6 +959,34 @@ If not, continue on your own and click the "I myself" button`
         sessionExists: !!ctx.session,
         sessionKeys: ctx.session ? Object.keys(ctx.session) : [],
       })
+
+      // ВАЖНО: Проверяем, находится ли пользователь в AI Reels wizard
+      const currentSceneId = ctx.scene?.current?.id
+      if (currentSceneId === 'ai_reels_wizard' ||
+          currentSceneId === 'ai_reels_entry' ||
+          currentSceneId === 'ai_reels_render_wizard') {
+        logger.info('🎬 GLOBAL PHOTO HANDLER: Photo is for AI Reels wizard, skipping global handler', {
+          telegramId: ctx.from?.id,
+          currentScene: currentSceneId,
+        })
+        // НЕ обрабатываем фото глобально, пусть wizard сам обработает
+        return
+      }
+
+      // Проверяем, находится ли пользователь в других wizard'ах, которые обрабатывают фото
+      const photoWizards = [
+        'neuro_photo', 'neuro_photo_v2', 'face_swap', 'image_to_video',
+        'ai_photoshop_scene', 'morphing_wizard', 'avatar_transform',
+        'digital_avatar_body', 'digital_avatar_body_2', 'veed_fabric_lipsync'
+      ]
+
+      if (currentSceneId && photoWizards.includes(currentSceneId)) {
+        logger.info('📸 GLOBAL PHOTO HANDLER: Photo is for wizard scene, skipping global handler', {
+          telegramId: ctx.from?.id,
+          currentScene: currentSceneId,
+        })
+        return
+      }
 
       // Проверяем, ожидает ли пользователь загрузку изображения для FLUX Kontext
       if (ctx.session?.awaitingFluxKontextImage) {
@@ -1510,12 +1249,7 @@ If not, continue on your own and click the "I myself" button`
         await ctx.scene.leave()
         ctx.session.mode = ModeEnum.TextToVideo
         await ctx.scene.enter(ModeEnum.TextToVideo)
-
-        await ctx.reply(
-          isRu
-            ? '🎬 Создаем новое видео из текста! Выберите модель:'
-            : '🎬 Creating a new video from text! Select a model:'
-        )
+        // ✅ ИСПРАВЛЕНО: Убрано лишнее сообщение - wizard сам запросит промпт
       } catch (error) {
         logger.error('Error in create_more_text_to_video action:', {
           error,
@@ -1551,12 +1285,7 @@ If not, continue on your own and click the "I myself" button`
         await ctx.scene.leave()
         ctx.session.mode = ModeEnum.ImageToVideo
         await ctx.scene.enter(ModeEnum.ImageToVideo)
-
-        await ctx.reply(
-          isRu
-            ? '🖼️ Создаем новое видео из изображения! Выберите модель:'
-            : '🖼️ Creating a new video from image! Select a model:'
-        )
+        // ✅ ИСПРАВЛЕНО: Убрано лишнее сообщение - wizard сам запросит изображение
       } catch (error) {
         logger.error('Error in create_more_image_to_video action:', {
           error,
@@ -1793,12 +1522,16 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    // ВАЖНО: setupHearsHandlers и handleTextMessage теперь регистрируются в bot.ts
-    // чтобы hears обработчики срабатывали до общего текстового обработчика
+    // ✅ ВАЖНО: УДАЛЁН ПОЛНОСТЬЮ УДАЛЁН
+    // Все кнопки обрабатываются через setupHearsHandlers из hearsHandlers.ts
 
     // ✅ РЕГИСТРИРУЕМ MULTI-PHOTO ACTION HANDLERS
     logger.info('🔧 [MULTI-PHOTO] Registering multi-photo action handlers')
     registerMultiPhotoActions(bot)
+
+    // ✅ ВОССТАНОВЛЕНЫ ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ
+    logger.info('🔧 [HEARS] Registering global hears handlers for menu buttons')
+    setupHearsHandlers(bot)
 
     console.log('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
     logger.info('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')

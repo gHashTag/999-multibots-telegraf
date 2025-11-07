@@ -1118,7 +1118,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male style',
             isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style',
           ],
-          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+          [
+            isRu ? 'Отмена' : 'Cancel',
+            isRu ? '🏠 Главное меню' : '🏠 Main menu',
+          ],
         ]).resize().reply_markup,
       }
     )
@@ -1165,6 +1168,16 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.enter(ModeEnum.MainMenu)
     }
 
+    // Отмена
+    if (text === (isRu ? 'Отмена' : 'Cancel')) {
+      await ctx.reply(
+        isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+        { reply_markup: { remove_keyboard: true } }
+      )
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
+    }
+
     // Обработка выбора пола
     let gender: 'male' | 'female' | null = null
 
@@ -1205,7 +1218,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu ? '🎭 SeeDream-4 (ByteDance)' : '🎭 SeeDream-4 (ByteDance)',
             isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
           ],
-          [isRu ? '🔙 Назад' : '🔙 Back'],
+          [
+            isRu ? 'Отмена' : 'Cancel',
+            isRu ? '🔙 Назад' : '🔙 Back',
+          ],
         ]).resize().reply_markup,
       }
     )
@@ -1240,6 +1256,16 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: text,
       })
       return
+    }
+
+    // Отмена
+    if (text === (isRu ? 'Отмена' : 'Cancel')) {
+      await ctx.reply(
+        isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+        { reply_markup: { remove_keyboard: true } }
+      )
+      await ctx.scene.leave()
+      return ctx.scene.enter(ModeEnum.MainMenu)
     }
 
     // Возврат к выбору пола
@@ -1770,7 +1796,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         '[AvatarTransformScene] Back button pressed, returning to action selection',
         {
           telegramId,
-          currentStep: ctx.wizard.cursor,
+          currentStep: ctx.wizard?.cursor ?? 0,
         }
       )
 

@@ -68,8 +68,8 @@ export const levels: Record<number, Level> = {
   },
   // text_to_image
   11: {
-    title_ru: '🖼️ Генерация изображений',
-    title_en: '🖼️ Generate Images',
+    title_ru: '🖼️ Текст в фото',
+    title_en: '🖼️ Text to Photo',
   },
   // ai_photoshop (formerly flux_kontext)
   12: {
@@ -88,10 +88,11 @@ export const levels: Record<number, Level> = {
     title_en: '🎤 Lip Sync',
     admin_only: true, // 🔒 ВРЕМЕННО: только для админов пока тестируется интеграция
   },
-  // 15: {
-  //   title_ru: '🎥 Видео в URL',
-  //   title_en: '🎥 Video in URL',
-  // },
+  // face_swap - замена лица на видео/фото
+  15: {
+    title_ru: '🎭 Замена лица',
+    title_en: '🎭 Face Swap',
+  },
   // step0
   // paymentScene
   100: {
@@ -141,7 +142,7 @@ export const levels: Record<number, Level> = {
   },
   // AI Reels generation button - creates Instagram-style reels with AI (admin only)
   110: {
-    title_ru: '🎬 AI Reels',
+    title_ru: '🎬 ИИ Рилс',
     title_en: '🎬 AI Reels',
     admin_only: true, // Доступно только администраторам
   },
@@ -150,6 +151,7 @@ export const levels: Record<number, Level> = {
     title_ru: '🦸‍♂️ ИИ Герои',
     title_en: '🦸‍♂️ AI Heroes',
   },
+  // Removed: Plus button for adding new models - not needed in production menu
 }
 
 // Удаляем дублированную проверку - используем только ADMIN_IDS_ARRAY из config
@@ -316,25 +318,27 @@ export async function mainMenu({
   // Показываем ВСЕ основные функции ВСЕМ пользователям
   // Фильтруем только служебные кнопки и админские функции
   // Используем ADMIN_IDS_ARRAY для единой проверки (уже импортирован в начале файла)
-  
+
   // Проверяем доступ для админов и сотрудников Хаим Групп
   const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
   const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
   const hasAdminAccess = isMainAdmin || isHaimStaff
 
-  console.log(`[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`)
+  console.log(
+    `[mainMenu DEBUG] User ${userId}: isMainAdmin=${isMainAdmin}, isHaimStaff=${isHaimStaff}, hasAdminAccess=${hasAdminAccess}`
+  )
 
   availableLevels = Object.values(levels)
     .filter(filterServiceLevels)
-    .filter(
-      level => {
-        const shouldInclude = !(level.admin_only && !hasAdminAccess)
-        if (level.admin_only) {
-          console.log(`[mainMenu DEBUG] Admin-only level ${level.title_ru}: hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`)
-        }
-        return shouldInclude
+    .filter(level => {
+      const shouldInclude = !(level.admin_only && !hasAdminAccess)
+      if (level.admin_only) {
+        console.log(
+          `[mainMenu DEBUG] Admin-only level ${level.title_ru}: hasAdminAccess=${hasAdminAccess}, shouldInclude=${shouldInclude}`
+        )
       }
-    )
+      return shouldInclude
+    })
 
   // Добавляем кнопку мониторинга конкурентов для админов и сотрудников Хаим Групп
   if (userId && levels[109]) {
@@ -372,15 +376,21 @@ export async function mainMenu({
     // Если это AI Heroes (level 111), добавляем информацию о лимитах
     if (lvl === levels[111] && telegramId) {
       try {
-        const generationBadge = await getGenerationStatusBadgeAsync(telegramId, isRu)
+        const generationBadge = await getGenerationStatusBadgeAsync(
+          telegramId,
+          isRu
+        )
         if (generationBadge !== '🎮') {
           buttonText += ` ${generationBadge}`
         }
       } catch (error) {
-        logger.warn('[mainMenu] Failed to get generation status for AI Heroes button', {
-          telegramId,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
+        logger.warn(
+          '[mainMenu] Failed to get generation status for AI Heroes button',
+          {
+            telegramId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }
+        )
       }
     }
 
@@ -390,13 +400,14 @@ export async function mainMenu({
   const adminSpecificButtons = []
 
   // Админские кнопки для основных админов
-  if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
-    adminSpecificButtons.push(
-      Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
-      Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
-    )
-    console.log('[mainMenu LOG] Added admin buttons.')
-  }
+  // TEMPORARILY HIDDEN - кнопки "Цифровое тело 2" и "Нейрофото 2"
+  // if (userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))) {
+  //   adminSpecificButtons.push(
+  //     Markup.button.text(isRu ? '🤖 Цифровое тело 2' : '🤖 Digital Body 2'),
+  //     Markup.button.text(isRu ? '📸 Нейрофото 2' : '📸  NeuroPhoto 2')
+  //   )
+  //   console.log('[mainMenu LOG] Added admin buttons.')
+  // }
 
   // --- Создаем кнопки, которые нужны почти всегда ---
   const supportButton = Markup.button.text(
@@ -417,9 +428,9 @@ export async function mainMenu({
     buttonRows.push(allFunctionalButtons.slice(i, i + 2))
   }
 
-  const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом (Подписка)
+  const bottomRowButtons = [] // Кнопки ПЕРЕД последним рядом
 
-  // Добавляем кнопки "Баланс" и "Пополнить баланс" для всех пользователей
+  // Создаем кнопки баланса, пополнения, приглашения
   const balanceButton = Markup.button.text(
     isRu ? levels[101].title_ru : levels[101].title_en // "💰 Баланс"
   )
@@ -430,26 +441,36 @@ export async function mainMenu({
     isRu ? levels[102].title_ru : levels[102].title_en // "👥 Пригласить друга"
   )
 
-  console.log(`[mainMenu LOG] Adding balance and top-up buttons for subscription: ${currentSubscription}`)
-
-  // Баланс и Пополнить идут в основные ряды для всех пользователей
-  buttonRows.push([balanceButton, topUpButton])
-
-  // Пригласить и Поддержка идут в предпоследний ряд
-  bottomRowButtons.push([inviteButton, supportButton])
-
-  // ✅ Кнопка языка добавляется для ВСЕХ типов подписок в отдельном ряду
-  bottomRowButtons.push([languageButton])
   console.log(
-    `[mainMenu LOG] Generated bottomRowButtons (before Subscribe): ${JSON.stringify(bottomRowButtons)}`
+    `[mainMenu LOG] Adding buttons for subscription: ${currentSubscription}`
   )
 
-  // Собираем все ряды, КРОМЕ последнего (Подписка)
-  const finalKeyboard = [...buttonRows, ...bottomRowButtons]
+  // 🎯 ПРАВИЛЬНЫЙ ПОРЯДОК (ПО ТРЕБОВАНИЮ ПОЛЬЗОВАТЕЛЯ):
+  // 1. Нейрофункции (уже в buttonRows)
+  // 2. Пригласить + Техподдержка
+  // 3. Язык
+  // 4. 💫 Оформить подписку + 💎 Пополнить баланс (САМЫЙ НИЗ!)
+  // 5. Баланс (если нужен)
 
-  // Добавляем кнопку "Оформить подписку" для ВСЕХ пользователей (включая STARS)
-  console.log(`[mainMenu LOG] Adding subscribe button: ${subscribeButton.text}`)
-  finalKeyboard.push([subscribeButton])
+  // Собираем все ряды с нейрофункциями
+  const finalKeyboard = [...buttonRows]
+
+  // Пригласить и Техподдержка
+  finalKeyboard.push([inviteButton, supportButton])
+
+  // ✅ Кнопка языка
+  finalKeyboard.push([languageButton])
+
+  // 📍 САМЫЙ НИЗ: Оформить подписку и Пополнить баланс
+  console.log(`[mainMenu LOG] Adding payment buttons at THE BOTTOM: ${subscribeButton.text}, ${topUpButton.text}`)
+  finalKeyboard.push([subscribeButton, topUpButton])
+
+  // 💰 Баланс отдельной строкой под оплатой
+  finalKeyboard.push([balanceButton])
+
+  console.log(
+    `[mainMenu LOG] Final keyboard order: Neuro functions → Invite/Support → Language → Subscribe/TopUp (BOTTOM!) → Balance`
+  )
 
   console.log(`[mainMenu LOG] Total button rows: ${finalKeyboard.length}`)
   console.log(

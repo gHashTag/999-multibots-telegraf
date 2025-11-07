@@ -1,0 +1,38 @@
+# 🤖 Claude Rules для проекта 999-agents-telegraf
+
+## 🏷️ СТАБИЛЬНЫЕ ВЕРСИИ
+
+### v0.0.5 - CURRENT STABLE (4 ноября 2025)
+**Статус:** ✅ Полностью рабочая версия
+**Коммит:** `0ef16af1`
+**Docker Snapshot:** `/root/snapshots/v0.0.5-stable-20251104_193925.tar.gz`
+
+#### Откат к этой версии:
+```bash
+git checkout v0.0.5
+./deploy.sh deploy
+```
+
+---
+
+## 📋 ПРАВИЛА РАЗРАБОТКИ
+
+### Критические файлы (НЕ ТРОГАТЬ без крайней необходимости):
+- `src/inngest_app/render-server-client.ts`
+- `src/scenes/lipSyncWizard/ai-reels-render-wizard.ts`
+- `nginx/nginx.conf`
+- `deploy.sh`
+
+### Архитектура (НЕ МЕНЯТЬ):
+- Docker: `--network host`
+- Nginx: `proxy_pass http://127.0.0.1:3000`
+- SSL: Let's Encrypt `/etc/letsencrypt/`
+
+### ❌ НИКОГДА НЕ ДЕЛАТЬ:
+1. НЕ менять `--network host` на port mapping
+2. НЕ добавлять префикс `sk_` к ElevenLabs API key для STT
+3. НЕ коммитить реальные API ключи
+
+---
+
+**Статус:** ✅ STABLE v0.0.5

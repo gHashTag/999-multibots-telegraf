@@ -11,7 +11,7 @@ import { getPhotoUrl } from '@/handlers/getPhotoUrl'
 import { ModeEnum } from '@/interfaces/modes'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getTranslation } from '@/core'
-import { handleMenu } from '@/handlers/handleMenu'
+// ✅ УДАЛЕН: импорт УДАЛЁН - больше не используется
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { logger } from '@/utils'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
@@ -21,7 +21,6 @@ import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getParsingAccess } from '@/menu/mainMenu'
 import { getBotNameByToken } from '@/core/bot'
-import { createMiniAppKeyboard } from '@/menu/miniAppButton'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -29,20 +28,26 @@ const menuCommandStep = async (ctx: MyContext) => {
   // 🚨 КРИТИЧЕСКАЯ ПРОВЕРКА: НЕ обрабатываем если пользователь УЖЕ в другой сцене!
   const currentSceneId = ctx.scene.current?.id
   const telegramId = ctx.from?.id?.toString()
-  
+
   if (currentSceneId !== ModeEnum.MainMenu) {
-    console.log(`🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`, {
-      telegramId,
-      currentSceneId,
-      mainMenuId: ModeEnum.MainMenu
-    })
+    console.log(
+      `🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`,
+      {
+        telegramId,
+        currentSceneId,
+        mainMenuId: ModeEnum.MainMenu,
+      }
+    )
     return // НЕ обрабатываем, если пользователь в другой сцене
   }
 
-  console.log(`✅ [menuCommandStep] User is in main menu scene, processing menuCommand`, {
-    telegramId,
-    currentSceneId
-  })
+  console.log(
+    `✅ [menuCommandStep] User is in main menu scene, processing menuCommand`,
+    {
+      telegramId,
+      currentSceneId,
+    }
+  )
 
   // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЯЗЫКА В MENUSCENE
   logger.info(`[menuCommandStep] 🎭 SCENE STARTED:`, {
@@ -168,17 +173,15 @@ const menuCommandStep = async (ctx: MyContext) => {
     if (photo_url) {
       // Специальная обработка для digitalAvatar - добавляем inline кнопки даже с фото
       if (translationKey === 'digitalAvatar') {
-        // Create mini app button
-        const miniAppKeyboard = createMiniAppKeyboard(isRu, [
+        // Inline кнопка подписки (БЕЗ Mini App)
+        const inlineKeyboard = Markup.inlineKeyboard([
           [
             {
               text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
               callback_data: 'go_to_subscription_scene',
             },
           ],
-        ])
-        
-        const inlineKeyboard = miniAppKeyboard.reply_markup
+        ]).reply_markup
 
         // Пробуем отправить фото с fallback
         const photoSent = await sendPhotoWithFallback(ctx, photo_url, {
@@ -213,17 +216,15 @@ const menuCommandStep = async (ctx: MyContext) => {
 
         // Специальная обработка для digitalAvatar - добавляем inline кнопки
         if (translationKey === 'digitalAvatar') {
-          // Create mini app button
-          const miniAppKeyboard = createMiniAppKeyboard(isRu, [
+          // Inline кнопка подписки (БЕЗ Mini App)
+          const inlineKeyboard = Markup.inlineKeyboard([
             [
               {
                 text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
                 callback_data: 'go_to_subscription_scene',
               },
             ],
-          ])
-          
-          const inlineKeyboard = miniAppKeyboard.reply_markup
+          ]).reply_markup
 
           // Отправляем сообщение с inline кнопками
           await ctx.reply(message, {
@@ -260,12 +261,12 @@ const menuCommandStep = async (ctx: MyContext) => {
       }
     }
 
-    // Ensure the wizard progresses to handle button clicks
+    // ✅ АРХИТЕКТУРА ИЗМЕНЕНА: После показа меню завершаем сцену
+    // Кнопки обрабатываются глобальными hearsHandlers, а не в сцене
     logger.info(
-      '[menuCommandStep] Calling ctx.wizard.next() to enable button handling'
+      '[menuCommandStep] Menu displayed, leaving scene to allow global handlers'
     )
-    ctx.wizard.next()
-    logger.info(`[menuCommandStep] Current wizard cursor: ${ctx.wizard.cursor}`)
+    await ctx.scene.leave()
   } catch (error) {
     console.error('Error in menu command:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
@@ -291,7 +292,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 const menuNextStep = async (ctx: MyContext) => {
   console.log('🎯 URGENT DEBUG: menuNextStep called!')
   logger.info('CASE 1: menuScene.next')
-  logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard.cursor}`)
+  logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard?.cursor ?? 0}`)
   logger.info(
     `[menuNextStep] Update keys: ${Object.keys(ctx.update).join(', ')}`
   )
@@ -310,10 +311,9 @@ const menuNextStep = async (ctx: MyContext) => {
       ctx.session.mode = ModeEnum.SubscriptionScene
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
     } else {
-      // Assuming other callbacks might be handled by handleMenu if they represent scene entries
-      // or specific actions defined as callbacks
-      logger.info(`[menuNextStep] Forwarding callback to handleMenu: ${text}`)
-      await handleMenu(ctx) // handleMenu can process known callback_data
+      // Все callback_data обрабатываются через глобальные обработчики
+      // УДАЛЁН УДАЛЁН - используется setupHearsHandlers
+      logger.info(`[menuNextStep] Callback forwarded to global handlers: ${text}`)
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
@@ -451,13 +451,8 @@ const menuNextStep = async (ctx: MyContext) => {
       return // Explicitly handled
     }
 
-    // If the text is not a specific button handled above,
-    // and not a command (which should be handled globally),
-    // we can consider it an unhandled text message within the menu scene.
-    // For now, we can log it and do nothing, or re-send the menu.
-    // However, handleMenu is designed to map button texts to actions.
-    // If the text matches a known menu button text, handleMenu will process it.
-    // This means regular menu button presses (not commands, not callbacks) will still work.
+    // Все остальные кнопки меню обрабатываются глобальными hearsHandlers
+    // УДАЛЁН УДАЛЁН из проекта - используется setupHearsHandlers
 
     // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ перехватываем команды (начинающиеся с /)
     // Команды должны обрабатываться ГЛОБАЛЬНО в registerCommands.ts
@@ -505,28 +500,36 @@ const menuNextStep = async (ctx: MyContext) => {
       return // Позволяем глобальным обработчикам команд обработать это
     }
 
-    // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ вызываем handleMenu, если пользователь уже в другой сцене
-    // Проблема: после входа в wizard, пользователь получает ответ первого шага, 
+    // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: УДАЛЁН УДАЛЁН - используется setupHearsHandlers
+    // Проблема: после входа в wizard, пользователь получает ответ первого шага,
     // но menuScene продолжает обрабатывать это как новую команду
     const currentSceneId = ctx.scene.current?.id
     console.log('🎯 URGENT DEBUG: menuNextStep called!', {
       currentSceneId,
       text: text.substring(0, 50),
-      telegramId: ctx.from?.id
+      telegramId: ctx.from?.id,
     })
-    
+
     if (currentSceneId !== ModeEnum.MainMenu) {
       logger.info(
-        `[menuNextStep] User is in different scene (${currentSceneId}), NOT calling handleMenu`,
-        { telegramId: ctx.from?.id, currentSceneId, text: text.substring(0, 50) }
+        `[menuNextStep] User is in different scene (${currentSceneId}), УДАЛЁН УДАЛЁН`,
+        {
+          telegramId: ctx.from?.id,
+          currentSceneId,
+          text: text.substring(0, 50),
+        }
       )
       return // НЕ обрабатываем, если пользователь в другой сцене
     }
 
     logger.info(
-      `[menuNextStep] User still in menuScene, forwarding to handleMenu: ${text}`
+      `[menuNextStep] User still in menuScene, using global hears handlers for: ${text}`
     )
-    await handleMenu(ctx)
+    console.log('🔄 [menuNextStep] Allowing global hears handlers to process button...')
+
+    // ✅ ИСПОЛЬЗУЕМ ТОЛЬКО ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ
+    // УДАЛЁН ПОЛНОСТЬЮ УДАЛЁН - используется setupHearsHandlers
+    // Все кнопки обрабатываются единообразно через hearsHandlers.ts
   } else {
     // Handle other update types or leave if unhandled
     logger.warn(
@@ -541,10 +544,13 @@ const menuNextStep = async (ctx: MyContext) => {
   }
 }
 
+// ✅ ИЗМЕНЕНА АРХИТЕКТУРА: menuScene стал одношаговым для избежания конфликтов
+// Кнопки теперь обрабатываются ТОЛЬКО через глобальные hearsHandlers
+// После показа меню сцена завершается, позволяя глобальным обработчикам работать
+
 export const menuScene = new Scenes.WizardScene(
   ModeEnum.MainMenu,
-  menuCommandStep,
-  menuNextStep
+  menuCommandStep
 )
 
 // Обработчик для inline кнопки "Оформить подписку"

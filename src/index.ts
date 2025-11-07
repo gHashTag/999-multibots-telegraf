@@ -38,10 +38,10 @@ import { message } from 'telegraf/filters'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
-import { setupHearsHandlers } from './hearsHandlers'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
+let mainBotInstance: Telegraf<MyContext> | null = null
 
 // Define the commands for private chats
 // const privateCommands: BotCommand[] = [
@@ -104,118 +104,118 @@ async function initializeBots() {
     )
   }
 
-  if (isDev) {
-    // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
-    const targetBotUsername = process.env.TEST_BOT_NAME
-    if (!targetBotUsername) {
-      throw new Error(
-        '❌ Переменная окружения TEST_BOT_NAME не установлена. Укажите username бота для запуска в development.'
-      )
-    }
+  // 🔧 FIX: ВСЕГДА используем polling во всех режимах
+  // Для production правильно использовать polling (webhook требует домен)
+  const mode = 'polling'
 
-    console.log(`🔧 Ищем тестового бота с username: ${targetBotUsername}`)
+  console.log(`🎯 [MODE] Выбран режим: ${mode} (isDev: ${isDev})`)
 
-    // Собираем все потенциальные токены из env
-    const potentialTokens = Object.entries(process.env)
-      .filter(([key]) => key.startsWith('BOT_TOKEN'))
-      .map(([, value]) => value)
-      .filter(Boolean) as string[]
+  if (mode === 'polling') {
+    // 🔧 POLLING MODE: Запускаем ВСЕ боты в polling режиме (как в webhook, но без портов)
+    console.log(`🔄 [POLLING] Запуск всех доступных ботов в polling режиме`)
 
-    let bot: Telegraf<MyContext> | null = null
-    let foundBotInfo: Awaited<
-      ReturnType<Telegraf<MyContext>['telegram']['getMe']>
-    > | null = null
+    const botTokens = [
+      process.env.BOT_TOKEN_1,
+      process.env.BOT_TOKEN_2,
+      process.env.BOT_TOKEN_3,
+      process.env.BOT_TOKEN_4,
+      process.env.BOT_TOKEN_5,
+      process.env.BOT_TOKEN_6,
+      process.env.BOT_TOKEN_7,
+      process.env.BOT_TOKEN_8,
+      process.env.BOT_TOKEN_9,
+      process.env.BOT_TOKEN_10,
+    ].filter((token): token is string => Boolean(token))
 
-    for (const token of potentialTokens) {
-      try {
-        const tempBot = new Telegraf<MyContext>(token, {
+    // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
+    const botPromises: Promise<void>[] = []
+
+    for (const token of botTokens) {
+      if (await validateBotToken(token)) {
+        const bot = new Telegraf<MyContext>(token, {
           handlerTimeout: Infinity,
         })
-        const botInfo = await tempBot.telegram.getMe()
-        if (botInfo.username === targetBotUsername) {
-          console.log(`✅ Найден бот ${botInfo.username}`)
-          bot = tempBot // Используем этого бота
-          foundBotInfo = botInfo
-          break // Прерываем цикл, бот найден
+        bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
+
+        // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
+        bot.use(session()) // 1. Сессия (из bot.ts)
+        bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+
+        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
+        setupErrorHandler(bot)
+
+        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
+        setupNotificationProcessor(bot)
+
+        // ✅ Сохраняем первый bot instance для webhooks
+        if (!mainBotInstance) {
+          mainBotInstance = bot
+          console.log('✅ Main bot instance saved for webhooks')
+
+          // ✅ Запускаем API сервер СРАЗУ после создания первого бота
+          // (до bot.launch(), чтобы не ждать бесконечного polling loop)
+          startApiServer(bot)
+          console.log('✅ API сервер запущен с bot instance для webhooks')
         }
-      } catch (error) {
-        // Игнорируем ошибки валидации токенов, просто ищем дальше
-        // console.warn(`⚠️ Ошибка проверки токена ${token.substring(0, 10)}...: ${error.message}`);
+
+        registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
+        // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
+        setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
+        // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
+        bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
+        bot.on('successful_payment', handleSuccessfulPayment as any)
+        // Обработчик текстовых сообщений по умолчанию - должен быть последним
+        // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
+        // bot.on(message('text'), handleTextMessage)
+        // <<<---------------------------------------------------->>>
+
+        botInstances.push(bot)
+        const botInfo = await bot.telegram.getMe()
+        console.log(`🤖 Бот ${botInfo.username} инициализирован`)
+
+        // Используем импортированную функцию setBotCommands
+        await setBotCommands(bot)
+
+        // 🔧 FIX: Очистка webhook перед polling
+        try {
+          const webhookInfo = await bot.telegram.getWebhookInfo()
+          if (webhookInfo.url) {
+            console.log(
+              `🔌 [WEBHOOK] Обнаружен активный вебхук для ${botInfo.username}: ${webhookInfo.url}. Удаляю...`
+            )
+            await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+            console.log('✅ [WEBHOOK] Вебхук удалён, переходим к polling')
+          } else {
+            console.log('🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling')
+          }
+        } catch (error) {
+          console.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
+        }
+
+        // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
+        const botPromise = bot.launch({
+          allowedUpdates: [
+            'message',
+            'callback_query',
+            'pre_checkout_query' as any,
+            'successful_payment' as any,
+          ],
+        })
+          .then(() => {
+            console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
+          })
+          .catch((error) => {
+            console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
+          })
+
+        botPromises.push(botPromise)
       }
     }
 
-    if (!bot || !foundBotInfo) {
-      throw new Error(
-        `❌ Бот с username '${targetBotUsername}' не найден среди токенов в .env или токен невалиден.`
-      )
-    }
-
-    // Добавляем логи перед регистрацией команд
-    console.log(
-      '🔄 [SCENE_DEBUG] Регистрация команд бота и stage middleware...'
-    )
-    //
-    // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
-    bot.use(session()) // 1. Сессия (из bot.ts)
-    bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
-    bot.use(Telegraf.log(console.log)) // 3. Log all Telegraf updates and middleware flow
-
-    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
-    setupErrorHandler(bot)
-
-    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
-    setupNotificationProcessor(bot)
-
-    registerCommands({ bot }) // 4. Сцены и команды (включая stage.middleware() и hears обработчики)
-    // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
-    setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
-    // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
-    bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-    bot.on('successful_payment', handleSuccessfulPayment as any)
-    // Инициализация обработчиков hears из отдельного файла
-    setupHearsHandlers(bot) // 4. Hears
-
-    // Обработчик текстовых сообщений по умолчанию - должен быть последним
-    // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
-    // bot.on(message('text'), handleTextMessage)
-    // <<<---------------------------------------------------->>>
-
-    // Используем импортированную функцию setBotCommands
-    await setBotCommands(bot)
-
-    botInstances.push(bot)
-    // Используем уже полученную информацию о боте
-    console.log(`🤖 Тестовый бот ${foundBotInfo.username} инициализирован`)
-
-    // 🔧 FIX 409: Очистка webhook перед polling в dev режиме
-    try {
-      const webhookInfo = await bot.telegram.getWebhookInfo()
-      if (webhookInfo.url) {
-        console.log(
-          `🔌 [WEBHOOK] Обнаружен активный вебхук для ${foundBotInfo.username}: ${webhookInfo.url}. Удаляю...`
-        )
-        await bot.telegram.deleteWebhook({ drop_pending_updates: true })
-        console.log('✅ [WEBHOOK] Вебхук удалён, переходим к polling')
-      } else {
-        console.log('🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling')
-      }
-    } catch (error) {
-      console.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
-    }
-
-    // В режиме разработки используем polling
-    await bot.launch({
-      allowedUpdates: [
-        'message',
-        'callback_query',
-        'pre_checkout_query' as any,
-        'successful_payment' as any,
-      ],
-    })
-    console.log(
-      `🚀 Тестовый бот ${foundBotInfo.username} запущен в режиме разработки`
-    )
-  } else {
+    // Ждём завершения инициализации всех ботов
+    await Promise.all(botPromises)
+    console.log(`✅ Все боты успешно запущены в polling режиме`)
+  } else if (mode === 'webhook') {
     // В продакшене используем все активные боты
     const botTokens = [
       process.env.BOT_TOKEN_1,
@@ -255,9 +255,6 @@ async function initializeBots() {
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)
-        // Инициализация обработчиков hears из отдельного файла
-        setupHearsHandlers(bot) // 4. Hears
-
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
         // bot.on(message('text'), handleTextMessage)
@@ -330,6 +327,10 @@ async function initializeBots() {
         }
       }
     }
+  } else {
+    throw new Error(
+      `❌ Неизвестный режим MODE="${mode}". Допустимые значения: "polling" или "webhook"`
+    )
   }
 
   console.log('🔍 Инициализация сцен...')
@@ -357,14 +358,11 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 console.log('🏁 Запуск приложения')
 
-// Запускаем API сервер
-// Это будет выполнено при старте src/bot.ts
-startApiServer()
-
 // Возвращаем корректный запуск инициализации ботов
+// API сервер теперь запускается внутри initializeBots() при создании первого бота
 initializeBots()
   .then(() => {
-    console.log('✅ Боты и API сервер успешно запущены') // Обновим сообщение
+    console.log('✅ Все боты успешно инициализированы')
   })
   .catch(error => {
     console.error(

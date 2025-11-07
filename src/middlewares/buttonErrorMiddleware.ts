@@ -36,16 +36,7 @@ export function createButtonErrorMiddleware() {
 
         await handleCallbackQueryError(
           ctx,
-          new Error(`Invalid callback data: ${validation.error}`),
-          callbackData,
-          {
-            telegramId,
-            operationName: 'callback_validation'
-          },
-          {
-            silent: false,
-            returnToMainMenu: true
-          }
+          new Error(`Invalid callback data: ${validation.error}`)
         )
 
         return
@@ -78,20 +69,7 @@ export function createButtonErrorMiddleware() {
 
         await handleCallbackQueryError(
           ctx,
-          errorObj,
-          callbackData,
-          {
-            telegramId,
-            username: ctx.from?.username,
-            operationName: 'callback_processing'
-          },
-          {
-            customMessage: ctx.session?.userLanguage === 'en'
-              ? '❌ This button is no longer valid. Please try again from the menu.'
-              : '❌ Эта кнопка больше не действительна. Попробуйте снова из меню.',
-            returnToMainMenu: true,
-            silent: false
-          }
+          errorObj
         )
 
         return
@@ -110,13 +88,7 @@ export function createButtonErrorMiddleware() {
 
         await handleCallbackQueryError(
           ctx,
-          errorObj,
-          callbackData,
-          {
-            telegramId,
-            username: ctx.from?.username,
-            operationName: 'callback_error_handling'
-          }
+          errorObj
         )
 
         return
@@ -187,12 +159,7 @@ export function createButtonStateValidationMiddleware() {
       // Fallback to general error handling
       await handleCallbackQueryError(
         ctx,
-        error instanceof Error ? error : new Error(String(error)),
-        callbackData,
-        {
-          telegramId,
-          operationName: 'button_state_validation'
-        }
+        error instanceof Error ? error : new Error(String(error))
       )
     }
   }

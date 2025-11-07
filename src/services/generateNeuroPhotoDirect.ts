@@ -222,15 +222,14 @@ export async function generateNeuroPhotoDirect(
         `❌ [DIRECT] Пользователь с ID ${telegram_id} не найден в базе данных`
       )
 
-      if (bot && bot.telegram) {
-        try {
-          await bot.telegram.sendMessage(
-            telegram_id,
-            is_ru
-              ? '❌ Ваш аккаунт не найден в базе данных. Пожалуйста, запустите бота заново с помощью команды /start'
-              : '❌ Your account was not found in our database. Please restart the bot using the /start command'
-          )
-        } catch (sendError) {
+      try {
+        await ctx.telegram.sendMessage(
+          telegram_id,
+          is_ru
+            ? '❌ Ваш аккаунт не найден в базе данных. Пожалуйста, запустите бота заново с помощью команды /start'
+            : '❌ Your account was not found in our database. Please restart the bot using the /start command'
+        )
+      } catch (sendError) {
           logger.error({
             message:
               '❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю',
@@ -240,7 +239,6 @@ export async function generateNeuroPhotoDirect(
             telegram_id,
           })
         }
-      }
 
       throw new Error(`User with ID ${telegram_id} not found in database`)
     }
@@ -326,7 +324,7 @@ export async function generateNeuroPhotoDirect(
 
       // Добавляем проверку disable_telegram_sending
       if (!options?.disable_telegram_sending) {
-        await bot.telegram.sendMessage(
+        await ctx.telegram.sendMessage(
           telegram_id,
           is_ru
             ? '❌ Не удалось обработать платеж. Пожалуйста, проверьте баланс и попробуйте еще раз.'
@@ -412,7 +410,7 @@ export async function generateNeuroPhotoDirect(
         if (!options?.disable_telegram_sending) {
           if (validNumImages > 1) {
             try {
-              await bot.telegram.sendMessage(
+              await ctx.telegram.sendMessage(
                 telegram_id,
                 is_ru
                   ? `⏳ Генерация изображения ${i + 1} из ${validNumImages}`
@@ -433,7 +431,7 @@ export async function generateNeuroPhotoDirect(
             }
           } else {
             try {
-              await bot.telegram.sendMessage(
+              await ctx.telegram.sendMessage(
                 telegram_id,
                 is_ru ? '⏳ Генерация...' : '⏳ Generating...',
                 {
@@ -641,30 +639,24 @@ export async function generateNeuroPhotoDirect(
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
           try {
             if (!options?.disable_telegram_sending) {
-              // Добавляем caption с информацией о нейрофото и кнопки
+              // Добавляем caption с информацией о нейрофото и нумерацией (1,2,3,4)
+              const imageNumber = i + 1
               const caption = is_ru
-                ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(
+                ? `✨ Нейрофото ${imageNumber}/${validNumImages} сгенерировано!\n\n📝 Промпт: ${prompt.slice(
                     0,
                     100
                   )}${
                     prompt.length > 100 ? '...' : ''
                   }\n💎 Стоимость: ${costPerImage} ⭐`
-                : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(
+                : `✨ Neurophoto ${imageNumber}/${validNumImages} generated!\n\n📝 Prompt: ${prompt.slice(
                     0,
                     100
                   )}${
                     prompt.length > 100 ? '...' : ''
                   }\n💎 Cost: ${costPerImage} ⭐`
 
-              await bot.telegram.sendPhoto(
-                telegram_id,
-                { url: imageUrl },
-                {
-                  caption,
-                  reply_markup:
-                    createNeuroPhotoResultKeyboard(is_ru).reply_markup,
-                }
-              )
+              // ИСПРАВЛЕНО: Отправляем фото БЕЗ клавиатуры (как в AI сервере)
+              await ctx.telegram.sendPhoto(telegram_id, { url: imageUrl })
 
               logger.info({
                 message: '📸 [DIRECT] Изображение отправлено пользователю',
@@ -761,7 +753,7 @@ export async function generateNeuroPhotoDirect(
         // Отправляем сообщение об ошибке пользователю
         try {
           if (!options?.disable_telegram_sending) {
-            await bot.telegram.sendMessage(
+            await ctx.telegram.sendMessage(
               telegram_id,
               is_ru
                 ? '❌ Произошла ошибка при генерации изображения. Мы вернем вам потраченные звезды в ближайшее время.'
@@ -817,7 +809,7 @@ export async function generateNeuroPhotoDirect(
 
             try {
               if (!options?.disable_telegram_sending) {
-                await bot.telegram.sendMessage(
+                await ctx.telegram.sendMessage(
                   telegram_id,
                   is_ru
                     ? `💰 Мы вернули вам ${refundAmount} звезд за неудачную генерацию изображения.`
@@ -863,6 +855,33 @@ export async function generateNeuroPhotoDirect(
             telegram_id,
           })
         }
+      }
+    }
+
+    // ИСПРАВЛЕНО: Отправляем итоговое сообщение с клавиатурой (как в AI сервере)
+    if (generatedUrls.length > 0 && !options?.disable_telegram_sending) {
+      try {
+        const exactCostPerImage = costPerImage
+        const totalCost = exactCostPerImage * generatedUrls.length
+        const finalMessage = is_ru
+          ? `✅ Готово! Успешно сгенерировано ${generatedUrls.length} из ${validNumImages} изображений.\nСписано: ${totalCost.toFixed(2)} ⭐️\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
+          : `✅ Done! Successfully generated ${generatedUrls.length} out of ${validNumImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
+
+        // 🚨 ИСПРАВЛЕНИЕ: Отправляем БЕЗ inline кнопок (wizard добавит reply keyboard)
+        await ctx.telegram.sendMessage(telegram_id, finalMessage)
+
+        logger.info({
+          message: '✅ [DIRECT] Итоговое сообщение отправлено (без кнопок)',
+          telegram_id,
+          totalImages: generatedUrls.length,
+          totalCost,
+        })
+      } catch (sendError) {
+        logger.error({
+          message: '❌ [DIRECT] Ошибка при отправке итогового сообщения',
+          telegram_id,
+          error: sendError,
+        })
       }
     }
 
@@ -1006,35 +1025,5 @@ export async function generateNeuroPhotoDirect(
   }
 }
 
-// Создание клавиатуры для результатов нейрофотографий
-const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
-  return Markup.inlineKeyboard([
-    [
-      Markup.button.callback(
-        is_ru ? '🆕 Новый промпт' : '🆕 New prompt',
-        'new_neurophoto_prompt'
-      ),
-      Markup.button.callback(
-        is_ru ? '📐 Изменить размер' : '📐 Change size',
-        'change_size'
-      ),
-    ],
-    [
-      Markup.button.callback(
-        is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
-        'improve_prompt'
-      ),
-      // ВРЕМЕННО СКРЫТО: Кнопка "Увеличить качество" не работает корректно
-      // Markup.button.callback(
-      //   is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale Quality',
-      //   'upscale_neurophoto_image'
-      // ),
-    ],
-    [
-      Markup.button.callback(
-        is_ru ? '🏠 Главное меню' : '🏠 Main menu',
-        'go_main_menu'
-      ),
-    ],
-  ])
-}
+// 🚨 ФУНКЦИЯ УДАЛЕНА: Reply keyboard теперь создаётся в wizard'е
+// Это предотвращает дублирование кнопок (inline над сообщением + reply внизу)

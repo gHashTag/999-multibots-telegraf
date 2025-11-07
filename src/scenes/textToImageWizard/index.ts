@@ -4,17 +4,17 @@ import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,
 } from '@/price/helpers'
 import { logger } from '@/utils/logger'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserProfileAndSettings } from '@/db/userSettings'
-import { handleMenu } from '@/handlers/handleMenu'
 import { improvePromptWizard } from '../improvePromptWizard'
 import { sizeWizard } from '../sizeWizard'
 
@@ -125,6 +125,9 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    // Сохраняем цену в сессию для последующего списания
+    ctx.session.imageGenerationPrice = price
+
     try {
       await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
 
@@ -228,8 +231,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         ctx
       )
 
-      // Получаем текущий баланс ПОСЛЕ операции
-      const currentBalance = await getUserBalance(ctx.from.id.toString())
+      // ✅ БАЛАНС УЖЕ СПИСАН внутри generateTextToImageDirect через processBalanceOperation
+      // ❌ НЕ НУЖНО списывать повторно здесь!
 
       // Сохраняем промпт в сессию для возможного улучшения
       ctx.session.prompt = prompt
@@ -273,7 +276,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     //     // TODO: Передать ID изображения или другую инфу в sizeWizard, если нужно
     //     return ctx.scene.enter(sizeWizard.id)
     //   } else if (text === (isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu')) {
-    //     await handleMenu(ctx, true) // Возвращаемся в главное меню
+    //     await УДАЛЁН(ctx, true) // Возвращаемся в главное меню
     //     return ctx.scene.leave()
     //   }
     // }

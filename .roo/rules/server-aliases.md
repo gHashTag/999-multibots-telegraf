@@ -11,13 +11,13 @@ alwaysApply: false
 alias nb-ssh='ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app'
 
 # Быстрый деплой
-alias nb-deploy='ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app "cd /opt/app/999-multibots-telegraf && docker-compose down && docker-compose up --build -d"'
+alias nb-deploy='ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app "cd /opt/app/bot-farm && docker-compose down && docker-compose up --build -d"'
 
 # Просмотр логов
-alias nb-logs='ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app "cd /opt/app/999-multibots-telegraf && docker-compose logs -f"'
+alias nb-logs='ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app "cd /opt/app/bot-farm && docker-compose logs -f"'
 
 # Проверка статуса
-alias nb-status='ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app "cd /opt/app/999-multibots-telegraf && docker-compose ps"'
+alias nb-status='ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app "cd /opt/app/bot-farm && docker-compose ps"'
 ```
 
 ## 📋 Полезные команды
@@ -25,10 +25,10 @@ alias nb-status='ssh -i ~/.ssh/id_rsa root@999-multibots-u14194.vm.elestio.app "
 ### Копирование файлов на сервер
 ```bash
 # Копировать файл
-scp -i ~/.ssh/id_rsa ./local-file.txt root@999-multibots-u14194.vm.elestio.app:/opt/app/999-multibots-telegraf/
+scp -i ~/.ssh/id_rsa ./local-file.txt root@999-multibots-u14194.vm.elestio.app:/opt/app/bot-farm/
 
 # Копировать директорию
-scp -r -i ~/.ssh/id_rsa ./local-dir root@999-multibots-u14194.vm.elestio.app:/opt/app/999-multibots-telegraf/
+scp -r -i ~/.ssh/id_rsa ./local-dir root@999-multibots-u14194.vm.elestio.app:/opt/app/bot-farm/
 ```
 
 ### Мониторинг ресурсов
@@ -78,7 +78,7 @@ nb-ssh 'docker-compose logs -f --tail=100'
 ```bash
 #!/bin/bash
 timestamp=$(date +%Y%m%d_%H%M%S)
-nb-ssh "cd /opt/app/999-multibots-telegraf && tar -czf backup_${timestamp}.tar.gz data/"
+nb-ssh "cd /opt/app/bot-farm && tar -czf backup_${timestamp}.tar.gz data/"
 ```
 
 ### Проверка здоровья

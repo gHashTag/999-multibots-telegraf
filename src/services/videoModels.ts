@@ -38,34 +38,11 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     priceFixed: 16,
     inputTypes: ['text', 'image'],
   },
-  'hunyuan-video-fast': {
-    id: 'hunyuan-video-fast',
-    name: 'Hunyuan Fast',
-    nameRu: 'Hunyuan Fast',
-    priceFixed: 18,
-    inputTypes: ['text'],
-  },
-  'wan-image-to-video': {
-    id: 'wan-image-to-video',
-    name: 'Wan-2.1 Image to Video',
-    nameRu: 'Wan-2.1 Изображение в видео',
-    priceFixed: 23,
-    inputTypes: ['image'],
-  },
-  'wan-text-to-video': {
-    id: 'wan-text-to-video',
-    name: 'Wan-2.1 Text to Video',
-    nameRu: 'Wan-2.1 Текст в видео',
-    priceFixed: 23,
-    inputTypes: ['text'],
-  },
-  minimax: {
-    id: 'minimax',
-    name: 'Minimax',
-    nameRu: 'Minimax',
-    priceFixed: 46,
-    inputTypes: ['text', 'image'],
-  },
+  // ❌ УДАЛЕНЫ устаревшие модели (404 ошибки):
+  // - hunyuan-video-fast (18⭐) - не работает
+  // - wan-image-to-video (23⭐) - не работает
+  // - wan-text-to-video (23⭐) - не работает
+  // - minimax (46⭐) - не работает
 
   // Kie.ai модели с конкурентными ценами
   'veo3_fast': {
@@ -93,6 +70,42 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     defaultDuration: KIE_AI_MODELS_PRICING['runway-aleph'].defaultDuration!,
     maxDuration: KIE_AI_MODELS_PRICING['runway-aleph'].maxDuration,
     inputTypes: ['text', 'image'],
+  },
+
+  // OpenAI Sora 2 модели (через Kie.ai)
+  'sora-2': {
+    id: 'sora-2',
+    name: 'Sora 2',
+    nameRu: 'Sora 2',
+    priceFixed: 9, // $0.15 за 10 сек = 9⭐ БЕЗ наценки (Kie.ai API pricing)
+    defaultDuration: 10,
+    inputTypes: ['text'],
+  },
+  'sora-2-pro': {
+    id: 'sora-2-pro',
+    name: 'Sora 2 Pro',
+    nameRu: 'Sora 2 Pro',
+    priceFixed: 28, // $0.45 за 10 сек standard = 28⭐ (Kie.ai API pricing)
+    defaultDuration: 10,
+    inputTypes: ['text'],
+  },
+
+  // Sora 2 Image-to-Video модели
+  'sora-2-i2v': {
+    id: 'sora-2-i2v',
+    name: 'Sora 2 I2V',
+    nameRu: 'Sora 2 Изображение в видео',
+    priceFixed: 9, // $0.15 за 10 сек = 9⭐ (аналогично text-to-video)
+    defaultDuration: 10,
+    inputTypes: ['image'],
+  },
+  'sora-2-pro-i2v': {
+    id: 'sora-2-pro-i2v',
+    name: 'Sora 2 Pro I2V',
+    nameRu: 'Sora 2 Pro Изображение в видео',
+    priceFixed: 28, // $0.45 за 10 сек standard = 28⭐ (аналогично text-to-video)
+    defaultDuration: 10,
+    inputTypes: ['image'],
   },
 }
 
