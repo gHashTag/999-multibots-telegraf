@@ -1094,5 +1094,80 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       await ctx.reply('❌ Произошла ошибка при запуске парсинга. Попробуйте позже.')
     }
   })
+
+  // === AI REELS ДЛЯ АДМИНОВ И СОТРУДНИКОВ HAIM GROUP ===
+  bot.hears(
+    [levels[110].title_ru, levels[110].title_en],
+    async (ctx: MyContext) => {
+      const userId = ctx.from?.id?.toString()
+
+      logger.info('GLOBAL HEARS: AI Reels button pressed', {
+        telegramId: ctx.from?.id,
+        userId,
+      })
+
+      if (!userId) {
+        logger.warn('AI Reels access denied - no user ID', {
+          telegramId: ctx.from?.id,
+        })
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ Ошибка: не удалось определить пользователя.'
+            : '❌ Error: could not determine user ID.'
+        )
+        return
+      }
+
+      // Проверяем права администратора или сотрудников Хаим Групп
+      const { ADMIN_IDS_ARRAY } = await import('@/config')
+      const isMainAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+      const isHaimStaff = HAIM_GROUP_STAFF_IDS.includes(userId)
+      const hasAccess = isMainAdmin || isHaimStaff
+
+      if (!hasAccess) {
+        logger.warn('AI Reels access denied - not admin/staff', {
+          telegramId: ctx.from?.id,
+          userId,
+          isMainAdmin,
+          isHaimStaff,
+        })
+
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ У вас нет доступа к ИИ Рилс. Функция доступна только администраторам.'
+            : '❌ You do not have access to AI Reels. This feature is admin only.'
+        )
+        return
+      }
+
+      logger.info('AI Reels access granted', {
+        telegramId: ctx.from?.id,
+        userId,
+        isMainAdmin,
+        isHaimStaff,
+      })
+
+      // ✅ Доступ разрешен - запускаем AI Reels entry wizard
+      try {
+        await ctx.scene.leave()
+        await ctx.scene.enter('ai_reels_entry')
+        logger.info('Successfully entered ai_reels_entry scene', {
+          telegramId: ctx.from?.id,
+          userId,
+        })
+      } catch (error) {
+        logger.error('Error entering AI Reels wizard', {
+          telegramId: ctx.from?.id,
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        await ctx.reply(
+          isRussianFromState(ctx)
+            ? '❌ Произошла ошибка при запуске ИИ Рилс. Попробуйте позже.'
+            : '❌ Error starting AI Reels. Please try again later.'
+        )
+      }
+    }
+  )
 }
 //
