@@ -197,6 +197,8 @@ levels[103] = { title_ru: '💬 Техподдержка', title_en: '💬 Suppo
 levels[104] = { title_ru: '🏠 Главное меню', title_en: '🏠 Main menu' }
 levels[105] = { title_ru: '💫 Оформить подписку', title_en: '💫 Subscribe' }
 levels[106] = { title_ru: '🌐 EN', title_en: '🌐 RU' }
+levels[107] = { title_ru: '⬆️ Увеличить качество фото', title_en: '⬆️ Upscale Photo Quality' }
+levels[108] = { title_ru: '📺 Транскрибация Reels', title_en: '📺 Transcribe Reels' }
 
 // ✅ Функция mainMenu для обратной совместимости (теперь использует simpleMenu)
 export const mainMenu = createMainMenuKeyboard
