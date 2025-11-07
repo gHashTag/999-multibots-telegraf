@@ -160,45 +160,58 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
       '1080p': 0.15,
     },
   },
-  'wan-2.2-t2v-fast': {
-    id: 'wan-2.2-t2v-fast',
-    title: 'WAN 2.2 T2V Fast',
+  // ❌ УДАЛЕНЫ устаревшие модели WAN 2.2 - заменены на WAN 2.5
+  'wan-2.5-t2v': {
+    id: 'wan-2.5-t2v',
+    title: 'WAN 2.5 T2V',
     inputType: ['text'],
     description:
-      '💨 БЫСТРО: WAN 2.2 Text-to-Video - от 12⭐ (480p) до 26⭐ (1080p)',
-    basePrice: 0.03627, // Базовая цена для 720p (17⭐)
+      '🎬 WAN 2.5 Text-to-Video - от 19⭐ (720p 5s) до 62⭐ (1080p 10s)',
+    basePrice: 0.0256, // Базовая цена для 720p 5s (19⭐)
+    provider: 'kie',
     api: {
-      model: 'wan-video/wan-2.2-t2v-fast',
+      model: 'wan/2-5-text-to-video',
       input: {
-        target_resolution: '720p', // По умолчанию 720p
+        resolution: '720p',
+        duration: 5,
       },
     },
-    resolutionOptions: ['480p', '720p', '1080p'],
+    resolutionOptions: ['720p', '1080p'],
+    durationOptions: [5, 10],
+    priceByDuration: {
+      5: 0.0256, // Для 720p 5s = 19⭐
+      10: 0.05333, // Для 720p 10s = 38⭐
+    },
     priceByResolution: {
-      '480p': 0.0256, // 12⭐ = (12 * 0.016) / (5 * 1.5)
-      '720p': 0.03627, // 17⭐ = (17 * 0.016) / (5 * 1.5)
-      '1080p': 0.05547, // 26⭐ = (26 * 0.016) / (5 * 1.5)
+      '720p': 0.0256, // Для 5s = 19⭐
+      '1080p': 0.04187, // Для 5s = 31⭐
     },
     canMorph: false,
   },
-  'wan-2.2-i2v-fast': {
-    id: 'wan-2.2-i2v-fast',
-    title: 'WAN 2.2 I2V Fast',
+  'wan-2.5-i2v': {
+    id: 'wan-2.5-i2v',
+    title: 'WAN 2.5 I2V',
     inputType: ['image'],
     description:
-      '💨 БЫСТРО: WAN 2.2 Image-to-Video - от 11⭐ (480p) до 23⭐ (1080p)',
-    basePrice: 0.032, // Базовая цена для 720p (15⭐)
+      '🎬 WAN 2.5 Image-to-Video - от 19⭐ (720p 5s) до 62⭐ (1080p 10s)',
+    basePrice: 0.0256, // Базовая цена для 720p 5s (19⭐)
+    provider: 'kie',
     api: {
-      model: 'wan-video/wan-2.2-i2v-fast',
+      model: 'wan/2-5-image-to-video',
       input: {
-        target_resolution: '720p', // По умолчанию 720p
+        resolution: '720p',
+        duration: 5,
       },
     },
-    resolutionOptions: ['480p', '720p', '1080p'],
+    resolutionOptions: ['720p', '1080p'],
+    durationOptions: [5, 10],
+    priceByDuration: {
+      5: 0.0256, // Для 720p 5s = 19⭐
+      10: 0.05333, // Для 720p 10s = 38⭐
+    },
     priceByResolution: {
-      '480p': 0.02347, // 11⭐ = (11 * 0.016) / (5 * 1.5)
-      '720p': 0.032, // 15⭐ = (15 * 0.016) / (5 * 1.5)
-      '1080p': 0.04907, // 23⭐ = (23 * 0.016) / (5 * 1.5)
+      '720p': 0.0256, // Для 5s = 19⭐
+      '1080p': 0.04187, // Для 5s = 31⭐
     },
     imageKey: 'image',
     canMorph: false,

@@ -110,20 +110,8 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🎬 [I2V WIZARD] Step 2: Image received:', fileLink.href)
 
-      // Создаем кнопки выбора модели (аналогично Text to Video)
-      const supportedModels = [
-        'veo3_fast',
-        'veo3',
-        'kling-v1.6-pro',
-        'minimax',
-        'seedance-1-pro',
-        'wan-2.2-i2v-fast',
-        'sora-2-i2v',
-        'sora-2-pro-i2v'
-      ]
-
-      // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ
-      const keyboardRows = generateModelKeyboard('image', isRu, supportedModels)
+      // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ (автоматически берет все активные модели)
+      const keyboardRows = generateModelKeyboard('image', isRu)
 
       // Кнопки назад и отмена
       keyboardRows.push([

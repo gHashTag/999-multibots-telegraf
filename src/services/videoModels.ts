@@ -107,6 +107,26 @@ export const VIDEO_MODELS: Record<VideoModelId, VideoModelInfo> = {
     defaultDuration: 10,
     inputTypes: ['image'],
   },
+
+  // WAN 2.5 модели (через Kie.ai API)
+  'wan-2.5-t2v': {
+    id: 'wan-2.5-t2v',
+    name: 'WAN 2.5 T2V',
+    nameRu: 'WAN 2.5 Текст в видео',
+    priceFixed: 19, // Минимальная цена: 720p 5s = 19⭐
+    supportedDurations: [5, 10],
+    defaultDuration: 5,
+    inputTypes: ['text'],
+  },
+  'wan-2.5-i2v': {
+    id: 'wan-2.5-i2v',
+    name: 'WAN 2.5 I2V',
+    nameRu: 'WAN 2.5 Изображение в видео',
+    priceFixed: 19, // Минимальная цена: 720p 5s = 19⭐
+    supportedDurations: [5, 10],
+    defaultDuration: 5,
+    inputTypes: ['image'],
+  },
 }
 
 /**

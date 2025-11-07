@@ -28,12 +28,8 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isRu = isRussianFromState(ctx)
       console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
 
-      // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ
-      const keyboardRows = generateModelKeyboard(
-        'text',
-        isRu,
-        TEXT_TO_VIDEO_CONSTANTS.SUPPORTED_MODELS as string[]
-      )
+      // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ (автоматически берет все активные модели)
+      const keyboardRows = generateModelKeyboard('text', isRu)
 
       if (keyboardRows.length === 0) {
         console.error('🎬 [WIZARD] Step 1: NO TEXT MODELS FOUND!')

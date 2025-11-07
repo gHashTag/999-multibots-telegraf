@@ -24,6 +24,9 @@ export type VideoModelId =
   // Sora 2 Image-to-Video
   | 'sora-2-i2v'
   | 'sora-2-pro-i2v'
+  // WAN 2.5 модели
+  | 'wan-2.5-t2v'
+  | 'wan-2.5-i2v'
 
 interface TextToVideoRequest {
   prompt: string
