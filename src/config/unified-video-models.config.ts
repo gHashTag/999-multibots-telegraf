@@ -455,8 +455,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
   // WAN 2.5 T2V - Text to Video через Kie.ai API
   'wan-2.5-t2v': {
     id: 'wan-2.5-t2v',
-    name: 'WAN 2.5 Text to Video',
-    nameRu: 'WAN 2.5 Текст в видео',
+    name: 'WAN 2.5 T2V',
+    nameRu: 'WAN 2.5 T2V',
     description: 'Cinematic AI video generation from text with native audio sync',
     provider: 'kie',
     apiModel: 'wan/2-5-text-to-video',
@@ -486,8 +486,8 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
   // WAN 2.5 I2V - Image to Video через Kie.ai API
   'wan-2.5-i2v': {
     id: 'wan-2.5-i2v',
-    name: 'WAN 2.5 Image to Video',
-    nameRu: 'WAN 2.5 Изображение в видео',
+    name: 'WAN 2.5 I2V',
+    nameRu: 'WAN 2.5 I2V',
     description: 'Cinematic AI video generation from image with native audio sync',
     provider: 'kie',
     apiModel: 'wan/2-5-image-to-video',
