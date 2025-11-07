@@ -1,6 +1,6 @@
 import { Mode, MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
-import { levels, mainMenu } from '../../menu/mainMenu'
+import { levels, mainMenu } from '../../menu/simpleMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
