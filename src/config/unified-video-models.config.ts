@@ -48,7 +48,7 @@ export interface UnifiedVideoModelConfig {
 
   // Ценообразование
   pricing: {
-    type: 'fixed' | 'per_second' | 'per_resolution' | 'per_duration'
+    type: 'fixed' | 'per_second' | 'per_resolution' | 'per_duration' | 'per_duration_resolution'
 
     // Для fixed: фиксированная цена в звездах
     fixedPriceStars?: number
@@ -61,6 +61,9 @@ export interface UnifiedVideoModelConfig {
 
     // Для per_duration: цены по длительностям
     priceByDuration?: Record<number, number> // в звездах
+
+    // Для per_duration_resolution: матрица цен (длительность -> разрешение -> цена)
+    priceMatrix?: Record<string, Record<string, number>> // в звездах
 
     // Длительность по умолчанию (для динамических моделей)
     defaultDuration?: number
@@ -88,6 +91,12 @@ export interface UnifiedVideoModelConfig {
 
     // Базовые параметры для API
     baseInput?: Record<string, any>
+
+    // Поддержка расширения промпта через LLM (WAN 2.5)
+    supportsPromptExpansion?: boolean
+
+    // Поддержка негативного промпта (WAN 2.5)
+    supportsNegativePrompt?: boolean
   }
 
   // Статус модели
@@ -441,99 +450,62 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     status: 'active'
   },
 
-  'wan-2.2-t2v-fast': {
-    id: 'wan-2.2-t2v-fast',
-    name: 'WAN 2.2 T2V Fast',
-    nameRu: 'WAN 2.2 Текст в видео Fast',
-    description: 'WAN 2.2 Text-to-Video Fast - выбор разрешения',
-    provider: 'replicate',
-    apiModel: 'wavespeedai/wan-2.2-t2v-fast',
+  // ==================== WAN 2.5 (Alibaba via Kie.ai) ====================
+
+  // WAN 2.5 T2V - Text to Video через Kie.ai API
+  'wan-2.5-t2v': {
+    id: 'wan-2.5-t2v',
+    name: 'WAN 2.5 Text to Video',
+    nameRu: 'WAN 2.5 Текст в видео',
+    description: 'Cinematic AI video generation from text with native audio sync',
+    provider: 'kie',
+    apiModel: 'wan/2-5-text-to-video',
     inputTypes: ['text'],
     pricing: {
-      type: 'per_resolution',
-      priceByResolution: {
-        '480p': 12,  // Согласно models.config.ts
-        '720p': 17,
-        '1080p': 26
+      type: 'per_duration_resolution',
+      // 12 credits/sec для 720p = ~60 credits за 5 сек
+      // 20 credits/sec для 1080p = ~100 credits за 5 сек
+      // Конвертация: 1 credit ≈ $0.005, 1 Star = $0.016
+      // 720p 5 сек: 60 credits × $0.005 / $0.016 ≈ 19⭐
+      // 1080p 5 сек: 100 credits × $0.005 / $0.016 ≈ 31⭐
+      priceMatrix: {
+        '5': { '720p': 19, '1080p': 31 },
+        '10': { '720p': 38, '1080p': 62 }
       }
     },
     apiSettings: {
-      resolutions: ['480p', '720p', '1080p'],
-      aspectRatios: ['16:9', '9:16'],
-      baseInput: {
-        num_frames: 81,
-        fps: 16
-      }
+      resolutions: ['720p', '1080p'],
+      aspectRatios: ['16:9', '9:16', '1:1'],
+      durations: [5, 10],
+      supportsPromptExpansion: true,
+      supportsNegativePrompt: true
     },
     status: 'active'
   },
 
-  'wan-2.2-i2v-fast': {
-    id: 'wan-2.2-i2v-fast',
-    name: 'WAN 2.2 I2V Fast',
-    nameRu: 'WAN 2.2 Изображение в видео Fast',
-    description: 'WAN 2.2 Image-to-Video Fast - выбор разрешения',
-    provider: 'replicate',
-    apiModel: 'wavespeedai/wan-2.2-i2v-fast',
+  // WAN 2.5 I2V - Image to Video через Kie.ai API
+  'wan-2.5-i2v': {
+    id: 'wan-2.5-i2v',
+    name: 'WAN 2.5 Image to Video',
+    nameRu: 'WAN 2.5 Изображение в видео',
+    description: 'Cinematic AI video generation from image with native audio sync',
+    provider: 'kie',
+    apiModel: 'wan/2-5-image-to-video',
     inputTypes: ['image'],
     pricing: {
-      type: 'per_resolution',
-      priceByResolution: {
-        '480p': 11,
-        '720p': 16,
-        '1080p': 23
+      type: 'per_duration_resolution',
+      priceMatrix: {
+        '5': { '720p': 19, '1080p': 31 },
+        '10': { '720p': 38, '1080p': 62 }
       }
     },
     apiSettings: {
-      imageKey: 'image',
-      resolutions: ['480p', '720p', '1080p'],
-      aspectRatios: ['16:9', '9:16'],
-      baseInput: {
-        num_frames: 81,
-        fps: 16
-      }
-    },
-    status: 'active'
-  },
-
-  // ==================== НОВЫЕ МОДЕЛИ (2025) ====================
-
-  // WAN 2.5 - обновление WAN 2.2
-  'wan-2.5-t2v-fast': {
-    id: 'wan-2.5-t2v-fast',
-    name: 'WAN 2.5 T2V Fast',
-    nameRu: 'WAN 2.5 Текст в видео Fast',
-    description: 'WAN 2.5 Text-to-Video Fast - новая версия',
-    provider: 'replicate',
-    apiModel: 'wan-video/wan-2.5-t2v-fast',
-    inputTypes: ['text'],
-    pricing: {
-      type: 'fixed',
-      fixedPriceStars: 12, // $0.20 за видео × 1.5 / $0.016 ≈ 12⭐
-    },
-    apiSettings: {
-      aspectRatios: ['16:9', '9:16'],
-      durations: [5]
-    },
-    status: 'active'
-  },
-
-  'wan-2.5-i2v-fast': {
-    id: 'wan-2.5-i2v-fast',
-    name: 'WAN 2.5 I2V Fast',
-    nameRu: 'WAN 2.5 Изображение в видео Fast',
-    description: 'WAN 2.5 Image-to-Video Fast - новая версия',
-    provider: 'replicate',
-    apiModel: 'wan-video/wan-2.5-i2v-fast',
-    inputTypes: ['image'],
-    pricing: {
-      type: 'fixed',
-      fixedPriceStars: 12,
-    },
-    apiSettings: {
-      imageKey: 'image',
-      aspectRatios: ['16:9', '9:16'],
-      durations: [5]
+      imageKey: 'image_url',
+      resolutions: ['720p', '1080p'],
+      aspectRatios: ['16:9', '9:16', '1:1'],
+      durations: [5, 10],
+      supportsPromptExpansion: true,
+      supportsNegativePrompt: true
     },
     status: 'active'
   },
@@ -752,6 +724,22 @@ export function getUnifiedModelPrice(
       const dur = options?.duration || model.pricing.defaultDuration || 5
       return model.pricing.priceByDuration![dur] || 0
 
+    case 'per_duration_resolution': {
+      // WAN 2.5: цена зависит от длительности И разрешения
+      const dur = String(options?.duration || 5)
+      const res = options?.resolution || '720p'
+      const priceMatrix = model.pricing.priceMatrix
+
+      if (priceMatrix && priceMatrix[dur] && priceMatrix[dur][res]) {
+        return priceMatrix[dur][res]
+      }
+
+      // Fallback на первую доступную цену
+      const firstDuration = Object.keys(priceMatrix || {})[0]
+      const firstResolution = Object.keys(priceMatrix?.[firstDuration] || {})[0]
+      return priceMatrix?.[firstDuration]?.[firstResolution] || 19
+    }
+
     default:
       throw new Error(`Unknown pricing type for model: ${modelId}`)
   }
@@ -812,6 +800,10 @@ const PricingSchema = z.discriminatedUnion('type', [
     priceByDuration: z.record(z.union([z.string(), z.number()]), z.number().positive()), // Ключи могут быть строками или числами
     defaultDuration: z.number().positive().optional(),
   }),
+  z.object({
+    type: z.literal('per_duration_resolution'),
+    priceMatrix: z.record(z.string(), z.record(z.string(), z.number().positive())), // duration -> resolution -> price
+  }),
 ])
 
 const ApiSettingsSchema = z.object({
@@ -822,6 +814,8 @@ const ApiSettingsSchema = z.object({
   durations: z.array(z.number().positive()).optional(),
   maxDuration: z.number().positive().optional(),
   baseInput: z.record(z.string(), z.any()).optional(),
+  supportsPromptExpansion: z.boolean().optional(),
+  supportsNegativePrompt: z.boolean().optional(),
 })
 
 export const UnifiedVideoModelConfigSchema = z.object({
