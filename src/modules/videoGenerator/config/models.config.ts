@@ -8,6 +8,7 @@ export type VideoModelConfig = {
   description: string
   inputType: ('text' | 'image' | 'morph')[]
   basePrice: number
+  provider?: 'kie' | 'replicate' // ✅ FIX: Добавлено поле provider для выбора API
   api: {
     model: string
     input: Record<string, any>
@@ -368,6 +369,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     description:
       '🎬 OpenAI Sora 2 Image-to-Video - 10 сек - 9⭐',
     basePrice: 0.015, // 9⭐ за 10 сек = 0.15 USD за 10 сек = 0.015/сек (Kie.ai pricing)
+    provider: 'kie', // ✅ FIX: Используем Kie.ai API для Sora I2V
     api: {
       model: 'sora-2-i2v', // ✅ FIX: Исправлено название модели с sora-2-image-to-video на sora-2-i2v
       input: {
@@ -388,6 +390,7 @@ export const VIDEO_MODELS_CONFIG: Record<string, VideoModelConfig> = {
     description:
       '✨ OpenAI Sora 2 Pro Image-to-Video - 10 сек - 28⭐',
     basePrice: 0.045, // 28⭐ за 10 сек standard = 0.45 USD за 10 сек = 0.045/сек (Kie.ai pricing)
+    provider: 'kie', // ✅ FIX: Используем Kie.ai API для Sora Pro I2V
     api: {
       model: 'sora-2-pro-i2v', // ✅ FIX: Исправлено название модели с sora-2-pro-image-to-video на sora-2-pro-i2v
       input: {
