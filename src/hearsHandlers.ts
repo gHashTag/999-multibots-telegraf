@@ -523,6 +523,27 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  // Обработчик для кнопки "ИИ Рилс"
+  bot.hears(
+    [levels[19].title_ru, levels[19].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для ИИ Рилс от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в ИИ Рилс
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[19].title_ru : levels[19].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      // Входим в сцену ИИ Рилс
+      await ctx.scene.leave()
+      await ctx.scene.enter('ai_reels_entry')
+    }
+  )
+
   // bot.hears(
   //   ['🎥 Сгенерировать новое видео?', '🎥 Generate new video?'],
   //   async (ctx: MyContext) => {
