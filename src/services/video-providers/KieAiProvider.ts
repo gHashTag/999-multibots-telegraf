@@ -339,7 +339,7 @@ export class KieAiProvider {
       if (model === 'wan-2.5-t2v') {
         kieModel = 'wan/2-5-text-to-video'
         provider = 'WAN 2.5 API'
-        endpoint = '/api/v1/jobs/createTask'
+        endpoint = '/jobs/createTask'
         logger.info('[KieAiProvider] WAN 2.5 T2V selected:', {
           originalModel: model,
           selectedModel: kieModel,
@@ -349,7 +349,7 @@ export class KieAiProvider {
       } else if (model === 'wan-2.5-i2v') {
         kieModel = 'wan/2-5-image-to-video'
         provider = 'WAN 2.5 API'
-        endpoint = '/api/v1/jobs/createTask'
+        endpoint = '/jobs/createTask'
         logger.info('[KieAiProvider] WAN 2.5 I2V selected:', {
           originalModel: model,
           selectedModel: kieModel,
@@ -382,8 +382,8 @@ export class KieAiProvider {
       }
     }
 
-    // ✅ FIX: Handle WAN models separately using /api/v1/jobs/createTask
-    if (endpoint === '/api/v1/jobs/createTask') {
+    // ✅ FIX: Handle WAN models separately using /jobs/createTask
+    if (endpoint === '/jobs/createTask') {
       logger.info('[KieAiProvider] Using WAN Jobs API:', {
         model: kieModel,
         hasImage: !!imageUrl,
