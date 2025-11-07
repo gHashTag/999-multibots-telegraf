@@ -381,12 +381,32 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
       return
     }
 
+    // ✅ Парсим resultJson если он присутствует (WAN 2.5 отправляет его как строку)
+    let parsedResultUrls: string[] | undefined
+    try {
+      if ((payload.data as any)?.resultJson) {
+        const resultJson = JSON.parse((payload.data as any).resultJson)
+        parsedResultUrls = resultJson.resultUrls
+        logger.info('✅ [KIE.AI WEBHOOK] Parsed resultJson', {
+          taskId,
+          parsedResultUrls,
+          originalResultJson: (payload.data as any).resultJson.substring(0, 100)
+        })
+      }
+    } catch (e) {
+      logger.warn('⚠️ [KIE.AI WEBHOOK] Failed to parse resultJson', {
+        taskId,
+        error: e instanceof Error ? e.message : String(e)
+      })
+    }
+
     // ✅ Нормализуем payload для дальнейшей обработки
     const normalizedPayload: KieAiWebhookPayload = {
       ...payload,
       taskId,
       successFlag,
-      resultUrls: payload.resultUrls || (payload.data as any)?.info?.resultUrls || (payload.data as any)?.resultUrls,
+      resultUrls: payload.resultUrls || parsedResultUrls || (payload.data as any)?.info?.resultUrls || (payload.data as any)?.resultUrls,
+      videoUrl: payload.videoUrl || parsedResultUrls?.[0] || (payload.data as any)?.info?.resultUrls?.[0],
       errorMessage: payload.errorMessage || (payload.data as any)?.errorMessage
     }
 
