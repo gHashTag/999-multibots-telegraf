@@ -133,19 +133,9 @@ export async function handleTextToVideoDirect(
       aspectRatio
     )
 
-    // Преобразуем ответ в старый формат для совместимости
-    // result может быть: videoUrl (готовое видео) или taskId (async генерация)
-    let response: { success: boolean; videoUrl?: string; jobId?: string; error?: string }
-
-    if (!result) {
-      response = { success: false, error: 'Video generation failed' }
-    } else if (result.startsWith('http')) {
-      // Это готовый videoUrl
-      response = { success: true, videoUrl: result, jobId: undefined }
-    } else {
-      // Это taskId для async генерации
-      response = { success: true, videoUrl: undefined, jobId: result }
-    }
+    // result уже в правильном формате { success, videoUrl?, jobId?, error?, message? }
+    const response: { success: boolean; videoUrl?: string; jobId?: string; error?: string; message?: string } =
+      result || { success: false, error: 'Video generation failed' }
 
     if (!response.success) {
       if (ctx && ctx.telegram && ctx.chat) {
