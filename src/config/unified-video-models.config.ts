@@ -13,11 +13,11 @@
 
 import { z } from 'zod'
 import {
-  calculateKieAiPriceInStars,
-  KIE_AI_MODELS_PRICING,
   STAR_COST_USD,
   MARKUP_MULTIPLIER,
-} from './unified-pricing.config'
+  usdToStars,
+  calculateVideoPriceInStars,
+} from '@/price/constants'
 
 /**
  * Тип провайдера для генерации видео

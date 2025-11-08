@@ -3,7 +3,7 @@ import {
   rubToStars,
   usdToStars,
   DEFAULT_USD_TO_RUB_RATE,
-} from '@/config/unified-pricing.config'
+} from '@/price/constants'
 
 // Пакеты пополнения в рублях (фиксированные, для fallback)
 // ⚠️ ВАЖНО: Минимальная сумма Robokassa - 50-100₽ (зависит от настроек мерчанта)

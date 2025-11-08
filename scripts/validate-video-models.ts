@@ -5,7 +5,7 @@
  */
 
 import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '../src/config/unified-video-models.config'
-import { KIE_AI_MODELS_PRICING } from '../src/config/unified-pricing.config'
+import { KIE_AI_MODELS_PRICING } from '../src/price/constants'
 import axios from 'axios'
 
 interface ValidationResult {
