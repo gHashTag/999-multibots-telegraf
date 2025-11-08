@@ -4,9 +4,9 @@ import { createHash } from 'crypto'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import {
-  VIDEO_MODELS_CONFIG,
+  UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG,
   type VideoModelConfig,
-} from '@/modules/videoGenerator/config/models.config'
+} from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 import { replicate } from '@/core/replicate'
 import {

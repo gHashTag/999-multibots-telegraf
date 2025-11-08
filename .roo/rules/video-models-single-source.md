@@ -8,10 +8,13 @@
 
 ## ❌ ЗАПРЕЩЕНО:
 
-- Создавать дубликаты конфигов (videoModels.ts, video-models.ts, и т.д.)
+- Создавать дубликаты конфигов (videoModels.ts, models.config.ts, video-models.ts, и т.д.)
 - Хардкодить цены моделей в других файлах
 - Хардкодить названия моделей в кнопках
 - Создавать отдельные файлы с ценами или моделями
+- Импортировать из `@/modules/videoGenerator/config/models.config` (УДАЛЕНО!)
+- Импортировать из `@/services/videoModels` (УДАЛЕНО!)
+- Использовать `VideoModelConfig` из старых конфигов (используй `UnifiedVideoModelConfig`)
 
 ## ✅ ТРЕБУЕТСЯ:
 

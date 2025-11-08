@@ -1,4 +1,4 @@
-import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
 import { calculateFinalPrice } from '@/price/helpers'
 import { logger } from '@/utils/logger'
 
