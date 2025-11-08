@@ -15,8 +15,7 @@
 
 import * as dotenv from 'dotenv'
 import { KieAiProvider } from '@/services/video-providers/KieAiProvider'
-import { VIDEO_MODELS, VideoModelInfo } from '@/services/videoModels'
-import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG, type UnifiedVideoModelConfig } from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 
 dotenv.config()

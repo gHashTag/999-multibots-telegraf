@@ -7,7 +7,7 @@
 import * as dotenv from 'dotenv'
 dotenv.config()
 
-import { VIDEO_MODELS_CONFIG } from '../src/modules/videoGenerator/config/models.config'
+import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '../src/config/unified-video-models.config'
 import { calculateFinalPrice } from '../src/price/helpers/calculateFinalPrice'
 
 // Константы для расчета

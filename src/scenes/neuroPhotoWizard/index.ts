@@ -19,7 +19,7 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { handleMenu } from '@/handlers'
+// import { handleMenu } from '@/handlers' // ❌ REMOVED: handleMenu не экспортируется из handlers/index.ts
 import { ModeEnum } from '@/interfaces/modes'
 // ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
 import { getBotNameByToken } from '@/core/bot'
@@ -190,7 +190,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           : '❌ Error: model not selected. Please start over.'
       )
       // handleMenu сам определит язык и подписку
-      await handleMenu(ctx)
+      await mainMenu(ctx)
       return
     }
 
@@ -309,7 +309,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
     if (text === levels[104].title_ru || text === levels[104].title_en) {
       console.log('CASE: Главное меню')
-      await handleMenu(ctx)
+      await mainMenu(ctx)
       return
     }
 
@@ -327,7 +327,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
           : '❌ Error: generation data not found. Please start over.'
       )
       // handleMenu сам определит язык и подписку
-      await handleMenu(ctx)
+      await mainMenu(ctx)
       return
     }
 
@@ -369,7 +369,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         'CASE: Неизвестный ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
       )
       // handleMenu сам определит язык и подписку
-      await handleMenu(ctx)
+      await mainMenu(ctx)
       return
     }
   } else {
@@ -377,7 +377,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       'CASE: Нетекстовый или отсутствующий ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
     )
     // handleMenu сам определит язык и подписку
-    await handleMenu(ctx)
+    await mainMenu(ctx)
     return
   }
 }
@@ -426,7 +426,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
   if (callbackData === 'go_main_menu') {
     console.log('🔄 [CALLBACK] Главное меню')
-    await handleMenu(ctx)
+    await mainMenu(ctx)
     return ctx.scene.leave()
   }
 
@@ -447,7 +447,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
         ? 'Отменено. Возвращаю в главное меню.'
         : 'Cancelled. Returning to main menu.'
     )
-    await handleMenu(ctx)
+    await mainMenu(ctx)
     return ctx.scene.leave()
   } else if (callbackData.startsWith('select_neuro_model_')) {
     let modelId = callbackData.replace('select_neuro_model_', '')
@@ -484,7 +484,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 // ✅ ОБРАБАТЫВАЕМ УНИВЕРСАЛЬНЫЕ КОМАНДЫ ВОКРУГ СЦЕНЫ (МЕНЮ, HELP И Т.Д.)
 neuroPhotoWizard.command('menu', async ctx => {
   // handleMenu сам определит язык и подписку
-  await handleMenu(ctx)
+  await mainMenu(ctx)
   return ctx.scene.leave()
 })
 

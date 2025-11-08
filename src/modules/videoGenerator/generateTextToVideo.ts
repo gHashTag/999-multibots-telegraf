@@ -3,9 +3,9 @@ import { API_URL, SECRET_API_KEY } from '@/config'
 import { logger } from '@/utils/logger'
 import { replicate } from '@/core/replicate'
 import {
-  VIDEO_MODELS_CONFIG,
-  type VideoModelConfig,
-} from './config/models.config'
+  UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG,
+  type UnifiedVideoModelConfig as VideoModelConfig,
+} from '@/config/unified-video-models.config'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
