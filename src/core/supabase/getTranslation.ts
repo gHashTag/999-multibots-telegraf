@@ -253,7 +253,7 @@ export async function getTranslation({
     if (key === 'menu' && buttons.length === 0) {
       try {
         // Dynamically import to avoid circular dependency
-        const { levels } = await import('@/menu/mainMenu')
+        const { levels } = await import('@/menu/simpleMenu')
         const { SubscriptionType } = await import('@/interfaces/subscription.interface')
 
         logger.info(`[getTranslation] Generating menu buttons from levels for "${key}"`, {

@@ -1192,5 +1192,57 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       )
     }
   })
+
+  // === ОБРАБОТЧИК КНОПКИ СМЕНЫ ЯЗЫКА ===
+  bot.hears(['🌐 EN', '🌐 RU'], async ctx => {
+    const telegramId = ctx.from?.id?.toString()
+    logger.info('GLOBAL HEARS: Language switch button pressed', {
+      telegramId: ctx.from?.id,
+      buttonText: ctx.message && 'text' in ctx.message ? ctx.message.text : '',
+    })
+
+    try {
+      const currentLang = isRussianFromState(ctx)
+      const newLang = !currentLang // Переключаем на противоположный
+
+      // Сохраняем выбор языка в сессии
+      if (ctx.session) {
+        ctx.session.userLanguage = newLang ? 'ru' : 'en'
+      }
+
+      // Сохраняем в БД если есть telegramId
+      if (telegramId) {
+        const { updateUserLanguage } = await import('@/core/supabase')
+        await updateUserLanguage(telegramId, newLang ? 'ru' : 'en')
+      }
+
+      // Подтверждающее сообщение
+      await ctx.reply(
+        newLang
+          ? '🌐 Язык изменён на русский'
+          : '🌐 Language changed to English'
+      )
+
+      // Обновляем меню
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.MainMenu)
+
+      logger.info('✅ Language switched successfully', {
+        telegramId: ctx.from?.id,
+        newLanguage: newLang ? 'ru' : 'en',
+      })
+    } catch (error) {
+      logger.error('❌ Error switching language:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      await ctx.reply(
+        isRussianFromState(ctx)
+          ? '❌ Произошла ошибка при смене языка.'
+          : '❌ Error occurred while changing language.'
+      )
+    }
+  })
 }
 //
