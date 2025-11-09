@@ -183,7 +183,7 @@ server {
 
     # ✅ Callback endpoint on HTTP (Railway render-server compatibility)
     location = /api/telegram/ai-reels-callback {
-        proxy_pass http://127.0.0.1:3000/api/telegram/ai-reels-callback;
+        proxy_pass http://127.0.0.1:2999/api/telegram/ai-reels-callback;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -211,7 +211,7 @@ server {
 
     # ✅ Callback endpoint on HTTPS
     location = /api/telegram/ai-reels-callback {
-        proxy_pass http://127.0.0.1:3000/api/telegram/ai-reels-callback;
+        proxy_pass http://127.0.0.1:2999/api/telegram/ai-reels-callback;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -221,7 +221,7 @@ server {
 
     # All other API endpoints
     location /api/ {
-        proxy_pass http://127.0.0.1:3000/api/;
+        proxy_pass http://127.0.0.1:2999/api/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -231,7 +231,7 @@ server {
 
     # Main API
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:2999;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -244,7 +244,7 @@ server {
 
     # Health Check
     location /health {
-        proxy_pass http://127.0.0.1:3000/health;
+        proxy_pass http://127.0.0.1:2999/health;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
