@@ -38,7 +38,7 @@ import { inngest } from '@/inngest_app/client'
 export const generateModelTrainingFunction = inngest.createFunction(
   {
     id: 'generate-model-training',
-    name: 'Model Training - Flux LoRA',
+    name: '🧠 Model Training - Flux LoRA',
     concurrency: [
       {
         limit: 2, // Max 2 concurrent trainings

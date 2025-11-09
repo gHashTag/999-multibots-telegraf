@@ -76,7 +76,7 @@ const replicateApi = {
 export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
   {
     id: 'generate-advanced-looping-video',
-    name: 'Generate Kling Morphing Loop v7',
+    name: '🔄 Generate Kling Morphing Loop v7',
     retries: 2,
     concurrency: {
       limit: 1, // Run one at a time to avoid overwhelming API

@@ -6,10 +6,10 @@
 import { Inngest } from 'inngest'
 import { logger } from '@/utils/logger'
 
-// Create main Inngest client for all bot-farm functions
+// Create main Inngest client for all Vibee functions
 export const inngest = new Inngest({
-  id: 'bot-farm-inngest',
-  name: 'bot-farm-inngest',
+  id: 'vibee',
+  name: 'Vibee AI Bot Platform',
   eventKey: process.env.INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY || 'local-dev-key',
   // For local development, no baseUrl needed
   // For production, will use default Inngest Cloud

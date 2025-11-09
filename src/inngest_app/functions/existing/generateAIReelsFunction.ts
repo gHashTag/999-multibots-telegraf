@@ -43,7 +43,7 @@ export interface AIReelsResult {
 export const generateAIReelsFunction = inngest.createFunction(
   {
     id: 'ai-reels-generation',
-    name: 'AI Reels Generation',
+    name: '🎬 AI Reels Generation',
     retries: 2, // Повторить 2 раза при ошибке
     rateLimit: {
       limit: 5, // Максимум 5 одновременных генераций
