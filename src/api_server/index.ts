@@ -90,12 +90,24 @@ export function startApiServer(bot?: Telegraf): void {
 
   // ✅ Inngest включен для мониторинга webhook'ов
   // Интеграция Inngest с API (актуальная сигнатура serve)
-  const inngestHandler = serve({
-    client: inngest as any,
-    functions: allInngestFunctions as any,
-  }) as any
-  app.use('/api/inngest', inngestHandler)
-  logger.info('✅ [API SERVER] Inngest webhook monitor initialized at /api/inngest')
+  if (allInngestFunctions && Array.isArray(allInngestFunctions) && allInngestFunctions.length > 0) {
+    logger.info('[API SERVER] Registering Inngest functions', {
+      count: allInngestFunctions.length,
+      functions: allInngestFunctions.map((f: any) => f.id || f.name || 'unnamed')
+    })
+
+    const inngestHandler = serve({
+      client: inngest as any,
+      functions: allInngestFunctions as any,
+    }) as any
+    app.use('/api/inngest', inngestHandler)
+    logger.info('✅ [API SERVER] Inngest webhook monitor initialized at /api/inngest')
+  } else {
+    logger.warn('⚠️ [API SERVER] Inngest functions not loaded, skipping Inngest setup', {
+      allInngestFunctions: typeof allInngestFunctions,
+      isArray: Array.isArray(allInngestFunctions)
+    })
+  }
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
   app.listen(PORT, '0.0.0.0', () => {
