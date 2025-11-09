@@ -8,16 +8,13 @@ import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
 
-console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
-
 // ========== СОЗДАНИЕ WIZARD'A ПО АНАЛОГИИ С TEXT TO VIDEO ==========
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo,
-  
+
   // ========== ШАГ 1: ЗАГРУЗКА ИЗОБРАЖЕНИЯ ==========
   async (ctx) => {
-    console.log('🎬 [I2V WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
     console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
     
     try {
@@ -301,20 +298,14 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-console.log('🔥 [DEBUG] imageToVideoWizard CREATED! ID:', imageToVideoWizard.id)
-console.log('🔥 [DEBUG] imageToVideoWizard steps count:', (imageToVideoWizard as any).steps?.length)
-
 // ========== ОБРАБОТЧИКИ WIZARD'A ==========
 
 // Обработчик входа в wizard
 imageToVideoWizard.enter(async ctx => {
-  console.log('🎬 [I2V WIZARD] ✅ WIZARD ENTERED! User:', ctx.from?.id)
-  console.log('🎬 [I2V WIZARD] Scene ID:', ctx.scene.current?.id)
   // ❌ НЕ обращаемся к ctx.wizard в .enter() - он ещё не инициализирован!
   // Wizard будет создан ПОСЛЕ выполнения .enter() callback
 
   try {
-    console.log('🎬 [I2V WIZARD] Initial session initialized for imageToVideoWizard')
 
     logger.info('[ImageToVideoWizard] Wizard entered successfully', {
       telegramId: ctx.from?.id,
@@ -324,9 +315,7 @@ imageToVideoWizard.enter(async ctx => {
 
     // ✅ FIX: НЕ вызываем первый шаг вручную - Telegraf сделает это автоматически
     // Это исправляет проблему двойного запроса фото
-    console.log('🎬 [I2V WIZARD] Telegraf will automatically call step 0')
   } catch (error) {
-    console.error('🎬 [I2V WIZARD] Error initializing wizard session:', error)
     logger.error('[ImageToVideoWizard] Session initialization error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
@@ -336,8 +325,6 @@ imageToVideoWizard.enter(async ctx => {
 
 // Обработчик выхода из wizard
 imageToVideoWizard.leave(async ctx => {
-  console.log('🎬 [I2V WIZARD] 👋 WIZARD LEFT! User:', ctx.from?.id)
-
   logger.info('[ImageToVideoWizard] Wizard left', {
     telegramId: ctx.from?.id,
     timestamp: new Date().toISOString(),
@@ -352,7 +339,5 @@ imageToVideoWizard.leave(async ctx => {
     delete ctx.session.imageUrl
   }
 })
-
-console.log('🎬 [I2V WIZARD] imageToVideoWizard loaded successfully')
 
 export default imageToVideoWizard

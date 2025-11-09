@@ -83,26 +83,7 @@ export async function isPortInUse(port: number): Promise<boolean> {
 
 // Добавляю логи перед инициализацией ботов
 async function initializeBots() {
-  // Запускаем Hello World сервер в самом начале
-  logger.debug('🔧 Режим работы:', isDev ? 'development' : 'production')
-  logger.debug('📝 Загружен файл окружения:', process.env.NODE_ENV)
-
-  logger.debug('🔄 [SCENE_DEBUG] Проверка импорта stage из registerCommands...')
   const { stage } = await import('./registerCommands')
-  logger.debug('✅ [SCENE_DEBUG] Stage импортирован успешно')
-  // Проверим сцены другим способом
-  try {
-    const stageInfo = (stage as any)._handlers || []
-    logger.debug(
-      '📊 [SCENE_DEBUG] Количество обработчиков сцен:',
-      stageInfo.length
-    )
-  } catch (error) {
-    logger.debug(
-      '⚠️ [SCENE_DEBUG] Не удалось получить информацию о количестве сцен:',
-      (error as Error).message
-    )
-  }
 
   if (isDev) {
     // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
