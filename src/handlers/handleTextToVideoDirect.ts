@@ -101,6 +101,48 @@ export async function handleTextToVideoDirect(
       result || { success: false, error: 'Video generation failed' }
 
     if (!response.success) {
+      // ✅ Проверяем, является ли это ошибкой недостатка кредитов (402)
+      const isInsufficientCredits = (response as any).isInsufficientCredits === true
+
+      if (isInsufficientCredits) {
+        // 🚨 КРИТИЧЕСКАЯ ОШИБКА: Уведомляем админа о недостатке кредитов
+        const { ADMIN_IDS_ARRAY } = await import('@/config')
+        const adminMessage = `🚨 <b>КРИТИЧЕСКАЯ ОШИБКА: Недостаточно кредитов на Kie.ai API</b>
+
+<b>Модель:</b> ${modelId}
+<b>Пользователь:</b> @${username} (ID: ${telegram_id})
+<b>Ошибка:</b> ${response.error}
+
+⚠️ <b>Требуется пополнение баланса Kie.ai немедленно!</b>
+
+Пользователь получил сообщение о том, что проблема будет решена в ближайшее время.`
+
+        // Отправляем уведомление всем админам
+        for (const adminId of ADMIN_IDS_ARRAY) {
+          try {
+            await ctx.telegram.sendMessage(adminId, adminMessage, { parse_mode: 'HTML' })
+            logger.info('[handleTextToVideoDirect] Admin notified about insufficient credits', { adminId })
+          } catch (error) {
+            logger.error('[handleTextToVideoDirect] Failed to notify admin', { adminId, error })
+          }
+        }
+
+        // Показываем пользователю дружелюбное сообщение
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            processingMessage.message_id,
+            undefined,
+            is_ru
+              ? `⚠️ <b>Временная техническая проблема</b>\n\nАдминистратор уже уведомлен и работает над решением.\nПожалуйста, попробуйте через несколько минут.\n\n💬 Приносим извинения за неудобства!`
+              : `⚠️ <b>Temporary technical issue</b>\n\nThe administrator has been notified and is working on a solution.\nPlease try again in a few minutes.\n\n💬 We apologize for the inconvenience!`,
+            { parse_mode: 'HTML' }
+          )
+        }
+        return
+      }
+
+      // Обычная ошибка генерации
       if (ctx && ctx.telegram && ctx.chat) {
         await ctx.telegram.editMessageText(
           ctx.chat.id,

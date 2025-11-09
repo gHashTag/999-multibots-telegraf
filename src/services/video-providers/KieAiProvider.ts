@@ -445,8 +445,28 @@ export class KieAiProvider {
 
         logger.info('[KieAiProvider] WAN API response received:', {
           hasData: !!response.data,
-          taskId: response.data?.taskId
+          taskId: response.data?.taskId,
+          code: response.code
         })
+
+        // ✅ Проверяем code ПЕРЕД проверкой data
+        if (response.code !== 200) {
+          logger.error('[KieAiProvider] WAN API returned error code:', {
+            code: response.code,
+            msg: response.msg,
+            isInsufficientCredits: response.code === 402
+          })
+
+          return {
+            success: false,
+            error: response.msg || 'WAN API error',
+            errorCode: response.code,
+            isInsufficientCredits: response.code === 402, // Флаг для уведомления админа
+            cost: { usd: 0, stars: 0 },
+            provider: 'WAN 2.5 API',
+            model: kieModel
+          }
+        }
 
         // WAN Jobs API возвращает taskId для асинхронной генерации
         if (response.data && response.data.taskId) {
