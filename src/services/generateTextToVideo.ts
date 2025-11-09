@@ -302,6 +302,43 @@ export async function generateTextToVideo(
       }
     }
     
+    // Для Replicate моделей используем прямую интеграцию
+    if (modelConfig?.provider === 'replicate') {
+      logger.info('[REPLICATE] Using Replicate API directly', {
+        videoModel,
+        provider: modelConfig?.provider,
+        apiModel: modelConfig?.apiModel
+      })
+
+      // Импортируем модуль videoGenerator для Replicate моделей
+      const { generateTextToVideo: generateTextToVideoNew } = await import('@/modules/videoGenerator')
+
+      const videoUrl = await generateTextToVideoNew(
+        prompt,
+        telegram_id,
+        username,
+        is_ru,
+        bot_name,
+        videoModel,
+        undefined, // selectedResolution
+        duration,
+        aspectRatio
+      )
+
+      if (videoUrl) {
+        return {
+          success: true,
+          videoUrl: videoUrl,
+          message: 'Video generated successfully via Replicate'
+        }
+      }
+
+      return {
+        success: false,
+        error: 'Failed to generate video via Replicate',
+      }
+    }
+
     // Для остальных моделей используем старый подход с сервером
     logger.info('URL Selection Debug', {
       API_URL,
