@@ -249,8 +249,9 @@ async function initializeBots() {
       }
     }
 
-    // Ждём завершения инициализации всех ботов
-    await Promise.all(botPromises)
+    // Bot launches are non-blocking in polling mode - they start infinite loops
+    // Don't wait for them to complete, otherwise API server will never start
+    // await Promise.all(botPromises)
     console.log(`✅ Все боты успешно запущены в polling режиме`)
     console.log(`✅ Все боты успешно инициализированы`)
 }
