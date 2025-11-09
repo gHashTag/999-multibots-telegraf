@@ -16,6 +16,7 @@ interface VideoTaskContext {
   modelId: string
   duration: number
   createdAt: number
+  botName?: string // Имя бота для multi-bot режима (опционально для обратной совместимости)
 }
 
 class VideoTaskStore {

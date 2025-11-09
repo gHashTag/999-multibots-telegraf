@@ -10,11 +10,27 @@ import type { VideoModelId } from '@/services/generateTextToVideo'
 
 const router: Router = express.Router()
 
-// Получаем bot instance для отправки сообщений
-let botInstance: Telegraf | null = null
-export function setBotInstance(bot: Telegraf): void {
-  botInstance = bot
-  logger.info('✅ [KIE.AI WEBHOOK] Bot instance set for webhook handler')
+// ✅ MULTI-BOT SUPPORT: Храним Map всех bot instances
+const botInstances: Map<string, Telegraf> = new Map()
+let defaultBotInstance: Telegraf | null = null
+
+export function setBotInstance(bot: Telegraf, botName?: string): void {
+  if (botName) {
+    botInstances.set(botName, bot)
+    logger.info('✅ [KIE.AI WEBHOOK] Bot instance registered', { botName })
+  } else {
+    // Legacy support: первый бот становится default
+    defaultBotInstance = bot
+    logger.info('✅ [KIE.AI WEBHOOK] Default bot instance set')
+  }
+}
+
+// Получить нужный bot instance по имени или fallback на default
+function getBotInstance(botName?: string): Telegraf | null {
+  if (botName && botInstances.has(botName)) {
+    return botInstances.get(botName) || null
+  }
+  return defaultBotInstance
 }
 
 /**
@@ -203,10 +219,21 @@ async function handleSoraSuccess(payload: KieAiWebhookPayload): Promise<void> {
     return
   }
 
+  // ✅ MULTI-BOT FIX: Получаем правильный bot instance для этой задачи
+  const botInstance = getBotInstance(taskContext.botName)
   if (!botInstance) {
-    logger.error('❌ [SORA WEBHOOK] Bot instance not initialized')
+    logger.error('❌ [SORA WEBHOOK] Bot instance not found', {
+      taskId,
+      requestedBot: taskContext.botName,
+      availableBots: Array.from(botInstances.keys())
+    })
     return
   }
+
+  logger.info('✅ [SORA WEBHOOK] Using bot instance', {
+    taskId,
+    botName: taskContext.botName || 'default'
+  })
 
   try {
     // Обновляем сообщение о статусе
@@ -288,7 +315,17 @@ async function handleSoraFailure(payload: KieAiWebhookPayload): Promise<void> {
   })
 
   const taskContext = videoTaskStore.getTask(taskId)
-  if (!taskContext || !botInstance) {
+  if (!taskContext) {
+    return
+  }
+
+  // ✅ MULTI-BOT FIX: Получаем правильный bot instance
+  const botInstance = getBotInstance(taskContext.botName)
+  if (!botInstance) {
+    logger.error('❌ [SORA WEBHOOK] Bot instance not found for failure handler', {
+      taskId,
+      requestedBot: taskContext.botName
+    })
     return
   }
 
@@ -681,7 +718,8 @@ router.post('/kie-ai/sora-callback-test', async (req: any, res: any) => {
       prompt: '🧪 TEST: Это тестовое видео для проверки webhook callback',
       modelId: 'sora-2-text-to-video',
       duration: 10,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      botName: undefined // Тестовая задача - bot будет выбран автоматически
     })
 
     logger.info('🧪 [SORA DEBUG] Test task created', {
@@ -729,7 +767,8 @@ router.post('/kie-ai/sora-full-test', async (req: any, res: any) => {
       prompt: '🧪 FULL TEST: Автоматический тест webhook callback',
       modelId: 'sora-2-text-to-video',
       duration: 10,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      botName: undefined // Тестовая задача - bot будет выбран автоматически
     })
 
     logger.info('🧪 [SORA FULL TEST] Task created', { testTaskId })

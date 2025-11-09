@@ -33,6 +33,8 @@ import { message } from 'telegraf/filters'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
+// ✅ Импортируем функцию регистрации bot instances для multi-bot поддержки
+import { setBotInstance } from './api_server/routes/kie-ai-webhook.routes'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -169,16 +171,19 @@ async function initializeBots() {
         // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
         setupNotificationProcessor(bot)
 
-        // ✅ Сохраняем первый bot instance для webhooks
+        // ✅ Сохраняем первый bot instance для webhooks (legacy)
         if (!mainBotInstance) {
           mainBotInstance = bot
           console.log('✅ Main bot instance saved for webhooks')
 
           // ✅ Запускаем API сервер СРАЗУ после создания первого бота
           // (до bot.launch(), чтобы не ждать бесконечного polling loop)
-          startApiServer(bot)
+          startApiServer(bot) // Передаём только первый бот (default)
           console.log('✅ API сервер запущен с bot instance для webhooks')
         }
+
+        // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
+        botInstances.push(bot)
 
         registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
         // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
@@ -238,8 +243,16 @@ async function initializeBots() {
             'successful_payment' as any,
           ],
         })
-          .then(() => {
-            console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
+          .then(async () => {
+            // Получаем botInfo ПОСЛЕ launch
+            const me = await bot.telegram.getMe()
+            console.log(`🚀 Бот ${me.username} запущен в polling режиме`)
+
+            // ✅ MULTI-BOT FIX: Регистрируем bot instance ПОСЛЕ launch
+            if (typeof setBotInstance === 'function' && me.username) {
+              setBotInstance(bot, me.username)
+              console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${me.username}`)
+            }
           })
           .catch((error) => {
             console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)

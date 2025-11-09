@@ -149,7 +149,8 @@ export async function handleTextToVideoDirect(
           prompt,
           modelId,
           duration: validDuration,
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          botName: ctx.botInfo?.username // ✅ FIX: Сохраняем имя бота для multi-bot режима
         })
 
         if (ctx && ctx.telegram && ctx.chat) {
