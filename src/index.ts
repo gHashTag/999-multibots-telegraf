@@ -402,6 +402,12 @@ async function startApplication() {
           console.warn(`  ⚠️ ${key} не найден в Infisical (опционально)`)
         }
       }
+
+      // 🔗 ВРЕМЕННОЕ РЕШЕНИЕ: Устанавливаем BASE_WEBHOOK_URL напрямую для production
+      if (!process.env.BASE_WEBHOOK_URL && env === 'prod') {
+        process.env.BASE_WEBHOOK_URL = 'https://three-head-dragon.shop'
+        console.log('  ✅ BASE_WEBHOOK_URL установлен (hardcoded fallback)')
+      }
     } catch (e) {
       console.warn('  ⚠️ Некоторые API ключи не загружены')
     }
