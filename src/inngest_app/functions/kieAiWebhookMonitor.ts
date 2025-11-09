@@ -254,9 +254,11 @@ export const kieAiWebhookManualCheck = inngest.createFunction(
 )
 
 /**
- * Экспортируем все функции
+ * Экспортируем все функции как массив и default export
  */
-export default [
+export const kieAiWebhookMonitorFunctions = [
   kieAiWebhookMonitor,
   kieAiWebhookManualCheck
 ]
+
+export default kieAiWebhookMonitorFunctions
