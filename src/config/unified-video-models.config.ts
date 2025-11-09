@@ -877,10 +877,7 @@ export function validateVideoModels(): void {
   if (errors.length > 0) {
     throw new Error(`Video models validation failed:\n${errors.join('\n')}`)
   }
-
-  console.log(
-    `✅ Validated ${Object.keys(UNIFIED_VIDEO_MODELS).length} video models successfully`
-  )
+  // Video models validated successfully
 }
 
 // Валидируем при загрузке модуля

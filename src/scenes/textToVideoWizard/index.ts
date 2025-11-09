@@ -10,23 +10,17 @@ import {
 } from '@/interfaces/zod/textToVideo.zod'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
-console.log('🎬 [WIZARD] Loading CONFIG-BASED textToVideoWizard...')
-
 // ========== INLINE WIZARD ФУНКЦИИ (КАК В РАБОЧИХ WIZARDS) ==========
 
 // ========== СОЗДАНИЕ WIZARD'A С INLINE ФУНКЦИЯМИ (КАК В textToImageWizard) ==========
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
-  
+
   // ========== ШАГ 1: ВЫБОР МОДЕЛИ ==========
   async (ctx) => {
-    console.log('🎬 [WIZARD] 🚀 STEP 1 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'not initialized yet')
-    
     try {
       const isRu = isRussianFromState(ctx)
-      console.log('🎬 [WIZARD] Step 1: Language detected:', isRu)
 
       // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ (автоматически берет все активные модели)
       const keyboardRows = generateModelKeyboard('text', isRu)
@@ -290,15 +284,10 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-console.log('🔥 [DEBUG] textToVideoWizard CREATED! ID:', textToVideoWizard.id)
-console.log('🔥 [DEBUG] textToVideoWizard steps count:', (textToVideoWizard as any).steps?.length)
-
 // ========== ОБРАБОТЧИКИ WIZARD'A ==========
 
 // Обработчик выхода из wizard
 textToVideoWizard.leave(async ctx => {
-  console.log('🎬 [WIZARD] 👋 WIZARD LEFT! User:', ctx.from?.id)
-
   logger.info('[TextToVideoWizard] Wizard left', {
     telegramId: ctx.from?.id,
     timestamp: new Date().toISOString(),
@@ -312,5 +301,3 @@ textToVideoWizard.leave(async ctx => {
     delete ctx.session.selectedDuration
   }
 })
-
-console.log('🎬 [WIZARD] CONFIG-BASED textToVideoWizard loaded successfully')

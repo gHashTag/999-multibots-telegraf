@@ -1,7 +1,7 @@
 {
-  "name": "neuro-blogger-telegram-bot",
+  "name": "vibee",
   "version": "0.0.1",
-  "description": "Telegram bot for generating blog posts using AI",
+  "description": "VIBEE - AI-powered Telegram bot platform",
   "main": "src/bot.ts",
   "scripts": {
     "prestart": "./scripts/worktree-env-sync.sh",

@@ -188,9 +188,9 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
     ru: '🎬 ИИ Рилс',
     en: '🎬 AI Reels',
     mode: 'ai_reels',
-    category: 'admin',
+    category: 'video',  // Moved from admin to video category
     icon: '🎬',
-    admin_only: true,
+    admin_only: false,  // Changed: Available for NEUROTESTER and NEUROVIDEO subscriptions
     requires_subscription: true
   },
 

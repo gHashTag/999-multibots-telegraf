@@ -100,15 +100,7 @@ import { registerPaymentActions } from './handlers/paymentActions'
 import { setupHearsHandlers } from './hearsHandlers'
 //https://github.com/telegraf/telegraf/issues/705
 
-// Проверяем что textToVideoWizard загружен
-console.log('🚨 [SCENE_DEBUG] textToVideoWizard check:', {
-  isImported: !!textToVideoWizard,
-  hasId: textToVideoWizard?.id,
-  wizardId: textToVideoWizard?.id,
-  sceneType: typeof textToVideoWizard,
-})
-
-// 🔍 DEBUG: Проверка всех сцен ПЕРЕД созданием Stage
+// Проверка всех сцен перед созданием Stage
 const scenesToRegister = [
   startScene,
   menuScene,
@@ -177,44 +169,19 @@ const sceneNames = [
   'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
 ]
 
-// 🔍 DEBUG: Validate each scene
+// Validate scenes (critical errors only)
 scenesToRegister.forEach((scene, index) => {
   const hasId = scene?.id != null
   const hasMiddleware = typeof scene?.middleware === 'function'
   const isValid = hasId && hasMiddleware
 
-  console.log(`🔍 [SCENE ${index}] ${sceneNames[index] || 'ARRAY_INDEX_' + index}: ${scene?.id || 'UNKNOWN'}`, {
-    hasId,
-    hasMiddleware,
-    isValid,
-    isUndefined: scene === undefined,
-    isNull: scene === null,
-  })
-
   if (!isValid || scene === undefined || scene === null) {
-    console.error(`❌❌❌ [SCENE ${index}] CRITICAL: ${sceneNames[index]} is invalid/undefined!`)
-    console.error(`   - Variable name: ${sceneNames[index]}`)
-    console.error(`   - Actual value:`, JSON.stringify(scene, null, 2))
-    console.error(`   - Type: ${typeof scene}`)
-    console.error(`   - Has ID: ${hasId}`)
-    console.error(`   - Has middleware: ${hasMiddleware}`)
-    console.error(`   - Keys:`, Object.keys(scene || {}))
-    // ОСТАНОВКА ВЫПОЛНЕНИЯ
+    console.error(`❌ CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`)
     throw new Error(`CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`)
   }
 })
 
 export const stage = new Scenes.Stage<MyContext>(scenesToRegister as any)
-
-// Проверяем зарегистрированные сцены
-console.log('🚨 [SCENE_DEBUG] Stage created with scenes:', {
-  totalScenes: stage.scenes.size,
-  hasTextToVideoWizard: stage.scenes.has('text_to_video'),
-  hasInstagramParser: stage.scenes.has('instagram_parser_wizard'),
-  hasFaceSwapWizard: stage.scenes.has('faceSwapWizard'),
-  hasPaymentScene: stage.scenes.has('payment_scene'),
-  allSceneNames: Array.from(stage.scenes.keys()).sort(),
-})
 
 // Function to send the promotional message
 const sendGroupCommandReply = async (ctx: MyContext) => {
@@ -594,8 +561,6 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       await ctx.scene.enter('ai_photoshop_scene')
     })
 
-    console.log('🔧 [DEBUG] REGISTERING /instagram command handler NOW!')
-    logger.info('🔧 [DEBUG] REGISTERING /instagram command handler NOW!')
     bot.command('instagram', async ctx => {
       try {
         console.log('🔍 [DEBUG] Instagram command handler TRIGGERED!')
@@ -1354,11 +1319,7 @@ If not, continue on your own and click the "I myself" button`
       }
     })
 
-    console.log('✅ [SCENE_DEBUG] Stage импортирован успешно')
-    console.log(
-      '📊 [SCENE_DEBUG] Количество обработчиков сцен:',
-      stage.scenes.size
-    )
+    // Stage loaded with scenes
 
     // ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ПЕРЕХОДА В ПОДПИСКУ
     bot.action('go_to_subscription_scene', async ctx => {
@@ -1533,8 +1494,7 @@ If not, continue on your own and click the "I myself" button`
     logger.info('🔧 [HEARS] Registering global hears handlers for menu buttons')
     setupHearsHandlers(bot)
 
-    console.log('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
-    logger.info('🔧 [DEBUG] registerCommands FUNCTION COMPLETED SUCCESSFULLY!')
+    // Commands registered successfully
   } catch (error) {
     console.error('🔧 [ERROR] registerCommands FUNCTION FAILED:', error)
     logger.error('🔧 [ERROR] registerCommands FUNCTION FAILED:', {
