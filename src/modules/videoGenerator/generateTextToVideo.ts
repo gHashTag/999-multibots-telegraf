@@ -38,19 +38,19 @@ export async function generateTextToVideo(
 
   // Получаем конфигурацию модели вне try-catch для доступа в обработчике ошибок
   const modelConfig = VIDEO_MODELS_CONFIG[modelId]
-  if (!modelConfig || !modelConfig.api?.model) {
+  if (!modelConfig || !modelConfig.apiModel) {
     logger.error(
-      '[generateTextToVideo] Invalid modelId or modelConfig, or api.model missing:',
+      '[generateTextToVideo] Invalid modelId or modelConfig, or apiModel missing:',
       { modelId, modelConfig }
     )
     return null
   }
 
   try {
-    if (!modelConfig.inputType.includes('text')) {
+    if (!modelConfig.inputTypes.includes('text')) {
       logger.error(
         `[generateTextToVideo] Model "${modelId}" does not support text input.`,
-        { modelId, inputType: modelConfig.inputType }
+        { modelId, inputTypes: modelConfig.inputTypes }
       )
       return null
     }
@@ -65,25 +65,25 @@ export async function generateTextToVideo(
       hasUserData: !!userExists,
     })
 
-    const replicateModelId: string = modelConfig.api.model
+    const replicateModelId: string = modelConfig.apiModel
 
     // Специальная обработка для Google Veo 3
     let modelInput: any
     if (modelConfig.id === 'veo3' || modelConfig.id === 'veo3_fast') {
       const finalDuration =
-        selectedDuration || modelConfig.api.input.duration_seconds || 8
+        selectedDuration || modelConfig.apiSettings?.durations?.[0] || 8
       modelInput = {
         prompt,
         duration_seconds: finalDuration,
         aspect_ratio: userAspectRatio, // Используем пользовательские настройки
-        enable_audio: modelConfig.api.input.enable_audio || true,
+        enable_audio: true,
       }
-      // Добавляем prompt_optimizer только если он есть в конфиге
-      if (modelConfig.api.input.prompt_optimizer) {
+      // Добавляем prompt_optimizer только если он есть в apiSettings
+      if (modelConfig.apiSettings?.promptOptimizer) {
         modelInput.prompt_optimizer = true
       }
       logger.info(
-        `[generateTextToVideo] ${modelConfig.title} model input prepared:`,
+        `[generateTextToVideo] ${modelConfig.name} model input prepared:`,
         {
           telegram_id,
           modelId: modelConfig.id,
@@ -94,28 +94,29 @@ export async function generateTextToVideo(
     // Специальная обработка для Kie.ai моделей
     else if (modelConfig.id.startsWith('kie-')) {
       const finalDuration =
-        selectedDuration || modelConfig.api.input.duration_seconds || 5
+        selectedDuration || modelConfig.apiSettings?.durations?.[0] || 5
 
-      // Определяем aspect_ratio с использованием выбранного пользователем или функции из конфига
+      // Определяем aspect_ratio
       let aspectRatio = selectedAspectRatio || userAspectRatio
-      if (typeof modelConfig.api.input.aspect_ratio === 'function') {
-        aspectRatio = modelConfig.api.input.aspect_ratio(aspectRatio)
-      } else if (modelConfig.api.input.aspect_ratio) {
-        aspectRatio = modelConfig.api.input.aspect_ratio
+      if (modelConfig.apiSettings?.aspectRatios) {
+        // Проверяем, что выбранный aspectRatio поддерживается
+        if (!modelConfig.apiSettings.aspectRatios.includes(aspectRatio as any)) {
+          aspectRatio = modelConfig.apiSettings.aspectRatios[0]
+        }
       }
 
       modelInput = {
         prompt,
         duration_seconds: finalDuration,
         aspect_ratio: aspectRatio,
-        enable_audio: modelConfig.api.input.enable_audio || true,
+        enable_audio: true,
       }
-      // Добавляем prompt_optimizer только если он есть в конфиге
-      if (modelConfig.api.input.prompt_optimizer) {
+      // Добавляем prompt_optimizer только если он есть в apiSettings
+      if (modelConfig.apiSettings?.promptOptimizer) {
         modelInput.prompt_optimizer = true
       }
       logger.info(
-        `[generateTextToVideo] ${modelConfig.title} model input prepared:`,
+        `[generateTextToVideo] ${modelConfig.name} model input prepared:`,
         {
           telegram_id,
           modelId: modelConfig.id,
@@ -127,7 +128,6 @@ export async function generateTextToVideo(
     else if (modelConfig.id === 'seedance-1-pro') {
       // Специальная обработка для Seedance-1-Pro моделей
       modelInput = {
-        ...(modelConfig.api.input || {}), // Включаем базовые параметры API
         prompt,
         resolution: selectedResolution, // Используем 'resolution'
       }
@@ -181,7 +181,6 @@ export async function generateTextToVideo(
       }
 
       modelInput = {
-        ...modelConfig.api.input,
         prompt,
         target_resolution: wanResolution, // WAN использует специфичный формат
       }
@@ -195,7 +194,6 @@ export async function generateTextToVideo(
     } else {
       // Стандартная обработка для других моделей
       modelInput = {
-        ...(modelConfig.api.input || {}),
         prompt,
         aspect_ratio: userAspectRatio, // Добавляем aspect_ratio и для других моделей
       }
@@ -212,7 +210,7 @@ export async function generateTextToVideo(
       // Извлекаем базовое имя модели (например, 'veo3_fast' из 'kie-veo3_fast')
       const baseModel = modelConfig.id.replace('kie-', '')
       // Сервер будет обрабатывать эти модели как обычные, но с маппингом на Kie.ai
-      finalReplicateModelId = modelConfig.api.model
+      finalReplicateModelId = modelConfig.apiModel
 
       logger.info(
         '[generateTextToVideo] Using server routing for economy model:',
@@ -389,7 +387,7 @@ export async function generateTextToVideo(
         telegram_id,
         modelCost,
         PaymentType.MONEY_INCOME,
-        `Refund for failed ${modelConfig.title} generation`,
+        `Refund for failed ${modelConfig.name} generation`,
         {
           bot_name: bot_name,
           service_type: 'video-generation-refund',

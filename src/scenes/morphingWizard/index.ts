@@ -12,14 +12,15 @@ import { isValidImage } from '../../helpers/images'
 import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
 import * as path from 'path'
+import { getModelsByInputType } from '@/config/unified-video-models.config'
 
-// ✅ КОНСТАНТЫ ДЛЯ МОДЕЛЕЙ МОРФИНГА
-const MORPHING_MODEL_KEYS = {
-  DEFAULT: 'kling-v2.1-pro', // Новая модель по умолчанию - Pro для поддержки end_image
-  FALLBACK_1: 'kling-v1.6-standard', // Фаллбэк 1
-  FALLBACK_2: 'kling-v1.6-pro', // Фаллбэк 2
-  STANDARD: 'kling-v2.1-standard' // Standard версия (не поддерживает морфинг)
-} as const
+// ✅ ПОЛУЧАЕМ МОДЕЛИ МОРФИНГА ИЗ ЕДИНОГО КОНФИГА
+const getMorphingModels = () => getModelsByInputType('morph')
+const getDefaultMorphingModel = () => {
+  const models = getMorphingModels()
+  // Ищем kling-v2.1-pro как приоритетную модель
+  return models.find(m => m.id === 'kling-v2.1-pro') || models[0]
+}
 
 // ✅ ПРЕСЕТЫ ПРОМПТОВ ДЛЯ ПЕРЕХОДОВ (основано на исследовании best practices 2025)
 const PROMPT_PRESETS = {
@@ -1016,14 +1017,15 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     })
 
     // ===== 💰 ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
+    const defaultModel = getDefaultMorphingModel()
     logger.info('[startMorphingGeneration] Processing balance for morphing', {
       telegramId: ctx.from?.id,
-      modelId: MORPHING_MODEL_KEYS.DEFAULT,
+      modelId: defaultModel.id,
     })
 
     const balanceResult = await processBalanceVideoOperationHelper(
       String(ctx.from!.id),
-      MORPHING_MODEL_KEYS.DEFAULT,
+      defaultModel.id,
       isRu,
       ctx.botInfo?.username || 'unknown_bot',
       'morphing'
@@ -1053,7 +1055,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     const transitionsCount = withLoop
       ? imagesCount // С лупом: 1→2, 2→3, 3→1 (включая возврат к первому)
       : imagesCount - 1 // Линейные переходы: 1→2, 2→3, 3→4 (без зацикливания)
-    const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEYS.DEFAULT)
+    const finalPriceInStars = calculateFinalPrice(defaultModel.id)
     const totalCost = finalPriceInStars * transitionsCount
 
     const morphingTypeText = isRu

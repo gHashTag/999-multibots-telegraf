@@ -172,8 +172,8 @@ export const generateImageToVideo = async (
       await telegramInstance.sendMessage(
         chatId,
         isRu
-          ? `⚠️ Видео с моделью ${modelConfig.title} уже генерируется для вас. Пожалуйста, дождитесь завершения (обычно 2-3 минуты).`
-          : `⚠️ Video with ${modelConfig.title} model is already being generated for you. Please wait for completion (usually 2-3 minutes).`
+          ? `⚠️ Видео с моделью ${modelConfig.nameRu} уже генерируется для вас. Пожалуйста, дождитесь завершения (обычно 2-3 минуты).`
+          : `⚠️ Video with ${modelConfig.name} model is already being generated for you. Please wait for completion (usually 2-3 minutes).`
       )
       return
     }
@@ -210,12 +210,12 @@ export const generateImageToVideo = async (
         )
         return
       }
-      if (!modelConfig.canMorph) {
+      if (!modelConfig.apiSettings?.canMorph) {
         await telegramInstance.sendMessage(
           chatId,
           isRu
-            ? `❌ Модель ${modelConfig.title} не поддерживает морфинг.`
-            : `❌ Model ${modelConfig.title} does not support morphing.`
+            ? `❌ Модель ${modelConfig.nameRu} не поддерживает морфинг.`
+            : `❌ Model ${modelConfig.name} does not support morphing.`
         )
         return
       }
@@ -228,10 +228,12 @@ export const generateImageToVideo = async (
         )
         return
       }
-      if (!modelConfig.imageKey) {
+      if (!modelConfig.apiSettings?.imageKey) {
         await telegramInstance.sendMessage(
           chatId,
-          `❌ Ошибка: Отсутствует imageKey для модели ${modelConfig.title}.`
+          isRu
+            ? `❌ Ошибка: Отсутствует imageKey для модели ${modelConfig.nameRu}.`
+            : `❌ Error: Missing imageKey for model ${modelConfig.name}.`
         )
         return
       }
@@ -309,14 +311,15 @@ export const generateImageToVideo = async (
     paymentAmountForNotification = balanceResult.paymentAmount || 0
     newBalanceForNotification = balanceResult.currentBalance
 
-    const replicateModelId: string = modelConfig.api.model
+    const replicateModelId: string = modelConfig.apiModel
     let modelInput: any = {}
 
     if (isMorphing) {
-      if (modelConfig.id.startsWith('kling-') && modelConfig.imageKey) {
+      const imageKey = modelConfig.apiSettings?.imageKey
+      if (modelConfig.id.startsWith('kling-') && imageKey) {
         modelInput = {
-          ...modelConfig.api.input,
-          [modelConfig.imageKey]: imageAUrl,
+          ...(modelConfig.apiSettings?.baseInput || {}),
+          [imageKey]: imageAUrl,
           end_image: imageBUrl,
           prompt: processedPrompt || '',
         }
@@ -326,7 +329,7 @@ export const generateImageToVideo = async (
         })
       } else {
         modelInput = {
-          ...modelConfig.api.input,
+          ...(modelConfig.apiSettings?.baseInput || {}),
           image_a: imageAUrl,
           image_b: imageBUrl,
           prompt: processedPrompt || '',
@@ -337,7 +340,7 @@ export const generateImageToVideo = async (
         })
       }
     } else {
-      if (!imageUrl || !processedPrompt || !modelConfig.imageKey) {
+      if (!imageUrl || !processedPrompt || !modelConfig.apiSettings?.imageKey) {
         logger.error('[I2V BG] Internal validation failed (standard mode)', {
           telegramId,
         })
@@ -471,8 +474,8 @@ export const generateImageToVideo = async (
 
               // Отправляем видео пользователю
               const caption = isRu
-                ? `✨ Ваше видео (${modelConfig.title}) готово через сервер!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
-                : `✨ Your video (${modelConfig.title}) is ready via server!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+                ? `✨ Ваше видео (${modelConfig.name}) готово через сервер!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+                : `✨ Your video (${modelConfig.name}) is ready via server!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
 
               await telegramInstance.sendVideo(
                 chatId,
@@ -489,11 +492,11 @@ export const generateImageToVideo = async (
                   telegramId: telegramId,
                   username: username,
                   language: isRu ? 'ru' : 'en',
-                  serviceType: modelConfig.title,
+                  serviceType: modelConfig.name,
                   prompt: processedPrompt || '',
                   botName: botName,
                   additionalInfo: {
-                    'Model': modelConfig.title,
+                    'Model': modelConfig.name,
                     'Price': `${paymentAmountForNotification} stars`,
                     'Generation Type': 'Image to Video (Plan A)'
                   }
@@ -606,7 +609,7 @@ export const generateImageToVideo = async (
         logger.info('[M-Admin] 🎬 Starting video generation via Kie.ai', {
           telegramId,
           modelId: modelConfig.id,
-          modelTitle: modelConfig.title,
+          modelTitle: modelConfig.name,
           prompt: processedPrompt?.substring(0, 100) + '...',
           aspectRatio: kieAspectRatio,
           hasImage: !!imageUrl
@@ -632,7 +635,7 @@ export const generateImageToVideo = async (
             telegramId,
             balanceResult.paymentAmount || 0,
             PaymentType.MONEY_INCOME,
-            `Refund for failed ${modelConfig.title} generation - no image provided`,
+            `Refund for failed ${modelConfig.name} generation - no image provided`,
             {
               bot_name: botName,
               service_type: 'image-to-video-refund',
@@ -693,8 +696,8 @@ export const generateImageToVideo = async (
             logger.info('[I2V BG] Video info saved to DB', { telegramId })
             
             const caption = isRu
-              ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
-              : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+              ? `✨ Ваше видео (${modelConfig.name}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+              : `✨ Your video (${modelConfig.name}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
 
             // Логируем для админа, что видео было создано через Plan B
             logger.info('[M-Admin] 🎬 Video successfully generated via Plan B', {
@@ -718,11 +721,11 @@ export const generateImageToVideo = async (
                 telegramId: telegramId,
                 username: username,
                 language: isRu ? 'ru' : 'en',
-                serviceType: modelConfig.title,
+                serviceType: modelConfig.name,
                 prompt: processedPrompt || '',
                 botName: botName,
                 additionalInfo: {
-                  'Model': modelConfig.title,
+                  'Model': modelConfig.name,
                   'Price': `${paymentAmountForNotification} stars`,
                   'Generation Type': 'Image to Video (Plan B - Direct)'
                 }
@@ -960,8 +963,8 @@ export const generateImageToVideo = async (
 
                   // Отправляем видео пользователю
                   const caption = isRu
-                    ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
-                    : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+                    ? `✨ Ваше видео (${modelConfig.name}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+                    : `✨ Your video (${modelConfig.name}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
 
                   // Логируем для админа, что видео было создано через Plan B polling
                   logger.info('[M-Admin] 🎬 Video successfully generated via Plan B polling', {
@@ -989,11 +992,11 @@ export const generateImageToVideo = async (
                       telegramId: telegramId,
                       username: username,
                       language: isRu ? 'ru' : 'en',
-                      serviceType: modelConfig.title,
+                      serviceType: modelConfig.name,
                       prompt: processedPrompt || '',
                       botName: botName,
                       additionalInfo: {
-                        'Model': modelConfig.title,
+                        'Model': modelConfig.name,
                         'Price': `${paymentAmountForNotification} stars`,
                         'Generation Type': 'Image to Video (Plan B - Polling)',
                         'Task ID': taskId,
@@ -1155,16 +1158,16 @@ export const generateImageToVideo = async (
       // Специальная обработка для Seedance-1-Pro моделей
       else if (modelConfig.id === 'seedance-1-pro' && selectedResolution) {
         modelInput = {
-          ...modelConfig.api.input, // ИСПРАВЛЕНИЕ: Включаем базовые параметры API
+          ...(modelConfig.apiSettings?.baseInput || {}), // ИСПРАВЛЕНИЕ: Включаем базовые параметры API
           prompt: processedPrompt,
           resolution: selectedResolution, // ИСПРАВЛЕНО: используем 'resolution' вместо 'target_resolution'
-          [modelConfig.imageKey]: imageUrl,
+          [modelConfig.apiSettings?.imageKey || "image"]: imageUrl,
         }
         logger.info('[I2V BG] Seedance model input prepared:', {
           telegramId,
           resolution: selectedResolution, // ИСПРАВЛЕНО: логируем 'resolution'
           hasImage: !!imageUrl,
-          imageKey: modelConfig.imageKey,
+          imageKey: modelConfig.apiSettings?.imageKey,
           imageUrl: imageUrl, // Логируем URL изображения для отладки
           fullInput: modelInput, // Логируем полный input для отладки
         })
@@ -1194,10 +1197,10 @@ export const generateImageToVideo = async (
         }
 
         modelInput = {
-          ...modelConfig.api.input,
+          ...(modelConfig.apiSettings?.baseInput || {}),
           prompt: processedPrompt,
           target_resolution: wanResolution, // WAN использует специфичный формат
-          [modelConfig.imageKey]: imageUrl,
+          [modelConfig.apiSettings?.imageKey || "image"]: imageUrl,
         }
         logger.info('[I2V BG] WAN 2.2 I2V model input prepared:', {
           telegramId,
@@ -1205,16 +1208,16 @@ export const generateImageToVideo = async (
           userAspectRatio,
           wanResolution,
           hasImage: !!imageUrl,
-          imageKey: modelConfig.imageKey,
+          imageKey: modelConfig.apiSettings?.imageKey,
           fullInput: modelInput,
         })
       } else {
         // Стандартная обработка для остальных моделей
         modelInput = {
-          ...modelConfig.api.input,
+          ...(modelConfig.apiSettings?.baseInput || {}),
           prompt: processedPrompt,
           aspect_ratio: userAspectRatio,
-          [modelConfig.imageKey]: imageUrl,
+          [modelConfig.apiSettings?.imageKey || "image"]: imageUrl,
         }
         logger.info('[I2V BG] Standard model input prepared:', {
           telegramId,
@@ -1448,8 +1451,8 @@ export const generateImageToVideo = async (
       localVideoPath,
     })
     const caption = isRu
-      ? `✨ Ваше видео (${modelConfig.title}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
-      : `✨ Your video (${modelConfig.title}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
+      ? `✨ Ваше видео (${modelConfig.name}) готово!\n💰 Списано: ${paymentAmountForNotification} ✨\n💎 Остаток: ${newBalanceForNotification} ✨`
+      : `✨ Your video (${modelConfig.name}) is ready!\n💰 Cost: ${paymentAmountForNotification} ✨\n💎 Balance: ${newBalanceForNotification} ✨`
 
     await telegramInstance.sendVideo(
       chatId,
@@ -1466,11 +1469,11 @@ export const generateImageToVideo = async (
         telegramId: telegramId,
         username: username,
         language: isRu ? 'ru' : 'en',
-        serviceType: modelConfig.title,
+        serviceType: modelConfig.name,
         prompt: processedPrompt || '',
         botName: botName,
         additionalInfo: {
-          'Model': modelConfig.title,
+          'Model': modelConfig.name,
           'Price': `${paymentAmountForNotification} stars`,
           'Generation Type': 'Image to Video (Standard Replicate)'
         }

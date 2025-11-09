@@ -5,6 +5,7 @@ import {
   API_URL,
 } from '@/config'
 import { logger } from '@/utils/logger'
+import { getUnifiedModelConfig } from '@/config/unified-video-models.config'
 
 // Типы моделей видео
 export type VideoModelId =
@@ -171,18 +172,26 @@ export async function generateTextToVideo(
   })
 
   try {
-    // Проверяем, является ли это Kie.ai моделью (Veo или Sora)
-    const isKieAiModel = ['veo3', 'veo3_fast', 'runway-aleph', 'sora-2', 'sora-2-pro'].includes(videoModel)
-    const isSoraModel = ['sora-2', 'sora-2-pro'].includes(videoModel)
+    // ✅ ЦЕНТРАЛИЗОВАННАЯ ПРОВЕРКА: Получаем конфигурацию модели из единого источника
+    const modelConfig = getUnifiedModelConfig(videoModel)
+
+    // Проверяем, является ли это Kie.ai моделью через provider
+    const isKieAiModel = modelConfig?.provider === 'kie'
+    const isSoraModel = videoModel.includes('sora')
+    const isWanModel = videoModel.includes('wan')
 
     if (isKieAiModel) {
       // Для Kie.ai моделей используем прямую интеграцию
-      logger.info('[KIE.AI] Using Kie.ai directly', {
+      logger.info('[KIE.AI] Using Kie.ai directly (centralized provider check)', {
         videoModel,
+        provider: modelConfig?.provider,
         isSoraModel,
+        isWanModel,
         reason: isSoraModel
           ? 'Sora models use Kie.ai Sora API'
-          : 'Veo models are not available on Replicate'
+          : isWanModel
+          ? 'WAN 2.5 models use Kie.ai API'
+          : 'Veo/Runway models use Kie.ai API'
       })
 
       // Импортируем KieAiProvider
@@ -231,24 +240,25 @@ export async function generateTextToVideo(
           error: soraResponse.error || 'Failed to generate Sora video',
         }
       } else {
-        // Для Veo моделей используем обычный generateVideo
+        // Для Veo и WAN моделей используем обычный generateVideo
         const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
+        const logPrefix = isWanModel ? '[WAN 2.5]' : '[VEO]'
 
-        logger.info('[VEO] Calling Veo 3 generateVideo with params:', {
+        logger.info(`${logPrefix} Calling Kie.ai generateVideo with params:`, {
           model: videoModel,
           promptLength: prompt.length,
-          duration: duration || 8,
+          duration: duration || 5,
           aspectRatio: kieAspectRatio || '9:16'
         })
 
         const kieResponse = await kieProvider.generateVideo({
           model: videoModel,
           prompt,
-          duration: duration || 8,
+          duration: duration || 5,
           aspectRatio: kieAspectRatio || '9:16',
         })
 
-        logger.info('[VEO] API response received:', {
+        logger.info(`${logPrefix} API response received:`, {
           success: kieResponse.success,
           hasData: !!kieResponse.data,
           hasVideoUrl: !!kieResponse.data?.videoUrl,
@@ -299,82 +309,6 @@ export async function generateTextToVideo(
       message: '❌ Эта функция устарела. Используйте handleTextToVideoDirect.',
       error: 'DEPRECATED: /generate/text-to-video endpoint does not exist'
     }
-
-    // const baseUrl = API_URL
-    // const url = `${baseUrl}/generate/text-to-video`
-
-    logger.info('Sending request to API server', { url, baseUrl })
-
-    // Формируем тело запроса
-    const requestBody: any = {
-      prompt,
-      videoModel,
-      telegram_id,
-      username,
-      is_ru,
-      bot_name,
-    }
-
-    // Добавляем aspectRatio если указан
-    if (aspectRatio) {
-      requestBody.aspectRatio = aspectRatio
-      logger.info('ASPECT RATIO CHECK - Added aspectRatio to request body', {
-        aspectRatio,
-        videoModel,
-        telegram_id,
-      })
-    } else {
-      logger.warn('ASPECT RATIO CHECK - No aspectRatio provided', {
-        videoModel,
-        telegram_id,
-      })
-    }
-
-    // Добавляем duration для моделей которые поддерживают
-    if (duration) {
-      requestBody.duration = duration
-    }
-
-    // Логируем финальное тело запроса
-    logger.info(
-      'ASPECT RATIO CHECK - Final request body being sent to server',
-      {
-        url,
-        requestBody: JSON.stringify(requestBody, null, 2),
-        videoModel,
-        telegram_id,
-      }
-    )
-
-    // Отправляем запрос на сервер
-    const response = await axios.post<TextToVideoResponse>(url, requestBody, {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-secret-key': SECRET_API_KEY,
-      },
-      timeout: 300000, // 5 минут таймаут для длительной генерации
-    })
-
-    // Детальное логирование успешного ответа
-    logger.info('[generateTextToVideo] Full server response:', {
-      fullData: JSON.stringify(response.data, null, 2),
-      dataKeys: Object.keys(response.data),
-      success: response.data.success,
-      hasVideoUrl: !!response.data.videoUrl,
-      videoUrl: response.data.videoUrl || 'NO_URL',
-      jobId: response.data.jobId || 'NO_JOB_ID',
-      message: response.data.message || 'NO_MESSAGE',
-    })
-
-    // Если сервер вернул только message, считаем это успешным началом
-    if (response.data.message && !response.data.success) {
-      return {
-        ...response.data,
-        success: true, // Помечаем как успешное начало
-      }
-    }
-
-    return response.data
   } catch (error) {
     // Обработка ошибок Axios
     if (isAxiosError(error)) {

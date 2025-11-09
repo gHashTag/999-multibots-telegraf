@@ -899,7 +899,7 @@ export const generateAdvancedFluxKontext = async (
       telegram_id: Number(telegram_id),
       paymentAmount: cost,
       is_ru,
-      bot_name: ctx?.botInfo?.username || 'clip_maker_neuro_bot',
+      bot_name: ctx?.botInfo?.username || 'neuro_blogger_bot',
     })
 
     if (!balanceCheck.success) {
