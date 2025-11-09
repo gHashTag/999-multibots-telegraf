@@ -370,7 +370,7 @@ export async function generateNanoBanana(
 
     // Send image to user ONLY if NOT in silent mode
     if (!params.silent) {
-      const botUsername = ctx.botInfo?.username || 'clip_maker_neuro_bot'
+      const botUsername = ctx.botInfo?.username || 'neuro_blogger_bot'
       const caption = is_ru
         ? `✨ Ваш образ готов!\n\n🍌 Создано с помощью Google Nano Banana\n💫 Потрачено: ${totalCost}⭐\n🎨 Изображений: ${validatedInput.image_input.length}\n\n🤖 Сделано в боте @${botUsername}`
         : `✨ Your image is ready!\n\n🍌 Created with Google Nano Banana\n💫 Spent: ${totalCost}⭐\n🎨 Images: ${validatedInput.image_input.length}\n\n🤖 Made with @${botUsername} bot`
