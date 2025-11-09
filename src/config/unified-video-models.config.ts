@@ -129,7 +129,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['text', 'image'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 37, // ✅ ИСПРАВЛЕНО: $0.40 × 1.5 / $0.016 = 37⭐
+      fixedPriceStars: 25, // ✅ Kie.ai 2025: $0.40 / $0.016 = 25⭐ (БЕЗ наценки)
       defaultDuration: 8,
     },
     apiSettings: {
@@ -150,9 +150,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['text'],
     pricing: {
       type: 'fixed',
-      // ✅ ИСПРАВЛЕНО: Актуальная цена Kie.ai
-      // $2.00 × 1.5 markup / $0.016 = 187⭐ за 8 сек
-      fixedPriceStars: 187, // Согласно актуальной цене Kie.ai ($2.00 за 8 сек)
+      fixedPriceStars: 125, // ✅ Kie.ai 2025: $2.00 / $0.016 = 125⭐ (БЕЗ наценки)
       defaultDuration: 8,
     },
     apiSettings: {
@@ -160,7 +158,6 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       durations: [8],
     },
     status: 'active',
-    notes: 'Цена согласована с unified-pricing.config.ts: 202⭐ за 8 секунд',
   },
 
   'runway-aleph': {
@@ -196,7 +193,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['text'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 12, // 10 сек БЕЗ watermark: $0.20 × 1.5 / $0.016 = 12⭐
+      fixedPriceStars: 9, // ✅ Kie.ai 2025: $0.15 / $0.016 = 9⭐ (10 сек БЕЗ watermark)
       defaultDuration: 10,
     },
     apiSettings: {
@@ -216,7 +213,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['text'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 31, // 10 сек БЕЗ watermark: $0.50 × 1.5 / $0.016 = 31⭐
+      fixedPriceStars: 19, // ✅ Оценка: ~$0.30 / $0.016 = 19⭐ (10 сек, Pro версия)
       defaultDuration: 10,
     },
     apiSettings: {
@@ -236,7 +233,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['image'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 12, // 10 сек БЕЗ watermark: $0.20 × 1.5 / $0.016 = 12⭐
+      fixedPriceStars: 9, // ✅ Kie.ai 2025: $0.15 / $0.016 = 9⭐ (10 сек БЕЗ watermark)
       defaultDuration: 10,
     },
     apiSettings: {
@@ -257,7 +254,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     inputTypes: ['image'],
     pricing: {
       type: 'fixed',
-      fixedPriceStars: 31, // 10 сек БЕЗ watermark: $0.50 × 1.5 / $0.016 = 31⭐
+      fixedPriceStars: 19, // ✅ Оценка: ~$0.30 / $0.016 = 19⭐ (10 сек, Pro версия)
       defaultDuration: 10,
     },
     apiSettings: {
