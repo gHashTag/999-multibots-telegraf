@@ -8,6 +8,12 @@
     "start": "bun run dist/index.js",
     "predev": "./scripts/worktree-env-sync.sh && pkill -f 'bun.*src/index.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
     "dev": "bun --watch src/index.ts",
+    "mobile": "cd mobile && npm start",
+    "mobile:install": "cd mobile && npm install",
+    "mobile:android": "cd mobile && npm run android",
+    "mobile:ios": "cd mobile && npm run ios",
+    "mobile:web": "cd mobile && npm run web",
+    "start:all": "chmod +x scripts/start-all.sh && ./scripts/start-all.sh",
     "env:sync": "./scripts/worktree-env-sync.sh",
     "env:fix": "./scripts/fix-env.sh",
     "env:watch": "./scripts/env-watcher.sh",
@@ -123,6 +129,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@ngrok/ngrok": "^1.5.2",
     "@types/axios": "^0.14.4",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.18",

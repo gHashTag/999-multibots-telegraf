@@ -1,11 +1,13 @@
-# NeuroBlogger - Мультибот система на Telegraf
+# Vibee - AI-Powered Telegram Bot Platform
 
-Многофункциональная система для управления несколькими Telegram-ботами через один сервер с поддержкой как webhook, так и long-polling режимов!
+Многофункциональная платформа для управления Telegram-ботами с AI-генерацией контента и мобильным приложением!
 
 ## 📋 Особенности
 
 - 🤖 Поддержка множества ботов из одного приложения
-- 🔐 Улучшенная изоляция ботов для безопасности  
+- 📱 **Мобильное приложение на React Native + Expo**
+- 🎨 **AI-генерация контента**: фото, видео, аудио
+- 🔐 Улучшенная изоляция ботов для безопасности
 - 📊 **Профессиональное структурированное логирование с ротацией**
 - 🔄 Поддержка webhook и long-polling режимов
 - 🚀 Интеграция с Supabase для хранения токенов ботов
@@ -13,16 +15,24 @@
 - ⚡ **Глобальная обработка ошибок с контекстом**
 - 📈 **Корреляционные ID для трассировки запросов**
 - 🛡️ **Отдельное логирование событий безопасности**
+- 🌐 **Веб-сайт**: https://three-head-dragon.shop
 
 ## 🛠 Технологии
 
-- [Node.js](https://nodejs.org/) - JavaScript runtime
+### Backend
+- [Bun](https://bun.sh/) - Fast JavaScript runtime
 - [TypeScript](https://www.typescriptlang.org/) - Типизированный JavaScript
 - [Telegraf](https://telegraf.js.org/) - Telegram Bot Framework
+- [Express](https://expressjs.com/) - Web framework
 - [Supabase](https://supabase.com/) - База данных для хранения настроек ботов
 - [Winston](https://github.com/winstonjs/winston) - **Профессиональное логирование**
 - [Docker](https://www.docker.com/) - Контейнеризация
 - [Nginx](https://nginx.org/) - Прокси-сервер для webhook
+
+### Mobile
+- [React Native](https://reactnative.dev/) - Мобильные приложения
+- [Expo](https://expo.dev/) - Инструменты разработки React Native
+- [TypeScript](https://www.typescriptlang.org/) - Типизированный JavaScript
 
 ## 📊 Система логирования
 
@@ -41,14 +51,38 @@
 
 Подробнее: [docs/LOGGING.md](docs/LOGGING.md)
 
+## 🚀 Быстрый Старт
+
+### Установка
+```bash
+# Установить зависимости
+npm install
+
+# Установить зависимости для мобильного приложения
+npm run mobile:install
+```
+
+### Запуск
+```bash
+# Запустить ВСЁ (Backend + Expo + Webhooks)
+npm run start:all
+
+# Или по отдельности:
+npm run dev          # Только Backend
+npm run mobile       # Только мобильное приложение
+```
+
+**Подробнее**: [QUICK_START.md](./QUICK_START.md) | [Мобильное приложение](./VIBEE_MOBILE_SETUP.md)
+
 ## 📚 Документация
 
 Полная документация проекта организована в папке [docs/](docs/):
 
-### 🚀 Быстрый старт
+### 🚀 Разработка
 - [Настройка среды разработки](docs/DEVELOPMENT/DEV_ENVIRONMENT_SETUP.md)
 - [Автоматизированное развертывание](docs/DEPLOYMENT/AUTOMATED_DEPLOYMENT.md)
 - [Архитектура системы](docs/DEVELOPMENT/ARCHITECTURE.md)
+- [Мобильное приложение Vibee](./VIBEE_MOBILE_SETUP.md)
 
 ### 🔒 Безопасность
 - [Принципы безопасности](docs/SECURITY/SECURITY.md)

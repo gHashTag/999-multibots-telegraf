@@ -388,7 +388,8 @@ async function startApplication() {
         'REPLICATE_API_TOKEN',
         'APIFY_TOKEN',
         'GITHUB_TOKEN',
-        'BASE_WEBHOOK_URL'  // ✅ Для callback уведомлений от Kie.ai
+        'BASE_WEBHOOK_URL',  // ✅ Для callback уведомлений от Kie.ai
+        'NGROK_AUTHTOKEN'    // ✅ Для создания туннеля в dev окружении
       ]
 
       for (const key of apiKeys) {
@@ -413,6 +414,145 @@ async function startApplication() {
     }
 
     console.log(`✅ [Infisical] Секреты скопированы в process.env для окружения: ${stats.environment}`)
+
+    // 🌐 TUNNEL для Development окружения
+    // В dev ВСЕГДА создаем туннель, даже если BASE_WEBHOOK_URL есть в Infisical
+    if (env === 'dev') {
+      console.log('\n🌐 [TUNNEL] Создаем туннель для локальной разработки...')
+
+      if (process.env.BASE_WEBHOOK_URL) {
+        console.log(`   ℹ️  Перезаписываем BASE_WEBHOOK_URL из Infisical (${process.env.BASE_WEBHOOK_URL})`)
+      }
+
+      const PORT = 8080
+      let tunnelCreated = false
+
+      // 🔷 ВАРИАНТ 1: Cloudflare Tunnel (бесплатно, без ограничений, без токенов)
+      try {
+        const { spawn } = await import('child_process')
+
+        console.log(`📡 [CLOUDFLARE] Запускаем cloudflared tunnel на порт ${PORT}...`)
+
+        const cloudflared = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${PORT}`], {
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+
+        // Парсим вывод cloudflared чтобы получить публичный URL
+        const publicUrl = await new Promise<string>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            cloudflared.kill()
+            reject(new Error('Timeout waiting for cloudflared URL'))
+          }, 10000) // 10 секунд таймаут
+
+          cloudflared.stderr?.on('data', (data: Buffer) => {
+            const output = data.toString()
+            // Cloudflared выводит URL в формате: https://random-word-word.trycloudflare.com
+            const urlMatch = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)
+            if (urlMatch) {
+              clearTimeout(timeout)
+              resolve(urlMatch[0])
+            }
+          })
+
+          cloudflared.on('error', (err) => {
+            clearTimeout(timeout)
+            reject(err)
+          })
+        })
+
+        process.env.BASE_WEBHOOK_URL = publicUrl
+        tunnelCreated = true
+
+        console.log('✅ [CLOUDFLARE] Туннель успешно создан!\n')
+        console.log('━'.repeat(80))
+        console.log('🌐 ПУБЛИЧНЫЕ WEBHOOK URLs (Cloudflare Tunnel):')
+        console.log('━'.repeat(80))
+        console.log(`📍 Base URL:          ${publicUrl}`)
+        console.log(`🎬 Kie.ai Callback:   ${publicUrl}/api/kie-ai/callback`)
+        console.log(`🎥 AI Reels Callback: ${publicUrl}/api/telegram/ai-reels-callback`)
+        console.log('━'.repeat(80))
+        console.log('')
+
+        // Graceful shutdown
+        process.on('SIGINT', () => {
+          console.log('\n🛑 [CLOUDFLARE] Закрываем туннель...')
+          cloudflared.kill()
+          console.log('✅ [CLOUDFLARE] Туннель закрыт')
+          process.exit(0)
+        })
+
+        process.on('SIGTERM', () => {
+          console.log('\n🛑 [CLOUDFLARE] Получен SIGTERM, закрываем туннель...')
+          cloudflared.kill()
+          process.exit(0)
+        })
+
+      } catch (cloudflareError: any) {
+        console.warn('⚠️  [CLOUDFLARE] Не удалось создать туннель:', cloudflareError.message)
+        console.log('   💡 Пробуем ngrok как альтернативу...\n')
+
+        // 🔶 ВАРИАНТ 2: Ngrok (требует authtoken, есть ограничения на Free плане)
+        try {
+          const ngrok = await import('@ngrok/ngrok')
+
+          console.log(`📡 [NGROK] Подключаемся к ngrok на порт ${PORT}...`)
+
+          // Проверяем наличие authtoken
+          const authtoken = process.env.NGROK_AUTHTOKEN
+          if (!authtoken) {
+            throw new Error('NGROK_AUTHTOKEN не найден в process.env')
+          }
+
+          console.log(`   ✅ NGROK_AUTHTOKEN найден (${authtoken.substring(0, 10)}...)`)
+
+          const listener = await ngrok.default.forward({
+            addr: PORT,
+            authtoken: authtoken,
+          })
+
+          const publicUrl = listener.url()
+          process.env.BASE_WEBHOOK_URL = publicUrl
+          tunnelCreated = true
+
+          console.log('✅ [NGROK] Туннель успешно создан!\n')
+          console.log('━'.repeat(80))
+          console.log('🌐 ПУБЛИЧНЫЕ WEBHOOK URLs (Ngrok):')
+          console.log('━'.repeat(80))
+          console.log(`📍 Base URL:          ${publicUrl}`)
+          console.log(`🎬 Kie.ai Callback:   ${publicUrl}/api/kie-ai/callback`)
+          console.log(`🎥 AI Reels Callback: ${publicUrl}/api/telegram/ai-reels-callback`)
+          console.log('━'.repeat(80))
+          console.log('')
+
+          // Graceful shutdown
+          process.on('SIGINT', async () => {
+            console.log('\n🛑 [NGROK] Закрываем туннель...')
+            await listener.close()
+            console.log('✅ [NGROK] Туннель закрыт')
+            process.exit(0)
+          })
+
+          process.on('SIGTERM', async () => {
+            console.log('\n🛑 [NGROK] Получен SIGTERM, закрываем туннель...')
+            await listener.close()
+            process.exit(0)
+          })
+
+        } catch (ngrokError: any) {
+          console.error('❌ [NGROK] Ошибка при создании туннеля:', ngrokError.message)
+          console.log('\n💡 Рекомендации:')
+          console.log('   1. Установи cloudflared: brew install cloudflare/cloudflare/cloudflared')
+          console.log('   2. Или получи валидный ngrok authtoken: https://dashboard.ngrok.com/')
+          console.log('   3. Или используй localtunnel: npm i -g localtunnel && lt --port 8080\n')
+          console.log('⚠️  Продолжаем без туннеля - вебхуки работать не будут!\n')
+        }
+      }
+
+      if (!tunnelCreated) {
+        console.warn('⚠️  [TUNNEL] Не удалось создать ни один туннель')
+        console.log('   Вебхуки от Kie.ai и Railway работать не будут при локальной разработке\n')
+      }
+    }
 
     // Теперь запускаем боты - секреты уже в памяти
     await initializeBots()

@@ -158,17 +158,30 @@ export async function generateTextToVideo(
     throw new Error('Bot name is required')
   }
 
-  // Логирование начала генерации - отправляем ПОЛНЫЙ промпт в логи
-  logger.info('ASPECT RATIO CHECK - Starting text-to-video generation', {
-    prompt: prompt, // Логируем полный промпт без обрезки
+  // 🔥 КРИТИЧНОЕ ЛОГИРОВАНИЕ: Показываем ВСЕ параметры запроса
+  console.log('━'.repeat(80))
+  console.log('🎬 [TEXT-TO-VIDEO] ЗАПРОС НА ГЕНЕРАЦИЮ ВИДЕО:')
+  console.log('━'.repeat(80))
+  console.log(`📝 Модель: ${videoModel}`)
+  console.log(`🎞️ Длительность: ${duration || 'не указана (default 5s)'}`)
+  console.log(`📱 Соотношение: ${aspectRatio || 'не указано (default 9:16)'}`)
+  console.log(`👤 User ID: ${telegram_id}`)
+  console.log(`🤖 Bot: ${bot_name}`)
+  console.log(`💭 Промпт (${prompt.length} символов):`)
+  console.log(`   ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}`)
+  console.log('━'.repeat(80))
+
+  logger.info('[TEXT-TO-VIDEO] Starting generation with full params', {
+    prompt: prompt, // Логируем полный промпт
     promptLength: prompt.length,
     videoModel,
     duration,
-    aspectRatio: aspectRatio,
+    aspectRatio,
     telegram_id,
     username,
     is_ru,
     bot_name,
+    removeWatermark,
   })
 
   try {
