@@ -234,6 +234,12 @@ async function initializeBots() {
           console.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
         }
 
+        // ✅ MULTI-BOT FIX: Регистрируем bot instance ДО launch (botInfo уже получен выше)
+        if (typeof setBotInstance === 'function' && botInfo.username) {
+          setBotInstance(bot, botInfo.username)
+          console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${botInfo.username}`)
+        }
+
         // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
         const botPromise = bot.launch({
           allowedUpdates: [
@@ -243,16 +249,8 @@ async function initializeBots() {
             'successful_payment' as any,
           ],
         })
-          .then(async () => {
-            // Получаем botInfo ПОСЛЕ launch
-            const me = await bot.telegram.getMe()
-            console.log(`🚀 Бот ${me.username} запущен в polling режиме`)
-
-            // ✅ MULTI-BOT FIX: Регистрируем bot instance ПОСЛЕ launch
-            if (typeof setBotInstance === 'function' && me.username) {
-              setBotInstance(bot, me.username)
-              console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${me.username}`)
-            }
+          .then(() => {
+            console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
           })
           .catch((error) => {
             console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
