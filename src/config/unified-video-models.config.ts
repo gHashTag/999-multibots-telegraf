@@ -1107,13 +1107,27 @@ export function generateModelKeyboard(
   }
 
   // Создаем ряды для каждой модели: 2 кнопки (16:9 + 9:16)
+  // НО только те, которые поддерживает модель!
   const keyboardRows: string[][] = []
 
   models.forEach(config => {
-    keyboardRows.push([
-      generateModelButton(config.id, '16:9', validated.isRu),
-      generateModelButton(config.id, '9:16', validated.isRu),
-    ])
+    const supportedAspectRatios = config.apiSettings.aspectRatios || ['16:9', '9:16']
+    const row: string[] = []
+
+    // Добавляем кнопку 16:9 если модель её поддерживает
+    if (supportedAspectRatios.includes('16:9')) {
+      row.push(generateModelButton(config.id, '16:9', validated.isRu))
+    }
+
+    // Добавляем кнопку 9:16 если модель её поддерживает
+    if (supportedAspectRatios.includes('9:16')) {
+      row.push(generateModelButton(config.id, '9:16', validated.isRu))
+    }
+
+    // Добавляем ряд только если есть хотя бы одна кнопка
+    if (row.length > 0) {
+      keyboardRows.push(row)
+    }
   })
 
   return keyboardRows
