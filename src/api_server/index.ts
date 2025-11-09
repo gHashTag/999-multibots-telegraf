@@ -10,10 +10,9 @@ import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
 import diagnosticRouter from './routes/diagnostic.routes'
 import { Telegraf } from 'telegraf'
-// ВРЕМЕННО: inngest отключён
-// import { serve } from 'inngest/express'
-// import { inngest } from '../inngest_app/client'
-// import { allInngestFunctions } from '../inngest_app/registerFunctions'
+import { serve } from 'inngest/express'
+import { inngest } from '../inngest_app/client'
+import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 
 // Определяем порт. Берем из process.env.PORT, если есть, иначе 4000 (совместимо с reverse proxy).
@@ -88,10 +87,9 @@ export function startApiServer(bot?: Telegraf): void {
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
-  // ВРЕМЕННО: inngest отключён
   // Интеграция Inngest с API (актуальная сигнатура serve)
-  // const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
-  // app.use('/api/inngest', inngestHandler)
+  const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
+  app.use('/api/inngest', inngestHandler)
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
   app.listen(PORT, '0.0.0.0', () => {
