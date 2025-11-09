@@ -156,6 +156,7 @@ deploy() {
 
     log_info "9. Настройка nginx reverse proxy..."
     ssh_exec "
+        set +e  # Continue on errors - bot-proxy MUST start even if something fails
         # Создание nginx конфигурации
         mkdir -p /root/nginx-config
         rm -rf /root/nginx-config/*
