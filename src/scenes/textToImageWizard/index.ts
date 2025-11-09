@@ -4,13 +4,14 @@ import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel } from '@/handlers'
 import { sendGenericErrorMessage } from '@/menu'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   sendBalanceMessage,
   validateAndCalculateImageModelPrice,
 } from '@/price/helpers'
 import { logger } from '@/utils/logger'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 import { createHelpCancelKeyboard } from '@/menu'
 import { getUserProfileAndSettings } from '@/db/userSettings'
@@ -124,6 +125,9 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    // Сохраняем цену в сессию для последующего списания
+    ctx.session.imageGenerationPrice = price
+
     try {
       await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
 
@@ -227,8 +231,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         ctx
       )
 
-      // Получаем текущий баланс ПОСЛЕ операции
-      const currentBalance = await getUserBalance(ctx.from.id.toString())
+      // ✅ БАЛАНС УЖЕ СПИСАН внутри generateTextToImageDirect через processBalanceOperation
+      // ❌ НЕ НУЖНО списывать повторно здесь!
 
       // Сохраняем промпт в сессию для возможного улучшения
       ctx.session.prompt = prompt

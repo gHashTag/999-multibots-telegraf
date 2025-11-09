@@ -9,7 +9,7 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes.fixed'
 import { menuActionHandler, MenuAction } from './MenuActionHandler'
 import { configManager } from './ConfigManager'
-import { levels } from '@/menu/mainMenu'
+import { levels } from '@/menu/simpleMenu'
 import { logger } from '@/utils/logger'
 
 export class MenuSystem {
@@ -134,8 +134,8 @@ export class MenuSystem {
         sceneToEnter: 'ai_photoshop_scene',
       },
       {
-        titleRu: levels[107].title_ru, // '⬆️ Увеличить качество фото'
-        titleEn: levels[107].title_en,
+        titleRu: levels[16].title_ru, // '⬆️ Увеличить качество фото' - ✅ Изменено с 107 на 16
+        titleEn: levels[16].title_en,
         mode: ModeEnum.ImageUpscaler,
         requiresSubscription: true,
       },

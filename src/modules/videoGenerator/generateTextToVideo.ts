@@ -3,9 +3,9 @@ import { API_URL, SECRET_API_KEY } from '@/config'
 import { logger } from '@/utils/logger'
 import { replicate } from '@/core/replicate'
 import {
-  VIDEO_MODELS_CONFIG,
-  type VideoModelConfig,
-} from './config/models.config'
+  UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG,
+  type UnifiedVideoModelConfig as VideoModelConfig,
+} from '@/config/unified-video-models.config'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
@@ -137,7 +137,27 @@ export async function generateTextToVideo(
         fullInput: modelInput,
       })
     }
-    // Специальная обработка для WAN 2.2-fast моделей
+    // Специальная обработка для WAN 2.5 моделей
+    else if (modelConfig.id === 'wan-2.5-t2v') {
+      // WAN 2.5 использует Kie.ai API формат
+      const finalDuration = selectedDuration || 5 // По умолчанию 5 секунд
+      const finalResolution = selectedResolution || '720p' // По умолчанию 720p
+
+      modelInput = {
+        prompt,
+        duration: String(finalDuration), // duration как строка
+        resolution: finalResolution, // '720p' или '1080p'
+        enable_prompt_expansion: true, // Включаем расширение промпта через LLM
+      }
+
+      logger.info('[generateTextToVideo] WAN 2.5 T2V model input prepared:', {
+        telegram_id,
+        duration: finalDuration,
+        resolution: finalResolution,
+        fullInput: modelInput,
+      })
+    }
+    // Специальная обработка для WAN 2.2-fast моделей (устаревшие)
     else if (modelConfig.id === 'wan-2.2-t2v-fast') {
       // Определяем разрешение из выбора пользователя или aspect_ratio
       let wanResolution: string
@@ -205,39 +225,103 @@ export async function generateTextToVideo(
       )
     }
 
-    logger.info('[generateTextToVideo] Calling replicate.run with input:', {
-      replicateModelId: finalReplicateModelId,
-      modelInput,
-      isVeo3Family:
-        modelConfig.id === 'veo3' ||
-        modelConfig.id === 'veo3_fast' ||
-        modelConfig.id === 'runway-aleph',
-    })
-
-    const replicateResult = await replicate.run(finalReplicateModelId as any, {
-      input: modelInput,
-    })
-
-    logger.info('[generateTextToVideo] replicate.run finished.', {
-      telegram_id,
-      replicateResultType: typeof replicateResult,
-    })
-
+    // ✅ FIX: Проверяем provider и используем KieAiProvider для WAN 2.5 и других Kie.ai моделей
     let videoUrl: string | undefined
-    if (
-      Array.isArray(replicateResult) &&
-      replicateResult.length > 0 &&
-      typeof replicateResult[0] === 'string'
-    ) {
-      videoUrl = replicateResult[0]
-    } else if (typeof replicateResult === 'string') {
-      videoUrl = replicateResult
+
+    if (modelConfig.provider === 'kie') {
+      logger.info('[generateTextToVideo] Using KieAiProvider for model:', {
+        modelId: modelConfig.id,
+        telegram_id,
+        hasPrompt: !!prompt
+      })
+
+      // Импортируем KieAiProvider
+      const { KieAiProvider } = await import('@/services/video-providers/KieAiProvider')
+      const kieProvider = new KieAiProvider()
+
+      // Преобразуем aspectRatio в формат Kie.ai
+      const kieAspectRatio = selectedAspectRatio || userAspectRatio as '16:9' | '9:16' | '1:1' | undefined
+
+      logger.info('[generateTextToVideo] Calling KieAiProvider.generateVideo', {
+        model: modelConfig.id,
+        promptLength: prompt.length,
+        aspectRatio: kieAspectRatio || '9:16',
+        duration: selectedDuration
+      })
+
+      // Генерируем видео через Kie.ai
+      const kieResponse = await kieProvider.generateVideo({
+        model: modelConfig.id,
+        prompt: prompt,
+        aspectRatio: kieAspectRatio || '9:16',
+        duration: selectedDuration,
+      })
+
+      logger.info('[generateTextToVideo] KieAiProvider response received', {
+        success: kieResponse.success,
+        hasData: !!kieResponse.data,
+        hasVideoUrl: !!kieResponse.data?.videoUrl,
+        hasTaskId: !!kieResponse.data?.taskId,
+        error: kieResponse.error
+      })
+
+      if (!kieResponse.success || !kieResponse.data) {
+        throw new Error(kieResponse.error || 'Kie.ai API returned no data')
+      }
+
+      // Если видео готово сразу (синхронный ответ)
+      if (kieResponse.data.videoUrl) {
+        videoUrl = kieResponse.data.videoUrl
+        logger.info('[generateTextToVideo] Video URL received from KieAi', { telegram_id, videoUrl })
+      }
+      // Если асинхронная генерация (taskId) - для WAN моделей это нормально
+      else if (kieResponse.data.taskId) {
+        logger.info('[generateTextToVideo] Async generation started via KieAi', {
+          telegram_id,
+          taskId: kieResponse.data.taskId,
+          modelId: modelConfig.id
+        })
+        // Для WAN и других асинхронных моделей возвращаем taskId
+        // Вызывающая функция должна обработать это через jobId polling
+        return kieResponse.data.taskId
+      } else {
+        throw new Error('Kie.ai API returned neither videoUrl nor taskId')
+      }
     } else {
-      logger.error(
-        '[generateTextToVideo] Failed to extract video URL from Replicate result:',
-        { telegram_id, replicateResult }
-      )
-      return null
+      // Для моделей БЕЗ provider: 'kie' используем стандартный Replicate API
+      logger.info('[generateTextToVideo] Calling replicate.run with input:', {
+        replicateModelId: finalReplicateModelId,
+        modelInput,
+        isVeo3Family:
+          modelConfig.id === 'veo3' ||
+          modelConfig.id === 'veo3_fast' ||
+          modelConfig.id === 'runway-aleph',
+      })
+
+      const replicateResult = await replicate.run(finalReplicateModelId as any, {
+        input: modelInput,
+      })
+
+      logger.info('[generateTextToVideo] replicate.run finished.', {
+        telegram_id,
+        replicateResultType: typeof replicateResult,
+      })
+
+      if (
+        Array.isArray(replicateResult) &&
+        replicateResult.length > 0 &&
+        typeof replicateResult[0] === 'string'
+      ) {
+        videoUrl = replicateResult[0]
+      } else if (typeof replicateResult === 'string') {
+        videoUrl = replicateResult
+      } else {
+        logger.error(
+          '[generateTextToVideo] Failed to extract video URL from Replicate result:',
+          { telegram_id, replicateResult }
+        )
+        return null
+      }
     }
 
     if (!videoUrl) {

@@ -10,10 +10,11 @@ import { logger } from '@/utils/logger'
 export type VideoModelId =
   | 'kling-v1.6-pro'
   | 'ray-v2'
-  | 'hunyuan-video-fast'
-  | 'wan-image-to-video'
-  | 'wan-text-to-video'
-  | 'minimax'
+  // ❌ УДАЛЕНЫ устаревшие модели (404 ошибки):
+  // | 'hunyuan-video-fast' - не работает
+  // | 'wan-image-to-video' - не работает
+  // | 'wan-text-to-video' - не работает
+  // | 'minimax' - не работает
   // Kie.ai модели
   | 'veo3_fast'
   | 'veo3'
@@ -23,6 +24,9 @@ export type VideoModelId =
   // Sora 2 Image-to-Video
   | 'sora-2-i2v'
   | 'sora-2-pro-i2v'
+  // WAN 2.5 модели
+  | 'wan-2.5-t2v'
+  | 'wan-2.5-i2v'
 
 interface TextToVideoRequest {
   prompt: string
@@ -33,6 +37,7 @@ interface TextToVideoRequest {
   username: string
   is_ru: boolean
   bot_name: string
+  removeWatermark?: boolean // 🆕 Для Sora: удалять watermark или нет (default: true для Sora)
 }
 
 interface TextToVideoResponse {
@@ -132,6 +137,7 @@ export async function generateTextToVideo(
     username,
     is_ru,
     bot_name,
+    removeWatermark = true, // 🆕 Default true для обратной совместимости (без watermark лучше)
   } = params
 
   // Валидация параметров
@@ -201,7 +207,7 @@ export async function generateTextToVideo(
           prompt,
           soraModel as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
           soraAspectRatio as 'landscape' | 'portrait',
-          false // remove_watermark
+          removeWatermark // 🆕 Передаем значение из параметров
         )
 
         logger.info('[SORA] API response received:', {
@@ -279,23 +285,23 @@ export async function generateTextToVideo(
       isDev,
     })
 
-    const baseUrl = API_URL
+    // ❌ DEPRECATED: Этот endpoint больше не существует!
+    // Используйте handleTextToVideoDirect вместо generateTextToVideo
+    logger.error('[generateTextToVideo] DEPRECATED: This function uses non-existent endpoint', {
+      message: 'Use handleTextToVideoDirect instead',
+      telegram_id,
+      videoModel
+    })
 
-    // 🔧 ВРЕМЕННАЯ ЗАГЛУШКА: Если сервер недоступен, возвращаем mock результат
-    // TODO: Убрать после восстановления работы AI сервера
-    if (!baseUrl || baseUrl === 'undefined') {
-      logger.warn(
-        'No valid server URL found, using mock response for development'
-      )
-      return {
-        success: true,
-        message: 'Mock: Video generation started',
-        videoUrl:
-          'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
-      }
+    // Возвращаем ошибку вместо попытки вызвать несуществующий endpoint
+    return {
+      success: false,
+      message: '❌ Эта функция устарела. Используйте handleTextToVideoDirect.',
+      error: 'DEPRECATED: /generate/text-to-video endpoint does not exist'
     }
 
-    const url = `${baseUrl}/generate/text-to-video`
+    // const baseUrl = API_URL
+    // const url = `${baseUrl}/generate/text-to-video`
 
     logger.info('Sending request to API server', { url, baseUrl })
 

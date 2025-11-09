@@ -1,7 +1,8 @@
 import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
-import { inngestProvider } from '@/inngest_app/inngest-provider'
+// ВРЕМЕННО: inngest отключён
+// import { inngestProvider } from '@/inngest_app/inngest-provider'
 
 const router: Router = express.Router()
 
@@ -15,22 +16,28 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
 
     // Проверяем ENV переменные
     const envVars = {
+      RENDER_INNGEST_EVENT_KEY: !!process.env.RENDER_INNGEST_EVENT_KEY,
       BOT_INNGEST_EVENT_KEY: !!process.env.BOT_INNGEST_EVENT_KEY,
+      RENDER_INNGEST_SIGNING_KEY: !!process.env.RENDER_INNGEST_SIGNING_KEY,
       BOT_INNGEST_SIGNING_KEY: !!process.env.BOT_INNGEST_SIGNING_KEY,
       ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY,
       HEDRA_API_KEY: !!process.env.HEDRA_API_KEY,
       HEYGEN_API_KEY: !!process.env.HEYGEN_API_KEY,
     }
 
-    // Проверяем Inngest инстансы
-    const inngestStatus = await inngestProvider.getStatus()
+    // ВРЕМЕННО: inngest отключён
+    // const inngestStatus = await inngestProvider.getStatus()
+    const inngestStatus = {
+      RENDER: { available: false, configured: false },
+      BOT: { available: false, configured: false }
+    }
 
     // Собираем полную диагностику
     const diagnostic = {
       timestamp: new Date().toISOString(),
       status: 'ok',
-      template: 'centralized-inngest',
-      version: '2025.11.06',
+      template: 'template-2',
+      version: '2025.11.03',
       environment: {
         nodeEnv: process.env.NODE_ENV || 'development',
         hasEnvFile: !!process.env.DOTENV_CONFIGURATION,
@@ -38,33 +45,38 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
       envVars: {
         ...envVars,
         // Не показываем реальные ключи, только факт наличия
+        RENDER_INNGEST_EVENT_KEY_preview: process.env.RENDER_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
         BOT_INNGEST_EVENT_KEY_preview: process.env.BOT_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
       },
       inngestProvider: {
-        initialized: 'check via getStatus()',
-        instances: inngestProvider.getAvailableInstances(),
+        initialized: 'disabled',
+        instances: [],
         status: inngestStatus,
       },
       checks: {
         envVarsOk: Object.values(envVars).every(v => v === true),
-        inngestAvailable: inngestStatus.BOT?.available,
+        inngestAvailable: inngestStatus.RENDER?.available || inngestStatus.BOT?.available,
+        renderConfigured: inngestStatus.RENDER?.configured,
         botConfigured: inngestStatus.BOT?.configured,
       },
       recommendations: [] as string[],
     }
 
     // Добавляем рекомендации на основе проверок
+    if (!envVars.RENDER_INNGEST_EVENT_KEY) {
+      diagnostic.recommendations.push('❌ RENDER_INNGEST_EVENT_KEY не настроен')
+    }
     if (!envVars.BOT_INNGEST_EVENT_KEY) {
       diagnostic.recommendations.push('❌ BOT_INNGEST_EVENT_KEY не настроен')
     }
     if (!envVars.ELEVENLABS_API_KEY) {
       diagnostic.recommendations.push('⚠️ ELEVENLABS_API_KEY не настроен (может потребоваться)')
     }
-    if (!inngestStatus.BOT?.configured) {
-      diagnostic.recommendations.push('❌ BOT Inngest инстанс не сконфигурирован')
+    if (!inngestStatus.RENDER?.configured) {
+      diagnostic.recommendations.push('❌ RENDER Inngest инстанс не сконфигурирован')
     }
-    if (!inngestStatus.BOT?.available) {
-      diagnostic.recommendations.push('❌ BOT Inngest инстанс недоступен')
+    if (!inngestStatus.RENDER?.available) {
+      diagnostic.recommendations.push('❌ RENDER Inngest инстанс недоступен')
     }
 
     if (diagnostic.recommendations.length === 0) {

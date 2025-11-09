@@ -3,7 +3,7 @@ import { message, callbackQuery } from 'telegraf/filters'
 import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
-import { levels } from './menu/mainMenu'
+import { levels } from './menu/simpleMenu'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
@@ -135,11 +135,8 @@ const scenesToRegister = [
   sizeWizard,
   aiPhotoshopScene,
   morphingWizard,
-  new Scenes.WizardScene(ModeEnum.Voice, ...(voiceAvatarWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.TextToSpeech,
-    ...(textToSpeechWizard.steps as any)
-  ),
+  voiceAvatarWizard,
+  textToSpeechWizard,
   videoTranscriptionWizard,
   lipSyncWizard,
   veedFabricWizard,
@@ -147,11 +144,8 @@ const scenesToRegister = [
   aiReelsEntryWizard,
   aiReelsRenderWizard,
   avatarTransformScene,
-  new Scenes.WizardScene(ModeEnum.Avatar, ...(avatarBrainWizard.steps as any)),
-  new Scenes.WizardScene(
-    ModeEnum.ChatWithAvatar,
-    ...(chatWithAvatarWizard.steps as any)
-  ),
+  avatarBrainWizard,
+  chatWithAvatarWizard,
   selectModelWizard,
   digitalAvatarBodyWizard,
   digitalAvatarBodyWizardV2,
@@ -174,10 +168,10 @@ const sceneNames = [
   'textToImageWizard', 'textToVideoWizard', 'imageToVideoWizard', 'imageToPromptWizard',
   'imageUpscalerWizard', 'improvePromptWizard', 'trainFluxModelWizard',
   'uploadTrainFluxModelScene', 'uploadVideoScene', 'sizeWizard', 'aiPhotoshopScene',
-  'morphingWizard', 'voiceWizard_wrapped', 'textToSpeechWizard_wrapped',
+  'morphingWizard', 'voiceAvatarWizard', 'textToSpeechWizard',
   'videoTranscriptionWizard', 'lipSyncWizard', 'veedFabricWizard', 'aiReelsWizard',
   'aiReelsEntryWizard', 'aiReelsRenderWizard', 'avatarTransformScene',
-  'avatarBrainWizard_wrapped', 'chatWithAvatarWizard_wrapped', 'selectModelWizard',
+  'avatarBrainWizard', 'chatWithAvatarWizard', 'selectModelWizard',
   'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
   'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
   'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
@@ -200,10 +194,13 @@ scenesToRegister.forEach((scene, index) => {
   if (!isValid || scene === undefined || scene === null) {
     console.error(`❌❌❌ [SCENE ${index}] CRITICAL: ${sceneNames[index]} is invalid/undefined!`)
     console.error(`   - Variable name: ${sceneNames[index]}`)
-    console.error(`   - Actual value: ${scene}`)
+    console.error(`   - Actual value:`, JSON.stringify(scene, null, 2))
     console.error(`   - Type: ${typeof scene}`)
     console.error(`   - Has ID: ${hasId}`)
     console.error(`   - Has middleware: ${hasMiddleware}`)
+    console.error(`   - Keys:`, Object.keys(scene || {}))
+    // ОСТАНОВКА ВЫПОЛНЕНИЯ
+    throw new Error(`CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`)
   }
 })
 
@@ -268,7 +265,58 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       return next()
     })
 
-    // 3. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
+    // 3. ГЛОБАЛЬНЫЙ ПЕРЕХВАТЧИК для кнопок навигации (ДО stage.middleware)
+    // Это позволяет выйти из любой сцены через "🏠 Главное меню" или "Отмена"
+    bot.use(async (ctx, next) => {
+      if (ctx.message && 'text' in ctx.message) {
+        const text = ctx.message.text
+        const isRu = ctx.from?.language_code === 'ru'
+
+        // Глобальная кнопка "Главное меню" - работает ВЕЗДЕ
+        if (text === '🏠 Главное меню' || text === '🏠 Main menu') {
+          logger.info('🔥 [GLOBAL INTERCEPTOR] Main Menu pressed', {
+            telegramId: ctx.from?.id,
+            currentScene: ctx.scene?.current?.id
+          })
+          try {
+            await ctx.scene.leave()
+            await ctx.scene.enter(ModeEnum.MainMenu)
+            return // Останавливаем дальнейшую обработку
+          } catch (error) {
+            logger.error('❌ [GLOBAL INTERCEPTOR] Error leaving scene:', {
+              error,
+              telegramId: ctx.from?.id
+            })
+          }
+        }
+
+        // Глобальная кнопка "Отмена" - работает ВЕЗДЕ
+        if (text === 'Отмена' || text === 'Cancel') {
+          logger.info('🔥 [GLOBAL INTERCEPTOR] Cancel pressed', {
+            telegramId: ctx.from?.id,
+            currentScene: ctx.scene?.current?.id
+          })
+          try {
+            await ctx.reply(
+              isRu ? '❌ Операция отменена' : '❌ Operation cancelled',
+              { reply_markup: { remove_keyboard: true } }
+            )
+            await ctx.scene.leave()
+            await ctx.scene.enter(ModeEnum.MainMenu)
+            return // Останавливаем дальнейшую обработку
+          } catch (error) {
+            logger.error('❌ [GLOBAL INTERCEPTOR] Error cancelling:', {
+              error,
+              telegramId: ctx.from?.id
+            })
+          }
+        }
+      }
+
+      return next()
+    })
+
+    // 4. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
     bot.use(stage.middleware())
 
     // 4. РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ПЛАТЕЖЕЙ
@@ -1201,12 +1249,7 @@ If not, continue on your own and click the "I myself" button`
         await ctx.scene.leave()
         ctx.session.mode = ModeEnum.TextToVideo
         await ctx.scene.enter(ModeEnum.TextToVideo)
-
-        await ctx.reply(
-          isRu
-            ? '🎬 Создаем новое видео из текста! Выберите модель:'
-            : '🎬 Creating a new video from text! Select a model:'
-        )
+        // ✅ ИСПРАВЛЕНО: Убрано лишнее сообщение - wizard сам запросит промпт
       } catch (error) {
         logger.error('Error in create_more_text_to_video action:', {
           error,
@@ -1242,12 +1285,7 @@ If not, continue on your own and click the "I myself" button`
         await ctx.scene.leave()
         ctx.session.mode = ModeEnum.ImageToVideo
         await ctx.scene.enter(ModeEnum.ImageToVideo)
-
-        await ctx.reply(
-          isRu
-            ? '🖼️ Создаем новое видео из изображения! Выберите модель:'
-            : '🖼️ Creating a new video from image! Select a model:'
-        )
+        // ✅ ИСПРАВЛЕНО: Убрано лишнее сообщение - wizard сам запросит изображение
       } catch (error) {
         logger.error('Error in create_more_image_to_video action:', {
           error,

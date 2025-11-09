@@ -43,7 +43,7 @@ export type TaskId = t.TypeOf<typeof TaskId>
 export const VideoRequest = t.strict({
   prompt: t.string,
   model: ModelId,
-  duration: t.number.pipe(t.positive()),
+  duration: t.number,
   aspectRatio: t.union([
     t.literal('16:9'),
     t.literal('9:16'),
@@ -85,9 +85,9 @@ export type VideoResult = t.TypeOf<typeof VideoResult>
 export const ImageRequest = t.strict({
   prompt: t.string,
   model: ModelId,
-  width: t.union([t.number, t.undefined]).pipe(t.number),
-  height: t.union([t.number, t.undefined]).pipe(t.number),
-  numImages: t.union([t.number, t.undefined]).pipe(t.number.pipe(t.positive())),
+  width: t.union([t.number, t.undefined]),
+  height: t.union([t.number, t.undefined]),
+  numImages: t.union([t.number, t.undefined]),
   style: t.union([t.string, t.undefined]),
   imageUrl: t.union([t.string, t.undefined]),
   userId: UserId,
@@ -119,7 +119,7 @@ export const AudioRequest = t.strict({
   prompt: t.string,
   model: ModelId,
   voice_id: t.union([t.string, t.undefined]),
-  duration: t.union([t.number, t.undefined]).pipe(t.number),
+  duration: t.union([t.number, t.undefined]),
   language: t.union([t.string, t.undefined]),
   userId: UserId,
   metadata: t.union([
@@ -226,7 +226,7 @@ export const ProviderConfig = t.strict({
   name: ProviderName,
   apiKey: t.string,
   baseUrl: t.string,
-  timeout: t.union([t.number, t.undefined]).pipe(t.number),
+  timeout: t.union([t.number, t.undefined]),
   rateLimit: t.union([
     t.strict({
       requestsPerMinute: t.number
@@ -240,20 +240,20 @@ export type ProviderConfig = t.TypeOf<typeof ProviderConfig>
 // ===== PIPELINE CONFIG =====
 
 export const PipelineConfig = t.strict({
-  maxRetries: t.number.pipe(t.nonnegative()),
-  retryDelay: t.number.pipe(t.nonnegative()),
+  maxRetries: t.number,
+  retryDelay: t.number,
   circuitBreaker: t.union([
     t.strict({
-      failureThreshold: t.number.pipe(t.positive()),
-      timeout: t.number.pipe(t.positive()),
-      resetTimeout: t.number.pipe(t.positive())
+      failureThreshold: t.number,
+      timeout: t.number,
+      resetTimeout: t.number
     }),
     t.undefined
   ]),
-  timeout: t.union([t.number, t.undefined]).pipe(t.number),
+  timeout: t.union([t.number, t.undefined]),
   cache: t.union([
     t.strict({
-      ttl: t.number.pipe(t.positive())
+      ttl: t.number
     }),
     t.undefined
   ])

@@ -831,13 +831,12 @@ export const generateAdvancedFluxKontext = async (
           'different_mode'
         ),
       ],
-      // ВРЕМЕННО СКРЫТО: Кнопка "Увеличить качество" не работает корректно
-      // [
-      //   Markup.button.callback(
-      //     is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
-      //     'upscale_image'
-      //   ),
-      // ],
+      [
+        Markup.button.callback(
+          is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
+          'upscale_image'
+        ),
+      ],
       [
         Markup.button.callback(
           is_ru ? '🏠 Главное меню' : '🏠 Main menu',
@@ -1201,13 +1200,12 @@ export const upscaleFluxKontextImage = async (params: {
               'more_editing'
             ),
           ],
-          // ВРЕМЕННО СКРЫТО: Кнопка "Увеличить качество" не работает корректно
-          // [
-          //   Markup.button.callback(
-          //     is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
-          //     'upscale_image'
-          //   ),
-          // ],
+          [
+            Markup.button.callback(
+              is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
+              'upscale_image'
+            ),
+          ],
           [
             Markup.button.callback(
               is_ru ? '🏠 Главное меню' : '🏠 Main menu',

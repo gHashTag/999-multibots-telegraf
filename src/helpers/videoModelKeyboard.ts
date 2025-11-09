@@ -1,10 +1,10 @@
 import { Markup } from 'telegraf'
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 import {
-  VIDEO_MODELS,
+  VIDEO_MODELS_CONFIG as VIDEO_MODELS,
   getModelPriceInStars,
-  VideoModelInfo,
-} from '@/services/videoModels'
+  UnifiedVideoModelConfig as VideoModelInfo,
+} from '@/config/unified-video-models.config'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { logger } from '@/utils/logger'
 

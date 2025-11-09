@@ -231,6 +231,8 @@ export const upscaleImage = async (
           chatId: sendDocumentResult.chat.id,
         })
       } else {
+        // ✅ Если файл < 10MB - отправляем И как фото, И как документ
+        // Сначала как фото (для просмотра)
         const sendPhotoResult = await ctx.telegram.sendPhoto(
           telegram_id,
           {
@@ -246,6 +248,26 @@ export const upscaleImage = async (
           telegram_id,
           messageId: sendPhotoResult.message_id,
           chatId: sendPhotoResult.chat.id,
+        })
+
+        // Потом как документ (для скачивания в полном качестве)
+        const sendDocumentResult = await ctx.telegram.sendDocument(
+          telegram_id,
+          {
+            source: fs.createReadStream(imageLocalPath),
+            filename: 'upscaled_photo.webp',
+          },
+          {
+            caption: is_ru
+              ? '📥 Файл для скачивания в полном качестве'
+              : '📥 File for download in full quality',
+          }
+        )
+
+        logger.info('Document also sent for download', {
+          telegram_id,
+          messageId: sendDocumentResult.message_id,
+          chatId: sendDocumentResult.chat.id,
         })
       }
     } catch (sendError) {

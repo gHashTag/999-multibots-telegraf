@@ -41,6 +41,10 @@ import { startApiServer } from './api_server'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
+<<<<<<< HEAD
+=======
+let mainBotInstance: Telegraf<MyContext> | null = null
+>>>>>>> origin/production
 
 // Define the commands for private chats
 // const privateCommands: BotCommand[] = [
@@ -146,6 +150,20 @@ async function initializeBots() {
         // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
         setupNotificationProcessor(bot)
 
+<<<<<<< HEAD
+=======
+        // ✅ Сохраняем первый bot instance для webhooks
+        if (!mainBotInstance) {
+          mainBotInstance = bot
+          console.log('✅ Main bot instance saved for webhooks')
+
+          // ✅ Запускаем API сервер СРАЗУ после создания первого бота
+          // (до bot.launch(), чтобы не ждать бесконечного polling loop)
+          startApiServer(bot)
+          console.log('✅ API сервер запущен с bot instance для webhooks')
+        }
+
+>>>>>>> origin/production
         registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
         // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
         setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
@@ -346,6 +364,7 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 console.log('🏁 Запуск приложения')
 
+<<<<<<< HEAD
 // Запускаем API сервер
 // Это будет выполнено при старте src/bot.ts
 startApiServer()
@@ -354,6 +373,13 @@ startApiServer()
 initializeBots()
   .then(() => {
     console.log('✅ Боты и API сервер успешно запущены') // Обновим сообщение
+=======
+// Возвращаем корректный запуск инициализации ботов
+// API сервер теперь запускается внутри initializeBots() при создании первого бота
+initializeBots()
+  .then(() => {
+    console.log('✅ Все боты успешно инициализированы')
+>>>>>>> origin/production
   })
   .catch(error => {
     console.error(

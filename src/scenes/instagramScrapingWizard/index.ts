@@ -10,7 +10,7 @@ import { getBotToken } from '@/handlers/getBotToken'
 import { logger } from '@/utils/logger'
 import { levels } from '@/menu'
 import { getUserProjects, UserProject } from '@/core/supabase/getUserProjects'
-import { getParsingAccess } from '@/menu/mainMenu'
+import { getParsingAccess } from '@/menu/simpleMenu'
 
 // Интерфейс для сессии Instagram Scraping
 interface InstagramScrapingSessionData {
@@ -299,7 +299,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
               ...projectButtons,
               [
                 Markup.button.callback(
-                  isRu ? '❌ Отмена' : '❌ Cancel',
+                  isRu ? 'Отмена' : 'Cancel',
                   'cancel'
                 ),
               ],
@@ -434,7 +434,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             ],
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'cancel'
               ),
             ],
@@ -562,7 +562,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                   'back_to_competitors'
                 ),
                 Markup.button.callback(
-                  isRu ? '❌ Отмена' : '❌ Cancel',
+                  isRu ? 'Отмена' : 'Cancel',
                   'cancel'
                 ),
               ],
@@ -628,7 +628,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                   'back_to_competitors'
                 ),
                 Markup.button.callback(
-                  isRu ? '❌ Отмена' : '❌ Cancel',
+                  isRu ? 'Отмена' : 'Cancel',
                   'cancel'
                 ),
               ],

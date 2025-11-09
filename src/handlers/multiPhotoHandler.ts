@@ -203,7 +203,7 @@ export async function handleMultiPhotoNeurophoto(ctx: MyContext, photos: PhotoQu
               callback_data: `multi_neurophoto_${userId}_${photoCount}`
             }],
             [{
-              text: isRu ? '❌ Отмена' : '❌ Cancel',
+              text: isRu ? 'Отмена' : 'Cancel',
               callback_data: 'multi_neurophoto_cancel'
             }]
           ]

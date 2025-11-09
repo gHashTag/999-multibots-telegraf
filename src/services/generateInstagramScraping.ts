@@ -1,4 +1,5 @@
-import { inngest } from '@/inngest_app/client'
+// ВРЕМЕННО: inngest отключён
+// import { inngest } from '@/inngest_app/client'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -120,7 +121,9 @@ export async function generateInstagramScraping(
       environment: process.env.NODE_ENV
     })
 
-    const sendResult = await inngest.send(inngestEvent)
+    // ВРЕМЕННО: inngest отключён
+    // const sendResult = await inngest.send(inngestEvent)
+    const sendResult = { ids: ["disabled"] }
     
     console.log('🔥 [DEBUG] Inngest send result:', sendResult)
     logger.info('✅ [Instagram Scraper] Event sent to Inngest with result', {

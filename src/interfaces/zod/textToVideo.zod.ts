@@ -56,11 +56,16 @@ export const validateTextToVideoRequest = (request: any): TextToVideoRequest => 
 }
 
 // Константы для валидации
+<<<<<<< HEAD
+=======
+// ✅ SUPPORTED_MODELS удален - используйте getUnifiedVideoModels() из unified-video-models.config.ts
+>>>>>>> origin/production
 export const TEXT_TO_VIDEO_CONSTANTS = {
   MIN_PROMPT_LENGTH: 3,
   MAX_PROMPT_LENGTH: 10000, // Увеличен лимит для поддержки длинных промптов
   DEFAULT_ASPECT_RATIO: '9:16' as const,
   DEFAULT_MODEL: 'veo3_fast' as const,
+<<<<<<< HEAD
   SUPPORTED_MODELS: [
     'veo3_fast',
     'veo3',
@@ -72,4 +77,6 @@ export const TEXT_TO_VIDEO_CONSTANTS = {
     'sora-2',
     'sora-2-pro',
   ] as const,
+=======
+>>>>>>> origin/production
 } as const

@@ -20,7 +20,7 @@ export class CancelButtonService {
    * Создает простую кнопку отмены (ReplyKeyboard)
    */
   static createCancelButton(isRu: boolean) {
-    return [Markup.button.text(isRu ? '❌ Отмена' : '❌ Cancel')]
+    return [Markup.button.text(isRu ? 'Отмена' : 'Cancel')]
   }
 
   /**
@@ -28,7 +28,7 @@ export class CancelButtonService {
    */
   static createInlineCancelButton(isRu: boolean) {
     return Markup.button.callback(
-      isRu ? '❌ Отмена' : '❌ Cancel',
+      isRu ? 'Отмена' : 'Cancel',
       'cancel'
     )
   }
@@ -39,7 +39,7 @@ export class CancelButtonService {
   static createHelpCancelArray(isRu: boolean) {
     return [
       [isRu ? 'ℹ️ Справка по команде' : 'ℹ️ Help for the command'],
-      [isRu ? '❌ Отмена' : '❌ Cancel']
+      [isRu ? 'Отмена' : 'Cancel']
     ]
   }
 

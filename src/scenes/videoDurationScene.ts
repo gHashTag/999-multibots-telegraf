@@ -2,12 +2,12 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
-  VIDEO_MODELS,
+  VIDEO_MODELS_CONFIG as VIDEO_MODELS,
   getModelPriceInStars,
   isDurationSupported,
   getValidDuration,
-  VideoModelInfo,
-} from '@/services/videoModels'
+  UnifiedVideoModelConfig as VideoModelInfo,
+} from '@/config/unified-video-models.config'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { logger } from '@/utils/logger'
@@ -68,7 +68,7 @@ videoDurationScene.enter(async ctx => {
   // Добавляем кнопку отмены
   buttons.push([
     {
-      text: is_ru ? '❌ Отмена' : '❌ Cancel',
+      text: is_ru ? 'Отмена' : 'Cancel',
       callback_data: 'cancel_duration',
     },
   ])

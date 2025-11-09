@@ -1,14 +1,86 @@
 import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, API_URL, LOCAL_SERVER_URL } from '@/config'
+import {
+  isDev,
+  SECRET_API_KEY,
+  API_SERVER_URL,
+  LOCAL_SERVER_URL,
+} from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
+import { Markup } from 'telegraf'
 
-// 🚨 ФУНКЦИЯ УДАЛЕНА: Reply keyboard теперь создаётся в wizard'е
-// Это предотвращает дублирование кнопок
+// Функция для отправки уведомления админу о проблеме с сервером
+async function notifyAdminAboutServerIssue(
+  error: string,
+  telegram_id: string,
+  botName: string
+) {
+  try {
+    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
+    const { getBotByName } = await import('@/core/bot')
+    const botResult = getBotByName(botName)
+
+    if (!botResult.bot) return
+
+    const errorMessage =
+      `🚨 **SERVER DOWN ALERT**\n\n` +
+      `📍 План Б активирован для нейрофото генерации\n` +
+      `👤 User: ${telegram_id}\n` +
+      `🤖 Bot: ${botName}\n` +
+      `❌ Error: ${error}\n` +
+      `🔄 Используется локальная обработка\n\n` +
+      `⚠️ Проверьте сервер: https://ai-server-production-production-8e2d.up.railway.app`
+
+    for (const adminId of adminIds) {
+      await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
+        parse_mode: 'Markdown',
+      })
+    }
+
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
+      adminIds,
+      error,
+    })
+  } catch (notifyError) {
+    logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+  }
+}
+
+// Создание клавиатуры для результатов нейрофотографий с кнопкой Upscale
+const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(
+        is_ru ? '🆕 Новый промпт' : '🆕 New prompt',
+        'new_neurophoto_prompt'
+      ),
+      Markup.button.callback(
+        is_ru ? '📐 Изменить размер' : '📐 Change size',
+        'change_size'
+      ),
+    ],
+    [
+      Markup.button.callback(
+        is_ru ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt',
+        'improve_prompt'
+      ),
+      Markup.button.callback(
+        is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale Quality',
+        'upscale_neurophoto_image'
+      ),
+    ],
+    [
+      Markup.button.callback(
+        is_ru ? '🏠 Главное меню' : '🏠 Main menu',
+        'go_main_menu'
+      ),
+    ],
+  ])
+}
 
 /**
  * Гибридная функция для генерации neuro_photo:
@@ -87,8 +159,7 @@ export async function generateNeuroPhotoHybrid(
 
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
-    // ИСПРАВЛЕНИЕ: Используем синхронный endpoint для получения результатов сразу
-    const url = `${API_URL}/generate/neuro-photo-sync`
+    const url = `${API_SERVER_URL}/generate/neuro-photo`
 
     const serverPayload = {
       prompt,
@@ -111,7 +182,6 @@ export async function generateNeuroPhotoHybrid(
       url,
       exact_cost_per_image: exactCostPerImage,
       exact_total_cost: exactTotalCost,
-      serverPayload: JSON.stringify(serverPayload, null, 2),
     })
 
     const response = await axios.post(url, serverPayload, {
@@ -149,27 +219,21 @@ export async function generateNeuroPhotoHybrid(
       throw new Error(`Server error: ${response.data.error}`)
     }
 
-    // Проверяем тип ответа от синхронного сервера
+    // Проверяем тип ответа от сервера
     if (
-      response.data.success &&
-      response.data.images &&
-      Array.isArray(response.data.images) &&
-      response.data.images.length > 0
+      response.data.urls &&
+      Array.isArray(response.data.urls) &&
+      response.data.urls.length > 0
     ) {
-      // СЦЕНАРИЙ 1: Синхронный сервер вернул готовые изображения
+      // СЦЕНАРИЙ 1: Сервер вернул готовые изображения
       logger.info({
-        message:
-          '📸 [HYBRID] План А успешен - получены изображения от синхронного сервера',
+        message: '📸 [HYBRID] Отправка фотографий пользователю',
         telegram_id,
-        images_count: response.data.images.length,
-        server_count: response.data.count,
+        urls_count: response.data.urls.length,
       })
 
-      // Извлекаем URL изображений из формата сервера
-      const imageUrls = response.data.images.map(img => img.url)
-
       // СОХРАНЯЕМ последний URL в сессии для upscaler'а
-      const lastUrl = imageUrls[imageUrls.length - 1]
+      const lastUrl = response.data.urls[response.data.urls.length - 1]
       if (ctx.session) {
         ctx.session.lastNeuroPhotoImageUrl = lastUrl
         ctx.session.lastNeuroPhotoPrompt = prompt
@@ -181,74 +245,80 @@ export async function generateNeuroPhotoHybrid(
           savedUrl: lastUrl.substring(0, 50) + '...',
           savedPrompt: prompt.substring(0, 50) + '...',
           sessionExists: true,
-          urlsCount: imageUrls.length,
+          urlsCount: response.data.urls.length,
         })
       }
 
-      // Отправляем все фотографии БЕЗ клавиатуры (как в AI сервере)
-      for (let i = 0; i < imageUrls.length; i++) {
-        const url = imageUrls[i]
+      // Отправляем все фотографии с клавиатурой
+      for (const url of response.data.urls) {
         try {
-          await ctx.telegram.sendPhoto(telegram_id, { url })
+          const caption = isRussianFromState(ctx)
+            ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${exactCostPerImage} ⭐`
+            : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${exactCostPerImage} ⭐`
+
+          await ctx.telegram.sendPhoto(
+            telegram_id,
+            { url },
+            {
+              caption,
+              reply_markup: createNeuroPhotoResultKeyboard(
+                isRussianFromState(ctx)
+              ).reply_markup,
+            }
+          )
 
           logger.info({
-            message: '✅ [HYBRID] Фотография отправлена без клавиатуры',
+            message: '✅ [HYBRID] Фотография отправлена',
             telegram_id,
-            url: url.substring(0, 50) + '...',
-            imageNumber: i + 1,
-            totalImages: imageUrls.length,
+            url,
           })
         } catch (sendError) {
           logger.error({
             message: '❌ [HYBRID] Ошибка при отправке фотографии',
             telegram_id,
-            url: url.substring(0, 50) + '...',
+            url,
             error: sendError,
           })
         }
       }
 
-      // 🚨 ИСПРАВЛЕНИЕ: Отправляем итоговое сообщение БЕЗ кнопок
-      // Reply keyboard будет добавлена в wizard отдельным сообщением
-      const totalCost = exactCostPerImage * imageUrls.length
-      const finalMessage = isRussianFromState(ctx)
-        ? `✅ Готово! Успешно сгенерировано ${imageUrls.length} из ${numImages} изображений.\nСписано: ${totalCost.toFixed(2)} ⭐️\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
-        : `✅ Done! Successfully generated ${imageUrls.length} out of ${numImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
-
-      try {
-        // Отправляем ТОЛЬКО текст, БЕЗ кнопок (ни inline, ни reply)
-        await ctx.telegram.sendMessage(telegram_id, finalMessage)
-
-        logger.info({
-          message: '✅ [HYBRID] Итоговое сообщение отправлено (без кнопок)',
-          telegram_id,
-          totalImages: imageUrls.length,
-          totalCost,
-        })
-      } catch (sendError) {
-        logger.error({
-          message: '❌ [HYBRID] Ошибка при отправке итогового сообщения',
-          telegram_id,
-          error: sendError,
-        })
-      }
-
-      // Возвращаем единый формат как План Б
-      return {
-        data: 'Processing completed',
-        success: true,
-        urls: imageUrls,
-      }
-    } else {
-      // СЦЕНАРИЙ 2: Неожиданный формат ответа от синхронного сервера
-      logger.error({
-        message: '❌ [HYBRID] Неожиданный формат ответа от синхронного сервера',
+      return response.data
+    } else if (response.data.jobId) {
+      // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
+      logger.info({
+        message:
+          '✅ [HYBRID] План А успешен - сервер принял задачу и будет обрабатывать асинхронно',
         telegram_id,
-        responseData: JSON.stringify(response.data).substring(0, 200),
-        expected_format: 'success=true, images=[{url, prompt_id}], count=N',
+        jobId: response.data.jobId,
       })
 
-      throw new Error('Unexpected response format from sync server')
+      // Сервер сам отправит изображение через webhook после обработки
+      // Просто возвращаем успешный результат
+      return response.data
+    } else if (
+      response.data.message &&
+      response.data.message.includes('Processing started')
+    ) {
+      // СЦЕНАРИЙ 3: Сервер принял задачу и начал обработку
+      logger.info({
+        message:
+          '✅ [HYBRID] План А успешен - сервер принял задачу и начал обработку',
+        telegram_id,
+        serverMessage: response.data.message,
+      })
+
+      // Сервер сам отправит изображение через webhook после обработки
+      // Просто возвращаем успешный результат
+      return response.data
+    } else {
+      // СЦЕНАРИЙ 4: Неожиданный формат ответа
+      logger.error({
+        message: '❌ [HYBRID] Неожиданный формат ответа от сервера',
+        telegram_id,
+        responseData: JSON.stringify(response.data).substring(0, 200),
+      })
+
+      throw new Error('Unexpected response format from server')
     }
   } catch (error) {
     // Логируем ошибку сервера
@@ -283,6 +353,9 @@ export async function generateNeuroPhotoHybrid(
       message: '🔄 [HYBRID] Переключение на План Б: локальная обработка',
       telegram_id,
     })
+
+    // 🚨 УВЕДОМЛЕНИЕ АДМИНУ О ПРОБЛЕМЕ С СЕРВЕРОМ
+    await notifyAdminAboutServerIssue(String(error), telegram_id, botName)
 
     try {
       const localResult = await generateNeuroPhotoDirect(

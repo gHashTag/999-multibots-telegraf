@@ -1,4 +1,4 @@
 export { generateImageToVideo } from './generateImageToVideo'
 export { generateTextToVideo } from './generateTextToVideo'
-// Re-export VideoModelConfig from its NEW local location
-export { type VideoModelConfig } from './config/models.config'
+// Re-export VideoModelConfig from unified config
+export { type UnifiedVideoModelConfig as VideoModelConfig } from '@/config/unified-video-models.config'

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { Markup } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -100,3 +101,18 @@ export const handleMenuButtonPress = async (ctx: MyContext, buttonText: string) 
 // Экспорт для обратной совместимости (другие имена)
 export const simpleLevels = MAIN_MENU_BUTTONS
 export const simpleMainMenu = MAIN_MENU_BUTTONS
+=======
+/**
+ * ⚠️ DEPRECATED: Этот файл оставлен для обратной совместимости
+ *
+ * ✅ НОВЫЙ ИСТОЧНИК ПРАВДЫ: src/navigation/unified-navigation.config.ts
+ *
+ * Все новые импорты должны быть из:
+ * import { ... } from '@/navigation/unified-navigation.config'
+ *
+ * Этот файл просто реэкспортирует из нового конфига для обратной совместимости
+ */
+
+// ✅ ПРОСТОЕ РЕШЕНИЕ: Реэкспортируем всё напрямую без алиасов
+export * from '@/navigation/unified-navigation.config'
+>>>>>>> origin/production

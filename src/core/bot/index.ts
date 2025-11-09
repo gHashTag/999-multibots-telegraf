@@ -99,8 +99,12 @@ export const bots: Record<BotName, Telegraf<MyContext>> = {} as any
 Object.entries(BOT_NAMES)
   .filter(([, token]) => token)
   .filter(([name, token]) => {
-    // Исключаем тестовых ботов во всех режимах, кроме специально заданного
-    return BOT_TOKENS_PROD.includes(token)
+    // В dev режиме инициализируем все боты (включая тестовых)
+    // В production - только продакшн ботов
+    if (isDev) {
+      return true // В dev режиме - все боты
+    }
+    return BOT_TOKENS_PROD.includes(token) // В production - только продакшн боты
   })
   .forEach(([name, token]) => {
     bots[name as BotName] =
@@ -217,6 +221,3 @@ export const supportRequest = async (title: string, data: any) => {
 }
 
 const groupId = process.env.GROUP_ID || ''
-
-// Все функции уже экспортированы выше
-// export { getBotByName, createBotByName, getBotNameByToken, getTokenByBotName }

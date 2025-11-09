@@ -1,6 +1,6 @@
-tree c01294ce58d12744c2ea2c4318f114c70b6b872b
-parent e5b6f923ca1d8dadd63ffad2cc3cebe62803e69f
-author Dmitriy Vasilev <raoffonom@icloud.com> 1755954095 +0700
-committer Dmitriy Vasilev <raoffonom@icloud.com> 1755954095 +0700
+tree 94805dc130929237280e0d51bfe29456817281d6
+parent df11fb67c4017044e54bdc70b03ea52a1575693f
+author Production Admin <admin@999-agents.com> 1757078295 +0000
+committer Production Admin <admin@999-agents.com> 1757078295 +0000
 
-checkpoint: Не работает кнопка. (base) ➜  veo3-2 git:(veo3-...
+fix: обновить bot-farm субмодуль до актуального состояния production ветки

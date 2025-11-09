@@ -36,8 +36,8 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
     logger.info('🔥 [SIMPLIFIED] Step 1 entered', {
       userId,
-      wizardCursor: ctx.wizard.cursor,
-      wizardState: ctx.wizard.state,
+      wizardCursor: ctx.wizard?.cursor ?? 0,
+      wizardState: ctx.wizard?.state,
       updateType: ctx.callbackQuery
         ? 'callback_query'
         : ctx.message
@@ -65,7 +65,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           Markup.inlineKeyboard([
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'cancel'
               ),
             ],
@@ -84,7 +84,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           Markup.inlineKeyboard([
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'cancel'
               ),
             ],
@@ -188,7 +188,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
     logger.info('🔥 [SIMPLIFIED] Step 2 entered', {
       userId,
-      wizardCursor: ctx.wizard.cursor,
+      wizardCursor: ctx.wizard?.cursor ?? 0,
       updateType: ctx.callbackQuery
         ? 'callback_query'
         : ctx.message
@@ -426,7 +426,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
               'count_200'
             ),
           ],
-          [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel')],
+          [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
         ])
       )
     }
@@ -450,8 +450,8 @@ instagramParserScene.use(async (ctx, next) => {
         : 'no callback',
       messageText:
         ctx.message && 'text' in ctx.message ? ctx.message.text : 'no text',
-      wizardCursor: ctx.wizard.cursor,
-      wizardState: ctx.wizard.state,
+      wizardCursor: ctx.wizard?.cursor ?? 0,
+      wizardState: ctx.wizard?.state,
       sceneSession: ctx.scene.session,
     }
   )
