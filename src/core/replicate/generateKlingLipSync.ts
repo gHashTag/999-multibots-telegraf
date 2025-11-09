@@ -2,12 +2,25 @@ const Replicate = require('replicate')
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import { logger } from '@/utils/logger'
 
-if (!process.env.REPLICATE_API_TOKEN) {
-  throw new Error('REPLICATE_API_TOKEN is not set')
+// 🔐 LAZY INITIALIZATION: клиент создается только при первом обращении
+let _replicate: any = null
+
+function getReplicate() {
+  if (!_replicate) {
+    if (!process.env.REPLICATE_API_TOKEN) {
+      throw new Error('REPLICATE_API_TOKEN is not set. Ensure Infisical loaded secrets.')
+    }
+    _replicate = new Replicate({
+      auth: process.env.REPLICATE_API_TOKEN,
+    })
+  }
+  return _replicate
 }
 
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
+const replicate = new Proxy({}, {
+  get(target, prop) {
+    return (getReplicate() as any)[prop]
+  }
 })
 
 export interface KlingLipSyncResponse {

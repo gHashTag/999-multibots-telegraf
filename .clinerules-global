@@ -1,0 +1,137 @@
+# 🔐 ГЛОБАЛЬНЫЕ ПРАВИЛА: Infisical Cloud-First
+
+## КРИТИЧЕСКИ ВАЖНО: Централизация секретов
+
+### ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ: Infisical
+
+**ВСЕ секреты загружаются ТОЛЬКО из Infisical облака!**
+
+```typescript
+// ✅ ПРАВИЛЬНО: lazy initialization через Proxy
+let _client: Client | null = null
+
+function getClient() {
+  if (!_client) {
+    const apiKey = process.env.API_KEY
+    if (!apiKey) {
+      throw new Error('API_KEY not found. Ensure Infisical loaded secrets.')
+    }
+    _client = new Client(apiKey)
+  }
+  return _client
+}
+
+export const client = new Proxy({} as Client, {
+  get(target, prop) {
+    return (getClient() as any)[prop]
+  }
+})
+
+// ❌ НЕПРАВИЛЬНО: eager initialization
+if (!process.env.API_KEY) throw new Error('API_KEY is not set')
+const client = new Client(process.env.API_KEY)
+```
+
+### 📁 Структура .env файлов
+
+**В репозитории коммитим ТОЛЬКО .env.example**
+
+```.env.example
+# 🔐 Infisical Configuration
+INFISICAL_CLIENT_ID=your_client_id
+INFISICAL_CLIENT_SECRET=your_client_secret
+INFISICAL_PROJECT_ID=your_project_id
+INFISICAL_ENVIRONMENT=dev  # dev | staging | prod
+NODE_ENV=development  # development | production
+```
+
+**Локальный .env (в .gitignore)**
+```
+INFISICAL_CLIENT_ID=88fcf0cd-cce9-4844-bad2-8e19b4bad3ed
+INFISICAL_CLIENT_SECRET=b377e7a60b669ea2317f339dc6cb79ce49d588a7bbed92433bb2a73dedff3314
+INFISICAL_PROJECT_ID=fd763fa3-35d5-4045-93bd-1795c5f00fc3
+INFISICAL_ENVIRONMENT=dev
+NODE_ENV=development
+```
+
+### 🌍 Три окружения
+
+```
+┌─────────────┬──────────────┬─────────────────────┬──────────────────────┐
+│ Окружение   │ Git Branch   │ Токены               │ INFISICAL_ENVIRONMENT│
+├─────────────┼──────────────┼─────────────────────┼──────────────────────┤
+│ Development │ feature/*    │ BOT_TOKEN_TEST_1-2  │ dev                  │
+│ Staging     │ main         │ BOT_TOKEN_1-10      │ staging              │
+│ Production  │ production   │ BOT_TOKEN_1-10      │ prod                 │
+└─────────────┴──────────────┴─────────────────────┴──────────────────────┘
+```
+
+### ❌ ЗАПРЕЩЕНО
+
+1. **НЕ коммитить** токены в git
+2. **НЕ хранить** секреты в .env файлах (кроме Infisical credentials)
+3. **НЕ создавать** дубликаты переменных окружения
+4. **НЕ использовать** eager initialization для API клиентов
+5. **НЕ импортировать** `process.env` напрямую для секретов
+
+### ✅ ОБЯЗАТЕЛЬНО
+
+1. **ВСЕГДА** использовать lazy initialization (Proxy)
+2. **ВСЕГДА** проверять Infisical перед доступом к секретам
+3. **ВСЕГДА** использовать `getSecret()` из `src/core/infisical`
+4. **ВСЕГДА** добавлять новые секреты в Infisical, не в .env
+5. **ВСЕГДА** удалять дубликаты и мертвые переменные
+
+### 🔍 Проверка перед коммитом
+
+```bash
+# 1. Проверить нет ли секретов в коде
+git diff | grep -E "(API_KEY|TOKEN|SECRET|PASSWORD)"
+
+# 2. Проверить .gitignore
+cat .gitignore | grep ".env"
+
+# 3. Проверить staging
+git diff --cached | grep -E "(process\.env\.[A-Z_]+\s*=)"
+```
+
+### 📝 Пример правильной реализации
+
+```typescript
+// src/services/myService.ts
+
+// ❌ НЕПРАВИЛЬНО
+import { myClient } from '@/core/myClient'  // eager init
+
+// ✅ ПРАВИЛЬНО
+import { getMyClient } from '@/core/myClient'  // lazy init
+
+export async function doSomething() {
+  const client = getMyClient()  // Клиент создается только здесь
+  return await client.action()
+}
+```
+
+### 🚨 При обнаружении нарушений
+
+Если видишь:
+- Токены в .env (не Infisical credentials)
+- Eager initialization API клиентов
+- Дубликаты переменных окружения
+- Секреты в git истории
+
+**НЕМЕДЛЕННО**:
+1. Создай issue с тегом `security`
+2. Удали секреты из кода
+3. Переведи на Infisical cloud-first
+4. Обнови документацию
+
+### 📚 Документация
+
+- `INFISICAL_ENVIRONMENTS.md` - гайд по окружениям
+- `TOKENS_AUDIT.md` - аудит всех токенов
+- `INFISICAL_SETUP.md` - первоначальная настройка
+
+### 🎯 Цель
+
+**100% секретов в Infisical облаке, 0% в git/файлах**

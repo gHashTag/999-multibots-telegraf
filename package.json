@@ -5,9 +5,9 @@
   "main": "src/bot.ts",
   "scripts": {
     "prestart": "./scripts/worktree-env-sync.sh",
-    "start": "bun run dist/bot.js",
-    "predev": "./scripts/worktree-env-sync.sh && pkill -f 'bun.*src/bot.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
-    "dev": "bun --watch src/bot.ts",
+    "start": "bun run dist/index.js",
+    "predev": "./scripts/worktree-env-sync.sh && pkill -f 'bun.*src/index.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
+    "dev": "bun --watch src/index.ts",
     "env:sync": "./scripts/worktree-env-sync.sh",
     "env:fix": "./scripts/fix-env.sh",
     "env:watch": "./scripts/env-watcher.sh",

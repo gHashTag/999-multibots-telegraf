@@ -28,9 +28,10 @@ let infisicalClient: InfisicalSDK | null = null
 let isAuthenticated = false
 let secretCache: SecretCache = {}
 
-// Environment detection
+// 🔐 ПОДДЕРЖКА ТРЕХ ОКРУЖЕНИЙ: development, staging, production
+// Environment detection с поддержкой трех окружений
 const isDev = process.env.NODE_ENV !== 'production'
-const environment = (process.env.INFISICAL_ENVIRONMENT || (isDev ? 'development' : 'production')) as 'development' | 'staging' | 'production'
+const environment = (process.env.INFISICAL_ENVIRONMENT || (isDev ? 'dev' : 'prod')) as 'dev' | 'staging' | 'prod'
 
 /**
  * 🚀 Инициализация Infisical и загрузка ВСЕХ секретов

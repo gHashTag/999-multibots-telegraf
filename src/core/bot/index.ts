@@ -19,22 +19,21 @@ import { toBotName } from '@/helpers/botName.helper'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'
 
-// Проверяем наличие токенов
-if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
-if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
-if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
-if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
-if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
-if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
-if (!process.env.BOT_TOKEN_7) throw new Error('BOT_TOKEN_7 is not set')
-if (!process.env.BOT_TOKEN_8) throw new Error('BOT_TOKEN_8 is not set')
-if (!process.env.BOT_TOKEN_9) throw new Error('BOT_TOKEN_9 is not set')
-if (!process.env.BOT_TOKEN_10) throw new Error('BOT_TOKEN_10 is not set')
-
-if (!process.env.BOT_TOKEN_TEST_1)
-  throw new Error('BOT_TOKEN_TEST_1 is not set')
-if (!process.env.BOT_TOKEN_TEST_2)
-  throw new Error('BOT_TOKEN_TEST_2 is not set')
+// 🔐 INFISICAL CLOUD-FIRST: токены загружаются из Infisical перед запуском
+// В dev окружении проверяем тестовые токены, в production - продакшн токены
+if (isDev) {
+  if (!process.env.BOT_TOKEN_TEST_1) {
+    console.warn('⚠️ BOT_TOKEN_TEST_1 is not set. Infisical may not have loaded yet.')
+  }
+  if (!process.env.BOT_TOKEN_TEST_2) {
+    console.warn('⚠️ BOT_TOKEN_TEST_2 is not set. Infisical may not have loaded yet.')
+  }
+} else {
+  // В production проверяем продакшн токены
+  if (!process.env.BOT_TOKEN_1) {
+    console.warn('⚠️ BOT_TOKEN_1 is not set. Infisical may not have loaded yet.')
+  }
+}
 
 const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_1,
@@ -81,17 +80,22 @@ export const BOT_URLS: Partial<Record<BotName, string>> = {
 }
 
 export const BOT_TOKENS =
-  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_PROD
+  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_TEST
 
-export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
+// 🔐 В dev используем тестовый токен, в production - продакшн
+export const DEFAULT_BOT_TOKEN = isDev
+  ? process.env.BOT_TOKEN_TEST_1
+  : process.env.BOT_TOKEN_1
 
-export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
-export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
+export const DEFAULT_BOT_NAME = isDev ? 'ai_koshey_bot' : 'neuro_blogger_bot'
+export const defaultBot = DEFAULT_BOT_TOKEN ? new Telegraf<MyContext>(DEFAULT_BOT_TOKEN) : null as any
 
-logger.info('🤖 Инициализация defaultBot:', {
-  description: 'DefaultBot initialization',
-  tokenLength: DEFAULT_BOT_TOKEN.length,
-})
+if (DEFAULT_BOT_TOKEN) {
+  logger.info('🤖 Инициализация defaultBot:', {
+    description: 'DefaultBot initialization',
+    tokenLength: DEFAULT_BOT_TOKEN.length,
+  })
+}
 
 // Вместо массива:
 export const bots: Record<BotName, Telegraf<MyContext>> = {} as any
@@ -117,13 +121,19 @@ logger.info('🌟 Инициализировано ботов:', {
   bot_names: Object.keys(bots),
 })
 
-export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
-export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
+// 🔐 В dev используем тестовый токен, в production - продакшн
+export const PULSE_BOT_TOKEN = isDev
+  ? process.env.BOT_TOKEN_TEST_1
+  : process.env.BOT_TOKEN_1
 
-logger.info('🤖 Инициализация pulseBot:', {
-  description: 'PulseBot initialization',
-  tokenLength: PULSE_BOT_TOKEN.length,
-})
+export const pulseBot = PULSE_BOT_TOKEN ? new Telegraf<MyContext>(PULSE_BOT_TOKEN) : null as any
+
+if (PULSE_BOT_TOKEN) {
+  logger.info('🤖 Инициализация pulseBot:', {
+    description: 'PulseBot initialization',
+    tokenLength: PULSE_BOT_TOKEN.length,
+  })
+}
 
 export function getBotNameByToken(token: string): { bot_name: BotName } {
   const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)

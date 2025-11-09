@@ -114,19 +114,20 @@ async function initializeBots() {
     // 🔧 POLLING MODE: Запускаем ВСЕ боты в polling режиме (как в webhook, но без портов)
     console.log(`🔄 [POLLING] Запуск всех доступных ботов в polling режиме`)
 
-    // 🔧 ОКРУЖЕНИЕ-ЗАВИСИМАЯ ЛОГИКА: разные токены для dev и production
+    // 🔧 ОКРУЖЕНИЕ-ЗАВИСИМАЯ ЛОГИКА: разные токены для dev, staging и production
     let botTokens: string[]
+    const infisicalEnv = process.env.INFISICAL_ENVIRONMENT || 'dev'
 
-    if (isDev) {
+    if (infisicalEnv === 'dev') {
       // ✅ DEVELOPMENT: используем ТОЛЬКО тестовые токены
-      console.log('🧪 [BOT INIT] Development режим - используем тестовые токены')
+      console.log('🧪 [BOT INIT] Development окружение - используем тестовые токены')
       botTokens = [
         process.env.BOT_TOKEN_TEST_1,
         process.env.BOT_TOKEN_TEST_2,
       ].filter((token): token is string => Boolean(token))
-    } else {
-      // ✅ PRODUCTION: используем production токены BOT_TOKEN_1-10
-      console.log('🚀 [BOT INIT] Production режим - используем production токены')
+    } else if (infisicalEnv === 'staging' || infisicalEnv === 'prod') {
+      // ✅ STAGING/PRODUCTION: используем production токены BOT_TOKEN_1-10
+      console.log(`🚀 [BOT INIT] ${infisicalEnv === 'staging' ? 'Staging' : 'Production'} окружение - используем production токены`)
       botTokens = [
         process.env.BOT_TOKEN_1,
         process.env.BOT_TOKEN_2,
@@ -139,6 +140,8 @@ async function initializeBots() {
         process.env.BOT_TOKEN_9,
         process.env.BOT_TOKEN_10,
       ].filter((token): token is string => Boolean(token))
+    } else {
+      throw new Error(`Unknown INFISICAL_ENVIRONMENT: ${infisicalEnv}`)
     }
 
     // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
@@ -230,19 +233,20 @@ async function initializeBots() {
     await Promise.all(botPromises)
     console.log(`✅ Все боты успешно запущены в polling режиме`)
   } else if (mode === 'webhook') {
-    // 🔧 ОКРУЖЕНИЕ-ЗАВИСИМАЯ ЛОГИКА: разные токены для dev и production
+    // 🔧 ОКРУЖЕНИЕ-ЗАВИСИМАЯ ЛОГИКА: разные токены для dev, staging и production
     let botTokens: string[]
+    const infisicalEnv = process.env.INFISICAL_ENVIRONMENT || 'dev'
 
-    if (isDev) {
+    if (infisicalEnv === 'dev') {
       // ✅ DEVELOPMENT: используем ТОЛЬКО тестовые токены
-      console.log('🧪 [BOT INIT] Development режим - используем тестовые токены')
+      console.log('🧪 [BOT INIT] Development окружение - используем тестовые токены')
       botTokens = [
         process.env.BOT_TOKEN_TEST_1,
         process.env.BOT_TOKEN_TEST_2,
       ].filter((token): token is string => Boolean(token))
-    } else {
-      // ✅ PRODUCTION: используем production токены BOT_TOKEN_1-10
-      console.log('🚀 [BOT INIT] Production режим - используем production токены')
+    } else if (infisicalEnv === 'staging' || infisicalEnv === 'prod') {
+      // ✅ STAGING/PRODUCTION: используем production токены BOT_TOKEN_1-10
+      console.log(`🚀 [BOT INIT] ${infisicalEnv === 'staging' ? 'Staging' : 'Production'} окружение - используем production токены`)
       botTokens = [
         process.env.BOT_TOKEN_1,
         process.env.BOT_TOKEN_2,
@@ -255,6 +259,8 @@ async function initializeBots() {
         process.env.BOT_TOKEN_9,
         process.env.BOT_TOKEN_10,
       ].filter((token): token is string => Boolean(token))
+    } else {
+      throw new Error(`Unknown INFISICAL_ENVIRONMENT: ${infisicalEnv}`)
     }
 
     let currentPort = 3001
@@ -401,12 +407,12 @@ async function startApplication() {
     // В будущем можно убрать и использовать getSecret() напрямую
     console.log('📋 [Infisical] Копирование секретов в process.env...')
 
-    // Определяем окружение (в Infisical используется "dev", а не "development")
-    const isDevEnvironment = stats.environment === 'dev' || stats.environment === 'development'
+    // 🔐 ПОДДЕРЖКА ТРЕХ ОКРУЖЕНИЙ: dev, staging, prod
+    const env = stats.environment
 
-    if (isDevEnvironment) {
+    if (env === 'dev') {
       // ✅ DEVELOPMENT: загружаем ТОЛЬКО тестовые токены
-      console.log('🧪 [Infisical] Development режим - загружаем тестовые токены')
+      console.log('🧪 [Infisical] Development окружение - загружаем тестовые токены')
 
       try {
         process.env.BOT_TOKEN_TEST_1 = getSecret('BOT_TOKEN_TEST_1')
@@ -428,9 +434,9 @@ async function startApplication() {
       } catch (e) {
         console.warn('  ⚠️ TEST_BOT_NAME не найден в Infisical')
       }
-    } else {
-      // ✅ PRODUCTION: загружаем production токены BOT_TOKEN_1-10
-      console.log('🚀 [Infisical] Production режим - загружаем production токены')
+    } else if (env === 'staging' || env === 'prod') {
+      // ✅ STAGING/PRODUCTION: загружаем production токены BOT_TOKEN_1-10
+      console.log(`🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем production токены`)
 
       for (let i = 1; i <= 10; i++) {
         const tokenKey = `BOT_TOKEN_${i}`
@@ -441,6 +447,10 @@ async function startApplication() {
           console.warn(`  ⚠️ ${tokenKey} не найден в Infisical`)
         }
       }
+    } else {
+      console.error(`❌ [Infisical] Неизвестное окружение: ${env}`)
+      console.error('Допустимые окружения: dev, staging, prod')
+      throw new Error(`Unknown environment: ${env}`)
     }
 
     // Общие секреты для всех окружений
