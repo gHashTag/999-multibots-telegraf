@@ -171,17 +171,29 @@ export async function generateTextToVideo(
   })
 
   try {
-    // Проверяем, является ли это Kie.ai моделью (Veo или Sora)
-    const isKieAiModel = ['veo3', 'veo3_fast', 'runway-aleph', 'sora-2', 'sora-2-pro'].includes(videoModel)
+    // Проверяем, является ли это Kie.ai моделью (Veo, Sora, WAN 2.5)
+    const isKieAiModel = [
+      'veo3',
+      'veo3_fast',
+      'runway-aleph',
+      'sora-2',
+      'sora-2-pro',
+      'wan-2.5-t2v',
+      'wan-2.5-i2v',
+    ].includes(videoModel)
     const isSoraModel = ['sora-2', 'sora-2-pro'].includes(videoModel)
+    const isWanModel = ['wan-2.5-t2v', 'wan-2.5-i2v'].includes(videoModel)
 
     if (isKieAiModel) {
       // Для Kie.ai моделей используем прямую интеграцию
       logger.info('[KIE.AI] Using Kie.ai directly', {
         videoModel,
         isSoraModel,
+        isWanModel,
         reason: isSoraModel
           ? 'Sora models use Kie.ai Sora API'
+          : isWanModel
+          ? 'WAN 2.5 models use Kie.ai API'
           : 'Veo models are not available on Replicate'
       })
 
@@ -231,24 +243,25 @@ export async function generateTextToVideo(
           error: soraResponse.error || 'Failed to generate Sora video',
         }
       } else {
-        // Для Veo моделей используем обычный generateVideo
+        // Для Veo и WAN моделей используем обычный generateVideo
         const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
+        const logPrefix = isWanModel ? '[WAN 2.5]' : '[VEO]'
 
-        logger.info('[VEO] Calling Veo 3 generateVideo with params:', {
+        logger.info(`${logPrefix} Calling Kie.ai generateVideo with params:`, {
           model: videoModel,
           promptLength: prompt.length,
-          duration: duration || 8,
+          duration: duration || 5,
           aspectRatio: kieAspectRatio || '9:16'
         })
 
         const kieResponse = await kieProvider.generateVideo({
           model: videoModel,
           prompt,
-          duration: duration || 8,
+          duration: duration || 5,
           aspectRatio: kieAspectRatio || '9:16',
         })
 
-        logger.info('[VEO] API response received:', {
+        logger.info(`${logPrefix} API response received:`, {
           success: kieResponse.success,
           hasData: !!kieResponse.data,
           hasVideoUrl: !!kieResponse.data?.videoUrl,
