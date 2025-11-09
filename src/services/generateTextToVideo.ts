@@ -178,10 +178,12 @@ export async function generateTextToVideo(
       'runway-aleph',
       'sora-2',
       'sora-2-pro',
+      'sora-2-i2v',      // ✅ ADDED: Sora 2 Image-to-Video
+      'sora-2-pro-i2v',  // ✅ ADDED: Sora 2 Pro Image-to-Video
       'wan-2.5-t2v',
       'wan-2.5-i2v',
     ].includes(videoModel)
-    const isSoraModel = ['sora-2', 'sora-2-pro'].includes(videoModel)
+    const isSoraModel = ['sora-2', 'sora-2-pro', 'sora-2-i2v', 'sora-2-pro-i2v'].includes(videoModel)
     const isWanModel = ['wan-2.5-t2v', 'wan-2.5-i2v'].includes(videoModel)
 
     if (isKieAiModel) {
