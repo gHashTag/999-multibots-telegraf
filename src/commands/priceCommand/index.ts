@@ -36,7 +36,7 @@ export const handlePriceCommand = async (ctx: MyContext) => {
 
     // Расчет диапазона цен для Текст-в-Видео
     const textToVideoModelKeys = Object.keys(VIDEO_MODELS_CONFIG).filter(key =>
-      VIDEO_MODELS_CONFIG[key].inputType.includes('text')
+      VIDEO_MODELS_CONFIG[key].inputTypes.includes('text')
     )
     const textToVideoCosts = textToVideoModelKeys.map(key =>
       calculateVideoFinalPrice(key)
@@ -48,7 +48,7 @@ export const handlePriceCommand = async (ctx: MyContext) => {
 
     // Расчет диапазона цен для Изображение-в-Видео
     const imageToVideoModelKeys = Object.keys(VIDEO_MODELS_CONFIG).filter(key =>
-      VIDEO_MODELS_CONFIG[key].inputType.includes('image')
+      VIDEO_MODELS_CONFIG[key].inputTypes.includes('image')
     )
     const imageToVideoCosts = imageToVideoModelKeys.map(key =>
       calculateVideoFinalPrice(key)

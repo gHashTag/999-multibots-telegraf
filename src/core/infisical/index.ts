@@ -14,7 +14,8 @@
  * Документация: https://infisical.com/docs/sdks/node
  */
 
-import { InfisicalClient, LogLevel } from '@infisical/sdk'
+// Правильный импорт для Infisical SDK v4
+import { InfisicalSDK } from '@infisical/sdk'
 import { logger } from '@/utils/logger'
 
 // Интерфейс для секретов
@@ -23,7 +24,7 @@ export interface SecretCache {
 }
 
 // Singleton instance клиента
-let infisicalClient: InfisicalClient | null = null
+let infisicalClient: InfisicalSDK | null = null
 let isAuthenticated = false
 let secretCache: SecretCache = {}
 
@@ -57,9 +58,8 @@ export async function initInfisical(): Promise<void> {
   }
 
   try {
-    // Создаем клиент
-    infisicalClient = new InfisicalClient({
-      logLevel: isDev ? LogLevel.Info : LogLevel.Error,
+    // Создаем клиент Infisical SDK
+    infisicalClient = new InfisicalSDK({
       siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
     })
 
@@ -83,13 +83,18 @@ export async function initInfisical(): Promise<void> {
       siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
     })
   } catch (error) {
-    const err = new Error('❌ CRITICAL: Infisical authentication failed! Application cannot start.')
-    logger.error('[Infisical] Authentication error:', {
+    logger.error('[Infisical] ❌ Authentication failed:', {
       error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
       projectId,
       environment,
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
+      clientIdLength: clientId.length,
+      clientSecretLength: clientSecret.length,
+      siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
     })
+
+    const err = new Error(`❌ CRITICAL: Infisical authentication failed! ${error instanceof Error ? error.message : String(error)}`)
     throw err
   }
 }
@@ -108,21 +113,21 @@ async function loadAllSecrets(): Promise<void> {
   try {
     logger.info('[Infisical] 📥 Loading all secrets from cloud...')
 
-    // Получаем ВСЕ секреты из root path
-    const secrets = await infisicalClient.secrets().list({
+    // Получаем ВСЕ секреты из root path (правильный метод для SDK v4)
+    const result = await infisicalClient.secrets().listSecrets({
       projectId,
       environment,
-      path: '/'
+      secretPath: '/'
     })
 
     // Сохраняем в кэш
     secretCache = {}
-    for (const secret of secrets) {
+    for (const secret of result.secrets) {
       secretCache[secret.secretKey] = secret.secretValue
     }
 
     logger.info('[Infisical] ✅ All secrets loaded into memory', {
-      count: secrets.length,
+      count: result.secrets.length,
       keys: Object.keys(secretCache).slice(0, 10).join(', ') + '...'
     })
   } catch (error) {
