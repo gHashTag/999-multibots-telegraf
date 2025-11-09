@@ -387,7 +387,8 @@ async function startApplication() {
         'OPENROUTER_API_KEY',
         'REPLICATE_API_TOKEN',
         'APIFY_TOKEN',
-        'GITHUB_TOKEN'
+        'GITHUB_TOKEN',
+        'BASE_WEBHOOK_URL'  // ✅ Для callback уведомлений от Kie.ai
       ]
 
       for (const key of apiKeys) {
