@@ -174,7 +174,34 @@ async function handleCompletedRender(
   payload: AIReelsCallbackPayload
 ) {
   // Определяем правильного бота в начале функции
-  const botName = payload.bot_name || payload.metadata?.bot_name
+  let botName = payload.bot_name || payload.metadata?.bot_name
+
+  // ✅ FIX: Если bot_name нет в payload, ищем бота по владельцу (telegramId)
+  if (!botName) {
+    // Hardcoded маппинг известных владельцев → боты
+    const OWNER_TO_BOT: Record<string, string> = {
+      '7669741878': 'HaimGroupMedia_bot',
+      '144022504': 'neuro_blogger_bot',
+      '1254048880': 'MetaMuse_Manifest_bot',
+      '352374518': 'ZavaraBot',
+      '1852726961': 'LeeSolarbot',
+      // Добавляй сюда других по мере необходимости
+    }
+
+    botName = OWNER_TO_BOT[telegramId]
+
+    if (botName) {
+      logger.info('✅ [AI REELS CALLBACK] Found bot by owner telegramId', {
+        telegramId,
+        botName
+      })
+    } else {
+      logger.warn('⚠️ [AI REELS CALLBACK] No bot mapping for owner', {
+        telegramId
+      })
+    }
+  }
+
   const { bot, error } = botName
     ? getBotByName(botName)
     : { bot: defaultBot, error: null }
