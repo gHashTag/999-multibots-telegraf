@@ -380,6 +380,31 @@ async function startApplication() {
       console.error('  ❌ Критическая ошибка: Supabase credentials не найдены!')
     }
 
+    // API ключи для сервисов генерации
+    try {
+      const apiKeys = [
+        'KIE_AI_API_KEY',
+        'OPENROUTER_API_KEY',
+        'REPLICATE_API_TOKEN',
+        'APIFY_TOKEN',
+        'GITHUB_TOKEN'
+      ]
+
+      for (const key of apiKeys) {
+        try {
+          const value = getSecret(key)
+          if (value) {
+            process.env[key] = value
+            console.log(`  ✅ ${key} загружен`)
+          }
+        } catch (e) {
+          console.warn(`  ⚠️ ${key} не найден в Infisical (опционально)`)
+        }
+      }
+    } catch (e) {
+      console.warn('  ⚠️ Некоторые API ключи не загружены')
+    }
+
     console.log(`✅ [Infisical] Секреты скопированы в process.env для окружения: ${stats.environment}`)
 
     // Теперь запускаем боты - секреты уже в памяти
