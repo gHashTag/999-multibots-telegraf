@@ -19,7 +19,20 @@ const getMorphingModels = () => getModelsByInputType('morph')
 const getDefaultMorphingModel = () => {
   const models = getMorphingModels()
   // Ищем kling-v2.1-pro как приоритетную модель
-  return models.find(m => m.id === 'kling-v2.1-pro') || models[0]
+  const defaultModel = models.find(m => m.id === 'kling-v2.1-pro') || models[0]
+
+  // ✅ ЗАЩИТА: Если нет активных morph моделей, используем fallback
+  if (!defaultModel) {
+    logger.warn('[getDefaultMorphingModel] No active morph models found, using fallback image model')
+    const imageModels = getModelsByInputType('image')
+    const fallback = imageModels.find(m => m.id === 'kling-v2.1-pro') || imageModels[0]
+    if (!fallback) {
+      throw new Error('❌ No video models available. Please contact support.')
+    }
+    return fallback
+  }
+
+  return defaultModel
 }
 
 // ✅ ПРЕСЕТЫ ПРОМПТОВ ДЛЯ ПЕРЕХОДОВ (основано на исследовании best practices 2025)
