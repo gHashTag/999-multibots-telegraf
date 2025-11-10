@@ -20,7 +20,6 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import {
   sendRenderAvatarVideoEvent,
-  checkRenderServerAvailability,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
@@ -49,17 +48,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Проверяем доступность render-server
-    const isAvailable = await checkRenderServerAvailability()
-
-    if (!isAvailable) {
-      await ctx.reply(
-        isRu
-          ? '❌ Render-server временно недоступен. Попробуйте позже.'
-          : '❌ Render-server temporarily unavailable. Try later.'
-      )
-      return ctx.scene.leave()
-    }
+    // ✅ УБРАЛИ ПРОВЕРКУ: render-server имеет очередь, поэтому отправляем запрос всегда
+    // Сервер сам управляет очередью и обработает запрос когда станет доступным
 
     // Инициализируем сессию
     ctx.session.aiReelsRender = {
