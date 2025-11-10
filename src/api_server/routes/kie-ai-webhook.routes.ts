@@ -145,8 +145,8 @@ function detectVideoProvider(payload: any): string {
     return 'replicate'
   }
 
-  // Railway AI Reels
-  if (payload.videoUrl && payload.status === 'completed') {
+  // Railway AI Reels - проверяем renderTaskId как основной индикатор
+  if (payload.renderTaskId || (payload.videoUrl && payload.status === 'completed')) {
     return 'railway-ai-reels'
   }
 

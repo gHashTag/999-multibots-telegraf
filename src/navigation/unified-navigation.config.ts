@@ -446,6 +446,36 @@ export function getParsingAccess(
 // ========================================
 
 export const MAIN_MENU_BUTTONS = NAVIGATION_BUTTONS // Алиас
-export const mainMenu = createMainMenuKeyboard // Алиас для старого кода
 export const simpleLevels = NAVIGATION_BUTTONS // Алиас
 export const simpleMainMenu = NAVIGATION_BUTTONS // Алиас
+
+/**
+ * 🔧 WRAPPER для обратной совместимости с двумя сигнатурами:
+ * 1. Старая: mainMenu({ isRu, subscription, ctx })
+ * 2. Новая: mainMenu(ctx)
+ */
+export function mainMenu(
+  ctxOrOptions: MyContext | { isRu?: boolean; subscription?: any; ctx: MyContext }
+) {
+  // Определяем, какую сигнатуру использовали
+  let ctx: MyContext
+
+  if ('ctx' in ctxOrOptions) {
+    // Старая сигнатура: { isRu, subscription, ctx }
+    ctx = ctxOrOptions.ctx
+    console.log('🔄 [mainMenu WRAPPER] Old signature detected, extracting ctx:', {
+      telegramId: ctx.from?.id,
+      hasIsRu: 'isRu' in ctxOrOptions,
+      hasSubscription: 'subscription' in ctxOrOptions
+    })
+  } else {
+    // Новая сигнатура: ctx напрямую
+    ctx = ctxOrOptions
+    console.log('✅ [mainMenu WRAPPER] New signature detected, using ctx directly:', {
+      telegramId: ctx.from?.id
+    })
+  }
+
+  // Вызываем новую функцию с правильным ctx
+  return createMainMenuKeyboard(ctx)
+}
