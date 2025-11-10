@@ -137,8 +137,16 @@ router.post('/video-callback', async (req: any, res: any) => {
 function detectVideoProvider(payload: any): string {
   // Kie.ai обычно имеет data.taskId или taskId
   if (payload.taskId || payload.data?.taskId) {
-    // Определяем тип Kie.ai модели по структуре
-    if (payload.data?.state === 'success' || payload.successFlag !== undefined) {
+    // Sora имеет data.state и data.resultJson
+    if (payload.data?.state && payload.data?.resultJson) {
+      return 'kie-sora'
+    }
+    // WAN/Veed имеет successFlag и resultUrl на верхнем уровне
+    if (payload.successFlag !== undefined && payload.resultUrl) {
+      return 'kie-wan'
+    }
+    // Fallback: если есть data.state - это Sora
+    if (payload.data?.state) {
       return 'kie-sora'
     }
     return 'kie-wan'
