@@ -10,12 +10,15 @@ import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
 import diagnosticRouter from './routes/diagnostic.routes'
 import { Telegraf } from 'telegraf'
+import { serve } from 'inngest/express'
+import { inngest } from '../inngest_app/client'
+import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 
 // Определяем порт. Берем из process.env.API_PORT, если есть, иначе 8080 (свободный порт).
 const PORT = process.env.API_PORT || '8080'
 
-export async function startApiServer(bot?: Telegraf): Promise<void> {
+export function startApiServer(bot?: Telegraf): void {
   // Если bot instance передан, инициализируем его в webhook router
   if (bot) {
     setBotInstance(bot)
@@ -84,40 +87,9 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
-  // ✅ Интеграция Inngest с API (LAZY LOAD для избежания крашей при импорте)
-  try {
-    logger.info('🚀 [INNGEST] Starting Vibee registration (lazy load)...')
-
-    // Динамически импортируем Inngest модули только когда они нужны
-    const { serve } = await import('inngest/express')
-    const { inngest } = await import('../inngest_app/client')
-    const { allInngestFunctions } = await import('../inngest_app/registerFunctions')
-
-    logger.info('🚀 [INNGEST] Modules loaded successfully', {
-      hasInngest: !!inngest,
-      hasFunctions: !!allInngestFunctions,
-      functionsCount: allInngestFunctions.length,
-      isArray: Array.isArray(allInngestFunctions)
-    })
-
-    logger.info('🚀 [INNGEST] Registering Vibee functions', {
-      count: allInngestFunctions.length,
-      functions: allInngestFunctions.map((f: any) => f?.name || f?.id || 'unnamed'),
-    })
-
-    const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
-    app.use('/api/inngest', inngestHandler)
-
-    logger.info('✅ [API SERVER] Inngest (Vibee) initialized at /api/inngest', {
-      functionsCount: allInngestFunctions.length,
-      endpoint: '/api/inngest'
-    })
-  } catch (error) {
-    logger.error('❌ [API SERVER] Failed to initialize Inngest', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    })
-  }
+  // ✅ Интеграция Inngest с API (актуальная сигнатура serve из reels-callback-2)
+  const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
+  app.use('/api/inngest', inngestHandler)
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
   app.listen(PORT, '0.0.0.0', () => {
