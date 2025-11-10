@@ -272,16 +272,28 @@ export async function getTranslation({
               10: SubscriptionType.NEUROVIDEO,
             }
 
-            const textValue = language_code === 'ru' ? level.title_ru : level.title_en
-
             // 🐛 DEBUG: Log first 3 buttons to see what's happening
             if (parseInt(key) <= 3) {
-              logger.info(`[getTranslation DEBUG] Button ${key}:`, {
+              logger.info(`[getTranslation DEBUG] Button ${key} BEFORE selection:`, {
                 language_code,
+                language_code_type: typeof language_code,
+                language_code_length: language_code?.length,
+                language_code_charCodes: language_code?.split('').map((c: string) => c.charCodeAt(0)),
                 title_ru: level.title_ru,
                 title_en: level.title_en,
+                comparison_result: language_code === 'ru',
+                strict_equals_ru: language_code === 'ru',
+                loose_equals_ru: language_code == 'ru',
+              })
+            }
+
+            const textValue = language_code === 'ru' ? level.title_ru : level.title_en
+
+            // 🐛 DEBUG: Log selected value
+            if (parseInt(key) <= 3) {
+              logger.info(`[getTranslation DEBUG] Button ${key} AFTER selection:`, {
                 selected_text: textValue,
-                is_ru: language_code === 'ru'
+                selected_from: language_code === 'ru' ? 'title_ru' : 'title_en'
               })
             }
 
