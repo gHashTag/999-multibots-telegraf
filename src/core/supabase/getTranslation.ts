@@ -272,9 +272,22 @@ export async function getTranslation({
               10: SubscriptionType.NEUROVIDEO,
             }
 
+            const textValue = language_code === 'ru' ? level.title_ru : level.title_en
+
+            // 🐛 DEBUG: Log first 3 buttons to see what's happening
+            if (parseInt(key) <= 3) {
+              logger.info(`[getTranslation DEBUG] Button ${key}:`, {
+                language_code,
+                title_ru: level.title_ru,
+                title_en: level.title_en,
+                selected_text: textValue,
+                is_ru: language_code === 'ru'
+              })
+            }
+
             return {
               row: parseInt(key) > 100 ? 2 : 1, // Admin buttons on second row
-              text: language_code === 'ru' ? level.title_ru : level.title_en,
+              text: textValue,
               // No callback_data - buttons will be handled by text in УДАЛЁН/hearsHandlers
               subscription: subscriptionMap[parseInt(key)] || SubscriptionType.NEUROPHOTO,
               stars_price: 476,
