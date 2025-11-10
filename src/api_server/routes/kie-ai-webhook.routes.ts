@@ -103,21 +103,63 @@ async function sendVideoDirectly(
 
     const chatId = parseInt(telegramId)
 
+    // ✅ Проверяем размер файла через HEAD запрос
+    let fileSize = 0
+    try {
+      const headResponse = await fetch(videoUrl, { method: 'HEAD' })
+      const contentLength = headResponse.headers.get('content-length')
+      if (contentLength) {
+        fileSize = parseInt(contentLength)
+        logger.info('📏 [SEND VIDEO DIRECTLY] File size detected', {
+          fileSize,
+          fileSizeMB: (fileSize / 1024 / 1024).toFixed(2),
+          isLargeFile: fileSize > 50 * 1024 * 1024
+        })
+      }
+    } catch (error) {
+      logger.warn('⚠️ [SEND VIDEO DIRECTLY] Could not get file size, will try to send as video', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    const MAX_TELEGRAM_VIDEO_SIZE = 50 * 1024 * 1024 // 50 MB
+
     logger.info('🎬 [SEND VIDEO DIRECTLY] Sending video to user', {
       telegramId,
       chatId,
       videoUrl: videoUrl.substring(0, 100),
-      botUsername: botInstance.botInfo?.username
+      botUsername: botInstance.botInfo?.username,
+      fileSize,
+      willSendAsLink: fileSize > MAX_TELEGRAM_VIDEO_SIZE
     })
 
-    // Отправляем видео пользователю
-    await botInstance.telegram.sendVideo(
-      chatId,
-      videoUrl,
-      {
-        caption: `✅ Видео готово!\n\n🎬 Job ID: ${metadata.jobId || 'N/A'}\n⏱ Длительность: ${metadata.duration || 'N/A'} сек`,
-      }
-    )
+    // ✅ Если файл > 50 MB - отправляем ссылку, иначе - видео
+    if (fileSize > MAX_TELEGRAM_VIDEO_SIZE) {
+      logger.info('📎 [SEND VIDEO DIRECTLY] File too large, sending as link', {
+        fileSizeMB: (fileSize / 1024 / 1024).toFixed(2)
+      })
+
+      await botInstance.telegram.sendMessage(
+        chatId,
+        `✅ Видео готово!\n\n` +
+        `⚠️ Файл слишком большой (${(fileSize / 1024 / 1024).toFixed(1)} MB), отправляю ссылку:\n\n` +
+        `🔗 ${videoUrl}\n\n` +
+        `🎬 Job ID: ${metadata.jobId || 'N/A'}\n` +
+        `⏱ Длительность: ${metadata.duration || 'N/A'} сек`,
+        {
+          disable_web_page_preview: false
+        }
+      )
+    } else {
+      // Отправляем видео пользователю
+      await botInstance.telegram.sendVideo(
+        chatId,
+        videoUrl,
+        {
+          caption: `✅ Видео готово!\n\n🎬 Job ID: ${metadata.jobId || 'N/A'}\n⏱ Длительность: ${metadata.duration || 'N/A'} сек`,
+        }
+      )
+    }
 
     logger.info('✅ [SEND VIDEO DIRECTLY] Video sent successfully', {
       telegramId,
