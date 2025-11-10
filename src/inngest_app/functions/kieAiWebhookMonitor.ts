@@ -167,11 +167,19 @@ ${data.staleTasks.length > 5 ? `\n... и еще ${data.staleTasks.length - 5} з
   const adminId = ADMIN_IDS_ARRAY[0]
   if (adminId) {
     try {
-      // TODO: Нужен bot instance для отправки
-      // Пока просто логируем
-      logger.warn('[KieAiWebhookMonitor] Admin notification (logged only)', { message, adminId })
+      // Отправляем через Inngest event (bot instance будет доступен в webhook handler)
+      const { inngest } = await import('../client')
+      await inngest.send({
+        name: 'telegram/send-admin-notification',
+        data: {
+          adminId,
+          message,
+          priority: 'warning'
+        }
+      })
+      logger.info('[KieAiWebhookMonitor] Admin notification event sent', { adminId })
     } catch (error) {
-      logger.error('[KieAiWebhookMonitor] Failed to notify admin', { error })
+      logger.error('[KieAiWebhookMonitor] Failed to send admin notification event', { error })
     }
   }
 }

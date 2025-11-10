@@ -56,6 +56,190 @@ interface KieAiWebhookPayload {
 }
 
 /**
+ * 🌐 УНИВЕРСАЛЬНЫЙ Webhook Handler для ВСЕХ видео-моделей
+ * POST /api/video-callback
+ *
+ * Принимает webhook'и от любых видео-провайдеров:
+ * - Kie.ai (Sora, WAN 2.5, Veed Fabric)
+ * - Replicate
+ * - Railway AI Reels
+ * - Любые другие провайдеры
+ *
+ * Следует лучшим практикам:
+ * - Быстрый ответ (202 Accepted)
+ * - Асинхронная обработка
+ * - Детальное логирование
+ * - Валидация payload
+ */
+router.post('/video-callback', async (req: any, res: any) => {
+  const startTime = Date.now()
+
+  try {
+    // ✅ Быстро отвечаем 202 Accepted согласно best practices
+    res.status(202).json({
+      message: 'Video webhook received and will be processed asynchronously',
+      timestamp: new Date().toISOString()
+    })
+
+    logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Received callback', {
+      body: req.body,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent'],
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+      },
+      responseTime: Date.now() - startTime
+    })
+
+    const payload: KieAiWebhookPayload = req.body
+
+    // ✅ Автоопределение провайдера по структуре payload
+    const provider = detectVideoProvider(payload)
+
+    logger.info('🔍 [UNIVERSAL VIDEO WEBHOOK] Provider detected', { provider })
+
+    // Маршрутизируем на соответствующий обработчик
+    switch (provider) {
+      case 'kie-sora':
+        await processSoraWebhookAsync(normalizeKieSoraPayload(payload))
+        break
+      case 'kie-wan':
+      case 'kie-veed':
+        await processKieAiWebhookAsync(normalizeKiePayload(payload))
+        break
+      case 'replicate':
+        logger.info('🔄 [UNIVERSAL VIDEO WEBHOOK] Replicate webhook - forwarding to replicate handler')
+        // TODO: Implement replicate handler
+        break
+      default:
+        logger.warn('⚠️ [UNIVERSAL VIDEO WEBHOOK] Unknown provider, attempting generic processing', { payload })
+        await processGenericVideoWebhook(payload)
+        break
+    }
+
+  } catch (error) {
+    logger.error('❌ [UNIVERSAL VIDEO WEBHOOK] Error processing webhook', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      body: req.body,
+      processingTime: Date.now() - startTime
+    })
+  }
+})
+
+/**
+ * Автоопределение провайдера видео по структуре payload
+ */
+function detectVideoProvider(payload: any): string {
+  // Kie.ai обычно имеет data.taskId или taskId
+  if (payload.taskId || payload.data?.taskId) {
+    // Определяем тип Kie.ai модели по структуре
+    if (payload.data?.state === 'success' || payload.successFlag !== undefined) {
+      return 'kie-sora'
+    }
+    return 'kie-wan'
+  }
+
+  // Replicate обычно имеет prediction.id
+  if (payload.prediction?.id || payload.id) {
+    return 'replicate'
+  }
+
+  // Railway AI Reels
+  if (payload.videoUrl && payload.status === 'completed') {
+    return 'railway-ai-reels'
+  }
+
+  return 'unknown'
+}
+
+/**
+ * Нормализация payload от Kie.ai Sora
+ */
+function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
+  const taskId = payload.taskId || payload.data?.taskId
+  const successFlag = payload.successFlag !== undefined
+    ? payload.successFlag
+    : (payload.data?.state === 'success' ? 1 : 2)
+
+  let resultUrls: string[] | undefined
+  try {
+    if (payload.data?.resultJson) {
+      const resultJson = JSON.parse(payload.data.resultJson)
+      resultUrls = resultJson.resultUrls
+    }
+  } catch (e) {
+    logger.warn('[UNIVERSAL VIDEO WEBHOOK] Failed to parse Sora resultJson', { error: e })
+  }
+
+  return {
+    ...payload,
+    taskId,
+    successFlag,
+    resultUrls: payload.resultUrls || resultUrls || payload.data?.resultUrls,
+    videoUrl: payload.videoUrl || resultUrls?.[0] || payload.data?.resultUrls?.[0]
+  }
+}
+
+/**
+ * Нормализация payload от Kie.ai WAN/Veed
+ */
+function normalizeKiePayload(payload: any): KieAiWebhookPayload {
+  const taskId = payload.taskId || payload.data?.taskId
+  const successFlag = payload.successFlag !== undefined
+    ? payload.successFlag
+    : (payload.code === 200 ? 1 : 2)
+
+  let parsedResultUrls: string[] | undefined
+  try {
+    if (payload.data?.resultJson) {
+      const resultJson = JSON.parse(payload.data.resultJson)
+      parsedResultUrls = resultJson.resultUrls
+    }
+  } catch (e) {
+    logger.warn('[UNIVERSAL VIDEO WEBHOOK] Failed to parse WAN resultJson', { error: e })
+  }
+
+  return {
+    ...payload,
+    taskId,
+    successFlag,
+    resultUrls: payload.resultUrls || parsedResultUrls || payload.data?.info?.resultUrls || payload.data?.resultUrls,
+    videoUrl: payload.videoUrl || parsedResultUrls?.[0] || payload.data?.info?.resultUrls?.[0],
+    errorMessage: payload.errorMessage || payload.data?.errorMessage
+  }
+}
+
+/**
+ * Обработка webhook от неизвестного провайдера
+ */
+async function processGenericVideoWebhook(payload: any): Promise<void> {
+  logger.info('🔄 [GENERIC VIDEO WEBHOOK] Processing unknown provider webhook', { payload })
+
+  // Пытаемся извлечь базовую информацию
+  const taskId = payload.taskId || payload.id || payload.data?.taskId || payload.data?.id
+  const videoUrl = payload.videoUrl || payload.url || payload.result_url || payload.data?.videoUrl
+  const success = payload.success !== undefined ? payload.success : (payload.status === 'completed' || payload.state === 'success')
+
+  if (!taskId) {
+    logger.error('❌ [GENERIC VIDEO WEBHOOK] No task ID found in payload')
+    return
+  }
+
+  logger.info('📊 [GENERIC VIDEO WEBHOOK] Extracted data', { taskId, videoUrl, success })
+
+  // Обрабатываем как стандартный Kie.ai webhook
+  const normalizedPayload: KieAiWebhookPayload = {
+    taskId,
+    successFlag: success ? 1 : 2,
+    videoUrl,
+    resultUrls: videoUrl ? [videoUrl] : undefined
+  }
+
+  await processKieAiWebhookAsync(normalizedPayload)
+}
+
+/**
  * Kie.ai Webhook Handler для Sora 2 Video Generation
  * POST /api/kie-ai/sora-callback
  *

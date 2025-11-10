@@ -2,8 +2,8 @@ import { Inngest } from 'inngest'
 
 // Определяем конфигурацию для логирования
 const config = {
-  name: 'telegram-bot-client',
-  id: 'telegram-bot-client',
+  name: 'Vibee',
+  id: 'vibee-bot-client',
   // Подключение к нашему Inngest Dev Server
   // ✅ ИСПРАВЛЕНО: Используем только наш домен для Inngest
   baseUrl:
