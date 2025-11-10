@@ -10,6 +10,7 @@
  */
 
 import { logger } from '@/utils/logger'
+import { PRIMARY_FALLBACK_VOICE_ID, DEFAULT_VOICE_IDS } from '@/config'
 import { inngestProvider } from './inngest-provider'
 import { createHmac } from 'crypto'
 
@@ -192,6 +193,31 @@ export async function sendDirectToRenderServer(
 }
 
 /**
+ * Валидирует voice_id и возвращает fallback если невалидный
+ */
+function validateVoiceId(voiceId: string): string {
+  // Проверяем, что voice_id не пустой и соответствует формату ElevenLabs (обычно 20 символов)
+  if (!voiceId || voiceId.length < 10) {
+    logger.warn('[RENDER CLIENT] Invalid voice_id (too short), using fallback', {
+      invalidVoiceId: voiceId,
+      fallbackVoiceId: PRIMARY_FALLBACK_VOICE_ID
+    })
+    return PRIMARY_FALLBACK_VOICE_ID
+  }
+
+  // Проверяем, что это валидный формат (буквы и цифры)
+  if (!/^[a-zA-Z0-9]+$/.test(voiceId)) {
+    logger.warn('[RENDER CLIENT] Voice_id contains invalid characters, using fallback', {
+      invalidVoiceId: voiceId,
+      fallbackVoiceId: PRIMARY_FALLBACK_VOICE_ID
+    })
+    return PRIMARY_FALLBACK_VOICE_ID
+  }
+
+  return voiceId
+}
+
+/**
  * Создает payload для render-riddle из параметров бота
  * Поддерживает HeyGen и Hedra провайдеры
  *
@@ -225,6 +251,9 @@ export function createRenderAvatarPayload(
     heygenAvatarSet?: string
   }
 ): RenderRiddlePayload {
+  // ✅ Валидируем voice_id и используем fallback если невалидный
+  const validatedVoiceId = validateVoiceId(voiceId)
+
   const isHeygen = options?.avatarService === 'heygen'
   const isFal = options?.avatarService === 'fal'
 
@@ -277,7 +306,7 @@ export function createRenderAvatarPayload(
         ? {
             api_key: heygenApiKey, // Используем выбранный токен
             avatar_id: options?.heygenAvatarId || '',
-            voice_id: voiceId,
+            voice_id: validatedVoiceId,
             avatar_speech: text,
           }
         : null,
@@ -286,7 +315,7 @@ export function createRenderAvatarPayload(
             api_key: process.env.HEDRA_API_KEY || '',
             avatar_photo_url: avatarPhotoUrl,
             avatar_id: `avatar-${telegramId}-${Date.now()}`,
-            voice_id: voiceId,
+            voice_id: validatedVoiceId,
             avatar_speech: text,
           }
         : null,
@@ -294,7 +323,7 @@ export function createRenderAvatarPayload(
         ? {
             api_key: options?.falApiKey || process.env.FAL_API_KEY || '',
             avatar_photo_url: avatarPhotoUrl,
-            voice_id: voiceId,
+            voice_id: validatedVoiceId,
             avatar_speech: text,
             resolution: options?.falResolution || '720p',
           }
