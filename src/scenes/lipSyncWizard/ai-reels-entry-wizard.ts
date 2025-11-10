@@ -178,10 +178,67 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
     logger.info('🎯 [AI REELS ENTRY] PROCESSING CALLBACK - choice extracted', {
       telegramId,
       choice,
+      choiceType: typeof choice,
+      choiceLength: choice?.length,
     })
 
     await ctx.answerCbQuery()
 
+    // ✅ ОБРАБОТКА ВЫБОРА СЕРВИСА (service_hedra_render, service_heygen_render, service_fal_render)
+    console.log('🔍 [AI REELS ENTRY] Checking service callbacks:', {
+      choice,
+      isHedra: choice === 'service_hedra_render',
+      isHeyGen: choice === 'service_heygen_render',
+      isFal: choice === 'service_fal_render',
+      isCancel: choice === 'ai_reels_cancel',
+    })
+
+    if (choice === 'service_hedra_render') {
+      logger.info('🎭 [AI REELS ENTRY] Routing to Hedra wizard', { telegramId })
+
+      // Очищаем сессию перед переходом
+      delete ctx.session.aiReelsRender
+      delete (ctx.session as any).__scenes
+
+      await ctx.scene.enter('hedra_render_wizard')
+      return
+    } else if (choice === 'service_heygen_render') {
+      logger.info('🎬 [AI REELS ENTRY] Routing to HeyGen wizard', { telegramId })
+
+      // Очищаем сессию перед переходом
+      delete ctx.session.aiReelsRender
+      delete (ctx.session as any).__scenes
+
+      await ctx.scene.enter('heygen_render_wizard')
+      return
+    } else if (choice === 'service_fal_render') {
+      console.log('🎯🎯🎯 [AI REELS ENTRY] FAL CONDITION HIT!')
+      logger.info('🎯 [AI REELS ENTRY] Routing to Fal wizard', { telegramId })
+
+      console.log('🎯 [AI REELS ENTRY] About to delete session...')
+      // Очищаем сессию перед переходом
+      delete ctx.session.aiReelsRender
+      delete (ctx.session as any).__scenes
+
+      console.log('🎯 [AI REELS ENTRY] About to enter fal_render_wizard scene...')
+      try {
+        await ctx.scene.enter('fal_render_wizard')
+        console.log('🎯 [AI REELS ENTRY] Scene entered successfully!')
+      } catch (error) {
+        console.error('❌ [AI REELS ENTRY] Error entering fal_render_wizard:', error)
+        logger.error('[AI REELS ENTRY] Error entering fal_render_wizard', { error })
+      }
+      return
+    } else if (choice === 'ai_reels_cancel') {
+      await ctx.reply(
+        isRu
+          ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+          : '❌ Process cancelled. Returning to main menu.'
+      )
+      return ctx.scene.leave()
+    }
+
+    // ✅ ОБРАБОТКА ВЫБОРА ШАБЛОНА (ai_reels_template_wan25, ai_reels_template_inngest)
     if (choice === 'ai_reels_template_wan25') {
       // Шаблон 1
       await ctx.editMessageText(
@@ -238,85 +295,10 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      return ctx.wizard.next() // Переход к Step 2 для обработки выбора сервиса
+      // ✅ НЕ ПЕРЕХОДИМ к Step 2, остаемся на Step 1 для обработки следующего callback
+      return // Ждем callback с выбором сервиса
     } else {
       // Неизвестный выбор
-      await ctx.reply(
-        isRu
-          ? '❌ Неизвестная опция. Попробуйте еще раз.'
-          : '❌ Unknown option. Try again.'
-      )
-      return ctx.scene.leave()
-    }
-
-    // Если не callback query, ждем
-    await ctx.reply(
-      isRu
-        ? '❌ Пожалуйста, выберите метод генерации из кнопок выше.'
-        : '❌ Please select generation method from buttons above.'
-    )
-    return ctx.scene.leave()
-  },
-
-  // Step 2: Обработка выбора сервиса (Hedra/HeyGen/Fal)
-  async ctx => {
-    const isRu = isRussianFromState(ctx)
-    const telegramId = ctx.from?.id?.toString()
-
-    logger.info('🎬 [AI REELS ENTRY] Step 2 - Service selection processing', {
-      telegramId,
-      hasCallbackQuery: 'callback_query' in ctx.update,
-    })
-
-    if (!telegramId) {
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка: не удалось определить ваш ID'
-          : '❌ Error: could not determine your ID'
-      )
-      return ctx.scene.leave()
-    }
-
-    // Обрабатываем только callback_query
-    if (!('callback_query' in ctx.update)) {
-      // ⚠️ ВАЖНО: Игнорируем сообщения после перехода в другой wizard
-      // Проверяем, что мы все еще в entry wizard
-      logger.warn('🎬 [AI REELS ENTRY] Step 2 - Not a callback, ignoring', {
-        telegramId,
-        updateType: ctx.updateType,
-      })
-      return // Просто игнорируем, не показываем ошибку
-    }
-
-    const serviceChoice =
-      'data' in ctx.update.callback_query ? ctx.update.callback_query.data : ''
-
-    await ctx.answerCbQuery()
-
-    // ✅ ВАЖНО: Очищаем сессию wizard'а чтобы начать с Step 0
-    delete ctx.session.aiReelsRender
-    delete (ctx.session as any).__scenes
-
-    if (serviceChoice === 'service_hedra_render') {
-      logger.info('🎭 [AI REELS ENTRY] Routing to Hedra wizard', { telegramId })
-      await ctx.scene.enter('hedra_render_wizard')
-      return
-    } else if (serviceChoice === 'service_heygen_render') {
-      logger.info('🎬 [AI REELS ENTRY] Routing to HeyGen wizard', { telegramId })
-      await ctx.scene.enter('heygen_render_wizard')
-      return
-    } else if (serviceChoice === 'service_fal_render') {
-      logger.info('🎯 [AI REELS ENTRY] Routing to Fal wizard', { telegramId })
-      await ctx.scene.enter('fal_render_wizard')
-      return
-    } else if (serviceChoice === 'ai_reels_cancel') {
-      await ctx.reply(
-        isRu
-          ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
-          : '❌ Process cancelled. Returning to main menu.'
-      )
-      return ctx.scene.leave()
-    } else {
       await ctx.reply(
         isRu
           ? '❌ Неизвестная опция. Попробуйте еще раз.'

@@ -71,6 +71,156 @@ interface KieAiWebhookPayload {
  * - Детальное логирование
  * - Валидация payload
  */
+
+/**
+ * 📤 Отправка видео напрямую пользователю по telegramId (без videoTaskStore)
+ * Используется когда telegramId передан в callback URL
+ */
+async function sendVideoDirectly(
+  telegramId: string,
+  videoUrl: string,
+  metadata: { jobId?: string; duration?: number }
+): Promise<void> {
+  try {
+    logger.info('📤 [SEND VIDEO DIRECTLY] Starting direct video send', {
+      telegramId,
+      videoUrl: videoUrl.substring(0, 100),
+      jobId: metadata.jobId,
+      duration: metadata.duration
+    })
+
+    // Получаем bot instance (используем default bot или находим подходящий)
+    const botInstance = defaultBotInstance || getBotInstance()
+
+    if (!botInstance) {
+      logger.error('❌ [SEND VIDEO DIRECTLY] No bot instance available', {
+        telegramId,
+        hasDefaultBot: !!defaultBotInstance,
+        availableBots: Array.from(botInstances.keys())
+      })
+      throw new Error('No bot instance available')
+    }
+
+    const chatId = parseInt(telegramId)
+
+    logger.info('🎬 [SEND VIDEO DIRECTLY] Sending video to user', {
+      telegramId,
+      chatId,
+      videoUrl: videoUrl.substring(0, 100),
+      botUsername: botInstance.botInfo?.username
+    })
+
+    // Отправляем видео пользователю
+    await botInstance.telegram.sendVideo(
+      chatId,
+      videoUrl,
+      {
+        caption: `✅ Видео готово!\n\n🎬 Job ID: ${metadata.jobId || 'N/A'}\n⏱ Длительность: ${metadata.duration || 'N/A'} сек`,
+      }
+    )
+
+    logger.info('✅ [SEND VIDEO DIRECTLY] Video sent successfully', {
+      telegramId,
+      chatId,
+      jobId: metadata.jobId
+    })
+
+  } catch (error) {
+    logger.error('❌ [SEND VIDEO DIRECTLY] Error sending video', {
+      telegramId,
+      videoUrl: videoUrl.substring(0, 100),
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
+
+    // Пытаемся отправить сообщение об ошибке пользователю
+    try {
+      const botInstance = defaultBotInstance || getBotInstance()
+      if (botInstance) {
+        await botInstance.telegram.sendMessage(
+          parseInt(telegramId),
+          `❌ Ошибка при отправке видео.\n\nJob ID: ${metadata.jobId || 'N/A'}\nПопробуйте снова или обратитесь в поддержку.`
+        )
+      }
+    } catch (notifyError) {
+      logger.error('❌ [SEND VIDEO DIRECTLY] Failed to notify user about error', {
+        telegramId,
+        notifyError: notifyError instanceof Error ? notifyError.message : String(notifyError)
+      })
+    }
+
+    throw error
+  }
+}
+
+// ✅ NEW: Callback с telegramId в URL - /api/video-callback/:telegramId
+// Два роута: с и без telegramId
+router.post('/video-callback/:telegramId', async (req: any, res: any) => {
+  const startTime = Date.now()
+
+  try {
+    console.log('🔴🔴🔴 [VIDEO CALLBACK WITH TELEGRAM ID] Route handler called!')
+
+    // ✅ Быстро отвечаем 202 Accepted согласно best practices
+    res.status(202).json({
+      message: 'Video webhook received and will be processed asynchronously',
+      timestamp: new Date().toISOString()
+    })
+
+    const telegramIdFromUrl = req.params.telegramId
+
+    console.log('🔴 telegramIdFromUrl:', telegramIdFromUrl)
+    console.log('🔴 req.body:', req.body)
+
+    logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Received callback', {
+      body: req.body,
+      telegramIdFromUrl,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent'],
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+      },
+      responseTime: Date.now() - startTime
+    })
+
+    const payload = req.body
+
+    // ✅ AUTO-DETECT PROVIDER: Определяем провайдера по структуре payload
+    const detectedProvider = detectVideoWebhookProvider(payload)
+    logger.info('🔍 [UNIVERSAL VIDEO WEBHOOK] Provider detected', {
+      provider: detectedProvider,
+      payloadKeys: Object.keys(payload)
+    })
+
+    switch (detectedProvider) {
+      case 'kie-ai':
+        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Kie.ai webhook detected')
+        await processKieAiWebhook(payload)
+        break
+
+      case 'render-server':
+        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Render Server webhook detected')
+        await processGenericVideoWebhook(payload, telegramIdFromUrl)
+        break
+
+      case 'unknown':
+      default:
+        logger.warn('⚠️ [UNIVERSAL VIDEO WEBHOOK] Unknown provider, processing as generic', {
+          payload
+        })
+        await processGenericVideoWebhook(payload, telegramIdFromUrl)
+        break
+    }
+
+  } catch (error) {
+    logger.error('❌ [UNIVERSAL VIDEO WEBHOOK] Error processing webhook', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
+  }
+})
+
+// Fallback route без telegramId (для обратной совместимости)
 router.post('/video-callback', async (req: any, res: any) => {
   const startTime = Date.now()
 
@@ -81,8 +231,11 @@ router.post('/video-callback', async (req: any, res: any) => {
       timestamp: new Date().toISOString()
     })
 
+    const telegramIdFromUrl = req.params.telegramId
+
     logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Received callback', {
       body: req.body,
+      telegramIdFromUrl,
       headers: {
         'content-type': req.headers['content-type'],
         'user-agent': req.headers['user-agent'],
@@ -111,13 +264,13 @@ router.post('/video-callback', async (req: any, res: any) => {
         logger.info('🔄 [UNIVERSAL VIDEO WEBHOOK] Replicate webhook - forwarding to replicate handler')
         // TODO: Implement replicate handler
         break
-      case 'railway-ai-reels':
-        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Railway AI Reels webhook detected')
-        await processGenericVideoWebhook(payload)
+      case 'render-server':
+        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Render Server webhook detected')
+        await processGenericVideoWebhook(payload, telegramIdFromUrl)
         break
       default:
         logger.warn('⚠️ [UNIVERSAL VIDEO WEBHOOK] Unknown provider, attempting generic processing', { payload })
-        await processGenericVideoWebhook(payload)
+        await processGenericVideoWebhook(payload, telegramIdFromUrl)
         break
     }
 
@@ -157,9 +310,9 @@ function detectVideoProvider(payload: any): string {
     return 'replicate'
   }
 
-  // Railway AI Reels - проверяем renderTaskId как основной индикатор
-  if (payload.renderTaskId || (payload.videoUrl && payload.status === 'completed')) {
-    return 'railway-ai-reels'
+  // Render Server (local Inngest) - проверяем job_id как основной индикатор
+  if (payload.job_id || payload.renderTaskId || (payload.videoUrl && payload.status === 'completed')) {
+    return 'render-server'
   }
 
   return 'unknown'
@@ -225,20 +378,67 @@ function normalizeKiePayload(payload: any): KieAiWebhookPayload {
 /**
  * Обработка webhook от неизвестного провайдера
  */
-async function processGenericVideoWebhook(payload: any): Promise<void> {
-  logger.info('🔄 [GENERIC VIDEO WEBHOOK] Processing unknown provider webhook', { payload })
+async function processGenericVideoWebhook(payload: any, telegramIdFromUrl?: string): Promise<void> {
+  logger.info('🔄 [GENERIC VIDEO WEBHOOK] Processing render server webhook', {
+    payload,
+    telegramIdFromUrl,
+    keys: Object.keys(payload)
+  })
 
-  // Пытаемся извлечь базовую информацию
-  const taskId = payload.taskId || payload.id || payload.data?.taskId || payload.data?.id
-  const videoUrl = payload.videoUrl || payload.url || payload.result_url || payload.data?.videoUrl
-  const success = payload.success !== undefined ? payload.success : (payload.status === 'completed' || payload.state === 'success')
+  // Пытаемся извлечь базовую информацию из всех возможных мест
+  const taskId = payload.job_id || payload.taskId || payload.id || payload.renderTaskId || payload.data?.taskId || payload.data?.id
 
-  if (!taskId) {
-    logger.error('❌ [GENERIC VIDEO WEBHOOK] No task ID found in payload')
+  // ✅ КРИТИЧЕСКИ ВАЖНО: Проверяем ВСЕ возможные поля для videoUrl
+  const videoUrl = payload.videoUrl ||
+                   payload.video_url ||
+                   payload.url ||
+                   payload.result_url ||
+                   payload.output ||
+                   payload.data?.videoUrl ||
+                   payload.data?.video_url ||
+                   payload.data?.output
+
+  const success = payload.success !== undefined
+    ? payload.success
+    : (payload.status === 'completed' || payload.status === 'success' || payload.state === 'success')
+
+  logger.info('📊 [GENERIC VIDEO WEBHOOK] Extracted data', {
+    taskId,
+    telegramIdFromUrl,
+    videoUrl: videoUrl?.substring(0, 100),
+    success,
+    hasVideoUrl: !!videoUrl
+  })
+
+  // ✅ НОВАЯ ЛОГИКА: Если есть telegramId в URL и videoUrl - отправляем напрямую!
+  if (telegramIdFromUrl && videoUrl && success) {
+    logger.info('🚀 [GENERIC VIDEO WEBHOOK] Direct send mode - telegramId from URL', {
+      telegramId: telegramIdFromUrl,
+      videoUrl: videoUrl.substring(0, 100)
+    })
+
+    await sendVideoDirectly(telegramIdFromUrl, videoUrl, {
+      jobId: taskId,
+      duration: payload.duration || 10
+    })
     return
   }
 
-  logger.info('📊 [GENERIC VIDEO WEBHOOK] Extracted data', { taskId, videoUrl, success })
+  // Fallback: старая логика через videoTaskStore
+  if (!taskId) {
+    logger.error('❌ [GENERIC VIDEO WEBHOOK] No task ID found in payload', {
+      payloadKeys: Object.keys(payload)
+    })
+    return
+  }
+
+  if (!videoUrl && success) {
+    logger.error('❌ [GENERIC VIDEO WEBHOOK] Success but no video URL found', {
+      taskId,
+      payloadKeys: Object.keys(payload),
+      payload
+    })
+  }
 
   // Обрабатываем как стандартный Kie.ai webhook
   const normalizedPayload: KieAiWebhookPayload = {
@@ -733,9 +933,17 @@ async function handleSuccessfulGeneration(payload: KieAiWebhookPayload): Promise
                   payload.response?.resultUrls?.[0] ||
                   payload.response?.result_url
 
+  logger.info('✅ [KIE.AI WEBHOOK] Video generation successful', {
+    taskId,
+    hasVideoUrl: !!videoUrl,
+    videoUrl: videoUrl?.substring(0, 100),
+    duration: payload.duration || 'unknown'
+  })
+
   if (!videoUrl) {
     logger.error('❌ [KIE.AI WEBHOOK] Success callback but no video URL', {
       taskId,
+      payloadKeys: Object.keys(payload),
       payload
     })
 
@@ -744,30 +952,24 @@ async function handleSuccessfulGeneration(payload: KieAiWebhookPayload): Promise
       success: false,
       message: 'Video generation completed but no URL provided',
       code: 'NO_VIDEO_URL',
-      provider: 'kie',
-      modelId: 'veed-fabric'
+      provider: 'render-server',
+      modelId: 'render-server'
     })
     return
   }
 
   const duration = payload.duration ||
                    payload.response?.duration ||
-                   8 // default
+                   10 // default
 
-  logger.info('✅ [KIE.AI WEBHOOK] Video generation successful', {
-    taskId,
-    videoUrl: videoUrl.substring(0, 100) + '...',
-    duration
-  })
-
-  // Уведомляем AsyncLipSyncManager об успешном завершении
+  // Уведомляем об успешном завершении
   await notifyJobCompletion(taskId, {
     success: true,
     id: taskId,
     output: videoUrl,
-    modelUsed: 'Veed Fabric AI',
+    modelUsed: 'Render Server',
     duration,
-    provider: 'kie'
+    provider: 'render-server'
   })
 }
 
@@ -831,15 +1033,38 @@ async function notifyJobCompletion(
     // ✅ Используем videoTaskStore для WAN/Sora моделей
     const taskContext = videoTaskStore.getTask(taskId)
 
-    if (taskContext && botInstance) {
+    if (taskContext) {
+      // ✅ MULTI-BOT FIX: Получаем правильный bot instance для этой задачи
+      const botInstance = getBotInstance(taskContext.botName)
+
+      if (!botInstance) {
+        logger.error('❌ [KIE.AI WEBHOOK] Bot instance not found', {
+          taskId,
+          requestedBot: taskContext.botName,
+          availableBots: Array.from(botInstances.keys())
+        })
+        return
+      }
+
       logger.info('📤 [KIE.AI WEBHOOK] Found task context, sending video to user', {
         taskId,
         telegramId: taskContext.telegramId,
-        hasVideoUrl: !!result.output
+        chatId: taskContext.chatId,
+        messageId: taskContext.messageId,
+        hasVideoUrl: !!result.output,
+        videoUrl: result.output?.substring(0, 80),
+        botName: taskContext.botName || 'default',
+        success: result.success
       })
 
       try {
         if (result.success && result.output) {
+          logger.info('🎬 [KIE.AI WEBHOOK] Sending video URL to user', {
+            taskId,
+            chatId: taskContext.chatId,
+            videoUrl: result.output.substring(0, 100)
+          })
+
           // Успешная генерация - отправляем видео
           await botInstance.telegram.sendVideo(
             taskContext.chatId,
@@ -852,9 +1077,26 @@ async function notifyJobCompletion(
 
           logger.info('✅ [KIE.AI WEBHOOK] Video sent to user successfully', { taskId })
 
+          // Удаляем status message
+          try {
+            await botInstance.telegram.deleteMessage(taskContext.chatId, taskContext.messageId)
+            logger.info('🗑️ [KIE.AI WEBHOOK] Status message deleted', { taskId })
+          } catch (deleteError) {
+            logger.warn('⚠️ [KIE.AI WEBHOOK] Could not delete status message', {
+              taskId,
+              error: deleteError instanceof Error ? deleteError.message : String(deleteError)
+            })
+          }
+
           // Удаляем задачу из store после успешной отправки
           videoTaskStore.deleteTask(taskId)
         } else {
+          logger.error('❌ [KIE.AI WEBHOOK] Generation failed', {
+            taskId,
+            message: result.message,
+            code: result.code
+          })
+
           // Ошибка генерации - отправляем сообщение об ошибке
           await botInstance.telegram.sendMessage(
             taskContext.chatId,
@@ -862,13 +1104,14 @@ async function notifyJobCompletion(
             { reply_to_message_id: taskContext.messageId }
           )
 
-          logger.error('❌ [KIE.AI WEBHOOK] Generation failed, notified user', { taskId })
+          logger.info('📢 [KIE.AI WEBHOOK] Error message sent to user', { taskId })
           videoTaskStore.deleteTask(taskId)
         }
       } catch (sendError) {
         logger.error('❌ [KIE.AI WEBHOOK] Error sending message to user', {
           taskId,
-          error: sendError instanceof Error ? sendError.message : String(sendError)
+          error: sendError instanceof Error ? sendError.message : String(sendError),
+          stack: sendError instanceof Error ? sendError.stack : undefined
         })
       }
     } else {
@@ -1027,6 +1270,18 @@ router.post('/kie-ai/sora-full-test', async (req: any, res: any) => {
     })
     res.status(500).json({ error: 'Full test failed' })
   }
+})
+
+// ✅ Логируем регистрацию роутов
+logger.info('📋 [VIDEO WEBHOOK ROUTES] Registered routes:', {
+  routes: [
+    'POST /api/video-callback/:telegramId',
+    'POST /api/video-callback',
+    'POST /api/kie-ai/callback',
+    'POST /api/kie-ai/sora-callback',
+    'POST /api/kie-ai/sora-callback-test',
+    'POST /api/kie-ai/sora-full-test'
+  ]
 })
 
 export default router

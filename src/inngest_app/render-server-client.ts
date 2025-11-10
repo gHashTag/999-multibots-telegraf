@@ -333,8 +333,8 @@ export function createRenderAvatarPayload(
       options?.callbackUrl !== undefined
         ? options.callbackUrl
         : process.env.BASE_WEBHOOK_URL
-        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
-        : 'http://212.86.115.30:2999/api/video-callback',
+        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegramId}`
+        : `http://212.86.115.30:2999/api/video-callback/${telegramId}`,
     bot_name: options?.botName,
   }
 }

@@ -31,12 +31,15 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
 
   // Step 0: Запрос фото аватара
   async ctx => {
+    console.log('🎯🎯🎯 [FAL RENDER] STEP 0 EXECUTING!')
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
+    console.log('🎯 [FAL RENDER] Step 0 data:', { telegramId, hasFrom: !!ctx.from })
     logger.info('🎯 [FAL RENDER] Wizard started', { telegramId })
 
     if (!telegramId) {
+      console.log('❌ [FAL RENDER] No telegramId, leaving scene')
       await ctx.reply(
         isRu
           ? '❌ Ошибка: не удалось определить ваш ID'
@@ -45,39 +48,74 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Получаем FAL_KEY из конфига (Infisical)
-    const { FAL_KEY } = await import('@/config')
+    console.log('🔑 [FAL RENDER] FAL_KEY check:', {
+      hasKey: !!process.env.FAL_KEY,
+      keyLength: process.env.FAL_KEY?.length
+    })
+
+    if (!process.env.FAL_KEY) {
+      console.error('❌ [FAL RENDER] FAL_KEY is missing from process.env!')
+      logger.error('[FAL RENDER] FAL_KEY is not configured in Infisical', { telegramId })
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка конфигурации: FAL API ключ не настроен в Infisical'
+          : '❌ Configuration error: FAL API key not configured in Infisical'
+      )
+      return ctx.scene.leave()
+    }
+
+    console.log('📝 [FAL RENDER] Initializing session...')
 
     // Инициализируем сессию
     ctx.session.aiReelsRender = {
       avatarService: 'fal',
       step: 'image',
       startTime: Date.now(),
-      falApiKey: FAL_KEY, // ✅ Из Infisical через централизованный config
+      falApiKey: process.env.FAL_KEY, // ✅ Из Infisical через process.env
       falResolution: '720p', // Default resolution
     }
 
-    await ctx.reply(
-      isRu
-        ? '🎯 <b>Fal Avatar Generation</b>\n\n📸 Отправьте фото или URL изображения с лицом для аватара.'
-        : '🎯 <b>Fal Avatar Generation</b>\n\n📸 Send a photo or image URL with a face for avatar.',
-      {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'fal_cancel')],
-        ]),
-      }
-    )
+    console.log('✅ [FAL RENDER] Session initialized:', ctx.session.aiReelsRender)
+    console.log('💬 [FAL RENDER] About to send reply...')
 
+    try {
+      await ctx.reply(
+        isRu
+          ? '🎯 <b>Fal Avatar Generation</b>\n\n📸 Отправьте фото или URL изображения с лицом для аватара.'
+          : '🎯 <b>Fal Avatar Generation</b>\n\n📸 Send a photo or image URL with a face for avatar.',
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'fal_cancel')],
+          ]),
+        }
+      )
+      console.log('✅ [FAL RENDER] Reply sent successfully')
+    } catch (error) {
+      console.error('❌ [FAL RENDER] Error sending reply:', error)
+      logger.error('[FAL RENDER] Error sending reply in Step 0', { error, telegramId })
+      throw error
+    }
+
+    console.log('➡️ [FAL RENDER] Moving to next step...')
     return ctx.wizard.next()
   },
 
   // Step 1: Обработка фото аватара
   async ctx => {
+    console.log('🎯🎯🎯 [FAL RENDER] STEP 1 EXECUTING!')
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     const telegramId = ctx.from?.id?.toString()
     let imageUrl: string | null = null
+
+    console.log('🎯 [FAL RENDER] Step 1 data:', {
+      telegramId,
+      hasMessage: !!message,
+      hasPhoto: message && 'photo' in message,
+      hasText: message && 'text' in message,
+      updateType: ctx.updateType,
+    })
 
     logger.info('🎯 [FAL RENDER] Step 1 - Processing avatar image', {
       telegramId,
@@ -85,7 +123,10 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
       hasText: message && 'text' in message,
     })
 
+    console.log('✅ [FAL RENDER] Logger.info called')
+
     if (!telegramId) {
+      console.log('❌ [FAL RENDER] No telegramId, leaving scene')
       await ctx.reply(
         isRu
           ? '❌ Ошибка: не удалось определить ваш ID'
@@ -94,25 +135,45 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    console.log('✅ [FAL RENDER] telegramId check passed, entering try block')
+
     try {
+      console.log('📸 [FAL RENDER] Processing photo from message')
       // Обработка фото из Telegram
       if (message && 'photo' in message && message.photo.length > 0) {
+        console.log('✅ [FAL RENDER] Photo detected, getting file link')
         const photo = message.photo[message.photo.length - 1]
         const fileLink = await ctx.telegram.getFileLink(photo.file_id)
+        console.log('✅ [FAL RENDER] File link received:', fileLink.href.substring(0, 50))
         const response = await fetch(fileLink.href)
+        console.log('✅ [FAL RENDER] Fetch response status:', response.status)
 
         if (!response.ok) {
           throw new Error(`Failed to download photo: ${response.statusText}`)
         }
 
+        console.log('✅ [FAL RENDER] Converting to buffer...')
         const imageBuffer = Buffer.from(await response.arrayBuffer())
+        console.log('✅ [FAL RENDER] Buffer created, size:', imageBuffer.length)
 
+        console.log('📦 [FAL RENDER] Importing Supabase...')
         // Загружаем в Supabase Storage
         const { createClient } = await import('@supabase/supabase-js')
         const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+        console.log('✅ [FAL RENDER] Supabase imported, creating client...')
+        console.log('🔑 [FAL RENDER] Supabase config check:', {
+          hasURL: !!SUPABASE_URL,
+          hasKey: !!SUPABASE_SERVICE_ROLE_KEY,
+          urlLength: SUPABASE_URL?.length,
+          keyLength: SUPABASE_SERVICE_ROLE_KEY?.length,
+        })
 
+        console.log('🏗️ [FAL RENDER] Creating Supabase client...')
         const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+        console.log('✅ [FAL RENDER] Supabase client created successfully')
+
         const fileName = `fal-avatars/${telegramId}/${Date.now()}.jpg`
+        console.log('✅ [FAL RENDER] Preparing upload to:', fileName)
 
         const { error: uploadError } = await serviceClient.storage
           .from('images')
@@ -120,13 +181,17 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
             contentType: 'image/jpeg',
             upsert: false,
           })
+        console.log('📤 [FAL RENDER] Upload result:', { hasError: !!uploadError })
 
         if (uploadError) {
+          console.error('❌ [FAL RENDER] Upload error:', uploadError)
           throw new Error(`Upload failed: ${uploadError.message}`)
         }
 
+        console.log('🔗 [FAL RENDER] Getting public URL...')
         const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
         imageUrl = urlData.publicUrl
+        console.log('✅ [FAL RENDER] Public URL obtained:', imageUrl.substring(0, 80))
 
         logger.info('✅ [FAL RENDER] Avatar photo uploaded', {
           telegramId,

@@ -399,6 +399,7 @@ async function startApplication() {
         'REPLICATE_API_TOKEN',
         'APIFY_TOKEN',
         'GITHUB_TOKEN',
+        'FAL_KEY',           // ✅ Для Fal (kie.ai gateway) lip-sync генерации
         'BASE_WEBHOOK_URL',  // ✅ Для callback уведомлений от Kie.ai
         'NGROK_AUTHTOKEN'    // ✅ Для создания туннеля в dev окружении
       ]

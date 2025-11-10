@@ -23,6 +23,7 @@ import {
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
+import { videoTaskStore } from '@/services/video-task-store'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -1466,32 +1467,63 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           payload.eleven_labs_api_key?.substring(0, 10)
         )
 
+        // ✅ СОХРАНЯЕМ TASK CONTEXT В STORE ПЕРЕД ОТПРАВКОЙ
+        // Это гарантирует что webhook найдёт context даже если придёт раньше ожидаемого
+        console.log('🔴 [STEP 6] Saving task to videoTaskStore...')
+        const statusMessage = await ctx.reply(
+          isRu
+            ? '⏳ Отправляем запрос на render-server...'
+            : '⏳ Sending request to render-server...'
+        )
+
+        videoTaskStore.saveTask(payload.job_id, {
+          telegramId: telegramId,
+          chatId: ctx.chat?.id || parseInt(telegramId),
+          messageId: statusMessage.message_id,
+          prompt: ctx.session.aiReelsRender.text || 'AI Reels generation',
+          modelId: `ai-reels-${avatarService}`,
+          duration: duration,
+          createdAt: Date.now(),
+          botName: ctx.botInfo?.username || undefined,
+        })
+        console.log('✅ [STEP 6] Task saved to videoTaskStore:', payload.job_id)
+
+        logger.info('💾 [AI REELS RENDER] Task context saved before send', {
+          telegramId,
+          jobId: payload.job_id,
+          botName: ctx.botInfo?.username,
+          chatId: ctx.chat?.id,
+          messageId: statusMessage.message_id,
+        })
+
         console.log(
           '🔴 [STEP 6] About to call sendRenderAvatarVideoEvent()...'
         )
         const { eventId } = await sendRenderAvatarVideoEvent(payload)
         console.log('🔴 [STEP 6] Event sent! Event ID:', eventId)
 
-        console.log('🔴 [STEP 6] Sending success reply to user...')
-        await ctx.reply(
+        console.log('🔴 [STEP 6] Updating status message for user...')
+        await ctx.telegram.editMessageText(
+          ctx.chat?.id || parseInt(telegramId),
+          statusMessage.message_id,
+          undefined,
           isRu
             ? `✅ Запрос отправлен на render-server!\n\n` +
                 `🔄 Event ID: ${eventId}\n` +
-                `🎭 Сервис: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
+                `🎭 Сервис: ${avatarService === 'hedra' ? 'Hedra' : avatarService === 'fal' ? 'Fal (Fabric)' : 'HeyGen'}\n` +
                 `⏱️ Ожидаемое время: 2-5 минут\n` +
                 `📢 Вы получите уведомление когда видео будет готово\n\n` +
                 `💰 Списано: ${estimatedCost}⭐\n` +
                 `💳 Новый баланс: ${(currentBalance - estimatedCost).toFixed(2)}⭐`
             : `✅ Request sent to render-server!\n\n` +
                 `🔄 Event ID: ${eventId}\n` +
-                `🎭 Service: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
+                `🎭 Service: ${avatarService === 'hedra' ? 'Hedra' : avatarService === 'fal' ? 'Fal (Fabric)' : 'HeyGen'}\n` +
                 `⏱️ Expected time: 2-5 minutes\n` +
                 `📢 You will receive notification when video is ready\n\n` +
                 `💰 Charged: ${estimatedCost}⭐\n` +
-                `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`,
-          { parse_mode: 'HTML' }
+                `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`
         )
-        console.log('🔴 [STEP 6] Reply sent to user!')
+        console.log('🔴 [STEP 6] Status message updated!')
 
         logger.info('✅ [AI REELS RENDER] Event sent successfully', {
           telegramId,
