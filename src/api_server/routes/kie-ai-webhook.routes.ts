@@ -111,6 +111,10 @@ router.post('/video-callback', async (req: any, res: any) => {
         logger.info('🔄 [UNIVERSAL VIDEO WEBHOOK] Replicate webhook - forwarding to replicate handler')
         // TODO: Implement replicate handler
         break
+      case 'railway-ai-reels':
+        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Railway AI Reels webhook detected')
+        await processGenericVideoWebhook(payload)
+        break
       default:
         logger.warn('⚠️ [UNIVERSAL VIDEO WEBHOOK] Unknown provider, attempting generic processing', { payload })
         await processGenericVideoWebhook(payload)
