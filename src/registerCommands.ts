@@ -29,6 +29,8 @@ import { setupAutoFixerCommands } from './commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from './commands/autofixer/autofixer-config.scene'
 // Импортируем админ middleware
 import { requireAdmin } from './middleware/adminOnly'
+// Импортируем Autonomous Monitor команды
+import { setupAutonomousMonitor } from './commands/autonomousMonitor'
 // ✅ ИМПОРТИРУЕМ MULTI-PHOTO ACTION HANDLERS
 import { registerMultiPhotoActions } from './handlers/multiPhotoActions'
 import { handleHelpCommand } from './commands/helpCommand'
@@ -1497,6 +1499,10 @@ If not, continue on your own and click the "I myself" button`
     // ✅ ВОССТАНОВЛЕНЫ ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ
     logger.info('🔧 [HEARS] Registering global hears handlers for menu buttons')
     setupHearsHandlers(bot)
+
+    // ✅ РЕГИСТРИРУЕМ AUTONOMOUS MONITOR КОМАНДЫ
+    logger.info('🤖 [AUTONOMOUS MONITOR] Registering autonomous monitor commands')
+    setupAutonomousMonitor(bot)
 
     // Commands registered successfully
   } catch (error) {
