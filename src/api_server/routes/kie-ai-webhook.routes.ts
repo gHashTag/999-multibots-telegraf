@@ -153,6 +153,23 @@ async function sendVideoDirectly(
   }
 }
 
+/**
+ * ✅ AUTO-DETECT PROVIDER: Определяем провайдера по структуре payload
+ */
+function detectVideoWebhookProvider(payload: any): 'kie-ai' | 'render-server' | 'unknown' {
+  // Kie.ai - проверяем на наличие taskId или data.taskId
+  if (payload.taskId || payload.data?.taskId) {
+    return 'kie-ai'
+  }
+
+  // Render Server - проверяем download_url (Railway render-server)
+  if (payload.download_url || payload.job_id) {
+    return 'render-server'
+  }
+
+  return 'unknown'
+}
+
 // ✅ NEW: Callback с telegramId в URL - /api/video-callback/:telegramId
 // Два роута: с и без telegramId
 router.post('/video-callback/:telegramId', async (req: any, res: any) => {
