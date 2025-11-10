@@ -10,15 +10,12 @@ import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
 import diagnosticRouter from './routes/diagnostic.routes'
 import { Telegraf } from 'telegraf'
-import { serve } from 'inngest/express'
-import { inngest } from '../inngest_app/client'
-import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 
 // Определяем порт. Берем из process.env.API_PORT, если есть, иначе 8080 (свободный порт).
 const PORT = process.env.API_PORT || '8080'
 
-export function startApiServer(bot?: Telegraf): void {
+export async function startApiServer(bot?: Telegraf): Promise<void> {
   // Если bot instance передан, инициализируем его в webhook router
   if (bot) {
     setBotInstance(bot)
@@ -87,12 +84,19 @@ export function startApiServer(bot?: Telegraf): void {
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
-  // ✅ Интеграция Inngest с API (актуальная сигнатура serve из reels-callback-2)
+  // ✅ Интеграция Inngest с API (LAZY LOAD для избежания крашей при импорте)
   try {
-    logger.info('🚀 [INNGEST] Starting Vibee registration...', {
+    logger.info('🚀 [INNGEST] Starting Vibee registration (lazy load)...')
+
+    // Динамически импортируем Inngest модули только когда они нужны
+    const { serve } = await import('inngest/express')
+    const { inngest } = await import('../inngest_app/client')
+    const { allInngestFunctions } = await import('../inngest_app/registerFunctions')
+
+    logger.info('🚀 [INNGEST] Modules loaded successfully', {
       hasInngest: !!inngest,
       hasFunctions: !!allInngestFunctions,
-      functionsType: typeof allInngestFunctions,
+      functionsCount: allInngestFunctions.length,
       isArray: Array.isArray(allInngestFunctions)
     })
 
