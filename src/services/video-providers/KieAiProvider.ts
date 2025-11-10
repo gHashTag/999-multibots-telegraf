@@ -393,7 +393,7 @@ export class KieAiProvider {
       })
 
       const callbackUrl = process.env.BASE_WEBHOOK_URL
-        ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
+        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
         : undefined
 
       // WAN 2.5 имеет лимит на длину промпта - обрезаем до 500 символов
@@ -516,7 +516,7 @@ export class KieAiProvider {
 
     // Формируем правильный callback URL из переменной окружения
     const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
+      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
       : undefined
 
     if (!callbackUrl) {
@@ -863,7 +863,7 @@ export class KieAiProvider {
 
     // Generate callback URL if webhook infrastructure exists
     const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/sora-callback`
+      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
       : undefined
 
     const requestData: SoraCreateTaskRequest = {
