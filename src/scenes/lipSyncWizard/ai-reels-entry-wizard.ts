@@ -268,16 +268,6 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       hasCallbackQuery: 'callback_query' in ctx.update,
     })
 
-    // Обрабатываем только callback_query
-    if (!('callback_query' in ctx.update)) {
-      await ctx.reply(
-        isRu
-          ? '❌ Пожалуйста, нажмите одну из кнопок.'
-          : '❌ Please press one of the buttons.'
-      )
-      return
-    }
-
     if (!telegramId) {
       await ctx.reply(
         isRu
@@ -285,6 +275,17 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
           : '❌ Error: could not determine your ID'
       )
       return ctx.scene.leave()
+    }
+
+    // Обрабатываем только callback_query
+    if (!('callback_query' in ctx.update)) {
+      // ⚠️ ВАЖНО: Игнорируем сообщения после перехода в другой wizard
+      // Проверяем, что мы все еще в entry wizard
+      logger.warn('🎬 [AI REELS ENTRY] Step 2 - Not a callback, ignoring', {
+        telegramId,
+        updateType: ctx.updateType,
+      })
+      return // Просто игнорируем, не показываем ошибку
     }
 
     const serviceChoice =
