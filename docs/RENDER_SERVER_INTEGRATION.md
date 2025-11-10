@@ -1,12 +1,12 @@
-# Railway Render-Server Integration
+# Render Server Render-Server Integration
 
 ## Архитектура
 
 ```
-Telegram Bot → Inngest Cloud (inn.gs) → Railway Render-Server
+Telegram Bot → Inngest Cloud (inn.gs) → Render Server Render-Server
 ```
 
-**ВАЖНО**: Railway render-server это **функция, зарегистрированная В Inngest Cloud**, а НЕ самостоятельный Inngest сервер!
+**ВАЖНО**: Render Server это **функция, зарегистрированная В Inngest Cloud**, а НЕ самостоятельный Inngest сервер!
 
 ## Правильный Подход ✅
 
@@ -25,35 +25,35 @@ await client.send({
 })
 ```
 
-### 2. Inngest Cloud автоматически вызывает Railway
+### 2. Inngest Cloud автоматически вызывает Render Server
 
 - Event key зарегистрирован в Inngest Cloud Dashboard
-- Inngest Cloud знает, что нужно вызвать Railway render-server
-- Railway получает webhook от Inngest Cloud
+- Inngest Cloud знает, что нужно вызвать Render Server
+- Render Server получает webhook от Inngest Cloud
 
 ## Неправильные Подходы ❌
 
-### ❌ Прямой POST на Railway
+### ❌ Прямой POST на Render Server
 
 ```typescript
 // ЭТО НЕ РАБОТАЕТ!
-fetch('https://render-v3-production.up.railway.app/api/inngest', {
+fetch('https://render-v3-production.up.render-server (local)/api/inngest', {
   method: 'POST',
   body: JSON.stringify(payload)
 })
 // → 401 sig_verification_failed
 ```
 
-### ❌ Inngest SDK с Railway URL
+### ❌ Inngest SDK с Render Server URL
 
 ```typescript
 // ЭТО НЕ РАБОТАЕТ!
 const client = new Inngest({
   eventKey: 'kbuLz_G2JL28M5L3dRM5...',
-  inngestBaseUrl: 'https://render-v3-production.up.railway.app/api/inngest'
+  inngestBaseUrl: 'https://render-v3-production.up.render-server (local)/api/inngest'
 })
 // → 404 Event key not found
-// SDK создает: /api/e/{eventKey} - Railway этого не поддерживает!
+// SDK создает: /api/e/{eventKey} - Render Server этого не поддерживает!
 ```
 
 ## Environment Variables
@@ -62,7 +62,7 @@ const client = new Inngest({
 # RENDER инстанс (для отправки в Inngest Cloud)
 RENDER_INNGEST_EVENT_KEY="kbuLz_G2JL28M5L3dRM5mfwWSwNb4zi8eWTr5y4wrYWXEyIgcMyGz7NTkcY52AWjUcQz8m_Ig9lhJ6_m3-unaw"
 RENDER_INNGEST_SIGNING_KEY="signkey-branch-8e271f30535f3894656ff9b5e4cf97e1673880aa06c7b5d1470b3082110b2cf6"
-RENDER_INNGEST_BASE_URL="https://render-v3-production.up.railway.app/api/inngest" # Для reference, не используется для отправки
+RENDER_INNGEST_BASE_URL="https://render-v3-production.up.render-server (local)/api/inngest" # Для reference, не используется для отправки
 ```
 
 ## Inngest Provider Usage
@@ -79,7 +79,7 @@ await inngestProvider.sendEvent('RENDER', 'render/avatar-video', {
 // Inngest Provider автоматически:
 // 1. Использует RENDER_INNGEST_EVENT_KEY
 // 2. Отправляет в Inngest Cloud (inn.gs)
-// 3. Inngest Cloud вызывает Railway render-server
+// 3. Inngest Cloud вызывает Render Server
 ```
 
 ## Event Format
@@ -115,9 +115,9 @@ npx tsx tests/test-inngest-cloud.ts
 # Результат: ✅ Event sent to Inngest Cloud!
 ```
 
-## Railway Endpoint
+## Render Server Endpoint
 
-- **URL**: `https://render-v3-production.up.railway.app/api/inngest`
+- **URL**: `https://render-v3-production.up.render-server (local)/api/inngest`
 - **Назначение**: Принимать webhooks ОТ Inngest Cloud
 - **НЕ поддерживает**: Прямые HTTP POST запросы от клиентов
 
@@ -132,10 +132,10 @@ npx tsx tests/test-inngest-cloud.ts
    ↓
 4. Inngest Cloud получает событие
    ↓
-5. Inngest Cloud вызывает Railway webhook
-   → POST https://render-v3-production.up.railway.app/api/inngest
+5. Inngest Cloud вызывает Render Server webhook
+   → POST https://render-v3-production.up.render-server (local)/api/inngest
    ↓
-6. Railway обрабатывает запрос и генерирует видео
+6. Render Server обрабатывает запрос и генерирует видео
 ```
 
 ## Проверка Статуса

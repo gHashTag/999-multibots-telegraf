@@ -184,7 +184,7 @@ SUPABASE_SERVICE_KEY=ваш_service_key
 SUPABASE_SERVICE_ROLE_KEY=ваш_service_role_key
 
 # AI Server
-API_SERVER_URL=https://ai-server-production.up.railway.app
+API_SERVER_URL=https://ai-server-production.up.render-server (local)
 
 # ElevenLabs (для voice)
 ELEVENLABS_API_KEY=ваш_api_key

@@ -1,4 +1,4 @@
-# 🚀 Стабильная конфигурация Railway AI Reels Webhook
+# 🚀 Стабильная конфигурация AI Reels Webhook
 
 **Дата:** 2025-11-10
 **Статус:** ✅ WORKING - Протестировано и стабильно
@@ -10,7 +10,7 @@
 ## 📋 ПРОБЛЕМА, КОТОРУЮ РЕШИЛИ
 
 ### Исходная проблема:
-1. Railway render-server отправлял webhook с `download_url`, но код не распознавал это поле
+1. Render Server отправлял webhook с `download_url`, но код не распознавал это поле
 2. Файлы > 50 MB не могли быть отправлены через Telegram API (ошибка "wrong type of web page content")
 3. Nginx периодически терял SSL сертификаты при пересоздании контейнеров
 4. Webhook callback URL работал только с HTTP, не с HTTPS
@@ -36,7 +36,7 @@ https://three-head-dragon.shop/api/video-callback/:telegramId
 https://three-head-dragon.shop/api/video-callback/144022504
 ```
 
-### 2. Payload структура (Railway render-server)
+### 2. Payload структура (Render Server)
 ```json
 {
   "download_url": "https://selstorage.ru/path/to/video.mp4",
@@ -54,7 +54,7 @@ server {
     listen 80;
     server_name three-head-dragon.shop;
 
-    # Railway render-server callback (HTTP без редиректа)
+    # Render Server callback (HTTP без редиректа)
     location = /api/video-callback {
         proxy_pass http://999-multibots:2999/api/video-callback;
         proxy_http_version 1.1;
@@ -196,7 +196,7 @@ async function sendVideoDirectly(
 ### processGenericVideoWebhook() с поддержкой download_url
 
 ```typescript
-const videoUrl = payload.download_url ||  // ✅ Railway render-server
+const videoUrl = payload.download_url ||  // ✅ Render Server
                  payload.videoUrl ||
                  payload.video_url ||
                  payload.url ||
@@ -437,7 +437,7 @@ docker compose up -d
 | Коммит | Описание | Файлы |
 |--------|----------|-------|
 | `ec489374` | Add detectVideoWebhookProvider function | `kie-ai-webhook.routes.ts` |
-| `c2f6e88a` | Add download_url support for Railway | `kie-ai-webhook.routes.ts` |
+| `c2f6e88a` | Add download_url support for Render Server | `kie-ai-webhook.routes.ts` |
 | `d0694d96` | Send large videos (>50MB) as links | `kie-ai-webhook.routes.ts` |
 
 **Git Tag:** `webhook-stable-20251110`

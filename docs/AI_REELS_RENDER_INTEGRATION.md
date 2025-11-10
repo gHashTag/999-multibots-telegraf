@@ -2,7 +2,7 @@
 
 ## 📋 Обзор
 
-**AI Reels Render** - интегрированная в существующую сцену AI Reels возможность генерации профессиональных видео через render-server на Railway с выбором между Hedra и HeyGen.
+**AI Reels Render** - интегрированная в существующую сцену AI Reels возможность генерации профессиональных видео через render-server на Render Server с выбором между Hedra и HeyGen.
 
 **✅ ИНТЕГРАЦИЯ ЗАВЕРШЕНА:** Функционал добавлен в `ai-reels-wizard.ts` как альтернативный метод генерации.
 
@@ -54,7 +54,7 @@
 ┌──────────────┐             ▼
 │ Step 7:      │      ┌──────────────────┐
 │ Склеивание   │      │ Render Server    │
-│ (FFmpeg)     │      │ (Railway)        │
+│ (FFmpeg)     │      │ (Render Server)        │
 └──────┬───────┘      │ • ElevenLabs     │
        │              │ • Hedra/HeyGen   │
        │              │ • Kie.ai         │
@@ -121,12 +121,12 @@ aiReelsRender?: {
 
 Добавить в `.env` (production):
 ```bash
-# RENDER Instance (Render Server на Railway)
+# RENDER Instance (Render Server на Render Server)
 INNGEST_EVENT_KEY_RENDER=n6DddAUg5idycTbtQGP7lXn6FCoIDcEkAdlX72WmC5k_GJcrjBFm4n_aCNmInAh_zQ2Yd070y4gzPeYnJTUadA
 INNGEST_SIGNING_KEY_RENDER=signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435923a1b613563c4666c82c047
 
 # Render Server Settings
-RENDER_SERVER_URL=https://render-v3-production.up.railway.app
+RENDER_SERVER_URL=https://render-v3-production.up.render-server (local)
 HEDRA_API_KEY=YOUR_HEDRA_API_KEY_HERE
 
 # ElevenLabs
@@ -255,7 +255,7 @@ https://app.inngest.com
 - Logs and errors
 - Retry attempts
 
-### Railway Logs:
+### Render Server Logs:
 ```bash
 railway logs --service render-v3-production --tail
 ```

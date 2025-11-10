@@ -173,7 +173,7 @@ MIDJOURNEY-FIXED-20251101_002940.tar.gz (183M)
 # ИСПРАВЛЕНИЕ НЕЙРОФОТО (альтернатива)
 NEUROPHOTO-FIX-20251031_235025.tar.gz (183M)
 
-# HTTP Callback для Railway
+# HTTP Callback для Render Server
 HTTP-CALLBACK-RAILWAY-20251031_232545.tar.gz (183M)
 
 # С Let's Encrypt SSL (старая версия)
@@ -192,7 +192,7 @@ WORKING-CALLBACK-20251031_154416.tar.gz (183M)
 # К версии с исправлением нейрофото
 ./rollback.sh NEUROPHOTO-FIX-20251031_235025
 
-# К версии с HTTP callback для Railway
+# К версии с HTTP callback для Render Server
 ./rollback.sh HTTP-CALLBACK-RAILWAY-20251031_232545
 
 # К версии с Let's Encrypt SSL
@@ -223,9 +223,9 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 "
 ./deploy.sh deploy
 ```
 
-### Callback не работает (Railway render-server):
+### Callback не работает (Render Server):
 ```bash
-# Проверка HTTP callback (Railway compatibility)
+# Проверка HTTP callback (Render Server compatibility)
 curl http://three-head-dragon.shop/api/telegram/ai-reels-callback
 
 # Проверка HTTPS callback (other services)
@@ -282,7 +282,7 @@ docker logs 999-multibots 2>&1 | grep 'Бот.*инициализирован' |
 | `./deploy.sh logs 100` | Логи |
 | `./rollback.sh MIDJOURNEY-FIXED-20251101_002940` | Откат к версии с Midjourney и всеми исправлениями |
 | `curl https://three-head-dragon.shop/api/telegram/ai-reels-callback` | ✅ HTTPS callback (валидный SSL) |
-| `curl http://three-head-dragon.shop/api/telegram/ai-reels-callback` | ✅ HTTP callback (Railway compatibility) |
+| `curl http://three-head-dragon.shop/api/telegram/ai-reels-callback` | ✅ HTTP callback (Render Server compatibility) |
 
 ---
 
@@ -297,7 +297,7 @@ docker logs 999-multibots 2>&1 | grep 'Бот.*инициализирован' |
 
 ## ⚠️ ВАЖНЫЕ ЗАМЕТКИ
 
-1. **HTTP Callback для Railway** - `/api/telegram/ai-reels-callback` работает на HTTP и HTTPS
+1. **HTTP Callback для Render Server** - `/api/telegram/ai-reels-callback` работает на HTTP и HTTPS
 2. **Let's Encrypt SSL** - валидный сертификат до 2026-01-29 (автообновление)
 3. **Nginx в сети app-network** - критично для работы с 999-multibots
 4. **Всегда проверяйте callback после деплоя** - это критически важно
@@ -311,7 +311,7 @@ docker logs 999-multibots 2>&1 | grep 'Бот.*инициализирован' |
 ```
 🔒 SSL: ✅ Let's Encrypt (до 2026-01-29)
 🔄 HTTP→HTTPS: ✅ 301 редирект (кроме /api/telegram/ai-reels-callback)
-📡 HTTP Callback: ✅ 200 OK (Railway compatibility)
+📡 HTTP Callback: ✅ 200 OK (Render Server compatibility)
 📡 HTTPS Callback: ✅ 200 OK (other services)
 🌐 API: ✅ UP
 🤖 Боты: ✅ 10/10 инициализированы
@@ -323,13 +323,13 @@ docker logs 999-multibots 2>&1 | grep 'Бот.*инициализирован' |
 
 ## 🚀 ИСПРАВЛЕНИЯ (2025-10-31)
 
-### 1. Railway Callback Fix
-**Проблема:** Railway render-server отправлял callback на HTTP, получал 301 редирект на HTTPS, но httpx не следует редиректам для POST запросов.
+### 1. Render Server Callback Fix
+**Проблема:** Render Server отправлял callback на HTTP, получал 301 редирект на HTTPS, но httpx не следует редиректам для POST запросов.
 **Решение:**
 1. Настроен nginx для работы callback endpoint на HTTP (без редиректа)
 2. Добавлен отдельный location для callback на HTTPS
 3. Остальной трафик редиректится на HTTPS
-**Результат:** ✅ Railway render-server успешно отправляет callback на HTTP
+**Результат:** ✅ Render Server успешно отправляет callback на HTTP
 
 ### 2. NeuroPhoto Wizard Fix
 **Проблема:** После выбора модели в нейрофото, следующий шаг "проскакивался" - не происходил переход к вводу промпта.

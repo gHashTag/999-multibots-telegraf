@@ -73,7 +73,7 @@ export function startApiServer(bot?: Telegraf): void {
   // Регистрируем маршруты для Kie.ai webhook
   app.use('/api', kieAiWebhookRouter)
 
-  // Регистрируем маршруты для AI Reels callback от Railway
+  // Регистрируем маршруты для AI Reels callback от Render Server
   app.use('/api', aiReelsCallbackRouter)
 
   // Регистрируем маршруты для Replicate webhook (уведомления о тренировке моделей)

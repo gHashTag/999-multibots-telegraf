@@ -8,7 +8,7 @@
 
 ## 🎯 ПРОБЛЕМА
 
-Ошибка от Railway render-server:
+Ошибка от Render Server:
 ```
 httpx.HTTPStatusError: Server error '502 Bad Gateway' for url 'https://three-head-dragon.shop/api/telegram/ai-reels-callback'
 ```
@@ -149,7 +149,7 @@ server {
     listen 80;
     server_name three-head-dragon.shop;
 
-    # ✅ Allow callback endpoint on HTTP (for Railway render-server compatibility)
+    # ✅ Allow callback endpoint on HTTP (for Render Server compatibility)
     location = /api/telegram/ai-reels-callback {
         proxy_pass http://999-multibots:3000/api/telegram/ai-reels-callback;
         proxy_http_version 1.1;
@@ -327,7 +327,7 @@ docker logs 999-multibots | grep -i "callback\|ai-reels"
 **Ожидаемый вывод:**
 ```
 🔔 [AI REELS CALLBACK] Webhook received
-🎬 [AI REELS CALLBACK] Received callback from Railway
+🎬 [AI REELS CALLBACK] Received callback from Render Server
 ✅ [AI REELS CALLBACK] Processed successfully
 ```
 
@@ -453,7 +453,7 @@ curl -s http://localhost:3000/health
 - [ ] Локальные тесты проходят
 - [ ] HTTPS тесты проходят
 - [ ] Логи показывают успешную обработку
-- [ ] Webhook callbacks приходят от Railway
+- [ ] Webhook callbacks приходят от Render Server
 - [ ] Видео отправляются пользователям
 
 ---

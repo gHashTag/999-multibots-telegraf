@@ -19,7 +19,7 @@
 
 ## ✅ Восстановленные переменные
 
-### 1. **RENDER INNGEST** (для отправки событий на Railway render-server)
+### 1. **RENDER INNGEST** (для отправки событий на Render Server)
 
 Найдены в документации `docs/inngest-provider-guide.md:27-28`:
 
@@ -167,7 +167,7 @@ docker run -d \
 ### 3. Проверка работоспособности:
 После перезапуска в логах появились:
 ```
-✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Railway)
+✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Render Server)
 ✅ [INNGEST PROVIDER] Lazy initialization completed {"instances":["RENDER"]}
 ✅ [INNGEST PROVIDER] RENDER available (Inngest Cloud client configured)
 ```
@@ -302,7 +302,7 @@ haim: {
 **Template 2 полностью восстановлен и работает!**
 
 Все необходимые ENV переменные добавлены:
-- ✅ RENDER_INNGEST_EVENT_KEY (для Inngest Cloud → Railway)
+- ✅ RENDER_INNGEST_EVENT_KEY (для Inngest Cloud → Render Server)
 - ✅ RENDER_INNGEST_SIGNING_KEY (подпись запросов)
 - ✅ ELEVENLABS_API_KEY (наш ключ для шаблонов 1, 3, 4...)
 - ✅ ELEVENLABS_API_KEY_HEYGEN (клиентский ключ ТОЛЬКО для Template 2)

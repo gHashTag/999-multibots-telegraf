@@ -150,7 +150,7 @@ console.log(`Loaded ${stats.totalSecrets} secrets from ${stats.environment}`)
 
 ## 🚀 Production Deployment
 
-### Railway / Vercel / Render:
+### Render Server / Vercel / Render:
 
 Добавьте environment variables:
 ```

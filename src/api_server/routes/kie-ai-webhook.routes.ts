@@ -62,7 +62,7 @@ interface KieAiWebhookPayload {
  * Принимает webhook'и от любых видео-провайдеров:
  * - Kie.ai (Sora, WAN 2.5, Veed Fabric)
  * - Replicate
- * - Railway AI Reels
+ * - AI Reels
  * - Любые другие провайдеры
  *
  * Следует лучшим практикам:
@@ -204,7 +204,7 @@ function detectVideoWebhookProvider(payload: any): 'kie-ai' | 'render-server' | 
     return 'kie-ai'
   }
 
-  // Render Server - проверяем download_url (Railway render-server)
+  // Render Server - проверяем download_url (Render Server)
   if (payload.download_url || payload.job_id) {
     return 'render-server'
   }
@@ -448,7 +448,7 @@ async function processGenericVideoWebhook(payload: any, telegramIdFromUrl?: stri
   const taskId = payload.job_id || payload.taskId || payload.id || payload.renderTaskId || payload.data?.taskId || payload.data?.id
 
   // ✅ КРИТИЧЕСКИ ВАЖНО: Проверяем ВСЕ возможные поля для videoUrl
-  // Railway render-server отправляет download_url!
+  // Render Server отправляет download_url!
   const videoUrl = payload.download_url ||
                    payload.videoUrl ||
                    payload.video_url ||
@@ -459,7 +459,7 @@ async function processGenericVideoWebhook(payload: any, telegramIdFromUrl?: stri
                    payload.data?.video_url ||
                    payload.data?.output
 
-  // Railway считается успешным, если есть download_url
+  // Render Server считается успешным, если есть download_url
   const success = payload.success !== undefined
     ? payload.success
     : (payload.download_url ? true : (payload.status === 'completed' || payload.status === 'success' || payload.state === 'success'))

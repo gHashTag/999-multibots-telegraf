@@ -50,7 +50,7 @@ AI Reels автоматически создает видео с говорящ�
 ### 4. 🔧 Инфраструктура
 
 **Базовая стоимость:** 25⭐
-- Railway хостинг
+- Render Server хостинг
 - Inngest обработка
 - Selectel S3 хранилище
 - Webhook callbacks

@@ -26,7 +26,7 @@
 # К версии с исправлением нейрофото (рекомендуется)
 ./rollback.sh NEUROPHOTO-FIX-20251031_235025
 
-# К версии с HTTP callback для Railway
+# К версии с HTTP callback для Render Server
 ./rollback.sh HTTP-CALLBACK-RAILWAY-20251031_232545
 
 # К версии с Let's Encrypt SSL
@@ -114,7 +114,7 @@
 ### Формат имени:
 ```
 NEUROPHOTO-FIX-YYYYMMDD_HHMMSS.tar.gz (с исправлением нейрофото)
-HTTP-CALLBACK-RAILWAY-YYYYMMDD_HHMMSS.tar.gz (с HTTP callback для Railway)
+HTTP-CALLBACK-RAILWAY-YYYYMMDD_HHMMSS.tar.gz (с HTTP callback для Render Server)
 SSL-LETSENCRYPT-YYYYMMDD_HHMMSS.tar.gz (с Let's Encrypt SSL)
 prod-stable-YYYYMMDD_HHMMSS.tar.gz (старое название)
 ```
@@ -271,7 +271,7 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 "docker exec 999-multibots ps aux"
 
 ### Журнал изменений:
 - **2025-10-31** - ✅ Исправлено нейрофото (после выбора модели теперь работает переход к следующему шагу)
-- **2025-10-31** - ✅ Исправлен Railway callback (HTTP endpoint работает + HTTPS endpoint работает)
+- **2025-10-31** - ✅ Исправлен Render Server callback (HTTP endpoint работает + HTTPS endpoint работает)
 - **2025-10-31** - ✅ Установлен Let's Encrypt SSL сертификат
 - **2025-10-31** - Создан deploy.sh и rollback.sh
 - **2025-10-31** - Добавлена автоматическая система снапшотов
@@ -287,7 +287,7 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 "docker exec 999-multibots ps aux"
 ✅ Режим: polling
 ✅ API: UP
 ✅ SSL: Let's Encrypt (до 2026-01-29)
-✅ HTTP Callback: ✅ 200 OK (Railway compatibility)
+✅ HTTP Callback: ✅ 200 OK (Render Server compatibility)
 ✅ HTTPS Callback: ✅ 200 OK (other services)
 ✅ Нейрофото: ✅ Исправлено (выбор модели работает)
 ✅ Снапшот: NEUROPHOTO-FIX-20251031_235025

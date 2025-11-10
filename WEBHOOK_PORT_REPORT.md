@@ -47,7 +47,7 @@ PORT=2999
 WEBHOOK_PATH=/webhook
 
 # Вебхуки для сторонних сервисов
-BFL_WEBHOOK_URL=https://ai-server-production-production-8e2d.up.railway.app/webhooks/webhook-bfl
+BFL_WEBHOOK_URL=https://ai-server-production-production-8e2d.up.render-server (local)/webhooks/webhook-bfl
 BFL_WEBHOOK_SECRET=12345dfis!67890
 ```
 

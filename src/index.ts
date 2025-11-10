@@ -562,7 +562,7 @@ async function startApplication() {
 
       if (!tunnelCreated) {
         console.warn('⚠️  [TUNNEL] Не удалось создать ни один туннель')
-        console.log('   Вебхуки от Kie.ai и Railway работать не будут при локальной разработке\n')
+        console.log('   Вебхуки от Kie.ai и Render Server работать не будут при локальной разработке\n')
       }
     }
 

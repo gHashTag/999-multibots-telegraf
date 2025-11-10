@@ -1,6 +1,6 @@
 /**
  * Render Server Client
- * Клиент для взаимодействия с render-server на Railway
+ * Клиент для взаимодействия с render-server на Render Server
  *
  * Server: https://render-v3-production.up.railway.app
  * Inngest: https://render-v3-production.up.railway.app/api/inngest
@@ -125,13 +125,13 @@ export async function checkRenderServerAvailability(): Promise<boolean> {
 }
 
 /**
- * Отправляет событие НАПРЯМУЮ на render-server (Railway)
- * Обходит Inngest Cloud и идет прямо на Railway
+ * Отправляет событие НАПРЯМУЮ на render-server (Render Server)
+ * Обходит Inngest Cloud и идет прямо на Render Server
  */
 export async function sendDirectToRenderServer(
   payload: RenderRiddlePayload
 ): Promise<{ eventId: string }> {
-  logger.info('🎬 [RENDER SERVER DIRECT] Sending direct request to Railway', {
+  logger.info('🎬 [RENDER SERVER DIRECT] Sending direct request to Render Server', {
     jobId: payload.job_id,
     hasHeygenSettings: !!payload.avatar_settings.heygen,
     hasHedraSettings: !!payload.avatar_settings.hedra,

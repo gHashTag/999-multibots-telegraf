@@ -1,7 +1,7 @@
 /**
  * 🎬 AI REELS RENDER WIZARD
  *
- * AI Reels генерация через render-server на Railway с выбором аватара
+ * AI Reels генерация через render-server на Render Server с выбором аватара
  *
  * Процесс:
  * 1. Загрузка фото аватара

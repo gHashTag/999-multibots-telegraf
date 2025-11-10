@@ -18,11 +18,11 @@
 ### 2. Render Functions
 | Component | Location | Notes |
 |-----------|----------|-------|
-| Render Server | Railway (external) | https://render-v3-production.up.railway.app |
-| render-server-client | `src/inngest_app/` | ✅ Клиент для Railway render server |
+| Render Server | Render Server (external) | https://render-v3-production.up.render-server (local) |
+| render-server-client | `src/inngest_app/` | ✅ Клиент для Render Server render server |
 | Render functions | НЕ НУЖНЫ | Выполняются на внешнем render server |
 
-**ВАЖНО**: Render функции из ai-server НЕ НУЖНЫ! Они уже работают на отдельном Railway сервере.
+**ВАЖНО**: Render функции из ai-server НЕ НУЖНЫ! Они уже работают на отдельном Render Server сервере.
 
 ### 3. Core Modules
 | Module | Location | Status |
@@ -60,7 +60,7 @@
 ## 🎯 РЕАЛЬНЫЕ ЗАДАЧИ МИГРАЦИИ
 
 ### ✅ Что НЕ нужно мигрировать:
-1. ❌ Render функции (работают на Railway)
+1. ❌ Render функции (работают на Render Server)
 2. ❌ Core/supabase (уже есть)
 3. ❌ Core/elevenlabs (уже есть)
 4. ❌ Core/lipsync (уже есть)
@@ -94,7 +94,7 @@
 ## 🚀 РЕКОМЕНДАЦИИ
 
 ### 1. НЕ МИГРИРОВАТЬ render функции
-**Причина**: Они работают на Railway render server, telegraf использует client для вызова.
+**Причина**: Они работают на Render Server render server, telegraf использует client для вызова.
 
 ### 2. ПРОВЕРИТЬ webhook для Replicate
 ```bash
@@ -143,7 +143,7 @@
 │  └──────────────────────────────────────┘      │
 └─────────────────────────────────────────────────┘
                           │
-                          ├─────► Railway Render Server
+                          ├─────► Render Server Render Server
                           │       (render functions)
                           │
                           └─────► Replicate API
@@ -163,7 +163,7 @@ ai-server (ПОЧТИ НЕ ИСПОЛЬЗУЕТСЯ)
 
 **Причины**:
 1. ✅ 99% функционала уже есть в telegraf
-2. ✅ Render функции работают на Railway (внешний сервер)
+2. ✅ Render функции работают на Render Server (внешний сервер)
 3. ✅ Core modules уже мигрированы
 4. ✅ Inngest functions уже есть
 5. ✅ Bot-farm работает без ai-server

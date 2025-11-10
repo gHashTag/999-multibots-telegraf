@@ -7,7 +7,7 @@ Webhook callback'и от KIE.ai возвращали **502 Bad Gateway** при 
 
 ### Найденные проблемы:
 1. **Порт 2999 не пробрасывался** из Docker контейнера на хост
-2. **Nginx проксировал `/api` на Railway** сервер вместо локального API
+2. **Nginx проксировал `/api` на Render Server** сервер вместо локального API
 3. **API сервер был недоступен** снаружи контейнера
 
 ### Команды для диагностики:
@@ -18,7 +18,7 @@ curl http://localhost:2999/api/kie-ai/callback
 
 # Проверка nginx конфигурации
 cat /etc/nginx/sites-available/three-head-dragon
-# -> proxy_pass на Railway вместо localhost
+# -> proxy_pass на Render Server вместо localhost
 
 # Проверка Docker портов
 docker port 999-multibots
@@ -46,9 +46,9 @@ docker run -d --name 999-multibots -p 3001:3001 -p 2999:2999 ...
 **Было:**
 ```nginx
 location /api {
-    proxy_pass https://ai-server-production-production-8e2d.up.railway.app/api;
+    proxy_pass https://ai-server-production-production-8e2d.up.render-server (local)/api;
     proxy_http_version 1.1;
-    proxy_set_header Host ai-server-production-production-8e2d.up.railway.app;
+    proxy_set_header Host ai-server-production-production-8e2d.up.render-server (local);
     ...
 }
 ```
@@ -118,7 +118,7 @@ docker logs 999-multibots | grep "KIE.AI WEBHOOK"
 
 ### До исправления:
 - ❌ 502 Bad Gateway
-- ❌ Callback'и уходили на Railway
+- ❌ Callback'и уходили на Render Server
 - ❌ Порт 2999 недоступен
 
 ### После исправления:

@@ -1,14 +1,14 @@
 # Webhook Changelog
 
-## [2025-11-10] Railway AI Reels Webhook - STABLE ✅
+## [2025-11-10] AI Reels Webhook - STABLE ✅
 
 **Tag:** `webhook-stable-20251110`
 **Snapshot:** `working-webhook-20251110-213839`
 
 ### 🎯 Что исправлено:
 
-#### 1. Railway render-server webhook поддержка
-- ✅ Добавлена поддержка поля `download_url` (Railway отправляет именно его)
+#### 1. Render Server webhook поддержка
+- ✅ Добавлена поддержка поля `download_url` (Render Server отправляет именно его)
 - ✅ Provider detection для `render-server`
 - ✅ Автоматическое определение успешного рендера по наличию `download_url`
 
@@ -37,7 +37,7 @@ docs/WEBHOOK_RAILWAY_STABLE_CONFIG.md           - полная документ�
 ### 🔗 Коммиты:
 
 - `ec489374` - 🔧 FIX: Add missing detectVideoWebhookProvider function
-- `c2f6e88a` - 🔧 FIX: Railway AI Reels webhook - add download_url support
+- `c2f6e88a` - 🔧 FIX: AI Reels webhook - add download_url support
 - `d0694d96` - ✨ FEATURE: Send large videos (>50MB) as links instead of files
 
 ### 🧪 Протестировано:
@@ -87,7 +87,7 @@ docker compose up -d
 
 ### [2025-11-10 early] - HTTP webhook (FAILED)
 - ❌ Пытался использовать HTTP вместо HTTPS
-- ❌ Railway не следовал редиректам 301
+- ❌ Render Server не следовал редиректам 301
 - ❌ Callback не доходил до сервера
 
 ### [2025-11-10 mid] - Direct sendVideo для больших файлов (FAILED)

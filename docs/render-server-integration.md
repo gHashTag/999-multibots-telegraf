@@ -3,7 +3,7 @@
 ## ✅ Текущий статус
 
 ### Что работает:
-- ✅ Render-server доступен: `https://render-v3-production.up.railway.app`
+- ✅ Render-server доступен: `https://render-v3-production.up.render-server (local)`
 - ✅ Inngest endpoint отвечает: `/api/inngest` → 200 OK
 - ✅ 3 функции зарегистрированы: render, render-avatar-video, render-riddle
 - ✅ Токены корректные:
@@ -17,14 +17,14 @@
 
 ## 🔍 Диагностика
 
-### 1. Проверить логи render-server на Railway
+### 1. Проверить логи render-server на Render Server
 
 ```bash
-# Если есть Railway CLI:
+# Если есть Render Server CLI:
 railway logs --service render-v3-production
 
-# Или через Railway Dashboard:
-# 1. Открыть: https://railway.app
+# Или через Render Server Dashboard:
+# 1. Открыть: https://render-server (local)
 # 2. Найти проект: render-v3-production
 # 3. Открыть вкладку: Deployments → Logs
 ```
@@ -99,10 +99,10 @@ npx tsx tests/test-render-simple-payload.ts
 
 3. Проверить required fields
 
-### Решение 2: Использовать Railway CLI для прямого доступа
+### Решение 2: Использовать Render Server CLI для прямого доступа
 
 ```bash
-# Установить Railway CLI
+# Установить Render Server CLI
 npm install -g @railway/cli
 
 # Логин
@@ -184,7 +184,7 @@ Content-Type: application/json
 1. ✅ **Токены проверены** - они корректные
 2. ✅ **Подключение работает** - запросы достигают render-server
 3. ⏳ **Нужно узнать**: точный формат payload для render/avatar-video
-4. ⏳ **Проверить**: логи render-server на Railway
+4. ⏳ **Проверить**: логи render-server на Render Server
 5. ⏳ **Получить**: документацию API или example request
 
 ## 🎯 Текущий результат
@@ -203,6 +203,6 @@ Content-Type: application/json
 
 ## 📞 Контакты
 
-- Render Server: https://render-v3-production.up.railway.app
-- Railway Dashboard: https://railway.app
+- Render Server: https://render-v3-production.up.render-server (local)
+- Render Server Dashboard: https://render-server (local)
 - Inngest Dashboard: https://app.inngest.com

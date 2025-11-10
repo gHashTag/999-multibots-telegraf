@@ -1,14 +1,14 @@
 # 📋 Команды для просмотра логов на production
 
-## 🚀 Railway хостинг
+## 🚀 Render Server хостинг
 
 ### Быстрый доступ к логам:
 
 ```bash
-# Установить Railway CLI (если еще не установлен)
+# Установить Render Server CLI (если еще не установлен)
 npm install -g @railway/cli
 
-# Войти в Railway
+# Войти в Render Server
 railway login
 
 # Просмотр логов в реальном времени
@@ -24,7 +24,7 @@ railway logs --grep "generateNeuroPhotoHybrid"
 ```
 
 ### Через веб-интерфейс:
-1. Перейдите на https://railway.app
+1. Перейдите на https://render-server (local)
 2. Выберите ваш проект
 3. Нажмите на сервис
 4. Перейдите во вкладку "Logs"

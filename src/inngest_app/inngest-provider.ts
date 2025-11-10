@@ -3,7 +3,7 @@
  *
  * Управляет несколькими Inngest endpoint'ами:
  * - BOT: основной бот (наш сервер)
- * - RENDER: render-server на Railway
+ * - RENDER: render-server на Render Server
  */
 
 import { logger } from '@/utils/logger'
@@ -65,13 +65,13 @@ class InngestProvider {
       )
     }
 
-    // RENDER инстанс (Inngest Cloud → Railway render-server)
+    // RENDER инстанс (Inngest Cloud → Render Server)
     const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
     const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
 
     if (renderEventKey) {
       // Создаем Inngest client для отправки в Inngest Cloud
-      // Inngest Cloud вызовет Railway render-server function
+      // Inngest Cloud вызовет Render Server function
       const renderClient = new Inngest({
         name: 'render-server-client',
         eventKey: renderEventKey,
@@ -86,7 +86,7 @@ class InngestProvider {
         client: renderClient,
       })
       logger.info(
-        '✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Railway)',
+        '✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Render Server)',
         {
           cloudUrl: 'https://inn.gs',
           hasEventKey: !!renderEventKey,
@@ -186,7 +186,7 @@ class InngestProvider {
       logger.info(`🔴 [INNGEST PROVIDER] About to call config.client.send()`)
 
       // ✅ Отправляем событие в Inngest Cloud
-      // Inngest Cloud вызовет функцию на Railway render-server
+      // Inngest Cloud вызовет функцию на Render Server
       await config.client.send({
         name: eventName,
         data,

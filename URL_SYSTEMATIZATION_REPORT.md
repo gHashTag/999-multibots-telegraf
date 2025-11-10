@@ -23,12 +23,12 @@ UNIFIED_RESULT_URL      // для платежей
 
 ### Устаревшие ссылки:
 
-1. **Railway (старый сервер)**: `https://ai-server-production-production-8e2d.up.railway.app`
+1. **Render Server (старый сервер)**: `https://ai-server-production-production-8e2d.up.render-server (local)`
    - Найдено в 20+ файлах
    - Не работает (Connection refused)
    - Должен быть заменён на `https://three-head-dragon.shop`
 
-2. **Miniapp Railway**: `https://miniapp-production-44c4.up.railway.app`
+2. **Miniapp Render Server**: `https://miniapp-production-44c4.up.render-server (local)`
    - Найдено в `src/menu/miniAppButton.ts`
    - Статус неизвестен
 
@@ -182,27 +182,27 @@ find src -type f -name "*.ts" -exec sed -i '' '
 |------|---------------|----------|
 | `src/services/generateNeuroImage.ts` | Использует `process.env.SERVER_API_URL` | Заменить на `API_URL` |
 | `src/core/elevenlabs/createVoiceElevenLabs.ts` | `AI_SERVER_URL = process.env.API_SERVER_URL \\|\\| 'https://three-head-dragon.shop'` | Заменить на импорт `API_URL` |
-| `src/menu/miniAppButton.ts` | `https://miniapp-production-44c4.up.railway.app` | Проверить актуальность URL |
+| `src/menu/miniAppButton.ts` | `https://miniapp-production-44c4.up.render-server (local)` | Проверить актуальность URL |
 | `src/core/foundation/ConfigManager.ts` | Проверка `API_SERVER_URL` и `LOCAL_SERVER_URL` | Оставить как есть |
 
 ---
 
-## 🗑️ Удаление старых Railway URL
+## 🗑️ Удаление старых Render Server URL
 
 ### Команда для замены во всех файлах:
 
 ```bash
 # В src/ директории
-find src -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.railway.app|https://three-head-dragon.shop|g' {} +
+find src -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.render-server (local)|https://three-head-dragon.shop|g' {} +
 
 # В тестах
-find tests -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.railway.app|https://three-head-dragon.shop|g' {} +
+find tests -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.render-server (local)|https://three-head-dragon.shop|g' {} +
 
 # В документации
-find docs -type f -name "*.md" -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.railway.app|https://three-head-dragon.shop|g' {} +
+find docs -type f -name "*.md" -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.render-server (local)|https://three-head-dragon.shop|g' {} +
 
 # В worktrees
-find worktrees -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.railway.app|https://three-head-dragon.shop|g' {} +
+find worktrees -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.render-server (local)|https://three-head-dragon.shop|g' {} +
 ```
 
 ### Production сервер (.env):
@@ -245,7 +245,7 @@ cd /root/bot-farm
 ### Было:
 - ❌ 7 переменных для одного сервера
 - ❌ Дублирующаяся логика
-- ❌ Устаревшие Railway URL
+- ❌ Устаревшие Render Server URL
 - ❌ Сложная логика переключения
 
 ### Стало:
@@ -271,19 +271,19 @@ cd /root/bot-farm
 # Сделаю это вручную через Edit tool
 ```
 
-### 2. Заменить устаревшие Railway URL:
+### 2. Заменить устаревшие Render Server URL:
 
 ```bash
 cd /Users/playra/999-agents-telegraf
 
 # Заменить в исходниках
-find src -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.railway.app|https://three-head-dragon.shop|g' {} +
+find src -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.render-server (local)|https://three-head-dragon.shop|g' {} +
 
 # Заменить в тестах
-find tests -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.railway.app|https://three-head-dragon.shop|g' {} +
+find tests -type f \( -name "*.ts" -o -name "*.js" \) -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.render-server (local)|https://three-head-dragon.shop|g' {} +
 
 # Заменить в документации
-find docs -type f -name "*.md" -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.railway.app|https://three-head-dragon.shop|g' {} +
+find docs -type f -name "*.md" -exec sed -i '' 's|https://ai-server-production-production-8e2d.up.render-server (local)|https://three-head-dragon.shop|g' {} +
 ```
 
 ### 3. Обновить Infisical:
@@ -330,7 +330,7 @@ API_SERVER_URL=http://212.86.115.30:2999
 ## 📝 Checklist выполнения
 
 - [ ] Обновить `src/config/index.ts` (упростить логику)
-- [ ] Заменить Railway URL на three-head-dragon.shop во всех файлах
+- [ ] Заменить Render Server URL на three-head-dragon.shop во всех файлах
 - [ ] Обновить переменные в Infisical (dev/staging/prod)
 - [ ] Удалить неиспользуемые переменные из .env
 - [ ] Протестировать API запросы

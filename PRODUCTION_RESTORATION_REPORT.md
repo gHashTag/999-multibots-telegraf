@@ -141,9 +141,9 @@ curl https://three-head-dragon.shop/health
 
 ## 🔄 Обновлённые URL
 
-### Было (старый Railway):
+### Было (старый Render Server):
 ```
-BFL_WEBHOOK_URL=https://ai-server-production-production-8e2d.up.railway.app/webhooks/webhook-bfl
+BFL_WEBHOOK_URL=https://ai-server-production-production-8e2d.up.render-server (local)/webhooks/webhook-bfl
 ```
 
 ### Стало (наш сервер):

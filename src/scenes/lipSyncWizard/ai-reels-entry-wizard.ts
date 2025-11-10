@@ -3,7 +3,7 @@
  *
  * Точка входа для выбора метода генерации AI Reels
  * - Локальная генерация (lip-sync + Google Veo 3.1 + merging)
- * - Render Server (Hedra/HeyGen через Railway)
+ * - Render Server (Hedra/HeyGen через Render Server)
  */
 
 import { Scenes, Markup } from 'telegraf'
