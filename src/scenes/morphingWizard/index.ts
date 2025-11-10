@@ -1030,7 +1030,14 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     })
 
     // ===== 💰 ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
+    logger.info('🔍 [MORPHING DEBUG] Step 1: Getting default model...')
     const defaultModel = getDefaultMorphingModel()
+    logger.info('✅ [MORPHING DEBUG] Step 2: Model retrieved', {
+      modelId: defaultModel?.id,
+      modelName: defaultModel?.name,
+      hasModel: !!defaultModel
+    })
+
     logger.info('[startMorphingGeneration] Processing balance for morphing', {
       telegramId: ctx.from?.id,
       modelId: defaultModel.id,
