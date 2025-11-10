@@ -831,13 +831,12 @@ export const generateAdvancedFluxKontext = async (
           'different_mode'
         ),
       ],
-      // ВРЕМЕННО СКРЫТО: Кнопка "Увеличить качество" не работает корректно
-      // [
-      //   Markup.button.callback(
-      //     is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
-      //     'upscale_image'
-      //   ),
-      // ],
+      [
+        Markup.button.callback(
+          is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
+          'upscale_image'
+        ),
+      ],
       [
         Markup.button.callback(
           is_ru ? '🏠 Главное меню' : '🏠 Main menu',
@@ -900,7 +899,7 @@ export const generateAdvancedFluxKontext = async (
       telegram_id: Number(telegram_id),
       paymentAmount: cost,
       is_ru,
-      bot_name: ctx?.botInfo?.username || 'clip_maker_neuro_bot',
+      bot_name: ctx?.botInfo?.username || 'neuro_blogger_bot',
     })
 
     if (!balanceCheck.success) {
@@ -1201,13 +1200,12 @@ export const upscaleFluxKontextImage = async (params: {
               'more_editing'
             ),
           ],
-          // ВРЕМЕННО СКРЫТО: Кнопка "Увеличить качество" не работает корректно
-          // [
-          //   Markup.button.callback(
-          //     is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
-          //     'upscale_image'
-          //   ),
-          // ],
+          [
+            Markup.button.callback(
+              is_ru ? '⬆️ Увеличить качество' : '⬆️ Upscale',
+              'upscale_image'
+            ),
+          ],
           [
             Markup.button.callback(
               is_ru ? '🏠 Главное меню' : '🏠 Main menu',

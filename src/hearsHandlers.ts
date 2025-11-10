@@ -6,12 +6,10 @@ import { isRussian } from './helpers/language'
 import { isRussianFromState } from './helpers/centralizedLanguage'
 import { MyContext } from './interfaces/'
 import { Telegraf, Markup } from 'telegraf'
-import { HAIM_GROUP_STAFF_IDS } from './menu/mainMenu'
+import { HAIM_GROUP_STAFF_IDS } from './menu/simpleMenu'
 import { generateNeuroPhotoHybrid } from './services/generateNeuroPhotoHybrid'
 import { handleSizeSelection } from './handlers'
-import { levels, MAIN_MENU_BUTTONS, handleMenuButtonPress, createMainMenuKeyboard } from './menu'
-// ✅ НОВЫЕ ИМПОРТЫ ИЗ simpleMenu
-import { simpleLevels, simpleMainMenu } from './menu/simpleMenu'
+import { levels, mainMenu } from './menu'
 import { getReferalsCountAndUserData, getUserData } from './core/supabase'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
@@ -27,7 +25,7 @@ import {
 
 // Импортируем функцию upscaling
 import { upscaleFluxKontextImage } from './services/generateFluxKontext'
-import { getParsingAccess } from './menu/mainMenu'
+import { getParsingAccess } from './menu/simpleMenu'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')
@@ -208,24 +206,51 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   })
 
-  bot.hears(['Отмена', 'Cancel'], async ctx => {
-    logger.info('GLOBAL HEARS: Отмена/Cancel', {
+  // ✅ ЦЕНТРАЛИЗОВАННЫЙ ОБРАБОТЧИК "ОТМЕНА" - ЕДИНСТВЕННЫЙ В СИСТЕМЕ
+  // Все локальные обработчики в сценах должны быть удалены
+  bot.hears(['Отмена', 'Cancel'], async (ctx, next) => {
+    logger.info('🚫 GLOBAL CANCEL HANDLER:', {
       telegramId: ctx.from?.id,
+      currentScene: ctx.scene.current?.id || 'none'
     })
+
     try {
+      // ✅ Предотвращаем повторную обработку
+      if (ctx.session.cancelHandled) {
+        logger.warn('Cancel already handled, skipping', { telegramId: ctx.from?.id })
+        return
+      }
+
+      ctx.session.cancelHandled = true
+
       // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
       const isRuCancel = isRussianFromState(ctx)
       await ctx.reply(
-        isRuCancel ? '❌ Процесс отменён.' : '❌ Process cancelled.',
+        isRuCancel ? '❌ Операция отменена' : '❌ Operation cancelled',
         Markup.removeKeyboard()
       )
-      await ctx.scene.leave()
+
+      if (ctx.scene.current) {
+        await ctx.scene.leave()
+      }
+
       await ctx.scene.enter(ModeEnum.MainMenu)
+
+      // ✅ Сбрасываем флаг после небольшой задержки
+      setTimeout(() => {
+        if (ctx.session) {
+          ctx.session.cancelHandled = false
+        }
+      }, 1000)
+
+      // ❌ НЕ вызываем next() - предотвращаем дальнейшую обработку
+      return
     } catch (error) {
       logger.error('Error in Отмена/Cancel hears:', {
         error,
         telegramId: ctx.from?.id,
       })
+      ctx.session.cancelHandled = false
     }
   })
 
@@ -467,9 +492,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   bot.hears(
     [levels[11].title_ru, levels[11].title_en],
     async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Текст в фото от ${ctx.from?.id}`)
+      logger.debug(`Получен hears для Генерация изображений от ${ctx.from?.id}`)
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед входом в текст в фото
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в генерацию изображений
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
         isRussianFromState(ctx) ? levels[11].title_ru : levels[11].title_en
@@ -479,7 +504,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       }
 
       ctx.session.mode = ModeEnum.TextToImage
-      await ctx.scene.enter(ModeEnum.TextToImage)
+      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
     }
   )
 
@@ -505,7 +530,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
   // Обработчик для кнопки "Увеличить качество фото"
   bot.hears(
-    [levels[107].title_ru, levels[107].title_en],
+    [levels[107].title_ru, levels[107].title_en],  // ✅ ИСПРАВЛЕНО: Используем правильный level 107
     async (ctx: MyContext) => {
       logger.debug(
         `Получен hears для Увеличить качество фото от ${ctx.from?.id}`
@@ -514,7 +539,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        isRussianFromState(ctx) ? levels[107].title_ru : levels[107].title_en
+        isRussianFromState(ctx) ? levels[107].title_ru : levels[107].title_en  // ✅ ИСПРАВЛЕНО: level 107
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -525,23 +550,46 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  // Кнопка 15: 🎭 Замена лица
+  // Обработчик для кнопки "Infinity Морфинг"
   bot.hears(
-    [levels[15].title_ru, levels[15].title_en],
+    [levels[14].title_ru, levels[14].title_en],  // ✅ ДОБАВЛЕНО: Обработчик для Infinity Morphing
     async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Замена лица от ${ctx.from?.id}`)
+      logger.debug(
+        `Получен hears для Infinity Морфинг от ${ctx.from?.id}`
+      )
 
-      // ✅ ЗАЩИТА: Проверяем подписку перед входом в face swap
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в morphing
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        isRussianFromState(ctx) ? levels[15].title_ru : levels[15].title_en
+        isRussianFromState(ctx) ? levels[14].title_ru : levels[14].title_en
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
       }
 
-      ctx.session.mode = ModeEnum.FaceSwap
-      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+      await ctx.scene.leave()
+      await ctx.scene.enter('morphing_wizard')
+    }
+  )
+
+  // Обработчик для кнопки "ИИ Рилс"
+  bot.hears(
+    [levels[19].title_ru, levels[19].title_en],
+    async (ctx: MyContext) => {
+      logger.debug(`Получен hears для ИИ Рилс от ${ctx.from?.id}`)
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в ИИ Рилс
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[19].title_ru : levels[19].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      // Входим в сцену ИИ Рилс
+      await ctx.scene.leave()
+      await ctx.scene.enter('ai_reels_entry')
     }
   )
 
@@ -667,7 +715,126 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  // УБРАНО: Кнопки 1️⃣,2️⃣,3️⃣,4️⃣ теперь будут inline кнопками в клавиатуре после генерации
+  bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async (ctx: MyContext) => {
+    if (!('text' in ctx.message)) {
+      logger.warn('Получено нетекстовое сообщение для числового hears')
+      return
+    }
+    const text = ctx.message.text
+    logger.debug(`Получен hears для кнопки ${text} от ${ctx.from?.id}`)
+    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
+    const isRu = isRussianFromState(ctx)
+    const prompt = ctx.session.prompt
+    const telegramId = ctx.from.id
+    const numImages = parseInt(text[0])
+
+    // --- DEBUG LOG ---
+    logger.debug('>>> HEARS HANDLER (1-4):', {
+      telegramId: telegramId,
+      textButton: text,
+      parsedNumImages: numImages,
+      sessionPromptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
+      sessionMode: ctx.session.mode,
+      sessionSelectedImageModel: ctx.session.selectedImageModel,
+    })
+    // --- END DEBUG LOG ---
+
+    const { profile, settings } = await getUserProfileAndSettings(telegramId)
+
+    if (!profile || !settings) {
+      logger.error(
+        'Не удалось получить профиль или настройки для hears handler',
+        { telegramId }
+      )
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не удалось получить данные пользователя.'
+          : 'Error: Could not retrieve user data.'
+      )
+      return
+    }
+
+    if (!prompt) {
+      logger.error('Промпт отсутствует в сессии для hears handler', {
+        telegramId,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Ошибка: Не найден текст для генерации. Попробуйте снова.'
+          : 'Error: Prompt not found. Please try again.'
+      )
+      return
+    }
+
+    const generate = async (num: number) => {
+      if (ctx.session.mode === ModeEnum.NeuroPhoto) {
+        // ИСПРАВЛЕНИЕ: Формируем правильный промпт с учетом пола и trigger_word
+        const trigger_word = ctx.session.userModel.trigger_word as string
+
+        const userData = await getUserData(telegramId.toString())
+        let genderPromptPart = 'person'
+        if (userData?.gender === 'female') {
+          genderPromptPart = 'female'
+        } else if (userData?.gender === 'male') {
+          genderPromptPart = 'male'
+        }
+
+        logger.info(
+          `[hearsHandlers 1-4] Determined gender for prompt: ${genderPromptPart}`,
+          {
+            telegramId,
+          }
+        )
+
+        const detailPrompt = `Cinematic Lighting, ethereal light, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details High quality, gorgeous, glamorous, 8k, super detail, gorgeous light and shadow, detailed decoration, detailed lines`
+
+        const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
+
+        await generateNeuroPhotoHybrid(
+          fullPrompt,
+          ctx.session.userModel.model_url,
+          num,
+          telegramId.toString(),
+          ctx,
+          ctx.botInfo?.username
+        )
+      } else if (ctx.session.mode === ModeEnum.TextToImage) {
+        const modelToUse = ctx.session.selectedImageModel
+
+        if (!modelToUse) {
+          logger.error(
+            '[Hears 1-4 TextToImage] Model not found in session (ctx.session.selectedImageModel).',
+            { telegramId }
+          )
+          await ctx.reply(
+            isRu
+              ? 'Ошибка: Модель для генерации не найдена в текущей сессии. Попробуйте начать заново из главного меню.'
+              : 'Error: Model for generation not found in the current session. Please try starting over from the main menu.'
+          )
+          return
+        }
+
+        logger.info(
+          `[Hears 1-4 TextToImage] Using model from session: ${modelToUse} for user ${telegramId}`
+        )
+        await generateTextToImage(
+          prompt,
+          modelToUse,
+          numImages,
+          telegramId.toString(),
+          isRu,
+          ctx,
+          ctx.botInfo?.username
+        )
+      }
+    }
+
+    if (numImages >= 1 && numImages <= 4) {
+      await generate(numImages)
+    } else {
+      await ctx.reply('Неизвестная кнопка')
+    }
+  })
 
   bot.hears(
     ['⬆️ Улучшить промпт', '⬆️ Improve prompt'],
@@ -717,20 +884,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  bot.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async (ctx: MyContext) => {
-    logger.debug(`Получен hears для Отмена от ${ctx.from?.id}`)
-    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    const isRu = isRussianFromState(ctx)
-    const telegram_id = ctx.from?.id?.toString() || ''
-    const { subscriptionType } = await getReferalsCountAndUserData(telegram_id)
-
-    await mainMenu({
-      isRu,
-      subscription: subscriptionType,
-      ctx,
-    })
-    await ctx.scene.leave()
-  })
+  // ❌ УДАЛЕНО: Дублирующий обработчик "Отмена"
+  // Используется централизованный обработчик на строке 209
 
   bot.hears(
     [levels[103].title_ru, levels[103].title_en],
@@ -904,38 +1059,34 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   )
 
   // === АДМИНСКИЕ КНОПКИ ===
-  // TEMPORARILY HIDDEN - кнопка "Цифровое тело 2"
-  // bot.hears('🤖 Цифровое тело 2', async ctx => {
-  //   logger.info('GLOBAL HEARS: Цифровое тело 2 (Admin)', {
-  //     telegramId: ctx.from?.id,
-  //   })
-  //
-  //   // 🔒 ЗАЩИТА: Проверяем что пользователь админ
-  //   const { ADMIN_IDS_ARRAY } = await import('@/config')
-  //   const userId = ctx.from?.id
-  //   const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-  //
-  //   if (!isAdmin) {
-  //     await ctx.reply('❌ У вас нет доступа к этой функции.')
-  //     return
-  //   }
-  //
-  //   // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
-  //   const hasSubscription = await checkSubscriptionGuard(
-  //     ctx,
-  //     '🤖 Цифровое тело 2'
-  //   )
-  //   if (!hasSubscription) {
-  //     return // Пользователь перенаправлен в subscriptionScene
-  //   }
-  //
-  //   await ctx.scene.leave()
-  //   ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
-  //   await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  // })
+  bot.hears('🤖 Цифровое тело 2', async ctx => {
+    logger.info('GLOBAL HEARS: Цифровое тело 2 (Admin)', {
+      telegramId: ctx.from?.id,
+    })
 
-  // TEMPORARILY HIDDEN - кнопка "Цифровое тело 2" закомментирована
-  // bot.hears('🤖 Цифровое тело 2', async ctx => { ... })
+    // 🔒 ЗАЩИТА: Проверяем что пользователь админ
+    const { ADMIN_IDS_ARRAY } = await import('@/config')
+    const userId = ctx.from?.id
+    const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
+
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет доступа к этой функции.')
+      return
+    }
+
+    // ✅ ЗАЩИТА: Проверяем подписку перед входом в админскую функцию
+    const hasSubscription = await checkSubscriptionGuard(
+      ctx,
+      '🤖 Цифровое тело 2'
+    )
+    if (!hasSubscription) {
+      return // Пользователь перенаправлен в subscriptionScene
+    }
+
+    await ctx.scene.leave()
+    ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
+    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+  })
 
   bot.hears('📸 Нейрофото 2', async ctx => {
     logger.info('GLOBAL HEARS: Нейрофото 2 (Admin)', {
@@ -1079,206 +1230,55 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   })
 
-  // === НЕДОСТАЮЩИЕ ОБРАБОТЧИКИ КНОПОК МЕНЮ ===
+  // === ОБРАБОТЧИК КНОПКИ СМЕНЫ ЯЗЫКА ===
+  bot.hears(['🌐 EN', '🌐 RU'], async ctx => {
+    const telegramId = ctx.from?.id?.toString()
+    logger.info('GLOBAL HEARS: Language switch button pressed', {
+      telegramId: ctx.from?.id,
+      buttonText: ctx.message && 'text' in ctx.message ? ctx.message.text : '',
+    })
 
-  // Кнопка 104: 🏠 Главное меню
-  bot.hears(
-    [levels[104].title_ru, levels[104].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Главное меню от ${ctx.from?.id}`)
+    try {
+      const currentLang = isRussianFromState(ctx)
+      const newLang = !currentLang // Переключаем на противоположный
+
+      // Сохраняем выбор языка в сессии
+      if (ctx.session) {
+        ctx.session.userLanguage = newLang ? 'ru' : 'en'
+      }
+
+      // Сохраняем в БД если есть telegramId
+      if (telegramId) {
+        const { updateUserLanguage } = await import('@/core/supabase')
+        await updateUserLanguage(telegramId, newLang ? 'ru' : 'en')
+      }
+
+      // Подтверждающее сообщение
+      await ctx.reply(
+        newLang
+          ? '🌐 Язык изменён на русский'
+          : '🌐 Language changed to English'
+      )
+
+      // Обновляем меню
       await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.MainMenu
       await ctx.scene.enter(ModeEnum.MainMenu)
-    }
-  )
 
-  // Кнопка 105: 💫 Оформить подписку (уже есть в registerCommands, но добавим для консистентности)
-  bot.hears(
-    [levels[105].title_ru, levels[105].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Оформить подписку от ${ctx.from?.id}`)
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.SubscriptionScene
-      await ctx.scene.enter(ModeEnum.SubscriptionScene)
-    }
-  )
-
-  // Кнопка 106: 🌐 Смена языка
-  bot.hears(
-    [levels[106].title_ru, levels[106].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Смена языка от ${ctx.from?.id}`)
-
-      const isRu = isRussianFromState(ctx)
-      const currentLang = ctx.session?.userLanguage
-      const newLang = currentLang === 'ru' ? 'en' : 'ru'
-      ctx.session.userLanguage = newLang
+      logger.info('✅ Language switched successfully', {
+        telegramId: ctx.from?.id,
+        newLanguage: newLang ? 'ru' : 'en',
+      })
+    } catch (error) {
+      logger.error('❌ Error switching language:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
 
       await ctx.reply(
-        newLang === 'ru'
-          ? '✅ Язык изменён на русский'
-          : '✅ Language changed to English'
+        isRussianFromState(ctx)
+          ? '❌ Произошла ошибка при смене языка.'
+          : '❌ Error occurred while changing language.'
       )
-
-      // Показываем главное меню на новом языке
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.MainMenu
-      await ctx.scene.enter(ModeEnum.MainMenu)
-    }
-  )
-
-  // Кнопка 109: 🔍 Мониторинг конкурентов (только для админов и сотрудников Haim Group)
-  bot.hears(
-    [levels[109].title_ru, levels[109].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Мониторинг конкурентов от ${ctx.from?.id}`)
-
-      const userId = ctx.from?.id?.toString()
-      const { ADMIN_IDS_ARRAY } = await import('@/config')
-      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
-      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
-      const hasAccess = isMainAdmin || isHaimStaff
-
-      if (!hasAccess) {
-        logger.warn('Competitor monitoring access denied - not admin/staff', {
-          userId,
-          isMainAdmin,
-          isHaimStaff,
-        })
-        await ctx.reply(
-          isRussianFromState(ctx)
-            ? '❌ У вас нет доступа к мониторингу конкурентов. Функция доступна только администраторам.'
-            : '❌ You do not have access to competitor monitoring. This feature is admin only.'
-        )
-        return
-      }
-
-      // Запускаем Instagram Parser Wizard
-      await ctx.scene.leave()
-      await ctx.scene.enter('instagram_parser_wizard')
-    }
-  )
-
-  // Кнопка 110: 🎬 ИИ Рилс (только для админов и сотрудников Haim Group)
-  bot.hears(
-    [levels[110].title_ru, levels[110].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для ИИ Рилс от ${ctx.from?.id}`)
-
-      const userId = ctx.from?.id?.toString()
-      const { ADMIN_IDS_ARRAY } = await import('@/config')
-      const isMainAdmin = userId && ADMIN_IDS_ARRAY.includes(parseInt(userId))
-      const isHaimStaff = userId && HAIM_GROUP_STAFF_IDS.includes(userId)
-      const hasAccess = isMainAdmin || isHaimStaff
-
-      if (!hasAccess) {
-        logger.warn('AI Reels access denied - not admin/staff', {
-          userId,
-          isMainAdmin,
-          isHaimStaff,
-        })
-        await ctx.reply(
-          isRussianFromState(ctx)
-            ? '❌ У вас нет доступа к ИИ Рилс. Функция доступна только администраторам.'
-            : '❌ You do not have access to AI Reels. This feature is admin only.'
-        )
-        return
-      }
-
-      // Запускаем AI Reels entry wizard (выбор метода)
-      await ctx.scene.leave()
-      await ctx.scene.enter('ai_reels_entry')
-    }
-  )
-
-  // === ПОСЛЕДНИЕ НЕДОСТАЮЩИЕ КНОПКИ ===
-
-  // Кнопка 13: 🌀 Infinity Морфинг
-  bot.hears(
-    [levels[13].title_ru, levels[13].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Infinity Морфинг от ${ctx.from?.id}`)
-
-      // ✅ ЗАЩИТА: Проверяем подписку перед входом в морфинг
-      const hasSubscription = await checkSubscriptionGuard(
-        ctx,
-        isRussianFromState(ctx) ? levels[13].title_ru : levels[13].title_en
-      )
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.MorphingWizard
-      await ctx.scene.enter(ModeEnum.MorphingWizard)
-    }
-  )
-
-  // Кнопка 14: 🎤 Синхронизация губ (только для админов)
-  bot.hears(
-    [levels[14].title_ru, levels[14].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для Синхронизация губ от ${ctx.from?.id}`)
-
-      // 🔒 ЗАЩИТА: Проверяем что пользователь админ
-      const { ADMIN_IDS_ARRAY } = await import('@/config')
-      const userId = ctx.from?.id
-      const isAdmin = userId ? ADMIN_IDS_ARRAY.includes(userId) : false
-
-      if (!isAdmin) {
-        await ctx.reply(
-          isRussianFromState(ctx)
-            ? '❌ У вас нет доступа к синхронизации губ. Функция в разработке.'
-            : '❌ You do not have access to lip sync. Feature in development.'
-        )
-        return
-      }
-
-      // Переходим к выбору модели lip-sync
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.LipSync
-      await ctx.scene.enter(ModeEnum.LipSync)
-    }
-  )
-
-  // Кнопка 111: 🦸‍♂️ ИИ Герои
-  bot.hears(
-    [levels[111].title_ru, levels[111].title_en],
-    async (ctx: MyContext) => {
-      logger.debug(`Получен hears для ИИ Герои от ${ctx.from?.id}`)
-
-      // ✅ ЗАЩИТА: Проверяем подписку перед входом в ИИ Герои
-      const hasSubscription = await checkSubscriptionGuard(
-        ctx,
-        isRussianFromState(ctx) ? levels[111].title_ru : levels[111].title_en
-      )
-      if (!hasSubscription) {
-        return // Пользователь перенаправлен в subscriptionScene
-      }
-
-      await ctx.scene.leave()
-      ctx.session.mode = ModeEnum.AIHeroes
-      await ctx.scene.enter(ModeEnum.AvatarTransform)
-    }
-  )
-
-  // ✅ НОВЫЙ ПРОСТОЙ ОБРАБОТЧИК ДЛЯ ГЛАВНОГО МЕНЮ
-  // Ловим ВСЕ кнопки из MAIN_MENU_BUTTONS
-  const menuButtonTexts = MAIN_MENU_BUTTONS.map(btn => [btn.ru, btn.en]).flat()
-
-  bot.hears(menuButtonTexts, async (ctx: MyContext) => {
-    const text = ctx.message?.text
-    if (!text) return
-
-    console.log('🎯 [SIMPLE MENU] Button pressed:', text)
-
-    // Передаем кнопку в новую простую функцию
-    const handled = await handleMenuButtonPress(ctx, text)
-
-    if (handled) {
-      console.log('✅ [SIMPLE MENU] Button handled successfully')
-    } else {
-      console.log('⚠️ [SIMPLE MENU] Button not recognized:', text)
     }
   })
 }

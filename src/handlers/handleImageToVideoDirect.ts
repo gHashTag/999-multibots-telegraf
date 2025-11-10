@@ -22,44 +22,7 @@ export async function handleImageToVideoDirect(
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
   const is_ru = isRussianFromState(ctx)
-  
-  // Получаем bot_name и проверяем его доступность
   const bot_name = ctx.botInfo?.username || 'unknown_bot'
-  
-  // Проверяем, что бот существует и настроен правильно
-  try {
-    const { getBotByName } = await import('@/core/bot')
-    const botResult = getBotByName(bot_name)
-    if (!botResult.bot || botResult.error) {
-      const errorMsg = is_ru 
-        ? `❌ Произошла ошибка.\n\nБот "${bot_name}" не найден или не настроен правильно.\n\nОбратитесь в техподдержку.`
-        : `❌ An error occurred.\n\nBot "${bot_name}" not found or not configured properly.\n\nPlease contact support.`
-      
-      logger.error(`[handleImageToVideoDirect] Bot configuration error`, {
-        bot_name,
-        error: botResult.error,
-        telegram_id,
-        username
-      })
-      
-      await ctx.reply(errorMsg)
-      return
-    }
-  } catch (error) {
-    const errorMsg = is_ru 
-      ? `❌ Произошла системная ошибка.\n\nОбратитесь в техподдержку.`
-      : `❌ A system error occurred.\n\nPlease contact support.`
-    
-    logger.error(`[handleImageToVideoDirect] Critical bot system error`, { 
-      error, 
-      bot_name, 
-      telegram_id, 
-      username 
-    })
-    
-    await ctx.reply(errorMsg)
-    return
-  }
 
   logger.info(
     '[handleImageToVideoDirect] Starting image to video generation',
@@ -169,6 +132,43 @@ export async function handleImageToVideoDirect(
       imageUrl: imageUrl.substring(0, 100) + '...',
     })
 
+    // ✅ СПИСЫВАЕМ БАЛАНС после успешного запуска генерации
+    if (price > 0) {
+      const charged = await updateUserBalance(
+        telegram_id,
+        price,
+        PaymentType.MONEY_OUTCOME,
+        `Image to Video generation: ${modelId}${duration ? ` (${duration}s)` : ''}`,
+        { service_type: 'IMAGE_TO_VIDEO' }
+      )
+
+      if (!charged) {
+        logger.error('❌ Failed to charge user for image to video generation', {
+          telegram_id,
+          price,
+          model: modelId
+        })
+
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            processingMessage.message_id,
+            undefined,
+            is_ru
+              ? '❌ Недостаточно средств для генерации видео.'
+              : '❌ Insufficient funds for video generation.'
+          )
+        }
+        return
+      }
+
+      logger.info('✅ Successfully charged user for image to video generation', {
+        telegram_id,
+        price,
+        model: modelId
+      })
+    }
+
     // Обновляем сообщение о успешном запуске
     if (ctx && ctx.telegram && ctx.chat) {
       await ctx.telegram.editMessageText(
@@ -181,8 +181,7 @@ export async function handleImageToVideoDirect(
       )
     }
 
-    // Функция generateImageToVideo уже обрабатывает отправку видео пользователю
-    // и списание баланса, поэтому здесь дополнительных действий не требуется
+    // Функция generateImageToVideo обрабатывает отправку видео пользователю
     
   } catch (error) {
     logger.error('[handleImageToVideoDirect] Unexpected error:', error)

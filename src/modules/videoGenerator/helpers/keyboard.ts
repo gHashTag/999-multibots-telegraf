@@ -1,7 +1,7 @@
 import { Markup } from 'telegraf'
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 import { logger } from '@/utils/logger'
-import { VIDEO_MODELS_CONFIG } from '../config/models.config'
+import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
 import {
   getAvailableModels,
   formatModelButton,

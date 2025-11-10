@@ -415,3 +415,15 @@ claude-flow.bat
 claude-flow.ps1
 hive-mind-prompt-*.txt
 !/.env.example
+
+# Expo & React Native
+mobile/.expo/
+mobile/.expo-shared/
+mobile/dist/
+mobile/web-build/
+mobile/node_modules/
+*.jks
+*.p8
+*.mobileprovision
+*.orig.*
+.metro-health-check*

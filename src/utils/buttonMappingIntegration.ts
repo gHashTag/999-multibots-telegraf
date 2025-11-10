@@ -257,8 +257,8 @@ export const ErrorRecoveryStrategies = {
         : '❌ Error. Let\'s try again.'
     )
 
-    if (ctx.wizard && ctx.wizard.cursor > 0) {
-      ctx.wizard.selectStep(ctx.wizard.cursor)
+    if (ctx.wizard && (ctx.wizard?.cursor ?? 0) > 0) {
+      ctx.wizard.selectStep(ctx.wizard?.cursor ?? 0)
     }
   },
 

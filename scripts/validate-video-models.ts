@@ -4,9 +4,8 @@
  * Validates all 23 video generation models WITHOUT making real API calls
  */
 
-import { VIDEO_MODELS } from '../src/services/videoModels'
-import { VIDEO_MODELS_CONFIG } from '../src/modules/videoGenerator/config/models.config'
-import { KIE_AI_MODELS_PRICING } from '../src/config/unified-pricing.config'
+import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '../src/config/unified-video-models.config'
+import { KIE_AI_MODELS_PRICING } from '../src/price/constants'
 import axios from 'axios'
 
 interface ValidationResult {
@@ -41,17 +40,15 @@ function log(color: keyof typeof colors, ...args: any[]) {
 
 log('cyan', '\n=== 1. CONFIGURATION VALIDATION ===\n')
 
-// Count models in each configuration
-const videoModelsCount = Object.keys(VIDEO_MODELS).length
+// Count models in unified configuration
 const videoModelsConfigCount = Object.keys(VIDEO_MODELS_CONFIG).length
 
-log('blue', `VIDEO_MODELS: ${videoModelsCount} models`)
-log('blue', `VIDEO_MODELS_CONFIG: ${videoModelsConfigCount} models`)
+log('blue', `UNIFIED_VIDEO_MODELS: ${videoModelsConfigCount} models`)
 
-if (videoModelsCount !== EXPECTED_MODELS_COUNT) {
-  log('red', `❌ Expected ${EXPECTED_MODELS_COUNT} models in VIDEO_MODELS, found ${videoModelsCount}`)
+if (videoModelsConfigCount !== EXPECTED_MODELS_COUNT) {
+  log('red', `❌ Expected ${EXPECTED_MODELS_COUNT} models, found ${videoModelsConfigCount}`)
 } else {
-  log('green', `✅ VIDEO_MODELS has correct count (${EXPECTED_MODELS_COUNT})`)
+  log('green', `✅ UNIFIED_VIDEO_MODELS has correct count (${EXPECTED_MODELS_COUNT})`)
 }
 
 if (videoModelsConfigCount !== EXPECTED_MODELS_COUNT) {
@@ -62,8 +59,8 @@ if (videoModelsConfigCount !== EXPECTED_MODELS_COUNT) {
 
 // List all models
 log('cyan', '\n=== ALL MODELS LIST ===\n')
-Object.keys(VIDEO_MODELS).forEach((modelId, index) => {
-  const model = VIDEO_MODELS[modelId as keyof typeof VIDEO_MODELS]
+Object.keys(VIDEO_MODELS_CONFIG).forEach((modelId, index) => {
+  const model = VIDEO_MODELS_CONFIG[modelId as keyof typeof VIDEO_MODELS_CONFIG]
   const config = VIDEO_MODELS_CONFIG[modelId]
 
   log('white', `${index + 1}. ${modelId}`)
@@ -80,7 +77,7 @@ Object.keys(VIDEO_MODELS).forEach((modelId, index) => {
 
 log('cyan', '\n=== 2. MODEL-BY-MODEL VALIDATION ===\n')
 
-for (const [modelId, model] of Object.entries(VIDEO_MODELS)) {
+for (const [modelId, model] of Object.entries(VIDEO_MODELS_CONFIG)) {
   const issues: string[] = []
   const details: Record<string, any> = {}
 
@@ -243,11 +240,11 @@ function continueValidation() {
 
 log('cyan', '\n=== 4. PROVIDER VALIDATION ===\n')
 
-const kieAiModels = Object.keys(VIDEO_MODELS).filter(id =>
+const kieAiModels = Object.keys(VIDEO_MODELS_CONFIG).filter(id =>
   ['veo3', 'veo3_fast', 'runway-aleph', 'sora-2', 'sora-2-pro'].includes(id)
 )
 
-const replicateModels = Object.keys(VIDEO_MODELS).filter(id =>
+const replicateModels = Object.keys(VIDEO_MODELS_CONFIG).filter(id =>
   !['veo3', 'veo3_fast', 'runway-aleph', 'sora-2', 'sora-2-pro'].includes(id)
 )
 

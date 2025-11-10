@@ -1,23 +1,17 @@
 import { MyContext } from '@/interfaces'
 import {
-  generateTextToVideo,
   checkVideoGenerationStatus,
   VideoModelId,
 } from '@/services/generateTextToVideo'
-import {
-  VIDEO_MODELS,
-  getModelPriceInStars,
-  getValidDuration,
-  formatModelInfo,
-} from '@/services/videoModels'
+import { getUnifiedModelConfig, getUnifiedModelPrice, VIDEO_MODELS_CONFIG, getValidDuration } from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
 import { uploadTelegramFileLocal } from '@/helpers/uploadTelegramFileLocal'
+import { videoTaskStore } from '@/services/video-task-store'
 
 /**
  * Handler для генерации видео из текста через прямую интеграцию с сервером
@@ -33,44 +27,7 @@ export async function handleTextToVideoDirect(
   const telegram_id = ctx.from?.id.toString() || ''
   const username = ctx.from?.username || 'unknown'
   const is_ru = isRussianFromState(ctx)
-  
-  // Получаем bot_name и проверяем его доступность
   const bot_name = ctx.botInfo?.username || 'unknown_bot'
-  
-  // Проверяем, что бот существует и настроен правильно
-  try {
-    const { getBotByName } = await import('@/core/bot')
-    const botResult = getBotByName(bot_name)
-    if (!botResult.bot || botResult.error) {
-      const errorMsg = is_ru 
-        ? `❌ Произошла ошибка.\n\nБот "${bot_name}" не найден или не настроен правильно.\n\nОбратитесь в техподдержку.`
-        : `❌ An error occurred.\n\nBot "${bot_name}" not found or not configured properly.\n\nPlease contact support.`
-      
-      logger.error(`[handleTextToVideoDirect] Bot configuration error`, {
-        bot_name,
-        error: botResult.error,
-        telegram_id,
-        username
-      })
-      
-      await ctx.reply(errorMsg)
-      return
-    }
-  } catch (error) {
-    const errorMsg = is_ru 
-      ? `❌ Произошла системная ошибка.\n\nОбратитесь в техподдержку.`
-      : `❌ A system error occurred.\n\nPlease contact support.`
-    
-    logger.error(`[handleTextToVideoDirect] Critical bot system error`, { 
-      error, 
-      bot_name, 
-      telegram_id, 
-      username 
-    })
-    
-    await ctx.reply(errorMsg)
-    return
-  }
 
   // Получаем корректную длительность для модели
   const validDuration = getValidDuration(modelId, duration)
@@ -94,10 +51,10 @@ export async function handleTextToVideoDirect(
     return
   }
 
-  // Получаем информацию о модели
-  const modelInfo = VIDEO_MODELS[modelId]
-  const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
-  const price = getModelPriceInStars(modelId, validDuration)
+  // Получаем информацию о модели из unified config
+  const modelConfig = getUnifiedModelConfig(modelId)
+  const modelName = is_ru ? modelConfig.nameRu : modelConfig.name
+  const price = getUnifiedModelPrice(modelId, { duration: validDuration })
 
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(
@@ -123,19 +80,69 @@ export async function handleTextToVideoDirect(
   )
 
   try {
-    // Запускаем генерацию видео
-    const response = await generateTextToVideo({
+    // ✅ Импортируем новый модуль videoGenerator
+    const { generateTextToVideo: generateTextToVideoNew } = await import('@/modules/videoGenerator')
+
+    // Запускаем генерацию видео через новый модуль
+    const result = await generateTextToVideoNew(
       prompt,
-      videoModel: modelId,
-      duration: validDuration,
-      aspectRatio: aspectRatio,
       telegram_id,
       username,
       is_ru,
       bot_name,
-    })
+      modelId,
+      undefined, // selectedResolution
+      validDuration,
+      aspectRatio
+    )
+
+    // result уже в правильном формате { success, videoUrl?, jobId?, error?, message? }
+    const response: { success: boolean; videoUrl?: string; jobId?: string; error?: string; message?: string } =
+      result || { success: false, error: 'Video generation failed' }
 
     if (!response.success) {
+      // ✅ Проверяем, является ли это ошибкой недостатка кредитов (402)
+      const isInsufficientCredits = (response as any).isInsufficientCredits === true
+
+      if (isInsufficientCredits) {
+        // 🚨 КРИТИЧЕСКАЯ ОШИБКА: Уведомляем админа о недостатке кредитов
+        const { ADMIN_IDS_ARRAY } = await import('@/config')
+        const adminMessage = `🚨 <b>КРИТИЧЕСКАЯ ОШИБКА: Недостаточно кредитов на Kie.ai API</b>
+
+<b>Модель:</b> ${modelId}
+<b>Пользователь:</b> @${username} (ID: ${telegram_id})
+<b>Ошибка:</b> ${response.error}
+
+⚠️ <b>Требуется пополнение баланса Kie.ai немедленно!</b>
+
+Пользователь получил сообщение о том, что проблема будет решена в ближайшее время.`
+
+        // Отправляем уведомление всем админам
+        for (const adminId of ADMIN_IDS_ARRAY) {
+          try {
+            await ctx.telegram.sendMessage(adminId, adminMessage, { parse_mode: 'HTML' })
+            logger.info('[handleTextToVideoDirect] Admin notified about insufficient credits', { adminId })
+          } catch (error) {
+            logger.error('[handleTextToVideoDirect] Failed to notify admin', { adminId, error })
+          }
+        }
+
+        // Показываем пользователю дружелюбное сообщение
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            processingMessage.message_id,
+            undefined,
+            is_ru
+              ? `⚠️ <b>Временная техническая проблема</b>\n\nАдминистратор уже уведомлен и работает над решением.\nПожалуйста, попробуйте через несколько минут.\n\n💬 Приносим извинения за неудобства!`
+              : `⚠️ <b>Temporary technical issue</b>\n\nThe administrator has been notified and is working on a solution.\nPlease try again in a few minutes.\n\n💬 We apologize for the inconvenience!`,
+            { parse_mode: 'HTML' }
+          )
+        }
+        return
+      }
+
+      // Обычная ошибка генерации
       if (ctx && ctx.telegram && ctx.chat) {
         await ctx.telegram.editMessageText(
           ctx.chat.id,
@@ -171,17 +178,53 @@ export async function handleTextToVideoDirect(
       ctx.session.videoDuration = validDuration
       ctx.session.videoMessageId = processingMessage.message_id
 
-      // ✅ Включаем мониторинг статуса - endpoint реализован
-      monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
-      if (ctx && ctx.telegram && ctx.chat) {
-        await ctx.telegram.editMessageText(
-          ctx.chat.id,
-          processingMessage.message_id,
-          undefined,
-          is_ru
-            ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
-            : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
-        )
+      // ✅ Для ВСЕХ Kie.ai моделей: сохраняем в videoTaskStore для webhook, БЕЗ polling
+      const modelConfig = VIDEO_MODELS_CONFIG[modelId]
+      const isKieAiModel = modelConfig?.provider === 'kie'
+      const isWanModel = modelId.includes('wan')
+
+      if (isKieAiModel) {
+        videoTaskStore.saveTask(response.jobId, {
+          telegramId: telegram_id ? parseInt(telegram_id) : 0,
+          chatId: ctx.chat?.id || 0,
+          messageId: processingMessage.message_id,
+          prompt,
+          modelId,
+          duration: validDuration,
+          createdAt: Date.now(),
+          botName: ctx.botInfo?.username // ✅ FIX: Сохраняем имя бота для multi-bot режима
+        })
+
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            processingMessage.message_id,
+            undefined,
+            is_ru
+              ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n🆔 Task ID: ${response.jobId}\n\n⏳ Видео будет отправлено автоматически через webhook. Это может занять ${isWanModel ? '2-3' : '3-5'} минут.`
+              : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n🆔 Task ID: ${response.jobId}\n\n⏳ The video will be sent automatically via webhook. This may take ${isWanModel ? '2-3' : '3-5'} minutes.`
+          )
+        }
+
+        logger.info('[handleTextToVideoDirect] Async task saved for webhook (Kie.ai provider)', {
+          taskId: response.jobId,
+          telegram_id,
+          modelId,
+          provider: 'kie'
+        })
+      } else {
+        // Для НЕ-Kie.ai моделей: используем polling как раньше
+        monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
+        if (ctx && ctx.telegram && ctx.chat) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            processingMessage.message_id,
+            undefined,
+            is_ru
+              ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
+              : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n🆔 Job ID: ${response.jobId}\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+          )
+        }
       }
     } else {
       // Если нет jobId, но генерация запущена, показываем сообщение
@@ -232,91 +275,17 @@ async function monitorVideoGeneration(
   const is_ru = isRussianFromState(ctx)
   const modelId = ctx.session.videoModelId
   const isSoraModel = modelId && ['sora-2', 'sora-2-pro'].includes(modelId)
-  const maxAttempts = isSoraModel ? 36 : 60 // Sora: 3 минуты (36 * 5s), другие: 5 минут
+  const maxAttempts = 60 // 5 минут для НЕ-Sora моделей
   let attempts = 0
 
-  // Для Sora моделей используем прямой Kie.ai polling
+  // ✅ ИСПРАВЛЕНИЕ: Для Sora моделей НЕ используем polling - только webhook!
   if (isSoraModel) {
-    const { KieAiProvider } = await import('@/services/video-providers/KieAiProvider')
-    const kieProvider = new KieAiProvider()
-
-    const checkInterval = setInterval(async () => {
-      attempts++
-
-      try {
-        const soraResponse = await kieProvider.pollSoraTaskStatus(jobId, 5000)
-
-        logger.info('[monitorVideoGeneration] Sora status check:', {
-          jobId,
-          success: soraResponse.success,
-          hasVideoUrl: !!soraResponse.data?.videoUrl,
-          attempts
-        })
-
-        if (soraResponse.success && soraResponse.data?.videoUrl) {
-          clearInterval(checkInterval)
-          await handleVideoReady(
-            ctx,
-            soraResponse.data.videoUrl,
-            ctx.session.videoPrompt || '',
-            (ctx.session.videoModelId as VideoModelId) || 'sora-2',
-            10, // Sora всегда 10 секунд
-            messageId
-          )
-
-          // Очищаем сессию
-          delete ctx.session.videoJobId
-          delete ctx.session.videoPrompt
-          delete ctx.session.videoModelId
-          delete ctx.session.videoDuration
-          delete ctx.session.videoMessageId
-        } else if (!soraResponse.success && soraResponse.error) {
-          clearInterval(checkInterval)
-          if (ctx && ctx.telegram && ctx.chat) {
-            await ctx.telegram.editMessageText(
-              ctx.chat.id,
-              messageId,
-              undefined,
-              is_ru
-                ? `❌ Ошибка генерации Sora: ${soraResponse.error}`
-                : `❌ Sora generation error: ${soraResponse.error}`
-            )
-          }
-        } else if (attempts >= maxAttempts) {
-          clearInterval(checkInterval)
-          if (ctx && ctx.telegram && ctx.chat) {
-            await ctx.telegram.editMessageText(
-              ctx.chat.id,
-              messageId,
-              undefined,
-              is_ru
-                ? '⏱️ Генерация Sora видео заняла слишком много времени.'
-                : '⏱️ Sora video generation took too long.'
-            )
-          }
-          delete ctx.session.videoJobId
-          delete ctx.session.videoPrompt
-          delete ctx.session.videoModelId
-          delete ctx.session.videoDuration
-          delete ctx.session.videoMessageId
-        }
-      } catch (error) {
-        clearInterval(checkInterval)
-        logger.error('[monitorVideoGeneration] Sora polling error:', error)
-        if (ctx && ctx.telegram && ctx.chat) {
-          await ctx.telegram.editMessageText(
-            ctx.chat.id,
-            messageId,
-            undefined,
-            is_ru
-              ? '❌ Ошибка при проверке статуса Sora генерации.'
-              : '❌ Error checking Sora generation status.'
-          )
-        }
-      }
-    }, 5000) // Проверяем каждые 5 секунд
-
-    return
+    logger.info('[monitorVideoGeneration] Sora model detected - skipping polling, waiting for webhook', {
+      jobId,
+      telegram_id: ctx.from?.id,
+      modelId
+    })
+    return // Выходим сразу, webhook обработает результат
   }
 
   // Для других моделей используем стандартный API polling
@@ -484,9 +453,9 @@ async function handleVideoReady(
       )
     }
 
-    // Получаем информацию о модели для подписи
-    const modelInfo = VIDEO_MODELS[modelId]
-    const modelName = is_ru ? modelInfo.nameRu : modelInfo.name
+    // Получаем информацию о модели для подписи из unified config
+    const modelConfig = getUnifiedModelConfig(modelId)
+    const modelName = is_ru ? modelConfig.nameRu : modelConfig.name
 
     // Логирование перед отправкой видео
     logger.info('[handleVideoReady] Attempting to send video:', {
@@ -542,7 +511,7 @@ async function handleVideoReady(
     }
 
     // Списываем баланс
-    const price = getModelPriceInStars(modelId, duration)
+    const price = getUnifiedModelPrice(modelId, { duration })
 
     await updateUserBalance(
       telegram_id,

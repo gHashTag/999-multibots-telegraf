@@ -1,10 +1,37 @@
 import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
+import { videoTaskStore } from '@/services/video-task-store'
+import { Telegraf, Input } from 'telegraf'
+import { VIDEO_MODELS_CONFIG as VIDEO_MODELS } from '@/config/unified-video-models.config'
+import type { VideoModelId } from '@/services/generateTextToVideo'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
 const router: Router = express.Router()
+
+// ✅ MULTI-BOT SUPPORT: Храним Map всех bot instances
+const botInstances: Map<string, Telegraf> = new Map()
+let defaultBotInstance: Telegraf | null = null
+
+export function setBotInstance(bot: Telegraf, botName?: string): void {
+  if (botName) {
+    botInstances.set(botName, bot)
+    logger.info('✅ [KIE.AI WEBHOOK] Bot instance registered', { botName })
+  } else {
+    // Legacy support: первый бот становится default
+    defaultBotInstance = bot
+    logger.info('✅ [KIE.AI WEBHOOK] Default bot instance set')
+  }
+}
+
+// Получить нужный bot instance по имени или fallback на default
+function getBotInstance(botName?: string): Telegraf | null {
+  if (botName && botInstances.has(botName)) {
+    return botInstances.get(botName) || null
+  }
+  return defaultBotInstance
+}
 
 /**
  * Interface для webhook payload от Kie.ai
@@ -26,8 +53,202 @@ interface KieAiWebhookPayload {
     errorMessage?: string
     duration?: number
   }
-  data?: any; // Allow nested data object
-  code?: number; // Allow 'code' for success/failure detection
+}
+
+/**
+ * 🌐 УНИВЕРСАЛЬНЫЙ Webhook Handler для ВСЕХ видео-моделей
+ * POST /api/video-callback
+ *
+ * Принимает webhook'и от любых видео-провайдеров:
+ * - Kie.ai (Sora, WAN 2.5, Veed Fabric)
+ * - Replicate
+ * - Railway AI Reels
+ * - Любые другие провайдеры
+ *
+ * Следует лучшим практикам:
+ * - Быстрый ответ (202 Accepted)
+ * - Асинхронная обработка
+ * - Детальное логирование
+ * - Валидация payload
+ */
+router.post('/video-callback', async (req: any, res: any) => {
+  const startTime = Date.now()
+
+  try {
+    // ✅ Быстро отвечаем 202 Accepted согласно best practices
+    res.status(202).json({
+      message: 'Video webhook received and will be processed asynchronously',
+      timestamp: new Date().toISOString()
+    })
+
+    logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Received callback', {
+      body: req.body,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent'],
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+      },
+      responseTime: Date.now() - startTime
+    })
+
+    const payload: KieAiWebhookPayload = req.body
+
+    // ✅ Автоопределение провайдера по структуре payload
+    const provider = detectVideoProvider(payload)
+
+    logger.info('🔍 [UNIVERSAL VIDEO WEBHOOK] Provider detected', { provider })
+
+    // Маршрутизируем на соответствующий обработчик
+    switch (provider) {
+      case 'kie-sora':
+        await processSoraWebhookAsync(normalizeKieSoraPayload(payload))
+        break
+      case 'kie-wan':
+      case 'kie-veed':
+        await processKieAiWebhookAsync(normalizeKiePayload(payload))
+        break
+      case 'replicate':
+        logger.info('🔄 [UNIVERSAL VIDEO WEBHOOK] Replicate webhook - forwarding to replicate handler')
+        // TODO: Implement replicate handler
+        break
+      case 'railway-ai-reels':
+        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Railway AI Reels webhook detected')
+        await processGenericVideoWebhook(payload)
+        break
+      default:
+        logger.warn('⚠️ [UNIVERSAL VIDEO WEBHOOK] Unknown provider, attempting generic processing', { payload })
+        await processGenericVideoWebhook(payload)
+        break
+    }
+
+  } catch (error) {
+    logger.error('❌ [UNIVERSAL VIDEO WEBHOOK] Error processing webhook', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      body: req.body,
+      processingTime: Date.now() - startTime
+    })
+  }
+})
+
+/**
+ * Автоопределение провайдера видео по структуре payload
+ */
+function detectVideoProvider(payload: any): string {
+  // Kie.ai обычно имеет data.taskId или taskId
+  if (payload.taskId || payload.data?.taskId) {
+    // Sora имеет data.state и data.resultJson
+    if (payload.data?.state && payload.data?.resultJson) {
+      return 'kie-sora'
+    }
+    // WAN/Veed имеет successFlag и resultUrl на верхнем уровне
+    if (payload.successFlag !== undefined && payload.resultUrl) {
+      return 'kie-wan'
+    }
+    // Fallback: если есть data.state - это Sora
+    if (payload.data?.state) {
+      return 'kie-sora'
+    }
+    return 'kie-wan'
+  }
+
+  // Replicate обычно имеет prediction.id
+  if (payload.prediction?.id || payload.id) {
+    return 'replicate'
+  }
+
+  // Railway AI Reels - проверяем renderTaskId как основной индикатор
+  if (payload.renderTaskId || (payload.videoUrl && payload.status === 'completed')) {
+    return 'railway-ai-reels'
+  }
+
+  return 'unknown'
+}
+
+/**
+ * Нормализация payload от Kie.ai Sora
+ */
+function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
+  const taskId = payload.taskId || payload.data?.taskId
+  const successFlag = payload.successFlag !== undefined
+    ? payload.successFlag
+    : (payload.data?.state === 'success' ? 1 : 2)
+
+  let resultUrls: string[] | undefined
+  try {
+    if (payload.data?.resultJson) {
+      const resultJson = JSON.parse(payload.data.resultJson)
+      resultUrls = resultJson.resultUrls
+    }
+  } catch (e) {
+    logger.warn('[UNIVERSAL VIDEO WEBHOOK] Failed to parse Sora resultJson', { error: e })
+  }
+
+  return {
+    ...payload,
+    taskId,
+    successFlag,
+    resultUrls: payload.resultUrls || resultUrls || payload.data?.resultUrls,
+    videoUrl: payload.videoUrl || resultUrls?.[0] || payload.data?.resultUrls?.[0]
+  }
+}
+
+/**
+ * Нормализация payload от Kie.ai WAN/Veed
+ */
+function normalizeKiePayload(payload: any): KieAiWebhookPayload {
+  const taskId = payload.taskId || payload.data?.taskId
+  const successFlag = payload.successFlag !== undefined
+    ? payload.successFlag
+    : (payload.code === 200 ? 1 : 2)
+
+  let parsedResultUrls: string[] | undefined
+  try {
+    if (payload.data?.resultJson) {
+      const resultJson = JSON.parse(payload.data.resultJson)
+      parsedResultUrls = resultJson.resultUrls
+    }
+  } catch (e) {
+    logger.warn('[UNIVERSAL VIDEO WEBHOOK] Failed to parse WAN resultJson', { error: e })
+  }
+
+  return {
+    ...payload,
+    taskId,
+    successFlag,
+    resultUrls: payload.resultUrls || parsedResultUrls || payload.data?.info?.resultUrls || payload.data?.resultUrls,
+    videoUrl: payload.videoUrl || parsedResultUrls?.[0] || payload.data?.info?.resultUrls?.[0],
+    errorMessage: payload.errorMessage || payload.data?.errorMessage
+  }
+}
+
+/**
+ * Обработка webhook от неизвестного провайдера
+ */
+async function processGenericVideoWebhook(payload: any): Promise<void> {
+  logger.info('🔄 [GENERIC VIDEO WEBHOOK] Processing unknown provider webhook', { payload })
+
+  // Пытаемся извлечь базовую информацию
+  const taskId = payload.taskId || payload.id || payload.data?.taskId || payload.data?.id
+  const videoUrl = payload.videoUrl || payload.url || payload.result_url || payload.data?.videoUrl
+  const success = payload.success !== undefined ? payload.success : (payload.status === 'completed' || payload.state === 'success')
+
+  if (!taskId) {
+    logger.error('❌ [GENERIC VIDEO WEBHOOK] No task ID found in payload')
+    return
+  }
+
+  logger.info('📊 [GENERIC VIDEO WEBHOOK] Extracted data', { taskId, videoUrl, success })
+
+  // Обрабатываем как стандартный Kie.ai webhook
+  const normalizedPayload: KieAiWebhookPayload = {
+    taskId,
+    successFlag: success ? 1 : 2,
+    videoUrl,
+    resultUrls: videoUrl ? [videoUrl] : undefined
+  }
+
+  await processKieAiWebhookAsync(normalizedPayload)
 }
 
 /**
@@ -62,24 +283,46 @@ router.post('/kie-ai/sora-callback', async (req: any, res: any) => {
 
     const payload: KieAiWebhookPayload = req.body
 
-    // ✅ Валидация обязательных полей
-    if (!payload.taskId) {
-      logger.error('❌ [SORA WEBHOOK] Missing taskId', { payload })
-      return
-    }
+    // ✅ ИСПРАВЛЕНИЕ: Kie.ai отправляет taskId в data.taskId
+    const taskId = payload.taskId || (payload.data as any)?.taskId
+    const successFlag = payload.successFlag !== undefined
+      ? payload.successFlag
+      : ((payload.data as any)?.state === 'success' ? 1 : 2)
 
-    if (typeof payload.successFlag !== 'number') {
-      logger.error('❌ [SORA WEBHOOK] Missing or invalid successFlag', {
+    // ✅ Валидация обязательных полей
+    if (!taskId) {
+      logger.error('❌ [SORA WEBHOOK] Missing taskId', {
         payload,
-        successFlagType: typeof payload.successFlag
+        hasData: !!payload.data,
+        dataKeys: payload.data ? Object.keys(payload.data) : []
       })
       return
     }
 
-    // ✅ Асинхронная обработка Sora видео в фоне
-    processSoraWebhookAsync(payload).catch(error => {
+    // Нормализуем payload
+    // Kie.ai отправляет resultJson как строку JSON, нужно распарсить
+    let resultUrls: string[] | undefined
+    try {
+      if ((payload.data as any)?.resultJson) {
+        const resultJson = JSON.parse((payload.data as any).resultJson)
+        resultUrls = resultJson.resultUrls
+      }
+    } catch (e) {
+      logger.warn('[SORA WEBHOOK] Failed to parse resultJson', { error: e })
+    }
+
+    const normalizedPayload: KieAiWebhookPayload = {
+      ...payload,
+      taskId,
+      successFlag,
+      resultUrls: payload.resultUrls || resultUrls || (payload.data as any)?.resultUrls,
+      videoUrl: payload.videoUrl || resultUrls?.[0] || (payload.data as any)?.resultUrls?.[0]
+    }
+
+    // ✅ Асинхронная обработка Sora видео в фоне с нормализованным payload
+    processSoraWebhookAsync(normalizedPayload).catch(error => {
       logger.error('❌ [SORA WEBHOOK] Error in async processing', {
-        taskId: payload.taskId,
+        taskId: normalizedPayload.taskId,
         error: error.message,
         stack: error.stack
       })
@@ -165,9 +408,94 @@ async function handleSoraSuccess(payload: KieAiWebhookPayload): Promise<void> {
     duration: 10 // Sora всегда 10 секунд
   })
 
-  // TODO: Уведомить пользователя о готовом видео через Telegram
-  // Можно использовать систему как в handleSuccessfulGeneration для LipSync
-  // Или хранить taskId -> telegram_id mapping для отправки видео
+  // Получаем контекст задачи
+  const taskContext = videoTaskStore.getTask(taskId)
+  if (!taskContext) {
+    logger.error('❌ [SORA WEBHOOK] Task context not found', { taskId })
+    return
+  }
+
+  // ✅ MULTI-BOT FIX: Получаем правильный bot instance для этой задачи
+  const botInstance = getBotInstance(taskContext.botName)
+  if (!botInstance) {
+    logger.error('❌ [SORA WEBHOOK] Bot instance not found', {
+      taskId,
+      requestedBot: taskContext.botName,
+      availableBots: Array.from(botInstances.keys())
+    })
+    return
+  }
+
+  logger.info('✅ [SORA WEBHOOK] Using bot instance', {
+    taskId,
+    botName: taskContext.botName || 'default'
+  })
+
+  try {
+    // Обновляем сообщение о статусе
+    await botInstance.telegram.editMessageText(
+      taskContext.chatId,
+      taskContext.messageId,
+      undefined,
+      '✅ Видео успешно сгенерировано! Отправляю...'
+    )
+
+    // Получаем информацию о модели
+    const modelInfo = VIDEO_MODELS[taskContext.modelId as VideoModelId]
+    const modelName = modelInfo?.nameRu || 'Sora 2'
+
+    // Отправляем видео с простым текстом (без Markdown чтобы избежать ошибок парсинга)
+    await botInstance.telegram.sendVideo(
+      taskContext.chatId,
+      Input.fromURL(videoUrl),
+      {
+        caption:
+          `🤖 Модель: ${modelName}\n` +
+          `⏱️ Длительность: ${taskContext.duration} сек\n` +
+          `⚡ Сгенерировано через AI`,
+      }
+    )
+
+    // Отправляем промпт отдельным сообщением (без Markdown)
+    await botInstance.telegram.sendMessage(
+      taskContext.chatId,
+      `📝 Ваш запрос:\n\n${taskContext.prompt}`
+    )
+
+    // Удаляем сообщение о процессе генерации
+    try {
+      await botInstance.telegram.deleteMessage(taskContext.chatId, taskContext.messageId)
+    } catch (e) {
+      // Игнорируем ошибку, если сообщение уже удалено
+      logger.warn('[SORA WEBHOOK] Could not delete processing message', { error: e })
+    }
+
+    logger.info('✅ [SORA WEBHOOK] Video sent to user', {
+      taskId,
+      telegramId: taskContext.telegramId
+    })
+
+    // Удаляем задачу из хранилища
+    videoTaskStore.deleteTask(taskId)
+
+  } catch (error) {
+    logger.error('❌ [SORA WEBHOOK] Error sending video to user', {
+      taskId,
+      error: error instanceof Error ? error.message : String(error)
+    })
+
+    // Отправляем сообщение об ошибке
+    try {
+      await botInstance.telegram.editMessageText(
+        taskContext.chatId,
+        taskContext.messageId,
+        undefined,
+        '❌ Ошибка при отправке видео. Попробуйте позже.'
+      )
+    } catch (e) {
+      logger.error('[SORA WEBHOOK] Could not send error message', { error: e })
+    }
+  }
 }
 
 /**
@@ -182,7 +510,32 @@ async function handleSoraFailure(payload: KieAiWebhookPayload): Promise<void> {
     errorCode
   })
 
-  // TODO: Уведомить пользователя об ошибке
+  const taskContext = videoTaskStore.getTask(taskId)
+  if (!taskContext) {
+    return
+  }
+
+  // ✅ MULTI-BOT FIX: Получаем правильный bot instance
+  const botInstance = getBotInstance(taskContext.botName)
+  if (!botInstance) {
+    logger.error('❌ [SORA WEBHOOK] Bot instance not found for failure handler', {
+      taskId,
+      requestedBot: taskContext.botName
+    })
+    return
+  }
+
+  try {
+    await botInstance.telegram.editMessageText(
+      taskContext.chatId,
+      taskContext.messageId,
+      undefined,
+      `❌ Ошибка генерации: ${errorMessage || 'Неизвестная ошибка'}`
+    )
+    videoTaskStore.deleteTask(taskId)
+  } catch (error) {
+    logger.error('[SORA WEBHOOK] Error sending failure notification', { error })
+  }
 }
 
 /**
@@ -197,7 +550,22 @@ async function handleSoraContentPolicy(payload: KieAiWebhookPayload): Promise<vo
     errorCode
   })
 
-  // TODO: Уведомить пользователя о нарушении политики
+  const taskContext = videoTaskStore.getTask(taskId)
+  if (!taskContext || !botInstance) {
+    return
+  }
+
+  try {
+    await botInstance.telegram.editMessageText(
+      taskContext.chatId,
+      taskContext.messageId,
+      undefined,
+      `🚫 Контент отклонен политикой безопасности. Попробуйте другой запрос.\n\n${errorMessage || ''}`
+    )
+    videoTaskStore.deleteTask(taskId)
+  } catch (error) {
+    logger.error('[SORA WEBHOOK] Error sending content policy notification', { error })
+  }
 }
 
 /**
@@ -246,12 +614,32 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
       return
     }
 
+    // ✅ Парсим resultJson если он присутствует (WAN 2.5 отправляет его как строку)
+    let parsedResultUrls: string[] | undefined
+    try {
+      if ((payload.data as any)?.resultJson) {
+        const resultJson = JSON.parse((payload.data as any).resultJson)
+        parsedResultUrls = resultJson.resultUrls
+        logger.info('✅ [KIE.AI WEBHOOK] Parsed resultJson', {
+          taskId,
+          parsedResultUrls,
+          originalResultJson: (payload.data as any).resultJson.substring(0, 100)
+        })
+      }
+    } catch (e) {
+      logger.warn('⚠️ [KIE.AI WEBHOOK] Failed to parse resultJson', {
+        taskId,
+        error: e instanceof Error ? e.message : String(e)
+      })
+    }
+
     // ✅ Нормализуем payload для дальнейшей обработки
     const normalizedPayload: KieAiWebhookPayload = {
       ...payload,
       taskId,
       successFlag,
-      resultUrls: payload.resultUrls || (payload.data as any)?.info?.resultUrls || (payload.data as any)?.resultUrls,
+      resultUrls: payload.resultUrls || parsedResultUrls || (payload.data as any)?.info?.resultUrls || (payload.data as any)?.resultUrls,
+      videoUrl: payload.videoUrl || parsedResultUrls?.[0] || (payload.data as any)?.info?.resultUrls?.[0],
       errorMessage: payload.errorMessage || (payload.data as any)?.errorMessage
     }
 
@@ -440,14 +828,60 @@ async function notifyJobCompletion(
       errorMessage: result.message
     })
 
-    // ✅ Используем новый метод для обновления задачи по taskId
-    // ✅ EMERGENCY DISABLE: asyncLipSyncManager causing TypeScript errors
-    // const updated = await asyncLipSyncManager.completeJobByTaskId(taskId, result)
+    // ✅ Используем videoTaskStore для WAN/Sora моделей
+    const taskContext = videoTaskStore.getTask(taskId)
 
-    // ✅ EMERGENCY: Skip lip-sync job update
-    logger.info('✅ [KIE.AI WEBHOOK] Webhook processed (lip-sync disabled)', {
-      taskId
-    })
+    if (taskContext && botInstance) {
+      logger.info('📤 [KIE.AI WEBHOOK] Found task context, sending video to user', {
+        taskId,
+        telegramId: taskContext.telegramId,
+        hasVideoUrl: !!result.output
+      })
+
+      try {
+        if (result.success && result.output) {
+          // Успешная генерация - отправляем видео
+          await botInstance.telegram.sendVideo(
+            taskContext.chatId,
+            result.output,
+            {
+              caption: `✅ Видео готово!\n\n🎬 Модель: ${taskContext.modelId}\n⏱ Длительность: ${result.duration || 'N/A'} сек`,
+              reply_to_message_id: taskContext.messageId
+            }
+          )
+
+          logger.info('✅ [KIE.AI WEBHOOK] Video sent to user successfully', { taskId })
+
+          // Удаляем задачу из store после успешной отправки
+          videoTaskStore.deleteTask(taskId)
+        } else {
+          // Ошибка генерации - отправляем сообщение об ошибке
+          await botInstance.telegram.sendMessage(
+            taskContext.chatId,
+            `❌ Ошибка генерации видео: ${result.message || 'Неизвестная ошибка'}`,
+            { reply_to_message_id: taskContext.messageId }
+          )
+
+          logger.error('❌ [KIE.AI WEBHOOK] Generation failed, notified user', { taskId })
+          videoTaskStore.deleteTask(taskId)
+        }
+      } catch (sendError) {
+        logger.error('❌ [KIE.AI WEBHOOK] Error sending message to user', {
+          taskId,
+          error: sendError instanceof Error ? sendError.message : String(sendError)
+        })
+      }
+    } else {
+      logger.warn('⚠️ [KIE.AI WEBHOOK] No task context or bot instance', {
+        taskId,
+        hasTaskContext: !!taskContext,
+        hasBotInstance: !!botInstance
+      })
+
+      // Fallback: используем asyncLipSyncManager если он доступен (для lip-sync задач)
+      // ✅ EMERGENCY DISABLE: asyncLipSyncManager causing TypeScript errors
+      // const updated = await asyncLipSyncManager.completeJobByTaskId(taskId, result)
+    }
 
   } catch (error) {
     logger.error('❌ [KIE.AI WEBHOOK] Error notifying job completion', {
@@ -456,5 +890,143 @@ async function notifyJobCompletion(
     })
   }
 }
+
+/**
+ * 🧪 DEBUG ENDPOINT: Тестирование Sora webhook с фейковыми данными
+ * POST /api/kie-ai/sora-callback-test
+ *
+ * Создаёт тестовую задачу в video-task-store и симулирует успешный callback
+ * Позволяет проверить всю цепочку отправки видео пользователю
+ */
+router.post('/kie-ai/sora-callback-test', async (req: any, res: any) => {
+  try {
+    logger.info('🧪 [SORA DEBUG] Test webhook endpoint called')
+
+    // Получаем telegramId из query параметров
+    const telegramId = parseInt(req.query.telegramId || req.body.telegramId || '144022504')
+    const testTaskId = `test-${Date.now()}`
+
+    // Создаём тестовую задачу в store
+    videoTaskStore.saveTask(testTaskId, {
+      telegramId: telegramId,
+      chatId: telegramId,
+      messageId: 999999, // Фейковый messageId
+      prompt: '🧪 TEST: Это тестовое видео для проверки webhook callback',
+      modelId: 'sora-2-text-to-video',
+      duration: 10,
+      createdAt: Date.now(),
+      botName: undefined // Тестовая задача - bot будет выбран автоматически
+    })
+
+    logger.info('🧪 [SORA DEBUG] Test task created', {
+      taskId: testTaskId,
+      telegramId,
+      storeSize: videoTaskStore.getAllTasks().size
+    })
+
+    // Быстрый ответ
+    res.status(200).json({
+      message: 'Test task created successfully',
+      taskId: testTaskId,
+      telegramId,
+      nextStep: `Send webhook callback to trigger video delivery: curl -X POST https://three-head-dragon.shop/api/kie-ai/sora-callback -H "Content-Type: application/json" -d '{"code":200,"data":{"taskId":"${testTaskId}","state":"success","resultJson":"{\\"resultUrls\\":[\\"https://via.placeholder.com/1920x1080.mp4\\"]}"}}' `
+    })
+
+  } catch (error) {
+    logger.error('❌ [SORA DEBUG] Error in test endpoint', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+    res.status(500).json({ error: 'Test endpoint failed' })
+  }
+})
+
+/**
+ * 🧪 DEBUG ENDPOINT: Полная эмуляция Sora callback
+ * POST /api/kie-ai/sora-full-test
+ *
+ * Создаёт тестовую задачу И сразу отправляет callback с результатом
+ * Query params:
+ * - telegramId: ID пользователя (default: 144022504)
+ */
+router.post('/kie-ai/sora-full-test', async (req: any, res: any) => {
+  try {
+    const telegramId = parseInt(req.query.telegramId || req.body.telegramId || '144022504')
+    const testTaskId = `test-full-${Date.now()}`
+
+    logger.info('🧪 [SORA FULL TEST] Starting full test', { telegramId, testTaskId })
+
+    // 1. Создаём тестовую задачу
+    videoTaskStore.saveTask(testTaskId, {
+      telegramId: telegramId,
+      chatId: telegramId,
+      messageId: 999999,
+      prompt: '🧪 FULL TEST: Автоматический тест webhook callback',
+      modelId: 'sora-2-text-to-video',
+      duration: 10,
+      createdAt: Date.now(),
+      botName: undefined // Тестовая задача - bot будет выбран автоматически
+    })
+
+    logger.info('🧪 [SORA FULL TEST] Task created', { testTaskId })
+
+    // 2. Симулируем успешный callback от Kie.ai
+    const testPayload: KieAiWebhookPayload = {
+      code: 200,
+      data: {
+        taskId: testTaskId,
+        state: 'success',
+        resultJson: JSON.stringify({
+          resultUrls: ['https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4']
+        })
+      } as any
+    }
+
+    // Парсим payload как в основном обработчике
+    const taskId = testPayload.taskId || (testPayload.data as any)?.taskId
+    const successFlag = (testPayload.data as any)?.state === 'success' ? 1 : 2
+
+    let resultUrls: string[] | undefined
+    try {
+      if ((testPayload.data as any)?.resultJson) {
+        const resultJson = JSON.parse((testPayload.data as any).resultJson)
+        resultUrls = resultJson.resultUrls
+      }
+    } catch (e) {
+      logger.warn('[SORA FULL TEST] Failed to parse resultJson', { error: e })
+    }
+
+    const normalizedPayload: KieAiWebhookPayload = {
+      ...testPayload,
+      taskId,
+      successFlag,
+      resultUrls: resultUrls,
+      videoUrl: resultUrls?.[0]
+    }
+
+    logger.info('🧪 [SORA FULL TEST] Calling processSoraWebhookAsync', { taskId, successFlag })
+
+    // 3. Обрабатываем асинхронно
+    processSoraWebhookAsync(normalizedPayload).catch(error => {
+      logger.error('❌ [SORA FULL TEST] Error in async processing', {
+        error: error.message
+      })
+    })
+
+    // Быстрый ответ
+    res.status(200).json({
+      message: 'Full test initiated - video should be sent to Telegram',
+      taskId: testTaskId,
+      telegramId,
+      videoUrl: resultUrls?.[0],
+      checkLogs: 'Check logs for "✅ [SORA WEBHOOK] Video sent to user"'
+    })
+
+  } catch (error) {
+    logger.error('❌ [SORA FULL TEST] Error', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+    res.status(500).json({ error: 'Full test failed' })
+  }
+})
 
 export default router

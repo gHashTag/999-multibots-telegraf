@@ -88,6 +88,42 @@ export class UniversalProviderManager {
         pricePerUnit: 0.3, // per second
         supportedFeatures: ['text-to-video', 'image-to-video'],
       },
+      {
+        id: 'sora-2',
+        name: 'Sora 2',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 text-to-video generation',
+        pricePerUnit: 0.015, // ~94⭐ per 10 seconds
+        supportedFeatures: ['text-to-video'],
+      },
+      {
+        id: 'sora-2-pro',
+        name: 'Sora 2 Pro',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 Pro high-quality text-to-video',
+        pricePerUnit: 0.02, // ~125⭐ per 10 seconds
+        supportedFeatures: ['text-to-video'],
+      },
+      {
+        id: 'sora-2-i2v',
+        name: 'Sora 2 Image-to-Video',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 image-to-video generation',
+        pricePerUnit: 0.015, // ~94⭐ per 10 seconds
+        supportedFeatures: ['image-to-video'],
+      },
+      {
+        id: 'sora-2-pro-i2v',
+        name: 'Sora 2 Pro Image-to-Video',
+        type: 'video',
+        provider: 'Kie.ai',
+        description: 'OpenAI Sora 2 Pro high-quality image-to-video',
+        pricePerUnit: 0.028, // ~280⭐ per 10 seconds
+        supportedFeatures: ['image-to-video'],
+      },
     ]
 
     // Image models
@@ -103,12 +139,12 @@ export class UniversalProviderManager {
       },
       {
         id: 'midjourney-v7',
-        name: 'Midjourney v7',
+        name: 'Midjourney v7 (FLUX)',
         type: 'image',
-        provider: 'Kie.ai',
-        description: 'Artistic styles and high quality',
-        pricePerUnit: 0.15, // per image
-        supportedFeatures: ['text-to-image', 'artistic-styles'],
+        provider: 'Replicate',
+        description: 'FLUX-based Midjourney-style image generation via adminconteudosflix/midjourney-allcraft',
+        pricePerUnit: 0.035, // per image ($0.035 per run)
+        supportedFeatures: ['text-to-image', 'artistic-styles', 'aspect-ratio', 'fast-mode'],
       },
       {
         id: 'flux-1-kontext',
@@ -253,6 +289,19 @@ export class UniversalProviderManager {
           numImages: request.numImages,
           style: request.style,
           imageUrl: request.imageUrl,
+        })
+
+      case 'Replicate':
+        // Import and use Midjourney generator
+        const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
+        return await generateMidjourneyImage({
+          prompt: request.prompt,
+          imageUrl: request.imageUrl,
+          width: request.width,
+          height: request.height,
+          aspectRatio: request.style, // Can pass aspect ratio via style parameter
+          numImages: request.numImages,
+          telegramId: request.userId || 'unknown',
         })
 
       default:

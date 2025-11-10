@@ -253,7 +253,7 @@ export async function getTranslation({
     if (key === 'menu' && buttons.length === 0) {
       try {
         // Dynamically import to avoid circular dependency
-        const { levels } = await import('@/menu/mainMenu')
+        const { levels } = await import('@/menu/simpleMenu')
         const { SubscriptionType } = await import('@/interfaces/subscription.interface')
 
         logger.info(`[getTranslation] Generating menu buttons from levels for "${key}"`, {
@@ -272,9 +272,34 @@ export async function getTranslation({
               10: SubscriptionType.NEUROVIDEO,
             }
 
+            // 🐛 DEBUG: Log first 3 buttons to see what's happening
+            if (parseInt(key) <= 3) {
+              logger.info(`[getTranslation DEBUG] Button ${key} BEFORE selection:`, {
+                language_code,
+                language_code_type: typeof language_code,
+                language_code_length: language_code?.length,
+                language_code_charCodes: language_code?.split('').map((c: string) => c.charCodeAt(0)),
+                title_ru: level.title_ru,
+                title_en: level.title_en,
+                comparison_result: language_code === 'ru',
+                strict_equals_ru: language_code === 'ru',
+                loose_equals_ru: language_code == 'ru',
+              })
+            }
+
+            const textValue = language_code === 'ru' ? level.title_ru : level.title_en
+
+            // 🐛 DEBUG: Log selected value
+            if (parseInt(key) <= 3) {
+              logger.info(`[getTranslation DEBUG] Button ${key} AFTER selection:`, {
+                selected_text: textValue,
+                selected_from: language_code === 'ru' ? 'title_ru' : 'title_en'
+              })
+            }
+
             return {
               row: parseInt(key) > 100 ? 2 : 1, // Admin buttons on second row
-              text: language_code === 'ru' ? level.title_ru : level.title_en,
+              text: textValue,
               // No callback_data - buttons will be handled by text in УДАЛЁН/hearsHandlers
               subscription: subscriptionMap[parseInt(key)] || SubscriptionType.NEUROPHOTO,
               stars_price: 476,

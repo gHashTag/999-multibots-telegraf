@@ -9,7 +9,7 @@
 
 import { calculateFinalImageCostInStars } from '../src/price/models/calculateFinalImageCostInStars'
 import { calculateFinalPrice } from '../src/price/helpers/calculateFinalPrice'
-import { STAR_COST_USD, MARKUP_MULTIPLIER } from '../src/config/unified-pricing.config'
+import { STAR_COST_USD, MARKUP_MULTIPLIER } from '../src/price/constants'
 
 console.log('🎯 ФИНАЛЬНАЯ ПРОВЕРКА СИСТЕМЫ ЦЕНООБРАЗОВАНИЯ\n')
 console.log('=' .repeat(70))

@@ -43,58 +43,35 @@ export async function generateMidjourneyImage(
       telegramId: request.telegramId,
     })
 
-    // Construct input for FLUX model (emulating Midjourney style)
-    const input: any = {}
+    // Construct input for adminconteudosflix/midjourney-allcraft (FLUX-based with Midjourney style)
+    // Map aspect ratio for FLUX model
+    const aspectRatio = request.aspectRatio || '1:1'
 
-    // Enhance prompt with Midjourney-style keywords
-    let enhancedPrompt = request.prompt
-    if (!enhancedPrompt.includes('--style') && !enhancedPrompt.includes('artistic')) {
-      enhancedPrompt += ', artistic style, highly detailed, 8k'
+    const input: any = {
+      prompt: request.prompt, // No prefix needed - model handles Midjourney style natively
+      aspect_ratio: aspectRatio, // FLUX uses aspect_ratio parameter directly
+      model: 'dev', // FLUX model variant (dev/pro)
+      go_fast: true, // Faster generation
+      lora_scale: 1, // LoRA scaling
+      megapixels: '1', // Image resolution
+      num_outputs: request.numImages || 1,
+      output_format: 'webp', // Modern format
+      guidance_scale: 3, // Creativity control
+      output_quality: 100, // Maximum quality
+      num_inference_steps: 38, // Denoising steps
     }
-    input.prompt = enhancedPrompt
-
-    // Add image if provided (for image-to-image)
-    if (request.imageUrl) {
-      input.image_url = request.imageUrl
-    }
-
-    // Set aspect ratio for adminconteudosflix/midjourney-allcraft
-    if (request.aspectRatio) {
-      input.aspect_ratio = request.aspectRatio
-      logger.info('[Midjourney v7] Using aspect_ratio parameter', {
-        aspectRatio: request.aspectRatio,
-        aspect_ratio: request.aspectRatio,
-      })
-    } else {
-      input.aspect_ratio = '1:1'
-      logger.info('[Midjourney v7] Using default aspect_ratio', {
-        aspect_ratio: '1:1',
-      })
-    }
-
-    // Set number of images
-    input.num_images = request.numImages || 1
-
-    // Set additional parameters for better quality
-    input.model = 'dev'
-    input.go_fast = true
-    input.lora_scale = 1
-    input.output_format = 'webp'
-    input.output_quality = 100
-    input.guidance_scale = 3
-    input.num_inference_steps = 38
 
     logger.info('[Midjourney v7] Final input params', {
       model: 'adminconteudosflix/midjourney-allcraft',
-      aspect_ratio: input.aspect_ratio,
-      num_images: input.num_images,
-      hasImageUrl: !!input.image_url,
+      aspectRatio,
+      prompt: input.prompt.substring(0, 100),
     })
 
-    // Run Midjourney model via Replicate
+    // Run midjourney-allcraft model via Replicate (FLUX-based with Midjourney aesthetic)
+    // Using specific version to avoid 404 errors
     logger.info('[Midjourney v7] Calling replicate.run...')
     const output = await replicate.run(
-      'adminconteudosflix/midjourney-allcraft',
+      'adminconteudosflix/midjourney-allcraft:40ab9b32cc4584bc069e22027fffb97e79ed550d4e7c20ed6d5d7ef89e8f08f5',
       {
         input,
       }
@@ -149,7 +126,11 @@ export async function generateMidjourneyImage(
       try {
         const response = await axios.head(url, { timeout: 5000 })
         const contentType = response.headers['content-type'] || ''
-        if (contentType.startsWith('image/')) {
+        // Replicate URLs often return application/octet-stream but are valid images
+        const isImage = contentType.startsWith('image/') ||
+                       contentType === 'application/octet-stream' ||
+                       url.includes('replicate.delivery')
+        if (isImage) {
           validatedUrls.push(url)
         } else {
           logger.warn('[Midjourney v7] Skipping URL - not an image', {

@@ -1,11 +1,9 @@
-import { getUserBalance } from '@/core/supabase/getUserBalance' // Keep imports for now
+import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { BalanceOperationResult } from '@/interfaces' // Keep imports for now
-import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config' // Keep imports for now
-import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice' // Keep imports for now
-
-import { logger } from '@/utils/logger' // Keep logger import
-import { PaymentType } from '@/interfaces/payments.interface' // Keep imports for now
+import { BalanceOperationResult } from '@/interfaces'
+import { getUnifiedModelConfig, getUnifiedModelPrice } from '@/config/unified-video-models.config' // ✅ UNIFIED CONFIG
+import { logger } from '@/utils/logger'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 /**
  * Проверяет баланс пользователя без снятия денег (только проверка)
@@ -28,10 +26,11 @@ export const checkBalanceVideoOperationHelper = async (
     }
   }
 
-  // Ищем конфигурацию по ключу
-  const selectedModelConfig = VIDEO_MODELS_CONFIG[modelId]
-
-  if (!selectedModelConfig) {
+  // ✅ Используем unified config
+  let selectedModelConfig
+  try {
+    selectedModelConfig = getUnifiedModelConfig(modelId)
+  } catch (error) {
     logger.error('checkBalanceVideoOperationHelper: Invalid modelId received, model not found:', { modelId })
     const errorMsg = isRu
       ? 'Ошибка конфигурации для выбранной модели.'
@@ -49,7 +48,7 @@ export const checkBalanceVideoOperationHelper = async (
   let paymentAmount = 0
   let modePrice = 0
   try {
-    paymentAmount = calculateFinalPrice(modelId)
+    paymentAmount = getUnifiedModelPrice(modelId)
     modePrice = paymentAmount
   } catch (costError) {
     logger.error('checkBalanceVideoOperationHelper: Error calculating cost', { modelId, error: costError })
@@ -133,7 +132,8 @@ export const deductBalanceAfterSuccess = async (
   serviceType = 'image_to_video'
 ): Promise<boolean> => {
   try {
-    const selectedModelConfig = VIDEO_MODELS_CONFIG[modelId]
+    // ✅ Используем unified config
+    const selectedModelConfig = getUnifiedModelConfig(modelId)
     if (!selectedModelConfig) {
       logger.error('deductBalanceAfterSuccess: Model config not found', { modelId })
       return false
@@ -143,7 +143,7 @@ export const deductBalanceAfterSuccess = async (
       telegramId,
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
-      `Video generation (${selectedModelConfig.title})`,
+      `Video generation (${selectedModelConfig.name})`,
       {
         bot_name: botName,
         service_type: serviceType,
@@ -209,10 +209,11 @@ export const processBalanceVideoOperationHelper = async (
     telegramId,
   })
 
-  // Ищем конфигурацию по ключу
-  const selectedModelConfig = VIDEO_MODELS_CONFIG[modelId]
-
-  if (!selectedModelConfig) {
+  // ✅ Используем unified config
+  let selectedModelConfig
+  try {
+    selectedModelConfig = getUnifiedModelConfig(modelId)
+  } catch (error) {
     logger.error(
       'processBalanceVideoOperationHelper: Invalid modelId received, model not found:',
       { modelId }
@@ -233,8 +234,8 @@ export const processBalanceVideoOperationHelper = async (
   let paymentAmount = 0
   let modePrice = 0
   try {
-    // Рассчитываем цену, передавая КЛЮЧ КОНФИГА (modelId)
-    paymentAmount = calculateFinalPrice(modelId)
+    // ✅ Рассчитываем цену через unified config
+    paymentAmount = getUnifiedModelPrice(modelId)
     modePrice = paymentAmount
   } catch (costError) {
     logger.error('processBalanceVideoOperationHelper: Error calculating cost', {
@@ -284,7 +285,7 @@ export const processBalanceVideoOperationHelper = async (
       telegramId,
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
-      `Video generation (${selectedModelConfig.title})`,
+      `Video generation (${selectedModelConfig.name})`,
       {
         bot_name: botName, // Use passed botName
         service_type: serviceType, // Используем переданный serviceType вместо хардкода

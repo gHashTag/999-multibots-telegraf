@@ -4,18 +4,9 @@ import {
   UNIFIED_RESULT_URL,
   ROBOKASSA_PASSWORD_1,
 } from '@/config'
-import { levels } from '@/menu/mainMenu'
+import { levels } from '@/menu/simpleMenu'
 import md5 from 'md5'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-
-console.log('Payment variables check:')
-console.log('MERCHANT_LOGIN:', MERCHANT_LOGIN)
-console.log(
-  'ROBOKASSA_PASSWORD_1:',
-  ROBOKASSA_PASSWORD_1 ? '[PROTECTED]' : 'undefined'
-)
-console.log('RESULT_URL2 (legacy):', RESULT_URL2)
-console.log('UNIFIED_RESULT_URL (new):', UNIFIED_RESULT_URL)
 
 export const merchantLogin = MERCHANT_LOGIN
 export const password1 = ROBOKASSA_PASSWORD_1

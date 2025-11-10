@@ -186,7 +186,7 @@ export function calculateLipSyncCostStars(
     const {
       MARKUP_MULTIPLIER,
       STAR_COST_USD,
-    } = require('@/config/unified-pricing.config')
+    } = require('@/price/constants')
     const costPerSecond = resolution === '720p' ? 0.2 : 0.1 // $0.20 для 720p, $0.10 для 480p
     const totalCostUSD = costPerSecond * durationSeconds
     const starsBeforeMarkup = totalCostUSD / STAR_COST_USD

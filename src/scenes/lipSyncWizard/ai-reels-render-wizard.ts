@@ -20,7 +20,6 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import {
   sendRenderAvatarVideoEvent,
-  checkRenderServerAvailability,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
@@ -49,17 +48,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Проверяем доступность render-server
-    const isAvailable = await checkRenderServerAvailability()
-
-    if (!isAvailable) {
-      await ctx.reply(
-        isRu
-          ? '❌ Render-server временно недоступен. Попробуйте позже.'
-          : '❌ Render-server temporarily unavailable. Try later.'
-      )
-      return ctx.scene.leave()
-    }
+    // ✅ УБРАЛИ ПРОВЕРКУ: render-server имеет очередь, поэтому отправляем запрос всегда
+    // Сервер сам управляет очередью и обработает запрос когда станет доступным
 
     // Инициализируем сессию
     ctx.session.aiReelsRender = {
@@ -120,7 +110,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           ],
           [
             Markup.button.callback(
-              isRu ? '❌ Отмена' : '❌ Cancel',
+              isRu ? 'Отмена' : 'Cancel',
               'ai_reels_cancel'
             ),
           ],
@@ -243,7 +233,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             ],
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'ai_reels_cancel'
               ),
             ],
@@ -340,7 +330,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       // Добавляем кнопку отмены
       avatarButtons.push([
         Markup.button.callback(
-          isRu ? '❌ Отмена' : '❌ Cancel',
+          isRu ? 'Отмена' : 'Cancel',
           'ai_reels_cancel'
         ),
       ])
@@ -457,14 +447,18 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // Step 2: HEDRA - Обработка изображения
+  // Step 2: HEDRA/FAL - Обработка изображения
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let imageUrl: string | null = null
+    const avatarService = ctx.session.aiReelsRender?.avatarService
 
-    logger.info('🎬 [AI REELS RENDER] Step 2 - Hedra: Processing image', {
+    logger.info('🎬 [AI REELS RENDER] Step 2 - Processing image', {
       telegramId: ctx.from?.id?.toString(),
+      avatarService,
+      hasPhoto: message && 'photo' in message,
+      hasText: message && 'text' in message,
     })
 
     try {
@@ -548,11 +542,15 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next() // Переход к Step 2.5 (cover)
     } catch (error) {
-      logger.error('❌ [AI REELS RENDER] Image processing error', { error })
+      logger.error('❌ [AI REELS RENDER] Image processing error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        telegramId,
+      })
       await ctx.reply(
         isRu
-          ? '❌ Произошла ошибка при обработке изображения.'
-          : '❌ Error processing image.'
+          ? `❌ Произошла ошибка при обработке изображения.\n\nОшибка: ${error instanceof Error ? error.message : String(error)}`
+          : `❌ Error processing image.\n\nError: ${error instanceof Error ? error.message : String(error)}`
       )
       return ctx.scene.leave()
     }
@@ -743,114 +741,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        // ✅ ИСПРАВЛЕНИЕ: Генерируем аудио из текста через централизованную систему
-        logger.info('🎤 [AI REELS RENDER] Генерируем аудио из текста', {
+        // ✅ Template 2: НЕ генерируем аудио локально!
+        // Текст передается напрямую в render-server, который сам генерирует аудио
+        logger.info('📝 [AI REELS RENDER] Текст получен, будет передан в render-server', {
           telegramId,
           textLength: text.length,
         })
-
-        try {
-          const { createAudioFileFromText } = await import(
-            '@/core/elevenlabs/createAudioFileFromText'
-          )
-          const { getVoiceId } = await import('@/core/supabase/getVoiceId')
-
-          // Получаем voice_id пользователя через централизованную систему
-          const voiceId = await getVoiceId(telegramId)
-
-          if (!voiceId) {
-            throw new Error('User voice ID not found for audio generation')
-          }
-
-          logger.info(
-            '🎤 [AI REELS RENDER] Используем централизованную систему голосов',
-            {
-              telegramId,
-              voiceId,
-              textLength: text.length,
-            }
-          )
-
-          // Генерируем аудио через централизованную систему
-          const audioPath = await createAudioFileFromText({
-            text,
-            voice_id: voiceId,
-            telegram_id: telegramId,
-          })
-
-          if (!audioPath) {
-            throw new Error('Failed to generate audio from text')
-          }
-
-          // Загружаем сгенерированное аудио в Supabase Storage
-          const fs = await import('fs/promises')
-          const audioBuffer = await fs.readFile(audioPath)
-
-          const { createClient } = await import('@supabase/supabase-js')
-          const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
-            '@/config'
-          )
-
-          const serviceClient = createClient(
-            SUPABASE_URL!,
-            SUPABASE_SERVICE_ROLE_KEY!
-          )
-          const fileName = `ai-reels-render-generated-audio/${telegramId}/${Date.now()}.mp3`
-
-          const { error: uploadError } = await serviceClient.storage
-            .from('images')
-            .upload(fileName, audioBuffer, {
-              contentType: 'audio/mpeg',
-              upsert: false,
-            })
-
-          if (uploadError) {
-            throw new Error(`Upload failed: ${uploadError.message}`)
-          }
-
-          const { data: urlData } = serviceClient.storage
-            .from('images')
-            .getPublicUrl(fileName)
-
-          audioUrl = urlData.publicUrl
-
-          // Удаляем временный файл
-          try {
-            await fs.unlink(audioPath)
-          } catch (cleanupError) {
-            logger.warn(
-              '⚠️ [AI REELS RENDER] Не удалось удалить временный файл',
-              {
-                audioPath,
-                error: cleanupError,
-              }
-            )
-          }
-
-          logger.info(
-            '✅ [AI REELS RENDER] Аудио сгенерировано через централизованную систему',
-            {
-              telegramId,
-              voiceId,
-              audioUrl: audioUrl.substring(0, 100),
-            }
-          )
-        } catch (audioError) {
-          logger.error(
-            '❌ [AI REELS RENDER] Ошибка генерации аудио из текста',
-            {
-              error: audioError,
-              telegramId,
-            }
-          )
-
-          await ctx.reply(
-            isRu
-              ? '❌ Ошибка генерации аудио из текста. Попробуйте отправить голосовое сообщение.'
-              : '❌ Error generating audio from text. Try sending a voice message.'
-          )
-          return ctx.scene.leave()
-        }
       } else {
         await ctx.reply(
           isRu
@@ -1094,14 +990,146 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           { parse_mode: 'HTML' }
         )
 
-        // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6 (НЕ вызываем напрямую)
-        logger.info('🎬 [AI REELS RENDER] Service already selected, proceeding to Step 6', {
+        // ✅ ИСПРАВЛЕНИЕ: Вызываем код Step 6 НАПРЯМУЮ (не через wizard.next)
+        logger.info('🎬 [AI REELS RENDER] Service already selected, executing Step 6 inline', {
           telegramId,
           avatarService: service,
         })
 
-        // Просто переходим к следующему шагу (Step 6 покажет сообщение "Отправляем запрос..." и отправит запрос)
-        return ctx.wizard.next()
+        // === INLINE EXECUTION OF STEP 6 CODE ===
+        // Это код из Step 6, выполняется прямо здесь
+        try {
+          console.log('🔴🔴🔴 [STEP 6 INLINE] EXECUTING SEND TO RENDER-SERVER!')
+          const avatarService = service
+
+          await ctx.reply(
+            isRu
+              ? `✅ Генерация через ${avatarService === 'hedra' ? '🎭 Hedra' : avatarService === 'fal' ? '🎯 Fal' : '🎬 HeyGen'}\n\n⏳ Отправляем запрос на render-server...`
+              : `✅ Generating with ${avatarService === 'hedra' ? '🎭 Hedra' : avatarService === 'fal' ? '🎯 Fal' : '🎬 HeyGen'}\n\n⏳ Sending request to render-server...`
+          )
+
+          // Получаем voice_id
+          let voiceIdToUse: string
+
+          if (avatarService === 'heygen') {
+            const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
+            if (!heygenAvatarId) {
+              await ctx.reply(isRu ? '❌ Ошибка: аватар HeyGen не выбран' : '❌ Error: HeyGen avatar not selected')
+              return ctx.scene.leave()
+            }
+
+            const { getVoiceIdForAvatar } = await import('./heygen-avatars-config')
+            const heygenVoiceId = getVoiceIdForAvatar(heygenAvatarId)
+            if (!heygenVoiceId) {
+              await ctx.reply(isRu ? '❌ Ошибка: не найден voice_id для выбранного аватара' : '❌ Error: voice_id not found for selected avatar')
+              return ctx.scene.leave()
+            }
+            voiceIdToUse = heygenVoiceId
+          } else {
+            const { getVoiceId } = await import('@/core/supabase/getVoiceId')
+            const userVoiceId = await getVoiceId(telegramId)
+            if (!userVoiceId) {
+              await ctx.reply(isRu ? '❌ У вас не настроен голос аватара. Создайте голос сначала.' : '❌ You dont have avatar voice configured.')
+              return ctx.scene.leave()
+            }
+            voiceIdToUse = userVoiceId
+          }
+
+          // ✅ СНАЧАЛА списываем средства (ДО отправки запроса)
+          const estimatedCost = finalCost
+          const { getUserBalance, updateUserBalance } = await import('@/core/supabase')
+          const { PaymentType } = await import('@/interfaces/payments.interface')
+          const currentBalance = await getUserBalance(telegramId)
+
+          console.log('🔴 [STEP 6 INLINE] Deducting balance:', {
+            telegramId,
+            currentBalance,
+            cost: estimatedCost,
+            newBalance: currentBalance - estimatedCost
+          })
+
+          await updateUserBalance(
+            telegramId,
+            -estimatedCost,
+            PaymentType.SERVICE_PAYMENT,
+            `AI Reels Template 2 (${avatarService})`,
+            { bot_name: ctx.botInfo?.username || 'unknown_bot', service_type: 'ai_reels_render' }
+          )
+
+          console.log('🔴 [STEP 6 INLINE] Balance deducted successfully')
+
+          // Создаем payload
+          const heygenApiKey = avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenApiKey : undefined
+          const heygenAvatarId = avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenAvatarId : undefined
+
+          const payload = createRenderAvatarPayload(
+            telegramId,
+            ctx.session.aiReelsRender.text || '',
+            ctx.session.aiReelsRender.imageUrl || '',
+            voiceIdToUse,
+            {
+              coverUrl: ctx.session.aiReelsRender.coverUrl || 'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
+              introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
+              introText2: ctx.session.aiReelsRender.introText2 || 'News',
+              avatarService,
+              heygenApiKey,
+              heygenAvatarId,
+              heygenAvatarSet: avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenAvatarSet : undefined,
+              falApiKey: avatarService === 'fal' ? ctx.session.aiReelsRender.falApiKey : undefined,
+              falResolution: avatarService === 'fal' ? ctx.session.aiReelsRender.falResolution : undefined,
+              botName: ctx.botInfo?.username || 'MetaMuse_Manifest_bot',
+            }
+          )
+
+          console.log('🔴 [STEP 6 INLINE] About to call sendRenderAvatarVideoEvent()...')
+          const { eventId } = await sendRenderAvatarVideoEvent(payload)
+          console.log('🔴 [STEP 6 INLINE] Event sent! Event ID:', eventId)
+
+          // ✅ Отправляем уведомление пользователю
+          await ctx.reply(
+            isRu
+              ? `✅ Запрос отправлен на render-server!\n\n` +
+                  `🔄 Event ID: ${eventId}\n` +
+                  `🎭 Сервис: ${avatarService === 'hedra' ? 'Hedra' : avatarService === 'fal' ? 'Fal' : 'HeyGen'}\n` +
+                  `⏱️ Ожидаемое время: 2-5 минут\n` +
+                  `📢 Вы получите уведомление когда видео будет готово\n\n` +
+                  `💰 Списано: ${estimatedCost}⭐\n` +
+                  `💳 Новый баланс: ${(currentBalance - estimatedCost).toFixed(2)}⭐`
+              : `✅ Request sent to render-server!\n\n` +
+                  `🔄 Event ID: ${eventId}\n` +
+                  `🎭 Service: ${avatarService === 'hedra' ? 'Hedra' : avatarService === 'fal' ? 'Fal' : 'HeyGen'}\n` +
+                  `⏱️ Expected time: 2-5 minutes\n` +
+                  `📢 You will receive notification when video is ready\n\n` +
+                  `💰 Charged: ${estimatedCost}⭐\n` +
+                  `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`,
+            { parse_mode: 'HTML' }
+          )
+
+          logger.info('✅ [AI REELS RENDER] Event sent successfully', {
+            telegramId,
+            eventId,
+            avatarService,
+            cost: estimatedCost,
+          })
+
+          return ctx.scene.leave()
+        } catch (error) {
+          console.log('🔴🔴🔴 [STEP 6 INLINE] ERROR!', error)
+          logger.error('❌ [AI REELS RENDER] Error in inline execution', {
+            error,
+            errorMessage: error instanceof Error ? error.message : 'Unknown error',
+            errorStack: error instanceof Error ? error.stack : undefined
+          })
+
+          // Если ошибка произошла ПОСЛЕ отправки события, сообщаем пользователю
+          await ctx.reply(
+            isRu
+              ? '⚠️ Запрос отправлен, но произошла ошибка при обработке. Обратитесь в поддержку.'
+              : '⚠️ Request sent, but error occurred during processing. Contact support.'
+          )
+          return ctx.scene.leave()
+        }
+        // === END INLINE EXECUTION ===
       }
 
       // ❌ УСТАРЕВШИЙ ПУТЬ: Если сервис НЕ выбран (только для Hedra flow из старого кода)
@@ -1155,7 +1183,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             ],
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'ai_reels_cancel'
               ),
             ],

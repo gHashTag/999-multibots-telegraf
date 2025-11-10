@@ -4,7 +4,7 @@ import { modeCosts } from '@/price/helpers/modelsCost'
 import { conversionRates, paymentOptionsPlans } from '@/price/priceCalculator'
 import { ModeEnum, SubscriptionType } from '@/interfaces'
 import { imageModelPrices } from '@/price/models/imageModelPrices'
-import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
 import { calculateFinalPrice as calculateVideoFinalPrice } from '@/price/helpers'
 import { Markup } from 'telegraf'
 import { getAvailableModels } from '../selectModelCommand/getAvailableModels'
@@ -36,7 +36,7 @@ export const handlePriceCommand = async (ctx: MyContext) => {
 
     // Расчет диапазона цен для Текст-в-Видео
     const textToVideoModelKeys = Object.keys(VIDEO_MODELS_CONFIG).filter(key =>
-      VIDEO_MODELS_CONFIG[key].inputType.includes('text')
+      VIDEO_MODELS_CONFIG[key].inputTypes.includes('text')
     )
     const textToVideoCosts = textToVideoModelKeys.map(key =>
       calculateVideoFinalPrice(key)
@@ -48,7 +48,7 @@ export const handlePriceCommand = async (ctx: MyContext) => {
 
     // Расчет диапазона цен для Изображение-в-Видео
     const imageToVideoModelKeys = Object.keys(VIDEO_MODELS_CONFIG).filter(key =>
-      VIDEO_MODELS_CONFIG[key].inputType.includes('image')
+      VIDEO_MODELS_CONFIG[key].inputTypes.includes('image')
     )
     const imageToVideoCosts = imageToVideoModelKeys.map(key =>
       calculateVideoFinalPrice(key)

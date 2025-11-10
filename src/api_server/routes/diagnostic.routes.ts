@@ -1,7 +1,8 @@
 import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
-import { inngestProvider } from '@/inngest_app/inngest-provider'
+// ВРЕМЕННО: inngest отключён
+// import { inngestProvider } from '@/inngest_app/inngest-provider'
 
 const router: Router = express.Router()
 
@@ -22,8 +23,12 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
       HEYGEN_API_KEY: !!process.env.HEYGEN_API_KEY,
     }
 
-    // Проверяем Inngest инстансы
-    const inngestStatus = await inngestProvider.getStatus()
+    // ВРЕМЕННО: inngest отключён
+    // const inngestStatus = await inngestProvider.getStatus()
+    const inngestStatus = {
+      RENDER: { available: false, configured: false },
+      BOT: { available: false, configured: false }
+    }
 
     // Собираем полную диагностику
     const diagnostic = {
@@ -41,8 +46,8 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
         BOT_INNGEST_EVENT_KEY_preview: process.env.BOT_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
       },
       inngestProvider: {
-        initialized: 'check via getStatus()',
-        instances: inngestProvider.getAvailableInstances(),
+        initialized: 'disabled',
+        instances: [],
         status: inngestStatus,
       },
       checks: {

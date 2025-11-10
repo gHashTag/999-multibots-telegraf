@@ -1,5 +1,5 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { levels } from '@/menu/mainMenu'
+import { levels } from '@/menu/simpleMenu'
 
 // Идентификаторы функций для проверки доступа
 const FEATURE_IDS = {
@@ -151,6 +151,11 @@ function findFeatureId(featureName: string): number | null {
     'Morphing': FEATURE_IDS.MORPHING,
     '🧬 Морфинг': FEATURE_IDS.MORPHING,
     '🧬 Morphing': FEATURE_IDS.MORPHING,
+    // ✅ ИСПРАВЛЕНИЕ: Добавляем маппинг для AI Reels
+    '🎬 ИИ Рилс': FEATURE_IDS.TRANSCRIBE_REELS,
+    '🎬 AI Reels': FEATURE_IDS.TRANSCRIBE_REELS,
+    'ИИ Рилс': FEATURE_IDS.TRANSCRIBE_REELS,
+    'AI Reels': FEATURE_IDS.TRANSCRIBE_REELS,
   }
 
   // Сначала проверяем специальную карту команд

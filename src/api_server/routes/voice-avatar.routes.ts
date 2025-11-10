@@ -5,13 +5,32 @@ const router = Router()
 
 router.post('/generate/voice-avatar', async (req, res) => {
   try {
-    const { text, voice_id, telegram_id } = req.body
+    const {
+      imageUrl,
+      prompt,
+      telegram_id,
+      is_ru = false,
+      bot_name
+    } = req.body
 
-    const result = await generateVoiceAvatar({
-      text,
-      voice_id,
-      telegram_id
-    })
+    // Создаем минимальный контекст для API роута
+    const mockCtx = {
+      from: { username: 'api_user' },
+      chat: { id: telegram_id },
+      telegram: {
+        sendChatAction: async () => {},
+      },
+      reply: async () => {},
+    } as any
+
+    const result = await generateVoiceAvatar(
+      imageUrl,
+      prompt,
+      telegram_id,
+      mockCtx,
+      is_ru,
+      bot_name
+    )
 
     res.json({
       success: true,

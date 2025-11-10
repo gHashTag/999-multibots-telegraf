@@ -1,4 +1,4 @@
-import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config'
+import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
 import { SYSTEM_CONFIG } from '@/price/constants/index'
 import { logger } from '@/utils/logger'
 
@@ -8,100 +8,95 @@ const DEFAULT_VIDEO_DURATION_SECONDS = 5 // Define default duration
  * Рассчитывает окончательную стоимость модели в звездах с учетом выбранного разрешения.
  * @param modelKey Ключ модели из VIDEO_MODELS_CONFIG (e.g., 'haiper')
  * @param selectedResolution Опциональное разрешение (для моделей с priceByResolution)
+ * @param selectedDuration Опциональная длительность (для моделей с priceByDuration)
  * @returns Стоимость в звездах (округленная вниз)
  */
 export function calculateFinalPrice(
   modelKey: string,
-  selectedResolution?: string
+  selectedResolution?: string,
+  selectedDuration?: number
 ): number {
   const modelConfig = VIDEO_MODELS_CONFIG[modelKey]
   if (!modelConfig) {
     logger.error('calculateFinalPrice: Unknown model key', { modelKey })
-    return 0 // Или бросить ошибку?
+    return 0
   }
 
-  // ФИКСИРОВАННЫЕ ЦЕНЫ для специальных моделей
-  if (modelKey === 'veo3_fast') {
-    logger.info('calculateFinalPrice: Using fixed price for Veo 3 Fast', {
+  // ✅ ПРИОРИТЕТ 1: Фиксированная цена (БЕЗ наценки, уже финальная)
+  if (modelConfig.pricing.type === 'fixed' && modelConfig.pricing.fixedPriceStars) {
+    logger.info('calculateFinalPrice: Using fixed price (no markup)', {
       modelKey,
-      fixedPriceInStars: 40,
+      fixedPriceStars: modelConfig.pricing.fixedPriceStars,
     })
-    return 40
+    return modelConfig.pricing.fixedPriceStars
   }
 
-  if (modelKey === 'veo3') {
-    logger.info('calculateFinalPrice: Using fixed price for Veo 3', {
+  // ✅ ПРИОРИТЕТ 2: Матрица цен (длительность + разрешение) (БЕЗ наценки)
+  if (modelConfig.pricing.type === 'per_duration_resolution' && modelConfig.pricing.priceMatrix) {
+    const duration = selectedDuration || modelConfig.pricing.defaultDuration || DEFAULT_VIDEO_DURATION_SECONDS
+    const resolution = selectedResolution || Object.keys(modelConfig.pricing.priceMatrix[duration] || {})[0]
+
+    const price = modelConfig.pricing.priceMatrix[duration]?.[resolution]
+    if (price) {
+      logger.info('calculateFinalPrice: Using price matrix (no markup)', {
+        modelKey,
+        duration,
+        resolution,
+        priceStars: price,
+      })
+      return price
+    }
+  }
+
+  // ✅ ПРИОРИТЕТ 3: Цена по длительности (БЕЗ наценки)
+  if (modelConfig.pricing.type === 'per_duration' && modelConfig.pricing.priceByDuration && selectedDuration) {
+    const price = modelConfig.pricing.priceByDuration[selectedDuration]
+    if (price) {
+      logger.info('calculateFinalPrice: Using duration-based price (no markup)', {
+        modelKey,
+        selectedDuration,
+        priceStars: price,
+      })
+      return price
+    }
+  }
+
+  // ✅ ПРИОРИТЕТ 4: Цена по разрешению (БЕЗ наценки)
+  if (modelConfig.pricing.type === 'per_resolution' && modelConfig.pricing.priceByResolution && selectedResolution) {
+    const price = modelConfig.pricing.priceByResolution[selectedResolution]
+    if (price) {
+      logger.info('calculateFinalPrice: Using resolution-based price (no markup)', {
+        modelKey,
+        selectedResolution,
+        priceStars: price,
+      })
+      return price
+    }
+  }
+
+  // ✅ ПРИОРИТЕТ 5: Цена за секунду (С НАЦЕНКОЙ - устаревший метод)
+  if (modelConfig.pricing.type === 'per_second' && modelConfig.pricing.pricePerSecondUSD) {
+    const duration = selectedDuration || modelConfig.pricing.defaultDuration || DEFAULT_VIDEO_DURATION_SECONDS
+    const totalBaseCostUSD = modelConfig.pricing.pricePerSecondUSD * duration
+    const basePriceInStars = totalBaseCostUSD / SYSTEM_CONFIG.starCost
+    const finalPriceWithMarkup = basePriceInStars * SYSTEM_CONFIG.interestRate
+    const finalPriceInStars = Math.floor(finalPriceWithMarkup)
+
+    logger.info('calculateFinalPrice: Using per-second pricing (WITH markup)', {
       modelKey,
-      fixedPriceInStars: 120,
+      duration,
+      pricePerSecondUSD: modelConfig.pricing.pricePerSecondUSD,
+      totalBaseCostUSD,
+      starCost: SYSTEM_CONFIG.starCost,
+      basePriceInStars,
+      interestRate: SYSTEM_CONFIG.interestRate,
+      finalPriceWithMarkup,
+      finalPriceInStars,
     })
-    return 120
+
+    return finalPriceInStars
   }
 
-  // ФИКСИРОВАННЫЕ ЦЕНЫ для Kling v1.6 Pro Image to Video
-  if (modelKey === 'kling-v1.6-pro') {
-    logger.info('calculateFinalPrice: Using fixed price for Kling v1.6 Pro', {
-      modelKey,
-      fixedPriceInStars: 60,
-    })
-    return 60
-  }
-
-  // ФИКСИРОВАННЫЕ ЦЕНЫ для Minimax Image to Video
-  if (modelKey === 'minimax') {
-    logger.info('calculateFinalPrice: Using fixed price for Minimax', {
-      modelKey,
-      fixedPriceInStars: 50,
-    })
-    return 50
-  }
-
-  // Удаляем фиксированные цены для Kling v2.1 - пусть они рассчитываются динамически
-  // так как они используют стандартную длительность 5 секунд, а не 10
-
-  // --- Новый порядок расчета (с учетом цены за секунду и разрешения) ---
-  // 1. Определяем базовую цену с учетом разрешения
-  let basePrice = modelConfig.basePrice
-
-  if (
-    selectedResolution &&
-    modelConfig.priceByResolution &&
-    modelConfig.priceByResolution[selectedResolution]
-  ) {
-    basePrice = modelConfig.priceByResolution[selectedResolution]
-    logger.info('calculateFinalPrice: Using resolution-based pricing', {
-      modelKey,
-      selectedResolution,
-      resolutionPrice: basePrice,
-      defaultPrice: modelConfig.basePrice,
-    })
-  }
-
-  // 2. Рассчитываем полную базовую стоимость в USD
-  //    (Умножаем цену за секунду на стандартную длительность)
-  const totalBaseCostUSD = basePrice * DEFAULT_VIDEO_DURATION_SECONDS
-
-  // 3. Переводим полную базовую цену в звезды
-  const basePriceInStars = totalBaseCostUSD / SYSTEM_CONFIG.starCost
-  // 4. Применяем наценку к звездам (interestRate уже включает наценку: 1.5 = 150% = 50% наценка)
-  const finalPriceWithMarkup = basePriceInStars * SYSTEM_CONFIG.interestRate
-  // 5. Округляем ВНИЗ до целого числа звезд
-  const finalPriceInStars = Math.floor(finalPriceWithMarkup)
-
-  // Логируем новый расчет
-  logger.info('calculateFinalPrice (Per Second Logic): Calculated price', {
-    // Updated log message
-    modelKey,
-    selectedResolution,
-    basePricePerSecondUSD: basePrice, // Log actual price used (может быть с учетом разрешения)
-    defaultBasePriceUSD: modelConfig.basePrice, // Log original base price
-    defaultDuration: DEFAULT_VIDEO_DURATION_SECONDS,
-    totalBaseCostUSD: totalBaseCostUSD, // Log calculated total base cost
-    starCost: SYSTEM_CONFIG.starCost,
-    basePriceInStars: basePriceInStars, // Логируем промежуточный результат
-    interestRate: SYSTEM_CONFIG.interestRate,
-    finalPriceWithMarkup: finalPriceWithMarkup, // Логируем промежуточный результат
-    finalPriceInStars, // Финальный результат
-  })
-
-  return finalPriceInStars
+  logger.error('calculateFinalPrice: No valid pricing config found', { modelKey })
+  return 0
 }
