@@ -447,14 +447,18 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // Step 2: HEDRA - Обработка изображения
+  // Step 2: HEDRA/FAL - Обработка изображения
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let imageUrl: string | null = null
+    const avatarService = ctx.session.aiReelsRender?.avatarService
 
-    logger.info('🎬 [AI REELS RENDER] Step 2 - Hedra: Processing image', {
+    logger.info('🎬 [AI REELS RENDER] Step 2 - Processing image', {
       telegramId: ctx.from?.id?.toString(),
+      avatarService,
+      hasPhoto: message && 'photo' in message,
+      hasText: message && 'text' in message,
     })
 
     try {
@@ -538,11 +542,15 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next() // Переход к Step 2.5 (cover)
     } catch (error) {
-      logger.error('❌ [AI REELS RENDER] Image processing error', { error })
+      logger.error('❌ [AI REELS RENDER] Image processing error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        telegramId,
+      })
       await ctx.reply(
         isRu
-          ? '❌ Произошла ошибка при обработке изображения.'
-          : '❌ Error processing image.'
+          ? `❌ Произошла ошибка при обработке изображения.\n\nОшибка: ${error instanceof Error ? error.message : String(error)}`
+          : `❌ Error processing image.\n\nError: ${error instanceof Error ? error.message : String(error)}`
       )
       return ctx.scene.leave()
     }

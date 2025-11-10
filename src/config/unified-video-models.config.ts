@@ -126,7 +126,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     description: 'Google Veo 3 Fast - быстрая генерация видео',
     provider: 'kie',
     apiModel: 'veo3_fast',
-    inputTypes: ['text', 'image'],
+    inputTypes: ['text', 'image', 'morph'], // ✅ Добавлена поддержка морфинга
     pricing: {
       type: 'fixed',
       fixedPriceStars: 25, // ✅ Kie.ai 2025: $0.40 / $0.016 = 25⭐ (БЕЗ наценки)
@@ -230,7 +230,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     description: 'OpenAI Sora 2 Image-to-Video',
     provider: 'kie',
     apiModel: 'sora-2-i2v',
-    inputTypes: ['image'],
+    inputTypes: ['image', 'morph'], // ✅ Добавлена поддержка морфинга
     pricing: {
       type: 'fixed',
       fixedPriceStars: 9, // ✅ Kie.ai 2025: $0.15 / $0.016 = 9⭐ (10 сек БЕЗ watermark)
@@ -251,7 +251,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     description: 'OpenAI Sora 2 Pro Image-to-Video',
     provider: 'kie',
     apiModel: 'sora-2-pro-i2v',
-    inputTypes: ['image'],
+    inputTypes: ['image', 'morph'], // ✅ Добавлена поддержка морфинга
     pricing: {
       type: 'fixed',
       fixedPriceStars: 19, // ✅ Оценка: ~$0.30 / $0.016 = 19⭐ (10 сек, Pro версия)

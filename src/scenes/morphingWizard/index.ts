@@ -18,21 +18,41 @@ import { getModelsByInputType } from '@/config/unified-video-models.config'
 const getMorphingModels = () => getModelsByInputType('morph')
 const getDefaultMorphingModel = () => {
   const models = getMorphingModels()
-  // Ищем kling-v2.1-pro как приоритетную модель
-  const defaultModel = models.find(m => m.id === 'kling-v2.1-pro') || models[0]
 
-  // ✅ ЗАЩИТА: Если нет активных morph моделей, используем fallback
-  if (!defaultModel) {
-    logger.warn('[getDefaultMorphingModel] No active morph models found, using fallback image model')
-    const imageModels = getModelsByInputType('image')
-    const fallback = imageModels.find(m => m.id === 'kling-v2.1-pro') || imageModels[0]
-    if (!fallback) {
-      throw new Error('❌ No video models available. Please contact support.')
+  // ✅ ПРИОРИТЕТ: Kie.ai модели (дешевле и быстрее чем Replicate)
+  // 1. sora-2-i2v (9⭐) - самая дешёвая
+  // 2. sora-2-pro-i2v (19⭐) - премиум качество
+  // 3. veo3_fast (25⭐) - быстрая
+  const preferredModels = ['sora-2-i2v', 'sora-2-pro-i2v', 'veo3_fast']
+
+  for (const modelId of preferredModels) {
+    const model = models.find(m => m.id === modelId)
+    if (model) {
+      logger.info('[getDefaultMorphingModel] Using Kie.ai model for morphing', {
+        modelId: model.id,
+        modelName: model.name,
+        provider: model.provider
+      })
+      return model
     }
-    return fallback
   }
 
-  return defaultModel
+  // Fallback: любая доступная morph модель
+  if (models.length > 0) {
+    logger.warn('[getDefaultMorphingModel] No preferred models, using first available', {
+      modelId: models[0].id
+    })
+    return models[0]
+  }
+
+  // ✅ ЗАЩИТА: Если нет активных morph моделей, используем fallback на image модели
+  logger.error('[getDefaultMorphingModel] No active morph models found, using fallback image model')
+  const imageModels = getModelsByInputType('image')
+  const fallback = imageModels[0]
+  if (!fallback) {
+    throw new Error('❌ No video models available. Please contact support.')
+  }
+  return fallback
 }
 
 // ✅ ПРЕСЕТЫ ПРОМПТОВ ДЛЯ ПЕРЕХОДОВ (основано на исследовании best practices 2025)
