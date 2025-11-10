@@ -88,10 +88,17 @@ export function startApiServer(bot?: Telegraf): void {
   app.use('/api', diagnosticRouter)
 
   // ✅ Интеграция Inngest с API (актуальная сигнатура serve из reels-callback-2)
+  logger.info('🚀 [INNGEST] Registering Vibee functions', {
+    count: allInngestFunctions.length,
+    functions: allInngestFunctions.map((f: any) => f?.name || f?.id || 'unnamed'),
+  })
+
   const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
   app.use('/api/inngest', inngestHandler)
-  logger.info('✅ [API SERVER] Inngest webhook monitor initialized at /api/inngest', {
-    functionsCount: allInngestFunctions.length
+
+  logger.info('✅ [API SERVER] Inngest (Vibee) initialized at /api/inngest', {
+    functionsCount: allInngestFunctions.length,
+    endpoint: '/api/inngest'
   })
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
