@@ -178,8 +178,11 @@ async function initializeBots() {
 
           // ✅ Запускаем API сервер СРАЗУ после создания первого бота
           // (до bot.launch(), чтобы не ждать бесконечного polling loop)
-          startApiServer(bot) // Передаём только первый бот (default)
-          console.log('✅ API сервер запущен с bot instance для webhooks')
+          // startApiServer теперь async - обрабатываем Promise
+          startApiServer(bot).catch((error) => {
+            console.error('❌ Ошибка запуска API сервера:', error)
+          })
+          console.log('✅ API сервер запускается с bot instance для webhooks')
         }
 
         // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
