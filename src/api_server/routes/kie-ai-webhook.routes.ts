@@ -406,7 +406,9 @@ async function processGenericVideoWebhook(payload: any, telegramIdFromUrl?: stri
   const taskId = payload.job_id || payload.taskId || payload.id || payload.renderTaskId || payload.data?.taskId || payload.data?.id
 
   // ✅ КРИТИЧЕСКИ ВАЖНО: Проверяем ВСЕ возможные поля для videoUrl
-  const videoUrl = payload.videoUrl ||
+  // Railway render-server отправляет download_url!
+  const videoUrl = payload.download_url ||
+                   payload.videoUrl ||
                    payload.video_url ||
                    payload.url ||
                    payload.result_url ||
@@ -415,9 +417,10 @@ async function processGenericVideoWebhook(payload: any, telegramIdFromUrl?: stri
                    payload.data?.video_url ||
                    payload.data?.output
 
+  // Railway считается успешным, если есть download_url
   const success = payload.success !== undefined
     ? payload.success
-    : (payload.status === 'completed' || payload.status === 'success' || payload.state === 'success')
+    : (payload.download_url ? true : (payload.status === 'completed' || payload.status === 'success' || payload.state === 'success'))
 
   logger.info('📊 [GENERIC VIDEO WEBHOOK] Extracted data', {
     taskId,
