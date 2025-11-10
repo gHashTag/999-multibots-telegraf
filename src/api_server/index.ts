@@ -88,18 +88,32 @@ export function startApiServer(bot?: Telegraf): void {
   app.use('/api', diagnosticRouter)
 
   // ✅ Интеграция Inngest с API (актуальная сигнатура serve из reels-callback-2)
-  logger.info('🚀 [INNGEST] Registering Vibee functions', {
-    count: allInngestFunctions.length,
-    functions: allInngestFunctions.map((f: any) => f?.name || f?.id || 'unnamed'),
-  })
+  try {
+    logger.info('🚀 [INNGEST] Starting Vibee registration...', {
+      hasInngest: !!inngest,
+      hasFunctions: !!allInngestFunctions,
+      functionsType: typeof allInngestFunctions,
+      isArray: Array.isArray(allInngestFunctions)
+    })
 
-  const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
-  app.use('/api/inngest', inngestHandler)
+    logger.info('🚀 [INNGEST] Registering Vibee functions', {
+      count: allInngestFunctions.length,
+      functions: allInngestFunctions.map((f: any) => f?.name || f?.id || 'unnamed'),
+    })
 
-  logger.info('✅ [API SERVER] Inngest (Vibee) initialized at /api/inngest', {
-    functionsCount: allInngestFunctions.length,
-    endpoint: '/api/inngest'
-  })
+    const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
+    app.use('/api/inngest', inngestHandler)
+
+    logger.info('✅ [API SERVER] Inngest (Vibee) initialized at /api/inngest', {
+      functionsCount: allInngestFunctions.length,
+      endpoint: '/api/inngest'
+    })
+  } catch (error) {
+    logger.error('❌ [API SERVER] Failed to initialize Inngest', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
+  }
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
   app.listen(PORT, '0.0.0.0', () => {
