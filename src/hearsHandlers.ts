@@ -503,7 +503,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
   // Обработчик для кнопки "Увеличить качество фото"
   bot.hears(
-    [levels[16].title_ru, levels[16].title_en],  // ✅ Изменено с 107 на 16
+    [levels[107].title_ru, levels[107].title_en],  // ✅ ИСПРАВЛЕНО: Используем правильный level 107
     async (ctx: MyContext) => {
       logger.debug(
         `Получен hears для Увеличить качество фото от ${ctx.from?.id}`
@@ -512,7 +512,7 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       // ✅ ЗАЩИТА: Проверяем подписку перед входом в upscaler
       const hasSubscription = await checkSubscriptionGuard(
         ctx,
-        isRussianFromState(ctx) ? levels[16].title_ru : levels[16].title_en  // ✅ Изменено с 107 на 16
+        isRussianFromState(ctx) ? levels[107].title_ru : levels[107].title_en  // ✅ ИСПРАВЛЕНО: level 107
       )
       if (!hasSubscription) {
         return // Пользователь перенаправлен в subscriptionScene
@@ -520,6 +520,28 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
       ctx.session.mode = ModeEnum.ImageUpscaler
       await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+    }
+  )
+
+  // Обработчик для кнопки "Infinity Морфинг"
+  bot.hears(
+    [levels[14].title_ru, levels[14].title_en],  // ✅ ДОБАВЛЕНО: Обработчик для Infinity Morphing
+    async (ctx: MyContext) => {
+      logger.debug(
+        `Получен hears для Infinity Морфинг от ${ctx.from?.id}`
+      )
+
+      // ✅ ЗАЩИТА: Проверяем подписку перед входом в morphing
+      const hasSubscription = await checkSubscriptionGuard(
+        ctx,
+        isRussianFromState(ctx) ? levels[14].title_ru : levels[14].title_en
+      )
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      await ctx.scene.leave()
+      await ctx.scene.enter('morphing_wizard')
     }
   )
 

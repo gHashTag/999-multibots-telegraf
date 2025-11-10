@@ -293,6 +293,15 @@ export const createMainMenuKeyboard = (ctx: MyContext) => {
   const isRu = isRussianFromState(ctx)
   const userId = ctx.from?.id
 
+  // 🐛 DEBUG: Логируем определение языка
+  console.log('🐛 [createMainMenuKeyboard] Language detection:', {
+    telegramId: ctx.from?.id,
+    isRu,
+    isRuType: typeof isRu,
+    telegramLanguage: ctx.from?.language_code,
+    sessionLanguage: ctx.session?.language_code
+  })
+
   // Фильтруем кнопки по правам доступа
   const visibleButtons = NAVIGATION_BUTTONS.filter(btn => {
     // Проверяем админские права
@@ -304,6 +313,13 @@ export const createMainMenuKeyboard = (ctx: MyContext) => {
 
   // Получаем тексты кнопок
   const buttonTexts = visibleButtons.map(btn => isRu ? btn.ru : btn.en)
+
+  // 🐛 DEBUG: Логируем первые 3 кнопки
+  console.log('🐛 [createMainMenuKeyboard] First 3 buttons:', {
+    telegramId: ctx.from?.id,
+    isRu,
+    buttons: buttonTexts.slice(0, 3)
+  })
 
   // Создаем клавиатуру (по 2 кнопки в ряд)
   const keyboard = []
