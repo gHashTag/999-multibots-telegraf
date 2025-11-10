@@ -857,20 +857,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
-  bot.hears(/^(Отмена|отмена|Cancel|cancel)$/i, async (ctx: MyContext) => {
-    logger.debug(`Получен hears для Отмена от ${ctx.from?.id}`)
-    // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    const isRu = isRussianFromState(ctx)
-    const telegram_id = ctx.from?.id?.toString() || ''
-    const { subscriptionType } = await getReferalsCountAndUserData(telegram_id)
-
-    await mainMenu({
-      isRu,
-      subscription: subscriptionType,
-      ctx,
-    })
-    await ctx.scene.leave()
-  })
+  // ❌ УДАЛЕНО: Дублирующий обработчик "Отмена"
+  // Используется централизованный обработчик на строке 209
 
   bot.hears(
     [levels[103].title_ru, levels[103].title_en],
