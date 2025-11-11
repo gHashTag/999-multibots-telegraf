@@ -399,9 +399,11 @@ async function startApplication() {
         'REPLICATE_API_TOKEN',
         'APIFY_TOKEN',
         'GITHUB_TOKEN',
-        'FAL_KEY',           // ✅ Для Fal (kie.ai gateway) lip-sync генерации
-        'BASE_WEBHOOK_URL',  // ✅ Для callback уведомлений от Kie.ai
-        'NGROK_AUTHTOKEN'    // ✅ Для создания туннеля в dev окружении
+        'FAL_KEY',                    // ✅ Для Fal (kie.ai gateway) lip-sync генерации
+        'BASE_WEBHOOK_URL',           // ✅ Для callback уведомлений от Kie.ai
+        'RENDER_INNGEST_EVENT_KEY',   // ✅ Для отправки задач на render-server через Inngest Cloud
+        'RENDER_INNGEST_SIGNING_KEY', // ✅ Для прямых вызовов render-server (альтернатива)
+        'NGROK_AUTHTOKEN'             // ✅ Для создания туннеля в dev окружении
       ]
 
       for (const key of apiKeys) {
