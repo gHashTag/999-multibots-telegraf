@@ -1,11 +1,9 @@
 import { isDev } from './config'
-// ВРЕМЕННО ОТКЛЮЧЕНО: utils/logger не компилируется из-за 448 TS ошибок
-// import { setupSafeConsoleLogging } from './utils/logger'
+import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
 // Test CI/CD pipeline: проверка работы автоматической сборки после очистки веток
-// ВРЕМЕННО ОТКЛЮЧЕНО
-// setupSafeConsoleLogging()
+setupSafeConsoleLogging()
 
 // Bot initialization (see logs below)
 

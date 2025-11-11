@@ -16,7 +16,7 @@ Start, stop, and manage the autonomous error monitoring system that watches prod
 Launches the autonomous error fixer agent with real-time log monitoring.
 
 **What it does:**
-1. Connects to production server (188.137.250.69)
+1. Connects to production server (212.86.115.30)
 2. Starts real-time Docker log streaming
 3. Monitors for JavaScript errors
 4. Automatically creates fix branches and PRs
@@ -135,7 +135,7 @@ When started:
 ```
 🤖 Autonomous Error Monitor Started
 
-📡 Monitoring: 188.137.250.69
+📡 Monitoring: 212.86.115.30
 🐳 Container: 999-multibots
 ⏰ Mode: Real-time streaming
 📱 Notifications: Enabled

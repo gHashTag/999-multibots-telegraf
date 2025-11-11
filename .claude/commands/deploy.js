@@ -19,7 +19,7 @@ const path = require('path');
 // Конфигурация
 const CONFIG = {
   PRODUCTION_SERVER: {
-    HOST: '188.137.250.69',
+    HOST: '212.86.115.30',
     USER: 'root',
     SSH_KEY: '~/.ssh/zomro',
     PROJECT_PATH: '/root/999-agents-vibecoder',

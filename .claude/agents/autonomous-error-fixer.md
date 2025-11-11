@@ -114,7 +114,7 @@ npm run build
 git diff --name-only | grep '\.ts$' | xargs npx tsc --noEmit
 
 # Check if error still occurs
-ssh -i ~/.ssh/zomro root@188.137.250.69 'docker logs 999-multibots --tail 100' | grep "$ERROR_PATTERN"
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 100' | grep "$ERROR_PATTERN"
 ```
 
 ### Phase 5: Create Pull Request

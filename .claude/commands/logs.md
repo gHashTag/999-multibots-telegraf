@@ -4,7 +4,7 @@
 
 ## Что делает команда:
 
-1. **Подключается к production серверу** (188.137.250.69)
+1. **Подключается к production серверу** (212.86.115.30)
 2. **Получает логи Docker контейнера** 999-multibots (последние 100 строк)
 3. **Анализирует логи на наличие:**
    - JavaScript runtime errors
@@ -50,19 +50,19 @@
 
 ```bash
 # 1. Статус Docker контейнера
-ssh -i ~/.ssh/zomro root@188.137.250.69 'docker ps | grep 999-multibots'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker ps | grep 999-multibots'
 
 # 2. Логи контейнера (последние 100 строк)
-ssh -i ~/.ssh/zomro root@188.137.250.69 'docker logs 999-multibots --tail 100'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 100'
 
 # 3. Поиск JavaScript ошибок
-ssh -i ~/.ssh/zomro root@188.137.250.69 'docker logs 999-multibots 2>&1 | grep -E "(Error|Exception|TypeError|ReferenceError|at .*\()" | tail -50'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots 2>&1 | grep -E "(Error|Exception|TypeError|ReferenceError|at .*\()" | tail -50'
 
 # 4. Resource usage
-ssh -i ~/.ssh/zomro root@188.137.250.69 'docker stats 999-multibots --no-stream'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker stats 999-multibots --no-stream'
 
 # 5. Проверка active processes внутри контейнера
-ssh -i ~/.ssh/zomro root@188.137.250.69 'docker exec 999-multibots ps aux'
+ssh -i ~/.ssh/zomro root@212.86.115.30 'docker exec 999-multibots ps aux'
 ```
 
 ## Типы автоматических исправлений:
@@ -179,7 +179,7 @@ await someAsyncCall().catch(error => handleError(error));
 
 ## Конфигурация:
 
-**Сервер**: root@188.137.250.69
+**Сервер**: root@212.86.115.30
 **SSH Key**: ~/.ssh/zomro
 **Docker Container**: 999-multibots
 **Project Path**: /root/bot-farm

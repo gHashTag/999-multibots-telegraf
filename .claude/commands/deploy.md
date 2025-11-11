@@ -46,7 +46,7 @@ The `.env` file is **NO LONGER in git**:
 
 ## Server Details
 
-- **Server:** 188.137.250.69
+- **Server:** 212.86.115.30
 - **Path:** /root/bot-farm
 - **Container:** 999-multibots
 - **SSH Key:** ~/.ssh/zomro

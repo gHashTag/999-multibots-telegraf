@@ -19,6 +19,7 @@
 ```
 
 **Агент**: `server-health-checker`
+**Документация**: `docs/server-health-checker.md`
 
 ---
 
@@ -56,62 +57,6 @@
 
 **Агент**: `telegram-user-manager`
 **Автоактивация**: При упоминании 8-12 цифр
-
----
-
-### `/autonomous-monitor [action]` - Autonomous Error Monitoring
-24/7 мониторинг продакшена с автоматическим исправлением ошибок.
-
-**Действия**:
-- `start` - Запустить мониторинг
-- `stop` - Остановить мониторинг
-- `status` - Проверить статус
-- `errors [limit]` - Показать недавние ошибки
-- `fix <type>` - Исправить конкретный тип ошибки
-
-**Использование**:
-```bash
-/autonomous-monitor start
-/autonomous-monitor status
-```
-
-**Агент**: `autonomous-error-fixer`
-
----
-
-### `/logs` - Production Logs Analysis
-Анализ логов продакшена с автоматическим исправлением проблем.
-
-**Что делает**:
-- Получает последние 100 строк логов
-- Анализирует JavaScript errors
-- Проверяет Telegram API errors
-- Определяет Database issues
-- Предлагает исправления
-
-**Использование**:
-```bash
-/logs
-```
-
-**Агент**: `js-error-fixer`
-
----
-
-### `/docs-sync` - Documentation Sync
-Синхронизация документации между файлами.
-
-**Что синхронизирует**:
-- CLAUDE.md ↔ deployment-manager.md
-- DEPLOYMENT_GUIDE.md ↔ production docs
-- Commands README ↔ Agent docs
-
-**Использование**:
-```bash
-/docs-sync
-```
-
-**Агент**: `docs-sync`
 
 ---
 
@@ -210,14 +155,11 @@ Detailed command description...
 
 Каждая команда использует специализированного агента:
 
-| Команда | Агент | Файл агента |
-|---------|-------|-------------|
-| `/check` | server-health-checker | `.claude/agents/server-health-checker.md` |
-| `/deploy` | deployment-manager | `.claude/agents/deployment-manager.md` |
-| `/user-check` | telegram-user-manager | `.claude/agents/telegram-user-manager.md` |
-| `/autonomous-monitor` | autonomous-error-fixer | `.claude/agents/autonomous-error-fixer.md` |
-| `/logs` | js-error-fixer | `.claude/agents/js-error-fixer.md` |
-| `/docs-sync` | docs-sync | `.claude/agents/docs-sync.md` |
+| Команда | Агент | Документация |
+|---------|-------|--------------|
+| `/check` | server-health-checker | docs/server-health-checker.md |
+| `/deploy` | deployment-manager | - |
+| `/user-check` | telegram-user-manager | - |
 
 ## 💡 Tips & Tricks
 
