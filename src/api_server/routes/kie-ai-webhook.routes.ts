@@ -384,9 +384,12 @@ function detectVideoProvider(payload: any): string {
  */
 function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
   const taskId = payload.taskId || payload.data?.taskId
+
+  // ✅ FIX: Проверяем успешность по code===200 и наличию resultUrls
+  // Veo 3 Fast отправляет: { code: 200, data: { resultUrls: [...] } }
   const successFlag = payload.successFlag !== undefined
     ? payload.successFlag
-    : (payload.data?.state === 'success' ? 1 : 2)
+    : (payload.code === 200 && (payload.data?.resultUrls || payload.data?.info?.resultUrls) ? 1 : 2)
 
   let resultUrls: string[] | undefined
   try {
