@@ -18,9 +18,9 @@ import type {
   HealthCheck,
   GetBalance,
   GenerateAudio,
-  ProviderError,
-  createProviderError
+  ProviderError
 } from './types'
+import { createProviderError } from './types'
 
 // ===== CONFIG VALIDATION =====
 
@@ -94,23 +94,23 @@ const buildAudioPayload = (request: AudioRequest) => {
   return payload
 }
 
-const handleAudioResponse = (data: any): AudioResult => ({
+const handleAudioResponse = (data: any, request: AudioRequest, providerName: any): AudioResult => ({
   audioUrl: data.audio_url || '',
   taskId: data.task_id || data.id,
-  provider: 'elevenlabs' as const,
+  provider: providerName,
   duration: request.duration || 5,
   metadata: data.metadata || {}
 })
 
 export const generateAudio = (config: ProviderConfig): GenerateAudio =>
-  async (request: AudioRequest): Promise<Either<Error, AudioResult>> => {
+  (request: AudioRequest) => async (): Promise<Either<Error, AudioResult>> => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildAudioPayload(request)
       const response = await http.post('/v1/text-to-speech', payload)
 
-      return right(handleAudioResponse(response))
+      return right(handleAudioResponse(response, request, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'elevenlabs',
@@ -125,7 +125,7 @@ export const generateAudio = (config: ProviderConfig): GenerateAudio =>
 // ===== VOICES ENDPOINT =====
 
 export const getVoices = (config: ProviderConfig) =>
-  async (): Promise<Either<Error, any>> => {
+  () => async (): Promise<Either<Error, any>> => {
     const http = createHttpClient(config)
 
     try {
@@ -139,7 +139,7 @@ export const getVoices = (config: ProviderConfig) =>
 // ===== HEALTH CHECK =====
 
 export const healthCheck = (config: ProviderConfig): HealthCheck =>
-  async (): Promise<Either<Error, HealthStatus>> => {
+  () => async (): Promise<Either<Error, HealthStatus>> => {
     const http = createHttpClient(config)
 
     try {
@@ -169,7 +169,7 @@ export const healthCheck = (config: ProviderConfig): HealthCheck =>
 // ===== BALANCE CHECK =====
 
 export const getBalance = (config: ProviderConfig): GetBalance =>
-  async (): Promise<Either<Error, Balance>> => {
+  () => async (): Promise<Either<Error, Balance>> => {
     const http = createHttpClient(config)
 
     try {
@@ -191,7 +191,7 @@ export const getBalance = (config: ProviderConfig): GetBalance =>
 // ===== RATE LIMITER =====
 
 export const rateLimit = (config: ProviderConfig): RateLimit =>
-  async (request: any): Promise<Either<Error, void>> => {
+  (request: any) => async (): Promise<Either<Error, void>> => {
     const rateLimiter = (config.rateLimit?.requestsPerMinute || 60)
     const key = `${config.name}-${request.userId}`
 
@@ -204,18 +204,18 @@ export const createElevenLabsProvider = (config: ProviderConfig): Provider => {
   const validatedConfig = validateConfig(config)
 
   if (validatedConfig._tag === 'Left') {
-    throw validatedConfig.value
+    throw validatedConfig.left
   }
 
-  const validated = validatedConfig.value
+  const validated = validatedConfig.right
 
   return {
     name: 'elevenlabs',
     config: validated,
-    generateVideo: async () => () => left(new Error('ElevenLabs does not support video generation')),
-    generateImage: async () => () => left(new Error('ElevenLabs does not support image generation')),
+    generateVideo: (request) => async () => left(new Error('ElevenLabs does not support video generation')),
+    generateImage: (request) => async () => left(new Error('ElevenLabs does not support image generation')),
     generateAudio: generateAudio(validated),
-    performFaceSwap: async () => () => left(new Error('ElevenLabs does not support face swap')),
+    performFaceSwap: (request) => async () => left(new Error('ElevenLabs does not support face swap')),
     healthCheck: healthCheck(validated),
     getBalance: getBalance(validated),
     rateLimit: rateLimit(validated)

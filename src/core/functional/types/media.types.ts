@@ -299,3 +299,48 @@ export const isHealthy = (status: HealthStatus): boolean =>
 
 export const hasBalance = (balance: Balance): boolean =>
   balance.available > 0
+
+// ===== PROVIDER INTERFACE =====
+
+import { Either, TaskEither } from '../utils/result'
+
+export interface Provider<Req extends MediaRequest, Res extends MediaResult> {
+  readonly name: ProviderName
+  readonly capabilities: ProviderCapabilities
+
+  generate(request: Req): TaskEither<Error, Res>
+  healthCheck(): TaskEither<Error, HealthStatus>
+  getBalance(): TaskEither<Error, Balance>
+}
+
+// ===== PROVIDER REGISTRY =====
+
+export interface ProviderRegistry {
+  register<Req extends MediaRequest, Res extends MediaResult>(
+    provider: Provider<Req, Res>
+  ): void
+
+  get(name: ProviderName): Provider<any, any> | undefined
+
+  getByCapability(capability: MediaType): Provider<any, any>[]
+
+  getAll(): Provider<any, any>[]
+}
+
+// ===== CACHE INTERFACE =====
+
+export interface Cache<K = string, V = any> {
+  get(key: K): Promise<V | undefined>
+  set(key: K, value: V, ttl?: number): Promise<void>
+  delete(key: K): Promise<void>
+  clear(): Promise<void>
+  has(key: K): Promise<boolean>
+}
+
+// ===== CIRCUIT BREAKER CONFIG =====
+
+export interface CircuitBreakerConfig {
+  failureThreshold: number
+  timeout: number
+  resetTimeout: number
+}

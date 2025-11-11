@@ -14,9 +14,13 @@ import {
   FaceSwapRequest,
   FaceSwapResult,
   ProviderConfig,
-  HealthStatus,
-  Balance
+  HealthStatus as MediaHealthStatus,
+  Balance as MediaBalance
 } from '../../../core/functional/types/media.types'
+
+// Re-export imported types
+export type HealthStatus = MediaHealthStatus
+export type Balance = MediaBalance
 
 // ===== PROVIDER FUNCTIONS =====
 
