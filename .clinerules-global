@@ -135,3 +135,109 @@ export async function doSomething() {
 ### 🎯 Цель
 
 **100% секретов в Infisical облаке, 0% в git/файлах**
+
+---
+
+## 🔧 SKILL: Восстановление .env из Infisical
+
+### Триггеры
+- "пустые API ключи"
+- "api_key is empty"
+- "env восстановить"
+- ".env сломался"
+- "HEYGEN_* не загружается"
+- "секреты не работают"
+
+### Быстрая диагностика
+```bash
+# Проверить .env на production
+ssh prod999 "grep -E 'HEYGEN|ELEVENLABS' /root/bot-farm/.env | wc -l"
+# Ожидается: 6 строк
+# Если 0 → .env повреждён
+```
+
+### Автоматическое восстановление
+```bash
+# Запустить скрипт восстановления
+./scripts/restore-env-from-infisical.sh --prod
+
+# Скрипт выполнит:
+# 1. Экспорт из Infisical (удаление кавычек)
+# 2. Добавление INFISICAL_* credentials
+# 3. Создание backup
+# 4. Валидацию критичных ключей
+```
+
+### Ручное восстановление
+```bash
+# 1. Экспорт из Infisical
+infisical export \
+  --projectId=fd763fa3-35d5-4045-93bd-1795c5f00fc3 \
+  --env=prod --path=/ --format=dotenv \
+  | sed "s/'//g" > /tmp/prod.env
+
+# 2. Добавить Infisical credentials
+cat >> /tmp/prod.env <<'EOF'
+INFISICAL_CLIENT_ID=88fcf0cd-cce9-4844-bad2-8e19b4bad3ed
+INFISICAL_CLIENT_SECRET=b377e7a60b669ea2317f339dc6cb79ce49d588a7bbed92433bb2a73dedff3314
+INFISICAL_PROJECT_ID=fd763fa3-35d5-4045-93bd-1795c5f00fc3
+EOF
+
+# 3. Загрузить на production
+cat /tmp/prod.env | ssh prod999 "cat > /root/bot-farm/.env"
+
+# 4. Перезапустить
+ssh prod999 "cd /root/bot-farm && docker compose restart app"
+
+# 5. Проверить
+ssh prod999 "docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS'"
+```
+
+### Ожидаемые ключи
+```
+HEYGEN_COCOAGE_API_KEY=sk_V2_hgu_kZgKPoImFA5_7wlQLLXqKLr2mag1hIM9caNiPtAYmjkj
+HEYGEN_HAIM_API_KEY=sk_V2_hgu_kBLbUbWT3dT_i0NzHVIT9R8GNZR3xu8Ccw8RT6gIBNPJ
+ELEVENLABS_API_KEY=737d2f8b185450984e1525893f0327f48736fe9e9d850d52cb63834337ca7dc4
+ELEVENLABS_HAIM_API_KEY=737d2f8b185450984e1525893f0327f48736fe9e9d850d52cb63834337ca7dc4
+ELEVENLABS_VOICE_COCOAGE=2b2e1f15157b454487f1250ffe586d7a
+ELEVENLABS_VOICE_HAIM=dc9cd149b0d741d6934a1d95e3f3ef00
+```
+
+### Частые проблемы
+
+**1. Кавычки в .env**
+```bash
+# ❌ НЕПРАВИЛЬНО (Docker Compose не понимает)
+HEYGEN_API_KEY='sk_V2_hgu_...'
+
+# ✅ ПРАВИЛЬНО
+HEYGEN_API_KEY=sk_V2_hgu_...
+
+# Fix: sed "s/'//g"
+```
+
+**2. Infisical credentials отсутствуют в docker-compose.yml**
+```yaml
+# Добавить в docker-compose.yml → services.app.environment:
+- INFISICAL_CLIENT_ID=${INFISICAL_CLIENT_ID}
+- INFISICAL_CLIENT_SECRET=${INFISICAL_CLIENT_SECRET}
+- INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID}
+```
+
+**3. Infisical не экспортирует свои credentials**
+```bash
+# После export ВСЕГДА добавлять:
+echo "INFISICAL_CLIENT_ID=..." >> .env
+echo "INFISICAL_CLIENT_SECRET=..." >> .env
+echo "INFISICAL_PROJECT_ID=..." >> .env
+```
+
+### Время восстановления
+- **Автоматически**: 2-3 минуты
+- **Вручную**: 5-7 минут
+- **С перезапуском**: +2 минуты
+
+### Документация
+- `scripts/restore-env-from-infisical.sh` - скрипт
+- `docs/INFISICAL_ENV_MANAGEMENT.md` - полный гайд
+- `docs/AVATAR_API_KEYS.md` - маппинг ключей
