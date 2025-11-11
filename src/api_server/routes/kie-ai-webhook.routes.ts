@@ -405,8 +405,8 @@ function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
     ...payload,
     taskId,
     successFlag,
-    resultUrls: payload.resultUrls || resultUrls || payload.data?.resultUrls,
-    videoUrl: payload.videoUrl || resultUrls?.[0] || payload.data?.resultUrls?.[0]
+    resultUrls: payload.resultUrls || resultUrls || payload.data?.info?.resultUrls || payload.data?.resultUrls,
+    videoUrl: payload.videoUrl || resultUrls?.[0] || payload.data?.info?.resultUrls?.[0] || payload.data?.resultUrls?.[0]
   }
 }
 
