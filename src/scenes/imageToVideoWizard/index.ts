@@ -34,26 +34,34 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       const isRu = isRussianFromState(ctx)
       console.log('🎬 [I2V WIZARD] Step 0: Language detected:', isRu)
 
+      // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ (автоматически берет все активные модели)
+      const keyboardRows = generateModelKeyboard('image', isRu)
+
+      if (keyboardRows.length === 0) {
+        console.error('🎬 [I2V WIZARD] Step 0: NO IMAGE MODELS FOUND!')
+        await ctx.reply('❌ Модели не найдены. Попробуйте позже.')
+        return ctx.scene.leave()
+      }
+
+      // Кнопки назад и отмена
+      keyboardRows.push([
+        isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
+        isRu ? '❌ Отмена' : '❌ Cancel'
+      ])
+      const keyboard = Markup.keyboard(keyboardRows).resize()
+
       console.log('🎬 [I2V WIZARD] Step 0: About to send reply...')
       await ctx.reply(
         isRu
-          ? '🖼️ Отправьте изображение для создания видео:'
-          : '🖼️ Send an image to create video:',
-        Markup.keyboard([
-          [isRu ? 'Отмена' : 'Cancel'],
-          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
-        ]).resize()
+          ? `🎥 Выберите модель и формат видео:\n\n🖥️ Горизонтальные (16:9) — слева\n📱 Вертикальные (9:16) — справа\n\n⭐ Цена в Telegram Stars`
+          : `🎥 Choose model and video format:\n\n🖥️ Horizontal (16:9) — left\n📱 Vertical (9:16) — right\n\n⭐ Price in Telegram Stars`,
+        keyboard
       )
 
       console.log('🎬 [I2V WIZARD] Step 0: ✅ REPLY SENT SUCCESSFULLY!')
       console.log('🎬 [I2V WIZARD] Step 0: Moving to next step...')
-      if (ctx.wizard && ctx.wizard.next) {
-        ctx.wizard.next()
-        console.log('🎬 [I2V WIZARD] Step 0: ✅ ctx.wizard.next() CALLED')
-      } else {
-        console.error('🎬 [I2V WIZARD] Step 0: ❌ ctx.wizard.next is NOT AVAILABLE!')
-      }
-      console.log('🎬 [I2V WIZARD] Step 0: Returning from step 0')
+      ctx.wizard.next()
+      console.log('🎬 [I2V WIZARD] Step 0: ✅ ctx.wizard.next() CALLED')
       return
       
     } catch (error) {
