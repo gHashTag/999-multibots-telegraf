@@ -27,9 +27,9 @@ import type {
   GenerateImage,
   GenerateAudio,
   PerformFaceSwap,
-  ProviderError,
-  createProviderError
+  ProviderError
 } from './types'
+import { createProviderError } from './types'
 
 // ===== CONFIG VALIDATION =====
 
@@ -98,23 +98,24 @@ const buildVideoPayload = (request: VideoRequest) => {
   return payload
 }
 
-const handleVideoResponse = (data: any): VideoResult => ({
+const handleVideoResponse = (data: any, request: VideoRequest, providerName: any): VideoResult => ({
   videoUrl: data.output?.video_url || data.output?.[0] || '',
   taskId: data.id,
-  provider: 'replicate' as const,
-  duration: data.input?.duration || 5,
-  metadata: data.metadata || {}
+  provider: providerName,
+  duration: data.input?.duration || request.duration,
+  metadata: data.metadata || {},
+  cost: data.cost || { usd: 0, stars: 0 }
 })
 
 export const generateVideo = (config: ProviderConfig): GenerateVideo =>
-  async (request: VideoRequest): Promise<Either<Error, VideoResult>> => {
+  (request: VideoRequest) => async (): Promise<Either<Error, VideoResult>> => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildVideoPayload(request)
       const response = await http.post('/v1/predictions', payload)
 
-      return right(handleVideoResponse(response))
+      return right(handleVideoResponse(response, request, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'replicate',
