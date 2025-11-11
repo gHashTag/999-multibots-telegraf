@@ -741,6 +741,7 @@ description: "When and how to use this skill"
 ### 📚 Существующие Skills
 
 **Production Skills (в `.claude/skills/`):**
+- `fix-empty-api-keys/` - Исправление пустых API ключей в payload (ElevenLabs, HeyGen)
 - `restore-env-from-infisical/` - Восстановление .env из Infisical
 - `telegram-scene-builder/` - Создание Telegram wizards
 - `deployment-automation/` - Production deployment

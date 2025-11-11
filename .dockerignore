@@ -9,9 +9,12 @@ dist/
 *.swp
 *~
 
-# git files
+# git files (CRITICAL: exclude 1.3GB .git directory!)
+.git/
 .git
+**/.git
 .gitignore
+.github/
 
 # environment files - оставляем только ненужные .env файлы
 .env.local

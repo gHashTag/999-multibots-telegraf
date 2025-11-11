@@ -1,11 +1,10 @@
 # 🚀 FASTEST Dockerfile с esbuild (10-100x быстрее!)
-# esbuild заменяет TypeScript compiler
+# esbuild бандлит TypeScript в один файл за секунды
 
-# Stage 1: Dependencies
+# Stage 1: Dependencies только для production
 FROM node:20-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-# Только production зависимости
 RUN npm ci --omit=dev --prefer-offline
 
 # Stage 2: Builder с esbuild
@@ -20,32 +19,42 @@ RUN npm ci --prefer-offline
 
 COPY . .
 
-# esbuild вместо tsc (10-100x быстрее!)
+# ✅ Проверка TypeScript перед сборкой (прерывает сборку при ошибках)
+RUN npx tsc --noEmit || (echo "❌ TypeScript errors found! Build aborted." && exit 1)
+
+# esbuild бандлит все в один файл за секунды!
+# --packages=external: НЕ бандлить node_modules (будут в runtime)
 RUN esbuild src/index.ts \
   --bundle \
   --platform=node \
   --target=node20 \
+  --format=cjs \
   --outfile=dist/index.js \
-  --external:telegraf \
-  --external:@supabase/supabase-js \
-  --external:inngest \
-  --external:openai \
-  --external:replicate \
-  --external:express \
-  --external:fastify \
-  --external:pg \
-  --external:axios
+  --packages=external \
+  --sourcemap \
+  --minify
 
-# Копируем остальные файлы если нужны
-COPY src dist/
-
-# Stage 3: Production
+# Stage 3: Production (минимальный runtime)
 FROM node:20-slim
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY package.json ./
+# Security: Non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nodejs
+
+# Copy production dependencies from deps stage
+COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
+
+# Copy bundled app from builder stage
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
+
+# Environment
+ENV NODE_ENV=production
+
+# Switch to non-root user
+USER nodejs
 
 EXPOSE 3001
+
 CMD ["node", "dist/index.js"]

@@ -22,10 +22,11 @@ RUN find src -name "__tests__" -type d -exec rm -rf {} + 2>/dev/null || true && 
     find src -name "*.spec.ts" -type f -delete 2>/dev/null || true
 # --------------------------------------------------------
 
-# Выполняем сборку TypeScript с пропуском проверки типов для решения проблем совместимости
-# и обрабатываем алиасы путей с помощью tsc-alias (включено в скрипт build:nocheck)
-# ВАЖНО: || true игнорирует ошибки компиляции, но генерирует код в любом случае
-RUN (npx tsc --skipLibCheck --skipDefaultLibCheck --noEmitOnError false --project tsconfig.build.json || true) && npx tsc-alias --project tsconfig.build.json
+# ✅ ПРОВЕРКА ТИПОВ TypeScript (прерывает сборку при ошибках!)
+RUN npx tsc --noEmit --project tsconfig.build.json || (echo "❌ TypeScript errors found! Build aborted." && exit 1)
+
+# Выполняем сборку TypeScript и обрабатываем алиасы путей
+RUN npx tsc --project tsconfig.build.json && npx tsc-alias --project tsconfig.build.json
 
 # Проверяем, что файлы сборки созданы
 RUN ls -la dist/ || echo "Директория dist не существует или пуста"
