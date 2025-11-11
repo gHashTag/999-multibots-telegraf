@@ -374,11 +374,18 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
 
       return ctx.wizard.next()
     } catch (error) {
-      logger.error('❌ [HEYGEN RENDER] Cover processing error', { error })
+      logger.error('❌ [HEYGEN RENDER] Cover processing error', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        hasMessage: !!message,
+        hasPhoto: message && 'photo' in message,
+        telegramId,
+      })
       await ctx.reply(
         isRu
-          ? '❌ Произошла ошибка при обработке обложки.'
-          : '❌ Error processing cover.'
+          ? `❌ Произошла ошибка при обработке обложки.\n\nОшибка: ${error instanceof Error ? error.message : String(error)}`
+          : `❌ Error processing cover.\n\nError: ${error instanceof Error ? error.message : String(error)}`
       )
       return ctx.scene.leave()
     }
