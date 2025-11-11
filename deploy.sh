@@ -170,7 +170,7 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
   docker run -d \
     --name $CONTAINER_NAME \
     --restart=unless-stopped \
-    -p $PORT:3001 \
+    -p 2999:2999 \
     --env-file .env \
     $CONTAINER_NAME:latest
 
@@ -190,7 +190,7 @@ docker rm $CONTAINER_NAME 2>/dev/null || true
 docker run -d \
   --name $CONTAINER_NAME \
   --restart=always \
-  -p $PORT:3001 \
+  -p 2999:2999 \
   -v /root/999-agents-telegraf/.env:/app/.env:ro \
   $CONTAINER_NAME:latest
 

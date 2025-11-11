@@ -1,9 +1,14 @@
 import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes'
+import { CancelButtonService } from '@/services/CancelButtonService'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
+/**
+ * ✅ DEPRECATED: Используйте CancelButtonService.handleCancelAndMenu()
+ *
+ * Оставлено для обратной совместимости
+ */
 export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
-  console.log('🔍 [handleHelpCancel] STARTED', {
+  console.log('🔍 [handleHelpCancel] STARTED (using CancelButtonService)', {
     hasMessage: !!ctx.message,
     messageType: ctx.message ? Object.keys(ctx.message) : 'no message',
   })
@@ -18,30 +23,21 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
       processedText: text,
       isRu,
       telegramId: ctx.from?.id,
-      expectedCancel: isRu ? 'отмена' : 'cancel',
-      expectedHelp: isRu ? 'справка по команде' : 'help for the command',
     })
 
-    if (text === (isRu ? 'отмена' : 'cancel')) {
-      console.log(
-        '✅ [handleHelpCancel] CANCEL DETECTED - Processing cancellation'
-      )
-      await ctx.reply(
-        isRu ? '❌ Операция отменена.' : '❌ Operation cancelled.',
-        { reply_markup: { remove_keyboard: true } }
-      )
-      console.log(
-        '✅ [handleHelpCancel] CANCEL MESSAGE SENT - Entering MainMenu'
-      )
-      ctx.scene.enter(ModeEnum.MainMenu)
-      console.log('✅ [handleHelpCancel] ENTERING MAIN MENU SCENE')
+    // Проверка справки (оставляем, так как это специфично для handleHelpCancel)
+    if (text === (isRu ? 'справка' : 'help') ||
+        text === (isRu ? 'ℹ️ справка' : 'ℹ️ help') ||
+        text === (isRu ? 'справка по команде' : 'help for the command')) {
+      console.log('✅ [handleHelpCancel] HELP DETECTED - Processing help')
+      await ctx.scene.enter('helpScene')
       return true
     }
 
-    if (text === (isRu ? 'справка по команде' : 'help for the command')) {
-      console.log('✅ [handleHelpCancel] HELP DETECTED - Processing help')
-      // ✅ Входим в helpScene и остаёмся там (убрали .leave())
-      await ctx.scene.enter('helpScene')
+    // Используем централизованную систему для отмены и главного меню
+    const handled = await CancelButtonService.handleCancelAndMenu(ctx)
+    if (handled) {
+      console.log('✅ [handleHelpCancel] HANDLED by CancelButtonService')
       return true
     }
 
