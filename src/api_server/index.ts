@@ -15,8 +15,8 @@ import { inngest } from '../inngest_app/client'
 import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 
-// Определяем порт. Берем из process.env.API_PORT, если есть, иначе 8080 (свободный порт).
-const PORT = process.env.API_PORT || '8080'
+// Определяем порт. Берем из process.env.API_PORT, если есть, иначе 2999 (настроено в docker-compose.yml).
+const PORT = process.env.API_PORT || '2999'
 
 export function startApiServer(bot?: Telegraf): void {
   // Если bot instance передан, инициализируем его в webhook router
