@@ -316,9 +316,20 @@ export async function generateTextToVideo(
       })
 
       // Импортируем модуль videoGenerator для Replicate моделей
-      const { generateTextToVideo: generateTextToVideoNew } = await import('@/modules/videoGenerator')
+      const videoGeneratorModule = await import('@/modules/videoGenerator')
+      const generateTextToVideoNew = (videoGeneratorModule.generateTextToVideo as unknown) as (
+        prompt: string,
+        telegram_id: string,
+        username: string,
+        is_ru: boolean,
+        bot_name: string,
+        modelId: string,
+        selectedResolution?: string,
+        selectedDuration?: number,
+        selectedAspectRatio?: string
+      ) => Promise<string | null>
 
-      const videoUrl: string | null = await generateTextToVideoNew(
+      const videoUrl = await generateTextToVideoNew(
         prompt,
         telegram_id,
         username,
@@ -333,7 +344,7 @@ export async function generateTextToVideo(
       if (videoUrl) {
         const response: TextToVideoResponse = {
           success: true,
-          videoUrl: videoUrl,
+          videoUrl: videoUrl || undefined,
           message: 'Video generated successfully via Replicate'
         }
         return response

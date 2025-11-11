@@ -108,7 +108,7 @@ export const processBalanceVideoOperation = async (
       telegram_id.toString(),
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
-      `Video generation (${selectedModelConfig.title})`,
+      `Video generation (${selectedModelConfig.nameRu || selectedModelConfig.name})`,
       {
         bot_name: ctx.botInfo?.username,
         service_type: ctx.session.mode,

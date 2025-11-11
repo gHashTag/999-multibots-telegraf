@@ -122,8 +122,8 @@ const FALLBACK_KLING_MODELS = FALLBACK_KLING_MODEL_IDS.map(modelId => {
   return {
     id: config.apiModel, // Используем apiModel для Replicate (например 'kwaivgi/kling-v2.1')
     configId: config.id, // ID из unified config (например 'kling-v2.1-pro')
-    name: config.title,
-    variant: config.api?.input?.mode || 'pro',
+    name: config.name, // ✅ FIXED: Use 'name' instead of 'title'
+    variant: config.apiSettings.baseInput?.mode || 'pro', // ✅ FIXED: Use apiSettings.baseInput instead of api.input
     cost: 0.9, // Примерная стоимость за клип (для логирования)
     description: config.description,
   }

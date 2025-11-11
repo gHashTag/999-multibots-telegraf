@@ -91,7 +91,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     let videoInput: any
 
     // Проверяем нажатие кнопки "Отмена"
-    if (ctx.callbackQuery?.data === 'lipsync_cancel') {
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data === 'lipsync_cancel') {
       await ctx.answerCbQuery()
       await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
       return ctx.scene.leave()

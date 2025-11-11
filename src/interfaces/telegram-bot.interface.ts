@@ -248,7 +248,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   aiReelsRender?: {
     // Данные для AI Reels Render wizard (генерация через render-server с Hedra/HeyGen/Fal)
-    step?: 'image' | 'text' | 'intro_text' | 'intro_text_2' | 'avatar_service' | 'avatar_set_selection' | 'processing'
+    step?: 'image' | 'text' | 'intro_text' | 'intro_text_2' | 'avatar_service' | 'avatar_set_selection' | 'processing' | 'cover'
     imageUrl?: string
     text?: string
     audioUrl?: string

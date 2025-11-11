@@ -152,7 +152,7 @@ export const generateTextToImageDirect = async (
         let output: ApiResponse
         let imageUrl: string
 
-        if (modelId === 'midjourney-v7') {
+        if (modelId && model_type.toLowerCase() === 'midjourney-v7') {
           logger.info('[generateTextToImageDirect] Using Midjourney generator')
           const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
           const midjourneyResult = await generateMidjourneyImage({
@@ -168,6 +168,9 @@ export const generateTextToImageDirect = async (
 
           imageUrl = midjourneyResult.imageUrls[0]
         } else {
+          if (!modelId) {
+            throw new Error(`Model ID not found for model type: ${model_type}`)
+          }
           output = (await replicate.run(modelId, {
             input: inputParams,
           })) as ApiResponse

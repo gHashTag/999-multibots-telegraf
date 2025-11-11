@@ -48,20 +48,22 @@ export async function generateNeuroImage(
 
     logger.info('Using local AI service for neuro image generation')
 
-    const response = await generateNeuroPhotoHybrid({
+    const response = await generateNeuroPhotoHybrid(
       prompt,
+      model_url,
+      numImages,
       telegram_id,
-      bot_name: botName
-    })
+      ctx,
+      botName,
+      null // explicitAspectRatio is optional
+    )
     logger.info('Neuro image generation response received', {
-      hasData: !!response.data,
-      dataType: typeof response.data,
-      dataKeys:
-        response.data && typeof response.data === 'object'
-          ? Object.keys(response.data)
-          : 'not an object',
+      hasData: !!response?.data,
+      dataType: typeof response?.data,
+      success: !!response?.success,
+      hasUrls: !!response?.urls,
     })
-    return response.data
+    return response
   } catch (error) {
     console.error('Ошибка при генерации нейроизображения:', error)
 

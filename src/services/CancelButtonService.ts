@@ -94,14 +94,14 @@ export class CancelButtonService {
    * Обрабатывает callback_query для inline кнопки отмены
    */
   static async handleCancelCallback(ctx: MyContext): Promise<boolean> {
-    if (ctx.callbackQuery?.data === 'cancel') {
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data === 'cancel') {
       const isRu = isRussianFromState(ctx)
-      
+
       await ctx.answerCbQuery()
       await ctx.reply(
         isRu ? '❌ Операция отменена.' : '❌ Operation cancelled.'
       )
-      
+
       await ctx.scene.leave()
       return true
     }

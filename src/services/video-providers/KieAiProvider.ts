@@ -463,9 +463,7 @@ export class KieAiProvider {
 
           return {
             success: false,
-            error: response.msg || 'WAN API error',
-            errorCode: response.code,
-            isInsufficientCredits: response.code === 402, // Флаг для уведомления админа
+            error: `${response.msg || 'WAN API error'} (code: ${response.code})`,
             cost: { usd: 0, stars: 0 },
             provider: 'WAN 2.5 API',
             model: kieModel
