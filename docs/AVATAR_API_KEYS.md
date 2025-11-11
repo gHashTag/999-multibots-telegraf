@@ -46,11 +46,12 @@ const response = await fetch('https://api.heygen.com/v1/video.generate', {
 
 ElevenLabs is used for voice synthesis and audio generation.
 
-### API Key
+### API Keys
 
-| Variable Name | Description |
-|--------------|-------------|
-| `ELEVENLABS_API_KEY` | Main API key for all ElevenLabs requests |
+| Variable Name | Avatar | Description |
+|--------------|---------|-------------|
+| `ELEVENLABS_API_KEY` | General | Main API key for general ElevenLabs requests |
+| `ELEVENLABS_HAIM_API_KEY` | Haim | Dedicated API key for Haim avatar |
 
 ### Voice IDs
 
@@ -88,10 +89,10 @@ const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voic
 
 ## 📝 Avatar Mapping
 
-| Avatar Name | HeyGen Key | ElevenLabs Voice ID |
-|------------|-----------|-------------------|
-| Cocoage | `HEYGEN_COCOAGE_API_KEY` | `ELEVENLABS_VOICE_COCOAGE` |
-| Haim | `HEYGEN_HAIM_API_KEY` | `ELEVENLABS_VOICE_HAIM` |
+| Avatar Name | HeyGen Key | ElevenLabs API Key | ElevenLabs Voice ID |
+|------------|-----------|-------------------|-------------------|
+| Cocoage | `HEYGEN_COCOAGE_API_KEY` | `ELEVENLABS_API_KEY` | `ELEVENLABS_VOICE_COCOAGE` |
+| Haim | `HEYGEN_HAIM_API_KEY` | `ELEVENLABS_HAIM_API_KEY` | `ELEVENLABS_VOICE_HAIM` |
 
 ## 🔄 Key Rotation
 
