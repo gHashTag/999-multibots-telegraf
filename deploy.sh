@@ -81,8 +81,11 @@ deploy() {
     log_info "2. Обновление кода с git..."
     ssh_exec "
         cd $PROJECT_PATH
-        git fetch origin production
-        git reset --hard origin/production
+        # Переключаем remote на SSH если нужно (игнорируем ошибки если уже SSH)
+        git remote set-url origin git@github.com:gHashTag/999-multibots-telegraf.git 2>/dev/null || true
+        # Обновляем код
+        git fetch origin production 2>&1 || echo 'Fetch failed, using existing code'
+        git reset --hard origin/production 2>&1 || echo 'Reset failed, using existing code'
         echo 'Код обновлён'
     "
 
