@@ -665,6 +665,176 @@ Inngest: https://www.inngest.com/docs
 
 ---
 
-**Last Updated**: 2025-01-11
-**Version**: 2.0 (DevOps Optimized)
+## 🎓 SKILLS MANAGEMENT - КРИТИЧЕСКИ ВАЖНО!
+
+### ⚠️ ОБЯЗАТЕЛЬНОЕ ПРАВИЛО: Правильное использование Skills
+
+**ПРОБЛЕМА**: Claude AI Agent НЕ ПОНИМАЕТ структуру Skills без явных правил!
+
+**РЕШЕНИЕ**: Следуй этим правилам ВСЕГДА:
+
+### 📁 Правильная структура Skills
+
+**✅ ПРАВИЛЬНО: .claude/skills/**
+
+Skills хранятся ТОЛЬКО в директории `.claude/skills/` в корне проекта:
+
+```
+.claude/
+└── skills/
+    ├── restore-env-from-infisical/
+    │   ├── SKILL.md              # Required: название С БОЛЬШОЙ БУКВЫ!
+    │   ├── resources/            # Optional: supporting files
+    │   └── scripts/              # Optional: helper scripts
+    ├── telegram-scene-builder/
+    │   └── SKILL.md
+    └── ...
+```
+
+**❌ НЕПРАВИЛЬНО:**
+- ~~`.claude-skills/`~~ - неправильная директория
+- ~~`.clinerules-global`~~ - это НЕ место для skills, только для глобальных правил
+- ~~`CLAUDE.md`~~ - это документация проекта, не skills
+- ~~`skill.md`~~ - lowercase, НЕПРАВИЛЬНО! Должно быть `SKILL.md`
+
+### 📝 Формат SKILL.md
+
+**Обязательные компоненты:**
+
+```markdown
+---
+name: "Skill Name"
+description: "When and how to use this skill"
+---
+
+# Skill Name
+
+## When to Use This Skill
+[Detailed activation triggers]
+
+## Quick Diagnosis
+[Fast problem detection]
+
+## Solution Steps
+[Step-by-step instructions]
+
+## Common Issues
+[Known problems and fixes]
+
+## Related Resources
+[Links to docs, scripts, etc.]
+```
+
+### 🔧 Когда создавать новый Skill
+
+**Создавай Skill когда:**
+1. Решение проблемы требует 5+ шагов
+2. Проблема повторяется регулярно
+3. Есть чёткие триггеры для активации
+4. Требуется специализированное знание
+
+**НЕ создавай Skill для:**
+1. Одноразовых задач
+2. Простых команд (1-2 шага)
+3. Общих правил (используй CLAUDE.md)
+
+### 📚 Существующие Skills
+
+**Production Skills (в `.claude/skills/`):**
+- `restore-env-from-infisical/` - Восстановление .env из Infisical
+- `telegram-scene-builder/` - Создание Telegram wizards
+- `deployment-automation/` - Production deployment
+- ... (и другие по мере создания)
+
+### 🚨 Проверка перед коммитом
+
+**ВСЕГДА проверяй:**
+
+```bash
+# 1. Правильная структура
+ls -la .claude/skills/*/SKILL.md
+
+# 2. Наличие YAML frontmatter
+head -5 .claude/skills/*/SKILL.md | grep "^name:"
+
+# 3. Не создал случайно неправильную директорию
+ls -d .claude-skills/ 2>/dev/null && echo "❌ НЕПРАВИЛЬНО!"
+```
+
+### 💡 Как использовать Skills в работе
+
+**Claude автоматически загружает Skills когда:**
+1. Видит триггерные фразы из `description`
+2. Контекст задачи совпадает с `When to Use This Skill`
+3. Пользователь явно упоминает проблему, описанную в Skill
+
+**Пример активации:**
+```
+User: "У меня пустые API ключи в запросе"
+→ Claude загружает: restore-env-from-infisical
+→ Выполняет: Quick Diagnosis
+→ Применяет: Solution Steps
+```
+
+### 📖 Документация vs Skills
+
+**CLAUDE.md (документация):**
+- Общая структура проекта
+- Правила разработки
+- Deployment процессы
+- Архитектурные решения
+
+**Skills (специализированные инструкции):**
+- Конкретные проблемы и решения
+- Пошаговые инструкции
+- Автоматическая активация по триггерам
+- Переиспользуемые рецепты
+
+### 🔄 Обновление Skills
+
+**При обнаружении новых паттернов:**
+
+1. Проверь, нужен ли новый Skill или обновление существующего
+2. Обнови `SKILL.md` с новыми триггерами/решениями
+3. Добавь примеры в `resources/` если нужно
+4. Обнови эту секцию в `CLAUDE.md` со списком Skills
+
+### ⚠️ Типичные ошибки
+
+**❌ НЕ ДЕЛАЙ:**
+```bash
+# Неправильная директория
+mkdir .claude-skills/
+
+# Lowercase название
+touch SKILL.md → skill.md
+
+# Skills в .clinerules-global
+echo "## SKILL:" >> .clinerules-global
+```
+
+**✅ ПРАВИЛЬНО:**
+```bash
+# Создать новый Skill
+mkdir -p .claude/skills/my-skill/
+cat > .claude/skills/my-skill/SKILL.md <<'EOF'
+---
+name: "My Skill"
+description: "What it does"
+---
+# My Skill
+...
+EOF
+```
+
+### 🎯 Цель
+
+**100% автоматизации повторяющихся проблем через Skills**
+
+Каждый раз, когда решаешь проблему второй раз → создай Skill!
+
+---
+
+**Last Updated**: 2025-11-12
+**Version**: 2.1 (Skills Management Added)
 **Status**: Production-ready ✅
