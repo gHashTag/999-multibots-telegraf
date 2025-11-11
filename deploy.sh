@@ -100,10 +100,10 @@ deploy() {
         fi
     "
 
-    log_info "4. Пересборка Docker образа (БЕЗ КЕША - ОБЯЗАТЕЛЬНО!)..."
+    log_info "4. Пересборка Docker образа с Bun (БЕЗ КЕША - ОБЯЗАТЕЛЬНО!)..."
     ssh_exec "
         cd $PROJECT_PATH
-        docker build --no-cache -t 999-agents-telegraf:latest . 2>&1 | tail -5
+        docker build --no-cache -f Dockerfile.bun -t 999-agents-telegraf:latest . 2>&1 | tail -5
     "
 
     log_info "5. Полная очистка всех контейнеров и сетей..."
