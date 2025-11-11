@@ -317,13 +317,18 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
 
         // Загружаем в Supabase Storage
         const { createClient } = await import('@supabase/supabase-js')
-        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
-          '@/config'
-        )
+
+        // ✅ FIX: Use process.env directly (Infisical loads to process.env, not @/config exports)
+        const SUPABASE_URL = process.env.SUPABASE_URL
+        const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+          throw new Error('Supabase credentials not configured in environment')
+        }
 
         const serviceClient = createClient(
-          SUPABASE_URL!,
-          SUPABASE_SERVICE_ROLE_KEY!
+          SUPABASE_URL,
+          SUPABASE_SERVICE_ROLE_KEY
         )
         const fileName = `ai-reels-covers/${telegramId}/${Date.now()}.jpg`
 
@@ -433,13 +438,18 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
         const audioBuffer = Buffer.from(await response.arrayBuffer())
 
         const { createClient } = await import('@supabase/supabase-js')
-        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
-          '@/config'
-        )
+
+        // ✅ FIX: Use process.env directly (Infisical loads to process.env, not @/config exports)
+        const SUPABASE_URL = process.env.SUPABASE_URL
+        const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+          throw new Error('Supabase credentials not configured in environment')
+        }
 
         const serviceClient = createClient(
-          SUPABASE_URL!,
-          SUPABASE_SERVICE_ROLE_KEY!
+          SUPABASE_URL,
+          SUPABASE_SERVICE_ROLE_KEY
         )
         const fileName = `ai-reels-render-audio/${telegramId}/${Date.now()}.ogg`
 
