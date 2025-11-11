@@ -147,7 +147,7 @@ async function sendVideoDirectly(
         `🎬 Job ID: ${metadata.jobId || 'N/A'}\n` +
         `⏱ Длительность: ${metadata.duration || 'N/A'} сек`,
         {
-          disable_web_page_preview: false
+          link_preview_options: { is_disabled: false }
         }
       )
     } else {
@@ -385,12 +385,7 @@ function detectVideoProvider(payload: any): string {
 function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
   const taskId = payload.taskId || payload.data?.taskId
 
-  // ✅ FIX: Проверяем успешность по code===200 и наличию resultUrls
-  // Veo 3 Fast отправляет: { code: 200, data: { resultUrls: [...] } }
-  const successFlag = payload.successFlag !== undefined
-    ? payload.successFlag
-    : (payload.code === 200 && (payload.data?.resultUrls || payload.data?.info?.resultUrls) ? 1 : 2)
-
+  // ✅ Парсим resultJson СНАЧАЛА, чтобы проверить наличие resultUrls
   let resultUrls: string[] | undefined
   try {
     if (payload.data?.resultJson) {
@@ -400,6 +395,12 @@ function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
   } catch (e) {
     logger.warn('[UNIVERSAL VIDEO WEBHOOK] Failed to parse Sora resultJson', { error: e })
   }
+
+  // ✅ FIX: Проверяем успешность по code===200 и наличию resultUrls (включая распарсенные)
+  // WAN 2.5, Veo 3, Sora отправляют: { code: 200, data: { state: "success", resultJson: "{...}" } }
+  const successFlag = payload.successFlag !== undefined
+    ? payload.successFlag
+    : (payload.code === 200 && payload.data?.state === 'success' && (resultUrls || payload.data?.resultUrls || payload.data?.info?.resultUrls) ? 1 : 2)
 
   return {
     ...payload,
@@ -818,7 +819,17 @@ async function handleSoraContentPolicy(payload: KieAiWebhookPayload): Promise<vo
   })
 
   const taskContext = videoTaskStore.getTask(taskId)
-  if (!taskContext || !botInstance) {
+  if (!taskContext) {
+    return
+  }
+
+  // ✅ MULTI-BOT FIX: Получаем правильный bot instance
+  const botInstance = getBotInstance(taskContext.botName)
+  if (!botInstance) {
+    logger.error('❌ [SORA WEBHOOK] Bot instance not found for content policy handler', {
+      taskId,
+      requestedBot: taskContext.botName
+    })
     return
   }
 
@@ -1137,8 +1148,7 @@ async function notifyJobCompletion(
             taskContext.chatId,
             result.output,
             {
-              caption: `✅ Видео готово!\n\n🎬 Модель: ${taskContext.modelId}\n⏱ Длительность: ${result.duration || 'N/A'} сек`,
-              reply_to_message_id: taskContext.messageId
+              caption: `✅ Видео готово!\n\n🎬 Модель: ${taskContext.modelId}\n⏱ Длительность: ${result.duration || 'N/A'} сек`
             }
           )
 
@@ -1167,8 +1177,7 @@ async function notifyJobCompletion(
           // Ошибка генерации - отправляем сообщение об ошибке
           await botInstance.telegram.sendMessage(
             taskContext.chatId,
-            `❌ Ошибка генерации видео: ${result.message || 'Неизвестная ошибка'}`,
-            { reply_to_message_id: taskContext.messageId }
+            `❌ Ошибка генерации видео: ${result.message || 'Неизвестная ошибка'}`
           )
 
           logger.info('📢 [KIE.AI WEBHOOK] Error message sent to user', { taskId })
@@ -1182,10 +1191,9 @@ async function notifyJobCompletion(
         })
       }
     } else {
-      logger.warn('⚠️ [KIE.AI WEBHOOK] No task context or bot instance', {
+      logger.warn('⚠️ [KIE.AI WEBHOOK] No task context found', {
         taskId,
-        hasTaskContext: !!taskContext,
-        hasBotInstance: !!botInstance
+        hasTaskContext: !!taskContext
       })
 
       // Fallback: используем asyncLipSyncManager если он доступен (для lip-sync задач)
