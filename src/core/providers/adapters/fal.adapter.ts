@@ -141,24 +141,24 @@ const buildImagePayload = (request: ImageRequest) => {
   return payload
 }
 
-const handleImageResponse = (data: any): ImageResult => ({
+const handleImageResponse = (data: any, request: ImageRequest, providerName: any): ImageResult => ({
   imageUrl: data.image_url || data.output?.image_url || '',
   taskId: data.request_id || data.id,
-  provider: 'fal' as const,
-  width: data.width || 512,
-  height: data.height || 512,
+  provider: providerName,
+  width: data.width || request.width || 512,
+  height: data.height || request.height || 512,
   metadata: data.metadata || {}
 })
 
 export const generateImage = (config: ProviderConfig): GenerateImage =>
-  async (request: ImageRequest): Promise<Either<Error, ImageResult>> => {
+  (request: ImageRequest) => async (): Promise<Either<Error, ImageResult>> => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildImagePayload(request)
       const response = await http.post('/v1/image/generation', payload)
 
-      return right(handleImageResponse(response))
+      return right(handleImageResponse(response, request, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'fal',
@@ -184,23 +184,23 @@ const buildAudioPayload = (request: AudioRequest) => {
   return payload
 }
 
-const handleAudioResponse = (data: any): AudioResult => ({
+const handleAudioResponse = (data: any, request: AudioRequest, providerName: any): AudioResult => ({
   audioUrl: data.audio_url || data.output?.audio_url || '',
   taskId: data.request_id || data.id,
-  provider: 'fal' as const,
-  duration: data.duration || 5,
+  provider: providerName,
+  duration: data.duration || request.duration || 5,
   metadata: data.metadata || {}
 })
 
 export const generateAudio = (config: ProviderConfig): GenerateAudio =>
-  async (request: AudioRequest): Promise<Either<Error, AudioResult>> => {
+  (request: AudioRequest) => async (): Promise<Either<Error, AudioResult>> => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildAudioPayload(request)
       const response = await http.post('/v1/audio/generation', payload)
 
-      return right(handleAudioResponse(response))
+      return right(handleAudioResponse(response, request, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'fal',
@@ -223,22 +223,22 @@ const buildFaceSwapPayload = (request: FaceSwapRequest) => {
   return payload
 }
 
-const handleFaceSwapResponse = (data: any): FaceSwapResult => ({
+const handleFaceSwapResponse = (data: any, providerName: any): FaceSwapResult => ({
   imageUrl: data.image_url || data.output?.image_url || '',
   taskId: data.request_id || data.id,
-  provider: 'fal' as const,
+  provider: providerName,
   metadata: data.metadata || {}
 })
 
 export const performFaceSwap = (config: ProviderConfig): PerformFaceSwap =>
-  async (request: FaceSwapRequest): Promise<Either<Error, FaceSwapResult>> => {
+  (request: FaceSwapRequest) => async (): Promise<Either<Error, FaceSwapResult>> => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildFaceSwapPayload(request)
       const response = await http.post('/v1/face-swap', payload)
 
-      return right(handleFaceSwapResponse(response))
+      return right(handleFaceSwapResponse(response, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'fal',
@@ -253,7 +253,7 @@ export const performFaceSwap = (config: ProviderConfig): PerformFaceSwap =>
 // ===== HEALTH CHECK =====
 
 export const healthCheck = (config: ProviderConfig): HealthCheck =>
-  async (): Promise<Either<Error, HealthStatus>> => {
+  () => async (): Promise<Either<Error, HealthStatus>> => {
     const http = createHttpClient(config)
 
     try {
@@ -283,7 +283,7 @@ export const healthCheck = (config: ProviderConfig): HealthCheck =>
 // ===== BALANCE CHECK =====
 
 export const getBalance = (config: ProviderConfig): GetBalance =>
-  async (): Promise<Either<Error, Balance>> => {
+  () => async (): Promise<Either<Error, Balance>> => {
     const http = createHttpClient(config)
 
     try {
@@ -305,7 +305,7 @@ export const getBalance = (config: ProviderConfig): GetBalance =>
 // ===== RATE LIMITER =====
 
 export const rateLimit = (config: ProviderConfig): RateLimit =>
-  async (request: any): Promise<Either<Error, void>> => {
+  (request: any) => async (): Promise<Either<Error, void>> => {
     const rateLimiter = (config.rateLimit?.requestsPerMinute || 60)
     const key = `${config.name}-${request.userId}`
 
@@ -318,10 +318,10 @@ export const createFalProvider = (config: ProviderConfig): Provider => {
   const validatedConfig = validateConfig(config)
 
   if (validatedConfig._tag === 'Left') {
-    throw validatedConfig.value
+    throw validatedConfig.left
   }
 
-  const validated = validatedConfig.value
+  const validated = validatedConfig.right
 
   return {
     name: 'fal',

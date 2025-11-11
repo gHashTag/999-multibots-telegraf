@@ -11,10 +11,10 @@ const config = {
       ? 'http://localhost:3000' // Локальный dev server
       : 'https://three-head-dragon.shop/api/inngest', // Только наш домен в продакшене
   isDev: process.env.NODE_ENV === 'development',
-  // Event key только для production
+  // Event key только для production (используем RENDER_INNGEST для отправки событий)
   eventKey:
     process.env.NODE_ENV === 'production'
-      ? process.env.BOT_INNGEST_EVENT_KEY
+      ? process.env.RENDER_INNGEST_EVENT_KEY
       : undefined,
 }
 

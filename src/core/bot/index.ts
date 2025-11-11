@@ -20,13 +20,7 @@ import { toBotName } from '@/helpers/botName.helper'
 import { getBotGroupFromAvatars } from '@/core/supabase'
 
 // 🔐 УНИФИЦИРОВАННАЯ СХЕМА: везде используем BOT_TOKEN_1-N
-// Проверка что токены загружены (вызывается до инициализации Infisical)
-if (!process.env.BOT_TOKEN_1) {
-  console.warn('⚠️ BOT_TOKEN_1 is not set. Infisical may not have loaded yet.')
-}
-if (isDev && !process.env.BOT_TOKEN_2) {
-  console.warn('⚠️ BOT_TOKEN_2 is not set. Infisical may not have loaded yet.')
-}
+// Токены загружаются из Infisical автоматически, warnings убраны
 
 // 🔐 УНИФИЦИРОВАННАЯ СХЕМА: токены 1-10 для всех окружений
 const BOT_TOKENS_ALL: string[] = [

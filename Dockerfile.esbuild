@@ -1,0 +1,51 @@
+# 🚀 FASTEST Dockerfile с esbuild (10-100x быстрее!)
+# esbuild заменяет TypeScript compiler
+
+# Stage 1: Dependencies
+FROM node:20-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+# Только production зависимости
+RUN npm ci --omit=dev --prefer-offline
+
+# Stage 2: Builder с esbuild
+FROM node:20-slim AS builder
+WORKDIR /app
+
+# Установка esbuild глобально (ОЧЕНЬ быстро)
+RUN npm install -g esbuild
+
+COPY package.json package-lock.json ./
+RUN npm ci --prefer-offline
+
+COPY . .
+
+# esbuild вместо tsc (10-100x быстрее!)
+RUN esbuild src/index.ts \
+  --bundle \
+  --platform=node \
+  --target=node20 \
+  --outfile=dist/index.js \
+  --external:telegraf \
+  --external:@supabase/supabase-js \
+  --external:inngest \
+  --external:openai \
+  --external:replicate \
+  --external:express \
+  --external:fastify \
+  --external:pg \
+  --external:axios
+
+# Копируем остальные файлы если нужны
+COPY src dist/
+
+# Stage 3: Production
+FROM node:20-slim
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY package.json ./
+
+EXPOSE 3001
+CMD ["node", "dist/index.js"]
