@@ -5,7 +5,7 @@
 
 # 📚 Skills Overview
 
-**Total**: 12 specialized Skills covering ALL aspects of this project.
+**Total**: 14 specialized Skills covering ALL aspects of this project.
 
 ## 🎼 Master Skills (Always Use First)
 
@@ -234,6 +234,48 @@
 
 ---
 
+### 12. **task-tracker** 📋
+**The Truth Keeper** - Single source of truth for current plan (analog of current_task.mdc).
+
+**Expertise**:
+- ✅/✏️/❌ Status tracking
+- Plan updates after each action
+- Git commit integration
+- TDD cycle status
+- Sanskrit wisdom guidance
+
+**Use for**:
+- Tracking complex multi-step tasks
+- Maintaining plan coherence
+- Preventing work duplication
+- Git rollback references
+- Coordinating between agents
+
+**Key Principle**: "current_task - это наша карта. Без карты мы блуждаем в темноте."
+
+---
+
+### 13. **tdd-automation** 🧪
+**The Test-First Guardian** - Automated TDD cycle enforcement (RED-GREEN-REFACTOR).
+
+**Expertise**:
+- 🔴 RED: Write failing test first
+- 🟢 GREEN: Minimal implementation
+- 🔵 REFACTOR: Code quality improvement
+- Coverage tracking (80%+ target)
+- Quality gates and pre-commit hooks
+
+**Use for**:
+- Enforcing test-first discipline
+- Preventing "code before tests"
+- Automating TDD workflow
+- Ensuring test coverage
+- Blocking untested code
+
+**Key Principle**: "Tests are not afterthought. Tests are forethought. Code follows tests."
+
+---
+
 ## 📊 Skills Matrix
 
 ### When to Use Which Skill?
@@ -249,7 +291,9 @@
 | **Deployment** | production-deployment | infisical-secrets |
 | **Add Secrets** | infisical-secrets | - |
 | **Error/Debug** | error-recovery-debugging | project-knowledge-base |
-| **Testing** | docker-testing-expert | tdd-test-engineer |
+| **Testing** | docker-testing-expert | tdd-test-engineer, tdd-automation |
+| **Task Tracking** | task-tracker | master-orchestrator |
+| **TDD Development** | tdd-automation | task-tracker, tdd-test-engineer |
 
 ---
 
