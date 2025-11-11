@@ -62,3 +62,4 @@ message_for_ambassadors.txt
 
 .nvmrc
 .tool-versions
+worktrees/

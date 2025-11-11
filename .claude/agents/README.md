@@ -2,30 +2,33 @@
 
 Коллекция специализированных саб-агентов для автоматизации задач.
 
-## 📋 Доступные агенты (13 Total)
+## 📋 Доступные агенты (16 Total)
 
-### Production & Deployment (3)
+### Production & Deployment (4) 🚀
 1. **server-health-checker** - `/check` - Production server health monitoring
-2. **deployment-manager** - `/deploy` - Docker deployment automation
-3. **js-error-fixer** - Auto-fix JavaScript errors in production logs
+2. **deployment-manager** - `/deploy` - OLD Docker deployment (DEPRECATED)
+3. **devops-automation** - `/deploy` - 🆕 NEW! Local build + remote deploy workflow
+4. **js-error-fixer** - Auto-fix JavaScript errors in production logs
 
 ### User Management (1)
-4. **telegram-user-manager** - `/user-check [id]` - Telegram user access management
+5. **telegram-user-manager** - `/user-check [id]` - Telegram user access management
 
-### Code Quality & Architecture (4)
-5. **best-practices-researcher** - Research best practices before implementing
-6. **anti-duplication-guardian** - Prevent code duplication (DRY)
-7. **business-logic-guardian** - Enforce Clean Architecture separation
-8. **code-reviewer** - Strict quality enforcer ("бьет по рукам")
+### Code Quality & Architecture (5) ✨
+6. **best-practices-researcher** - Research best practices before implementing
+7. **anti-duplication-guardian** - Prevent code duplication (DRY)
+8. **business-logic-guardian** - Enforce Clean Architecture separation
+9. **code-reviewer** - Strict quality enforcer ("бьет по рукам")
+10. **continuous-optimizer** - 🆕 NEW! Perpetually dissatisfied optimization agent
 
-### Development & Testing (2)
-9. **tdd-test-engineer** - Test-First development (RED-GREEN-REFACTOR)
-10. **telegram-scene-builder** - Create Telegram scenes with proper patterns
+### Development & Testing (3) 🧪
+11. **tdd-test-engineer** - Test-First development (RED-GREEN-REFACTOR)
+12. **telegram-scene-builder** - Create Telegram scenes with proper patterns
+13. **docker-test-controller** - 🆕 NEW! Docker test environment with MCP observability
 
 ### Coordination & Docs (3)
-11. **rules-guardian** - Meta-agent monitoring all agents
-12. **docs-sync** - Sync deployment documentation
-13. **sora-video-generator** - OpenAI Sora 2 video generation
+14. **rules-guardian** - Meta-agent monitoring all agents
+15. **docs-sync** - Sync deployment documentation
+16. **sora-video-generator** - OpenAI Sora 2 video generation
 
 ---
 
