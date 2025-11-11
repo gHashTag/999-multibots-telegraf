@@ -201,7 +201,10 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Пожалуйста, выберите модель из кнопок выше.' : 'Please select a model from the buttons above.'
       )
-      
+
+      // ✅ FIX: Остаёмся на текущем шаге, не двигаемся дальше
+      return
+
     } catch (error) {
       console.error('🎬 [I2V WIZARD] Step 3 ERROR:', error)
       await ctx.reply('❌ Ошибка в третьем шаге wizard')
