@@ -1,0 +1,121 @@
+name: 🔒 Validate docker-compose.yml
+
+on:
+  pull_request:
+    paths:
+      - 'docker-compose.yml'
+  push:
+    branches:
+      - main
+      - production
+    paths:
+      - 'docker-compose.yml'
+
+jobs:
+  validate-ports:
+    name: 🔍 Validate nginx ports
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Check nginx ports configuration
+        run: |
+          echo "🔍 Проверка портов nginx в docker-compose.yml..."
+
+          # Извлекаем секцию nginx
+          NGINX_PORTS=$(grep -A 10 "container_name: bot-proxy" docker-compose.yml | grep -A 5 "ports:")
+
+          # Проверяем на нестандартные порты
+          if echo "$NGINX_PORTS" | grep -qE "(8443:443|8080:80)"; then
+            echo "❌ ОШИБКА: Обнаружены нестандартные порты!"
+            echo ""
+            echo "Найдено:"
+            echo "$NGINX_PORTS" | grep -E "(8443:443|8080:80)"
+            echo ""
+            echo "❌ НЕЛЬЗЯ: 8443:443, 8080:80 (ломают webhooks!)"
+            echo "✅ НУЖНО:  443:443, 80:80 (стандартные порты)"
+            exit 1
+          fi
+
+          # Проверяем наличие правильных портов
+          if ! echo "$NGINX_PORTS" | grep -q "443:443"; then
+            echo "❌ ОШИБКА: Порт 443:443 не найден!"
+            exit 1
+          fi
+
+          if ! echo "$NGINX_PORTS" | grep -q "80:80"; then
+            echo "❌ ОШИБКА: Порт 80:80 не найден!"
+            exit 1
+          fi
+
+          echo "✅ Порты nginx корректны: 443:443 и 80:80"
+
+      - name: 🔍 Validate docker-compose syntax
+        run: |
+          echo "🔍 Проверка синтаксиса docker-compose..."
+          docker compose -f docker-compose.yml config > /dev/null
+          echo "✅ docker-compose.yml синтаксически корректен"
+
+      - name: 📊 Show docker-compose config
+        run: |
+          echo "📊 Конфигурация docker-compose:"
+          docker compose -f docker-compose.yml config | grep -A 20 "bot-proxy"
+
+  block-if-changed:
+    name: 🛡️ Block dangerous changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛡️ Check for critical changes
+        run: |
+          echo "🛡️ Проверка критических изменений в docker-compose.yml..."
+
+          # Получаем diff
+          git diff origin/${{ github.base_ref }}...HEAD docker-compose.yml > /tmp/compose-diff.txt || true
+
+          if [ -s /tmp/compose-diff.txt ]; then
+            echo "📝 Обнаружены изменения в docker-compose.yml"
+
+            # Проверяем изменения в секции портов nginx
+            if grep -A 10 "container_name: bot-proxy" /tmp/compose-diff.txt | grep -q "ports:"; then
+              echo "⚠️ ВНИМАНИЕ: Изменены порты nginx!"
+              echo ""
+              echo "Измененные строки:"
+              grep -A 10 "container_name: bot-proxy" /tmp/compose-diff.txt | grep "ports:" -A 5
+              echo ""
+              echo "❗ Убедитесь что порты 443:443 и 80:80 (стандартные)"
+              echo "❌ НЕ используйте 8443:443 или 8080:80"
+            fi
+          fi
+
+  notify-on-change:
+    name: 📢 Notify about changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: [validate-ports, block-if-changed]
+
+    steps:
+      - name: 📢 Add PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## ⚠️ docker-compose.yml изменен\n\n' +
+                    '✅ Автоматические проверки пройдены\n\n' +
+                    '**Важно:** Убедитесь что nginx использует стандартные порты:\n' +
+                    '- ✅ `443:443` (HTTPS)\n' +
+                    '- ✅ `80:80` (HTTP)\n\n' +
+                    '❌ **НЕ используйте:** `8443:443` или `8080:80` (ломают webhooks!)\n\n' +
+                    '📖 См. [WEBHOOK_TROUBLESHOOTING.md](../blob/main/WEBHOOK_TROUBLESHOOTING.md)'
+            })
