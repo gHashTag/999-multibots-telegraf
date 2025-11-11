@@ -119,9 +119,11 @@ services:
     volumes:
       # Используем нашу кастомную конфигурацию
       - ./nginx-config:/etc/nginx/conf.d:ro
-      # Пути к сертификатам с хоста остаются
-      - /etc/pki/cert.crt:/etc/pki/cert.crt:ro
-      - /etc/pki/key.pem:/etc/pki/key.pem:ro
+      # ⚠️ КРИТИЧНО! SSL сертификаты для HTTPS webhooks (Replicate требует HTTPS)
+      # Используем локальные сертификаты из директории ./ssl/
+      # НЕ МЕНЯТЬ ЭТИ ПУТИ! Они синхронизированы с nginx-config/default.conf
+      - ./ssl/cert.crt:/etc/nginx/ssl/cert.crt:ro
+      - ./ssl/key.pem:/etc/nginx/ssl/key.pem:ro
       # Добавляем общий volume для файлов, которые должны быть доступны через Nginx
       - files-volume:/etc/nginx/html/files:ro
     depends_on:
