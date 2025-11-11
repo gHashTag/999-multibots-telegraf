@@ -7,16 +7,12 @@ const cwd = process.cwd()
 const envPath = path.join(cwd, '.env')
 const loadResult = config({ path: envPath })
 
+// ✅ Infisical-first approach: .env может быть минимальным (только INFISICAL_* credentials)
+// Не падаем если .env пустой - Infisical загрузит все секреты
 if (loadResult.error) {
-  if (process.env.NODE_ENV === 'production') {
-    console.error(`❌ CRITICAL: Failed to load .env file from ${envPath}`)
-    process.exit(1)
-  }
+  console.warn(`⚠️  Could not load .env file from ${envPath}, using environment variables only`)
 } else if (!loadResult.parsed || Object.keys(loadResult.parsed).length === 0) {
-  if (process.env.NODE_ENV === 'production') {
-    console.error(`❌ CRITICAL: .env file is empty`)
-    process.exit(1)
-  }
+  console.warn(`⚠️  .env file is empty, expecting secrets from Infisical or environment`)
 }
 
 // Set NODE_ENV default if not provided
