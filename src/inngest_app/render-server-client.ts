@@ -117,14 +117,6 @@ export async function sendRenderAvatarVideoEvent(
 }
 
 /**
- * Проверяет доступность render-server
- * Использует RENDER инстанс через inngestProvider
- */
-export async function checkRenderServerAvailability(): Promise<boolean> {
-  return await inngestProvider.checkAvailability('RENDER')
-}
-
-/**
  * Отправляет событие НАПРЯМУЮ на render-server (Render Server)
  * Обходит Inngest Cloud и идет прямо на Render Server
  */
