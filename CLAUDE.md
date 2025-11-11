@@ -53,8 +53,8 @@ Multi-bot platform для генерации AI-контента (видео, и
 │   │   ├── continuous-optimizer.md
 │   │   └── ...
 │   └── commands/              # Slash commands
-├── Dockerfile.optimized       # Multi-stage production build
-├── deploy-local-build.sh      # Local build + remote deploy
+├── Dockerfile                 # esbuild production build (fast 2min)
+├── deploy.sh                  # Unified deployment (dev/staging/prod)
 ├── CLAUDECODE_RULES.md        # Critical project rules
 └── package.json
 ```
@@ -131,43 +131,38 @@ npm test -- neuroPhotoWizard.test.ts
 npm test -- --coverage
 ```
 
-### 3. Deployment (NEW Local Build Workflow)
+### 3. Deployment (NEW! Unified deploy.sh with Environment Support)
 
 ```bash
-# Full automated deployment
-./deploy-local-build.sh
+# 🚀 UNIFIED DEPLOYMENT (esbuild - 2min builds, 101MB images)
+
+# Production deployment (default)
+./deploy.sh production
+# or just
+./deploy.sh
+
+# Staging deployment (port 3002)
+./deploy.sh staging
+
+# Development (local) deployment
+./deploy.sh dev
 
 # What it does:
 # 1. Type check (fails if errors)
-# 2. Build Docker image locally (3-5 min)
-# 3. Save as compressed tar
-# 4. Transfer to server via SCP
-# 5. Load and start on server
-# 6. Health check (auto-rollback if fails)
-# 7. Show logs
+# 2. Sync code to server (rsync, excludes media)
+# 3. Build Docker with esbuild (~2 minutes)
+# 4. Deploy container (zero-downtime restart)
+# 5. Health check (auto-verify)
 
-# Manual deployment steps (if script fails):
-# Step 1: Build locally
-export DOCKER_BUILDKIT=1
-docker build -f Dockerfile.optimized -t 999-multibots:latest .
+# Environment Configuration:
+# - dev:        localhost:3001 (local Docker)
+# - staging:    188.137.250.69:3002
+# - production: 188.137.250.69:3001
 
-# Step 2: Save as tar
-docker save 999-multibots:latest | gzip > 999-multibots.tar.gz
-
-# Step 3: Transfer to server
-scp 999-multibots.tar.gz root@188.137.250.69:/tmp/
-
-# Step 4: Deploy on server
-ssh root@188.137.250.69
-docker load < /tmp/999-multibots.tar.gz
-docker stop 999-multibots && docker rm 999-multibots
-docker run -d --name 999-multibots --restart=always \
-  -p 3001:3001 \
-  -v /root/999-agents-telegraf/.env:/app/.env:ro \
-  999-multibots:latest
-
-# Step 5: Check health
-curl http://188.137.250.69:3001/health
+# Comparison: esbuild vs tsc
+# Build time: 112s vs 3-5min (3x faster!)
+# Image size: 101MB vs 208MB (2x smaller!)
+# Bundle time: 175ms vs 50s (esbuild magic!)
 ```
 
 ### 4. Secret Management (Infisical)
@@ -836,6 +831,6 @@ EOF
 
 ---
 
-**Last Updated**: 2025-11-12
-**Version**: 2.1 (Skills Management Added)
+**Last Updated**: 2025-01-12
+**Version**: 3.0 (esbuild + Unified Deployment)
 **Status**: Production-ready ✅

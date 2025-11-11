@@ -90,15 +90,15 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      // Отмена
-      if (selectedText.includes('Отмена') || selectedText.includes('Cancel')) {
-        console.log('🎬 [WIZARD] Step 2: Cancelled')
-        await ctx.reply(
-          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
-          { reply_markup: { remove_keyboard: true } }
-        )
-        return ctx.scene.leave()
-      }
+      // Отмена - НЕ отправляем сообщение, handleHelpCancel уже обработал
+      // if (selectedText.includes('Отмена') || selectedText.includes('Cancel')) {
+      //   console.log('🎬 [WIZARD] Step 2: Cancelled')
+      //   await ctx.reply(
+      //     isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+      //     { reply_markup: { remove_keyboard: true } }
+      //   )
+      //   return ctx.scene.leave()
+      // }
 
       // ЛОГИКА 1: Если это выбор модели
       const parsedModel = parseModelButton(selectedText)

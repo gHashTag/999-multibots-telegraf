@@ -600,11 +600,41 @@ async function handleVideoReady(
  */
 export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
   const is_ru = isRussianFromState(ctx)
+  const telegram_id = ctx.from?.id.toString() || ''
 
+  logger.info('[handleVideoStatusUpdate] Checking video generation status', {
+    telegram_id,
+    hasSessionJobId: !!ctx.session.videoJobId,
+    sessionJobId: ctx.session.videoJobId
+  })
+
+  // ✅ Для Kie.ai моделей (сохранено в videoTaskStore) - webhook доставит результат
+  // Для других моделей (сохранено в session) - проверяем через API
   if (!ctx.session.videoJobId) {
-    await ctx.answerCbQuery(
-      is_ru ? 'Нет активной генерации видео' : 'No active video generation'
+    // Проверяем, возможно это Kie.ai модель (webhook delivery)
+    const tasks = videoTaskStore.getAllTasks()
+    const userTask = Object.entries(tasks).find(([_, task]) =>
+      task.telegramId === parseInt(telegram_id)
     )
+
+    if (userTask) {
+      await ctx.answerCbQuery(
+        is_ru
+          ? '⏳ Видео генерируется через Kie.ai. Вы получите уведомление автоматически, когда будет готово!'
+          : '⏳ Video is being generated via Kie.ai. You will receive a notification automatically when ready!'
+      )
+      logger.info('[handleVideoStatusUpdate] Found Kie.ai task in store', {
+        telegram_id,
+        taskId: userTask[0]
+      })
+    } else {
+      await ctx.answerCbQuery(
+        is_ru ? 'Нет активной генерации видео' : 'No active video generation'
+      )
+      logger.info('[handleVideoStatusUpdate] No active video generation found', {
+        telegram_id
+      })
+    }
     return
   }
 
@@ -613,6 +643,14 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
       ctx.session.videoJobId,
       is_ru
     )
+
+    logger.info('[handleVideoStatusUpdate] Status check result', {
+      telegram_id,
+      jobId: ctx.session.videoJobId,
+      success: statusResponse.success,
+      hasVideoUrl: !!statusResponse.videoUrl,
+      error: statusResponse.error
+    })
 
     if (statusResponse.success && statusResponse.videoUrl) {
       await ctx.answerCbQuery(is_ru ? '✅ Видео готово!' : '✅ Video is ready!')

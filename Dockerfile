@@ -1,84 +1,60 @@
-# Этап сборки
-FROM node:20-alpine as builder
+# 🚀 FASTEST Dockerfile с esbuild (10-100x быстрее!)
+# esbuild бандлит TypeScript в один файл за секунды
 
+# Stage 1: Dependencies только для production
+FROM node:20-slim AS deps
 WORKDIR /app
-#
-COPY package*.json ./
-RUN npm install --legacy-peer-deps
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --prefer-offline
 
-# Убедимся, что tsc-alias установлен глобально для сборки
-RUN npm install -g tsc-alias
+# Stage 2: Builder с esbuild
+FROM node:20-slim AS builder
+WORKDIR /app
+
+# Установка esbuild глобально (ОЧЕНЬ быстро)
+RUN npm install -g esbuild
+
+COPY package.json package-lock.json ./
+RUN npm ci --prefer-offline
 
 COPY . .
 
-# Создаем временную конфигурацию TypeScript, которая исключает тестовые файлы
-RUN cp tsconfig.json tsconfig.build.json && \
-    sed -i 's/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json", "__tests__\/\*\*\/\*\.ts"\]/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json"\]/' tsconfig.build.json && \
-    echo '{"extends": "./tsconfig.json", "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**/*", "src/__tests__/**/*"]}' > tsconfig.build.json
+# ✅ Проверка TypeScript перед сборкой (прерывает сборку при ошибках)
+RUN npx tsc --noEmit || (echo "❌ TypeScript errors found! Build aborted." && exit 1)
 
-# --- ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Удаляем ВСЕ тесты перед сборкой ---
-RUN find src -name "__tests__" -type d -exec rm -rf {} + 2>/dev/null || true && \
-    find src -name "*.test.ts" -type f -delete 2>/dev/null || true && \
-    find src -name "*.spec.ts" -type f -delete 2>/dev/null || true
-# --------------------------------------------------------
+# esbuild бандлит все в один файл за секунды!
+# --packages=external: НЕ бандлить node_modules (будут в runtime)
+RUN esbuild src/index.ts \
+  --bundle \
+  --platform=node \
+  --target=node20 \
+  --format=cjs \
+  --outfile=dist/index.js \
+  --packages=external \
+  --sourcemap \
+  --minify
 
-# ✅ ПРОВЕРКА ТИПОВ TypeScript (прерывает сборку при ошибках!)
-RUN npx tsc --noEmit --project tsconfig.build.json || (echo "❌ TypeScript errors found! Build aborted." && exit 1)
-
-# Выполняем сборку TypeScript и обрабатываем алиасы путей
-RUN npx tsc --project tsconfig.build.json && npx tsc-alias --project tsconfig.build.json
-
-# Проверяем, что файлы сборки созданы
-RUN ls -la dist/ || echo "Директория dist не существует или пуста"
-
-# Финальный этап
-FROM node:20-alpine
-
-ENV NODE_ENV=production
-
+# Stage 3: Production (минимальный runtime)
+FROM node:20-slim
 WORKDIR /app
 
-# Устанавливаем только необходимые системные зависимости
-RUN apk add --no-cache \
-    openssh-client \
-    sshpass \
-    python3 \
-    py3-pip \
-    ffmpeg
+# Security: Non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nodejs
 
-# Устанавливаем yt-dlp для скачивания видео с дополнительными зависимостями
-RUN pip3 install --break-system-packages yt-dlp[default] && \
-    yt-dlp --version
+# Copy production dependencies from deps stage
+COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
 
-# Создаем нужные каталоги внутри рабочей директории и устанавливаем права
-RUN mkdir -p /app/.ssh && chmod 700 /app/.ssh && chown -R node:node /app/.ssh
+# Copy bundled app from builder stage
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 
-# Копируем файлы package.json и package-lock.json
-COPY package*.json ./
+# Environment
+ENV NODE_ENV=production
 
-# При установке пропускаем скрипт prepare, который запускает husky install
-RUN npm install --omit=dev --ignore-scripts --legacy-peer-deps
+# Switch to non-root user
+USER nodejs
 
-# Копируем только собранные файлы из этапа сборки
-COPY --from=builder /app/dist ./dist/
+EXPOSE 3001
 
-# Проверяем, что файлы сборки скопированы
-RUN ls -la dist/ || echo "Директория dist не существует или пуста"
-
-# Копируем .env файл если он существует (опциональная копия)
-# На production сервере .env уже есть и используется через docker run --env-file
-COPY .env.example .env.example
-RUN touch .env || true
-
-# Создаём директорию для скриптов
-RUN mkdir -p /app/scripts
-
-# Копируем entrypoint скрипт (ВАЖНО!)
-COPY scripts/docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Экспортируем порт для API и боты (+ 4000 для Inngest HTTP endpoint)
-EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010 2999 4000
-
-# Используем наш entrypoint скрипт для подготовки окружения
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["node", "dist/index.js"]

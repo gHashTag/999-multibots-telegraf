@@ -26,7 +26,10 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
       console.log(
         '✅ [handleHelpCancel] CANCEL DETECTED - Processing cancellation'
       )
-      await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
+      await ctx.reply(
+        isRu ? '❌ Операция отменена.' : '❌ Operation cancelled.',
+        { reply_markup: { remove_keyboard: true } }
+      )
       console.log(
         '✅ [handleHelpCancel] CANCEL MESSAGE SENT - Entering MainMenu'
       )

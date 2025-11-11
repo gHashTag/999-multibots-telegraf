@@ -66,3 +66,24 @@ message_for_ambassadors.txt
 .nvmrc
 .tool-versions
 worktrees/
+
+# media files (test uploads - NOT needed in production!)
+src/uploads/
+uploads/
+# Videos
+*.mp4
+*.mov
+*.avi
+*.webm
+*.mkv
+*.flv
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.ico
+*.bmp
+*.tiff

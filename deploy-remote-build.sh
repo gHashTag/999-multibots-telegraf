@@ -16,12 +16,35 @@ echo ""
 echo "2️⃣ Syncing code to production..."
 rsync -avz --delete \
   --exclude='.git' \
+  --exclude='worktrees' \
+  --exclude='.git-rewrite' \
+  --exclude='.claude-flow' \
+  --exclude='backup-repo-*.git' \
   --exclude='node_modules' \
   --exclude='dist' \
   --exclude='.env*' \
   --exclude='*.log' \
   --exclude='tests' \
   --exclude='docs' \
+  --exclude='debug' \
+  --exclude='deployment' \
+  --exclude='src/uploads' \
+  --exclude='uploads' \
+  --exclude='*.mp4' \
+  --exclude='*.mov' \
+  --exclude='*.avi' \
+  --exclude='*.webm' \
+  --exclude='*.mkv' \
+  --exclude='*.flv' \
+  --exclude='*.png' \
+  --exclude='*.jpg' \
+  --exclude='*.jpeg' \
+  --exclude='*.gif' \
+  --exclude='*.webp' \
+  --exclude='*.svg' \
+  --exclude='*.ico' \
+  --exclude='*.bmp' \
+  --exclude='*.tiff' \
   ./ prod999:/root/999-agents-telegraf/
 
 echo "✅ Code synced"
@@ -43,7 +66,7 @@ export DOCKER_BUILDKIT=1
 
 # Собираем
 docker build \
-  -f Dockerfile.optimized \
+  -f Dockerfile \
   -t 999-multibots:latest \
   --progress=plain \
   . 2>&1 | tail -30
