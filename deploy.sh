@@ -24,9 +24,9 @@ NC='\033[0m' # No Color
 
 # Конфигурация
 CONTAINER_NAME="999-multibots"
-SERVER_URL="212.86.115.30"
+SERVER_URL="188.137.250.69"
 SERVER_USER="root"
-SSH_KEY="~/.ssh/zomro"
+SSH_KEY="~/.ssh/zomro-prod"
 PROJECT_PATH="/root/bot-farm"
 
 # Функции логирования
