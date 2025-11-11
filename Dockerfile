@@ -12,9 +12,7 @@ RUN npm install -g tsc-alias
 COPY . .
 
 # Создаем временную конфигурацию TypeScript, которая исключает тестовые файлы
-RUN cp tsconfig.json tsconfig.build.json && \
-    sed -i 's/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json", "__tests__\/\*\*\/\*\.ts"\]/"include": \["src\/\*\*\/\*\.ts", "src\/\*\*\/\*\.json"\]/' tsconfig.build.json && \
-    echo '{"extends": "./tsconfig.json", "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**/*", "src/__tests__/**/*"]}' > tsconfig.build.json
+RUN echo '{"extends": "./tsconfig.json", "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**/*", "src/__tests__/**/*"]}' > tsconfig.build.json
 
 # --- ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Удаляем ВСЕ тесты перед сборкой ---
 RUN find src -name "__tests__" -type d -exec rm -rf {} + 2>/dev/null || true && \
