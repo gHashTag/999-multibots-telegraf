@@ -283,6 +283,29 @@ check_status() {
         echo '=== КОНТЕЙНЕРЫ ==='
         docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
+        echo -e '\n=== ПРОВЕРКА ПОРТОВ NGINX ==='
+        NGINX_PORTS=\$(docker ps --format '{{.Names}}\t{{.Ports}}' | grep bot-proxy | grep -o '[0-9]*:80/tcp' | cut -d':' -f1)
+        if [ \"\$NGINX_PORTS\" = \"80\" ]; then
+            echo '✅ Nginx слушает на стандартном порту 80'
+        else
+            echo '❌ ОШИБКА: Nginx слушает на нестандартном порту! Ожидается 80, получено: '\$NGINX_PORTS
+        fi
+
+        NGINX_HTTPS_PORTS=\$(docker ps --format '{{.Names}}\t{{.Ports}}' | grep bot-proxy | grep -o '[0-9]*:443/tcp' | cut -d':' -f1)
+        if [ \"\$NGINX_HTTPS_PORTS\" = \"443\" ]; then
+            echo '✅ Nginx слушает на стандартном HTTPS порту 443'
+        else
+            echo '❌ ОШИБКА: Nginx слушает на нестандартном HTTPS порту! Ожидается 443, получено: '\$NGINX_HTTPS_PORTS
+        fi
+
+        echo -e '\n=== ПРОВЕРКА WEBHOOK ENDPOINT ==='
+        WEBHOOK_STATUS=\$(curl -s -o /dev/null -w '%{http_code}' -X POST https://three-head-dragon.shop/api/video-callback/test -H 'Content-Type: application/json' -d '{\"test\":\"ping\"}' -k)
+        if [ \"\$WEBHOOK_STATUS\" = \"202\" ] || [ \"\$WEBHOOK_STATUS\" = \"200\" ]; then
+            echo \"✅ Webhook endpoint доступен (HTTP \$WEBHOOK_STATUS)\"
+        else
+            echo \"❌ ОШИБКА: Webhook endpoint недоступен! HTTP статус: \$WEBHOOK_STATUS\"
+        fi
+
         echo -e '\n=== БОТЫ ==='
         docker logs $CONTAINER_NAME 2>&1 | grep 'Бот.*инициализирован' | wc -l
 
