@@ -361,6 +361,7 @@ credentials.json
 service-account.json
 id_rsa*
 id_dsa*
+zomro*
 known_hosts
 authorized_keys
 *.keystore
