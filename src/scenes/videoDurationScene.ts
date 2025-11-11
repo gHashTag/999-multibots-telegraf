@@ -35,24 +35,26 @@ videoDurationScene.enter(async ctx => {
   const model = VIDEO_MODELS[modelId]
 
   // Проверяем, поддерживает ли модель выбор длительности
-  if (!model.apiSettings.durations || model.apiSettings.durations.length === 0) {
+  const durations = model.apiSettings?.durations || []
+  if (!durations || durations.length === 0) {
     // Для моделей без выбора длительности сразу генерируем видео
     await handleTextToVideoDirect(ctx, prompt, modelId)
     return ctx.scene.leave()
   }
 
   // Если у модели только одна поддерживаемая длительность, пропускаем выбор
-  if (model.apiSettings.durations.length === 1) {
-    const duration = model.apiSettings.durations[0]
+  if (durations.length === 1) {
+    const duration = durations[0]
     ctx.session.videoDuration = duration
     await handleTextToVideoDirect(ctx, prompt, modelId, duration)
     return ctx.scene.leave()
   }
 
   // Создаем кнопки с длительностями
-  const buttons = model.apiSettings.durations.map(duration => {
+  const buttons = durations.map(duration => {
     const price = getModelPriceInStars(modelId, duration)
-    const isDefault = duration === model.pricing.defaultDuration
+    const defaultDuration = model.pricing?.defaultDuration || durations[0]
+    const isDefault = duration === defaultDuration
     const label = `${duration} ${is_ru ? 'сек' : 'sec'} - ${price} ⭐${
       isDefault ? ' ⭐' : ''
     }`

@@ -55,7 +55,7 @@ export async function generateNeuroImage(
       telegram_id,
       ctx,
       botName,
-      null // explicitAspectRatio is optional
+      undefined // explicitAspectRatio is optional
     )
     logger.info('Neuro image generation response received', {
       hasData: !!response?.data,

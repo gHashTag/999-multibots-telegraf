@@ -601,7 +601,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           return
         }
 
-        const { getParsingAccess } = await import('@/menu/simpleMenu')
+        const { getParsingAccess } = await import('@/navigation/unified-navigation.config')
         const parsingAccess = getParsingAccess(userId, botToken)
 
         if (!parsingAccess.hasAccess) {

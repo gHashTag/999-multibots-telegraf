@@ -329,7 +329,7 @@ export async function generateTextToVideo(
         selectedAspectRatio?: string
       ) => Promise<string | null>
 
-      const videoUrl = await generateTextToVideoNew(
+      const videoUrl: string | null = await generateTextToVideoNew(
         prompt,
         telegram_id,
         username,

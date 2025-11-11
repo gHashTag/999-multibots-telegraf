@@ -152,7 +152,8 @@ export const generateTextToImageDirect = async (
         let output: ApiResponse
         let imageUrl: string
 
-        if (modelId && model_type.toLowerCase() === 'midjourney-v7') {
+        // ✅ Check if model_type is midjourney-v7 (modelId used for other purposes)
+        if (model_type.toLowerCase() === 'midjourney-v7') {
           logger.info('[generateTextToImageDirect] Using Midjourney generator')
           const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
           const midjourneyResult = await generateMidjourneyImage({

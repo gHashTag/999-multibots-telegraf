@@ -46,6 +46,8 @@ export interface ImageGenerationResult {
     generationTime?: number;
     cost?: number;
     requestId?: string;
+    loraUsed?: string;
+    triggerWord?: string;
   };
 }
 
@@ -89,11 +91,50 @@ export interface ReplicateServiceConfig {
   maxRetries?: number;
 }
 
+export interface LoRAConfig {
+  /** URL or path to LoRA .safetensors file */
+  path: string;
+
+  /** LoRA scale (0.5-1.5 recommended) */
+  scale: number;
+
+  /** Trigger word for this LoRA */
+  triggerWord?: string;
+}
+
+export interface FalServiceConfig {
+  /** Fal.ai API key */
+  apiKey: string;
+
+  /** Default model to use */
+  defaultModel?: string;
+
+  /** Default LoRA configuration */
+  defaultLoRA?: LoRAConfig;
+
+  /** Timeout for generation requests (ms) */
+  timeout?: number;
+
+  /** Max retries on failure */
+  maxRetries?: number;
+}
+
 export interface PluginSettings {
-  REPLICATE_API_KEY: string;
+  // Replicate settings
+  REPLICATE_API_KEY?: string;
   DEFAULT_MODEL?: string;
   MAX_IMAGES?: number;
   ENABLE_CUSTOM_MODELS?: boolean;
+
+  // Fal.ai settings
+  FAL_KEY?: string;
+  FAL_DEFAULT_MODEL?: string;
+  FAL_DEFAULT_LORA_PATH?: string;
+  FAL_DEFAULT_LORA_SCALE?: number;
+  FAL_LORA_TRIGGER?: string;
+
+  // Provider selection
+  IMAGE_PROVIDER?: 'replicate' | 'fal';
 }
 
 /**

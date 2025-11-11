@@ -11,6 +11,7 @@ import { Plugin } from '@elizaos/core';
 import { generateImageAction } from './actions/generateImage.js';
 import { replicateProvider } from './providers/replicateProvider.js';
 import { ReplicateService } from './services/replicateService.js';
+import { FalService } from './services/falService.js';
 
 /**
  * Neurophoto Plugin for ElizaOS
@@ -46,7 +47,7 @@ export const neurophotoPlugin: Plugin = {
   /**
    * Services that handle external integrations
    */
-  services: [ReplicateService],
+  services: [ReplicateService, FalService],
 
   /**
    * Evaluators (none for MVP)

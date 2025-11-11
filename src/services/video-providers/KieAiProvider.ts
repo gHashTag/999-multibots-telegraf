@@ -467,7 +467,7 @@ export class KieAiProvider {
             cost: { usd: 0, stars: 0 },
             provider: 'WAN 2.5 API',
             model: kieModel
-          }
+          } as KieAiVideoResponse
         }
 
         // WAN Jobs API возвращает taskId для асинхронной генерации

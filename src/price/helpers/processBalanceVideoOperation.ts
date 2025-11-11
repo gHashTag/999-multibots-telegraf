@@ -104,11 +104,12 @@ export const processBalanceVideoOperation = async (
 
     const newBalance = currentBalanceAtStart - paymentAmount
 
+    const modelDisplayName = selectedModelConfig.nameRu || selectedModelConfig.name
     const updateSuccess = await updateUserBalance(
       telegram_id.toString(),
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
-      `Video generation (${selectedModelConfig.nameRu || selectedModelConfig.name})`,
+      `Video generation (${modelDisplayName})`,
       {
         bot_name: ctx.botInfo?.username,
         service_type: ctx.session.mode,
