@@ -254,7 +254,9 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
     switch (detectedProvider) {
       case 'kie-ai':
         logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Kie.ai webhook detected')
-        await processKieAiWebhook(payload)
+        // Нормализуем payload и обрабатываем асинхронно
+        const normalizedPayload = normalizeKieSoraPayload(payload)
+        await processSoraWebhookAsync(normalizedPayload)
         break
 
       case 'render-server':
