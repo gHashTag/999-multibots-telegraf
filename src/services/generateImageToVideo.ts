@@ -208,6 +208,7 @@ export async function generateImageToVideo(
         imageUrl, // Передаем imageUrl для image-to-video
         duration: duration || 8,
         aspectRatio: kieAspectRatio || '9:16',
+        telegram_id, // ✅ Передаём telegram_id для callback URL
       })
       
       logger.info('[I2V PLAN B] External API response received:', {

@@ -17,6 +17,7 @@ interface KieAiVideoRequest {
   duration?: number
   aspectRatio?: '16:9' | '9:16' | '1:1'
   imageUrl?: string
+  telegram_id?: string | number
 }
 
 interface KieAiVideoResponse {
@@ -377,7 +378,8 @@ export class KieAiProvider {
           true, // removeWatermark - по умолчанию БЕЗ ватермарки
           10, // duration
           'standard', // size
-          imageUrl
+          imageUrl,
+          request.telegram_id // ✅ Передаём telegram_id для callback URL
         )
       }
     }
@@ -392,9 +394,11 @@ export class KieAiProvider {
         resolution: '720p'
       })
 
-      const callbackUrl = process.env.BASE_WEBHOOK_URL
-        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
-        : undefined
+      const callbackUrl = process.env.BASE_WEBHOOK_URL && request.telegram_id
+        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${request.telegram_id}`
+        : process.env.BASE_WEBHOOK_URL
+          ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
+          : undefined
 
       // WAN 2.5 имеет лимит на длину промпта - обрезаем до 500 символов
       const maxPromptLength = 500
@@ -514,10 +518,12 @@ export class KieAiProvider {
       }
     }
 
-    // Формируем правильный callback URL из переменной окружения
-    const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
-      : undefined
+    // Формируем правильный callback URL с telegram_id из переменной окружения
+    const callbackUrl = process.env.BASE_WEBHOOK_URL && request.telegram_id
+      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${request.telegram_id}`
+      : process.env.BASE_WEBHOOK_URL
+        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
+        : undefined
 
     if (!callbackUrl) {
       logger.warn('[KieAiProvider] BASE_WEBHOOK_URL not set - webhook notifications will not work')
@@ -844,7 +850,8 @@ export class KieAiProvider {
     removeWatermark: boolean = true,
     duration: 10 | 15 = 10,
     size: 'standard' | 'high' = 'standard',
-    imageUrl?: string
+    imageUrl?: string,
+    telegram_id?: string | number
   ): Promise<KieAiVideoResponse> {
     if (!this.apiKey) {
       return {
@@ -861,10 +868,12 @@ export class KieAiProvider {
     const isPro = model.includes('pro')
     const provider = isPro ? 'Sora 2 Pro API' : 'Sora 2 API'
 
-    // Generate callback URL if webhook infrastructure exists
-    const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
-      : undefined
+    // Generate callback URL with telegram_id if webhook infrastructure exists
+    const callbackUrl = process.env.BASE_WEBHOOK_URL && telegram_id
+      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegram_id}`
+      : process.env.BASE_WEBHOOK_URL
+        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
+        : undefined
 
     const requestData: SoraCreateTaskRequest = {
       model,

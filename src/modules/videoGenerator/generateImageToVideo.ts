@@ -662,6 +662,7 @@ export const generateImageToVideo = async (
           prompt: processedPrompt || '',
           aspectRatio: kieAspectRatio || '9:16',
           imageUrl: imageUrl,
+          telegram_id, // ✅ Передаём telegram_id для callback URL
         })
         
         logger.info('[PLAN B] Veo 3 API response received:', {
@@ -1264,6 +1265,7 @@ export const generateImageToVideo = async (
         prompt: processedPrompt || '',
         aspectRatio: kieAspectRatio || '9:16',
         imageUrl: imageUrl,
+        telegram_id, // ✅ Передаём telegram_id для callback URL
       })
 
       logger.info('[I2V BG] KieAiProvider response received for Sora I2V', {

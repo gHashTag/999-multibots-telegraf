@@ -253,6 +253,7 @@ export async function generateTextToVideo(
         prompt: prompt,
         aspectRatio: kieAspectRatio || '9:16',
         duration: selectedDuration,
+        telegram_id, // ✅ Передаём telegram_id для callback URL
       })
 
       logger.info('[generateTextToVideo] KieAiProvider response received', {

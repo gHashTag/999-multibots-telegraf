@@ -9,6 +9,7 @@ interface VideoGenerationRequest {
   imageUrl?: string
   userId?: string
   projectId?: number
+  telegram_id?: string | number
 }
 
 interface FaceSwapGenerationRequest extends FaceSwapRequest {
@@ -250,6 +251,7 @@ export class UniversalProviderManager {
           duration: request.duration,
           aspectRatio: request.aspectRatio,
           imageUrl: request.imageUrl,
+          telegram_id: request.telegram_id, // ✅ Передаём telegram_id для callback URL
         })
 
       default:

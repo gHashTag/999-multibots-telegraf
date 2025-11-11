@@ -229,7 +229,11 @@ export async function generateTextToVideo(
           prompt,
           soraModel as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
           soraAspectRatio as 'landscape' | 'portrait',
-          removeWatermark // 🆕 Передаем значение из параметров
+          removeWatermark, // 🆕 Передаем значение из параметров
+          10, // duration - Sora всегда 10 секунд
+          'standard', // size - standard quality
+          undefined, // imageUrl - для text-to-video не нужен
+          telegram_id // ✅ Передаём telegram_id для callback URL
         )
 
         logger.info('[SORA] API response received:', {
@@ -269,6 +273,7 @@ export async function generateTextToVideo(
           prompt,
           duration: duration || 5,
           aspectRatio: kieAspectRatio || '9:16',
+          telegram_id, // ✅ Передаём telegram_id для callback URL
         })
 
         logger.info(`${logPrefix} API response received:`, {
