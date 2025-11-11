@@ -164,14 +164,14 @@ export async function createModelTrainingLocal(
     })
 
     // ✅ Webhook URL для уведомлений о завершении тренировки
-    // ИСПРАВЛЕНО: Используем локальный webhook вместо внешнего ai-server
-    const webhookUrl = process.env.API_SERVER_URL
-      ? `${process.env.API_SERVER_URL}/api/webhooks/replicate`
-      : 'http://localhost:3000/api/webhooks/replicate'
+    // ИСПРАВЛЕНО: Используем BASE_WEBHOOK_URL из .env
+    const webhookUrl = process.env.BASE_WEBHOOK_URL
+      ? `${process.env.BASE_WEBHOOK_URL}/api/webhooks/replicate`
+      : 'https://three-head-dragon.shop/api/webhooks/replicate'
 
     logger.info('[LOCAL TRAINING] Webhook configuration', {
       webhookUrl,
-      hasServerApiUrl: !!process.env.SERVER_API_URL,
+      hasBaseWebhookUrl: !!process.env.BASE_WEBHOOK_URL,
     })
 
     const training = await replicate.trainings.create(
