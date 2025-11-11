@@ -110,16 +110,21 @@ export const kieAiWebhookMonitor = inngest.createFunction(
             return { notified: false }
           }
 
+          // Create validated result with required fields
+          const validStats: WebhookMonitorStats = {
+            totalTasks: monitorResult.stats.totalTasks ?? 0,
+            staleTasks: monitorResult.stats.staleTasks ?? 0,
+            recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
+            averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
+          }
+
+          const validTasks = monitorResult.staleTasks.filter((task): task is { taskId: string; ctx: any } =>
+            task.taskId !== undefined && task.taskId !== null
+          )
+
           const validResult: MonitorResult = {
-            stats: {
-              totalTasks: monitorResult.stats.totalTasks ?? 0,
-              staleTasks: monitorResult.stats.staleTasks ?? 0,
-              recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
-              averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
-            },
-            staleTasks: monitorResult.staleTasks.filter((task): task is { taskId: string; ctx: any } =>
-              task.taskId !== undefined && task.taskId !== null
-            )
+            stats: validStats,
+            staleTasks: validTasks
           }
 
           await notifyAdminAboutStuckWebhooks(validResult)
@@ -137,16 +142,21 @@ export const kieAiWebhookMonitor = inngest.createFunction(
             return { notified: false }
           }
 
+          // Create validated result with required fields
+          const validStats: WebhookMonitorStats = {
+            totalTasks: monitorResult.stats.totalTasks ?? 0,
+            staleTasks: monitorResult.stats.staleTasks ?? 0,
+            recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
+            averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
+          }
+
+          const validTasks = monitorResult.staleTasks.filter((task): task is { taskId: string; ctx: any } =>
+            task.taskId !== undefined && task.taskId !== null
+          )
+
           const validResult: MonitorResult = {
-            stats: {
-              totalTasks: monitorResult.stats.totalTasks ?? 0,
-              staleTasks: monitorResult.stats.staleTasks ?? 0,
-              recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
-              averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
-            },
-            staleTasks: monitorResult.staleTasks.filter((task): task is { taskId: string; ctx: any } =>
-              task.taskId !== undefined && task.taskId !== null
-            )
+            stats: validStats,
+            staleTasks: validTasks
           }
 
           await notifyAboutWebhookFailure(validResult)
