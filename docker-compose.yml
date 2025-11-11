@@ -114,8 +114,8 @@ services:
     image: nginx:latest
     container_name: bot-proxy
     ports:
-      - '8443:443'
-      - '8080:80'
+      - '443:443'
+      - '80:80'
     volumes:
       # Используем нашу кастомную конфигурацию
       - ./nginx-config:/etc/nginx/conf.d:ro
