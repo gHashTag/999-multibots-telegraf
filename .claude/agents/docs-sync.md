@@ -35,7 +35,7 @@ docker run -d --name 999-multibots --restart=always \
 ```
 
 #### 2. Server Configuration
-- Host: root@212.86.115.30
+- Host: root@188.137.250.69
 - SSH Key: ~/.ssh/zomro
 - Project Path: /root/bot-farm
 - Container Name: 999-multibots
