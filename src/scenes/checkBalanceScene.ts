@@ -905,6 +905,59 @@ export const enterTargetScene = async (
       return
     }
 
+    // Специальная логика для ImageToVideo сцены
+    if (mode === ModeEnum.ImageToVideo) {
+      console.log(
+        '🎯 [DEBUG] enterTargetScene: ImageToVideo mode detected, entering image_to_video scene'
+      )
+      logger.info({
+        message: `[EnterTargetSceneWrapper] ImageToVideo режим - переход в image_to_video`,
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      })
+      try {
+        // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
+        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        await ctx.scene.leave()
+        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering image_to_video')
+        await ctx.scene.enter('image_to_video')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Successfully entered image_to_video scene'
+        )
+        logger.info({
+          message: `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену image_to_video`,
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        })
+      } catch (sceneEnterError) {
+        console.error(
+          '❌ [DEBUG] enterTargetScene: ERROR entering image_to_video scene:',
+          sceneEnterError
+        )
+        logger.error({
+          message: `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену image_to_video`,
+          telegramId,
+          mode,
+          error:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.message
+              : String(sceneEnterError),
+          stack:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.stack
+              : undefined,
+          function: 'enterTargetSceneWrapper',
+        })
+        // Попробуем fallback в основную сцену
+        await ctx.reply(
+          '❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.'
+        )
+      }
+      return
+    }
+
     // Fallback для всех остальных режимов
     console.log(
       '🎯 [DEBUG] enterTargetScene: Using fallback - entering scene with mode:',
