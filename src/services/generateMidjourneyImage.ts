@@ -124,7 +124,7 @@ export async function generateMidjourneyImage(
     const validatedUrls: string[] = []
     for (const url of imageUrls) {
       try {
-        const response = await axios.head(url, { timeout: 5000 })
+        const response = await axios({ method: 'HEAD', url, timeout: 5000 })
         const contentType = response.headers['content-type'] || ''
         // Replicate URLs often return application/octet-stream but are valid images
         const isImage = contentType.startsWith('image/') ||
