@@ -45,7 +45,7 @@ export class TelegramNotifierService {
       this.bot = new Telegraf<MyContext>(botToken)
     } else {
       this.bot = null
-      console.warn('⚠️ [TelegramNotifier] Bot token not configured')
+      // TelegramNotifier не используется - уведомления через Typefully
     }
   }
 
