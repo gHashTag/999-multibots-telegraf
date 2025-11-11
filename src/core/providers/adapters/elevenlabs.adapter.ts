@@ -8,12 +8,13 @@ import { TaskEither, Either, left, right } from '../../../core/functional/utils/
 import {
   AudioRequest,
   AudioResult,
-  ProviderConfig
+  ProviderConfig,
+  HealthStatus,
+  Balance,
+  ProviderName
 } from '../../../core/functional/types/media.types'
 import type {
   Provider,
-  HealthStatus,
-  Balance,
   RateLimit,
   HealthCheck,
   GetBalance,
@@ -94,7 +95,7 @@ const buildAudioPayload = (request: AudioRequest) => {
   return payload
 }
 
-const handleAudioResponse = (data: any, request: AudioRequest, providerName: any): AudioResult => ({
+const handleAudioResponse = (providerName: ProviderName) => (request: AudioRequest) => (data: any): AudioResult => ({
   audioUrl: data.audio_url || '',
   taskId: data.task_id || data.id,
   provider: providerName,
@@ -103,14 +104,14 @@ const handleAudioResponse = (data: any, request: AudioRequest, providerName: any
 })
 
 export const generateAudio = (config: ProviderConfig): GenerateAudio =>
-  (request: AudioRequest) => async (): Promise<Either<Error, AudioResult>> => {
+  (request: AudioRequest): TaskEither<Error, AudioResult> => async () => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildAudioPayload(request)
       const response = await http.post('/v1/text-to-speech', payload)
 
-      return right(handleAudioResponse(response, request, config.name))
+      return right(handleAudioResponse('elevenlabs' as ProviderName)(request)(response))
     } catch (error) {
       const providerError = createProviderError(
         'elevenlabs',
@@ -124,8 +125,8 @@ export const generateAudio = (config: ProviderConfig): GenerateAudio =>
 
 // ===== VOICES ENDPOINT =====
 
-export const getVoices = (config: ProviderConfig) =>
-  () => async (): Promise<Either<Error, any>> => {
+export const getVoices = (config: ProviderConfig): TaskEither<Error, any> =>
+  async () => {
     const http = createHttpClient(config)
 
     try {
@@ -139,7 +140,7 @@ export const getVoices = (config: ProviderConfig) =>
 // ===== HEALTH CHECK =====
 
 export const healthCheck = (config: ProviderConfig): HealthCheck =>
-  () => async (): Promise<Either<Error, HealthStatus>> => {
+  (): TaskEither<Error, HealthStatus> => async () => {
     const http = createHttpClient(config)
 
     try {
@@ -169,7 +170,7 @@ export const healthCheck = (config: ProviderConfig): HealthCheck =>
 // ===== BALANCE CHECK =====
 
 export const getBalance = (config: ProviderConfig): GetBalance =>
-  () => async (): Promise<Either<Error, Balance>> => {
+  (): TaskEither<Error, Balance> => async () => {
     const http = createHttpClient(config)
 
     try {
@@ -191,7 +192,7 @@ export const getBalance = (config: ProviderConfig): GetBalance =>
 // ===== RATE LIMITER =====
 
 export const rateLimit = (config: ProviderConfig): RateLimit =>
-  (request: any) => async (): Promise<Either<Error, void>> => {
+  (request: any): TaskEither<Error, void> => async () => {
     const rateLimiter = (config.rateLimit?.requestsPerMinute || 60)
     const key = `${config.name}-${request.userId}`
 

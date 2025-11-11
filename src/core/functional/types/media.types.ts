@@ -242,6 +242,7 @@ export type ProviderConfig = t.TypeOf<typeof ProviderConfig>
 export const PipelineConfig = t.strict({
   maxRetries: t.number,
   retryDelay: t.number,
+  exponentialBase: t.union([t.number, t.undefined]),
   circuitBreaker: t.union([
     t.strict({
       failureThreshold: t.number,

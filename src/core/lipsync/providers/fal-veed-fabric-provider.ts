@@ -8,6 +8,10 @@ import type {
   LipSyncError,
   LipSyncModelConfig,
 } from '../schemas/lipsync-schemas'
+import {
+  LIPSYNC_MODELS,
+  getLipSyncModelById,
+} from '@/config/lipsync-models.config'
 
 /**
  * Провайдер для Fal.ai Veed Fabric 1.0 Fast модели
@@ -187,7 +191,7 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         status: 'succeeded',
         output: videoUrl,
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
-        costEstimate: this.calculateCost(falApiData.resolution),
+        costEstimate: this.calculateCostByResolution(falApiData.resolution),
         metadata: {
           resolution: falApiData.resolution,
           contentType: result.data?.video?.content_type || 'video/mp4',
@@ -300,8 +304,26 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
 
   /**
    * Рассчитывает стоимость генерации с централизованной наценкой
+   * @param durationSeconds - Duration in seconds (for interface compatibility)
+   * @param modelId - Model identifier
+   * @returns Cost estimate
    */
-  private calculateCost(resolution: string): number {
+  calculateCost(durationSeconds: number, modelId: string): number {
+    const model = getLipSyncModelById('fal_veed_fabric_fast')
+    if (!model) {
+      // Fallback to default calculation
+      const baseCost480p = 0.1 // $0.10 per second for 480p
+      const baseCost720p = 0.2 // $0.20 per second for 720p
+      const costWithMarkup = baseCost720p * 1.5 // Default to 720p
+      return costWithMarkup * durationSeconds
+    }
+    return model.costPerSecond * durationSeconds
+  }
+
+  /**
+   * Internal cost calculation for backward compatibility
+   */
+  private calculateCostByResolution(resolution: string): number {
     // ✅ ИСПРАВЛЕНО: Реальные цены Fal.ai Veed Fabric 1.0 Fast с наценкой
     const baseCost480p = 0.1 // $0.10 за секунду для 480p (базовая цена)
     const baseCost720p = 0.2 // $0.20 за секунду для 720p (базовая цена)
@@ -318,6 +340,28 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
    */
   async generateLipSync(params: any): Promise<any> {
     return this.generate(params)
+  }
+
+  /**
+   * Проверяет доступность провайдера
+   */
+  async isAvailable(): Promise<boolean> {
+    return !!process.env.FAL_KEY
+  }
+
+  /**
+   * Проверяет поддержку модели
+   */
+  supportsModel(modelId: string): boolean {
+    return this.supportedModels.includes(modelId)
+  }
+
+  /**
+   * Получает конфигурацию моделей
+   */
+  getModelsConfig(): LipSyncModelConfig[] {
+    const model = getLipSyncModelById('fal_veed_fabric_fast')
+    return model ? [model] : []
   }
 }
 

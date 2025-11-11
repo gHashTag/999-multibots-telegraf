@@ -61,6 +61,7 @@ export interface LipSyncModelManagerConfig {
   enableCaching: boolean
   retryAttempts: number
   timeout: number
+  cacheExpirationHours: number
 }
 
 // Валидация

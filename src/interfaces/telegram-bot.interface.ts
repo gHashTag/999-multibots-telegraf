@@ -170,6 +170,7 @@ export type BotName =
   | 'Gaia_Kamskaia_bot'
   | 'ai_koshey_bot'
   | 'clip_maker_neuro_bot'
+  | 'helper_999_bot'
   | 'Kaya_easy_art_bot'
   | 'AI_STARS_bot'
   | 'TestNeurocoder_bot'
