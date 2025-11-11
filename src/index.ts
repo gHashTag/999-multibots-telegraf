@@ -404,7 +404,6 @@ async function startApplication() {
         'RENDER_INNGEST_EVENT_KEY',   // ✅ Для отправки задач на render-server через Inngest Cloud
         'RENDER_INNGEST_SIGNING_KEY', // ✅ Для прямых вызовов render-server (альтернатива)
         // 'RENDER_INNGEST_BASE_URL' убран - не нужен, используем локальный Inngest
-        'NGROK_AUTHTOKEN',            // ✅ Для создания туннеля в dev окружении
         // AI Avatar & Voice Generation Services
         'ELEVENLABS_API_KEY',         // ✅ ElevenLabs для генерации голоса из текста
         'HEYGEN_COCOAGE_API_KEY',     // ✅ HeyGen API ключ для набора аватаров Cocoage (шаблон 2)
@@ -557,64 +556,12 @@ async function startApplication() {
         })
 
       } catch (cloudflareError: any) {
-        console.warn('⚠️  [CLOUDFLARE] Не удалось создать туннель:', cloudflareError.message)
-        console.log('   💡 Пробуем ngrok как альтернативу...\n')
-
-        // 🔶 ВАРИАНТ 2: Ngrok (требует authtoken, есть ограничения на Free плане)
-        try {
-          const ngrok = await import('@ngrok/ngrok')
-
-          console.log(`📡 [NGROK] Подключаемся к ngrok на порт ${PORT}...`)
-
-          // Проверяем наличие authtoken
-          const authtoken = process.env.NGROK_AUTHTOKEN
-          if (!authtoken) {
-            throw new Error('NGROK_AUTHTOKEN не найден в process.env')
-          }
-
-          console.log(`   ✅ NGROK_AUTHTOKEN найден (${authtoken.substring(0, 10)}...)`)
-
-          const listener = await ngrok.default.forward({
-            addr: PORT,
-            authtoken: authtoken,
-          })
-
-          const publicUrl = listener.url()
-          process.env.BASE_WEBHOOK_URL = publicUrl
-          tunnelCreated = true
-
-          console.log('✅ [NGROK] Туннель успешно создан!\n')
-          console.log('━'.repeat(80))
-          console.log('🌐 ПУБЛИЧНЫЕ WEBHOOK URLs (Ngrok):')
-          console.log('━'.repeat(80))
-          console.log(`📍 Base URL:          ${publicUrl}`)
-          console.log(`🎬 Kie.ai Callback:   ${publicUrl}/api/kie-ai/callback`)
-          console.log(`🎥 AI Reels Callback: ${publicUrl}/api/telegram/ai-reels-callback`)
-          console.log('━'.repeat(80))
-          console.log('')
-
-          // Graceful shutdown
-          process.on('SIGINT', async () => {
-            console.log('\n🛑 [NGROK] Закрываем туннель...')
-            await listener.close()
-            console.log('✅ [NGROK] Туннель закрыт')
-            process.exit(0)
-          })
-
-          process.on('SIGTERM', async () => {
-            console.log('\n🛑 [NGROK] Получен SIGTERM, закрываем туннель...')
-            await listener.close()
-            process.exit(0)
-          })
-
-        } catch (ngrokError: any) {
-          console.error('❌ [NGROK] Ошибка при создании туннеля:', ngrokError.message)
-          console.log('\n💡 Рекомендации:')
-          console.log('   1. Установи cloudflared: brew install cloudflare/cloudflare/cloudflared')
-          console.log('   2. Или получи валидный ngrok authtoken: https://dashboard.ngrok.com/')
-          console.log('   3. Или используй localtunnel: npm i -g localtunnel && lt --port 8080\n')
-          console.log('⚠️  Продолжаем без туннеля - вебхуки работать не будут!\n')
-        }
+        console.error('❌ [CLOUDFLARE] Не удалось создать туннель:', cloudflareError.message)
+        console.log('\n💡 Рекомендации:')
+        console.log('   1. Установи cloudflared: brew install cloudflare/cloudflare/cloudflared')
+        console.log('   2. Проверь что cloudflared доступен в PATH')
+        console.log('   3. Или используй localtunnel: npm i -g localtunnel && lt --port 8080\n')
+        console.log('⚠️  Продолжаем без туннеля - вебхуки работать не будут!\n')
       }
 
       if (!tunnelCreated) {

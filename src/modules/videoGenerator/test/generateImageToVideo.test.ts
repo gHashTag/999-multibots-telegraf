@@ -36,7 +36,7 @@ vi.mock('../../../price/helpers', () => ({
 }))
 
 vi.mock('../../../config', () => ({
-  API_URL: 'http://test-api-url',
+  PUBLIC_URL: 'http://test-api-url',
   SECRET_API_KEY: 'test-secret-key',
 }))
 

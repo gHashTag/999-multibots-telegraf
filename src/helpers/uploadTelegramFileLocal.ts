@@ -49,19 +49,19 @@ export async function uploadTelegramFileLocal(
     await fs.writeFile(filePath, response.data)
 
     // ✅ ИСПРАВЛЕНО: Используем локальный сервер для всех окружений
-    // Не используем SERVER_API_URL чтобы избежать зависимости от внешнего сервера
-    const API_URL =
+    // Не используем SERVER_PUBLIC_URL чтобы избежать зависимости от внешнего сервера
+    const PUBLIC_URL =
       process.env.NODE_ENV === 'development'
         ? 'http://localhost:3000' // Локальный development
         : 'https://three-head-dragon.shop' // Только наш домен в production
 
     console.log(
       '🌐 [uploadLocal] Using public URL for Replicate access:',
-      API_URL
+      PUBLIC_URL
     )
     console.log('🔧 [uploadLocal] Environment mode:', process.env.NODE_ENV)
 
-    const publicUrl = `${API_URL}/temp/${uniqueFileName}`
+    const publicUrl = `${PUBLIC_URL}/temp/${uniqueFileName}`
 
     console.log('✅ [uploadLocal] File saved locally:', {
       localPath: filePath,

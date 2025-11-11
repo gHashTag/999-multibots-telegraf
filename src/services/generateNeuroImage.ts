@@ -6,8 +6,8 @@ import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
 // Используем заглушку, если переменная не установлена
-const API_URL =
-  process.env.SERVER_API_URL ||
+const PUBLIC_URL =
+  process.env.SERVER_PUBLIC_URL ||
   'https://three-head-dragon.shop'
 
 export async function generateNeuroImage(

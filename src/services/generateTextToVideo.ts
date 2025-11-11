@@ -2,7 +2,7 @@ import axios, { isAxiosError } from 'axios'
 import {
   isDev,
   SECRET_API_KEY,
-  API_URL,
+  PUBLIC_URL,
 } from '@/config'
 import { logger } from '@/utils/logger'
 import { getUnifiedModelConfig } from '@/config/unified-video-models.config'
@@ -359,7 +359,7 @@ export async function generateTextToVideo(
 
     // Для остальных моделей используем старый подход с сервером
     logger.info('URL Selection Debug', {
-      API_URL,
+      PUBLIC_URL,
       isDev,
     })
 
@@ -516,7 +516,7 @@ export async function checkVideoGenerationStatus(
     }
     
     // Старый код для обычных серверов
-    const baseUrl = API_URL
+    const baseUrl = PUBLIC_URL
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 
     const response = await axios.get<TextToVideoResponse>(url, {

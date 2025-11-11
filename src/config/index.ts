@@ -70,7 +70,6 @@ export const {
   KIE_AI_API_KEY,
   FAL_KEY, // ✅ ДОБАВЛЕНО: FAL_KEY для kie.ai gateway
   API_SERVER_URL,
-  NGROK,
   PIXEL_API_KEY,
   HUGGINGFACE_TOKEN,
   WEBHOOK_URL,
@@ -86,29 +85,26 @@ export const {
   INNGEST_SIGNING_KEY,
   ROBOKASSA_PASSWORD_1,
   ROBOKASSA_PASSWORD_2,
-  SERVER_API_URL,
+  SERVER_PUBLIC_URL,
   USE_PRODUCTION_API,
   REPLICATE_API_TOKEN, // ✅ LOCAL TRAINING: Replicate API token
   REPLICATE_USERNAME, // ✅ LOCAL TRAINING: Replicate username
 } = process.env
 
-// API_URL для AI сервера - логика переключения между локальным и продакшн сервером
-const forceProductionAPI = USE_PRODUCTION_API === 'true'
-export const API_URL = forceProductionAPI 
-  ? API_SERVER_URL // 🚀 Принудительно используем продакшн Render Server сервер
-  : isDev 
-    ? (LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL || API_SERVER_URL) // 🛠️ В dev режиме - локальный/ngrok или продакшн
-    : API_SERVER_URL // 📦 В production режиме - всегда продакшн сервер
+// ✅ УПРОЩЕННАЯ СХЕМА: Один PUBLIC_URL для всех окружений
+// В dev: ngrok/cloudflare tunnel (устанавливается автоматически в src/index.ts)
+// В prod: домен с nginx (three-head-dragon.shop)
+export const PUBLIC_URL = process.env.BASE_WEBHOOK_URL || API_SERVER_URL || 'https://three-head-dragon.shop'
 
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
 const BASE_PAYMENT_URL = isDev
   ? API_SERVER_URL ||
-    process.env.SERVER_API_URL ||
+    process.env.SERVER_PUBLIC_URL ||
     'https://three-head-dragon.shop' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
-    process.env.SERVER_API_URL ||
+    process.env.SERVER_PUBLIC_URL ||
     'https://three-head-dragon.shop'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`

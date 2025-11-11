@@ -112,7 +112,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@ngrok/ngrok": "^1.5.2",
     "@types/axios": "^0.14.4",
     "@types/express": "^5.0.2",
     "@types/md5": "^2.3.5",

@@ -1,5 +1,5 @@
 import axios, { isAxiosError } from 'axios'
-import { API_URL, SECRET_API_KEY } from '@/config'
+import { PUBLIC_URL, SECRET_API_KEY } from '@/config'
 import { logger } from '@/utils/logger'
 import { replicate } from '@/core/replicate'
 import {

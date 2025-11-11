@@ -23,7 +23,7 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { Markup } from 'telegraf'
 import axios from 'axios'
 import { isAxiosError } from 'axios'
-import { API_URL, SECRET_API_KEY } from '@/config'
+import { PUBLIC_URL, SECRET_API_KEY } from '@/config'
 import { safeSendMessage, markUserAsBlocked } from '@/utils/blockedUsersCheck'
 import { videoTaskCache } from './taskCache'
 
@@ -366,11 +366,11 @@ export const generateImageToVideo = async (
         if (USE_PLAN_A) {
         logger.info('[PLAN A] Trying server first for Veo model', {
           modelId: modelConfig.id,
-          serverUrl: API_URL
+          serverUrl: PUBLIC_URL
         })
         
         try {
-          const baseUrl = API_URL
+          const baseUrl = PUBLIC_URL
           
           // Проверяем доступность сервера (пропускаем localhost для тестов)
           if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {

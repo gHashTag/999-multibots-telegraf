@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { SECRET_API_KEY, API_URL } from '@/config'
+import { SECRET_API_KEY, PUBLIC_URL } from '@/config'
 import { MyContext } from '@/interfaces'
 import { sendGenericErrorMessage } from '@/menu'
 
@@ -17,7 +17,7 @@ export async function generateVoiceAvatar(
   botName: string
 ): Promise<VoiceAvatarResponse | null> {
   try {
-    const url = `${API_URL}/generate/voice-avatar`
+    const url = `${PUBLIC_URL}/generate/voice-avatar`
 
     const response = await axios.post<VoiceAvatarResponse>(
       url,
