@@ -300,7 +300,7 @@ export async function getTranslation({
             return {
               row: parseInt(key) > 100 ? 2 : 1, // Admin buttons on second row
               text: textValue,
-              // No callback_data - buttons will be handled by text in УДАЛЁН/hearsHandlers
+              callback_data: `level_${key}`, // Required by TranslationButton interface
               subscription: subscriptionMap[parseInt(key)] || SubscriptionType.NEUROPHOTO,
               stars_price: 476,
               en_price: 15,

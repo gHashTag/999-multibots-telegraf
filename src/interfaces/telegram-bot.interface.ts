@@ -184,6 +184,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedSize?: string
   bypass_payment_check?: boolean
   modelSelectionShown?: boolean
+  cancelHandled?: boolean
+  language_code?: string
   images: BufferType
   morphingImages?: {
     buffer: Buffer

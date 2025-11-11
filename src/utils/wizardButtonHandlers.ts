@@ -195,10 +195,6 @@ export function createStandardWizardHandlers(
         await ctx.reply(
           isRu ? 'Отменено.' : 'Cancelled.'
         )
-
-        // Import УДАЛЁН dynamically to avoid circular imports
-        const { УДАЛЁН } = await import('@/handlers')
-        return
       }
 
       return {

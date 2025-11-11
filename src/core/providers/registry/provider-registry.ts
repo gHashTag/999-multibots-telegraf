@@ -3,12 +3,14 @@
  * 100% функциональный стиль, без классов
  */
 
+import * as t from 'io-ts'
 import { Provider } from '../adapters/types'
-import { ProviderConfig } from '../../../core/functional/types/media.types'
+import { ProviderConfig, ProviderName } from '../../../core/functional/types/media.types'
 import createKieAiProvider from '../adapters/kie-ai.adapter'
 import createReplicateProvider from '../adapters/replicate.adapter'
 import createElevenLabsProvider from '../adapters/elevenlabs.adapter'
 import createFalProvider from '../adapters/fal.adapter'
+import { isRight } from '../../../core/functional/utils/result'
 
 // ===== REGISTRY IMPLEMENTATION =====
 
@@ -17,7 +19,7 @@ export interface ProviderRegistry {
   getProvidersByCapability: (capability: string) => Provider[]
   listProviders: () => Provider[]
   healthCheckAll: () => Promise<{ name: string; healthy: boolean }[]>
-  getHealthyProviders: (capability: string) => Provider[]
+  getHealthyProviders: (capability: string) => Promise<Provider[]>
   hasProvider: (name: string) => boolean
   getProviderCount: () => number
   getCapabilities: () => string[]
@@ -33,8 +35,6 @@ const providerFactories = {
   // 'openrouter': createOpenRouterProvider
 } as const
 
-export type ProviderName = keyof typeof providerFactories
-
 // ===== REGISTRY CREATION =====
 
 export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegistry => {
@@ -43,7 +43,7 @@ export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegis
 
   // Initialize providers
   configs.forEach(config => {
-    const providerName = config.name as ProviderName
+    const providerName = config.name as keyof typeof providerFactories
     const factory = providerFactories[providerName]
 
     if (factory) {
@@ -126,7 +126,7 @@ export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegis
     for (const provider of providersByCapability) {
       try {
         const health = await provider.healthCheck()()
-        if (health._tag === 'Right' && health.value.status === 'healthy') {
+        if (health._tag === 'Right' && health.right.status === 'healthy') {
           healthyProviders.push(provider)
         }
       } catch (error) {
@@ -170,9 +170,18 @@ export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegis
 // ===== DEFAULT REGISTRY =====
 
 export const createDefaultRegistry = (): ProviderRegistry => {
+  // Validate and decode the provider name using the codec
+  const kieAiNameResult = ProviderName.decode('kie-ai')
+  if (!isRight(kieAiNameResult)) {
+    throw new Error('Invalid provider name: kie-ai')
+  }
+
+  // Type assertion is safe because we validated with codec above
+  const providerName: t.TypeOf<typeof ProviderName> = kieAiNameResult.right as t.TypeOf<typeof ProviderName>
+
   const defaultConfigs: ProviderConfig[] = [
     {
-      name: 'kie-ai' as const,
+      name: providerName,
       apiKey: process.env.KIE_AI_API_KEY || '',
       baseUrl: process.env.KIE_AI_BASE_URL || 'https://api.kie.ai',
       timeout: 30000,

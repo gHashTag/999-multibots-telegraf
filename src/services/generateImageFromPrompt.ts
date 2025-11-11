@@ -25,28 +25,35 @@ export async function generateImageFromPrompt(
   // ✅ ИСПРАВЛЕНО: Используем локальный text-to-image сервис вместо внешнего API
   try {
     // Используем локальные AI сервисы
-    const { generateNeuroImage } = await import('./generateNeuroImage')
     const { generateFluxKontext } = await import('./generateFluxKontext')
 
-    // Пробуем локальный NeuroImage сначала
-    const localResult = await generateNeuroImage({
-      prompt,
-      telegram_id: userId.toString(),
-      bot_name: 'default'
-    })
+    // Используем Flux Kontext для генерации изображений
+    // Создаем минимальный контекст для вызова функции
+    const mockContext = {
+      telegram: null,
+      botInfo: { username: 'default' },
+      session: {}
+    } as any
 
-    if (localResult?.imageUrl) {
-      return localResult.imageUrl
-    }
-
-    // Fallback на Flux
     const fluxResult = await generateFluxKontext({
       prompt,
-      telegramId: userId.toString()
+      inputImageUrl: '', // Пустое значение для text-to-image
+      modelType: 'pro',
+      telegram_id: userId.toString(),
+      username: 'user',
+      is_ru: true,
+      ctx: mockContext,
+      suppressUserErrors: true // Не показываем ошибки пользователю
     })
 
-    if (fluxResult?.image_url) {
-      return fluxResult.image_url
+    // GenerationResult имеет свойство image (Buffer или string)
+    if (fluxResult?.image) {
+      // Если image - это строка (URL), возвращаем её
+      if (typeof fluxResult.image === 'string') {
+        return fluxResult.image
+      }
+      // Если это Buffer, возвращаем заглушку (нужен URL)
+      console.warn('⚠️ [generateImageFromPrompt] Received Buffer instead of URL')
     }
 
     // Если ничего не сработало, возвращаем заглушку

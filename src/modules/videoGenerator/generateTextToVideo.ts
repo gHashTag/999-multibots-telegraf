@@ -11,7 +11,7 @@ import { calculateFinalPrice } from '@/price/helpers'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { getUserHelper } from './helpers'
 
-interface TextToVideoResponse {
+interface ModuleTextToVideoResponse {
   success: boolean
   videoUrl?: string
   message?: string
@@ -238,12 +238,16 @@ export async function generateTextToVideo(
       const kieProvider = new KieAiProvider()
 
       // Преобразуем aspectRatio в формат Kie.ai
-      const kieAspectRatio = selectedAspectRatio || userAspectRatio as '16:9' | '9:16' | '1:1' | undefined
+      const rawAspectRatio = selectedAspectRatio || userAspectRatio
+      const kieAspectRatio: '16:9' | '9:16' | '1:1' =
+        rawAspectRatio === '16:9' || rawAspectRatio === '9:16' || rawAspectRatio === '1:1'
+          ? rawAspectRatio
+          : '9:16'
 
       logger.info('[generateTextToVideo] Calling KieAiProvider.generateVideo', {
         model: modelConfig.id,
         promptLength: prompt.length,
-        aspectRatio: kieAspectRatio || '9:16',
+        aspectRatio: kieAspectRatio,
         duration: selectedDuration
       })
 
@@ -251,7 +255,7 @@ export async function generateTextToVideo(
       const kieResponse = await kieProvider.generateVideo({
         model: modelConfig.id,
         prompt: prompt,
-        aspectRatio: kieAspectRatio || '9:16',
+        aspectRatio: kieAspectRatio,
         duration: selectedDuration,
         telegram_id, // ✅ Передаём telegram_id для callback URL
       })

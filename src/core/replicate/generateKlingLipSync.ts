@@ -21,7 +21,7 @@ const replicate = new Proxy({}, {
   get(target, prop) {
     return (getReplicate() as any)[prop]
   }
-})
+}) as any
 
 export interface KlingLipSyncResponse {
   id: string

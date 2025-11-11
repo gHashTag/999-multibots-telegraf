@@ -102,6 +102,9 @@ export interface UnifiedVideoModelConfig {
 
     // Поддержка негативного промпта (WAN 2.5)
     supportsNegativePrompt?: boolean
+
+    // Поддержка оптимизатора промпта (Veo 3, Kie.ai)
+    promptOptimizer?: boolean
   }
 
   // Статус модели
@@ -837,6 +840,7 @@ const ApiSettingsSchema = z.object({
   baseInput: z.record(z.string(), z.any()).optional(),
   supportsPromptExpansion: z.boolean().optional(),
   supportsNegativePrompt: z.boolean().optional(),
+  promptOptimizer: z.boolean().optional(),
 })
 
 export const UnifiedVideoModelConfigSchema = z.object({

@@ -5,6 +5,9 @@
 
 import { generateTextToVideo as generateTextToVideoOriginal, VideoModelId } from '@/services/generateTextToVideo'
 
+// Re-export generateImageToVideo
+export { generateImageToVideo } from './videoGenerator/generateImageToVideo'
+
 /**
  * Адаптер для старой сигнатуры функции
  */

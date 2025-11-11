@@ -3,7 +3,7 @@
  * Handles AI image generation via Replicate API
  */
 
-import { Service, IAgentRuntime, ServiceType } from '@elizaos/core';
+import { Service, IAgentRuntime } from '@elizaos/core';
 import Replicate from 'replicate';
 import type {
   GenerateImageOptions,
@@ -13,10 +13,12 @@ import type {
 import { DEFAULT_MODELS } from '../types/index.js';
 
 export class ReplicateService extends Service {
-  static serviceType: ServiceType = 'replicate' as ServiceType;
+  static serviceType = 'replicate';
 
   private client: Replicate | null = null;
-  private config: ReplicateServiceConfig | null = null;
+  private serviceConfig: ReplicateServiceConfig | null = null;
+
+  capabilityDescription = 'AI image generation using Replicate API with Flux and SDXL models';
 
   async initialize(runtime: IAgentRuntime): Promise<void> {
     const apiKey = runtime.getSetting('REPLICATE_API_KEY');
@@ -27,17 +29,28 @@ export class ReplicateService extends Service {
       );
     }
 
-    this.config = {
+    this.serviceConfig = {
       apiKey,
       defaultModel: runtime.getSetting('DEFAULT_MODEL') || DEFAULT_MODELS.FLUX_SCHNELL,
       timeout: Number(runtime.getSetting('REPLICATE_TIMEOUT')) || 300000, // 5 min
       maxRetries: Number(runtime.getSetting('REPLICATE_MAX_RETRIES')) || 3,
     };
 
-    this.client = new Replicate({ auth: this.config.apiKey });
+    this.client = new Replicate({ auth: this.serviceConfig.apiKey });
 
     console.log('✅ Replicate Service initialized');
-    console.log(`📝 Default model: ${this.config.defaultModel}`);
+    console.log(`📝 Default model: ${this.serviceConfig.defaultModel}`);
+  }
+
+  async start(): Promise<void> {
+    // Service is ready after initialization
+    console.log('🚀 Replicate Service started');
+  }
+
+  async stop(): Promise<void> {
+    // Cleanup if needed
+    this.client = null;
+    console.log('🛑 Replicate Service stopped');
   }
 
   /**
@@ -53,7 +66,7 @@ export class ReplicateService extends Service {
     const startTime = Date.now();
 
     try {
-      const modelUrl = options.modelUrl || this.config!.defaultModel!;
+      const modelUrl = options.modelUrl || this.serviceConfig!.defaultModel!;
       const numImages = Math.min(options.numImages || 1, 4); // Max 4 images
 
       console.log('🎨 Starting image generation...');
@@ -131,7 +144,7 @@ export class ReplicateService extends Service {
             : 'Неизвестная ошибка при генерации',
         metadata: {
           prompt: options.prompt,
-          model: options.modelUrl || this.config!.defaultModel!,
+          model: options.modelUrl || this.serviceConfig!.defaultModel!,
           generationTime,
         },
       };
@@ -147,8 +160,17 @@ export class ReplicateService extends Service {
         throw new Error('Replicate Service не инициализирован');
       }
 
+      // Parse model URL (format: "owner/name" or "owner/name:version")
+      const parts = modelUrl.split(':')[0].split('/');
+      if (parts.length !== 2) {
+        console.error(`❌ Invalid model URL format: ${modelUrl}`);
+        return false;
+      }
+
+      const [owner, name] = parts;
+
       // Try to get model info
-      await this.client.models.get(modelUrl);
+      await this.client.models.get(owner, name);
       return true;
     } catch (error) {
       console.error(`❌ Invalid model: ${modelUrl}`, error);
@@ -160,8 +182,6 @@ export class ReplicateService extends Service {
    * Get default model URL
    */
   getDefaultModel(): string {
-    return this.config?.defaultModel || DEFAULT_MODELS.FLUX_SCHNELL;
+    return this.serviceConfig?.defaultModel || DEFAULT_MODELS.FLUX_SCHNELL;
   }
 }
-
-export const replicateService = new ReplicateService();

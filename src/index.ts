@@ -404,7 +404,12 @@ async function startApplication() {
         'RENDER_INNGEST_EVENT_KEY',   // ✅ Для отправки задач на render-server через Inngest Cloud
         'RENDER_INNGEST_SIGNING_KEY', // ✅ Для прямых вызовов render-server (альтернатива)
         // 'RENDER_INNGEST_BASE_URL' убран - не нужен, используем локальный Inngest
-        'NGROK_AUTHTOKEN'             // ✅ Для создания туннеля в dev окружении
+        'NGROK_AUTHTOKEN',            // ✅ Для создания туннеля в dev окружении
+        // AI Avatar & Voice Generation Services
+        'ELEVENLABS_API_KEY',         // ✅ ElevenLabs для генерации голоса из текста
+        'HEYGEN_COCOAGE_API_KEY',     // ✅ HeyGen API ключ для набора аватаров Cocoage (шаблон 2)
+        'HEYGEN_HAIM_API_KEY',        // ✅ HeyGen API ключ для набора аватаров Haim (остальные шаблоны)
+        'HEDRA_API_KEY'               // ✅ Hedra API для lip-sync генерации с пользовательским фото
       ]
 
       console.log(`\n🔍 [INFISICAL] Загрузка API ключей из Infisical (${env})...`)

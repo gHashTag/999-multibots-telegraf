@@ -7,6 +7,8 @@ import { Provider, IAgentRuntime, Memory, State } from '@elizaos/core';
 import { DEFAULT_MODELS } from '../types/index.js';
 
 export const replicateProvider: Provider = {
+  name: 'replicateProvider',
+
   /**
    * Get context about image generation capabilities
    */
@@ -14,10 +16,11 @@ export const replicateProvider: Provider = {
     runtime: IAgentRuntime,
     message: Memory,
     state?: State
-  ): Promise<string> => {
+  ) => {
     const defaultModel = runtime.getSetting('DEFAULT_MODEL') || DEFAULT_MODELS.FLUX_SCHNELL;
 
-    return `
+    return {
+      text: `
 # 🎨 AI Image Generation Capabilities
 
 ## Available Commands
@@ -53,6 +56,11 @@ export const replicateProvider: Provider = {
 - **SDXL**: General-purpose, reliable
 
 The system will automatically use the configured default model for all generations.
-    `.trim();
+      `.trim(),
+      values: {
+        defaultModel,
+        supportedCommands: ['/neurophoto', 'нарисуй', 'создай изображение'],
+      },
+    };
   },
 };

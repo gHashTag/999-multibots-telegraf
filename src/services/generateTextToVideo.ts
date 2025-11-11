@@ -42,7 +42,7 @@ interface TextToVideoRequest {
 }
 
 interface TextToVideoResponse {
-  success?: boolean
+  success: boolean
   videoUrl?: string
   jobId?: string
   message?: string
@@ -318,7 +318,7 @@ export async function generateTextToVideo(
       // Импортируем модуль videoGenerator для Replicate моделей
       const { generateTextToVideo: generateTextToVideoNew } = await import('@/modules/videoGenerator')
 
-      const videoUrl = await generateTextToVideoNew(
+      const videoUrl: string | null = await generateTextToVideoNew(
         prompt,
         telegram_id,
         username,
@@ -331,17 +331,19 @@ export async function generateTextToVideo(
       )
 
       if (videoUrl) {
-        return {
+        const response: TextToVideoResponse = {
           success: true,
           videoUrl: videoUrl,
           message: 'Video generated successfully via Replicate'
         }
+        return response
       }
 
-      return {
+      const errorResponse: TextToVideoResponse = {
         success: false,
         error: 'Failed to generate video via Replicate',
       }
+      return errorResponse
     }
 
     // Для остальных моделей используем старый подход с сервером

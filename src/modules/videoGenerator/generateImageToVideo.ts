@@ -5,7 +5,7 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import {
   UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG,
-  type VideoModelConfig,
+  type UnifiedVideoModelConfig,
 } from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 import { replicate } from '@/core/replicate'
@@ -265,7 +265,7 @@ export const generateImageToVideo = async (
     let userAspectRatio = selectedAspectRatio || (userExists.aspect_ratio ?? '9:16')
 
     // Если модель поддерживает разные соотношения сторон, используем оптимальное для вертикальных фото
-    if (modelConfig.aspectRatioOptions && modelConfig.aspectRatioOptions.includes('9:16')) {
+    if (modelConfig.apiSettings.aspectRatios && modelConfig.apiSettings.aspectRatios.includes('9:16')) {
       // Для моделей с поддержкой 9:16 используем вертикальное соотношение по умолчанию
       if (!selectedAspectRatio) {
         userAspectRatio = '9:16'
@@ -662,7 +662,7 @@ export const generateImageToVideo = async (
           prompt: processedPrompt || '',
           aspectRatio: kieAspectRatio || '9:16',
           imageUrl: imageUrl,
-          telegram_id, // ✅ Передаём telegram_id для callback URL
+          telegram_id: telegramId, // ✅ Передаём telegram_id для callback URL
         })
         
         logger.info('[PLAN B] Veo 3 API response received:', {
@@ -1265,7 +1265,7 @@ export const generateImageToVideo = async (
         prompt: processedPrompt || '',
         aspectRatio: kieAspectRatio || '9:16',
         imageUrl: imageUrl,
-        telegram_id, // ✅ Передаём telegram_id для callback URL
+        telegram_id: telegramId, // ✅ Передаём telegram_id для callback URL
       })
 
       logger.info('[I2V BG] KieAiProvider response received for Sora I2V', {
@@ -1322,15 +1322,14 @@ export const generateImageToVideo = async (
           await new Promise(resolve => setTimeout(resolve, pollingInterval))
 
           try {
-            const statusResponse = await kieProvider.checkJobStatus(taskId)
+            const statusResponse = await kieProvider.checkSoraTaskStatus(taskId)
 
             logger.info('[I2V BG] Sora I2V polling attempt', {
               telegramId,
               taskId,
               attempt: attempts,
               success: statusResponse.success,
-              hasVideoUrl: !!statusResponse.data?.videoUrl,
-              isCompleted: statusResponse.data?.status === 'completed'
+              hasVideoUrl: !!statusResponse.data?.videoUrl
             })
 
             if (statusResponse.success && statusResponse.data?.videoUrl) {

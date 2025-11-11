@@ -29,7 +29,7 @@ export interface NavigationButton {
   admin_only?: boolean
   requires_subscription?: boolean
   icon?: string
-  category?: 'ai' | 'tools' | 'admin' | 'navigation' | 'payment'
+  category?: 'ai' | 'tools' | 'admin' | 'navigation' | 'payment' | 'video'
 }
 
 export interface NavigationConfig {

@@ -30,7 +30,9 @@ export const generateImageAction: Action = {
    * Validate if this action should run
    */
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    const text = message.content.text.toLowerCase();
+    const text = message.content?.text?.toLowerCase();
+
+    if (!text) return false;
 
     // Check for trigger keywords
     const triggers = [
@@ -56,14 +58,25 @@ export const generateImageAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     state: State | undefined,
-    options: Record<string, unknown>,
-    callback: HandlerCallback
+    options,
+    callback?: HandlerCallback
   ) => {
     try {
       console.log('🎨 [NEUROPHOTO] Starting image generation...');
 
       // Extract prompt from message
-      const text = message.content.text;
+      const text = message.content?.text;
+
+      if (!text) {
+        console.error('❌ [NEUROPHOTO] No text in message');
+        await callback?.({
+          text: '❌ Не удалось получить текст сообщения.',
+        });
+        return {
+          success: false,
+          error: new Error('No text in message'),
+        };
+      }
       let prompt = text
         .replace(/\/neurophoto/gi, '')
         .replace(/\/generate/gi, '')
@@ -80,7 +93,7 @@ export const generateImageAction: Action = {
       if (!prompt || prompt.length < 3) {
         console.log('❌ [NEUROPHOTO] Prompt too short');
 
-        await callback({
+        await callback?.({
           text: `❌ Пожалуйста, опишите какое изображение вы хотите создать.
 
 **Примеры**:
@@ -106,7 +119,7 @@ export const generateImageAction: Action = {
       if (!replicateService) {
         console.error('❌ [NEUROPHOTO] Replicate service not found');
 
-        await callback({
+        await callback?.({
           text: '❌ Сервис генерации изображений недоступен. Проверьте настройки REPLICATE_API_KEY.',
         });
 
@@ -117,7 +130,7 @@ export const generateImageAction: Action = {
       }
 
       // Send "generating" message
-      await callback({
+      await callback?.({
         text: '🎨 Генерирую изображение, это займёт 10-30 секунд...',
       });
 
@@ -134,7 +147,7 @@ export const generateImageAction: Action = {
       if (!result.success || !result.imageUrls || result.imageUrls.length === 0) {
         console.error('❌ [NEUROPHOTO] Generation failed:', result.error);
 
-        await callback({
+        await callback?.({
           text: `❌ Не удалось сгенерировать изображение.
 
 Ошибка: ${result.error || 'Неизвестная ошибка'}
@@ -155,13 +168,14 @@ export const generateImageAction: Action = {
       console.log(`⏱️  [NEUROPHOTO] Time: ${result.metadata?.generationTime}ms`);
 
       // Send result with image
-      await callback({
+      await callback?.({
         text: `✅ Изображение готово!
 
 📝 **Промпт**: ${prompt}
 🤖 **Модель**: ${result.metadata?.model}
 ⏱️ **Время генерации**: ${Math.round((result.metadata?.generationTime || 0) / 1000)}с`,
-        attachments: result.imageUrls.map((url) => ({
+        attachments: result.imageUrls.map((url, index) => ({
+          id: `neurophoto-${Date.now()}-${index}`,
           url,
           type: 'image',
           title: prompt,
@@ -182,7 +196,7 @@ export const generateImageAction: Action = {
     } catch (error) {
       console.error('❌ [NEUROPHOTO] Unexpected error:', error);
 
-      await callback({
+      await callback?.({
         text: '❌ Произошла непредвиденная ошибка при генерации изображения. Попробуйте позже или обратитесь к администратору.',
       });
 
@@ -199,11 +213,11 @@ export const generateImageAction: Action = {
   examples: [
     [
       {
-        user: '{{user1}}',
+        name: 'user',
         content: { text: '/neurophoto красивый закат над океаном' },
       },
       {
-        user: '{{agentName}}',
+        name: 'assistant',
         content: {
           text: '✅ Изображение готово!\n\n📝 **Промпт**: красивый закат над океаном\n🤖 **Модель**: black-forest-labs/flux-schnell\n⏱️ **Время генерации**: 15с',
           action: 'GENERATE_NEUROPHOTO',
@@ -212,11 +226,11 @@ export const generateImageAction: Action = {
     ],
     [
       {
-        user: '{{user1}}',
+        name: 'user',
         content: { text: 'создай изображение футуристического города' },
       },
       {
-        user: '{{agentName}}',
+        name: 'assistant',
         content: {
           text: '🎨 Генерирую изображение, это займёт 10-30 секунд...',
           action: 'GENERATE_NEUROPHOTO',
@@ -225,11 +239,11 @@ export const generateImageAction: Action = {
     ],
     [
       {
-        user: '{{user1}}',
+        name: 'user',
         content: { text: 'нарисуй кота в космическом шлеме' },
       },
       {
-        user: '{{agentName}}',
+        name: 'assistant',
         content: {
           text: '✅ Изображение готово!\n\n📝 **Промпт**: кота в космическом шлеме',
           action: 'GENERATE_NEUROPHOTO',

@@ -254,47 +254,5 @@ export interface ProviderPlugin {
 }
 
 // ===== EXPORT ALL =====
-
-export default {
-  GenerateVideo,
-  GenerateImage,
-  GenerateAudio,
-  PerformFaceSwap,
-  HealthCheck,
-  GetBalance,
-  RateLimit,
-  Provider,
-  ProviderFactory,
-  CircuitState,
-  CircuitBreakerOptions,
-  CircuitBreakerConfig,
-  WrappedFunction,
-  ProviderRegistry,
-  LoadBalancingStrategy,
-  LoadBalancerOptions,
-  LoadBalancer,
-  RateLimitConfig,
-  RateLimiter,
-  HealthMonitor,
-  CacheOptions,
-  Cache,
-  CacheKey,
-  RetryOptions,
-  RetryStrategy,
-  TimeoutOptions,
-  WithTimeout,
-  FallbackStrategy,
-  PipelineStep,
-  MediaPipeline,
-  PipelineOptions,
-  ProviderError,
-  createProviderError,
-  ValidationResult,
-  Metrics,
-  MetricsCollector,
-  ConfigValidator,
-  ProviderOperation,
-  ProviderStatus,
-  ProviderMetadata,
-  ProviderPlugin
-}
+// All types are already exported individually above
+// createProviderError and ProviderError are exported inline at their declarations

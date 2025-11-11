@@ -22,14 +22,15 @@ export const videoModelKeyboard = (
   )
   // --- DEBUG LOGGING END ---
 
-  // Фильтруем модели по inputType, затем создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
+  // Фильтруем модели по inputTypes (исправлено с inputType на inputTypes), затем создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
   const buttons = Object.entries(VIDEO_MODELS_CONFIG)
-    .filter(([key, config]) => config.inputType.includes(inputType))
+    .filter(([key, config]) => config.inputTypes.includes(inputType))
     .map(([key, config]) => {
       // Рассчитываем финальную цену в звездах (уже по новой логике)
       const finalPriceInStars = calculateFinalPrice(key)
       // Формируем текст кнопки с ценой в звездах и эмодзи ⭐
-      return `${config.title} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
+      const displayName = config.nameRu || config.name // Используем nameRu, если доступно
+      return `${displayName} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
     })
 
   // --- DEBUG LOGGING START ---
