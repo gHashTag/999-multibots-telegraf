@@ -88,9 +88,28 @@ export async function sendRenderAvatarVideoEvent(
     jobId: payload.job_id,
     hasHeygenSettings: !!payload.avatar_settings.heygen,
     hasHedraSettings: !!payload.avatar_settings.hedra,
+    hasFalSettings: !!payload.avatar_settings.fal,
   })
 
+  // 🔴 ДЕТАЛЬНАЯ ПРОВЕРКА КЛЮЧЕЙ ПЕРЕД ОТПРАВКОЙ
+  const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
+  const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
+
+  logger.info('🔍 [RENDER SERVER] Environment check:', {
+    hasRenderEventKey: !!renderEventKey,
+    renderEventKeyLength: renderEventKey?.length || 0,
+    hasRenderSigningKey: !!renderSigningKey,
+    renderSigningKeyLength: renderSigningKey?.length || 0,
+  })
+
+  if (!renderEventKey) {
+    logger.error('❌ [RENDER SERVER] КРИТИЧЕСКАЯ ОШИБКА: RENDER_INNGEST_EVENT_KEY отсутствует!')
+    throw new Error('RENDER_INNGEST_EVENT_KEY not configured - cannot send event to render-server')
+  }
+
   try {
+    logger.info('🚀 [RENDER SERVER] Calling inngestProvider.sendEvent()...')
+
     const result = await inngestProvider.sendEvent(
       'RENDER',
       'render-riddle',
@@ -98,7 +117,8 @@ export async function sendRenderAvatarVideoEvent(
     )
 
     if (!result) {
-      throw new Error('Failed to send event to RENDER instance')
+      logger.error('❌ [RENDER SERVER] inngestProvider.sendEvent() returned null!')
+      throw new Error('Failed to send event to RENDER instance - no result')
     }
 
     logger.info('✅ [RENDER SERVER] Event sent successfully', {
@@ -110,6 +130,7 @@ export async function sendRenderAvatarVideoEvent(
   } catch (error) {
     logger.error('❌ [RENDER SERVER] Error sending event', {
       error: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
       jobId: payload.job_id,
     })
     throw error

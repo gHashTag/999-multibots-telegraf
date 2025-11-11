@@ -403,19 +403,72 @@ async function startApplication() {
         'BASE_WEBHOOK_URL',           // ✅ Для callback уведомлений от Kie.ai
         'RENDER_INNGEST_EVENT_KEY',   // ✅ Для отправки задач на render-server через Inngest Cloud
         'RENDER_INNGEST_SIGNING_KEY', // ✅ Для прямых вызовов render-server (альтернатива)
+        'RENDER_INNGEST_BASE_URL',    // ✅ URL render-server для Inngest
         'NGROK_AUTHTOKEN'             // ✅ Для создания туннеля в dev окружении
       ]
+
+      console.log(`\n🔍 [INFISICAL] Загрузка API ключей из Infisical (${env})...`)
 
       for (const key of apiKeys) {
         try {
           const value = getSecret(key)
           if (value) {
             process.env[key] = value
-            console.log(`  ✅ ${key} загружен`)
+
+            // 🔴 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ RENDER_INNGEST КЛЮЧЕЙ
+            if (key.startsWith('RENDER_INNGEST')) {
+              console.log(`  ✅ ${key} загружен из Infisical`)
+              console.log(`     📊 Длина ключа: ${value.length} символов`)
+              console.log(`     🔑 Первые 20 символов: ${value.substring(0, 20)}...`)
+
+              // Дополнительная проверка для EVENT_KEY
+              if (key === 'RENDER_INNGEST_EVENT_KEY') {
+                const isValid = value.length > 50 && value.includes('_')
+                console.log(`     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ' : '⚠️ ПОДОЗРИТЕЛЬНЫЙ'}`)
+                if (!isValid) {
+                  console.warn(`     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_EVENT_KEY может быть невалидным!`)
+                }
+              }
+
+              // Дополнительная проверка для SIGNING_KEY
+              if (key === 'RENDER_INNGEST_SIGNING_KEY') {
+                const isValid = value.startsWith('signkey-')
+                console.log(`     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ (signkey-)' : '⚠️ НЕ НАЧИНАЕТСЯ С signkey-'}`)
+                if (!isValid) {
+                  console.warn(`     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_SIGNING_KEY должен начинаться с "signkey-"`)
+                }
+              }
+            } else {
+              console.log(`  ✅ ${key} загружен`)
+            }
+          } else {
+            console.warn(`  ⚠️ ${key} не найден в Infisical (значение пустое)`)
           }
         } catch (e) {
-          console.warn(`  ⚠️ ${key} не найден в Infisical (опционально)`)
+          const errorMsg = e instanceof Error ? e.message : String(e)
+          console.warn(`  ⚠️ ${key} не найден в Infisical: ${errorMsg}`)
         }
+      }
+
+      // 🔴 КРИТИЧЕСКАЯ ПРОВЕРКА RENDER_INNGEST КЛЮЧЕЙ ПОСЛЕ ЗАГРУЗКИ
+      console.log(`\n🔍 [RENDER_INNGEST] Финальная проверка ключей...`)
+      const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
+      const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
+      const renderBaseUrl = process.env.RENDER_INNGEST_BASE_URL
+
+      console.log(`  📊 RENDER_INNGEST_EVENT_KEY: ${renderEventKey ? `${renderEventKey.substring(0, 30)}... (${renderEventKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`)
+      console.log(`  📊 RENDER_INNGEST_SIGNING_KEY: ${renderSigningKey ? `${renderSigningKey.substring(0, 30)}... (${renderSigningKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`)
+      console.log(`  📊 RENDER_INNGEST_BASE_URL: ${renderBaseUrl || '❌ НЕ УСТАНОВЛЕН'}`)
+
+      if (!renderEventKey || !renderSigningKey) {
+        console.error(`\n❌ [RENDER_INNGEST] КРИТИЧЕСКАЯ ОШИБКА: Отсутствуют обязательные ключи!`)
+        console.error(`   Inngest запросы на render-server НЕ БУДУТ РАБОТАТЬ!`)
+        console.error(`   Проверьте ключи в Infisical (${env} environment):`)
+        console.error(`   - RENDER_INNGEST_EVENT_KEY`)
+        console.error(`   - RENDER_INNGEST_SIGNING_KEY`)
+        console.error(`   - RENDER_INNGEST_BASE_URL\n`)
+      } else {
+        console.log(`\n✅ [RENDER_INNGEST] Все ключи загружены успешно!`)
       }
 
       // 🔗 ВРЕМЕННОЕ РЕШЕНИЕ: Устанавливаем BASE_WEBHOOK_URL напрямую для production

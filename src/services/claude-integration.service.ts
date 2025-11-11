@@ -29,9 +29,9 @@ export class ClaudeIntegrationService {
 
     try {
       const prompt = this.buildBotSpecificPrompt(request)
-      
+
       console.log(`🧠 [Claude] Analyzing ${request.filePath}...`)
-      
+
       // Здесь будет реальная интеграция с Claude API
       // Пока возвращаем моковые результаты на основе известных проблем
       const fixes = this.generateMockFixes(request)
