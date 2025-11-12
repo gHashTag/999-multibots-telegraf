@@ -555,7 +555,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           ],
           [
             Markup.button.callback(
-              isRu ? '❌ Отменить' : 'Cancel',
+              isRu ? 'Отменить' : 'Cancel',
               'veed_fabric_cancel'
             ),
           ],

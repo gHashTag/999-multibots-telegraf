@@ -275,8 +275,8 @@ TEST_PAYLOAD='{
 
 echo "Sending test webhook to: $WEBHOOK_URL"
 
-# Send test webhook
-WEBHOOK_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "$WEBHOOK_URL" \
+# Send test webhook (10 second timeout)
+WEBHOOK_RESPONSE=$(curl -s --max-time 10 -w "\nHTTP_CODE:%{http_code}" -X POST "$WEBHOOK_URL" \
   -H "Content-Type: application/json" \
   -d "$TEST_PAYLOAD" 2>&1)
 

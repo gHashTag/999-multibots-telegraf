@@ -46,7 +46,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Кнопки назад и отмена
       keyboardRows.push([
         isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
-        isRu ? '❌ Отмена' : '❌ Cancel'
+        isRu ? 'Отмена' : 'Cancel'
       ])
       const keyboard = Markup.keyboard(keyboardRows).resize()
 

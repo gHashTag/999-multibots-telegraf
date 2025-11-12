@@ -561,7 +561,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
                   ],
                   [
                     Markup.button.callback(
-                      isRu ? '❌ Отмена' : '❌ Cancel',
+                      isRu ? 'Отмена' : 'Cancel',
                       'ai_reels_cancel'
                     ),
                   ],
@@ -763,7 +763,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
                       ],
                       [
                         Markup.button.callback(
-                          isRu ? '❌ Отмена' : '❌ Cancel',
+                          isRu ? 'Отмена' : 'Cancel',
                           'ai_reels_cancel'
                         ),
                       ],

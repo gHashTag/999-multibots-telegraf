@@ -276,7 +276,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
     const keyboard = Markup.inlineKeyboard([
       [
         Markup.button.callback('✅ Да, перезапустить', 'restart_confirm'),
-        Markup.button.callback('❌ Отмена', 'restart_cancel'),
+        Markup.button.callback('Отмена', 'restart_cancel'),
       ],
     ])
 
