@@ -27,6 +27,9 @@ import { PUBLIC_URL, SECRET_API_KEY } from '@/config'
 import { safeSendMessage, markUserAsBlocked } from '@/utils/blockedUsersCheck'
 import { videoTaskCache } from './taskCache'
 
+// Константа для директории uploads (используем /tmp для Docker совместимости)
+const UPLOADS_DIR = process.env.UPLOADS_DIR || '/tmp/uploads'
+
 // Функция для отправки уведомления админу
 async function notifyAdminAboutServerIssue(
   error: string,
@@ -432,7 +435,7 @@ export const generateImageToVideo = async (
               logger.info('[PLAN A] Video downloaded from server', { telegramId, url: videoUrl })
 
               // Сохраняем видео локально
-              const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+              const dirPath = path.join(UPLOADS_DIR, String(telegramId), 'image-to-video')
               await mkdir(dirPath, { recursive: true })
               const timestamp = Date.now()
               const uniqueFilename = `${timestamp}_server_video.mp4`
@@ -681,7 +684,7 @@ export const generateImageToVideo = async (
             const videoBuffer = await downloadFileHelper(videoUrl)
             logger.info('[I2V BG] Video downloaded from Plan B', { telegramId, url: videoUrl })
             
-            const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+            const dirPath = path.join(UPLOADS_DIR, String(telegramId), 'image-to-video')
             await mkdir(dirPath, { recursive: true })
             const timestamp = Date.now()
             const uniqueFilename = `${timestamp}_video.mp4`
@@ -918,7 +921,7 @@ export const generateImageToVideo = async (
                   logger.info('[I2V BG] Video downloaded from Plan B polling', { telegramId, url: videoUrl })
 
                   // Сохраняем видео локально
-                  const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+                  const dirPath = path.join(UPLOADS_DIR, String(telegramId), 'image-to-video')
                   await mkdir(dirPath, { recursive: true })
                   const timestamp = Date.now()
                   const uniqueFilename = `${timestamp}_plan_b_polling.mp4`
@@ -1287,7 +1290,7 @@ export const generateImageToVideo = async (
         const videoBuffer = await downloadFileHelper(videoUrl)
         logger.info('[I2V BG] Sora I2V video downloaded via KieAi', { telegramId, url: videoUrl })
 
-        const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+        const dirPath = path.join(UPLOADS_DIR, String(telegramId), 'image-to-video')
         await mkdir(dirPath, { recursive: true })
         const timestamp = Date.now()
         const uniqueFilename = `${timestamp}_video.mp4`
@@ -1337,7 +1340,7 @@ export const generateImageToVideo = async (
               const videoBuffer = await downloadFileHelper(videoUrl)
               logger.info('[I2V BG] Sora I2V video downloaded after polling', { telegramId, url: videoUrl })
 
-              const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+              const dirPath = path.join(UPLOADS_DIR, String(telegramId), 'image-to-video')
               await mkdir(dirPath, { recursive: true })
               const timestamp = Date.now()
               const uniqueFilename = `${timestamp}_video.mp4`
@@ -1421,7 +1424,7 @@ export const generateImageToVideo = async (
       const videoBuffer = await downloadFileHelper(videoUrl)
       logger.info('[I2V BG] Video downloaded', { telegramId, url: videoUrl })
 
-      const dirPath = path.join('uploads', String(telegramId), 'image-to-video')
+      const dirPath = path.join(UPLOADS_DIR, String(telegramId), 'image-to-video')
       await mkdir(dirPath, { recursive: true })
       const timestamp = Date.now()
       let baseFilename = 'video.mp4'
