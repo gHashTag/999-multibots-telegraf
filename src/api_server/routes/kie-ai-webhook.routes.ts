@@ -244,23 +244,37 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
 
     const payload = req.body
 
-    // ✅ AUTO-DETECT PROVIDER: Определяем провайдера по структуре payload
-    const detectedProvider = detectVideoWebhookProvider(payload)
+    // ✅ FIX: Use detailed detectVideoProvider instead of simplified detectVideoWebhookProvider
+    // This properly distinguishes between kie-sora, kie-wan (Veo 3), and kie-veed
+    const detectedProvider = detectVideoProvider(payload)
     logger.info('🔍 [UNIVERSAL VIDEO WEBHOOK] Provider detected', {
       provider: detectedProvider,
       payloadKeys: Object.keys(payload)
     })
 
+    // Route to appropriate handler based on detected provider
     switch (detectedProvider) {
-      case 'kie-ai':
-        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Kie.ai webhook detected')
-        // Нормализуем payload и обрабатываем асинхронно
-        const normalizedPayload = normalizeKieSoraPayload(payload)
-        await processSoraWebhookAsync(normalizedPayload)
+      case 'kie-sora':
+        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Kie.ai Sora webhook detected')
+        await processSoraWebhookAsync(normalizeKieSoraPayload(payload))
+        break
+
+      case 'kie-wan':
+      case 'kie-veed':
+        logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Kie.ai WAN/Veo webhook detected', {
+          provider: detectedProvider
+        })
+        await processKieAiWebhookAsync(normalizeKiePayload(payload))
         break
 
       case 'render-server':
         logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Render Server webhook detected')
+        await processGenericVideoWebhook(payload, telegramIdFromUrl)
+        break
+
+      case 'replicate':
+        logger.info('🔄 [UNIVERSAL VIDEO WEBHOOK] Replicate webhook detected')
+        // TODO: Implement replicate handler if needed
         await processGenericVideoWebhook(payload, telegramIdFromUrl)
         break
 
@@ -397,10 +411,13 @@ function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
   }
 
   // ✅ FIX: Проверяем успешность по code===200 и наличию resultUrls (включая распарсенные)
-  // WAN 2.5, Veo 3, Sora отправляют: { code: 200, data: { state: "success", resultJson: "{...}" } }
+  // Veo 3 отправляет: { code: 200, data: { info: { resultUrls: [...] } } } - БЕЗ state!
+  // WAN 2.5, Sora отправляют: { code: 200, data: { state: "success", resultJson: "{...}" } }
+  // Поэтому проверяем ЛИБО state === 'success', ЛИБО просто наличие resultUrls при code === 200
+  const hasResultUrls = !!(resultUrls || payload.data?.resultUrls || payload.data?.info?.resultUrls)
   const successFlag = payload.successFlag !== undefined
     ? payload.successFlag
-    : (payload.code === 200 && payload.data?.state === 'success' && (resultUrls || payload.data?.resultUrls || payload.data?.info?.resultUrls) ? 1 : 2)
+    : (payload.code === 200 && (payload.data?.state === 'success' || hasResultUrls) ? 1 : 2)
 
   return {
     ...payload,
