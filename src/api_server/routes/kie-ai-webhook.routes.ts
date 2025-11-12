@@ -195,22 +195,12 @@ async function sendVideoDirectly(
   }
 }
 
-/**
- * ✅ AUTO-DETECT PROVIDER: Определяем провайдера по структуре payload
- */
-function detectVideoWebhookProvider(payload: any): 'kie-ai' | 'render-server' | 'unknown' {
-  // Kie.ai - проверяем на наличие taskId или data.taskId
-  if (payload.taskId || payload.data?.taskId) {
-    return 'kie-ai'
-  }
-
-  // Render Server - проверяем download_url (Render Server)
-  if (payload.download_url || payload.job_id) {
-    return 'render-server'
-  }
-
-  return 'unknown'
-}
+// ❌ DELETED: Old simplified detectVideoWebhookProvider() function removed
+// Now using detailed detectVideoProvider() which properly distinguishes between:
+// - 'kie-sora' (Sora 2)
+// - 'kie-wan' (Veo 3 / WAN 2.5)
+// - 'kie-veed' (Veed Fabric)
+// - 'render-server', 'replicate', 'unknown'
 
 // ✅ NEW: Callback с telegramId в URL - /api/video-callback/:telegramId
 // Два роута: с и без telegramId
