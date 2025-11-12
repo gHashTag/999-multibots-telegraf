@@ -5,7 +5,7 @@
 FROM node:20-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --prefer-offline
+RUN npm install --omit=dev --prefer-offline
 
 # Stage 2: Builder с esbuild
 FROM node:20-slim AS builder
@@ -15,7 +15,7 @@ WORKDIR /app
 RUN npm install -g esbuild
 
 COPY package.json package-lock.json ./
-RUN npm ci --prefer-offline
+RUN npm install --prefer-offline
 
 COPY . .
 
@@ -49,12 +49,15 @@ COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 
+# ✅ Создать папку uploads с правильными правами (ПЕРЕД USER nodejs!)
+RUN mkdir -p uploads && chown -R nodejs:nodejs uploads
+
 # Environment
 ENV NODE_ENV=production
 
 # Switch to non-root user
 USER nodejs
 
-EXPOSE 3001
+EXPOSE 2999
 
 CMD ["node", "dist/index.js"]
