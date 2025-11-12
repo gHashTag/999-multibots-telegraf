@@ -311,30 +311,17 @@ export class MenuSystem {
 
   /**
    * Кастомный обработчик для пополнения баланса
+   * ДОСТУПНО БЕЗ ПОДПИСКИ - кнопка показана в меню без требования подписки
    */
   private async handleTopUpBalance(ctx: MyContext): Promise<void> {
-    // Логика проверки подписки для пополнения баланса
-    const { getReferalsCountAndUserData } = await import('@/core/supabase')
-    const { SubscriptionType } = await import('@/interfaces/subscription.interface')
+    // Пополнение баланса доступно всем пользователям без подписки
     const { isRussianFromState } = await import('@/helpers/centralizedLanguage')
-    
-    const telegramId = ctx.from?.id?.toString() || ''
-    const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
     const isRu = isRussianFromState(ctx)
 
-    if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
-      const message = isRu
-        ? '❌ <b>Пополнение баланса недоступно без подписки</b>\n\n💫 Нажмите "Оформить подписку" в главном меню'
-        : '❌ <b>Balance top-up is not available without subscription</b>\n\n💫 Press "Subscribe" in the main menu'
-      
-      await ctx.replyWithHTML(message)
-      return
-    }
-
-    // Продолжаем стандартную логику
+    // Продолжаем стандартную логику без проверки подписки
     if (ctx.session) {
       ctx.session.mode = ModeEnum.TopUpBalance
-      ctx.session.subscription = subscriptionType
+      // Не устанавливаем subscription, так как подписка не требуется
     }
     
     if (ctx.scene.current) {
@@ -345,29 +332,16 @@ export class MenuSystem {
 
   /**
    * Кастомный обработчик для просмотра баланса
+   * ДОСТУПНО БЕЗ ПОДПИСКИ - кнопка показана в меню без требования подписки
    */
   private async handleBalance(ctx: MyContext): Promise<void> {
-    // Аналогично handleTopUpBalance, но для просмотра баланса
-    const { getReferalsCountAndUserData } = await import('@/core/supabase')
-    const { SubscriptionType } = await import('@/interfaces/subscription.interface')
-    const { isRussianFromState } = await import('@/helpers/centralizedLanguage')
-    
-    const telegramId = ctx.from?.id?.toString() || ''
-    const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
-    const isRu = isRussianFromState(ctx)
+    // Просмотр баланса доступен всем пользователям без подписки
+    // Продолжаем стандартную логику без проверки подписки
 
-    if (!subscriptionType || subscriptionType === SubscriptionType.STARS) {
-      const message = isRu
-        ? '❌ <b>Просмотр баланса недоступен без подписки</b>\n\n💫 Нажмите "Оформить подписку" в главном меню'
-        : '❌ <b>Balance view is not available without subscription</b>\n\n💫 Press "Subscribe" in the main menu'
-      
-      await ctx.replyWithHTML(message)
-      return
-    }
-
-    // Продолжаем стандартную логику
+    // Продолжаем стандартную логику без проверки подписки
     if (ctx.session) {
       ctx.session.mode = ModeEnum.Balance
+      // Не устанавливаем subscription, так как подписка не требуется
     }
     
     if (ctx.scene.current) {
