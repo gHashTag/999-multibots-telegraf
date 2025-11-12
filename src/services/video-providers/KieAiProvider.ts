@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios'
 import { logger } from '@/utils/logger'
+import { getAvailableCallbackUrl } from '@/utils/webhookHealthCheck'
 
 interface KieAiCredits {
   credits: number
@@ -394,11 +395,8 @@ export class KieAiProvider {
         resolution: '720p'
       })
 
-      const callbackUrl = process.env.BASE_WEBHOOK_URL && request.telegram_id
-        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${request.telegram_id}`
-        : process.env.BASE_WEBHOOK_URL
-          ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
-          : undefined
+      // 🛡️ BULLETPROOF: Check webhook availability before sending request
+      const callbackUrl = await getAvailableCallbackUrl(request.telegram_id)
 
       // WAN 2.5 имеет лимит на длину промпта - обрезаем до 500 символов
       const maxPromptLength = 500
@@ -516,15 +514,16 @@ export class KieAiProvider {
       }
     }
 
-    // Формируем правильный callback URL с telegram_id из переменной окружения
-    const callbackUrl = process.env.BASE_WEBHOOK_URL && request.telegram_id
-      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${request.telegram_id}`
-      : process.env.BASE_WEBHOOK_URL
-        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
-        : undefined
+    // 🛡️ BULLETPROOF: Check webhook availability BEFORE sending request to Kie.ai
+    const callbackUrl = await getAvailableCallbackUrl(request.telegram_id)
 
     if (!callbackUrl) {
-      logger.warn('[KieAiProvider] BASE_WEBHOOK_URL not set - webhook notifications will not work')
+      logger.warn('[KieAiProvider] No webhook URLs available - webhook notifications will not work')
+    } else {
+      logger.info('[KieAiProvider] Using callback URL', {
+        url: callbackUrl.substring(0, 50) + '...',
+        hasTelegramId: !!request.telegram_id
+      })
     }
 
     const requestData: any = {
@@ -866,12 +865,8 @@ export class KieAiProvider {
     const isPro = model.includes('pro')
     const provider = isPro ? 'Sora 2 Pro API' : 'Sora 2 API'
 
-    // Generate callback URL with telegram_id if webhook infrastructure exists
-    const callbackUrl = process.env.BASE_WEBHOOK_URL && telegram_id
-      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegram_id}`
-      : process.env.BASE_WEBHOOK_URL
-        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
-        : undefined
+    // 🛡️ BULLETPROOF: Check webhook availability BEFORE sending Sora request
+    const callbackUrl = await getAvailableCallbackUrl(telegram_id)
 
     const requestData: SoraCreateTaskRequest = {
       model,

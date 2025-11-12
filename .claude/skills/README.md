@@ -5,7 +5,7 @@
 
 # 📚 Skills Overview
 
-**Total**: 14 specialized Skills covering ALL aspects of this project.
+**Total**: 15 specialized Skills covering ALL aspects of this project.
 
 ## 🎼 Master Skills (Always Use First)
 
@@ -192,7 +192,47 @@
 
 ## 🚑 System Skills
 
-### 10. **error-recovery-debugging** 🚑
+### 10. **webhook-restoration** 🛡️
+**The Infrastructure Guardian** - CRITICAL webhook callback system restoration.
+
+**Priority**: P0 (Maximum) - "От него зависит все у нас" (Everything depends on it!)
+
+**Expertise**:
+- Complete webhook infrastructure restoration
+- SSL certificate renewal (Let's Encrypt)
+- Nginx reverse proxy configuration
+- DNS and domain management
+- Health check and monitoring scripts
+- Emergency recovery procedures
+
+**Use for**:
+- Webhook callbacks failing or not arriving
+- SSL certificate expiration (90-day renewal)
+- After server reboot or Docker restart
+- Nginx configuration issues (502/504 errors)
+- Domain/DNS problems
+- Weekly health checks (recommended)
+- ANY webhook infrastructure issue
+
+**Auto-Activate when**:
+- Webhook callback failures detected in logs
+- Video generation not delivering to users
+- Nginx or SSL errors
+- Domain DNS resolution issues
+- Gateway timeouts from three-head-dragon.shop
+
+**Critical Components**:
+- Domain: `three-head-dragon.shop` → 188.137.250.69
+- SSL: Let's Encrypt certificates (auto-renewed)
+- Nginx: `bot-proxy` container (reverse proxy)
+- Endpoint: `/api/video-callback/:telegramId`
+- Plan A/B: HTTPS domain + HTTP direct IP fallback
+
+**User's requirement**: Complete restoration capability at ANY TIME for critical infrastructure.
+
+---
+
+### 11. **error-recovery-debugging** 🚑
 **The Healer** - Error recovery and debugging strategies.
 
 **Expertise**:
