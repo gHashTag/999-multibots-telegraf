@@ -249,6 +249,79 @@ else
 fi
 
 echo ""
+
+# 6. Webhook verification (CRITICAL - never remove!)
+echo "6️⃣ Webhook verification (CRITICAL CHECK)..."
+echo "   Testing Veo 3 webhook endpoint..."
+sleep 3
+
+WEBHOOK_URL="http://$SSH_HOST:$PORT/api/webhooks/kie-ai/video-callback"
+
+if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
+  WEBHOOK_URL="http://localhost:$PORT/api/webhooks/kie-ai/video-callback"
+fi
+
+# Test payload - minimal Veo 3 / WAN webhook structure
+TEST_PAYLOAD='{
+  "code": 200,
+  "msg": "Success",
+  "successFlag": true,
+  "taskId": "test-deployment-webhook-check",
+  "resultUrl": "https://example.com/test.mp4",
+  "data": {
+    "videoUrl": "https://example.com/test.mp4"
+  }
+}'
+
+echo "Sending test webhook to: $WEBHOOK_URL"
+
+# Send test webhook
+WEBHOOK_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "$WEBHOOK_URL" \
+  -H "Content-Type: application/json" \
+  -d "$TEST_PAYLOAD" 2>&1)
+
+HTTP_CODE=$(echo "$WEBHOOK_RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+
+if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ]; then
+  echo -e "${GREEN}✅ Webhook endpoint responded: HTTP $HTTP_CODE${NC}"
+
+  # Check logs for correct provider detection
+  echo "   Verifying webhook processing..."
+  sleep 2
+
+  if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
+    WEBHOOK_LOGS=$(docker logs $CONTAINER_NAME --tail 30 2>&1 | grep -i "webhook\|provider detected" || true)
+  else
+    WEBHOOK_LOGS=$(ssh $SSH_ALIAS "docker logs $CONTAINER_NAME --tail 30 2>&1 | grep -i 'webhook\|provider detected'" || true)
+  fi
+
+  # Check if logs contain correct provider detection (kie-wan for Veo 3, not kie-ai!)
+  if echo "$WEBHOOK_LOGS" | grep -q "kie-wan\|kie-veed\|kie-sora"; then
+    echo -e "${GREEN}✅ Webhook provider correctly detected!${NC}"
+    echo ""
+    echo "$WEBHOOK_LOGS" | head -5
+  else
+    echo -e "${YELLOW}⚠️  Warning: Webhook provider detection unclear${NC}"
+    echo "   Recent logs:"
+    echo "$WEBHOOK_LOGS" | head -10
+  fi
+else
+  echo -e "${RED}❌ WEBHOOK CHECK FAILED! HTTP Code: ${HTTP_CODE:-ERROR}${NC}"
+  echo ""
+  echo "Response:"
+  echo "$WEBHOOK_RESPONSE"
+  echo ""
+  echo -e "${RED}❌ DEPLOYMENT ABORTED - Webhook не работает!${NC}"
+  echo "   Без webhook бот бесполезен. Проверьте логи:"
+  if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
+    docker logs $CONTAINER_NAME --tail 100
+  else
+    echo "   ssh $SSH_ALIAS 'docker logs $CONTAINER_NAME --tail 100'"
+  fi
+  exit 1
+fi
+
+echo ""
 echo "======================================"
 echo -e "${GREEN}🎉 DEPLOYMENT SUCCESSFUL!${NC}"
 echo "======================================"
