@@ -130,32 +130,34 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
   echo "⏱️  Время сборки: ${DURATION} секунд ($(($DURATION / 60))м $(($DURATION % 60))с)"
 else
   # Remote build
-  ssh $SSH_ALIAS 'bash -s' << ENDSSH
+  ssh $SSH_ALIAS bash -c "
 cd /root/999-agents-telegraf
 
-echo "📦 СТАРТ BUILD: \$(date +%H:%M:%S)"
+echo '📦 СТАРТ BUILD: '\$(date +%H:%M:%S)
 START=\$(date +%s)
 
 export DOCKER_BUILDKIT=1
+set -o pipefail  # Make pipe fail if docker build fails
+
 if ! docker build \
   -t $CONTAINER_NAME:latest \
   --progress=plain \
   . 2>&1 | tail -30; then
-  echo "❌ Docker build FAILED!"
+  echo '❌ Docker build FAILED!'
   exit 1
 fi
 
 END=\$(date +%s)
 DURATION=\$((END - START))
 
-echo ""
-echo "✅ ГОТОВО: \$(date +%H:%M:%S)"
-echo "⏱️  Время сборки: \${DURATION} секунд (\$((\$DURATION / 60))м \$((\$DURATION % 60))с)"
-echo ""
+echo ''
+echo '✅ ГОТОВО: '\$(date +%H:%M:%S)
+echo '⏱️  Время сборки: '\${DURATION}' секунд ('\$((\$DURATION / 60))'м '\$((\$DURATION % 60))'с)'
+echo ''
 
-echo "📊 Image info:"
-docker images | grep "$CONTAINER_NAME"
-ENDSSH
+echo '📊 Image info:'
+docker images | grep $CONTAINER_NAME
+"
 
   if [ $? -ne 0 ]; then
     echo -e "${RED}❌ Docker build FAILED! Aborting deployment.${NC}"
