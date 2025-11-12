@@ -137,10 +137,13 @@ echo "📦 СТАРТ BUILD: \$(date +%H:%M:%S)"
 START=\$(date +%s)
 
 export DOCKER_BUILDKIT=1
-docker build \
+if ! docker build \
   -t $CONTAINER_NAME:latest \
   --progress=plain \
-  . 2>&1 | tail -30
+  . 2>&1 | tail -30; then
+  echo "❌ Docker build FAILED!"
+  exit 1
+fi
 
 END=\$(date +%s)
 DURATION=\$((END - START))
@@ -153,6 +156,11 @@ echo ""
 echo "📊 Image info:"
 docker images | grep "$CONTAINER_NAME"
 ENDSSH
+
+  if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Docker build FAILED! Aborting deployment.${NC}"
+    exit 1
+  fi
 fi
 
 echo ""
@@ -171,6 +179,7 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
     --name $CONTAINER_NAME \
     --restart=unless-stopped \
     -p 2999:2999 \
+    -p 3001:3001 \
     --env-file .env \
     $CONTAINER_NAME:latest
 
@@ -191,6 +200,7 @@ docker run -d \
   --name $CONTAINER_NAME \
   --restart=always \
   -p 2999:2999 \
+  -p 3001:3001 \
   -v /root/999-agents-telegraf/.env:/app/.env:ro \
   $CONTAINER_NAME:latest
 
