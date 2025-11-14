@@ -2,7 +2,7 @@
 
 ## 🔍 Problem
 
-Model training was previously handled by **external AI server** (Railway), causing:
+Model training was previously handled by **external AI server** (Render Server), causing:
 - Extra network latency (bot → AI server → Replicate)
 - Additional server costs
 - Dependency on external service availability
@@ -17,7 +17,7 @@ Model training was previously handled by **external AI server** (Railway), causi
 ### Before (OLD):
 ```
 User → Bot-Farm → AI Server → Replicate
-        (Docker)   (Railway)   (Training)
+        (Docker)   (Render Server)   (Training)
 ```
 
 ### After (NEW):

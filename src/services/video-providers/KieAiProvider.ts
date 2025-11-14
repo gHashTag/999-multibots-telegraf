@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios'
 import { logger } from '@/utils/logger'
+import { getAvailableCallbackUrl } from '@/utils/webhookHealthCheck'
 
 interface KieAiCredits {
   credits: number
@@ -17,6 +18,7 @@ interface KieAiVideoRequest {
   duration?: number
   aspectRatio?: '16:9' | '9:16' | '1:1'
   imageUrl?: string
+  telegram_id?: string | number
 }
 
 interface KieAiVideoResponse {
@@ -253,6 +255,7 @@ export class KieAiProvider {
     const isSoraModel = model.includes('sora')
     const isVeoModel = model.includes('veo')
     const isRunwayModel = model.includes('runway')
+    const isWanModel = model.includes('wan')
 
     // Преобразуем название модели в формат Kie.ai
     let kieModel = model
@@ -333,35 +336,194 @@ export class KieAiProvider {
     } else if (model === 'runway-aleph') {
       kieModel = 'runway_aleph'
       provider = 'Runway API'
+    } else if (isWanModel) {
+      // WAN 2.5 models use Jobs API
+      if (model === 'wan-2.5-t2v') {
+        kieModel = 'wan/2-5-text-to-video'
+        provider = 'WAN 2.5 API'
+        endpoint = '/jobs/createTask'
+        logger.info('[KieAiProvider] WAN 2.5 T2V selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          mode: 'text-to-video',
+          duration: duration || 5,
+        })
+      } else if (model === 'wan-2.5-i2v') {
+        kieModel = 'wan/2-5-image-to-video'
+        provider = 'WAN 2.5 API'
+        endpoint = '/jobs/createTask'
+        logger.info('[KieAiProvider] WAN 2.5 I2V selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: 'image-to-video',
+          duration: duration || 5,
+        })
+      }
     }
-    
-    // ✅ FIX: For Sora I2V models, use the dedicated jobs API method
+
+    // ✅ FIX: Handle async generation models using Jobs API
     if (endpoint === '/jobs/createTask') {
-      logger.info('[KieAiProvider] Using Sora jobs API for I2V generation:', {
+      logger.info('[KieAiProvider] Using jobs API for async generation:', {
         model: kieModel,
         hasImage: !!imageUrl,
         promptLength: prompt.length
       })
 
-      // Delegate to generateSoraVideo method which handles jobs API properly
-      return await this.generateSoraVideo(
-        prompt,
-        kieModel as any,
-        aspectRatio === '9:16' ? 'portrait' : 'landscape',
-        false, // removeWatermark
-        10, // duration
-        'standard', // size
-        imageUrl
-      )
+      // Delegate to generateSoraVideo method for Sora models
+      if (isSoraModel) {
+        return await this.generateSoraVideo(
+          prompt,
+          kieModel as any,
+          aspectRatio === '9:16' ? 'portrait' : 'landscape',
+          true, // removeWatermark - по умолчанию БЕЗ ватермарки
+          10, // duration
+          'standard', // size
+          imageUrl,
+          request.telegram_id // ✅ Передаём telegram_id для callback URL
+        )
+      }
     }
 
-    // Формируем правильный callback URL из переменной окружения
-    const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
-      : undefined
+    // ✅ FIX: Handle WAN models separately using /jobs/createTask
+    if (endpoint === '/jobs/createTask') {
+      logger.info('[KieAiProvider] Using WAN Jobs API:', {
+        model: kieModel,
+        hasImage: !!imageUrl,
+        promptLength: prompt.length,
+        duration: duration || 5,
+        resolution: '720p'
+      })
+
+      // 🛡️ BULLETPROOF: Check webhook availability before sending request
+      const callbackUrl = await getAvailableCallbackUrl(request.telegram_id)
+
+      // WAN 2.5 имеет лимит на длину промпта - обрезаем до 500 символов
+      const maxPromptLength = 500
+      const truncatedPrompt = prompt.length > maxPromptLength
+        ? prompt.substring(0, maxPromptLength) + '...'
+        : prompt
+
+      if (prompt.length > maxPromptLength) {
+        logger.warn('[KieAiProvider] Prompt truncated for WAN API:', {
+          originalLength: prompt.length,
+          truncatedLength: truncatedPrompt.length,
+          maxLength: maxPromptLength
+        })
+      }
+
+      const wanRequestData: any = {
+        model: kieModel,
+        input: {
+          prompt: truncatedPrompt,
+          duration: String(duration || 5), // "5" или "10"
+          resolution: '720p', // "720p" или "1080p"
+          enable_prompt_expansion: true,
+        }
+      }
+
+      // Для I2V добавляем изображение
+      if (imageUrl && model === 'wan-2.5-i2v') {
+        wanRequestData.input.image_url = imageUrl
+      }
+
+      if (callbackUrl) {
+        wanRequestData.callBackUrl = callbackUrl
+      }
+
+      logger.info('[KieAiProvider] WAN request data prepared:', {
+        model: wanRequestData.model,
+        inputKeys: Object.keys(wanRequestData.input),
+        hasCallback: !!callbackUrl,
+        duration: wanRequestData.input.duration,
+        resolution: wanRequestData.input.resolution
+      })
+
+      try {
+        const response = await this.makeRequest<KieAiApiResponse<{ taskId: string }>>(
+          endpoint,
+          wanRequestData
+        )
+
+        logger.info('[KieAiProvider] WAN API response received:', {
+          hasData: !!response.data,
+          taskId: response.data?.taskId,
+          code: response.code
+        })
+
+        // ✅ Проверяем code ПЕРЕД проверкой data
+        if (response.code !== 200) {
+          logger.error('[KieAiProvider] WAN API returned error code:', {
+            code: response.code,
+            msg: response.msg,
+            isInsufficientCredits: response.code === 402
+          })
+
+          return {
+            success: false,
+            error: `${response.msg || 'WAN API error'} (code: ${response.code})`,
+            cost: { usd: 0, stars: 0 },
+            provider: 'WAN 2.5 API',
+            model: kieModel
+          } as KieAiVideoResponse
+        }
+
+        // WAN Jobs API возвращает taskId для асинхронной генерации
+        if (response.data && response.data.taskId) {
+          return {
+            success: true,
+            data: {
+              taskId: response.data.taskId,
+              videoUrl: '', // Видео будет готово позже
+              duration: duration || 5
+            },
+            cost: {
+              usd: 0.32, // Минимальная цена для WAN 2.5 (720p 5s)
+              stars: 19
+            },
+            provider: 'WAN 2.5 API',
+            model: kieModel
+          }
+        }
+
+        logger.error('[KieAiProvider] WAN API returned unexpected format:', {
+          responseData: response
+        })
+
+        return {
+          success: false,
+          error: 'WAN API returned unexpected response format',
+          cost: { usd: 0, stars: 0 },
+          provider: 'WAN 2.5 API',
+          model: kieModel
+        }
+      } catch (error: any) {
+        logger.error('[KieAiProvider] WAN API request failed:', {
+          error: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+        })
+
+        return {
+          success: false,
+          error: error.response?.data?.msg || error.message,
+          cost: { usd: 0, stars: 0 },
+          provider: 'WAN 2.5 API',
+          model: kieModel
+        }
+      }
+    }
+
+    // 🛡️ BULLETPROOF: Check webhook availability BEFORE sending request to Kie.ai
+    const callbackUrl = await getAvailableCallbackUrl(request.telegram_id)
 
     if (!callbackUrl) {
-      logger.warn('[KieAiProvider] BASE_WEBHOOK_URL not set - webhook notifications will not work')
+      logger.warn('[KieAiProvider] No webhook URLs available - webhook notifications will not work')
+    } else {
+      logger.info('[KieAiProvider] Using callback URL', {
+        url: callbackUrl.substring(0, 50) + '...',
+        hasTelegramId: !!request.telegram_id
+      })
     }
 
     const requestData: any = {
@@ -682,10 +844,11 @@ export class KieAiProvider {
     prompt: string = '',
     model: 'sora-2-text-to-video' | 'sora-2-pro-text-to-video' | 'sora-2-image-to-video' | 'sora-2-pro-image-to-video' = 'sora-2-text-to-video',
     aspectRatio: 'landscape' | 'portrait' = 'landscape',
-    removeWatermark: boolean = false,
+    removeWatermark: boolean = true,
     duration: 10 | 15 = 10,
     size: 'standard' | 'high' = 'standard',
-    imageUrl?: string
+    imageUrl?: string,
+    telegram_id?: string | number
   ): Promise<KieAiVideoResponse> {
     if (!this.apiKey) {
       return {
@@ -702,10 +865,8 @@ export class KieAiProvider {
     const isPro = model.includes('pro')
     const provider = isPro ? 'Sora 2 Pro API' : 'Sora 2 API'
 
-    // Generate callback URL if webhook infrastructure exists
-    const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/sora-callback`
-      : undefined
+    // 🛡️ BULLETPROOF: Check webhook availability BEFORE sending Sora request
+    const callbackUrl = await getAvailableCallbackUrl(telegram_id)
 
     const requestData: SoraCreateTaskRequest = {
       model,

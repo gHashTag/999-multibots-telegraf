@@ -5,7 +5,10 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
-// 🕉️ УНИФИЦИРОВАНО: Используем только API_SERVER_URL (не используется в этой функции, но оставлено для совместимости)
+// Используем заглушку, если переменная не установлена
+const PUBLIC_URL =
+  process.env.SERVER_PUBLIC_URL ||
+  'https://three-head-dragon.shop'
 
 export async function generateNeuroImage(
   prompt: string,
@@ -51,17 +54,18 @@ export async function generateNeuroImage(
       numImages,
       telegram_id,
       ctx,
-      botName
+      botName,
+      undefined // explicitAspectRatio is optional
     )
     logger.info('Neuro image generation response received', {
       hasData: !!response?.data,
       dataType: typeof response?.data,
     })
-    
+
     if (!response || !response.data) {
       return null
     }
-    
+
     // Функция generateNeuroPhotoHybrid возвращает { data: string; success: boolean; urls?: string[] }
     // Но generateNeuroImage должна вернуть { data: string }
     return { data: response.data }

@@ -14,7 +14,7 @@
 
 После анализа выяснилось:
 - ✅ Inngest functions - УЖЕ ЕСТЬ
-- ✅ Render functions - работают на Railway (внешний сервер)
+- ✅ Render functions - работают на Render Server (внешний сервер)
 - ✅ Core modules - УЖЕ МИГРИРОВАНЫ
 - ✅ ElevenLabs - УЖЕ ЕСТЬ
 - ✅ Supabase - УЖЕ ЕСТЬ (40+ файлов)
@@ -31,7 +31,7 @@
 | generateAIReelsFunction | `src/inngest_app/functions/` | ✅ Working |
 | generateModelTrainingFunction | `src/inngest_app/functions/` | ✅ Working |
 | generateAdvancedLoopingVideoFunction | `src/inngest_app/functions/` | ✅ Working |
-| render-server-client | `src/inngest_app/` | ✅ Connects to Railway |
+| render-server-client | `src/inngest_app/` | ✅ Connects to Render Server |
 | core/supabase | `src/core/supabase/` | ✅ 40+ files |
 | core/elevenlabs | `src/core/elevenlabs/` | ✅ Complete |
 | core/lipsync | `src/core/lipsync/` | ✅ All providers |
@@ -45,7 +45,7 @@
 ### ❌ NOT NEEDED (Don't migrate)
 | Component | Reason |
 |-----------|--------|
-| Render functions from ai-server | Already on Railway server |
+| Render functions from ai-server | Already on Render Server server |
 | 38 services from ai-server | Not used by bot-farm |
 | 17 controllers | Not used |
 | 17 routes | Not used |
@@ -94,7 +94,7 @@ app.post('/webhooks/replicate', async (req, res) => {
 - Updated after actual usage analysis
 - 99% already in telegraf
 - Changed from "migrate" to "verify"
-- Render functions on Railway (not local)
+- Render functions on Render Server (not local)
 
 ### v1.0 (2025-10-30) - OBSOLETE
 - Initial plan (before analysis)
@@ -175,7 +175,7 @@ git push
 4. ✅ Keep this plan updated
 
 ### DON'T:
-1. ❌ Migrate render functions (on Railway)
+1. ❌ Migrate render functions (on Render Server)
 2. ❌ Migrate unused services
 3. ❌ Migrate "just in case"
 4. ❌ Spend time on unused code
@@ -198,7 +198,7 @@ bot-farm (telegraf)
 Local Inngest + Core modules
     ↓
 External Services:
-- Railway (render)
+- Render Server (render)
 - Replicate (models)
 - Supabase (data)
 
@@ -223,8 +223,8 @@ ai-server: mostly unused ✓
 
 ### If Render Stops Working:
 ```bash
-# Check Railway server status
-curl https://render-v3-production.up.railway.app/health
+# Check Render Server server status
+curl https://render-v3-production.up.render-server (local)/health
 
 # Check client configuration
 grep RENDER_SERVER src/inngest_app/render-server-client.ts

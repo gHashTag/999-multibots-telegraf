@@ -361,6 +361,7 @@ credentials.json
 service-account.json
 id_rsa*
 id_dsa*
+zomro*
 known_hosts
 authorized_keys
 *.keystore
@@ -390,28 +391,28 @@ audit-results.json
 secrets-scan.json
 .secrets.baseline
 
-# Claude Flow generated files
-.claude/settings.local.json
-.mcp.json
-claude-flow.config.json
-.swarm/
-.hive-mind/
-memory/claude-flow-data.json
-memory/sessions/*
-!memory/sessions/README.md
-memory/agents/*
-!memory/agents/README.md
-coordination/memory_bank/*
-coordination/subtasks/*
-coordination/orchestration/*
 *.db
 *.db-journal
 *.db-wal
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
-claude-flow
-claude-flow.bat
-claude-flow.ps1
-hive-mind-prompt-*.txt
 !/.env.example
+
+# Claude Flow artifacts (не используется)
+.claude-flow/
+.hive-mind/
+.swarm/
+memory/
+
+# Expo & React Native
+mobile/.expo/
+mobile/.expo-shared/
+mobile/dist/
+mobile/web-build/
+mobile/node_modules/
+*.jks
+*.p8
+*.mobileprovision
+*.orig.*
+.metro-health-check*

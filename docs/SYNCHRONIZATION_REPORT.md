@@ -151,9 +151,9 @@ npx ts-node tests/test-inngest-provider.ts
    ```typescript
    await inngestProvider.sendEvent('RENDER', 'render/avatar-video', payload)
    ```
-5. **Inngest Cloud** → вызывает функцию на Railway render-server
-6. **Railway** → рендерит видео
-7. **Railway** → отправляет callback на `/api/telegram/ai-reels-callback`
+5. **Inngest Cloud** → вызывает функцию на Render Server
+6. **Render Server** → рендерит видео
+7. **Render Server** → отправляет callback на `/api/telegram/ai-reels-callback`
 8. **Webhook** → скачивает видео и отправляет пользователю
 
 ### ENV переменные:
@@ -245,7 +245,7 @@ return ctx.wizard.next()
 ## 📚 ДОПОЛНИТЕЛЬНЫЕ ФАЙЛЫ
 
 ### Ветка render-template-2-4 также содержит:
-- `ai-reels-callback.routes.ts` - обработчик webhook от Railway
+- `ai-reels-callback.routes.ts` - обработчик webhook от Render Server
 - Множество тестов для различных сценариев
 - Полная документация по архитектуре
 

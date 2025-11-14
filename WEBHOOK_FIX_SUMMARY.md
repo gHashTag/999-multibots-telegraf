@@ -8,7 +8,7 @@
 
 ## 🎯 ПРОБЛЕМА
 
-Railway render-server не мог доставить webhook callback:
+Render Server не мог доставить webhook callback:
 ```
 httpx.HTTPStatusError: Server error '502 Bad Gateway' for url 'https://three-head-dragon.shop/api/telegram/ai-reels-callback'
 ```
@@ -233,7 +233,7 @@ curl https://three-head-dragon.shop/api/telegram/ai-reels-callback
 - `https://three-head-dragon.shop/api/telegram/ai-reels-callback` ✅
 - `https://three-head-dragon.shop/health` ✅
 
-**Система готова к приему webhook callbacks от Railway render-server.**
+**Система готова к приему webhook callbacks от Render Server.**
 
 ---
 

@@ -304,17 +304,52 @@ export const sendMediaToPulse = async (
             telegramId: rawTelegramId,
             textMessageLength: textMessage.length,
           })
+
+          // ✅ TELEGRAM LIMIT: 4096 символов
+          const TELEGRAM_MESSAGE_LIMIT = 4096
+
           try {
-            await pulseBot.telegram.sendMessage(chatId, textMessage, {
-              parse_mode: 'HTML',
-              link_preview_options: { is_disabled: true },
-            })
-            logger.info({
-              message: '✅ [pulse] Текст с промптом успешно отправлен (HTML)',
-              description: 'Text message with prompt sent successfully (HTML)',
-              telegramId: rawTelegramId,
-              parseMode: 'HTML', // Обновляем лог
-            })
+            // Если сообщение слишком длинное - разбиваем на части
+            if (textMessage.length > TELEGRAM_MESSAGE_LIMIT) {
+              logger.warn({
+                message: '⚠️ [pulse] Сообщение слишком длинное, разбиваем на части',
+                description: 'Message too long, splitting into chunks',
+                telegramId: rawTelegramId,
+                messageLength: textMessage.length,
+                limit: TELEGRAM_MESSAGE_LIMIT,
+              })
+
+              // Отправляем первую часть (заголовок + начало промпта)
+              const headerText = textMessage.substring(0, TELEGRAM_MESSAGE_LIMIT - 100) + '\n\n...(продолжение в следующем сообщении)'
+              await pulseBot.telegram.sendMessage(chatId, headerText, {
+                parse_mode: 'HTML',
+                link_preview_options: { is_disabled: true },
+              })
+
+              // Отправляем продолжение промпта (без HTML форматирования)
+              const remainingText = '...(продолжение):\n\n' + escapedPromptForHTML.substring(TELEGRAM_MESSAGE_LIMIT - 500)
+              await pulseBot.telegram.sendMessage(chatId, remainingText, {
+                link_preview_options: { is_disabled: true },
+              })
+
+              logger.info({
+                message: '✅ [pulse] Длинное сообщение отправлено частями',
+                description: 'Long message sent in chunks',
+                telegramId: rawTelegramId,
+              })
+            } else {
+              // Сообщение влезает целиком
+              await pulseBot.telegram.sendMessage(chatId, textMessage, {
+                parse_mode: 'HTML',
+                link_preview_options: { is_disabled: true },
+              })
+              logger.info({
+                message: '✅ [pulse] Текст с промптом успешно отправлен (HTML)',
+                description: 'Text message with prompt sent successfully (HTML)',
+                telegramId: rawTelegramId,
+                parseMode: 'HTML',
+              })
+            }
           } catch (textError) {
             logger.error({
               message:
@@ -328,20 +363,27 @@ export const sendMediaToPulse = async (
               stack: textError instanceof Error ? textError.stack : undefined,
               telegramId: rawTelegramId,
               textMessageAttempted: textMessage.substring(0, 500) + '...',
-              parseMode: 'HTML', // Обновляем лог
+              parseMode: 'HTML',
             })
-            // ---> УПРОЩЕННЫЙ FALLBACK: Повторная попытка без parse_mode
+            // ---> УПРОЩЕННЫЙ FALLBACK: Обрезаем промпт и отправляем без форматирования
             try {
               logger.warn({
                 message:
-                  '⚠️ [pulse] Повторная попытка отправки текста без форматирования' /* ... */,
+                  '⚠️ [pulse] Повторная попытка с обрезанным промптом' /* ... */,
               })
-              await pulseBot.telegram.sendMessage(chatId, textMessage, {
+
+              // Обрезаем промпт до безопасного размера
+              const truncatedPrompt = prompt.substring(0, 2000) + '...(обрезано)'
+              const safeTextMessage = isRussian
+                ? `@${username} Telegram ID: ${telegramId} сгенерировал изображение.\n\n📝 Промпт (обрезан):\n${truncatedPrompt}`
+                : `@${username} Telegram ID: ${telegramId} generated an image.\n\n📝 Prompt (truncated):\n${truncatedPrompt}`
+
+              await pulseBot.telegram.sendMessage(chatId, safeTextMessage, {
                 link_preview_options: { is_disabled: true },
               })
               logger.info({
                 message:
-                  '✅ [pulse] Текст с промптом успешно отправлен (без форматирования)' /* ... */,
+                  '✅ [pulse] Обрезанный текст успешно отправлен' /* ... */,
               })
             } catch (retryError) {
               logger.error({

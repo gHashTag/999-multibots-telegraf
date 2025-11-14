@@ -61,16 +61,16 @@ AttributeError: 'HedraAvatarSettings' object has no attribute 'avatar_id'
 
 ## 📅 2025-01-22 - Исправление использования RENDER_SERVER_URL
 
-**Проблема:** Переменная `RENDER_SERVER_URL` была определена, но не использовалась в коде. Все запросы шли через Inngest Cloud, а не напрямую на Railway render-server.
+**Проблема:** Переменная `RENDER_SERVER_URL` была определена, но не использовалась в коде. Все запросы шли через Inngest Cloud, а не напрямую на Render Server.
 
 **Решение:**
 1. Добавлена функция `sendDirectToRenderServer()` для прямых запросов
 2. Добавлена функция `createInngestSignature()` для аутентификации
-3. Теперь `RENDER_SERVER_URL` используется для прямых запросов к Railway
+3. Теперь `RENDER_SERVER_URL` используется для прямых запросов к Render Server
 4. Предоставлена альтернатива Inngest Cloud маршрутизации
 
 **Ключевой паттерн успеха:**
-- Прямые HTTP запросы к Railway render-server
+- Прямые HTTP запросы к Render Server
 - Правильная аутентификация через Inngest подпись
 - Альтернативные пути для отправки событий
 

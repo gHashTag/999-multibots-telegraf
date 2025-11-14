@@ -38,19 +38,19 @@ When invoked, perform these checks **in parallel** using a single message with m
 
 ```bash
 # Container status and uptime
-ssh -i ~/.ssh/zomro root@212.86.115.30 'docker ps | grep 999-multibots'
+ssh -i ~/.ssh/zomro root@188.137.250.69 'docker ps | grep 999-multibots'
 
 # Resource usage
-ssh -i ~/.ssh/zomro root@212.86.115.30 'docker stats 999-multibots --no-stream'
+ssh -i ~/.ssh/zomro root@188.137.250.69 'docker stats 999-multibots --no-stream'
 
 # Critical errors (last 500 lines)
-ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 500 2>&1 | grep -E "(Error|Exception|TypeError|ReferenceError|failed|ECONNREFUSED|ETIMEDOUT|UnhandledPromiseRejection|Fatal|Crash|Terminated)" | head -20'
+ssh -i ~/.ssh/zomro root@188.137.250.69 'docker logs 999-multibots --tail 500 2>&1 | grep -E "(Error|Exception|TypeError|ReferenceError|failed|ECONNREFUSED|ETIMEDOUT|UnhandledPromiseRejection|Fatal|Crash|Terminated)" | head -20'
 
 # AI Photoshop functionality check
-ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots 2>&1 | grep -i "wasAllModels\|all_models.*restored" | tail -10'
+ssh -i ~/.ssh/zomro root@188.137.250.69 'docker logs 999-multibots 2>&1 | grep -i "wasAllModels\|all_models.*restored" | tail -10'
 
 # Recent meaningful activity
-ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots 2>&1 | tail -100 | grep -v "Запрос к Supabase\|Нет уведомлений" | head -20'
+ssh -i ~/.ssh/zomro root@188.137.250.69 'docker logs 999-multibots 2>&1 | tail -100 | grep -v "Запрос к Supabase\|Нет уведомлений" | head -20'
 ```
 
 ## Output Format

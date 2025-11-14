@@ -34,7 +34,7 @@ const url = `https://api.inngest.com/e/${eventKey}`  // ← 404 Not Found
 INNGEST_EVENT_KEY=akoHhkQS3NGSQhDzcosD7o-0dGSJ9PWLiGol-fi5QMnZOG5XpvuxGBlnh_an9VQ0ygwA4BZEa3lfjKlbgm3U2A
 INNGEST_SIGNING_KEY=signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435923a1b613563c4666c82c047
 
-# RENDER Instance (render-server на Railway)
+# RENDER Instance (render-server на Render Server)
 INNGEST_EVENT_KEY_RENDER=n6DddAUg5idycTbtQGP7lXn6FCoIDcEkAdlX72WmC5k_GJcrjBFm4n_aCNmInAh_zQ2Yd070y4gzPeYnJTUadA
 INNGEST_SIGNING_KEY_RENDER=signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435923a1b613563c4666c82c047
 ```
@@ -47,7 +47,7 @@ INNGEST_SIGNING_KEY_RENDER=signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435
    - Для AI Reels функций
    - Event name: `ai-reels/generate`
 
-2. **RENDER** - render-server (Railway)
+2. **RENDER** - render-server (Render Server)
    - Для Hedra/HeyGen avatar генерации
    - Event name: `render/avatar-video`
 
@@ -228,8 +228,8 @@ await ctx.reply(
 ## 7. 🔗 ПОЛЕЗНЫЕ ССЫЛКИ
 
 - **Inngest Dashboard:** https://app.inngest.com
-- **Render Server:** https://render-v3-production.up.railway.app
-- **Railway Dashboard:** https://railway.app
+- **Render Server:** https://render-v3-production.up.render-server (local)
+- **Render Server Dashboard:** https://render-server (local)
 - **Inngest Docs:** https://www.inngest.com/docs
 
 ---
@@ -242,7 +242,7 @@ await ctx.reply(
 - [ ] Протестирован через `npx tsx tests/test-correct-inngest-url.ts`
 - [ ] Проверено в Inngest Dashboard что события доставляются
 - [ ] Webhook endpoint настроен: `/api/telegram/ai-reels-callback`
-- [ ] Railway logs мониторятся: `railway logs --tail`
+- [ ] Render Server logs мониторятся: `railway logs --tail`
 
 ---
 
@@ -282,7 +282,7 @@ railway logs --service render-v3-production --tail
 | BOT Event Key | `akoHhkQS3NGSQhDzcosD7o-0dGSJ9...` |
 | RENDER Event Key | `n6DddAUg5idycTbtQGP7lXn6FCoIDc...` |
 | Signing Key | `signkey-prod-e2c2d07a9d030695...` |
-| Render Server | `https://render-v3-production.up.railway.app` |
+| Render Server | `https://render-v3-production.up.render-server (local)` |
 | Event BOT | `ai-reels/generate` |
 | Event RENDER | `render/avatar-video` |
 

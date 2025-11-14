@@ -14,12 +14,12 @@ import {
   AudioResult,
   FaceSwapRequest,
   FaceSwapResult,
-  ProviderConfig
+  ProviderConfig,
+  HealthStatus,
+  Balance
 } from '../../../core/functional/types/media.types'
 import type {
   Provider,
-  HealthStatus,
-  Balance,
   RateLimit,
   HealthCheck,
   GetBalance,
@@ -27,9 +27,9 @@ import type {
   GenerateImage,
   GenerateAudio,
   PerformFaceSwap,
-  ProviderError,
-  createProviderError
+  ProviderError
 } from './types'
+import { createProviderError } from './types'
 import type { ProviderOperation } from './types'
 
 // ===== CONFIG VALIDATION =====
@@ -97,23 +97,24 @@ const buildVideoPayload = (request: VideoRequest) => {
   return payload
 }
 
-const handleVideoResponse = (data: any): VideoResult => ({
+const handleVideoResponse = (data: any, request: VideoRequest, providerName: any): VideoResult => ({
   videoUrl: data.video_url || data.videoUrl,
   taskId: data.task_id || data.taskId,
-  provider: 'kie-ai' as const,
+  provider: providerName,
   duration: data.duration || request.duration,
-  metadata: data.metadata || {}
+  metadata: data.metadata || {},
+  cost: data.cost || { usd: 0, stars: 0 }
 })
 
 export const generateVideo = (config: ProviderConfig): GenerateVideo =>
-  async (request: VideoRequest): Promise<Either<Error, VideoResult>> => {
+  (request: VideoRequest) => async () => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildVideoPayload(request)
       const response = await http.post('/api/v1/video/generate', payload)
 
-      return right(handleVideoResponse(response))
+      return right(handleVideoResponse(response, request, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'kie-ai',
@@ -141,24 +142,24 @@ const buildImagePayload = (request: ImageRequest) => {
   return payload
 }
 
-const handleImageResponse = (data: any): ImageResult => ({
+const handleImageResponse = (data: any, request: ImageRequest, providerName: any): ImageResult => ({
   imageUrl: data.image_url || data.imageUrl,
   taskId: data.task_id || data.taskId,
-  provider: 'kie-ai' as const,
+  provider: providerName,
   width: data.width || 512,
   height: data.height || 512,
   metadata: data.metadata || {}
 })
 
 export const generateImage = (config: ProviderConfig): GenerateImage =>
-  async (request: ImageRequest): Promise<Either<Error, ImageResult>> => {
+  (request: ImageRequest) => async () => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildImagePayload(request)
       const response = await http.post('/api/v1/image/generate', payload)
 
-      return right(handleImageResponse(response))
+      return right(handleImageResponse(response, request, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'kie-ai',
@@ -184,23 +185,23 @@ const buildAudioPayload = (request: AudioRequest) => {
   return payload
 }
 
-const handleAudioResponse = (data: any): AudioResult => ({
+const handleAudioResponse = (data: any, request: AudioRequest, providerName: any): AudioResult => ({
   audioUrl: data.audio_url || data.audioUrl,
   taskId: data.task_id || data.taskId,
-  provider: 'kie-ai' as const,
+  provider: providerName,
   duration: data.duration || 5,
   metadata: data.metadata || {}
 })
 
 export const generateAudio = (config: ProviderConfig): GenerateAudio =>
-  async (request: AudioRequest): Promise<Either<Error, AudioResult>> => {
+  (request: AudioRequest) => async () => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildAudioPayload(request)
       const response = await http.post('/api/v1/audio/generate', payload)
 
-      return right(handleAudioResponse(response))
+      return right(handleAudioResponse(response, request, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'kie-ai',
@@ -223,22 +224,22 @@ const buildFaceSwapPayload = (request: FaceSwapRequest) => {
   return payload
 }
 
-const handleFaceSwapResponse = (data: any): FaceSwapResult => ({
+const handleFaceSwapResponse = (data: any, providerName: any): FaceSwapResult => ({
   imageUrl: data.image_url || data.imageUrl,
   taskId: data.task_id || data.taskId,
-  provider: 'kie-ai' as const,
+  provider: providerName,
   metadata: data.metadata || {}
 })
 
 export const performFaceSwap = (config: ProviderConfig): PerformFaceSwap =>
-  async (request: FaceSwapRequest): Promise<Either<Error, FaceSwapResult>> => {
+  (request: FaceSwapRequest) => async () => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildFaceSwapPayload(request)
       const response = await http.post('/api/v1/face-swap', payload)
 
-      return right(handleFaceSwapResponse(response))
+      return right(handleFaceSwapResponse(response, config.name))
     } catch (error) {
       const providerError = createProviderError(
         'kie-ai',
@@ -253,7 +254,7 @@ export const performFaceSwap = (config: ProviderConfig): PerformFaceSwap =>
 // ===== HEALTH CHECK =====
 
 export const healthCheck = (config: ProviderConfig): HealthCheck =>
-  async (): Promise<Either<Error, HealthStatus>> => {
+  () => async () => {
     const http = createHttpClient(config)
 
     try {
@@ -283,7 +284,7 @@ export const healthCheck = (config: ProviderConfig): HealthCheck =>
 // ===== BALANCE CHECK =====
 
 export const getBalance = (config: ProviderConfig): GetBalance =>
-  async (): Promise<Either<Error, Balance>> => {
+  () => async () => {
     const http = createHttpClient(config)
 
     try {
@@ -305,7 +306,7 @@ export const getBalance = (config: ProviderConfig): GetBalance =>
 // ===== RATE LIMITER =====
 
 export const rateLimit = (config: ProviderConfig): RateLimit =>
-  async (request: any): Promise<Either<Error, void>> => {
+  (request: any) => async () => {
     // Simple rate limiting - could be enhanced with Redis
     const rateLimiter = (config.rateLimit?.requestsPerMinute || 60)
     const key = `${config.name}-${request.userId}`
@@ -321,10 +322,10 @@ export const createKieAiProvider = (config: ProviderConfig): Provider => {
   const validatedConfig = validateConfig(config)
 
   if (validatedConfig._tag === 'Left') {
-    throw validatedConfig.value
+    throw validatedConfig.left
   }
 
-  const validated = validatedConfig.value
+  const validated = validatedConfig.right
 
   return {
     name: 'kie-ai',

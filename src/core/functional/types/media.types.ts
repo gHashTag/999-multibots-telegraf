@@ -43,7 +43,7 @@ export type TaskId = t.TypeOf<typeof TaskId>
 export const VideoRequest = t.strict({
   prompt: t.string,
   model: ModelId,
-  duration: t.number.pipe(t.positive()),
+  duration: t.number,
   aspectRatio: t.union([
     t.literal('16:9'),
     t.literal('9:16'),
@@ -85,9 +85,9 @@ export type VideoResult = t.TypeOf<typeof VideoResult>
 export const ImageRequest = t.strict({
   prompt: t.string,
   model: ModelId,
-  width: t.union([t.number, t.undefined]).pipe(t.number),
-  height: t.union([t.number, t.undefined]).pipe(t.number),
-  numImages: t.union([t.number, t.undefined]).pipe(t.number.pipe(t.positive())),
+  width: t.union([t.number, t.undefined]),
+  height: t.union([t.number, t.undefined]),
+  numImages: t.union([t.number, t.undefined]),
   style: t.union([t.string, t.undefined]),
   imageUrl: t.union([t.string, t.undefined]),
   userId: UserId,
@@ -119,7 +119,7 @@ export const AudioRequest = t.strict({
   prompt: t.string,
   model: ModelId,
   voice_id: t.union([t.string, t.undefined]),
-  duration: t.union([t.number, t.undefined]).pipe(t.number),
+  duration: t.union([t.number, t.undefined]),
   language: t.union([t.string, t.undefined]),
   userId: UserId,
   metadata: t.union([
@@ -226,7 +226,7 @@ export const ProviderConfig = t.strict({
   name: ProviderName,
   apiKey: t.string,
   baseUrl: t.string,
-  timeout: t.union([t.number, t.undefined]).pipe(t.number),
+  timeout: t.union([t.number, t.undefined]),
   rateLimit: t.union([
     t.strict({
       requestsPerMinute: t.number
@@ -240,20 +240,21 @@ export type ProviderConfig = t.TypeOf<typeof ProviderConfig>
 // ===== PIPELINE CONFIG =====
 
 export const PipelineConfig = t.strict({
-  maxRetries: t.number.pipe(t.nonnegative()),
-  retryDelay: t.number.pipe(t.nonnegative()),
+  maxRetries: t.number,
+  retryDelay: t.number,
+  exponentialBase: t.union([t.number, t.undefined]),
   circuitBreaker: t.union([
     t.strict({
-      failureThreshold: t.number.pipe(t.positive()),
-      timeout: t.number.pipe(t.positive()),
-      resetTimeout: t.number.pipe(t.positive())
+      failureThreshold: t.number,
+      timeout: t.number,
+      resetTimeout: t.number
     }),
     t.undefined
   ]),
-  timeout: t.union([t.number, t.undefined]).pipe(t.number),
+  timeout: t.union([t.number, t.undefined]),
   cache: t.union([
     t.strict({
-      ttl: t.number.pipe(t.positive())
+      ttl: t.number
     }),
     t.undefined
   ])
@@ -299,3 +300,48 @@ export const isHealthy = (status: HealthStatus): boolean =>
 
 export const hasBalance = (balance: Balance): boolean =>
   balance.available > 0
+
+// ===== PROVIDER INTERFACE =====
+
+import { Either, TaskEither } from '../utils/result'
+
+export interface Provider<Req extends MediaRequest, Res extends MediaResult> {
+  readonly name: ProviderName
+  readonly capabilities: ProviderCapabilities
+
+  generate(request: Req): TaskEither<Error, Res>
+  healthCheck(): TaskEither<Error, HealthStatus>
+  getBalance(): TaskEither<Error, Balance>
+}
+
+// ===== PROVIDER REGISTRY =====
+
+export interface ProviderRegistry {
+  register<Req extends MediaRequest, Res extends MediaResult>(
+    provider: Provider<Req, Res>
+  ): void
+
+  get(name: ProviderName): Provider<any, any> | undefined
+
+  getByCapability(capability: MediaType): Provider<any, any>[]
+
+  getAll(): Provider<any, any>[]
+}
+
+// ===== CACHE INTERFACE =====
+
+export interface Cache<K = string, V = any> {
+  get(key: K): Promise<V | undefined>
+  set(key: K, value: V, ttl?: number): Promise<void>
+  delete(key: K): Promise<void>
+  clear(): Promise<void>
+  has(key: K): Promise<boolean>
+}
+
+// ===== CIRCUIT BREAKER CONFIG =====
+
+export interface CircuitBreakerConfig {
+  failureThreshold: number
+  timeout: number
+  resetTimeout: number
+}

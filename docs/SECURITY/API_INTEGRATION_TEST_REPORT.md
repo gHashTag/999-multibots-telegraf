@@ -3,7 +3,7 @@
 ## 📊 ОБЩИЕ РЕЗУЛЬТАТЫ
 
 **Дата тестирования:** 23 августа 2025  
-**Тестируемый сервер:** `https://ai-server-production-production-8e2d.up.railway.app`  
+**Тестируемый сервер:** `https://ai-server-production-production-8e2d.up.render-server (local)`  
 **Результат:** ✅ **8/8 ТЕСТОВ ПРОЙДЕНО**
 
 ---
@@ -25,7 +25,7 @@
    - ✅ Все workflow файлы на месте
 
 3. **Переменные окружения**
-   - ✅ `AI_SERVER_URL` настроен на новый Railway
+   - ✅ `AI_SERVER_URL` настроен на новый Render Server
    - ✅ `REPLICATE_API_TOKEN` присутствует в .env
 
 ### ⚠️ ТРЕБУЕТ ВНИМАНИЯ:

@@ -3,7 +3,7 @@
  *
  * Точка входа для выбора метода генерации AI Reels
  * - Локальная генерация (lip-sync + Google Veo 3.1 + merging)
- * - Render Server (Hedra/HeyGen через Railway)
+ * - Render Server (Hedra/HeyGen через Render Server)
  */
 
 import { Scenes, Markup } from 'telegraf'
@@ -178,10 +178,67 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
     logger.info('🎯 [AI REELS ENTRY] PROCESSING CALLBACK - choice extracted', {
       telegramId,
       choice,
+      choiceType: typeof choice,
+      choiceLength: choice?.length,
     })
 
     await ctx.answerCbQuery()
 
+    // ✅ ОБРАБОТКА ВЫБОРА СЕРВИСА (service_hedra_render, service_heygen_render, service_fal_render)
+    console.log('🔍 [AI REELS ENTRY] Checking service callbacks:', {
+      choice,
+      isHedra: choice === 'service_hedra_render',
+      isHeyGen: choice === 'service_heygen_render',
+      isFal: choice === 'service_fal_render',
+      isCancel: choice === 'ai_reels_cancel',
+    })
+
+    if (choice === 'service_hedra_render') {
+      logger.info('🎭 [AI REELS ENTRY] Routing to Hedra wizard', { telegramId })
+
+      // Очищаем сессию перед переходом
+      delete ctx.session.aiReelsRender
+      delete (ctx.session as any).__scenes
+
+      await ctx.scene.enter('hedra_render_wizard')
+      return
+    } else if (choice === 'service_heygen_render') {
+      logger.info('🎬 [AI REELS ENTRY] Routing to HeyGen wizard', { telegramId })
+
+      // Очищаем сессию перед переходом
+      delete ctx.session.aiReelsRender
+      delete (ctx.session as any).__scenes
+
+      await ctx.scene.enter('heygen_render_wizard')
+      return
+    } else if (choice === 'service_fal_render') {
+      console.log('🎯🎯🎯 [AI REELS ENTRY] FAL CONDITION HIT!')
+      logger.info('🎯 [AI REELS ENTRY] Routing to Fal wizard', { telegramId })
+
+      console.log('🎯 [AI REELS ENTRY] About to delete session...')
+      // Очищаем сессию перед переходом
+      delete ctx.session.aiReelsRender
+      delete (ctx.session as any).__scenes
+
+      console.log('🎯 [AI REELS ENTRY] About to enter fal_render_wizard scene...')
+      try {
+        await ctx.scene.enter('fal_render_wizard')
+        console.log('🎯 [AI REELS ENTRY] Scene entered successfully!')
+      } catch (error) {
+        console.error('❌ [AI REELS ENTRY] Error entering fal_render_wizard:', error)
+        logger.error('[AI REELS ENTRY] Error entering fal_render_wizard', { error })
+      }
+      return
+    } else if (choice === 'ai_reels_cancel') {
+      await ctx.reply(
+        isRu
+          ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+          : '❌ Process cancelled. Returning to main menu.'
+      )
+      return ctx.scene.leave()
+    }
+
+    // ✅ ОБРАБОТКА ВЫБОРА ШАБЛОНА (ai_reels_template_wan25, ai_reels_template_inngest)
     if (choice === 'ai_reels_template_wan25') {
       // Шаблон 1
       await ctx.editMessageText(
@@ -194,31 +251,52 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       await ctx.scene.enter('ai_reels_wizard')
       return
     } else if (choice === 'ai_reels_template_inngest') {
-      // Шаблон 2
-      logger.info('🎬 [AI REELS ENTRY] Entering Template 2 wizard', {
+      // Шаблон 2 - Выбор сервиса
+      logger.info('🎬 [AI REELS ENTRY] Template 2 - Service selection', {
         telegramId,
-        targetScene: 'ai_reels_render_wizard',
       })
 
       await ctx.editMessageText(
         isRu
-          ? '✅ Выбран Шаблон 2!\n\n⏳ Переходим к настройке...'
-          : '✅ Template 2 selected!\n\n⏳ Proceeding to setup...'
+          ? '✅ Выбран Шаблон 2!\n\n🎯 Выберите сервис для генерации аватара:\n\n' +
+              '🎭 <b>Hedra</b>\n' +
+              '• Загрузите свое фото\n' +
+              '• Быстрая генерация (2-3 мин)\n' +
+              '• Хорошее качество\n\n' +
+              '🎬 <b>HeyGen</b>\n' +
+              '• Готовые профессиональные аватары\n' +
+              '• Премиум качество (4-5 мин)\n' +
+              '• Выбор из коллекции\n\n' +
+              '🎯 <b>Fal (Fabric)</b>\n' +
+              '• Загрузите свое фото\n' +
+              '• Высокое качество lip-sync\n' +
+              '• Оптимальная скорость (3-4 мин)'
+          : '✅ Template 2 selected!\n\n🎯 Choose avatar generation service:\n\n' +
+              '🎭 <b>Hedra</b>\n' +
+              '• Upload your photo\n' +
+              '• Fast generation (2-3 min)\n' +
+              '• Good quality\n\n' +
+              '🎬 <b>HeyGen</b>\n' +
+              '• Ready professional avatars\n' +
+              '• Premium quality (4-5 min)\n' +
+              '• Choose from collection\n\n' +
+              '🎯 <b>Fal (Fabric)</b>\n' +
+              '• Upload your photo\n' +
+              '• High quality lip-sync\n' +
+              '• Optimal speed (3-4 min)',
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback(isRu ? '🎭 Hedra' : '🎭 Hedra', 'service_hedra_render')],
+            [Markup.button.callback(isRu ? '🎬 HeyGen' : '🎬 HeyGen', 'service_heygen_render')],
+            [Markup.button.callback(isRu ? '🎯 Fal (Fabric)' : '🎯 Fal (Fabric)', 'service_fal_render')],
+            [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_reels_cancel')],
+          ]),
+        }
       )
 
-      // ✅ ВАЖНО: Очищаем сессию wizard'а чтобы начать с Step 0
-      delete ctx.session.aiReelsRender
-      delete (ctx.session as any).__scenes
-
-      // Переходим к render wizard (Inngest)
-      await ctx.scene.enter('ai_reels_render_wizard')
-
-      logger.info('✅ [AI REELS ENTRY] Entered Inngest template wizard', {
-        telegramId,
-        currentScene: ctx.scene.current?.id,
-      })
-
-      return
+      // ✅ НЕ ПЕРЕХОДИМ к Step 2, остаемся на Step 1 для обработки следующего callback
+      return // Ждем callback с выбором сервиса
     } else {
       // Неизвестный выбор
       await ctx.reply(
@@ -228,14 +306,6 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       )
       return ctx.scene.leave()
     }
-
-    // Если не callback query, ждем
-    await ctx.reply(
-      isRu
-        ? '❌ Пожалуйста, выберите метод генерации из кнопок выше.'
-        : '❌ Please select generation method from buttons above.'
-    )
-    return ctx.scene.leave()
   }
 )
 

@@ -170,6 +170,7 @@ export type BotName =
   | 'Gaia_Kamskaia_bot'
   | 'ai_koshey_bot'
   | 'clip_maker_neuro_bot'
+  | 'helper_999_bot'
   | 'Kaya_easy_art_bot'
   | 'AI_STARS_bot'
   | 'TestNeurocoder_bot'
@@ -183,6 +184,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   selectedSize?: string
   bypass_payment_check?: boolean
   modelSelectionShown?: boolean
+  cancelHandled?: boolean
+  language_code?: string
   images: BufferType
   morphingImages?: {
     buffer: Buffer
@@ -245,7 +248,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   aiReelsRender?: {
     // Данные для AI Reels Render wizard (генерация через render-server с Hedra/HeyGen/Fal)
-    step?: 'image' | 'text' | 'intro_text' | 'intro_text_2' | 'avatar_service' | 'avatar_set_selection' | 'processing'
+    step?: 'image' | 'text' | 'intro_text' | 'intro_text_2' | 'avatar_service' | 'avatar_set_selection' | 'processing' | 'cover'
     imageUrl?: string
     text?: string
     audioUrl?: string
@@ -269,6 +272,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   paymentAmount?: number
   botName?: string
   selectedImageModel?: string
+  numImages?: number // Number of images to generate (1-4)
+  imageGenerationPrice?: number // Price for image generation
   promoProcessed?: boolean
   subscriptionStep?:
     | 'LOADING_TRANSLATIONS'

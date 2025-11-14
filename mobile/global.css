@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand colors */
+    --brand: #C6A94C;
+    --brand-color: #C6A94C;
+    --brand-light: #D4B55F;
+    --brand-dark: #B8941F;
+    --main-background: #0c0a09;
+    --border-color: #3b2a13;
+
+    /* Dark theme as default */
+    --background: 20 14.3% 4.1%;
+    --foreground: 60 9.1% 97.8%;
+    --card: 24 10% 8%;
+    --card-foreground: 60 9.1% 97.8%;
+    --popover: 20 14.3% 8%;
+    --popover-foreground: 60 9.1% 97.8%;
+    --primary: 63 100% 50%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 30 30% 12%;
+    --secondary-foreground: 63 100% 50%;
+    --muted: 24 5% 16%;
+    --muted-foreground: 60 5% 65%;
+    --accent: 63 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 60 9.1% 97.8%;
+    --border: 30 30% 15%;
+    --input: 24 10% 15%;
+    --ring: 63 100% 50%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply bg-[#0c0a09] text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background-color: #0c0a09;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    @apply bg-gradient-to-r from-[#f6ff00] to-[#ffea00] bg-clip-text text-transparent;
+    filter: drop-shadow(0 0 20px rgba(246, 255, 0, 0.3));
+  }
+
+  .glow-yellow {
+    box-shadow: 0 0 20px rgba(246, 255, 0, 0.3),
+                0 0 40px rgba(246, 255, 0, 0.1);
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:scale-105;
+    @apply hover:shadow-[0_0_30px_rgba(246,255,0,0.2)];
+    @apply hover:border-[#f6ff00]/20;
+  }
+
+  .glass-effect {
+    @apply backdrop-blur-md bg-black/40 border border-[#3b2a13];
+  }
+
+  .btn-primary {
+    @apply bg-[#f6ff00] text-black font-bold hover:bg-[#e6ef00] transition-all;
+    @apply hover:shadow-[0_0_20px_rgba(246,255,0,0.4)];
+  }
+
+  .btn-secondary {
+    @apply border-2 border-[#f6ff00] text-[#f6ff00] hover:bg-[#f6ff00] hover:text-black transition-all;
+  }
+}
+
+/* Animations */
+@keyframes glow-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(246, 255, 0, 0.5);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 40px rgba(246, 255, 0, 0.8);
+  }
+}
+
+.animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-shimmer { animation: shimmer 2s infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }

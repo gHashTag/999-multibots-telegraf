@@ -10,12 +10,12 @@ BOT_INNGEST_BASE_URL=https://three-head-dragon.shop/api/inngest
 BOT_INNGEST_SIGNING_KEY=signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435923a1b613563c4666c82c047
 ```
 
-### RENDER INNGEST (Railway render-server)
+### RENDER INNGEST (Render Server)
 
 ```bash
 RENDER_INNGEST_EVENT_KEY=kbuLz_G2JL28M5L3dRM5mfwWSwNb4zi8eWTr5y4wrYWXEyIgcMyGz7NTkcY52AWjUcQz8m_Ig9lhJ6_m3-unaw
 RENDER_INNGEST_SIGNING_KEY=signkey-branch-8e271f30535f3894656ff9b5e4cf97e1673880aa06c7b5d1470b3082110b2cf6
-RENDER_INNGEST_BASE_URL=https://render-v3-production.up.railway.app/api/inngest
+RENDER_INNGEST_BASE_URL=https://render-v3-production.up.render-server (local)/api/inngest
 ```
 
 ## Назначение переменных
@@ -27,10 +27,10 @@ RENDER_INNGEST_BASE_URL=https://render-v3-production.up.railway.app/api/inngest
 - **BASE_URL**: URL Inngest сервера для основного бота
 
 ### RENDER_INNGEST_*
-Используется для Railway render-server (AI Reels генерация)
-- **EVENT_KEY**: Ключ для отправки событий на Railway
+Используется для Render Server (AI Reels генерация)
+- **EVENT_KEY**: Ключ для отправки событий на Render Server
 - **SIGNING_KEY**: Ключ для HMAC-SHA256 подписи запросов
-- **BASE_URL**: URL Railway render-server Inngest endpoint
+- **BASE_URL**: URL Render Server Inngest endpoint
 
 ## Как добавить в production
 
@@ -81,13 +81,13 @@ const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
 const renderBaseUrl = process.env.RENDER_INNGEST_BASE_URL
 ```
 
-### Отправка событий на Railway
+### Отправка событий на Render Server
 
 При отправке событий на RENDER instance, код временно устанавливает env vars:
 
 ```typescript
 if (instance === 'RENDER') {
-  process.env.INNGEST_BASE_URL = config.baseUrl  // Railway URL
+  process.env.INNGEST_BASE_URL = config.baseUrl  // Render Server URL
   process.env.INNGEST_SIGNING_KEY = config.signingKey
   process.env.INNGEST_EVENT_KEY = config.eventKey
 }
@@ -106,7 +106,7 @@ await config.client.send({ name: eventName, data })
 ✅ [INNGEST PROVIDER] RENDER instance configured with SDK client
 ```
 
-При отправке события на Railway:
+При отправке события на Render Server:
 
 ```
 📤 [INNGEST PROVIDER] Sending event to RENDER via SDK
@@ -122,9 +122,9 @@ await config.client.send({ name: eventName, data })
 ### Если видите "404 Event key not found"
 1. Проверьте, что RENDER_INNGEST_BASE_URL правильный
 2. Проверьте, что код устанавливает env vars перед отправкой
-3. Проверьте логи Railway render-server
+3. Проверьте логи Render Server
 
-### Если события не доходят до Railway
-1. Проверьте доступность Railway URL
-2. Проверьте RENDER_INNGEST_SIGNING_KEY совпадает с Railway
-3. Проверьте логи на Railway на наличие ошибок подписи
+### Если события не доходят до Render Server
+1. Проверьте доступность Render Server URL
+2. Проверьте RENDER_INNGEST_SIGNING_KEY совпадает с Render Server
+3. Проверьте логи на Render Server на наличие ошибок подписи

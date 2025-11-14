@@ -1,12 +1,37 @@
 import { Markup } from 'telegraf'
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 import { logger } from '@/utils/logger'
-import { VIDEO_MODELS_CONFIG } from '../config/models.config'
 import {
-  getAvailableModels,
-  formatModelButton,
-  VideoModelConfigKey,
-} from './modelMapping'
+  UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG,
+  getActiveModels,
+  getUnifiedModelPrice,
+  UnifiedVideoModelId,
+  VideoInputType,
+} from '@/config/unified-video-models.config'
+
+type VideoModelConfigKey = UnifiedVideoModelId
+
+/**
+ * Получить доступные модели по типу входа
+ */
+function getAvailableModels(inputType: VideoInputType): UnifiedVideoModelId[] {
+  const activeModels = getActiveModels()
+  return activeModels
+    .filter(model => model.inputTypes.includes(inputType))
+    .map(model => model.id as UnifiedVideoModelId)
+}
+
+/**
+ * Форматировать кнопку модели
+ */
+function formatModelButton(modelKey: VideoModelConfigKey, isRu: boolean = false): string {
+  const config = VIDEO_MODELS_CONFIG[modelKey]
+  if (!config) return modelKey
+
+  const name = isRu ? config.nameRu : config.name
+  const price = getUnifiedModelPrice(modelKey)
+  return `${name} (${price}⭐)`
+}
 
 /**
  * Создает клавиатуру для выбора модели видео
@@ -21,13 +46,13 @@ export function createVideoModelKeyboard(
   })
 
   // Получаем доступные модели
-  const availableModels = getAvailableModels(inputType)
+  const availableModels = getAvailableModels(inputType as VideoInputType)
 
   // Формируем кнопки с названиями моделей и ценами
   const buttons: string[][] = []
   const models = availableModels.map(key => ({
     key,
-    price: VIDEO_MODELS_CONFIG[key].basePrice,
+    price: getUnifiedModelPrice(key),
   }))
 
   // Сортируем модели по цене
@@ -36,9 +61,9 @@ export function createVideoModelKeyboard(
   // Группируем по две кнопки в ряд
   for (let i = 0; i < models.length; i += 2) {
     const row = []
-    row.push(formatModelButton(models[i].key))
+    row.push(formatModelButton(models[i].key, isRu))
     if (models[i + 1]) {
-      row.push(formatModelButton(models[i + 1].key))
+      row.push(formatModelButton(models[i + 1].key, isRu))
     }
     buttons.push(row)
   }
@@ -62,16 +87,23 @@ export function createResolutionKeyboard(
   isRu: boolean
 ): ReturnType<typeof Markup.inlineKeyboard> {
   const config = VIDEO_MODELS_CONFIG[modelKey]
-  if (!config.resolutionOptions || !config.priceByResolution) {
+
+  // Проверяем наличие разрешений в apiSettings
+  const resolutions = config.apiSettings.resolutions
+  if (!resolutions || resolutions.length === 0) {
     return Markup.inlineKeyboard([])
   }
 
-  const buttons = config.resolutionOptions.map(resolution => {
-    const basePrice = config.priceByResolution[resolution] || config.basePrice
-    const finalPrice = Math.floor(((basePrice * 5) / 0.016) * 1.5)
+  // Проверяем, что модель поддерживает ценообразование по разрешениям
+  if (config.pricing.type !== 'per_resolution' && config.pricing.type !== 'per_duration_resolution') {
+    return Markup.inlineKeyboard([])
+  }
+
+  const buttons = resolutions.map(resolution => {
+    const price = getUnifiedModelPrice(modelKey, { resolution })
 
     return Markup.button.callback(
-      `${resolution.toUpperCase()} (${finalPrice} ⭐)`,
+      `${resolution.toUpperCase()} (${price} ⭐)`,
       `wan_${modelKey}_${resolution}`
     )
   })
@@ -87,18 +119,24 @@ export function createDurationKeyboard(
   isRu: boolean
 ): ReturnType<typeof Markup.inlineKeyboard> {
   const config = VIDEO_MODELS_CONFIG[modelKey]
-  if (!config.durationOptions || !config.priceByDuration) {
+
+  // Проверяем наличие длительностей в apiSettings
+  const durations = config.apiSettings.durations
+  if (!durations || durations.length === 0) {
     return Markup.inlineKeyboard([])
   }
 
-  const buttons = config.durationOptions.map(duration => {
-    const basePrice =
-      config.priceByDuration![duration] || config.basePrice * duration
-    const finalPrice = Math.floor(basePrice / 0.016) // Конвертация в звезды
+  // Проверяем, что модель поддерживает ценообразование по длительности
+  if (config.pricing.type !== 'per_duration' && config.pricing.type !== 'per_duration_resolution' && config.pricing.type !== 'per_second') {
+    return Markup.inlineKeyboard([])
+  }
+
+  const buttons = durations.map(duration => {
+    const price = getUnifiedModelPrice(modelKey, { duration })
 
     const buttonText = isRu
-      ? `${duration} сек (${finalPrice} ⭐)`
-      : `${duration} sec (${finalPrice} ⭐)`
+      ? `${duration} сек (${price} ⭐)`
+      : `${duration} sec (${price} ⭐)`
 
     return Markup.button.callback(buttonText, `veo_${modelKey}_${duration}`)
   })
@@ -124,13 +162,16 @@ export function createAspectRatioKeyboard(
   isRu: boolean
 ): ReturnType<typeof Markup.keyboard> {
   const config = VIDEO_MODELS_CONFIG[modelKey]
-  if (!config.aspectRatioOptions) {
+
+  // Проверяем наличие aspectRatios в apiSettings
+  const aspectRatios = config.apiSettings.aspectRatios
+  if (!aspectRatios || aspectRatios.length === 0) {
     return Markup.keyboard([
       [isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu'],
     ]).resize()
   }
 
-  const buttons = config.aspectRatioOptions.map(aspectRatio => {
+  const buttons = aspectRatios.map(aspectRatio => {
     return isRu
       ? aspectRatio === '9:16'
         ? '📱 Вертикальное (9:16)'

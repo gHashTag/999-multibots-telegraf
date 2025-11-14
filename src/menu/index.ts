@@ -1,8 +1,25 @@
-export * from './mainMenu'
+/**
+ * ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ - navigation/unified-navigation.config.ts
+ *
+ * Этот файл экспортирует навигацию и вспомогательные функции меню
+ */
+
+// ========================================
+// 1. ОСНОВНАЯ НАВИГАЦИЯ (ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ)
+// ========================================
+// Экспортируем ВСЁ из единого конфига
+export * from '../navigation/unified-navigation.config'
+
+// ========================================
+// 2. СПЕЦИАЛИЗИРОВАННЫЕ МЕНЮ
+// ========================================
 export * from './imageModelMenu'
-export * from './simpleMenu'  // ✅ НОВЫЙ ПРОСТОЙ МЕНЮ
-export * from './startMenu'
 export * from './videoModelMenu'
+
+// ========================================
+// 3. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ========================================
+export * from './startMenu'
 export * from './cancelMenu'
 export * from './getStepSelectionMenu'
 export * from './getStepSelectionMenuV2'
@@ -15,6 +32,9 @@ export * from './sendGenericErrorMessage'
 export * from './createHelpCancelKeyboard/createHelpCancelKeyboard'
 export * from './cancelHelpArray'
 
+// ========================================
+// 4. INLINE КЛАВИАТУРЫ
+// ========================================
 import { Markup } from 'telegraf'
 import type { InlineKeyboardMarkup } from 'telegraf/types'
 

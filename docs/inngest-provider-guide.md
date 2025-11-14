@@ -7,7 +7,7 @@
 ### Поддерживаемые инстансы:
 
 1. **BOT** - основной бот (наш сервер `three-head-dragon.shop`)
-2. **RENDER** - render-server на Railway для генерации видео
+2. **RENDER** - render-server на Render Server для генерации видео
 
 ## Настройка Environment Variables
 
@@ -30,7 +30,7 @@ INNGEST_SIGNING_KEY_RENDER=signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435
 # ======================================
 # Render Server Settings
 # ======================================
-RENDER_SERVER_URL=https://render-v3-production.up.railway.app
+RENDER_SERVER_URL=https://render-v3-production.up.render-server (local)
 HEDRA_API_KEY=YOUR_HEDRA_API_KEY_HERE
 ```
 
@@ -164,7 +164,7 @@ const { eventId } = await sendRenderAvatarVideoEvent(payload)
         │                     │
         ▼                     ▼
 ┌──────────────┐    ┌──────────────────┐
-│ Our Server   │    │ Railway Server   │
+│ Our Server   │    │ Render Server Server   │
 │ three-head-  │    │ render-v3-       │
 │ dragon.shop  │    │ production       │
 └──────────────┘    └──────────────────┘
@@ -217,9 +217,9 @@ npx tsx tests/test-render-event-names.ts
 **Проблема:** Render-server недоступен или не отвечает.
 
 **Решение:**
-1. Проверить статус Railway deployment
+1. Проверить статус Render Server deployment
 2. Проверить логи render-server: `railway logs`
-3. Проверить endpoint: `https://render-v3-production.up.railway.app/api/inngest`
+3. Проверить endpoint: `https://render-v3-production.up.render-server (local)/api/inngest`
 
 ## Production Deployment
 
@@ -250,6 +250,6 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 'docker logs 999-multibots --tail 50 | gr
 
 ## Контакты и поддержка
 
-- Render Server: https://render-v3-production.up.railway.app
+- Render Server: https://render-v3-production.up.render-server (local)
 - Inngest Dashboard: https://app.inngest.com
 - Документация Inngest: https://www.inngest.com/docs

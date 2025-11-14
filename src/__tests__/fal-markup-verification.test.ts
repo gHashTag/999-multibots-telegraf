@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'bun:test'
 import { calculateLipSyncCostStars } from '@/config/lipsync-models.config'
 import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-provider'
-import { MARKUP_MULTIPLIER, STAR_COST_USD } from '@/config/unified-pricing.config'
+import { MARKUP_MULTIPLIER, STAR_COST_USD } from '@/price/constants'
 
 describe('Fal.ai Veed Fabric 1.0 Fast - Проверка наценки', () => {
   describe('Централизованная наценка', () => {

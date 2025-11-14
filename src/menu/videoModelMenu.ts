@@ -3,10 +3,10 @@ import { Markup } from 'telegraf'
 // Убираем импорт InlineKeyboardMarkup, он не нужен
 import type { ReplyKeyboardMarkup } from 'telegraf/types'
 // import { VIDEO_MODELS } from '@/interfaces' // Старый импорт не нужен
-import { VIDEO_MODELS_CONFIG } from '@/modules/videoGenerator/config/models.config' // Импортируем конфиг
+import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config' // Импортируем конфиг
 // Импортируем функцию расчета финальной цены
 import { calculateFinalPrice } from '@/price/helpers'
-import { levels } from './mainMenu'
+import { levels } from './simpleMenu'
 import { Translation } from '@/interfaces/translations.interface'
 
 export const videoModelKeyboard = (
@@ -22,14 +22,15 @@ export const videoModelKeyboard = (
   )
   // --- DEBUG LOGGING END ---
 
-  // Фильтруем модели по inputType, затем создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
+  // Фильтруем модели по inputTypes (исправлено с inputType на inputTypes), затем создаем массив текстовых названий кнопок С ЦЕНОЙ В ЗВЕЗДАХ ⭐
   const buttons = Object.entries(VIDEO_MODELS_CONFIG)
-    .filter(([key, config]) => config.inputType.includes(inputType))
+    .filter(([key, config]) => config.inputTypes.includes(inputType))
     .map(([key, config]) => {
       // Рассчитываем финальную цену в звездах (уже по новой логике)
       const finalPriceInStars = calculateFinalPrice(key)
       // Формируем текст кнопки с ценой в звездах и эмодзи ⭐
-      return `${config.title} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
+      const displayName = config.nameRu || config.name // Используем nameRu, если доступно
+      return `${displayName} (${finalPriceInStars} ⭐)` // Заменяем ★ на ⭐
     })
 
   // --- DEBUG LOGGING START ---

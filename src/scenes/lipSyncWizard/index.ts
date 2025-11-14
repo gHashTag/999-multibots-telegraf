@@ -69,7 +69,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
         {
-          reply_markup: createCancelOnlyKeyboard(ctx).reply_markup
+          reply_markup: {
+            inline_keyboard: [[
+              Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'lipsync_cancel')
+            ]]
+          },
         }
       )
       return ctx.wizard.next()
@@ -89,11 +93,10 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     let videoInput: any
 
     // Проверяем нажатие кнопки "Отмена"
-    if (ctx.callbackQuery?.data === 'cancel_operation' || ctx.callbackQuery?.data === 'lipsync_cancel') {
-      return handleCancel(ctx, {
-        messageRu: '❌ Процесс отменён.',
-        messageEn: '❌ Process cancelled.'
-      })
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data === 'lipsync_cancel') {
+      await ctx.answerCbQuery()
+      await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
+      return ctx.scene.leave()
     }
 
 
@@ -158,7 +161,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           ? 'Видео получено! Теперь отправьте аудио, голосовое сообщение или URL аудио'
           : 'Video received! Now send an audio, voice message, or audio URL',
         {
-          reply_markup: createCancelOnlyKeyboard(ctx).reply_markup
+          reply_markup: {
+            inline_keyboard: [[
+              Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'lipsync_cancel')
+            ]]
+          },
         }
       )
       return ctx.wizard.next()

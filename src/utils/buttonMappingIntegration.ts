@@ -8,12 +8,28 @@
 import { MyContext } from '@/interfaces'
 import { logger } from './logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import {
-  createSafeModelSelectionKeyboard,
-  handleModelSelectionCallback,
-  ModelTraining,
-  ModelButtonOptions
-} from './modelButtonMapping'
+// Removed dependency on deleted modelButtonMapping module
+// import {
+//   createSafeModelSelectionKeyboard,
+//   handleModelSelectionCallback,
+//   ModelTraining,
+//   ModelButtonOptions
+// } from './modelButtonMapping'
+
+// Type definitions for model selection (moved from deleted module)
+export interface ModelTraining {
+  id: string
+  name: string
+  steps?: number
+  created_at?: string
+}
+
+export interface ModelButtonOptions {
+  isRussian?: boolean
+  includeSteps?: boolean
+  includeDate?: boolean
+  debug?: boolean
+}
 import {
   createWizardCallbackHandler,
   createStandardWizardHandlers,
@@ -63,56 +79,23 @@ export async function setupModelSelectionStep(
       return { success: false, error }
     }
 
-    // Create keyboard
-    const buttonOptions: ModelButtonOptions = {
-      isRussian: isRu,
-      includeSteps: options.includeSteps ?? true,
-      includeDate: true,
-      debug: true
-    }
-
-    const keyboardResult = createSafeModelSelectionKeyboard(
-      models,
-      options.callbackPrefix || 'select_model',
-      buttonOptions
-    )
-
-    if (!keyboardResult.isValid) {
-      logger.error('[ButtonMappingIntegration] Failed to create keyboard', {
-        telegramId: ctx.from?.id?.toString(),
-        error: keyboardResult.error
-      })
-
-      if (options.onError) {
-        await options.onError(ctx, new Error(keyboardResult.error || 'Keyboard creation failed'))
-      }
-
-      return { success: false, error: keyboardResult.error }
-    }
-
-    // Send message with keyboard
-    const title = options.title || (isRu
-      ? 'Выберите модель:'
-      : 'Select a model:')
-
-    await ctx.reply(title, {
-      reply_markup: {
-        inline_keyboard: keyboardResult.keyboard
-      }
+    // TODO: Restore keyboard creation when modelButtonMapping is reimplemented
+    logger.error('[ButtonMappingIntegration] Model selection disabled - modelButtonMapping module removed', {
+      telegramId: ctx.from?.id?.toString()
     })
 
-    // Store models in scene state for callback handler
-    if (ctx.scene && ctx.scene.state) {
-      (ctx.scene.state as any).userModels = models
+    const error = 'Model selection currently unavailable'
+    if (options.onError) {
+      await options.onError(ctx, new Error(error))
+    } else {
+      await ctx.reply(
+        isRu
+          ? '❌ Функция выбора модели временно недоступна.'
+          : '❌ Model selection is temporarily unavailable.'
+      )
     }
 
-    logger.info('[ButtonMappingIntegration] Model selection setup successful', {
-      telegramId: ctx.from?.id?.toString(),
-      modelCount: models.length,
-      title
-    })
-
-    return { success: true }
+    return { success: false, error }
 
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error))
@@ -168,50 +151,16 @@ export function createModelSelectionCallbackHandler(
       },
 
       handle: async (ctx: MyContext, callbackData: string) => {
-        const userModels = (ctx.scene?.state as any)?.userModels || []
+        // TODO: Restore when modelButtonMapping module is reimplemented
+        logger.error('[ButtonMappingIntegration] Model selection handler disabled', {
+          telegramId: ctx.from?.id?.toString(),
+          wizardName
+        })
 
-        const result = handleModelSelectionCallback(
-          userModels,
-          callbackData,
-          `${wizardName} model selection`,
-          {
-            isRussian: isRussianFromState(ctx),
-            debug: true
-          }
-        )
-
-        if (!result.success) {
-          return {
-            success: false,
-            error: result.error
-          }
+        return {
+          success: false,
+          error: 'Model selection currently unavailable'
         }
-
-        if (result.shouldCancel) {
-          return {
-            success: true,
-            shouldExit: true
-          }
-        }
-
-        if (result.model) {
-          // Store selected model in session
-          if (ctx.session) {
-            (ctx.session as any).userModel = result.model
-          }
-
-          // Call custom handler if provided
-          if (options.onModelSelected) {
-            await options.onModelSelected(ctx, result.model)
-          }
-
-          return {
-            success: true,
-            nextStep: options.moveToNextStep
-          }
-        }
-
-        return { success: false, error: 'No model selected' }
       },
 
       onError: options.onError
@@ -237,10 +186,8 @@ export const ErrorRecoveryStrategies = {
         : '❌ An error occurred. Returning to main menu.'
     )
 
-    const { УДАЛЁН } = await import('@/handlers/УДАЛЁН')
-    return
-
-    if (ctx.scene.current) {
+    // Leave current scene if active
+    if (ctx.scene?.current) {
       await ctx.scene.leave()
     }
   },
@@ -257,8 +204,8 @@ export const ErrorRecoveryStrategies = {
         : '❌ Error. Let\'s try again.'
     )
 
-    if (ctx.wizard && ctx.wizard.cursor > 0) {
-      ctx.wizard.selectStep(ctx.wizard.cursor)
+    if (ctx.wizard && (ctx.wizard?.cursor ?? 0) > 0) {
+      ctx.wizard.selectStep(ctx.wizard?.cursor ?? 0)
     }
   },
 

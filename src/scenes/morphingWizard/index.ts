@@ -12,14 +12,48 @@ import { isValidImage } from '../../helpers/images'
 import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
 import * as path from 'path'
+import { getModelsByInputType } from '@/config/unified-video-models.config'
 
-// ✅ КОНСТАНТЫ ДЛЯ МОДЕЛЕЙ МОРФИНГА
-const MORPHING_MODEL_KEYS = {
-  DEFAULT: 'kling-v2.1-pro', // Новая модель по умолчанию - Pro для поддержки end_image
-  FALLBACK_1: 'kling-v1.6-standard', // Фаллбэк 1
-  FALLBACK_2: 'kling-v1.6-pro', // Фаллбэк 2
-  STANDARD: 'kling-v2.1-standard' // Standard версия (не поддерживает морфинг)
-} as const
+// ✅ ПОЛУЧАЕМ МОДЕЛИ МОРФИНГА ИЗ ЕДИНОГО КОНФИГА
+const getMorphingModels = () => getModelsByInputType('morph')
+const getDefaultMorphingModel = () => {
+  const models = getMorphingModels()
+
+  // ✅ ПРИОРИТЕТ: Kie.ai модели (дешевле и быстрее чем Replicate)
+  // 1. sora-2-i2v (9⭐) - самая дешёвая
+  // 2. sora-2-pro-i2v (19⭐) - премиум качество
+  // 3. veo3_fast (25⭐) - быстрая
+  const preferredModels = ['sora-2-i2v', 'sora-2-pro-i2v', 'veo3_fast']
+
+  for (const modelId of preferredModels) {
+    const model = models.find(m => m.id === modelId)
+    if (model) {
+      logger.info('[getDefaultMorphingModel] Using Kie.ai model for morphing', {
+        modelId: model.id,
+        modelName: model.name,
+        provider: model.provider
+      })
+      return model
+    }
+  }
+
+  // Fallback: любая доступная morph модель
+  if (models.length > 0) {
+    logger.warn('[getDefaultMorphingModel] No preferred models, using first available', {
+      modelId: models[0].id
+    })
+    return models[0]
+  }
+
+  // ✅ ЗАЩИТА: Если нет активных morph моделей, используем fallback на image модели
+  logger.error('[getDefaultMorphingModel] No active morph models found, using fallback image model')
+  const imageModels = getModelsByInputType('image')
+  const fallback = imageModels[0]
+  if (!fallback) {
+    throw new Error('❌ No video models available. Please contact support.')
+  }
+  return fallback
+}
 
 // ✅ ПРЕСЕТЫ ПРОМПТОВ ДЛЯ ПЕРЕХОДОВ (основано на исследовании best practices 2025)
 const PROMPT_PRESETS = {
@@ -196,7 +230,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
       telegramId: ctx.from?.id,
       username: ctx.from?.username,
       sessionExists: !!ctx.session,
-      currentCursor: ctx.wizard?.cursor,
+      currentCursor: ctx.wizard?.cursor ?? 0,
     })
 
     // Очищаем предыдущие данные
@@ -473,7 +507,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
     console.log('🔄 [STEP 3] Loop Selection step STARTED!')
     const isRu = isRussianFromState(ctx)
 
-    console.log('🔄 [STEP 3] Current wizard cursor:', ctx.wizard.cursor)
+    console.log('🔄 [STEP 3] Current wizard cursor:', ctx.wizard?.cursor ?? 0)
     console.log(
       '🔄 [STEP 3] Images count:',
       ctx.session?.morphingImages?.length || 0
@@ -550,7 +584,7 @@ Which type do you prefer?`
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
 
-    console.log('🎬 [STEP 4] Current wizard cursor:', ctx.wizard.cursor)
+    console.log('🎬 [STEP 4] Current wizard cursor:', ctx.wizard?.cursor ?? 0)
     console.log(
       '🎬 [STEP 4] Morphing type:',
       ctx.session?.morphingType || 'unknown'
@@ -692,7 +726,7 @@ morphingWizard.action('morphing_start_generation', async ctx => {
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
-    console.log('🚀 [MORPHING_START] Current wizard cursor:', ctx.wizard.cursor)
+    console.log('🚀 [MORPHING_START] Current wizard cursor:', ctx.wizard?.cursor ?? 0)
     console.log(
       '🚀 [MORPHING_START] Images count:',
       ctx.session?.morphingImages?.length
@@ -710,13 +744,13 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 
     // ✅ ПЕРЕХОДИМ К ШАГУ ВЫБОРА ЛУПА (ШАГ 2)
     console.log('🚀 [MORPHING_START] About to go to step 2 (loop selection)')
-    console.log('🚀 [MORPHING_START] Current cursor before:', ctx.wizard.cursor)
+    console.log('🚀 [MORPHING_START] Current cursor before:', ctx.wizard?.cursor ?? 0)
 
     // Принудительно переходим к шагу 2 (выбор лупа)
     ctx.wizard.selectStep(2)
     console.log(
       '🚀 [MORPHING_START] After selectStep(2), new cursor:',
-      ctx.wizard.cursor
+      ctx.wizard?.cursor ?? 0
     )
 
     // ✅ ПРИНУДИТЕЛЬНО ВЫПОЛНЯЕМ ШАГИ ПОСЛЕ СМЕНЫ КУРСОРА
@@ -1016,14 +1050,22 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     })
 
     // ===== 💰 ДОБАВЛЯЕМ СПИСАНИЕ БАЛАНСА =====
+    logger.info('🔍 [MORPHING DEBUG] Step 1: Getting default model...')
+    const defaultModel = getDefaultMorphingModel()
+    logger.info('✅ [MORPHING DEBUG] Step 2: Model retrieved', {
+      modelId: defaultModel?.id,
+      modelName: defaultModel?.name,
+      hasModel: !!defaultModel
+    })
+
     logger.info('[startMorphingGeneration] Processing balance for morphing', {
       telegramId: ctx.from?.id,
-      modelId: MORPHING_MODEL_KEYS.DEFAULT,
+      modelId: defaultModel.id,
     })
 
     const balanceResult = await processBalanceVideoOperationHelper(
       String(ctx.from!.id),
-      MORPHING_MODEL_KEYS.DEFAULT,
+      defaultModel.id,
       isRu,
       ctx.botInfo?.username || 'unknown_bot',
       'morphing'
@@ -1053,7 +1095,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     const transitionsCount = withLoop
       ? imagesCount // С лупом: 1→2, 2→3, 3→1 (включая возврат к первому)
       : imagesCount - 1 // Линейные переходы: 1→2, 2→3, 3→4 (без зацикливания)
-    const finalPriceInStars = calculateFinalPrice(MORPHING_MODEL_KEYS.DEFAULT)
+    const finalPriceInStars = calculateFinalPrice(defaultModel.id)
     const totalCost = finalPriceInStars * transitionsCount
 
     const morphingTypeText = isRu

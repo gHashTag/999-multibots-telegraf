@@ -19,24 +19,11 @@ import { toBotName } from '@/helpers/botName.helper'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'
 
-// Проверяем наличие токенов
-if (!process.env.BOT_TOKEN_1) throw new Error('BOT_TOKEN_1 is not set')
-if (!process.env.BOT_TOKEN_2) throw new Error('BOT_TOKEN_2 is not set')
-if (!process.env.BOT_TOKEN_3) throw new Error('BOT_TOKEN_3 is not set')
-if (!process.env.BOT_TOKEN_4) throw new Error('BOT_TOKEN_4 is not set')
-if (!process.env.BOT_TOKEN_5) throw new Error('BOT_TOKEN_5 is not set')
-if (!process.env.BOT_TOKEN_6) throw new Error('BOT_TOKEN_6 is not set')
-if (!process.env.BOT_TOKEN_7) throw new Error('BOT_TOKEN_7 is not set')
-if (!process.env.BOT_TOKEN_8) throw new Error('BOT_TOKEN_8 is not set')
-if (!process.env.BOT_TOKEN_9) throw new Error('BOT_TOKEN_9 is not set')
-if (!process.env.BOT_TOKEN_10) throw new Error('BOT_TOKEN_10 is not set')
+// 🔐 УНИФИЦИРОВАННАЯ СХЕМА: везде используем BOT_TOKEN_1-N
+// Токены загружаются из Infisical автоматически, warnings убраны
 
-if (!process.env.BOT_TOKEN_TEST_1)
-  throw new Error('BOT_TOKEN_TEST_1 is not set')
-if (!process.env.BOT_TOKEN_TEST_2)
-  throw new Error('BOT_TOKEN_TEST_2 is not set')
-
-const BOT_TOKENS_PROD: string[] = [
+// 🔐 УНИФИЦИРОВАННАЯ СХЕМА: токены 1-10 для всех окружений
+const BOT_TOKENS_ALL: string[] = [
   process.env.BOT_TOKEN_1,
   process.env.BOT_TOKEN_2,
   process.env.BOT_TOKEN_3,
@@ -49,13 +36,23 @@ const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_10,
 ]
 
-const BOT_TOKENS_TEST: string[] = [
-  process.env.BOT_TOKEN_TEST_1,
-  process.env.BOT_TOKEN_TEST_2,
-  process.env.BOT_TOKEN_TEST_3,
-]
+// 🔐 Продакшн токены (BOT_TOKEN_1-10)
+const BOT_TOKENS_PROD: string[] = [
+  process.env.BOT_TOKEN_1,
+  process.env.BOT_TOKEN_2,
+  process.env.BOT_TOKEN_3,
+  process.env.BOT_TOKEN_4,
+  process.env.BOT_TOKEN_5,
+  process.env.BOT_TOKEN_6,
+  process.env.BOT_TOKEN_7,
+  process.env.BOT_TOKEN_8,
+  process.env.BOT_TOKEN_9,
+  process.env.BOT_TOKEN_10,
+].filter(Boolean)
 
+// Маппинг имен ботов на токены (зависит от окружения)
 export const BOT_NAMES: Record<BotName, string> = {
+  // Production боты (BOT_TOKEN_1-10 в prod/staging)
   ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
   ['ZavaraBot']: process.env.BOT_TOKEN_3,
@@ -66,9 +63,12 @@ export const BOT_NAMES: Record<BotName, string> = {
   ['Kaya_easy_art_bot']: process.env.BOT_TOKEN_8,
   ['AI_STARS_bot']: process.env.BOT_TOKEN_9,
   ['HaimGroupMedia_bot']: process.env.BOT_TOKEN_10,
-  ['ai_koshey_bot']: process.env.BOT_TOKEN_TEST_1,
-  ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_TEST_2,
-  ['TestNeurocoder_bot']: process.env.BOT_TOKEN_TEST_3,
+
+  // Dev боты (BOT_TOKEN_1-2 в dev)
+  ['ai_koshey_bot']: process.env.BOT_TOKEN_1,
+  ['clip_maker_neuro_bot']: process.env.BOT_TOKEN_1,
+  ['helper_999_bot']: process.env.BOT_TOKEN_2,
+  ['TestNeurocoder_bot']: process.env.BOT_TOKEN_2,
 } as const
 
 // Tutorial URLs
@@ -80,18 +80,21 @@ export const BOT_URLS: Partial<Record<BotName, string>> = {
   Gaia_Kamskaia_bot: 'https://t.me/neuromeets/1876',
 }
 
-export const BOT_TOKENS =
-  NODE_ENV === 'production' ? BOT_TOKENS_PROD : BOT_TOKENS_PROD
+// 🔐 УНИФИЦИРОВАННАЯ СХЕМА: всегда используем BOT_TOKENS_ALL
+export const BOT_TOKENS = BOT_TOKENS_ALL
 
+// 🔐 DEFAULT токен - всегда BOT_TOKEN_1
 export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
 
-export const DEFAULT_BOT_NAME = 'neuro_blogger_bot'
-export const defaultBot = new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
+export const DEFAULT_BOT_NAME = isDev ? 'ai_koshey_bot' : 'neuro_blogger_bot'
+export const defaultBot = DEFAULT_BOT_TOKEN ? new Telegraf<MyContext>(DEFAULT_BOT_TOKEN) : null as any
 
-logger.info('🤖 Инициализация defaultBot:', {
-  description: 'DefaultBot initialization',
-  tokenLength: DEFAULT_BOT_TOKEN.length,
-})
+if (DEFAULT_BOT_TOKEN) {
+  logger.info('🤖 Инициализация defaultBot:', {
+    description: 'DefaultBot initialization',
+    tokenLength: DEFAULT_BOT_TOKEN.length,
+  })
+}
 
 // Вместо массива:
 export const bots: Record<BotName, Telegraf<MyContext>> = {} as any
@@ -99,8 +102,12 @@ export const bots: Record<BotName, Telegraf<MyContext>> = {} as any
 Object.entries(BOT_NAMES)
   .filter(([, token]) => token)
   .filter(([name, token]) => {
-    // Исключаем тестовых ботов во всех режимах, кроме специально заданного
-    return BOT_TOKENS_PROD.includes(token)
+    // В dev режиме инициализируем все боты (включая тестовых)
+    // В production - только продакшн ботов
+    if (isDev) {
+      return true // В dev режиме - все боты
+    }
+    return BOT_TOKENS_PROD.includes(token) // В production - только продакшн боты
   })
   .forEach(([name, token]) => {
     bots[name as BotName] =
@@ -113,13 +120,19 @@ logger.info('🌟 Инициализировано ботов:', {
   bot_names: Object.keys(bots),
 })
 
-export const PULSE_BOT_TOKEN = process.env.BOT_TOKEN_1
-export const pulseBot = new Telegraf<MyContext>(PULSE_BOT_TOKEN)
+// 🔐 В dev используем тестовый токен, в production - продакшн
+export const PULSE_BOT_TOKEN = isDev
+  ? process.env.BOT_TOKEN_TEST_1
+  : process.env.BOT_TOKEN_1
 
-logger.info('🤖 Инициализация pulseBot:', {
-  description: 'PulseBot initialization',
-  tokenLength: PULSE_BOT_TOKEN.length,
-})
+export const pulseBot = PULSE_BOT_TOKEN ? new Telegraf<MyContext>(PULSE_BOT_TOKEN) : null as any
+
+if (PULSE_BOT_TOKEN) {
+  logger.info('🤖 Инициализация pulseBot:', {
+    description: 'PulseBot initialization',
+    tokenLength: PULSE_BOT_TOKEN.length,
+  })
+}
 
 export function getBotNameByToken(token: string): { bot_name: BotName } {
   const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)

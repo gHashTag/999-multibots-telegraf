@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { createMainMenuKeyboard, MAIN_MENU_BUTTONS } from '@/menu/simpleMenu'
 import { checkFullAccess } from '@/handlers/checkFullAccess'
-import { getUserData } from '@/core/supabase'
+import { getUserData, getTranslation } from '@/core/supabase'
 import { getBotNameByToken } from '@/core/bot'
 
 /**
@@ -37,15 +37,43 @@ const startScene = new Scenes.WizardScene<MyContext>(
       // Получаем информацию о боте
       let botName = 'AI Bot'
       try {
-        botName = await getBotNameByToken(process.env.BOT_TOKEN || '')
+        const result = getBotNameByToken(process.env.BOT_TOKEN || '')
+        botName = result.bot_name
       } catch (error) {
         console.warn('⚠️ Не удалось получить имя бота:', error)
       }
 
-      // Создаем приветственное сообщение
-      const welcomeText = isRu
-        ? `👋 Привет, ${name}!\n\n🤖 Добро пожаловать в ${botName}!\n\n🎯 Выберите нужную функцию из меню ниже:`
-        : `👋 Hello, ${name}!\n\n🤖 Welcome to ${botName}!\n\n🎯 Select the function you need from the menu below:`
+      // Получаем приветственное сообщение из системы переводов
+      let welcomeText = ''
+      try {
+        const translation = await getTranslation({
+          key: 'welcome',
+          ctx,
+          bot_name: botName
+        })
+
+        // Заменяем {name} и {botName} в переводе
+        welcomeText = translation.translation
+          .replace(/{name}/g, name)
+          .replace(/{botName}/g, botName)
+
+        if (welcomeText) {
+          console.log('✅ [startScene] Получено приветствие из translations:', {
+            botName,
+            messageLength: welcomeText.length,
+            language: isRu ? 'ru' : 'en'
+          })
+        }
+      } catch (error) {
+        console.warn('⚠️ [startScene] Не удалось получить приветствие из translations, используем fallback:', error)
+      }
+
+      // Fallback на стандартное приветствие, если не нашли в translations
+      if (!welcomeText) {
+        welcomeText = isRu
+          ? `👋 Привет, ${name}!\n\n🤖 Добро пожаловать в ${botName}!\n\n🎯 Выберите нужную функцию из меню ниже:`
+          : `👋 Hello, ${name}!\n\n🤖 Welcome to ${botName}!\n\n🎯 Select the function you need from the menu below:`
+      }
 
       // Создаем клавиатуру с главным меню
       const keyboard = createMainMenuKeyboard(ctx)

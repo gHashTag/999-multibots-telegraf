@@ -97,10 +97,10 @@ export async function generateNanoBananaKie({
       messageId: statusMessage.message_id,
     })
 
-    // Формируем callback URL для webhook (используем существующий endpoint на ai-server)
+    // Формируем callback URL для webhook с telegram_id (для прямой отправки)
     const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/kie-ai/callback`
-      : 'https://three-head-dragon.shop/api/kie-ai/callback'
+      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegram_id}`
+      : `https://three-head-dragon.shop/api/video-callback/${telegram_id}`
 
     // Готовим запрос для KIE.AI
     const requestData = {

@@ -1,7 +1,7 @@
 /**
  * 🎬 AI REELS RENDER WIZARD
  *
- * AI Reels генерация через render-server на Railway с выбором аватара
+ * AI Reels генерация через render-server на Render Server с выбором аватара
  *
  * Процесс:
  * 1. Загрузка фото аватара
@@ -20,11 +20,10 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import {
   sendRenderAvatarVideoEvent,
-  checkRenderServerAvailability,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
-import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
+import { videoTaskStore } from '@/services/video-task-store'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -49,17 +48,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Проверяем доступность render-server
-    const isAvailable = await checkRenderServerAvailability()
-
-    if (!isAvailable) {
-      await ctx.reply(
-        isRu
-          ? '❌ Render-server временно недоступен. Попробуйте позже.'
-          : '❌ Render-server temporarily unavailable. Try later.'
-      )
-      return ctx.scene.leave()
-    }
+    // ✅ УБРАЛИ ПРОВЕРКУ: render-server имеет очередь, поэтому отправляем запрос всегда
+    // Сервер сам управляет очередью и обработает запрос когда станет доступным
 
     // Инициализируем сессию
     ctx.session.aiReelsRender = {
@@ -93,7 +83,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             '• Ready professional avatars\n' +
             '• Premium quality (4-5 min)\n' +
             '• Choose from collection\n\n' +
-            '🎯 <b>Fabric</b>\n' +
+            '🎯 <b>Fal (Fabric)</b>\n' +
             '• Upload your photo\n' +
             '• High quality lip-sync\n' +
             '• Optimal speed (3-4 min)',
@@ -120,7 +110,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           ],
           [
             Markup.button.callback(
-              isRu ? '❌ Отмена' : '❌ Cancel',
+              isRu ? 'Отмена' : 'Cancel',
               'ai_reels_cancel'
             ),
           ],
@@ -189,12 +179,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       return
     } else if (callbackData === 'service_fal') {
       // ВЕТКА FAL: Запрос фото пользователя (похоже на Hedra)
+      // ✅ ИСПРАВЛЕНИЕ: Берем FAL API key из конфига (Infisical)
+      const { FAL_KEY } = await import('@/config')
+
       ctx.session.aiReelsRender = {
         ...ctx.session.aiReelsRender,
         avatarService: 'fal',
         step: 'image',
-        // Hardcoded FAL API key (можно вынести в env позже)
-        falApiKey: 'bddcfbd0-cc52-49fd-977b-6c5a4a012f47:f6fe3c46d4c593b6a41863e720204db4',
+        falApiKey: FAL_KEY, // ✅ Из Infisical через централизованный config
         falResolution: '720p', // Default resolution
       }
 
@@ -209,7 +201,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         telegramId,
       })
 
-      // Переход напрямую на Step 2 (индекс 4), как у Hedra
+      // Переход на Step 2 (индекс 4), как у Hedra
       ctx.wizard.selectStep(4)
       return
     } else if (callbackData === 'service_heygen') {
@@ -243,7 +235,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             ],
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'ai_reels_cancel'
               ),
             ],
@@ -340,7 +332,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       // Добавляем кнопку отмены
       avatarButtons.push([
         Markup.button.callback(
-          isRu ? '❌ Отмена' : '❌ Cancel',
+          isRu ? 'Отмена' : 'Cancel',
           'ai_reels_cancel'
         ),
       ])
@@ -457,14 +449,16 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // Step 2: HEDRA - Обработка изображения
+  // Step 2: HEDRA/FAL - Обработка изображения
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const message = ctx.message
     let imageUrl: string | null = null
+    const avatarService = ctx.session.aiReelsRender?.avatarService
 
-    logger.info('🎬 [AI REELS RENDER] Step 2 - Hedra: Processing image', {
+    logger.info('🎬 [AI REELS RENDER] Step 2 - Processing image', {
       telegramId: ctx.from?.id?.toString(),
+      avatarService,
     })
 
     try {
@@ -1082,7 +1076,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                 `• 4 видео VEO3 Fast: 160⭐\n` +
                 `• Hedra lip-sync: ${estimatedDuration} × 14⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
                 `• <b>Итого: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
-                `✅ Генерация через ${serviceName}`
+                `✅ Генерация через ${serviceName}\n\n⏳ Отправляем запрос на render-server...`
             : `✅ <b>Composite title created:</b>\n` +
                 `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
                 `📊 <b>Cost calculation:</b>\n` +
@@ -1090,18 +1084,22 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                 `• 4 VEO3 Fast videos: 160⭐\n` +
                 `• Hedra lip-sync: ${estimatedDuration} × 14⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
                 `• <b>Total: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
-                `✅ Generating with ${serviceName}`,
+                `✅ Generating with ${serviceName}\n\n⏳ Sending request to render-server...`,
           { parse_mode: 'HTML' }
         )
 
-        // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6 (НЕ вызываем напрямую)
+        // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6
         logger.info('🎬 [AI REELS RENDER] Service already selected, proceeding to Step 6', {
           telegramId,
           avatarService: service,
         })
 
-        // Просто переходим к следующему шагу (Step 6 покажет сообщение "Отправляем запрос..." и отправит запрос)
-        return ctx.wizard.next()
+        // Переключаем на Step 6 (индекс 9, после добавления cover шага)
+        ctx.wizard.selectStep(9)
+
+        // ✅ Вызываем handler Step 6 напрямую
+        // @ts-ignore - steps is private but we need direct invocation
+        return await (ctx.wizard as any).steps[ctx.wizard.cursor](ctx)
       }
 
       // ❌ УСТАРЕВШИЙ ПУТЬ: Если сервис НЕ выбран (только для Hedra flow из старого кода)
@@ -1155,7 +1153,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             ],
             [
               Markup.button.callback(
-                isRu ? '❌ Отмена' : '❌ Cancel',
+                isRu ? 'Отмена' : 'Cancel',
                 'ai_reels_cancel'
               ),
             ],
@@ -1295,14 +1293,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         telegramId,
         ctx.session.aiReelsRender.text || '',
         ctx.session.aiReelsRender.imageUrl || '',
-        voiceIdToUse, // ✅ Используем дефолтный voice_id для HeyGen или user voice_id для Hedra
+        voiceIdToUse, // ✅ Используем дефолтный voice_id для HeyGen или user voice_id для Hedra/Fal
         {
           coverUrl:
             ctx.session.aiReelsRender.coverUrl ||
             'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg', // ✅ Используем обложку от пользователя или дефолтную
           introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
           introText2: ctx.session.aiReelsRender.introText2 || 'News',
-          // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId, heygenAvatarSet - используем из сессии!
+          // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId, falApiKey, falResolution - используем из сессии!
           avatarService,
           heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
           heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
@@ -1350,36 +1348,29 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         textLength: ctx.session.aiReelsRender.text?.length,
         heygenEnabled: avatarService === 'heygen',
         hedraEnabled: avatarService === 'hedra',
+        falEnabled: avatarService === 'fal',
       })
 
       console.log('🔴 [STEP 6] Payload structure:', {
         hasHeygenSettings: !!payload.avatar_settings.heygen,
         hasHedraSettings: !!payload.avatar_settings.hedra,
+        hasFalSettings: !!payload.avatar_settings.fal,
       })
 
-      // 💰 Шаблон 2: Динамическая стоимость на основе длины текста
-      // Расчет включает B-роллы (Veo 3.1), озвучку и аватар
-      const priceBreakdown = calculateAIReelsPrice({
-        text: ctx.session.aiReelsRender.text || '',
-        avatarService,
-        isOwnHeyGenKey: avatarService === 'heygen' && !!heygenApiKey,
-        isOwnFalKey: avatarService === 'fal' && !!ctx.session.aiReelsRender.falApiKey && ctx.session.aiReelsRender.falApiKey !== 'bddcfbd0-cc52-49fd-977b-6c5a4a012f47:f6fe3c46d4c593b6a41863e720204db4', // Не наш ключ
-        markupMultiplier: 1.5, // Наценка x1.5 как в коде
-      })
-
-      const estimatedCost = priceBreakdown.finalPrice
+      // 💰 Шаблон 2: Динамическая стоимость по длине lip-sync
+      // Наценка x1.5 применена к базовым ценам
+      const duration = ctx.session.aiReelsRender.estimatedDuration || 10
+      const veo3Cost = 240 // 160⭐ × 1.5
+      const hedraPerSecond = 7 // ~4.9⭐/сек × 1.5
+      const estimatedCost = veo3Cost + duration * hedraPerSecond
 
       console.log('🔴 [STEP 6] Dynamic cost calculation:', {
-        textLength: ctx.session.aiReelsRender.text?.length,
-        audioDuration: priceBreakdown.audioDuration,
-        bRollCount: priceBreakdown.bRollCount,
-        estimatedCost: priceBreakdown.finalPrice,
-        priceInRubles: priceBreakdown.priceInRubles,
-        breakdown: priceBreakdown,
+        duration,
+        veo3Cost,
+        hedraPerSecond,
+        estimatedCost,
+        markup: 1.5,
       })
-
-      // Показываем детальный расчет стоимости пользователю
-      await ctx.reply(formatPriceMessage(priceBreakdown, isRu))
 
       // Проверка баланса
       console.log('🔴 [STEP 6] Getting user balance...')
@@ -1389,13 +1380,11 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       console.log('🔴 [STEP 6] Checking if balance sufficient...')
       if (currentBalance === null || currentBalance < estimatedCost) {
         console.log('🔴 [STEP 6] INSUFFICIENT BALANCE!')
-
-        // Показываем детальную информацию о недостатке средств
-        const insufficientMessage = isRu
-          ? `💰 Недостаточно средств\n\n${formatPriceMessage(priceBreakdown, isRu)}\n\n❌ У вас: ${(currentBalance || 0).toFixed(0)}⭐\n💳 Необходимо пополнить: ${(estimatedCost - (currentBalance || 0)).toFixed(0)}⭐`
-          : `💰 Insufficient funds\n\n${formatPriceMessage(priceBreakdown, false)}\n\n❌ You have: ${(currentBalance || 0).toFixed(0)}⭐\n💳 Need to top up: ${(estimatedCost - (currentBalance || 0)).toFixed(0)}⭐`
-
-        await ctx.reply(insufficientMessage)
+        await ctx.reply(
+          isRu
+            ? `💰 Недостаточно средств\n\nТребуется: ${estimatedCost}⭐\nУ вас: ${(currentBalance || 0).toFixed(2)}⭐`
+            : `💰 Insufficient funds\n\nRequired: ${estimatedCost}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`
+        )
         return ctx.scene.leave()
       }
 
@@ -1478,32 +1467,63 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           payload.eleven_labs_api_key?.substring(0, 10)
         )
 
+        // ✅ СОХРАНЯЕМ TASK CONTEXT В STORE ПЕРЕД ОТПРАВКОЙ
+        // Это гарантирует что webhook найдёт context даже если придёт раньше ожидаемого
+        console.log('🔴 [STEP 6] Saving task to videoTaskStore...')
+        const statusMessage = await ctx.reply(
+          isRu
+            ? '⏳ Отправляем запрос на render-server...'
+            : '⏳ Sending request to render-server...'
+        )
+
+        videoTaskStore.saveTask(payload.job_id, {
+          telegramId: telegramId,
+          chatId: ctx.chat?.id || parseInt(telegramId),
+          messageId: statusMessage.message_id,
+          prompt: ctx.session.aiReelsRender.text || 'AI Reels generation',
+          modelId: `ai-reels-${avatarService}`,
+          duration: duration,
+          createdAt: Date.now(),
+          botName: ctx.botInfo?.username || undefined,
+        })
+        console.log('✅ [STEP 6] Task saved to videoTaskStore:', payload.job_id)
+
+        logger.info('💾 [AI REELS RENDER] Task context saved before send', {
+          telegramId,
+          jobId: payload.job_id,
+          botName: ctx.botInfo?.username,
+          chatId: ctx.chat?.id,
+          messageId: statusMessage.message_id,
+        })
+
         console.log(
           '🔴 [STEP 6] About to call sendRenderAvatarVideoEvent()...'
         )
         const { eventId } = await sendRenderAvatarVideoEvent(payload)
         console.log('🔴 [STEP 6] Event sent! Event ID:', eventId)
 
-        console.log('🔴 [STEP 6] Sending success reply to user...')
-        await ctx.reply(
+        console.log('🔴 [STEP 6] Updating status message for user...')
+        await ctx.telegram.editMessageText(
+          ctx.chat?.id || parseInt(telegramId),
+          statusMessage.message_id,
+          undefined,
           isRu
             ? `✅ Запрос отправлен на render-server!\n\n` +
                 `🔄 Event ID: ${eventId}\n` +
-                `🎭 Сервис: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
+                `🎭 Сервис: ${avatarService === 'hedra' ? 'Hedra' : avatarService === 'fal' ? 'Fal (Fabric)' : 'HeyGen'}\n` +
                 `⏱️ Ожидаемое время: 2-5 минут\n` +
                 `📢 Вы получите уведомление когда видео будет готово\n\n` +
                 `💰 Списано: ${estimatedCost}⭐\n` +
                 `💳 Новый баланс: ${(currentBalance - estimatedCost).toFixed(2)}⭐`
             : `✅ Request sent to render-server!\n\n` +
                 `🔄 Event ID: ${eventId}\n` +
-                `🎭 Service: ${avatarService === 'hedra' ? 'Hedra' : 'HeyGen'}\n` +
+                `🎭 Service: ${avatarService === 'hedra' ? 'Hedra' : avatarService === 'fal' ? 'Fal (Fabric)' : 'HeyGen'}\n` +
                 `⏱️ Expected time: 2-5 minutes\n` +
                 `📢 You will receive notification when video is ready\n\n` +
                 `💰 Charged: ${estimatedCost}⭐\n` +
-                `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`,
-          { parse_mode: 'HTML' }
+                `💳 New balance: ${(currentBalance - estimatedCost).toFixed(2)}⭐`
         )
-        console.log('🔴 [STEP 6] Reply sent to user!')
+        console.log('🔴 [STEP 6] Status message updated!')
 
         logger.info('✅ [AI REELS RENDER] Event sent successfully', {
           telegramId,

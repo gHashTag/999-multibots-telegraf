@@ -1,6 +1,6 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { getUserBalance, getVoiceId } from '../../core/supabase'
+import { getUserBalance, getVoiceId, updateUserBalance } from '../../core/supabase'
 import {
   sendBalanceMessage,
   // sendInsufficientStarsMessage, // Больше не используется здесь напрямую, т.к. проверка баланса выше
@@ -22,6 +22,7 @@ import logger from '@/utils/logger'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { sendCompletionNotification } from '@/helpers/completionNotification'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
   'text_to_speech',
@@ -141,13 +142,41 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         // Send completion notification with sound
         await sendCompletionNotification(ctx, isRu, 'text_to_speech')
 
-        // --- Начало блока отправки сообщения о балансе ---
+        // --- Начало блока списания баланса ---
         const costResult = calculateModeCost({ mode: ModeEnum.TextToSpeech })
         const cost = costResult.stars
         const currentUserId = ctx.from?.id?.toString()
         const botName = ctx.botInfo?.username || 'unknown_bot'
 
         if (currentUserId) {
+          // ✅ СПИСЫВАЕМ БАЛАНС после успешной генерации аудио
+          if (cost > 0) {
+            const charged = await updateUserBalance(
+              currentUserId,
+              cost,
+              PaymentType.MONEY_OUTCOME,
+              `Text to Speech generation (${textToConvert.length} chars)`,
+              { service_type: 'TEXT_TO_SPEECH' }
+            )
+
+            if (!charged) {
+              logger.error('❌ Failed to charge user for TTS', {
+                telegram_id: currentUserId,
+                cost
+              })
+              await ctx.reply(
+                isRu
+                  ? '⚠️ Аудио создано, но произошла ошибка при списании средств. Обратитесь в поддержку.'
+                  : '⚠️ Audio created, but there was an error charging your balance. Please contact support.'
+              )
+            } else {
+              logger.info('✅ Successfully charged user for TTS', {
+                telegram_id: currentUserId,
+                cost
+              })
+            }
+          }
+
           const currentBalance = await getUserBalance(currentUserId)
           await sendBalanceMessage(ctx, currentBalance, cost, isRu, botName)
           logger.info('[textToSpeechWizard] Balance message sent to user.', {
@@ -159,7 +188,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
             '[textToSpeechWizard] Cannot send balance message, user ID not found.'
           )
         }
-        // --- Конец блока отправки сообщения о балансе ---
+        // --- Конец блока списания баланса ---
       } catch (error) {
         console.error('Error processing text_to_speech in wizard:', error)
 

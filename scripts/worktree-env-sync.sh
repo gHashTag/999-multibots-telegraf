@@ -66,24 +66,31 @@ if [[ -f "$MAIN_REPO_DIR/.env.production" ]]; then
   sync_env_file "$MAIN_REPO_DIR/.env.production" "$WORKTREE_DIR/.env.production" ".env.production"
 fi
 
-# Проверяем наличие критических переменных
-echo -e "\n${BLUE}🔍 Verifying critical environment variables...${NC}"
+# Проверяем наличие Infisical конфигурации
+echo -e "\n${BLUE}🔍 Verifying Infisical configuration...${NC}"
 if [[ -f "$WORKTREE_DIR/.env" ]]; then
-  if grep -q "SUPABASE_URL=" "$WORKTREE_DIR/.env"; then
-    echo -e "${GREEN}✅ SUPABASE_URL found${NC}"
+  # Проверяем Infisical credentials (новая схема)
+  if grep -q "INFISICAL_CLIENT_ID=" "$WORKTREE_DIR/.env"; then
+    echo -e "${GREEN}✅ Infisical CLIENT_ID found${NC}"
   else
-    echo -e "${RED}❌ WARNING: SUPABASE_URL not found in .env${NC}"
+    echo -e "${YELLOW}⚠️  Infisical CLIENT_ID not found (old .env?)${NC}"
   fi
 
-  if grep -q "BOT_TOKEN=" "$WORKTREE_DIR/.env"; then
-    echo -e "${GREEN}✅ BOT_TOKEN found${NC}"
+  if grep -q "INFISICAL_PROJECT_ID=" "$WORKTREE_DIR/.env"; then
+    echo -e "${GREEN}✅ Infisical PROJECT_ID found${NC}"
   else
-    echo -e "${RED}❌ WARNING: BOT_TOKEN not found in .env${NC}"
+    echo -e "${YELLOW}⚠️  Infisical PROJECT_ID not found (old .env?)${NC}"
+  fi
+
+  if grep -q "INFISICAL_ENVIRONMENT=" "$WORKTREE_DIR/.env"; then
+    INFISICAL_ENV=$(grep "INFISICAL_ENVIRONMENT=" "$WORKTREE_DIR/.env" | cut -d'=' -f2)
+    echo -e "${GREEN}✅ Infisical Environment: $INFISICAL_ENV${NC}"
   fi
 
   # Показать количество переменных
   ENV_COUNT=$(grep -c "=" "$WORKTREE_DIR/.env" || true)
-  echo -e "${BLUE}📊 Total environment variables: $ENV_COUNT${NC}"
+  echo -e "${BLUE}📊 Total .env variables: $ENV_COUNT${NC}"
+  echo -e "${BLUE}💡 Secrets loaded from Infisical at runtime${NC}"
 else
   echo -e "${RED}❌ .env file not found after sync!${NC}"
   exit 1

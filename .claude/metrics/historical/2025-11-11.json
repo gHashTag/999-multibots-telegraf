@@ -1,0 +1,37 @@
+{
+  "timestamp": "2025-11-11T16:18:02Z",
+  "health_score": 11,
+  "components": {
+    "skills": {
+      "total": 19,
+      "operational": 18,
+      "degraded": 1,
+      "failed": 0
+    },
+    "agents": {
+      "total": 18,
+      "operational": 18,
+      "degraded": 0,
+      "failed": 0
+    },
+    "commands": {
+      "total": 5,
+      "available": 5,
+      "avg_response_time_ms": 3200
+    }
+  },
+  "performance": {
+    "task_completion_rate": 0.94,
+    "avg_task_duration_min": 4.2,
+    "skills_accuracy": 0.96,
+    "regressions_prevented_week": 12
+  },
+  "alerts": [
+    {
+      "severity": "warning",
+      "component": "telegram-scenes-master",
+      "message": "Duplicate skill detected",
+      "action": "Review and potentially remove"
+    }
+  ]
+}

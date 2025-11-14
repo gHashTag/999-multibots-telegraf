@@ -9,12 +9,12 @@
 ```
 API Error during text-to-video generation
 status: 404
-url: https://ai-server-production-production-8e2d.up.railway.app/generate/text-to-video
+url: https://ai-server-production-production-8e2d.up.render-server (local)/generate/text-to-video
 error: "Cannot POST /generate/text-to-video"
 ```
 
 ### 2. Причина
-- AI сервер (https://ai-server-production-production-8e2d.up.railway.app) не имеет endpoint `/generate/text-to-video`
+- AI сервер (https://ai-server-production-production-8e2d.up.render-server (local)) не имеет endpoint `/generate/text-to-video`
 - На сервере доступны только базовые endpoints: `/`, `/health`, `/api/test`
 - Видео генерация должна происходить через Kie.ai API
 

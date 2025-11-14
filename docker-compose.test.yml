@@ -1,0 +1,264 @@
+# docker-compose.test.yml
+# 🧪 Local Testing Environment with Full Observability
+# Дает Claude агентам "глаза и руки" для контроля Docker контейнеров
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Main Application (Test Mode)
+  # =============================================================================
+  app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      target: builder  # Используем builder stage для тестов
+    image: 999-multibots:test
+    container_name: 999-multibots-test
+    ports:
+      - "3002:3001"  # Другой порт для тестов (не конфликтует с production)
+    environment:
+      # Test environment variables
+      NODE_ENV: test
+      LOG_LEVEL: debug
+      # Infisical credentials (from .env.test)
+      INFISICAL_CLIENT_ID: ${INFISICAL_CLIENT_ID}
+      INFISICAL_CLIENT_SECRET: ${INFISICAL_CLIENT_SECRET}
+      INFISICAL_PROJECT_ID: ${INFISICAL_PROJECT_ID}
+      INFISICAL_ENVIRONMENT: dev
+    volumes:
+      # Source code для hot-reload (опционально)
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      # Logs для анализа
+      - ./logs/test:/app/logs
+      # Test data
+      - ./test-data:/app/test-data
+    networks:
+      - test-network
+    depends_on:
+      test-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: npm run test:watch  # Watch mode для тестов
+
+  # =============================================================================
+  # Test Database (PostgreSQL Mock)
+  # =============================================================================
+  test-db:
+    image: postgres:15-alpine
+    container_name: test-postgres
+    environment:
+      POSTGRES_DB: test_db
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5433:5432"  # Другой порт для тестов
+    volumes:
+      # Test fixtures и seeds
+      - ./tests/fixtures/db:/docker-entrypoint-initdb.d
+      # Данные БД (ephemeral - удаляется после тестов)
+      - test-db-data:/var/lib/postgresql/data
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d test_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # Redis Cache (для тестирования кэширования)
+  # =============================================================================
+  test-redis:
+    image: redis:7-alpine
+    container_name: test-redis
+    ports:
+      - "6380:6379"  # Другой порт
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # =============================================================================
+  # Test Runner (Isolated Test Execution)
+  # =============================================================================
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      target: builder
+    image: 999-multibots:test-runner
+    container_name: test-runner
+    environment:
+      NODE_ENV: test
+      CI: true
+      # Database connection для integration tests
+      DATABASE_URL: postgresql://test_user:test_password@test-db:5432/test_db
+      REDIS_URL: redis://test-redis:6379
+    volumes:
+      # Source code
+      - .:/app:ro
+      # Test results output
+      - ./test-results:/app/test-results
+      # Coverage output
+      - ./coverage:/app/coverage
+    networks:
+      - test-network
+    depends_on:
+      test-db:
+        condition: service_healthy
+      test-redis:
+        condition: service_healthy
+    command: npm run test:ci  # CI mode для полного прогона
+    profiles:
+      - ci  # Запускается только при явном указании profile
+
+  # =============================================================================
+  # E2E Test Environment (с реальным Telegram Mock)
+  # =============================================================================
+  e2e-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      target: builder
+    image: 999-multibots:e2e
+    container_name: e2e-test
+    environment:
+      NODE_ENV: test
+      E2E_TEST: true
+      # Mock Telegram API
+      TELEGRAM_API_MOCK: http://telegram-mock:8080
+    volumes:
+      - .:/app:ro
+      - ./test-results/e2e:/app/test-results/e2e
+    networks:
+      - test-network
+    depends_on:
+      - telegram-mock
+      - app-test
+    command: npm run test:e2e
+    profiles:
+      - e2e
+
+  # =============================================================================
+  # Telegram API Mock (для E2E тестов)
+  # =============================================================================
+  telegram-mock:
+    image: node:20-alpine
+    container_name: telegram-mock
+    working_dir: /app
+    volumes:
+      - ./tests/mocks/telegram-api:/app
+    ports:
+      - "8080:8080"
+    networks:
+      - test-network
+    command: node telegram-mock-server.js
+    profiles:
+      - e2e
+
+  # =============================================================================
+  # MCP Monitoring & Control Server
+  # =============================================================================
+  mcp-observer:
+    image: alpine:latest
+    container_name: mcp-observer
+    volumes:
+      # Docker socket для контроля контейнеров
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Logs всех контейнеров
+      - ./logs/test:/logs:ro
+      # MCP monitoring scripts
+      - ./scripts/mcp:/scripts:ro
+    networks:
+      - test-network
+    command: sh -c "apk add --no-cache docker-cli curl jq && tail -f /dev/null"
+    profiles:
+      - mcp
+
+  # =============================================================================
+  # Log Aggregator (для централизованного логирования)
+  # =============================================================================
+  log-aggregator:
+    image: fluent/fluent-bit:latest
+    container_name: log-aggregator
+    volumes:
+      - ./logs/test:/logs:ro
+      - ./config/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+    ports:
+      - "24224:24224"  # Forward protocol
+    networks:
+      - test-network
+    profiles:
+      - observability
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  test-network:
+    name: test-network
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  test-db-data:
+    name: test-db-data
+    # Ephemeral - удаляется после docker-compose down -v
+
+# =============================================================================
+# 📊 Usage Examples
+# =============================================================================
+#
+# 1. Запуск основного test environment:
+#    docker-compose -f docker-compose.test.yml up -d
+#
+# 2. Запуск CI тестов:
+#    docker-compose -f docker-compose.test.yml --profile ci up --abort-on-container-exit
+#
+# 3. Запуск E2E тестов:
+#    docker-compose -f docker-compose.test.yml --profile e2e up --abort-on-container-exit
+#
+# 4. Запуск с MCP observability:
+#    docker-compose -f docker-compose.test.yml --profile mcp up -d
+#
+# 5. Полный стэк (все профили):
+#    docker-compose -f docker-compose.test.yml --profile ci --profile e2e --profile mcp up
+#
+# 6. Просмотр логов конкретного сервиса:
+#    docker-compose -f docker-compose.test.yml logs -f app-test
+#
+# 7. Выполнение команды в test контейнере:
+#    docker-compose -f docker-compose.test.yml exec app-test npm run typecheck
+#
+# 8. Остановка и очистка:
+#    docker-compose -f docker-compose.test.yml down -v
+#
+# =============================================================================
+# 🎯 MCP Control Commands (через mcp-observer)
+# =============================================================================
+#
+# Получить статус всех контейнеров:
+#   docker-compose -f docker-compose.test.yml exec mcp-observer docker ps
+#
+# Просмотреть логи в реальном времени:
+#   docker-compose -f docker-compose.test.yml exec mcp-observer tail -f /logs/app.log
+#
+# Получить метрики контейнера:
+#   docker-compose -f docker-compose.test.yml exec mcp-observer docker stats 999-multibots-test --no-stream
+#
+# Проверить health контейнеров:
+#   docker-compose -f docker-compose.test.yml exec mcp-observer docker inspect --format='{{.State.Health.Status}}' 999-multibots-test
+#
+# =============================================================================

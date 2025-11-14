@@ -9,7 +9,7 @@
 
 ## 🎯 ПРОБЛЕМА
 
-Railway render-server не мог доставить webhook callback:
+Render Server не мог доставить webhook callback:
 ```
 httpx.HTTPStatusError: Server error '502 Bad Gateway'
 for url 'https://three-head-dragon.shop/api/telegram/ai-reels-callback'
@@ -187,7 +187,7 @@ bot-proxy       Up 2 minutes   0.0.0.0:80->80/tcp, [::]:80->80/tcp
 - `http://three-head-dragon.shop/api/telegram/ai-reels-callback`
 - `http://three-head-dragon.shop/health`
 
-### Railway render-server может доставлять callbacks на:
+### Render Server может доставлять callbacks на:
 - `https://three-head-dragon.shop/api/telegram/ai-reels-callback`
 
 ---
@@ -273,7 +273,7 @@ df -h | grep vda
 
 **Система стабильна и готова к production.**
 
-**Railway render-server может успешно доставлять webhook callbacks.**
+**Render Server может успешно доставлять webhook callbacks.**
 
 **Больше никаких 6-часовых ночных сессий! У нас есть полная документация и автоматические тесты.**
 

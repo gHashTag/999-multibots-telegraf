@@ -155,7 +155,7 @@ docker logs 999-multibots | grep -i inngest
 ## ⚠️ Важные замечания
 
 ### 1. Render функции:
-Render функции используют внешний Railway сервер для рендеринга.
+Render функции используют внешний Render Server сервер для рендеринга.
 Это НОРМАЛЬНО и не требует изменений. Они работают через SSH.
 
 ### 2. Webhook callbacks:

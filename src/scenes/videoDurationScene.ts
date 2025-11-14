@@ -2,12 +2,12 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
-  VIDEO_MODELS,
+  VIDEO_MODELS_CONFIG as VIDEO_MODELS,
   getModelPriceInStars,
   isDurationSupported,
   getValidDuration,
-  VideoModelInfo,
-} from '@/services/videoModels'
+  UnifiedVideoModelConfig as VideoModelInfo,
+} from '@/config/unified-video-models.config'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { logger } from '@/utils/logger'
@@ -35,24 +35,26 @@ videoDurationScene.enter(async ctx => {
   const model = VIDEO_MODELS[modelId]
 
   // Проверяем, поддерживает ли модель выбор длительности
-  if (!model.supportedDurations || model.supportedDurations.length === 0) {
+  const durations = model.apiSettings?.durations || []
+  if (!durations || durations.length === 0) {
     // Для моделей без выбора длительности сразу генерируем видео
     await handleTextToVideoDirect(ctx, prompt, modelId)
     return ctx.scene.leave()
   }
 
   // Если у модели только одна поддерживаемая длительность, пропускаем выбор
-  if (model.supportedDurations.length === 1) {
-    const duration = model.supportedDurations[0]
+  if (durations.length === 1) {
+    const duration = durations[0]
     ctx.session.videoDuration = duration
     await handleTextToVideoDirect(ctx, prompt, modelId, duration)
     return ctx.scene.leave()
   }
 
   // Создаем кнопки с длительностями
-  const buttons = model.supportedDurations.map(duration => {
+  const buttons = durations.map(duration => {
     const price = getModelPriceInStars(modelId, duration)
-    const isDefault = duration === model.defaultDuration
+    const defaultDuration = model.pricing?.defaultDuration || durations[0]
+    const isDefault = duration === defaultDuration
     const label = `${duration} ${is_ru ? 'сек' : 'sec'} - ${price} ⭐${
       isDefault ? ' ⭐' : ''
     }`
@@ -68,7 +70,7 @@ videoDurationScene.enter(async ctx => {
   // Добавляем кнопку отмены
   buttons.push([
     {
-      text: is_ru ? '❌ Отмена' : '❌ Cancel',
+      text: is_ru ? 'Отмена' : 'Cancel',
       callback_data: 'cancel_duration',
     },
   ])

@@ -1,0 +1,50 @@
+{
+  "name": "@999-agents/plugin-neurophoto",
+  "version": "0.2.0",
+  "description": "ElizaOS plugin for AI image generation with Replicate and Fal.ai LoRA support",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "elizaos",
+    "plugin",
+    "replicate",
+    "fal-ai",
+    "lora",
+    "ai",
+    "image-generation",
+    "neurophoto",
+    "telegram",
+    "flux",
+    "personalization"
+  ],
+  "author": "999-agents",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/999-agents/plugin-neurophoto.git"
+  },
+  "peerDependencies": {
+    "@elizaos/core": "^1.0.0"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.7.2",
+    "replicate": "^0.34.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "bun-types": "latest"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
+}

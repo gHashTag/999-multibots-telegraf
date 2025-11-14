@@ -363,6 +363,58 @@ interface MandatoryCommitRule {
 ---
 *Эта инструкция является моим внутренним рабочим планом и постоянно используется для навигации и выполнения задач.* 🧭✨
 
+## 🔒 КРИТИЧЕСКОЕ ПРАВИЛО: SSL Сертификаты (НИКОГДА НЕ МЕНЯТЬ!)
 
+### ⛔️ ЗАПРЕЩЕНО ТРОГАТЬ:
 
+**В файле `docker-compose.yml`:**
+```yaml
+bot-proxy:
+  volumes:
+    - ./ssl/cert.crt:/etc/nginx/ssl/cert.crt:ro
+    - ./ssl/key.pem:/etc/nginx/ssl/key.pem:ro
+```
+
+**В файле `nginx-config/default.conf`:**
+```nginx
+ssl_certificate /etc/nginx/ssl/cert.crt;
+ssl_certificate_key /etc/nginx/ssl/key.pem;
+```
+
+### 🚨 ПОЧЕМУ КРИТИЧНО:
+
+1. **Replicate требует HTTPS webhooks** - без SSL тренировка моделей НЕ РАБОТАЕТ
+2. **Ошибка 422**: `webhook: Not a valid HTTPS URL` если используется HTTP
+3. **nginx не запустится** если пути к сертификатам неверные
+
+### ❌ ПОСЛЕДСТВИЯ ИЗМЕНЕНИЯ:
+
+- nginx (bot-proxy) впадает в crash loop
+- Все HTTPS webhooks перестают работать
+- Пользователи не могут тренировать модели (Digital Avatar Body)
+- Уведомления от Replicate не приходят
+
+### ✅ ПРОВЕРКА ПОСЛЕ КАЖДОГО ДЕПЛОЯ:
+
+```bash
+# 1. nginx должен быть запущен (НЕ Restarting!)
+docker ps | grep bot-proxy
+
+# 2. В логах НЕ должно быть: "cannot load certificate"
+docker logs bot-proxy --tail 20
+
+# 3. Webhook должен отвечать
+curl -k https://212.86.115.30:8443/api/webhooks/replicate -X POST -d '{"id":"test"}'
+```
+
+### 📝 ИСТОРИЯ:
+
+**2025-11-11**: Пользователь 500889584 не мог тренировать "цифровое тело"
+- **Проблема 1**: Webhook использовал HTTP вместо HTTPS → Fix: `BASE_WEBHOOK_URL`
+- **Проблема 2**: Пути к SSL в `/etc/pki/` (директории!) → Fix: `./ssl/` в docker-compose.yml
+- **Решение**: Commits `2a1a2d88` + `f4e45499`
+
+**⚠️ AI АГЕНТЫ**: При ЛЮБЫХ изменениях docker-compose.yml проверяйте что пути к SSL НЕ ИЗМЕНИЛИСЬ!
+
+---
 

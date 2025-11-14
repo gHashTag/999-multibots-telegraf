@@ -26,7 +26,7 @@ BASE_WEBHOOK_URL=https://three-head-dragon.shop
      ? `${process.env.LOCAL_SERVER_URL}/api/kie-ai/callback`
      : process.env.API_SERVER_URL
      ? `${process.env.API_SERVER_URL}/api/kie-ai/callback`
-     : 'https://ai-server-production-production-8e2d.up.railway.app/api/kie-ai/callback'
+     : 'https://ai-server-production-production-8e2d.up.render-server (local)/api/kie-ai/callback'
    ```
 
 3. **Результат**:

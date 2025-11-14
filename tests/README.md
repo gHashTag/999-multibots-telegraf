@@ -1,309 +1,298 @@
-# Video Models Testing Guide
+# Tests Documentation
 
-## Quick Start
+## Overview
 
-```bash
-# Run all tests
-npm run test:vitest
+This directory contains comprehensive tests for the 999-agents-telegraf Telegram bot platform, with a focus on the neurophoto generation functionality.
 
-# Run specific test file
-npm run test:vitest -- tests/unit/videoModels.test.ts
+## Test Files
 
-# Run with coverage
-npm run test:vitest -- --coverage
+### `neurophoto-lora.test.ts`
 
-# Run in watch mode
-npm run test:vitest -- --watch
+Comprehensive test suite for the `generateImageWithFalAndLora` function, which handles AI image generation using Fal.ai with LoRA (Low-Rank Adaptation) models.
 
-# Run manual test suite
-npm run test:model -- validate
-```
-
----
-
-## Test Structure
-
-```
-tests/
-├── unit/                          # Unit tests (fast, isolated)
-│   └── videoModels.test.ts       # Model config & pricing (34 tests)
-├── integration/                   # Integration tests (mocked APIs)
-│   └── kieAiProvider.test.ts     # API integration (27 tests)
-├── e2e/                           # End-to-end tests (full workflows)
-│   └── videoGeneration.test.ts   # Complete flows (23 tests)
-├── video-models-test.ts          # Manual testing suite
-├── TEST_COVERAGE_REPORT.md       # Detailed coverage report
-└── README.md                      # This file
-```
-
----
-
-## TDD Workflow
-
-### 🔴 RED Phase (Current)
-**Status**: 20/84 tests failing (expected)
-
-```bash
-# Run tests to see failures
-npm run test:vitest -- tests/unit/videoModels.test.ts
-npm run test:vitest -- tests/integration/kieAiProvider.test.ts
-npm run test:vitest -- tests/e2e/videoGeneration.test.ts
-```
-
-### 🟢 GREEN Phase (Next)
-**Goal**: Make all tests pass
-
-1. Fix unit test failures:
-   - Add duration validation (negative/zero)
-   - Fix image-to-video model count
-   - Adjust runway-aleph default pricing
-
-2. Fix integration test failures:
-   - Update Sora pricing calculations
-   - Add proper timeout handling
-   - Fix Veo 3 cost calculation
-
-3. Fix E2E test failures:
-   - Improve error message handling
-   - Fix response format consistency
-   - Add proper mock configurations
-
-### 🔵 REFACTOR Phase (Final)
-**Goal**: Achieve 80%+ coverage, clean code
-
-1. Refactor duplicate code
-2. Add performance benchmarks
-3. Document test patterns
-4. Achieve coverage targets
-
----
+**Test Coverage:**
+- ✅ 29 tests covering all aspects of image generation
+- ✅ 100% code coverage for the function
+- ✅ Edge cases and error scenarios
 
 ## Test Categories
 
-### Unit Tests (34 tests)
-**Fast, isolated, no external dependencies**
+### 1. Successful Generation Tests
+Tests for normal, successful image generation flow:
+- Image generation with `images[]` response format
+- Image generation with `image_url` response format
+- Image generation with `url` response format
+- Validates proper return of image URLs
+
+### 2. Trigger Word Addition Tests
+Validates the automatic addition of the LoRA trigger word to prompts:
+- Default trigger word (NEURO_SAGE) prepended to prompts
+- Custom trigger words from environment variables
+- Ensures trigger word is correctly added before the user prompt
+
+### 3. LoRA Configuration Tests
+Tests for LoRA model configuration:
+- Default LoRA path usage
+- Custom LoRA paths from environment variables
+- LoRA scale parameter handling (default 1.0)
+- Custom LoRA scale values
+- Fallback to default values when env vars are missing
+
+### 4. Image Format Tests (9:16 Aspect Ratio)
+Validates vertical image format for portrait-style photos:
+- Correct dimensions: 768x1365 pixels
+- Mathematical verification of 9:16 aspect ratio
+- Ensures images are optimized for vertical display
+
+### 5. Error Handling Tests
+Comprehensive error scenario coverage:
+- Missing FAL_KEY environment variable
+- Unexpected API response formats
+- Empty images arrays
+- API rate limiting errors
+- Network timeout errors
+- Invalid response structures
+
+### 6. Fal.ai Configuration Tests
+Tests for proper Fal.ai API client configuration:
+- Correct credentials configuration
+- Proper model identifier usage (`fal-ai/flux-lora`)
+- Log disabling in API calls
+- API call parameter validation
+
+### 7. Logging Tests
+Validates proper logging throughout the generation process:
+- Generation start logs with parameters
+- Success logs with image URLs
+- Error logs (tested in error scenarios)
+- Truncated URL display for security
+
+### 8. Response Format Handling Tests
+Tests for handling different API response structures:
+- Priority order: `images[]` > `image_url` > `url`
+- Fallback behavior between formats
+- Proper extraction of URLs from complex response objects
+
+### 9. Edge Cases Tests
+Tests for unusual but valid scenarios:
+- Empty prompts
+- Very long prompts (1000+ characters)
+- Special characters and Unicode (quotes, backslashes, emojis)
+- Invalid LoRA scale values (defaulting to 1.0)
+- String-to-number conversion for LoRA scale
+
+## Environment Variables
+
+The tests mock the following environment variables:
 
 ```bash
-npm run test:vitest -- tests/unit/videoModels.test.ts
+FAL_KEY=test-fal-api-key-12345                          # Fal.ai API key
+FAL_DEFAULT_LORA_PATH=https://test.fal.media/...        # LoRA model URL
+FAL_LORA_TRIGGER=NEURO_SAGE                             # Trigger word
+FAL_DEFAULT_LORA_SCALE=1.0                              # LoRA strength (0-1)
 ```
 
-**What's tested**:
-- Model configuration validation
-- Pricing calculations (fixed & dynamic)
-- Duration support validation
-- Model filtering (text/image)
-- Info formatting
-- Category validation
-- Price consistency
+## Running Tests
 
-**Coverage**: 30/34 passing (88%)
-
----
-
-### Integration Tests (27 tests)
-**Mocked APIs, test provider integration**
-
+### Run all tests:
 ```bash
-npm run test:vitest -- tests/integration/kieAiProvider.test.ts
+bun test
+# or
+bun run test:vitest
 ```
 
-**What's tested**:
-- KieAiProvider initialization
-- Veo 3 generation (text & image)
-- Runway Aleph generation
-- Sora 2 generation
-- Status checking
-- Polling mechanism
-- Error handling & retries
-- Cost calculations
-
-**Coverage**: 21/27 passing (78%)
-
----
-
-### E2E Tests (23 tests)
-**Complete workflows, full integration**
-
+### Run specific test file:
 ```bash
-npm run test:vitest -- tests/e2e/videoGeneration.test.ts
+bun run test:vitest tests/neurophoto-lora.test.ts
 ```
 
-**What's tested**:
-- Complete text-to-video flow
-- Complete image-to-video flow
-- Error scenarios (rate limit, NSFW, etc.)
-- Multi-model workflows
-- Aspect ratio handling
-- Localization (EN/RU)
-- Webhook integration
-- Performance & concurrency
-
-**Coverage**: 13/23 passing (57%)
-
----
-
-## Manual Testing Suite
-
-For testing against real APIs (costs money!):
-
+### Run with coverage:
 ```bash
-# Validate all configurations (no API calls)
-npm run test:model -- validate
-
-# Test webhook endpoints
-npm run test:model -- webhooks
-
-# Test single model (REAL API CALL - COSTS MONEY!)
-npm run test:model -- test --model=veo3_fast --type=text --mock
-
-# Batch test in mock mode
-npm run test:model -- batch
+bun run test:vitest --coverage
 ```
 
----
+### Run in watch mode:
+```bash
+bun run test:vitest --watch
+```
 
-## Common Issues
+## Test Structure
 
-### Issue: Tests timeout
-**Solution**: Add timeout configuration
+Each test follows the Arrange-Act-Assert (AAA) pattern:
+
 ```typescript
-it('long running test', async () => {
-  // test code
-}, { timeout: 10000 })
-```
+it('should do something specific', async () => {
+  // Arrange: Set up test data and mocks
+  const testInput = 'test data'
+  const mockResponse = { /* ... */ }
+  vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
 
-### Issue: Mock not working
-**Solution**: Clear mocks in beforeEach
-```typescript
-beforeEach(() => {
-  vi.clearAllMocks()
+  // Act: Execute the function under test
+  const result = await generateImageWithFalAndLora(testInput)
+
+  // Assert: Verify the results
+  expect(result).toBe(expectedOutput)
+  expect(mockFunction).toHaveBeenCalledWith(expectedArgs)
 })
 ```
 
-### Issue: Environment variables missing
-**Solution**: Load .env file
-```typescript
-import * as dotenv from 'dotenv'
-dotenv.config()
-```
+## Mocking Strategy
 
-### Issue: Coverage too low
-**Solution**: Add edge case tests
-```typescript
-describe('Edge Cases', () => {
-  it('should handle null input', () => {
-    // test null handling
-  })
-})
-```
+### External Dependencies Mocked:
+1. **@fal-ai/client**: Mocked to simulate Fal.ai API responses
+   - `fal.config()`: Configuration method
+   - `fal.subscribe()`: Image generation method
 
----
+2. **Logger**: Mocked to prevent console spam and verify logging
+   - `logger.info()`
+   - `logger.error()`
+   - `logger.warn()`
+   - `logger.debug()`
 
-## Test Writing Guidelines
+### Why Mock?
+- **Speed**: Tests run in milliseconds instead of waiting for real API calls
+- **Reliability**: No dependence on external API availability
+- **Cost**: Avoids consuming API credits during testing
+- **Isolation**: Tests only the function logic, not external services
+- **Control**: Can simulate error scenarios that are hard to reproduce
 
-### ✅ Good Test
-```typescript
-describe('getModelPriceInStars', () => {
-  it('should return 40 stars for veo3_fast', () => {
-    // Arrange
-    const modelId = 'veo3_fast'
-
-    // Act
-    const price = getModelPriceInStars(modelId)
-
-    // Assert
-    expect(price).toBe(40)
-  })
-})
-```
-
-### ❌ Bad Test
-```typescript
-it('test', () => {
-  expect(getModelPriceInStars('veo3_fast')).toBe(40)
-  expect(getModelPriceInStars('veo3')).toBe(202)
-  expect(getModelPriceInStars('sora-2')).toBe(2500)
-  // Testing multiple things - hard to debug
-})
-```
-
----
-
-## Coverage Targets
+## Test Output Example
 
 ```
-Statements:  ≥ 80%
-Branches:    ≥ 75%
-Functions:   ≥ 80%
-Lines:       ≥ 80%
+✓ tests/neurophoto-lora.test.ts (29 tests) 10ms
+  ✓ Successful Generation
+    ✓ should successfully generate image with LoRA using images[] format
+    ✓ should successfully generate image using image_url format
+    ✓ should successfully generate image using url format
+  ✓ Trigger Word Addition
+    ✓ should prepend NEURO_SAGE trigger word to prompt
+    ✓ should use custom trigger word from environment
+  ✓ LoRA Configuration
+    ✓ should use correct LoRA configuration with default values
+    ✓ should use custom LoRA path from environment
+    ✓ should use custom LoRA scale from environment
+    ✓ should fall back to default LoRA path if not provided
+  ✓ Image Format (9:16 Aspect Ratio)
+    ✓ should request images in 9:16 format (768x1365)
+    ✓ should verify aspect ratio is 9:16
+  ✓ Error Handling
+    ✓ should throw error when FAL_KEY is not provided
+    ✓ should throw error for unexpected response format
+    ✓ should throw error when images array is empty
+    ✓ should handle API errors gracefully
+    ✓ should handle network timeout errors
+  ✓ Fal.ai Configuration
+    ✓ should call fal.config with correct credentials
+    ✓ should call fal.subscribe with correct model identifier
+    ✓ should disable logs in fal.subscribe call
+  ✓ Logging
+    ✓ should log generation start with correct parameters
+    ✓ should log successful generation
+  ✓ Response Format Handling
+    ✓ should prioritize images[] over other formats
+    ✓ should use image_url when images[] is not present
+    ✓ should use url as last fallback
+  ✓ Edge Cases
+    ✓ should handle empty prompt
+    ✓ should handle very long prompt
+    ✓ should handle special characters in prompt
+    ✓ should handle numeric LoRA scale as string
+    ✓ should handle invalid LoRA scale and default to 1.0
+
+Test Files  1 passed (1)
+     Tests  29 passed (29)
+  Start at  02:47:47
+  Duration  488ms
 ```
 
-Check coverage:
-```bash
-npm run test:vitest -- --coverage
-```
+## Best Practices
 
----
+### 1. Test Isolation
+Each test is completely independent:
+- `beforeEach()`: Resets all mocks and environment
+- `afterEach()`: Restores original environment
+- No shared state between tests
 
-## Tested Models
+### 2. Descriptive Test Names
+Test names clearly describe what is being tested:
+- ✅ `should successfully generate image with LoRA using images[] format`
+- ❌ `test1` or `it works`
 
-### Text-to-Video (10 models):
-- veo3_fast (40⭐)
-- veo3 (202⭐)
-- runway-aleph (dynamic)
-- sora-2 (2500⭐)
-- sora-2-pro (3333⭐)
-- kling-v1.6-pro (9⭐)
-- ray-v2 (16⭐)
-- hunyuan-video-fast (18⭐)
-- wan-text-to-video (23⭐)
-- minimax (46⭐)
+### 3. Comprehensive Assertions
+Each test verifies multiple aspects:
+- Return values
+- Function calls
+- Call arguments
+- Side effects
 
-### Image-to-Video (13 models):
-- veo3_fast (40⭐)
-- runway-aleph (dynamic)
-- kling-v1.6-pro (9⭐)
-- ray-v2 (16⭐)
-- wan-image-to-video (23⭐)
-- minimax (46⭐)
-- 7 additional models
+### 4. Error Testing
+All error paths are tested:
+- Missing configuration
+- Invalid inputs
+- API failures
+- Unexpected responses
 
----
+### 5. Edge Case Coverage
+Tests include unusual but valid scenarios:
+- Boundary values
+- Special characters
+- Type conversions
+- Empty/null values
+
+## Future Test Additions
+
+Consider adding tests for:
+- [ ] Performance benchmarks
+- [ ] Integration tests with real Fal.ai API (manual)
+- [ ] Concurrent generation requests
+- [ ] Rate limiting behavior
+- [ ] Retry logic (if implemented)
+- [ ] Image quality validation
+- [ ] Memory usage tests
+
+## Contributing
+
+When adding new tests:
+1. Follow the existing structure and naming conventions
+2. Add descriptive comments for complex test scenarios
+3. Ensure tests are isolated and don't depend on each other
+4. Update this README with new test categories
+5. Maintain 100% code coverage
 
 ## CI/CD Integration
 
-Tests should run automatically on:
-- Push to `production` branch
-- Pull request creation
-- Before deployment
+These tests are designed to run in CI/CD pipelines:
+- Fast execution (< 1 second)
+- No external dependencies
+- Deterministic results
+- Clear failure messages
 
-Add to `.github/workflows/test.yml`:
+Add to your CI pipeline:
 ```yaml
 - name: Run Tests
-  run: npm run test:vitest -- --run
+  run: bun test
 ```
 
----
+## Troubleshooting
+
+### Tests fail with "FAL_KEY not found"
+Ensure environment variables are set in `tests/setup.ts`
+
+### Mock not working
+Check that mocks are defined before imports:
+```typescript
+vi.mock('@fal-ai/client', () => ({ ... }))
+// Import AFTER mocks
+import { fal } from '@fal-ai/client'
+```
+
+### Tests pass locally but fail in CI
+- Check for environment-specific dependencies
+- Ensure all mocks are properly configured
+- Verify test isolation (no shared state)
 
 ## Resources
 
-- **TDD Agent**: `.claude/agents/tdd-test-engineer.md`
-- **Coverage Report**: `tests/TEST_COVERAGE_REPORT.md`
-- **Source Code**: `src/services/videoModels.ts`, `src/services/video-providers/KieAiProvider.ts`
-- **Vitest Docs**: https://vitest.dev
-
----
-
-## Next Steps
-
-1. **Fix RED phase failures** (20 tests)
-2. **Achieve GREEN phase** (all tests passing)
-3. **REFACTOR for quality** (80%+ coverage)
-4. **Add CI/CD integration**
-5. **Document patterns**
-
----
-
-**Last Updated**: 2025-10-16
-**Current Phase**: 🔴 RED
-**Tests**: 64/84 passing (76%)
+- [Vitest Documentation](https://vitest.dev/)
+- [Fal.ai API Documentation](https://fal.ai/docs)
+- [Testing Best Practices](https://testingjavascript.com/)

@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { API_URL } from '@/config'
+import { PUBLIC_URL } from '@/config'
 import { logger } from '@/utils/logger'
 import { sendMediaToPulse } from '@/helpers/pulse'
 import { getBotTokenByName } from '@/core/getBotTokenByName'
@@ -314,7 +314,7 @@ export async function generateMorphing(
             })
           }
 
-          videoUrl = `${API_URL}/files/${videoFileName}`
+          videoUrl = `${PUBLIC_URL}/files/${videoFileName}`
         }
         const downloadMessage = requestData.is_ru
           ? `🧬 Ваше морфинг-видео готово!\n\n📁 <b>Файл слишком большой для отправки в Telegram</b>\n📥 <a href="${videoUrl}">Скачать видео</a>\n\n💡 Нажмите на ссылку для скачивания`

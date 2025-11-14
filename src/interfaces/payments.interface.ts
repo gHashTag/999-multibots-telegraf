@@ -49,6 +49,7 @@ export enum PaymentType {
   MONEY_INCOME = 'MONEY_INCOME',
   MONEY_OUTCOME = 'MONEY_OUTCOME',
   REFUND = 'REFUND',
+  SERVICE_PAYMENT = 'SERVICE_PAYMENT',
 }
 
 export interface BasePayment {

@@ -14,12 +14,12 @@ import {
   AudioResult,
   FaceSwapRequest,
   FaceSwapResult,
-  ProviderConfig
+  ProviderConfig,
+  HealthStatus,
+  Balance
 } from '../../../core/functional/types/media.types'
 import type {
   Provider,
-  HealthStatus,
-  Balance,
   RateLimit,
   HealthCheck,
   GetBalance,
@@ -27,9 +27,9 @@ import type {
   GenerateImage,
   GenerateAudio,
   PerformFaceSwap,
-  ProviderError,
-  createProviderError
+  ProviderError
 } from './types'
+import { createProviderError } from './types'
 
 // ===== CONFIG VALIDATION =====
 
@@ -96,32 +96,35 @@ const buildVideoPayload = (request: VideoRequest) => {
   return payload
 }
 
-const handleVideoResponse = (data: any): VideoResult => ({
+const handleVideoResponse = (data: any, request: VideoRequest, providerName: any): VideoResult => ({
   videoUrl: data.video_url || data.output?.video_url || '',
   taskId: data.request_id || data.id,
-  provider: 'fal' as const,
+  provider: providerName,
   duration: data.duration || request.duration,
-  metadata: data.metadata || {}
+  metadata: data.metadata || {},
+  cost: data.cost || { usd: 0, stars: 0 }
 })
 
 export const generateVideo = (config: ProviderConfig): GenerateVideo =>
-  async (request: VideoRequest): Promise<Either<Error, VideoResult>> => {
+  (request: VideoRequest) => () => {
     const http = createHttpClient(config)
 
-    try {
-      const payload = buildVideoPayload(request)
-      const response = await http.post('/v1/video/generation', payload)
+    return (async (): Promise<Either<Error, VideoResult>> => {
+      try {
+        const payload = buildVideoPayload(request)
+        const response = await http.post('/v1/video/generation', payload)
 
-      return right(handleVideoResponse(response))
-    } catch (error) {
-      const providerError = createProviderError(
-        'fal',
-        'generateVideo',
-        error instanceof Error ? error.message : 'Unknown error',
-        error instanceof Error ? error : undefined
-      )
-      return left(providerError)
-    }
+        return right(handleVideoResponse(response, request, config.name))
+      } catch (error) {
+        const providerError = createProviderError(
+          'fal',
+          'generateVideo',
+          error instanceof Error ? error.message : 'Unknown error',
+          error instanceof Error ? error : undefined
+        )
+        return left(providerError)
+      }
+    })()
   }
 
 // ===== IMAGE GENERATION =====
@@ -140,33 +143,35 @@ const buildImagePayload = (request: ImageRequest) => {
   return payload
 }
 
-const handleImageResponse = (data: any): ImageResult => ({
+const handleImageResponse = (data: any, request: ImageRequest, providerName: any): ImageResult => ({
   imageUrl: data.image_url || data.output?.image_url || '',
   taskId: data.request_id || data.id,
-  provider: 'fal' as const,
-  width: data.width || 512,
-  height: data.height || 512,
+  provider: providerName,
+  width: data.width || request.width || 512,
+  height: data.height || request.height || 512,
   metadata: data.metadata || {}
 })
 
 export const generateImage = (config: ProviderConfig): GenerateImage =>
-  async (request: ImageRequest): Promise<Either<Error, ImageResult>> => {
+  (request: ImageRequest) => () => {
     const http = createHttpClient(config)
 
-    try {
-      const payload = buildImagePayload(request)
-      const response = await http.post('/v1/image/generation', payload)
+    return (async (): Promise<Either<Error, ImageResult>> => {
+      try {
+        const payload = buildImagePayload(request)
+        const response = await http.post('/v1/image/generation', payload)
 
-      return right(handleImageResponse(response))
-    } catch (error) {
-      const providerError = createProviderError(
-        'fal',
-        'generateImage',
-        error instanceof Error ? error.message : 'Unknown error',
-        error instanceof Error ? error : undefined
-      )
-      return left(providerError)
-    }
+        return right(handleImageResponse(response, request, config.name))
+      } catch (error) {
+        const providerError = createProviderError(
+          'fal',
+          'generateImage',
+          error instanceof Error ? error.message : 'Unknown error',
+          error instanceof Error ? error : undefined
+        )
+        return left(providerError)
+      }
+    })()
   }
 
 // ===== AUDIO GENERATION =====
@@ -183,32 +188,34 @@ const buildAudioPayload = (request: AudioRequest) => {
   return payload
 }
 
-const handleAudioResponse = (data: any): AudioResult => ({
+const handleAudioResponse = (data: any, request: AudioRequest, providerName: any): AudioResult => ({
   audioUrl: data.audio_url || data.output?.audio_url || '',
   taskId: data.request_id || data.id,
-  provider: 'fal' as const,
-  duration: data.duration || 5,
+  provider: providerName,
+  duration: data.duration || request.duration || 5,
   metadata: data.metadata || {}
 })
 
 export const generateAudio = (config: ProviderConfig): GenerateAudio =>
-  async (request: AudioRequest): Promise<Either<Error, AudioResult>> => {
+  (request: AudioRequest) => () => {
     const http = createHttpClient(config)
 
-    try {
-      const payload = buildAudioPayload(request)
-      const response = await http.post('/v1/audio/generation', payload)
+    return (async (): Promise<Either<Error, AudioResult>> => {
+      try {
+        const payload = buildAudioPayload(request)
+        const response = await http.post('/v1/audio/generation', payload)
 
-      return right(handleAudioResponse(response))
-    } catch (error) {
-      const providerError = createProviderError(
-        'fal',
-        'generateAudio',
-        error instanceof Error ? error.message : 'Unknown error',
-        error instanceof Error ? error : undefined
-      )
-      return left(providerError)
-    }
+        return right(handleAudioResponse(response, request, config.name))
+      } catch (error) {
+        const providerError = createProviderError(
+          'fal',
+          'generateAudio',
+          error instanceof Error ? error.message : 'Unknown error',
+          error instanceof Error ? error : undefined
+        )
+        return left(providerError)
+      }
+    })()
   }
 
 // ===== FACE SWAP =====
@@ -222,93 +229,99 @@ const buildFaceSwapPayload = (request: FaceSwapRequest) => {
   return payload
 }
 
-const handleFaceSwapResponse = (data: any): FaceSwapResult => ({
+const handleFaceSwapResponse = (data: any, providerName: any): FaceSwapResult => ({
   imageUrl: data.image_url || data.output?.image_url || '',
   taskId: data.request_id || data.id,
-  provider: 'fal' as const,
+  provider: providerName,
   metadata: data.metadata || {}
 })
 
 export const performFaceSwap = (config: ProviderConfig): PerformFaceSwap =>
-  async (request: FaceSwapRequest): Promise<Either<Error, FaceSwapResult>> => {
+  (request: FaceSwapRequest) => () => {
     const http = createHttpClient(config)
 
-    try {
-      const payload = buildFaceSwapPayload(request)
-      const response = await http.post('/v1/face-swap', payload)
+    return (async (): Promise<Either<Error, FaceSwapResult>> => {
+      try {
+        const payload = buildFaceSwapPayload(request)
+        const response = await http.post('/v1/face-swap', payload)
 
-      return right(handleFaceSwapResponse(response))
-    } catch (error) {
-      const providerError = createProviderError(
-        'fal',
-        'performFaceSwap',
-        error instanceof Error ? error.message : 'Unknown error',
-        error instanceof Error ? error : undefined
-      )
-      return left(providerError)
-    }
+        return right(handleFaceSwapResponse(response, config.name))
+      } catch (error) {
+        const providerError = createProviderError(
+          'fal',
+          'performFaceSwap',
+          error instanceof Error ? error.message : 'Unknown error',
+          error instanceof Error ? error : undefined
+        )
+        return left(providerError)
+      }
+    })()
   }
 
 // ===== HEALTH CHECK =====
 
 export const healthCheck = (config: ProviderConfig): HealthCheck =>
-  async (): Promise<Either<Error, HealthStatus>> => {
+  () => () => {
     const http = createHttpClient(config)
 
-    try {
-      const start = Date.now()
-      const response = await http.get('/v1/status')
-      const latency = Date.now() - start
+    return (async (): Promise<Either<Error, HealthStatus>> => {
+      try {
+        const start = Date.now()
+        const response = await http.get('/v1/status')
+        const latency = Date.now() - start
 
-      const health: HealthStatus = {
-        status: response?.status === 'ok' ? 'healthy' : 'unhealthy',
-        latency,
-        uptime: response?.uptime || 0,
-        lastCheck: Date.now()
-      }
+        const health: HealthStatus = {
+          status: response?.status === 'ok' ? 'healthy' : 'unhealthy',
+          latency,
+          uptime: response?.uptime || 0,
+          lastCheck: Date.now()
+        }
 
-      return right(health)
-    } catch (error) {
-      const health: HealthStatus = {
-        status: 'unhealthy',
-        latency: config.timeout || 30000,
-        uptime: 0,
-        lastCheck: Date.now()
+        return right(health)
+      } catch (error) {
+        const health: HealthStatus = {
+          status: 'unhealthy',
+          latency: config.timeout || 30000,
+          uptime: 0,
+          lastCheck: Date.now()
+        }
+        return left(error instanceof Error ? error : new Error('Health check failed'))
       }
-      return left(error instanceof Error ? error : new Error('Health check failed'))
-    }
+    })()
   }
 
 // ===== BALANCE CHECK =====
 
 export const getBalance = (config: ProviderConfig): GetBalance =>
-  async (): Promise<Either<Error, Balance>> => {
+  () => () => {
     const http = createHttpClient(config)
 
-    try {
-      const response = await http.get('/v1/account/balance')
+    return (async (): Promise<Either<Error, Balance>> => {
+      try {
+        const response = await http.get('/v1/account/balance')
 
-      const balance: Balance = {
-        currency: 'usd',
-        available: response?.balance || 0,
-        reserved: response?.reserved || 0,
-        lastUpdated: Date.now()
+        const balance: Balance = {
+          currency: 'usd',
+          available: response?.balance || 0,
+          reserved: response?.reserved || 0,
+          lastUpdated: Date.now()
+        }
+
+        return right(balance)
+      } catch (error) {
+        return left(error instanceof Error ? error : new Error('Balance check failed'))
       }
-
-      return right(balance)
-    } catch (error) {
-      return left(error instanceof Error ? error : new Error('Balance check failed'))
-    }
+    })()
   }
 
 // ===== RATE LIMITER =====
 
 export const rateLimit = (config: ProviderConfig): RateLimit =>
-  async (request: any): Promise<Either<Error, void>> => {
+  (request: any) => () => {
     const rateLimiter = (config.rateLimit?.requestsPerMinute || 60)
     const key = `${config.name}-${request.userId}`
 
-    return right(undefined)
+    return Promise.resolve(right(undefined))
   }
 
 // ===== PROVIDER CREATION =====
@@ -317,10 +330,10 @@ export const createFalProvider = (config: ProviderConfig): Provider => {
   const validatedConfig = validateConfig(config)
 
   if (validatedConfig._tag === 'Left') {
-    throw validatedConfig.value
+    throw validatedConfig.left
   }
 
-  const validated = validatedConfig.value
+  const validated = validatedConfig.right
 
   return {
     name: 'fal',

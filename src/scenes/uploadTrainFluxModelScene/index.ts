@@ -9,7 +9,7 @@ import { sendGenericErrorMessage } from '@/menu'
 import { supabase } from '@/core/supabase'
 import { getBotNameByToken } from '@/core/bot' // ✅ For correct bot_name detection
 import fetch from 'node-fetch'
-import { API_URL, isDev } from '@/config'
+import { PUBLIC_URL, isDev } from '@/config'
 const fs = require('fs')
 const path = require('path')
 

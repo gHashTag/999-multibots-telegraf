@@ -1,6 +1,6 @@
 import { Mode, MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
-import { levels, mainMenu } from '../../menu/mainMenu'
+import { levels, mainMenu } from '../../menu/simpleMenu'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
@@ -19,7 +19,7 @@ import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
 import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { getParsingAccess } from '@/menu/mainMenu'
+import { getParsingAccess } from '@/menu/simpleMenu'
 import { getBotNameByToken } from '@/core/bot'
 
 const menuCommandStep = async (ctx: MyContext) => {
@@ -292,7 +292,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 const menuNextStep = async (ctx: MyContext) => {
   console.log('🎯 URGENT DEBUG: menuNextStep called!')
   logger.info('CASE 1: menuScene.next')
-  logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard.cursor}`)
+  logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard?.cursor ?? 0}`)
   logger.info(
     `[menuNextStep] Update keys: ${Object.keys(ctx.update).join(', ')}`
   )

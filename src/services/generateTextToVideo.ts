@@ -2,18 +2,20 @@ import axios, { isAxiosError } from 'axios'
 import {
   isDev,
   SECRET_API_KEY,
-  API_URL,
+  PUBLIC_URL,
 } from '@/config'
 import { logger } from '@/utils/logger'
+import { getUnifiedModelConfig } from '@/config/unified-video-models.config'
 
 // Типы моделей видео
 export type VideoModelId =
   | 'kling-v1.6-pro'
   | 'ray-v2'
-  | 'hunyuan-video-fast'
-  | 'wan-image-to-video'
-  | 'wan-text-to-video'
-  | 'minimax'
+  // ❌ УДАЛЕНЫ устаревшие модели (404 ошибки):
+  // | 'hunyuan-video-fast' - не работает
+  // | 'wan-image-to-video' - не работает
+  // | 'wan-text-to-video' - не работает
+  // | 'minimax' - не работает
   // Kie.ai модели
   | 'veo3_fast'
   | 'veo3'
@@ -23,6 +25,9 @@ export type VideoModelId =
   // Sora 2 Image-to-Video
   | 'sora-2-i2v'
   | 'sora-2-pro-i2v'
+  // WAN 2.5 модели
+  | 'wan-2.5-t2v'
+  | 'wan-2.5-i2v'
 
 interface TextToVideoRequest {
   prompt: string
@@ -33,10 +38,11 @@ interface TextToVideoRequest {
   username: string
   is_ru: boolean
   bot_name: string
+  removeWatermark?: boolean // 🆕 Для Sora: удалять watermark или нет (default: true для Sora)
 }
 
 interface TextToVideoResponse {
-  success?: boolean
+  success: boolean
   videoUrl?: string
   jobId?: string
   message?: string
@@ -132,6 +138,7 @@ export async function generateTextToVideo(
     username,
     is_ru,
     bot_name,
+    removeWatermark = true, // 🆕 Default true для обратной совместимости (без watermark лучше)
   } = params
 
   // Валидация параметров
@@ -151,32 +158,53 @@ export async function generateTextToVideo(
     throw new Error('Bot name is required')
   }
 
-  // Логирование начала генерации - отправляем ПОЛНЫЙ промпт в логи
-  logger.info('ASPECT RATIO CHECK - Starting text-to-video generation', {
-    prompt: prompt, // Логируем полный промпт без обрезки
+  // 🔥 КРИТИЧНОЕ ЛОГИРОВАНИЕ: Показываем ВСЕ параметры запроса
+  console.log('━'.repeat(80))
+  console.log('🎬 [TEXT-TO-VIDEO] ЗАПРОС НА ГЕНЕРАЦИЮ ВИДЕО:')
+  console.log('━'.repeat(80))
+  console.log(`📝 Модель: ${videoModel}`)
+  console.log(`🎞️ Длительность: ${duration || 'не указана (default 5s)'}`)
+  console.log(`📱 Соотношение: ${aspectRatio || 'не указано (default 9:16)'}`)
+  console.log(`👤 User ID: ${telegram_id}`)
+  console.log(`🤖 Bot: ${bot_name}`)
+  console.log(`💭 Промпт (${prompt.length} символов):`)
+  console.log(`   ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}`)
+  console.log('━'.repeat(80))
+
+  logger.info('[TEXT-TO-VIDEO] Starting generation with full params', {
+    prompt: prompt, // Логируем полный промпт
     promptLength: prompt.length,
     videoModel,
     duration,
-    aspectRatio: aspectRatio,
+    aspectRatio,
     telegram_id,
     username,
     is_ru,
     bot_name,
+    removeWatermark,
   })
 
   try {
-    // Проверяем, является ли это Kie.ai моделью (Veo или Sora)
-    const isKieAiModel = ['veo3', 'veo3_fast', 'runway-aleph', 'sora-2', 'sora-2-pro'].includes(videoModel)
-    const isSoraModel = ['sora-2', 'sora-2-pro'].includes(videoModel)
+    // ✅ ЦЕНТРАЛИЗОВАННАЯ ПРОВЕРКА: Получаем конфигурацию модели из единого источника
+    const modelConfig = getUnifiedModelConfig(videoModel)
+
+    // Проверяем, является ли это Kie.ai моделью через provider
+    const isKieAiModel = modelConfig?.provider === 'kie'
+    const isSoraModel = videoModel.includes('sora')
+    const isWanModel = videoModel.includes('wan')
 
     if (isKieAiModel) {
       // Для Kie.ai моделей используем прямую интеграцию
-      logger.info('[KIE.AI] Using Kie.ai directly', {
+      logger.info('[KIE.AI] Using Kie.ai directly (centralized provider check)', {
         videoModel,
+        provider: modelConfig?.provider,
         isSoraModel,
+        isWanModel,
         reason: isSoraModel
           ? 'Sora models use Kie.ai Sora API'
-          : 'Veo models are not available on Replicate'
+          : isWanModel
+          ? 'WAN 2.5 models use Kie.ai API'
+          : 'Veo/Runway models use Kie.ai API'
       })
 
       // Импортируем KieAiProvider
@@ -201,7 +229,11 @@ export async function generateTextToVideo(
           prompt,
           soraModel as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
           soraAspectRatio as 'landscape' | 'portrait',
-          false // remove_watermark
+          removeWatermark, // 🆕 Передаем значение из параметров
+          10, // duration - Sora всегда 10 секунд
+          'standard', // size - standard quality
+          undefined, // imageUrl - для text-to-video не нужен
+          telegram_id // ✅ Передаём telegram_id для callback URL
         )
 
         logger.info('[SORA] API response received:', {
@@ -225,24 +257,26 @@ export async function generateTextToVideo(
           error: soraResponse.error || 'Failed to generate Sora video',
         }
       } else {
-        // Для Veo моделей используем обычный generateVideo
+        // Для Veo и WAN моделей используем обычный generateVideo
         const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
+        const logPrefix = isWanModel ? '[WAN 2.5]' : '[VEO]'
 
-        logger.info('[VEO] Calling Veo 3 generateVideo with params:', {
+        logger.info(`${logPrefix} Calling Kie.ai generateVideo with params:`, {
           model: videoModel,
           promptLength: prompt.length,
-          duration: duration || 8,
+          duration: duration || 5,
           aspectRatio: kieAspectRatio || '9:16'
         })
 
         const kieResponse = await kieProvider.generateVideo({
           model: videoModel,
           prompt,
-          duration: duration || 8,
+          duration: duration || 5,
           aspectRatio: kieAspectRatio || '9:16',
+          telegram_id, // ✅ Передаём telegram_id для callback URL
         })
 
-        logger.info('[VEO] API response received:', {
+        logger.info(`${logPrefix} API response received:`, {
           success: kieResponse.success,
           hasData: !!kieResponse.data,
           hasVideoUrl: !!kieResponse.data?.videoUrl,
@@ -273,102 +307,76 @@ export async function generateTextToVideo(
       }
     }
     
+    // Для Replicate моделей используем прямую интеграцию
+    if (modelConfig?.provider === 'replicate') {
+      logger.info('[REPLICATE] Using Replicate API directly', {
+        videoModel,
+        provider: modelConfig?.provider,
+        apiModel: modelConfig?.apiModel
+      })
+
+      // Импортируем модуль videoGenerator для Replicate моделей
+      const videoGeneratorModule = await import('@/modules/videoGenerator')
+      const generateTextToVideoNew = (videoGeneratorModule.generateTextToVideo as unknown) as (
+        prompt: string,
+        telegram_id: string,
+        username: string,
+        is_ru: boolean,
+        bot_name: string,
+        modelId: string,
+        selectedResolution?: string,
+        selectedDuration?: number,
+        selectedAspectRatio?: string
+      ) => Promise<string | null>
+
+      const videoUrl: string | null = await generateTextToVideoNew(
+        prompt,
+        telegram_id,
+        username,
+        is_ru,
+        bot_name,
+        videoModel,
+        undefined, // selectedResolution
+        duration,
+        aspectRatio
+      )
+
+      if (videoUrl) {
+        const response: TextToVideoResponse = {
+          success: true,
+          videoUrl: videoUrl || undefined,
+          message: 'Video generated successfully via Replicate'
+        }
+        return response
+      }
+
+      const errorResponse: TextToVideoResponse = {
+        success: false,
+        error: 'Failed to generate video via Replicate',
+      }
+      return errorResponse
+    }
+
     // Для остальных моделей используем старый подход с сервером
     logger.info('URL Selection Debug', {
-      API_URL,
+      PUBLIC_URL,
       isDev,
     })
 
-    const baseUrl = API_URL
-
-    // 🔧 ВРЕМЕННАЯ ЗАГЛУШКА: Если сервер недоступен, возвращаем mock результат
-    // TODO: Убрать после восстановления работы AI сервера
-    if (!baseUrl || baseUrl === 'undefined') {
-      logger.warn(
-        'No valid server URL found, using mock response for development'
-      )
-      return {
-        success: true,
-        message: 'Mock: Video generation started',
-        videoUrl:
-          'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // Валидное тестовое видео
-      }
-    }
-
-    const url = `${baseUrl}/generate/text-to-video`
-
-    logger.info('Sending request to API server', { url, baseUrl })
-
-    // Формируем тело запроса
-    const requestBody: any = {
-      prompt,
-      videoModel,
+    // ❌ DEPRECATED: Этот endpoint больше не существует!
+    // Используйте handleTextToVideoDirect вместо generateTextToVideo
+    logger.error('[generateTextToVideo] DEPRECATED: This function uses non-existent endpoint', {
+      message: 'Use handleTextToVideoDirect instead',
       telegram_id,
-      username,
-      is_ru,
-      bot_name,
-    }
-
-    // Добавляем aspectRatio если указан
-    if (aspectRatio) {
-      requestBody.aspectRatio = aspectRatio
-      logger.info('ASPECT RATIO CHECK - Added aspectRatio to request body', {
-        aspectRatio,
-        videoModel,
-        telegram_id,
-      })
-    } else {
-      logger.warn('ASPECT RATIO CHECK - No aspectRatio provided', {
-        videoModel,
-        telegram_id,
-      })
-    }
-
-    // Добавляем duration для моделей которые поддерживают
-    if (duration) {
-      requestBody.duration = duration
-    }
-
-    // Логируем финальное тело запроса
-    logger.info(
-      'ASPECT RATIO CHECK - Final request body being sent to server',
-      {
-        url,
-        requestBody: JSON.stringify(requestBody, null, 2),
-        videoModel,
-        telegram_id,
-      }
-    )
-
-    // Отправляем запрос на сервер
-    const response = await axios.post<TextToVideoResponse>(url, requestBody, {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-secret-key': SECRET_API_KEY,
-      },
-      timeout: 300000, // 5 минут таймаут для длительной генерации
+      videoModel
     })
 
-    // Детальное логирование успешного ответа
-    logger.info('[generateTextToVideo] Full server response:', {
-      fullData: JSON.stringify(response.data, null, 2),
-      dataKeys: Object.keys(response.data),
-      success: response.data.success,
-      hasVideoUrl: !!response.data.videoUrl,
-      videoUrl: response.data.videoUrl || 'NO_URL',
-      jobId: response.data.jobId || 'NO_JOB_ID',
-      message: response.data.message || 'NO_MESSAGE',
-    })
-
-    // Если сервер вернул только message, считаем это успешным началом
-    if (response.data.message && !response.data.success) {
-      return {
-        ...response.data,
-        success: true, // Помечаем как успешное начало
-      }
+    // Возвращаем ошибку вместо попытки вызвать несуществующий endpoint
+    return {
+      success: false,
+      message: '❌ Эта функция устарела. Используйте handleTextToVideoDirect.',
+      error: 'DEPRECATED: /generate/text-to-video endpoint does not exist'
     }
-
-    return response.data
   } catch (error) {
     // Обработка ошибок Axios
     if (isAxiosError(error)) {
@@ -508,7 +516,7 @@ export async function checkVideoGenerationStatus(
     }
     
     // Старый код для обычных серверов
-    const baseUrl = API_URL
+    const baseUrl = PUBLIC_URL
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
 
     const response = await axios.get<TextToVideoResponse>(url, {

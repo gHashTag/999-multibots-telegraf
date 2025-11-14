@@ -94,7 +94,7 @@ Test 5: Емеля (index: 51)
 
 ### ⚠️ **Development Environment Notes**
 - **Test Bot Mode**: Using `clip_maker_neuro_bot` for development
-- **API Server**: Correctly pointing to Railway production
+- **API Server**: Correctly pointing to Render Server production
 - **Local Development**: Working with localhost:4000 fallback
 
 ---

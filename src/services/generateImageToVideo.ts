@@ -1,5 +1,5 @@
 import axios, { isAxiosError } from 'axios'
-import { API_URL, SECRET_API_KEY } from '@/config'
+import { PUBLIC_URL, SECRET_API_KEY } from '@/config'
 import { logger } from '@/utils/logger'
 
 // Image to Video request interface
@@ -105,11 +105,11 @@ export async function generateImageToVideo(
       // ПЛАН А: Сначала пробуем через наш сервер
       logger.info('[I2V PLAN A] Trying server first for Veo model', {
         videoModel,
-        serverUrl: API_URL
+        serverUrl: PUBLIC_URL
       })
       
       try {
-        const baseUrl = API_URL
+        const baseUrl = PUBLIC_URL
         
         // Проверяем доступность сервера (пропускаем localhost для тестов)
         if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {
@@ -208,6 +208,7 @@ export async function generateImageToVideo(
         imageUrl, // Передаем imageUrl для image-to-video
         duration: duration || 8,
         aspectRatio: kieAspectRatio || '9:16',
+        telegram_id, // ✅ Передаём telegram_id для callback URL
       })
       
       logger.info('[I2V PLAN B] External API response received:', {

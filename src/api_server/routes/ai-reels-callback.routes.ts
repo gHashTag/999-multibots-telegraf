@@ -8,11 +8,11 @@ import { Input } from 'telegraf'
 const router: Router = express.Router()
 
 /**
- * Interface для callback payload от Railway render-server
+ * Interface для callback payload от Render Server
  * Реальный формат: { download_url: "https://.../jobs/telegram-ID-timestamp/results/file.mp4" }
  */
 interface AIReelsCallbackPayload {
-  download_url?: string // Railway format
+  download_url?: string // Render Server format
   job_id?: string
   status?: 'completed' | 'failed' | 'processing'
   result_url?: string
@@ -31,10 +31,10 @@ interface AIReelsCallbackPayload {
 }
 
 /**
- * AI Reels Callback Handler для Railway render-server
+ * AI Reels Callback Handler для Render Server
  * POST /api/telegram/ai-reels-callback
  *
- * Обрабатывает callback от Railway render-server после завершения рендеринга видео
+ * Обрабатывает callback от Render Server после завершения рендеринга видео
  */
 router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
   const startTime = Date.now()
@@ -59,7 +59,7 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
 
     const payload: AIReelsCallbackPayload = req.body
 
-    // Railway отправляет download_url вместо структурированного payload
+    // Render Server отправляет download_url вместо структурированного payload
     // Извлекаем job_id из download_url: .../jobs/telegram-ID-timestamp/results/...
     let jobId = payload.job_id
     const videoUrl =
@@ -73,7 +73,7 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
       }
     }
 
-    logger.info('🎬 [AI REELS CALLBACK] Received callback from Railway', {
+    logger.info('🎬 [AI REELS CALLBACK] Received callback from Render Server', {
       jobId,
       status,
       videoUrl,
@@ -174,7 +174,34 @@ async function handleCompletedRender(
   payload: AIReelsCallbackPayload
 ) {
   // Определяем правильного бота в начале функции
-  const botName = payload.bot_name || payload.metadata?.bot_name
+  let botName = payload.bot_name || payload.metadata?.bot_name
+
+  // ✅ FIX: Если bot_name нет в payload, ищем бота по владельцу (telegramId)
+  if (!botName) {
+    // Hardcoded маппинг известных владельцев → боты
+    const OWNER_TO_BOT: Record<string, string> = {
+      '7669741878': 'HaimGroupMedia_bot',
+      '144022504': 'neuro_blogger_bot',
+      '1254048880': 'MetaMuse_Manifest_bot',
+      '352374518': 'ZavaraBot',
+      '1852726961': 'LeeSolarbot',
+      // Добавляй сюда других по мере необходимости
+    }
+
+    botName = OWNER_TO_BOT[telegramId]
+
+    if (botName) {
+      logger.info('✅ [AI REELS CALLBACK] Found bot by owner telegramId', {
+        telegramId,
+        botName
+      })
+    } else {
+      logger.warn('⚠️ [AI REELS CALLBACK] No bot mapping for owner', {
+        telegramId
+      })
+    }
+  }
+
   const { bot, error } = botName
     ? getBotByName(botName)
     : { bot: defaultBot, error: null }
@@ -247,7 +274,7 @@ async function handleCompletedRender(
         `✅ Ваше AI Reels видео готово!\n\n` +
           `⚠️ Видео слишком большое для Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n` +
           `📥 Скачайте видео по ссылке:\n${videoUrl}\n\n` +
-          `🎬 Создано с помощью Template 2 (Inngest + Railway)`
+          `🎬 Создано с помощью Template 2 (Inngest + Render Server)`
       )
 
       logger.info('✅ [AI REELS CALLBACK] URL sent successfully', {
@@ -263,7 +290,7 @@ async function handleCompletedRender(
       Input.fromBuffer(videoBuffer, `ai-reels-${Date.now()}.mp4`),
       {
         caption:
-          '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Railway)',
+          '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Render Server)',
       }
     )
 

@@ -21,7 +21,7 @@
 **Проблема**:
 ```typescript
 export const API_URL = forceProductionAPI
-  ? API_SERVER_URL // 🚀 Принудительно используем продакшн Railway сервер
+  ? API_SERVER_URL // 🚀 Принудительно используем продакшн Render Server сервер
   : API_SERVER_URL // 📦 В production режиме - всегда продакшн сервер
 ```
 

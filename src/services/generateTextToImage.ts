@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { API_URL, SECRET_API_KEY } from '@/config'
+import { PUBLIC_URL, SECRET_API_KEY } from '@/config'
 import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'

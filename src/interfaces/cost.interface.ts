@@ -1,7 +1,7 @@
 import {
-  VIDEO_MODELS_CONFIG,
-  type VideoModelConfig,
-} from '@/modules/videoGenerator/config/models.config' // Import both value and type
+  UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG,
+  type UnifiedVideoModelConfig,
+} from '@/config/unified-video-models.config' // Import both value and type
 import { calculateFinalPrice } from '@/price/helpers'
 import { Markup } from 'telegraf' // Import Markup
 
@@ -32,7 +32,7 @@ export type AdditionalMode =
 // Function to get model config directly from the imported config
 export const getVideoModelConfig = (
   key: VideoModelKey
-): VideoModelConfig | undefined => {
+): UnifiedVideoModelConfig | undefined => {
   // Use the imported config directly
   return VIDEO_MODELS_CONFIG[key]
 }
@@ -46,8 +46,9 @@ export const generateVideoModelKeyboard = (isRu: boolean) => {
       // if (config.inputType.includes('dev')) return null; // Example filter
 
       const finalPrice = calculateFinalPrice(key) // Pass the key
+      const displayName = isRu ? config.nameRu : config.name
       return Markup.button.callback(
-        `${config.title} (${finalPrice} ⭐)`,
+        `${displayName} (${finalPrice} ⭐)`,
         `select_video_model_${key}`
       )
     })

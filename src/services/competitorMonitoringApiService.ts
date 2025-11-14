@@ -2,7 +2,7 @@ import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { API_URL } from '@/config'
+import { PUBLIC_URL } from '@/config'
 import { 
   CompetitorSubscription, 
   CreateSubscriptionRequest,
@@ -26,8 +26,8 @@ export class CompetitorMonitoringApiService {
   private apiUrl: string
 
   constructor() {
-    // Используем API_URL из конфига (уже настроен правильно)
-    this.apiUrl = API_URL
+    // Используем PUBLIC_URL из конфига (уже настроен правильно)
+    this.apiUrl = PUBLIC_URL
   }
 
   /**

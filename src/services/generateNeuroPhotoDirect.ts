@@ -22,10 +22,85 @@ import { BotName } from '@/interfaces/telegram-bot.interface'
 import crypto from 'crypto'
 import { supabase } from '@/core/supabase'
 import { Markup } from 'telegraf'
+import { fal } from '@fal-ai/client'
 
 // --- Локальный кэш для идемпотентности ---
 const idemCache = new Map<string, { result: any; expiresAt: number }>()
 const IDEMPOTENCY_TTL_MS = 20 * 1000 // 20 секунд
+
+/**
+ * Генерация изображения с Fal.ai + LoRA NEURO_SAGE
+ * @param prompt Промпт для генерации
+ * @returns URL сгенерированного изображения
+ */
+async function generateImageWithFalAndLora(prompt: string): Promise<string> {
+  const FAL_KEY = process.env.FAL_KEY
+  const FAL_LORA_PATH = process.env.FAL_DEFAULT_LORA_PATH ||
+    'https://v3b.fal.media/files/b/elephant/YpfnIK7JlNO7vZTsGanfo_pytorch_lora_weights.safetensors'
+  const FAL_LORA_TRIGGER = process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE'
+  const FAL_LORA_SCALE = Number(process.env.FAL_DEFAULT_LORA_SCALE) || 1.0
+
+  if (!FAL_KEY) {
+    throw new Error('FAL_KEY not found in environment')
+  }
+
+  // Configure fal client
+  fal.config({
+    credentials: FAL_KEY,
+  })
+
+  // Add trigger word to prompt
+  const enhancedPrompt = `${FAL_LORA_TRIGGER} ${prompt}`
+
+  logger.info({
+    message: '🎭 [FAL] Генерация с LoRA',
+    trigger: FAL_LORA_TRIGGER,
+    lora_path: FAL_LORA_PATH.substring(0, 50) + '...',
+    scale: FAL_LORA_SCALE,
+    enhanced_prompt: enhancedPrompt.substring(0, 100) + '...',
+  })
+
+  const input = {
+    prompt: enhancedPrompt,
+    image_size: {
+      width: 768,   // 9:16 для вертикальных фото
+      height: 1365,
+    },
+    num_images: 1,
+    loras: [
+      {
+        path: FAL_LORA_PATH,
+        scale: FAL_LORA_SCALE,
+      },
+    ],
+  }
+
+  const result = await fal.subscribe('fal-ai/flux-lora', {
+    input,
+    logs: false,
+  })
+
+  const output = result as any
+
+  // Extract image URL from different possible response formats
+  let imageUrl: string
+  if (output.images && Array.isArray(output.images) && output.images[0]) {
+    imageUrl = output.images[0].url
+  } else if (output.image_url) {
+    imageUrl = output.image_url
+  } else if (output.url) {
+    imageUrl = output.url
+  } else {
+    throw new Error('Unexpected Fal.ai response format: ' + JSON.stringify(output))
+  }
+
+  logger.info({
+    message: '✅ [FAL] Изображение с LoRA сгенерировано',
+    imageUrl: imageUrl.substring(0, 50) + '...',
+  })
+
+  return imageUrl
+}
 
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
@@ -470,94 +545,128 @@ export async function generateNeuroPhotoDirect(
           iteration: i,
         })
 
-        // Формируем input для Replicate API
-        const replicateInput: any = {
-          prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
-          negative_prompt:
-            'nsfw, erotic, violence, bad anatomy, bad hands, deformed fingers, blurry, grainy, ugly, lowres',
-          num_inference_steps: 40,
-          output_format: 'jpg',
-          guidance_scale: 3,
-          output_quality: 80,
-          num_outputs: 1,
-        }
+        // Определяем какой провайдер использовать
+        let useFal = !!process.env.FAL_KEY
+        let imageUrl: string
 
-        if (finalAspectRatio) {
-          replicateInput.aspect_ratio = finalAspectRatio
-        }
+        if (useFal) {
+          // ✨ Используем Fal.ai с LoRA NEURO_SAGE
+          logger.info({
+            message: '🎭 [DIRECT] Используем Fal.ai с LoRA',
+            telegram_id,
+            iteration: i,
+          })
 
-        logger.info({
-          message: '[DIAGNOSTIC] Перед вызовом replicate.run()',
-          iteration: i,
-          telegram_id,
-        })
-
-        const output = (await replicate.run(
-          model_url as `${string}/${string}:${string}`,
-          {
-            input: replicateInput,
+          try {
+            imageUrl = await generateImageWithFalAndLora(prompt)
+          } catch (falError) {
+            logger.error({
+              message: '❌ [DIRECT] Ошибка Fal.ai, fallback на Replicate',
+              error: falError instanceof Error ? falError.message : 'Unknown error',
+              telegram_id,
+            })
+            // Fallback на Replicate при ошибке Fal.ai
+            useFal = false as any // Trick to reuse replicate code below
           }
-        )) as ApiResponse
-        logger.info({
-          message: '[DIAGNOSTIC] Сразу после вызова replicate.run()',
-          output_is_null: output === null,
-          output_is_undefined: output === undefined,
-          iteration: i,
-          telegram_id,
-        })
-        // --- ЛОГ: Ответ от API ---
-        logger.info({
-          message: '🔍 [DIRECT] Ответ от Replicate API получен',
-          telegram_id,
-          iteration: i,
-          api_output: JSON.stringify(output),
-        })
-        // ---
+        }
 
-        logger.info({
-          message: '✅ [DIRECT] Получен ответ от API',
-          description: 'API response received (direct)',
-          output_type: typeof output,
-          telegram_id,
-        })
+        if (!useFal || !imageUrl!) {
+          // Используем Replicate (старый способ)
+          logger.info({
+            message: '🔄 [DIRECT] Используем Replicate',
+            telegram_id,
+            iteration: i,
+          })
 
-        // Обрабатываем API-ответ
-        logger.info({
-          message: '🔍 [DIRECT] Обработка ответа API Replicate',
-          description: 'Processing Replicate API response',
-          output_sample: JSON.stringify(output).substring(0, 100) + '...',
-        })
+          // Формируем input для Replicate API
+          const replicateInput: any = {
+            prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
+            negative_prompt:
+              'nsfw, erotic, violence, bad anatomy, bad hands, deformed fingers, blurry, grainy, ugly, lowres',
+            num_inference_steps: 40,
+            output_format: 'jpg',
+            guidance_scale: 3,
+            output_quality: 80,
+            num_outputs: 1,
+          }
 
-        logger.info({
-          message: '[DIAGNOSTIC] Перед вызовом processApiResponse()',
-          iteration: i,
-          telegram_id,
-        })
-        const imageUrl = await processApiResponse(output)
-        logger.info({
-          message: '[DIAGNOSTIC] Сразу после вызова processApiResponse()',
-          imageUrl_is_null: imageUrl === null,
-          imageUrl_is_undefined: imageUrl === undefined,
-          iteration: i,
-          telegram_id,
-        })
+          if (finalAspectRatio) {
+            replicateInput.aspect_ratio = finalAspectRatio
+          }
 
-        // --- ЛОГ: Результат обработки ответа ---
-        logger.info({
-          message: '🔍 [DIRECT] Результат processApiResponse',
-          telegram_id,
-          iteration: i,
-          processed_image_url: imageUrl,
-        })
-        // ---
+          logger.info({
+            message: '[DIAGNOSTIC] Перед вызовом replicate.run()',
+            iteration: i,
+            telegram_id,
+          })
 
-        // Проверка на валидность URL
+          const output = (await replicate.run(
+            model_url as `${string}/${string}:${string}`,
+            {
+              input: replicateInput,
+            }
+          )) as ApiResponse
+
+          logger.info({
+            message: '[DIAGNOSTIC] Сразу после вызова replicate.run()',
+            output_is_null: output === null,
+            output_is_undefined: output === undefined,
+            iteration: i,
+            telegram_id,
+          })
+
+          logger.info({
+            message: '🔍 [DIRECT] Ответ от Replicate API получен',
+            telegram_id,
+            iteration: i,
+            api_output: JSON.stringify(output),
+          })
+
+          logger.info({
+            message: '✅ [DIRECT] Получен ответ от API',
+            description: 'API response received (direct)',
+            output_type: typeof output,
+            telegram_id,
+          })
+
+          // Обрабатываем API-ответ
+          logger.info({
+            message: '🔍 [DIRECT] Обработка ответа API Replicate',
+            description: 'Processing Replicate API response',
+            output_sample: JSON.stringify(output).substring(0, 100) + '...',
+          })
+
+          logger.info({
+            message: '[DIAGNOSTIC] Перед вызовом processApiResponse()',
+            iteration: i,
+            telegram_id,
+          })
+
+          imageUrl = await processApiResponse(output)
+
+          logger.info({
+            message: '[DIAGNOSTIC] Сразу после вызова processApiResponse()',
+            imageUrl_is_null: imageUrl === null,
+            imageUrl_is_undefined: imageUrl === undefined,
+            iteration: i,
+            telegram_id,
+          })
+
+          logger.info({
+            message: '🔍 [DIRECT] Результат processApiResponse',
+            telegram_id,
+            iteration: i,
+            processed_image_url: imageUrl,
+          })
+        }
+
+        // Проверка на валидность URL (для обоих провайдеров)
         if (!imageUrl || !imageUrl.startsWith('http')) {
           logger.error({
             message: '❌ [DIRECT] Некорректный URL изображения',
             description: 'Invalid image URL returned from API',
             url: imageUrl,
-            output_sample: JSON.stringify(output).substring(0, 100) + '...',
+            provider: useFal ? 'Fal.ai' : 'Replicate',
           })
           throw new Error('Invalid image URL from API')
         }
@@ -639,24 +748,104 @@ export async function generateNeuroPhotoDirect(
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
           try {
             if (!options?.disable_telegram_sending) {
-              // Добавляем caption с информацией о нейрофото и нумерацией (1,2,3,4)
+              // Определяем какой провайдер и модель использовались
+              const isLoraUsed = useFal
+              const loraInfo = isLoraUsed ? {
+                trigger: process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE',
+                provider: 'Fal.ai'
+              } : null
+
+              // Извлекаем информацию о модели
+              let modelDisplay: string
+              if (isLoraUsed) {
+                modelDisplay = 'Flux LoRA 🎭'
+              } else {
+                const modelName = model_url.split('/').pop()?.split(':')[0] || 'Unknown'
+                modelDisplay = modelName.includes('flux-schnell')
+                  ? 'Flux Schnell ⚡️'
+                  : modelName.includes('flux-pro')
+                  ? 'Flux Pro 💎'
+                  : modelName.includes('flux-dev')
+                  ? 'Flux Dev'
+                  : modelName.includes('sdxl')
+                  ? 'SDXL'
+                  : modelName
+              }
+
+              // Рассчитываем размеры изображения
+              let dimensions = '1024×1024'
+              if (isLoraUsed) {
+                // LoRA всегда использует 9:16
+                dimensions = '768×1365 (9:16)'
+              } else if (finalAspectRatio) {
+                const [w, h] = finalAspectRatio.split(':').map(Number)
+                if (w && h) {
+                  if (w === h) {
+                    dimensions = '1024×1024 (1:1)'
+                  } else if (w > h) {
+                    const width = 1024
+                    const height = Math.round(1024 * (h / w))
+                    dimensions = `${width}×${height} (${w}:${h})`
+                  } else {
+                    const height = 1365
+                    const width = Math.round(1365 * (w / h))
+                    dimensions = `${width}×${height} (${w}:${h})`
+                  }
+                }
+              }
+
+              // Время генерации
+              const avgTime = isLoraUsed ? '20-40' : '15-30'
+
+              // Формируем красивый caption в стиле Midjourney/DALL-E
               const imageNumber = i + 1
               const caption = is_ru
-                ? `✨ Нейрофото ${imageNumber}/${validNumImages} сгенерировано!\n\n📝 Промпт: ${prompt.slice(
-                    0,
-                    100
-                  )}${
-                    prompt.length > 100 ? '...' : ''
-                  }\n💎 Стоимость: ${costPerImage} ⭐`
-                : `✨ Neurophoto ${imageNumber}/${validNumImages} generated!\n\n📝 Prompt: ${prompt.slice(
-                    0,
-                    100
-                  )}${
-                    prompt.length > 100 ? '...' : ''
-                  }\n💎 Cost: ${costPerImage} ⭐`
+                ? `✨ <b>Изображение создано!</b>
 
-              // ИСПРАВЛЕНО: Отправляем фото БЕЗ клавиатуры (как в AI сервере)
-              await ctx.telegram.sendPhoto(telegram_id, { url: imageUrl })
+━━━━━━━━━━━━━━━━━━━━
+📝 <b>Промпт</b>
+${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
+
+🎨 <b>Детали генерации</b>${loraInfo ? `\n├ 🎭 Персонализация: <b>${loraInfo.trigger}</b>` : ''}
+├ 🤖 Модель: <b>${modelDisplay}</b>
+├ 📐 Размер: <b>${dimensions}</b>
+├ ⏱ Время: ~<b>${avgTime}с</b>
+└ 💰 Стоимость: <b>${costPerImage} ⭐</b>
+
+━━━━━━━━━━━━━━━━━━━━
+🔍 <b>Техническая информация</b>${loraInfo ? `\nLoRA: <code>${loraInfo.trigger}</code>` : ''}
+Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
+Provider: <b>${isLoraUsed ? loraInfo!.provider : 'Replicate'}</b>
+Изображение: ${imageNumber}/${validNumImages}
+Сгенерировано: ${new Date().toLocaleString('ru-RU')}
+
+<i>Создано с помощью AI • @999-agents</i>`
+                : `✨ <b>Image created!</b>
+
+━━━━━━━━━━━━━━━━━━━━
+📝 <b>Prompt</b>
+${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
+
+🎨 <b>Generation Details</b>${loraInfo ? `\n├ 🎭 Personalization: <b>${loraInfo.trigger}</b>` : ''}
+├ 🤖 Model: <b>${modelDisplay}</b>
+├ 📐 Size: <b>${dimensions}</b>
+├ ⏱ Time: ~<b>${avgTime}s</b>
+└ 💰 Cost: <b>${costPerImage} ⭐</b>
+
+━━━━━━━━━━━━━━━━━━━━
+🔍 <b>Technical Information</b>${loraInfo ? `\nLoRA: <code>${loraInfo.trigger}</code>` : ''}
+Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
+Provider: <b>${isLoraUsed ? loraInfo!.provider : 'Replicate'}</b>
+Image: ${imageNumber}/${validNumImages}
+Generated: ${new Date().toLocaleString('en-US')}
+
+<i>Created with AI • @999-agents</i>`
+
+              // Отправляем фото С красивым caption
+              await ctx.telegram.sendPhoto(telegram_id, { url: imageUrl }, {
+                caption,
+                parse_mode: 'HTML'
+              })
 
               logger.info({
                 message: '📸 [DIRECT] Изображение отправлено пользователю',
@@ -664,6 +853,59 @@ export async function generateNeuroPhotoDirect(
                 telegram_id,
                 imageUrl: imageUrl.substring(0, 50) + '...',
               })
+
+              // ✅ ОТПРАВЛЯЕМ ПОЛНЫЙ ПРОМПТ ОТДЕЛЬНЫМ СООБЩЕНИЕМ
+              try {
+                const TELEGRAM_MESSAGE_LIMIT = 4096
+                const promptHeader = is_ru
+                  ? '📝 <b>Промпт для копирования:</b>\n\n'
+                  : '📝 <b>Prompt for copying:</b>\n\n'
+
+                // Если промпт слишком длинный - разбиваем на части
+                if (promptHeader.length + prompt.length > TELEGRAM_MESSAGE_LIMIT) {
+                  // Отправляем первую часть с заголовком
+                  const firstPartLength = TELEGRAM_MESSAGE_LIMIT - promptHeader.length - 50
+                  const firstPart = promptHeader + '<pre>' + prompt.substring(0, firstPartLength) + '...</pre>\n\n<i>(продолжение ↓)</i>'
+                  await ctx.telegram.sendMessage(telegram_id, firstPart, { parse_mode: 'HTML' })
+
+                  // Отправляем продолжение (без HTML форматирования для безопасности)
+                  const remainingPrompt = '...(продолжение):\n\n' + prompt.substring(firstPartLength)
+                  // Если продолжение тоже длинное - разбиваем дальше
+                  const chunks = []
+                  for (let i = 0; i < remainingPrompt.length; i += TELEGRAM_MESSAGE_LIMIT) {
+                    chunks.push(remainingPrompt.substring(i, i + TELEGRAM_MESSAGE_LIMIT))
+                  }
+                  for (const chunk of chunks) {
+                    await ctx.telegram.sendMessage(telegram_id, chunk)
+                  }
+
+                  logger.info({
+                    message: '📝 [DIRECT] Длинный промпт отправлен пользователю частями',
+                    description: 'Long prompt sent to user in chunks',
+                    telegram_id,
+                    chunksCount: chunks.length + 1,
+                  })
+                } else {
+                  // Промпт влезает целиком
+                  const promptMessage = promptHeader + '<pre>' + prompt + '</pre>'
+                  await ctx.telegram.sendMessage(telegram_id, promptMessage, { parse_mode: 'HTML' })
+
+                  logger.info({
+                    message: '📝 [DIRECT] Промпт отправлен пользователю',
+                    description: 'Prompt sent to user',
+                    telegram_id,
+                    promptLength: prompt.length,
+                  })
+                }
+              } catch (promptSendError) {
+                logger.error({
+                  message: '❌ [DIRECT] Ошибка при отправке промпта пользователю',
+                  description: 'Error sending prompt to user',
+                  error: promptSendError instanceof Error ? promptSendError.message : 'Unknown error',
+                  telegram_id,
+                })
+                // Не прерываем процесс если промпт не отправился
+              }
             } else {
               logger.info({
                 message:
