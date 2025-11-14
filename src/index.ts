@@ -48,7 +48,10 @@ let mainBotInstance: Telegraf<MyContext> | null = null
 // ]
 
 // Функция для проверки валидности токена
-export async function validateBotToken(token: string, tokenName?: string): Promise<boolean> {
+export async function validateBotToken(
+  token: string,
+  tokenName?: string
+): Promise<boolean> {
   try {
     const bot = new Telegraf(token)
     const botInfo = await bot.telegram.getMe()
@@ -71,7 +74,9 @@ export async function validateBotToken(token: string, tokenName?: string): Promi
       console.error(`\n❌ КРИТИЧЕСКАЯ ОШИБКА: ${tokenLabel} невалидный!`)
       console.error(`   Ошибка: ${errorMsg}`)
       console.error(`   Действия:`)
-      console.error(`   1. Проверьте токен в Infisical (${process.env.INFISICAL_ENVIRONMENT} environment)`)
+      console.error(
+        `   1. Проверьте токен в Infisical (${process.env.INFISICAL_ENVIRONMENT} environment)`
+      )
       console.error(`   2. Убедитесь что бот не удалён в @BotFather`)
       console.error(`   3. Обновите токен если необходимо\n`)
     }
@@ -130,118 +135,147 @@ async function initializeBots() {
   const botTokens = discoverBotTokens()
 
   if (botTokens.length === 0) {
-    throw new Error('❌ Не найдено ни одного BOT токена! Добавьте BOT_TOKEN_1 в Infisical')
+    throw new Error(
+      '❌ Не найдено ни одного BOT токена! Добавьте BOT_TOKEN_1 в Infisical'
+    )
   }
 
   // Логируем результат обнаружения
-  const envIcon = infisicalEnv === 'dev' ? '🧪' : infisicalEnv === 'staging' ? '🔧' : '🚀'
-  const envName = infisicalEnv === 'dev' ? 'Dev' : infisicalEnv === 'staging' ? 'Staging' : 'Production'
-  console.log(`${envIcon} ${envName}: обнаружено ${botTokens.length} бот${botTokens.length === 1 ? '' : botTokens.length < 5 ? 'а' : 'ов'}`)
+  const envIcon =
+    infisicalEnv === 'dev' ? '🧪' : infisicalEnv === 'staging' ? '🔧' : '🚀'
+  const envName =
+    infisicalEnv === 'dev'
+      ? 'Dev'
+      : infisicalEnv === 'staging'
+        ? 'Staging'
+        : 'Production'
+  console.log(
+    `${envIcon} ${envName}: обнаружено ${botTokens.length} бот${botTokens.length === 1 ? '' : botTokens.length < 5 ? 'а' : 'ов'}`
+  )
   console.log(`   📝 Используются: BOT_TOKEN_1 - BOT_TOKEN_${botTokens.length}`)
-  console.log(`   💡 Чтобы добавить ещё ботов, добавьте BOT_TOKEN_${botTokens.length + 1} в Infisical\n`)
+  console.log(
+    `   💡 Чтобы добавить ещё ботов, добавьте BOT_TOKEN_${botTokens.length + 1} в Infisical\n`
+  )
 
-    // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
-    const botPromises: Promise<void>[] = []
+  // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
+  const botPromises: Promise<void>[] = []
 
-    // Определяем имена токенов для информативных логов
-    const getTokenName = (index: number): string => {
-      if (infisicalEnv === 'dev') {
-        return index === 0 ? 'BOT_TOKEN_1 (основной dev бот)' : 'BOT_TOKEN_2 (дополнительный dev бот)'
-      }
-      return `BOT_TOKEN_${index + 1}`
+  // Определяем имена токенов для информативных логов
+  const getTokenName = (index: number): string => {
+    if (infisicalEnv === 'dev') {
+      return index === 0
+        ? 'BOT_TOKEN_1 (основной dev бот)'
+        : 'BOT_TOKEN_2 (дополнительный dev бот)'
     }
+    return `BOT_TOKEN_${index + 1}`
+  }
 
-    for (let i = 0; i < botTokens.length; i++) {
-      const token = botTokens[i]
-      const tokenName = getTokenName(i)
+  for (let i = 0; i < botTokens.length; i++) {
+    const token = botTokens[i]
+    const tokenName = getTokenName(i)
 
-      if (await validateBotToken(token, tokenName)) {
-        const bot = new Telegraf<MyContext>(token, {
-          handlerTimeout: Infinity,
-        })
-        bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
+    if (await validateBotToken(token, tokenName)) {
+      const bot = new Telegraf<MyContext>(token, {
+        handlerTimeout: Infinity,
+      })
+      bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
 
-        // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
-        bot.use(session()) // 1. Сессия (из bot.ts)
-        bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+      // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
+      bot.use(session()) // 1. Сессия (из bot.ts)
+      bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
 
-        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
-        setupErrorHandler(bot)
+      // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
+      setupErrorHandler(bot)
 
-        // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
-        setupNotificationProcessor(bot)
+      // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
+      setupNotificationProcessor(bot)
 
-        // ✅ Сохраняем первый bot instance для webhooks (legacy)
-        if (!mainBotInstance) {
-          mainBotInstance = bot
-          console.log('✅ Main bot instance saved for webhooks')
+      // ✅ Сохраняем первый bot instance для webhooks (legacy)
+      if (!mainBotInstance) {
+        mainBotInstance = bot
+        console.log('✅ Main bot instance saved for webhooks')
 
-          // ✅ Запускаем API сервер СРАЗУ после создания первого бота
-          // (до bot.launch(), чтобы не ждать бесконечного polling loop)
-          startApiServer(bot) // Передаём только первый бот (default)
-          console.log('✅ API сервер запущен с bot instance для webhooks')
+        // ✅ Запускаем API сервер СРАЗУ после создания первого бота
+        // (до bot.launch(), чтобы не ждать бесконечного polling loop)
+        startApiServer(bot) // Передаём только первый бот (default)
+        console.log('✅ API сервер запущен с bot instance для webhooks')
+      }
+
+      // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
+      botInstances.push(bot)
+
+      registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
+      // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
+      setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
+      // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
+      bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
+      bot.on('successful_payment', handleSuccessfulPayment as any)
+      // Обработчик текстовых сообщений по умолчанию - должен быть последним
+      // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
+      // bot.on(message('text'), handleTextMessage)
+      // <<<---------------------------------------------------->>>
+
+      botInstances.push(bot)
+      const botInfo = await bot.telegram.getMe()
+      console.log(`🤖 Бот ${botInfo.username} инициализирован`)
+
+      // Используем импортированную функцию setBotCommands
+      await setBotCommands(bot)
+
+      // 🔧 FIX: Очистка webhook перед polling
+      try {
+        const webhookInfo = await bot.telegram.getWebhookInfo()
+
+        console.log(`\n🔍 [WEBHOOK INFO] Бот: ${botInfo.username}`)
+        console.log(`   URL: ${webhookInfo.url || 'не установлен'}`)
+        console.log(
+          `   Pending updates: ${webhookInfo.pending_update_count || 0}`
+        )
+        if (webhookInfo.last_error_date) {
+          const lastErrorDate = new Date(webhookInfo.last_error_date * 1000)
+          console.log(
+            `   ⚠️  Последняя ошибка: ${webhookInfo.last_error_message}`
+          )
+          console.log(`   📅 Время ошибки: ${lastErrorDate.toISOString()}`)
+        }
+        if (webhookInfo.ip_address) {
+          console.log(`   🌐 IP адрес: ${webhookInfo.ip_address}`)
+        }
+        if (
+          webhookInfo.allowed_updates &&
+          webhookInfo.allowed_updates.length > 0
+        ) {
+          console.log(
+            `   📋 Allowed updates: ${webhookInfo.allowed_updates.join(', ')}`
+          )
         }
 
-        // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
-        botInstances.push(bot)
-
-        registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
-        // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
-        setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
-        // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
-        bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-        bot.on('successful_payment', handleSuccessfulPayment as any)
-        // Обработчик текстовых сообщений по умолчанию - должен быть последним
-        // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
-        // bot.on(message('text'), handleTextMessage)
-        // <<<---------------------------------------------------->>>
-
-        botInstances.push(bot)
-        const botInfo = await bot.telegram.getMe()
-        console.log(`🤖 Бот ${botInfo.username} инициализирован`)
-
-        // Используем импортированную функцию setBotCommands
-        await setBotCommands(bot)
-
-        // 🔧 FIX: Очистка webhook перед polling
-        try {
-          const webhookInfo = await bot.telegram.getWebhookInfo()
-
-          console.log(`\n🔍 [WEBHOOK INFO] Бот: ${botInfo.username}`)
-          console.log(`   URL: ${webhookInfo.url || 'не установлен'}`)
-          console.log(`   Pending updates: ${webhookInfo.pending_update_count || 0}`)
-          if (webhookInfo.last_error_date) {
-            const lastErrorDate = new Date(webhookInfo.last_error_date * 1000)
-            console.log(`   ⚠️  Последняя ошибка: ${webhookInfo.last_error_message}`)
-            console.log(`   📅 Время ошибки: ${lastErrorDate.toISOString()}`)
-          }
-          if (webhookInfo.ip_address) {
-            console.log(`   🌐 IP адрес: ${webhookInfo.ip_address}`)
-          }
-          if (webhookInfo.allowed_updates && webhookInfo.allowed_updates.length > 0) {
-            console.log(`   📋 Allowed updates: ${webhookInfo.allowed_updates.join(', ')}`)
-          }
-
-          if (webhookInfo.url) {
-            console.log(`\n🔌 [WEBHOOK] Обнаружен активный вебхук для ${botInfo.username}: ${webhookInfo.url}`)
-            console.log(`   🗑️  Удаляю вебхук для переключения на polling...`)
-            await bot.telegram.deleteWebhook({ drop_pending_updates: true })
-            console.log(`   ✅ Вебхук удалён, переходим к polling\n`)
-          } else {
-            console.log(`   🟢 Активного вебхука нет, можно запускать polling\n`)
-          }
-        } catch (error) {
-          console.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
+        if (webhookInfo.url) {
+          console.log(
+            `\n🔌 [WEBHOOK] Обнаружен активный вебхук для ${botInfo.username}: ${webhookInfo.url}`
+          )
+          console.log(`   🗑️  Удаляю вебхук для переключения на polling...`)
+          await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+          console.log(`   ✅ Вебхук удалён, переходим к polling\n`)
+        } else {
+          console.log(`   🟢 Активного вебхука нет, можно запускать polling\n`)
         }
+      } catch (error) {
+        console.warn(
+          '⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:',
+          String(error)
+        )
+      }
 
-        // ✅ MULTI-BOT FIX: Регистрируем bot instance ДО launch (botInfo уже получен выше)
-        if (typeof setBotInstance === 'function' && botInfo.username) {
-          setBotInstance(bot, botInfo.username)
-          console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${botInfo.username}`)
-        }
+      // ✅ MULTI-BOT FIX: Регистрируем bot instance ДО launch (botInfo уже получен выше)
+      if (typeof setBotInstance === 'function' && botInfo.username) {
+        setBotInstance(bot, botInfo.username)
+        console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${botInfo.username}`)
+      }
 
-        // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
-        const botPromise = bot.launch({
+      // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
+      const botPromise = bot
+        .launch({
           allowedUpdates: [
             'message',
             'callback_query',
@@ -249,22 +283,22 @@ async function initializeBots() {
             'successful_payment' as any,
           ],
         })
-          .then(() => {
-            console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
-          })
-          .catch((error) => {
-            console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
-          })
+        .then(() => {
+          console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
+        })
+        .catch(error => {
+          console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
+        })
 
-        botPromises.push(botPromise)
-      }
+      botPromises.push(botPromise)
     }
+  }
 
-    // Bot launches are non-blocking in polling mode - they start infinite loops
-    // Don't wait for them to complete, otherwise API server will never start
-    // await Promise.all(botPromises)
-    console.log(`✅ Все боты успешно запущены в polling режиме`)
-    console.log(`✅ Все боты успешно инициализированы`)
+  // Bot launches are non-blocking in polling mode - they start infinite loops
+  // Don't wait for them to complete, otherwise API server will never start
+  // await Promise.all(botPromises)
+  console.log(`✅ Все боты успешно запущены в polling режиме`)
+  console.log(`✅ Все боты успешно инициализированы`)
 }
 
 // Legacy webhook code removed - using only polling mode
@@ -286,21 +320,57 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
 // 🎨 Beautiful ASCII Art Banner
 console.log('\n')
-console.log('\x1b[35m╔═══════════════════════════════════════════════════════════╗\x1b[0m')
-console.log('\x1b[35m║\x1b[0m                                                           \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m     \x1b[1m\x1b[36m██╗   ██╗██╗██████╗ ███████╗███████╗\x1b[0m            \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m     \x1b[1m\x1b[36m██║   ██║██║██╔══██╗██╔════╝██╔════╝\x1b[0m            \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m     \x1b[1m\x1b[36m██║   ██║██║██████╔╝█████╗  █████╗\x1b[0m              \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m     \x1b[1m\x1b[36m╚██╗ ██╔╝██║██╔══██╗██╔══╝  ██╔══╝\x1b[0m              \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m      \x1b[1m\x1b[36m╚████╔╝ ██║██████╔╝███████╗███████╗\x1b[0m            \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m       \x1b[1m\x1b[36m╚═══╝  ╚═╝╚═════╝ ╚══════╝╚══════╝\x1b[0m            \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m                                                           \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m           \x1b[33m✨ AI-Powered Telegram Bot Platform ✨\x1b[0m        \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m                                                           \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m     \x1b[90mEnvironment:\x1b[0m \x1b[32m' + (isDev ? 'Development' : 'Production').padEnd(11) + '\x1b[0m \x1b[90mVersion:\x1b[0m \x1b[32m0.0.1\x1b[0m     \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m     \x1b[90mNode:\x1b[0m \x1b[32m' + process.version.padEnd(18) + '\x1b[0m \x1b[90mPlatform:\x1b[0m \x1b[32m' + process.platform.padEnd(6) + '\x1b[0m \x1b[35m║\x1b[0m')
-console.log('\x1b[35m║\x1b[0m                                                           \x1b[35m║\x1b[0m')
-console.log('\x1b[35m╚═══════════════════════════════════════════════════════════╝\x1b[0m')
+console.log(
+  '\x1b[35m╔═══════════════════════════════════════════════════════════╗\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m                                                           \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m     \x1b[1m\x1b[36m██╗   ██╗██╗██████╗ ███████╗███████╗\x1b[0m            \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m     \x1b[1m\x1b[36m██║   ██║██║██╔══██╗██╔════╝██╔════╝\x1b[0m            \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m     \x1b[1m\x1b[36m██║   ██║██║██████╔╝█████╗  █████╗\x1b[0m              \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m     \x1b[1m\x1b[36m╚██╗ ██╔╝██║██╔══██╗██╔══╝  ██╔══╝\x1b[0m              \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m      \x1b[1m\x1b[36m╚████╔╝ ██║██████╔╝███████╗███████╗\x1b[0m            \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m       \x1b[1m\x1b[36m╚═══╝  ╚═╝╚═════╝ ╚══════╝╚══════╝\x1b[0m            \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m                                                           \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m           \x1b[33m✨ AI-Powered Telegram Bot Platform ✨\x1b[0m        \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m                                                           \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m     \x1b[90mEnvironment:\x1b[0m \x1b[32m' +
+    (isDev ? 'Development' : 'Production').padEnd(11) +
+    '\x1b[0m \x1b[90mVersion:\x1b[0m \x1b[32m0.0.1\x1b[0m     \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m     \x1b[90mNode:\x1b[0m \x1b[32m' +
+    process.version.padEnd(18) +
+    '\x1b[0m \x1b[90mPlatform:\x1b[0m \x1b[32m' +
+    process.platform.padEnd(6) +
+    '\x1b[0m \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m║\x1b[0m                                                           \x1b[35m║\x1b[0m'
+)
+console.log(
+  '\x1b[35m╚═══════════════════════════════════════════════════════════╝\x1b[0m'
+)
 console.log('\n')
 
 // 🔐 Инициализируем Infisical и загружаем секреты ПЕРЕД запуском ботов
@@ -311,7 +381,7 @@ async function startApplication() {
     const net = await import('net')
 
     const checkPort = (port: number): Promise<boolean> => {
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
         const server = net.createServer()
         server.once('error', () => resolve(false))
         server.once('listening', () => {
@@ -328,19 +398,24 @@ async function startApplication() {
       if (isAvailable) {
         console.log(`   ✅ Порт ${port}: доступен`)
       } else {
-        console.log(`   ⚠️  Порт ${port}: занят (используется другим процессом)`)
+        console.log(
+          `   ⚠️  Порт ${port}: занят (используется другим процессом)`
+        )
       }
     }
     console.log('')
 
     // Импортируем Infisical
-    const { initInfisical, getSecretsStats, getSecret, getSecretOrDefault } = await import('./core/infisical')
+    const { initInfisical, getSecretsStats, getSecret, getSecretOrDefault } =
+      await import('./core/infisical')
 
     console.log('🔐 [Infisical] Инициализация cloud-first secret manager...')
     await initInfisical()
 
     const stats = getSecretsStats()
-    console.log(`✅ [Infisical] Загружено ${stats.totalSecrets} секретов из ${stats.environment}`)
+    console.log(
+      `✅ [Infisical] Загружено ${stats.totalSecrets} секретов из ${stats.environment}`
+    )
 
     // 🔧 ВАЖНО: Копируем секреты в process.env для обратной совместимости
     // В будущем можно убрать и использовать getSecret() напрямую
@@ -351,7 +426,9 @@ async function startApplication() {
 
     if (env === 'dev') {
       // ✅ DEVELOPMENT: 2 бота для тестирования (BOT_TOKEN_1-2)
-      console.log('🧪 [Infisical] Development окружение - загружаем 2 тестовых бота')
+      console.log(
+        '🧪 [Infisical] Development окружение - загружаем 2 тестовых бота'
+      )
 
       for (let i = 1; i <= 2; i++) {
         const tokenKey = `BOT_TOKEN_${i}`
@@ -364,7 +441,9 @@ async function startApplication() {
       }
     } else if (env === 'staging' || env === 'prod') {
       // ✅ STAGING/PRODUCTION: 10 ботов (BOT_TOKEN_1-10)
-      console.log(`🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 10 ботов`)
+      console.log(
+        `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 10 ботов`
+      )
 
       for (let i = 1; i <= 10; i++) {
         const tokenKey = `BOT_TOKEN_${i}`
@@ -384,7 +463,9 @@ async function startApplication() {
     // Общие секреты для всех окружений
     try {
       process.env.SUPABASE_URL = getSecret('SUPABASE_URL')
-      process.env.SUPABASE_SERVICE_ROLE_KEY = getSecret('SUPABASE_SERVICE_ROLE_KEY')
+      process.env.SUPABASE_SERVICE_ROLE_KEY = getSecret(
+        'SUPABASE_SERVICE_ROLE_KEY'
+      )
       process.env.SUPABASE_SERVICE_KEY = getSecret('SUPABASE_SERVICE_KEY')
       console.log('  ✅ Supabase credentials загружены')
     } catch (e) {
@@ -397,21 +478,24 @@ async function startApplication() {
         'KIE_AI_API_KEY',
         'OPENROUTER_API_KEY',
         'REPLICATE_API_TOKEN',
+        'REPLICATE_USERNAME', // ✅ Для создания моделей на Replicate (username/model-name)
         'APIFY_TOKEN',
         'GITHUB_TOKEN',
-        'FAL_KEY',                    // ✅ Для Fal (kie.ai gateway) lip-sync генерации
-        'BASE_WEBHOOK_URL',           // ✅ Для callback уведомлений от Kie.ai
-        'RENDER_INNGEST_EVENT_KEY',   // ✅ Для отправки задач на render-server через Inngest Cloud
+        'FAL_KEY', // ✅ Для Fal (kie.ai gateway) lip-sync генерации
+        'BASE_WEBHOOK_URL', // ✅ Для callback уведомлений от Kie.ai
+        'RENDER_INNGEST_EVENT_KEY', // ✅ Для отправки задач на render-server через Inngest Cloud
         'RENDER_INNGEST_SIGNING_KEY', // ✅ Для прямых вызовов render-server (альтернатива)
         // 'RENDER_INNGEST_BASE_URL' убран - не нужен, используем локальный Inngest
         // AI Avatar & Voice Generation Services
-        'ELEVENLABS_API_KEY',         // ✅ ElevenLabs для генерации голоса из текста
-        'HEYGEN_COCOAGE_API_KEY',     // ✅ HeyGen API ключ для набора аватаров Cocoage (шаблон 2)
-        'HEYGEN_HAIM_API_KEY',        // ✅ HeyGen API ключ для набора аватаров Haim (остальные шаблоны)
-        'HEDRA_API_KEY'               // ✅ Hedra API для lip-sync генерации с пользовательским фото
+        'ELEVENLABS_API_KEY', // ✅ ElevenLabs для генерации голоса из текста
+        'HEYGEN_COCOAGE_API_KEY', // ✅ HeyGen API ключ для набора аватаров Cocoage (шаблон 2)
+        'HEYGEN_HAIM_API_KEY', // ✅ HeyGen API ключ для набора аватаров Haim (остальные шаблоны)
+        'HEDRA_API_KEY', // ✅ Hedra API для lip-sync генерации с пользовательским фото
       ]
 
-      console.log(`\n🔍 [INFISICAL] Загрузка API ключей из Infisical (${env})...`)
+      console.log(
+        `\n🔍 [INFISICAL] Загрузка API ключей из Infisical (${env})...`
+      )
 
       for (const key of apiKeys) {
         try {
@@ -423,23 +507,33 @@ async function startApplication() {
             if (key.startsWith('RENDER_INNGEST')) {
               console.log(`  ✅ ${key} загружен из Infisical`)
               console.log(`     📊 Длина ключа: ${value.length} символов`)
-              console.log(`     🔑 Первые 20 символов: ${value.substring(0, 20)}...`)
+              console.log(
+                `     🔑 Первые 20 символов: ${value.substring(0, 20)}...`
+              )
 
               // Дополнительная проверка для EVENT_KEY
               if (key === 'RENDER_INNGEST_EVENT_KEY') {
                 const isValid = value.length > 50 && value.includes('_')
-                console.log(`     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ' : '⚠️ ПОДОЗРИТЕЛЬНЫЙ'}`)
+                console.log(
+                  `     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ' : '⚠️ ПОДОЗРИТЕЛЬНЫЙ'}`
+                )
                 if (!isValid) {
-                  console.warn(`     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_EVENT_KEY может быть невалидным!`)
+                  console.warn(
+                    `     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_EVENT_KEY может быть невалидным!`
+                  )
                 }
               }
 
               // Дополнительная проверка для SIGNING_KEY
               if (key === 'RENDER_INNGEST_SIGNING_KEY') {
                 const isValid = value.startsWith('signkey-')
-                console.log(`     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ (signkey-)' : '⚠️ НЕ НАЧИНАЕТСЯ С signkey-'}`)
+                console.log(
+                  `     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ (signkey-)' : '⚠️ НЕ НАЧИНАЕТСЯ С signkey-'}`
+                )
                 if (!isValid) {
-                  console.warn(`     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_SIGNING_KEY должен начинаться с "signkey-"`)
+                  console.warn(
+                    `     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_SIGNING_KEY должен начинаться с "signkey-"`
+                  )
                 }
               }
             } else {
@@ -459,11 +553,17 @@ async function startApplication() {
       const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
       const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
 
-      console.log(`  📊 RENDER_INNGEST_EVENT_KEY: ${renderEventKey ? `${renderEventKey.substring(0, 30)}... (${renderEventKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`)
-      console.log(`  📊 RENDER_INNGEST_SIGNING_KEY: ${renderSigningKey ? `${renderSigningKey.substring(0, 30)}... (${renderSigningKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`)
+      console.log(
+        `  📊 RENDER_INNGEST_EVENT_KEY: ${renderEventKey ? `${renderEventKey.substring(0, 30)}... (${renderEventKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
+      )
+      console.log(
+        `  📊 RENDER_INNGEST_SIGNING_KEY: ${renderSigningKey ? `${renderSigningKey.substring(0, 30)}... (${renderSigningKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
+      )
 
       if (!renderEventKey || !renderSigningKey) {
-        console.error(`\n❌ [RENDER_INNGEST] КРИТИЧЕСКАЯ ОШИБКА: Отсутствуют обязательные ключи!`)
+        console.error(
+          `\n❌ [RENDER_INNGEST] КРИТИЧЕСКАЯ ОШИБКА: Отсутствуют обязательные ключи!`
+        )
         console.error(`   Inngest запросы на render-server НЕ БУДУТ РАБОТАТЬ!`)
         console.error(`   Проверьте ключи в Infisical (${env} environment):`)
         console.error(`   - RENDER_INNGEST_EVENT_KEY`)
@@ -481,7 +581,9 @@ async function startApplication() {
       console.warn('  ⚠️ Некоторые API ключи не загружены')
     }
 
-    console.log(`✅ [Infisical] Секреты скопированы в process.env для окружения: ${stats.environment}`)
+    console.log(
+      `✅ [Infisical] Секреты скопированы в process.env для окружения: ${stats.environment}`
+    )
 
     // 🌐 TUNNEL для Development окружения
     // В dev ВСЕГДА создаем туннель, даже если BASE_WEBHOOK_URL есть в Infisical
@@ -489,7 +591,9 @@ async function startApplication() {
       console.log('\n🌐 [TUNNEL] Создаем туннель для локальной разработки...')
 
       if (process.env.BASE_WEBHOOK_URL) {
-        console.log(`   ℹ️  Перезаписываем BASE_WEBHOOK_URL из Infisical (${process.env.BASE_WEBHOOK_URL})`)
+        console.log(
+          `   ℹ️  Перезаписываем BASE_WEBHOOK_URL из Infisical (${process.env.BASE_WEBHOOK_URL})`
+        )
       }
 
       const PORT = 8080
@@ -499,11 +603,17 @@ async function startApplication() {
       try {
         const { spawn } = await import('child_process')
 
-        console.log(`📡 [CLOUDFLARE] Запускаем cloudflared tunnel на порт ${PORT}...`)
+        console.log(
+          `📡 [CLOUDFLARE] Запускаем cloudflared tunnel на порт ${PORT}...`
+        )
 
-        const cloudflared = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${PORT}`], {
-          stdio: ['ignore', 'pipe', 'pipe']
-        })
+        const cloudflared = spawn(
+          'cloudflared',
+          ['tunnel', '--url', `http://localhost:${PORT}`],
+          {
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }
+        )
 
         // Парсим вывод cloudflared чтобы получить публичный URL
         const publicUrl = await new Promise<string>((resolve, reject) => {
@@ -515,14 +625,16 @@ async function startApplication() {
           cloudflared.stderr?.on('data', (data: Buffer) => {
             const output = data.toString()
             // Cloudflared выводит URL в формате: https://random-word-word.trycloudflare.com
-            const urlMatch = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)
+            const urlMatch = output.match(
+              /https:\/\/[a-z0-9-]+\.trycloudflare\.com/
+            )
             if (urlMatch) {
               clearTimeout(timeout)
               resolve(urlMatch[0])
             }
           })
 
-          cloudflared.on('error', (err) => {
+          cloudflared.on('error', err => {
             clearTimeout(timeout)
             reject(err)
           })
@@ -537,7 +649,9 @@ async function startApplication() {
         console.log('━'.repeat(80))
         console.log(`📍 Base URL:          ${publicUrl}`)
         console.log(`🎬 Kie.ai Callback:   ${publicUrl}/api/kie-ai/callback`)
-        console.log(`🎥 AI Reels Callback: ${publicUrl}/api/telegram/ai-reels-callback`)
+        console.log(
+          `🎥 AI Reels Callback: ${publicUrl}/api/telegram/ai-reels-callback`
+        )
         console.log('━'.repeat(80))
         console.log('')
 
@@ -554,19 +668,27 @@ async function startApplication() {
           cloudflared.kill()
           process.exit(0)
         })
-
       } catch (cloudflareError: any) {
-        console.error('❌ [CLOUDFLARE] Не удалось создать туннель:', cloudflareError.message)
+        console.error(
+          '❌ [CLOUDFLARE] Не удалось создать туннель:',
+          cloudflareError.message
+        )
         console.log('\n💡 Рекомендации:')
-        console.log('   1. Установи cloudflared: brew install cloudflare/cloudflare/cloudflared')
+        console.log(
+          '   1. Установи cloudflared: brew install cloudflare/cloudflare/cloudflared'
+        )
         console.log('   2. Проверь что cloudflared доступен в PATH')
-        console.log('   3. Или используй localtunnel: npm i -g localtunnel && lt --port 8080\n')
+        console.log(
+          '   3. Или используй localtunnel: npm i -g localtunnel && lt --port 8080\n'
+        )
         console.log('⚠️  Продолжаем без туннеля - вебхуки работать не будут!\n')
       }
 
       if (!tunnelCreated) {
         console.warn('⚠️  [TUNNEL] Не удалось создать ни один туннель')
-        console.log('   Вебхуки от Kie.ai и Render Server работать не будут при локальной разработке\n')
+        console.log(
+          '   Вебхуки от Kie.ai и Render Server работать не будут при локальной разработке\n'
+        )
       }
     }
 
