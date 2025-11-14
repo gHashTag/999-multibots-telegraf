@@ -5,6 +5,7 @@
 
 import { Inngest } from 'inngest'
 
+<<<<<<< HEAD
 // Определяем конфигурацию для логирования
 const config = {
   name: 'Vibee',
@@ -44,3 +45,14 @@ import { createGenerateModelTrainingFunction } from './functions/existing/genera
 // const generateModelTrainingFunction = createGenerateModelTrainingFunction(inngest)
 // 
 // // ✅ Список активных Inngest функций
+=======
+// Создаем клиент Inngest согласно ТЗ
+export const inngest = new Inngest({
+  id: 'telegraf-inngest-functions',
+  name: 'Telegraf Bot Farm - Inngest Functions',
+  eventKey: process.env.INNGEST_EVENT_KEY || 'local-dev-key',
+})
+
+// Экспортируем пустой массив функций (будет заполняться из functions/index.ts)
+export const functions: any[] = []
+>>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9

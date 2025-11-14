@@ -10,7 +10,13 @@ import {
 } from '@/interfaces/zod/textToVideo.zod'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 
+<<<<<<< HEAD
 
+=======
+// ========== INLINE WIZARD ФУНКЦИИ (КАК В РАБОЧИХ WIZARDS) ==========
+
+// ========== СОЗДАНИЕ WIZARD'A С INLINE ФУНКЦИЯМИ (КАК В textToImageWizard) ==========
+>>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',

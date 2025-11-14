@@ -87,7 +87,11 @@ export function startApiServer(bot?: Telegraf): void {
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
+<<<<<<< HEAD
   // ✅ Интеграция Inngest с API (актуальная сигнатура serve)
+=======
+  // ✅ Интеграция Inngest с API (актуальная сигнатура serve из reels-callback-2)
+>>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
   const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
   app.use('/api/inngest', inngestHandler)
 
