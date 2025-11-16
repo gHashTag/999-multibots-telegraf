@@ -36,6 +36,9 @@ import { startApiServer } from './api_server'
 // ✅ Импортируем функцию регистрации bot instances для multi-bot поддержки
 import { setBotInstance } from './api_server/routes/kie-ai-webhook.routes'
 
+// ✅ Импортируем supabase для диагностики
+import { supabase } from './core/supabase'
+
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 let mainBotInstance: Telegraf<MyContext> | null = null
@@ -194,6 +197,140 @@ async function initializeBots() {
       if (!mainBotInstance) {
         mainBotInstance = bot
         console.log('✅ Main bot instance saved for webhooks')
+
+        // 🔍 ДИАГНОСТИКА: Проверяем статусы моделей ДО миграции
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🔍 ДИАГНОСТИКА МОДЕЛЕЙ (ДО МИГРАЦИИ)')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+
+        const { data: diagModels } = await supabase
+          .from('model_trainings')
+          .select('id, model_name, status, result, api, provider, created_at')
+          .eq('telegram_id', '144022504')
+          .order('created_at', { ascending: false })
+
+        if (diagModels && diagModels.length > 0) {
+          console.log(`✅ Найдено моделей: ${diagModels.length}\n`)
+          diagModels.forEach((m, i) => {
+            console.log(`${i + 1}. ${m.model_name}`)
+            console.log(
+              `   status: ${m.status} | result: ${m.result || 'NULL'} | api: ${m.api || 'NULL'} | provider: ${m.provider || 'NULL'}`
+            )
+            console.log(`   created: ${m.created_at}\n`)
+          })
+          const statuses = [...new Set(diagModels.map(m => m.status))]
+          console.log('📋 Уникальные статусы в БД:', statuses)
+        } else {
+          console.log('❌ Модели НЕ НАЙДЕНЫ в БД')
+        }
+
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+
+        // 🧹 ONE-TIME CLEANUP: Remove fake "fal-test" models
+        console.log('🧹 Проверяем наличие фейковых моделей "fal-test"...')
+        const { data: fakeModels } = await supabase
+          .from('model_trainings')
+          .select('id, model_name, zip_url')
+          .eq('telegram_id', '144022504')
+          .eq('model_name', 'fal-test')
+          .eq('zip_url', 'https://fal.media/files/fal-test/model.zip')
+
+        if (fakeModels && fakeModels.length > 0) {
+          console.log(
+            `🗑️ Найдено ${fakeModels.length} фейковых моделей, удаляем...`
+          )
+          for (const fake of fakeModels) {
+            await supabase.from('model_trainings').delete().eq('id', fake.id)
+            console.log(`   ✅ Удалено: ${fake.id}`)
+          }
+        } else {
+          console.log('✅ Фейковых моделей не найдено')
+        }
+
+        // ✅ ДОБАВЛЯЕМ НАСТОЯЩУЮ FAL МОДЕЛЬ
+        console.log('\n🔍 Проверяем наличие настоящей FAL модели...')
+        const realTrainingId = '2896cb1f-b659-4057-b03d-a3daf5d9a983'
+        const { data: existingRealModel } = await supabase
+          .from('model_trainings')
+          .select('id, model_name')
+          .eq('telegram_id', '144022504')
+          .eq('replicate_training_id', realTrainingId)
+          .single()
+
+        if (!existingRealModel) {
+          console.log('📝 Настоящая FAL модель не найдена, добавляем...')
+          const realModelData = {
+            telegram_id: '144022504',
+            model_name: 'FAL Portrait (2500 steps)',
+            trigger_word: 'NEURO_SAGE',
+            replicate_training_id: realTrainingId,
+            status: 'SUCCESS',
+            bot_name: 'neuro_blogger_bot',
+            steps: 2500,
+            gender: 'male',
+            // ✅ ИСПРАВЛЕНИЕ: Используем .safetensors (LoRA weights), а НЕ config.json!
+            zip_url:
+              'https://v3b.fal.media/files/b/zebra/oxDuX84XjyEBU_5UT85l8_pytorch_lora_weights.safetensors',
+            api: 'fal', // ✅ FIXED: FAL provider, not Replicate!
+          }
+
+          const { data: newModel, error: insertError } = await supabase
+            .from('model_trainings')
+            .insert(realModelData)
+            .select()
+            .single()
+
+          if (insertError) {
+            console.error(
+              '❌ Ошибка добавления настоящей FAL модели:',
+              insertError
+            )
+          } else {
+            console.log('✅ Настоящая FAL модель добавлена!')
+            console.log(`   ID: ${newModel.id}`)
+            console.log(`   Name: ${newModel.model_name}`)
+          }
+        } else {
+          console.log(
+            `✅ Настоящая FAL модель уже существует: ${existingRealModel.model_name}`
+          )
+
+          // ✅ Проверяем и исправляем api и zip_url, если они неправильные
+          const { data: currentModel } = await supabase
+            .from('model_trainings')
+            .select('api, zip_url')
+            .eq('id', existingRealModel.id)
+            .single()
+
+          const updates: any = {}
+
+          if (currentModel && currentModel.api !== 'fal') {
+            console.log(`🔧 Исправляем api с '${currentModel.api}' на 'fal'...`)
+            updates.api = 'fal'
+          }
+
+          // ✅ КРИТИЧНО: Заменяем config.json на .safetensors (LoRA weights)!
+          if (currentModel && currentModel.zip_url?.includes('config.json')) {
+            console.log(
+              `🔧 Исправляем zip_url с config.json на .safetensors...`
+            )
+            console.log(`   Было: ${currentModel.zip_url}`)
+            updates.zip_url =
+              'https://v3b.fal.media/files/b/zebra/oxDuX84XjyEBU_5UT85l8_pytorch_lora_weights.safetensors'
+            console.log(`   Стало: ${updates.zip_url}`)
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await supabase
+              .from('model_trainings')
+              .update(updates)
+              .eq('id', existingRealModel.id)
+            console.log('✅ Модель обновлена:', Object.keys(updates).join(', '))
+          }
+        }
+
+        // ❌ REMOVED: Auto-run migrations - they create duplicates on every restart!
+        // Run migrations manually when needed via: npx tsx scripts/add-fal-model-manual.ts
 
         // ✅ Запускаем API сервер СРАЗУ после создания первого бота
         // (до bot.launch(), чтобы не ждать бесконечного polling loop)

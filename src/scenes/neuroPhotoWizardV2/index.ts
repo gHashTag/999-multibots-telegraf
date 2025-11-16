@@ -4,7 +4,11 @@ import { UserModel } from '../../interfaces'
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 // ✅ IMPORT MULTI-PHOTO SUPPORT
 import { generateNeuroPhotoMulti } from '@/services/generateNeuroPhotoMulti'
-import { detectMultiPhotoUpload, handleMultiPhotoNeurophoto, checkMultiPhotoEvents } from '@/handlers/multiPhotoHandler'
+import {
+  detectMultiPhotoUpload,
+  handleMultiPhotoNeurophoto,
+  checkMultiPhotoEvents,
+} from '@/handlers/multiPhotoHandler'
 import {
   getLatestUserModel,
   getReferalsCountAndUserData,
@@ -51,65 +55,47 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       `🤖 Определен бот V2: ${bot_name} для пользователя ${telegramId}`
     )
 
-    // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА ДЛЯ ВСЕХ БОТОВ - ИЩЕМ И BFL И REPLICATE МОДЕЛИ
-    let userModel = null
+    // ✅ ПОЛУЧАЕМ ВСЕ МОДЕЛИ ПОЛЬЗОВАТЕЛЯ ДЛЯ ВЫБОРА
+    console.log(
+      `🔍 [V2] Получаем все модели для бота: ${bot_name}, пользователь: ${telegramId}`
+    )
 
-    console.log(`🔍 [V2] Ищем модель для бота: ${bot_name}, пользователь: ${telegramId}`)
-
-    // Сначала пробуем replicate модели (они более распространены)
-    console.log('🔄 Пробуем replicate модели...')
-    if (bot_name === 'HaimGroupMedia_bot') {
-      userModel = await getLatestUserModelForHaim(
-        Number(telegramId),
-        'replicate',
-        bot_name
+    const { data: allModels, error: allModelsError } = await supabase
+      .from('model_trainings')
+      // ✅ FIXED: Only select columns that exist in database schema
+      .select(
+        'id, api, status, result, model_name, model_url, trigger_word, bot_name, created_at, replicate_training_id, steps, gender, zip_url'
       )
-    } else {
-      userModel = await getLatestUserModel(Number(telegramId), 'replicate')
-    }
+      .eq('telegram_id', telegramId)
+      // ✅ ИСПРАВЛЕНО: Принимаем разные варианты успешного статуса
+      .in('status', ['SUCCESS', 'completed', 'SUCCEEDED', 'succeeded'])
+      .order('created_at', { ascending: false })
+      .limit(20)
 
-    // Если нет replicate модели, пробуем BFL
-    if (!userModel) {
-      console.log('🔄 Replicate модель не найдена, пробуем BFL')
-      if (bot_name === 'HaimGroupMedia_bot') {
-        userModel = await getLatestUserModelForHaim(
-          Number(telegramId),
-          'bfl',
-          bot_name
-        )
-      } else {
-        userModel = await getLatestUserModel(Number(telegramId), 'bfl')
+    // 🔍 ДИАГНОСТИКА: Логируем результаты запроса
+    console.log(`🔍 [V2 DEBUG] Результат запроса:`, {
+      found: allModels?.length || 0,
+      error: allModelsError?.message,
+      models: allModels?.map(m => ({
+        name: m.model_name,
+        status: m.status,
+        api: m.api,
+        id: m.id,
+      })),
+    })
+
+    if (allModelsError || !allModels || allModels.length === 0) {
+      console.log(`❌ [V2] Модели НЕ НАЙДЕНЫ для пользователя ${telegramId}`)
+      if (allModelsError) {
+        console.error('❌ [V2] Ошибка запроса:', allModelsError)
       }
-    }
 
-    console.log('userModel V2', userModel)
+      const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
-    // 🔍 ДИАГНОСТИКА: Проверяем все модели пользователя для диагностики
-    try {
-      const { data: allModels, error: allModelsError } = await supabase
-        .from('model_trainings')
-        .select('id, api, status, model_name, bot_name, created_at')
-        .eq('telegram_id', telegramId)
-        .order('created_at', { ascending: false })
-        .limit(10)
-
-      if (allModels && allModels.length > 0) {
-        console.log(`🔍 [DIAGNOSTIC] Найдено ${allModels.length} моделей для пользователя ${telegramId}:`, allModels)
-      } else {
-        console.log(`❌ [DIAGNOSTIC] Модели НЕ НАЙДЕНЫ для пользователя ${telegramId}`)
-      }
-    } catch (diagError) {
-      console.error(`❌ [DIAGNOSTIC] Ошибка при получении всех моделей:`, diagError)
-    }
-
-    const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
-
-    if (!userModel) {
-      // Более детальное сообщение об ошибке с информацией о боте
       await ctx.reply(
         isRu
-          ? `❌ У вас нет обученных моделей для этого бота (${bot_name}).\n\nВозможно, модели были созданы на другом боте или с другим API.\n\nИспользуйте команду "🤖 Цифровое тело аватара", чтобы создать новую модель.`
-          : `❌ You don't have any trained models for this bot (${bot_name}).\n\nPerhaps models were created on another bot or with different API.\n\nUse "🤖 Digital avatar body" to create a new model.`,
+          ? `❌ У вас пока нет обученных моделей.\n\n💡 Используйте "🤖 Цифровое тело аватара", чтобы создать свою первую модель!\n\nА пока можете попробовать тестовую модель.`
+          : `❌ You don't have any trained models yet.\n\n💡 Use "🤖 Digital avatar body" to create your first model!\n\nMeanwhile, you can try the test model.`,
         {
           reply_markup: {
             keyboard: (
@@ -126,32 +112,62 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       return ctx.scene.leave()
     }
 
-    // ✅ ОБРАБАТЫВАЕМ ОБЩИЕ МОДЕЛИ (УБИРАЕМ ПРЕФИКС shared_ ДЛЯ ИСПОЛЬЗОВАНИЯ)
-    let modelToUse = userModel
-    const isSharedModel = userModel.id.toString().startsWith('shared_')
-    if (isSharedModel) {
-      modelToUse = {
-        ...userModel,
-        id: userModel.id.toString().replace('shared_', ''), // Убираем префикс для использования
+    console.log(`✅ [V2] Найдено ${allModels.length} моделей`)
+
+    // ✅ ЕСЛИ МОДЕЛЬ ОДНА - СРАЗУ ИСПОЛЬЗУЕМ ЕЁ
+    if (allModels.length === 1) {
+      const model = allModels[0]
+      console.log(
+        `📍 Только одна модель, используем автоматически: ${model.model_name}`
+      )
+
+      ctx.session.userModel = model as UserModel
+      await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
+
+      const isCancel = await handleHelpCancel(ctx)
+      console.log('isCancel', isCancel)
+      if (isCancel) {
+        return ctx.scene.leave()
       }
-      console.log(`✅ Используем общую модель V2: ${userModel.model_name}`)
+      console.log('CASE: neuroPhotoConversation V2 next (single model)')
+
+      return ctx.wizard.next()
     }
 
-    ctx.session.userModel = modelToUse as UserModel
+    // ✅ ЕСЛИ МОДЕЛЕЙ НЕСКОЛЬКО - ПОКАЗЫВАЕМ ВЫБОР
+    console.log(`🎯 Несколько моделей (${allModels.length}), показываем выбор`)
 
-    await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
+    // Сохраняем список моделей в сессию для обработчика выбора
+    ctx.session.availableModels = allModels
 
-    // ✅ STANDARD MESSAGE - MULTI-PHOTO MOVED TO AI PHOTOSHOP
-    // Multi-photo functionality moved to AI Photoshop scene
+    // ✅ Формируем кнопки для выбора модели (по 1 в ряд - чтобы название влезало)
+    const { Markup } = require('telegraf')
+    const modelButtons = allModels.map(model => {
+      const formattedDate = new Date(model.created_at).toLocaleDateString(
+        isRu ? 'ru-RU' : 'en-US',
+        {
+          day: '2-digit',
+          month: '2-digit',
+        }
+      )
+      return [
+        Markup.button.callback(
+          `${model.model_name || 'Модель'} (${formattedDate})`,
+          `select_model:${model.id}`
+        ),
+      ]
+    })
 
-    const isCancel = await handleHelpCancel(ctx)
-    console.log('isCancel', isCancel)
-    if (isCancel) {
-      return ctx.scene.leave()
-    }
-    console.log('CASE: neuroPhotoConversation V2 next')
+    await ctx.reply(
+      isRu
+        ? `🎨 Выберите модель для генерации:\n\n📋 Всего моделей: ${allModels.length}`
+        : `🎨 Choose model for generation:\n\n📋 Total models: ${allModels.length}`,
+      Markup.inlineKeyboard(modelButtons)
+    )
 
-    return ctx.wizard.next()
+    console.log('CASE: neuroPhotoConversation V2 waiting for model selection')
+    // Не переходим на следующий шаг - ждем выбора модели через action handler
+    return
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep V2:', error)
     await sendGenericErrorMessage(ctx, isRu, error as Error)
@@ -228,7 +244,9 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
             1,
             userId.toString(),
             ctx,
-            ctx.botInfo?.username
+            ctx.botInfo?.username || 'neuro_blogger_bot', // ✅ Use botInfo username
+            null, // aspect ratio
+            ctx.session.userModel // ✅ Pass full model object for FAL support
           )
         }
 
@@ -321,7 +339,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       const multiPhotoCount = ctx.session?.multiPhotoCount
 
       if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
-        console.log(`🎨 Generating ${num} images for each of ${multiPhotoCount} input photos`)
+        console.log(
+          `🎨 Generating ${num} images for each of ${multiPhotoCount} input photos`
+        )
         await generateNeuroPhotoMulti(
           fullPrompt,
           ctx.session.userModel.model_url as any,
@@ -345,7 +365,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
           num,
           userId.toString(),
           ctx,
-          ctx.botInfo?.username
+          ctx.botInfo?.username || 'neuro_blogger_bot', // ✅ Use botInfo username
+          null, // aspect ratio
+          ctx.session.userModel // ✅ Pass full model object for FAL support
         )
       }
     }
@@ -366,9 +388,64 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
   }
 }
 
+// ✅ ЗАМЕНЯЕМ СТАРЫЙ neuroPhotoWizard - теперь V2 является основной версией
 export const neuroPhotoWizardV2 = new Scenes.WizardScene<MyContext>(
-  'neuro_photo_v2',
+  'neuro_photo', // Используем старый ID для совместимости
   neuroPhotoConversationStep,
   neuroPhotoPromptStep,
   neuroPhotoButtonStep
 )
+
+// ✅ Action handler для выбора модели из списка
+neuroPhotoWizardV2.action(/^select_model:(.+)$/, async ctx => {
+  await ctx.answerCbQuery() // FIRST LINE!
+
+  const isRu = isRussianFromState(ctx)
+  const modelId = ctx.match[1]
+
+  console.log(`✅ [Model Selection] User selected model ID: ${modelId}`)
+
+  // Находим выбранную модель из сохраненного списка
+  const availableModels = ctx.session.availableModels
+  if (!availableModels || availableModels.length === 0) {
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка: список моделей не найден. Попробуйте начать заново.'
+        : '❌ Error: models list not found. Please start over.'
+    )
+    return ctx.scene.leave()
+  }
+
+  const selectedModel = availableModels.find(
+    (m: any) => m.id.toString() === modelId
+  )
+  if (!selectedModel) {
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка: модель не найдена. Попробуйте выбрать другую.'
+        : '❌ Error: model not found. Please choose another one.'
+    )
+    return
+  }
+
+  console.log(
+    `✅ [Model Selection] Selected model: ${selectedModel.model_name}`
+  )
+
+  // Сохраняем выбранную модель в сессию
+  ctx.session.userModel = selectedModel as UserModel
+
+  // Очищаем временный список
+  ctx.session.availableModels = undefined
+
+  // Отправляем запрос на описание фото
+  await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
+
+  const isCancel = await handleHelpCancel(ctx)
+  if (isCancel) {
+    return ctx.scene.leave()
+  }
+
+  // Переходим на следующий шаг (ввод промпта)
+  return ctx.wizard.next()
+})

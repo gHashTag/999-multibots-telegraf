@@ -2,7 +2,6 @@ import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
@@ -18,7 +17,6 @@ import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { v4 as uuidv4 } from 'uuid'
 import { ApiResponse } from '@/interfaces/api.interface'
-import { BotName } from '@/interfaces/telegram-bot.interface'
 import crypto from 'crypto'
 import { supabase } from '@/core/supabase'
 import { Markup } from 'telegraf'
@@ -35,7 +33,8 @@ const IDEMPOTENCY_TTL_MS = 20 * 1000 // 20 секунд
  */
 async function generateImageWithFalAndLora(prompt: string): Promise<string> {
   const FAL_KEY = process.env.FAL_KEY
-  const FAL_LORA_PATH = process.env.FAL_DEFAULT_LORA_PATH ||
+  const FAL_LORA_PATH =
+    process.env.FAL_DEFAULT_LORA_PATH ||
     'https://v3b.fal.media/files/b/elephant/YpfnIK7JlNO7vZTsGanfo_pytorch_lora_weights.safetensors'
   const FAL_LORA_TRIGGER = process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE'
   const FAL_LORA_SCALE = Number(process.env.FAL_DEFAULT_LORA_SCALE) || 1.0
@@ -63,7 +62,7 @@ async function generateImageWithFalAndLora(prompt: string): Promise<string> {
   const input = {
     prompt: enhancedPrompt,
     image_size: {
-      width: 768,   // 9:16 для вертикальных фото
+      width: 768, // 9:16 для вертикальных фото
       height: 1365,
     },
     num_images: 1,
@@ -82,21 +81,138 @@ async function generateImageWithFalAndLora(prompt: string): Promise<string> {
 
   const output = result as any
 
-  // Extract image URL from different possible response formats
+  // ✅ ИСПРАВЛЕНИЕ: FAL API возвращает { data: { images: [...] }, requestId: "..." }
   let imageUrl: string
-  if (output.images && Array.isArray(output.images) && output.images[0]) {
+
+  // Сначала проверяем новый формат с data
+  if (
+    output.data?.images &&
+    Array.isArray(output.data.images) &&
+    output.data.images[0]
+  ) {
+    imageUrl = output.data.images[0].url
+  }
+  // Потом старый формат без data (для совместимости)
+  else if (output.images && Array.isArray(output.images) && output.images[0]) {
     imageUrl = output.images[0].url
   } else if (output.image_url) {
     imageUrl = output.image_url
   } else if (output.url) {
     imageUrl = output.url
   } else {
-    throw new Error('Unexpected Fal.ai response format: ' + JSON.stringify(output))
+    throw new Error(
+      'Unexpected Fal.ai response format: ' + JSON.stringify(output)
+    )
   }
 
   logger.info({
     message: '✅ [FAL] Изображение с LoRA сгенерировано',
     imageUrl: imageUrl.substring(0, 50) + '...',
+  })
+
+  return imageUrl
+}
+
+/**
+ * Генерация изображения с Fal.ai + LoRA из userModel (не из env vars)
+ * @param prompt Промпт для генерации
+ * @param userModel Модель пользователя с данными LoRA
+ * @returns URL сгенерированного изображения
+ */
+async function generateImageWithUserModelLora(
+  prompt: string,
+  userModel: any
+): Promise<string> {
+  const FAL_KEY = process.env.FAL_KEY
+
+  if (!FAL_KEY) {
+    throw new Error('FAL_KEY not found in environment')
+  }
+
+  if (!userModel?.zip_url) {
+    throw new Error('User model LoRA weights (zip_url) not found')
+  }
+
+  // Configure fal client
+  fal.config({
+    credentials: FAL_KEY,
+  })
+
+  // ✅ ИСПРАВЛЕНИЕ: zip_url теперь хранит прямой путь к .safetensors файлу!
+  // Больше не нужно никаких преобразований - просто используем как есть
+  const loraPath = userModel.zip_url
+
+  if (!loraPath || !loraPath.endsWith('.safetensors')) {
+    throw new Error(
+      `Invalid LoRA weights path: ${loraPath}. Expected .safetensors file.`
+    )
+  }
+
+  const triggerWord = userModel.trigger_word || 'NEURO_SAGE'
+  const loraScale = Number(process.env.FAL_DEFAULT_LORA_SCALE) || 1.0
+
+  // Add trigger word to prompt
+  const enhancedPrompt = `${triggerWord} ${prompt}`
+
+  logger.info({
+    message: '🎭 [FAL] Генерация с LoRA из userModel',
+    trigger: triggerWord,
+    lora_path: loraPath.substring(0, 50) + '...',
+    scale: loraScale,
+    model_name: userModel.model_name,
+    enhanced_prompt: enhancedPrompt.substring(0, 100) + '...',
+  })
+
+  const input = {
+    prompt: enhancedPrompt,
+    image_size: {
+      width: 768, // 9:16 для вертикальных фото
+      height: 1365,
+    },
+    num_images: 1,
+    loras: [
+      {
+        path: loraPath,
+        scale: loraScale,
+      },
+    ],
+  }
+
+  const result = await fal.subscribe('fal-ai/flux-lora', {
+    input,
+    logs: false,
+  })
+
+  const output = result as any
+
+  // ✅ ИСПРАВЛЕНИЕ: FAL API возвращает { data: { images: [...] }, requestId: "..." }
+  let imageUrl: string
+
+  // Сначала проверяем новый формат с data
+  if (
+    output.data?.images &&
+    Array.isArray(output.data.images) &&
+    output.data.images[0]
+  ) {
+    imageUrl = output.data.images[0].url
+  }
+  // Потом старый формат без data (для совместимости)
+  else if (output.images && Array.isArray(output.images) && output.images[0]) {
+    imageUrl = output.images[0].url
+  } else if (output.image_url) {
+    imageUrl = output.image_url
+  } else if (output.url) {
+    imageUrl = output.url
+  } else {
+    throw new Error(
+      'Unexpected Fal.ai response format: ' + JSON.stringify(output)
+    )
+  }
+
+  logger.info({
+    message: '✅ [FAL] Изображение с userModel LoRA сгенерировано',
+    imageUrl: imageUrl.substring(0, 50) + '...',
+    model_name: userModel.model_name,
   })
 
   return imageUrl
@@ -127,7 +243,8 @@ export async function generateNeuroPhotoDirect(
   options?: {
     disable_telegram_sending?: boolean
     bypass_payment_check?: boolean
-  }
+  },
+  userModel?: any // ✅ Add userModel parameter for FAL support
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
   // --- IDEMPOTENCY KEY ---
   const idempotencyKey = crypto
@@ -226,13 +343,28 @@ export async function generateNeuroPhotoDirect(
       throw new Error('Prompt not found')
     }
 
-    if (!model_url) {
+    // ✅ ИСПРАВЛЕНИЕ: Для FAL моделей model_url не обязателен (используются LoRA weights)
+    const isFalModel = userModel?.api === 'fal'
+    if (!model_url && !isFalModel) {
       logger.error({
         message: '❌ [DIRECT] Отсутствует URL модели для генерации',
         description: 'No model URL found for direct generation',
         telegram_id,
+        userModel: userModel
+          ? { api: userModel.api, model_name: userModel.model_name }
+          : 'not provided',
       })
       throw new Error('Model URL not found')
+    }
+
+    if (isFalModel) {
+      logger.info({
+        message: '🎭 [DIRECT] Обнаружена FAL модель, используем LoRA weights',
+        telegram_id,
+        model_name: userModel.model_name,
+        trigger_word: userModel.trigger_word,
+        zip_url: userModel.zip_url?.substring(0, 50) + '...',
+      })
     }
 
     // Убедимся что numImages имеет разумное значение
@@ -250,28 +382,15 @@ export async function generateNeuroPhotoDirect(
     const is_ru = isRussianFromState(ctx)
     const username = ctx.from?.username || 'unknown'
 
-    // Получаем экземпляр бота
+    // ✅ ИСПРАВЛЕНИЕ: Используем ctx.telegram напрямую вместо getBotByName
+    // Это более надежно и не зависит от регистрации ботов в глобальной коллекции
     logger.info({
-      message: '🤖 [DIRECT] Получение экземпляра бота',
-      description: 'Getting bot instance',
+      message: '🤖 [DIRECT] Используем ctx.telegram для отправки сообщений',
+      description: 'Using ctx.telegram directly',
       botName,
     })
 
-    const botResult = getBotByName(botName as BotName)
-    if (!botResult.bot) {
-      logger.error({
-        message: '❌ [DIRECT] Бот не найден',
-        description: 'Bot not found for direct generation',
-        botName,
-        error: botResult.error,
-      })
-      console.error(
-        `❌ [DIRECT] Бот с именем ${botName} не найден: ${botResult.error}`
-      )
-      throw new Error(`Bot with name ${botName} not found`)
-    }
-
-    const bot = botResult.bot
+    const bot = ctx.telegram
     logger.info({
       message: '✅ [DIRECT] Экземпляр бота получен',
       description: 'Bot instance retrieved',
@@ -305,15 +424,15 @@ export async function generateNeuroPhotoDirect(
             : '❌ Your account was not found in our database. Please restart the bot using the /start command'
         )
       } catch (sendError) {
-          logger.error({
-            message:
-              '❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю',
-            description: 'Failed to send error message to user (direct)',
-            error:
-              sendError instanceof Error ? sendError.message : 'Unknown error',
-            telegram_id,
-          })
-        }
+        logger.error({
+          message:
+            '❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю',
+          description: 'Failed to send error message to user (direct)',
+          error:
+            sendError instanceof Error ? sendError.message : 'Unknown error',
+          telegram_id,
+        })
+      }
 
       throw new Error(`User with ID ${telegram_id} not found in database`)
     }
@@ -342,12 +461,15 @@ export async function generateNeuroPhotoDirect(
       mode: ModeEnum.NeuroPhoto,
     })
 
+    // ✅ ИСПРАВЛЕНИЕ ЦЕНООБРАЗОВАНИЯ: Рассчитываем стоимость ЗА ОДНО изображение
+    // ВАЖНО: Всегда передаем numImages: 1, чтобы получить цену за 1 изображение!
+    // Затем умножаем на validNumImages для получения общей стоимости
     const costResult = calculateModeCost({
       mode: ModeEnum.NeuroPhoto,
-      steps: validNumImages,
+      numImages: 1, // ← ВСЕГДА 1! Это стоимость ЗА ОДНО изображение
     })
-    const costPerImage = Number(costResult.stars)
-    const totalCost = costPerImage * validNumImages
+    const costPerImage = Number(costResult.stars) // 7.5⭐ за 1 изображение
+    const totalCost = costPerImage * validNumImages // 7.5⭐ × количество изображений
 
     logger.info({
       message: '💸 [DIRECT] Рассчитана стоимость генерации',
@@ -545,28 +667,42 @@ export async function generateNeuroPhotoDirect(
           iteration: i,
         })
 
-        // Определяем какой провайдер использовать
-        let useFal = !!process.env.FAL_KEY
+        // ✅ ИСПРАВЛЕНИЕ: Определяем провайдер по userModel.api (приоритет) или env vars
+        let useFal = isFalModel || !!process.env.FAL_KEY
         let imageUrl: string
 
         if (useFal) {
-          // ✨ Используем Fal.ai с LoRA NEURO_SAGE
+          // ✨ Используем Fal.ai с LoRA
           logger.info({
             message: '🎭 [DIRECT] Используем Fal.ai с LoRA',
             telegram_id,
             iteration: i,
+            source: isFalModel ? 'userModel' : 'env vars',
           })
 
           try {
-            imageUrl = await generateImageWithFalAndLora(prompt)
+            if (isFalModel) {
+              // ✅ Используем userModel данные (персональная модель пользователя)
+              imageUrl = await generateImageWithUserModelLora(prompt, userModel)
+            } else {
+              // Используем env vars (дефолтная FAL модель)
+              imageUrl = await generateImageWithFalAndLora(prompt)
+            }
           } catch (falError) {
             logger.error({
               message: '❌ [DIRECT] Ошибка Fal.ai, fallback на Replicate',
-              error: falError instanceof Error ? falError.message : 'Unknown error',
+              error:
+                falError instanceof Error ? falError.message : 'Unknown error',
               telegram_id,
+              isFalModel,
             })
-            // Fallback на Replicate при ошибке Fal.ai
-            useFal = false as any // Trick to reuse replicate code below
+            // Fallback на Replicate при ошибке Fal.ai (только если есть model_url)
+            if (model_url) {
+              useFal = false as any // Trick to reuse replicate code below
+            } else {
+              // Нет model_url для fallback - выбрасываем ошибку
+              throw falError
+            }
           }
         }
 
@@ -735,9 +871,10 @@ export async function generateNeuroPhotoDirect(
           if (ctx.session) {
             ctx.session.lastNeuroPhotoImageUrl = imageUrl
             ctx.session.lastNeuroPhotoPrompt = prompt
-            
+
             logger.info({
-              message: '💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler',
+              message:
+                '💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler',
               description: 'Neurophoto URL saved in session for upscaler',
               telegram_id,
               savedUrl: imageUrl.substring(0, 50) + '...',
@@ -750,26 +887,29 @@ export async function generateNeuroPhotoDirect(
             if (!options?.disable_telegram_sending) {
               // Определяем какой провайдер и модель использовались
               const isLoraUsed = useFal
-              const loraInfo = isLoraUsed ? {
-                trigger: process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE',
-                provider: 'Fal.ai'
-              } : null
+              const loraInfo = isLoraUsed
+                ? {
+                    trigger: process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE',
+                    provider: 'Fal.ai',
+                  }
+                : null
 
               // Извлекаем информацию о модели
               let modelDisplay: string
               if (isLoraUsed) {
                 modelDisplay = 'Flux LoRA 🎭'
               } else {
-                const modelName = model_url.split('/').pop()?.split(':')[0] || 'Unknown'
+                const modelName =
+                  model_url.split('/').pop()?.split(':')[0] || 'Unknown'
                 modelDisplay = modelName.includes('flux-schnell')
                   ? 'Flux Schnell ⚡️'
                   : modelName.includes('flux-pro')
-                  ? 'Flux Pro 💎'
-                  : modelName.includes('flux-dev')
-                  ? 'Flux Dev'
-                  : modelName.includes('sdxl')
-                  ? 'SDXL'
-                  : modelName
+                    ? 'Flux Pro 💎'
+                    : modelName.includes('flux-dev')
+                      ? 'Flux Dev'
+                      : modelName.includes('sdxl')
+                        ? 'SDXL'
+                        : modelName
               }
 
               // Рассчитываем размеры изображения
@@ -815,7 +955,6 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 ━━━━━━━━━━━━━━━━━━━━
 🔍 <b>Техническая информация</b>${loraInfo ? `\nLoRA: <code>${loraInfo.trigger}</code>` : ''}
 Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
-Provider: <b>${isLoraUsed ? loraInfo!.provider : 'Replicate'}</b>
 Изображение: ${imageNumber}/${validNumImages}
 Сгенерировано: ${new Date().toLocaleString('ru-RU')}
 
@@ -835,17 +974,20 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 ━━━━━━━━━━━━━━━━━━━━
 🔍 <b>Technical Information</b>${loraInfo ? `\nLoRA: <code>${loraInfo.trigger}</code>` : ''}
 Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
-Provider: <b>${isLoraUsed ? loraInfo!.provider : 'Replicate'}</b>
 Image: ${imageNumber}/${validNumImages}
 Generated: ${new Date().toLocaleString('en-US')}
 
 <i>Created with AI • @999-agents</i>`
 
               // Отправляем фото С красивым caption
-              await ctx.telegram.sendPhoto(telegram_id, { url: imageUrl }, {
-                caption,
-                parse_mode: 'HTML'
-              })
+              await ctx.telegram.sendPhoto(
+                telegram_id,
+                { url: imageUrl },
+                {
+                  caption,
+                  parse_mode: 'HTML',
+                }
+              )
 
               logger.info({
                 message: '📸 [DIRECT] Изображение отправлено пользователю',
@@ -862,33 +1004,54 @@ Generated: ${new Date().toLocaleString('en-US')}
                   : '📝 <b>Prompt for copying:</b>\n\n'
 
                 // Если промпт слишком длинный - разбиваем на части
-                if (promptHeader.length + prompt.length > TELEGRAM_MESSAGE_LIMIT) {
+                if (
+                  promptHeader.length + prompt.length >
+                  TELEGRAM_MESSAGE_LIMIT
+                ) {
                   // Отправляем первую часть с заголовком
-                  const firstPartLength = TELEGRAM_MESSAGE_LIMIT - promptHeader.length - 50
-                  const firstPart = promptHeader + '<pre>' + prompt.substring(0, firstPartLength) + '...</pre>\n\n<i>(продолжение ↓)</i>'
-                  await ctx.telegram.sendMessage(telegram_id, firstPart, { parse_mode: 'HTML' })
+                  const firstPartLength =
+                    TELEGRAM_MESSAGE_LIMIT - promptHeader.length - 50
+                  const firstPart =
+                    promptHeader +
+                    '<pre>' +
+                    prompt.substring(0, firstPartLength) +
+                    '...</pre>\n\n<i>(продолжение ↓)</i>'
+                  await ctx.telegram.sendMessage(telegram_id, firstPart, {
+                    parse_mode: 'HTML',
+                  })
 
                   // Отправляем продолжение (без HTML форматирования для безопасности)
-                  const remainingPrompt = '...(продолжение):\n\n' + prompt.substring(firstPartLength)
+                  const remainingPrompt =
+                    '...(продолжение):\n\n' + prompt.substring(firstPartLength)
                   // Если продолжение тоже длинное - разбиваем дальше
                   const chunks = []
-                  for (let i = 0; i < remainingPrompt.length; i += TELEGRAM_MESSAGE_LIMIT) {
-                    chunks.push(remainingPrompt.substring(i, i + TELEGRAM_MESSAGE_LIMIT))
+                  for (
+                    let i = 0;
+                    i < remainingPrompt.length;
+                    i += TELEGRAM_MESSAGE_LIMIT
+                  ) {
+                    chunks.push(
+                      remainingPrompt.substring(i, i + TELEGRAM_MESSAGE_LIMIT)
+                    )
                   }
                   for (const chunk of chunks) {
                     await ctx.telegram.sendMessage(telegram_id, chunk)
                   }
 
                   logger.info({
-                    message: '📝 [DIRECT] Длинный промпт отправлен пользователю частями',
+                    message:
+                      '📝 [DIRECT] Длинный промпт отправлен пользователю частями',
                     description: 'Long prompt sent to user in chunks',
                     telegram_id,
                     chunksCount: chunks.length + 1,
                   })
                 } else {
                   // Промпт влезает целиком
-                  const promptMessage = promptHeader + '<pre>' + prompt + '</pre>'
-                  await ctx.telegram.sendMessage(telegram_id, promptMessage, { parse_mode: 'HTML' })
+                  const promptMessage =
+                    promptHeader + '<pre>' + prompt + '</pre>'
+                  await ctx.telegram.sendMessage(telegram_id, promptMessage, {
+                    parse_mode: 'HTML',
+                  })
 
                   logger.info({
                     message: '📝 [DIRECT] Промпт отправлен пользователю',
@@ -899,9 +1062,13 @@ Generated: ${new Date().toLocaleString('en-US')}
                 }
               } catch (promptSendError) {
                 logger.error({
-                  message: '❌ [DIRECT] Ошибка при отправке промпта пользователю',
+                  message:
+                    '❌ [DIRECT] Ошибка при отправке промпта пользователю',
                   description: 'Error sending prompt to user',
-                  error: promptSendError instanceof Error ? promptSendError.message : 'Unknown error',
+                  error:
+                    promptSendError instanceof Error
+                      ? promptSendError.message
+                      : 'Unknown error',
                   telegram_id,
                 })
                 // Не прерываем процесс если промпт не отправился
@@ -929,9 +1096,10 @@ Generated: ${new Date().toLocaleString('en-US')}
           }
 
           // Сохраняем промпт в базу данных для аналитики и истории
+          // ✅ ИСПРАВЛЕНИЕ: Передаем правильный model_type ('fal' или 'replicate'), а не model_url!
           await savePromptDirect(
             prompt,
-            model_url,
+            useFal ? 'fal' : 'replicate', // Используем model_type вместо model_url
             ModeEnum.NeuroPhoto,
             imageUrl,
             telegram_id.toString(),

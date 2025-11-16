@@ -96,7 +96,8 @@ export async function generateNeuroPhotoHybrid(
   telegram_id: string,
   ctx: MyContext,
   botName: string,
-  explicitAspectRatio?: string | null
+  explicitAspectRatio?: string | null,
+  userModel?: any // ✅ Add userModel parameter for FAL support
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
   console.log('🚀 [HYBRID] generateNeuroPhotoHybrid ВХОД в функцию')
   console.log('🚀 [HYBRID] Параметры:', {
@@ -369,7 +370,8 @@ export async function generateNeuroPhotoHybrid(
         {
           disable_telegram_sending: false, // Разрешаем отправку сообщений
           bypass_payment_check: false, // НЕ обходим проверку баланса
-        }
+        },
+        userModel // ✅ Pass userModel for FAL support
       )
 
       if (localResult && localResult.success) {
