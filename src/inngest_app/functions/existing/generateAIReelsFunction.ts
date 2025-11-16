@@ -53,7 +53,15 @@ export const generateAIReelsFunction = inngest.createFunction(
   },
   { event: 'ai-reels/generate' },
   async ({ event, step }) => {
-    const { telegramId, imageUrl, text, audioUrl, resolution = '720p', botName, webhookUrl } = event.data as AIReelsPayload
+    const {
+      telegramId,
+      imageUrl,
+      text,
+      audioUrl,
+      resolution = '720p',
+      botName,
+      webhookUrl,
+    } = event.data as AIReelsPayload
 
     logger.info('🎬 [INNGEST AI REELS] Function started', {
       telegramId,
@@ -67,8 +75,12 @@ export const generateAIReelsFunction = inngest.createFunction(
       const firstVideo = await step.run('generate-lipsync-video', async () => {
         logger.info('1️⃣ [INNGEST] Генерация lip-sync видео', { telegramId })
 
-        const { lipSyncOrchestrator } = await import('@/core/lipsync/lipsync-orchestrator')
-        const { LipSyncInputBuilder } = await import('@/core/lipsync/schemas/lipsync-schemas')
+        const { lipSyncOrchestrator } = await import(
+          '@/core/lipsync/lipsync-orchestrator'
+        )
+        const { LipSyncInputBuilder } = await import(
+          '@/core/lipsync/schemas/lipsync-schemas'
+        )
 
         const input = LipSyncInputBuilder.forVeedFabric(
           imageUrl,
@@ -84,7 +96,9 @@ export const generateAIReelsFunction = inngest.createFunction(
         const result = await lipSyncOrchestrator.generate(input)
 
         if (!('id' in result)) {
-          throw new Error(`Lip-sync generation failed: ${JSON.stringify(result)}`)
+          throw new Error(
+            `Lip-sync generation failed: ${JSON.stringify(result)}`
+          )
         }
 
         logger.info('✅ [INNGEST] Lip-sync видео готово', {
@@ -99,13 +113,11 @@ export const generateAIReelsFunction = inngest.createFunction(
       const secondVideo = await step.run('generate-wan25-video', async () => {
         logger.info('2️⃣ [INNGEST] Генерация WAN 2.5 видео', { telegramId })
 
-        const {
-          WAN25_MODELS,
-          WAN25ModelType,
-          WAN25_DEFAULT_PROMPTS,
-        } = await import('@/config/wan25-config')
+        const { WAN25_MODELS, WAN25ModelType, WAN25_DEFAULT_PROMPTS } =
+          await import('@/config/wan25-config')
 
-        type WAN25CreateTaskRequest = import('@/config/wan25-config').WAN25CreateTaskRequest
+        type WAN25CreateTaskRequest =
+          import('@/config/wan25-config').WAN25CreateTaskRequest
 
         const wan25Prompt = WAN25_DEFAULT_PROMPTS.CINEMATIC.en
 
@@ -114,14 +126,16 @@ export const generateAIReelsFunction = inngest.createFunction(
           input: {
             prompt: wan25Prompt,
             image_url: imageUrl,
-            duration: "5",
+            duration: '5',
             resolution: resolution as '720p' | '1080p',
             enable_prompt_expansion: true,
           },
         }
 
         // Импортируем функции из ai-reels-wizard
-        const { createWAN25Task, waitForWAN25Task } = await import('./wan25-helpers')
+        const { createWAN25Task, waitForWAN25Task } = await import(
+          '../wan25-helpers'
+        )
 
         const taskResponse = await createWAN25Task(wan25Request)
 
@@ -129,7 +143,10 @@ export const generateAIReelsFunction = inngest.createFunction(
           throw new Error(`WAN 2.5 API error: ${taskResponse.message}`)
         }
 
-        const videoUrl = await waitForWAN25Task(taskResponse.data.taskId, 120000)
+        const videoUrl = await waitForWAN25Task(
+          taskResponse.data.taskId,
+          120000
+        )
 
         logger.info('✅ [INNGEST] WAN 2.5 видео готово', {
           telegramId,
@@ -150,7 +167,10 @@ export const generateAIReelsFunction = inngest.createFunction(
         const os = await import('os')
 
         // Создаем временную директорию
-        const tempDir = path.join(os.tmpdir(), `ai-reels-inngest-${telegramId}-${Date.now()}`)
+        const tempDir = path.join(
+          os.tmpdir(),
+          `ai-reels-inngest-${telegramId}-${Date.now()}`
+        )
         await fs.mkdir(tempDir, { recursive: true })
 
         try {
@@ -173,7 +193,9 @@ export const generateAIReelsFunction = inngest.createFunction(
           )
 
           // Загружаем в Supabase
-          const { uploadVideoToSupabase } = await import('./video-upload-helper')
+          const { uploadVideoToSupabase } = await import(
+            './video-upload-helper'
+          )
           const finalVideoUrl = await uploadVideoToSupabase(
             finalVideoPath,
             `ai-reels-inngest-${telegramId}-${Date.now()}.mp4`,
@@ -186,7 +208,6 @@ export const generateAIReelsFunction = inngest.createFunction(
           })
 
           return finalVideoUrl
-
         } finally {
           // Очищаем временные файлы
           try {
@@ -200,7 +221,10 @@ export const generateAIReelsFunction = inngest.createFunction(
       // Step 4: Отправка уведомления в Telegram (опционально)
       if (webhookUrl) {
         await step.run('notify-telegram', async () => {
-          logger.info('📢 [INNGEST] Отправка webhook уведомления', { telegramId, webhookUrl })
+          logger.info('📢 [INNGEST] Отправка webhook уведомления', {
+            telegramId,
+            webhookUrl,
+          })
 
           const response = await fetch(webhookUrl, {
             method: 'POST',
@@ -236,7 +260,6 @@ export const generateAIReelsFunction = inngest.createFunction(
       })
 
       return result
-
     } catch (error) {
       logger.error('❌ [INNGEST AI REELS] Function failed', {
         telegramId,
@@ -258,7 +281,9 @@ export const generateAIReelsFunction = inngest.createFunction(
             body: JSON.stringify(errorResult),
           })
         } catch (webhookError) {
-          logger.error('❌ [INNGEST] Failed to send error webhook', { webhookError })
+          logger.error('❌ [INNGEST] Failed to send error webhook', {
+            webhookError,
+          })
         }
       }
 

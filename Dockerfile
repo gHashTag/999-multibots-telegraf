@@ -19,8 +19,13 @@ RUN npm install --prefer-offline
 
 COPY . .
 
-# ✅ Проверка TypeScript перед сборкой (прерывает сборку при ошибках)
-RUN npx tsc --noEmit || (echo "❌ TypeScript errors found! Build aborted." && exit 1)
+# ✅ Проверка TypeScript перед сборкой (можно пропустить с --build-arg SKIP_TYPE_CHECK=true)
+ARG SKIP_TYPE_CHECK=false
+RUN if [ "$SKIP_TYPE_CHECK" != "true" ]; then \
+      npx tsc --noEmit || (echo "❌ TypeScript errors found! Build aborted." && exit 1); \
+    else \
+      echo "⚠️  TypeScript check SKIPPED (SKIP_TYPE_CHECK=true)"; \
+    fi
 
 # esbuild бандлит все в один файл за секунды!
 # --packages=external: НЕ бандлить node_modules (будут в runtime)

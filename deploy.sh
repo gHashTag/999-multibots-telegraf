@@ -12,8 +12,30 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Default environment
+# Parse arguments
 ENV=${1:-production}
+FORCE=false
+NO_CACHE=false
+
+# Check for flags
+shift || true
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --force)
+      FORCE=true
+      shift
+      ;;
+    --no-cache)
+      NO_CACHE=true
+      shift
+      ;;
+    *)
+      echo -e "${RED}❌ Unknown argument: $1${NC}"
+      echo "Usage: ./deploy.sh [dev|staging|production] [--force] [--no-cache]"
+      exit 1
+      ;;
+  esac
+done
 
 # Environment configurations
 case "$ENV" in
@@ -43,7 +65,7 @@ case "$ENV" in
     ;;
   *)
     echo -e "${RED}❌ Unknown environment: $ENV${NC}"
-    echo "Usage: ./deploy.sh [dev|staging|production]"
+    echo "Usage: ./deploy.sh [dev|staging|production] [--force]"
     exit 1
     ;;
 esac
@@ -57,13 +79,21 @@ echo "======================================"
 echo ""
 
 # 1. TypeScript Check
-echo "1️⃣ Type check..."
-if ! npm run typecheck; then
-  echo -e "${RED}❌ TypeScript errors found!${NC}"
-  exit 1
+if [ "$FORCE" = true ]; then
+  echo -e "${YELLOW}⚠️  SKIPPING TypeScript check (--force flag)${NC}"
+  echo ""
+else
+  echo "1️⃣ Type check..."
+  if ! npm run typecheck; then
+    echo -e "${RED}❌ TypeScript errors found!${NC}"
+    echo ""
+    echo "To force deployment despite TypeScript errors, run:"
+    echo "  ./deploy.sh $ENV --force"
+    exit 1
+  fi
+  echo -e "${GREEN}✅ TypeScript: 0 errors${NC}"
+  echo ""
 fi
-echo -e "${GREEN}✅ TypeScript: 0 errors${NC}"
-echo ""
 
 # 2. Sync code to server (skip for dev)
 if [ "$ENV" != "dev" ] && [ "$ENV" != "development" ]; then
@@ -117,8 +147,17 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
   START=$(date +%s)
 
   export DOCKER_BUILDKIT=1
+  BUILD_ARGS=""
+  if [ "$FORCE" = true ]; then
+    BUILD_ARGS="--build-arg SKIP_TYPE_CHECK=true"
+  fi
+  if [ "$NO_CACHE" = true ]; then
+    BUILD_ARGS="$BUILD_ARGS --no-cache"
+  fi
+
   docker build \
     -t $CONTAINER_NAME:latest \
+    $BUILD_ARGS \
     --progress=plain \
     . 2>&1 | tail -30
 
@@ -130,6 +169,11 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
   echo "⏱️  Время сборки: ${DURATION} секунд ($(($DURATION / 60))м $(($DURATION % 60))с)"
 else
   # Remote build
+  BUILD_ARGS=""
+  if [ "$FORCE" = true ]; then
+    BUILD_ARGS="--build-arg SKIP_TYPE_CHECK=true"
+  fi
+
   ssh $SSH_ALIAS bash <<REMOTESCRIPT
 set -e
 set -o pipefail
@@ -142,6 +186,7 @@ export DOCKER_BUILDKIT=1
 
 docker build \\
   -t $CONTAINER_NAME:latest \\
+  $BUILD_ARGS \\
   --progress=plain \\
   . 2>&1 | tail -30
 

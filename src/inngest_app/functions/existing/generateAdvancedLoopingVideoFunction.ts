@@ -219,7 +219,7 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
 
     await step.run('send-to-pulse', async () => {
       // Импортируем функцию отправки в pulse группу
-      const { sendMediaToPulse } = await import('../../helpers/pulse')
+      const { sendMediaToPulse } = await import('../../../helpers/pulse')
 
       // Создаем публичный URL для видео (предполагаем что nginx настроен)
       const videoUrl = `http://localhost:2999/${finalVideoPath.replace(
