@@ -384,7 +384,7 @@ export const renderRiddleFunction = inngest.createFunction(
  * Matches Python trigger_render_riddle function
  */
 export async function triggerRenderRiddle(eventData: RenderRiddleEventData) {
-  const { inngest } = await import('../../inngest_app/client')
+  const { inngest } = await import('../../client')
   const { v4: uuid } = await import('uuid')
 
   await inngest.send({

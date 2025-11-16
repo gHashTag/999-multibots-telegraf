@@ -1439,7 +1439,7 @@ export async function triggerRender(
 
 
     // Trigger render via Inngest event
-    const { inngest } = await import('../../../inngest_app/client')
+    const { inngest } = await import('../../client')
 
     await inngest.send({
       name: 'render/execute',
