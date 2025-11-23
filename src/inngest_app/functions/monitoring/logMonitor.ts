@@ -11,11 +11,21 @@ const BOT_TOKEN = '7667727700:AAEJIvtBWxgy_cj_Le_dGMpqA_dz7Pwhj0c' // @neuro_blo
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '144022504'
 const GROUP_CHAT_ID = ADMIN_TELEGRAM_ID // Используем ID админа вместо группы
 
-// Инициализация OpenAI для анализа логов
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY,
-  baseURL: process.env.DEEPSEEK_API_KEY ? 'https://api.deepseek.com' : undefined
-})
+// Ленивая инициализация OpenAI (загружается при первом использовании)
+let openai: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    const apiKey = process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY or DEEPSEEK_API_KEY is required')
+    }
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.DEEPSEEK_API_KEY ? 'https://api.deepseek.com' : undefined
+    })
+  }
+  return openai
+}
 
 // Интерфейс для результата анализа
 interface LogAnalysisResult {
@@ -138,7 +148,8 @@ async function analyzeLogs(logs: string): Promise<LogAnalysisResult> {
 }`
 
   try {
-    const response = await openai.chat.completions.create({
+    const client = getOpenAI()
+    const response = await client.chat.completions.create({
       model: process.env.DEEPSEEK_API_KEY ? 'deepseek-chat' : 'gpt-4-turbo-preview',
       messages: [
         { role: 'system', content: systemPrompt },
