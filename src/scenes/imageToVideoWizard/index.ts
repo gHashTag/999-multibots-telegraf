@@ -8,7 +8,6 @@ import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
 
-<<<<<<< HEAD
 // ✅ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ
 import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
 
@@ -18,10 +17,6 @@ console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 // - generateModelKeyboard('image', isRu) - создание клавиатуры
 // - parseModelButton(buttonText) - парсинг выбора
 // ❌ НЕ ДУБЛИРУЕМ ЛОГИКУ - все берем из единого источника правды!
-
-=======
-// ========== СОЗДАНИЕ WIZARD'A ПО АНАЛОГИИ С TEXT TO VIDEO ==========
->>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo,
@@ -56,18 +51,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       console.log('🎬 [I2V WIZARD] Step 0: About to send reply...')
       await ctx.reply(
         isRu
-<<<<<<< HEAD
           ? `🎥 Выберите модель и формат видео:\n\n🖥️ Горизонтальные (16:9) — слева\n📱 Вертикальные (9:16) — справа\n\n⭐ Цена в Telegram Stars`
           : `🎥 Choose model and video format:\n\n🖥️ Horizontal (16:9) — left\n📱 Vertical (9:16) — right\n\n⭐ Price in Telegram Stars`,
         keyboard
-=======
-          ? '🖼️ Отправьте изображение для создания видео:'
-          : '🖼️ Send an image to create video:',
-        Markup.keyboard([
-          [isRu ? 'Отмена' : 'Cancel'],
-          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
-        ]).resize()
->>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
       )
 
       console.log('🎬 [I2V WIZARD] Step 0: ✅ REPLY SENT SUCCESSFULLY!')

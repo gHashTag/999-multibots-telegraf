@@ -272,20 +272,12 @@ export function createRenderAvatarPayload(
     cover_url: options?.coverUrl || '',
     intro_text_1: {
       text: options?.introText1 || '',
-<<<<<<< HEAD
       position: [540, 1135],
-=======
-      position: [540, 860],
->>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
       font_size: 100,
     },
     intro_text_2: {
       text: options?.introText2 || '',
-<<<<<<< HEAD
       position: [540, 1267],
-=======
-      position: [540, 960],
->>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
       font_size: 75,
     },
     avatar_settings: {
@@ -319,13 +311,9 @@ export function createRenderAvatarPayload(
     callback_url:
       options?.callbackUrl !== undefined
         ? options.callbackUrl
-<<<<<<< HEAD
         : process.env.BASE_WEBHOOK_URL
         ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegramId}`
         : `http://212.86.115.30:2999/api/video-callback/${telegramId}`,
-=======
-        : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
->>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
     bot_name: options?.botName,
   }
 }

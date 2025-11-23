@@ -1063,8 +1063,6 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     logger.info('GLOBAL HEARS: Цифровое тело 2 (Admin)', {
       telegramId: ctx.from?.id,
     })
-<<<<<<< HEAD
-=======
 
     // 🔒 ЗАЩИТА: Проверяем что пользователь админ
     const { ADMIN_IDS_ARRAY } = await import('@/config')
@@ -1088,7 +1086,6 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     await ctx.scene.leave()
     ctx.session.mode = ModeEnum.DigitalAvatarBodyV2
     await ctx.scene.enter(ModeEnum.CheckBalanceScene)
->>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
   })
 
   bot.hears('📸 Нейрофото 2', async ctx => {
