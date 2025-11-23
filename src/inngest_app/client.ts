@@ -33,14 +33,10 @@ console.log('🔥 [DEBUG] Inngest client configuration:', {
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
 export const inngest = new Inngest(config)
 
-// ✅ Импортируем FACTORY функции (не сами функции - избегаем circular dependency)
+// ✅ Импортируем функции (после создания inngest client)
 // Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
 // import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
-// import { createGenerateAIReelsFunction } from './functions/generateAIReelsFunction'
-import { createGenerateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
+// import { generateAIReelsFunction } from './functions/generateAIReelsFunction'
+// import { generateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 
-// ✅ Создаем функции через factory после создания inngest client
-// const generateAIReelsFunction = createGenerateAIReelsFunction(inngest)
-// const generateModelTrainingFunction = createGenerateModelTrainingFunction(inngest)
-// 
-// // ✅ Список активных Inngest функций
+// ✅ Список активных Inngest функций

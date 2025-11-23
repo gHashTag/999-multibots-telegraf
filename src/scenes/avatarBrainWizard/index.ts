@@ -19,7 +19,7 @@ const MAX_LENGTHS = {
 }
 
 // ✅ CENTRALIZED CANCEL SYSTEM
-import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
 
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string

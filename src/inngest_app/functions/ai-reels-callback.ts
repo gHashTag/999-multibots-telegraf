@@ -11,6 +11,7 @@ import { inngest } from '@/inngest_app/client'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import { logger } from '@/utils/logger'
+import FormData from 'form-data'
 
 /**
  * Interface для callback payload от Railway render-server
@@ -68,7 +69,7 @@ async function sendTelegramVideo(
   const url = `${TELEGRAM_API_URL}/sendVideo`
   const formData = new FormData()
   formData.append('chat_id', telegramId)
-  formData.append('video', new Blob([videoBuffer]), filename)
+  formData.append('video', videoBuffer, { filename })
   formData.append('caption', caption)
 
   await axios.post(url, formData, {

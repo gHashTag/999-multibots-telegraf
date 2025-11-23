@@ -10,7 +10,7 @@ import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { ModeEnum } from '@/interfaces/modes'
 
 // ✅ CENTRALIZED CANCEL SYSTEM
-import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body',

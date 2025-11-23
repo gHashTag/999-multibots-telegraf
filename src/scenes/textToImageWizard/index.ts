@@ -19,7 +19,7 @@ import { improvePromptWizard } from '../improvePromptWizard'
 import { sizeWizard } from '../sizeWizard'
 
 // ✅ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ
-import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
 
 export const textToImageWizard = new Scenes.WizardScene<MyContext>(
   'text_to_image',

@@ -9,7 +9,7 @@ import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
 
 // ✅ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ
-import { createCancelOnlyKeyboard, createGlobalCancelHandler } from '@/utils/cancelKeyboard'
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
 
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 

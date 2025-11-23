@@ -88,7 +88,10 @@ export function startApiServer(bot?: Telegraf): void {
   app.use('/api', diagnosticRouter)
 
   // ✅ Интеграция Inngest с API (актуальная сигнатура serve)
-  const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
+  const inngestHandler = serve({
+    client: inngest,
+    functions: allInngestFunctions,
+  })
   app.use('/api/inngest', inngestHandler)
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
