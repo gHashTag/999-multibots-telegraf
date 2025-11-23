@@ -6,7 +6,7 @@
  */
 
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { handleMenu } from '@/handlers/handleMenu'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from './logger'
 
@@ -80,8 +80,14 @@ export async function handleCancel(
 
     logger.info(`[handleCancel] User ${telegramId} returning to main menu`)
 
+    // Покидаем текущую сцену
+    await ctx.scene.leave()
+
+    // Устанавливаем режим главного меню
+    ctx.session.mode = ModeEnum.MainMenu
+
     // Переходим в главное меню
-    await handleMenu(ctx)
+    await ctx.scene.enter(ModeEnum.MainMenu)
 
   } catch (error) {
     logger.error(`[handleCancel] Error during cancel operation`, {
@@ -91,7 +97,9 @@ export async function handleCancel(
 
     // В любом случае пытаемся показать главное меню
     try {
-      await handleMenu(ctx)
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.MainMenu
+      await ctx.scene.enter(ModeEnum.MainMenu)
     } catch (menuError) {
       logger.error(`[handleCancel] Failed to show main menu`, {
         telegramId,

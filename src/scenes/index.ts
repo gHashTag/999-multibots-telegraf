@@ -30,7 +30,7 @@ export { hedraRenderWizard } from './lipSyncWizard/hedra-render-wizard'
 export { heygenRenderWizard } from './lipSyncWizard/heygen-render-wizard'
 export { falRenderWizard } from './lipSyncWizard/fal-render-wizard'
 export * from './menuScene'
-export { default as startScene } from './startScene'
+// export { default as startScene } from './startScene' // ❌ ОТКЛЮЧЕНО: файл не существует
 export * from './balanceScene'
 export { default as chatWithAvatarWizard } from './chatWithAvatarWizard'
 export * from './helpScene'
