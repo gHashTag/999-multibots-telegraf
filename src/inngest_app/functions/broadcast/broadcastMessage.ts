@@ -2,6 +2,7 @@ import { inngest } from '@/inngest_app/client'
 import { broadcastService } from '@/services/plan_b/broadcast.service'
 import { logger } from '@/utils/logger'
 import { slugify } from 'inngest' // For v3 migration
+import { toBotName } from '@/helpers/botName.helper'
 // Интерфейс для данных события
 export interface BroadcastEventData {
   imageUrl?: string
@@ -49,9 +50,10 @@ export const broadcastMessage = inngest.createFunction(
       // Шаг 2: Проверка прав доступа
       await step.run('check-permissions', async () => {
         if (params.sender_telegram_id && params.bot_name) {
+          const botName = toBotName(params.bot_name)
           const broadcastResult = await broadcastService.checkOwnerPermissions(
             params.sender_telegram_id,
-            params.bot_name
+            botName
           )
           if (!broadcastResult.success) {
             throw new Error('Нет прав для выполнения рассылки')
@@ -61,8 +63,9 @@ export const broadcastMessage = inngest.createFunction(
 
       // Шаг 3: Загрузка списка пользователей
       const users = await step.run('fetch-users', async () => {
+        const botName = params.bot_name ? toBotName(params.bot_name) : undefined
         const result = await broadcastService.fetchUsers({
-          bot_name: params.bot_name,
+          bot_name: botName,
           test_mode: params.test_mode,
           test_telegram_id: params.test_telegram_id,
           sender_telegram_id: params.sender_telegram_id,
@@ -83,12 +86,13 @@ export const broadcastMessage = inngest.createFunction(
 
       // Шаг 4: Отправка сообщений
       const result = await step.run('send-messages', async () => {
+        const botName = params.bot_name ? toBotName(params.bot_name) : undefined
         const broadcastResult = await broadcastService.sendToAllUsers(
           params.imageUrl,
           params.textRu,
           {
             ...params,
-            bot_name: params.bot_name,
+            bot_name: botName,
             textEn: params.textEn,
           }
         )

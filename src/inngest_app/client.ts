@@ -5,7 +5,6 @@
 
 import { Inngest } from 'inngest'
 
-<<<<<<< HEAD
 // Определяем конфигурацию для логирования
 const config = {
   name: 'Vibee',
@@ -34,25 +33,10 @@ console.log('🔥 [DEBUG] Inngest client configuration:', {
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
 export const inngest = new Inngest(config)
 
-// ✅ Импортируем FACTORY функции (не сами функции - избегаем circular dependency)
+// ✅ Импортируем функции (после создания inngest client)
 // Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
 // import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
-// import { createGenerateAIReelsFunction } from './functions/generateAIReelsFunction'
-import { createGenerateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
+// import { generateAIReelsFunction } from './functions/generateAIReelsFunction'
+// import { generateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 
-// ✅ Создаем функции через factory после создания inngest client
-// const generateAIReelsFunction = createGenerateAIReelsFunction(inngest)
-// const generateModelTrainingFunction = createGenerateModelTrainingFunction(inngest)
-// 
-// // ✅ Список активных Inngest функций
-=======
-// Создаем клиент Inngest согласно ТЗ
-export const inngest = new Inngest({
-  id: 'telegraf-inngest-functions',
-  name: 'Telegraf Bot Farm - Inngest Functions',
-  eventKey: process.env.INNGEST_EVENT_KEY || 'local-dev-key',
-})
-
-// Экспортируем пустой массив функций (будет заполняться из functions/index.ts)
-export const functions: any[] = []
->>>>>>> cb34edd232229ab0c0abebd665a09c4da15ca7b9
+// ✅ Список активных Inngest функций

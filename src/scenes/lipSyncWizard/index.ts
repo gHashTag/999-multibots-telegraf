@@ -405,9 +405,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Глобальный обработчик отмены для всех команд отмены
-lipSyncWizard.action(createGlobalCancelHandler({
-  messageRu: '❌ Процесс отменён.',
-  messageEn: '❌ Process cancelled.'
-}))
+lipSyncWizard.action(/^cancel_/, async (ctx) => {
+  await handleCancel(ctx, {
+    messageRu: '❌ Процесс отменён.',
+    messageEn: '❌ Process cancelled.'
+  })
+})
 
 export default lipSyncWizard
