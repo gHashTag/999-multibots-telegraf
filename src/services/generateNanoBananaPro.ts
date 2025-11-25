@@ -101,9 +101,14 @@ export async function generateNanoBananaPro(
 
     const duration = Date.now() - startTime
 
+    // Validate response
+    if (!result.data.images || result.data.images.length === 0) {
+      throw new Error('No images generated')
+    }
+
     logger.info('[NANO BANANA PRO] Generation completed', {
       duration: `${duration}ms`,
-      imagesCount: result.data.images?.length || 0,
+      imagesCount: result.data.images.length,
       requestId: result.requestId,
     })
 
