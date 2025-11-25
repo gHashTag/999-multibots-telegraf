@@ -254,7 +254,7 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
         logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Kie.ai WAN/Veo webhook detected', {
           provider: detectedProvider
         })
-        await processKieAiWebhookAsync(normalizeKiePayload(payload))
+        await processKieAiWebhookAsync(normalizeKiePayload(payload), telegramIdFromUrl)
         break
 
       case 'render-server':
@@ -323,7 +323,7 @@ router.post('/video-callback', async (req: any, res: any) => {
         break
       case 'kie-wan':
       case 'kie-veed':
-        await processKieAiWebhookAsync(normalizeKiePayload(payload))
+        await processKieAiWebhookAsync(normalizeKiePayload(payload), telegramIdFromUrl)
         break
       case 'replicate':
         logger.info('🔄 [UNIVERSAL VIDEO WEBHOOK] Replicate webhook - forwarding to replicate handler')
@@ -1022,7 +1022,7 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
 /**
  * Асинхронная обработка webhook от Kie.ai
  */
-async function processKieAiWebhookAsync(payload: KieAiWebhookPayload): Promise<void> {
+async function processKieAiWebhookAsync(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId, successFlag } = payload
 
   logger.info('🔄 [KIE.AI WEBHOOK] Processing callback', {
@@ -1030,7 +1030,8 @@ async function processKieAiWebhookAsync(payload: KieAiWebhookPayload): Promise<v
     successFlag,
     hasResultUrls: !!(payload.resultUrls || payload.response?.resultUrls),
     hasVideoUrl: !!payload.videoUrl,
-    hasErrorMessage: !!payload.errorMessage
+    hasErrorMessage: !!payload.errorMessage,
+    telegramId
   })
 
   try {
@@ -1040,11 +1041,11 @@ async function processKieAiWebhookAsync(payload: KieAiWebhookPayload): Promise<v
         break
 
       case 2: // ❌ Generation failed
-        await handleFailedGeneration(payload)
+        await handleFailedGeneration(payload, telegramId)
         break
 
       case 3: // ❌ Content policy violation
-        await handleContentPolicyError(payload)
+        await handleContentPolicyError(payload, telegramId)
         break
 
       case 0: // ⏳ Still processing (обычно не отправляется webhook)
@@ -1123,13 +1124,14 @@ async function handleSuccessfulGeneration(payload: KieAiWebhookPayload): Promise
 /**
  * Обработка ошибки генерации
  */
-async function handleFailedGeneration(payload: KieAiWebhookPayload): Promise<void> {
+async function handleFailedGeneration(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId, errorMessage, errorCode } = payload
 
   logger.error('❌ [KIE.AI WEBHOOK] Video generation failed', {
     taskId,
     errorMessage,
-    errorCode
+    errorCode,
+    telegramId
   })
 
   await notifyJobCompletion(taskId, {
@@ -1139,18 +1141,44 @@ async function handleFailedGeneration(payload: KieAiWebhookPayload): Promise<voi
     provider: 'kie',
     modelId: 'veed-fabric'
   })
+
+  // ✅ FIX: Send error directly if task not found and telegramId provided (direct mode)
+  const taskContext = videoTaskStore.getTask(taskId)
+  if (!taskContext && telegramId) {
+    const botInstance = defaultBotInstance || getBotInstance()
+    if (botInstance) {
+      try {
+        await botInstance.telegram.sendMessage(
+          parseInt(telegramId),
+          `❌ Ошибка генерации видео.\n\nПричина: ${errorMessage || 'Неизвестная ошибка'}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
+        )
+        logger.info('✅ [KIE.AI WEBHOOK] Direct failure notification sent', {
+          telegramId,
+          taskId,
+          errorMessage
+        })
+      } catch (error) {
+        logger.error('❌ [KIE.AI WEBHOOK] Error sending direct failure notification', {
+          telegramId,
+          taskId,
+          error
+        })
+      }
+    }
+  }
 }
 
 /**
  * Обработка ошибки политики контента
  */
-async function handleContentPolicyError(payload: KieAiWebhookPayload): Promise<void> {
+async function handleContentPolicyError(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId, errorMessage, errorCode } = payload
 
   logger.error('🚫 [KIE.AI WEBHOOK] Content policy violation', {
     taskId,
     errorMessage,
-    errorCode
+    errorCode,
+    telegramId
   })
 
   await notifyJobCompletion(taskId, {
@@ -1160,6 +1188,34 @@ async function handleContentPolicyError(payload: KieAiWebhookPayload): Promise<v
     provider: 'kie',
     modelId: 'veed-fabric'
   })
+
+  // ✅ FIX: Send error directly if task not found and telegramId provided (direct mode)
+  const taskContext = videoTaskStore.getTask(taskId)
+  if (!taskContext && telegramId) {
+    const botInstance = defaultBotInstance || getBotInstance()
+    if (botInstance) {
+      try {
+        await botInstance.telegram.sendMessage(
+          parseInt(telegramId),
+          `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${errorMessage || 'Некорректный контент'}\n\nПопробуйте другой запрос.`,
+          {
+            link_preview_options: { is_disabled: true }
+          }
+        )
+        logger.info('✅ [KIE.AI WEBHOOK] Direct content policy notification sent', {
+          telegramId,
+          taskId,
+          errorMessage
+        })
+      } catch (error) {
+        logger.error('❌ [KIE.AI WEBHOOK] Error sending direct content policy notification', {
+          telegramId,
+          taskId,
+          error
+        })
+      }
+    }
+  }
 }
 
 /**
