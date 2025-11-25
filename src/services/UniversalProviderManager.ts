@@ -156,6 +156,15 @@ export class UniversalProviderManager {
         pricePerUnit: 0.08, // per image
         supportedFeatures: ['text-to-image', 'character-consistency'],
       },
+      {
+        id: 'nano-banana-pro',
+        name: 'Nano Banana Pro',
+        type: 'image',
+        provider: 'Fal',
+        description: 'Google\'s state-of-the-art image generation model with excellent realism and typography',
+        pricePerUnit: 0.0398, // per image (25 images per $1)
+        supportedFeatures: ['text-to-image', 'realism', 'typography', 'aspect-ratio', 'high-resolution'],
+      },
     ]
 
     // Music models
@@ -303,6 +312,18 @@ export class UniversalProviderManager {
           height: request.height,
           aspectRatio: request.style, // Can pass aspect ratio via style parameter
           numImages: request.numImages,
+          telegramId: request.userId || 'unknown',
+        })
+
+      case 'Fal':
+        // Import and use Fal generator for Nano Banana Pro
+        const { generateNanoBananaPro } = await import('./generateNanoBananaPro')
+        return await generateNanoBananaPro({
+          prompt: request.prompt,
+          numImages: request.numImages || 1,
+          aspectRatio: request.style || '1:1',
+          width: request.width,
+          height: request.height,
           telegramId: request.userId || 'unknown',
         })
 

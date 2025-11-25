@@ -7,6 +7,7 @@
 - 🤖 Поддержка множества ботов из одного приложения
 - 📱 **Мобильное приложение на React Native + Expo**
 - 🎨 **AI-генерация контента**: фото, видео, аудио
+- 🍌 **Nano Banana Pro**: Новейшая модель от Google для генерации изображений (отличная типографика, 4K)
 - 🔐 Улучшенная изоляция ботов для безопасности
 - 📊 **Профессиональное структурированное логирование с ротацией**
 - 🔄 Поддержка webhook и long-polling режимов
@@ -92,6 +93,10 @@ npm run mobile       # Только мобильное приложение
 ### ⚡ Функции
 - [Интеграция автофиксера](docs/FEATURES/AUTOFIXER_INTEGRATION.md)
 - [LipSync инструкции](docs/FEATURES/LIPSYNC_ADMIN_ONLY_INSTRUCTIONS.md)
+
+### 🎨 AI-модели
+- [Nano Banana Pro - Полная документация](docs/NANO_BANANA_PRO.md)
+- [Nano Banana Pro - Краткая сводка](docs/NANO_BANANA_PRO_SUMMARY_RU.md)
 
 ### 📋 Планирование
 - [Дорожная карта проекта](docs/ROADMAP.md)
