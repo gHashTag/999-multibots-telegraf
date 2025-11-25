@@ -263,47 +263,76 @@ export class KieAiProvider {
     let endpoint = '/veo/generate'
 
     if (isSoraModel) {
-      // Sora 2 models - handle all variants
-      if (model === 'sora-2' || model === 'sora2' || model === 'sora-2-text-to-video') {
-        kieModel = 'sora2'
-        provider = 'Sora 2 API'
-        endpoint = '/sora/generate'
-        logger.info('[KieAiProvider] Sora 2 selected:', {
-          originalModel: model,
-          selectedModel: kieModel,
-          hasImage: !!imageUrl,
-          mode: imageUrl ? 'image-to-video' : 'text-to-video',
-          expectedCost: '~94 stars per 10sec'
-        })
-      } else if (model === 'sora-2-pro' || model === 'sora2-pro' || model === 'sora-2-pro-text-to-video') {
-        kieModel = 'sora2-pro'
-        provider = 'Sora 2 Pro API'
-        endpoint = '/sora/generate'
-        logger.info('[KieAiProvider] Sora 2 Pro selected:', {
-          originalModel: model,
-          selectedModel: kieModel,
-          hasImage: !!imageUrl,
-          mode: imageUrl ? 'image-to-video' : 'text-to-video',
-          expectedCost: '~125 stars per 10sec'
-        })
-      } else if (model === 'sora-2-i2v' || model === 'sora-2-image-to-video') {
-        // ✅ FIX: Handle Sora 2 Image-to-Video variant
-        kieModel = 'sora-2-i2v'
+      // ✅ FIX: Проверяем imageUrl ПЕРВЫМ (до общих условий)
+      // Sora 2 Image-to-Video
+      if ((model === 'sora-2' || model === 'sora2') && imageUrl) {
+        kieModel = 'sora-2-image-to-video'
         provider = 'Sora 2 I2V API'
-        endpoint = '/jobs/createTask' // Use jobs endpoint for async generation
-        logger.info('[KieAiProvider] Sora 2 I2V selected:', {
+        endpoint = '/jobs/createTask'
+        logger.info('[KieAiProvider] Sora 2 Image-to-Video selected:', {
           originalModel: model,
           selectedModel: kieModel,
           hasImage: !!imageUrl,
           mode: 'image-to-video',
-          expectedCost: '~94 stars per 10sec'
+          expectedCost: '~9 stars per 10sec'
+        })
+      }
+      // Sora 2 Text-to-Video
+      else if (model === 'sora-2' || model === 'sora2' || model === 'sora-2-text-to-video') {
+        kieModel = 'sora-2-text-to-video'
+        provider = 'Sora 2 API'
+        endpoint = '/sora/generate'
+        logger.info('[KieAiProvider] Sora 2 Text-to-Video selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: 'text-to-video',
+          expectedCost: '~9 stars per 10sec'
+        })
+      }
+      // Sora 2 Pro Image-to-Video
+      else if ((model === 'sora-2-pro' || model === 'sora2-pro') && imageUrl) {
+        kieModel = 'sora-2-pro-image-to-video'
+        provider = 'Sora 2 Pro I2V API'
+        endpoint = '/jobs/createTask'
+        logger.info('[KieAiProvider] Sora 2 Pro Image-to-Video selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: 'image-to-video',
+          expectedCost: '~19 stars per 10sec'
+        })
+      }
+      // Sora 2 Pro Text-to-Video
+      else if (model === 'sora-2-pro' || model === 'sora2-pro' || model === 'sora-2-pro-text-to-video') {
+        kieModel = 'sora-2-pro-text-to-video'
+        provider = 'Sora 2 Pro API'
+        endpoint = '/sora/generate'
+        logger.info('[KieAiProvider] Sora 2 Pro Text-to-Video selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: 'text-to-video',
+          expectedCost: '~19 stars per 10sec'
+        })
+      }
+      // LEGACY: Handle old model names (обратная совместимость)
+      else if (model === 'sora-2-i2v' || model === 'sora-2-image-to-video') {
+        kieModel = 'sora-2-image-to-video'
+        provider = 'Sora 2 I2V API'
+        endpoint = '/jobs/createTask'
+        logger.info('[KieAiProvider] Sora 2 I2V (legacy) selected:', {
+          originalModel: model,
+          selectedModel: kieModel,
+          hasImage: !!imageUrl,
+          mode: 'image-to-video'
         })
       } else if (model === 'sora-2-pro-i2v' || model === 'sora-2-pro-image-to-video') {
-        // ✅ FIX: Handle Sora 2 Pro Image-to-Video variant
-        kieModel = 'sora-2-pro-i2v'
+        // ✅ LEGACY: Handle old model names (обратная совместимость)
+        kieModel = 'sora-2-pro-image-to-video'
         provider = 'Sora 2 Pro I2V API'
-        endpoint = '/jobs/createTask' // Use jobs endpoint for async generation
-        logger.info('[KieAiProvider] Sora 2 Pro I2V selected:', {
+        endpoint = '/jobs/createTask'
+        logger.info('[KieAiProvider] Sora 2 Pro I2V (legacy) selected:', {
           originalModel: model,
           selectedModel: kieModel,
           hasImage: !!imageUrl,

@@ -246,7 +246,7 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
     switch (detectedProvider) {
       case 'kie-sora':
         logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Kie.ai Sora webhook detected')
-        await processSoraWebhookAsync(normalizeKieSoraPayload(payload))
+        await processSoraWebhookAsync(normalizeKieSoraPayload(payload), telegramIdFromUrl)
         break
 
       case 'kie-wan':
@@ -319,7 +319,7 @@ router.post('/video-callback', async (req: any, res: any) => {
     // Маршрутизируем на соответствующий обработчик
     switch (provider) {
       case 'kie-sora':
-        await processSoraWebhookAsync(normalizeKieSoraPayload(payload))
+        await processSoraWebhookAsync(normalizeKieSoraPayload(payload), telegramIdFromUrl)
         break
       case 'kie-wan':
       case 'kie-veed':
@@ -616,7 +616,7 @@ router.post('/kie-ai/sora-callback', async (req: any, res: any) => {
 /**
  * Асинхронная обработка Sora webhook
  */
-async function processSoraWebhookAsync(payload: KieAiWebhookPayload): Promise<void> {
+async function processSoraWebhookAsync(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId, successFlag } = payload
 
   logger.info('🎬 [SORA WEBHOOK] Processing Sora callback', {
@@ -624,7 +624,8 @@ async function processSoraWebhookAsync(payload: KieAiWebhookPayload): Promise<vo
     successFlag,
     hasResultUrls: !!(payload.resultUrls || payload.response?.resultUrls),
     hasVideoUrl: !!payload.videoUrl,
-    hasErrorMessage: !!payload.errorMessage
+    hasErrorMessage: !!payload.errorMessage,
+    telegramId
   })
 
   try {
@@ -634,11 +635,11 @@ async function processSoraWebhookAsync(payload: KieAiWebhookPayload): Promise<vo
         break
 
       case 2: // ❌ Generation failed
-        await handleSoraFailure(payload)
+        await handleSoraFailure(payload, telegramId)
         break
 
       case 3: // ❌ Content policy violation
-        await handleSoraContentPolicy(payload)
+        await handleSoraContentPolicy(payload, telegramId)
         break
 
       case 0: // ⏳ Still processing
@@ -776,80 +777,141 @@ async function handleSoraSuccess(payload: KieAiWebhookPayload): Promise<void> {
 /**
  * Обработка ошибки генерации Sora
  */
-async function handleSoraFailure(payload: KieAiWebhookPayload): Promise<void> {
+async function handleSoraFailure(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId, errorMessage, errorCode } = payload
 
   logger.error('❌ [SORA WEBHOOK] Sora generation failed', {
     taskId,
     errorMessage,
-    errorCode
+    errorCode,
+    telegramId
   })
 
   const taskContext = videoTaskStore.getTask(taskId)
-  if (!taskContext) {
-    return
-  }
+  if (taskContext) {
+    // ✅ Task found in videoTaskStore - edit the original message
+    const botInstance = getBotInstance(taskContext.botName)
+    if (!botInstance) {
+      logger.error('❌ [SORA WEBHOOK] Bot instance not found for failure handler', {
+        taskId,
+        requestedBot: taskContext.botName
+      })
+      return
+    }
 
-  // ✅ MULTI-BOT FIX: Получаем правильный bot instance
-  const botInstance = getBotInstance(taskContext.botName)
-  if (!botInstance) {
-    logger.error('❌ [SORA WEBHOOK] Bot instance not found for failure handler', {
-      taskId,
-      requestedBot: taskContext.botName
-    })
-    return
-  }
+    try {
+      await botInstance.telegram.editMessageText(
+        taskContext.chatId,
+        taskContext.messageId,
+        undefined,
+        `❌ Ошибка генерации: ${errorMessage || 'Неизвестная ошибка'}`
+      )
+      videoTaskStore.deleteTask(taskId)
+    } catch (error) {
+      logger.error('[SORA WEBHOOK] Error sending failure notification', { error })
+    }
+  } else if (telegramId) {
+    // ✅ Task NOT found (direct mode) - send error message directly
+    const botInstance = defaultBotInstance || getBotInstance()
+    if (!botInstance) {
+      logger.error('❌ [SORA WEBHOOK] No bot instance available for direct failure notification', {
+        telegramId,
+        taskId
+      })
+      return
+    }
 
-  try {
-    await botInstance.telegram.editMessageText(
-      taskContext.chatId,
-      taskContext.messageId,
-      undefined,
-      `❌ Ошибка генерации: ${errorMessage || 'Неизвестная ошибка'}`
-    )
-    videoTaskStore.deleteTask(taskId)
-  } catch (error) {
-    logger.error('[SORA WEBHOOK] Error sending failure notification', { error })
+    try {
+      await botInstance.telegram.sendMessage(
+        parseInt(telegramId),
+        `❌ Ошибка генерации видео.\n\nПричина: ${errorMessage || 'Неизвестная ошибка'}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
+      )
+      logger.info('✅ [SORA WEBHOOK] Direct failure notification sent', {
+        telegramId,
+        taskId,
+        errorMessage
+      })
+    } catch (error) {
+      logger.error('❌ [SORA WEBHOOK] Error sending direct failure notification', {
+        telegramId,
+        taskId,
+        error
+      })
+    }
+  } else {
+    logger.warn('⚠️ [SORA WEBHOOK] No task context and no telegramId for failure notification', { taskId })
   }
 }
 
 /**
  * Обработка ошибки политики контента Sora
  */
-async function handleSoraContentPolicy(payload: KieAiWebhookPayload): Promise<void> {
+async function handleSoraContentPolicy(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId, errorMessage, errorCode } = payload
 
   logger.error('🚫 [SORA WEBHOOK] Sora content policy violation', {
     taskId,
     errorMessage,
-    errorCode
+    errorCode,
+    telegramId
   })
 
   const taskContext = videoTaskStore.getTask(taskId)
-  if (!taskContext) {
-    return
-  }
+  if (taskContext) {
+    // ✅ Task found in videoTaskStore - edit the original message
+    const botInstance = getBotInstance(taskContext.botName)
+    if (!botInstance) {
+      logger.error('❌ [SORA WEBHOOK] Bot instance not found for content policy handler', {
+        taskId,
+        requestedBot: taskContext.botName
+      })
+      return
+    }
 
-  // ✅ MULTI-BOT FIX: Получаем правильный bot instance
-  const botInstance = getBotInstance(taskContext.botName)
-  if (!botInstance) {
-    logger.error('❌ [SORA WEBHOOK] Bot instance not found for content policy handler', {
-      taskId,
-      requestedBot: taskContext.botName
-    })
-    return
-  }
+    try {
+      await botInstance.telegram.editMessageText(
+        taskContext.chatId,
+        taskContext.messageId,
+        undefined,
+        `🚫 Контент отклонен политикой безопасности. Попробуйте другой запрос.\n\n${errorMessage || ''}`
+      )
+      videoTaskStore.deleteTask(taskId)
+    } catch (error) {
+      logger.error('[SORA WEBHOOK] Error sending content policy notification', { error })
+    }
+  } else if (telegramId) {
+    // ✅ Task NOT found (direct mode) - send error message directly
+    const botInstance = defaultBotInstance || getBotInstance()
+    if (!botInstance) {
+      logger.error('❌ [SORA WEBHOOK] No bot instance available for direct content policy notification', {
+        telegramId,
+        taskId
+      })
+      return
+    }
 
-  try {
-    await botInstance.telegram.editMessageText(
-      taskContext.chatId,
-      taskContext.messageId,
-      undefined,
-      `🚫 Контент отклонен политикой безопасности. Попробуйте другой запрос.\n\n${errorMessage || ''}`
-    )
-    videoTaskStore.deleteTask(taskId)
-  } catch (error) {
-    logger.error('[SORA WEBHOOK] Error sending content policy notification', { error })
+    try {
+      await botInstance.telegram.sendMessage(
+        parseInt(telegramId),
+        `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${errorMessage || 'Некорректный контент'}\n\nПопробуйте другой запрос.`,
+        {
+          link_preview_options: { is_disabled: true }
+        }
+      )
+      logger.info('✅ [SORA WEBHOOK] Direct content policy notification sent', {
+        telegramId,
+        taskId,
+        errorMessage
+      })
+    } catch (error) {
+      logger.error('❌ [SORA WEBHOOK] Error sending direct content policy notification', {
+        telegramId,
+        taskId,
+        error
+      })
+    }
+  } else {
+    logger.warn('⚠️ [SORA WEBHOOK] No task context and no telegramId for content policy notification', { taskId })
   }
 }
 

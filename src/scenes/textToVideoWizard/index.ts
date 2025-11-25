@@ -4,7 +4,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
-import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
+import { generateModelButton, parseModelButton, generateModelKeyboard, getModelPriceStars } from '@/config/unified-video-models.config'
 import {
   TEXT_TO_VIDEO_CONSTANTS,
 } from '@/interfaces/zod/textToVideo.zod'
@@ -189,7 +189,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Получаем параметры из сессии
       const selectedModel = ctx.session.selectedVideoModel
       const aspectRatio = ctx.session.selectedAspectRatio || TEXT_TO_VIDEO_CONSTANTS.DEFAULT_ASPECT_RATIO
-      const cost = ctx.session.selectedVideoCost || 40
+      const cost = ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
       const duration = ctx.session.selectedDuration
 
       if (!selectedModel) {

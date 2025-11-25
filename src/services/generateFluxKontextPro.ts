@@ -250,8 +250,8 @@ export const generateFluxKontextPro = async (
     // ✅ Only send photo if NOT in silent mode (ALL_MODELS)
     if (!params.silent) {
       const caption = is_ru
-        ? `✅ Готово!\n\n⚡ Модель: ${FLUX_KONTEXT_PRO_MODEL.description_ru}\n💰 Потрачено: ${totalCost}⭐`
-        : `✅ Done!\n\n⚡ Model: ${FLUX_KONTEXT_PRO_MODEL.description_en}\n💰 Cost: ${totalCost}⭐`
+        ? `✅ Готово!\n\n💰 Стоимость: ${totalCost}⭐`
+        : `✅ Done!\n\n💰 Cost: ${totalCost}⭐`
 
       await ctx.replyWithPhoto(
         { url: imageUrl },

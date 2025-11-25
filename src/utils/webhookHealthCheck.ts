@@ -22,9 +22,10 @@ export async function getAvailableCallbackUrl(telegramId?: string | number): Pro
     : null
 
   // Plan B: Direct HTTP на production server (fallback)
+  // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
   const planB = process.env.DIRECT_WEBHOOK_URL
     ? `${process.env.DIRECT_WEBHOOK_URL}${endpoint}`
-    : `http://188.137.250.69:2999${endpoint}` // Hard-coded fallback
+    : `http://188.137.250.69:3000${endpoint}` // Hard-coded fallback
 
   const urls = [planA, planB].filter(Boolean) as string[]
 
@@ -99,7 +100,7 @@ export async function testAllWebhookUrls(): Promise<{
 
   const planB = process.env.DIRECT_WEBHOOK_URL
     ? `${process.env.DIRECT_WEBHOOK_URL}${endpoint}`
-    : `http://188.137.250.69:2999${endpoint}`
+    : `http://188.137.250.69:3000${endpoint}`
 
   const testUrl = async (url: string | null) => {
     if (!url) {

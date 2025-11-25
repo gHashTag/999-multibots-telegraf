@@ -15,8 +15,9 @@ import { inngest } from '../inngest_app/client'
 import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 
-// Определяем порт. Берем из process.env.API_PORT, если есть, иначе 2999 (настроено в docker-compose.yml).
-const PORT = process.env.API_PORT || '2999'
+// Определяем порт. Берем из process.env.API_PORT, если есть, иначе 3000 (настроено в docker-compose.yml).
+// LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
+const PORT = process.env.API_PORT || '3000'
 
 export function startApiServer(bot?: Telegraf): void {
   // Если bot instance передан, инициализируем его в webhook router

@@ -2,6 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
+import { getModelPriceStars } from '@/config/unified-video-models.config'
 
 // Простой wizard без коллбэков
 export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
@@ -65,20 +66,20 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     // Определяем выбранную модель
     let selectedModel = 'veo3_fast' // по умолчанию
-    let cost = 40
+    let cost = getModelPriceStars('veo3_fast') || 25 // ✅ УНИФИКАЦИЯ ЦЕН
 
     if (selectedText.includes('Veo 3 Fast')) {
       selectedModel = 'veo3_fast'
-      cost = 40
+      cost = getModelPriceStars('veo3_fast') || 25
     } else if (selectedText.includes('Veo 3')) {
       selectedModel = 'veo3'
-      cost = 120
+      cost = getModelPriceStars('veo3') || 120
     } else if (selectedText.includes('Kling')) {
       selectedModel = 'kling-v1.6-pro'
-      cost = 60
+      cost = getModelPriceStars('kling-v1.6-pro') || 60
     } else if (selectedText.includes('Minimax')) {
       selectedModel = 'minimax'
-      cost = 50
+      cost = getModelPriceStars('minimax') || 50
     }
 
     // Сохраняем в сессии
@@ -207,7 +208,7 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     // Получаем данные из сессии
     const selectedModel = ctx.session.selectedVideoModel || 'veo3_fast'
     const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
-    const cost = ctx.session.selectedVideoCost || 40
+    const cost = ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
 
     logger.info('[SimpleTextToVideoWizard] Starting video generation', {
       telegramId: ctx.from?.id,

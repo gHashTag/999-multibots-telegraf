@@ -812,14 +812,7 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 ├ ⏱ Время: ~<b>${avgTime}с</b>
 └ 💰 Стоимость: <b>${costPerImage} ⭐</b>
 
-━━━━━━━━━━━━━━━━━━━━
-🔍 <b>Техническая информация</b>${loraInfo ? `\nLoRA: <code>${loraInfo.trigger}</code>` : ''}
-Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
-Provider: <b>${isLoraUsed ? loraInfo!.provider : 'Replicate'}</b>
-Изображение: ${imageNumber}/${validNumImages}
-Сгенерировано: ${new Date().toLocaleString('ru-RU')}
-
-<i>Создано с помощью AI • @999-agents</i>`
+<i>Создано с помощью AI • @${botName}</i>`
                 : `✨ <b>Image created!</b>
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -832,14 +825,7 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 ├ ⏱ Time: ~<b>${avgTime}s</b>
 └ 💰 Cost: <b>${costPerImage} ⭐</b>
 
-━━━━━━━━━━━━━━━━━━━━
-🔍 <b>Technical Information</b>${loraInfo ? `\nLoRA: <code>${loraInfo.trigger}</code>` : ''}
-Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
-Provider: <b>${isLoraUsed ? loraInfo!.provider : 'Replicate'}</b>
-Image: ${imageNumber}/${validNumImages}
-Generated: ${new Date().toLocaleString('en-US')}
-
-<i>Created with AI • @999-agents</i>`
+<i>Created with AI • @${botName}</i>`
 
               // Отправляем фото С красивым caption
               await ctx.telegram.sendPhoto(telegram_id, { url: imageUrl }, {

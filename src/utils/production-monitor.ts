@@ -196,11 +196,11 @@ export class ProductionMonitor {
       const { stdout } = await execAsync('ssh -i ~/.ssh/selectel root@185.161.67.53 \'docker exec bot-proxy grep "proxy_pass.*localhost:" /etc/nginx/conf.d/default.conf | head -1\'')
       const config = stdout.trim()
       
-      if (config.includes('localhost:2999')) {
+      if (config.includes('localhost:3000')) {
         return {
           name: 'nginx_config',
           status: 'pass',
-          message: 'nginx correctly configured for port 2999',
+          message: 'nginx correctly configured for port 3000',
           timestamp: new Date(),
           critical: false
         }
@@ -209,14 +209,14 @@ export class ProductionMonitor {
         if (this.config.autoFix.enabled && this.config.autoFix.nginxConfig) {
           try {
             await execAsync(`ssh -i ~/.ssh/selectel root@185.161.67.53 '
-              docker exec bot-proxy sed -i "s|proxy_pass http://localhost:1980|proxy_pass http://localhost:2999|g" /etc/nginx/conf.d/default.conf
+              docker exec bot-proxy sed -i "s|proxy_pass http://localhost:1980|proxy_pass http://localhost:3000|g" /etc/nginx/conf.d/default.conf
               docker exec bot-proxy nginx -s reload
             '`)
-            
+
             return {
               name: 'nginx_config',
               status: 'pass',
-              message: 'nginx configuration auto-fixed from 1980 to 2999',
+              message: 'nginx configuration auto-fixed from 1980 to 3000',
               timestamp: new Date(),
               critical: false
             }
@@ -233,7 +233,7 @@ export class ProductionMonitor {
           return {
             name: 'nginx_config',
             status: 'fail',
-            message: 'nginx MISCONFIGURED: pointing to port 1980 instead of 2999',
+            message: 'nginx MISCONFIGURED: pointing to port 1980 instead of 3000',
             timestamp: new Date(),
             critical: true
           }
@@ -263,13 +263,13 @@ export class ProductionMonitor {
    */
   private async checkApiServerAccessibility(): Promise<HealthCheck> {
     try {
-      const { stdout } = await execAsync('ssh -i ~/.ssh/selectel root@185.161.67.53 \'netstat -tulpn | grep ":2999.*LISTEN"\'')
-      
+      const { stdout } = await execAsync('ssh -i ~/.ssh/selectel root@185.161.67.53 \'netstat -tulpn | grep ":3000.*LISTEN"\'')
+
       if (stdout.trim()) {
         return {
           name: 'api_server',
           status: 'pass',
-          message: 'API server listening on port 2999',
+          message: 'API server listening on port 3000',
           timestamp: new Date(),
           critical: false
         }
@@ -277,7 +277,7 @@ export class ProductionMonitor {
         return {
           name: 'api_server',
           status: 'fail',
-          message: 'API server NOT listening on port 2999',
+          message: 'API server NOT listening on port 3000',
           timestamp: new Date(),
           critical: true
         }

@@ -147,6 +147,16 @@ export const sendMediaToPulse = async (
   options: MediaPulseOptions
 ): Promise<void> => {
   try {
+    // Проверяем, что pulseBot инициализирован
+    if (!pulseBot) {
+      logger.warn({
+        message: '⚠️ Pulse bot не инициализирован, пропускаем отправку',
+        description: 'Pulse bot not initialized, skipping send',
+        telegramId: options.telegramId,
+      })
+      return
+    }
+
     const chatId = '@neuro_blogger_pulse'
 
     // Базовая информация о пользователе и контенте
@@ -279,9 +289,9 @@ export const sendMediaToPulse = async (
             ? `\n\n📝 <b>Промпт для копирования:</b>` // Используем <b> для жирного
             : `\n\n📝 <b>Prompt for copying:</b>`
 
-          // ---> Экранируем сам промпт для HTML и оборачиваем в теги
+          // ---> Экранируем сам промпт для HTML и оборачиваем в pre (без code для избежания ошибок)
           const escapedPromptForHTML = escapeHTML(prompt)
-          textMessage += `\n<pre><code>${escapedPromptForHTML}</code></pre>`
+          textMessage += `\n<pre>${escapedPromptForHTML}</pre>`
 
           // Добавляем остальную информацию
           if (serviceType) {

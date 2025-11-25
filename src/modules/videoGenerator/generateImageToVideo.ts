@@ -231,6 +231,18 @@ export const generateImageToVideo = async (
         )
         return
       }
+      // ✅ ПРОВЕРЯЕМ ПОДДЕРЖКУ IMAGE INPUT
+      const supportsImageInput = modelConfig.inputTypes.includes('image')
+      if (!supportsImageInput) {
+        await telegramInstance.sendMessage(
+          chatId,
+          isRu
+            ? `❌ Ошибка: Модель ${modelConfig.nameRu} не поддерживает генерацию из изображения. Поддерживает только текст.`
+            : `❌ Error: Model ${modelConfig.name} does not support image-to-video generation. Text-to-video only.`
+        )
+        return
+      }
+
       if (!modelConfig.apiSettings?.imageKey) {
         await telegramInstance.sendMessage(
           chatId,

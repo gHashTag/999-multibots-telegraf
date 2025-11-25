@@ -150,8 +150,8 @@ export async function generateGeminiImage({
 
     // Отправляем изображение пользователю
     const caption = is_ru
-      ? `✨ *Ваш образ готов!*\\n\\n🎨 Создано с помощью Google Gemini 2.5 Flash\\n💫 Потрачено: ${costPerImage}⭐\\n\\n_Создайте еще образы через_ /start`
-      : `✨ *Your image is ready!*\\n\\n🎨 Created with Google Gemini 2.5 Flash\\n💫 Spent: ${costPerImage}⭐\\n\\n_Create more images via_ /start`
+      ? `✨ *Ваш образ готов!*\\n\\n💫 Стоимость: ${costPerImage}⭐\\n\\n_Создайте еще образы через_ /start`
+      : `✨ *Your image is ready!*\\n\\n💫 Cost: ${costPerImage}⭐\\n\\n_Create more images via_ /start`
 
     await sendPhotoWithFallback(ctx, imageUrl, {
       caption,

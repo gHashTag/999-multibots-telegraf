@@ -8,8 +8,9 @@
  * - Поддерживаемых входных типов (text, image, morph)
  *
  * ❌ НЕ ДУБЛИРОВАТЬ эти данные в других файлах!
- * ✅ Используйте импорт из этого файла везде
  */
+
+import { logger } from '@/utils/logger'
 
 import { z } from 'zod'
 import {
@@ -193,13 +194,14 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     description: 'OpenAI Sora 2 - революционная генерация видео',
     provider: 'kie',
     apiModel: 'sora-2',
-    inputTypes: ['text'],
+    inputTypes: ['text', 'image', 'morph'], // ✅ Добавляем поддержку image-to-video (по документации Kie.ai)
     pricing: {
       type: 'fixed',
       fixedPriceStars: 9, // ✅ Kie.ai 2025: $0.15 / $0.016 = 9⭐ (10 сек БЕЗ watermark)
       defaultDuration: 10,
     },
     apiSettings: {
+      imageKey: 'image_url',
       aspectRatios: ['16:9', '9:16'],
       durations: [10],
     },
@@ -212,58 +214,18 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
     nameRu: 'Sora 2 Pro',
     description: 'OpenAI Sora 2 Pro - премиум генерация видео',
     provider: 'kie',
-    apiModel: 'sora-2-pro',
-    inputTypes: ['text'],
+    apiModel: 'sora-2-pro-image-to-video',
+    inputTypes: ['text', 'image', 'morph'], // ✅ Добавляем поддержку image-to-video
     pricing: {
       type: 'fixed',
       fixedPriceStars: 19, // ✅ Оценка: ~$0.30 / $0.016 = 19⭐ (10 сек, Pro версия)
       defaultDuration: 10,
     },
     apiSettings: {
+      imageKey: 'image_url',
       aspectRatios: ['16:9', '9:16'],
-      durations: [10],
-    },
-    status: 'active',
-  },
-
-  'sora-2-i2v': {
-    id: 'sora-2-i2v',
-    name: 'Sora 2 I2V',
-    nameRu: 'Sora 2 Изображение в видео',
-    description: 'OpenAI Sora 2 Image-to-Video',
-    provider: 'kie',
-    apiModel: 'sora-2-i2v',
-    inputTypes: ['image', 'morph'], // ✅ Добавлена поддержка морфинга
-    pricing: {
-      type: 'fixed',
-      fixedPriceStars: 9, // ✅ Kie.ai 2025: $0.15 / $0.016 = 9⭐ (10 сек БЕЗ watermark)
-      defaultDuration: 10,
-    },
-    apiSettings: {
-      imageKey: 'imageUrl',
-      aspectRatios: ['16:9', '9:16'],
-      durations: [10],
-    },
-    status: 'active',
-  },
-
-  'sora-2-pro-i2v': {
-    id: 'sora-2-pro-i2v',
-    name: 'Sora 2 Pro I2V',
-    nameRu: 'Sora 2 Pro Изображение в видео',
-    description: 'OpenAI Sora 2 Pro Image-to-Video',
-    provider: 'kie',
-    apiModel: 'sora-2-pro-i2v',
-    inputTypes: ['image', 'morph'], // ✅ Добавлена поддержка морфинга
-    pricing: {
-      type: 'fixed',
-      fixedPriceStars: 19, // ✅ Оценка: ~$0.30 / $0.016 = 19⭐ (10 сек, Pro версия)
-      defaultDuration: 10,
-    },
-    apiSettings: {
-      imageKey: 'imageUrl',
-      aspectRatios: ['16:9', '9:16'],
-      durations: [10],
+      durations: [10, 15],
+      maxDuration: 15,
     },
     status: 'active',
   },
@@ -1006,11 +968,13 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
     : '16:9'
 
   // Парсим по названию модели из unified config
+  // ✅ FIX: Используем более точный поиск (по началу строки, а не includes)
   const allModels = getActiveModels()
-  const foundModel = allModels.find(
-    config =>
-      buttonText.includes(config.name) || buttonText.includes(config.nameRu)
-  )
+  const foundModel = allModels.find(config => {
+    const namePattern = new RegExp(`^${config.name}\\b`, 'i') // Слово в начале строки
+    const nameRuPattern = new RegExp(`^${config.nameRu}\\b`, 'i')
+    return namePattern.test(buttonText) || nameRuPattern.test(buttonText)
+  })
 
   let result: ParsedModelButton
 
@@ -1063,8 +1027,37 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
     }
   }
 
+  // ✅ УНИФИКАЦИЯ ЦЕН: Используем реальную цену из конфигурации модели
+  const modelConfig = UNIFIED_VIDEO_MODELS[result.modelId as keyof typeof UNIFIED_VIDEO_MODELS]
+  if (modelConfig?.pricing?.type === 'fixed' && modelConfig.pricing.fixedPriceStars) {
+    result.cost = modelConfig.pricing.fixedPriceStars
+    logger.info('[parseModelButton] Unified price', {
+      modelId: result.modelId,
+      cost: result.cost,
+      source: 'unified-video-models.config'
+    })
+  }
+
   // ✅ ZOD ВАЛИДАЦИЯ РЕЗУЛЬТАТА
   return ParsedModelButtonSchema.parse(result)
+}
+
+/**
+ * 🎯 ПОЛУЧИТЬ ЦЕНУ МОДЕЛИ из единого источника истины
+ * Используется ВЕЗДЕ вместо хардкода
+ */
+export function getModelPriceStars(modelId: string): number | undefined {
+  const modelConfig = UNIFIED_VIDEO_MODELS[modelId as keyof typeof UNIFIED_VIDEO_MODELS]
+  if (!modelConfig) {
+    logger.warn('[getModelPriceStars] Model not found', { modelId })
+    return undefined
+  }
+
+  if (modelConfig.pricing?.type === 'fixed' && modelConfig.pricing.fixedPriceStars) {
+    return modelConfig.pricing.fixedPriceStars
+  }
+
+  return undefined
 }
 
 /**
@@ -1093,6 +1086,16 @@ export function generateModelKeyboard(
   let models = getActiveModels().filter(config =>
     config.inputTypes.includes(validated.inputType)
   )
+
+  // ✅ ЛОГИРУЕМ КАКИЕ МОДЕЛИ ПОКАЗЫВАЮТСЯ ПОЛЬЗОВАТЕЛЮ
+  if (validated.inputType === 'image') {
+    logger.info('[generateModelKeyboard] Image-to-Video models filtered', {
+      inputType: validated.inputType,
+      totalActiveModels: getActiveModels().length,
+      filteredModels: models.map(m => m.id),
+      modelInputTypes: models.map(m => ({ id: m.id, inputTypes: m.inputTypes }))
+    })
+  }
 
   // Фильтруем по списку поддерживаемых моделей, если он передан
   if (validated.supportedModels && validated.supportedModels.length > 0) {

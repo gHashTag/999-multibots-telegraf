@@ -6,7 +6,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { handleImageToVideoDirect } from '../../handlers/handleImageToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
+import { generateModelButton, parseModelButton, generateModelKeyboard, getModelPriceStars } from '@/config/unified-video-models.config'
 
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 
@@ -241,7 +241,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Получаем параметры из сессии
       const selectedModel = ctx.session.selectedVideoModel
       const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
-      const cost = ctx.session.selectedVideoCost || 40
+      const cost = ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
       const duration = ctx.session.selectedDuration
       const imageUrl = ctx.session.imageUrl
 
