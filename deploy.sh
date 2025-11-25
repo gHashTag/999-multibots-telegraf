@@ -104,6 +104,37 @@ if [ "$ENV" != "dev" ] && [ "$ENV" != "development" ]; then
 
   echo -e "${GREEN}✅ Code synced${NC}"
   echo ""
+
+  # CRITICAL FIX: Update docker-compose.yml and nginx config on production
+  # This fixes 502 Bad Gateway when webhook uses port 2999 instead of 3000
+  echo "🔧 CRITICAL FIX: Updating docker-compose.yml and nginx config..."
+  ssh $SSH_ALIAS bash <<'FIXSCRIPT'
+set -e
+cd /root/999-agents-telegraf
+
+echo "📋 Checking if port 2999 exists in docker-compose.yml..."
+if grep -q "2999" docker-compose.yml 2>/dev/null; then
+  echo "⚠️  Port 2999 found in docker-compose.yml, updating to 3000..."
+  sed -i 's/2999:2999/3000:3000/g' docker-compose.yml
+  sed -i 's/:2999 /:3000 /g' docker-compose.yml
+  sed -i 's/localhost:2999/localhost:3000/g' docker-compose.yml
+  echo "✅ docker-compose.yml updated"
+else
+  echo "✅ docker-compose.yml already using port 3000"
+fi
+
+echo "📋 Checking nginx config..."
+if docker exec bot-proxy grep -q "2999" /etc/nginx/conf.d/default.conf 2>/dev/null; then
+  echo "⚠️  Port 2999 found in nginx config, updating to 3000..."
+  docker exec bot-proxy sed -i 's/localhost:2999/localhost:3000/g' /etc/nginx/conf.d/default.conf
+  docker exec bot-proxy nginx -t && docker exec bot-proxy nginx -s reload
+  echo "✅ nginx config updated"
+else
+  echo "✅ nginx config already using port 3000"
+fi
+FIXSCRIPT
+
+  echo ""
 fi
 
 # 3. Build Docker
@@ -184,7 +215,7 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
   docker run -d \
     --name $CONTAINER_NAME \
     --restart=unless-stopped \
-    -p 2999:2999 \
+    -p 3000:3000 \
     -p 3001:3001 \
     --env-file .env \
     $CONTAINER_NAME:latest
@@ -205,7 +236,7 @@ docker rm $CONTAINER_NAME 2>/dev/null || true
 docker run -d \
   --name $CONTAINER_NAME \
   --restart=always \
-  -p 2999:2999 \
+  -p 3000:3000 \
   -p 3001:3001 \
   -v /root/999-agents-telegraf/.env:/app/.env:ro \
   $CONTAINER_NAME:latest
