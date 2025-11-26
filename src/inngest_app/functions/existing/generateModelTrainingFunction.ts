@@ -12,7 +12,6 @@
  */
 
 import Replicate from 'replicate'
-import fs from 'fs'
 import { supabase } from '@/core/supabase'
 import { REPLICATE_API_TOKEN, REPLICATE_USERNAME } from '@/config'
 import { logger } from '@/utils/logger'
@@ -25,8 +24,8 @@ interface ModelTrainingEvent {
     bot_name: string
     modelName: string
     triggerWord: string
-    filePath: string // Local ZIP path on bot-farm
-    steps: number
+    zipUrl: string // HTTP URL to ZIP file
+    steps: number | string // Can be string from scene
     is_ru: boolean
     gender: string
   }
@@ -46,13 +45,25 @@ export function createGenerateModelTrainingFunction(inngest: any) {
     },
     { event: 'model/training.start' },
     async ({ event, step }) => {
-      const eventData = event.data as ModelTrainingEvent['data']
-      const startTime = Date.now()
+      try {
+        const eventData = event.data as ModelTrainingEvent['data']
+        const startTime = Date.now()
 
-      logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
-        telegram_id: eventData.telegram_id,
-        modelName: eventData.modelName,
-      })
+        // ✅ Validate and normalize steps (can be string or number)
+        const steps = typeof eventData.steps === 'string' 
+          ? parseInt(eventData.steps, 10) 
+          : eventData.steps
+
+        if (isNaN(steps) || steps <= 0) {
+          throw new Error(`Invalid steps value: ${eventData.steps}`)
+        }
+
+        logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
+          telegram_id: eventData.telegram_id,
+          modelName: eventData.modelName,
+          zipUrl: eventData.zipUrl,
+          steps,
+        })
 
       // ✅ STEP 1: Validate credentials
       await step.run('validate-credentials', async () => {
@@ -84,20 +95,26 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         return { hasDuplicate: false }
       })
 
-      // ✅ STEP 3: Prepare ZIP file
+      // ✅ STEP 3: Download and prepare ZIP file
       const zipData = await step.run('prepare-zip', async () => {
-        if (!fs.existsSync(eventData.filePath)) {
-          throw new Error(`ZIP file not found: ${eventData.filePath}`)
+        logger.info('[INNGEST TRAINING] Downloading ZIP file from URL', {
+          zipUrl: eventData.zipUrl,
+        })
+
+        // Download ZIP file from HTTP URL
+        const response = await fetch(eventData.zipUrl)
+        if (!response.ok) {
+          throw new Error(`Failed to download ZIP file: ${response.status} ${response.statusText}`)
         }
 
-        const fileStats = fs.statSync(eventData.filePath)
-        logger.info('[INNGEST TRAINING] ZIP file validated', {
-          size: fileStats.size,
-          path: eventData.filePath,
+        const fileBuffer = Buffer.from(await response.arrayBuffer())
+        
+        logger.info('[INNGEST TRAINING] ZIP file downloaded', {
+          size: fileBuffer.length,
+          url: eventData.zipUrl,
         })
 
         // Convert to base64 for Replicate
-        const fileBuffer = fs.readFileSync(eventData.filePath)
         const base64Data = fileBuffer.toString('base64')
         const dataUri = `data:application/zip;base64,${base64Data}`
 
@@ -116,12 +133,16 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         const destination = `${REPLICATE_USERNAME}/${eventData.modelName}`
 
         // ✅ ВАЖНО: Webhook URL для получения callback от Replicate
-        // Используем локальный сервер вместо внешнего ai-server
-        const webhookUrl = `http://localhost:3000/webhooks/replicate`
+        const webhookUrl = `${process.env.BASE_WEBHOOK_URL || 'https://three-head-dragon.shop'}/api/webhooks/replicate`
+
+        // Use normalized steps
+        const normalizedSteps = typeof eventData.steps === 'string' 
+          ? parseInt(eventData.steps, 10) 
+          : eventData.steps
 
         logger.info('[INNGEST TRAINING] Creating Replicate training...', {
           destination,
-          steps: eventData.steps,
+          steps: normalizedSteps,
           trigger_word: eventData.triggerWord,
           webhook: webhookUrl,
         })
@@ -135,7 +156,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
             input: {
               input_images: zipData.dataUri,
               trigger_word: eventData.triggerWord,
-              steps: eventData.steps,
+              steps: normalizedSteps,
               // Hardware optimization
               lora_rank: 128,
               optimizer: 'adamw8bit',
@@ -171,11 +192,13 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           user_id: eventData.telegram_id,
           model_name: eventData.modelName,
           trigger_word: eventData.triggerWord,
-          zip_url: eventData.filePath,
+          zip_url: eventData.zipUrl,
           replicate_training_id: trainingResult.training_id,
           status: trainingResult.status,
           bot_name: eventData.bot_name,
-          steps: eventData.steps,
+          steps: typeof eventData.steps === 'string' 
+            ? parseInt(eventData.steps, 10) 
+            : eventData.steps,
           created_at: new Date().toISOString(),
         }
 
@@ -195,19 +218,9 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         return { saved: !error }
       })
 
-      // ✅ STEP 6: Clean up local ZIP file
+      // ✅ STEP 6: No cleanup needed (file is on remote server)
       await step.run('cleanup-zip', async () => {
-        try {
-          if (fs.existsSync(eventData.filePath)) {
-            await fs.promises.unlink(eventData.filePath)
-            logger.info('[INNGEST TRAINING] ZIP file deleted')
-          }
-        } catch (unlinkError) {
-          logger.warn('[INNGEST TRAINING] Failed to delete ZIP (non-fatal)', {
-            error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError),
-          })
-        }
-
+        logger.info('[INNGEST TRAINING] ZIP file cleanup skipped (remote URL)')
         return { cleaned: true }
       })
 
@@ -235,17 +248,30 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         return { notified: true }
       })
 
-      logger.info('[INNGEST TRAINING] 🎉 Training initiated successfully', {
-        training_id: trainingResult.training_id,
-        total_elapsed: `${Date.now() - startTime}ms`,
-      })
+        logger.info('[INNGEST TRAINING] 🎉 Training initiated successfully', {
+          training_id: trainingResult.training_id,
+          total_elapsed: `${Date.now() - startTime}ms`,
+        })
 
-      return {
-        success: true,
-        training_id: trainingResult.training_id,
-        destination: trainingResult.destination,
-        telegram_id: eventData.telegram_id,
-        elapsed_ms: Date.now() - startTime,
+        return {
+          success: true,
+          training_id: trainingResult.training_id,
+          destination: trainingResult.destination,
+          telegram_id: eventData.telegram_id,
+          elapsed_ms: Date.now() - startTime,
+        }
+      } catch (error) {
+        logger.error('[INNGEST TRAINING] ❌ Training failed', {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        })
+
+        // Return error in a serializable format
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          telegram_id: (event.data as any)?.telegram_id || 'unknown',
+        }
       }
     }
   )
