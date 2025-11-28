@@ -6,6 +6,7 @@ import {
   getActiveUserModelsByType,
   getReferalsCountAndUserData,
   getUserData,
+  getAspectRatio,
 } from '@/core/supabase'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
 import { getActiveUserModelsByTypeForHaim } from '@/core/supabase/getActiveUserModelsByTypeForHaim'
@@ -223,6 +224,10 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
     try {
       // ГЕНЕРИРУЕМ СРАЗУ 1 ИЗОБРАЖЕНИЕ КАК БЫЛО РАНЬШЕ!
+      // ✅ ВОССТАНОВЛЕНО: Получаем aspect ratio пользователя (как в рабочей версии 63eaeb6fc)
+      const userAspectRatio = await getAspectRatio(userId || 0)
+      console.log(`🔍 [DEBUG] aspectRatio пользователя: ${userAspectRatio}`)
+
       // ✅ ИСПРАВЛЕНО: Используем правильное имя бота из системы через getBotNameByToken
       const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
 
@@ -232,7 +237,8 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
         1,
         userId?.toString() ?? '',
         ctx,
-        bot_name
+        bot_name,
+        userAspectRatio
       )
       console.log('✅ [DEBUG] generateNeuroPhotoHybrid завершен:', result)
 
@@ -321,11 +327,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       return
     }
 
-    // ✅ ИСПРАВЛЕНО: Правильный парсинг числа из текста
-    const numImages = parseInt(text.trim(), 10)
-
-    // Проверяем, что это валидное число от 1 до 4
-    if (isNaN(numImages) || numImages < 1 || numImages > 4) {
+    // ✅ ВОССТАНОВЛЕНО: Обработка кнопок 1️⃣,2️⃣,3️⃣,4️⃣ и чисел 1,2,3,4 (как в рабочей версии 63eaeb6fc)
+    if (!['1️⃣', '2️⃣', '3️⃣', '4️⃣', '1', '2', '3', '4'].includes(text)) {
       console.log(
         `⚠️ [DEBUG] Неизвестный ввод в neuroPhotoButtonStep: "${text}"`
       )
@@ -333,6 +336,18 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       await mainMenu(ctx)
       return
     }
+
+    // Определяем количество изображений
+    let numImages: number
+    if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text)) {
+      numImages = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].indexOf(text) + 1
+    } else {
+      numImages = parseInt(text, 10)
+    }
+
+    console.log(
+      `🔍 [DEBUG] Парсинг кнопки: text="${text}", numImages=${numImages}`
+    )
 
     const prompt = ctx.session.prompt
     const userId = ctx.from?.id
@@ -371,6 +386,10 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
       const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
 
+      // ✅ ВОССТАНОВЛЕНО: Получаем aspect ratio пользователя (как в рабочей версии 63eaeb6fc)
+      const userAspectRatio = await getAspectRatio(userId || 0)
+      console.log(`🔍 [DEBUG] aspectRatio пользователя: ${userAspectRatio}`)
+
       // ✅ ИСПРАВЛЕНО: Используем правильное имя бота из системы через getBotNameByToken
       const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
 
@@ -383,7 +402,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         num,
         userId?.toString() ?? '',
         ctx,
-        bot_name
+        bot_name,
+        userAspectRatio
       )
 
       console.log(
