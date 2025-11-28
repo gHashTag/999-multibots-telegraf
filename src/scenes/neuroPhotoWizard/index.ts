@@ -251,7 +251,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       const additionalGenerationKeyboard = {
         reply_markup: {
           keyboard: [
-            [{ text: '1' }, { text: '2' }, { text: '3' }, { text: '4' }],
+            [{ text: '1️⃣' }, { text: '2️⃣' }, { text: '3️⃣' }, { text: '4️⃣' }],
             [
               { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
               { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
@@ -321,7 +321,19 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       return
     }
 
-    const numImages = parseInt(text[0])
+    // ✅ ИСПРАВЛЕНО: Правильный парсинг числа из текста
+    const numImages = parseInt(text.trim(), 10)
+
+    // Проверяем, что это валидное число от 1 до 4
+    if (isNaN(numImages) || numImages < 1 || numImages > 4) {
+      console.log(
+        `⚠️ [DEBUG] Неизвестный ввод в neuroPhotoButtonStep: "${text}"`
+      )
+      // handleMenu сам определит язык и подписку
+      await mainMenu(ctx)
+      return
+    }
+
     const prompt = ctx.session.prompt
     const userId = ctx.from?.id
 
@@ -420,18 +432,10 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       )
     }
 
-    if (numImages >= 1 && numImages <= 4) {
-      await generate(numImages)
-      // ✅ НЕ ВЫХОДИМ ИЗ СЦЕНЫ - остаемся для дополнительной генерации
-      return
-    } else {
-      console.log(
-        'CASE: Неизвестный ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
-      )
-      // handleMenu сам определит язык и подписку
-      await mainMenu(ctx)
-      return
-    }
+    // ✅ numImages уже проверен выше, просто вызываем генерацию
+    await generate(numImages)
+    // ✅ НЕ ВЫХОДИМ ИЗ СЦЕНЫ - остаемся для дополнительной генерации
+    return
   } else {
     console.log(
       'CASE: Нетекстовый или отсутствующий ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
