@@ -860,9 +860,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         const userAspectRatio = await getAspectRatio(telegramId)
         logger.debug(`[hearsHandlers 1-4] aspectRatio пользователя: ${userAspectRatio}`)
 
-        // ✅ ИСПРАВЛЕНО: Используем правильное имя бота из системы через getBotNameByToken
-        const { getBotNameByToken } = await import('@/core/bot')
-        const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
+        // ✅ КРИТИЧНО ИСПРАВЛЕНО: Используем ctx.botInfo?.username для точного определения бота
+        const { getBotNameByUsername, getBotNameByToken } = await import('@/core/bot')
+        let bot_name: string
+        if (ctx.botInfo?.username) {
+          const usernameResult = getBotNameByUsername(ctx.botInfo.username)
+          bot_name = usernameResult.bot_name || getBotNameByToken(ctx.telegram.token).bot_name
+        } else {
+          bot_name = getBotNameByToken(ctx.telegram.token).bot_name
+        }
+        logger.debug(`🔍 [HEARS] Определен bot_name: ${bot_name} для username: ${ctx.botInfo?.username}`)
 
         logger.info({
           message: '🔔 [HEARS] Вызов generateNeuroPhotoHybrid',

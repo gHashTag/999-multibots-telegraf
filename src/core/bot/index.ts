@@ -159,26 +159,50 @@ export function getBotNameByToken(token: string): { bot_name: BotName } {
 export function getBotNameByUsername(username: string): {
   bot_name: BotName | null
 } {
-  // Маппинг Telegram username → BotName
+  // Маппинг Telegram username → BotName (case-insensitive поиск)
   const USERNAME_TO_BOT_NAME: Record<string, BotName> = {
     neuro_blogger_bot: 'neuro_blogger_bot',
-    MetaMuse_manifest_bot: 'MetaMuse_Manifest_bot',
+    metamuse_manifest_bot: 'MetaMuse_Manifest_bot', // case-insensitive
+    MetaMuse_Manifest_bot: 'MetaMuse_Manifest_bot', // точное совпадение
+    MetaMuse_manifest_bot: 'MetaMuse_Manifest_bot', // вариант с маленькой m
     ZavaraBot: 'ZavaraBot',
+    zavarabot: 'ZavaraBot', // case-insensitive
     LeeSolarbot: 'LeeSolarbot',
+    leesolarbot: 'LeeSolarbot', // case-insensitive
     NeuroLenaAssistant_bot: 'NeuroLenaAssistant_bot',
+    neurolenaassistant_bot: 'NeuroLenaAssistant_bot', // case-insensitive
     NeurostylistShtogrina_bot: 'NeurostylistShtogrina_bot',
+    neurostylistshtogrina_bot: 'NeurostylistShtogrina_bot', // case-insensitive
     Gaia_Kamskaia_bot: 'Gaia_Kamskaia_bot',
+    gaia_kamskaia_bot: 'Gaia_Kamskaia_bot', // case-insensitive
     Kaya_easy_art_bot: 'Kaya_easy_art_bot',
+    kaya_easy_art_bot: 'Kaya_easy_art_bot', // case-insensitive
     AI_STARS_bot: 'AI_STARS_bot',
+    ai_stars_bot: 'AI_STARS_bot', // case-insensitive
     HaimGroupMedia_bot: 'HaimGroupMedia_bot',
+    haimgroupmedia_bot: 'HaimGroupMedia_bot', // case-insensitive
     // Dev боты
     ai_koshey_bot: 'ai_koshey_bot',
     clip_maker_neuro_bot: 'clip_maker_neuro_bot',
     helper_999_bot: 'helper_999_bot',
     TestNeurocoder_bot: 'TestNeurocoder_bot',
+    testneurocoder_bot: 'TestNeurocoder_bot', // case-insensitive
   }
 
-  const bot_name = USERNAME_TO_BOT_NAME[username]
+  // Сначала точный поиск
+  let bot_name = USERNAME_TO_BOT_NAME[username]
+  
+  // Если не нашли, ищем case-insensitive
+  if (!bot_name) {
+    const lowerUsername = username.toLowerCase()
+    const entry = Object.entries(USERNAME_TO_BOT_NAME).find(
+      ([key]) => key.toLowerCase() === lowerUsername
+    )
+    if (entry) {
+      bot_name = entry[1]
+    }
+  }
+  
   return { bot_name: bot_name || null }
 }
 
