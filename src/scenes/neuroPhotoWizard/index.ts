@@ -39,15 +39,21 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     const { telegramId } = await getUserInfo(ctx)
 
     // ✅ КРИТИЧНО ИСПРАВЛЕНО: Используем ctx.botInfo?.username для точного определения бота
-    const { getBotNameByUsername, getBotNameByToken } = await import('@/core/bot')
+    const { getBotNameByUsername, getBotNameByToken } = await import(
+      '@/core/bot'
+    )
     let bot_name: string
     if (ctx.botInfo?.username) {
       const usernameResult = getBotNameByUsername(ctx.botInfo.username)
-      bot_name = usernameResult.bot_name || getBotNameByToken(ctx.telegram.token).bot_name
+      bot_name =
+        usernameResult.bot_name ||
+        getBotNameByToken(ctx.telegram.token).bot_name
     } else {
       bot_name = getBotNameByToken(ctx.telegram.token).bot_name
     }
-    console.log(`🤖 Определен бот: ${bot_name} для пользователя ${telegramId} (username: ${ctx.botInfo?.username})`)
+    console.log(
+      `🤖 Определен бот: ${bot_name} для пользователя ${telegramId} (username: ${ctx.botInfo?.username})`
+    )
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
     let userModels: ModelTraining[] | null = null
@@ -237,15 +243,21 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       console.log(`🔍 [DEBUG] aspectRatio пользователя: ${userAspectRatio}`)
 
       // ✅ КРИТИЧНО ИСПРАВЛЕНО: Используем ctx.botInfo?.username для точного определения бота
-      const { getBotNameByUsername, getBotNameByToken } = await import('@/core/bot')
+      const { getBotNameByUsername, getBotNameByToken } = await import(
+        '@/core/bot'
+      )
       let bot_name: string
       if (ctx.botInfo?.username) {
         const usernameResult = getBotNameByUsername(ctx.botInfo.username)
-        bot_name = usernameResult.bot_name || getBotNameByToken(ctx.telegram.token).bot_name
+        bot_name =
+          usernameResult.bot_name ||
+          getBotNameByToken(ctx.telegram.token).bot_name
       } else {
         bot_name = getBotNameByToken(ctx.telegram.token).bot_name
       }
-      console.log(`🔍 [DEBUG] Определен bot_name: ${bot_name} для username: ${ctx.botInfo?.username}`)
+      console.log(
+        `🔍 [DEBUG] Определен bot_name: ${bot_name} для username: ${ctx.botInfo?.username}`
+      )
 
       const result = await generateNeuroPhotoHybrid(
         fullPrompt,
@@ -426,15 +438,21 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       console.log(`🔍 [DEBUG] aspectRatio пользователя: ${userAspectRatio}`)
 
       // ✅ КРИТИЧНО ИСПРАВЛЕНО: Используем ctx.botInfo?.username для точного определения бота
-      const { getBotNameByUsername, getBotNameByToken } = await import('@/core/bot')
+      const { getBotNameByUsername, getBotNameByToken } = await import(
+        '@/core/bot'
+      )
       let bot_name: string
       if (ctx.botInfo?.username) {
         const usernameResult = getBotNameByUsername(ctx.botInfo.username)
-        bot_name = usernameResult.bot_name || getBotNameByToken(ctx.telegram.token).bot_name
+        bot_name =
+          usernameResult.bot_name ||
+          getBotNameByToken(ctx.telegram.token).bot_name
       } else {
         bot_name = getBotNameByToken(ctx.telegram.token).bot_name
       }
-      console.log(`🔍 [DEBUG] Определен bot_name: ${bot_name} для username: ${ctx.botInfo?.username}`)
+      console.log(
+        `🔍 [DEBUG] Определен bot_name: ${bot_name} для username: ${ctx.botInfo?.username}`
+      )
 
       console.log(
         '🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid из ButtonStep'

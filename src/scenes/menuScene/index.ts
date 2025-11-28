@@ -25,21 +25,16 @@ import { getBotNameByToken } from '@/core/bot'
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
 
-  // 🚨 КРИТИЧЕСКАЯ ПРОВЕРКА: НЕ обрабатываем если пользователь УЖЕ в другой сцене!
+  // ✅ ИСПРАВЛЕНО: Убрана проверка currentSceneId - эта функция вызывается ТОЛЬКО при входе в MainMenu
+  // Если пользователь уже в другой сцене, глобальный обработчик hears должен обработать кнопку
   const currentSceneId = ctx.scene.current?.id
   const telegramId = ctx.from?.id?.toString()
 
-  if (currentSceneId !== ModeEnum.MainMenu) {
-    console.log(
-      `🚫 [menuCommandStep] User is in different scene (${currentSceneId}), NOT processing menuCommand`,
-      {
-        telegramId,
-        currentSceneId,
-        mainMenuId: ModeEnum.MainMenu,
-      }
-    )
-    return // НЕ обрабатываем, если пользователь в другой сцене
-  }
+  logger.info('🏠 [menuCommandStep] Main menu scene entered', {
+    telegramId,
+    currentSceneId,
+    expectedScene: ModeEnum.MainMenu,
+  })
 
   console.log(
     `✅ [menuCommandStep] User is in main menu scene, processing menuCommand`,

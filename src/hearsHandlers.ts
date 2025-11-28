@@ -34,23 +34,34 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   })
 
   // 🏠 ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КНОПКИ "ГЛАВНОЕ МЕНЮ" - РАБОТАЕТ ВЕЗДЕ!
-  bot.hears([levels[104].title_ru, levels[104].title_en], async ctx => {
+  bot.hears([levels[104].title_ru, levels[104].title_en, '🏠 Главное меню', '🏠 Main menu'], async ctx => {
+    const currentSceneId = ctx.scene.current?.id
     logger.info('🏠 GLOBAL HEARS: Main menu button pressed', {
       telegramId: ctx.from?.id,
       text: ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown',
+      currentSceneId,
     })
 
     try {
       // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
       const is_ru = isRussianFromState(ctx)
 
-      // Покидаем текущую сцену
-      await ctx.scene.leave()
+      // Покидаем текущую сцену (если есть)
+      if (currentSceneId) {
+        logger.info('🏠 GLOBAL HEARS: Leaving current scene', {
+          telegramId: ctx.from?.id,
+          currentSceneId,
+        })
+        await ctx.scene.leave()
+      }
 
       // Устанавливаем режим главного меню
       ctx.session.mode = ModeEnum.MainMenu
 
       // Переходим в главное меню
+      logger.info('🏠 GLOBAL HEARS: Entering main menu scene', {
+        telegramId: ctx.from?.id,
+      })
       await ctx.scene.enter(ModeEnum.MainMenu)
 
       logger.info('✅ GLOBAL HEARS: Successfully entered main menu', {
@@ -58,17 +69,26 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       })
     } catch (error) {
       logger.error('❌ GLOBAL HEARS: Error in main menu handler:', {
-        error,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         telegramId: ctx.from?.id,
+        currentSceneId,
       })
 
       // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
       const isRuError = isRussianFromState(ctx)
-      await ctx.reply(
-        isRuError
-          ? '❌ Произошла ошибка при переходе в главное меню.'
-          : '❌ Error occurred while entering main menu.'
-      )
+      try {
+        await ctx.reply(
+          isRuError
+            ? '❌ Произошла ошибка при переходе в главное меню. Попробуйте команду /menu'
+            : '❌ Error occurred while entering main menu. Try /menu command'
+        )
+      } catch (replyError) {
+        logger.error('❌ GLOBAL HEARS: Failed to send error message', {
+          error: replyError instanceof Error ? replyError.message : String(replyError),
+          telegramId: ctx.from?.id,
+        })
+      }
     }
   })
 
@@ -178,21 +198,8 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   })
 
-  // === НАВИГАЦИОННЫЕ ОБРАБОТЧИКИ ===
-  bot.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
-    logger.info('GLOBAL HEARS: Главное меню', {
-      telegramId: ctx.from?.id,
-    })
-    try {
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
-    } catch (error) {
-      logger.error('Error in Главное меню hears:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-    }
-  })
+  // ✅ УДАЛЕН ДУБЛИРУЮЩИЙ ОБРАБОТЧИК - используется обработчик выше (строка 37)
+  // Обработчик на строке 37 уже обрабатывает '🏠 Главное меню' и '🏠 Main menu' через levels[104]
 
   bot.hears(['❓ Справка', '❓ Help'], async ctx => {
     logger.info('GLOBAL HEARS: Справка', {

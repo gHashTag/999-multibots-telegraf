@@ -191,7 +191,7 @@ export function getBotNameByUsername(username: string): {
 
   // Сначала точный поиск
   let bot_name = USERNAME_TO_BOT_NAME[username]
-  
+
   // Если не нашли, ищем case-insensitive
   if (!bot_name) {
     const lowerUsername = username.toLowerCase()
@@ -202,7 +202,7 @@ export function getBotNameByUsername(username: string): {
       bot_name = entry[1]
     }
   }
-  
+
   return { bot_name: bot_name || null }
 }
 
