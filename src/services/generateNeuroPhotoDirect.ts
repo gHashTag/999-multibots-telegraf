@@ -753,7 +753,21 @@ export async function generateNeuroPhotoDirect(
 
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
           try {
+            logger.info({
+              message: '🔍 [DIRECT] Проверка перед отправкой изображения',
+              description: 'Checking before sending image',
+              telegram_id,
+              disable_telegram_sending: options?.disable_telegram_sending,
+              imageUrl: imageUrl.substring(0, 50) + '...',
+            })
+            
             if (!options?.disable_telegram_sending) {
+              logger.info({
+                message: '✅ [DIRECT] Отправка изображения разрешена, начинаем отправку',
+                description: 'Image sending allowed, starting send',
+                telegram_id,
+                imageUrl: imageUrl.substring(0, 50) + '...',
+              })
               // Определяем какой провайдер и модель использовались
               const isLoraUsed = useFal
               const loraInfo = isLoraUsed
@@ -837,6 +851,14 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 <i>Created with AI • @${botName}</i>`
 
               // Отправляем фото С красивым caption
+              logger.info({
+                message: '🚀 [DIRECT] Вызов ctx.telegram.sendPhoto',
+                description: 'Calling ctx.telegram.sendPhoto',
+                telegram_id,
+                imageUrl: imageUrl.substring(0, 50) + '...',
+                captionLength: caption.length,
+              })
+              
               await ctx.telegram.sendPhoto(
                 telegram_id,
                 { url: imageUrl },
