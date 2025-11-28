@@ -36,9 +36,8 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     const { telegramId } = await getUserInfo(ctx)
 
-    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ (используем botInfo.username вместо токена)
-    const bot_name =
-      ctx.botInfo?.username || getBotNameByToken(ctx.telegram.token).bot_name
+    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ (используем getBotNameByToken для правильного имени системы)
+    const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
     console.log(`🤖 Определен бот: ${bot_name} для пользователя ${telegramId}`)
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
@@ -220,63 +219,72 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     )
 
     console.log('🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid')
+    const isRu = isRussianFromState(ctx)
+
     try {
       // ГЕНЕРИРУЕМ СРАЗУ 1 ИЗОБРАЖЕНИЕ КАК БЫЛО РАНЬШЕ!
+      // ✅ ИСПРАВЛЕНО: Используем правильное имя бота из системы через getBotNameByToken
+      const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
+
       const result = await generateNeuroPhotoHybrid(
         fullPrompt,
         model_url as any,
         1,
         userId?.toString() ?? '',
         ctx,
-        ctx.botInfo?.username
+        bot_name
       )
+      console.log('✅ [DEBUG] generateNeuroPhotoHybrid завершен:', result)
+
+      // ✅ ПРОВЕРЯЕМ РЕЗУЛЬТАТ: Показываем сообщение только если генерация успешна
+      if (!result || !result.success) {
+        console.log('❌ [DEBUG] Генерация не удалась, результат:', result)
+        // Сообщение об ошибке уже отправлено в generateNeuroPhotoHybrid или generateNeuroPhotoDirect
+        return ctx.scene.leave()
+      }
+
+      // ✅ ТОЛЬКО ЕСЛИ ГЕНЕРАЦИЯ УСПЕШНА: Показываем кнопки для дополнительной генерации
       console.log(
-        '✅ [DEBUG] generateNeuroPhotoHybrid завершен успешно:',
-        result
+        '🔄 [DEBUG] Генерация успешна, показываем кнопки для дополнительной генерации'
       )
+
+      const additionalGenerationKeyboard = {
+        reply_markup: {
+          keyboard: [
+            [{ text: '1' }, { text: '2' }, { text: '3' }, { text: '4' }],
+            [
+              { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
+              { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+            ],
+            [
+              { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
+              { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
+            ],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: false,
+        },
+      }
+
+      await ctx.reply(
+        isRu
+          ? '✨ Нейрофото сгенерировано! Выберите количество дополнительных изображений или используйте другие опции:'
+          : '✨ Neurophoto generated! Choose the number of additional images or use other options:',
+        additionalGenerationKeyboard
+      )
+
+      // Переходим к следующему шагу для обработки кнопок
+      ctx.wizard.next()
+      return
     } catch (error) {
       console.error('❌ [DEBUG] Ошибка в generateNeuroPhotoHybrid:', error)
-      const isRu = isRussianFromState(ctx)
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при генерации изображения. Попробуйте позже.'
           : '❌ Error occurred during image generation. Please try again later.'
       )
-      return
+      return ctx.scene.leave()
     }
-
-    // После генерации показываем кнопки для дополнительной генерации
-    console.log('🔄 [DEBUG] Показываем кнопки для дополнительной генерации')
-
-    const isRu = isRussianFromState(ctx)
-    const additionalGenerationKeyboard = {
-      reply_markup: {
-        keyboard: [
-          [{ text: '1' }, { text: '2' }, { text: '3' }, { text: '4' }],
-          [
-            { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
-            { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
-          ],
-          [
-            { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
-            { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
-          ],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false,
-      },
-    }
-
-    await ctx.reply(
-      isRu
-        ? '✨ Нейрофото сгенерировано! Выберите количество дополнительных изображений или используйте другие опции:'
-        : '✨ Neurophoto generated! Choose the number of additional images or use other options:',
-      additionalGenerationKeyboard
-    )
-
-    // Переходим к следующему шагу для обработки кнопок
-    ctx.wizard.next()
-    return
   }
 }
 

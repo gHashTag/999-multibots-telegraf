@@ -14,6 +14,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
 
 // Функция для отправки уведомления админу о проблеме с сервером
+// ✅ ИСПРАВЛЕНО: Не отправляем сообщение пользователю, который инициировал запрос
 async function notifyAdminAboutServerIssue(
   error: string,
   telegram_id: string,
@@ -26,6 +27,21 @@ async function notifyAdminAboutServerIssue(
 
     if (!botResult.bot) return
 
+    // ✅ ИСКЛЮЧАЕМ пользователя, который инициировал запрос, из списка получателей
+    const otherAdmins = adminIds.filter(
+      adminId => adminId.trim() !== telegram_id.toString()
+    )
+
+    // Если нет других админов, просто логируем без отправки сообщения
+    if (otherAdmins.length === 0) {
+      logger.warn('[ADMIN NOTIFICATION] No other admins to notify', {
+        telegram_id,
+        error,
+        note: 'User is the only admin, skipping notification',
+      })
+      return
+    }
+
     const errorMessage =
       `🚨 **SERVER DOWN ALERT**\n\n` +
       `📍 План Б активирован для нейрофото генерации\n` +
@@ -35,14 +51,16 @@ async function notifyAdminAboutServerIssue(
       `🔄 Используется локальная обработка\n\n` +
       `⚠️ Проверьте сервер: ${isDev ? LOCAL_SERVER_URL : API_SERVER_URL_FINAL}`
 
-    for (const adminId of adminIds) {
+    // Отправляем только другим админам (не пользователю, который инициировал запрос)
+    for (const adminId of otherAdmins) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
         parse_mode: 'Markdown',
       })
     }
 
-    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
-      adminIds,
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to other admins', {
+      notifiedAdmins: otherAdmins,
+      excludedUser: telegram_id,
       error,
     })
   } catch (notifyError) {
@@ -355,8 +373,7 @@ export async function generateNeuroPhotoHybrid(
       telegram_id,
     })
 
-    // 🚨 УВЕДОМЛЕНИЕ АДМИНУ О ПРОБЛЕМЕ С СЕРВЕРОМ
-    await notifyAdminAboutServerIssue(String(error), telegram_id, botName)
+    // ✅ УДАЛЕНО: Уведомление админу о проблеме с сервером (не нужно беспокоить пользователя)
 
     try {
       const localResult = await generateNeuroPhotoDirect(

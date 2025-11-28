@@ -74,17 +74,17 @@ uploadTrainFluxModelScene.enter(async ctx => {
     // ✅ Send Inngest event instead of local training (по аналогии с ai-server)
     const zipUrl = `${PUBLIC_URL}/uploads/${ctx.session.targetUserId}/train/${path.basename(zipPath)}`
 
-    console.log('[uploadTrainFluxModelScene] Sending Inngest event via RENDER provider:', {
+    console.log('[uploadTrainFluxModelScene] Sending Inngest event via BOT provider:', {
       modelName: ctx.session.modelName,
       triggerWord,
       steps: ctx.session.steps,
       zipUrl,  // HTTP URL как в ai-server
       bot_name,
-      instance: 'RENDER'
+      instance: 'BOT'
     })
 
     try {
-      const eventResult = await inngestProvider.sendEvent('RENDER', 'model/training.start', {
+      const eventResult = await inngestProvider.sendEvent('BOT', 'model/training.start', {
         bot_name,
         is_ru: isRu,
         modelName: ctx.session.modelName,
