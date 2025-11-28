@@ -171,11 +171,19 @@ export async function generateNeuroPhotoDirect(
   const now = Date.now()
   const cacheEntry = idemCache.get(idempotencyKey)
   if (cacheEntry && cacheEntry.expiresAt > now) {
+    console.log('⚠️ [IDEMPOTENCY] Найден локальный результат в кэше, ПРОПУСКАЕМ ГЕНЕРАЦИЮ!', {
+      idempotencyKey,
+      telegram_id,
+      promptSample: prompt.substring(0, 50) + '...',
+    })
     logger.info({
       message: '[IDEMPOTENCY] Найден локальный результат',
       idempotencyKey,
     })
-    return cacheEntry.result
+    // ❌ ПРОБЛЕМА: Возвращаем закэшированный результат, но изображение НЕ отправляется!
+    // ✅ РЕШЕНИЕ: Для повторных генераций нужно генерировать новое изображение
+    // Временно отключаем кэш для повторных генераций
+    // return cacheEntry.result
   }
   // --- Проверка идемпотентности ---
   // Псевдокод: ищем в Supabase (таблица payments_v2 или idempotency_keys) запись с этим ключом и created_at > now() - TTL
@@ -198,6 +206,11 @@ export async function generateNeuroPhotoDirect(
   if (idemRows && idemRows.length > 0) {
     const row = idemRows[0]
     if (row.result) {
+      console.log('⚠️ [IDEMPOTENCY] Найден результат в БД, ПРОПУСКАЕМ ГЕНЕРАЦИЮ!', {
+        idempotencyKey,
+        telegram_id,
+        promptSample: prompt.substring(0, 50) + '...',
+      })
       logger.info({
         message: '[IDEMPOTENCY] Найден результат, возвращаю сохранённый',
         idempotencyKey,
@@ -206,7 +219,10 @@ export async function generateNeuroPhotoDirect(
         result: row.result,
         expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
       })
-      return row.result
+      // ❌ ПРОБЛЕМА: Возвращаем закэшированный результат, но изображение НЕ отправляется!
+      // ✅ РЕШЕНИЕ: Для повторных генераций нужно генерировать новое изображение
+      // Временно отключаем кэш для повторных генераций
+      // return row.result
     }
     logger.info({
       message: '[IDEMPOTENCY] Операция уже выполняется, возвращаю статус',
