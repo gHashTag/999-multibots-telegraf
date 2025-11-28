@@ -472,18 +472,24 @@ export async function generateNeuroPhotoDirect(
     // Генерируем изображения
     const generatedUrls = []
 
+    logger.info({
+      message: '🔄 [DIRECT] НАЧАЛО ЦИКЛА ГЕНЕРАЦИИ ИЗОБРАЖЕНИЙ',
+      description: 'STARTING IMAGE GENERATION LOOP',
+      telegram_id,
+      validNumImages,
+      totalIterations: validNumImages,
+    })
+
     for (let i = 0; i < validNumImages; i++) {
-      // --- DEBUG LOG ---
-      // console.log(
-      //   '>>> generateNeuroPhotoDirect: LOOP Iteration',
-      //   {
-      //     telegram_id: telegram_id,
-      //     iteration: i,
-      //     totalIterations: validNumImages,
-      //     promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null'
-      //   }
-      // );
-      // --- END DEBUG LOG ---
+      logger.info({
+        message: '🔄 [DIRECT] ИТЕРАЦИЯ ЦИКЛА ГЕНЕРАЦИИ',
+        description: 'LOOP ITERATION',
+        telegram_id,
+        iteration: i,
+        totalIterations: validNumImages,
+        promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
+      })
+
       try {
         // Отправляем сообщение о начале генерации для каждого изображения
         if (!options?.disable_telegram_sending) {
@@ -760,7 +766,7 @@ export async function generateNeuroPhotoDirect(
             imageUrl: imageUrl.substring(0, 50) + '...',
             disable_telegram_sending: options?.disable_telegram_sending,
           })
-          
+
           try {
             logger.info({
               message: '🔍 [DIRECT] Проверка перед отправкой изображения',
@@ -924,9 +930,13 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
             })
           } catch (savePromptError) {
             logger.error({
-              message: '⚠️ [DIRECT] Ошибка при сохранении промпта (не критично)',
+              message:
+                '⚠️ [DIRECT] Ошибка при сохранении промпта (не критично)',
               description: 'Error saving prompt (non-critical)',
-              error: savePromptError instanceof Error ? savePromptError.message : 'Unknown error',
+              error:
+                savePromptError instanceof Error
+                  ? savePromptError.message
+                  : 'Unknown error',
               telegram_id,
             })
             // Продолжаем выполнение, это не критично
