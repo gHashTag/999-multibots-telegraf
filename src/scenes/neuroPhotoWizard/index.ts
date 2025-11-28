@@ -359,13 +359,15 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
       const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
 
+      // ✅ ИСПРАВЛЕНО: Используем правильное имя бота из системы через getBotNameByToken
+      const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
       await generateNeuroPhotoHybrid(
         fullPrompt,
         ctx.session.userModel.model_url as any,
         num,
         userId?.toString() ?? '',
         ctx,
-        ctx.botInfo?.username
+        bot_name
       )
     }
 
