@@ -70,17 +70,32 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const botToken = (ctx.telegram as any).token || (ctx as any).botInfo?.token
     const { bot_name } = getBotNameByToken(botToken)
 
-    // ✅ Конвертируем ZIP в base64 напрямую (без лишних загрузок)
+    // ✅ Загружаем ZIP файл в Supabase Storage (Inngest имеет лимит 256KB на событие)
+    // Base64 ZIP файл может быть >1MB, поэтому используем URL вместо base64
+    const zipFileName = `train/${ctx.session.targetUserId}/${Date.now()}_${path.basename(zipPath)}`
     const zipBuffer = await fs.promises.readFile(zipPath)
-    const base64Data = zipBuffer.toString('base64')
-    const zipDataUri = `data:application/zip;base64,${base64Data}`
 
-    console.log('[uploadTrainFluxModelScene] ZIP converted to base64', {
-      originalSize: zipBuffer.length,
-      base64Length: base64Data.length,
-    })
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('uploads')
+      .upload(zipFileName, zipBuffer, {
+        contentType: 'application/zip',
+        upsert: true,
+      })
 
-    // ✅ Удаляем локальный ZIP файл после конвертации
+    if (uploadError) {
+      throw new Error(
+        `Failed to upload ZIP to Supabase: ${uploadError.message}`
+      )
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('uploads')
+      .getPublicUrl(zipFileName)
+
+    const zipUrl = publicUrlData.publicUrl
+    console.log('[uploadTrainFluxModelScene] ZIP uploaded to Supabase:', zipUrl)
+
+    // ✅ Удаляем локальный ZIP файл после загрузки
     try {
       await fs.promises.unlink(zipPath)
       console.log('[uploadTrainFluxModelScene] Local ZIP file cleaned up')
@@ -97,7 +112,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
         modelName: ctx.session.modelName,
         triggerWord,
         steps: ctx.session.steps,
-        zipDataUriSize: zipDataUri.length,
+        zipUrl, // HTTP URL из Supabase
         bot_name,
         instance: 'BOT',
       }
@@ -114,7 +129,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
           steps: ctx.session.steps,
           telegram_id: ctx.session.targetUserId.toString(),
           triggerWord,
-          zipDataUri, // ✅ Base64 data URI напрямую
+          zipUrl, // ✅ HTTP URL из Supabase (Inngest лимит 256KB на событие)
           gender,
         }
       )

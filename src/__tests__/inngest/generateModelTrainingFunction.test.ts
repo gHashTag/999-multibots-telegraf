@@ -59,7 +59,21 @@ vi.mock('fs', () => ({
     existsSync: vi.fn(() => true),
     mkdirSync: vi.fn(),
     statSync: vi.fn(() => ({ size: 1024 })),
-    createWriteStream: vi.fn(),
+    createWriteStream: vi.fn(() => {
+      // Мок writer с методами on для обработки событий
+      const writer = {
+        on: vi.fn((event: string, callback: () => void) => {
+          if (event === 'finish') {
+            // Вызываем callback асинхронно
+            process.nextTick(() => callback())
+          }
+          return writer
+        }),
+        write: vi.fn(),
+        end: vi.fn(),
+      }
+      return writer
+    }),
     readFileSync: vi.fn(() => Buffer.from('test zip content')),
     promises: {
       unlink: vi.fn(),
@@ -74,16 +88,27 @@ vi.mock('path', () => ({
 }))
 
 vi.mock('axios', () => ({
-  default: vi.fn(() => ({
-    data: {
-      pipe: vi.fn(),
-      on: vi.fn((event: string, callback: () => void) => {
-        if (event === 'finish') {
-          setTimeout(callback, 0)
+  default: vi.fn(() => {
+    // Создаем мок потока для axios response
+    const mockStream = {
+      pipe: vi.fn((writer: any) => {
+        // Симулируем завершение записи - вызываем finish событие
+        if (writer && typeof writer.on === 'function') {
+          process.nextTick(() => {
+            // Находим обработчик 'finish' и вызываем его
+            const finishHandler = writer.on.mock.calls.find(
+              (call: any[]) => call[0] === 'finish'
+            )?.[1]
+            if (finishHandler) {
+              finishHandler()
+            }
+          })
         }
+        return mockStream
       }),
-    },
-  })),
+    }
+    return { data: mockStream }
+  }),
 }))
 
 // Импорты после моков
@@ -113,7 +138,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -148,7 +173,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -176,14 +201,14 @@ describe('generateModelTrainingFunction', () => {
     })
   })
 
-  describe('обработка base64 data URI', () => {
-    it('должен использовать zipDataUri напрямую без загрузки', async () => {
+  describe('загрузка ZIP файла', () => {
+    it('должен загрузить ZIP файл по URL из Supabase', async () => {
       const functionHandler = createGenerateModelTrainingFunction(mockInngest)
       const mockEvent = createMockEvent({
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -192,6 +217,12 @@ describe('generateModelTrainingFunction', () => {
 
       const mockStep = createMockStep()
       mockStep.run.mockImplementation(async (name, fn) => {
+        if (name === 'download-zip') {
+          return '/tmp/training-123-1234567890.zip'
+        }
+        if (name === 'convert-to-base64') {
+          return 'data:application/zip;base64,dGVzdA=='
+        }
         if (name === 'sanitize-model-name') {
           return {
             destination: 'testuser/test-model-123',
@@ -205,6 +236,9 @@ describe('generateModelTrainingFunction', () => {
           return { id: 'training-123', status: 'starting' }
         }
         if (name === 'save-training-record') {
+          return undefined
+        }
+        if (name === 'cleanup-zip-file') {
           return undefined
         }
         if (name === 'send-telegram-notification') {
@@ -223,19 +257,26 @@ describe('generateModelTrainingFunction', () => {
         status: 'starting',
       } as any)
 
-      const result = await functionHandler({
-        event: mockEvent,
-        step: mockStep,
-      } as any)
+      // Мокаем setTimeout
+      const originalSetTimeout = global.setTimeout
+      global.setTimeout = vi.fn((callback: () => void) => {
+        Promise.resolve().then(() => callback())
+        return {} as any
+      }) as any
 
-      expect(result.success).toBe(true)
-      expect(result.training_id).toBe('training-123')
-      expect(logger.info).toHaveBeenCalledWith(
-        '[INNGEST TRAINING] Using base64 data URI directly',
-        expect.objectContaining({
-          dataUriLength: expect.any(Number),
-        })
-      )
+      try {
+        const result = await functionHandler({
+          event: mockEvent,
+          step: mockStep,
+        } as any)
+
+        expect(result.success).toBe(true)
+        expect(result.training_id).toBe('training-123')
+        // Проверяем, что step.run был вызван с правильным именем для загрузки ZIP
+        expect(mockStep.run).toHaveBeenCalledWith('download-zip', expect.any(Function))
+      } finally {
+        global.setTimeout = originalSetTimeout
+      }
     })
   })
 
@@ -246,7 +287,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'Test Model 123!@#',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -255,6 +296,12 @@ describe('generateModelTrainingFunction', () => {
 
       const mockStep = createMockStep()
       mockStep.run.mockImplementation(async (name, fn) => {
+        if (name === 'download-zip') {
+          return '/tmp/training-123-1234567890.zip'
+        }
+        if (name === 'convert-to-base64') {
+          return 'data:application/zip;base64,dGVzdA=='
+        }
         if (name === 'sanitize-model-name') {
           return fn()
         }
@@ -265,6 +312,9 @@ describe('generateModelTrainingFunction', () => {
           return { id: 'training-123', status: 'starting' }
         }
         if (name === 'save-training-record') {
+          return undefined
+        }
+        if (name === 'cleanup-zip-file') {
           return undefined
         }
         if (name === 'send-telegram-notification') {
@@ -312,7 +362,7 @@ describe('generateModelTrainingFunction', () => {
           telegram_id: '123',
           modelName: 'test-model',
           triggerWord: 'TEST',
-          zipDataUri: 'data:application/zip;base64,dGVzdA==',
+          zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
           steps: 1000,
           bot_name: 'test_bot',
           is_ru: true,
@@ -376,7 +426,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -385,6 +435,12 @@ describe('generateModelTrainingFunction', () => {
 
       const mockStep = createMockStep()
       mockStep.run.mockImplementation(async (name, fn) => {
+        if (name === 'download-zip') {
+          return '/tmp/training-123-1234567890.zip'
+        }
+        if (name === 'convert-to-base64') {
+          return 'data:application/zip;base64,dGVzdA=='
+        }
         if (name === 'sanitize-model-name') {
           return {
             destination: 'testuser/test-model-123',
@@ -398,6 +454,9 @@ describe('generateModelTrainingFunction', () => {
           return { id: 'training-123', status: 'starting' }
         }
         if (name === 'save-training-record') {
+          return undefined
+        }
+        if (name === 'cleanup-zip-file') {
           return undefined
         }
         if (name === 'send-telegram-notification') {
@@ -431,7 +490,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -478,11 +537,11 @@ describe('generateModelTrainingFunction', () => {
       expect(replicate.trainings.create).toHaveBeenCalledWith(
         'ostris',
         'flux-dev-lora-trainer',
-        expect.any(String),
+        expect.any(String), // version ID
         expect.objectContaining({
           destination: 'testuser/test-model-123',
           input: expect.objectContaining({
-            input_images: 'data:application/zip;base64,dGVzdA==',
+            input_images: expect.stringContaining('data:application/zip;base64,'),
             trigger_word: 'TEST',
             steps: 1000,
             lora_rank: 128,
@@ -503,7 +562,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: '2000', // string
         bot_name: 'test_bot',
         is_ru: true,
@@ -567,7 +626,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -622,7 +681,7 @@ describe('generateModelTrainingFunction', () => {
           telegram_id: '123',
           model_name: 'test-model',
           trigger_word: 'TEST',
-          zip_url: null,
+          zip_url: expect.stringContaining('supabase'),
           replicate_training_id: 'training-123',
           status: 'processing',
           bot_name: 'test_bot',
@@ -641,7 +700,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -718,7 +777,7 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipDataUri: 'data:application/zip;base64,dGVzdA==',
+        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,

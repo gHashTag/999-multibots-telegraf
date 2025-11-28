@@ -33,7 +33,7 @@ interface ModelTrainingEvent {
     bot_name: string
     modelName: string
     triggerWord: string
-    zipDataUri: string // Base64 data URI (data:application/zip;base64,...)
+    zipUrl: string // HTTP URL to ZIP file in Supabase Storage
     steps: number | string // Can be string from scene
     is_ru: boolean
     gender: string
@@ -59,10 +59,10 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         const startTime = Date.now()
 
         logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
-          telegram_id: eventData.telegram_id,
-          modelName: eventData.modelName,
-          zipDataUriSize: eventData.zipDataUri.length,
-          steps: eventData.steps,
+            telegram_id: eventData.telegram_id,
+            modelName: eventData.modelName,
+            zipUrl: eventData.zipUrl,
+            steps: eventData.steps,
           bot_name: eventData.bot_name,
         })
 
@@ -85,14 +85,60 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           hasToken: !!REPLICATE_API_TOKEN,
         })
 
-        // ✅ STEP 2: Используем base64 data URI напрямую (убрали лишние загрузки)
-        const dataUri = eventData.zipDataUri
+        // ✅ STEP 2: Download ZIP file from URL (Inngest лимит 256KB на событие)
+        const zipFilePath = await step.run('download-zip', async () => {
+          logger.info('[INNGEST TRAINING] Downloading ZIP file', {
+            zipUrl: eventData.zipUrl,
+          })
 
-        logger.info('[INNGEST TRAINING] Using base64 data URI directly', {
-          dataUriLength: dataUri.length,
+          const tempDir = path.join(process.cwd(), 'tmp')
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true })
+          }
+
+          const fileName = `training-${eventData.telegram_id}-${Date.now()}.zip`
+          const filePath = path.join(tempDir, fileName)
+
+          const response = await axios({
+            method: 'GET',
+            url: eventData.zipUrl,
+            responseType: 'stream',
+            timeout: 60000, // 60 seconds timeout
+          })
+
+          const writer = fs.createWriteStream(filePath)
+          response.data.pipe(writer)
+
+          await new Promise<void>((resolve, reject) => {
+            writer.on('finish', () => resolve())
+            writer.on('error', reject)
+          })
+
+          const stats = fs.statSync(filePath)
+          logger.info('[INNGEST TRAINING] ZIP file downloaded', {
+            filePath,
+            size: stats.size,
+          })
+
+          return filePath
         })
 
-        // ✅ STEP 3: Sanitize model name
+        // ✅ STEP 3: Convert ZIP to base64
+        const dataUri = await step.run('convert-to-base64', async () => {
+          logger.info('[INNGEST TRAINING] Converting ZIP to base64')
+          const fileBuffer = fs.readFileSync(zipFilePath)
+          const base64Data = fileBuffer.toString('base64')
+          const dataUri = `data:application/zip;base64,${base64Data}`
+
+          logger.info('[INNGEST TRAINING] Base64 conversion complete', {
+            originalSize: fileBuffer.length,
+            base64Length: base64Data.length,
+          })
+
+          return dataUri
+        })
+
+        // ✅ STEP 4: Sanitize model name
         const modelNameSanitized = await step.run(
           'sanitize-model-name',
           async () => {
@@ -119,7 +165,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           }
         )
 
-        // ✅ STEP 4: Create/validate Replicate model
+        // ✅ STEP 5: Create/validate Replicate model
         await step.run('create-replicate-model', async () => {
           logger.info('[INNGEST TRAINING] Checking/creating Replicate model', {
             destination: modelNameSanitized.destination,
@@ -152,7 +198,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           }
         })
 
-        // ✅ STEP 5: Create Replicate training
+        // ✅ STEP 6: Create Replicate training
         const training = await step.run(
           'create-replicate-training',
           async () => {
@@ -204,7 +250,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           }
         )
 
-        // ✅ STEP 6: Save training record to database
+        // ✅ STEP 7: Save training record to database
         await step.run('save-training-record', async () => {
           const stepsNumber =
             typeof eventData.steps === 'string'
@@ -215,7 +261,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
             telegram_id: eventData.telegram_id,
             model_name: eventData.modelName,
             trigger_word: eventData.triggerWord,
-            zip_url: null, // ✅ Больше не используем URL, передаем base64 напрямую
+            zip_url: eventData.zipUrl,
             replicate_training_id: training.id,
             status: 'processing',
             bot_name: eventData.bot_name,
@@ -239,7 +285,27 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           }
         })
 
-        // ✅ STEP 7: Send Telegram notification to user
+        // ✅ STEP 8: Clean up downloaded ZIP file
+        await step.run('cleanup-zip-file', async () => {
+          try {
+            if (fs.existsSync(zipFilePath)) {
+              await fs.promises.unlink(zipFilePath)
+              logger.info('[INNGEST TRAINING] ZIP file cleaned up')
+            }
+          } catch (unlinkError) {
+            logger.warn(
+              '[INNGEST TRAINING] Failed to cleanup ZIP (non-fatal)',
+              {
+                error:
+                  unlinkError instanceof Error
+                    ? unlinkError.message
+                    : String(unlinkError),
+              }
+            )
+          }
+        })
+
+        // ✅ STEP 9: Send Telegram notification to user
         await step.run('send-telegram-notification', async () => {
           const botData = getBotByNameAdapter(eventData.bot_name)
 
