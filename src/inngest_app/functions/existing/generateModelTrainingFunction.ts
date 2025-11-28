@@ -59,10 +59,10 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         const startTime = Date.now()
 
         logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
-            telegram_id: eventData.telegram_id,
-            modelName: eventData.modelName,
-            zipUrl: eventData.zipUrl,
-            steps: eventData.steps,
+          telegram_id: eventData.telegram_id,
+          modelName: eventData.modelName,
+          zipUrl: eventData.zipUrl,
+          steps: eventData.steps,
           bot_name: eventData.bot_name,
         })
 

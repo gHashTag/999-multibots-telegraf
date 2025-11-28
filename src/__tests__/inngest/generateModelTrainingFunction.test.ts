@@ -138,7 +138,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -173,7 +174,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -208,7 +210,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -273,7 +276,10 @@ describe('generateModelTrainingFunction', () => {
         expect(result.success).toBe(true)
         expect(result.training_id).toBe('training-123')
         // Проверяем, что step.run был вызван с правильным именем для загрузки ZIP
-        expect(mockStep.run).toHaveBeenCalledWith('download-zip', expect.any(Function))
+        expect(mockStep.run).toHaveBeenCalledWith(
+          'download-zip',
+          expect.any(Function)
+        )
       } finally {
         global.setTimeout = originalSetTimeout
       }
@@ -287,7 +293,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'Test Model 123!@#',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -362,7 +369,8 @@ describe('generateModelTrainingFunction', () => {
           telegram_id: '123',
           modelName: 'test-model',
           triggerWord: 'TEST',
-          zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+          zipUrl:
+            'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
           steps: 1000,
           bot_name: 'test_bot',
           is_ru: true,
@@ -426,7 +434,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -490,7 +499,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -541,7 +551,9 @@ describe('generateModelTrainingFunction', () => {
         expect.objectContaining({
           destination: 'testuser/test-model-123',
           input: expect.objectContaining({
-            input_images: expect.stringContaining('data:application/zip;base64,'),
+            input_images: expect.stringContaining(
+              'data:application/zip;base64,'
+            ),
             trigger_word: 'TEST',
             steps: 1000,
             lora_rank: 128,
@@ -562,7 +574,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: '2000', // string
         bot_name: 'test_bot',
         is_ru: true,
@@ -626,7 +639,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -700,7 +714,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
@@ -777,7 +792,8 @@ describe('generateModelTrainingFunction', () => {
         telegram_id: '123',
         modelName: 'test-model',
         triggerWord: 'TEST',
-        zipUrl: 'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
+        zipUrl:
+          'https://supabase.co/storage/v1/object/public/uploads/train/123/test.zip',
         steps: 1000,
         bot_name: 'test_bot',
         is_ru: true,
