@@ -82,9 +82,14 @@ async function generateImageWithFalAndLora(prompt: string): Promise<string> {
 
   const output = result as any
 
+  // ✅ ИСПРАВЛЕНО: Fal.ai возвращает ответ в формате { data: { images: [...] } }
   // Extract image URL from different possible response formats
   let imageUrl: string
-  if (output.images && Array.isArray(output.images) && output.images[0]) {
+  
+  // Проверяем новый формат: { data: { images: [...] } }
+  if (output.data && output.data.images && Array.isArray(output.data.images) && output.data.images[0]) {
+    imageUrl = output.data.images[0].url
+  } else if (output.images && Array.isArray(output.images) && output.images[0]) {
     imageUrl = output.images[0].url
   } else if (output.image_url) {
     imageUrl = output.image_url
