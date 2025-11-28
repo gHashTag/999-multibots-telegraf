@@ -726,7 +726,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     const isRu = isRussianFromState(ctx)
     const prompt = ctx.session.prompt
     const telegramId = ctx.from.id
-    const numImages = parseInt(text[0])
+    
+    // ✅ ИСПРАВЛЕНО: Правильный парсинг эмодзи кнопок (как в neuroPhotoButtonStep)
+    let numImages: number
+    if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text)) {
+      numImages = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].indexOf(text) + 1
+    } else {
+      numImages = parseInt(text, 10)
+    }
+    
+    logger.debug(`Парсинг кнопки: text="${text}", numImages=${numImages}`)
 
     // --- DEBUG LOG ---
     logger.debug('>>> HEARS HANDLER (1-4):', {
@@ -790,13 +799,23 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
 
         const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
 
+        // ✅ ВОССТАНОВЛЕНО: Получаем aspect ratio пользователя (как в neuroPhotoButtonStep)
+        const { getAspectRatio } = await import('@/core/supabase')
+        const userAspectRatio = await getAspectRatio(telegramId)
+        logger.debug(`[hearsHandlers 1-4] aspectRatio пользователя: ${userAspectRatio}`)
+
+        // ✅ ИСПРАВЛЕНО: Используем правильное имя бота из системы через getBotNameByToken
+        const { getBotNameByToken } = await import('@/core/bot')
+        const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
+
         await generateNeuroPhotoHybrid(
           fullPrompt,
           ctx.session.userModel.model_url,
           num,
           telegramId.toString(),
           ctx,
-          ctx.botInfo?.username
+          bot_name,
+          userAspectRatio
         )
       } else if (ctx.session.mode === ModeEnum.TextToImage) {
         const modelToUse = ctx.session.selectedImageModel
