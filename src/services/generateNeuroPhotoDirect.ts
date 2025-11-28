@@ -2,7 +2,8 @@ import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-// ✅ ВОССТАНОВЛЕНО: Используем ctx.telegram вместо getBotByName
+// ✅ ИСПРАВЛЕНО: Используем getBotByName для правильного определения бота
+import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
@@ -171,11 +172,14 @@ export async function generateNeuroPhotoDirect(
   const now = Date.now()
   const cacheEntry = idemCache.get(idempotencyKey)
   if (cacheEntry && cacheEntry.expiresAt > now) {
-    console.log('⚠️ [IDEMPOTENCY] Найден локальный результат в кэше, ПРОПУСКАЕМ ГЕНЕРАЦИЮ!', {
-      idempotencyKey,
-      telegram_id,
-      promptSample: prompt.substring(0, 50) + '...',
-    })
+    console.log(
+      '⚠️ [IDEMPOTENCY] Найден локальный результат в кэше, ПРОПУСКАЕМ ГЕНЕРАЦИЮ!',
+      {
+        idempotencyKey,
+        telegram_id,
+        promptSample: prompt.substring(0, 50) + '...',
+      }
+    )
     logger.info({
       message: '[IDEMPOTENCY] Найден локальный результат',
       idempotencyKey,
@@ -206,11 +210,14 @@ export async function generateNeuroPhotoDirect(
   if (idemRows && idemRows.length > 0) {
     const row = idemRows[0]
     if (row.result) {
-      console.log('⚠️ [IDEMPOTENCY] Найден результат в БД, ПРОПУСКАЕМ ГЕНЕРАЦИЮ!', {
-        idempotencyKey,
-        telegram_id,
-        promptSample: prompt.substring(0, 50) + '...',
-      })
+      console.log(
+        '⚠️ [IDEMPOTENCY] Найден результат в БД, ПРОПУСКАЕМ ГЕНЕРАЦИЮ!',
+        {
+          idempotencyKey,
+          telegram_id,
+          promptSample: prompt.substring(0, 50) + '...',
+        }
+      )
       logger.info({
         message: '[IDEMPOTENCY] Найден результат, возвращаю сохранённый',
         idempotencyKey,
@@ -300,19 +307,34 @@ export async function generateNeuroPhotoDirect(
     const is_ru = isRussianFromState(ctx)
     const username = ctx.from?.username || 'unknown'
 
-    // Получаем экземпляр бота
+    // ✅ ИСПРАВЛЕНО: Получаем правильный экземпляр бота по botName
     logger.info({
       message: '🤖 [DIRECT] Получение экземпляра бота',
       description: 'Getting bot instance',
       botName,
     })
 
-    // ✅ ВОССТАНОВЛЕНО: Используем ctx.telegram вместо bot.telegram
-    // ctx.telegram автоматически использует правильный бот из контекста
+    const botData = getBotByName(botName as BotName)
+    if (!botData.bot || botData.error) {
+      logger.error({
+        message: '❌ [DIRECT] Бот не найден',
+        description: 'Bot not found',
+        botName,
+        telegram_id,
+        error: botData.error,
+      })
+      throw new Error(
+        `Bot ${botName} not found: ${botData.error || 'Unknown error'}`
+      )
+    }
+
+    const bot = botData.bot
+
     logger.info({
-      message: '✅ [DIRECT] Используем ctx.telegram для отправки сообщений',
-      description: 'Using ctx.telegram for message sending',
+      message: '✅ [DIRECT] Используем getBotByName для отправки сообщений',
+      description: 'Using getBotByName for message sending',
       botName,
+      botInstanceExists: !!bot,
     })
 
     // Проверяем существование пользователя
@@ -335,8 +357,8 @@ export async function generateNeuroPhotoDirect(
       )
 
       try {
-        await ctx.telegram.sendMessage(
-          telegram_id,
+        await bot.telegram.sendMessage(
+          parseInt(telegram_id),
           is_ru
             ? '❌ Ваш аккаунт не найден в базе данных. Пожалуйста, запустите бота заново с помощью команды /start'
             : '❌ Your account was not found in our database. Please restart the bot using the /start command'
@@ -436,8 +458,8 @@ export async function generateNeuroPhotoDirect(
 
       // Добавляем проверку disable_telegram_sending
       if (!options?.disable_telegram_sending) {
-        await ctx.telegram.sendMessage(
-          telegram_id,
+        await bot.telegram.sendMessage(
+          parseInt(telegram_id),
           is_ru
             ? '❌ Не удалось обработать платеж. Пожалуйста, проверьте баланс и попробуйте еще раз.'
             : '❌ Failed to process payment. Please check your balance and try again.'
@@ -532,8 +554,8 @@ export async function generateNeuroPhotoDirect(
         if (!options?.disable_telegram_sending) {
           if (validNumImages > 1) {
             try {
-              await ctx.telegram.sendMessage(
-                telegram_id,
+              await bot.telegram.sendMessage(
+                parseInt(telegram_id),
                 is_ru
                   ? `⏳ Генерация изображения ${i + 1} из ${validNumImages}`
                   : `⏳ Generating image ${i + 1} of ${validNumImages}`
@@ -553,8 +575,8 @@ export async function generateNeuroPhotoDirect(
             }
           } else {
             try {
-              await ctx.telegram.sendMessage(
-                telegram_id,
+              await bot.telegram.sendMessage(
+                parseInt(telegram_id),
                 is_ru ? '⏳ Генерация...' : '⏳ Generating...',
                 {
                   reply_markup: { remove_keyboard: true },
@@ -911,15 +933,15 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 
               // Отправляем фото С красивым caption
               logger.info({
-                message: '🚀 [DIRECT] Вызов ctx.telegram.sendPhoto',
-                description: 'Calling ctx.telegram.sendPhoto',
+                message: '🚀 [DIRECT] Вызов bot.telegram.sendPhoto',
+                description: 'Calling bot.telegram.sendPhoto',
                 telegram_id,
                 imageUrl: imageUrl.substring(0, 50) + '...',
                 captionLength: caption.length,
               })
 
-              await ctx.telegram.sendPhoto(
-                telegram_id,
+              await bot.telegram.sendPhoto(
+                parseInt(telegram_id),
                 { url: imageUrl },
                 {
                   caption,
@@ -1036,8 +1058,8 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
         // Отправляем сообщение об ошибке пользователю
         try {
           if (!options?.disable_telegram_sending) {
-            await ctx.telegram.sendMessage(
-              telegram_id,
+            await bot.telegram.sendMessage(
+              parseInt(telegram_id),
               is_ru
                 ? '❌ Произошла ошибка при генерации изображения. Мы вернем вам потраченные звезды в ближайшее время.'
                 : '❌ An error occurred while generating the image. We will refund your stars soon.'
@@ -1092,8 +1114,8 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 
             try {
               if (!options?.disable_telegram_sending) {
-                await ctx.telegram.sendMessage(
-                  telegram_id,
+                await bot.telegram.sendMessage(
+                  parseInt(telegram_id),
                   is_ru
                     ? `💰 Мы вернули вам ${refundAmount} звезд за неудачную генерацию изображения.`
                     : `💰 We have refunded you ${refundAmount} stars for the failed image generation.`
@@ -1151,7 +1173,7 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
           : `✅ Done! Successfully generated ${generatedUrls.length} out of ${validNumImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️`
 
         // 🚨 ИСПРАВЛЕНИЕ: Отправляем БЕЗ inline кнопок (wizard добавит reply keyboard)
-        await ctx.telegram.sendMessage(telegram_id, finalMessage)
+        await bot.telegram.sendMessage(parseInt(telegram_id), finalMessage)
 
         logger.info({
           message: '✅ [DIRECT] Итоговое сообщение отправлено (без кнопок)',
