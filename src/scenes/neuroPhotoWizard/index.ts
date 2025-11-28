@@ -36,9 +36,9 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     const { telegramId } = await getUserInfo(ctx)
 
-    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
-    const botToken = ctx.telegram.token
-    const { bot_name } = getBotNameByToken(botToken)
+    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ (используем botInfo.username вместо токена)
+    const bot_name =
+      ctx.botInfo?.username || getBotNameByToken(ctx.telegram.token).bot_name
     console.log(`🤖 Определен бот: ${bot_name} для пользователя ${telegramId}`)
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
@@ -390,7 +390,10 @@ export const neuroPhotoWizard = new Scenes.WizardScene<MyContext>(
 )
 
 neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
+  console.log('🔄 [CALLBACK] Received callback_query in neuroPhotoWizard')
+
   if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+    console.log('⚠️ [CALLBACK] Invalid callback_query structure')
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRuLocal = isRussianFromState(ctx)
     const message = isRuLocal
@@ -398,7 +401,10 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       : 'Button callback error'
     return ctx.answerCbQuery(message)
   }
+
   const callbackData = ctx.callbackQuery.data
+  console.log(`🔄 [CALLBACK] Processing callback_data: ${callbackData}`)
+
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
 
@@ -450,6 +456,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
     await mainMenu(ctx)
     return ctx.scene.leave()
   } else if (callbackData.startsWith('select_neuro_model_')) {
+    console.log(`🔄 [CALLBACK] Processing select_neuro_model: ${callbackData}`)
     let modelId = callbackData.replace('select_neuro_model_', '')
 
     // ✅ ОБРАБАТЫВАЕМ ОБЩИЕ МОДЕЛИ (УБИРАЕМ ПРЕФИКС shared_)
@@ -458,12 +465,21 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       modelId = modelId.replace('shared_', '')
     }
 
+    console.log(`🔍 [CALLBACK] Looking for model with ID: ${modelId}`)
     const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
+    console.log(
+      `📋 [CALLBACK] Available models in state:`,
+      userModels?.map(m => ({ id: m.id, model_name: m.model_name }))
+    )
+
     const selectedModel = userModels?.find(
       model => model.id.toString() === modelId
     )
 
     if (selectedModel) {
+      console.log(
+        `✅ [CALLBACK] Model found: ${selectedModel.model_name} (${selectedModel.id})`
+      )
       ctx.session.userModel = selectedModel as UserModel
       await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
       const isCancel = await handleHelpCancel(ctx)
@@ -472,12 +488,15 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       }
       ctx.wizard.next()
     } else {
+      console.log(`❌ [CALLBACK] Model not found for ID: ${modelId}`)
       await ctx.reply(
         isRu
           ? '❌ Модель не найдена. Попробуйте снова.'
           : '❌ Model not found. Please try again.'
       )
     }
+  } else {
+    console.log(`⚠️ [CALLBACK] Unknown callback_data: ${callbackData}`)
   }
 })
 

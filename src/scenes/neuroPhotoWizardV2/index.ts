@@ -44,9 +44,9 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     const { telegramId } = await getUserInfo(ctx)
 
-    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
-    const botToken = ctx.telegram.token
-    const { bot_name } = getBotNameByToken(botToken)
+    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ (используем botInfo.username вместо токена)
+    const bot_name =
+      ctx.botInfo?.username || getBotNameByToken(ctx.telegram.token).bot_name
     console.log(
       `🤖 Определен бот V2: ${bot_name} для пользователя ${telegramId}`
     )

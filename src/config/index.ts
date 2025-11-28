@@ -10,9 +10,13 @@ const loadResult = config({ path: envPath })
 // ✅ Infisical-first approach: .env может быть минимальным (только INFISICAL_* credentials)
 // Не падаем если .env пустой - Infisical загрузит все секреты
 if (loadResult.error) {
-  console.warn(`⚠️  Could not load .env file from ${envPath}, using environment variables only`)
+  console.warn(
+    `⚠️  Could not load .env file from ${envPath}, using environment variables only`
+  )
 } else if (!loadResult.parsed || Object.keys(loadResult.parsed).length === 0) {
-  console.warn(`⚠️  .env file is empty, expecting secrets from Infisical or environment`)
+  console.warn(
+    `⚠️  .env file is empty, expecting secrets from Infisical or environment`
+  )
 }
 
 // Set NODE_ENV default if not provided
@@ -91,10 +95,16 @@ export const {
   REPLICATE_USERNAME, // ✅ LOCAL TRAINING: Replicate username
 } = process.env
 
+// ✅ ИСПРАВЛЕНИЕ: API_SERVER_URL с fallback
+export const API_SERVER_URL_FINAL =
+  API_SERVER_URL ||
+  process.env.BASE_WEBHOOK_URL ||
+  'https://three-head-dragon.shop'
+
 // ✅ УПРОЩЕННАЯ СХЕМА: Один PUBLIC_URL для всех окружений
 // В dev: ngrok/cloudflare tunnel (устанавливается автоматически в src/index.ts)
 // В prod: домен с nginx (three-head-dragon.shop)
-export const PUBLIC_URL = process.env.BASE_WEBHOOK_URL || API_SERVER_URL || 'https://three-head-dragon.shop'
+export const PUBLIC_URL = process.env.BASE_WEBHOOK_URL || API_SERVER_URL_FINAL
 
 // 🔧 ИСПРАВЛЕНИЕ: Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
@@ -113,21 +123,22 @@ export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 export const DEFAULT_VOICE_IDS = {
   // Popular ElevenLabs default voices that should always be available
   RACHEL: 'EXAVITQu4vr4xnSDxMaL', // Rachel (English, default)
-  JOSH: 'TxGEqnHWrfWFTfGW9XjX',   // Josh (English, male)
-  ARIA: 'pMsXgVXv3BLzUgSXRplE',   // Aria (English, female)
+  JOSH: 'TxGEqnHWrfWFTfGW9XjX', // Josh (English, male)
+  ARIA: 'pMsXgVXv3BLzUgSXRplE', // Aria (English, female)
   ANTONI: 'ErXwobaYiN019PkySvjV', // Antoni (English, male)
-  ALICE: 'EmuBZcl4StXJQ6sqXm6H',  // Alice (English, female)
-  DOMI: 'AZnzlk1XvdvUeBnXmlld',   // Domi (English, female)
-  ELLI: 'MF3mGyEYCl7XYWbV9V6O',   // Elli (English, female)
+  ALICE: 'EmuBZcl4StXJQ6sqXm6H', // Alice (English, female)
+  DOMI: 'AZnzlk1XvdvUeBnXmlld', // Domi (English, female)
+  ELLI: 'MF3mGyEYCl7XYWbV9V6O', // Elli (English, female)
   FREYA: 'jsCqWAovK2LkecY7zXl4', // Freya (English, female)
-  MATILDA: 'XrExE9yKIg1WjnnlVkGX' // Matilda (English, female)
+  MATILDA: 'XrExE9yKIg1WjnnlVkGX', // Matilda (English, female)
 }
 
 // Primary fallback voice (most stable)
 export const PRIMARY_FALLBACK_VOICE_ID = DEFAULT_VOICE_IDS.RACHEL
 
 // Парсинг ADMIN_IDS в массив чисел
-const adminIdsString = process.env.ADMIN_IDS || process.env.ADMIN_TELEGRAM_ID || ''
+const adminIdsString =
+  process.env.ADMIN_IDS || process.env.ADMIN_TELEGRAM_ID || ''
 export const ADMIN_IDS_ARRAY: number[] = adminIdsString
   .split(',') // Разделяем строку по запятым
   .map(id => parseInt(id.trim(), 10)) // Преобразуем каждую часть в число

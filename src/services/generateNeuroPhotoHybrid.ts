@@ -2,7 +2,7 @@ import axios, { isAxiosError } from 'axios'
 import {
   isDev,
   SECRET_API_KEY,
-  API_SERVER_URL,
+  API_SERVER_URL_FINAL,
   LOCAL_SERVER_URL,
 } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -33,7 +33,7 @@ async function notifyAdminAboutServerIssue(
       `🤖 Bot: ${botName}\n` +
       `❌ Error: ${error}\n` +
       `🔄 Используется локальная обработка\n\n` +
-      `⚠️ Проверьте сервер: ${isDev ? LOCAL_SERVER_URL : API_SERVER_URL}`
+      `⚠️ Проверьте сервер: ${isDev ? LOCAL_SERVER_URL : API_SERVER_URL_FINAL}`
 
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
@@ -159,7 +159,8 @@ export async function generateNeuroPhotoHybrid(
 
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
-    const url = `${API_SERVER_URL}/generate/neuro-photo`
+    // ✅ ИСПРАВЛЕНИЕ: Используем API_SERVER_URL_FINAL с fallback
+    const url = `${API_SERVER_URL_FINAL}/generate/neuro-photo`
 
     const serverPayload = {
       prompt,

@@ -95,7 +95,7 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   try {
     logger.info('[API SERVER] Creating Inngest functions (after secrets loaded)...')
 
-    const allInngestFunctions = createAllInngestFunctions()
+    const allInngestFunctions = createAllInngestFunctions(inngest)
 
     if (allInngestFunctions && Array.isArray(allInngestFunctions) && allInngestFunctions.length > 0) {
       logger.info('[API SERVER] Registering Inngest functions', {

@@ -7,4 +7,5 @@ import { inngest } from '@/inngest_app/client'
 import { createGenerateModelTrainingFunction } from './existing/generateModelTrainingFunction'
 
 // Export the created function by calling the factory
-export const generateModelTraining = createGenerateModelTrainingFunction(inngest)
+export const generateModelTraining =
+  createGenerateModelTrainingFunction(inngest)

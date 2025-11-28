@@ -244,6 +244,13 @@ async function initializeBots() {
           console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${botInfo.username}`)
         }
 
+        // ✅ КРИТИЧНО: Регистрируем бот в объект bots для доступа через getBotByName
+        const { registerBotInstance } = await import('@/core/bot')
+        if (botInfo.username) {
+          registerBotInstance(bot, botInfo.username)
+          console.log(`✅ [BOT REGISTRY] Бот ${botInfo.username} зарегистрирован в объект bots`)
+        }
+
         // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
         const botPromise = bot.launch({
           allowedUpdates: [

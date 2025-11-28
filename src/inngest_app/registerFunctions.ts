@@ -7,31 +7,44 @@
 import { createWebhookMonitorFunctions } from './functions/kieAiWebhookMonitor'
 
 // Import migrated functions from ai-server - these also need to be made lazy
+import { createGenerateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 // import { neuroImageGeneration } from './functions/neuroImageGeneration'
 // import { morphImages } from './functions/morphImages'
-// import { generateModelTraining } from './functions/generateModelTraining'
 
 /**
  * Factory function to create all Inngest functions
  * This is called AFTER secrets are loaded from Infisical
  */
-export function createAllInngestFunctions() {
+export function createAllInngestFunctions(inngestClient?: any) {
   console.log('🔧 [INNGEST] Creating Inngest functions after secrets loaded...')
 
   const kieAiWebhookMonitorFunctions = createWebhookMonitorFunctions()
+  console.log(`📋 Kie.ai webhook monitor functions: ${kieAiWebhookMonitorFunctions.length}`)
+
+  // Create model training function using factory pattern
+  let modelTrainingFunction = null
+  try {
+    console.log('🔄 Creating model training function...')
+    modelTrainingFunction = createGenerateModelTrainingFunction(inngestClient)
+    console.log('✅ Model training function created successfully')
+  } catch (error) {
+    console.error('❌ Failed to create model training function:', error)
+    throw error
+  }
 
   // TODO: Convert other functions to lazy pattern
   // const neuroImageGeneration = createNeuroImageGeneration()
   // const morphImages = createMorphImages()
-  // const generateModelTraining = createGenerateModelTraining()
 
   const allInngestFunctions = [
     ...kieAiWebhookMonitorFunctions,
+    modelTrainingFunction,
     // ...neuroImageGeneration,
     // ...morphImages,
-    // ...generateModelTraining,
   ]
 
-  console.log(`✅ [INNGEST] Created ${allInngestFunctions.length} Inngest functions`)
+  console.log(
+    `✅ [INNGEST] Created ${allInngestFunctions.length} Inngest functions`
+  )
   return allInngestFunctions
 }

@@ -202,6 +202,27 @@ export async function createBotByName(botName: string): Promise<
   }
 }
 
+/**
+ * Регистрирует созданный бот в объект bots для доступа через getBotByName
+ * Вызывается после создания бота в src/index.ts
+ */
+export function registerBotInstance(bot: Telegraf<MyContext>, botName: string): void {
+  try {
+    const validBotName = toBotName(botName) as BotName
+    bots[validBotName] = bot
+    logger.info('✅ [BOT REGISTRY] Bot instance registered', {
+      description: 'Bot instance registered in bots object',
+      botName: validBotName,
+    })
+  } catch (error) {
+    logger.error('❌ [BOT REGISTRY] Failed to register bot instance', {
+      description: 'Failed to register bot instance',
+      botName,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
 export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
   error?: string | null
@@ -210,6 +231,12 @@ export function getBotByName(bot_name: string): {
     const validBotName = toBotName(bot_name)
     const bot = bots[validBotName]
     if (!bot) {
+      logger.warn('⚠️ [BOT REGISTRY] Bot instance not found', {
+        description: 'Bot instance not found in bots object',
+        requestedBotName: bot_name,
+        validBotName,
+        availableBots: Object.keys(bots),
+      })
       return { error: 'Bot instance not found' }
     }
     return { bot }
