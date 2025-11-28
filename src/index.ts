@@ -245,10 +245,14 @@ async function initializeBots() {
         }
 
         // ✅ КРИТИЧНО: Регистрируем бот в объект bots для доступа через getBotByName
-        const { registerBotInstance } = await import('@/core/bot')
-        if (botInfo.username) {
-          registerBotInstance(bot, botInfo.username)
-          console.log(`✅ [BOT REGISTRY] Бот ${botInfo.username} зарегистрирован в объект bots`)
+        // ✅ ИСПРАВЛЕНО: Используем getBotNameByToken для получения правильного имени системы
+        const { registerBotInstance, getBotNameByToken } = await import('@/core/bot')
+        const { bot_name: systemBotName } = getBotNameByToken(token)
+        if (systemBotName) {
+          registerBotInstance(bot, systemBotName)
+          console.log(`✅ [BOT REGISTRY] Бот ${systemBotName} (username: ${botInfo.username}) зарегистрирован в объект bots`)
+        } else {
+          console.warn(`⚠️ [BOT REGISTRY] Не удалось определить системное имя бота для токена ${tokenName}`)
         }
 
         // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
