@@ -138,6 +138,10 @@ if (PULSE_BOT_TOKEN) {
   })
 }
 
+/**
+ * Определяет имя бота по токену
+ * Если несколько ботов используют один токен, возвращает первый найденный
+ */
 export function getBotNameByToken(token: string): { bot_name: BotName } {
   const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
   if (!entry) {
@@ -146,6 +150,36 @@ export function getBotNameByToken(token: string): { bot_name: BotName } {
 
   const [bot_name] = entry
   return { bot_name: bot_name as BotName }
+}
+
+/**
+ * Определяет имя бота по username (Telegram username)
+ * Более точный метод, чем getBotNameByToken, так как username уникален
+ */
+export function getBotNameByUsername(username: string): {
+  bot_name: BotName | null
+} {
+  // Маппинг Telegram username → BotName
+  const USERNAME_TO_BOT_NAME: Record<string, BotName> = {
+    neuro_blogger_bot: 'neuro_blogger_bot',
+    MetaMuse_manifest_bot: 'MetaMuse_Manifest_bot',
+    ZavaraBot: 'ZavaraBot',
+    LeeSolarbot: 'LeeSolarbot',
+    NeuroLenaAssistant_bot: 'NeuroLenaAssistant_bot',
+    NeurostylistShtogrina_bot: 'NeurostylistShtogrina_bot',
+    Gaia_Kamskaia_bot: 'Gaia_Kamskaia_bot',
+    Kaya_easy_art_bot: 'Kaya_easy_art_bot',
+    AI_STARS_bot: 'AI_STARS_bot',
+    HaimGroupMedia_bot: 'HaimGroupMedia_bot',
+    // Dev боты
+    ai_koshey_bot: 'ai_koshey_bot',
+    clip_maker_neuro_bot: 'clip_maker_neuro_bot',
+    helper_999_bot: 'helper_999_bot',
+    TestNeurocoder_bot: 'TestNeurocoder_bot',
+  }
+
+  const bot_name = USERNAME_TO_BOT_NAME[username]
+  return { bot_name: bot_name || null }
 }
 
 export function getTokenByBotName(botName: string): string | undefined {
