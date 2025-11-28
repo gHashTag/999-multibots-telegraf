@@ -297,6 +297,11 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
 const neuroPhotoButtonStep = async (ctx: MyContext) => {
   console.log('CASE 3: neuroPhotoButtonStep')
+  console.log('🔔 [BUTTON STEP] neuroPhotoButtonStep вызван', {
+    telegramId: ctx.from?.id,
+    hasMessage: !!ctx.message,
+    messageType: ctx.message && 'text' in ctx.message ? 'text' : 'other',
+  })
   logger.info({
     message: '🔔 [BUTTON STEP] neuroPhotoButtonStep вызван',
     description: 'neuroPhotoButtonStep called',
@@ -430,7 +435,13 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         message: '🔔 [BUTTON STEP] generateNeuroPhotoHybrid завершен',
         description: 'generateNeuroPhotoHybrid completed',
         telegramId: ctx.from?.id,
-        result: result ? { success: result.success, hasUrls: !!result.urls, urlsCount: result.urls?.length } : null,
+        result: result
+          ? {
+              success: result.success,
+              hasUrls: !!result.urls,
+              urlsCount: result.urls?.length,
+            }
+          : null,
       })
 
       // ✅ ПРОВЕРЯЕМ РЕЗУЛЬТАТ: Показываем сообщение только если генерация успешна

@@ -376,6 +376,12 @@ export async function generateNeuroPhotoHybrid(
     // ✅ УДАЛЕНО: Уведомление админу о проблеме с сервером (не нужно беспокоить пользователя)
 
     try {
+      console.log('🔔 [HYBRID] ВЫЗОВ generateNeuroPhotoDirect (План Б)', {
+        telegram_id,
+        numImages,
+        botName,
+        explicitAspectRatio,
+      })
       logger.info({
         message: '🔔 [HYBRID] ВЫЗОВ generateNeuroPhotoDirect (План Б)',
         description: 'CALLING generateNeuroPhotoDirect (Plan B)',
@@ -404,7 +410,13 @@ export async function generateNeuroPhotoHybrid(
         message: '🔔 [HYBRID] generateNeuroPhotoDirect завершен (План Б)',
         description: 'generateNeuroPhotoDirect completed (Plan B)',
         telegram_id,
-        result: localResult ? { success: localResult.success, hasUrls: !!localResult.urls, urlsCount: localResult.urls?.length } : null,
+        result: localResult
+          ? {
+              success: localResult.success,
+              hasUrls: !!localResult.urls,
+              urlsCount: localResult.urls?.length,
+            }
+          : null,
       })
 
       if (localResult && localResult.success) {

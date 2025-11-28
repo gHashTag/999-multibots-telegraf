@@ -146,6 +146,13 @@ export async function generateNeuroPhotoDirect(
     bypass_payment_check?: boolean
   }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  console.log('🔔 [DIRECT] ВХОД В generateNeuroPhotoDirect', {
+    telegram_id,
+    numImages,
+    botName,
+    explicitAspectRatio,
+    disable_telegram_sending: options?.disable_telegram_sending,
+  })
   logger.info({
     message: '🔔 [DIRECT] ВХОД В generateNeuroPhotoDirect',
     description: 'ENTERING generateNeuroPhotoDirect',
@@ -482,6 +489,10 @@ export async function generateNeuroPhotoDirect(
     // Генерируем изображения
     const generatedUrls = []
 
+    console.log('🔄 [DIRECT] НАЧАЛО ЦИКЛА ГЕНЕРАЦИИ ИЗОБРАЖЕНИЙ', {
+      telegram_id,
+      validNumImages,
+    })
     logger.info({
       message: '🔄 [DIRECT] НАЧАЛО ЦИКЛА ГЕНЕРАЦИИ ИЗОБРАЖЕНИЙ',
       description: 'STARTING IMAGE GENERATION LOOP',
@@ -768,6 +779,12 @@ export async function generateNeuroPhotoDirect(
           }
 
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
+          console.log('🚀 [DIRECT] ДОСТИГНУТ БЛОК ОТПРАВКИ ИЗОБРАЖЕНИЯ', {
+            telegram_id,
+            iteration: i,
+            imageUrl: imageUrl.substring(0, 50) + '...',
+            disable_telegram_sending: options?.disable_telegram_sending,
+          })
           logger.info({
             message: '🚀 [DIRECT] ДОСТИГНУТ БЛОК ОТПРАВКИ ИЗОБРАЖЕНИЯ',
             description: 'REACHED IMAGE SENDING BLOCK',
