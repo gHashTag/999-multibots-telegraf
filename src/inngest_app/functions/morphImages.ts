@@ -6,13 +6,8 @@
 
 import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
-import {
-  getUserByTelegramId,
-  updateUserBalance,
-} from '@/core/supabase'
-import {
-  getBotByName,
-} from '@/core/bot'
+import { getUserByTelegramId, updateUserBalance } from '@/core/supabase'
+import { getBotByName } from '@/core/bot'
 import { PUBLIC_URL } from '@/config'
 import fs from 'fs'
 import path from 'path'

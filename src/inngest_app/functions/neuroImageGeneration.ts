@@ -64,7 +64,7 @@ export const neuroImageGeneration = inngest.createFunction(
         model_url,
       })
 
-      const botData = (await step.run('get-bot', async () => {
+      const botData = await step.run('get-bot', async () => {
         logger.info({
           message: '🤖 Getting bot instance',
           botName: bot_name,
@@ -72,7 +72,7 @@ export const neuroImageGeneration = inngest.createFunction(
         })
 
         return getBotByNameAdapter(bot_name)
-      }))
+      })
 
       const bot = botData.bot
 
@@ -261,8 +261,8 @@ export const neuroImageGeneration = inngest.createFunction(
               userGender === 'male'
                 ? 'handsome man, masculine features'
                 : userGender === 'female'
-                ? 'beautiful woman, feminine features'
-                : 'person'
+                  ? 'beautiful woman, feminine features'
+                  : 'person'
 
             const input = {
               prompt: `Fashionable ${genderPrompt}: ${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
@@ -278,10 +278,10 @@ export const neuroImageGeneration = inngest.createFunction(
               ...(aspect_ratio === '1:1'
                 ? { width: 1024, height: 1024 }
                 : aspect_ratio === '16:9'
-                ? { width: 1368, height: 768 }
-                : aspect_ratio === '9:16'
-                ? { width: 768, height: 1368 }
-                : { width: 1024, height: 1024 }),
+                  ? { width: 1368, height: 768 }
+                  : aspect_ratio === '9:16'
+                    ? { width: 768, height: 1368 }
+                    : { width: 1024, height: 1024 }),
               sampler: 'flowmatch',
               num_outputs: 1,
               aspect_ratio,
@@ -375,10 +375,13 @@ export const neuroImageGeneration = inngest.createFunction(
         )
 
         if (!success) {
-          logger.warn('Failed to update balance record, but images were generated', {
-            telegramId: telegram_id,
-            paymentAmount: totalCost,
-          })
+          logger.warn(
+            'Failed to update balance record, but images were generated',
+            {
+              telegramId: telegram_id,
+              paymentAmount: totalCost,
+            }
+          )
         }
 
         logger.info({

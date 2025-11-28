@@ -2,7 +2,9 @@ import express from 'express'
 import healthRouter from './routes/health.routes'
 import robokassaRouter from './routes/robokassa.routes'
 import githubAutoFixerRouter from './routes/github-autofixer.routes'
-import kieAiWebhookRouter, { setBotInstance } from './routes/kie-ai-webhook.routes'
+import kieAiWebhookRouter, {
+  setBotInstance,
+} from './routes/kie-ai-webhook.routes'
 import aiReelsCallbackRouter from './routes/ai-reels-callback.routes'
 import replicateWebhookRouter from './routes/replicate-webhook.routes'
 import voiceAvatarRouter from './routes/voice-avatar.routes'
@@ -27,7 +29,9 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
     setBotInstance(bot)
     logger.info('✅ [API SERVER] Bot instance initialized for webhooks')
   } else {
-    logger.warn('⚠️ [API SERVER] Bot instance not provided - webhooks may not work')
+    logger.warn(
+      '⚠️ [API SERVER] Bot instance not provided - webhooks may not work'
+    )
   }
   const app: any = express()
 
@@ -44,29 +48,31 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   })
 
   // ... (other imports)
-  
+
   // ... (app setup)
-  
+
   // Middleware для парсинга JSON с установленным лимитом в 10MB
   app.use(express.json({ limit: '10mb' }) as any)
-  
+
   // Раздача статических файлов из temp/ директории для морфинга
   app.use('/temp', express.static('temp') as any)
-  
+
   // Улучшенный middleware для логгирования запросов с использованием logger
   app.use((req: any, res: any, next: any) => {
     logger.info(`[API] Request received`, {
       method: req.method,
       url: req.url,
       headers: req.headers,
-      body: req.body ? JSON.stringify(req.body).substring(0, 200) + '...' : '{}'
-    });
-    next();
-  });
-  
+      body: req.body
+        ? JSON.stringify(req.body).substring(0, 200) + '...'
+        : '{}',
+    })
+    next()
+  })
+
   // Регистрируем маршруты для проверки работоспособности
   app.use('/', healthRouter)
-  
+
   // Регистрируем маршруты для Robokassa webhook
   app.use('/api', robokassaRouter)
 
@@ -93,20 +99,30 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   // ✅ Inngest включен для мониторинга webhook'ов - LAZY VERSION
   // Создаем функции ПОСЛЕ загрузки секретов из Infisical
   try {
-    logger.info('[API SERVER] Creating Inngest functions (after secrets loaded)...')
+    logger.info(
+      '[API SERVER] Creating Inngest functions (after secrets loaded)...'
+    )
 
     const allInngestFunctions = createAllInngestFunctions(inngest)
 
-    if (allInngestFunctions && Array.isArray(allInngestFunctions) && allInngestFunctions.length > 0) {
+    if (
+      allInngestFunctions &&
+      Array.isArray(allInngestFunctions) &&
+      allInngestFunctions.length > 0
+    ) {
       logger.info('[API SERVER] Registering Inngest functions', {
         count: allInngestFunctions.length,
-        functions: allInngestFunctions.map((f: any) => f.id || f.name || 'unnamed')
+        functions: allInngestFunctions.map(
+          (f: any) => f.id || f.name || 'unnamed'
+        ),
       })
 
       // ✅ Применена рабочая сигнатура serve() - ВЕРСИЯ ОТ 7 НОЯБРЯ
-      const signingKey = process.env.BOT_INNGEST_TEST_SIGNING_KEY || process.env.BOT_INNGEST_SIGNING_KEY
+      const signingKey =
+        process.env.BOT_INNGEST_TEST_SIGNING_KEY ||
+        process.env.BOT_INNGEST_SIGNING_KEY
       const inngestHandler = serve(inngest as any, allInngestFunctions as any, {
-        signingKey
+        signingKey,
       }) as any
 
       // Override health check to check process.env directly
@@ -115,23 +131,30 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
           'Inngest endpoint configured correctly.': true,
           hasEventKey: !!process.env.BOT_INNGEST_EVENT_KEY,
           hasSigningKey: !!signingKey,
-          functionsFound: allInngestFunctions.length
+          functionsFound: allInngestFunctions.length,
         })
       })
 
       app.use('/api/inngest', inngestHandler)
-      logger.info('✅ [API SERVER] Inngest webhook monitor initialized at /api/inngest', {
-        signingKey: signingKey || 'not set',
-        signingKeyPreview: signingKey ? `${signingKey.substring(0, 30)}...` : 'not set'
-      })
+      logger.info(
+        '✅ [API SERVER] Inngest webhook monitor initialized at /api/inngest',
+        {
+          signingKey: signingKey || 'not set',
+          signingKeyPreview: signingKey
+            ? `${signingKey.substring(0, 30)}...`
+            : 'not set',
+        }
+      )
     } else {
       logger.warn('⚠️ [API SERVER] No Inngest functions created', {
         allInngestFunctions: typeof allInngestFunctions,
-        isArray: Array.isArray(allInngestFunctions)
+        isArray: Array.isArray(allInngestFunctions),
       })
     }
   } catch (error) {
-    logger.error('❌ [API SERVER] Failed to create Inngest functions', { error })
+    logger.error('❌ [API SERVER] Failed to create Inngest functions', {
+      error,
+    })
   }
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker

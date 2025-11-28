@@ -13,31 +13,20 @@ const config = {
   isDev: process.env.NODE_ENV === 'development',
   // Event key для production и test
   eventKey:
-    process.env.NODE_ENV === 'production'
-      ? (process.env.RENDER_INNGEST_EVENT_KEY || process.env.BOT_INNGEST_TEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY)
-      : undefined,
+    process.env.BOT_INNGEST_EVENT_KEY ||
+    '4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q',
   // Signing key for webhook verification
-  signingKey: process.env.BOT_INNGEST_SIGNING_KEY || process.env.BOT_INNGEST_TEST_SIGNING_KEY,
+  signingKey:
+    process.env.BOT_INNGEST_TEST_SIGNING_KEY ||
+    'signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435923a1b613563c4666c82c047',
 }
 
 console.log('🔥 [DEBUG] Inngest client configuration:', {
   ...config,
   eventKey: config.eventKey ? '***HIDDEN***' : 'not set',
-  environment: process.env.NODE_ENV
+  environment: process.env.NODE_ENV,
 })
 
 // ✅ ВАЖНО: Создаем клиент Inngest ПЕРЕД импортом функций (избегаем circular dependency)
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
 export const inngest = new Inngest(config)
-
-// ✅ Импортируем FACTORY функции (не сами функции - избегаем circular dependency)
-// Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
-// import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
-// import { createGenerateAIReelsFunction } from './functions/generateAIReelsFunction'
-import { createGenerateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
-
-// ✅ Создаем функции через factory после создания inngest client
-// const generateAIReelsFunction = createGenerateAIReelsFunction(inngest)
-// const generateModelTrainingFunction = createGenerateModelTrainingFunction(inngest)
-//
-// // ✅ Список активных Inngest функций

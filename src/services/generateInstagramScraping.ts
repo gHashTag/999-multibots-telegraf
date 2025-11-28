@@ -43,7 +43,8 @@ export async function generateInstagramScraping(
     telegram_id,
     botName,
     environment: process.env.NODE_ENV,
-    inngestHost: process.env.INNGEST_DEV_URL || process.env.INNGEST_PROD_URL || 'N/A'
+    inngestHost:
+      process.env.INNGEST_DEV_URL || process.env.INNGEST_PROD_URL || 'N/A',
   })
 
   console.log('🔥 [DEBUG] Function parameters:', {
@@ -58,17 +59,19 @@ export async function generateInstagramScraping(
       userId: ctx.from?.id,
       chatId: ctx.chat.id,
       messageId: ctx.message?.message_id,
-      callbackQuery: ctx.callbackQuery ? 'present' : 'absent'
-    }
+      callbackQuery: ctx.callbackQuery ? 'present' : 'absent',
+    },
   })
 
   try {
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
-    logger.info('✅ [Instagram Scraper] Typing action sent successfully', { telegram_id })
+    logger.info('✅ [Instagram Scraper] Typing action sent successfully', {
+      telegram_id,
+    })
   } catch (error) {
-    logger.warn('⚠️ [Instagram Scraper] Failed to send typing action', { 
-      error: error.message, 
-      telegram_id 
+    logger.warn('⚠️ [Instagram Scraper] Failed to send typing action', {
+      error: error.message,
+      telegram_id,
     })
   }
 
@@ -112,23 +115,26 @@ export async function generateInstagramScraping(
       id: `instagram-scraper-${telegram_id}-${username_or_id}-${Date.now()}`,
     }
 
-    console.log('🔥 [DEBUG] Final Inngest event payload:', JSON.stringify(inngestEvent, null, 2))
-    
+    console.log(
+      '🔥 [DEBUG] Final Inngest event payload:',
+      JSON.stringify(inngestEvent, null, 2)
+    )
+
     logger.info('📤 [Instagram Scraper] About to send event to Inngest', {
       eventName: inngestEvent.name,
       eventId: inngestEvent.id,
       userId: telegram_id,
-      environment: process.env.NODE_ENV
+      environment: process.env.NODE_ENV,
     })
 
     // ВРЕМЕННО: inngest отключён
     // const sendResult = await inngest.send(inngestEvent)
-    const sendResult = { ids: ["disabled"] }
-    
+    const sendResult = { ids: ['disabled'] }
+
     console.log('🔥 [DEBUG] Inngest send result:', sendResult)
     logger.info('✅ [Instagram Scraper] Event sent to Inngest with result', {
       sendResult,
-      telegram_id
+      telegram_id,
     })
 
     // ✅ ИСПРАВЛЕНО: Используем локальный Inngest endpoint
@@ -157,7 +163,7 @@ export async function generateInstagramScraping(
     }
   } catch (error) {
     console.error('🔥 [DEBUG] Full error object:', error)
-    
+
     logger.error({
       message: '❌ [Instagram Scraper] Ошибка при отправке события в Inngest',
       description: 'Error sending event to Inngest',
@@ -168,8 +174,8 @@ export async function generateInstagramScraping(
       environment: process.env.NODE_ENV,
       inngestConfig: {
         devUrl: process.env.INNGEST_DEV_URL,
-        prodUrl: process.env.INNGEST_PROD_URL
-      }
+        prodUrl: process.env.INNGEST_PROD_URL,
+      },
     })
 
     const errorMessage = isRu
@@ -181,13 +187,19 @@ export async function generateInstagramScraping(
     try {
       if (ctx.reply) {
         await ctx.reply(errorMessage)
-        logger.info('✅ [Instagram Scraper] Error message sent to user', { telegram_id })
+        logger.info('✅ [Instagram Scraper] Error message sent to user', {
+          telegram_id,
+        })
       }
     } catch (replyError) {
-      logger.error('❌ [Instagram Scraper] Failed to send error message to user', {
-        replyError: replyError instanceof Error ? replyError.message : 'Unknown error',
-        telegram_id
-      })
+      logger.error(
+        '❌ [Instagram Scraper] Failed to send error message to user',
+        {
+          replyError:
+            replyError instanceof Error ? replyError.message : 'Unknown error',
+          telegram_id,
+        }
+      )
     }
 
     return {

@@ -32,7 +32,9 @@ class InngestProvider {
   private ensureInitialized() {
     // ✅ ФИКС: Всегда переинициализируем конфигурацию для получения свежих значений из process.env
     // Это критично для случаев, когда секреты загружаются динамически (например, из Infisical)
-    logger.info('🔧 [INNGEST PROVIDER] (Re)initializing configuration from process.env...')
+    logger.info(
+      '🔧 [INNGEST PROVIDER] (Re)initializing configuration from process.env...'
+    )
     this.initializeConfigs()
     this.initialized = true
     logger.info('✅ [INNGEST PROVIDER] Configuration refreshed', {
@@ -41,11 +43,14 @@ class InngestProvider {
   }
 
   private initializeConfigs() {
-    logger.info('🔍 [INNGEST PROVIDER] Starting configuration initialization...')
+    logger.info(
+      '🔍 [INNGEST PROVIDER] Starting configuration initialization...'
+    )
 
     // BOT инстанс (наш основной сервер)
     // ✅ Используем RENDER_INNGEST_EVENT_KEY потому что BOT_INNGEST_EVENT_KEY пустой
-    const botEventKey = process.env.RENDER_INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY
+    const botEventKey =
+      process.env.RENDER_INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY
     const botSigningKey = process.env.BOT_INNGEST_SIGNING_KEY
     const botBaseUrl =
       process.env.BOT_INNGEST_BASE_URL ||
@@ -86,23 +91,27 @@ class InngestProvider {
         signingKeyValid: botSigningKey?.startsWith('signkey-'),
       })
     } else {
-      logger.warn(
-        '⚠️ [INNGEST PROVIDER] BOT instance missing event key'
-      )
+      logger.warn('⚠️ [INNGEST PROVIDER] BOT instance missing event key')
     }
 
     // RENDER инстанс (Inngest Cloud → Render Server)
     const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
     const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
-    const renderBaseUrl = process.env.RENDER_INNGEST_BASE_URL || 'https://render-v3-production.up.railway.app/api/inngest'
+    const renderBaseUrl =
+      process.env.RENDER_INNGEST_BASE_URL ||
+      'https://render-v3-production.up.railway.app/api/inngest'
 
     logger.info('🔍 [INNGEST PROVIDER] RENDER instance check:', {
       hasRenderEventKey: !!renderEventKey,
       renderEventKeyLength: renderEventKey?.length || 0,
-      renderEventKeyPreview: renderEventKey ? `${renderEventKey.substring(0, 30)}...` : 'НЕТ',
+      renderEventKeyPreview: renderEventKey
+        ? `${renderEventKey.substring(0, 30)}...`
+        : 'НЕТ',
       hasRenderSigningKey: !!renderSigningKey,
       renderSigningKeyLength: renderSigningKey?.length || 0,
-      renderSigningKeyPreview: renderSigningKey ? `${renderSigningKey.substring(0, 30)}...` : 'НЕТ',
+      renderSigningKeyPreview: renderSigningKey
+        ? `${renderSigningKey.substring(0, 30)}...`
+        : 'НЕТ',
       renderBaseUrl,
     })
 
@@ -140,23 +149,31 @@ class InngestProvider {
 
       // 🔴 КРИТИЧЕСКАЯ ПРОВЕРКА ФОРМАТА КЛЮЧЕЙ
       if (renderEventKey.length < 50) {
-        logger.error('❌ [INNGEST PROVIDER] RENDER_INNGEST_EVENT_KEY слишком короткий!', {
-          length: renderEventKey.length,
-          expected: '> 50 символов',
-        })
+        logger.error(
+          '❌ [INNGEST PROVIDER] RENDER_INNGEST_EVENT_KEY слишком короткий!',
+          {
+            length: renderEventKey.length,
+            expected: '> 50 символов',
+          }
+        )
       }
 
       if (renderSigningKey && !renderSigningKey.startsWith('signkey-')) {
-        logger.error('❌ [INNGEST PROVIDER] RENDER_INNGEST_SIGNING_KEY имеет неверный формат!', {
-          preview: renderSigningKey.substring(0, 20),
-          expected: 'signkey-...',
-        })
+        logger.error(
+          '❌ [INNGEST PROVIDER] RENDER_INNGEST_SIGNING_KEY имеет неверный формат!',
+          {
+            preview: renderSigningKey.substring(0, 20),
+            expected: 'signkey-...',
+          }
+        )
       }
     } else {
       logger.error(
         '❌ [INNGEST PROVIDER] RENDER instance ОТСУТСТВУЕТ RENDER_INNGEST_EVENT_KEY!'
       )
-      logger.error('   HeyGen wizard и render-server запросы НЕ БУДУТ РАБОТАТЬ!')
+      logger.error(
+        '   HeyGen wizard и render-server запросы НЕ БУДУТ РАБОТАТЬ!'
+      )
       logger.error('   Проверьте переменные окружения:')
       logger.error('   - RENDER_INNGEST_EVENT_KEY')
       logger.error('   - RENDER_INNGEST_SIGNING_KEY')
@@ -206,13 +223,19 @@ class InngestProvider {
     const config = this.getConfig(instance)
 
     if (!config) {
-      logger.error(`❌ [INNGEST PROVIDER] Inngest instance "${instance}" not configured`)
+      logger.error(
+        `❌ [INNGEST PROVIDER] Inngest instance "${instance}" not configured`
+      )
       throw new Error(`Inngest instance "${instance}" not configured`)
     }
 
     if (!config.client) {
-      logger.error(`❌ [INNGEST PROVIDER] Inngest client not initialized for instance "${instance}"`)
-      throw new Error(`Inngest client not initialized for instance "${instance}"`)
+      logger.error(
+        `❌ [INNGEST PROVIDER] Inngest client not initialized for instance "${instance}"`
+      )
+      throw new Error(
+        `Inngest client not initialized for instance "${instance}"`
+      )
     }
 
     logger.info(`📤 [INNGEST PROVIDER] Sending event via Inngest SDK`, {
