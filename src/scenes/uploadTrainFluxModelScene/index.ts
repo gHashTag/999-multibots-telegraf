@@ -4,12 +4,11 @@ import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
 import { inngestProvider } from '@/inngest_app/inngest-provider' // ✅ ПРАВИЛЬНЫЙ ПРОВАЙДЕР!
 import { isRussian } from '@/helpers/language'
-import { deleteFile } from '@/helpers'
+
 import { sendGenericErrorMessage } from '@/menu'
 import { supabase } from '@/core/supabase'
 import { getBotNameByToken } from '@/core/bot' // ✅ For correct bot_name detection
-import fetch from 'node-fetch'
-import { PUBLIC_URL, isDev } from '@/config'
+
 const fs = require('fs')
 const path = require('path')
 
@@ -71,36 +70,67 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const botToken = (ctx.telegram as any).token || (ctx as any).botInfo?.token
     const { bot_name } = getBotNameByToken(botToken)
 
-    // ✅ Send Inngest event instead of local training (по аналогии с ai-server)
-    const zipUrl = `${PUBLIC_URL}/uploads/${ctx.session.targetUserId}/train/${path.basename(zipPath)}`
+    // ✅ Конвертируем ZIP в base64 напрямую (без лишних загрузок)
+    const zipBuffer = await fs.promises.readFile(zipPath)
+    const base64Data = zipBuffer.toString('base64')
+    const zipDataUri = `data:application/zip;base64,${base64Data}`
 
-    console.log('[uploadTrainFluxModelScene] Sending Inngest event via BOT provider:', {
-      modelName: ctx.session.modelName,
-      triggerWord,
-      steps: ctx.session.steps,
-      zipUrl,  // HTTP URL как в ai-server
-      bot_name,
-      instance: 'BOT'
+    console.log('[uploadTrainFluxModelScene] ZIP converted to base64', {
+      originalSize: zipBuffer.length,
+      base64Length: base64Data.length,
     })
 
+    // ✅ Удаляем локальный ZIP файл после конвертации
     try {
-      const eventResult = await inngestProvider.sendEvent('BOT', 'model/training.start', {
-        bot_name,
-        is_ru: isRu,
-        modelName: ctx.session.modelName,
-        steps: ctx.session.steps,
-        telegram_id: ctx.session.targetUserId.toString(),
-        triggerWord,
-        zipUrl,  // HTTP URL как в ai-server
-        gender,
-      })
+      await fs.promises.unlink(zipPath)
+      console.log('[uploadTrainFluxModelScene] Local ZIP file cleaned up')
+    } catch (unlinkError) {
+      console.warn(
+        '[uploadTrainFluxModelScene] Failed to cleanup local ZIP (non-fatal)',
+        unlinkError
+      )
+    }
 
-      console.log('[uploadTrainFluxModelScene] ✅ Inngest event sent successfully:', {
-        success: true,
-        eventId: eventResult?.eventId
-      })
+    console.log(
+      '[uploadTrainFluxModelScene] Sending Inngest event via BOT provider:',
+      {
+        modelName: ctx.session.modelName,
+        triggerWord,
+        steps: ctx.session.steps,
+        zipDataUriSize: zipDataUri.length,
+        bot_name,
+        instance: 'BOT',
+      }
+    )
+
+    try {
+      const eventResult = await inngestProvider.sendEvent(
+        'BOT',
+        'model/training.start',
+        {
+          bot_name,
+          is_ru: isRu,
+          modelName: ctx.session.modelName,
+          steps: ctx.session.steps,
+          telegram_id: ctx.session.targetUserId.toString(),
+          triggerWord,
+          zipDataUri, // ✅ Base64 data URI напрямую
+          gender,
+        }
+      )
+
+      console.log(
+        '[uploadTrainFluxModelScene] ✅ Inngest event sent successfully:',
+        {
+          success: true,
+          eventId: eventResult?.eventId,
+        }
+      )
     } catch (eventError) {
-      console.error('[uploadTrainFluxModelScene] ❌ Failed to send Inngest event:', eventError.message)
+      console.error(
+        '[uploadTrainFluxModelScene] ❌ Failed to send Inngest event:',
+        eventError.message
+      )
       console.error('[uploadTrainFluxModelScene] ❌ Full error:', eventError)
       throw eventError
     }
