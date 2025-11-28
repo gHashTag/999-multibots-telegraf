@@ -907,9 +907,6 @@ export async function generateNeuroPhotoDirect(
                 ? `✨ <b>Изображение создано!</b>
 
 ━━━━━━━━━━━━━━━━━━━━
-📝 <b>Промпт</b>
-${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
-
 🎨 <b>Детали генерации</b>${loraInfo ? `\n├ 🎭 Персонализация: <b>${loraInfo.trigger}</b>` : ''}
 ├ 🤖 Модель: <b>${modelDisplay}</b>
 ├ 📐 Размер: <b>${dimensions}</b>
@@ -920,9 +917,6 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
                 : `✨ <b>Image created!</b>
 
 ━━━━━━━━━━━━━━━━━━━━
-📝 <b>Prompt</b>
-${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
-
 🎨 <b>Generation Details</b>${loraInfo ? `\n├ 🎭 Personalization: <b>${loraInfo.trigger}</b>` : ''}
 ├ 🤖 Model: <b>${modelDisplay}</b>
 ├ 📐 Size: <b>${dimensions}</b>
