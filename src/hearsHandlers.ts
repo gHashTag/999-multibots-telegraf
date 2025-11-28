@@ -28,7 +28,10 @@ import { upscaleFluxKontextImage } from './services/generateFluxKontext'
 import { getParsingAccess } from './menu/simpleMenu'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
-  logger.info('Настройка обработчиков hears...')
+  logger.info({
+    message: '🔔 [HEARS] Настройка обработчиков hears...',
+    description: 'Setting up hears handlers...',
+  })
 
   // 🏠 ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КНОПКИ "ГЛАВНОЕ МЕНЮ" - РАБОТАЕТ ВЕЗДЕ!
   bot.hears([levels[104].title_ru, levels[104].title_en], async ctx => {
@@ -715,13 +718,33 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   )
 
+  logger.info({
+    message: '🔔 [HEARS] Регистрация глобального хендлера для кнопок 1️⃣, 2️⃣, 3️⃣, 4️⃣',
+    description: 'Registering global hears handler for buttons 1️⃣, 2️⃣, 3️⃣, 4️⃣',
+  })
+
   bot.hears(['1️⃣', '2️⃣', '3️⃣', '4️⃣'], async (ctx: MyContext) => {
+    logger.info({
+      message: '🔔 [HEARS] ГЛОБАЛЬНЫЙ ХЕНДЛЕР ДЛЯ КНОПОК 1-4 АКТИВИРОВАН',
+      description: 'GLOBAL HEARS HANDLER FOR BUTTONS 1-4 ACTIVATED',
+      telegramId: ctx.from?.id,
+      text: ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown',
+      sessionMode: ctx.session?.mode,
+      hasPrompt: !!ctx.session?.prompt,
+      hasUserModel: !!ctx.session?.userModel,
+    })
+
     if (!('text' in ctx.message)) {
       logger.warn('Получено нетекстовое сообщение для числового hears')
       return
     }
     const text = ctx.message.text
-    logger.debug(`Получен hears для кнопки ${text} от ${ctx.from?.id}`)
+    logger.info({
+      message: '🔔 [HEARS] Получен hears для кнопки',
+      description: 'Received hears for button',
+      text,
+      telegramId: ctx.from?.id,
+    })
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
     const prompt = ctx.session.prompt
@@ -735,7 +758,13 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       numImages = parseInt(text, 10)
     }
     
-    logger.debug(`Парсинг кнопки: text="${text}", numImages=${numImages}`)
+    logger.info({
+      message: '🔔 [HEARS] Парсинг кнопки завершен',
+      description: 'Button parsing completed',
+      text,
+      numImages,
+      telegramId,
+    })
 
     // --- DEBUG LOG ---
     logger.debug('>>> HEARS HANDLER (1-4):', {
@@ -764,8 +793,12 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
 
     if (!prompt) {
-      logger.error('Промпт отсутствует в сессии для hears handler', {
+      logger.error({
+        message: '❌ [HEARS] Промпт отсутствует в сессии для hears handler',
+        description: 'Prompt not found in session for hears handler',
         telegramId,
+        sessionMode: ctx.session?.mode,
+        hasUserModel: !!ctx.session?.userModel,
       })
       await ctx.reply(
         isRu
@@ -775,8 +808,31 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
       return
     }
 
+    logger.info({
+      message: '🔔 [HEARS] Начинаем генерацию через глобальный хендлер',
+      description: 'Starting generation via global hears handler',
+      telegramId,
+      numImages,
+      sessionMode: ctx.session?.mode,
+      promptSample: prompt.substring(0, 50) + '...',
+    })
+
     const generate = async (num: number) => {
+      logger.info({
+        message: '🔔 [HEARS] Функция generate вызвана',
+        description: 'Generate function called',
+        telegramId,
+        num,
+        sessionMode: ctx.session?.mode,
+      })
+
       if (ctx.session.mode === ModeEnum.NeuroPhoto) {
+        logger.info({
+          message: '🔔 [HEARS] Режим NeuroPhoto, начинаем генерацию',
+          description: 'NeuroPhoto mode, starting generation',
+          telegramId,
+          num,
+        })
         // ИСПРАВЛЕНИЕ: Формируем правильный промпт с учетом пола и trigger_word
         const trigger_word = ctx.session.userModel.trigger_word as string
 
@@ -808,7 +864,17 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
         const { getBotNameByToken } = await import('@/core/bot')
         const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
 
-        await generateNeuroPhotoHybrid(
+        logger.info({
+          message: '🔔 [HEARS] Вызов generateNeuroPhotoHybrid',
+          description: 'Calling generateNeuroPhotoHybrid',
+          telegramId,
+          num,
+          bot_name,
+          userAspectRatio,
+          promptSample: fullPrompt.substring(0, 50) + '...',
+        })
+
+        const result = await generateNeuroPhotoHybrid(
           fullPrompt,
           ctx.session.userModel.model_url,
           num,
@@ -817,6 +883,14 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           bot_name,
           userAspectRatio
         )
+
+        logger.info({
+          message: '🔔 [HEARS] generateNeuroPhotoHybrid завершен',
+          description: 'generateNeuroPhotoHybrid completed',
+          telegramId,
+          num,
+          result: result ? { success: result.success, hasUrls: !!result.urls } : null,
+        })
       } else if (ctx.session.mode === ModeEnum.TextToImage) {
         const modelToUse = ctx.session.selectedImageModel
 

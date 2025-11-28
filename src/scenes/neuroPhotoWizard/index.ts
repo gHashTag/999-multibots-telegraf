@@ -8,6 +8,7 @@ import {
   getUserData,
   getAspectRatio,
 } from '@/core/supabase'
+import { logger } from '@/utils/logger'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
 import { getActiveUserModelsByTypeForHaim } from '@/core/supabase/getActiveUserModelsByTypeForHaim'
 import {
@@ -296,9 +297,23 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
 const neuroPhotoButtonStep = async (ctx: MyContext) => {
   console.log('CASE 3: neuroPhotoButtonStep')
+  logger.info({
+    message: '🔔 [BUTTON STEP] neuroPhotoButtonStep вызван',
+    description: 'neuroPhotoButtonStep called',
+    telegramId: ctx.from?.id,
+    hasMessage: !!ctx.message,
+    messageType: ctx.message && 'text' in ctx.message ? 'text' : 'other',
+  })
+
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
     console.log(`CASE: Нажата кнопка ${text}`)
+    logger.info({
+      message: '🔔 [BUTTON STEP] Нажата кнопка',
+      description: 'Button pressed',
+      text,
+      telegramId: ctx.from?.id,
+    })
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
 
@@ -411,12 +426,25 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         result
       )
 
+      logger.info({
+        message: '🔔 [BUTTON STEP] generateNeuroPhotoHybrid завершен',
+        description: 'generateNeuroPhotoHybrid completed',
+        telegramId: ctx.from?.id,
+        result: result ? { success: result.success, hasUrls: !!result.urls, urlsCount: result.urls?.length } : null,
+      })
+
       // ✅ ПРОВЕРЯЕМ РЕЗУЛЬТАТ: Показываем сообщение только если генерация успешна
       if (!result || !result.success) {
         console.log(
           '❌ [DEBUG] Генерация не удалась в ButtonStep, результат:',
           result
         )
+        logger.warn({
+          message: '❌ [BUTTON STEP] Генерация не удалась',
+          description: 'Generation failed',
+          telegramId: ctx.from?.id,
+          result,
+        })
         // Сообщение об ошибке уже отправлено в generateNeuroPhotoHybrid или generateNeuroPhotoDirect
         return
       }
@@ -425,6 +453,13 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       console.log(
         '🔄 [DEBUG] Генерация успешна в ButtonStep, показываем кнопки'
       )
+
+      logger.info({
+        message: '🔔 [BUTTON STEP] Генерация успешна, показываем кнопки',
+        description: 'Generation successful, showing buttons',
+        telegramId: ctx.from?.id,
+        urlsCount: result.urls?.length,
+      })
 
       const additionalGenerationKeyboard = {
         reply_markup: {

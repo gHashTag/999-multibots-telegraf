@@ -376,6 +376,16 @@ export async function generateNeuroPhotoHybrid(
     // ✅ УДАЛЕНО: Уведомление админу о проблеме с сервером (не нужно беспокоить пользователя)
 
     try {
+      logger.info({
+        message: '🔔 [HYBRID] ВЫЗОВ generateNeuroPhotoDirect (План Б)',
+        description: 'CALLING generateNeuroPhotoDirect (Plan B)',
+        telegram_id,
+        prompt: prompt.substring(0, 50) + '...',
+        numImages,
+        botName,
+        explicitAspectRatio,
+      })
+
       const localResult = await generateNeuroPhotoDirect(
         prompt,
         model_url,
@@ -389,6 +399,13 @@ export async function generateNeuroPhotoHybrid(
           bypass_payment_check: false, // НЕ обходим проверку баланса
         }
       )
+
+      logger.info({
+        message: '🔔 [HYBRID] generateNeuroPhotoDirect завершен (План Б)',
+        description: 'generateNeuroPhotoDirect completed (Plan B)',
+        telegram_id,
+        result: localResult ? { success: localResult.success, hasUrls: !!localResult.urls, urlsCount: localResult.urls?.length } : null,
+      })
 
       if (localResult && localResult.success) {
         logger.info({

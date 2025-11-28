@@ -146,6 +146,16 @@ export async function generateNeuroPhotoDirect(
     bypass_payment_check?: boolean
   }
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  logger.info({
+    message: '🔔 [DIRECT] ВХОД В generateNeuroPhotoDirect',
+    description: 'ENTERING generateNeuroPhotoDirect',
+    telegram_id,
+    numImages,
+    botName,
+    explicitAspectRatio,
+    disable_telegram_sending: options?.disable_telegram_sending,
+    promptSample: prompt.substring(0, 50) + '...',
+  })
   // --- IDEMPOTENCY KEY ---
   const idempotencyKey = crypto
     .createHash('sha256')
