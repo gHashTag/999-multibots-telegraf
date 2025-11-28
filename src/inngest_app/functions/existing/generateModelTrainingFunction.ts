@@ -43,12 +43,15 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         const startTime = Date.now()
 
         // ✅ TEMPORARY: Simple test function without imports
-        console.log('[INNGEST TRAINING] 🚀 Starting model training (SIMPLE TEST)', {
-          telegram_id: eventData.telegram_id,
-          modelName: eventData.modelName,
-          zipUrl: eventData.zipUrl,
-          steps: eventData.steps,
-        })
+        console.log(
+          '[INNGEST TRAINING] 🚀 Starting model training (SIMPLE TEST)',
+          {
+            telegram_id: eventData.telegram_id,
+            modelName: eventData.modelName,
+            zipUrl: eventData.zipUrl,
+            steps: eventData.steps,
+          }
+        )
 
         // ✅ STEP 1: Simple test - just return success
         await step.run('test-step', async () => {
@@ -56,14 +59,19 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           return { success: true }
         })
 
+        console.log('[INNGEST TRAINING] About to return response')
+
         // Return immediately for testing
-        return {
+        const result = {
           success: true,
           test: true,
           message: 'Simple test function executed',
           telegram_id: eventData.telegram_id,
           elapsed_ms: Date.now() - startTime,
         }
+
+        console.log('[INNGEST TRAINING] Returning result:', JSON.stringify(result))
+        return result
 
         // Function simplified for testing - will add back complexity after verifying JSON response works
       } catch (error) {

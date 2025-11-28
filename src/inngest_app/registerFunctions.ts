@@ -19,7 +19,9 @@ export function createAllInngestFunctions(inngestClient?: any) {
   console.log('🔧 [INNGEST] Creating Inngest functions after secrets loaded...')
 
   const kieAiWebhookMonitorFunctions = createWebhookMonitorFunctions()
-  console.log(`📋 Kie.ai webhook monitor functions: ${kieAiWebhookMonitorFunctions.length}`)
+  console.log(
+    `📋 Kie.ai webhook monitor functions: ${kieAiWebhookMonitorFunctions.length}`
+  )
 
   // Create model training function using factory pattern
   let modelTrainingFunction = null

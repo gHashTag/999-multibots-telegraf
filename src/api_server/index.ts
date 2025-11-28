@@ -120,7 +120,8 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
       // ✅ Применена рабочая сигнатура serve() - ВЕРСИЯ ОТ 7 НОЯБРЯ
       const signingKey =
         process.env.BOT_INNGEST_TEST_SIGNING_KEY ||
-        process.env.BOT_INNGEST_SIGNING_KEY
+        'signkey-test-c4167464e900701832920c98bb2ec6e6e3c59fd2b27c62e1f4140dada01e4597'
+
       const inngestHandler = serve(inngest as any, allInngestFunctions as any, {
         signingKey,
       }) as any
@@ -129,7 +130,7 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
       app.get('/api/inngest', (req, res) => {
         res.json({
           'Inngest endpoint configured correctly.': true,
-          hasEventKey: !!process.env.BOT_INNGEST_EVENT_KEY,
+          hasEventKey: !!process.env.BOT_INNGEST_EVENT_TEST_KEY,
           hasSigningKey: !!signingKey,
           functionsFound: allInngestFunctions.length,
         })
