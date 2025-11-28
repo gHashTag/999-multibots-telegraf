@@ -44,7 +44,8 @@ class InngestProvider {
     logger.info('🔍 [INNGEST PROVIDER] Starting configuration initialization...')
 
     // BOT инстанс (наш основной сервер)
-    const botEventKey = process.env.BOT_INNGEST_EVENT_KEY
+    // ✅ Используем RENDER_INNGEST_EVENT_KEY потому что BOT_INNGEST_EVENT_KEY пустой
+    const botEventKey = process.env.RENDER_INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY
     const botSigningKey = process.env.BOT_INNGEST_SIGNING_KEY
     const botBaseUrl =
       process.env.BOT_INNGEST_BASE_URL ||
@@ -71,7 +72,7 @@ class InngestProvider {
       })
     } else {
       logger.warn(
-        '⚠️ [INNGEST PROVIDER] BOT instance missing BOT_INNGEST_EVENT_KEY'
+        '⚠️ [INNGEST PROVIDER] BOT instance missing event key'
       )
     }
 

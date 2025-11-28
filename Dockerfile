@@ -58,6 +58,7 @@ ENV NODE_ENV=production
 # Switch to non-root user
 USER nodejs
 
-EXPOSE 2999
+# ✅ ИСПРАВЛЕНО: Изменен порт с 2999 на 3000 согласно обновлению всей инфраструктуры
+EXPOSE 3000
 
 CMD ["node", "dist/index.js"]

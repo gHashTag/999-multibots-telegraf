@@ -35,7 +35,8 @@ const IDEMPOTENCY_TTL_MS = 20 * 1000 // 20 секунд
  */
 async function generateImageWithFalAndLora(prompt: string): Promise<string> {
   const FAL_KEY = process.env.FAL_KEY
-  const FAL_LORA_PATH = process.env.FAL_DEFAULT_LORA_PATH ||
+  const FAL_LORA_PATH =
+    process.env.FAL_DEFAULT_LORA_PATH ||
     'https://v3b.fal.media/files/b/elephant/YpfnIK7JlNO7vZTsGanfo_pytorch_lora_weights.safetensors'
   const FAL_LORA_TRIGGER = process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE'
   const FAL_LORA_SCALE = Number(process.env.FAL_DEFAULT_LORA_SCALE) || 1.0
@@ -63,7 +64,7 @@ async function generateImageWithFalAndLora(prompt: string): Promise<string> {
   const input = {
     prompt: enhancedPrompt,
     image_size: {
-      width: 768,   // 9:16 для вертикальных фото
+      width: 768, // 9:16 для вертикальных фото
       height: 1365,
     },
     num_images: 1,
@@ -85,18 +86,29 @@ async function generateImageWithFalAndLora(prompt: string): Promise<string> {
   // ✅ ИСПРАВЛЕНО: Fal.ai возвращает ответ в формате { data: { images: [...] } }
   // Extract image URL from different possible response formats
   let imageUrl: string
-  
+
   // Проверяем новый формат: { data: { images: [...] } }
-  if (output.data && output.data.images && Array.isArray(output.data.images) && output.data.images[0]) {
+  if (
+    output.data &&
+    output.data.images &&
+    Array.isArray(output.data.images) &&
+    output.data.images[0]
+  ) {
     imageUrl = output.data.images[0].url
-  } else if (output.images && Array.isArray(output.images) && output.images[0]) {
+  } else if (
+    output.images &&
+    Array.isArray(output.images) &&
+    output.images[0]
+  ) {
     imageUrl = output.images[0].url
   } else if (output.image_url) {
     imageUrl = output.image_url
   } else if (output.url) {
     imageUrl = output.url
   } else {
-    throw new Error('Unexpected Fal.ai response format: ' + JSON.stringify(output))
+    throw new Error(
+      'Unexpected Fal.ai response format: ' + JSON.stringify(output)
+    )
   }
 
   logger.info({
@@ -310,15 +322,15 @@ export async function generateNeuroPhotoDirect(
             : '❌ Your account was not found in our database. Please restart the bot using the /start command'
         )
       } catch (sendError) {
-          logger.error({
-            message:
-              '❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю',
-            description: 'Failed to send error message to user (direct)',
-            error:
-              sendError instanceof Error ? sendError.message : 'Unknown error',
-            telegram_id,
-          })
-        }
+        logger.error({
+          message:
+            '❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю',
+          description: 'Failed to send error message to user (direct)',
+          error:
+            sendError instanceof Error ? sendError.message : 'Unknown error',
+          telegram_id,
+        })
+      }
 
       throw new Error(`User with ID ${telegram_id} not found in database`)
     }
@@ -567,7 +579,8 @@ export async function generateNeuroPhotoDirect(
           } catch (falError) {
             logger.error({
               message: '❌ [DIRECT] Ошибка Fal.ai, fallback на Replicate',
-              error: falError instanceof Error ? falError.message : 'Unknown error',
+              error:
+                falError instanceof Error ? falError.message : 'Unknown error',
               telegram_id,
             })
             // Fallback на Replicate при ошибке Fal.ai
@@ -740,9 +753,10 @@ export async function generateNeuroPhotoDirect(
           if (ctx.session) {
             ctx.session.lastNeuroPhotoImageUrl = imageUrl
             ctx.session.lastNeuroPhotoPrompt = prompt
-            
+
             logger.info({
-              message: '💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler',
+              message:
+                '💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler',
               description: 'Neurophoto URL saved in session for upscaler',
               telegram_id,
               savedUrl: imageUrl.substring(0, 50) + '...',
@@ -755,26 +769,29 @@ export async function generateNeuroPhotoDirect(
             if (!options?.disable_telegram_sending) {
               // Определяем какой провайдер и модель использовались
               const isLoraUsed = useFal
-              const loraInfo = isLoraUsed ? {
-                trigger: process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE',
-                provider: 'Fal.ai'
-              } : null
+              const loraInfo = isLoraUsed
+                ? {
+                    trigger: process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE',
+                    provider: 'Fal.ai',
+                  }
+                : null
 
               // Извлекаем информацию о модели
               let modelDisplay: string
               if (isLoraUsed) {
                 modelDisplay = 'Flux LoRA 🎭'
               } else {
-                const modelName = model_url.split('/').pop()?.split(':')[0] || 'Unknown'
+                const modelName =
+                  model_url.split('/').pop()?.split(':')[0] || 'Unknown'
                 modelDisplay = modelName.includes('flux-schnell')
                   ? 'Flux Schnell ⚡️'
                   : modelName.includes('flux-pro')
-                  ? 'Flux Pro 💎'
-                  : modelName.includes('flux-dev')
-                  ? 'Flux Dev'
-                  : modelName.includes('sdxl')
-                  ? 'SDXL'
-                  : modelName
+                    ? 'Flux Pro 💎'
+                    : modelName.includes('flux-dev')
+                      ? 'Flux Dev'
+                      : modelName.includes('sdxl')
+                        ? 'SDXL'
+                        : modelName
               }
 
               // Рассчитываем размеры изображения
@@ -833,10 +850,14 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 <i>Created with AI • @${botName}</i>`
 
               // Отправляем фото С красивым caption
-              await ctx.telegram.sendPhoto(telegram_id, { url: imageUrl }, {
-                caption,
-                parse_mode: 'HTML'
-              })
+              await ctx.telegram.sendPhoto(
+                telegram_id,
+                { url: imageUrl },
+                {
+                  caption,
+                  parse_mode: 'HTML',
+                }
+              )
 
               logger.info({
                 message: '📸 [DIRECT] Изображение отправлено пользователю',
@@ -853,33 +874,54 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
                   : '📝 <b>Prompt for copying:</b>\n\n'
 
                 // Если промпт слишком длинный - разбиваем на части
-                if (promptHeader.length + prompt.length > TELEGRAM_MESSAGE_LIMIT) {
+                if (
+                  promptHeader.length + prompt.length >
+                  TELEGRAM_MESSAGE_LIMIT
+                ) {
                   // Отправляем первую часть с заголовком
-                  const firstPartLength = TELEGRAM_MESSAGE_LIMIT - promptHeader.length - 50
-                  const firstPart = promptHeader + '<pre>' + prompt.substring(0, firstPartLength) + '...</pre>\n\n<i>(продолжение ↓)</i>'
-                  await ctx.telegram.sendMessage(telegram_id, firstPart, { parse_mode: 'HTML' })
+                  const firstPartLength =
+                    TELEGRAM_MESSAGE_LIMIT - promptHeader.length - 50
+                  const firstPart =
+                    promptHeader +
+                    '<pre>' +
+                    prompt.substring(0, firstPartLength) +
+                    '...</pre>\n\n<i>(продолжение ↓)</i>'
+                  await ctx.telegram.sendMessage(telegram_id, firstPart, {
+                    parse_mode: 'HTML',
+                  })
 
                   // Отправляем продолжение (без HTML форматирования для безопасности)
-                  const remainingPrompt = '...(продолжение):\n\n' + prompt.substring(firstPartLength)
+                  const remainingPrompt =
+                    '...(продолжение):\n\n' + prompt.substring(firstPartLength)
                   // Если продолжение тоже длинное - разбиваем дальше
                   const chunks = []
-                  for (let i = 0; i < remainingPrompt.length; i += TELEGRAM_MESSAGE_LIMIT) {
-                    chunks.push(remainingPrompt.substring(i, i + TELEGRAM_MESSAGE_LIMIT))
+                  for (
+                    let i = 0;
+                    i < remainingPrompt.length;
+                    i += TELEGRAM_MESSAGE_LIMIT
+                  ) {
+                    chunks.push(
+                      remainingPrompt.substring(i, i + TELEGRAM_MESSAGE_LIMIT)
+                    )
                   }
                   for (const chunk of chunks) {
                     await ctx.telegram.sendMessage(telegram_id, chunk)
                   }
 
                   logger.info({
-                    message: '📝 [DIRECT] Длинный промпт отправлен пользователю частями',
+                    message:
+                      '📝 [DIRECT] Длинный промпт отправлен пользователю частями',
                     description: 'Long prompt sent to user in chunks',
                     telegram_id,
                     chunksCount: chunks.length + 1,
                   })
                 } else {
                   // Промпт влезает целиком
-                  const promptMessage = promptHeader + '<pre>' + prompt + '</pre>'
-                  await ctx.telegram.sendMessage(telegram_id, promptMessage, { parse_mode: 'HTML' })
+                  const promptMessage =
+                    promptHeader + '<pre>' + prompt + '</pre>'
+                  await ctx.telegram.sendMessage(telegram_id, promptMessage, {
+                    parse_mode: 'HTML',
+                  })
 
                   logger.info({
                     message: '📝 [DIRECT] Промпт отправлен пользователю',
@@ -890,9 +932,13 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
                 }
               } catch (promptSendError) {
                 logger.error({
-                  message: '❌ [DIRECT] Ошибка при отправке промпта пользователю',
+                  message:
+                    '❌ [DIRECT] Ошибка при отправке промпта пользователю',
                   description: 'Error sending prompt to user',
-                  error: promptSendError instanceof Error ? promptSendError.message : 'Unknown error',
+                  error:
+                    promptSendError instanceof Error
+                      ? promptSendError.message
+                      : 'Unknown error',
                   telegram_id,
                 })
                 // Не прерываем процесс если промпт не отправился

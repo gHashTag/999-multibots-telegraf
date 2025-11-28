@@ -136,6 +136,16 @@ async function sendVideoDirectly(
     }
 
     const chatId = parseInt(telegramId)
+    
+    // ✅ ИСПРАВЛЕНО: Валидация chatId для предотвращения передачи NaN
+    if (isNaN(chatId) || chatId <= 0) {
+      logger.error('❌ [SEND VIDEO DIRECTLY] Invalid telegramId', {
+        telegramId,
+        parsedChatId: chatId,
+        error: 'telegramId must be a valid positive number'
+      })
+      throw new Error(`Invalid telegramId: ${telegramId}. Must be a valid positive number.`)
+    }
 
     // ✅ Проверяем размер файла через HEAD запрос
     let fileSize = 0
