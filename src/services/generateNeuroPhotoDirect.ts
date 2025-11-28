@@ -315,7 +315,7 @@ export async function generateNeuroPhotoDirect(
       )
 
       try {
-        await ctx.telegram.sendMessage(
+        await bot.telegram.sendMessage(
           telegram_id,
           is_ru
             ? '❌ Ваш аккаунт не найден в базе данных. Пожалуйста, запустите бота заново с помощью команды /start'
@@ -416,7 +416,7 @@ export async function generateNeuroPhotoDirect(
 
       // Добавляем проверку disable_telegram_sending
       if (!options?.disable_telegram_sending) {
-        await ctx.telegram.sendMessage(
+        await bot.telegram.sendMessage(
           telegram_id,
           is_ru
             ? '❌ Не удалось обработать платеж. Пожалуйста, проверьте баланс и попробуйте еще раз.'
@@ -502,7 +502,7 @@ export async function generateNeuroPhotoDirect(
         if (!options?.disable_telegram_sending) {
           if (validNumImages > 1) {
             try {
-              await ctx.telegram.sendMessage(
+              await bot.telegram.sendMessage(
                 telegram_id,
                 is_ru
                   ? `⏳ Генерация изображения ${i + 1} из ${validNumImages}`
@@ -523,7 +523,7 @@ export async function generateNeuroPhotoDirect(
             }
           } else {
             try {
-              await ctx.telegram.sendMessage(
+              await bot.telegram.sendMessage(
                 telegram_id,
                 is_ru ? '⏳ Генерация...' : '⏳ Generating...',
                 {
@@ -850,7 +850,7 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 <i>Created with AI • @${botName}</i>`
 
               // Отправляем фото С красивым caption
-              await ctx.telegram.sendPhoto(
+              await bot.telegram.sendPhoto(
                 telegram_id,
                 { url: imageUrl },
                 {
@@ -865,84 +865,6 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
                 telegram_id,
                 imageUrl: imageUrl.substring(0, 50) + '...',
               })
-
-              // ✅ ОТПРАВЛЯЕМ ПОЛНЫЙ ПРОМПТ ОТДЕЛЬНЫМ СООБЩЕНИЕМ
-              try {
-                const TELEGRAM_MESSAGE_LIMIT = 4096
-                const promptHeader = is_ru
-                  ? '📝 <b>Промпт для копирования:</b>\n\n'
-                  : '📝 <b>Prompt for copying:</b>\n\n'
-
-                // Если промпт слишком длинный - разбиваем на части
-                if (
-                  promptHeader.length + prompt.length >
-                  TELEGRAM_MESSAGE_LIMIT
-                ) {
-                  // Отправляем первую часть с заголовком
-                  const firstPartLength =
-                    TELEGRAM_MESSAGE_LIMIT - promptHeader.length - 50
-                  const firstPart =
-                    promptHeader +
-                    '<pre>' +
-                    prompt.substring(0, firstPartLength) +
-                    '...</pre>\n\n<i>(продолжение ↓)</i>'
-                  await ctx.telegram.sendMessage(telegram_id, firstPart, {
-                    parse_mode: 'HTML',
-                  })
-
-                  // Отправляем продолжение (без HTML форматирования для безопасности)
-                  const remainingPrompt =
-                    '...(продолжение):\n\n' + prompt.substring(firstPartLength)
-                  // Если продолжение тоже длинное - разбиваем дальше
-                  const chunks = []
-                  for (
-                    let i = 0;
-                    i < remainingPrompt.length;
-                    i += TELEGRAM_MESSAGE_LIMIT
-                  ) {
-                    chunks.push(
-                      remainingPrompt.substring(i, i + TELEGRAM_MESSAGE_LIMIT)
-                    )
-                  }
-                  for (const chunk of chunks) {
-                    await ctx.telegram.sendMessage(telegram_id, chunk)
-                  }
-
-                  logger.info({
-                    message:
-                      '📝 [DIRECT] Длинный промпт отправлен пользователю частями',
-                    description: 'Long prompt sent to user in chunks',
-                    telegram_id,
-                    chunksCount: chunks.length + 1,
-                  })
-                } else {
-                  // Промпт влезает целиком
-                  const promptMessage =
-                    promptHeader + '<pre>' + prompt + '</pre>'
-                  await ctx.telegram.sendMessage(telegram_id, promptMessage, {
-                    parse_mode: 'HTML',
-                  })
-
-                  logger.info({
-                    message: '📝 [DIRECT] Промпт отправлен пользователю',
-                    description: 'Prompt sent to user',
-                    telegram_id,
-                    promptLength: prompt.length,
-                  })
-                }
-              } catch (promptSendError) {
-                logger.error({
-                  message:
-                    '❌ [DIRECT] Ошибка при отправке промпта пользователю',
-                  description: 'Error sending prompt to user',
-                  error:
-                    promptSendError instanceof Error
-                      ? promptSendError.message
-                      : 'Unknown error',
-                  telegram_id,
-                })
-                // Не прерываем процесс если промпт не отправился
-              }
             } else {
               logger.info({
                 message:
@@ -1032,7 +954,7 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
         // Отправляем сообщение об ошибке пользователю
         try {
           if (!options?.disable_telegram_sending) {
-            await ctx.telegram.sendMessage(
+            await bot.telegram.sendMessage(
               telegram_id,
               is_ru
                 ? '❌ Произошла ошибка при генерации изображения. Мы вернем вам потраченные звезды в ближайшее время.'
@@ -1088,7 +1010,7 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
 
             try {
               if (!options?.disable_telegram_sending) {
-                await ctx.telegram.sendMessage(
+                await bot.telegram.sendMessage(
                   telegram_id,
                   is_ru
                     ? `💰 Мы вернули вам ${refundAmount} звезд за неудачную генерацию изображения.`
@@ -1147,7 +1069,7 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
           : `✅ Done! Successfully generated ${generatedUrls.length} out of ${validNumImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
 
         // 🚨 ИСПРАВЛЕНИЕ: Отправляем БЕЗ inline кнопок (wizard добавит reply keyboard)
-        await ctx.telegram.sendMessage(telegram_id, finalMessage)
+        await bot.telegram.sendMessage(telegram_id, finalMessage)
 
         logger.info({
           message: '✅ [DIRECT] Итоговое сообщение отправлено (без кнопок)',

@@ -59,16 +59,31 @@ class InngestProvider {
     })
 
     if (botEventKey) {
+      // Создаем Inngest клиент для BOT instance (как для RENDER)
+      logger.info('🔧 [INNGEST PROVIDER] Creating Inngest client for BOT...')
+
+      const botClient = new Inngest({
+        name: 'telegram-bot-client',
+        eventKey: botEventKey,
+        baseUrl: botBaseUrl,
+        isDev: false,
+      })
+
       this.configs.set('BOT', {
         eventKey: botEventKey,
         signingKey: botSigningKey,
         baseUrl: botBaseUrl,
         name: 'telegram-bot-main',
+        client: botClient,
       })
+
       logger.info('✅ [INNGEST PROVIDER] BOT instance configured', {
         baseUrl: botBaseUrl,
         hasSigningKey: !!botSigningKey,
         eventKeyPreview: `${botEventKey.substring(0, 20)}...`,
+        hasClient: true,
+        eventKeyValid: botEventKey.length > 50,
+        signingKeyValid: botSigningKey?.startsWith('signkey-'),
       })
     } else {
       logger.warn(
