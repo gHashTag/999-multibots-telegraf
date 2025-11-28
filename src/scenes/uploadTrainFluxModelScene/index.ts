@@ -2,11 +2,10 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
-import { inngestProvider } from '@/inngest_app/inngest-provider' // ✅ ПРАВИЛЬНЫЙ ПРОВАЙДЕР!
+import { inngest } from '@/inngest_app/client' // ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ
 import { isRussian } from '@/helpers/language'
 
 import { sendGenericErrorMessage } from '@/menu'
-import { supabase } from '@/core/supabase'
 import { getBotNameByToken } from '@/core/bot' // ✅ For correct bot_name detection
 
 const fs = require('fs')
@@ -72,11 +71,23 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     // ✅ Загружаем ZIP файл в Supabase Storage (Inngest имеет лимит 256KB на событие)
     // Base64 ZIP файл может быть >1MB, поэтому используем URL вместо base64
+    // ✅ ИСПРАВЛЕНО: Используем bucket 'images' вместо 'uploads' (bucket 'uploads' не существует)
+    // ✅ ИСПРАВЛЕНО: Используем serviceClient с SUPABASE_SERVICE_ROLE_KEY для обхода RLS политик
+    const { createClient } = await import('@supabase/supabase-js')
+    const SUPABASE_URL = process.env.SUPABASE_URL
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Supabase credentials not configured in environment')
+    }
+
+    const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
     const zipFileName = `train/${ctx.session.targetUserId}/${Date.now()}_${path.basename(zipPath)}`
     const zipBuffer = await fs.promises.readFile(zipPath)
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('uploads')
+    const { data: uploadData, error: uploadError } = await serviceClient.storage
+      .from('images')
       .upload(zipFileName, zipBuffer, {
         contentType: 'application/zip',
         upsert: true,
@@ -88,8 +99,8 @@ uploadTrainFluxModelScene.enter(async ctx => {
       )
     }
 
-    const { data: publicUrlData } = supabase.storage
-      .from('uploads')
+    const { data: publicUrlData } = serviceClient.storage
+      .from('images')
       .getPublicUrl(zipFileName)
 
     const zipUrl = publicUrlData.publicUrl
@@ -107,22 +118,21 @@ uploadTrainFluxModelScene.enter(async ctx => {
     }
 
     console.log(
-      '[uploadTrainFluxModelScene] Sending Inngest event via BOT provider:',
+      '[uploadTrainFluxModelScene] Sending Inngest event (единственный источник правды):',
       {
         modelName: ctx.session.modelName,
         triggerWord,
         steps: ctx.session.steps,
         zipUrl, // HTTP URL из Supabase
         bot_name,
-        instance: 'BOT',
       }
     )
 
     try {
-      const eventResult = await inngestProvider.sendEvent(
-        'BOT',
-        'model/training.start',
-        {
+      // ✅ Используем единственный источник правды - прямой inngest клиент
+      await inngest.send({
+        name: 'model/training.start',
+        data: {
           bot_name,
           is_ru: isRu,
           modelName: ctx.session.modelName,
@@ -131,15 +141,11 @@ uploadTrainFluxModelScene.enter(async ctx => {
           triggerWord,
           zipUrl, // ✅ HTTP URL из Supabase (Inngest лимит 256KB на событие)
           gender,
-        }
-      )
+        },
+      })
 
       console.log(
-        '[uploadTrainFluxModelScene] ✅ Inngest event sent successfully:',
-        {
-          success: true,
-          eventId: eventResult?.eventId,
-        }
+        '[uploadTrainFluxModelScene] ✅ Inngest event sent successfully'
       )
     } catch (eventError) {
       console.error(

@@ -123,20 +123,9 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           return filePath
         })
 
-        // ✅ STEP 3: Convert ZIP to base64
-        const dataUri = await step.run('convert-to-base64', async () => {
-          logger.info('[INNGEST TRAINING] Converting ZIP to base64')
-          const fileBuffer = fs.readFileSync(zipFilePath)
-          const base64Data = fileBuffer.toString('base64')
-          const dataUri = `data:application/zip;base64,${base64Data}`
-
-          logger.info('[INNGEST TRAINING] Base64 conversion complete', {
-            originalSize: fileBuffer.length,
-            base64Length: base64Data.length,
-          })
-
-          return dataUri
-        })
+        // ✅ STEP 3: Convert ZIP to base64 (НЕ возвращаем через step - используем напрямую)
+        // Проблема: base64 слишком большой для передачи через nginx (413 Request Entity Too Large)
+        // Решение: конвертируем base64 внутри следующего step, чтобы не передавать через HTTP
 
         // ✅ STEP 4: Sanitize model name
         const modelNameSanitized = await step.run(
@@ -198,7 +187,9 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           }
         })
 
-        // ✅ STEP 6: Create Replicate training
+        // ✅ STEP 6: Convert ZIP to base64 И Create Replicate training (в одном step)
+        // Объединяем конвертацию и создание training, чтобы base64 не передавался через HTTP
+        // Это решает проблему "413 Request Entity Too Large" от nginx
         const training = await step.run(
           'create-replicate-training',
           async () => {
@@ -206,17 +197,32 @@ export function createGenerateModelTrainingFunction(inngest: any) {
             const version =
               'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497'
 
-            logger.info('[INNGEST TRAINING] Creating Replicate training', {
-              model,
-              version,
-              destination: modelNameSanitized.destination,
-              steps: eventData.steps,
-            })
-
             const stepsNumber =
               typeof eventData.steps === 'string'
                 ? parseInt(eventData.steps, 10)
                 : eventData.steps
+
+            // ✅ КРИТИЧНО: Конвертируем base64 ВНУТРИ этого step, чтобы не передавать через HTTP
+            // Проблема: base64 слишком большой (~1.4MB) для передачи через nginx (413 Request Entity Too Large)
+            // Решение: конвертируем base64 внутри step и сразу используем для Replicate API
+            logger.info(
+              '[INNGEST TRAINING] Converting ZIP to base64 (inside step)'
+            )
+            const fileBuffer = fs.readFileSync(zipFilePath)
+            const base64Data = fileBuffer.toString('base64')
+            const dataUri = `data:application/zip;base64,${base64Data}`
+
+            logger.info('[INNGEST TRAINING] Base64 conversion complete', {
+              originalSize: fileBuffer.length,
+              base64Length: base64Data.length,
+            })
+
+            logger.info('[INNGEST TRAINING] Creating Replicate training', {
+              model,
+              version,
+              destination: modelNameSanitized.destination,
+              steps: stepsNumber,
+            })
 
             const training = await replicate.trainings.create(
               'ostris', // owner

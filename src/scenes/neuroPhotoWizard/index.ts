@@ -349,6 +349,23 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
 
+    // ✅ КРИТИЧНО: Проверка "Главное меню" ДО всех остальных проверок
+    if (
+      text === '🏠 Главное меню' ||
+      text === '🏠 Main menu' ||
+      text === levels[104].title_ru ||
+      text === levels[104].title_en
+    ) {
+      console.log('CASE: Главное меню - выход из сцены')
+      logger.info({
+        message: '🏠 [BUTTON STEP] Главное меню - выход из сцены',
+        telegramId: ctx.from?.id,
+      })
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.MainMenu)
+      return
+    }
+
     if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {
       console.log('CASE: Новый промпт - возврат к началу сцены')
       ctx.session.prompt = undefined
@@ -365,12 +382,6 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     if (text === '📐 Изменить размер' || text === '📐 Change size') {
       console.log('CASE: Изменить размер')
       await ctx.scene.enter(ModeEnum.SizeWizard)
-      return
-    }
-
-    if (text === levels[104].title_ru || text === levels[104].title_en) {
-      console.log('CASE: Главное меню')
-      await mainMenu(ctx)
       return
     }
 

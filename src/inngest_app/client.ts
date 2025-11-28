@@ -1,31 +1,41 @@
 import { Inngest } from 'inngest'
 
-// Определяем конфигурацию для логирования
+// ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ: Один Inngest клиент для всего приложения
+// Используем тестовые ключи для тестового окружения (testing-f3b09edd)
 const config = {
   name: 'Vibee',
   id: 'vibee-bot-client',
-  // Подключение к нашему Inngest Dev Server
-  // ✅ ИСПРАВЛЕНО: Используем только наш домен для Inngest
+  // Подключение к нашему Inngest серверу
   baseUrl:
-    process.env.NODE_ENV === 'development'
+    process.env.BOT_INNGEST_BASE_URL ||
+    (process.env.NODE_ENV === 'development'
       ? 'http://localhost:3000' // Локальный dev server
-      : 'https://three-head-dragon.shop/api/inngest', // Только наш домен в продакшене
+      : 'https://three-head-dragon.shop/api/inngest'), // Наш домен в продакшене
   isDev: process.env.NODE_ENV === 'development',
-  // Event key для production и test
+  // Event key: приоритет тестовому ключу для тестового окружения
   eventKey:
+    process.env.BOT_INNGEST_EVENT_TEST_KEY ||
     process.env.BOT_INNGEST_EVENT_KEY ||
     '4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q',
-  // Signing key for webhook verification
+  // Signing key: приоритет тестовому ключу
   signingKey:
     process.env.BOT_INNGEST_TEST_SIGNING_KEY ||
-    'signkey-prod-e2c2d07a9d0306957816b187e3e4fcd617ee0435923a1b613563c4666c82c047',
+    process.env.BOT_INNGEST_SIGNING_KEY ||
+    'signkey-test-c4167464e900701832920c98bb2ec6e6e3c59fd2b27c62e1f4140dada01e4597',
 }
 
-console.log('🔥 [DEBUG] Inngest client configuration:', {
-  ...config,
-  eventKey: config.eventKey ? '***HIDDEN***' : 'not set',
-  environment: process.env.NODE_ENV,
-})
+console.log(
+  '🔥 [INNGEST CLIENT] Единственный источник правды инициализирован:',
+  {
+    name: config.name,
+    baseUrl: config.baseUrl,
+    isDev: config.isDev,
+    hasEventKey: !!config.eventKey,
+    hasSigningKey: !!config.signingKey,
+    usingTestKey: !!process.env.BOT_INNGEST_EVENT_TEST_KEY,
+    environment: process.env.NODE_ENV,
+  }
+)
 
 // ✅ ВАЖНО: Создаем клиент Inngest ПЕРЕД импортом функций (избегаем circular dependency)
 // @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest

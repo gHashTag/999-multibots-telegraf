@@ -524,11 +524,11 @@ async function startApplication() {
         'FAL_KEY', // ✅ Для Fal (kie.ai gateway) lip-sync генерации
         'BASE_WEBHOOK_URL', // ✅ Для callback уведомлений от Kie.ai
         'BOT_INNGEST_EVENT_KEY', // ✅ Для локального Inngest endpoint (наш сервер)
+        'BOT_INNGEST_EVENT_TEST_KEY', // ✅ Для тестового Inngest окружения (testing-f3b09edd)
         'BOT_INNGEST_SIGNING_KEY', // ✅ Для локального Inngest signing
+        'BOT_INNGEST_TEST_SIGNING_KEY', // ✅ Для тестового Inngest signing
         'BOT_INNGEST_BASE_URL', // ✅ Для локального Inngest endpoint URL
-        'RENDER_INNGEST_EVENT_KEY', // ✅ Для отправки задач на render-server через Inngest Cloud
-        'RENDER_INNGEST_SIGNING_KEY', // ✅ Для прямых вызовов render-server (альтернатива)
-        // 'RENDER_INNGEST_BASE_URL' убран - не нужен, используем локальный Inngest
+        // ❌ RENDER_INNGEST ключи удалены - используем только один клиент (client.ts)
         // AI Avatar & Voice Generation Services
         'ELEVENLABS_API_KEY', // ✅ ElevenLabs для генерации голоса из текста
         'HEYGEN_COCOAGE_API_KEY', // ✅ HeyGen API ключ для набора аватаров Cocoage (шаблон 2)
@@ -621,23 +621,12 @@ async function startApplication() {
         console.log('  ✅ BASE_WEBHOOK_URL установлен (hardcoded fallback)')
       }
 
-      // ✅ КРИТИЧЕСКИ ВАЖНО: Принудительная переинициализация Inngest Provider
-      // После загрузки секретов из Infisical, нужно переинициализировать провайдер
-      // чтобы он прочитал свежие значения из process.env
-      try {
-        const { inngestProvider } = await import(
-          './inngest_app/inngest-provider'
-        )
-        inngestProvider.forceReinitialize()
-        console.log(
-          '  ✅ Inngest Provider переинициализирован с новыми секретами'
-        )
-      } catch (e) {
-        console.warn(
-          '  ⚠️ Не удалось переинициализировать Inngest Provider:',
-          e
-        )
-      }
+      // ✅ КРИТИЧЕСКИ ВАЖНО: Inngest клиент уже инициализирован в client.ts
+      // Он автоматически использует process.env переменные, которые мы только что загрузили из Infisical
+      // Никакой переинициализации не требуется - клиент создается при импорте модуля
+      console.log(
+        '  ✅ Inngest клиент использует свежие секреты из process.env'
+      )
     } catch (e) {
       console.warn('  ⚠️ Некоторые API ключи не загружены')
     }

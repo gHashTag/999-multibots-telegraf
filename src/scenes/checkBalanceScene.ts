@@ -112,11 +112,12 @@ export function calculateCost(
   }
 }
 
-// НОВАЯ ФУНКЦИЯ: Расчет конечной стоимости в звездах из базовой в долларах (согласовано с calculateFinalPriceInStars)
+// НОВАЯ ФУНКЦИЯ: Расчет конечной стоимости в звездах из базовой в долларах (согласовано с calculateModeCost)
 function calculateFinalStarCostFromDollars(baseDollarCost: number): number {
-  // Используем ту же логику что и в calculateFinalPriceInStars для согласованности
+  // ✅ ИСПРАВЛЕНО: Используем ту же логику что и в calculateModeCost для единообразия
+  // Вместо Math.floor используем parseFloat(toFixed(2)) как в calculateModeCost
   const finalCost = (baseDollarCost / starCost) * SYSTEM_CONFIG.interestRate
-  return Math.floor(finalCost) // Округляем вниз для согласованности с другими функциями
+  return parseFloat(finalCost.toFixed(2)) // Округляем до 2 знаков как в calculateModeCost
 }
 
 export const BASE_COSTS: Partial<Record<ModeEnum, CostValue>> = {

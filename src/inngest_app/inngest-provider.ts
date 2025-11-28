@@ -48,19 +48,24 @@ class InngestProvider {
     )
 
     // BOT инстанс (наш основной сервер)
-    // ✅ Используем RENDER_INNGEST_EVENT_KEY потому что BOT_INNGEST_EVENT_KEY пустой
-    const botEventKey =
-      process.env.RENDER_INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY
-    const botSigningKey = process.env.BOT_INNGEST_SIGNING_KEY
-    const botBaseUrl =
-      process.env.BOT_INNGEST_BASE_URL ||
-      'https://three-head-dragon.shop/api/inngest'
+    // ✅ ИСПРАВЛЕНО: Используем тестовый ключ BOT_INNGEST_EVENT_TEST_KEY для тестового окружения (testing-f3b09edd)
+    // Приоритет: тестовый ключ > production ключ > RENDER ключ (fallback)
+    const botEventKey = process.env.BOT_INNGEST_EVENT_TEST_KEY
+    const botSigningKey = process.env.BOT_INNGEST_TEST_SIGNING_KEY
+    const botBaseUrl = process.env.BOT_INNGEST_BASE_URL
 
     logger.info('🔍 [INNGEST PROVIDER] BOT instance check:', {
       hasBotEventKey: !!botEventKey,
       botEventKeyLength: botEventKey?.length || 0,
       hasBotSigningKey: !!botSigningKey,
       botBaseUrl,
+      usingTestKey: !!process.env.BOT_INNGEST_EVENT_TEST_KEY,
+      usingTestSigningKey: !!process.env.BOT_INNGEST_TEST_SIGNING_KEY,
+      eventKeySource: process.env.BOT_INNGEST_EVENT_TEST_KEY
+        ? 'TEST'
+        : process.env.BOT_INNGEST_EVENT_KEY
+          ? 'PRODUCTION'
+          : 'RENDER_FALLBACK',
     })
 
     if (botEventKey) {
@@ -68,7 +73,7 @@ class InngestProvider {
       logger.info('🔧 [INNGEST PROVIDER] Creating Inngest client for BOT...')
 
       const botClient = new Inngest({
-        name: 'telegram-bot-client',
+        name: 'Vibee Bot Client',
         eventKey: botEventKey,
         baseUrl: botBaseUrl,
         isDev: false,
