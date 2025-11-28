@@ -760,10 +760,11 @@ export async function generateNeuroPhotoDirect(
               disable_telegram_sending: options?.disable_telegram_sending,
               imageUrl: imageUrl.substring(0, 50) + '...',
             })
-            
+
             if (!options?.disable_telegram_sending) {
               logger.info({
-                message: '✅ [DIRECT] Отправка изображения разрешена, начинаем отправку',
+                message:
+                  '✅ [DIRECT] Отправка изображения разрешена, начинаем отправку',
                 description: 'Image sending allowed, starting send',
                 telegram_id,
                 imageUrl: imageUrl.substring(0, 50) + '...',
@@ -858,7 +859,7 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
                 imageUrl: imageUrl.substring(0, 50) + '...',
                 captionLength: caption.length,
               })
-              
+
               await ctx.telegram.sendPhoto(
                 telegram_id,
                 { url: imageUrl },
