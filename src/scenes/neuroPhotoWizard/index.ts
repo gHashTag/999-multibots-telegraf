@@ -361,7 +361,11 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
       // ✅ ИСПРАВЛЕНО: Используем правильное имя бота из системы через getBotNameByToken
       const bot_name = getBotNameByToken(ctx.telegram.token).bot_name
-      await generateNeuroPhotoHybrid(
+
+      console.log(
+        '🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid из ButtonStep'
+      )
+      const result = await generateNeuroPhotoHybrid(
         fullPrompt,
         ctx.session.userModel.model_url as any,
         num,
@@ -369,11 +373,57 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         ctx,
         bot_name
       )
+
+      console.log(
+        '✅ [DEBUG] generateNeuroPhotoHybrid завершен из ButtonStep:',
+        result
+      )
+
+      // ✅ ПРОВЕРЯЕМ РЕЗУЛЬТАТ: Показываем сообщение только если генерация успешна
+      if (!result || !result.success) {
+        console.log(
+          '❌ [DEBUG] Генерация не удалась в ButtonStep, результат:',
+          result
+        )
+        // Сообщение об ошибке уже отправлено в generateNeuroPhotoHybrid или generateNeuroPhotoDirect
+        return
+      }
+
+      // ✅ ТОЛЬКО ЕСЛИ ГЕНЕРАЦИЯ УСПЕШНА: Показываем кнопки для дополнительной генерации
+      console.log(
+        '🔄 [DEBUG] Генерация успешна в ButtonStep, показываем кнопки'
+      )
+
+      const additionalGenerationKeyboard = {
+        reply_markup: {
+          keyboard: [
+            [
+              { text: isRu ? '1️⃣' : '1️⃣' },
+              { text: isRu ? '2️⃣' : '2️⃣' },
+              { text: isRu ? '3️⃣' : '3️⃣' },
+              { text: isRu ? '4️⃣' : '4️⃣' },
+            ],
+            [
+              { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
+              { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
+            ],
+          ],
+          resize_keyboard: true,
+        },
+      }
+
+      await ctx.reply(
+        isRu
+          ? '✨ Нейрофото сгенерировано! Выберите количество дополнительных изображений или используйте другие опции:'
+          : '✨ Neurophoto generated! Choose the number of additional images or use other options:',
+        additionalGenerationKeyboard
+      )
     }
 
     if (numImages >= 1 && numImages <= 4) {
       await generate(numImages)
-      return ctx.scene.leave()
+      // ✅ НЕ ВЫХОДИМ ИЗ СЦЕНЫ - остаемся для дополнительной генерации
+      return
     } else {
       console.log(
         'CASE: Неизвестный ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'

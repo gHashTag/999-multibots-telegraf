@@ -1,9 +1,5 @@
 import axios, { isAxiosError } from 'axios'
-import {
-  isDev,
-  SECRET_API_KEY,
-  API_SERVER_URL,
-} from '@/config'
+import { isDev, SECRET_API_KEY, API_SERVER_URL } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -13,29 +9,33 @@ import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
 
 // Enhanced keyboard for multi-image results
-const createMultiNeuroPhotoResultKeyboard = (is_ru: boolean, imageIndex: number, totalImages: number) => {
+const createMultiNeuroPhotoResultKeyboard = (
+  is_ru: boolean,
+  imageIndex: number,
+  totalImages: number
+) => {
   const buttons = []
 
   // Navigation buttons for multiple images
   if (totalImages > 1) {
     const navRow = []
     if (imageIndex > 0) {
-      navRow.push(Markup.button.callback(
-        '⬅️',
-        `multi_neurophoto_nav_${imageIndex - 1}`
-      ))
+      navRow.push(
+        Markup.button.callback('⬅️', `multi_neurophoto_nav_${imageIndex - 1}`)
+      )
     }
 
-    navRow.push(Markup.button.callback(
-      `${imageIndex + 1}/${totalImages}`,
-      'multi_neurophoto_info'
-    ))
+    navRow.push(
+      Markup.button.callback(
+        `${imageIndex + 1}/${totalImages}`,
+        'multi_neurophoto_info'
+      )
+    )
 
     if (imageIndex < totalImages - 1) {
-      navRow.push(Markup.button.callback(
-        '➡️',
-        `multi_neurophoto_nav_${imageIndex + 1}`
-      ))
+      navRow.push(
+        Markup.button.callback('➡️', `multi_neurophoto_nav_${imageIndex + 1}`)
+      )
     }
 
     if (navRow.length > 0) {
@@ -85,8 +85,12 @@ export async function generateNeuroPhotoMulti(
   botName: string,
   explicitAspectRatio?: string | null,
   imageUrls?: string[] // NEW: Support for multiple input images
-): Promise<{ data: string; success: boolean; urls?: string[]; processedCount?: number } | null> {
-
+): Promise<{
+  data: string
+  success: boolean
+  urls?: string[]
+  processedCount?: number
+} | null> {
   const isMultiImage = imageUrls && imageUrls.length > 1
   const actualImageCount = isMultiImage ? imageUrls!.length : numImages
 
@@ -131,7 +135,7 @@ export async function generateNeuroPhotoMulti(
     exactCostPerImage,
     exactTotalCost,
     actualImageCount,
-    isMultiImage
+    isMultiImage,
   })
 
   // Send processing notification
@@ -204,7 +208,11 @@ export async function generateNeuroPhotoMulti(
       throw new Error(`Server error: ${response.data.error}`)
     }
 
-    if (response.data.urls && Array.isArray(response.data.urls) && response.data.urls.length > 0) {
+    if (
+      response.data.urls &&
+      Array.isArray(response.data.urls) &&
+      response.data.urls.length > 0
+    ) {
       // Server returned ready images
       logger.info({
         message: '📸 [MULTI] Sending multiple photos to user',
@@ -224,13 +232,21 @@ export async function generateNeuroPhotoMulti(
         const url = response.data.urls[i]
         try {
           const caption = isRu
-            ? `✨ Нейрофото ${i + 1}/${response.data.urls.length}\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость за изображение: ${exactCostPerImage} ⭐`
-            : `✨ Neurophoto ${i + 1}/${response.data.urls.length}\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost per image: ${exactCostPerImage} ⭐`
+            ? `✨ Нейрофото ${i + 1}/${response.data.urls.length}\n\nСтоимость за изображение: ${exactCostPerImage} ⭐`
+            : `✨ Neurophoto ${i + 1}/${response.data.urls.length}\n\nCost per image: ${exactCostPerImage} ⭐`
 
-          await ctx.telegram.sendPhoto(telegram_id, { url }, {
-            caption,
-            reply_markup: createMultiNeuroPhotoResultKeyboard(isRu, i, response.data.urls.length).reply_markup,
-          })
+          await ctx.telegram.sendPhoto(
+            telegram_id,
+            { url },
+            {
+              caption,
+              reply_markup: createMultiNeuroPhotoResultKeyboard(
+                isRu,
+                i,
+                response.data.urls.length
+              ).reply_markup,
+            }
+          )
 
           // Small delay between images
           if (i < response.data.urls.length - 1) {
@@ -258,9 +274,8 @@ export async function generateNeuroPhotoMulti(
 
       return {
         ...response.data,
-        processedCount: response.data.urls.length
+        processedCount: response.data.urls.length,
       }
-
     } else if (response.data.jobId) {
       // Server accepted for async processing
       logger.info({
@@ -340,7 +355,7 @@ export async function generateNeuroPhotoMulti(
         return {
           data: 'Multi-image series completed',
           success: results.length > 0,
-          processedCount: results.length
+          processedCount: results.length,
         }
       } else {
         // Standard single or multiple image generation

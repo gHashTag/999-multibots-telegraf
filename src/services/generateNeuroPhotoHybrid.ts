@@ -272,8 +272,8 @@ export async function generateNeuroPhotoHybrid(
       for (const url of response.data.urls) {
         try {
           const caption = isRussianFromState(ctx)
-            ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${exactCostPerImage} ⭐`
-            : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${exactCostPerImage} ⭐`
+            ? `✨ Нейрофото сгенерировано!\n\n💎 Стоимость: ${exactCostPerImage} ⭐`
+            : `✨ Neurophoto generated!\n\n Cost: ${exactCostPerImage} ⭐`
 
           await ctx.telegram.sendPhoto(
             telegram_id,
