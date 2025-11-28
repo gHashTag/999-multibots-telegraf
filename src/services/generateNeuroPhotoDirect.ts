@@ -752,6 +752,15 @@ export async function generateNeuroPhotoDirect(
           }
 
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
+          logger.info({
+            message: '🚀 [DIRECT] ДОСТИГНУТ БЛОК ОТПРАВКИ ИЗОБРАЖЕНИЯ',
+            description: 'REACHED IMAGE SENDING BLOCK',
+            telegram_id,
+            iteration: i,
+            imageUrl: imageUrl.substring(0, 50) + '...',
+            disable_telegram_sending: options?.disable_telegram_sending,
+          })
+          
           try {
             logger.info({
               message: '🔍 [DIRECT] Проверка перед отправкой изображения',
@@ -898,20 +907,30 @@ ${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
           }
 
           // Сохраняем промпт в базу данных для аналитики и истории
-          await savePromptDirect(
-            prompt,
-            model_url,
-            ModeEnum.NeuroPhoto,
-            imageUrl,
-            telegram_id.toString(),
-            'success'
-          )
+          try {
+            await savePromptDirect(
+              prompt,
+              model_url,
+              ModeEnum.NeuroPhoto,
+              imageUrl,
+              telegram_id.toString(),
+              'success'
+            )
 
-          logger.info({
-            message: '📝 [DIRECT] Промпт сохранен в базе данных',
-            description: 'Prompt saved to database',
-            telegram_id,
-          })
+            logger.info({
+              message: '📝 [DIRECT] Промпт сохранен в базе данных',
+              description: 'Prompt saved to database',
+              telegram_id,
+            })
+          } catch (savePromptError) {
+            logger.error({
+              message: '⚠️ [DIRECT] Ошибка при сохранении промпта (не критично)',
+              description: 'Error saving prompt (non-critical)',
+              error: savePromptError instanceof Error ? savePromptError.message : 'Unknown error',
+              telegram_id,
+            })
+            // Продолжаем выполнение, это не критично
+          }
         } catch (saveError) {
           // При ошибке сохранения локально продолжаем с оригинальным URL
           logger.error({
