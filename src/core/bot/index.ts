@@ -87,7 +87,9 @@ export const BOT_TOKENS = BOT_TOKENS_ALL
 export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
 
 export const DEFAULT_BOT_NAME = isDev ? 'ai_koshey_bot' : 'neuro_blogger_bot'
-export const defaultBot = DEFAULT_BOT_TOKEN ? new Telegraf<MyContext>(DEFAULT_BOT_TOKEN) : null as any
+export const defaultBot = DEFAULT_BOT_TOKEN
+  ? new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
+  : (null as any)
 
 if (DEFAULT_BOT_TOKEN) {
   logger.info('🤖 Инициализация defaultBot:', {
@@ -125,7 +127,9 @@ export const PULSE_BOT_TOKEN = isDev
   ? process.env.BOT_TOKEN_TEST_1
   : process.env.BOT_TOKEN_1
 
-export const pulseBot = PULSE_BOT_TOKEN ? new Telegraf<MyContext>(PULSE_BOT_TOKEN) : null as any
+export const pulseBot = PULSE_BOT_TOKEN
+  ? new Telegraf<MyContext>(PULSE_BOT_TOKEN)
+  : (null as any)
 
 if (PULSE_BOT_TOKEN) {
   logger.info('🤖 Инициализация pulseBot:', {
@@ -206,7 +210,10 @@ export async function createBotByName(botName: string): Promise<
  * Регистрирует созданный бот в объект bots для доступа через getBotByName
  * Вызывается после создания бота в src/index.ts
  */
-export function registerBotInstance(bot: Telegraf<MyContext>, botName: string): void {
+export function registerBotInstance(
+  bot: Telegraf<MyContext>,
+  botName: string
+): void {
   try {
     const validBotName = toBotName(botName) as BotName
     bots[validBotName] = bot
