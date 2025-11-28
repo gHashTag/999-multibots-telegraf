@@ -814,7 +814,7 @@ export const generateImageToVideo = async (
               })
             }
 
-            const maxPollingAttempts = 300 // 300 попыток = ~10 минут (2 сек * 300) - увеличено для VEO 3
+            const maxPollingAttempts = 5 // 5 попыток = ~10 секунд (2 сек * 5) - webhook-first система теперь основная
             const pollingInterval = 2000 // 2 секунды между проверками
 
             let attempts = 0
@@ -1317,79 +1317,50 @@ export const generateImageToVideo = async (
         await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
         logger.info('[I2V BG] Sora I2V video info saved to DB', { telegramId })
       }
-      // Если асинхронная генерация (taskId)
+      // ✅ WEBHOOK-ONLY: УБРАЛИ polling timeout! Полностью полагаемся на webhook
       else if (kieResponse.data.taskId) {
         const taskId = kieResponse.data.taskId
 
-        logger.info('[I2V BG] Sora I2V async generation started', {
+        logger.info('[I2V BG] Sora I2V async generation started (WEBHOOK-ONLY)', {
           telegramId,
           taskId,
-          willUsePolling: true
+          isWebhookMode: true
         })
 
-        // Polling для проверки статуса
-        const maxPollingAttempts = 60 // 5 минут (5 секунд * 60)
-        const pollingInterval = 5000 // 5 секунд
-        let attempts = 0
+        // ✅ FIX: Сохраняем taskId в кеш для предотвращения дублирующихся запросов
+        videoTaskCache.addTask(telegramId, modelId, taskId, processedPrompt || prompt || '', imageUrl || undefined)
+        logger.info('[I2V BG] ✅ TaskId saved to cache for deduplication', {
+          telegramId,
+          taskId,
+          modelId
+        })
 
-        while (attempts < maxPollingAttempts) {
-          attempts++
-          await new Promise(resolve => setTimeout(resolve, pollingInterval))
-
-          try {
-            const statusResponse = await kieProvider.checkSoraTaskStatus(taskId)
-
-            logger.info('[I2V BG] Sora I2V polling attempt', {
-              telegramId,
-              taskId,
-              attempt: attempts,
-              success: statusResponse.success,
-              hasVideoUrl: !!statusResponse.data?.videoUrl
-            })
-
-            if (statusResponse.success && statusResponse.data?.videoUrl) {
-              videoUrl = statusResponse.data.videoUrl
-              const videoBuffer = await downloadFileHelper(videoUrl)
-              logger.info('[I2V BG] Sora I2V video downloaded after polling', { telegramId, url: videoUrl })
-
-              const dirPath = path.join(UPLOADS_DIR, String(telegramId), 'image-to-video')
-              await mkdir(dirPath, { recursive: true })
-              const timestamp = Date.now()
-              const uniqueFilename = `${timestamp}_video.mp4`
-              localVideoPath = path.join(dirPath, uniqueFilename)
-              const u8 = new Uint8Array(videoBuffer)
-              await writeFile(localVideoPath, u8)
-              logger.info('[I2V BG] Sora I2V video saved locally after polling', {
-                telegramId,
-                path: localVideoPath,
-              })
-
-              await saveVideoUrlHelper(telegramId, videoUrl, localVideoPath, modelId)
-              logger.info('[I2V BG] Sora I2V video info saved to DB after polling', { telegramId })
-
-              break // Выходим из цикла polling
-            }
-          } catch (pollError) {
-            logger.error('[I2V BG] Sora I2V polling error', {
-              telegramId,
-              taskId,
-              attempt: attempts,
-              error: pollError instanceof Error ? pollError.message : 'Unknown polling error'
-            })
-          }
-        }
-
-        // Если после всех попыток видео не готово
-        if (!localVideoPath) {
-          logger.error('[I2V BG] Sora I2V polling timeout', {
+        // ✅ FIX: Save taskId to session so "Update status" button works
+        if (ctx && ctx.session) {
+          ctx.session.videoJobId = taskId
+          ctx.session.videoPrompt = processedPrompt || prompt || ''
+          ctx.session.videoModelId = modelId as any
+          ctx.session.videoMessageId = 0 // Will be updated later
+          logger.info('[I2V BG] ✅ Saved taskId to session for status updates', {
             telegramId,
             taskId,
-            attempts,
-            maxPollingAttempts
+            sessionHasContext: !!ctx.session
           })
-
-          throw new Error(`Sora I2V polling timeout after ${attempts} attempts`)
+        } else {
+          logger.warn('[I2V BG] ⚠️ Cannot save taskId - ctx or session missing', {
+            telegramId,
+            taskId,
+            hasCtx: !!ctx,
+            hasSession: !!ctx?.session
+          })
         }
+
+        // ✅ Снимаем деньги ТОЛЬКО после успешного получения видео через webhook
+        // НЕ снимаем здесь! Ждем webhook!
+
+        // ✅ ВЫХОДИМ - дальше все через webhook!
+        // Сообщение уже отправлено в handleImageToVideoDirect.ts
+        return
       } else {
         throw new Error('Kie.ai API returned neither videoUrl nor taskId for Sora I2V model')
       }

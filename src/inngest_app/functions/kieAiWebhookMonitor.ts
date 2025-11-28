@@ -25,180 +25,6 @@ interface MonitorResult {
 }
 
 /**
- * Основная функция мониторинга Kie.ai webhook'ов
- * Запускается каждые 10 минут
- */
-export const kieAiWebhookMonitor = inngest.createFunction(
-  {
-    id: 'kie-ai-webhook-monitor',
-    name: 'Kie.ai Webhook Health Monitor',
-  },
-  {
-    // Cron schedule: every 10 minutes
-    cron: '*/10 * * * *',
-  },
-  async ({ step }) => {
-    logger.info('[KieAiWebhookMonitor] 🔍 Запускаем мониторинг Kie.ai webhook\'ов')
-
-    try {
-      // Step 1: Собираем статистику по активным задачам
-      const monitorResult = await step.run('analyze-active-tasks', async (): Promise<MonitorResult> => {
-        const allTasks = videoTaskStore.getAllTasks()
-        const now = Date.now()
-
-        const staleThreshold = 10 * 60 * 1000 // 10 минут
-        const recentThreshold = 5 * 60 * 1000 // 5 минут
-
-        const staleTasks = Object.entries(allTasks).filter(([taskId, context]) => {
-          const age = now - context.createdAt
-          return age > staleThreshold
-        })
-
-        const recentTasks = Object.entries(allTasks).filter(([taskId, context]) => {
-          const age = now - context.createdAt
-          return age < recentThreshold
-        })
-
-        // Вычисляем среднее время ожидания
-        const allAges = Object.values(allTasks).map(context => now - context.createdAt)
-        const averageWaitTime = allAges.length > 0
-          ? allAges.reduce((sum, age) => sum + age, 0) / allAges.length / 1000 // в секундах
-          : 0
-
-        const stats: WebhookMonitorStats = {
-          totalTasks: Object.keys(allTasks).length,
-          staleTasks: staleTasks.length,
-          recentlyCompletedTasks: recentTasks.length,
-          averageWaitTime: Math.round(averageWaitTime)
-        }
-
-        logger.info('[KieAiWebhookMonitor] Статистика задач', stats)
-
-        return { stats, staleTasks: staleTasks.map(([taskId, ctx]) => ({ taskId, ctx })) }
-      })
-
-      // Step 2: Если есть застрявшие задачи - логируем детали
-      if (monitorResult.staleTasks && monitorResult.staleTasks.length > 0) {
-        await step.run('log-stale-tasks', async () => {
-          if (!monitorResult.staleTasks) {
-            return { logged: 0 }
-          }
-
-          for (const { taskId, ctx } of monitorResult.staleTasks) {
-            const ageMinutes = Math.round((Date.now() - ctx.createdAt) / 1000 / 60)
-
-            logger.warn('[KieAiWebhookMonitor] ⚠️ Застрявшая задача', {
-              taskId,
-              botName: ctx.botName,
-              modelId: ctx.modelId,
-              duration: ctx.duration,
-              ageMinutes,
-              telegramId: ctx.telegramId
-            })
-          }
-
-          return { logged: monitorResult.staleTasks.length }
-        })
-      }
-
-      // Step 3: Если много застрявших задач (>5) - критическое уведомление админу
-      if (monitorResult.staleTasks && monitorResult.staleTasks.length >= 5) {
-        await step.run('notify-admin-critical', async () => {
-          // Validate monitorResult before passing
-          if (!monitorResult.stats || !monitorResult.staleTasks) {
-            logger.error('[KieAiWebhookMonitor] Invalid monitor result structure')
-            return { notified: false }
-          }
-
-          // Create validated result with required fields
-          const validStats: WebhookMonitorStats = {
-            totalTasks: monitorResult.stats.totalTasks ?? 0,
-            staleTasks: monitorResult.stats.staleTasks ?? 0,
-            recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
-            averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
-          }
-
-          const validTasks = monitorResult.staleTasks.filter((task): task is { taskId: string; ctx: any } =>
-            task.taskId !== undefined && task.taskId !== null
-          )
-
-          const validResult: MonitorResult = {
-            stats: validStats,
-            staleTasks: validTasks
-          }
-
-          await notifyAdminAboutStuckWebhooks(validResult)
-          return { notified: true }
-        })
-      }
-
-      // Step 4: Если webhook'и не приходят совсем (общее число задач >20) - экстренное уведомление
-      if (monitorResult.stats && monitorResult.stats.totalTasks && monitorResult.stats.totalTasks > 20 &&
-          monitorResult.stats.averageWaitTime && monitorResult.stats.averageWaitTime > 600) {
-        await step.run('notify-admin-emergency', async () => {
-          // Validate monitorResult before passing
-          if (!monitorResult.stats || !monitorResult.staleTasks) {
-            logger.error('[KieAiWebhookMonitor] Invalid monitor result structure')
-            return { notified: false }
-          }
-
-          // Create validated result with required fields
-          const validStats: WebhookMonitorStats = {
-            totalTasks: monitorResult.stats.totalTasks ?? 0,
-            staleTasks: monitorResult.stats.staleTasks ?? 0,
-            recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
-            averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
-          }
-
-          const validTasks = monitorResult.staleTasks.filter((task): task is { taskId: string; ctx: any } =>
-            task.taskId !== undefined && task.taskId !== null
-          )
-
-          const validResult: MonitorResult = {
-            stats: validStats,
-            staleTasks: validTasks
-          }
-
-          await notifyAboutWebhookFailure(validResult)
-          return { notified: true }
-        })
-      }
-
-      logger.info('[KieAiWebhookMonitor] ✅ Мониторинг завершен', {
-        totalTasks: monitorResult.stats?.totalTasks ?? 0,
-        staleTasks: monitorResult.stats?.staleTasks ?? 0,
-        avgWaitTime: `${monitorResult.stats?.averageWaitTime ?? 0}s`
-      })
-
-      return {
-        success: true,
-        stats: monitorResult.stats ? {
-          totalTasks: monitorResult.stats.totalTasks ?? 0,
-          staleTasks: monitorResult.stats.staleTasks ?? 0,
-          recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
-          averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
-        } : {
-          totalTasks: 0,
-          staleTasks: 0,
-          recentlyCompletedTasks: 0,
-          averageWaitTime: 0
-        },
-        timestamp: new Date().toISOString()
-      }
-
-    } catch (error) {
-      logger.error('[KieAiWebhookMonitor] ❌ Ошибка мониторинга', { error })
-
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        timestamp: new Date().toISOString()
-      }
-    }
-  }
-)
-
-/**
  * Уведомление админа о застрявших webhook'ах
  */
 async function notifyAdminAboutStuckWebhooks(data: MonitorResult): Promise<void> {
@@ -278,52 +104,232 @@ async function notifyAboutWebhookFailure(data: MonitorResult): Promise<void> {
   }
 }
 
-/**
- * Функция для ручной проверки (можно вызвать через API)
- */
-export const kieAiWebhookManualCheck = inngest.createFunction(
-  {
-    id: 'kie-ai-webhook-manual-check',
-    name: 'Kie.ai Webhook Manual Check',
-  },
-  {
-    event: 'kie-ai/webhook-check-manual',
-  },
-  async ({ event, step }) => {
-    logger.info('[KieAiWebhookManualCheck] Ручная проверка webhook\'ов')
+// ✅ LAZY FUNCTION: Создаем функции только после загрузки секретов
+function createWebhookMonitorFunctions() {
+  /**
+   * Основная функция мониторинга Kie.ai webhook'ов
+   * Запускается каждые 10 минут
+   */
+  const kieAiWebhookMonitor = inngest.createFunction(
+    {
+      id: 'kie-ai-webhook-monitor',
+      name: 'Kie.ai Webhook Health Monitor',
+    },
+    {
+      // Cron schedule: every 10 minutes
+      cron: '*/10 * * * *',
+    },
+    async ({ step }) => {
+      logger.info('[KieAiWebhookMonitor] 🔍 Запускаем мониторинг Kie.ai webhook\'ов')
 
-    const allTasks = videoTaskStore.getAllTasks()
-    const now = Date.now()
+      try {
+        // Step 1: Собираем статистику по активным задачам
+        const monitorResult = await step.run('analyze-active-tasks', async (): Promise<MonitorResult> => {
+          const allTasks = videoTaskStore.getAllTasks()
+          const now = Date.now()
 
-    const taskDetails = Object.entries(allTasks).map(([taskId, context]) => ({
-      taskId,
-      botName: context.botName,
-      modelId: context.modelId,
-      duration: context.duration,
-      ageSeconds: Math.round((now - context.createdAt) / 1000),
-      telegramId: context.telegramId
-    }))
+          const staleThreshold = 10 * 60 * 1000 // 10 минут
+          const recentThreshold = 5 * 60 * 1000 // 5 минут
 
-    logger.info('[KieAiWebhookManualCheck] Активные задачи', {
-      total: taskDetails.length,
-      tasks: taskDetails
-    })
+          const staleTasks = Object.entries(allTasks).filter(([taskId, context]) => {
+            const age = now - context.createdAt
+            return age > staleThreshold
+          })
 
-    return {
-      success: true,
-      totalTasks: taskDetails.length,
-      tasks: taskDetails,
-      timestamp: new Date().toISOString()
+          const recentTasks = Object.entries(allTasks).filter(([taskId, context]) => {
+            const age = now - context.createdAt
+            return age < recentThreshold
+          })
+
+          // Вычисляем среднее время ожидания
+          const allAges = Object.values(allTasks).map(context => now - context.createdAt)
+          const averageWaitTime = allAges.length > 0
+            ? allAges.reduce((sum, age) => sum + age, 0) / allAges.length / 1000 // в секундах
+            : 0
+
+          const stats: WebhookMonitorStats = {
+            totalTasks: Object.keys(allTasks).length,
+            staleTasks: staleTasks.length,
+            recentlyCompletedTasks: recentTasks.length,
+            averageWaitTime: Math.round(averageWaitTime)
+          }
+
+          logger.info('[KieAiWebhookMonitor] Статистика задач', stats)
+
+          return { stats, staleTasks: staleTasks.map(([taskId, ctx]) => ({ taskId, ctx })) }
+        })
+
+        // Step 2: Если есть застрявшие задачи - логируем детали
+        if (monitorResult.staleTasks && monitorResult.staleTasks.length > 0) {
+          await step.run('log-stale-tasks', async () => {
+            if (!monitorResult.staleTasks) {
+              return { logged: 0 }
+            }
+
+            for (const { taskId, ctx } of monitorResult.staleTasks) {
+              const ageMinutes = Math.round((Date.now() - ctx.createdAt) / 1000 / 60)
+
+              logger.warn('[KieAiWebhookMonitor] ⚠️ Застрявшая задача', {
+                taskId,
+                botName: ctx.botName,
+                modelId: ctx.modelId,
+                duration: ctx.duration,
+                ageMinutes,
+                telegramId: ctx.telegramId
+              })
+            }
+
+            return { logged: monitorResult.staleTasks.length }
+          })
+        }
+
+        // Step 3: Если много застрявших задач (>5) - критическое уведомление админу
+        if (monitorResult.staleTasks && monitorResult.staleTasks.length >= 5) {
+          await step.run('notify-admin-critical', async () => {
+            // Validate monitorResult before passing
+            if (!monitorResult.stats || !monitorResult.staleTasks) {
+              logger.error('[KieAiWebhookMonitor] Invalid monitor result structure')
+              return { notified: false }
+            }
+
+            // Create validated result with required fields
+            const validStats: WebhookMonitorStats = {
+              totalTasks: monitorResult.stats.totalTasks ?? 0,
+              staleTasks: monitorResult.stats.staleTasks ?? 0,
+              recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
+              averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
+            }
+
+            const validTasks = monitorResult.staleTasks.filter((task): task is { taskId: string; ctx: any } =>
+              task.taskId !== undefined && task.taskId !== null
+            )
+
+            const validResult: MonitorResult = {
+              stats: validStats,
+              staleTasks: validTasks
+            }
+
+            await notifyAdminAboutStuckWebhooks(validResult)
+            return { notified: true }
+          })
+        }
+
+        // Step 4: Если webhook'и не приходят совсем (общее число задач >20) - экстренное уведомление
+        if (monitorResult.stats && monitorResult.stats.totalTasks && monitorResult.stats.totalTasks > 20 &&
+            monitorResult.stats.averageWaitTime && monitorResult.stats.averageWaitTime > 600) {
+          await step.run('notify-admin-emergency', async () => {
+            // Validate monitorResult before passing
+            if (!monitorResult.stats || !monitorResult.staleTasks) {
+              logger.error('[KieAiWebhookMonitor] Invalid monitor result structure')
+              return { notified: false }
+            }
+
+            // Create validated result with required fields
+            const validStats: WebhookMonitorStats = {
+              totalTasks: monitorResult.stats.totalTasks ?? 0,
+              staleTasks: monitorResult.stats.staleTasks ?? 0,
+              recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
+              averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
+            }
+
+            const validTasks = monitorResult.staleTasks.filter((task): task is { taskId: string; ctx: any } =>
+              task.taskId !== undefined && task.taskId !== null
+            )
+
+            const validResult: MonitorResult = {
+              stats: validStats,
+              staleTasks: validTasks
+            }
+
+            await notifyAboutWebhookFailure(validResult)
+            return { notified: true }
+          })
+        }
+
+        logger.info('[KieAiWebhookMonitor] ✅ Мониторинг завершен', {
+          totalTasks: monitorResult.stats?.totalTasks ?? 0,
+          staleTasks: monitorResult.stats?.staleTasks ?? 0,
+          avgWaitTime: `${monitorResult.stats?.averageWaitTime ?? 0}s`
+        })
+
+        return {
+          success: true,
+          stats: monitorResult.stats ? {
+            totalTasks: monitorResult.stats.totalTasks ?? 0,
+            staleTasks: monitorResult.stats.staleTasks ?? 0,
+            recentlyCompletedTasks: monitorResult.stats.recentlyCompletedTasks ?? 0,
+            averageWaitTime: monitorResult.stats.averageWaitTime ?? 0
+          } : {
+            totalTasks: 0,
+            staleTasks: 0,
+            recentlyCompletedTasks: 0,
+            averageWaitTime: 0
+          },
+          timestamp: new Date().toISOString()
+        }
+
+      } catch (error) {
+        logger.error('[KieAiWebhookMonitor] ❌ Ошибка мониторинга', { error })
+
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString()
+        }
+      }
     }
-  }
-)
+  )
 
-/**
- * Экспортируем все функции как массив и default export
- */
-export const kieAiWebhookMonitorFunctions = [
-  kieAiWebhookMonitor,
-  kieAiWebhookManualCheck
-]
+  /**
+   * Функция для ручной проверки (можно вызвать через API)
+   */
+  const kieAiWebhookManualCheck = inngest.createFunction(
+    {
+      id: 'kie-ai-webhook-manual-check',
+      name: 'Kie.ai Webhook Manual Check',
+    },
+    {
+      event: 'kie-ai/webhook-check-manual',
+    },
+    async ({ event, step }) => {
+      logger.info('[KieAiWebhookManualCheck] Ручная проверка webhook\'ов')
 
-export default kieAiWebhookMonitorFunctions
+      const allTasks = videoTaskStore.getAllTasks()
+      const now = Date.now()
+
+      const taskDetails = Object.entries(allTasks).map(([taskId, context]) => ({
+        taskId,
+        botName: context.botName,
+        modelId: context.modelId,
+        duration: context.duration,
+        ageSeconds: Math.round((now - context.createdAt) / 1000),
+        telegramId: context.telegramId
+      }))
+
+      logger.info('[KieAiWebhookManualCheck] Активные задачи', {
+        total: taskDetails.length,
+        tasks: taskDetails
+      })
+
+      return {
+        success: true,
+        totalTasks: taskDetails.length,
+        tasks: taskDetails,
+        timestamp: new Date().toISOString()
+      }
+    }
+  )
+
+  /**
+   * Экспортируем все функции как массив
+   */
+  const kieAiWebhookMonitorFunctions = [
+    kieAiWebhookMonitor,
+    kieAiWebhookManualCheck
+  ]
+
+  return kieAiWebhookMonitorFunctions
+}
+
+export { createWebhookMonitorFunctions }
+export default createWebhookMonitorFunctions

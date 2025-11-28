@@ -49,8 +49,8 @@ COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 
-# ✅ Создать папки uploads, logs, temp с правильными правами (ПЕРЕД USER nodejs!)
-RUN mkdir -p uploads logs temp && chown -R nodejs:nodejs uploads logs temp
+# ✅ Создать папки uploads, logs, temp, tmp с правильными правами (ПЕРЕД USER nodejs!)
+RUN mkdir -p uploads logs temp tmp && chown -R nodejs:nodejs uploads logs temp tmp
 
 # Environment
 ENV NODE_ENV=production

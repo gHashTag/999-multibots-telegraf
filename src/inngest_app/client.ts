@@ -11,11 +11,13 @@ const config = {
       ? 'http://localhost:3000' // Локальный dev server
       : 'https://three-head-dragon.shop/api/inngest', // Только наш домен в продакшене
   isDev: process.env.NODE_ENV === 'development',
-  // Event key только для production (используем RENDER_INNGEST для отправки событий)
+  // Event key только для production
   eventKey:
     process.env.NODE_ENV === 'production'
-      ? process.env.RENDER_INNGEST_EVENT_KEY
+      ? process.env.BOT_INNGEST_EVENT_KEY
       : undefined,
+  // Signing key for webhook verification
+  signingKey: process.env.BOT_INNGEST_SIGNING_KEY || process.env.BOT_INNGEST_TEST_SIGNING_KEY,
 }
 
 console.log('🔥 [DEBUG] Inngest client configuration:', {
@@ -37,5 +39,5 @@ import { createGenerateModelTrainingFunction } from './functions/existing/genera
 // ✅ Создаем функции через factory после создания inngest client
 // const generateAIReelsFunction = createGenerateAIReelsFunction(inngest)
 // const generateModelTrainingFunction = createGenerateModelTrainingFunction(inngest)
-// 
+//
 // // ✅ Список активных Inngest функций

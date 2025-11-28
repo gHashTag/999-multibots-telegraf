@@ -10,6 +10,38 @@ import type { VideoModelId } from '@/services/generateTextToVideo'
 
 const router: Router = express.Router()
 
+// ✅ Локализация ошибок - переводим технические сообщения на русский
+const ERROR_TRANSLATIONS: Record<string, string> = {
+  // Sora/Image-to-Video ошибки
+  'We currently do not support uploads of images containing photorealistic people.': 'Мы не поддерживаем загрузку изображений с реалистичными людьми',
+  'This image contains photorealistic people.': 'Изображение содержит реалистичных людей',
+  'Image contains faces.': 'Изображение содержит лица',
+
+  // Общие ошибки
+  'Content policy violation': 'Нарушение политики контента',
+  'Invalid request': 'Недействительный запрос',
+  'Generation timeout': 'Превышено время генерации',
+  'Model not found': 'Модель не найдена',
+  'Insufficient credits': 'Недостаточно кредитов',
+  'Rate limit exceeded': 'Превышен лимит запросов',
+}
+
+// ✅ Функция для перевода ошибок на русский
+function translateErrorToRussian(errorMessage: string): string {
+  // Если сообщение на русском - возвращаем как есть
+  if (/[а-яё]/i.test(errorMessage)) {
+    return errorMessage
+  }
+
+  // Ищем перевод в карте
+  if (ERROR_TRANSLATIONS[errorMessage]) {
+    return ERROR_TRANSLATIONS[errorMessage]
+  }
+
+  // Если перевод не найден, возвращаем оригинал
+  return errorMessage
+}
+
 // ✅ MULTI-BOT SUPPORT: Храним Map всех bot instances
 const botInstances: Map<string, Telegraf> = new Map()
 let defaultBotInstance: Telegraf | null = null
@@ -40,6 +72,8 @@ interface KieAiWebhookPayload {
   taskId?: string
   successFlag?: number  // 0 = processing, 1 = completed, 2 = failed, 3 = content policy error
   resultUrls?: string[]
+  resultWaterMarkUrls?: string[]  // Sora возвращает отдельно URL с водяным знаком
+  resultUrl?: string  // camelCase variant for some providers
   result_url?: string
   videoUrl?: string
   errorMessage?: string
@@ -79,7 +113,7 @@ interface KieAiWebhookPayload {
 async function sendVideoDirectly(
   telegramId: string,
   videoUrl: string,
-  metadata: { jobId?: string; duration?: number }
+  metadata: { jobId?: string; duration?: number; modelId?: string }
 ): Promise<void> {
   try {
     logger.info('📤 [SEND VIDEO DIRECTLY] Starting direct video send', {
@@ -161,10 +195,48 @@ async function sendVideoDirectly(
       )
     }
 
+    // ✅ Снимаем деньги после успешной отправки видео (direct mode)
+    try {
+      if (metadata.modelId) {
+        const { checkBalanceVideoOperationHelper, deductBalanceAfterSuccess } = await import('@/modules/videoGenerator/helpers')
+        const balanceResult = await checkBalanceVideoOperationHelper(
+          telegramId,
+          metadata.modelId,
+          true, // isRu
+          'image_to_video'
+        )
+
+        if (balanceResult.success && balanceResult.paymentAmount !== undefined) {
+          const deductSuccess = await deductBalanceAfterSuccess(
+            telegramId,
+            metadata.modelId,
+            'default',
+            balanceResult.paymentAmount,
+            'image_to_video'
+          )
+
+          if (deductSuccess) {
+            logger.info('✅ [SEND VIDEO DIRECTLY] Payment deducted', {
+              telegramId,
+              modelId: metadata.modelId,
+              paymentAmount: balanceResult.paymentAmount
+            })
+          }
+        }
+      }
+    } catch (paymentError) {
+      logger.error('❌ [SEND VIDEO DIRECTLY] Error deducting payment', {
+        telegramId,
+        jobId: metadata.jobId,
+        error: paymentError instanceof Error ? paymentError.message : String(paymentError)
+      })
+    }
+
     logger.info('✅ [SEND VIDEO DIRECTLY] Video sent successfully', {
       telegramId,
       chatId,
-      jobId: metadata.jobId
+      jobId: metadata.jobId,
+      modelId: metadata.modelId
     })
 
   } catch (error) {
@@ -391,10 +463,22 @@ function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
 
   // ✅ Парсим resultJson СНАЧАЛА, чтобы проверить наличие resultUrls
   let resultUrls: string[] | undefined
+  let resultWaterMarkUrls: string[] | undefined
   try {
     if (payload.data?.resultJson) {
       const resultJson = JSON.parse(payload.data.resultJson)
       resultUrls = resultJson.resultUrls
+      resultWaterMarkUrls = resultJson.resultWaterMarkUrls
+
+      logger.info('🔍 [SORA NORMALIZE] Parsed resultJson', {
+        taskId,
+        hasResultUrls: !!resultUrls,
+        resultUrlsCount: resultUrls?.length || 0,
+        hasResultWaterMarkUrls: !!resultWaterMarkUrls,
+        waterMarkUrlsCount: resultWaterMarkUrls?.length || 0,
+        cleanUrl: resultUrls?.[0]?.substring(0, 80) + '...',
+        watermarkUrl: resultWaterMarkUrls?.[0]?.substring(0, 80) + '...'
+      })
     }
   } catch (e) {
     logger.warn('[UNIVERSAL VIDEO WEBHOOK] Failed to parse Sora resultJson', { error: e })
@@ -413,8 +497,9 @@ function normalizeKieSoraPayload(payload: any): KieAiWebhookPayload {
     ...payload,
     taskId,
     successFlag,
-    resultUrls: payload.resultUrls || resultUrls || payload.data?.info?.resultUrls || payload.data?.resultUrls,
-    videoUrl: payload.videoUrl || resultUrls?.[0] || payload.data?.info?.resultUrls?.[0] || payload.data?.resultUrls?.[0]
+    resultUrls: resultUrls || payload.resultUrls || payload.data?.info?.resultUrls || payload.data?.resultUrls,
+    videoUrl: resultUrls?.[0] || payload.videoUrl || payload.resultUrls?.[0] || payload.data?.info?.resultUrls?.[0] || payload.data?.resultUrls?.[0],
+    resultWaterMarkUrls: resultWaterMarkUrls
   }
 }
 
@@ -465,8 +550,9 @@ async function processGenericVideoWebhook(payload: any, telegramIdFromUrl?: stri
   const videoUrl = payload.download_url ||
                    payload.videoUrl ||
                    payload.video_url ||
-                   payload.url ||
+                   payload.resultUrl ||
                    payload.result_url ||
+                   payload.url ||
                    payload.output ||
                    payload.data?.videoUrl ||
                    payload.data?.video_url ||
@@ -631,7 +717,7 @@ async function processSoraWebhookAsync(payload: KieAiWebhookPayload, telegramId?
   try {
     switch (successFlag) {
       case 1: // ✅ Completed successfully
-        await handleSoraSuccess(payload)
+        await handleSoraSuccess(payload, telegramId)
         break
 
       case 2: // ❌ Generation failed
@@ -665,112 +751,187 @@ async function processSoraWebhookAsync(payload: KieAiWebhookPayload, telegramId?
 /**
  * Обработка успешной генерации Sora видео
  */
-async function handleSoraSuccess(payload: KieAiWebhookPayload): Promise<void> {
+async function handleSoraSuccess(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId } = payload
+
+  // ✅ ИСПРАВЛЕНИЕ: Проверяем отдельно URL с водяным знаком и без
   const videoUrl = payload.videoUrl ||
                   payload.resultUrls?.[0] ||
+                  payload.resultUrl ||
                   payload.result_url ||
                   payload.response?.resultUrls?.[0] ||
                   payload.response?.result_url
+
+  const watermarkUrl = payload.resultWaterMarkUrls?.[0]
 
   if (!videoUrl) {
     logger.error('❌ [SORA WEBHOOK] Success but no video URL', { taskId, payload })
     return
   }
 
+  // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ: Проверяем какой URL отправляем
   logger.info('✅ [SORA WEBHOOK] Sora video generation successful', {
     taskId,
-    videoUrl: videoUrl.substring(0, 100) + '...',
-    duration: 10 // Sora всегда 10 секунд
+    cleanVideoUrl: videoUrl.substring(0, 100) + '...',
+    watermarkVideoUrl: watermarkUrl ? watermarkUrl.substring(0, 100) + '...' : 'NONE',
+    hasWatermarkUrl: !!watermarkUrl,
+    duration: 10, // Sora всегда 10 секунд
+    telegramId,
+    isSendingWatermark: videoUrl === watermarkUrl,
+    urlMatch: videoUrl === watermarkUrl ? 'SAME URLs!' : 'Different URLs'
   })
 
   // Получаем контекст задачи
   const taskContext = videoTaskStore.getTask(taskId)
-  if (!taskContext) {
-    logger.error('❌ [SORA WEBHOOK] Task context not found', { taskId })
-    return
-  }
+  if (taskContext) {
+    // ✅ Task found - normal mode (update original message)
 
-  // ✅ MULTI-BOT FIX: Получаем правильный bot instance для этой задачи
-  const botInstance = getBotInstance(taskContext.botName)
-  if (!botInstance) {
-    logger.error('❌ [SORA WEBHOOK] Bot instance not found', {
-      taskId,
-      requestedBot: taskContext.botName,
-      availableBots: Array.from(botInstances.keys())
-    })
-    return
-  }
-
-  logger.info('✅ [SORA WEBHOOK] Using bot instance', {
-    taskId,
-    botName: taskContext.botName || 'default'
-  })
-
-  try {
-    // Обновляем сообщение о статусе
-    await botInstance.telegram.editMessageText(
-      taskContext.chatId,
-      taskContext.messageId,
-      undefined,
-      '✅ Видео успешно сгенерировано! Отправляю...'
-    )
-
-    // Получаем информацию о модели
-    const modelInfo = VIDEO_MODELS[taskContext.modelId as VideoModelId]
-    const modelName = modelInfo?.nameRu || 'Sora 2'
-
-    // Отправляем видео с простым текстом (без Markdown чтобы избежать ошибок парсинга)
-    await botInstance.telegram.sendVideo(
-      taskContext.chatId,
-      Input.fromURL(videoUrl),
-      {
-        caption:
-          `🤖 Модель: ${modelName}\n` +
-          `⏱️ Длительность: ${taskContext.duration} сек\n` +
-          `⚡ Сгенерировано через AI`,
-      }
-    )
-
-    // Отправляем промпт отдельным сообщением (без Markdown)
-    await botInstance.telegram.sendMessage(
-      taskContext.chatId,
-      `📝 Ваш запрос:\n\n${taskContext.prompt}`
-    )
-
-    // Удаляем сообщение о процессе генерации
-    try {
-      await botInstance.telegram.deleteMessage(taskContext.chatId, taskContext.messageId)
-    } catch (e) {
-      // Игнорируем ошибку, если сообщение уже удалено
-      logger.warn('[SORA WEBHOOK] Could not delete processing message', { error: e })
+    // ✅ MULTI-BOT FIX: Получаем правильный bot instance для этой задачи
+    const botInstance = getBotInstance(taskContext.botName)
+    if (!botInstance) {
+      logger.error('❌ [SORA WEBHOOK] Bot instance not found', {
+        taskId,
+        requestedBot: taskContext.botName,
+        availableBots: Array.from(botInstances.keys())
+      })
+      return
     }
 
-    logger.info('✅ [SORA WEBHOOK] Video sent to user', {
+    logger.info('✅ [SORA WEBHOOK] Using bot instance', {
       taskId,
-      telegramId: taskContext.telegramId
+      botName: taskContext.botName || 'default'
     })
 
-    // Удаляем задачу из хранилища
-    videoTaskStore.deleteTask(taskId)
-
-  } catch (error) {
-    logger.error('❌ [SORA WEBHOOK] Error sending video to user', {
-      taskId,
-      error: error instanceof Error ? error.message : String(error)
-    })
-
-    // Отправляем сообщение об ошибке
     try {
+      // Обновляем сообщение о статусе
       await botInstance.telegram.editMessageText(
         taskContext.chatId,
         taskContext.messageId,
         undefined,
-        '❌ Ошибка при отправке видео. Попробуйте позже.'
+        '✅ Видео успешно сгенерировано! Отправляю...'
       )
-    } catch (e) {
-      logger.error('[SORA WEBHOOK] Could not send error message', { error: e })
+
+      // Получаем информацию о модели
+      const modelInfo = VIDEO_MODELS[taskContext.modelId as VideoModelId]
+      const modelName = modelInfo?.nameRu || 'Sora 2'
+
+      // Отправляем видео с простым текстом (без Markdown чтобы избежать ошибок парсинга)
+      await botInstance.telegram.sendVideo(
+        taskContext.chatId,
+        Input.fromURL(videoUrl),
+        {
+          caption:
+            `🤖 Модель: ${modelName}\n` +
+            `⏱️ Длительность: ${taskContext.duration} сек\n` +
+            `⚡ Сгенерировано через AI`,
+        }
+      )
+
+      // ✅ Снимаем деньги после успешной отправки видео
+      try {
+        const { checkBalanceVideoOperationHelper, deductBalanceAfterSuccess } = await import('@/modules/videoGenerator/helpers')
+        const balanceResult = await checkBalanceVideoOperationHelper(
+          telegramId,
+          taskContext.modelId,
+          true, // isRu - можно определить из user data
+          'image_to_video'
+        )
+
+        if (balanceResult.success && balanceResult.paymentAmount !== undefined) {
+          const deductSuccess = await deductBalanceAfterSuccess(
+            telegramId,
+            taskContext.modelId,
+            taskContext.botName || 'default',
+            balanceResult.paymentAmount,
+            'image_to_video'
+          )
+
+          if (deductSuccess) {
+            logger.info('✅ [SORA WEBHOOK] Payment deducted after successful video generation', {
+              telegramId,
+              modelId: taskContext.modelId,
+              paymentAmount: balanceResult.paymentAmount
+            })
+          }
+        }
+      } catch (paymentError) {
+        logger.error('❌ [SORA WEBHOOK] Error deducting payment', {
+          telegramId,
+          taskId,
+          error: paymentError instanceof Error ? paymentError.message : String(paymentError)
+        })
+      }
+
+      // Отправляем промпт отдельным сообщением (без Markdown)
+      await botInstance.telegram.sendMessage(
+        taskContext.chatId,
+        `📝 Ваш запрос:\n\n${taskContext.prompt}`
+      )
+
+      // Удаляем сообщение о процессе генерации
+      try {
+        await botInstance.telegram.deleteMessage(taskContext.chatId, taskContext.messageId)
+      } catch (e) {
+        // Игнорируем ошибку, если сообщение уже удалено
+        logger.warn('[SORA WEBHOOK] Could not delete processing message', { error: e })
+      }
+
+      logger.info('✅ [SORA WEBHOOK] Video sent to user', {
+        taskId,
+        telegramId: taskContext.telegramId
+      })
+
+      // Удаляем задачу из хранилища
+      videoTaskStore.deleteTask(taskId)
+
+    } catch (error) {
+      logger.error('❌ [SORA WEBHOOK] Error sending video to user', {
+        taskId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+
+      // Отправляем сообщение об ошибке
+      try {
+        await botInstance.telegram.editMessageText(
+          taskContext.chatId,
+          taskContext.messageId,
+          undefined,
+          '❌ Ошибка при отправке видео. Попробуйте позже.'
+        )
+      } catch (e) {
+        logger.error('[SORA WEBHOOK] Could not send error message', { error: e })
+      }
     }
+
+  } else if (telegramId) {
+    // ✅ Task NOT found (direct mode) - send video directly
+    logger.info('📤 [SORA WEBHOOK] Sending video directly to user', {
+      telegramId,
+      taskId,
+      videoUrl: videoUrl.substring(0, 100) + '...'
+    })
+
+    try {
+      await sendVideoDirectly(telegramId, videoUrl, {
+        jobId: taskId,
+        duration: 10,
+        modelId: 'sora-2-image-to-video' // По умолчанию для Sora I2V
+      })
+      logger.info('✅ [SORA WEBHOOK] Direct video send successful', {
+        telegramId,
+        taskId
+      })
+    } catch (error) {
+      logger.error('❌ [SORA WEBHOOK] Error sending video directly', {
+        telegramId,
+        taskId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+    return
+  } else {
+    logger.error('❌ [SORA WEBHOOK] Task context not found and no telegramId', { taskId })
+    return
   }
 }
 
@@ -780,9 +941,14 @@ async function handleSoraSuccess(payload: KieAiWebhookPayload): Promise<void> {
 async function handleSoraFailure(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId, errorMessage, errorCode } = payload
 
+  // ✅ FIXED: Extract error from data.failMsg (for Sora)
+  const actualErrorMessage = errorMessage || (payload.data as any)?.failMsg || 'Неизвестная ошибка'
+  const translatedError = translateErrorToRussian(actualErrorMessage)
+
   logger.error('❌ [SORA WEBHOOK] Sora generation failed', {
     taskId,
-    errorMessage,
+    errorMessage: actualErrorMessage,
+    translatedError,
     errorCode,
     telegramId
   })
@@ -804,7 +970,7 @@ async function handleSoraFailure(payload: KieAiWebhookPayload, telegramId?: stri
         taskContext.chatId,
         taskContext.messageId,
         undefined,
-        `❌ Ошибка генерации: ${errorMessage || 'Неизвестная ошибка'}`
+        `❌ Ошибка генерации: ${translatedError}`
       )
       videoTaskStore.deleteTask(taskId)
     } catch (error) {
@@ -824,12 +990,13 @@ async function handleSoraFailure(payload: KieAiWebhookPayload, telegramId?: stri
     try {
       await botInstance.telegram.sendMessage(
         parseInt(telegramId),
-        `❌ Ошибка генерации видео.\n\nПричина: ${errorMessage || 'Неизвестная ошибка'}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
+        `❌ Ошибка генерации видео.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
       )
       logger.info('✅ [SORA WEBHOOK] Direct failure notification sent', {
         telegramId,
         taskId,
-        errorMessage
+        errorMessage: actualErrorMessage,
+        translatedError
       })
     } catch (error) {
       logger.error('❌ [SORA WEBHOOK] Error sending direct failure notification', {
@@ -849,9 +1016,14 @@ async function handleSoraFailure(payload: KieAiWebhookPayload, telegramId?: stri
 async function handleSoraContentPolicy(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId, errorMessage, errorCode } = payload
 
+  // ✅ FIXED: Extract error from data.failMsg (for Sora)
+  const actualErrorMessage = errorMessage || (payload.data as any)?.failMsg || 'Некорректный контент'
+  const translatedError = translateErrorToRussian(actualErrorMessage)
+
   logger.error('🚫 [SORA WEBHOOK] Sora content policy violation', {
     taskId,
-    errorMessage,
+    errorMessage: actualErrorMessage,
+    translatedError,
     errorCode,
     telegramId
   })
@@ -873,7 +1045,7 @@ async function handleSoraContentPolicy(payload: KieAiWebhookPayload, telegramId?
         taskContext.chatId,
         taskContext.messageId,
         undefined,
-        `🚫 Контент отклонен политикой безопасности. Попробуйте другой запрос.\n\n${errorMessage || ''}`
+        `🚫 Контент отклонен политикой безопасности. Попробуйте другой запрос.\n\n${translatedError}`
       )
       videoTaskStore.deleteTask(taskId)
     } catch (error) {
@@ -893,7 +1065,7 @@ async function handleSoraContentPolicy(payload: KieAiWebhookPayload, telegramId?
     try {
       await botInstance.telegram.sendMessage(
         parseInt(telegramId),
-        `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${errorMessage || 'Некорректный контент'}\n\nПопробуйте другой запрос.`,
+        `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос.`,
         {
           link_preview_options: { is_disabled: true }
         }
@@ -901,7 +1073,8 @@ async function handleSoraContentPolicy(payload: KieAiWebhookPayload, telegramId?
       logger.info('✅ [SORA WEBHOOK] Direct content policy notification sent', {
         telegramId,
         taskId,
-        errorMessage
+        errorMessage: actualErrorMessage,
+        translatedError
       })
     } catch (error) {
       logger.error('❌ [SORA WEBHOOK] Error sending direct content policy notification', {
@@ -1037,7 +1210,7 @@ async function processKieAiWebhookAsync(payload: KieAiWebhookPayload, telegramId
   try {
     switch (successFlag) {
       case 1: // ✅ Completed successfully
-        await handleSuccessfulGeneration(payload)
+        await handleSuccessfulGeneration(payload, telegramId)
         break
 
       case 2: // ❌ Generation failed
@@ -1071,12 +1244,13 @@ async function processKieAiWebhookAsync(payload: KieAiWebhookPayload, telegramId
 /**
  * Обработка успешной генерации
  */
-async function handleSuccessfulGeneration(payload: KieAiWebhookPayload): Promise<void> {
+async function handleSuccessfulGeneration(payload: KieAiWebhookPayload, telegramId?: string): Promise<void> {
   const { taskId } = payload
 
   // Извлекаем URL видео из разных возможных полей
   const videoUrl = payload.videoUrl ||
                   payload.resultUrls?.[0] ||
+                  payload.resultUrl ||
                   payload.result_url ||
                   payload.response?.resultUrls?.[0] ||
                   payload.response?.result_url
@@ -1085,7 +1259,8 @@ async function handleSuccessfulGeneration(payload: KieAiWebhookPayload): Promise
     taskId,
     hasVideoUrl: !!videoUrl,
     videoUrl: videoUrl?.substring(0, 100),
-    duration: payload.duration || 'unknown'
+    duration: payload.duration || 'unknown',
+    telegramId
   })
 
   if (!videoUrl) {
@@ -1110,7 +1285,38 @@ async function handleSuccessfulGeneration(payload: KieAiWebhookPayload): Promise
                    payload.response?.duration ||
                    10 // default
 
-  // Уведомляем об успешном завершении
+  // ✅ DIRECT MODE: Если есть telegramId и нет taskContext - отправляем напрямую
+  if (telegramId) {
+    const taskContext = videoTaskStore.getTask(taskId)
+    if (!taskContext) {
+      logger.info('📤 [KIE.AI WEBHOOK] Sending video directly to user (direct mode)', {
+        telegramId,
+        taskId,
+        videoUrl: videoUrl.substring(0, 100) + '...'
+      })
+
+      try {
+        await sendVideoDirectly(telegramId, videoUrl, {
+          jobId: taskId,
+          duration
+        })
+        logger.info('✅ [KIE.AI WEBHOOK] Direct video send successful', {
+          telegramId,
+          taskId
+        })
+        return
+      } catch (error) {
+        logger.error('❌ [KIE.AI WEBHOOK] Error sending video directly', {
+          telegramId,
+          taskId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        // Continue to normal mode if direct mode fails
+      }
+    }
+  }
+
+  // Уведомляем об успешном завершении (нормальный режим)
   await notifyJobCompletion(taskId, {
     success: true,
     id: taskId,

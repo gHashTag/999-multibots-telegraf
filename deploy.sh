@@ -29,6 +29,7 @@ case "$ENV" in
     SSH_HOST="188.137.250.69"
     SSH_ALIAS="prod999"
     PORT=3002
+    API_PORT=3002
     INFISICAL_ENV="staging"
     CONTAINER_NAME="999-multibots-staging"
     echo -e "${YELLOW}🧪 STAGING MODE${NC}"
@@ -37,6 +38,7 @@ case "$ENV" in
     SSH_HOST="188.137.250.69"
     SSH_ALIAS="prod999"
     PORT=3001
+    API_PORT=3001
     INFISICAL_ENV="prod"
     CONTAINER_NAME="999-multibots"
     echo -e "${GREEN}🚀 PRODUCTION MODE${NC}"
@@ -151,6 +153,7 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
   docker build \
     -t $CONTAINER_NAME:latest \
     --progress=plain \
+    --no-cache \
     . 2>&1 | tail -30
 
   END=$(date +%s)
@@ -174,6 +177,7 @@ export DOCKER_BUILDKIT=1
 docker build \\
   -t $CONTAINER_NAME:latest \\
   --progress=plain \\
+  --no-cache \\
   . 2>&1 | tail -30
 
 BUILD_EXIT=\${PIPESTATUS[0]}
@@ -217,6 +221,7 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
     --restart=unless-stopped \
     -p 3000:3000 \
     -p 3001:3001 \
+    -e API_PORT=$API_PORT \
     --env-file .env \
     $CONTAINER_NAME:latest
 
@@ -238,6 +243,7 @@ docker run -d \
   --restart=always \
   -p 3000:3000 \
   -p 3001:3001 \
+  -e API_PORT=$API_PORT \
   -v /root/999-agents-telegraf/.env:/app/.env:ro \
   $CONTAINER_NAME:latest
 
@@ -286,10 +292,10 @@ echo "6️⃣ Webhook verification (CRITICAL CHECK)..."
 echo "   Testing Veo 3 webhook endpoint..."
 sleep 3
 
-WEBHOOK_URL="http://$SSH_HOST:$PORT/api/webhooks/kie-ai/video-callback"
+WEBHOOK_URL="http://$SSH_HOST:$PORT/api/video-callback"
 
 if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
-  WEBHOOK_URL="http://localhost:$PORT/api/webhooks/kie-ai/video-callback"
+  WEBHOOK_URL="http://localhost:$PORT/api/video-callback"
 fi
 
 # Test payload - minimal Veo 3 / WAN webhook structure

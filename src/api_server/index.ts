@@ -10,16 +10,18 @@ import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
 import diagnosticRouter from './routes/diagnostic.routes'
 import { Telegraf } from 'telegraf'
+// ✅ Inngest включен для мониторинга webhook'ов
 import { serve } from 'inngest/express'
 import { inngest } from '../inngest_app/client'
-import { allInngestFunctions } from '../inngest_app/registerFunctions'
+// ✅ LAZY: Импортируем фабричную функцию, а не готовые функции
+import { createAllInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 
 // Определяем порт. Берем из process.env.API_PORT, если есть, иначе 3000 (настроено в docker-compose.yml).
 // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
 const PORT = process.env.API_PORT || '3000'
 
-export function startApiServer(bot?: Telegraf): void {
+export async function startApiServer(bot?: Telegraf): Promise<void> {
   // Если bot instance передан, инициализируем его в webhook router
   if (bot) {
     setBotInstance(bot)
@@ -88,9 +90,49 @@ export function startApiServer(bot?: Telegraf): void {
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
-  // ✅ Интеграция Inngest с API (актуальная сигнатура serve из reels-callback-2)
-  const inngestHandler = serve(inngest as any, allInngestFunctions as any) as any
-  app.use('/api/inngest', inngestHandler)
+  // ✅ Inngest включен для мониторинга webhook'ов - LAZY VERSION
+  // Создаем функции ПОСЛЕ загрузки секретов из Infisical
+  try {
+    logger.info('[API SERVER] Creating Inngest functions (after secrets loaded)...')
+
+    const allInngestFunctions = createAllInngestFunctions()
+
+    if (allInngestFunctions && Array.isArray(allInngestFunctions) && allInngestFunctions.length > 0) {
+      logger.info('[API SERVER] Registering Inngest functions', {
+        count: allInngestFunctions.length,
+        functions: allInngestFunctions.map((f: any) => f.id || f.name || 'unnamed')
+      })
+
+      // ✅ Применена рабочая сигнатура serve() - ВЕРСИЯ ОТ 7 НОЯБРЯ
+      const signingKey = process.env.BOT_INNGEST_TEST_SIGNING_KEY || process.env.BOT_INNGEST_SIGNING_KEY
+      const inngestHandler = serve(inngest as any, allInngestFunctions as any, {
+        signingKey
+      }) as any
+
+      // Override health check to check process.env directly
+      app.get('/api/inngest', (req, res) => {
+        res.json({
+          'Inngest endpoint configured correctly.': true,
+          hasEventKey: !!process.env.BOT_INNGEST_EVENT_KEY,
+          hasSigningKey: !!signingKey,
+          functionsFound: allInngestFunctions.length
+        })
+      })
+
+      app.use('/api/inngest', inngestHandler)
+      logger.info('✅ [API SERVER] Inngest webhook monitor initialized at /api/inngest', {
+        signingKey: signingKey || 'not set',
+        signingKeyPreview: signingKey ? `${signingKey.substring(0, 30)}...` : 'not set'
+      })
+    } else {
+      logger.warn('⚠️ [API SERVER] No Inngest functions created', {
+        allInngestFunctions: typeof allInngestFunctions,
+        isArray: Array.isArray(allInngestFunctions)
+      })
+    }
+  } catch (error) {
+    logger.error('❌ [API SERVER] Failed to create Inngest functions', { error })
+  }
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
   app.listen(PORT, '0.0.0.0', () => {

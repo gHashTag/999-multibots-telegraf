@@ -2,7 +2,7 @@ import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { createImagesZip } from '../../helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
-import { createModelTrainingLocal } from '@/services/createModelTrainingLocal' // ✅ Локальная тренировка
+import { inngestProvider } from '@/inngest_app/inngest-provider' // ✅ ПРАВИЛЬНЫЙ ПРОВАЙДЕР!
 import { isRussian } from '@/helpers/language'
 import { deleteFile } from '@/helpers'
 import { sendGenericErrorMessage } from '@/menu'
@@ -71,26 +71,44 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const botToken = (ctx.telegram as any).token || (ctx as any).botInfo?.token
     const { bot_name } = getBotNameByToken(botToken)
 
-    const response = await createModelTrainingLocal(
-      {
-        filePath: zipPath,
-        triggerWord,
+    // ✅ Send Inngest event instead of local training (по аналогии с ai-server)
+    const zipUrl = `${PUBLIC_URL}/uploads/${ctx.session.targetUserId}/train/${path.basename(zipPath)}`
+
+    console.log('[uploadTrainFluxModelScene] Sending Inngest event via RENDER provider:', {
+      modelName: ctx.session.modelName,
+      triggerWord,
+      steps: ctx.session.steps,
+      zipUrl,  // HTTP URL как в ai-server
+      bot_name,
+      instance: 'RENDER'
+    })
+
+    try {
+      const eventResult = await inngestProvider.sendEvent('RENDER', 'model/training.start', {
+        bot_name,
+        is_ru: isRu,
         modelName: ctx.session.modelName,
         steps: ctx.session.steps,
         telegram_id: ctx.session.targetUserId.toString(),
-        is_ru: isRu,
-        botName: bot_name, // ✅ Use bot_name from token instead of ctx.botInfo?.username
-        gender: gender,
-      },
-      ctx
-    )
+        triggerWord,
+        zipUrl,  // HTTP URL как в ai-server
+        gender,
+      })
 
-    console.log('[uploadTrainFluxModelScene] Training response:', response)
+      console.log('[uploadTrainFluxModelScene] ✅ Inngest event sent successfully:', {
+        success: true,
+        eventId: eventResult?.eventId
+      })
+    } catch (eventError) {
+      console.error('[uploadTrainFluxModelScene] ❌ Failed to send Inngest event:', eventError.message)
+      console.error('[uploadTrainFluxModelScene] ❌ Full error:', eventError)
+      throw eventError
+    }
 
     await ctx.reply(
       isRu
-        ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${ctx.session.modelName}\n🆔 ID: ${response.training_id}\n⏱️ Время: ~1-2 часа`
-        : `✅ Model training started!\n\n📦 Model: ${ctx.session.modelName}\n🆔 ID: ${response.training_id}\n⏱️ Time: ~1-2 hours`
+        ? `✅ Тренировка модели запущена через Inngest!\n\n📦 Модель: ${ctx.session.modelName}\n⚡ Событие отправлено\n⏱️ Время: ~1-2 часа`
+        : `✅ Model training started via Inngest!\n\n📦 Model: ${ctx.session.modelName}\n⚡ Event sent\n⏱️ Time: ~1-2 hours`
     )
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)

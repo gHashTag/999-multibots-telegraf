@@ -184,7 +184,16 @@ export async function handleImageToVideoDirect(
         undefined,
         is_ru
           ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
-          : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+          : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: is_ru ? '🔄 Обновить статус' : '🔄 Update Status', callback_data: 'update_video_status' }
+              ]
+            ]
+          }
+        }
       )
     }
 

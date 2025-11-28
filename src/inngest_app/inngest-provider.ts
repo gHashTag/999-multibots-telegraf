@@ -30,14 +30,14 @@ class InngestProvider {
   }
 
   private ensureInitialized() {
-    if (!this.initialized) {
-      logger.info('🔧 [INNGEST PROVIDER] Lazy initialization starting...')
-      this.initializeConfigs()
-      this.initialized = true
-      logger.info('✅ [INNGEST PROVIDER] Lazy initialization completed', {
-        instances: Array.from(this.configs.keys()),
-      })
-    }
+    // ✅ ФИКС: Всегда переинициализируем конфигурацию для получения свежих значений из process.env
+    // Это критично для случаев, когда секреты загружаются динамически (например, из Infisical)
+    logger.info('🔧 [INNGEST PROVIDER] (Re)initializing configuration from process.env...')
+    this.initializeConfigs()
+    this.initialized = true
+    logger.info('✅ [INNGEST PROVIDER] Configuration refreshed', {
+      instances: Array.from(this.configs.keys()),
+    })
   }
 
   private initializeConfigs() {
@@ -297,6 +297,18 @@ class InngestProvider {
       })
       return false
     }
+  }
+
+  /**
+   * Принудительная переинициализация после загрузки секретов
+   * Вызывается из index.ts после загрузки секретов из Infisical
+   */
+  forceReinitialize(): void {
+    logger.info('🔄 [INNGEST PROVIDER] Force reinitialization requested')
+    this.initialized = false
+    this.configs.clear()
+    this.ensureInitialized()
+    logger.info('✅ [INNGEST PROVIDER] Force reinitialization completed')
   }
 
   /**

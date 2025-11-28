@@ -172,14 +172,18 @@ async function initializeBots() {
         setupNotificationProcessor(bot)
 
         // ✅ Сохраняем первый bot instance для webhooks (legacy)
+        console.log('🔍 [DEBUG] Checking mainBotInstance:', !!mainBotInstance, 'botName:', bot.botInfo?.username)
         if (!mainBotInstance) {
           mainBotInstance = bot
           console.log('✅ Main bot instance saved for webhooks')
 
           // ✅ Запускаем API сервер СРАЗУ после создания первого бота
           // (до bot.launch(), чтобы не ждать бесконечного polling loop)
+          console.log('🚀 [DEBUG] About to call startApiServer(bot)...')
           startApiServer(bot) // Передаём только первый бот (default)
           console.log('✅ API сервер запущен с bot instance для webhooks')
+        } else {
+          console.log('⚠️ [DEBUG] mainBotInstance already set, skipping API server start')
         }
 
         // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
@@ -397,10 +401,14 @@ async function startApplication() {
         'KIE_AI_API_KEY',
         'OPENROUTER_API_KEY',
         'REPLICATE_API_TOKEN',
+        'REPLICATE_USERNAME',
         'APIFY_TOKEN',
         'GITHUB_TOKEN',
         'FAL_KEY',                    // ✅ Для Fal (kie.ai gateway) lip-sync генерации
         'BASE_WEBHOOK_URL',           // ✅ Для callback уведомлений от Kie.ai
+        'BOT_INNGEST_EVENT_KEY',      // ✅ Для локального Inngest endpoint (наш сервер)
+        'BOT_INNGEST_SIGNING_KEY',    // ✅ Для локального Inngest signing
+        'BOT_INNGEST_BASE_URL',       // ✅ Для локального Inngest endpoint URL
         'RENDER_INNGEST_EVENT_KEY',   // ✅ Для отправки задач на render-server через Inngest Cloud
         'RENDER_INNGEST_SIGNING_KEY', // ✅ Для прямых вызовов render-server (альтернатива)
         // 'RENDER_INNGEST_BASE_URL' убран - не нужен, используем локальный Inngest
@@ -476,6 +484,17 @@ async function startApplication() {
       if (!process.env.BASE_WEBHOOK_URL && env === 'prod') {
         process.env.BASE_WEBHOOK_URL = 'https://three-head-dragon.shop'
         console.log('  ✅ BASE_WEBHOOK_URL установлен (hardcoded fallback)')
+      }
+
+      // ✅ КРИТИЧЕСКИ ВАЖНО: Принудительная переинициализация Inngest Provider
+      // После загрузки секретов из Infisical, нужно переинициализировать провайдер
+      // чтобы он прочитал свежие значения из process.env
+      try {
+        const { inngestProvider } = await import('./inngest_app/inngest-provider')
+        inngestProvider.forceReinitialize()
+        console.log('  ✅ Inngest Provider переинициализирован с новыми секретами')
+      } catch (e) {
+        console.warn('  ⚠️ Не удалось переинициализировать Inngest Provider:', e)
       }
     } catch (e) {
       console.warn('  ⚠️ Некоторые API ключи не загружены')
