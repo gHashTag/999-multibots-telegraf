@@ -14,17 +14,18 @@
  */
 
 import { logger } from '@/utils/logger'
-import { replicate } from '@/core/replicate'
 import { supabase } from '@/core/supabase'
 import {
   sanitizeModelName,
   isValidReplicateModelName,
 } from '@/helpers/sanitizeModelName'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
+import { PUBLIC_URL } from '@/config'
 import axios from 'axios'
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
+const Replicate = require('replicate')
 
 interface ModelTrainingEvent {
   name: 'model/training.start'
@@ -66,27 +67,29 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           bot_name: eventData.bot_name,
         })
 
-        // ✅ STEP 1: Validate Replicate credentials
+        // ✅ STEP 1: Validate Replicate credentials и создаем клиент с явной передачей токена
         const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
-        const REPLICATE_USERNAME = process.env.REPLICATE_USERNAME
+        const REPLICATE_USERNAME = process.env.REPLICATE_USERNAME || 'ghashtag'
 
         if (!REPLICATE_API_TOKEN) {
           throw new Error('❌ Missing REPLICATE_API_TOKEN in environment')
         }
 
-        if (!REPLICATE_USERNAME) {
-          throw new Error(
-            '❌ Missing REPLICATE_USERNAME in environment. Please set it in Infisical.'
-          )
-        }
+        // ✅ КРИТИЧНО: Создаем новый Replicate клиент с явной передачей токена
+        // Проблема: глобальный клиент из @/core/replicate может быть инициализирован без токена
+        // Решение: создаем клиент внутри функции с явной передачей токена из process.env
+        const replicate = new Replicate({
+          auth: REPLICATE_API_TOKEN,
+        })
 
         logger.info('[INNGEST TRAINING] Using Replicate credentials', {
           username: REPLICATE_USERNAME,
           hasToken: !!REPLICATE_API_TOKEN,
+          tokenLength: REPLICATE_API_TOKEN.length,
         })
 
         // ✅ STEP 2: Download ZIP file from URL (Inngest лимит 256KB на событие)
-        const zipFilePath = await step.run('download-zip', async () => {
+        const zipDownloadResult = await step.run('download-zip', async () => {
           logger.info('[INNGEST TRAINING] Downloading ZIP file', {
             zipUrl: eventData.zipUrl,
           })
@@ -120,8 +123,21 @@ export function createGenerateModelTrainingFunction(inngest: any) {
             size: stats.size,
           })
 
-          return filePath
+          // ✅ Возвращаем детальный результат для прозрачности
+          return {
+            filePath,
+            fileName,
+            size: stats.size,
+            sizeMB: (stats.size / 1024 / 1024).toFixed(2),
+            downloaded: true,
+            sourceUrl: eventData.zipUrl,
+          }
         })
+        const zipFilePath = zipDownloadResult.filePath
+        logger.info(
+          '[INNGEST TRAINING] ✅ Step 2 completed: ZIP downloaded',
+          zipDownloadResult
+        )
 
         // ✅ STEP 3: Convert ZIP to base64 (НЕ возвращаем через step - используем напрямую)
         // Проблема: base64 слишком большой для передачи через nginx (413 Request Entity Too Large)
@@ -131,61 +147,102 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         const modelNameSanitized = await step.run(
           'sanitize-model-name',
           async () => {
-            let sanitized = eventData.modelName
+            const originalName = eventData.modelName
+            let sanitized = originalName
+            let wasSanitized = false
 
-            if (!isValidReplicateModelName(eventData.modelName)) {
+            if (!isValidReplicateModelName(originalName)) {
               logger.warn('[INNGEST TRAINING] Invalid model name, sanitizing', {
-                original: eventData.modelName,
+                original: originalName,
               })
-              sanitized = sanitizeModelName(eventData.modelName)
+              sanitized = sanitizeModelName(originalName)
+              wasSanitized = true
             }
 
             const modelNameLower = sanitized.toLowerCase()
-            const uniqueModelName = `${modelNameLower}-${Date.now()}`
+            const timestamp = Date.now()
+            const uniqueModelName = `${modelNameLower}-${timestamp}`
             const destination = `${REPLICATE_USERNAME}/${uniqueModelName}`
 
             logger.info('[INNGEST TRAINING] Model name prepared', {
-              original: eventData.modelName,
+              original: originalName,
               sanitized,
               destination,
             })
 
-            return { destination, uniqueModelName }
+            // ✅ Возвращаем детальный результат для прозрачности
+            return {
+              destination,
+              uniqueModelName,
+              originalName,
+              sanitized,
+              wasSanitized,
+              timestamp,
+              username: REPLICATE_USERNAME,
+            }
           }
+        )
+        logger.info(
+          '[INNGEST TRAINING] ✅ Step 4 completed: Model name sanitized',
+          modelNameSanitized
         )
 
         // ✅ STEP 5: Create/validate Replicate model
-        await step.run('create-replicate-model', async () => {
-          logger.info('[INNGEST TRAINING] Checking/creating Replicate model', {
-            destination: modelNameSanitized.destination,
-          })
-
-          try {
-            await replicate.models.get(
-              REPLICATE_USERNAME,
-              modelNameSanitized.uniqueModelName
+        const modelCreationResult = await step.run(
+          'create-replicate-model',
+          async () => {
+            logger.info(
+              '[INNGEST TRAINING] Checking/creating Replicate model',
+              {
+                destination: modelNameSanitized.destination,
+              }
             )
-            logger.info('[INNGEST TRAINING] Model already exists')
-          } catch (error: any) {
-            if (error?.response?.status === 404) {
-              logger.info('[INNGEST TRAINING] Creating new model')
-              await replicate.models.create(
+
+            let modelExists = false
+            let modelCreated = false
+
+            try {
+              await replicate.models.get(
                 REPLICATE_USERNAME,
-                modelNameSanitized.uniqueModelName,
-                {
-                  description: `LoRA: ${eventData.triggerWord}`,
-                  visibility: 'public',
-                  hardware: 'gpu-l40s',
-                }
+                modelNameSanitized.uniqueModelName
               )
-              logger.info('[INNGEST TRAINING] ✅ Model created successfully')
-              // Wait for model to be fully initialized
-              await new Promise(resolve => setTimeout(resolve, 5000))
-            } else {
-              throw error
+              modelExists = true
+              logger.info('[INNGEST TRAINING] Model already exists')
+            } catch (error: any) {
+              if (error?.response?.status === 404) {
+                logger.info('[INNGEST TRAINING] Creating new model')
+                await replicate.models.create(
+                  REPLICATE_USERNAME,
+                  modelNameSanitized.uniqueModelName,
+                  {
+                    description: `LoRA: ${eventData.triggerWord}`,
+                    visibility: 'public',
+                    hardware: 'gpu-l40s',
+                  }
+                )
+                modelCreated = true
+                logger.info('[INNGEST TRAINING] ✅ Model created successfully')
+                // Wait for model to be fully initialized
+                await new Promise(resolve => setTimeout(resolve, 5000))
+              } else {
+                throw error
+              }
+            }
+
+            // ✅ Возвращаем детальный результат для прозрачности
+            return {
+              destination: modelNameSanitized.destination,
+              uniqueModelName: modelNameSanitized.uniqueModelName,
+              modelExists,
+              modelCreated,
+              triggerWord: eventData.triggerWord,
             }
           }
-        })
+        )
+        logger.info(
+          '[INNGEST TRAINING] ✅ Step 5 completed: Model created/validated',
+          modelCreationResult
+        )
 
         // ✅ STEP 6: Convert ZIP to base64 И Create Replicate training (в одном step)
         // Объединяем конвертацию и создание training, чтобы base64 не передавался через HTTP
@@ -217,11 +274,51 @@ export function createGenerateModelTrainingFunction(inngest: any) {
               base64Length: base64Data.length,
             })
 
+            // ✅ КРИТИЧНО: Получаем webhook URL для уведомлений о завершении тренировки
+            // В ai-server используется `${API_URL}/webhooks/replicate`
+            // ✅ FALLBACK: Если PUBLIC_URL не установлен, используем хардкод для production
+            const publicUrl =
+              PUBLIC_URL ||
+              process.env.BASE_WEBHOOK_URL ||
+              (process.env.NODE_ENV === 'production'
+                ? 'https://three-head-dragon.shop'
+                : 'http://localhost:3000')
+            const webhookUrl = `${publicUrl}/api/webhooks/replicate`
+
+            logger.info('[INNGEST TRAINING] 🔗 WEBHOOK CONFIGURATION', {
+              webhookUrl,
+              PUBLIC_URL,
+              BASE_WEBHOOK_URL: process.env.BASE_WEBHOOK_URL,
+              NODE_ENV: process.env.NODE_ENV,
+              publicUrl,
+              triggerWord: eventData.triggerWord,
+              model: modelNameSanitized.destination,
+              steps: stepsNumber,
+            })
+
+            // ✅ КРИТИЧНО: Проверяем, что webhook URL валидный (должен быть HTTPS в production)
+            if (
+              !webhookUrl.startsWith('http://') &&
+              !webhookUrl.startsWith('https://')
+            ) {
+              logger.error('[INNGEST TRAINING] ❌ Invalid webhook URL', {
+                webhookUrl,
+                PUBLIC_URL,
+                BASE_WEBHOOK_URL: process.env.BASE_WEBHOOK_URL,
+                publicUrl,
+              })
+              throw new Error(
+                `Invalid webhook URL: ${webhookUrl}. PUBLIC_URL: ${PUBLIC_URL}, BASE_WEBHOOK_URL: ${process.env.BASE_WEBHOOK_URL}, publicUrl: ${publicUrl}`
+              )
+            }
+
             logger.info('[INNGEST TRAINING] Creating Replicate training', {
               model,
               version,
               destination: modelNameSanitized.destination,
               steps: stepsNumber,
+              triggerWord: eventData.triggerWord,
+              webhookUrl, // Логируем webhook URL для отладки
             })
 
             const training = await replicate.trainings.create(
@@ -243,8 +340,17 @@ export function createGenerateModelTrainingFunction(inngest: any) {
                   learning_rate: 0.0001,
                   wandb_project: 'flux_train_replicate',
                 },
+                // ✅ КРИТИЧНО: Добавляем webhook для получения уведомлений о завершении (как в ai-server)
+                webhook: webhookUrl,
+                webhook_events_filter: ['completed'], // Только событие 'completed' (succeeded/failed/canceled)
               }
             )
+
+            logger.info('[INNGEST TRAINING] ✅ Training created with webhook', {
+              training_id: training.id,
+              webhookUrl,
+              triggerWord: eventData.triggerWord,
+            })
 
             logger.info('[INNGEST TRAINING] ✅ Training created successfully', {
               training_id: training.id,
@@ -252,51 +358,108 @@ export function createGenerateModelTrainingFunction(inngest: any) {
               destination: modelNameSanitized.destination,
             })
 
-            return training
+            // ✅ КРИТИЧНО: Возвращаем детальные сериализуемые данные для прозрачности
+            // Проблема "Invalid JSON in response" возникает из-за несериализуемых полей в объекте training
+            return {
+              id: training.id,
+              status: training.status,
+              destination: modelNameSanitized.destination,
+              webhookUrl,
+              triggerWord: eventData.triggerWord,
+              steps: stepsNumber,
+              model: modelNameSanitized.uniqueModelName,
+              zipSize: fileBuffer.length,
+              zipSizeMB: (fileBuffer.length / 1024 / 1024).toFixed(2),
+              base64Length: base64Data.length,
+              createdAt: new Date().toISOString(),
+            }
+          }
+        )
+        logger.info(
+          '[INNGEST TRAINING] ✅ Step 6 completed: Training created',
+          {
+            training_id: training.id,
+            status: training.status,
+            webhookUrl: training.webhookUrl,
+            triggerWord: training.triggerWord,
           }
         )
 
         // ✅ STEP 7: Save training record to database
-        await step.run('save-training-record', async () => {
-          const stepsNumber =
-            typeof eventData.steps === 'string'
-              ? parseInt(eventData.steps, 10)
-              : eventData.steps
+        const dbSaveResult = await step.run(
+          'save-training-record',
+          async () => {
+            const stepsNumber =
+              typeof eventData.steps === 'string'
+                ? parseInt(eventData.steps, 10)
+                : eventData.steps
 
-          const trainingRecord = {
-            telegram_id: eventData.telegram_id,
-            model_name: eventData.modelName,
-            trigger_word: eventData.triggerWord,
-            zip_url: eventData.zipUrl,
-            replicate_training_id: training.id,
-            status: 'processing',
-            bot_name: eventData.bot_name,
-            steps: stepsNumber,
-            gender: eventData.gender,
-            is_ru: eventData.is_ru,
-            created_at: new Date().toISOString(),
-          }
-
-          const { error: dbError } = await supabase
-            .from('model_trainings')
-            .insert(trainingRecord)
-
-          if (dbError) {
-            logger.error('[INNGEST TRAINING] Database error (non-fatal)', {
-              error: dbError.message,
+            // ✅ КРИТИЧНО: Создаем trainingRecord БЕЗ is_ru, так как колонка отсутствует в схеме БД
+            // Supabase выдает ошибку "Could not find the 'is_ru' column" если пытаемся вставить это поле
+            const trainingRecord: any = {
               telegram_id: eventData.telegram_id,
-            })
-          } else {
-            logger.info('[INNGEST TRAINING] Training record saved to database')
+              model_name: eventData.modelName,
+              trigger_word: eventData.triggerWord,
+              zip_url: eventData.zipUrl,
+              replicate_training_id: training.id, // ✅ training теперь объект с {id, status, destination}
+              status: 'processing',
+              bot_name: eventData.bot_name,
+              steps: stepsNumber,
+              gender: eventData.gender,
+              created_at: new Date().toISOString(),
+            }
+
+            // ✅ is_ru НЕ добавляем - колонка отсутствует в схеме model_trainings
+            // Если нужно будет добавить в будущем, сначала нужно добавить колонку в Supabase
+
+            const { data: insertedData, error: dbError } = await supabase
+              .from('model_trainings')
+              .insert(trainingRecord)
+              .select()
+
+            if (dbError) {
+              logger.error('[INNGEST TRAINING] Database error (non-fatal)', {
+                error: dbError.message,
+                telegram_id: eventData.telegram_id,
+              })
+              return {
+                saved: false,
+                error: dbError.message,
+                trainingRecord,
+              }
+            } else {
+              logger.info(
+                '[INNGEST TRAINING] Training record saved to database'
+              )
+              return {
+                saved: true,
+                recordId: insertedData?.[0]?.id || null,
+                trainingRecord,
+              }
+            }
           }
-        })
+        )
+        logger.info(
+          '[INNGEST TRAINING] ✅ Step 7 completed: DB record saved',
+          dbSaveResult
+        )
 
         // ✅ STEP 8: Clean up downloaded ZIP file
-        await step.run('cleanup-zip-file', async () => {
+        const cleanupResult = await step.run('cleanup-zip-file', async () => {
           try {
             if (fs.existsSync(zipFilePath)) {
               await fs.promises.unlink(zipFilePath)
               logger.info('[INNGEST TRAINING] ZIP file cleaned up')
+              return {
+                cleaned: true,
+                filePath: zipFilePath,
+              }
+            } else {
+              return {
+                cleaned: false,
+                reason: 'File does not exist',
+                filePath: zipFilePath,
+              }
             }
           } catch (unlinkError) {
             logger.warn(
@@ -308,56 +471,102 @@ export function createGenerateModelTrainingFunction(inngest: any) {
                     : String(unlinkError),
               }
             )
+            return {
+              cleaned: false,
+              error:
+                unlinkError instanceof Error
+                  ? unlinkError.message
+                  : String(unlinkError),
+              filePath: zipFilePath,
+            }
           }
         })
+        logger.info(
+          '[INNGEST TRAINING] ✅ Step 8 completed: ZIP cleanup',
+          cleanupResult
+        )
 
         // ✅ STEP 9: Send Telegram notification to user
-        await step.run('send-telegram-notification', async () => {
-          const botData = getBotByNameAdapter(eventData.bot_name)
+        const notificationResult = await step.run(
+          'send-telegram-notification',
+          async () => {
+            const botData = getBotByNameAdapter(eventData.bot_name)
 
-          if (!botData.bot || botData.error) {
-            logger.error('[INNGEST TRAINING] Bot instance not found', {
-              bot_name: eventData.bot_name,
-              error: botData.error,
-            })
-            return
-          }
+            if (!botData.bot || botData.error) {
+              logger.error('[INNGEST TRAINING] Bot instance not found', {
+                bot_name: eventData.bot_name,
+                error: botData.error,
+              })
+              return {
+                sent: false,
+                error: `Bot not found: ${botData.error}`,
+                bot_name: eventData.bot_name,
+                telegram_id: eventData.telegram_id,
+              }
+            }
 
-          const successMessage = eventData.is_ru
-            ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${modelNameSanitized.destination}\n🆔 Training ID: ${training.id}\n⏱️ Время: ~1-2 часа\n\n🔗 Прямая ссылка: https://replicate.com/trainings/${training.id}\n\n💡 Статус проверяйте по прямой ссылке выше`
-            : `✅ Model training started!\n\n📦 Model: ${modelNameSanitized.destination}\n🆔 Training ID: ${training.id}\n⏱️ Time: ~1-2 hours\n\n🔗 Direct link: https://replicate.com/trainings/${training.id}\n\n💡 Check status using the direct link above`
+            const successMessage = eventData.is_ru
+              ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${modelNameSanitized.destination}\n🆔 Training ID: ${training.id}\n⏱️ Время: ~1-2 часа`
+              : `✅ Model training started!\n\n📦 Model: ${modelNameSanitized.destination}\n🆔 Training ID: ${training.id}\n⏱️ Time: ~1-2 hours`
 
-          try {
-            await botData.bot.telegram.sendMessage(
-              parseInt(eventData.telegram_id),
-              successMessage
-            )
-            logger.info('[INNGEST TRAINING] ✅ Telegram notification sent', {
-              telegram_id: eventData.telegram_id,
-            })
-          } catch (sendError) {
-            logger.error(
-              '[INNGEST TRAINING] Failed to send Telegram notification',
-              {
+            try {
+              await botData.bot.telegram.sendMessage(
+                parseInt(eventData.telegram_id),
+                successMessage
+              )
+              logger.info('[INNGEST TRAINING] ✅ Telegram notification sent', {
+                telegram_id: eventData.telegram_id,
+              })
+              return {
+                sent: true,
+                telegram_id: eventData.telegram_id,
+                bot_name: eventData.bot_name,
+                messageLength: successMessage.length,
+              }
+            } catch (sendError) {
+              logger.error(
+                '[INNGEST TRAINING] Failed to send Telegram notification',
+                {
+                  error:
+                    sendError instanceof Error
+                      ? sendError.message
+                      : String(sendError),
+                  telegram_id: eventData.telegram_id,
+                }
+              )
+              return {
+                sent: false,
                 error:
                   sendError instanceof Error
                     ? sendError.message
                     : String(sendError),
                 telegram_id: eventData.telegram_id,
+                bot_name: eventData.bot_name,
               }
-            )
+            }
           }
-        })
+        )
+        logger.info(
+          '[INNGEST TRAINING] ✅ Step 9 completed: Telegram notification',
+          notificationResult
+        )
 
+        // ✅ Возвращаем успешный результат в сериализуемом формате (как в ai-server)
+        // КРИТИЧНО: Простой объект без вложенных сложных структур для избежания "Invalid JSON in response"
         const result = {
           success: true,
+          message: `Training initiated successfully. Training ID: ${training.id}`,
+          training_id: training.id,
+          destination: modelNameSanitized.destination,
+        }
+
+        logger.info('[INNGEST TRAINING] ✅ Training function completed', {
           training_id: training.id,
           destination: modelNameSanitized.destination,
           telegram_id: eventData.telegram_id,
           elapsed_ms: Date.now() - startTime,
-        }
+        })
 
-        logger.info('[INNGEST TRAINING] ✅ Training function completed', result)
         return result
       } catch (error) {
         logger.error('[INNGEST TRAINING] ❌ Training failed', {
@@ -366,36 +575,38 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           telegram_id: (event.data as any)?.telegram_id || 'unknown',
         })
 
-        // Try to send error notification
-        try {
-          const eventData = event.data as ModelTrainingEvent['data']
-          const botData = getBotByNameAdapter(eventData.bot_name)
+        // ✅ Отправляем уведомление об ошибке в отдельном step (как в ai-server)
+        await step.run('send-error-notification', async () => {
+          try {
+            const eventData = event.data as ModelTrainingEvent['data']
+            const botData = getBotByNameAdapter(eventData.bot_name)
 
-          if (botData.bot && !botData.error) {
-            const errorMessage = eventData.is_ru
-              ? `❌ Ошибка при запуске тренировки:\n${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
-              : `❌ Error starting training:\n${error instanceof Error ? error.message : 'Unknown error'}`
+            if (botData.bot && !botData.error) {
+              const errorMessage = eventData.is_ru
+                ? `❌ Ошибка при запуске тренировки:\n${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+                : `❌ Error starting training:\n${error instanceof Error ? error.message : 'Unknown error'}`
 
-            await botData.bot.telegram.sendMessage(
-              parseInt(eventData.telegram_id),
-              errorMessage
+              await botData.bot.telegram.sendMessage(
+                parseInt(eventData.telegram_id),
+                errorMessage
+              )
+            }
+          } catch (notifyError) {
+            logger.error(
+              '[INNGEST TRAINING] Failed to send error notification',
+              {
+                error:
+                  notifyError instanceof Error
+                    ? notifyError.message
+                    : String(notifyError),
+              }
             )
           }
-        } catch (notifyError) {
-          logger.error('[INNGEST TRAINING] Failed to send error notification', {
-            error:
-              notifyError instanceof Error
-                ? notifyError.message
-                : String(notifyError),
-          })
-        }
+        })
 
-        // Return error in a serializable format
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-          telegram_id: (event.data as any)?.telegram_id || 'unknown',
-        }
+        // ✅ КРИТИЧНО: Пробрасываем ошибку вместо возврата объекта (как в ai-server)
+        // В ai-server ошибки пробрасываются через throw, что правильно для Inngest
+        throw error
       }
     }
   )

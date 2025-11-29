@@ -1,9 +1,5 @@
 import axios, { isAxiosError } from 'axios'
-import {
-  isDev,
-  SECRET_API_KEY,
-  PUBLIC_URL,
-} from '@/config'
+import { isDev, SECRET_API_KEY, PUBLIC_URL } from '@/config'
 import { logger } from '@/utils/logger'
 import { getUnifiedModelConfig } from '@/config/unified-video-models.config'
 
@@ -63,66 +59,30 @@ async function notifyAdminAboutServerIssue(
     const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
     const { getBotByName } = await import('@/core/bot')
     const botResult = getBotByName('neuro_blogger_bot')
-    
+
     if (!botResult.bot) return
-    
-    const errorMessage = `🚨 **SERVER DOWN ALERT**\n\n` +
+
+    const errorMessage =
+      `🚨 **SERVER DOWN ALERT**\n\n` +
       `📍 План Б активирован для Veo генерации\n` +
       `👤 User: ${telegram_id}\n` +
       `🎬 Model: ${videoModel}\n` +
       `❌ Error: ${error}\n` +
       `🔄 Используется прямой API Veo 3\n\n` +
       `⚠️ Проверьте сервер: https://three-head-dragon.shop`
-    
+
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
-        parse_mode: 'Markdown'
+        parse_mode: 'Markdown',
       })
     }
-    
+
     logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
       adminIds,
-      error
+      error,
     })
   } catch (notifyError) {
     logger.error('[ADMIN NOTIFICATION] Failed to notify admins', notifyError)
-  }
-}
-
-async function notifyAdminAboutPlanBSuccess(
-  telegram_id: string,
-  videoModel: string,
-  taskId: string,
-  videoUrl: string
-) {
-  try {
-    const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
-    const { getBotByName } = await import('@/core/bot')
-    const botResult = getBotByName('neuro_blogger_bot')
-
-    if (!botResult.bot) return
-
-    const successMessage = `✅ **PLAN B SUCCESS**\n\n` +
-      `📍 Видео успешно сгенерировано через Plan B\n` +
-      `👤 User: ${telegram_id}\n` +
-      `🎬 Model: ${videoModel}\n` +
-      `🔗 Task ID: ${taskId}\n` +
-      `🎥 Video URL: ${videoUrl.substring(0, 50)}...\n\n` +
-      `✅ Fallback механизм работает корректно`
-
-    for (const adminId of adminIds) {
-      await botResult.bot.telegram.sendMessage(adminId, successMessage, {
-        parse_mode: 'Markdown'
-      })
-    }
-
-    logger.info('[ADMIN NOTIFICATION] Plan B success reported to admins', {
-      adminIds,
-      telegram_id,
-      taskId
-    })
-  } catch (notifyError) {
-    logger.error('[ADMIN NOTIFICATION] Failed to notify admins about Plan B success', notifyError)
   }
 }
 
@@ -168,7 +128,9 @@ export async function generateTextToVideo(
   console.log(`👤 User ID: ${telegram_id}`)
   console.log(`🤖 Bot: ${bot_name}`)
   console.log(`💭 Промпт (${prompt.length} символов):`)
-  console.log(`   ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}`)
+  console.log(
+    `   ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}`
+  )
   console.log('━'.repeat(80))
 
   logger.info('[TEXT-TO-VIDEO] Starting generation with full params', {
@@ -195,17 +157,20 @@ export async function generateTextToVideo(
 
     if (isKieAiModel) {
       // Для Kie.ai моделей используем прямую интеграцию
-      logger.info('[KIE.AI] Using Kie.ai directly (centralized provider check)', {
-        videoModel,
-        provider: modelConfig?.provider,
-        isSoraModel,
-        isWanModel,
-        reason: isSoraModel
-          ? 'Sora models use Kie.ai Sora API'
-          : isWanModel
-          ? 'WAN 2.5 models use Kie.ai API'
-          : 'Veo/Runway models use Kie.ai API'
-      })
+      logger.info(
+        '[KIE.AI] Using Kie.ai directly (centralized provider check)',
+        {
+          videoModel,
+          provider: modelConfig?.provider,
+          isSoraModel,
+          isWanModel,
+          reason: isSoraModel
+            ? 'Sora models use Kie.ai Sora API'
+            : isWanModel
+              ? 'WAN 2.5 models use Kie.ai API'
+              : 'Veo/Runway models use Kie.ai API',
+        }
+      )
 
       // Импортируем KieAiProvider
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
@@ -213,16 +178,18 @@ export async function generateTextToVideo(
 
       if (isSoraModel) {
         // Для Sora моделей используем специальный API
-        const soraAspectRatio = aspectRatio === '9:16' ? 'portrait' : 'landscape'
-        const soraModel = videoModel === 'sora-2-pro'
-          ? 'sora-2-pro-text-to-video'
-          : 'sora-2-text-to-video'
+        const soraAspectRatio =
+          aspectRatio === '9:16' ? 'portrait' : 'landscape'
+        const soraModel =
+          videoModel === 'sora-2-pro'
+            ? 'sora-2-pro-text-to-video'
+            : 'sora-2-text-to-video'
 
         logger.info('[SORA] Calling Sora generateSoraVideo with params:', {
           model: soraModel,
           promptLength: prompt.length,
           aspectRatio: soraAspectRatio,
-          duration: 10 // Sora всегда 10 секунд
+          duration: 10, // Sora всегда 10 секунд
         })
 
         const soraResponse = await kieProvider.generateSoraVideo(
@@ -241,7 +208,7 @@ export async function generateTextToVideo(
           hasData: !!soraResponse.data,
           hasTaskId: !!soraResponse.data?.taskId,
           taskId: soraResponse.data?.taskId,
-          error: soraResponse.error
+          error: soraResponse.error,
         })
 
         if (soraResponse.success && soraResponse.data?.taskId) {
@@ -258,14 +225,18 @@ export async function generateTextToVideo(
         }
       } else {
         // Для Veo и WAN моделей используем обычный generateVideo
-        const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
+        const kieAspectRatio = aspectRatio as
+          | '16:9'
+          | '9:16'
+          | '1:1'
+          | undefined
         const logPrefix = isWanModel ? '[WAN 2.5]' : '[VEO]'
 
         logger.info(`${logPrefix} Calling Kie.ai generateVideo with params:`, {
           model: videoModel,
           promptLength: prompt.length,
           duration: duration || 5,
-          aspectRatio: kieAspectRatio || '9:16'
+          aspectRatio: kieAspectRatio || '9:16',
         })
 
         const kieResponse = await kieProvider.generateVideo({
@@ -282,7 +253,7 @@ export async function generateTextToVideo(
           hasVideoUrl: !!kieResponse.data?.videoUrl,
           hasTaskId: !!kieResponse.data?.taskId,
           taskId: kieResponse.data?.taskId,
-          error: kieResponse.error
+          error: kieResponse.error,
         })
 
         if (kieResponse.success) {
@@ -306,28 +277,29 @@ export async function generateTextToVideo(
         }
       }
     }
-    
+
     // Для Replicate моделей используем прямую интеграцию
     if (modelConfig?.provider === 'replicate') {
       logger.info('[REPLICATE] Using Replicate API directly', {
         videoModel,
         provider: modelConfig?.provider,
-        apiModel: modelConfig?.apiModel
+        apiModel: modelConfig?.apiModel,
       })
 
       // Импортируем модуль videoGenerator для Replicate моделей
       const videoGeneratorModule = await import('@/modules/videoGenerator')
-      const generateTextToVideoNew = (videoGeneratorModule.generateTextToVideo as unknown) as (
-        prompt: string,
-        telegram_id: string,
-        username: string,
-        is_ru: boolean,
-        bot_name: string,
-        modelId: string,
-        selectedResolution?: string,
-        selectedDuration?: number,
-        selectedAspectRatio?: string
-      ) => Promise<string | null>
+      const generateTextToVideoNew =
+        videoGeneratorModule.generateTextToVideo as unknown as (
+          prompt: string,
+          telegram_id: string,
+          username: string,
+          is_ru: boolean,
+          bot_name: string,
+          modelId: string,
+          selectedResolution?: string,
+          selectedDuration?: number,
+          selectedAspectRatio?: string
+        ) => Promise<string | null>
 
       const videoUrl: string | null = await generateTextToVideoNew(
         prompt,
@@ -345,7 +317,7 @@ export async function generateTextToVideo(
         const response: TextToVideoResponse = {
           success: true,
           videoUrl: videoUrl || undefined,
-          message: 'Video generated successfully via Replicate'
+          message: 'Video generated successfully via Replicate',
         }
         return response
       }
@@ -365,17 +337,20 @@ export async function generateTextToVideo(
 
     // ❌ DEPRECATED: Этот endpoint больше не существует!
     // Используйте handleTextToVideoDirect вместо generateTextToVideo
-    logger.error('[generateTextToVideo] DEPRECATED: This function uses non-existent endpoint', {
-      message: 'Use handleTextToVideoDirect instead',
-      telegram_id,
-      videoModel
-    })
+    logger.error(
+      '[generateTextToVideo] DEPRECATED: This function uses non-existent endpoint',
+      {
+        message: 'Use handleTextToVideoDirect instead',
+        telegram_id,
+        videoModel,
+      }
+    )
 
     // Возвращаем ошибку вместо попытки вызвать несуществующий endpoint
     return {
       success: false,
       message: '❌ Эта функция устарела. Используйте handleTextToVideoDirect.',
-      error: 'DEPRECATED: /generate/text-to-video endpoint does not exist'
+      error: 'DEPRECATED: /generate/text-to-video endpoint does not exist',
     }
   } catch (error) {
     // Обработка ошибок Axios
@@ -473,27 +448,29 @@ export async function checkVideoGenerationStatus(
     // Проверяем, это taskId от Kie.ai или jobId от другого сервиса
     // taskId от Kie.ai всегда 32 символа без дефисов
     const isKieTaskId = jobId.length === 32 && !jobId.includes('-')
-    
+
     logger.info('[checkVideoGenerationStatus] Checking status for:', {
       jobId,
       isKieTaskId,
-      jobIdLength: jobId.length
+      jobIdLength: jobId.length,
     })
-    
+
     if (isKieTaskId) {
       // Используем KieAiProvider для проверки статуса
-      logger.info('[checkVideoGenerationStatus] Using Veo 3 provider to check status')
+      logger.info(
+        '[checkVideoGenerationStatus] Using Veo 3 provider to check status'
+      )
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
       const result = await kieProvider.checkVideoStatus(jobId)
-      
+
       logger.info('[checkVideoGenerationStatus] Veo 3 status result:', {
         success: result.success,
         hasData: !!result.data,
         hasVideoUrl: !!result.data?.videoUrl,
-        error: result.error
+        error: result.error,
       })
-      
+
       if (result.success && result.data?.videoUrl) {
         return {
           success: true,
@@ -510,11 +487,12 @@ export async function checkVideoGenerationStatus(
       } else {
         return {
           success: false,
-          error: result.error || (is_ru ? 'Ошибка генерации' : 'Generation error'),
+          error:
+            result.error || (is_ru ? 'Ошибка генерации' : 'Generation error'),
         }
       }
     }
-    
+
     // Старый код для обычных серверов
     const baseUrl = PUBLIC_URL
     const url = `${baseUrl}/generate/text-to-video/status/${jobId}`
@@ -543,12 +521,19 @@ export async function checkVideoGenerationStatus(
       const errorData = error.response?.data
 
       // Специальная обработка для 404 ошибки (job not found)
-      if (statusCode === 404 || errorData?.message?.includes('not found') || errorData?.message?.includes('Video job not found')) {
-        logger.warn('[checkVideoGenerationStatus] Video job not found - may have expired or been deleted', {
-          jobId,
-          statusCode,
-          errorMessage: errorData?.message || error.message
-        })
+      if (
+        statusCode === 404 ||
+        errorData?.message?.includes('not found') ||
+        errorData?.message?.includes('Video job not found')
+      ) {
+        logger.warn(
+          '[checkVideoGenerationStatus] Video job not found - may have expired or been deleted',
+          {
+            jobId,
+            statusCode,
+            errorMessage: errorData?.message || error.message,
+          }
+        )
 
         return {
           success: false,
@@ -560,11 +545,14 @@ export async function checkVideoGenerationStatus(
 
       // Обработка других HTTP ошибок
       if (statusCode >= 500) {
-        logger.error('[checkVideoGenerationStatus] Server error while checking video status', {
-          jobId,
-          statusCode,
-          error: errorData || error.message,
-        })
+        logger.error(
+          '[checkVideoGenerationStatus] Server error while checking video status',
+          {
+            jobId,
+            statusCode,
+            error: errorData || error.message,
+          }
+        )
 
         return {
           success: false,
@@ -574,17 +562,23 @@ export async function checkVideoGenerationStatus(
         }
       }
 
-      logger.error('[checkVideoGenerationStatus] HTTP error while checking video status', {
-        jobId,
-        statusCode,
-        error: errorData || error.message,
-      })
+      logger.error(
+        '[checkVideoGenerationStatus] HTTP error while checking video status',
+        {
+          jobId,
+          statusCode,
+          error: errorData || error.message,
+        }
+      )
     } else {
       // Обработка не-HTTP ошибок
-      logger.error('[checkVideoGenerationStatus] Non-HTTP error while checking video status', {
-        jobId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
+      logger.error(
+        '[checkVideoGenerationStatus] Non-HTTP error while checking video status',
+        {
+          jobId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      )
     }
 
     return {

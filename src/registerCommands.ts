@@ -100,6 +100,8 @@ import { handleBuy } from './handlers/handleBuy'
 import { isRussian } from '@/helpers/language'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ!
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+// ✅ ЦЕНТРАЛИЗОВАННАЯ ОТМЕНА
+import { handleCancelButton } from '@/services/CancelButtonService'
 import { registerPaymentActions } from './handlers/paymentActions'
 // ✅ ВОССТАНОВЛЕН: setupHearsHandlers - все кнопки меню обрабатываются здесь
 import { setupHearsHandlers } from './hearsHandlers'
@@ -162,20 +164,57 @@ const scenesToRegister = [
 
 // 🔍 DEBUG: Print scene names from array definition
 const sceneNames = [
-  'startScene', 'menuScene', 'helpScene', 'inviteScene', 'paymentScene',
-  'rublePaymentScene', 'starPaymentScene', 'subscriptionScene', 'subscriptionCheckScene',
-  'checkBalanceScene', 'balanceScene', 'neuroPhotoWizard', 'neuroPhotoWizardV2',
-  'textToImageWizard', 'textToVideoWizard', 'imageToVideoWizard', 'imageToPromptWizard',
-  'imageUpscalerWizard', 'improvePromptWizard', 'trainFluxModelWizard',
-  'uploadTrainFluxModelScene', 'uploadVideoScene', 'sizeWizard', 'aiPhotoshopScene',
-  'morphingWizard', 'voiceAvatarWizard', 'textToSpeechWizard',
-  'videoTranscriptionWizard', 'lipSyncWizard', 'veedFabricWizard', 'aiReelsWizard',
-  'aiReelsEntryWizard', 'aiReelsRenderWizard', 'hedraRenderWizard', 'heygenRenderWizard',
-  'falRenderWizard', 'avatarTransformScene',
-  'avatarBrainWizard', 'chatWithAvatarWizard', 'selectModelWizard',
-  'digitalAvatarBodyWizard', 'digitalAvatarBodyWizardV2', 'getRuBillWizard',
-  'levelQuestWizard', 'createUserScene', 'neuroCoderScene', 'instagramScrapingWizard',
-  'autoFixerConfigScene', 'instagramParserScene', 'instagramParserWizard', 'faceSwapWizard'
+  'startScene',
+  'menuScene',
+  'helpScene',
+  'inviteScene',
+  'paymentScene',
+  'rublePaymentScene',
+  'starPaymentScene',
+  'subscriptionScene',
+  'subscriptionCheckScene',
+  'checkBalanceScene',
+  'balanceScene',
+  'neuroPhotoWizard',
+  'neuroPhotoWizardV2',
+  'textToImageWizard',
+  'textToVideoWizard',
+  'imageToVideoWizard',
+  'imageToPromptWizard',
+  'imageUpscalerWizard',
+  'improvePromptWizard',
+  'trainFluxModelWizard',
+  'uploadTrainFluxModelScene',
+  'uploadVideoScene',
+  'sizeWizard',
+  'aiPhotoshopScene',
+  'morphingWizard',
+  'voiceAvatarWizard',
+  'textToSpeechWizard',
+  'videoTranscriptionWizard',
+  'lipSyncWizard',
+  'veedFabricWizard',
+  'aiReelsWizard',
+  'aiReelsEntryWizard',
+  'aiReelsRenderWizard',
+  'hedraRenderWizard',
+  'heygenRenderWizard',
+  'falRenderWizard',
+  'avatarTransformScene',
+  'avatarBrainWizard',
+  'chatWithAvatarWizard',
+  'selectModelWizard',
+  'digitalAvatarBodyWizard',
+  'digitalAvatarBodyWizardV2',
+  'getRuBillWizard',
+  'levelQuestWizard',
+  'createUserScene',
+  'neuroCoderScene',
+  'instagramScrapingWizard',
+  'autoFixerConfigScene',
+  'instagramParserScene',
+  'instagramParserWizard',
+  'faceSwapWizard',
 ]
 
 // Validate scenes (critical errors only)
@@ -185,8 +224,12 @@ scenesToRegister.forEach((scene, index) => {
   const isValid = hasId && hasMiddleware
 
   if (!isValid || scene === undefined || scene === null) {
-    console.error(`❌ CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`)
-    throw new Error(`CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`)
+    console.error(
+      `❌ CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`
+    )
+    throw new Error(
+      `CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`
+    )
   }
 })
 
@@ -245,14 +288,21 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // Это позволяет выйти из любой сцены через "🏠 Главное меню" или "Отмена"
     bot.use(async (ctx, next) => {
       if (ctx.message && 'text' in ctx.message) {
-        const text = ctx.message.text
+        const rawText = ctx.message.text || ''
+        const text = rawText.trim()
         const isRu = ctx.from?.language_code === 'ru'
+
+        logger.info('🛰 [GLOBAL INTERCEPTOR] Text message received', {
+          telegramId: ctx.from?.id,
+          currentScene: ctx.scene?.current?.id,
+          rawText,
+        })
 
         // Глобальная кнопка "Главное меню" - работает ВЕЗДЕ
         if (text === '🏠 Главное меню' || text === '🏠 Main menu') {
           logger.info('🔥 [GLOBAL INTERCEPTOR] Main Menu pressed', {
             telegramId: ctx.from?.id,
-            currentScene: ctx.scene?.current?.id
+            currentScene: ctx.scene?.current?.id,
           })
           try {
             await ctx.scene.leave()
@@ -261,30 +311,49 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           } catch (error) {
             logger.error('❌ [GLOBAL INTERCEPTOR] Error leaving scene:', {
               error,
-              telegramId: ctx.from?.id
+              telegramId: ctx.from?.id,
             })
           }
         }
 
-        // Глобальная кнопка "Отмена" - работает ВЕЗДЕ
+        // Глобальная кнопка "Отмена" - работает ВЕЗДЕ (централизованная логика),
+        // КРОМЕ сцены чата с аватаром, где отмена обрабатывается локально.
         if (text === 'Отмена' || text === 'Cancel') {
+          // Если мы в сцене chat_with_avatar — даём сцене самой обработать отмену
+          if (ctx.scene?.current?.id === ModeEnum.ChatWithAvatar) {
+            logger.info(
+              '🔥 [GLOBAL INTERCEPTOR] Cancel pressed inside chat_with_avatar - delegating to local scene handler',
+              {
+                telegramId: ctx.from?.id,
+                currentScene: ctx.scene?.current?.id,
+                rawText,
+              }
+            )
+            return next()
+          }
+
           logger.info('🔥 [GLOBAL INTERCEPTOR] Cancel pressed', {
             telegramId: ctx.from?.id,
-            currentScene: ctx.scene?.current?.id
+            currentScene: ctx.scene?.current?.id,
+            rawText,
           })
           try {
-            await ctx.reply(
-              isRu ? '❌ Операция отменена' : '❌ Operation cancelled',
-              { reply_markup: { remove_keyboard: true } }
-            )
-            await ctx.scene.leave()
-            await ctx.scene.enter(ModeEnum.MainMenu)
-            return // Останавливаем дальнейшую обработку
-          } catch (error) {
-            logger.error('❌ [GLOBAL INTERCEPTOR] Error cancelling:', {
-              error,
-              telegramId: ctx.from?.id
+            const handled = await handleCancelButton(ctx as any)
+            logger.info('🔥 [GLOBAL INTERCEPTOR] Cancel handled result', {
+              telegramId: ctx.from?.id,
+              handled,
             })
+            if (handled) {
+              return // Останавливаем дальнейшую обработку, сцена уже покинута
+            }
+          } catch (error) {
+            logger.error(
+              '❌ [GLOBAL INTERCEPTOR] Error cancelling via CancelButtonService:',
+              {
+                error,
+                telegramId: ctx.from?.id,
+              }
+            )
           }
         }
       }
@@ -330,16 +399,19 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       const minInterval = 2000 // 2 секунды минимум между командами /start
 
       if (timeDiff < minInterval) {
-        console.log('🚫 [START COMMAND] Start command spam detected, ignoring', {
-          telegramId,
-          timeDiff,
-          lastStartTime: new Date(lastStartTime).toISOString(),
-        })
+        console.log(
+          '🚫 [START COMMAND] Start command spam detected, ignoring',
+          {
+            telegramId,
+            timeDiff,
+            lastStartTime: new Date(lastStartTime).toISOString(),
+          }
+        )
         return
       }
 
       // Обновляем время последней команды /start
-      (ctx.session as any).lastStartCommand = now
+      ;(ctx.session as any).lastStartCommand = now
 
       try {
         // При старте всегда сбрасываем сессию
@@ -406,14 +478,11 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           await ctx.scene.enter(ModeEnum.CreateUserScene)
         } else {
           // Если пользователь существует, переходим в startScene
-          console.log(
-            '✅ [START COMMAND] User exists, entering startScene',
-            {
-              telegramId,
-              userId: userDetails.id,
-              createdAt: userDetails.created_at,
-            }
-          )
+          console.log('✅ [START COMMAND] User exists, entering startScene', {
+            telegramId,
+            userId: userDetails.id,
+            createdAt: userDetails.created_at,
+          })
           await ctx.scene.enter('startScene')
         }
       } catch (error) {
@@ -601,7 +670,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
           return
         }
 
-        const { getParsingAccess } = await import('@/navigation/unified-navigation.config')
+        const { getParsingAccess } = await import(
+          '@/navigation/unified-navigation.config'
+        )
         const parsingAccess = getParsingAccess(userId, botToken)
 
         if (!parsingAccess.hasAccess) {
@@ -730,8 +801,8 @@ If not, continue on your own and click the "I myself" button`
                     url: channelId.startsWith('@')
                       ? `https://t.me/${channelId.slice(1)}`
                       : channelId.startsWith('http')
-                      ? channelId
-                      : `https://t.me/${channelId}`,
+                        ? channelId
+                        : `https://t.me/${channelId}`,
                   },
                 ],
                 [
@@ -936,29 +1007,44 @@ If not, continue on your own and click the "I myself" button`
 
       // ВАЖНО: Проверяем, находится ли пользователь в AI Reels wizard
       const currentSceneId = ctx.scene?.current?.id
-      if (currentSceneId === 'ai_reels_wizard' ||
-          currentSceneId === 'ai_reels_entry' ||
-          currentSceneId === 'ai_reels_render_wizard') {
-        logger.info('🎬 GLOBAL PHOTO HANDLER: Photo is for AI Reels wizard, skipping global handler', {
-          telegramId: ctx.from?.id,
-          currentScene: currentSceneId,
-        })
+      if (
+        currentSceneId === 'ai_reels_wizard' ||
+        currentSceneId === 'ai_reels_entry' ||
+        currentSceneId === 'ai_reels_render_wizard'
+      ) {
+        logger.info(
+          '🎬 GLOBAL PHOTO HANDLER: Photo is for AI Reels wizard, skipping global handler',
+          {
+            telegramId: ctx.from?.id,
+            currentScene: currentSceneId,
+          }
+        )
         // НЕ обрабатываем фото глобально, пусть wizard сам обработает
         return
       }
 
       // Проверяем, находится ли пользователь в других wizard'ах, которые обрабатывают фото
       const photoWizards = [
-        'neuro_photo', 'neuro_photo_v2', 'face_swap', 'image_to_video',
-        'ai_photoshop_scene', 'morphing_wizard', 'avatar_transform',
-        'digital_avatar_body', 'digital_avatar_body_2', 'veed_fabric_lipsync'
+        'neuro_photo',
+        'neuro_photo_v2',
+        'face_swap',
+        'image_to_video',
+        'ai_photoshop_scene',
+        'morphing_wizard',
+        'avatar_transform',
+        'digital_avatar_body',
+        'digital_avatar_body_2',
+        'veed_fabric_lipsync',
       ]
 
       if (currentSceneId && photoWizards.includes(currentSceneId)) {
-        logger.info('📸 GLOBAL PHOTO HANDLER: Photo is for wizard scene, skipping global handler', {
-          telegramId: ctx.from?.id,
-          currentScene: currentSceneId,
-        })
+        logger.info(
+          '📸 GLOBAL PHOTO HANDLER: Photo is for wizard scene, skipping global handler',
+          {
+            telegramId: ctx.from?.id,
+            currentScene: currentSceneId,
+          }
+        )
         return
       }
 
@@ -1044,8 +1130,14 @@ If not, continue on your own and click the "I myself" button`
       logger.info('GLOBAL ACTION: upscale_neurophoto_image', {
         telegramId: ctx.from?.id,
         sessionExists: !!ctx.session,
-        lastNeuroPhotoImageUrl: ctx.session?.lastNeuroPhotoImageUrl?.substring(0, 50),
-        lastNeuroPhotoPrompt: ctx.session?.lastNeuroPhotoPrompt?.substring(0, 50),
+        lastNeuroPhotoImageUrl: ctx.session?.lastNeuroPhotoImageUrl?.substring(
+          0,
+          50
+        ),
+        lastNeuroPhotoPrompt: ctx.session?.lastNeuroPhotoPrompt?.substring(
+          0,
+          50
+        ),
       })
       try {
         await ctx.answerCbQuery()
@@ -1056,7 +1148,9 @@ If not, continue on your own and click the "I myself" button`
         const is_ru = isRussianFromState(ctx)
 
         if (!telegram_id) {
-          logger.error('No telegram_id found in upscale_neurophoto_image action')
+          logger.error(
+            'No telegram_id found in upscale_neurophoto_image action'
+          )
           await ctx.reply(
             is_ru ? '❌ Ошибка получения ID пользователя.' : '❌ User ID error.'
           )
@@ -1093,7 +1187,7 @@ If not, continue on your own and click the "I myself" button`
           is_ru,
         })
         console.log('🔴 CALLING UPSCALE_IMAGE FOR:', telegram_id)
-        
+
         const { upscaleImage } = await import('./services/imageUpscaler')
         const result = await upscaleImage({
           imageUrl: ctx.session.lastNeuroPhotoImageUrl,
@@ -1104,7 +1198,7 @@ If not, continue on your own and click the "I myself" button`
           originalPrompt:
             ctx.session.lastNeuroPhotoPrompt || 'Neurophoto upscale',
         })
-        
+
         logger.info('🟢 AFTER UPSCALE_IMAGE CALL', {
           telegram_id,
           result: result ? 'Success' : 'No result',
@@ -1403,7 +1497,7 @@ If not, continue on your own and click the "I myself" button`
       logger.info('🔄 GLOBAL ACTION: update_video_status', {
         telegramId: ctx.from?.id,
       })
-      
+
       try {
         await handleVideoStatusUpdate(ctx)
       } catch (error) {
@@ -1469,14 +1563,18 @@ If not, continue on your own and click the "I myself" button`
         await ctx.answerCbQuery()
 
         // Определяем в какой wizard отправить пользователя
-        const targetScene = modelId === 'veed_fabric' ? 'veed_fabric_lipsync' : 'lip_sync'
+        const targetScene =
+          modelId === 'veed_fabric' ? 'veed_fabric_lipsync' : 'lip_sync'
 
         // Сохраняем выбранную модель в сессии
         ctx.session.selectedLipSyncModel = modelId
 
-        logger.info(`🔄 [LIP_SYNC] Routing to ${targetScene} for model ${modelId}`, {
-          telegramId: ctx.from?.id,
-        })
+        logger.info(
+          `🔄 [LIP_SYNC] Routing to ${targetScene} for model ${modelId}`,
+          {
+            telegramId: ctx.from?.id,
+          }
+        )
 
         // Переходим в соответствующий wizard
         await ctx.scene.enter(targetScene)
@@ -1504,7 +1602,9 @@ If not, continue on your own and click the "I myself" button`
     setupHearsHandlers(bot)
 
     // ✅ РЕГИСТРИРУЕМ AUTONOMOUS MONITOR КОМАНДЫ
-    logger.info('🤖 [AUTONOMOUS MONITOR] Registering autonomous monitor commands')
+    logger.info(
+      '🤖 [AUTONOMOUS MONITOR] Registering autonomous monitor commands'
+    )
     setupAutonomousMonitor(bot)
 
     // Commands registered successfully

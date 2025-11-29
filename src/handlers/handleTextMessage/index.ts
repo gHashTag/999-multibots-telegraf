@@ -246,14 +246,29 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
         systemPrompt
       )
 
+      // ✅ Проверяем, является ли ответ изображением (от Nano Banana Pro)
+      if (typeof response === 'object' && response.type === 'image') {
+        console.log(
+          `[handleTextMessage] Image response received for user ${userId}`,
+          { userId, imageUrl: response.imageUrl }
+        )
+        await ctx.replyWithPhoto(response.imageUrl, {
+          caption: '✨ Изображение сгенерировано с помощью Nano Banana Pro',
+        })
+        return
+      }
+
+      const responseText = typeof response === 'string' ? response : ''
       console.log(
         `[handleTextMessage] Received response from answerAi for user ${userId}: ${
-          response ? `"${response.substring(0, 50)}..."` : 'null or empty'
+          responseText
+            ? `"${responseText.substring(0, 50)}..."`
+            : 'null or empty'
         }`,
-        { userId, response: response ? !!response : false }
+        { userId, response: responseText ? !!responseText : false }
       )
 
-      if (!response) {
+      if (!responseText) {
         console.error(
           `[handleTextMessage] No valid response from answerAi for user ${userId}. Not replying.`,
           { userId }
@@ -265,7 +280,7 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
         `[handleTextMessage] Preparing to reply to user ${userId} in chat ${chatId}`,
         { userId, chatId }
       )
-      await ctx.reply(response, {
+      await ctx.reply(responseText, {
         parse_mode: 'MarkdownV2',
       })
       console.log(

@@ -14,6 +14,7 @@ import {
 import { starCost, SYSTEM_CONFIG } from '@/price/constants'
 import { logger } from '@/utils/logger'
 import { getUserDetailsSubscription } from '@/core/supabase'
+import { CancelButtonService } from '@/services/CancelButtonService'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 // ✅ ДОБАВЛЯЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ ЯЗЫКОВ
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -330,10 +331,14 @@ checkBalanceScene.enter(async ctx => {
     const telegramIdNum = parseInt(userId, 10)
     const isAdmin = ADMIN_IDS_ARRAY.includes(telegramIdNum)
 
-    console.log(`🚨 [CheckBalanceScene] CRITICAL: Checking admin status for ${userId}: ${isAdmin}`)
+    console.log(
+      `🚨 [CheckBalanceScene] CRITICAL: Checking admin status for ${userId}: ${isAdmin}`
+    )
 
     if (isAdmin) {
-      console.log(`✅ [CheckBalanceScene] GRANTING IMMEDIATE ACCESS TO ADMIN ${userId}`)
+      console.log(
+        `✅ [CheckBalanceScene] GRANTING IMMEDIATE ACCESS TO ADMIN ${userId}`
+      )
       logger.info({
         message: `[CheckBalanceScene] IMMEDIATE ACCESS: Admin ${userId} bypassing all checks`,
         telegramId: userId,
@@ -346,7 +351,9 @@ checkBalanceScene.enter(async ctx => {
       return
     }
 
-    console.log(`ℹ️ [CheckBalanceScene] User ${userId} is not admin, proceeding with normal checks`)
+    console.log(
+      `ℹ️ [CheckBalanceScene] User ${userId} is not admin, proceeding with normal checks`
+    )
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
@@ -398,14 +405,14 @@ checkBalanceScene.enter(async ctx => {
       })
 
       await ctx.reply(
-        isRu
-          ? '🔄 Создаю ваш профиль...'
-          : '🔄 Creating your profile...'
+        isRu ? '🔄 Создаю ваш профиль...' : '🔄 Creating your profile...'
       )
 
       // Автоматически создаем пользователя
       try {
-        const { createUserByTelegramId } = await import('@/core/supabase/getUserByTelegramId')
+        const { createUserByTelegramId } = await import(
+          '@/core/supabase/getUserByTelegramId'
+        )
         await createUserByTelegramId(ctx)
 
         logger.info({
@@ -416,7 +423,8 @@ checkBalanceScene.enter(async ctx => {
         })
 
         // Получаем обновленные данные пользователя
-        const userDetailsAfterCreate = await getUserDetailsSubscription(telegramId)
+        const userDetailsAfterCreate =
+          await getUserDetailsSubscription(telegramId)
 
         if (!userDetailsAfterCreate.isExist) {
           throw new Error('User still not found after creation')
@@ -451,7 +459,10 @@ checkBalanceScene.enter(async ctx => {
       // Можно добавить другие режимы, доступные за звезды без подписки
     ]
 
-    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
+    if (
+      !userDetails.isSubscriptionActive &&
+      !modesWithoutSubscriptionRequired.includes(mode)
+    ) {
       logger.warn({
         message: `[CheckBalanceScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`,
         telegramId,
@@ -472,7 +483,8 @@ checkBalanceScene.enter(async ctx => {
         step: 'subscription_check_passed',
         subscriptionType: userDetails.subscriptionType,
         mode,
-        isSubscriptionRequired: !modesWithoutSubscriptionRequired.includes(mode),
+        isSubscriptionRequired:
+          !modesWithoutSubscriptionRequired.includes(mode),
       })
     }
 
@@ -646,6 +658,31 @@ export const enterTargetScene = async (
   mode: ModeEnum, // Используем ModeEnum
   cost: number
 ) => {
+  // 🔹 Глобальная обработка "Отмена" / "/menu" прямо на этапе входа в целевую сцену
+  // Если пользователь передумал, не идём дальше в проверки, сразу выходим в главное меню.
+  try {
+    console.log(
+      '[enterTargetScene] Pre-cancel-check, incoming message:',
+      (ctx as any).message && 'text' in (ctx as any).message
+        ? (ctx as any).message.text
+        : null
+    )
+    const handled = await CancelButtonService.handleCancelAndMenu(ctx as any)
+    console.log('[enterTargetScene] handleCancelAndMenu result:', {
+      handled,
+      mode,
+      cost,
+    })
+    if (handled) {
+      return
+    }
+  } catch (e) {
+    console.error(
+      '[enterTargetScene] Error in CancelButtonService.handleCancelAndMenu:',
+      e
+    )
+  }
+
   console.log(
     '🎯 [DEBUG] enterTargetScene CALLED with mode:',
     mode,
@@ -700,7 +737,10 @@ export const enterTargetScene = async (
       // Можно добавить другие режимы
     ]
 
-    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
+    if (
+      !userDetails.isSubscriptionActive &&
+      !modesWithoutSubscriptionRequired.includes(mode)
+    ) {
       console.log(
         '🎯 [DEBUG] enterTargetScene: Subscription not active, returning...'
       )
@@ -866,9 +906,13 @@ export const enterTargetScene = async (
       })
       try {
         // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
-        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard'
+        )
         await ctx.scene.leave()
-        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video'
+        )
         await ctx.scene.enter('text_to_video')
         console.log(
           '🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene'
@@ -919,9 +963,13 @@ export const enterTargetScene = async (
       })
       try {
         // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
-        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard'
+        )
         await ctx.scene.leave()
-        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering image_to_video')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Left current scene, now entering image_to_video'
+        )
         await ctx.scene.enter('image_to_video')
         console.log(
           '🎯 [DEBUG] enterTargetScene: Successfully entered image_to_video scene'

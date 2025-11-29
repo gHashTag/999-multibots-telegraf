@@ -8,6 +8,7 @@ import { createWebhookMonitorFunctions } from './functions/kieAiWebhookMonitor'
 
 // Import migrated functions from ai-server - these also need to be made lazy
 import { createGenerateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
+import { createHandleModelTrainingCompletedFunction } from './functions/existing/handleModelTrainingCompleted'
 // import { neuroImageGeneration } from './functions/neuroImageGeneration'
 // import { morphImages } from './functions/morphImages'
 
@@ -34,6 +35,23 @@ export function createAllInngestFunctions(inngestClient?: any) {
     throw error
   }
 
+  // Create model training completed handler function
+  let modelTrainingCompletedFunction = null
+  try {
+    console.log('🔄 Creating model training completed handler function...')
+    modelTrainingCompletedFunction =
+      createHandleModelTrainingCompletedFunction(inngestClient)
+    console.log(
+      '✅ Model training completed handler function created successfully'
+    )
+  } catch (error) {
+    console.error(
+      '❌ Failed to create model training completed handler:',
+      error
+    )
+    throw error
+  }
+
   // TODO: Convert other functions to lazy pattern
   // const neuroImageGeneration = createNeuroImageGeneration()
   // const morphImages = createMorphImages()
@@ -41,6 +59,7 @@ export function createAllInngestFunctions(inngestClient?: any) {
   const allInngestFunctions = [
     ...kieAiWebhookMonitorFunctions,
     modelTrainingFunction,
+    modelTrainingCompletedFunction,
     // ...neuroImageGeneration,
     // ...morphImages,
   ]

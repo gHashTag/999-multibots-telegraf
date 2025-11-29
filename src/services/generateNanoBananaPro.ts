@@ -1,5 +1,4 @@
 import { fal } from '@fal-ai/client'
-import { FAL_KEY } from '@/config'
 import { logger } from '@/utils/logger'
 
 interface NanoBananaProRequest {
@@ -26,7 +25,7 @@ interface NanoBananaProResponse {
 /**
  * Generate images using Fal.ai's Nano Banana Pro model
  * Google's state-of-the-art image generation with excellent realism and typography
- * 
+ *
  * Pricing: $0.0398 per image (25 images per $1)
  * Provider: Fal.ai
  * Model: fal-ai/nano-banana-pro
@@ -45,14 +44,22 @@ export async function generateNanoBananaPro(
   })
 
   try {
+    // ✅ ИСПРАВЛЕНО: Используем process.env.FAL_KEY напрямую (как в generateNeuroPhotoDirect.ts)
+    const FAL_KEY = process.env.FAL_KEY
+    if (!FAL_KEY) {
+      throw new Error(
+        'FAL_KEY not found in environment. Ensure Infisical loaded secrets.'
+      )
+    }
+
     // Configure Fal client
     fal.config({
       credentials: FAL_KEY,
     })
 
     // Determine aspect ratio
-    let aspectRatio = request.aspectRatio || '1:1'
-    
+    let aspectRatio = request.aspectRatio || '9:16'
+
     // If width/height provided, calculate aspect ratio
     if (request.width && request.height) {
       const ratio = request.width / request.height
@@ -90,10 +97,10 @@ export async function generateNanoBananaPro(
     const result = await fal.subscribe('fal-ai/nano-banana-pro', {
       input,
       logs: true,
-      onQueueUpdate: (update) => {
+      onQueueUpdate: update => {
         if (update.status === 'IN_PROGRESS') {
           logger.info('[NANO BANANA PRO] Generation in progress', {
-            logs: update.logs?.map((log) => log.message),
+            logs: update.logs?.map(log => log.message),
           })
         }
       },
@@ -126,7 +133,7 @@ export async function generateNanoBananaPro(
     }
   } catch (error) {
     const duration = Date.now() - startTime
-    
+
     logger.error('[NANO BANANA PRO] Generation failed', {
       error: error instanceof Error ? error.message : String(error),
       duration: `${duration}ms`,
@@ -145,7 +152,18 @@ export async function generateNanoBananaPro(
  * Helper function to get supported aspect ratios
  */
 export function getSupportedAspectRatios(): string[] {
-  return ['21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16']
+  return [
+    '21:9',
+    '16:9',
+    '3:2',
+    '4:3',
+    '5:4',
+    '1:1',
+    '4:5',
+    '3:4',
+    '2:3',
+    '9:16',
+  ]
 }
 
 /**

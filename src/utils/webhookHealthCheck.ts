@@ -11,7 +11,9 @@ import { logger } from './logger'
  * @param telegramId - Telegram ID пользователя для персонализированного callback
  * @returns Первый доступный callback URL или null если оба недоступны
  */
-export async function getAvailableCallbackUrl(telegramId?: string | number): Promise<string | null> {
+export async function getAvailableCallbackUrl(
+  telegramId?: string | number
+): Promise<string | null> {
   const endpoint = telegramId
     ? `/api/video-callback/${telegramId}`
     : '/api/video-callback'
@@ -33,7 +35,7 @@ export async function getAvailableCallbackUrl(telegramId?: string | number): Pro
     planA,
     planB,
     telegramId,
-    totalUrls: urls.length
+    totalUrls: urls.length,
   })
 
   // Проверяем каждый URL с коротким timeout
@@ -47,7 +49,7 @@ export async function getAvailableCallbackUrl(telegramId?: string | number): Pro
         signal: controller.signal,
         // Игнорируем SSL ошибки для production (self-signed cert)
         // @ts-ignore
-        ...(url.startsWith('https:') && { rejectUnauthorized: false })
+        ...(url.startsWith('https:') && { rejectUnauthorized: false }),
       })
 
       clearTimeout(timeoutId)
@@ -57,29 +59,34 @@ export async function getAvailableCallbackUrl(telegramId?: string | number): Pro
         logger.info('✅ [WEBHOOK HEALTH CHECK] Callback URL is accessible', {
           url: url.substring(0, 50) + '...',
           status: response.status,
-          responseTime: '< 3s'
+          responseTime: '< 3s',
         })
         return url
       }
 
-      logger.warn('⚠️ [WEBHOOK HEALTH CHECK] Callback URL returned error status', {
-        url: url.substring(0, 50) + '...',
-        status: response.status
-      })
-
+      logger.warn(
+        '⚠️ [WEBHOOK HEALTH CHECK] Callback URL returned error status',
+        {
+          url: url.substring(0, 50) + '...',
+          status: response.status,
+        }
+      )
     } catch (error) {
       logger.warn('⚠️ [WEBHOOK HEALTH CHECK] Callback URL not accessible', {
         url: url.substring(0, 50) + '...',
         error: error instanceof Error ? error.message : String(error),
-        isTimeout: error instanceof Error && error.name === 'AbortError'
+        isTimeout: error instanceof Error && error.name === 'AbortError',
       })
     }
   }
 
   // Если оба недоступны - возвращаем Plan B как last resort
-  logger.error('❌ [WEBHOOK HEALTH CHECK] All callback URLs failed, using fallback', {
-    fallback: planB
-  })
+  logger.error(
+    '❌ [WEBHOOK HEALTH CHECK] All callback URLs failed, using fallback',
+    {
+      fallback: planB,
+    }
+  )
 
   return planB
 }
@@ -89,8 +96,18 @@ export async function getAvailableCallbackUrl(telegramId?: string | number): Pro
  * Используется для диагностики webhook infrastructure
  */
 export async function testAllWebhookUrls(): Promise<{
-  planA: { url: string | null; available: boolean; status?: number; error?: string }
-  planB: { url: string | null; available: boolean; status?: number; error?: string }
+  planA: {
+    url: string | null
+    available: boolean
+    status?: number
+    error?: string
+  }
+  planB: {
+    url: string | null
+    available: boolean
+    status?: number
+    error?: string
+  }
 }> {
   const endpoint = '/api/video-callback'
 
@@ -115,7 +132,7 @@ export async function testAllWebhookUrls(): Promise<{
         method: 'HEAD',
         signal: controller.signal,
         // @ts-ignore
-        ...(url.startsWith('https:') && { rejectUnauthorized: false })
+        ...(url.startsWith('https:') && { rejectUnauthorized: false }),
       })
 
       clearTimeout(timeoutId)
@@ -123,25 +140,22 @@ export async function testAllWebhookUrls(): Promise<{
       return {
         url,
         available: response.ok || response.status === 405,
-        status: response.status
+        status: response.status,
       }
     } catch (error) {
       return {
         url,
         available: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       }
     }
   }
 
-  const [resultA, resultB] = await Promise.all([
-    testUrl(planA),
-    testUrl(planB)
-  ])
+  const [resultA, resultB] = await Promise.all([testUrl(planA), testUrl(planB)])
 
   logger.info('🧪 [WEBHOOK TEST] All URLs tested', {
     planA: resultA,
-    planB: resultB
+    planB: resultB,
   })
 
   return { planA: resultA, planB: resultB }

@@ -216,53 +216,9 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
     }
   })
 
-  // ✅ ЦЕНТРАЛИЗОВАННЫЙ ОБРАБОТЧИК "ОТМЕНА" - ЕДИНСТВЕННЫЙ В СИСТЕМЕ
-  // Все локальные обработчики в сценах должны быть удалены
-  bot.hears(['Отмена', 'Cancel'], async (ctx, next) => {
-    logger.info('🚫 GLOBAL CANCEL HANDLER:', {
-      telegramId: ctx.from?.id,
-      currentScene: ctx.scene.current?.id || 'none'
-    })
-
-    try {
-      // ✅ Предотвращаем повторную обработку
-      if (ctx.session.cancelHandled) {
-        logger.warn('Cancel already handled, skipping', { telegramId: ctx.from?.id })
-        return
-      }
-
-      ctx.session.cancelHandled = true
-
-      // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-      const isRuCancel = isRussianFromState(ctx)
-      await ctx.reply(
-        isRuCancel ? '❌ Операция отменена' : '❌ Operation cancelled',
-        Markup.removeKeyboard()
-      )
-
-      if (ctx.scene.current) {
-        await ctx.scene.leave()
-      }
-
-      await ctx.scene.enter(ModeEnum.MainMenu)
-
-      // ✅ Сбрасываем флаг после небольшой задержки
-      setTimeout(() => {
-        if (ctx.session) {
-          ctx.session.cancelHandled = false
-        }
-      }, 1000)
-
-      // ❌ НЕ вызываем next() - предотвращаем дальнейшую обработку
-      return
-    } catch (error) {
-      logger.error('Error in Отмена/Cancel hears:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-      ctx.session.cancelHandled = false
-    }
-  })
+  // ❌ Глобальный hears('Отмена' / 'Cancel') удалён.
+  // Вся логика отмены теперь централизована через CancelButtonService
+  // и глобальный перехватчик в registerCommands.ts.
 
   // === ФУНКЦИОНАЛЬНЫЕ ОБРАБОТЧИКИ С ЗАЩИТОЙ ===
 

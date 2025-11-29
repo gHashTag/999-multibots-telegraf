@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // Моки
-vi.mock('@/utils/logger', () => ({
+vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-vi.mock('@/core/replicate', () => ({
+vi.mock('../../core/replicate', () => ({
   replicate: {
     models: {
       get: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock('@/core/replicate', () => ({
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
+vi.mock('../../core/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       insert: vi.fn(() => ({ error: null })),
@@ -43,7 +43,7 @@ vi.mock('@/helpers/sanitizeModelName', () => ({
   ),
 }))
 
-vi.mock('@/inngest_app/services/bot-adapter', () => ({
+vi.mock('../../inngest_app/services/bot-adapter', () => ({
   getBotByNameAdapter: vi.fn(() => ({
     bot: {
       telegram: {
@@ -112,11 +112,11 @@ vi.mock('axios', () => ({
 }))
 
 // Импорты после моков
-import { logger } from '@/utils/logger'
-import { replicate } from '@/core/replicate'
-import { supabase } from '@/core/supabase'
-import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
-import { createGenerateModelTrainingFunction } from '@/inngest_app/functions/existing/generateModelTrainingFunction'
+import { logger } from '../../utils/logger'
+import { replicate } from '../../core/replicate'
+import { supabase } from '../../core/supabase'
+import { getBotByNameAdapter } from '../../inngest_app/services/bot-adapter'
+import { createGenerateModelTrainingFunction } from '../../inngest_app/functions/existing/generateModelTrainingFunction'
 
 describe('generateModelTrainingFunction', () => {
   const mockInngest = {
@@ -153,7 +153,7 @@ describe('generateModelTrainingFunction', () => {
           telegram: {
             sendMessage: mockSendMessage,
           },
-        },
+        } as any,
         error: null,
       })
 
@@ -188,8 +188,8 @@ describe('generateModelTrainingFunction', () => {
         bot: {
           telegram: {
             sendMessage: mockSendMessage,
-          },
-        },
+          } as any,
+        } as any,
         error: null,
       })
 
@@ -342,7 +342,7 @@ describe('generateModelTrainingFunction', () => {
       await functionHandler({
         event: mockEvent,
         step: mockStep,
-      } as InngestFunctionInput)
+      } as any)
 
       expect(logger.warn).toHaveBeenCalledWith(
         '[INNGEST TRAINING] Invalid model name, sanitizing',
@@ -483,7 +483,7 @@ describe('generateModelTrainingFunction', () => {
       await functionHandler({
         event: mockEvent,
         step: mockStep,
-      } as InngestFunctionInput)
+      } as any)
 
       expect(replicate.models.create).not.toHaveBeenCalled()
       expect(logger.info).toHaveBeenCalledWith(
@@ -542,7 +542,7 @@ describe('generateModelTrainingFunction', () => {
       await functionHandler({
         event: mockEvent,
         step: mockStep,
-      } as InngestFunctionInput)
+      } as any)
 
       expect(replicate.trainings.create).toHaveBeenCalledWith(
         'ostris',
@@ -617,7 +617,7 @@ describe('generateModelTrainingFunction', () => {
       await functionHandler({
         event: mockEvent,
         step: mockStep,
-      } as InngestFunctionInput)
+      } as any)
 
       expect(replicate.trainings.create).toHaveBeenCalledWith(
         expect.any(String),
@@ -687,7 +687,7 @@ describe('generateModelTrainingFunction', () => {
       await functionHandler({
         event: mockEvent,
         step: mockStep,
-      } as InngestFunctionInput)
+      } as any)
 
       expect(supabase.from).toHaveBeenCalledWith('model_trainings')
       expect(mockInsert).toHaveBeenCalledWith(
@@ -728,7 +728,7 @@ describe('generateModelTrainingFunction', () => {
           telegram: {
             sendMessage: mockSendMessage,
           },
-        },
+        } as any,
         error: null,
       })
 
@@ -767,7 +767,7 @@ describe('generateModelTrainingFunction', () => {
       await functionHandler({
         event: mockEvent,
         step: mockStep,
-      } as InngestFunctionInput)
+      } as any)
 
       expect(getBotByNameAdapter).toHaveBeenCalledWith('test_bot')
       expect(mockSendMessage).toHaveBeenCalledWith(
@@ -806,7 +806,7 @@ describe('generateModelTrainingFunction', () => {
           telegram: {
             sendMessage: mockSendMessage,
           },
-        },
+        } as any,
         error: null,
       })
 
@@ -838,7 +838,7 @@ function createMockEvent(data: {
   telegram_id: string
   modelName: string
   triggerWord: string
-  zipDataUri: string
+  zipUrl: string
   steps: number | string
   bot_name: string
   is_ru: boolean

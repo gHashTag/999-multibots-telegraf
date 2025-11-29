@@ -48,13 +48,21 @@ uploadTrainFluxModelScene.enter(async ctx => {
 
     await ctx.reply(isRu ? '⏳ Загружаю архив...' : '⏳ Uploading archive...')
 
-    const triggerWord = `${ctx.session.username?.toLocaleUpperCase()}`
+    // ✅ КРИТИЧНО: Используем triggerWord из сессии (установлен в digitalAvatarBodyWizard)
+    const triggerWord =
+      ctx.session.triggerWord ||
+      ctx.session.modelName?.toUpperCase() ||
+      ctx.session.username?.toUpperCase()
     if (!triggerWord) {
       await ctx.reply(
         isRu ? '❌ Некорректный trigger word' : '❌ Invalid trigger word'
       )
       return ctx.scene.leave()
     }
+    console.log(
+      '[uploadTrainFluxModelScene] Using triggerWord from session:',
+      triggerWord
+    )
 
     // ✅ Локальная тренировка на bot-farm (прямой вызов Replicate API)
     console.log('[uploadTrainFluxModelScene] Using LOCAL training on bot-farm')

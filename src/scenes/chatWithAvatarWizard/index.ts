@@ -1,11 +1,11 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
-import { handleTextMessage } from '../../handlers/handleTextMessage'
 import { createHelpCancelKeyboard } from '@/menu'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
+import { CancelButtonService } from '@/services/CancelButtonService'
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ChatWithAvatar,
@@ -24,13 +24,33 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    const isCancel = await handleHelpCancel(ctx)
+    // 1) Локальная обработка "Отмена" и "Справка" в одном месте
+    if (ctx.message && 'text' in ctx.message) {
+      const rawText = ctx.message.text || ''
+      const text = rawText.toLowerCase().trim()
+      const isRu = isRussian(ctx)
 
-    if (isCancel) {
-      return ctx.scene.leave()
+      // Отмена
+      if (text === 'отмена' || text === 'cancel' || text === '/cancel') {
+        console.log(
+          '[chatWithAvatarWizard] Local cancel detected, executing CancelButtonService.executeMainMenu',
+          { rawText }
+        )
+        await CancelButtonService.executeMainMenu(
+          ctx as any,
+          isRu ? 'Отмена' : 'Cancel'
+        )
+        return
+      }
+
+      // Справка
+      const isHelpHandled = await handleHelpCancel(ctx)
+      if (isHelpHandled) {
+        return
+      }
     }
 
-    if ('text' in ctx.message) {
+    if (ctx.message && 'text' in ctx.message) {
       // ✅ ИСПРАВЛЕНО: Обрабатываем текст для чата с аватаром напрямую
       try {
         const telegramId = ctx.from?.id?.toString()
@@ -58,9 +78,45 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
         // Отправляем еще один индикатор перед вызовом AI (для долгих запросов)
         await ctx.sendChatAction('typing')
-        
+
         const response = await answerAi(model, userData, prompt, languageCode)
-        await ctx.reply(response)
+
+        // ✅ Проверяем, является ли ответ изображением (от Nano Banana Pro)
+        if (typeof response === 'object' && response.type === 'image') {
+          console.log(
+            '🖼️ [chatWithAvatarWizard] Image response received, sending photo',
+            {
+              telegramId,
+              imageUrl: response.imageUrl,
+            }
+          )
+          const isRu = isRussian(ctx)
+          await ctx.replyWithPhoto(response.imageUrl, {
+            caption: isRu
+              ? '✨ Изображение сгенерировано с помощью Nano Banana Pro'
+              : '✨ Image generated using Nano Banana Pro',
+          })
+        } else {
+          // Обычный текстовый ответ
+          await ctx.reply(response as string)
+        }
+
+        // Пост-обработка пользователя (достижимый код)
+        try {
+          const userExists = await getUserByTelegramId(ctx)
+          if (!userExists) {
+            console.error(
+              `[chatWithAvatarWizard] User with ID ${telegramId} not found after message processing.`
+            )
+          } else {
+            const level = userExists.level
+            if (level === 4) {
+              await updateUserLevelPlusOne(telegramId, level)
+            }
+          }
+        } catch (e) {
+          console.error('[chatWithAvatarWizard] post-processing error:', e)
+        }
 
         // Остаемся на том же шаге для продолжения чата
         return ctx.wizard.selectStep(1)
@@ -76,25 +132,11 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
       }
     } else {
       // Обработка других типов сообщений, если нужно
+      console.error('[chatWithAvatarWizard] Unknown message type:', ctx.message)
       return ctx.scene.leave()
     }
 
-    const telegram_id = ctx.from.id
-
-    const userExists = await getUserByTelegramId(ctx)
-    if (!userExists) {
-      console.error(
-        `[chatWithAvatarWizard] User with ID ${telegram_id} not found after message processing.`
-      )
-      return ctx.scene.leave()
-    }
-    const level = userExists.level
-    if (level === 4) {
-      await updateUserLevelPlusOne(telegram_id.toString(), level)
-    }
-
-    // Остаемся на текущем шаге для обработки следующих сообщений
-    return ctx.wizard.selectStep(1) // Возвращаемся на второй шаг (индекс 1)
+    // (ничего)
   }
 )
 

@@ -528,12 +528,12 @@ async function startApplication() {
         'BOT_INNGEST_SIGNING_KEY', // ✅ Для локального Inngest signing
         'BOT_INNGEST_TEST_SIGNING_KEY', // ✅ Для тестового Inngest signing
         'BOT_INNGEST_BASE_URL', // ✅ Для локального Inngest endpoint URL
-        // ❌ RENDER_INNGEST ключи удалены - используем только один клиент (client.ts)
         // AI Avatar & Voice Generation Services
         'ELEVENLABS_API_KEY', // ✅ ElevenLabs для генерации голоса из текста
         'HEYGEN_COCOAGE_API_KEY', // ✅ HeyGen API ключ для набора аватаров Cocoage (шаблон 2)
         'HEYGEN_HAIM_API_KEY', // ✅ HeyGen API ключ для набора аватаров Haim (остальные шаблоны)
         'HEDRA_API_KEY', // ✅ Hedra API для lip-sync генерации с пользовательским фото
+        'DEEPSEEK_API_KEY', // ✅ DeepSeek API key для чата аватаров и других AI функций
       ]
 
       console.log(
@@ -545,43 +545,7 @@ async function startApplication() {
           const value = getSecret(key)
           if (value) {
             process.env[key] = value
-
-            // 🔴 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ RENDER_INNGEST КЛЮЧЕЙ
-            if (key.startsWith('RENDER_INNGEST')) {
-              console.log(`  ✅ ${key} загружен из Infisical`)
-              console.log(`     📊 Длина ключа: ${value.length} символов`)
-              console.log(
-                `     🔑 Первые 20 символов: ${value.substring(0, 20)}...`
-              )
-
-              // Дополнительная проверка для EVENT_KEY
-              if (key === 'RENDER_INNGEST_EVENT_KEY') {
-                const isValid = value.length > 50 && value.includes('_')
-                console.log(
-                  `     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ' : '⚠️ ПОДОЗРИТЕЛЬНЫЙ'}`
-                )
-                if (!isValid) {
-                  console.warn(
-                    `     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_EVENT_KEY может быть невалидным!`
-                  )
-                }
-              }
-
-              // Дополнительная проверка для SIGNING_KEY
-              if (key === 'RENDER_INNGEST_SIGNING_KEY') {
-                const isValid = value.startsWith('signkey-')
-                console.log(
-                  `     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ (signkey-)' : '⚠️ НЕ НАЧИНАЕТСЯ С signkey-'}`
-                )
-                if (!isValid) {
-                  console.warn(
-                    `     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_SIGNING_KEY должен начинаться с "signkey-"`
-                  )
-                }
-              }
-            } else {
-              console.log(`  ✅ ${key} загружен`)
-            }
+            console.log(`  ✅ ${key} загружен`)
           } else {
             console.warn(`  ⚠️ ${key} не найден в Infisical (значение пустое)`)
           }
@@ -589,30 +553,6 @@ async function startApplication() {
           const errorMsg = e instanceof Error ? e.message : String(e)
           console.warn(`  ⚠️ ${key} не найден в Infisical: ${errorMsg}`)
         }
-      }
-
-      // 🔴 КРИТИЧЕСКАЯ ПРОВЕРКА RENDER_INNGEST КЛЮЧЕЙ ПОСЛЕ ЗАГРУЗКИ
-      console.log(`\n🔍 [RENDER_INNGEST] Финальная проверка ключей...`)
-      const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
-      const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
-
-      console.log(
-        `  📊 RENDER_INNGEST_EVENT_KEY: ${renderEventKey ? `${renderEventKey.substring(0, 30)}... (${renderEventKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
-      )
-      console.log(
-        `  📊 RENDER_INNGEST_SIGNING_KEY: ${renderSigningKey ? `${renderSigningKey.substring(0, 30)}... (${renderSigningKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
-      )
-
-      if (!renderEventKey || !renderSigningKey) {
-        console.error(
-          `\n❌ [RENDER_INNGEST] КРИТИЧЕСКАЯ ОШИБКА: Отсутствуют обязательные ключи!`
-        )
-        console.error(`   Inngest запросы на render-server НЕ БУДУТ РАБОТАТЬ!`)
-        console.error(`   Проверьте ключи в Infisical (${env} environment):`)
-        console.error(`   - RENDER_INNGEST_EVENT_KEY`)
-        console.error(`   - RENDER_INNGEST_SIGNING_KEY\n`)
-      } else {
-        console.log(`\n✅ [RENDER_INNGEST] Все ключи загружены успешно!`)
       }
 
       // 🔗 ВРЕМЕННОЕ РЕШЕНИЕ: Устанавливаем BASE_WEBHOOK_URL напрямую для production

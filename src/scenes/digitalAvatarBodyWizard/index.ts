@@ -11,6 +11,7 @@ import { ModeEnum } from '@/interfaces/modes'
 
 export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
   'digital_avatar_body',
+  // Шаг 0: Выбор пола
   async ctx => {
     // ✅ Инициализируем wizardData
     ctx.session.wizardData = {}
@@ -20,27 +21,144 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
     console.log('[digitalAvatarBodyWizard] Set session mode:', ctx.session.mode)
 
     const isRu = isRussianFromState(ctx)
-    const showRubles = shouldShowRubles(ctx)
-    const costMessage = generateCostMessage(
-      stepOptions.v1,
-      isRu,
-      'v1',
-      showRubles,
-      isRu
+
+    const genderKeyboard = Markup.keyboard([
+      [
+        Markup.button.text(isRu ? '👨‍💼 Мужской' : '👨‍💼 Male'),
+        Markup.button.text(isRu ? '👩‍💼 Женский' : '👩‍💼 Female'),
+      ],
+      [
+        Markup.button.text(isRu ? '❓ Справка' : '❓ Help'),
+        Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
+      ],
+    ])
+      .resize()
+      .oneTime()
+
+    await ctx.reply(
+      isRu ? '👤 Выберите пол для модели:' : '👤 Select gender for the model:',
+      genderKeyboard
     )
-    await ctx.reply(costMessage, getStepSelectionMenu(isRu))
     return ctx.wizard.next()
   },
+  // Шаг 1: Обработка выбора пола и запрос названия модели
   async ctx => {
     const isRu = isRussianFromState(ctx)
-    console.log('Entering step 2 of the wizard')
 
     // ✅ Инициализируем wizardData если его нет
     if (!ctx.session.wizardData) {
       ctx.session.wizardData = {}
     }
 
-    // ✅ ОБРАБОТКА ТОЛЬКО ВЫБОРА ШАГОВ - убрана загрузка фото!
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    if (ctx.message && 'text' in ctx.message) {
+      const messageText = ctx.message.text
+
+      // Обработка выбора пола
+      let gender: 'male' | 'female' | null = null
+
+      if (isRu) {
+        if (messageText.includes('Мужской') || messageText.includes('👨')) {
+          gender = 'male'
+        } else if (
+          messageText.includes('Женский') ||
+          messageText.includes('👩')
+        ) {
+          gender = 'female'
+        }
+      } else {
+        if (messageText.includes('Male') || messageText.includes('👨')) {
+          gender = 'male'
+        } else if (
+          messageText.includes('Female') ||
+          messageText.includes('👩')
+        ) {
+          gender = 'female'
+        }
+      }
+
+      if (gender) {
+        // Сохраняем пол в сессию
+        ctx.session.gender = gender
+        ctx.session.wizardData.gender = gender
+
+        // Запрашиваем название модели
+        await ctx.reply(
+          isRu
+            ? '📝 Введите название модели (например: my_avatar_model):'
+            : '📝 Enter model name (e.g., my_avatar_model):',
+          Markup.removeKeyboard()
+        )
+        return ctx.wizard.next()
+      }
+    }
+
+    await ctx.reply(
+      isRu
+        ? '👤 Пожалуйста, выберите пол из кнопок выше.'
+        : '👤 Please select gender from the buttons above.',
+      Markup.removeKeyboard()
+    )
+  },
+  // Шаг 2: Обработка названия модели и показ меню выбора шагов
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    if (ctx.message && 'text' in ctx.message) {
+      const messageText = ctx.message.text.trim()
+
+      if (messageText.length > 0) {
+        // Сохраняем название модели
+        ctx.session.modelName = messageText
+        ctx.session.triggerWord = messageText.toUpperCase()
+        ctx.session.wizardData.modelName = messageText
+
+        // Показываем меню выбора шагов
+        const showRubles = shouldShowRubles(ctx)
+        const costMessage = generateCostMessage(
+          stepOptions.v1,
+          isRu,
+          'v1',
+          showRubles,
+          isRu
+        )
+        await ctx.reply(costMessage, getStepSelectionMenu(isRu))
+        return ctx.wizard.next()
+      }
+    }
+
+    await ctx.reply(
+      isRu
+        ? '📝 Пожалуйста, введите название модели.'
+        : '📝 Please enter model name.',
+      Markup.removeKeyboard()
+    )
+  },
+  // Шаг 3: Обработка выбора шагов
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    console.log('Entering step 3: steps selection')
+
+    // ✅ Инициализируем wizardData если его нет
+    if (!ctx.session.wizardData) {
+      ctx.session.wizardData = {}
+    }
+
+    const isCancel = await handleHelpCancel(ctx)
+    if (isCancel) {
+      return ctx.scene.leave()
+    }
+
+    // ✅ ОБРАБОТКА ВЫБОРА ШАГОВ
     if (ctx.message && 'text' in ctx.message) {
       const messageText = ctx.message.text
       const stepsMatch = messageText.match(/\d+/)
@@ -69,21 +187,13 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.enter('trainFluxModelWizard')
         }
       }
-    } else {
-      console.error('Callback query does not contain data')
     }
 
-    const isCancel = await handleHelpCancel(ctx)
-
-    if (isCancel) {
-      return ctx.scene.leave()
-    } else {
-      await ctx.reply(
-        isRu
-          ? '🔢 Пожалуйста, выберите количество шагов для продолжения обучения модели.'
-          : '🔢 Please select the number of steps to proceed with model training.',
-        Markup.removeKeyboard()
-      )
-    }
+    await ctx.reply(
+      isRu
+        ? '🔢 Пожалуйста, выберите количество шагов для продолжения обучения модели.'
+        : '🔢 Please select the number of steps to proceed with model training.',
+      Markup.removeKeyboard()
+    )
   }
 )

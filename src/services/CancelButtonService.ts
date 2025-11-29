@@ -43,10 +43,7 @@ export class CancelButtonService {
    * Создает inline кнопку отмены - БЕЗ эмодзи
    */
   static createInlineCancelButton(isRu: boolean, callbackData = 'cancel') {
-    return Markup.button.callback(
-      isRu ? 'Отмена' : 'Cancel',
-      callbackData
-    )
+    return Markup.button.callback(isRu ? 'Отмена' : 'Cancel', callbackData)
   }
 
   /**
@@ -63,10 +60,7 @@ export class CancelButtonService {
    * Создает массив кнопок с "Справка" и "Отмена"
    */
   static createHelpCancelArray(isRu: boolean) {
-    return [
-      [isRu ? 'ℹ️ Справка' : 'ℹ️ Help'],
-      [isRu ? 'Отмена' : 'Cancel']
-    ]
+    return [[isRu ? 'ℹ️ Справка' : 'ℹ️ Help'], [isRu ? 'Отмена' : 'Cancel']]
   }
 
   /**
@@ -89,23 +83,30 @@ export class CancelButtonService {
       return false
     }
 
-    const text = ctx.message.text?.toLowerCase().trim()
+    const rawText = ctx.message.text || ''
+    const text = rawText.toLowerCase().trim()
     const isRu = isRussianFromState(ctx)
+
+    logger.info('[CancelButtonService] handleCancelButton called', {
+      telegramId: ctx.from?.id,
+      rawText,
+      normalizedText: text,
+      currentScene: (ctx as any).scene?.current?.id,
+    })
 
     // Проверяем команды отмены
     if (text === 'отмена' || text === 'cancel' || text === '/cancel') {
-      logger.info('[CancelButtonService] Cancel triggered', {
-        telegramId: ctx.from?.id,
-        text
-      })
-
-      await ctx.reply(
-        isRu ? 'Операция отменена.' : 'Operation cancelled.',
-        { reply_markup: { remove_keyboard: true } }
+      logger.info(
+        '[CancelButtonService] Cancel triggered (matched cancel keywords)',
+        {
+          telegramId: ctx.from?.id,
+          text: rawText,
+          currentScene: (ctx as any).scene?.current?.id,
+        }
       )
 
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      // Единая точка: показываем короткое сообщение и переходим в главное меню
+      await CancelButtonService.executeMainMenu(ctx, isRu ? 'Отмена' : 'Cancel')
       return true
     }
 
@@ -121,8 +122,16 @@ export class CancelButtonService {
       return false
     }
 
-    const text = ctx.message.text?.toLowerCase().trim()
+    const rawText = ctx.message.text || ''
+    const text = rawText.toLowerCase().trim()
     const isRu = isRussianFromState(ctx)
+
+    logger.info('[CancelButtonService] handleMainMenuButton called', {
+      telegramId: ctx.from?.id,
+      rawText,
+      normalizedText: text,
+      currentScene: (ctx as any).scene?.current?.id,
+    })
 
     // Проверяем команды главного меню
     if (
@@ -136,7 +145,8 @@ export class CancelButtonService {
     ) {
       logger.info('[CancelButtonService] Main menu triggered', {
         telegramId: ctx.from?.id,
-        text
+        text: rawText,
+        currentScene: (ctx as any).scene?.current?.id,
       })
 
       await ctx.reply(
@@ -174,7 +184,10 @@ export class CancelButtonService {
    * ЦЕНТРАЛИЗОВАННЫЙ обработчик отмены для Inline кнопок
    * Использует callback_query
    */
-  static async handleCancelCallback(ctx: MyContext, callbackData = 'cancel'): Promise<boolean> {
+  static async handleCancelCallback(
+    ctx: MyContext,
+    callbackData = 'cancel'
+  ): Promise<boolean> {
     if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
       return false
     }
@@ -184,13 +197,11 @@ export class CancelButtonService {
 
       logger.info('[CancelButtonService] Inline cancel triggered', {
         telegramId: ctx.from?.id,
-        callbackData
+        callbackData,
       })
 
       await ctx.answerCbQuery()
-      await ctx.reply(
-        isRu ? 'Операция отменена.' : 'Operation cancelled.'
-      )
+      await ctx.reply(isRu ? 'Операция отменена.' : 'Operation cancelled.')
 
       await ctx.scene.leave()
       await ctx.scene.enter(ModeEnum.MainMenu)
@@ -212,7 +223,7 @@ export class CancelButtonService {
       const isRu = isRussianFromState(ctx)
 
       logger.info('[CancelButtonService] Inline main menu triggered', {
-        telegramId: ctx.from?.id
+        telegramId: ctx.from?.id,
       })
 
       await ctx.answerCbQuery()
@@ -235,12 +246,15 @@ export class CancelButtonService {
   /**
    * Выполнить отмену напрямую (используется когда уже знаем, что нужна отмена)
    */
-  static async executeCancel(ctx: MyContext, customMessage?: string): Promise<void> {
+  static async executeCancel(
+    ctx: MyContext,
+    customMessage?: string
+  ): Promise<void> {
     const isRu = isRussianFromState(ctx)
 
     logger.info('[CancelButtonService] Execute cancel', {
       telegramId: ctx.from?.id,
-      hasCustomMessage: !!customMessage
+      hasCustomMessage: !!customMessage,
     })
 
     await ctx.reply(
@@ -255,16 +269,20 @@ export class CancelButtonService {
   /**
    * Перейти в главное меню напрямую (используется когда уже знаем, что нужен переход)
    */
-  static async executeMainMenu(ctx: MyContext, customMessage?: string): Promise<void> {
+  static async executeMainMenu(
+    ctx: MyContext,
+    customMessage?: string
+  ): Promise<void> {
     const isRu = isRussianFromState(ctx)
 
     logger.info('[CancelButtonService] Execute main menu', {
       telegramId: ctx.from?.id,
-      hasCustomMessage: !!customMessage
+      hasCustomMessage: !!customMessage,
     })
 
     await ctx.reply(
-      customMessage || (isRu ? 'Переходим в главное меню.' : 'Going to main menu.'),
+      customMessage ||
+        (isRu ? 'Переходим в главное меню.' : 'Going to main menu.'),
       { reply_markup: { remove_keyboard: true } }
     )
 
@@ -276,22 +294,22 @@ export class CancelButtonService {
 // ✅ ЭКСПОРТЫ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
 
 // Из utils/cancelButton.ts
-export const createCancelButton = (isRu: boolean) => 
+export const createCancelButton = (isRu: boolean) =>
   CancelButtonService.createCancelButton(isRu)
 
-export const handleCancelButton = (ctx: MyContext) => 
+export const handleCancelButton = (ctx: MyContext) =>
   CancelButtonService.handleCancelButton(ctx)
 
 // Из handlers/handleHelpCancel/index.ts
-export const handleHelpCancel = (ctx: MyContext) => 
+export const handleHelpCancel = (ctx: MyContext) =>
   CancelButtonService.handleCancelButton(ctx)
 
 // Из menu/cancelHelpArray.ts
-export const cancelHelpArray = (isRu: boolean) => 
+export const cancelHelpArray = (isRu: boolean) =>
   CancelButtonService.createHelpCancelArray(isRu)
 
 // Из menu/createHelpCancelKeyboard/createHelpCancelKeyboard.ts
-export const createHelpCancelKeyboard = (isRu: boolean) => 
+export const createHelpCancelKeyboard = (isRu: boolean) =>
   CancelButtonService.createHelpCancelKeyboard(isRu)
 
 // ✅ ЛОГГЕР
