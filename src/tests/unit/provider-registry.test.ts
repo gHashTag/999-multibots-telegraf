@@ -13,7 +13,17 @@ import {
   healthCheckRegistry,
   printRegistryStatus
 } from '../../../src/core/providers/registry/provider-registry'
-import { ProviderConfig, ProviderName } from '../../../src/core/functional/types/media.types'
+import { ProviderConfig, ProviderName as ProviderNameCodec, type ProviderName } from '../../../src/core/functional/types/media.types'
+import { isRight } from '../../../src/core/functional/utils/result'
+
+// Helper to create ProviderName from string
+const createProviderName = (name: string): ProviderName => {
+  const decoded = ProviderNameCodec.decode(name)
+  if (isRight(decoded)) {
+    return decoded.right
+  }
+  throw new Error(`Invalid provider name: ${name}`)
+}
 
 // Mock Provider
 const createMockProvider = (name: string) => ({
@@ -43,7 +53,7 @@ describe('Provider Registry', () => {
     it('should create a registry with providers', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -64,7 +74,7 @@ describe('Provider Registry', () => {
           timeout: 30000
         },
         {
-          name: 'replicate' as ProviderName,
+          name: createProviderName('replicate'),
           apiKey: 'test-key-2',
           baseUrl: 'https://api.replicate.com',
           timeout: 30000
@@ -81,7 +91,7 @@ describe('Provider Registry', () => {
     it('should filter by capability', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -100,7 +110,7 @@ describe('Provider Registry', () => {
     it('should list all providers', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -117,7 +127,7 @@ describe('Provider Registry', () => {
     it('should check if provider exists', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -133,7 +143,7 @@ describe('Provider Registry', () => {
     it('should return undefined for non-existent provider', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -179,7 +189,7 @@ describe('Provider Registry', () => {
     it('should get provider by name', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -196,7 +206,7 @@ describe('Provider Registry', () => {
     it('should get provider by capability', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -213,7 +223,7 @@ describe('Provider Registry', () => {
     it('should get best provider', async () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -230,7 +240,7 @@ describe('Provider Registry', () => {
     it('should handle health check of all providers', async () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -259,7 +269,7 @@ describe('Provider Registry', () => {
     it('should handle unknown provider name', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -275,7 +285,7 @@ describe('Provider Registry', () => {
     it('should handle unknown capability', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -291,7 +301,7 @@ describe('Provider Registry', () => {
     it('should get capabilities list', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -315,7 +325,7 @@ describe('Provider Registry', () => {
 
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -342,7 +352,7 @@ describe('Provider Registry', () => {
     it('should print registry status without errors', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
@@ -389,7 +399,7 @@ describe('Provider Registry', () => {
     it('should handle health checks for multiple providers', async () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as ProviderName,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
           timeout: 30000
