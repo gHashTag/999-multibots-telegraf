@@ -349,7 +349,8 @@ async function initializeBots() {
 async function gracefulShutdown(signal: string) {
   console.log(`🚨 Получен сигнал ${signal}. Завершение работы...`)
   for (const bot of botInstances) {
-    console.log(`🚫 Остановка бота ${bot.botInfo?.username}...`)
+    const botUsername = bot.botInfo?.username || 'neuro_blogger_bot'
+    console.log(`🚫 Остановка бота ${botUsername}...`)
     await bot.stop()
   }
   process.exit(0)
