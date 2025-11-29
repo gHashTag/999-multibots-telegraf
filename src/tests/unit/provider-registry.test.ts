@@ -24,13 +24,13 @@ const createMockProvider = (name: string) => ({
     baseUrl: `https://${name}.api.test`,
     timeout: 30000
   } as ProviderConfig,
-  generateVideo: async () => ({ _tag: 'Right' as const, value: { videoUrl: 'test.mp4', provider: name } }),
-  generateImage: async () => ({ _tag: 'Right' as const, value: { imageUrl: 'test.jpg', provider: name } }),
-  generateAudio: async () => ({ _tag: 'Right' as const, value: { audioUrl: 'test.mp3', provider: name } }),
-  performFaceSwap: async () => ({ _tag: 'Right' as const, value: { imageUrl: 'test-swapped.jpg', provider: name } }),
-  healthCheck: async () => ({ _tag: 'Right' as const, value: { status: 'healthy', latency: 10, uptime: 1000, lastCheck: Date.now() } }),
-  getBalance: async () => ({ _tag: 'Right' as const, value: { currency: 'usd', available: 100, reserved: 0, lastUpdated: Date.now() } }),
-  rateLimit: async () => ({ _tag: 'Right' as const, value: undefined })
+  generateVideo: async () => ({ _tag: 'Right' as const, right: { videoUrl: 'test.mp4', provider: name } }),
+  generateImage: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test.jpg', provider: name } }),
+  generateAudio: async () => ({ _tag: 'Right' as const, right: { audioUrl: 'test.mp3', provider: name } }),
+  performFaceSwap: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test-swapped.jpg', provider: name } }),
+  healthCheck: async () => ({ _tag: 'Right' as const, right: { status: 'healthy', latency: 10, uptime: 1000, lastCheck: Date.now() } }),
+  getBalance: async () => ({ _tag: 'Right' as const, right: { currency: 'usd', available: 100, reserved: 0, lastUpdated: Date.now() } }),
+  rateLimit: async () => ({ _tag: 'Right' as const, right: undefined })
 })
 
 // Mock KieAiProvider to avoid import error
@@ -442,7 +442,7 @@ describe('Provider Registry - Integration', () => {
       const health = await provider.healthCheck()()
       expect(health._tag).toBe('Right')
       if (health._tag === 'Right') {
-        expect(health.value.status).toBe('healthy')
+        expect(health.right.status).toBe('healthy')
       }
     }
   })

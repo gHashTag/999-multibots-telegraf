@@ -30,8 +30,7 @@ describe('Composition - Basic Properties', () => {
         expected: 'HELLO!HELLO!'
       }
     ])('should pipe $input through functions to get $expected', ({ input, fns, expected }) => {
-      const piped = pipe(...fns)
-      const result = piped(input)
+      const result = pipe(input, ...fns)
       expect(result).toEqual(expected)
     })
   })
