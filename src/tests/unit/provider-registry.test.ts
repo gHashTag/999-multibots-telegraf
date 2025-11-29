@@ -21,7 +21,7 @@ import { isRight } from '../../../src/core/functional/utils/result'
 const createProviderName = (name: string): ProviderName => {
   const decoded = ProviderNameCodec.decode(name)
   if (isRight(decoded)) {
-    return decoded.right
+    return decoded.right as ProviderName
   }
   throw new Error(`Invalid provider name: ${name}`)
 }
