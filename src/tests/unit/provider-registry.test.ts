@@ -27,17 +27,25 @@ const createProviderName = (name: string): ProviderName => {
 }
 
 // Mock Provider
-const createMockProvider = (name: string) => ({
-  name,
-  config: {
-    name: createProviderName(name),
-    apiKey: 'test-key',
-    baseUrl: `https://${name}.api.test`,
-    timeout: 30000,
-    rateLimit: {
-      requestsPerMinute: 60
-    }
-  } as ProviderConfig,
+const createMockProvider = (name: string) => {
+  let providerName: ProviderName
+  try {
+    providerName = createProviderName(name)
+  } catch {
+    // Fallback для неизвестных провайдеров в тестах
+    providerName = name as any as ProviderName
+  }
+  return {
+    name,
+    config: {
+      name: providerName,
+      apiKey: 'test-key',
+      baseUrl: `https://${name}.api.test`,
+      timeout: 30000,
+      rateLimit: {
+        requestsPerMinute: 60
+      }
+    } as ProviderConfig,
   generateVideo: async () => ({ _tag: 'Right' as const, right: { videoUrl: 'test.mp4', provider: name } }),
   generateImage: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test.jpg', provider: name } }),
   generateAudio: async () => ({ _tag: 'Right' as const, right: { audioUrl: 'test.mp3', provider: name } }),
