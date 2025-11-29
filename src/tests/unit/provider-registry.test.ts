@@ -46,14 +46,15 @@ const createMockProvider = (name: string) => {
         requestsPerMinute: 60
       }
     } as ProviderConfig,
-  generateVideo: async () => ({ _tag: 'Right' as const, right: { videoUrl: 'test.mp4', provider: name } }),
-  generateImage: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test.jpg', provider: name } }),
-  generateAudio: async () => ({ _tag: 'Right' as const, right: { audioUrl: 'test.mp3', provider: name } }),
-  performFaceSwap: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test-swapped.jpg', provider: name } }),
-  healthCheck: async () => ({ _tag: 'Right' as const, right: { status: 'healthy', latency: 10, uptime: 1000, lastCheck: Date.now() } }),
-  getBalance: async () => ({ _tag: 'Right' as const, right: { currency: 'usd', available: 100, reserved: 0, lastUpdated: Date.now() } }),
-  rateLimit: async () => ({ _tag: 'Right' as const, right: undefined })
-})
+    generateVideo: async () => ({ _tag: 'Right' as const, right: { videoUrl: 'test.mp4', provider: name } }),
+    generateImage: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test.jpg', provider: name } }),
+    generateAudio: async () => ({ _tag: 'Right' as const, right: { audioUrl: 'test.mp3', provider: name } }),
+    performFaceSwap: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test-swapped.jpg', provider: name } }),
+    healthCheck: async () => ({ _tag: 'Right' as const, right: { status: 'healthy', latency: 10, uptime: 1000, lastCheck: Date.now() } }),
+    getBalance: async () => ({ _tag: 'Right' as const, right: { currency: 'usd', available: 100, reserved: 0, lastUpdated: Date.now() } }),
+    rateLimit: async () => ({ _tag: 'Right' as const, right: undefined })
+  }
+}
 
 // Mock KieAiProvider to avoid import error
 vi.mock('../../../src/core/providers/adapters/kie-ai.adapter', () => ({
