@@ -9,11 +9,15 @@ export type Either<E, A> = Left<E> | Right<A>
 export interface Left<E> {
   readonly _tag: 'Left'
   readonly left: E
+  // ✅ Обратная совместимость: геттер для старого API
+  readonly value: E
 }
 
 export interface Right<A> {
   readonly _tag: 'Right'
   readonly right: A
+  // ✅ Обратная совместимость: геттер для старого API
+  readonly value: A
 }
 
 // TaskEither is an async Either
@@ -22,12 +26,16 @@ export type TaskEither<E, A> = () => Promise<Either<E, A>>
 // Constructors
 export const left = <E, A = never>(e: E): Either<E, A> => ({
   _tag: 'Left',
-  left: e
+  left: e,
+  // ✅ Обратная совместимость: геттер для старого API
+  get value() { return e }
 })
 
 export const right = <A, E = never>(a: A): Either<E, A> => ({
   _tag: 'Right',
-  right: a
+  right: a,
+  // ✅ Обратная совместимость: геттер для старого API
+  get value() { return a }
 })
 
 // Helper to check which variant
