@@ -82,7 +82,7 @@ describe('Result<E> - Right Value Properties', () => {
       { input: [1, 2], fn: (x: number[]) => right(x[0]) }
     ])('should chain Right($input) to Right(result)', ({ input, fn }) => {
       const result = right(input)
-      const chained = chain(fn)(result)
+      const chained = chain(fn as any)(result as any)
       expect(isRight(chained)).toBe(true)
     })
   })
@@ -95,8 +95,8 @@ describe('Result<E> - Right Value Properties', () => {
     ])('should fold Right($value) to $expected', ({ value, expected }) => {
       const result = right(value)
       const folded = fold(
-        (error) => `ERROR: ${error.message}`,
-        (value) => typeof value === 'string' ? value.toUpperCase() : value * 2
+        (error: any) => `ERROR: ${error instanceof Error ? error.message : String(error)}`,
+        (value: any) => typeof value === 'string' ? value.toUpperCase() : (typeof value === 'number' ? value * 2 : (Array.isArray(value) ? value.length : value))
       )(result)
       expect(folded).toEqual(expected)
     })
@@ -182,7 +182,7 @@ describe('Result<E> - Left Value Properties', () => {
     ])('should not chain Left(Error)', ({ error }) => {
       const chainFn = vi.fn(() => right('should not be called'))
       const result = left(error)
-      const chained = chain(chainFn)(result)
+      const chained = chain(chainFn as any)(result as any)
       expect(chainFn).not.toHaveBeenCalled()
       expect(isLeft(chained)).toBe(true)
     })
@@ -195,7 +195,7 @@ describe('Result<E> - Left Value Properties', () => {
     ])('should fold Left(Error) to $expected', ({ error, expected }) => {
       const result = left(error)
       const folded = fold(
-        (error) => `ERROR: ${error.message}`,
+        (error: any) => `ERROR: ${error instanceof Error ? error.message : String(error)}`,
         (value) => value
       )(result)
       expect(folded).toEqual(expected)
@@ -240,7 +240,7 @@ describe('Result<E> - Try-Catch Properties', () => {
       { fn: () => ({ a: 1 }), expected: { a: 1 } },
       { fn: () => [1, 2, 3], expected: [1, 2, 3] }
     ])('should create Right for successful $fn', ({ fn, expected }) => {
-      const result = tryCatch(fn, () => new Error('Should not be called'))
+      const result = tryCatch(fn as any, () => new Error('Should not be called'))
       expect(isRight(result)).toBe(true)
       if (isRight(result)) {
         expect(result.right).toEqual(expected)
@@ -257,7 +257,7 @@ describe('Result<E> - Try-Catch Properties', () => {
       const result = tryCatch(fn, (e) => new Error(String(e)))
       expect(isLeft(result)).toBe(true)
       if (isLeft(result)) {
-        expect(result.right).toBeInstanceOf(Error)
+        expect(result.left).toBeInstanceOf(Error)
       }
     })
   })
@@ -268,7 +268,7 @@ describe('Result<E> - Try-Catch Properties', () => {
       { fn: async () => 'test', expected: 'test' },
       { fn: async () => ({ a: 1 }), expected: { a: 1 } }
     ])('should create Right for successful async $fn', async ({ fn, expected }) => {
-      const result = await tryCatchAsync(fn, () => new Error('Should not be called'))
+      const result = await tryCatchAsync(fn as any, () => new Error('Should not be called'))()
       expect(isRight(result)).toBe(true)
       if (isRight(result)) {
         expect(result.right).toEqual(expected)
@@ -281,10 +281,10 @@ describe('Result<E> - Try-Catch Properties', () => {
       { fn: async () => { throw new Error('Async Error 1') } },
       { fn: async () => { throw new Error('Async Error 2') } }
     ])('should create Left for failing async $fn', async ({ fn }) => {
-      const result = await tryCatchAsync(fn, (e) => new Error(String(e)))
+      const result = await tryCatchAsync(fn, (e) => new Error(String(e)))()
       expect(isLeft(result)).toBe(true)
       if (isLeft(result)) {
-        expect(result.right).toBeInstanceOf(Error)
+        expect(result.left).toBeInstanceOf(Error)
       }
     })
   })
@@ -308,7 +308,7 @@ describe('Result<E> - Composition Properties', () => {
       const flattened = flatten(nested)
       expect(isLeft(flattened)).toBe(true)
       if (isLeft(flattened)) {
-        expect(flattened.right.message).toBe('outer error')
+        expect(flattened.left.message).toBe('outer error')
       }
     })
   })
