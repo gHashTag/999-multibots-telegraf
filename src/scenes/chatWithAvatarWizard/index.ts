@@ -79,7 +79,16 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         // Отправляем еще один индикатор перед вызовом AI (для долгих запросов)
         await ctx.sendChatAction('typing')
 
-        const response = await answerAi(model, userData, prompt, languageCode)
+        const response = await answerAi(
+          model,
+          userData,
+          prompt,
+          languageCode,
+          undefined,
+          ctx,
+          telegramId,
+          isRussian(ctx)
+        )
 
         // ✅ Проверяем, является ли ответ изображением (от Nano Banana Pro)
         if (typeof response === 'object' && response.type === 'image') {
@@ -88,13 +97,18 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
             {
               telegramId,
               imageUrl: response.imageUrl,
+              cost: response.cost,
             }
           )
           const isRu = isRussian(ctx)
+          
+          // ✅ Формируем подпись с информацией о стоимости
+          const caption = isRu
+            ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost || 'N/A'}⭐`
+            : `✨ Image generated using Nano Banana Pro\n\n💫 Cost: ${response.cost || 'N/A'}⭐`
+          
           await ctx.replyWithPhoto(response.imageUrl, {
-            caption: isRu
-              ? '✨ Изображение сгенерировано с помощью Nano Banana Pro'
-              : '✨ Image generated using Nano Banana Pro',
+            caption,
           })
         } else {
           // Обычный текстовый ответ

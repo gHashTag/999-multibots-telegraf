@@ -243,17 +243,25 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
         userData,
         textForAi,
         userLanguage,
-        systemPrompt
+        systemPrompt,
+        ctx,
+        userId,
+        userLanguage === 'ru'
       )
 
       // ✅ Проверяем, является ли ответ изображением (от Nano Banana Pro)
       if (typeof response === 'object' && response.type === 'image') {
         console.log(
           `[handleTextMessage] Image response received for user ${userId}`,
-          { userId, imageUrl: response.imageUrl }
+          { userId, imageUrl: response.imageUrl, cost: response.cost }
         )
+        
+        const caption = response.cost
+          ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost}⭐`
+          : '✨ Изображение сгенерировано с помощью Nano Banana Pro'
+        
         await ctx.replyWithPhoto(response.imageUrl, {
-          caption: '✨ Изображение сгенерировано с помощью Nano Banana Pro',
+          caption,
         })
         return
       }

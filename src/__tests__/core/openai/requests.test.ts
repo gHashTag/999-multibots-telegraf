@@ -83,7 +83,7 @@ describe('answerAi', () => {
         images: [{ url: 'https://example.com/image.png', width: 1024, height: 1024, content_type: 'image/png' }],
       })
 
-      await answerAi('google/gemini-3-pro', mockUserData, 'нарисуй кота', 'ru')
+      await answerAi('google/gemini-3-pro', mockUserData, 'нарисуй кота', 'ru', undefined, undefined, undefined, true)
 
       expect(mockGenerateNanoBananaPro).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -98,7 +98,7 @@ describe('answerAi', () => {
 
       mockGenerateNanoBananaPro.mockRejectedValue(new Error('Unauthorized'))
 
-      const result = await answerAi('google/gemini-3-pro', mockUserData, 'сделай картинку', 'ru')
+      const result = await answerAi('google/gemini-3-pro', mockUserData, 'сделай картинку', 'ru', undefined, undefined, undefined, true)
 
       expect(typeof result).toBe('string')
       expect(result).toContain('не удалось сгенерировать изображение')
