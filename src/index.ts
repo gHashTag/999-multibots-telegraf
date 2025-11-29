@@ -28,9 +28,6 @@ import { setupNotificationProcessor } from './handlers/notificationHandler'
 // Импорт новой команды
 import { setupStatsCommand } from './commands/statsCommand'
 
-import { handleTextMessage } from './handlers/handleTextMessage'
-import { message } from 'telegraf/filters'
-
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
 // ✅ Импортируем функцию регистрации bot instances для multi-bot поддержки
