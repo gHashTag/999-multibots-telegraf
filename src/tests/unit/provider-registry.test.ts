@@ -57,7 +57,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -98,7 +101,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -117,7 +123,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -134,7 +143,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -150,7 +162,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -196,7 +211,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -213,7 +231,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -230,7 +251,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -247,7 +271,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -276,7 +303,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -292,7 +322,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -308,7 +341,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -332,7 +368,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -359,7 +398,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -406,7 +448,10 @@ describe('Provider Registry', () => {
           name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
