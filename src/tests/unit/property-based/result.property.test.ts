@@ -67,10 +67,10 @@ describe('Result<E> - Right Value Properties', () => {
       { input: { a: 1 }, fn: (x: any) => x.a, expected: 1 }
     ])('should map Right($input) with $fn to Right($expected)', ({ input, fn, expected }) => {
       const result = right(input)
-      const mapped = map(result, fn)
+      const mapped = map(fn)(result)
       expect(isRight(mapped)).toBe(true)
       if (isRight(mapped)) {
-        expect(mapped.value).toEqual(expected)
+        expect(mapped.right).toEqual(expected)
       }
     })
   })
@@ -82,7 +82,7 @@ describe('Result<E> - Right Value Properties', () => {
       { input: [1, 2], fn: (x: number[]) => right(x[0]) }
     ])('should chain Right($input) to Right(result)', ({ input, fn }) => {
       const result = right(input)
-      const chained = chain(result, fn)
+      const chained = chain(fn)(result)
       expect(isRight(chained)).toBe(true)
     })
   })
@@ -110,11 +110,11 @@ describe('Result<E> - Right Value Properties', () => {
     ])('should tap Right($value) without changing it', ({ value, expected }) => {
       const tapFn = vi.fn()
       const result = right(value)
-      const tapped = tap(result, tapFn)
+      const tapped = tap(tapFn)(result)
       expect(tapFn).toHaveBeenCalledWith(value)
       expect(isRight(tapped)).toBe(true)
       if (isRight(tapped)) {
-        expect(tapped.value).toEqual(expected)
+        expect(tapped.right).toEqual(expected)
       }
     })
   })
@@ -126,7 +126,7 @@ describe('Result<E> - Right Value Properties', () => {
       { value: null, fallback: 'default' }
     ])('should get value for Right($value)', ({ value, fallback }) => {
       const result = right(value)
-      const gotten = getOrElse(result, () => fallback)
+      const gotten = getOrElse(fallback)(result)
       expect(gotten).toEqual(value)
     })
   })
@@ -153,10 +153,10 @@ describe('Result<E> - Left Value Properties', () => {
       { error: new Error('another error') }
     ])('should not map Left(Error)', ({ error }) => {
       const result = left(error)
-      const mapped = map(result, (x: any) => x * 2)
+      const mapped = map((x: any) => x * 2)(result)
       expect(isLeft(mapped)).toBe(true)
       if (isLeft(mapped)) {
-        expect(mapped.value).toBe(error)
+        expect(mapped.left).toBe(error)
       }
     })
   })
@@ -167,10 +167,10 @@ describe('Result<E> - Left Value Properties', () => {
       { error: new Error('test'), fn: (e: Error) => new Error(e.message.toUpperCase()) }
     ])('should mapLeft Left(Error)', ({ error, fn }) => {
       const result = left(error)
-      const mapped = mapLeft(result, fn)
+      const mapped = mapLeft(fn)(result)
       expect(isLeft(mapped)).toBe(true)
       if (isLeft(mapped)) {
-        expect(mapped.value.message).toBe(fn(error).message)
+        expect(mapped.left.message).toBe(fn(error).message)
       }
     })
   })
@@ -182,7 +182,7 @@ describe('Result<E> - Left Value Properties', () => {
     ])('should not chain Left(Error)', ({ error }) => {
       const chainFn = vi.fn(() => right('should not be called'))
       const result = left(error)
-      const chained = chain(result, chainFn)
+      const chained = chain(chainFn)(result)
       expect(chainFn).not.toHaveBeenCalled()
       expect(isLeft(chained)).toBe(true)
     })
@@ -209,11 +209,11 @@ describe('Result<E> - Left Value Properties', () => {
     ])('should tapLeft Left(Error)', ({ error }) => {
       const tapFn = vi.fn()
       const result = left(error)
-      const tapped = tapLeft(result, tapFn)
+      const tapped = tapLeft(tapFn)(result)
       expect(tapFn).toHaveBeenCalledWith(error)
       expect(isLeft(tapped)).toBe(true)
       if (isLeft(tapped)) {
-        expect(tapped.value).toBe(error)
+        expect(tapped.left).toBe(error)
       }
     })
   })
@@ -224,7 +224,7 @@ describe('Result<E> - Left Value Properties', () => {
       { error: new Error('error'), fallback: 0 }
     ])('should get fallback for Left(Error)', ({ error, fallback }) => {
       const result = left(error)
-      const gotten = getOrElse(result, () => fallback)
+      const gotten = getOrElse(fallback)(result)
       expect(gotten).toEqual(fallback)
     })
   })
@@ -243,7 +243,7 @@ describe('Result<E> - Try-Catch Properties', () => {
       const result = tryCatch(fn, () => new Error('Should not be called'))
       expect(isRight(result)).toBe(true)
       if (isRight(result)) {
-        expect(result.value).toEqual(expected)
+        expect(result.right).toEqual(expected)
       }
     })
   })
@@ -257,7 +257,7 @@ describe('Result<E> - Try-Catch Properties', () => {
       const result = tryCatch(fn, (e) => new Error(String(e)))
       expect(isLeft(result)).toBe(true)
       if (isLeft(result)) {
-        expect(result.value).toBeInstanceOf(Error)
+        expect(result.right).toBeInstanceOf(Error)
       }
     })
   })
@@ -271,7 +271,7 @@ describe('Result<E> - Try-Catch Properties', () => {
       const result = await tryCatchAsync(fn, () => new Error('Should not be called'))
       expect(isRight(result)).toBe(true)
       if (isRight(result)) {
-        expect(result.value).toEqual(expected)
+        expect(result.right).toEqual(expected)
       }
     })
   })
@@ -284,7 +284,7 @@ describe('Result<E> - Try-Catch Properties', () => {
       const result = await tryCatchAsync(fn, (e) => new Error(String(e)))
       expect(isLeft(result)).toBe(true)
       if (isLeft(result)) {
-        expect(result.value).toBeInstanceOf(Error)
+        expect(result.right).toBeInstanceOf(Error)
       }
     })
   })
@@ -299,7 +299,7 @@ describe('Result<E> - Composition Properties', () => {
       const flattened = flatten(nested)
       expect(isRight(flattened)).toBe(true)
       if (isRight(flattened)) {
-        expect(flattened.value).toBe(42)
+        expect(flattened.right).toBe(42)
       }
     })
 
@@ -308,7 +308,7 @@ describe('Result<E> - Composition Properties', () => {
       const flattened = flatten(nested)
       expect(isLeft(flattened)).toBe(true)
       if (isLeft(flattened)) {
-        expect(flattened.value.message).toBe('outer error')
+        expect(flattened.right.message).toBe('outer error')
       }
     })
   })
@@ -321,16 +321,16 @@ describe('Result<E> - Composition Properties', () => {
       const fn3 = (x: number) => right(x - 3)
 
       // (right(value) |> chain(fn1) |> chain(fn2)) |> chain(fn3)
-      const result1 = chain(chain(right(value), fn1), fn2)
-      const final1 = chain(result1, fn3)
+      const result1 = chain(fn2)(chain(fn1)(right(value)))
+      const final1 = chain(fn3)(result1)
 
       // right(value) |> chain(fn1 |> chain(fn2) |> chain(fn3))
-      const combined = (x: number) => chain(chain(fn1(x), fn2), fn3)
-      const final2 = chain(right(value), combined)
+      const combined = (x: number) => chain(fn3)(chain(fn2)(fn1(x)))
+      const final2 = chain(combined)(right(value))
 
       expect(isRight(final1) && isRight(final2)).toBe(true)
       if (isRight(final1) && isRight(final2)) {
-        expect(final1.value).toBe(final2.value)
+        expect(final1.right).toBe(final2.right)
       }
     })
   })
