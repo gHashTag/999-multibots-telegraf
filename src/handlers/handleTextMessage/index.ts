@@ -255,11 +255,11 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
           `[handleTextMessage] Image response received for user ${userId}`,
           { userId, imageUrl: response.imageUrl, cost: response.cost }
         )
-        
+
         const caption = response.cost
           ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost}⭐`
           : '✨ Изображение сгенерировано с помощью Nano Banana Pro'
-        
+
         await ctx.replyWithPhoto(response.imageUrl, {
           caption,
         })

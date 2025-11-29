@@ -24,26 +24,9 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     return ctx.wizard.next()
   },
   async ctx => {
-    // 1) Локальная обработка "Отмена" и "Справка" в одном месте
+    // ✅ Обработка "Справка" через глобальный обработчик
+    // ✅ "Отмена" обрабатывается глобально в registerCommands.ts
     if (ctx.message && 'text' in ctx.message) {
-      const rawText = ctx.message.text || ''
-      const text = rawText.toLowerCase().trim()
-      const isRu = isRussian(ctx)
-
-      // Отмена
-      if (text === 'отмена' || text === 'cancel' || text === '/cancel') {
-        console.log(
-          '[chatWithAvatarWizard] Local cancel detected, executing CancelButtonService.executeMainMenu',
-          { rawText }
-        )
-        await CancelButtonService.executeMainMenu(
-          ctx as any,
-          isRu ? 'Отмена' : 'Cancel'
-        )
-        return
-      }
-
-      // Справка
       const isHelpHandled = await handleHelpCancel(ctx)
       if (isHelpHandled) {
         return
@@ -101,12 +84,12 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
             }
           )
           const isRu = isRussian(ctx)
-          
+
           // ✅ Формируем подпись с информацией о стоимости
           const caption = isRu
             ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost || 'N/A'}⭐`
             : `✨ Image generated using Nano Banana Pro\n\n💫 Cost: ${response.cost || 'N/A'}⭐`
-          
+
           await ctx.replyWithPhoto(response.imageUrl, {
             caption,
           })
