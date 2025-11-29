@@ -26,17 +26,21 @@ import { pipe, flow } from '../../../src/core/functional/utils/composition'
 describe('Either Type', () => {
   describe('Constructors', () => {
     it('should create Left value', () => {
-      const result = left('error')
+      const result = left<string, string>('error')
       expect(isLeft(result)).toBe(true)
       expect(result._tag).toBe('Left')
-      expect(result.left).toBe('error')
+      if (isLeft(result)) {
+        expect(result.left).toBe('error')
+      }
     })
 
     it('should create Right value', () => {
-      const result = right('success')
+      const result = right<string, string>('success')
       expect(isRight(result)).toBe(true)
       expect(result._tag).toBe('Right')
-      expect(result.right).toBe('success')
+      if (isRight(result)) {
+        expect(result.right).toBe('success')
+      }
     })
 
     it('should identify Left values', () => {
@@ -61,7 +65,7 @@ describe('Either Type', () => {
     })
 
     it('should not map Left values', () => {
-      const result = left('error')
+      const result = left<string, number>('error')
       const mapped = map((x: number) => x * 2)(result)
       expect(isLeft(mapped)).toBe(true)
       if (isLeft(mapped)) {
@@ -346,9 +350,8 @@ describe('Either Type', () => {
       let tapped = false
       const result = right(5)
 
-      const chained = map((x: number) => x * 2)(
-        tap(() => { tapped = true })(result)
-      )
+      const tappedResult = tap(() => { tapped = true })(result)
+      const chained = map((x: number) => x * 2)(tappedResult)
 
       expect(tapped).toBe(true)
       expect(isRight(chained)).toBe(true)
