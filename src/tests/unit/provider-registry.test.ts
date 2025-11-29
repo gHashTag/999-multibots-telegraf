@@ -13,7 +13,8 @@ import {
   healthCheckRegistry,
   printRegistryStatus
 } from '../../../src/core/providers/registry/provider-registry'
-import { ProviderConfig, ProviderName as ProviderNameCodec, type ProviderName } from '../../../src/core/functional/types/media.types'
+import { ProviderConfig, ProviderName as ProviderNameCodec } from '../../../src/core/functional/types/media.types'
+import type { ProviderName } from '../../../src/core/functional/types/media.types'
 import { isRight } from '../../../src/core/functional/utils/result'
 
 // Helper to create ProviderName from string
@@ -77,7 +78,10 @@ describe('Provider Registry', () => {
           name: createProviderName('replicate'),
           apiKey: 'test-key-2',
           baseUrl: 'https://api.replicate.com',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
