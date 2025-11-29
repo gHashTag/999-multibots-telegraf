@@ -48,11 +48,21 @@ class InngestProvider {
     )
 
     // BOT инстанс (наш основной сервер)
-    // ✅ ИСПРАВЛЕНО: Используем тестовый ключ BOT_INNGEST_EVENT_TEST_KEY для тестового окружения (testing-f3b09edd)
-    // Приоритет: тестовый ключ > production ключ > RENDER ключ (fallback)
-    const botEventKey = process.env.BOT_INNGEST_EVENT_TEST_KEY
-    const botSigningKey = process.env.BOT_INNGEST_TEST_SIGNING_KEY
-    const botBaseUrl = process.env.BOT_INNGEST_BASE_URL
+    // ✅ ГЛОБАЛЬНЫЙ EVENT KEY: Приоритет: тестовый ключ > production ключ > глобальный ключ
+    const botEventKey =
+      process.env.BOT_INNGEST_EVENT_TEST_KEY ||
+      process.env.BOT_INNGEST_EVENT_KEY ||
+      process.env.RENDER_INNGEST_EVENT_KEY ||
+      '4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q'
+
+    const botSigningKey =
+      process.env.BOT_INNGEST_TEST_SIGNING_KEY ||
+      process.env.BOT_INNGEST_SIGNING_KEY ||
+      process.env.RENDER_INNGEST_SIGNING_KEY
+
+    const botBaseUrl =
+      process.env.BOT_INNGEST_BASE_URL ||
+      'https://three-head-dragon.shop/api/inngest'
 
     logger.info('🔍 [INNGEST PROVIDER] BOT instance check:', {
       hasBotEventKey: !!botEventKey,
@@ -65,7 +75,9 @@ class InngestProvider {
         ? 'TEST'
         : process.env.BOT_INNGEST_EVENT_KEY
           ? 'PRODUCTION'
-          : 'RENDER_FALLBACK',
+          : process.env.RENDER_INNGEST_EVENT_KEY
+            ? 'RENDER_FALLBACK'
+            : 'GLOBAL_FALLBACK',
     })
 
     if (botEventKey) {

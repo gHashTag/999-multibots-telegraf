@@ -53,13 +53,15 @@
   "ts-node": {
     "require": ["tsconfig-paths/register"]
   },
-  "include": ["src/**/*.ts", "src/**/*.json", "src/__tests__/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": [
     "node_modules",
     "src/node_modules",
     "dist",
     "**/*.d.ts",
     "__tests__/**/*",
+    "src/__tests__/**/*",
+    "src/tests/**/*",
     "src/models/zot/tests/**/*"
   ]
 }

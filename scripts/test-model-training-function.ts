@@ -26,7 +26,11 @@ async function testModelTrainingFunction() {
   })
 
   try {
-    const result = await inngestProvider.sendEvent('RENDER', 'model/training.start', testEvent)
+    const result = await inngestProvider.sendEvent(
+      'RENDER',
+      'model/training.start',
+      testEvent
+    )
 
     console.log('\n✅ Событие отправлено успешно!')
     console.log('📋 Результат:', result)
@@ -36,7 +40,9 @@ async function testModelTrainingFunction() {
       console.log('📍 Проверьте в Inngest Dashboard:')
       console.log('   https://app.inngest.com/env/production/functions')
     } else {
-      console.log('\n⚠️  Event ID не получен (возможно, функция еще не обработана)')
+      console.log(
+        '\n⚠️  Event ID не получен (возможно, функция еще не обработана)'
+      )
     }
   } catch (error) {
     console.error('\n❌ Ошибка при отправке события:', error)
@@ -54,8 +60,7 @@ testModelTrainingFunction()
     console.log('\n✅ Тест завершен')
     process.exit(0)
   })
-  .catch((error) => {
+  .catch(error => {
     console.error('\n❌ Тест провален:', error)
     process.exit(1)
   })
-
