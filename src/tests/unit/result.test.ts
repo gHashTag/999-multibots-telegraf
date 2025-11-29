@@ -103,8 +103,8 @@ describe('Either Type', () => {
     })
 
     it('should stop chaining on Left', () => {
-      const result = left('error')
-      const chained = chain((x: number) => right(x * 2))(result)
+      const result = left<string, number>('error')
+      const chained = chain((x: number) => right(x * 2))(result as any)
       expect(isLeft(chained)).toBe(true)
       if (isLeft(chained)) {
         expect(chained.left).toBe('error')
@@ -351,7 +351,7 @@ describe('Either Type', () => {
       const result = right(5)
 
       const tappedResult = tap(() => { tapped = true })(result)
-      const chained = map((x: number) => x * 2)(tappedResult)
+      const chained = map((x: number) => x * 2)(tappedResult as any)
 
       expect(tapped).toBe(true)
       expect(isRight(chained)).toBe(true)
