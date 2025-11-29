@@ -191,11 +191,12 @@ async function initializeBots() {
       setupNotificationProcessor(bot)
 
       // ✅ Сохраняем первый bot instance для webhooks (legacy)
+      const botUsername = bot.botInfo?.username || 'neuro_blogger_bot'
       console.log(
         '🔍 [DEBUG] Checking mainBotInstance:',
         !!mainBotInstance,
         'botName:',
-        bot.botInfo?.username
+        botUsername
       )
       if (!mainBotInstance) {
         mainBotInstance = bot
