@@ -35,7 +35,7 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
   return inngest.createFunction(
     {
       id: 'handle-model-training-completed',
-      name: 'Model Training Completed Handler',
+      name: '🤖 Training Complete',
       retries: 2, // Retry on transient errors
     },
     { event: 'model/training.completed' },
