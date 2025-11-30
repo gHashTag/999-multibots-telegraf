@@ -5,12 +5,12 @@ import { Inngest } from 'inngest'
 const config = {
   name: 'Vibee',
   id: 'vibee-bot-client',
-  // Подключение к нашему Inngest серверу
+  // Подключение к Inngest Cloud
   baseUrl:
     process.env.BOT_INNGEST_BASE_URL ||
     (process.env.NODE_ENV === 'development'
       ? 'http://localhost:3000' // Локальный dev server
-      : 'https://three-head-dragon.shop/api/inngest'), // Наш домен в продакшене
+      : 'https://api.inngest.com'), // Inngest Cloud API
   isDev: process.env.NODE_ENV === 'development',
   // Event key: приоритет тестовому ключу для тестового окружения
   eventKey:

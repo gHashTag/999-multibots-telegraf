@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { ModelUrl, UserModel, ModelTraining } from '@/interfaces'
+import { supabase } from '@/core/supabase'
 
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 import {
@@ -62,15 +63,35 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       console.log('🎯 Используем расширенную функцию для HaimGroupMedia_bot')
       userModels = await getActiveUserModelsByTypeForHaim(
         Number(telegramId),
-        'replicate',
+        'replicate', // 🔧 ИСПРАВЛЕНО: Получаем только replicate модели
         bot_name
       )
     } else {
       console.log('🔧 Используем стандартную функцию для обычного бота')
       userModels = await getActiveUserModelsByType(
         Number(telegramId),
-        'replicate'
+        'replicate' // 🔧 ИСПРАВЛЕНО: Получаем только replicate модели
       )
+    }
+
+    // ✅ ЕСЛИ НЕТ REPLICATE МОДЕЛЕЙ, ПОЛУЧАЕМ ВСЕ ОСТАЛЬНЫЕ (FAL И Т.Д.)
+    if (!userModels || userModels.length === 0) {
+      console.log('🔍 Нет replicate моделей, проверяем модели других API...')
+      // Получаем ВСЕ модели пользователя (включая Fal и другие)
+      const { data: allModels, error } = await supabase
+        .from('model_trainings')
+        .select('*')
+        .eq('telegram_id', Number(telegramId))
+        .eq('status', 'SUCCESS')
+        .neq('api', 'replicate') // Все кроме replicate
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('❌ Ошибка при получении моделей:', error)
+      } else {
+        userModels = allModels as ModelTraining[]
+        console.log(`✅ Найдено ${userModels?.length || 0} моделей других API (Fal и т.д.)`)
+      }
     }
 
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)

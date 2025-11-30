@@ -681,24 +681,8 @@ export async function generateNeuroPhotoDirect(
             telegram_id,
           })
 
-          // 🔧 ИСПРАВЛЕНО: Явно передаем токен в replicate.run()
-          const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
-          if (!REPLICATE_API_TOKEN) {
-            throw new Error('REPLICATE_API_TOKEN not found in environment')
-          }
-
           logger.info({
-            message: '[DIAGNOSTIC] Проверка токена перед replicate.run()',
-            hasToken: !!REPLICATE_API_TOKEN,
-            tokenLength: REPLICATE_API_TOKEN?.length || 0,
-            tokenPreview: REPLICATE_API_TOKEN ? `${REPLICATE_API_TOKEN.substring(0, 10)}...` : 'null',
-            tokenChars: REPLICATE_API_TOKEN ? REPLICATE_API_TOKEN.split('').map((c, i) => `${i}:${c.charCodeAt(0)}`).join(',') : 'null',
-            tokenTrimLength: REPLICATE_API_TOKEN?.trim()?.length || 0,
-            telegram_id,
-          })
-
-          logger.info({
-            message: '[DIAGNOSTIC] Вызов replicate.run() с токеном',
+            message: '🔄 [DIRECT] Вызов replicate.run()',
             modelUrlPreview: model_url.substring(0, 50) + '...',
             telegram_id,
           })
@@ -707,9 +691,6 @@ export async function generateNeuroPhotoDirect(
             model_url as `${string}/${string}:${string}`,
             {
               input: replicateInput,
-            },
-            {
-              auth: REPLICATE_API_TOKEN, // 🔧 Явно передаем токен
             }
           )) as ApiResponse
 

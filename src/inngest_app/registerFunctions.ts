@@ -29,7 +29,14 @@ export function createAllInngestFunctions(inngestClient?: any) {
   try {
     console.log('🔄 Creating model training function...')
     modelTrainingFunction = createGenerateModelTrainingFunction(inngestClient)
-    console.log('✅ Model training function created successfully')
+    console.log('✅ Model training function created successfully', {
+      type: typeof modelTrainingFunction,
+      isNull: modelTrainingFunction === null,
+      isUndefined: modelTrainingFunction === undefined,
+      hasId: !!modelTrainingFunction?.id,
+      hasName: !!modelTrainingFunction?.name,
+      allKeys: Object.keys(modelTrainingFunction || {}),
+    })
   } catch (error) {
     console.error('❌ Failed to create model training function:', error)
     throw error
@@ -41,9 +48,13 @@ export function createAllInngestFunctions(inngestClient?: any) {
     console.log('🔄 Creating model training completed handler function...')
     modelTrainingCompletedFunction =
       createHandleModelTrainingCompletedFunction(inngestClient)
-    console.log(
-      '✅ Model training completed handler function created successfully'
-    )
+    console.log('✅ Model training completed handler function created successfully', {
+      type: typeof modelTrainingCompletedFunction,
+      isNull: modelTrainingCompletedFunction === null,
+      isUndefined: modelTrainingCompletedFunction === undefined,
+      hasId: !!modelTrainingCompletedFunction?.id,
+      hasName: !!modelTrainingCompletedFunction?.name,
+    })
   } catch (error) {
     console.error(
       '❌ Failed to create model training completed handler:',

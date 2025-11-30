@@ -105,6 +105,21 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
 
     const allInngestFunctions = createAllInngestFunctions(inngest)
 
+    logger.info('[API SERVER] Debug: allInngestFunctions', {
+      type: typeof allInngestFunctions,
+      isArray: Array.isArray(allInngestFunctions),
+      length: allInngestFunctions?.length,
+      functions: allInngestFunctions?.map((f: any) => ({
+        id: f?.opts?.id,
+        name: f?.opts?.name,
+        hasId: !!f?.opts?.id,
+        hasName: !!f?.opts?.name,
+        type: typeof f,
+        isNull: f === null,
+        isUndefined: f === undefined,
+      })),
+    })
+
     if (
       allInngestFunctions &&
       Array.isArray(allInngestFunctions) &&
@@ -113,8 +128,15 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
       logger.info('[API SERVER] Registering Inngest functions', {
         count: allInngestFunctions.length,
         functions: allInngestFunctions.map(
-          (f: any) => f.id || f.name || 'unnamed'
+          (f: any) => f?.opts?.id || f?.opts?.name || 'unnamed'
         ),
+        detailed: allInngestFunctions.map((f: any) => ({
+          id: f?.opts?.id,
+          name: f?.opts?.name,
+          type: typeof f,
+          isNull: f === null,
+          isUndefined: f === undefined,
+        })),
       })
 
       // ✅ Применена рабочая сигнатура serve() - ВЕРСИЯ ОТ 7 НОЯБРЯ

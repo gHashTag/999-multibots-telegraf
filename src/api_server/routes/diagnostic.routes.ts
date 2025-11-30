@@ -1,6 +1,7 @@
 import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
+import { supabase } from '@/core/supabase'
 // ВРЕМЕННО: inngest отключён
 // import { inngestProvider } from '@/inngest_app/inngest-provider'
 
@@ -119,6 +120,85 @@ router.get('/telegram/ai-reels-callback', async (_req: any, res: any) => {
     })
   } catch {
     return res.status(200).end()
+  }
+})
+
+/**
+ * Диагностический роут для проверки моделей пользователя
+ * GET /api/diagnostic/models/:telegramId
+ */
+router.get('/models/:telegramId', async (req: any, res: any) => {
+  try {
+    const { telegramId } = req.params
+    logger.info('🔍 [DIAGNOSTIC] Checking user models', { telegram_id: telegramId })
+
+    // Получаем ВСЕ модели
+    const { data: allModels, error: allError } = await supabase
+      .from('model_trainings')
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .eq('status', 'SUCCESS')
+      .order('created_at', { ascending: false })
+
+    if (allError) {
+      logger.error('❌ [DIAGNOSTIC] Error fetching all models', { error: allError })
+      return res.status(500).json({ error: 'Error fetching all models', details: allError })
+    }
+
+    // Получаем только replicate модели
+    const { data: replicateModels, error: replicateError } = await supabase
+      .from('model_trainings')
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .eq('status', 'SUCCESS')
+      .eq('api', 'replicate')
+      .order('created_at', { ascending: false })
+
+    if (replicateError) {
+      logger.error('❌ [DIAGNOSTIC] Error fetching replicate models', { error: replicateError })
+      return res.status(500).json({ error: 'Error fetching replicate models', details: replicateError })
+    }
+
+    // Получаем не-replicate модели
+    const { data: otherModels, error: otherError } = await supabase
+      .from('model_trainings')
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .eq('status', 'SUCCESS')
+      .neq('api', 'replicate')
+      .order('created_at', { ascending: false })
+
+    if (otherError) {
+      logger.error('❌ [DIAGNOSTIC] Error fetching other models', { error: otherError })
+      return res.status(500).json({ error: 'Error fetching other models', details: otherError })
+    }
+
+    logger.info('✅ [DIAGNOSTIC] User models fetched', {
+      telegram_id: telegramId,
+      total_models: allModels?.length || 0,
+      replicate_models: replicateModels?.length || 0,
+      other_models: otherModels?.length || 0,
+    })
+
+    res.json({
+      telegram_id: telegramId,
+      total_models: allModels?.length || 0,
+      replicate_models_count: replicateModels?.length || 0,
+      other_models_count: otherModels?.length || 0,
+      all_models: allModels,
+      replicate_models: replicateModels,
+      other_models: otherModels,
+    })
+  } catch (error: any) {
+    logger.error('❌ [DIAGNOSTIC] Models diagnostic failed', {
+      error: error.message,
+      telegram_id: req.params.telegramId,
+    })
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    })
   }
 })
 

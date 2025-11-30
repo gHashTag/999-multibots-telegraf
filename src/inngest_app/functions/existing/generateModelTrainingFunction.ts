@@ -280,8 +280,9 @@ export function createGenerateModelTrainingFunction(inngest: any) {
             const publicUrl =
               PUBLIC_URL ||
               process.env.BASE_WEBHOOK_URL ||
+              process.env.WEBHOOK_DOMAIN ||
               (process.env.NODE_ENV === 'production'
-                ? 'https://three-head-dragon.shop'
+                ? 'https://999-multibots-u14194.vm.elestio.app'
                 : 'http://localhost:3000')
             const webhookUrl = `${publicUrl}/api/webhooks/replicate`
 

@@ -177,7 +177,7 @@ export const createDefaultRegistry = (): ProviderRegistry => {
   }
 
   // Type assertion is safe because we validated with codec above
-  const providerName: t.TypeOf<typeof ProviderName> = kieAiNameResult.right as t.TypeOf<typeof ProviderName>
+  const providerName: t.TypeOf<typeof ProviderName> = (kieAiNameResult as any).right
 
   const defaultConfigs: ProviderConfig[] = [
     {

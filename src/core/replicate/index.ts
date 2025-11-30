@@ -1,8 +1,30 @@
 const Replicate = require('replicate')
 
-export const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-})
+// ✅ ЛЕНИВАЯ ИНИЦИАЛИЗАЦИЯ: клиент создается при первом вызове
+// Это гарантирует, что секреты из Infisical уже загружены в process.env
+let _replicateClient: any = null
+
+function getReplicateClient() {
+  if (!_replicateClient) {
+    const token = process.env.REPLICATE_API_TOKEN
+    if (!token) {
+      throw new Error('❌ CRITICAL: REPLICATE_API_TOKEN not found in process.env. Make sure secrets are loaded from Infisical!')
+    }
+    _replicateClient = new Replicate({
+      auth: token,
+    })
+    console.log('✅ [REPLICATE] Client initialized with token:', token.substring(0, 10) + '...')
+  }
+  return _replicateClient
+}
+
+// Экспортируем функцию вместо объекта для ленивой инициализации
+export const replicate = {
+  run: async (...args: any[]) => {
+    const client = getReplicateClient()
+    return await client.run(...args)
+  }
+}
 
 export const modelPricing: Record<string, string> = {
   'black-forest-labs/flux-1.1-pro': '$0.040 / image',
