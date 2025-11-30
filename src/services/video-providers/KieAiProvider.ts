@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios'
 import { logger } from '@/utils/logger'
 import { getAvailableCallbackUrl } from '@/utils/webhookHealthCheck'
+import { inngest } from '@/inngest_app/client'
 
 interface KieAiCredits {
   credits: number
@@ -401,6 +402,18 @@ export class KieAiProvider {
 
       // Delegate to generateSoraVideo method for Sora models
       if (isSoraModel) {
+        // ✅ CRITICAL: Validate webhook before generation
+        if (request.telegram_id) {
+          await inngest.send({
+            name: 'video/generation-validate-webhook',
+            data: {
+              telegramId: request.telegram_id,
+              modelId: model,
+              provider: 'Kie.ai'
+            }
+          })
+        }
+
         return await this.generateSoraVideo(
           prompt,
           kieModel as any,
@@ -424,7 +437,18 @@ export class KieAiProvider {
         resolution: '720p'
       })
 
-      // 🛡️ BULLETPROOF: Check webhook availability before sending request
+      // 🛡️ BULLETPROOF: Validate webhook availability before sending request
+      if (request.telegram_id) {
+        await inngest.send({
+          name: 'video/generation-validate-webhook',
+          data: {
+            telegramId: request.telegram_id,
+            modelId: model,
+            provider: 'Kie.ai'
+          }
+        })
+      }
+
       const callbackUrl = await getAvailableCallbackUrl(request.telegram_id)
 
       // WAN 2.5 имеет лимит на длину промпта - обрезаем до 500 символов
@@ -543,7 +567,18 @@ export class KieAiProvider {
       }
     }
 
-    // 🛡️ BULLETPROOF: Check webhook availability BEFORE sending request to Kie.ai
+    // 🛡️ BULLETPROOF: Validate webhook availability BEFORE sending request to Kie.ai
+    if (request.telegram_id) {
+      await inngest.send({
+        name: 'video/generation-validate-webhook',
+        data: {
+          telegramId: request.telegram_id,
+          modelId: model,
+          provider: 'Kie.ai'
+        }
+      })
+    }
+
     const callbackUrl = await getAvailableCallbackUrl(request.telegram_id)
 
     if (!callbackUrl) {

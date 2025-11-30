@@ -9,8 +9,17 @@ import { createWebhookMonitorFunctions } from './functions/kieAiWebhookMonitor'
 // Import migrated functions from ai-server - these also need to be made lazy
 import { createGenerateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 import { createHandleModelTrainingCompletedFunction } from './functions/existing/handleModelTrainingCompleted'
-// import { neuroImageGeneration } from './functions/neuroImageGeneration'
-// import { morphImages } from './functions/morphImages'
+
+// Import webhook health guard functions (CRITICAL for video monitoring)
+import {
+  webhookHealthCheck,
+  validateWebhookBeforeGeneration,
+  periodicWebhookHealthCheck,
+} from './functions/webhookHealthGuard'
+
+// Import neuro image generation and morphing functions
+import { neuroImageGeneration } from './functions/neuroImageGeneration'
+import { morphImages } from './functions/morphImages'
 
 /**
  * Factory function to create all Inngest functions
@@ -63,16 +72,33 @@ export function createAllInngestFunctions(inngestClient?: any) {
     throw error
   }
 
-  // TODO: Convert other functions to lazy pattern
-  // const neuroImageGeneration = createNeuroImageGeneration()
-  // const morphImages = createMorphImages()
+  // Add webhook health guard functions (CRITICAL for video monitoring)
+  const webhookHealthGuardFunctions = [
+    webhookHealthCheck,
+    validateWebhookBeforeGeneration,
+    periodicWebhookHealthCheck,
+  ]
+
+  console.log(
+    `📋 Webhook health guard functions: ${webhookHealthGuardFunctions.length}`
+  )
+
+  // Neuro image generation and morphing functions
+  const mediaProcessingFunctions = [
+    neuroImageGeneration,
+    morphImages,
+  ]
+
+  console.log(
+    `📋 Media processing functions: ${mediaProcessingFunctions.length}`
+  )
 
   const allInngestFunctions = [
     ...kieAiWebhookMonitorFunctions,
+    ...webhookHealthGuardFunctions,
+    ...mediaProcessingFunctions,
     modelTrainingFunction,
     modelTrainingCompletedFunction,
-    // ...neuroImageGeneration,
-    // ...morphImages,
   ]
 
   console.log(

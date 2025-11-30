@@ -132,7 +132,7 @@ function createWebhookMonitorFunctions() {
   const kieAiWebhookManualCheck = inngest.createFunction(
     {
       id: 'kie-ai-webhook-manual-check',
-      name: 'Kie.ai Webhook Manual Check',
+      name: '🤖 Kie.ai Webhook',
     },
     {
       event: 'kie-ai/webhook-check-manual',

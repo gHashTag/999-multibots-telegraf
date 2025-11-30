@@ -40,7 +40,7 @@ import {
 export const neuroImageGeneration = inngest.createFunction(
   {
     id: 'neuro-image-generation',
-    name: '🎨 Neuro Image Generation',
+    name: '🎨 Neuro Image',
     retries: 3,
   },
   { event: 'neuro/photo.generate' },

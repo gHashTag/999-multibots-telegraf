@@ -45,7 +45,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
   return inngest.createFunction(
     {
       id: 'generate-model-training',
-      name: 'Model Training - Flux LoRA',
+      name: '🤖 Training Flux',
       concurrency: [
         {
           limit: 2, // Max 2 concurrent trainings

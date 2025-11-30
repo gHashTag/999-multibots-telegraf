@@ -44,7 +44,7 @@ interface MorphingJobData {
 export const morphImages = inngest.createFunction(
   {
     id: 'morph-images',
-    name: '🧬 Morph Images',
+    name: '🎨 Neuro Morph',
     retries: 3,
   },
   { event: 'morph/images.requested' },
