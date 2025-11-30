@@ -614,14 +614,25 @@ export async function generateNeuroPhotoDirect(
           iteration: i,
         })
 
-        // Определяем какой провайдер использовать
-        let useFal = !!process.env.FAL_KEY
+        // 🔧 ИСПРАВЛЕНО: Определяем провайдер на основе модели пользователя
+        // Проверяем, есть ли поле api в userModel (передается через ctx.session.userModel)
+        const apiType = (ctx.session.userModel as any)?.api || 'fal' // По умолчанию Fal для новых моделей
+        logger.info({
+          message: '🔍 [DIRECT] Определяем API провайдер для модели',
+          api_type: apiType,
+          model_url: model_url.substring(0, 50) + '...',
+          telegram_id,
+          iteration: i,
+        })
+
+        let useFal = apiType.toLowerCase() !== 'replicate'
         let imageUrl: string
 
         if (useFal) {
           // ✨ Используем Fal.ai с LoRA NEURO_SAGE
           logger.info({
-            message: '🎭 [DIRECT] Используем Fal.ai с LoRA',
+            message: '🎭 [DIRECT] Используем Fal.ai (модель не Replicate)',
+            api_type: apiType,
             telegram_id,
             iteration: i,
           })
@@ -636,7 +647,7 @@ export async function generateNeuroPhotoDirect(
               telegram_id,
             })
             // Fallback на Replicate при ошибке Fal.ai
-            useFal = false as any // Trick to reuse replicate code below
+            useFal = false // Fallback to replicate
           }
         }
 
@@ -670,12 +681,43 @@ export async function generateNeuroPhotoDirect(
             telegram_id,
           })
 
+          // 🔧 ИСПРАВЛЕНО: Явно передаем токен в replicate.run()
+          const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
+          if (!REPLICATE_API_TOKEN) {
+            throw new Error('REPLICATE_API_TOKEN not found in environment')
+          }
+
+          logger.info({
+            message: '[DIAGNOSTIC] Проверка токена перед replicate.run()',
+            hasToken: !!REPLICATE_API_TOKEN,
+            tokenLength: REPLICATE_API_TOKEN?.length || 0,
+            tokenPreview: REPLICATE_API_TOKEN ? `${REPLICATE_API_TOKEN.substring(0, 10)}...` : 'null',
+            tokenChars: REPLICATE_API_TOKEN ? REPLICATE_API_TOKEN.split('').map((c, i) => `${i}:${c.charCodeAt(0)}`).join(',') : 'null',
+            tokenTrimLength: REPLICATE_API_TOKEN?.trim()?.length || 0,
+            telegram_id,
+          })
+
+          logger.info({
+            message: '[DIAGNOSTIC] Вызов replicate.run() с токеном',
+            modelUrlPreview: model_url.substring(0, 50) + '...',
+            telegram_id,
+          })
+
           const output = (await replicate.run(
             model_url as `${string}/${string}:${string}`,
             {
               input: replicateInput,
+            },
+            {
+              auth: REPLICATE_API_TOKEN, // 🔧 Явно передаем токен
             }
           )) as ApiResponse
+
+          logger.info({
+            message: '[DIAGNOSTIC] replicate.run() выполнен успешно!',
+            telegram_id,
+            outputType: typeof output,
+          })
 
           logger.info({
             message: '[DIAGNOSTIC] Сразу после вызова replicate.run()',
@@ -709,6 +751,18 @@ export async function generateNeuroPhotoDirect(
           logger.info({
             message: '[DIAGNOSTIC] Перед вызовом processApiResponse()',
             iteration: i,
+            telegram_id,
+          })
+
+          // 🔍 ДЕТАЛЬНЫЙ ЛОГ содержимого output
+          logger.info({
+            message: '[DIAGNOSTIC] Содержимое output перед processApiResponse',
+            outputType: typeof output,
+            outputIsNull: output === null,
+            outputIsUndefined: output === undefined,
+            outputKeys: output && typeof output === 'object' ? Object.keys(output) : null,
+            outputJson: output ? JSON.stringify(output).substring(0, 500) + '...' : 'null',
+            outputFull: output ? JSON.stringify(output, null, 2) : 'null',
             telegram_id,
           })
 
@@ -973,9 +1027,11 @@ export async function generateNeuroPhotoDirect(
 
           // Сохраняем промпт в базу данных для аналитики и истории
           try {
+            // 🔧 ИСПРАВЛЕНО: Сохраняем api тип вместо model_url
+            const modelTypeForSave = apiType || 'unknown'
             await savePromptDirect(
               prompt,
-              model_url,
+              modelTypeForSave, // 🔧 Исправлено: сохраняем api тип
               ModeEnum.NeuroPhoto,
               imageUrl,
               telegram_id.toString(),
