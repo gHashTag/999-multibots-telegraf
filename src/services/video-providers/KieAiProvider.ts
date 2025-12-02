@@ -40,7 +40,11 @@ interface KieAiVideoResponse {
 }
 
 interface SoraCreateTaskRequest {
-  model: 'sora-2-text-to-video' | 'sora-2-pro-text-to-video' | 'sora-2-image-to-video' | 'sora-2-pro-image-to-video'
+  model:
+    | 'sora-2-text-to-video'
+    | 'sora-2-pro-text-to-video'
+    | 'sora-2-image-to-video'
+    | 'sora-2-pro-image-to-video'
   callBackUrl?: string
   input: {
     prompt?: string // Optional for image-to-video
@@ -275,11 +279,15 @@ export class KieAiProvider {
           selectedModel: kieModel,
           hasImage: !!imageUrl,
           mode: 'image-to-video',
-          expectedCost: '~9 stars per 10sec'
+          expectedCost: '~9 stars per 10sec',
         })
       }
       // Sora 2 Text-to-Video
-      else if (model === 'sora-2' || model === 'sora2' || model === 'sora-2-text-to-video') {
+      else if (
+        model === 'sora-2' ||
+        model === 'sora2' ||
+        model === 'sora-2-text-to-video'
+      ) {
         kieModel = 'sora-2-text-to-video'
         provider = 'Sora 2 API'
         endpoint = '/sora/generate'
@@ -288,7 +296,7 @@ export class KieAiProvider {
           selectedModel: kieModel,
           hasImage: !!imageUrl,
           mode: 'text-to-video',
-          expectedCost: '~9 stars per 10sec'
+          expectedCost: '~9 stars per 10sec',
         })
       }
       // Sora 2 Pro Image-to-Video
@@ -301,11 +309,15 @@ export class KieAiProvider {
           selectedModel: kieModel,
           hasImage: !!imageUrl,
           mode: 'image-to-video',
-          expectedCost: '~19 stars per 10sec'
+          expectedCost: '~19 stars per 10sec',
         })
       }
       // Sora 2 Pro Text-to-Video
-      else if (model === 'sora-2-pro' || model === 'sora2-pro' || model === 'sora-2-pro-text-to-video') {
+      else if (
+        model === 'sora-2-pro' ||
+        model === 'sora2-pro' ||
+        model === 'sora-2-pro-text-to-video'
+      ) {
         kieModel = 'sora-2-pro-text-to-video'
         provider = 'Sora 2 Pro API'
         endpoint = '/sora/generate'
@@ -314,7 +326,7 @@ export class KieAiProvider {
           selectedModel: kieModel,
           hasImage: !!imageUrl,
           mode: 'text-to-video',
-          expectedCost: '~19 stars per 10sec'
+          expectedCost: '~19 stars per 10sec',
         })
       }
       // LEGACY: Handle old model names (обратная совместимость)
@@ -326,9 +338,12 @@ export class KieAiProvider {
           originalModel: model,
           selectedModel: kieModel,
           hasImage: !!imageUrl,
-          mode: 'image-to-video'
+          mode: 'image-to-video',
         })
-      } else if (model === 'sora-2-pro-i2v' || model === 'sora-2-pro-image-to-video') {
+      } else if (
+        model === 'sora-2-pro-i2v' ||
+        model === 'sora-2-pro-image-to-video'
+      ) {
         // ✅ LEGACY: Handle old model names (обратная совместимость)
         kieModel = 'sora-2-pro-image-to-video'
         provider = 'Sora 2 Pro I2V API'
@@ -338,7 +353,7 @@ export class KieAiProvider {
           selectedModel: kieModel,
           hasImage: !!imageUrl,
           mode: 'image-to-video',
-          expectedCost: '~280 stars per 10sec'
+          expectedCost: '~280 stars per 10sec',
         })
       }
     } else if (model === 'veo3_fast') {
@@ -350,7 +365,7 @@ export class KieAiProvider {
         selectedModel: kieModel,
         hasImage: !!imageUrl,
         mode: imageUrl ? 'image-to-video' : 'text-to-video',
-        expectedCost: '40 stars'
+        expectedCost: '40 stars',
       })
     } else if (model === 'veo3') {
       // Для обычной Veo 3 используем veo3
@@ -361,7 +376,7 @@ export class KieAiProvider {
         selectedModel: kieModel,
         hasImage: !!imageUrl,
         mode: imageUrl ? 'image-to-video' : 'text-to-video',
-        expectedCost: '120 stars'
+        expectedCost: '120 stars',
       })
     } else if (model === 'runway-aleph') {
       kieModel = 'runway_aleph'
@@ -397,7 +412,7 @@ export class KieAiProvider {
       logger.info('[KieAiProvider] Using jobs API for async generation:', {
         model: kieModel,
         hasImage: !!imageUrl,
-        promptLength: prompt.length
+        promptLength: prompt.length,
       })
 
       // Delegate to generateSoraVideo method for Sora models
@@ -409,8 +424,8 @@ export class KieAiProvider {
             data: {
               telegramId: request.telegram_id,
               modelId: model,
-              provider: 'Kie.ai'
-            }
+              provider: 'Kie.ai',
+            },
           })
         }
 
@@ -434,7 +449,7 @@ export class KieAiProvider {
         hasImage: !!imageUrl,
         promptLength: prompt.length,
         duration: duration || 5,
-        resolution: '720p'
+        resolution: '720p',
       })
 
       // 🛡️ BULLETPROOF: Validate webhook availability before sending request
@@ -444,8 +459,8 @@ export class KieAiProvider {
           data: {
             telegramId: request.telegram_id,
             modelId: model,
-            provider: 'Kie.ai'
-          }
+            provider: 'Kie.ai',
+          },
         })
       }
 
@@ -453,15 +468,16 @@ export class KieAiProvider {
 
       // WAN 2.5 имеет лимит на длину промпта - обрезаем до 500 символов
       const maxPromptLength = 500
-      const truncatedPrompt = prompt.length > maxPromptLength
-        ? prompt.substring(0, maxPromptLength) + '...'
-        : prompt
+      const truncatedPrompt =
+        prompt.length > maxPromptLength
+          ? prompt.substring(0, maxPromptLength) + '...'
+          : prompt
 
       if (prompt.length > maxPromptLength) {
         logger.warn('[KieAiProvider] Prompt truncated for WAN API:', {
           originalLength: prompt.length,
           truncatedLength: truncatedPrompt.length,
-          maxLength: maxPromptLength
+          maxLength: maxPromptLength,
         })
       }
 
@@ -472,7 +488,7 @@ export class KieAiProvider {
           duration: String(duration || 5), // "5" или "10"
           resolution: '720p', // "720p" или "1080p"
           enable_prompt_expansion: true,
-        }
+        },
       }
 
       // Для I2V добавляем изображение
@@ -489,19 +505,18 @@ export class KieAiProvider {
         inputKeys: Object.keys(wanRequestData.input),
         hasCallback: !!callbackUrl,
         duration: wanRequestData.input.duration,
-        resolution: wanRequestData.input.resolution
+        resolution: wanRequestData.input.resolution,
       })
 
       try {
-        const response = await this.makeRequest<KieAiApiResponse<{ taskId: string }>>(
-          endpoint,
-          wanRequestData
-        )
+        const response = await this.makeRequest<
+          KieAiApiResponse<{ taskId: string }>
+        >(endpoint, wanRequestData)
 
         logger.info('[KieAiProvider] WAN API response received:', {
           hasData: !!response.data,
           taskId: response.data?.taskId,
-          code: response.code
+          code: response.code,
         })
 
         // ✅ Проверяем code ПЕРЕД проверкой data
@@ -509,7 +524,7 @@ export class KieAiProvider {
           logger.error('[KieAiProvider] WAN API returned error code:', {
             code: response.code,
             msg: response.msg,
-            isInsufficientCredits: response.code === 402
+            isInsufficientCredits: response.code === 402,
           })
 
           return {
@@ -517,7 +532,7 @@ export class KieAiProvider {
             error: `${response.msg || 'WAN API error'} (code: ${response.code})`,
             cost: { usd: 0, stars: 0 },
             provider: 'WAN 2.5 API',
-            model: kieModel
+            model: kieModel,
           } as KieAiVideoResponse
         }
 
@@ -528,19 +543,19 @@ export class KieAiProvider {
             data: {
               taskId: response.data.taskId,
               videoUrl: '', // Видео будет готово позже
-              duration: duration || 5
+              duration: duration || 5,
             },
             cost: {
               usd: 0.32, // Минимальная цена для WAN 2.5 (720p 5s)
-              stars: 19
+              stars: 19,
             },
             provider: 'WAN 2.5 API',
-            model: kieModel
+            model: kieModel,
           }
         }
 
         logger.error('[KieAiProvider] WAN API returned unexpected format:', {
-          responseData: response
+          responseData: response,
         })
 
         return {
@@ -548,13 +563,13 @@ export class KieAiProvider {
           error: 'WAN API returned unexpected response format',
           cost: { usd: 0, stars: 0 },
           provider: 'WAN 2.5 API',
-          model: kieModel
+          model: kieModel,
         }
       } catch (error: any) {
         logger.error('[KieAiProvider] WAN API request failed:', {
           error: error.message,
           response: error.response?.data,
-          status: error.response?.status
+          status: error.response?.status,
         })
 
         return {
@@ -562,7 +577,7 @@ export class KieAiProvider {
           error: error.response?.data?.msg || error.message,
           cost: { usd: 0, stars: 0 },
           provider: 'WAN 2.5 API',
-          model: kieModel
+          model: kieModel,
         }
       }
     }
@@ -574,19 +589,21 @@ export class KieAiProvider {
         data: {
           telegramId: request.telegram_id,
           modelId: model,
-          provider: 'Kie.ai'
-        }
+          provider: 'Kie.ai',
+        },
       })
     }
 
     const callbackUrl = await getAvailableCallbackUrl(request.telegram_id)
 
     if (!callbackUrl) {
-      logger.warn('[KieAiProvider] No webhook URLs available - webhook notifications will not work')
+      logger.warn(
+        '[KieAiProvider] No webhook URLs available - webhook notifications will not work'
+      )
     } else {
       logger.info('[KieAiProvider] Using callback URL', {
         url: callbackUrl.substring(0, 50) + '...',
-        hasTelegramId: !!request.telegram_id
+        hasTelegramId: !!request.telegram_id,
       })
     }
 
@@ -599,7 +616,7 @@ export class KieAiProvider {
       // Добавляем callbackUrl для webhook уведомлений
       callBackUrl: callbackUrl,
     }
-    
+
     // Логируем полный промпт для отладки
     logger.info('[KieAiProvider] Sending full prompt to Veo 3 API:', {
       model: kieModel,
@@ -608,7 +625,7 @@ export class KieAiProvider {
       mode: imageUrl ? 'image-to-video' : 'text-to-video',
       hasImageUrl: !!imageUrl,
       imageUrlValue: imageUrl || 'no image provided',
-      callbackUrl: callbackUrl // Логируем callback URL
+      callbackUrl: callbackUrl, // Логируем callback URL
     })
 
     // Только добавляем изображение если оно есть (для image-to-video)
@@ -638,7 +655,7 @@ export class KieAiProvider {
         firstImageUrl: imageUrl.substring(0, 100) + '...',
         imageKey: imageKey,
         extractedFromTelegram: imageUrl.includes('telegram.org'),
-        usingDualFormat: true
+        usingDualFormat: true,
       })
     } else {
       logger.info('[KieAiProvider] Text-to-video mode - no image needed')
@@ -651,7 +668,8 @@ export class KieAiProvider {
       promptLength: requestData.prompt?.length || 0,
       hasImageUrls: !!requestData.imageUrls && requestData.imageUrls.length > 0,
       imageUrlsCount: requestData.imageUrls?.length || 0,
-      firstImageUrl: requestData.imageUrls?.[0]?.substring(0, 100) + '...' || 'none',
+      firstImageUrl:
+        requestData.imageUrls?.[0]?.substring(0, 100) + '...' || 'none',
       hasImageKey: !!requestData.imageKey,
       imageKey: requestData.imageKey || 'none',
       aspectRatio: requestData.aspectRatio,
@@ -659,7 +677,7 @@ export class KieAiProvider {
       enableTranslation: requestData.enableTranslation,
       hasCallbackUrl: !!requestData.callBackUrl,
       callbackUrl: requestData.callBackUrl,
-      requestKeys: Object.keys(requestData)
+      requestKeys: Object.keys(requestData),
     })
 
     try {
@@ -671,14 +689,14 @@ export class KieAiProvider {
       // Calculate cost based on model and duration
       const costUSD = this.calculateVideoCost(model, duration)
       const costStars = this.usdToStars(costUSD)
-      
+
       logger.info('[KieAiProvider] Cost calculation:', {
         model,
         kieModel,
         duration,
         costUSD,
         costStars,
-        pricePerSecond: costUSD / duration
+        pricePerSecond: costUSD / duration,
       })
 
       logger.info('[KieAiProvider] Veo generate response:', {
@@ -688,12 +706,12 @@ export class KieAiProvider {
         hasData: !!response.data,
         dataKeys: response.data ? Object.keys(response.data) : [],
       })
-      
+
       // Проверяем успешность запроса
       if (response.code !== 200) {
         throw new Error(response.msg || 'Failed to generate video')
       }
-      
+
       // Обрабатываем различные форматы ответа
       const taskId = response.data?.taskId || response.taskId
       const videoUrl = response.data?.videoUrl || response.data?.resultUrls?.[0]
@@ -817,13 +835,30 @@ export class KieAiProvider {
 
       const data = response.data.data
 
+      // ✅ Нормализация successFlag: поддерживаем числа (1,2,3,0) и булевы значения (true/false)
+      let normalizedSuccessFlag: number
+      if (data.successFlag !== undefined) {
+        if (typeof data.successFlag === 'boolean') {
+          normalizedSuccessFlag = data.successFlag ? 1 : 2
+        } else if (typeof data.successFlag === 'number') {
+          normalizedSuccessFlag = data.successFlag
+        } else {
+          // Неизвестный тип - считаем ошибкой
+          normalizedSuccessFlag = 2
+        }
+      } else {
+        // Если successFlag не указан, считаем успехом если code === 200
+        normalizedSuccessFlag = response.data.code === 200 ? 1 : 2
+      }
+
       // Проверяем различные форматы ответа
-      if (data.successFlag === 1) {
+      if (normalizedSuccessFlag === 1) {
         // Видео готово - проверяем разные форматы URL
-        const videoUrl = data.response?.resultUrls?.[0] ||
-                        data.response?.result_url ||
-                        data.resultUrls?.[0] ||
-                        data.result_url
+        const videoUrl =
+          data.response?.resultUrls?.[0] ||
+          data.response?.result_url ||
+          data.resultUrls?.[0] ||
+          data.result_url
 
         if (videoUrl) {
           logger.info('[KieAiProvider] Video is ready!', { taskId, videoUrl })
@@ -839,10 +874,13 @@ export class KieAiProvider {
             model: 'veo3',
           }
         } else {
-          logger.warn('[KieAiProvider] Video marked as ready but no URL found', { taskId, data })
+          logger.warn(
+            '[KieAiProvider] Video marked as ready but no URL found',
+            { taskId, data }
+          )
           throw new Error('Video marked as ready but no video URL provided')
         }
-      } else if (data.successFlag === 0) {
+      } else if (normalizedSuccessFlag === 0) {
         // Still processing
         logger.info('[KieAiProvider] Video still processing', { taskId })
         return {
@@ -856,16 +894,33 @@ export class KieAiProvider {
           provider: 'Veo 3 API',
           model: 'veo3',
         }
-      } else if (data.successFlag === 3) {
+      } else if (normalizedSuccessFlag === 3) {
         // Ошибка политики контента Google
-        logger.error('[KieAiProvider] Video generation rejected by content policy', { taskId, errorCode: data.errorCode, errorMessage: data.errorMessage });
-        throw new Error(data.errorMessage || 'Content rejected by Google policy. Please try different prompt or image.');
-      } else if (data.successFlag === 2) {
+        logger.error(
+          '[KieAiProvider] Video generation rejected by content policy',
+          { taskId, errorCode: data.errorCode, errorMessage: data.errorMessage }
+        )
+        throw new Error(
+          data.errorMessage ||
+            'Content rejected by Google policy. Please try different prompt or image.'
+        )
+      } else if (normalizedSuccessFlag === 2) {
         // Ошибка генерации
-        logger.error('[KieAiProvider] Video generation failed', { taskId, data })
-        throw new Error(data.errorMessage || data.response?.errorMessage || 'Video generation failed')
+        logger.error('[KieAiProvider] Video generation failed', {
+          taskId,
+          data,
+        })
+        throw new Error(
+          data.errorMessage ||
+            data.response?.errorMessage ||
+            'Video generation failed'
+        )
       } else {
-        logger.warn('[KieAiProvider] Unknown successFlag value', { taskId, successFlag: data.successFlag })
+        logger.warn('[KieAiProvider] Unknown successFlag value', {
+          taskId,
+          successFlag: data.successFlag,
+          normalizedSuccessFlag,
+        })
         // Продолжаем polling для неизвестных статусов
         return {
           success: true,
@@ -880,7 +935,10 @@ export class KieAiProvider {
         }
       }
     } catch (error) {
-      logger.error('[KieAiProvider] Error checking video status', { taskId, error })
+      logger.error('[KieAiProvider] Error checking video status', {
+        taskId,
+        error,
+      })
       return {
         success: false,
         cost: { usd: 0, stars: 0 },
@@ -906,7 +964,11 @@ export class KieAiProvider {
    */
   async generateSoraVideo(
     prompt: string = '',
-    model: 'sora-2-text-to-video' | 'sora-2-pro-text-to-video' | 'sora-2-image-to-video' | 'sora-2-pro-image-to-video' = 'sora-2-text-to-video',
+    model:
+      | 'sora-2-text-to-video'
+      | 'sora-2-pro-text-to-video'
+      | 'sora-2-image-to-video'
+      | 'sora-2-pro-image-to-video' = 'sora-2-text-to-video',
     aspectRatio: 'landscape' | 'portrait' = 'landscape',
     removeWatermark: boolean = true,
     duration: 10 | 15 = 10,
@@ -998,7 +1060,11 @@ export class KieAiProvider {
       const taskId = response.data.data.taskId
 
       // Calculate cost based on model, duration, and quality
-      const costUSD = this.calculateSoraCost(model as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video', duration, size)
+      const costUSD = this.calculateSoraCost(
+        model as 'sora-2-text-to-video' | 'sora-2-pro-text-to-video',
+        duration,
+        size
+      )
       const costStars = this.usdToStars(costUSD)
 
       logger.info('[KieAiProvider] Sora 2 task created successfully:', {
@@ -1092,7 +1158,10 @@ export class KieAiProvider {
         const videoUrl = data.videoUrl || data.resultUrls?.[0]
 
         if (videoUrl) {
-          logger.info('[KieAiProvider] Sora video is ready!', { taskId, videoUrl })
+          logger.info('[KieAiProvider] Sora video is ready!', {
+            taskId,
+            videoUrl,
+          })
           return {
             success: true,
             data: {
@@ -1105,10 +1174,13 @@ export class KieAiProvider {
             model: 'sora-2-text-to-video',
           }
         } else {
-          logger.warn('[KieAiProvider] Sora video marked as ready but no URL found', {
-            taskId,
-            data,
-          })
+          logger.warn(
+            '[KieAiProvider] Sora video marked as ready but no URL found',
+            {
+              taskId,
+              data,
+            }
+          )
           throw new Error('Video marked as ready but no video URL provided')
         }
       } else if (
@@ -1135,8 +1207,7 @@ export class KieAiProvider {
         }
       } else if (data.successFlag === 2 || data.status === 'failed') {
         // Task failed
-        const errorMessage =
-          data.errorMessage || 'Sora video generation failed'
+        const errorMessage = data.errorMessage || 'Sora video generation failed'
         logger.error('[KieAiProvider] Sora video generation failed', {
           taskId,
           errorMessage,
@@ -1318,14 +1389,14 @@ export class KieAiProvider {
   private calculateVideoCost(model: string, duration: number): number {
     const pricing: Record<string, number> = {
       // Kie.ai Sora pricing: $0.15 per 10 seconds = $0.015/sec
-      'sora-2': 0.015,      // ~94⭐ per 10 seconds
-      'sora2': 0.015,
-      'sora-2-pro': 0.02,   // ~125⭐ per 10 seconds
+      'sora-2': 0.015, // ~94⭐ per 10 seconds
+      sora2: 0.015,
+      'sora-2-pro': 0.02, // ~125⭐ per 10 seconds
       'sora2-pro': 0.02,
       // Veo pricing
-      'veo3_fast': 0.08,    // 40⭐ for 8 seconds
-      'veo3': 0.24,         // 120⭐ for 8 seconds (FIXED PRICE)
-      'runway-aleph': 0.3,  // $0.30 per second
+      veo3_fast: 0.08, // 40⭐ for 8 seconds
+      veo3: 0.24, // 120⭐ for 8 seconds (FIXED PRICE)
+      'runway-aleph': 0.3, // $0.30 per second
     }
 
     const pricePerSecond = pricing[model] || 0.05

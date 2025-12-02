@@ -5,6 +5,7 @@ import { videoTaskStore } from '@/services/video-task-store'
 import { Telegraf, Input } from 'telegraf'
 import { VIDEO_MODELS_CONFIG as VIDEO_MODELS } from '@/config/unified-video-models.config'
 import type { VideoModelId } from '@/services/generateTextToVideo'
+import { sendMediaToPulse } from '@/helpers/pulse'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
@@ -418,10 +419,13 @@ router.post('/video-callback', async (req: any, res: any) => {
     })
 
     const telegramIdFromUrl = req.params.telegramId
+    const botNameFromQuery = req.query.bot_name
 
     logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Received callback', {
       body: req.body,
       telegramIdFromUrl,
+      botNameFromQuery,
+      queryParams: req.query,
       headers: {
         'content-type': req.headers['content-type'],
         'user-agent': req.headers['user-agent'],
@@ -442,14 +446,16 @@ router.post('/video-callback', async (req: any, res: any) => {
       case 'kie-sora':
         await processSoraWebhookAsync(
           normalizeKieSoraPayload(payload),
-          telegramIdFromUrl
+          telegramIdFromUrl,
+          botNameFromQuery
         )
         break
       case 'kie-wan':
       case 'kie-veed':
         await processKieAiWebhookAsync(
           normalizeKiePayload(payload),
-          telegramIdFromUrl
+          telegramIdFromUrl,
+          botNameFromQuery
         )
         break
       case 'replicate':
@@ -824,7 +830,8 @@ router.post('/kie-ai/sora-callback', async (req: any, res: any) => {
  */
 async function processSoraWebhookAsync(
   payload: KieAiWebhookPayload,
-  telegramId?: string
+  telegramId?: string,
+  botName?: string
 ): Promise<void> {
   const { taskId, successFlag } = payload
 
@@ -1330,12 +1337,23 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
       payload.taskId ||
       (payload.data && payload.data.taskId) ||
       (payload as any).data?.taskId
-    const successFlag =
-      payload.successFlag !== undefined
-        ? payload.successFlag
-        : payload.code === 200
-          ? 1
-          : 2
+    
+    // ✅ Нормализация successFlag: поддерживаем числа (1,2,3,0) и булевы значения (true/false)
+    let successFlag: number
+    if (payload.successFlag !== undefined) {
+      // Преобразуем булевы значения в числа
+      if (typeof payload.successFlag === 'boolean') {
+        successFlag = payload.successFlag ? 1 : 2
+      } else if (typeof payload.successFlag === 'number') {
+        successFlag = payload.successFlag
+      } else {
+        // Неизвестный тип - пытаемся определить по code
+        successFlag = payload.code === 200 ? 1 : 2
+      }
+    } else {
+      // Если successFlag не указан, определяем по code
+      successFlag = payload.code === 200 ? 1 : 2
+    }
 
     // ✅ Валидация обязательных полей
     if (!taskId) {
@@ -1419,7 +1437,8 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
  */
 async function processKieAiWebhookAsync(
   payload: KieAiWebhookPayload,
-  telegramId?: string
+  telegramId?: string,
+  botName?: string
 ): Promise<void> {
   const { taskId, successFlag } = payload
 
@@ -1749,6 +1768,30 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
               caption: `✅ Видео готово!\n\n🎬 Модель: ${taskContext.modelId}\n⏱ Длительность: ${result.duration || 'N/A'} сек`,
             }
           )
+
+          // Send to Pulse channel
+          try {
+            await sendMediaToPulse({
+              mediaType: 'video',
+              mediaSource: result.output,
+              telegramId: String(taskContext.telegramId),
+              prompt: taskContext.prompt || 'Video Generation',
+              serviceType: `Video Generation (${taskContext.modelId})`,
+              additionalInfo: {
+                model: taskContext.modelId,
+                duration: result.duration || 'N/A',
+                botName: taskContext.botName || 'unknown_bot',
+                generatedAt: new Date().toISOString(),
+              },
+            })
+          } catch (pulseError) {
+            logger.warn('Failed to send to Pulse channel', {
+              error: pulseError,
+              taskId,
+              telegramId: taskContext.telegramId,
+            })
+            // Don't fail the whole process if Pulse fails
+          }
 
           logger.info('✅ [KIE.AI WEBHOOK] Video sent to user successfully', {
             taskId,
