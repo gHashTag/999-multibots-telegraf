@@ -161,10 +161,34 @@ paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx
 
 // Обработка непредвиденных сообщений
 paymentScene.on('message', async ctx => {
+  const messageText = (ctx.message as any)?.text
   const isRu = isRussian(ctx)
+
+  // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем кнопки меню
+  try {
+    const { NAVIGATION_BUTTONS } = await import('@/navigation/unified-navigation.config')
+    const button = NAVIGATION_BUTTONS.find(btn => btn.ru === messageText || btn.en === messageText)
+
+    if (button) {
+      // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
+      logger.info('🔄 [paymentScene] Menu button detected, exiting scene', {
+        telegramId: ctx.from?.id,
+        buttonText: messageText
+      })
+      ctx.session.selectedPayment = undefined
+      return ctx.scene.leave()
+    }
+  } catch (error) {
+    // Если не удалось импортировать, продолжаем с обычной обработкой
+    logger.warn('⚠️ [paymentScene] Failed to import NAVIGATION_BUTTONS', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id
+    })
+  }
+
   logger.warn(`[${ModeEnum.PaymentScene}] Received unexpected message`, {
     telegram_id: ctx.from?.id,
-    text: (ctx.message as any)?.text,
+    text: messageText,
   })
 
   // Предлагаем только доступные опции

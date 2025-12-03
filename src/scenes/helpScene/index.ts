@@ -28,6 +28,40 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 export const helpScene = new Scenes.BaseScene<MyContext>('helpScene')
 
+// ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработчик для кнопок меню
+helpScene.on('message', async ctx => {
+  const messageText = (ctx.message as any)?.text
+  const isRu = isRussianFromState(ctx)
+
+  // Проверяем кнопки меню
+  try {
+    const { NAVIGATION_BUTTONS } = await import('@/navigation/unified-navigation.config')
+    const button = NAVIGATION_BUTTONS.find(btn => btn.ru === messageText || btn.en === messageText)
+
+    if (button) {
+      // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
+      console.log('🔄 [helpScene] Menu button detected, exiting scene', {
+        telegramId: ctx.from?.id,
+        buttonText: messageText
+      })
+      return ctx.scene.leave()
+    }
+  } catch (error) {
+    // Если не удалось импортировать, продолжаем с обычной обработкой
+    console.warn('⚠️ [helpScene] Failed to import NAVIGATION_BUTTONS', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id
+    })
+  }
+
+  // Игнорируем другие сообщения
+  await ctx.reply(
+    isRu ? '❓ Для получения справки используйте кнопки главного меню' : '❓ Use main menu buttons for help',
+    { reply_markup: { remove_keyboard: true } }
+  )
+  return ctx.scene.leave()
+})
+
 helpScene.enter(async ctx => {
   const mode = ctx.session.mode
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)

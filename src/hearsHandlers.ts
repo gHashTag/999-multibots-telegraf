@@ -27,6 +27,9 @@ import {
 import { upscaleFluxKontextImage } from './services/generateFluxKontext'
 import { getParsingAccess } from './menu/simpleMenu'
 
+// ✅ ИМПОРТИРУЕМ УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК КНОПОК ИЗ NAVIGATION_BUTTONS
+import { handleMenuButtonPress } from './navigation/unified-navigation.config'
+
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info({
     message: '🔔 [HEARS] Настройка обработчиков hears...',
@@ -1342,6 +1345,142 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           ? '❌ Произошла ошибка при смене языка.'
           : '❌ Error occurred while changing language.'
       )
+    }
+  })
+
+  // === 🎭 ЗАМЕНА ЛИЦА (FACE SWAP) ===
+  bot.hears(['🎭 Замена лица', '🎭 Face Swap'], async ctx => {
+    logger.info('GLOBAL HEARS: Face Swap button pressed', {
+      telegramId: ctx.from?.id,
+    })
+
+    try {
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.FaceSwap
+      await ctx.scene.enter(ModeEnum.FaceSwap)
+    } catch (error) {
+      logger.error('Error entering Face Swap scene:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при переходе в Замену лица.'
+          : '❌ Error occurred while entering Face Swap.'
+      )
+    }
+  })
+
+  // === 🦸‍♂️ ИИ ГЕРОИ (AI HEROES) ===
+  bot.hears(['🦸‍♂️ ИИ Герои', '🦸‍♂️ AI Heroes'], async ctx => {
+    logger.info('GLOBAL HEARS: AI Heroes button pressed', {
+      telegramId: ctx.from?.id,
+    })
+
+    try {
+      // ✅ ЗАЩИТА: Проверяем подписку (requires_subscription: true в конфиге)
+      const hasSubscription = await checkSubscriptionGuard(ctx, '🦸‍♂️ ИИ Герои')
+      if (!hasSubscription) {
+        return // Пользователь перенаправлен в subscriptionScene
+      }
+
+      const isRu = isRussianFromState(ctx)
+
+      await ctx.reply(
+        isRu
+          ? '🦸‍♂️ <b>ИИ Герои</b>\n\n' +
+            'Превратите себя в супергероя с помощью ИИ!\n' +
+            'Загрузите своё фото и выберите стиль трансформации.\n\n' +
+            '🎯 Используйте кнопку "🤖 Цифровое тело" для начала.'
+          : '🦸‍♂️ <b>AI Heroes</b>\n\n' +
+            'Transform yourself into a superhero with AI!\n' +
+            'Upload your photo and choose a transformation style.\n\n' +
+            '🎯 Use the "🤖 Digital Body" button to start.',
+        { parse_mode: 'HTML' }
+      )
+    } catch (error) {
+      logger.error('Error in AI Heroes handler:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка.'
+          : '❌ An error occurred.'
+      )
+    }
+  })
+
+  // === 💬 ТЕХПОДДЕРЖКА (TECH SUPPORT) - Дублируем для надежности ===
+  bot.hears(['💬 Техподдержка', '💬 Tech Support'], async ctx => {
+    logger.info('GLOBAL HEARS: Tech Support button pressed', {
+      telegramId: ctx.from?.id,
+    })
+
+    try {
+      await ctx.scene.leave()
+      ctx.session.mode = ModeEnum.Help
+      await ctx.scene.enter(ModeEnum.Help)
+    } catch (error) {
+      logger.error('Error entering Help scene:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при переходе в Техподдержку.'
+          : '❌ Error occurred while entering Tech Support.'
+      )
+    }
+  })
+
+  // ================================================================
+  // 🔄 УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ВСЕХ КНОПОК ИЗ NAVIGATION_BUTTONS
+  // ================================================================
+  // Этот обработчик ловит ВСЕ текстовые сообщения, которые не были
+  // обработаны выше, и пытается сопоставить их с NAVIGATION_BUTTONS
+  // Используем handleMenuButtonPress() - "один источник правды"
+  // ================================================================
+
+  bot.hears(/.*/, async (ctx) => {
+    // Проверяем, что это текстовое сообщение
+    if (!ctx.message || !('text' in ctx.message)) {
+      return
+    }
+
+    const buttonText = ctx.message.text?.trim()
+    if (!buttonText) {
+      return
+    }
+
+    const telegramId = ctx.from?.id?.toString() || 'unknown'
+
+    // Логируем попытку обработки (только для кнопок из меню)
+    logger.debug('UNIVERSAL HANDLER: Checking button text', {
+      telegramId,
+      buttonText: buttonText.substring(0, 50),
+    })
+
+    // Пытаемся обработать через универсальную функцию
+    // handleMenuButtonPress вернет true, если кнопка была найдена и обработана
+    const wasHandled = await handleMenuButtonPress(ctx, buttonText)
+
+    if (wasHandled) {
+      logger.info('✅ UNIVERSAL HANDLER: Button handled successfully', {
+        telegramId,
+        buttonText: buttonText.substring(0, 50),
+      })
+    } else {
+      logger.debug('ℹ️ UNIVERSAL HANDLER: Not a menu button', {
+        telegramId,
+        buttonText: buttonText.substring(0, 50),
+      })
     }
   })
 }
