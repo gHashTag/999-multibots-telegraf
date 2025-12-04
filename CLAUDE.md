@@ -276,10 +276,20 @@ docker stats 999-multibots --no-stream
 
 ### ABSOLUTE PROHIBITIONS
 
+0. **🚫 NEVER use git force push** - `git push --force`, `git push -f` - ABSOLUTELY FORBIDDEN!
+   - Deletes commit history permanently
+   - Overwrites other developers' work
+   - Makes rollback impossible
+   - ONLY use Pull Request workflow: `git checkout -b feat/name && git push -u origin feat/name && gh pr create`
+
 1. **NEVER add secrets to .env** (only 5 Infisical variables)
+
 2. **NEVER skip type checking** before deployment
+
 3. **NEVER deploy without health check**
+
 4. **NEVER ignore TypeScript errors** (`|| true` forbidden)
+
 5. **NEVER create duplicate code** (use anti-duplication-guardian)
 
 ### Telegram Scene Rules (5 Absolute Rules)
