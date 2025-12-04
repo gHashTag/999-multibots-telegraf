@@ -139,7 +139,9 @@ export class CommandRegistry {
         if (!userDetails.isExist) {
           await ctx.scene.enter(ModeEnum.CreateUserScene)
         } else {
-          await ctx.scene.enter('main_menu')
+          await ctx.scene.leave()
+          const { showMainMenu } = await import('@/services/NavigationService')
+          await showMainMenu(ctx)
         }
       } catch (error) {
         logger.error('Error in start command:', { error, telegramId })
@@ -180,7 +182,9 @@ export class CommandRegistry {
         }
 
         ctx.session.mode = ModeEnum.MainMenu
-        await ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
       } catch (error) {
         logger.error('Error in menu command:', {
           error,

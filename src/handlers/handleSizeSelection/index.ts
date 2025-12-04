@@ -27,5 +27,7 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
         : `⚠️ Failed to update image size. Please try again later.`
     )
   }
-  await ctx.scene.enter(ModeEnum.MainMenu)
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/services/NavigationService')
+  await showMainMenu(ctx)
 }

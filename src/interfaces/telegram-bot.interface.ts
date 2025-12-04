@@ -175,6 +175,7 @@ export type BotName =
   | 'AI_STARS_bot'
   | 'TestNeurocoder_bot'
   | 'HaimGroupMedia_bot'
+  | 'OM_AI_Digital_studio_bot'
 
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cursor: number

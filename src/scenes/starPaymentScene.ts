@@ -57,7 +57,9 @@ starPaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async
       telegram_id: ctx.from?.id,
     }
   )
-  await ctx.scene.enter(ModeEnum.MainMenu)
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/services/NavigationService')
+  await showMainMenu(ctx)
 })
 
 // Action handler for star top-up buttons

@@ -19,13 +19,23 @@ export const paymentScene = new Scenes.BaseScene<MyContext>(
 )
 
 paymentScene.enter(async ctx => {
-  logger.info(`[${ModeEnum.PaymentScene}] Entering scene.`, {
+  logger.info(`🔍 [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] ===== ENTER HANDLER CALLED =====`, {
     telegram_id: ctx.from?.id,
+    timestamp: new Date().toISOString(),
     botInfo: ctx.botInfo, // Логируем для отладки
     session_selectedPayment: ctx.session.selectedPayment, // Логируем, что в сессии
+    sceneId: ctx.scene?.current?.id,
+    hasScene: !!ctx.scene?.current,
+    sceneCurrent: ctx.scene?.current,
   })
   const isRu = isRussian(ctx)
   const showRublesButton = shouldShowRubles(ctx) // Используем хелпер
+
+  logger.info(`[${ModeEnum.PaymentScene}] Enter scene - showRublesButton: ${showRublesButton}`, {
+    telegram_id: ctx.from?.id,
+    botInfo: ctx.botInfo,
+    showRublesButton,
+  })
 
   try {
     const message = isRu ? 'Выберите способ оплаты:' : 'Select payment method:'
@@ -37,6 +47,14 @@ paymentScene.enter(async ctx => {
     // Добавляем кнопку Рублями только если хелпер разрешает
     if (showRublesButton) {
       buttons[0].push(Markup.button.text(isRu ? '💳 Рублями' : '💳 Rubles'))
+      logger.info(`[${ModeEnum.PaymentScene}] Added Rubles button to keyboard`, {
+        telegram_id: ctx.from?.id,
+      })
+    } else {
+      logger.warn(`[${ModeEnum.PaymentScene}] Rubles button NOT added (showRublesButton=false)`, {
+        telegram_id: ctx.from?.id,
+        botInfo: ctx.botInfo,
+      })
     }
 
     // Добавляем остальные кнопки (Справка, Главное меню)
@@ -118,29 +136,92 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
 // Используем версию из origin/main (обработчик восстановлен)
 paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
   logger.info(
-    `[${ModeEnum.PaymentScene}] User chose Rubles. Entering RublePaymentScene.`,
-    { telegram_id: ctx.from?.id }
+    `🔍 [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] ===== HEARS HANDLER TRIGGERED: User chose Rubles =====`,
+    { 
+      telegram_id: ctx.from?.id,
+      timestamp: new Date().toISOString(),
+      currentScene: ctx.scene?.current?.id,
+      sceneId: ctx.scene?.current?.id,
+      sceneCurrent: ctx.scene?.current,
+      hasScene: !!ctx.scene?.current,
+      sessionSelectedPayment: ctx.session.selectedPayment,
+      messageText: ctx.message && 'text' in ctx.message ? ctx.message.text : 'N/A',
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no_message',
+    }
   )
-  const paymentInfo = ctx.session.selectedPayment
-  if (
-    paymentInfo &&
-    paymentInfo.type === PaymentType.MONEY_INCOME &&
-    paymentInfo.subscription
-  ) {
-    // Если это покупка подписки, передаем paymentInfo в rublePaymentScene
-    // rublePaymentScene сама разберется, как выставить счет на конкретную сумму подписки
-    logger.info(
-      `[${ModeEnum.PaymentScene}] Passing selectedPayment to RublePaymentScene for subscription.`,
-      { telegram_id: ctx.from?.id, paymentInfo }
+  
+  // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что пользователь находится в PaymentScene
+  if (ctx.scene?.current?.id !== ModeEnum.PaymentScene) {
+    logger.error(
+      `❌ [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] HEARS HANDLER: User is NOT in PaymentScene!`,
+      {
+        telegram_id: ctx.from?.id,
+        expectedScene: ModeEnum.PaymentScene,
+        actualScene: ctx.scene?.current?.id,
+        sceneCurrent: ctx.scene?.current,
+      }
     )
-    await ctx.scene.enter(ModeEnum.RublePaymentScene, { paymentInfo })
-  } else {
-    // Иначе (пополнение баланса) просто входим в сцену для выбора суммы пополнения рублями
-    logger.info(
-      `[${ModeEnum.PaymentScene}] Entering RublePaymentScene for balance top-up.`,
-      { telegram_id: ctx.from?.id }
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка: вы не находитесь в сцене оплаты. Попробуйте начать заново.'
+        : '❌ Error: you are not in the payment scene. Please try again.'
     )
-    await ctx.scene.enter(ModeEnum.RublePaymentScene)
+    await ctx.scene.leave()
+    return
+  }
+  
+  logger.info(
+    `[${ModeEnum.PaymentScene}] User chose Rubles. Entering RublePaymentScene.`,
+    { 
+      telegram_id: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+      sessionSelectedPayment: ctx.session.selectedPayment
+    }
+  )
+  
+  try {
+    const paymentInfo = ctx.session.selectedPayment
+    if (
+      paymentInfo &&
+      paymentInfo.type === PaymentType.MONEY_INCOME &&
+      paymentInfo.subscription
+    ) {
+      // Если это покупка подписки, передаем paymentInfo в rublePaymentScene
+      // rublePaymentScene сама разберется, как выставить счет на конкретную сумму подписки
+      logger.info(
+        `[${ModeEnum.PaymentScene}] Passing selectedPayment to RublePaymentScene for subscription.`,
+        { telegram_id: ctx.from?.id, paymentInfo }
+      )
+      await ctx.scene.enter(ModeEnum.RublePaymentScene, { paymentInfo })
+    } else {
+      // Иначе (пополнение баланса) просто входим в сцену для выбора суммы пополнения рублями
+      logger.info(
+        `[${ModeEnum.PaymentScene}] Entering RublePaymentScene for balance top-up.`,
+        { 
+          telegram_id: ctx.from?.id,
+          hasPaymentInfo: !!paymentInfo,
+          paymentInfoType: paymentInfo?.type,
+          paymentInfoSubscription: paymentInfo?.subscription
+        }
+      )
+      await ctx.scene.enter(ModeEnum.RublePaymentScene)
+    }
+  } catch (error: any) {
+    logger.error(
+      `❌ [${ModeEnum.PaymentScene}] Error entering RublePaymentScene:`,
+      {
+        error: error.message,
+        stack: error.stack,
+        telegram_id: ctx.from?.id,
+      }
+    )
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при переходе к оплате рублями. Попробуйте позже.'
+        : '❌ An error occurred while switching to ruble payment. Please try again later.'
+    )
   }
 })
 

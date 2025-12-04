@@ -1274,7 +1274,9 @@ morphingWizard.action('morphing_cancel', async ctx => {
     console.log('❌ [MORPHING_CANCEL] Scene left, entering MainMenu...')
 
     // Принудительно возвращаемся в главное меню
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/services/NavigationService')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error cancelling morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',

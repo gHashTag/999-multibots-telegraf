@@ -448,7 +448,9 @@ checkBalanceScene.enter(async ctx => {
         )
 
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.StartScene)
+        await ctx.scene.leave()
+        await ctx.scene.enter('startScene')
+        return
       }
     }
 
@@ -855,7 +857,7 @@ export const enterTargetScene = async (
       })
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
-      await ctx.scene.enter('ai_photoshop_scene')
+      await ctx.scene.enter(ModeEnum.AiPhotoshop)
       return
     }
 
@@ -913,7 +915,7 @@ export const enterTargetScene = async (
         console.log(
           '🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video'
         )
-        await ctx.scene.enter('text_to_video')
+        await ctx.scene.enter(ModeEnum.TextToVideo)
         console.log(
           '🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene'
         )
@@ -970,7 +972,7 @@ export const enterTargetScene = async (
         console.log(
           '🎯 [DEBUG] enterTargetScene: Left current scene, now entering image_to_video'
         )
-        await ctx.scene.enter('image_to_video')
+        await ctx.scene.enter(ModeEnum.ImageToVideo)
         console.log(
           '🎯 [DEBUG] enterTargetScene: Successfully entered image_to_video scene'
         )

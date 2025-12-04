@@ -38,7 +38,10 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
           { reply_markup: { remove_keyboard: true } }
         )
-        return ctx.scene.enter('main_menu')
+        await ctx.scene.leave()
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
+        return
       }
     }
 
@@ -56,7 +59,10 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
-      return ctx.scene.enter('main_menu')
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     } else {
       const fileId =
         'voice' in message
@@ -70,7 +76,10 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
             ? 'Ошибка: не удалось получить идентификатор файла'
             : 'Error: could not retrieve file ID'
         )
-        return ctx.scene.enter('main_menu')
+        await ctx.scene.leave()
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
+        return
       }
 
       try {
@@ -118,7 +127,10 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
             ? '✅ Голосовой аватар успешно создан!\n\n🎙️ Теперь вы можете использовать команду "🎙️ Текст в голос" или найти её в главном меню.'
             : '✅ Voice avatar successfully created!\n\n🎙️ Now you can use the "🎙️ Text to speech" command or find it in the main menu.'
         )
-        return ctx.scene.enter('main_menu')
+        await ctx.scene.leave()
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
+        return
       } catch (error) {
         logger.error('Error in handleVoiceMessage (Plan B):', { error: error.message || String(error) })
         await ctx.reply(
@@ -127,7 +139,10 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
             : '❌ An error occurred while creating the voice avatar. Please try again later.'
         )
         // ✅ ИСПРАВЛЕНИЕ: Переходим в главное меню при ошибке
-        return ctx.scene.enter('main_menu')
+        await ctx.scene.leave()
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
+        return
       }
     }
   }

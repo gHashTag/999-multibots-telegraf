@@ -1,0 +1,10 @@
+[dev]
+# Configure bun dev to run our unified startup script
+# When user runs `bun dev`, it will execute this script
+script = "node dev.js"
+
+[watch]
+# Watch these directories for changes
+directories = ["src"]
+# Exclude these patterns
+exclude = ["node_modules", "dist", "logs", "*.log"]

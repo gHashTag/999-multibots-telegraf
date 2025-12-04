@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-12-02T09:41:05.442Z",
+  "found": [],
+  "notFound": [
+    "INNGEST_EVENT_KEY",
+    "INNGEST_SIGNING_KEY",
+    "BOT_INNGEST_EVENT_KEY",
+    "BOT_INNGEST_SIGNING_KEY",
+    "INNGEST_EVENT_TEST_KEY",
+    "INNGEST_TEST_SIGNING_KEY",
+    "BOT_INNGEST_EVENT_TEST_KEY",
+    "BOT_INNGEST_TEST_SIGNING_KEY",
+    "RENDER_INNGEST_EVENT_KEY",
+    "RENDER_INNGEST_SIGNING_KEY",
+    "inngest_event_key",
+    "inngest_signing_key",
+    "Inngest_Event_Key",
+    "Inngest_Signing_Key"
+  ],
+  "processEnv": {
+    "INNGEST_EVENT_KEY": "undefined",
+    "INNGEST_SIGNING_KEY": "undefined",
+    "BOT_INNGEST_EVENT_KEY": "undefined",
+    "BOT_INNGEST_SIGNING_KEY": "undefined",
+    "RENDER_INNGEST_EVENT_KEY": "undefined",
+    "RENDER_INNGEST_SIGNING_KEY": "undefined"
+  }
+}

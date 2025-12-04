@@ -7,7 +7,7 @@ import { MyContext } from '@/interfaces'
 import { configManager } from '../ConfigManager'
 import { isRussianFromState, languageManager } from '../LanguageManager'
 import { errorHandler, ErrorType } from '../ErrorHandler'
-import { menuActionHandler } from '../MenuActionHandler'
+// import { menuActionHandler } from '../MenuActionHandler' // ❌ REMOVED: MenuActionHandler был удален
 
 // ===============================
 // ПРИМЕР 1: Создание нового сервиса
@@ -72,27 +72,11 @@ export class NewAIService {
 
 export function registerNewMenuAction() {
   // ✅ Правильная регистрация нового действия меню
-  menuActionHandler.registerAction({
-    titleRu: '🎨 Новая функция',
-    titleEn: '🎨 New Feature',
-    mode: 'new_feature',
-    requiresSubscription: true,
-    customHandler: async (ctx: MyContext) => {
-      const isRu = isRussianFromState(ctx)
-
-      await ctx.reply(
-        isRu
-          ? '🎨 Добро пожаловать в новую функцию!'
-          : '🎨 Welcome to the new feature!'
-      )
-
-      // Переход в специальную сцену
-      if (ctx.scene.current) {
-        await ctx.scene.leave()
-      }
-      await ctx.scene.enter('new_feature_scene')
-    },
-  })
+  // NOTE: MenuActionHandler был удален, используйте NavigationService для регистрации действий
+  // Пример:
+  // import { initializeNavigation } from '@/services/NavigationService'
+  // initializeNavigation(bot) // Регистрация происходит автоматически
+  console.log('MenuActionHandler removed - use NavigationService instead')
 }
 
 // ===============================
@@ -248,7 +232,9 @@ export class NewFeatureScene extends Scenes.BaseScene<MyContext> {
           ['🏠 Главное меню', '🏠 Main menu', 'Отмена', 'Cancel'].includes(text)
         ) {
           await ctx.scene.leave()
-          await ctx.scene.enter('main_menu')
+          await ctx.scene.leave()
+          const { showMainMenu } = await import('@/services/NavigationService')
+          await showMainMenu(ctx)
           return
         }
 

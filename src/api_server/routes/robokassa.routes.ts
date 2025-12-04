@@ -5,7 +5,7 @@ import { getPaymentByInvId } from '@/core/supabase/payments'
 import { supabaseAdmin } from '@/core/supabase'
 import { PaymentStatus, PaymentType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
-import { ROBOKASSA_PASSWORD_2 } from '@/config'
+import { getRobokassaPassword2 } from '@/config'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 
@@ -84,10 +84,12 @@ async function handlePaymentSuccess(req: any, res: any) {
     }
 
     // Проверяем подпись
+    const { getRobokassaPassword2 } = await import('@/config')
+    const password2 = getRobokassaPassword2() || ''
     const isValidSignature = validateRobokassaSignature(
       OutSum,
       InvId,
-      ROBOKASSA_PASSWORD_2 || '',
+      password2,
       SignatureValue
     )
 

@@ -62,6 +62,7 @@ export async function handleRestartVideoGeneration(
     )
     // Выходим из любой возможной текущей сцены и переходим в главное меню
     await ctx.scene.leave()
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    const { showMainMenu } = await import('@/services/NavigationService')
+    await showMainMenu(ctx)
   }
 }

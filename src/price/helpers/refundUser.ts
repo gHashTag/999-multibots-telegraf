@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { mainMenu } from '@/menu'
+import { createMainMenuKeyboard } from '@/services/NavigationService'
 import { PaymentType } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
@@ -81,15 +81,7 @@ export async function refundUser(
       }: ${amountToRefund.toFixed(2)} ⭐️\n${
         isRu ? 'Текущий баланс' : 'Current balance'
       }: ${displayBalance.toFixed(2)} ⭐️`,
-      {
-        reply_markup: (
-          await mainMenu({
-            isRu,
-            subscription: subscriptionType,
-            ctx,
-          })
-        ).reply_markup,
-      }
+      createMainMenuKeyboard(ctx)
     )
   }
 }

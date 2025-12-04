@@ -48,14 +48,10 @@ export const videoModelKeyboard = (
   // Используем правильные тексты и levels
   const helpButtonText = isRu ? 'Справка по команде' : 'Help for the command' // Жестко закодированный текст
   const cancelButtonText = isRu ? 'Отмена' : 'Cancel' // Жестко закодированный текст
-  // Используем levels[104] для "Главного меню"
-  const mainMenuButtonText = levels[104]
-    ? isRu
-      ? levels[104].title_ru
-      : levels[104].title_en
-    : isRu
+  // Используем прямые тексты для "Главного меню"
+  const mainMenuButtonText = isRu
     ? '🏠 Главное меню'
-    : '🏠 Main menu' // Резервный текст
+    : '🏠 Main menu'
 
   rows.push(
     [helpButtonText, cancelButtonText], // Ряд 1: Справка, Отмена

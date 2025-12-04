@@ -154,7 +154,9 @@ export class VideoGenerationHandler implements BaseHandler {
         await ctx.deleteMessage().catch(() => {
           // Ignore error if message already deleted
         })
-        await ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
       } catch (error) {
         logger.error('Error in main_menu action:', {
           error,

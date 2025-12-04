@@ -204,7 +204,10 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       await ctx.reply(fallbackMessage)
 
       // Возвращаемся в главное меню
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     } else {
       const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
 
@@ -373,7 +376,10 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         } */
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
       } else {
         // Этот блок теперь действительно означает неизвестный callback_data
         console.warn('[Callback Handler] Unknown callback_data received:', text)

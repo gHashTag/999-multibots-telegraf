@@ -24,7 +24,7 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
       telegramId: ctx.from?.id,
     })
 
-    // ✅ ОБРАБОТКА "ОТМЕНА" (Cancel)
+    // ✅ ОБРАБОТКА "ОТМЕНА" (Cancel) - используем CancelButtonService
     if (
       text === 'отмена' ||
       text === 'cancel' ||
@@ -32,10 +32,11 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
       text === '/отмена'
     ) {
       console.log(
-        '✅ [handleHelpCancel] CANCEL DETECTED - Exiting to main menu'
+        '✅ [handleHelpCancel] CANCEL DETECTED - Using CancelButtonService'
       )
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для единообразного возврата
+      const { CancelButtonService } = await import('@/services/CancelButtonService')
+      await CancelButtonService.executeCancel(ctx)
       return true
     }
 

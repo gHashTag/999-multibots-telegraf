@@ -1,6 +1,7 @@
 import { Mode, MyContext, Subscription } from '../../interfaces'
 import { sendGenericErrorMessage } from '@/menu'
-import { levels, mainMenu } from '../../menu/simpleMenu'
+import { levels } from '../../menu/simpleMenu'
+import { createMainMenuKeyboard } from '@/services/NavigationService'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
@@ -21,6 +22,8 @@ import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getParsingAccess } from '@/menu/simpleMenu'
 import { getBotNameByToken } from '@/core/bot'
+// ⚠️ ВРЕМЕННО: Убрано использование showMainMenu, чтобы избежать бесконечного цикла
+// import { showMainMenu } from '@/services/NavigationService'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')
@@ -119,14 +122,8 @@ const menuCommandStep = async (ctx: MyContext) => {
       `[menuCommandStep] Got ${buttons.length} buttons from translation for key: ${translationKey}`
     )
 
-    // Создаем клавиатуру
-    const keyboard = await mainMenu({
-      isRu,
-      subscription: newSubscription, // Pass simulated subscription
-      ctx,
-    })
-
-    // Кнопки подписки теперь добавляются через mainMenu.ts как единая кнопка "💫 Оформить подписку"
+    // ✅ НОВЫЙ: Используем единый сервис навигации для создания клавиатуры
+    const keyboard = createMainMenuKeyboard(ctx)
 
     // --- Set message and photo using translation results or fallbacks ---
     if (translation) {
@@ -193,15 +190,10 @@ const menuCommandStep = async (ctx: MyContext) => {
           })
         }
 
-        // Отправляем обычную клавиатуру отдельным сообщением
-        await ctx.reply(
-          isRu ? '👇 Выберите действие:' : '👇 Choose an action:',
-          {
-            reply_markup: keyboard.reply_markup,
-          }
-        )
+        // ✅ НОВЫЙ: Меню показывается через showMainMenu
+        // Клавиатура будет показана в showMainMenu
       } else {
-        // Для всех остальных случаев используем стандартную функцию с fallback
+        // ✅ ВОССТАНОВЛЕНО: Используем старую логику с клавиатурой
         await sendReplyWithKeyboard(ctx, message, [], keyboard, photo_url)
       }
     } else {
@@ -226,17 +218,9 @@ const menuCommandStep = async (ctx: MyContext) => {
             parse_mode: 'HTML',
             reply_markup: inlineKeyboard,
           })
-
-          // Отправляем обычную клавиатуру отдельным сообщением
-          await ctx.reply(
-            isRu ? '👇 Выберите действие:' : '👇 Choose an action:',
-            {
-              reply_markup: keyboard.reply_markup,
-            }
-          )
         } else {
           await ctx.reply(message, {
-            parse_mode: 'HTML', // Изменено с MarkdownV2 на HTML
+            parse_mode: 'HTML',
             reply_markup: keyboard.reply_markup,
           })
         }
@@ -249,8 +233,6 @@ const menuCommandStep = async (ctx: MyContext) => {
         }
         // Отправляем как обычный текст (без parse_mode)
         await ctx.reply(messageToSend, {
-          // Отправляем обработанное сообщение
-          // НЕТ parse_mode здесь
           reply_markup: keyboard.reply_markup,
         })
       }

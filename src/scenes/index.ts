@@ -50,3 +50,5 @@ export * from './instagramScrapingWizard'
 export * from './instagramParserScene'
 export * from './instagramParserWizard'
 export { default as morphingWizard } from './morphingWizard'
+// ✅ ЭКСПОРТИРУЕМ СЦЕНЫ КАТЕГОРИЙ
+export * from './categoryScenes'

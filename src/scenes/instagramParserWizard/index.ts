@@ -461,6 +461,10 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Добавляем обработчики
-instagramParserWizard.start(ctx => ctx.scene.enter(ModeEnum.MenuScene))
+instagramParserWizard.start(async ctx => {
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/services/NavigationService')
+  await showMainMenu(ctx)
+})
 instagramParserWizard.help(ctx => handleHelpCancel(ctx))
 instagramParserWizard.command('cancel', ctx => handleHelpCancel(ctx))

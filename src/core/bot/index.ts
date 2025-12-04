@@ -22,7 +22,7 @@ import { getBotGroupFromAvatars } from '@/core/supabase'
 // 🔐 УНИФИЦИРОВАННАЯ СХЕМА: везде используем BOT_TOKEN_1-N
 // Токены загружаются из Infisical автоматически, warnings убраны
 
-// 🔐 УНИФИЦИРОВАННАЯ СХЕМА: токены 1-10 для всех окружений
+// 🔐 УНИФИЦИРОВАННАЯ СХЕМА: токены 1-11 для всех окружений
 const BOT_TOKENS_ALL: string[] = [
   process.env.BOT_TOKEN_1,
   process.env.BOT_TOKEN_2,
@@ -34,9 +34,10 @@ const BOT_TOKENS_ALL: string[] = [
   process.env.BOT_TOKEN_8,
   process.env.BOT_TOKEN_9,
   process.env.BOT_TOKEN_10,
+  process.env.BOT_TOKEN_11,
 ]
 
-// 🔐 Продакшн токены (BOT_TOKEN_1-10)
+// 🔐 Продакшн токены (BOT_TOKEN_1-11)
 const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_1,
   process.env.BOT_TOKEN_2,
@@ -48,11 +49,12 @@ const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_8,
   process.env.BOT_TOKEN_9,
   process.env.BOT_TOKEN_10,
+  process.env.BOT_TOKEN_11,
 ].filter(Boolean)
 
 // Маппинг имен ботов на токены (зависит от окружения)
 export const BOT_NAMES: Record<BotName, string> = {
-  // Production боты (BOT_TOKEN_1-10 в prod/staging)
+  // Production боты (BOT_TOKEN_1-11 в prod/staging)
   ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
   ['ZavaraBot']: process.env.BOT_TOKEN_3,
@@ -63,6 +65,7 @@ export const BOT_NAMES: Record<BotName, string> = {
   ['Kaya_easy_art_bot']: process.env.BOT_TOKEN_8,
   ['AI_STARS_bot']: process.env.BOT_TOKEN_9,
   ['HaimGroupMedia_bot']: process.env.BOT_TOKEN_10,
+  ['OM_AI_Digital_studio_bot']: process.env.BOT_TOKEN_11,
 
   // Dev боты (BOT_TOKEN_1-2 в dev)
   ['ai_koshey_bot']: process.env.BOT_TOKEN_1,
@@ -181,6 +184,8 @@ export function getBotNameByUsername(username: string): {
     ai_stars_bot: 'AI_STARS_bot', // case-insensitive
     HaimGroupMedia_bot: 'HaimGroupMedia_bot',
     haimgroupmedia_bot: 'HaimGroupMedia_bot', // case-insensitive
+    OM_AI_Digital_studio_bot: 'OM_AI_Digital_studio_bot',
+    om_ai_digital_studio_bot: 'OM_AI_Digital_studio_bot', // case-insensitive
     // Dev боты
     ai_koshey_bot: 'ai_koshey_bot',
     clip_maker_neuro_bot: 'clip_maker_neuro_bot',

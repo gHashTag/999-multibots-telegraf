@@ -1,10 +1,12 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { createMainMenuKeyboard, MAIN_MENU_BUTTONS } from '@/menu/simpleMenu'
+// createMainMenuKeyboard and MAIN_MENU_BUTTONS moved to NavigationService
 import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getUserData, getTranslation } from '@/core/supabase'
 import { getBotNameByToken } from '@/core/bot'
+// ✅ НОВЫЙ: Используем единый сервис навигации
+import { showMainMenu } from '@/services/NavigationService'
 
 /**
  * ✅ ПРОСТАЯ START SCENE
@@ -75,13 +77,12 @@ const startScene = new Scenes.WizardScene<MyContext>(
           : `👋 Hello, ${name}!\n\n🤖 Welcome to ${botName}!\n\n🎯 Select the function you need from the menu below:`
       }
 
-      // Создаем клавиатуру с главным меню
-      const keyboard = createMainMenuKeyboard(ctx)
+      // ✅ НОВЫЙ: Используем единый сервис навигации для показа меню
+      // Отправляем приветствие
+      await ctx.reply(welcomeText)
 
-      // Отправляем приветствие с меню
-      await ctx.reply(welcomeText, {
-        reply_markup: keyboard.reply_markup
-      })
+      // Показываем главное меню через NavigationService
+      await showMainMenu(ctx)
 
       // Логируем статистику
       console.log('✅ [startScene] Меню отправлено успешно')

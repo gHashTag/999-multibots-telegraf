@@ -6,7 +6,6 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserBalance } from '../../core/supabase'
 import { logger } from '../../utils/logger'
 import { handleFluxKontextCommand } from '@/commands/fluxKontextCommand'
-import { levels } from '@/menu/simpleMenu'
 import { sendBalanceMessage } from '@/price/helpers'
 import { ModeEnum } from '@/interfaces'
 
@@ -1261,7 +1260,8 @@ fluxKontextScene.action('flux_kontext_cancel', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('main_menu')
+    const { showMainMenu } = await import('@/services/NavigationService')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error handling FLUX Kontext cancel', {
       error: error instanceof Error ? error.message : 'Unknown error',

@@ -1,0 +1,20 @@
+{
+  "realTransactions": [
+    {
+      "telegram_id": 2086031075,
+      "bot_name": "NeuroLenaAssistant_bot",
+      "payment_method": "Robokassa",
+      "description": "⭐️ Пополнение баланса на 10000.00 звезд",
+      "amount": 10000,
+      "currency": "RUB",
+      "type": "MONEY_INCOME",
+      "created_at": "2025-04-27T17:55:38.582144+00:00"
+    }
+  ],
+  "realCount": 1,
+  "realSum": 10000,
+  "bonusCount": 184,
+  "bonusSum": 280212,
+  "totalCount": 185,
+  "totalSum": 290212
+}

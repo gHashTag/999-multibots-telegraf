@@ -1,13 +1,17 @@
 /**
  * ⚠️ DEPRECATED: Этот файл оставлен для обратной совместимости
  *
- * ✅ НОВЫЙ ИСТОЧНИК ПРАВДЫ: src/navigation/unified-navigation.config.ts
+ * ✅ НОВЫЙ ИСТОЧНИК ПРАВДЫ: src/services/NavigationService.ts
  *
  * Все новые импорты должны быть из:
- * import { ... } from '@/navigation/unified-navigation.config'
+ * import { ... } from '@/services/NavigationService'
  *
- * Этот файл просто реэкспортирует из нового конфига для обратной совместимости
+ * Этот файл просто реэкспортирует из NavigationService для обратной совместимости
  */
 
 // ✅ ПРОСТОЕ РЕШЕНИЕ: Реэкспортируем всё напрямую без алиасов
-export * from '@/navigation/unified-navigation.config'
+export * from '@/services/NavigationService'
+
+// ⚠️ DEPRECATED: Эти экспорты удалены - используйте NavigationService напрямую
+// Если нужны кнопки меню, используйте CATEGORIES из NavigationService
+// Если нужны тексты кнопок, используйте getButtonTextsByMode() из NavigationService

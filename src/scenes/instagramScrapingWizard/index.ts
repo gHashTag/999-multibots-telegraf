@@ -8,7 +8,6 @@ import { generateInstagramScraping } from '@/services/generateInstagramScraping'
 import { getBotNameByToken } from '@/core/bot'
 import { getBotToken } from '@/handlers/getBotToken'
 import { logger } from '@/utils/logger'
-import { levels } from '@/menu'
 import { getUserProjects, UserProject } from '@/core/supabase/getUserProjects'
 import { getParsingAccess } from '@/menu/simpleMenu'
 
@@ -911,6 +910,10 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Добавляем обработчики help и cancel
-instagramScrapingWizard.start(ctx => ctx.scene.enter(ModeEnum.MenuScene))
+instagramScrapingWizard.start(async ctx => {
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/services/NavigationService')
+  await showMainMenu(ctx)
+})
 instagramScrapingWizard.help(ctx => handleHelpCancel(ctx))
 instagramScrapingWizard.command('cancel', ctx => handleHelpCancel(ctx))

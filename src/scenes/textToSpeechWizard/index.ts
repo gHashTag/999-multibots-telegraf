@@ -216,7 +216,9 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           }
         }
         await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
       }
       return
     }

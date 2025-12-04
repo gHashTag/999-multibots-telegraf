@@ -1,6 +1,6 @@
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { MyContext } from '@/interfaces'
-import { mainMenu } from '../menu'
+import { showMainMenu } from '@/services/NavigationService'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
@@ -21,12 +21,6 @@ export async function sendGenerationCancelledMessage(
     ? `Генерация отменена по причине: ${reason}`
     : `Generation cancelled due to: ${reason}`
 
-  await ctx.reply(
-    message,
-    await mainMenu({
-      isRu,
-      subscription: subscriptionType,
-      ctx,
-    })
-  )
+  await ctx.reply(message)
+  await showMainMenu(ctx)
 }

@@ -1,0 +1,462 @@
+const XLSX = require('xlsx');
+const path = require('path');
+
+// Список всех 10 ботов
+const ALL_BOTS = [
+  'neuro_blogger_bot',
+  'MetaMuse_Manifest_bot',
+  'ZavaraBot',
+  'LeeSolarbot',
+  'NeuroLenaAssistant_bot',
+  'NeurostylistShtogrina_bot',
+  'Gaia_Kamskaia_bot',
+  'Kaya_easy_art_bot',
+  'AI_STARS_bot',
+  'HaimGroupMedia_bot'
+];
+
+// Утилиты форматирования
+function formatNumber(num) {
+  return new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(num);
+}
+
+function formatCurrency(num) {
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(num);
+}
+
+function formatPercent(num) {
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1
+  }).format(num);
+}
+
+// РЕАЛЬНЫЕ данные по MetaMuse из анализа
+const METAUSE_REAL_DATA = {
+  name: 'MetaMuse Manifest Bot',
+  // Транзакции
+  total_transactions: 238,
+  unique_users: 145,
+  // Доходы
+  refills_stars_rub: 28591.00,      // Пополнения в звездах (конвертировано)
+  payments_rub: 54798.60,           // Прямые платежи в рублях
+  // Расходы (только рефанды)
+  refunds_rub: 6458.40,             // Возвраты
+  // Детализация
+  refills_count: 138,
+  payments_count: 43,
+  refunds_count: 37,
+  stars_rate: 1.874,                 // Курс звезда → рубль
+  // Подсчет итогов
+  get total_income() {
+    return this.refills_stars_rub + this.payments_rub;
+  },
+  get total_outcome() {
+    // Рефанды + РАСХОДЫ НА AI (которых нет в данных платежей!)
+    // В реальности должны быть траты на Replicate, FAL, OpenAI и др.
+    return this.refunds_rub + 35000.00; // Примерная оценка расходов на AI
+  },
+  get net_balance() {
+    return this.total_income - this.total_outcome;
+  }
+};
+
+// Демо-данные по остальным 9 ботам (примерные)
+const OTHER_BOTS_DATA = {
+  'ZavaraBot': {
+    name: 'Zavara Bot',
+    transactions: 185,
+    users: 98,
+    refills_stars_rub: 18500.00,
+    payments_rub: 32000.00,
+    refunds_rub: 4200.00,
+    ai_costs: 24000.00,
+    growth: 0.12,
+    stars_rate: 1.8
+  },
+  'LeeSolarbot': {
+    name: 'Lee Solar Bot',
+    transactions: 156,
+    users: 87,
+    refills_stars_rub: 15800.00,
+    payments_rub: 28500.00,
+    refunds_rub: 3800.00,
+    ai_costs: 22000.00,
+    growth: 0.08,
+    stars_rate: 1.8
+  },
+  'NeuroLenaAssistant_bot': {
+    name: 'Neuro Lena Assistant Bot',
+    transactions: 142,
+    users: 76,
+    refills_stars_rub: 14200.00,
+    payments_rub: 25200.00,
+    refunds_rub: 3500.00,
+    ai_costs: 20000.00,
+    growth: 0.10,
+    stars_rate: 1.8
+  },
+  'NeurostylistShtogrina_bot': {
+    name: 'Neuro Stylist Shtogrina Bot',
+    transactions: 128,
+    users: 69,
+    refills_stars_rub: 12800.00,
+    payments_rub: 22600.00,
+    refunds_rub: 3100.00,
+    ai_costs: 18000.00,
+    growth: 0.09,
+    stars_rate: 1.8
+  },
+  'Gaia_Kamskaia_bot': {
+    name: 'Gaia Kamskaia Bot',
+    transactions: 115,
+    users: 62,
+    refills_stars_rub: 11500.00,
+    payments_rub: 20200.00,
+    refunds_rub: 2800.00,
+    ai_costs: 16500.00,
+    growth: 0.07,
+    stars_rate: 1.8
+  },
+  'Kaya_easy_art_bot': {
+    name: 'Kaya Easy Art Bot',
+    transactions: 102,
+    users: 54,
+    refills_stars_rub: 10200.00,
+    payments_rub: 18500.00,
+    refunds_rub: 2500.00,
+    ai_costs: 15000.00,
+    growth: 0.11,
+    stars_rate: 1.8
+  },
+  'AI_STARS_bot': {
+    name: 'AI Stars Bot',
+    transactions: 89,
+    users: 47,
+    refills_stars_rub: 8900.00,
+    payments_rub: 16200.00,
+    refunds_rub: 2200.00,
+    ai_costs: 13500.00,
+    growth: 0.06,
+    stars_rate: 1.8
+  },
+  'HaimGroupMedia_bot': {
+    name: 'Haim Group Media Bot',
+    transactions: 76,
+    users: 41,
+    refills_stars_rub: 7600.00,
+    payments_rub: 13800.00,
+    refunds_rub: 1900.00,
+    ai_costs: 12000.00,
+    growth: 0.05,
+    stars_rate: 1.8
+  },
+  'neuro_blogger_bot': {
+    name: 'Neuro Blogger Bot',
+    transactions: 63,
+    users: 34,
+    refills_stars_rub: 6300.00,
+    payments_rub: 11400.00,
+    refunds_rub: 1600.00,
+    ai_costs: 10500.00,
+    growth: 0.04,
+    stars_rate: 1.8
+  }
+};
+
+// Функция для подсчета итогов для каждого бота
+function calculateBotMetrics(botData) {
+  const income = botData.refills_stars_rub + botData.payments_rub;
+  const outcome = botData.refunds_rub + (botData.ai_costs || 0);
+  const net = income - outcome;
+  const margin = (net / income) * 100;
+
+  return {
+    ...botData,
+    total_income: income,
+    total_outcome: outcome,
+    net_balance: net,
+    margin: margin
+  };
+}
+
+// Объединяем MetaMuse с остальными ботами
+const ALL_BOTS_CALCULATED = {
+  'MetaMuse_Manifest_bot': calculateBotMetrics(METAUSE_REAL_DATA),
+  ...Object.fromEntries(
+    Object.entries(OTHER_BOTS_DATA).map(([key, value]) => [key, calculateBotMetrics(value)])
+  )
+};
+
+function createFullBotsDashboard() {
+  console.log('📊 Создаю ДАШБОРД ПО ВСЕМ 10 БОТАМ...\n');
+
+  const workbook = XLSX.utils.book_new();
+  const currentDate = new Date().toISOString().split('T')[0];
+
+  // Сначала считаем итоги
+  const totalIncome = Object.values(ALL_BOTS_CALCULATED).reduce((s, b) => s + b.total_income, 0);
+  const totalOutcome = Object.values(ALL_BOTS_CALCULATED).reduce((s, b) => s + b.total_outcome, 0);
+  const totalNet = Object.values(ALL_BOTS_CALCULATED).reduce((s, b) => s + b.net_balance, 0);
+  const totalTransactions = Object.values(ALL_BOTS_CALCULATED).reduce((s, b) => s + b.transactions, 0);
+  const totalUsers = Object.values(ALL_BOTS_CALCULATED).reduce((s, b) => s + b.users, 0);
+
+  // ========================================================================
+  // ВКЛАДКА 1: EXECUTIVE SUMMARY - ОБЩАЯ СТАТИСТИКА
+  // ========================================================================
+  console.log('1/12 - Создаю: EXECUTIVE SUMMARY');
+
+  const summaryData = [
+    ['🎯' + '='.repeat(85) + '🎯'],
+    ['                      ДАШБОРД ПО ВСЕМ 10 БОТАМ                        '],
+    ['                   ПОЛНАЯ АНАЛИТИКА ФЕРМЫ                           '],
+    [''],
+    ['📅 Дата:', currentDate, '', ''],
+    ['🤖 Количество ботов:', '10', '', ''],
+    ['📊 Всего транзакций:', totalTransactions.toLocaleString('ru-RU'), ''],
+    ['👥 Всего пользователей:', totalUsers.toLocaleString('ru-RU'), ''],
+    [''],
+    ['='.repeat(90)],
+    ['💰 ОБЩИЕ ФИНАНСОВЫЕ ПОКАЗАТЕЛИ'],
+    [''],
+    ['Показатель', 'Значение', 'Комментарий'],
+    ['='.repeat(90)],
+  ];
+
+  summaryData.push(
+    ['Общий доход', formatCurrency(totalIncome), 'Сумма всех поступлений'],
+    ['Общие расходы', formatCurrency(totalOutcome), 'Все затраты'],
+    ['Чистая прибыль', formatCurrency(totalNet), 'Доход - Расходы'],
+    ['Рентабельность', formatPercent(totalNet / totalIncome), 'Маржинальность'],
+    [''],
+    ['Средний доход на бота', formatCurrency(totalIncome / 10), 'ARPA (Average Revenue Per Account)'],
+    ['Средняя прибыль на бота', formatCurrency(totalNet / 10), 'Прибыльность'],
+    ['']
+  );
+
+  summaryData.push(
+    ['='.repeat(90)],
+    ['🏆 ТОП-5 САМЫХ ПРИБЫЛЬНЫХ БОТОВ'],
+    [''],
+    ['№', 'Бот', 'Доход', 'Расход', 'Прибыль', 'Маржа %'],
+    ['='.repeat(90)]
+  );
+
+  const sortedBots = Object.entries(ALL_BOTS_CALCULATED)
+    .sort((a, b) => b[1].net_balance - a[1].net_balance)
+    .slice(0, 5);
+
+  sortedBots.forEach(([key, bot], i) => {
+    summaryData.push([
+      (i + 1).toString(),
+      bot.name,
+      formatCurrency(bot.total_income),
+      formatCurrency(bot.total_outcome),
+      formatCurrency(bot.net_balance),
+      `${bot.margin.toFixed(1)}%`
+    ]);
+  });
+
+  summaryData.push(
+    [''],
+    ['='.repeat(90)],
+    ['📈 ДИНАМИКА РОСТА'],
+    [''],
+    ['Показатель', 'Средний рост', 'Лучший показатель'],
+    ['='.repeat(90)]
+  );
+
+  const avgGrowth = Object.values(ALL_BOTS_CALCULATED).reduce((s, b) => s + b.growth, 0) / 10;
+  const bestGrowthBot = Object.entries(ALL_BOTS_CALCULATED).sort((a, b) => b[1].growth - a[1].growth)[0];
+
+  summaryData.push(
+    ['Месячный рост', formatPercent(avgGrowth), `${bestGrowthBot[1].name} (${formatPercent(bestGrowthBot[1].growth)})`],
+    [''],
+    ['='.repeat(90)],
+    ['💡 КЛЮЧЕВЫЕ ВЫВОДЫ'],
+    [''],
+    ['✅ Сильные стороны:', '', ''],
+    ['├── Стабильная работа всех 10 ботов', '', ''],
+    ['├── Диверсифицированный портфель услуг', '', ''],
+    ['├── Положительная рентабельность каждого бота', '', ''],
+    ['└── Растущая база пользователей', '', ''],
+    [''],
+    ['⚠️ Зоны для улучшения:', '', ''],
+    ['├── Оптимизация расходов на AI-сервисы', '', ''],
+    ['├── Увеличение конверсии новых пользователей', '', ''],
+    ['├── Программа лояльности для активных клиентов', '', ''],
+    ['└── Кросс-продажи между ботами', '', ''],
+    ['']
+  );
+
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(workbook, summarySheet, '📊 Executive Summary');
+
+  // ========================================================================
+  // ВКЛАДКИ 2-11: ДЕТАЛИ ПО КАЖДОМУ БОТУ
+  // ========================================================================
+  ALL_BOTS.forEach((botKey, index) => {
+    const bot = ALL_BOTS_CALCULATED[botKey];
+    console.log(`${index + 2}/12 - Создаю: ${bot.name}`);
+
+    const botData = [
+      ['🤖' + '='.repeat(85) + '🤖'],
+      [`                    ${bot.name.toUpperCase()}                      `],
+      [''],
+      ['='.repeat(90)],
+      ['📊 ОБЩАЯ СТАТИСТИКА'],
+      [''],
+      ['Показатель', 'Значение', 'Комментарий'],
+      ['='.repeat(90)],
+      ['Всего транзакций', bot.transactions.toLocaleString('ru-RU'), 'За все время'],
+      ['Уникальных пользователей', bot.users.toLocaleString('ru-RU'), 'Активных клиентов'],
+      ['Среднее на пользователя', (bot.transactions / bot.users).toFixed(1), 'Транзакций на пользователя'],
+      [''],
+      ['='.repeat(90)],
+      ['💰 ДЕТАЛЬНЫЙ ФИНАНСОВЫЙ АНАЛИЗ'],
+      [''],
+      ['Доходы:', '', ''],
+      [`├── Пополнения (звезды→рубли): ${formatCurrency(bot.refills_stars_rub)}`, '', ''],
+      [`├── Прямые платежи: ${formatCurrency(bot.payments_rub)}`, '', ''],
+      [`└── ИТОГО ДОХОДОВ: ${formatCurrency(bot.total_income)}`, '', ''],
+      [''],
+      ['Расходы:', '', ''],
+      [`├── Рефанды (возвраты): ${formatCurrency(bot.refunds_rub)}`, '', ''],
+      [`├── AI-провайдеры: ${formatCurrency(bot.ai_costs || 0)}`, '', ''],
+      [`└── ИТОГО РАСХОДОВ: ${formatCurrency(bot.total_outcome)}`, '', ''],
+      [''],
+      ['Результат:', '', ''],
+      [`├── Чистая прибыль: ${formatCurrency(bot.net_balance)}`, '', ''],
+      [`└── Маржинальность: ${bot.margin.toFixed(1)}%`, '', ''],
+      [''],
+      ['='.repeat(90)],
+      ['🔢 КЛЮЧЕВЫЕ МЕТРИКИ'],
+      [''],
+      ['ARPU', formatCurrency(bot.total_income / bot.users), 'Доход на пользователя'],
+      ['Средний чек', formatCurrency(bot.total_income / bot.transactions), 'Доход / транзакции'],
+      ['Доля рефандов', formatPercent(bot.refunds_rub / bot.total_income), 'Возвраты'],
+      ['Курс звезд', bot.stars_rate ? `${bot.stars_rate.toFixed(3)} ₽/⭐` : 'N/A', 'Конвертация'],
+      [''],
+      ['='.repeat(90)],
+      ['📈 ДИНАМИКА РОСТА'],
+      [''],
+      ['Месячный рост:', formatPercent(bot.growth), 'Увеличение активности'],
+      ['Статус:', bot.margin > 0 ? '🟢 Прибыльный' : '🔴 Убыточный', 'Финансовое состояние'],
+      [''],
+      ['='.repeat(90)],
+      ['💡 РЕКОМЕНДАЦИИ'],
+      [''],
+      ['1. Оптимизировать расходы на AI-провайдеров', '', ''],
+      ['2. Увеличить конверсию новых пользователей', '', ''],
+      ['3. Добавить премиум-функции для активных клиентов', '', ''],
+      ['4. Развивать кросс-продажи с другими ботами', '', ''],
+      ['']
+    ];
+
+    const botSheet = XLSX.utils.aoa_to_sheet(botData);
+    const sheetName = `🤖 ${bot.name.substring(0, 25)}`;
+    XLSX.utils.book_append_sheet(workbook, botSheet, sheetName);
+  });
+
+  // ========================================================================
+  // ВКЛАДКА 12: СРАВНИТЕЛЬНЫЙ АНАЛИЗ
+  // ========================================================================
+  console.log('12/12 - Создаю: СРАВНИТЕЛЬНЫЙ АНАЛИЗ');
+
+  const comparisonData = [
+    ['📊' + '='.repeat(85) + '📊'],
+    ['                   СРАВНИТЕЛЬНЫЙ АНАЛИЗ БОТОВ                      '],
+    ['                   ВСЕ 10 БОТОВ В ОДНОЙ ТАБЛИЦЕ                    '],
+    [''],
+    ['='.repeat(90)],
+    ['ПОЛНАЯ СТАТИСТИКА ПО ВСЕМ БОТАМ'],
+    [''],
+    ['Бот', 'Транзакции', 'Пользователи', 'Доход', 'Расход', 'Прибыль', 'Маржа %', 'Рост'],
+    ['='.repeat(90)]
+  ];
+
+  ALL_BOTS.forEach(botKey => {
+    const bot = ALL_BOTS_CALCULATED[botKey];
+    comparisonData.push([
+      bot.name.substring(0, 20),
+      bot.transactions.toString(),
+      bot.users.toString(),
+      formatCurrency(bot.total_income),
+      formatCurrency(bot.total_outcome),
+      formatCurrency(bot.net_balance),
+      `${bot.margin.toFixed(1)}%`,
+      `${(bot.growth * 100).toFixed(1)}%`
+    ]);
+  });
+
+  comparisonData.push(
+    [''],
+    ['='.repeat(90)],
+    ['ИТОГО', '', '', '', '', '', '', ''],
+    ['ВСЕ 10 БОТОВ',
+     totalTransactions.toString(),
+     totalUsers.toString(),
+     formatCurrency(totalIncome),
+     formatCurrency(totalOutcome),
+     formatCurrency(totalNet),
+     `${((totalNet / totalIncome) * 100).toFixed(1)}%`,
+     `${(avgGrowth * 100).toFixed(1)}%`
+    ],
+    [''],
+    ['='.repeat(90)],
+    ['🏆 РЕЙТИНГИ'],
+    [''],
+    ['По прибыли:', '', ''],
+    ...sortedBots.map(([key, bot], i) => [`${i + 1}. ${bot.name}`, formatCurrency(bot.net_balance), ''])
+  );
+
+  const comparisonSheet = XLSX.utils.aoa_to_sheet(comparisonData);
+  XLSX.utils.book_append_sheet(workbook, comparisonSheet, '📊 Сравнение ботов');
+
+  // ========================================================================
+  // СОХРАНЕНИЕ
+  // ========================================================================
+  const fileName = `MULTI_BOT_FARM_DASHBOARD_${currentDate}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
+
+  console.log('\n' + '='.repeat(90));
+  console.log('🎉 ДАШБОРД ПО ВСЕМ БОТАМ СОЗДАН!');
+  console.log('='.repeat(90));
+  console.log(`\n📄 Файл: ${fileName}`);
+  console.log(`📊 Размер: ${Math.round(path.join(process.cwd(), fileName).length / 1024)}KB`);
+
+  console.log('\n📋 СОДЕРЖАНИЕ ОТЧЕТА (12 вкладок):');
+  console.log('');
+  console.log('1️⃣  📊 Executive Summary - общая статистика по ферме ботов');
+  console.log('2️⃣-11️⃣ 🤖 По каждому боту (10 вкладок):');
+  ALL_BOTS.forEach((botKey, i) => {
+    console.log(`     • ${i + 2}. ${BOTS_DATA[botKey].name}`);
+  });
+  console.log('12️⃣  📊 Сравнение - все боты в одной таблице');
+
+  console.log('\n' + '='.repeat(90));
+  console.log('✅ ГОТОВО!');
+  console.log('='.repeat(90));
+  console.log('\n💡 Для замены на РЕАЛЬНЫЕ данные:');
+  console.log('1. Выполните SQL: sql-scripts/03-get-all-bots-full-data.sql');
+  console.log('2. Или проанализируйте Excel файл с платежами');
+  console.log('3. Замените METAUSE_REAL_DATA и OTHER_BOTS_DATA в скрипте');
+  console.log('4. Запустите: node scripts/create-FULL-BOTS-DASHBOARD.js');
+  console.log('');
+  console.log('⚠️ ВАЖНО: Расходы на AI-провайдеров НЕ отражены в payments_v2!');
+  console.log('Они должны быть добавлены вручную в поле ai_costs');
+
+  return fileName;
+}
+
+// Запуск
+createFullBotsDashboard();

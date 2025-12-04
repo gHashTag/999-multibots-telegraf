@@ -3,11 +3,12 @@
  *
  * Управляет несколькими Inngest endpoint'ами:
  * - BOT: основной бот (наш сервер)
- * - RENDER: render-server на Render Server
+ * - RENDER: render-server на Railway
  */
 
 import { logger } from '@/utils/logger'
-import { Inngest } from 'inngest'
+// ✅ Используем единый клиент из @/inngest_app/client
+import { inngest } from './client'
 
 export type InngestInstance = 'BOT' | 'RENDER'
 
@@ -30,178 +31,71 @@ class InngestProvider {
   }
 
   private ensureInitialized() {
-    // ✅ ФИКС: Всегда переинициализируем конфигурацию для получения свежих значений из process.env
-    // Это критично для случаев, когда секреты загружаются динамически (например, из Infisical)
-    logger.info(
-      '🔧 [INNGEST PROVIDER] (Re)initializing configuration from process.env...'
-    )
-    this.initializeConfigs()
-    this.initialized = true
-    logger.info('✅ [INNGEST PROVIDER] Configuration refreshed', {
-      instances: Array.from(this.configs.keys()),
-    })
+    if (!this.initialized) {
+      logger.info('🔧 [INNGEST PROVIDER] Lazy initialization starting...')
+      this.initializeConfigs()
+      this.initialized = true
+      logger.info('✅ [INNGEST PROVIDER] Lazy initialization completed', {
+        instances: Array.from(this.configs.keys()),
+      })
+    }
   }
 
   private initializeConfigs() {
-    logger.info(
-      '🔍 [INNGEST PROVIDER] Starting configuration initialization...'
-    )
-
     // BOT инстанс (наш основной сервер)
-    // ✅ ГЛОБАЛЬНЫЙ EVENT KEY: Приоритет: тестовый ключ > production ключ > глобальный ключ
-    const botEventKey =
-      process.env.BOT_INNGEST_EVENT_TEST_KEY ||
-      process.env.BOT_INNGEST_EVENT_KEY ||
-      process.env.RENDER_INNGEST_EVENT_KEY ||
-      '4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q'
-
-    const botSigningKey =
-      process.env.BOT_INNGEST_TEST_SIGNING_KEY ||
-      process.env.BOT_INNGEST_SIGNING_KEY ||
-      process.env.RENDER_INNGEST_SIGNING_KEY
-
+    const botEventKey = process.env.INNGEST_EVENT_KEY
+    const botSigningKey = process.env.INNGEST_SIGNING_KEY
     const botBaseUrl =
-      process.env.BOT_INNGEST_BASE_URL ||
+      process.env.INNGEST_BASE_URL ||
       'https://three-head-dragon.shop/api/inngest'
 
-    logger.info('🔍 [INNGEST PROVIDER] BOT instance check:', {
-      hasBotEventKey: !!botEventKey,
-      botEventKeyLength: botEventKey?.length || 0,
-      hasBotSigningKey: !!botSigningKey,
-      botBaseUrl,
-      usingTestKey: !!process.env.BOT_INNGEST_EVENT_TEST_KEY,
-      usingTestSigningKey: !!process.env.BOT_INNGEST_TEST_SIGNING_KEY,
-      eventKeySource: process.env.BOT_INNGEST_EVENT_TEST_KEY
-        ? 'TEST'
-        : process.env.BOT_INNGEST_EVENT_KEY
-          ? 'PRODUCTION'
-          : process.env.RENDER_INNGEST_EVENT_KEY
-            ? 'RENDER_FALLBACK'
-            : 'GLOBAL_FALLBACK',
-    })
-
     if (botEventKey) {
-      // Создаем Inngest клиент для BOT instance (как для RENDER)
-      logger.info('🔧 [INNGEST PROVIDER] Creating Inngest client for BOT...')
-
-      const botClient = new Inngest({
-        name: 'Vibee Bot Client',
-        eventKey: botEventKey,
-        baseUrl: botBaseUrl,
-        isDev: false,
-      })
-
+      // ✅ Используем единый клиент из client.ts
       this.configs.set('BOT', {
         eventKey: botEventKey,
         signingKey: botSigningKey,
         baseUrl: botBaseUrl,
         name: 'telegram-bot-main',
-        client: botClient,
+        client: inngest, // ✅ Единый клиент
       })
-
-      logger.info('✅ [INNGEST PROVIDER] BOT instance configured', {
+      logger.info('✅ [INNGEST PROVIDER] BOT instance configured (использует единый клиент)', {
         baseUrl: botBaseUrl,
         hasSigningKey: !!botSigningKey,
-        eventKeyPreview: `${botEventKey.substring(0, 20)}...`,
-        hasClient: true,
-        eventKeyValid: botEventKey.length > 50,
-        signingKeyValid: botSigningKey?.startsWith('signkey-'),
+        usesUnifiedClient: true,
       })
     } else {
-      logger.warn('⚠️ [INNGEST PROVIDER] BOT instance missing event key')
+      logger.warn(
+        '⚠️ [INNGEST PROVIDER] BOT instance missing INNGEST_EVENT_KEY'
+      )
     }
 
-    // RENDER инстанс (Inngest Cloud → Render Server)
+    // RENDER инстанс (Inngest Cloud → Railway render-server)
+    // ✅ Используем единый клиент из client.ts
     const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
     const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
-    const renderBaseUrl =
-      process.env.RENDER_INNGEST_BASE_URL ||
-      'https://render-v3-production.up.railway.app/api/inngest'
-
-    logger.info('🔍 [INNGEST PROVIDER] RENDER instance check:', {
-      hasRenderEventKey: !!renderEventKey,
-      renderEventKeyLength: renderEventKey?.length || 0,
-      renderEventKeyPreview: renderEventKey
-        ? `${renderEventKey.substring(0, 30)}...`
-        : 'НЕТ',
-      hasRenderSigningKey: !!renderSigningKey,
-      renderSigningKeyLength: renderSigningKey?.length || 0,
-      renderSigningKeyPreview: renderSigningKey
-        ? `${renderSigningKey.substring(0, 30)}...`
-        : 'НЕТ',
-      renderBaseUrl,
-    })
 
     if (renderEventKey) {
-      // Создаем Inngest client для отправки в Inngest Cloud
-      // Inngest Cloud вызовет Render Server function
-      logger.info('🔧 [INNGEST PROVIDER] Creating Inngest client for RENDER...')
-
-      const renderClient = new Inngest({
-        name: 'render-server-client',
-        eventKey: renderEventKey,
-        // НЕ устанавливаем inngestBaseUrl - по умолчанию Inngest Cloud (inn.gs)
-      })
-
+      // ✅ Используем единый клиент для RENDER тоже
       this.configs.set('RENDER', {
         eventKey: renderEventKey,
         signingKey: renderSigningKey,
         baseUrl: 'https://inn.gs', // Inngest Cloud
         name: 'render-server',
-        client: renderClient,
+        client: inngest, // ✅ Единый клиент
       })
-
       logger.info(
-        '✅ [INNGEST PROVIDER] RENDER instance configured (Inngest Cloud → Render Server)',
+        '✅ [INNGEST PROVIDER] RENDER instance configured (использует единый клиент)',
         {
           cloudUrl: 'https://inn.gs',
           hasEventKey: !!renderEventKey,
-          eventKeyValid: renderEventKey.length > 50,
-          hasSigningKey: !!renderSigningKey,
-          signingKeyValid: renderSigningKey?.startsWith('signkey-'),
-          hasClient: true,
-          renderServerUrl: renderBaseUrl,
+          usesUnifiedClient: true,
         }
       )
-
-      // 🔴 КРИТИЧЕСКАЯ ПРОВЕРКА ФОРМАТА КЛЮЧЕЙ
-      if (renderEventKey.length < 50) {
-        logger.error(
-          '❌ [INNGEST PROVIDER] RENDER_INNGEST_EVENT_KEY слишком короткий!',
-          {
-            length: renderEventKey.length,
-            expected: '> 50 символов',
-          }
-        )
-      }
-
-      if (renderSigningKey && !renderSigningKey.startsWith('signkey-')) {
-        logger.error(
-          '❌ [INNGEST PROVIDER] RENDER_INNGEST_SIGNING_KEY имеет неверный формат!',
-          {
-            preview: renderSigningKey.substring(0, 20),
-            expected: 'signkey-...',
-          }
-        )
-      }
     } else {
-      logger.error(
-        '❌ [INNGEST PROVIDER] RENDER instance ОТСУТСТВУЕТ RENDER_INNGEST_EVENT_KEY!'
+      logger.warn(
+        '⚠️ [INNGEST PROVIDER] RENDER instance missing RENDER_INNGEST_EVENT_KEY'
       )
-      logger.error(
-        '   HeyGen wizard и render-server запросы НЕ БУДУТ РАБОТАТЬ!'
-      )
-      logger.error('   Проверьте переменные окружения:')
-      logger.error('   - RENDER_INNGEST_EVENT_KEY')
-      logger.error('   - RENDER_INNGEST_SIGNING_KEY')
-      logger.error('   - RENDER_INNGEST_BASE_URL')
     }
-
-    logger.info('🔍 [INNGEST PROVIDER] Configuration summary:', {
-      totalConfigs: this.configs.size,
-      hasBOT: this.configs.has('BOT'),
-      hasRENDER: this.configs.has('RENDER'),
-    })
   }
 
   /**
@@ -223,47 +117,74 @@ class InngestProvider {
 
   /**
    * Отправить событие в указанный Inngest инстанс
-   * Использует Inngest SDK client.send()
+   * Использует официальный Inngest SDK
    */
   async sendEvent(
     instance: InngestInstance,
     eventName: string,
     data: any
   ): Promise<{ eventId: string } | null> {
-    logger.info(`📤 [INNGEST PROVIDER] sendEvent() called`, {
+    logger.info(`🔴 [INNGEST PROVIDER] sendEvent() called`, {
       instance,
       eventName,
+      timestamp: Date.now(),
     })
 
     this.ensureInitialized()
 
+    logger.info(`🔴 [INNGEST PROVIDER] ensureInitialized() completed`, {
+      instance,
+      hasConfigs: this.configs.size,
+      initialized: this.initialized,
+    })
+
     const config = this.getConfig(instance)
 
+    logger.info(`🔴 [INNGEST PROVIDER] getConfig() result`, {
+      instance,
+      hasConfig: !!config,
+      configKeys: config ? Object.keys(config) : [],
+    })
+
     if (!config) {
-      logger.error(
-        `❌ [INNGEST PROVIDER] Inngest instance "${instance}" not configured`
-      )
+      logger.error(`❌ [INNGEST PROVIDER] Inngest instance "${instance}" not configured`)
       throw new Error(`Inngest instance "${instance}" not configured`)
     }
 
     if (!config.client) {
-      logger.error(
-        `❌ [INNGEST PROVIDER] Inngest client not initialized for instance "${instance}"`
-      )
+      logger.error(`❌ [INNGEST PROVIDER] Inngest client not initialized for instance "${instance}"`)
+      logger.error(`🔴 [INNGEST PROVIDER] Config details`, {
+        instance,
+        hasEventKey: !!config.eventKey,
+        hasSigningKey: !!config.signingKey,
+        hasBaseUrl: !!config.baseUrl,
+        hasClient: !!config.client,
+      })
       throw new Error(
         `Inngest client not initialized for instance "${instance}"`
       )
     }
 
-    logger.info(`📤 [INNGEST PROVIDER] Sending event via Inngest SDK`, {
+    logger.info(`📤 [INNGEST PROVIDER] Sending event to ${instance} via SDK`, {
       eventName,
       instance,
+      baseUrl: config.baseUrl,
+      hasClient: !!config.client,
       eventKeyPrefix: config.eventKey?.substring(0, 10),
     })
 
     try {
-      // ✅ Отправляем событие в Inngest Cloud через SDK
-      // SDK сам формирует правильный запрос к https://inn.gs
+      logger.info(`📦 [INNGEST PROVIDER] Event payload`, {
+        eventName,
+        instance,
+        payloadKeys: Object.keys(data),
+        dataSize: JSON.stringify(data).length,
+      })
+
+      logger.info(`🔴 [INNGEST PROVIDER] About to call config.client.send()`)
+
+      // ✅ Отправляем событие в Inngest Cloud
+      // Inngest Cloud вызовет функцию на Railway render-server
       await config.client.send({
         name: eventName,
         data,
@@ -273,9 +194,11 @@ class InngestProvider {
         `✅ [INNGEST PROVIDER] Event sent to ${instance} (via Inngest Cloud)`,
         {
           eventName,
+          cloudUrl: instance === 'RENDER' ? 'https://inn.gs' : config.baseUrl,
         }
       )
 
+      // SDK не возвращает event IDs, генерируем свой для логирования
       const generatedEventId = `${instance.toLowerCase()}-${Date.now()}`
       return {
         eventId: generatedEventId,
@@ -353,18 +276,6 @@ class InngestProvider {
       })
       return false
     }
-  }
-
-  /**
-   * Принудительная переинициализация после загрузки секретов
-   * Вызывается из index.ts после загрузки секретов из Infisical
-   */
-  forceReinitialize(): void {
-    logger.info('🔄 [INNGEST PROVIDER] Force reinitialization requested')
-    this.initialized = false
-    this.configs.clear()
-    this.ensureInitialized()
-    logger.info('✅ [INNGEST PROVIDER] Force reinitialization completed')
   }
 
   /**

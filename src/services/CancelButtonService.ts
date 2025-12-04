@@ -3,6 +3,8 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
+// ✅ ИМПОРТИРУЕМ NavigationService для правильного показа меню
+import { showMainMenu } from '@/services/NavigationService'
 
 /**
  * ✅ ЕДИНАЯ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ И ГЛАВНОГО МЕНЮ
@@ -149,13 +151,11 @@ export class CancelButtonService {
         currentScene: (ctx as any).scene?.current?.id,
       })
 
-      await ctx.reply(
-        isRu ? 'Переходим в главное меню.' : 'Going to main menu.',
-        { reply_markup: { remove_keyboard: true } }
+      // ✅ ИСПРАВЛЕНО: Используем executeMainMenu для единообразного возврата
+      await CancelButtonService.executeMainMenu(
+        ctx,
+        isRu ? 'Переходим в главное меню.' : 'Going to main menu.'
       )
-
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
       return true
     }
 
@@ -201,10 +201,12 @@ export class CancelButtonService {
       })
 
       await ctx.answerCbQuery()
-      await ctx.reply(isRu ? 'Операция отменена.' : 'Operation cancelled.')
-
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      
+      // ✅ ИСПРАВЛЕНО: Используем executeMainMenu для единообразного возврата
+      await CancelButtonService.executeMainMenu(
+        ctx,
+        isRu ? 'Отменено. Возвращаю в главное меню.' : 'Cancelled. Returning to main menu.'
+      )
       return true
     }
 
@@ -227,12 +229,12 @@ export class CancelButtonService {
       })
 
       await ctx.answerCbQuery()
-      await ctx.reply(
+      
+      // ✅ ИСПРАВЛЕНО: Используем executeMainMenu для единообразного возврата
+      await CancelButtonService.executeMainMenu(
+        ctx,
         isRu ? 'Переходим в главное меню.' : 'Going to main menu.'
       )
-
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
       return true
     }
 
@@ -245,6 +247,7 @@ export class CancelButtonService {
 
   /**
    * Выполнить отмену напрямую (используется когда уже знаем, что нужна отмена)
+   * ✅ ИСПРАВЛЕНО: Использует executeMainMenu для единообразного возврата в меню
    */
   static async executeCancel(
     ctx: MyContext,
@@ -257,17 +260,16 @@ export class CancelButtonService {
       hasCustomMessage: !!customMessage,
     })
 
-    await ctx.reply(
-      customMessage || (isRu ? 'Операция отменена.' : 'Operation cancelled.'),
-      { reply_markup: { remove_keyboard: true } }
-    )
-
-    await ctx.scene.leave()
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    // ✅ ИСПРАВЛЕНО: Используем executeMainMenu для единообразного возврата
+    const cancelMessage =
+      customMessage || (isRu ? 'Отменено. Возвращаю в главное меню.' : 'Cancelled. Returning to main menu.')
+    
+    await CancelButtonService.executeMainMenu(ctx, cancelMessage)
   }
 
   /**
    * Перейти в главное меню напрямую (используется когда уже знаем, что нужен переход)
+   * ✅ ИСПРАВЛЕНО: Использует showMainMenu() из NavigationService для правильного показа меню
    */
   static async executeMainMenu(
     ctx: MyContext,
@@ -278,16 +280,56 @@ export class CancelButtonService {
     logger.info('[CancelButtonService] Execute main menu', {
       telegramId: ctx.from?.id,
       hasCustomMessage: !!customMessage,
+      currentScene: (ctx as any).scene?.current?.id,
     })
 
-    await ctx.reply(
-      customMessage ||
-        (isRu ? 'Переходим в главное меню.' : 'Going to main menu.'),
-      { reply_markup: { remove_keyboard: true } }
-    )
+    try {
+      // Покидаем текущую сцену
+      await ctx.scene.leave()
 
-    await ctx.scene.leave()
-    await ctx.scene.enter(ModeEnum.MainMenu)
+      // Показываем сообщение об отмене (если есть)
+      if (customMessage) {
+        await ctx.reply(customMessage, {
+          reply_markup: { remove_keyboard: true },
+        })
+      }
+
+      // ✅ ИСПРАВЛЕНО: Используем showMainMenu() из NavigationService
+      // Это гарантирует правильное отображение меню с категориями и важными кнопками
+      await showMainMenu(ctx)
+
+      logger.info('[CancelButtonService] Successfully returned to main menu', {
+        telegramId: ctx.from?.id,
+      })
+    } catch (error) {
+      logger.error('[CancelButtonService] Error executing main menu:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        telegramId: ctx.from?.id,
+      })
+
+      // Fallback: если showMainMenu не сработал, используем старый способ
+      try {
+        await ctx.scene.enter(ModeEnum.MainMenu)
+      } catch (fallbackError) {
+        logger.error(
+          '[CancelButtonService] Fallback also failed, sending error message',
+          {
+            error:
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : String(fallbackError),
+            telegramId: ctx.from?.id,
+          }
+        )
+
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при возврате в главное меню. Попробуйте команду /menu'
+            : '❌ An error occurred while returning to main menu. Try /menu command'
+        )
+      }
+    }
   }
 }
 

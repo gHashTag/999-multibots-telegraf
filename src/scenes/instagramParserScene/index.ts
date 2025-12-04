@@ -360,7 +360,9 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
       if (action === 'main_menu') {
         await ctx.answerCbQuery()
-        await ctx.scene.enter('main_menu')
+        await ctx.scene.leave()
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
         return
       }
 

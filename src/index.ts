@@ -9,7 +9,7 @@ setupSafeConsoleLogging()
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
-import { registerCommands } from './registerCommands'
+import { registerCommands } from './services/NavigationService'
 import { MyContext } from './interfaces'
 import { session } from 'telegraf'
 import {
@@ -112,11 +112,9 @@ function discoverBotTokens(): string[] {
 
     if (token) {
       tokens.push(token)
-    } else if (i > 1 && tokens.length === i - 1) {
-      // Если нашли gap (например, BOT_TOKEN_1, BOT_TOKEN_2, но нет BOT_TOKEN_3)
-      // останавливаемся, т.к. токены должны идти последовательно
-      break
     }
+    // ✅ ИСПРАВЛЕНИЕ: Убираем gap detection - сканируем все 100 токенов
+    // Это позволяет BOT_TOKEN_11 загрузиться даже если между ним есть пропуски
   }
 
   return tokens
@@ -125,7 +123,7 @@ function discoverBotTokens(): string[] {
 async function initializeBots() {
   console.log('🤖 Инициализация ботов:', isDev ? 'development' : 'production')
 
-  const { stage } = await import('./registerCommands')
+  const { stage } = await import('./services/NavigationService')
 
   // 🚀 МАСШТАБИРУЕМАЯ АРХИТЕКТУРА: автоматически находим все BOT_TOKEN_*
   const infisicalEnv = process.env.INFISICAL_ENVIRONMENT || 'dev'
@@ -479,12 +477,12 @@ async function startApplication() {
         }
       }
     } else if (env === 'staging' || env === 'prod') {
-      // ✅ STAGING/PRODUCTION: 10 ботов (BOT_TOKEN_1-10)
+      // ✅ STAGING/PRODUCTION: 11 ботов (BOT_TOKEN_1-11)
       console.log(
-        `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 10 ботов`
+        `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 11 ботов`
       )
 
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= 11; i++) {
         const tokenKey = `BOT_TOKEN_${i}`
         try {
           process.env[tokenKey] = getSecret(tokenKey)
@@ -522,36 +520,58 @@ async function startApplication() {
         'GITHUB_TOKEN',
         'FAL_KEY', // ✅ Для Fal (kie.ai gateway) lip-sync генерации
         'BASE_WEBHOOK_URL', // ✅ Для callback уведомлений от Kie.ai
-        'BOT_INNGEST_EVENT_KEY', // ✅ Для локального Inngest endpoint (наш сервер)
-        'BOT_INNGEST_EVENT_TEST_KEY', // ✅ Для тестового Inngest окружения (testing-f3b09edd)
-        'BOT_INNGEST_SIGNING_KEY', // ✅ Для локального Inngest signing
-        'BOT_INNGEST_TEST_SIGNING_KEY', // ✅ Для тестового Inngest signing
-        'BOT_INNGEST_BASE_URL', // ✅ Для локального Inngest endpoint URL
+        'INNGEST_EVENT_KEY', // ✅ Для Inngest endpoint (наш сервер)
+        'INNGEST_SIGNING_KEY', // ✅ Для локального Inngest signing
+        // 'INNGEST_BASE_URL', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется fallback в client.ts и inngest-provider.ts
         // AI Avatar & Voice Generation Services
         'ELEVENLABS_API_KEY', // ✅ ElevenLabs для генерации голоса из текста
         'HEYGEN_COCOAGE_API_KEY', // ✅ HeyGen API ключ для набора аватаров Cocoage (шаблон 2)
         'HEYGEN_HAIM_API_KEY', // ✅ HeyGen API ключ для набора аватаров Haim (остальные шаблоны)
         'HEDRA_API_KEY', // ✅ Hedra API для lip-sync генерации с пользовательским фото
         'DEEPSEEK_API_KEY', // ✅ DeepSeek API key для чата аватаров и других AI функций
+        // 💳 Robokassa Payment Gateway (КРИТИЧЕСКИ ВАЖНО!)
+        'MERCHANT_LOGIN', // ✅ Логин мерчанта Robokassa для генерации платежных URL
+        // 'ROBOKASSA_MERCHANT_LOGIN', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется как fallback для MERCHANT_LOGIN в config/index.ts
+        'ROBOKASSA_PASSWORD_1', // ✅ Пароль 1 для подписи платежей
+        'ROBOKASSA_PASSWORD_2', // ✅ Пароль 2 для проверки webhook'ов
+        // 'RESULT_URL2', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется как fallback для UNIFIED_RESULT_URL, но есть BASE_PAYMENT_URL
+        // 'ROBOKASSA_RESULT_URL2', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется как fallback для RESULT_URL2
       ]
 
       console.log(
         `\n🔍 [INFISICAL] Загрузка API ключей из Infisical (${env})...`
       )
 
+      const loadedKeys: string[] = []
+      const missingKeys: string[] = []
+      const emptyKeys: string[] = []
+
       for (const key of apiKeys) {
         try {
           const value = getSecret(key)
-          if (value) {
+          if (value && value.trim() !== '') {
             process.env[key] = value
+            loadedKeys.push(key)
             console.log(`  ✅ ${key} загружен`)
           } else {
+            emptyKeys.push(key)
             console.warn(`  ⚠️ ${key} не найден в Infisical (значение пустое)`)
           }
         } catch (e) {
           const errorMsg = e instanceof Error ? e.message : String(e)
+          missingKeys.push(key)
           console.warn(`  ⚠️ ${key} не найден в Infisical: ${errorMsg}`)
         }
+      }
+
+      // 📊 Итоговая статистика загрузки ключей
+      console.log(`\n📊 [INFISICAL] Статистика загрузки ключей:`)
+      console.log(`  ✅ Загружено: ${loadedKeys.length}/${apiKeys.length}`)
+      if (missingKeys.length > 0) {
+        console.log(`  ❌ Отсутствуют: ${missingKeys.length} - ${missingKeys.join(', ')}`)
+      }
+      if (emptyKeys.length > 0) {
+        console.log(`  ⚠️  Пустые: ${emptyKeys.length} - ${emptyKeys.join(', ')}`)
       }
 
       // 🔗 ВРЕМЕННОЕ РЕШЕНИЕ: Устанавливаем BASE_WEBHOOK_URL напрямую для production

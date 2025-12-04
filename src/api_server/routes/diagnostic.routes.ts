@@ -18,9 +18,9 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
     // Проверяем ENV переменные
     const envVars = {
       RENDER_INNGEST_EVENT_KEY: !!process.env.RENDER_INNGEST_EVENT_KEY,
-      BOT_INNGEST_EVENT_KEY: !!process.env.BOT_INNGEST_EVENT_KEY,
+      INNGEST_EVENT_KEY: !!process.env.INNGEST_EVENT_KEY,
       RENDER_INNGEST_SIGNING_KEY: !!process.env.RENDER_INNGEST_SIGNING_KEY,
-      BOT_INNGEST_SIGNING_KEY: !!process.env.BOT_INNGEST_SIGNING_KEY,
+      INNGEST_SIGNING_KEY: !!process.env.INNGEST_SIGNING_KEY,
       ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY,
       HEDRA_API_KEY: !!process.env.HEDRA_API_KEY,
       HEYGEN_API_KEY: !!process.env.HEYGEN_API_KEY,
@@ -47,7 +47,7 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
         ...envVars,
         // Не показываем реальные ключи, только факт наличия
         RENDER_INNGEST_EVENT_KEY_preview: process.env.RENDER_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
-        BOT_INNGEST_EVENT_KEY_preview: process.env.BOT_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
+        INNGEST_EVENT_KEY_preview: process.env.INNGEST_EVENT_KEY?.substring(0, 10) + '...',
       },
       inngestProvider: {
         initialized: 'disabled',
@@ -67,8 +67,8 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
     if (!envVars.RENDER_INNGEST_EVENT_KEY) {
       diagnostic.recommendations.push('❌ RENDER_INNGEST_EVENT_KEY не настроен')
     }
-    if (!envVars.BOT_INNGEST_EVENT_KEY) {
-      diagnostic.recommendations.push('❌ BOT_INNGEST_EVENT_KEY не настроен')
+    if (!envVars.INNGEST_EVENT_KEY) {
+      diagnostic.recommendations.push('❌ INNGEST_EVENT_KEY не настроен')
     }
     if (!envVars.ELEVENLABS_API_KEY) {
       diagnostic.recommendations.push('⚠️ ELEVENLABS_API_KEY не настроен (может потребоваться)')

@@ -409,7 +409,9 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           ? '❌ Произошла ошибка при получении информации о балансе'
           : '❌ Error occurred while getting balance information'
       )
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
     }
   },
   // Шаг 2: Обработка reply кнопок
@@ -429,7 +431,10 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Главное меню
@@ -439,7 +444,10 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие сообщения
@@ -448,7 +456,10 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       { reply_markup: { remove_keyboard: true } }
     )
     await ctx.scene.leave()
-    return ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/services/NavigationService')
+    await showMainMenu(ctx)
+    return
   }
 )
 
@@ -549,7 +560,9 @@ balanceScene.action('download_excel_report', async (ctx: MyContext) => {
 // Обработчик для кнопки "Назад в меню"
 balanceScene.action('back_to_menu', async (ctx: MyContext) => {
   await ctx.answerCbQuery()
-  await ctx.scene.enter(ModeEnum.MainMenu)
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/services/NavigationService')
+  await showMainMenu(ctx)
 })
 
 // Функция getServiceEmoji теперь импортируется из @/utils/serviceMapping

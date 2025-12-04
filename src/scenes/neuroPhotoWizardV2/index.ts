@@ -14,11 +14,10 @@ import {
 // ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
 import { getLatestUserModelForHaim } from '@/core/supabase/getLatestUserModelForHaim'
 import {
-  levels,
-  mainMenu,
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
 } from '@/menu'
+import { getButtonTextsByMode, showMainMenu, createMainMenuKeyboard } from '@/services/NavigationService'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { Scenes } from 'telegraf'
 
@@ -106,21 +105,12 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     if (!userModel) {
       // Более детальное сообщение об ошибке с информацией о боте
+      const keyboard = createMainMenuKeyboard(ctx)
       await ctx.reply(
         isRu
           ? `❌ У вас нет обученных моделей для этого бота (${bot_name}).\n\nВозможно, модели были созданы на другом боте или с другим API.\n\nИспользуйте команду "🤖 Цифровое тело аватара", чтобы создать новую модель.`
           : `❌ You don't have any trained models for this bot (${bot_name}).\n\nPerhaps models were created on another bot or with different API.\n\nUse "🤖 Digital avatar body" to create a new model.`,
-        {
-          reply_markup: {
-            keyboard: (
-              await mainMenu({
-                isRu,
-                subscription: subscriptionType,
-                ctx,
-              })
-            ).reply_markup.keyboard,
-          },
-        }
+        keyboard
       )
 
       return ctx.scene.leave()
@@ -274,7 +264,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       return
     }
 
-    if (text === levels[104].title_ru || text === levels[104].title_en) {
+    const mainMenuTexts = getButtonTextsByMode('main_menu')
+    if (text === (mainMenuTexts?.ru || '🏠 Главное меню') || text === (mainMenuTexts?.en || '🏠 Main menu')) {
       console.log('CASE: Главное меню')
       return
       return
@@ -354,14 +345,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       await generate(numImages)
       return ctx.scene.leave()
     } else {
-      const { subscriptionType } = await getReferalsCountAndUserData(
-        ctx.from?.id?.toString() || ''
-      )
-      await mainMenu({
-        isRu,
-        subscription: subscriptionType,
-        ctx,
-      })
+      await showMainMenu(ctx)
     }
   }
 }

@@ -6,11 +6,16 @@ import { BaseHandler } from '../shared/types'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { levels } from '@/menu/simpleMenu'
+import {
+  getButtonTextsByMode,
+  getSpecialButtonTexts,
+} from '@/services/NavigationService'
 
 export class NavigationHandler implements BaseHandler {
-  private actionHandlers: Map<string, (ctx: MyContext) => Promise<void>> = new Map()
-  private globalTextHandlers: Map<string, (ctx: MyContext) => Promise<void>> = new Map()
+  private actionHandlers: Map<string, (ctx: MyContext) => Promise<void>> =
+    new Map()
+  private globalTextHandlers: Map<string, (ctx: MyContext) => Promise<void>> =
+    new Map()
 
   constructor() {
     this.initializeActionHandlers()
@@ -21,19 +26,22 @@ export class NavigationHandler implements BaseHandler {
     // Handle navigation requests
     logger.debug('NavigationHandler: Processing request', {
       telegramId: ctx.from?.id,
-      updateType: ctx.updateType
+      updateType: ctx.updateType,
     })
   }
 
   private initializeActionHandlers(): void {
     // Go to main menu
-    this.actionHandlers.set('go_main_menu', async (ctx) => {
-      logger.info('NavigationHandler: go_main_menu action', { telegramId: ctx.from?.id })
+    this.actionHandlers.set('go_main_menu', async ctx => {
+      logger.info('NavigationHandler: go_main_menu action', {
+        telegramId: ctx.from?.id,
+      })
 
       try {
         await ctx.answerCbQuery()
         await ctx.scene.leave()
-        await ctx.scene.enter(ModeEnum.MainMenu)
+        const { showMainMenu } = await import('@/services/NavigationService')
+        await showMainMenu(ctx)
       } catch (error) {
         logger.error('Error in go_main_menu action:', {
           error,
@@ -49,8 +57,10 @@ export class NavigationHandler implements BaseHandler {
     })
 
     // Go to help
-    this.actionHandlers.set('go_help', async (ctx) => {
-      logger.info('NavigationHandler: go_help action', { telegramId: ctx.from?.id })
+    this.actionHandlers.set('go_help', async ctx => {
+      logger.info('NavigationHandler: go_help action', {
+        telegramId: ctx.from?.id,
+      })
 
       try {
         await ctx.answerCbQuery()
@@ -70,8 +80,10 @@ export class NavigationHandler implements BaseHandler {
     })
 
     // Go back
-    this.actionHandlers.set('go_back', async (ctx) => {
-      logger.info('NavigationHandler: go_back action', { telegramId: ctx.from?.id })
+    this.actionHandlers.set('go_back', async ctx => {
+      logger.info('NavigationHandler: go_back action', {
+        telegramId: ctx.from?.id,
+      })
 
       try {
         await ctx.answerCbQuery()
@@ -85,7 +97,7 @@ export class NavigationHandler implements BaseHandler {
     })
 
     // Morphing handler
-    this.actionHandlers.set('morphing_handler', async (ctx) => {
+    this.actionHandlers.set('morphing_handler', async ctx => {
       logger.info('NavigationHandler: morphing button triggered', {
         telegramId: ctx.from?.id,
       })
@@ -94,8 +106,14 @@ export class NavigationHandler implements BaseHandler {
         const isRu = isRussianFromState(ctx)
 
         // Check subscription
-        const { checkSubscriptionGuard } = await import('@/helpers/subscriptionGuard')
-        const hasSubscription = await checkSubscriptionGuard(ctx, levels[13].title_ru)
+        const { checkSubscriptionGuard } = await import(
+          '@/helpers/subscriptionGuard'
+        )
+        const upscaleTexts = getButtonTextsByMode(ModeEnum.ImageUpscaler)
+        const hasSubscription = await checkSubscriptionGuard(
+          ctx,
+          upscaleTexts?.ru || 'Увеличить качество'
+        )
         if (!hasSubscription) {
           return
         }
@@ -121,7 +139,7 @@ export class NavigationHandler implements BaseHandler {
 
   private initializeGlobalTextHandlers(): void {
     // Tech support handler
-    this.globalTextHandlers.set('tech_support', async (ctx) => {
+    this.globalTextHandlers.set('tech_support', async ctx => {
       logger.info('NavigationHandler: Tech support text button')
 
       await ctx.scene.leave()
@@ -139,14 +157,16 @@ export class NavigationHandler implements BaseHandler {
     const text = ctx.message.text
 
     // Check for tech support
-    if ([levels[103].title_ru, levels[103].title_en].includes(text)) {
+    const helpTexts = getSpecialButtonTexts('help')
+    if ([helpTexts.ru, helpTexts.en].includes(text)) {
       logger.info('NavigationHandler: Tech support button pressed')
       await this.globalTextHandlers.get('tech_support')!(ctx)
       return true
     }
 
     // Check for morphing button
-    if ([levels[13].title_ru, levels[13].title_en].includes(text)) {
+    const morphingTexts = getButtonTextsByMode('morphing')
+    if (morphingTexts && [morphingTexts.ru, morphingTexts.en].includes(text)) {
       await this.actionHandlers.get('morphing_handler')!(ctx)
       return true
     }
@@ -166,7 +186,7 @@ export class NavigationHandler implements BaseHandler {
     if (handler) {
       logger.info('NavigationHandler: Callback query handled', {
         telegramId: ctx.from?.id,
-        callbackData: data
+        callbackData: data,
       })
 
       try {
@@ -176,7 +196,7 @@ export class NavigationHandler implements BaseHandler {
         logger.error('NavigationHandler: Callback handler failed', {
           error,
           telegramId: ctx.from?.id,
-          callbackData: data
+          callbackData: data,
         })
 
         try {
@@ -192,7 +212,9 @@ export class NavigationHandler implements BaseHandler {
   }
 
   // Get action handler for bot registration
-  getActionHandler(action: string): ((ctx: MyContext) => Promise<void>) | undefined {
+  getActionHandler(
+    action: string
+  ): ((ctx: MyContext) => Promise<void>) | undefined {
     return this.actionHandlers.get(action)
   }
 
@@ -202,12 +224,18 @@ export class NavigationHandler implements BaseHandler {
   }
 
   // Add a new navigation action
-  addNavigationAction(action: string, handler: (ctx: MyContext) => Promise<void>): void {
+  addNavigationAction(
+    action: string,
+    handler: (ctx: MyContext) => Promise<void>
+  ): void {
     this.actionHandlers.set(action, handler)
   }
 
   // Add a new global text handler
-  addGlobalTextHandler(key: string, handler: (ctx: MyContext) => Promise<void>): void {
+  addGlobalTextHandler(
+    key: string,
+    handler: (ctx: MyContext) => Promise<void>
+  ): void {
     this.globalTextHandlers.set(key, handler)
   }
 }

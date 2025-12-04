@@ -1,4 +1,5 @@
 export * from './calculateCostInStars'
+export * from './rubTopUpOptions'
 export * from './calculateFinalPrice'
 export * from './calculateStars'
 export * from './sendInsufficientStarsMessage'

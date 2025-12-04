@@ -1073,7 +1073,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       // Возвращаемся в главное меню
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Логируем статус пользователя и оставшиеся генерации
@@ -1146,7 +1149,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: text,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
@@ -1165,7 +1171,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Отмена
@@ -1175,7 +1184,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Обработка выбора пола
@@ -1246,7 +1258,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: text,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
@@ -1265,7 +1280,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Возврат к выбору пола
@@ -1467,7 +1485,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: text,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
@@ -1546,7 +1567,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             : '❌ Error: gender not selected. Start over'
         )
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
       }
 
       // Helper function to create rows with 2 buttons each
@@ -1770,7 +1794,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: receivedText,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды (начинаются с /) - они будут обработаны command handler'ом
@@ -2272,7 +2299,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Отображаемое имя героя для пользователя
@@ -2327,7 +2357,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         )
         // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
       }
 
       const prompt = createMarvelPromptByGender(gender, selectedHero)
@@ -2365,7 +2398,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             : '❌ Context error. Please try again via /start'
         )
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
       }
 
       // 🌟 Используем выбранную модель для трансформации
@@ -2623,7 +2659,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       await ctx.scene.leave()
 
       // ПЕРЕХОДИМ К ГЛАВНОМУ МЕНЮ (не StartScene)
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
 
       logger.info(
         '[AvatarTransformScene] Successfully completed transformation and transitioned to StartScene',
@@ -2648,7 +2686,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
   },
   // Шаг 4: Обработка загруженной фотографии
@@ -2803,7 +2844,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.StartScene)
+      await ctx.scene.leave()
+      await ctx.scene.enter('startScene')
+      return
     }
   },
   // Шаг 5: Обработка кастомного промпта
@@ -2829,7 +2872,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: customPrompt,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
@@ -2878,7 +2924,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           : '❌ Error: gender not selected. Start over'
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     }
 
     // Подтверждение кастомного промпта

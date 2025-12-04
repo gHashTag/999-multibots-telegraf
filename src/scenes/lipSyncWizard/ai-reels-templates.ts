@@ -189,6 +189,6 @@ export function getTemplateConfig(
  */
 export function isInngestTemplateAvailable(): boolean {
   return (
-    !!process.env.BOT_INNGEST_EVENT_KEY && process.env.NODE_ENV === 'production'
+    !!process.env.INNGEST_EVENT_KEY && process.env.NODE_ENV === 'production'
   )
 }

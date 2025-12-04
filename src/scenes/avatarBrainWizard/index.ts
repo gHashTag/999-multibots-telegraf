@@ -222,7 +222,10 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
 
       // Завершаем сцену и переходим в главное меню
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/services/NavigationService')
+      await showMainMenu(ctx)
+      return
     } catch (error) {
       logger.error('[avatarBrainWizard] Error saving data:', error)
 

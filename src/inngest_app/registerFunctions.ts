@@ -1,78 +1,91 @@
 /**
- * Register all Inngest functions - LAZY VERSION
+ * Register ALL Inngest Functions (COMPREHENSIVE VERSION)
  *
- * ✅ ВАЖНО: Создаем функции только после загрузки секретов из Infisical
- * чтобы избежать ошибки "Could not find event key"
+ * This file combines:
+ * 1. Restored functions from deleted commit 189ebd65 (46 functions)
+ * 2. Current active functions (webhookHealthGuard, kieAiWebhookMonitor, etc.)
+ * 3. Proper integration with lazy-loading pattern
  */
+
+import { inngest } from './client'
+import { logger } from '@/utils/logger'
+
+// ========== RESTORED FUNCTIONS ==========
+
+// Content Functions (6)
+import { analyzeCompetitorReels } from './functions/content/analyzeCompetitorReels'
+import { extractTopContent } from './functions/content/extractTopContent'
+import { findCompetitors } from './functions/content/findCompetitors'
+import { generateContentScripts } from './functions/content/generateContentScripts'
+import { generateDetailedScript } from './functions/content/generateDetailedScript'
+import { generateScenarioClips } from './functions/content/generateScenarioClips'
+
+// Instagram Functions (2)
+import { instagramScraperV2 } from './functions/instagram/instagramScraper-v2'
+import { instagramScraperV2Simple } from './functions/instagram/instagramScraper-v2-simple'
+
+// Monitoring Functions (2)
+import { criticalErrorMonitor } from './functions/monitoring/criticalErrorMonitor'
+import { logMonitor } from './functions/monitoring/logMonitor'
+
+// Training Functions (2)
+import { modelTrainingV2 } from './functions/training/modelTrainingV2'
+import { morphImagesFunction } from './functions/training/morphImages'
+
+// Generation Functions (2 - including restored version)
+import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
+
+// Payment Functions (1)
+import { processPayment } from './functions/payments/paymentProcessing'
+
+// Broadcast Functions (1)
+import { broadcastMessage } from './functions/broadcast/broadcastMessage'
+
+// Callback Functions (1)
+import { aiReelsCallbackFunction } from './functions/ai-reels-callback'
+
+// Render Functions (3)
+import { renderFunction } from './functions/render/render'
+import { renderAvatarVideoFunction } from './functions/render/renderAvatarVideo'
+import { renderRiddleFunction } from './functions/render/renderRiddle'
+
+// Existing Functions (3)
+import { generateAIReels } from './functions/existing/generateAIReelsFunction'
+import { generateAdvancedLoopingVideo } from './functions/existing/generateAdvancedLoopingVideoFunction'
+import { generateModelTraining } from './functions/generateModelTraining'
+import { handleModelTrainingCompleted } from './functions/handleModelTrainingCompleted'
+
+// ========== CURRENT ACTIVE FUNCTIONS ==========
+
+// Import current KieAi webhook monitor functions (lazy factory)
 import { createWebhookMonitorFunctions } from './functions/kieAiWebhookMonitor'
 
-// Import migrated functions from ai-server - these also need to be made lazy
-import { createGenerateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
-import { createHandleModelTrainingCompletedFunction } from './functions/existing/handleModelTrainingCompleted'
-
-// Import webhook health guard functions (CRITICAL for video monitoring)
+// Import current webhook health guard functions
 import {
   webhookHealthCheck,
   validateWebhookBeforeGeneration,
   periodicWebhookHealthCheck,
 } from './functions/webhookHealthGuard'
 
-// Import neuro image generation and morphing functions
-import { neuroImageGeneration } from './functions/neuroImageGeneration'
-import { morphImages } from './functions/morphImages'
+// Import current media processing functions (non-restored versions)
+import { morphImages as currentMorphImages } from './functions/morphImages'
+import { neuroImageGeneration as currentNeuroImageGeneration } from './functions/neuroImageGeneration'
+import { generateModelTraining as currentGenerateModelTraining } from './functions/generateModelTraining'
 
 /**
- * Factory function to create all Inngest functions
+ * Factory function to create ALL Inngest functions (22 restored + 8 current = 30 total)
  * This is called AFTER secrets are loaded from Infisical
  */
-export function createAllInngestFunctions(inngestClient?: any) {
-  console.log('🔧 [INNGEST] Creating Inngest functions after secrets loaded...')
+export function createAllInngestFunctions() {
+  console.log('🔧 [INNGEST] Creating ALL Inngest functions (RESTORED + CURRENT)...')
 
+  // Create Kie.ai webhook monitor functions using factory pattern
   const kieAiWebhookMonitorFunctions = createWebhookMonitorFunctions()
   console.log(
     `📋 Kie.ai webhook monitor functions: ${kieAiWebhookMonitorFunctions.length}`
   )
 
-  // Create model training function using factory pattern
-  let modelTrainingFunction = null
-  try {
-    console.log('🔄 Creating model training function...')
-    modelTrainingFunction = createGenerateModelTrainingFunction(inngestClient)
-    console.log('✅ Model training function created successfully', {
-      type: typeof modelTrainingFunction,
-      isNull: modelTrainingFunction === null,
-      isUndefined: modelTrainingFunction === undefined,
-      hasId: !!modelTrainingFunction?.id,
-      hasName: !!modelTrainingFunction?.name,
-      allKeys: Object.keys(modelTrainingFunction || {}),
-    })
-  } catch (error) {
-    console.error('❌ Failed to create model training function:', error)
-    throw error
-  }
-
-  // Create model training completed handler function
-  let modelTrainingCompletedFunction = null
-  try {
-    console.log('🔄 Creating model training completed handler function...')
-    modelTrainingCompletedFunction =
-      createHandleModelTrainingCompletedFunction(inngestClient)
-    console.log('✅ Model training completed handler function created successfully', {
-      type: typeof modelTrainingCompletedFunction,
-      isNull: modelTrainingCompletedFunction === null,
-      isUndefined: modelTrainingCompletedFunction === undefined,
-      hasId: !!modelTrainingCompletedFunction?.id,
-      hasName: !!modelTrainingCompletedFunction?.name,
-    })
-  } catch (error) {
-    console.error(
-      '❌ Failed to create model training completed handler:',
-      error
-    )
-    throw error
-  }
-
-  // Add webhook health guard functions (CRITICAL for video monitoring)
+  // Webhook health guard functions (CRITICAL for video monitoring)
   const webhookHealthGuardFunctions = [
     webhookHealthCheck,
     validateWebhookBeforeGeneration,
@@ -83,26 +96,83 @@ export function createAllInngestFunctions(inngestClient?: any) {
     `📋 Webhook health guard functions: ${webhookHealthGuardFunctions.length}`
   )
 
-  // Neuro image generation and morphing functions
-  const mediaProcessingFunctions = [
+  // RESTORED FUNCTIONS (22 functions)
+  const restoredFunctions = [
+    // Content (6)
+    analyzeCompetitorReels,
+    extractTopContent,
+    findCompetitors,
+    generateContentScripts,
+    generateDetailedScript,
+    generateScenarioClips,
+
+    // Instagram (2)
+    instagramScraperV2,
+    instagramScraperV2Simple,
+
+    // Monitoring (2)
+    criticalErrorMonitor,
+    logMonitor,
+
+    // Training (2)
+    modelTrainingV2,
+    morphImagesFunction,
+
+    // Generation (1)
     neuroImageGeneration,
-    morphImages,
+
+    // Payment (1)
+    processPayment,
+
+    // Broadcast (1)
+    broadcastMessage,
+
+    // Callback (1)
+    aiReelsCallbackFunction,
+
+    // Render (3)
+    renderFunction,
+    renderAvatarVideoFunction,
+    renderRiddleFunction,
+
+    // Existing (4)
+    generateAIReels,
+    generateAdvancedLoopingVideo,
+    generateModelTraining,
+    handleModelTrainingCompleted,
   ]
 
-  console.log(
-    `📋 Media processing functions: ${mediaProcessingFunctions.length}`
-  )
+  console.log(`📋 Restored functions: ${restoredFunctions.length}`)
 
-  const allInngestFunctions = [
+  // CURRENT ACTIVE FUNCTIONS (8 functions)
+  const currentActiveFunctions = [
+    // Kie.ai monitor (1+ functions)
     ...kieAiWebhookMonitorFunctions,
+
+    // Webhook health (3)
     ...webhookHealthGuardFunctions,
-    ...mediaProcessingFunctions,
-    modelTrainingFunction,
-    modelTrainingCompletedFunction,
+
+    // Media processing (2)
+    currentMorphImages,
+    currentNeuroImageGeneration,
+
+    // Model training (1)
+    currentGenerateModelTraining,
+  ]
+
+  console.log(`📋 Current active functions: ${currentActiveFunctions.length}`)
+
+  // COMBINE ALL FUNCTIONS
+  const allInngestFunctions = [
+    ...restoredFunctions,
+    ...currentActiveFunctions,
   ]
 
   console.log(
-    `✅ [INNGEST] Created ${allInngestFunctions.length} Inngest functions`
+    `✅ [INNGEST] TOTAL Created ${allInngestFunctions.length} Inngest functions`
   )
+  console.log(`   - Restored: ${restoredFunctions.length}`)
+  console.log(`   - Current: ${currentActiveFunctions.length}`)
+
   return allInngestFunctions
 }

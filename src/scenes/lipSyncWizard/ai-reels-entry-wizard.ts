@@ -222,7 +222,7 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🎯 [AI REELS ENTRY] About to enter fal_render_wizard scene...')
       try {
-        await ctx.scene.enter('fal_render_wizard')
+        await ctx.scene.enter('fal_render_wizard') // ✅ Сцена существует и зарегистрирована
         console.log('🎯 [AI REELS ENTRY] Scene entered successfully!')
       } catch (error) {
         console.error('❌ [AI REELS ENTRY] Error entering fal_render_wizard:', error)

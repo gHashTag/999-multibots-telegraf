@@ -8,7 +8,8 @@
 // 1. ОСНОВНАЯ НАВИГАЦИЯ (ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ)
 // ========================================
 // Экспортируем ВСЁ из единого конфига
-export * from '../navigation/unified-navigation.config'
+// ✅ ИСПРАВЛЕНО: Реэкспортируем из NavigationService вместо unified-navigation.config
+export * from '../services/NavigationService'
 
 // ========================================
 // 2. СПЕЦИАЛИЗИРОВАННЫЕ МЕНЮ
