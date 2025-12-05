@@ -3,13 +3,12 @@ import { MyContext } from '../../interfaces'
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleTrainingCost } from '@/price/helpers'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleHelpCancel, getStepSelectionMenuV2 } from '@/navigation'
 import {
   generateCostMessage,
   stepOptions,
   calculateCost,
 } from '@/price/priceCalculator'
-import { getStepSelectionMenuV2 } from '@/navigation'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { ModeEnum } from '@/interfaces/modes'
 

@@ -1,10 +1,14 @@
 import { MyContext } from '@/interfaces'
-import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { CancelButtonService } from '../services/CancelButtonService'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ для обработки кнопок "Справка" (Help) и "Отмена" (Cancel)
- * Обрабатывает ОБЕ кнопки в одной функции
+ *
+ * Расположение: /src/navigation/handlers/handleHelpCancel.ts
+ *
+ * Используется в начале каждого шага wizard'а для перехвата
+ * кнопок отмены и справки.
  */
 export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
   console.log('🔍 [handleHelpCancel] STARTED', {
@@ -24,18 +28,14 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
       telegramId: ctx.from?.id,
     })
 
-    // ✅ ОБРАБОТКА "ОТМЕНА" (Cancel) - используем CancelButtonService
+    // ✅ ОБРАБОТКА "ОТМЕНА" (Cancel)
     if (
       text === 'отмена' ||
       text === 'cancel' ||
       text === '/cancel' ||
       text === '/отмена'
     ) {
-      console.log(
-        '✅ [handleHelpCancel] CANCEL DETECTED - Using CancelButtonService'
-      )
-      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для единообразного возврата
-      const { CancelButtonService } = await import('@/services/CancelButtonService')
+      console.log('[handleHelpCancel] CANCEL DETECTED')
       await CancelButtonService.executeCancel(ctx)
       return true
     }
@@ -48,14 +48,14 @@ export async function handleHelpCancel(ctx: MyContext): Promise<boolean> {
       text === '/help' ||
       text === '/справка'
     ) {
-      console.log('✅ [handleHelpCancel] HELP DETECTED - Processing help')
+      console.log('[handleHelpCancel] HELP DETECTED')
       await ctx.scene.enter('helpScene')
       return true
     }
 
-    console.log('❌ [handleHelpCancel] NO MATCH FOUND - Continuing normal flow')
+    console.log('[handleHelpCancel] NO MATCH FOUND')
   } else {
-    console.log('❌ [handleHelpCancel] NO TEXT MESSAGE - Skipping')
+    console.log('[handleHelpCancel] NO TEXT MESSAGE')
   }
   return false
 }

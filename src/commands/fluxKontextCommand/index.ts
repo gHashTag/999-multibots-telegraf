@@ -5,10 +5,8 @@ import {
 } from '@/services/generateFluxKontext'
 import { Markup } from 'telegraf'
 import { logger } from '@/utils/logger'
-import { cancelMenu, cancelHelpArray } from '@/navigation'
+import { cancelMenu, cancelHelpArray, handleHelpCancel, sendGenericErrorMessage } from '@/navigation'
 import { ModeEnum } from '@/interfaces'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { sendGenericErrorMessage } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 // Создание клавиатуры выбора модели
@@ -18,7 +16,7 @@ const createModelSelectionKeyboard = (is_ru: boolean) => {
       { text: is_ru ? '💼 FLUX Kontext Pro' : '💼 FLUX Kontext Pro' },
       { text: is_ru ? '🚀 FLUX Kontext Max' : '🚀 FLUX Kontext Max' },
     ],
-    ...cancelHelpArray,
+    ...cancelHelpArray(is_ru),
   ])
     .resize()
     .oneTime(true)

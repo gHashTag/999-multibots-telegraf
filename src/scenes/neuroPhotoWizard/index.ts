@@ -16,8 +16,7 @@ import {
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
 } from '@/navigation'
-import { getButtonTextsByMode, createMainMenuKeyboard } from '@/navigation'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { getButtonTextsByMode, createMainMenuKeyboard, handleHelpCancel } from '@/navigation'
 import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'

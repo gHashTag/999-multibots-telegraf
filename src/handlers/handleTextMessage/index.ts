@@ -3,9 +3,8 @@ import { getUserModel, getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleFluxKontextPrompt } from '../../commands/fluxKontextCommand'
-import { handleHelpCancel } from '../handleHelpCancel'
 import { Scenes } from 'telegraf'
-import { sendGenericErrorMessage } from '@/navigation'
+import { sendGenericErrorMessage, handleHelpCancel } from '@/navigation'
 
 import { logger } from '@/utils/logger'
 import {

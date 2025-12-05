@@ -105,7 +105,7 @@ import { handleHelpCommand } from '@/commands/helpCommand'
 import { get100Command } from '@/commands/get100Command'
 import { handleTechSupport } from '@/commands/handleTechSupport'
 import { handleBuy } from '@/handlers/handleBuy'
-import { handleCancelButton } from '@/services/CancelButtonService'
+import { handleCancelButton } from './services/CancelButtonService'
 import { registerPaymentActions } from '@/handlers/paymentActions'
 import { categoryScenes } from '@/scenes/categoryScenes'
 

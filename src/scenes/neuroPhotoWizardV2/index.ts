@@ -17,8 +17,7 @@ import {
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
 } from '@/navigation'
-import { getButtonTextsByMode, showMainMenu, createMainMenuKeyboard } from '@/navigation'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { getButtonTextsByMode, showMainMenu, createMainMenuKeyboard, handleHelpCancel } from '@/navigation'
 import { Scenes } from 'telegraf'
 
 import { getUserInfo } from '@/handlers/getUserInfo'

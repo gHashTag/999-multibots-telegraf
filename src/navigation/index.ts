@@ -164,6 +164,21 @@ export {
 export { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 
 // ========================================
+// SERVICES - Централизованные сервисы навигации
+// ========================================
+export {
+  CancelButtonService,
+  createCancelButton,
+  handleCancelButton,
+  cancelHelpArray
+} from './services/CancelButtonService'
+
+// ========================================
+// HANDLERS - Обработчики навигации
+// ========================================
+export { handleHelpCancel } from './handlers/handleHelpCancel'
+
+// ========================================
 // RE-EXPORTS FROM CORE MODULES
 // ========================================
 

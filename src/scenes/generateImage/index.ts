@@ -3,9 +3,7 @@ import { MyContext } from '@/interfaces'
 
 import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'
 
-import { createGenerateImageKeyboard } from '@/navigation'
-
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { createGenerateImageKeyboard, handleHelpCancel } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 const PROMPT_MAX_LENGTH = 1000

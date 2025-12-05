@@ -2,9 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { createHelpCancelKeyboard } from '@/navigation'
-import { sendGenericErrorMessage } from '@/navigation'
+import { handleHelpCancel, createHelpCancelKeyboard, sendGenericErrorMessage } from '@/navigation'
 import { logger } from '@/utils/logger'
 import {
   transcribeInstagramReel,

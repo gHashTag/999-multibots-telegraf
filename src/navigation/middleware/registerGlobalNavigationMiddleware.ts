@@ -18,7 +18,7 @@ import {
   showCategoryMenu as navShowCategoryMenu,
 } from '@/navigation'
 import { handleTechSupport } from '@/commands/handleTechSupport'
-import { handleCancelButton } from '@/services/CancelButtonService'
+import { handleCancelButton } from '../services/CancelButtonService'
 
 /**
  * ✅ ГЛОБАЛЬНАЯ НАВИГАЦИЯ - регистрируется ПЕРЕД stage.middleware()

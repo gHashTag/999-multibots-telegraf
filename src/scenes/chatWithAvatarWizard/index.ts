@@ -1,11 +1,9 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
-import { createHelpCancelKeyboard } from '@/navigation'
-import { handleHelpCancel } from '@/handlers'
+import { createHelpCancelKeyboard, handleHelpCancel, CancelButtonService } from '@/navigation'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
-import { CancelButtonService } from '@/services/CancelButtonService'
 
 export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ChatWithAvatar,

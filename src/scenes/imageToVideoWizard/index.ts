@@ -5,7 +5,7 @@ import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleImageToVideoDirect } from '../../handlers/handleImageToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleHelpCancel } from '@/navigation'
 import { generateModelButton, parseModelButton, generateModelKeyboard, getModelPriceStars } from '@/config/unified-video-models.config'
 
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')

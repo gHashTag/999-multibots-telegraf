@@ -3,23 +3,19 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
-// ✅ ИМПОРТИРУЕМ Navigation для правильного показа меню
-import { showMainMenu, getMainMenuText } from '@/navigation'
+// Внутренние импорты из navigation (не через @/navigation чтобы избежать циклов)
+import { showMainMenu } from '../helpers/menuKeyboard'
+import { getMainMenuText } from '../config/buttons.config'
 
 /**
  * ✅ ЕДИНАЯ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ И ГЛАВНОГО МЕНЮ
  *
- * Объединяет все дублирующиеся реализации:
- * - Кнопки отмены (Reply Keyboard и Inline)
- * - Кнопки главного меню
- * - Обработчики отмены и выхода в меню
- * - Единый стиль сообщений (спокойный, без агрессивных ❌)
+ * Расположение: /src/navigation/services/CancelButtonService.ts
  *
- * Старые функции (для обратной совместимости):
- * - handleHelpCancel
- * - handleCancelButton
- * - createCancelButton
- * - cancelHelpArray
+ * Объединяет все функции работы с кнопками отмены и главного меню:
+ * - Создание кнопок (Reply Keyboard и Inline)
+ * - Обработчики отмены и выхода в меню
+ * - Единый стиль сообщений
  */
 
 export class CancelButtonService {
@@ -52,10 +48,7 @@ export class CancelButtonService {
    * Создает inline кнопку главного меню
    */
   static createInlineMainMenuButton(isRu: boolean) {
-    return Markup.button.callback(
-      getMainMenuText(isRu),
-      'main_menu'
-    )
+    return Markup.button.callback(getMainMenuText(isRu), 'main_menu')
   }
 
   /**
@@ -78,7 +71,6 @@ export class CancelButtonService {
 
   /**
    * ЦЕНТРАЛИЗОВАННЫЙ обработчик отмены для Reply Keyboard
-   * Проверяет текст кнопки и выполняет отмену единообразно
    */
   static async handleCancelButton(ctx: MyContext): Promise<boolean> {
     if (!ctx.message || !('text' in ctx.message)) {
@@ -98,16 +90,11 @@ export class CancelButtonService {
 
     // Проверяем команды отмены
     if (text === 'отмена' || text === 'cancel' || text === '/cancel') {
-      logger.info(
-        '[CancelButtonService] Cancel triggered (matched cancel keywords)',
-        {
-          telegramId: ctx.from?.id,
-          text: rawText,
-          currentScene: (ctx as any).scene?.current?.id,
-        }
-      )
+      logger.info('[CancelButtonService] Cancel triggered', {
+        telegramId: ctx.from?.id,
+        text: rawText,
+      })
 
-      // Единая точка: показываем короткое сообщение и переходим в главное меню
       await CancelButtonService.executeMainMenu(ctx, isRu ? 'Отмена' : 'Cancel')
       return true
     }
@@ -117,7 +104,6 @@ export class CancelButtonService {
 
   /**
    * ЦЕНТРАЛИЗОВАННЫЙ обработчик перехода в главное меню для Reply Keyboard
-   * Проверяет текст кнопки и выполняет переход единообразно
    */
   static async handleMainMenuButton(ctx: MyContext): Promise<boolean> {
     if (!ctx.message || !('text' in ctx.message)) {
@@ -132,7 +118,6 @@ export class CancelButtonService {
       telegramId: ctx.from?.id,
       rawText,
       normalizedText: text,
-      currentScene: (ctx as any).scene?.current?.id,
     })
 
     // Проверяем команды главного меню
@@ -148,10 +133,8 @@ export class CancelButtonService {
       logger.info('[CancelButtonService] Main menu triggered', {
         telegramId: ctx.from?.id,
         text: rawText,
-        currentScene: (ctx as any).scene?.current?.id,
       })
 
-      // ✅ ИСПРАВЛЕНО: Используем executeMainMenu для единообразного возврата
       await CancelButtonService.executeMainMenu(
         ctx,
         isRu ? 'Переходим в главное меню.' : 'Going to main menu.'
@@ -164,7 +147,6 @@ export class CancelButtonService {
 
   /**
    * Универсальный обработчик - проверяет и отмену, и главное меню
-   * Использовать в начале каждого шага wizard'а
    */
   static async handleCancelAndMenu(ctx: MyContext): Promise<boolean> {
     const cancelHandled = await this.handleCancelButton(ctx)
@@ -182,7 +164,6 @@ export class CancelButtonService {
 
   /**
    * ЦЕНТРАЛИЗОВАННЫЙ обработчик отмены для Inline кнопок
-   * Использует callback_query
    */
   static async handleCancelCallback(
     ctx: MyContext,
@@ -201,11 +182,12 @@ export class CancelButtonService {
       })
 
       await ctx.answerCbQuery()
-      
-      // ✅ ИСПРАВЛЕНО: Используем executeMainMenu для единообразного возврата
+
       await CancelButtonService.executeMainMenu(
         ctx,
-        isRu ? 'Отменено. Возвращаю в главное меню.' : 'Cancelled. Returning to main menu.'
+        isRu
+          ? 'Отменено. Возвращаю в главное меню.'
+          : 'Cancelled. Returning to main menu.'
       )
       return true
     }
@@ -229,8 +211,7 @@ export class CancelButtonService {
       })
 
       await ctx.answerCbQuery()
-      
-      // ✅ ИСПРАВЛЕНО: Используем executeMainMenu для единообразного возврата
+
       await CancelButtonService.executeMainMenu(
         ctx,
         isRu ? 'Переходим в главное меню.' : 'Going to main menu.'
@@ -246,8 +227,7 @@ export class CancelButtonService {
    */
 
   /**
-   * Выполнить отмену напрямую (используется когда уже знаем, что нужна отмена)
-   * ✅ ИСПРАВЛЕНО: Использует executeMainMenu для единообразного возврата в меню
+   * Выполнить отмену напрямую
    */
   static async executeCancel(
     ctx: MyContext,
@@ -260,16 +240,17 @@ export class CancelButtonService {
       hasCustomMessage: !!customMessage,
     })
 
-    // ✅ ИСПРАВЛЕНО: Используем executeMainMenu для единообразного возврата
     const cancelMessage =
-      customMessage || (isRu ? 'Отменено. Возвращаю в главное меню.' : 'Cancelled. Returning to main menu.')
-    
+      customMessage ||
+      (isRu
+        ? 'Отменено. Возвращаю в главное меню.'
+        : 'Cancelled. Returning to main menu.')
+
     await CancelButtonService.executeMainMenu(ctx, cancelMessage)
   }
 
   /**
-   * Перейти в главное меню напрямую (используется когда уже знаем, что нужен переход)
-   * ✅ ИСПРАВЛЕНО: Использует showMainMenu() из NavigationService для правильного показа меню
+   * Перейти в главное меню напрямую
    */
   static async executeMainMenu(
     ctx: MyContext,
@@ -294,8 +275,7 @@ export class CancelButtonService {
         })
       }
 
-      // ✅ ИСПРАВЛЕНО: Используем showMainMenu() из NavigationService
-      // Это гарантирует правильное отображение меню с категориями и важными кнопками
+      // Используем showMainMenu() для правильного показа меню
       await showMainMenu(ctx)
 
       logger.info('[CancelButtonService] Successfully returned to main menu', {
@@ -308,20 +288,17 @@ export class CancelButtonService {
         telegramId: ctx.from?.id,
       })
 
-      // Fallback: если showMainMenu не сработал, используем старый способ
+      // Fallback: если showMainMenu не сработал
       try {
         await ctx.scene.enter(ModeEnum.MainMenu)
       } catch (fallbackError) {
-        logger.error(
-          '[CancelButtonService] Fallback also failed, sending error message',
-          {
-            error:
-              fallbackError instanceof Error
-                ? fallbackError.message
-                : String(fallbackError),
-            telegramId: ctx.from?.id,
-          }
-        )
+        logger.error('[CancelButtonService] Fallback also failed', {
+          error:
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : String(fallbackError),
+          telegramId: ctx.from?.id,
+        })
 
         await ctx.reply(
           isRu
@@ -334,27 +311,14 @@ export class CancelButtonService {
 }
 
 // ✅ ЭКСПОРТЫ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
-
-// Из utils/cancelButton.ts
 export const createCancelButton = (isRu: boolean) =>
   CancelButtonService.createCancelButton(isRu)
 
 export const handleCancelButton = (ctx: MyContext) =>
   CancelButtonService.handleCancelButton(ctx)
 
-// Из handlers/handleHelpCancel/index.ts
 export const handleHelpCancel = (ctx: MyContext) =>
   CancelButtonService.handleCancelButton(ctx)
 
-// Из menu/cancelHelpArray.ts
 export const cancelHelpArray = (isRu: boolean) =>
   CancelButtonService.createHelpCancelArray(isRu)
-
-// Из menu/createHelpCancelKeyboard/createHelpCancelKeyboard.ts
-export const createHelpCancelKeyboard = (isRu: boolean) =>
-  CancelButtonService.createHelpCancelKeyboard(isRu)
-
-// ✅ ЛОГГЕР
-logger.info('✅ CancelButtonService загружен')
-logger.info('   - Объединены 4 дублирующиеся системы отмены')
-logger.info('   - Создан единый CancelButtonService')
