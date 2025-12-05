@@ -16,7 +16,7 @@ import {
 } from '@/helpers/voiceValidation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { createHelpCancelKeyboard } from '@/navigation'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import fs from 'fs'
 import logger from '@/utils/logger'
 import { calculateModeCost } from '@/price/helpers/modelsCost'

@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { imageModelPrices } from '@/price/models'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { sendGenericErrorMessage } from '@/navigation'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'

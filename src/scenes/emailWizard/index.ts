@@ -12,7 +12,7 @@ import {
   UNIFIED_RESULT_URL,
   getRobokassaPassword1,
 } from '@/config'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { getBotNameByToken } from '@/core'
 import {
   PaymentStatus,

@@ -9,7 +9,7 @@ import {
   voiceConversationCost,
 } from '@/price/helpers'
 import { createHelpCancelKeyboard } from '@/navigation'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { logger } from '@/utils/logger'
 
 export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(

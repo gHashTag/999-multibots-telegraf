@@ -4,7 +4,7 @@ import { getAvailableModels } from '../../commands/selectModelCommand/getAvailab
 import { sendGenericErrorMessage } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { updateUserModel } from '@/core/supabase'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 
