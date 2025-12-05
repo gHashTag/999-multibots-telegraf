@@ -1,7 +1,5 @@
 import { Mode, MyContext, Subscription } from '../../interfaces'
-import { sendGenericErrorMessage } from '@/navigation'
-import { levels } from '@/navigation'
-import { createMainMenuKeyboard } from '@/navigation'
+import { sendGenericErrorMessage, createMainMenuKeyboard } from '@/navigation'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'

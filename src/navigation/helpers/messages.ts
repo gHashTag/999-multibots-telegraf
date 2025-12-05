@@ -3,7 +3,7 @@
  */
 
 import { Markup } from 'telegraf'
-import type { ReplyKeyboardMarkup } from 'telegraf/types'
+import type { ReplyKeyboardMarkup, InlineKeyboardMarkup } from 'telegraf/types'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 
@@ -177,4 +177,24 @@ export function getStepSelectionMenuV2(
   ])
     .resize()
     .oneTime()
+}
+
+/**
+ * Клавиатура для генерации изображений
+ */
+export function createGenerateImageKeyboard(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: 'Сгенерировать',
+          callback_data: 'generate_image',
+        },
+        {
+          text: 'Отмена',
+          callback_data: 'cancel',
+        },
+      ],
+    ],
+  }
 }

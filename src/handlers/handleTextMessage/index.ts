@@ -298,8 +298,7 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
     }
   } catch (error) {
     logger.error('[handleTextMessage] Error processing text message:', error)
-    const isRu = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx)
   }
 })
 

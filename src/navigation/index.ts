@@ -57,8 +57,12 @@ export {
 // ========================================
 export * from './constants/access'
 export * from './helpers/messages'
-// Re-export step menus for training wizards
-export { getStepSelectionMenu, getStepSelectionMenuV2 } from './helpers/messages'
+// Re-export specific functions for convenience
+export {
+  getStepSelectionMenu,
+  getStepSelectionMenuV2,
+  createGenerateImageKeyboard
+} from './helpers/messages'
 
 // ========================================
 // MIDDLEWARE
