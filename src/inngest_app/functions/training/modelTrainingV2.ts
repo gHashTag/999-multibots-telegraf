@@ -15,7 +15,7 @@ import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { slugify } from 'inngest' // For v3 migration
+import { slugify } from '@/inngest_app/utils/slugify' // For v3 migration
 
 interface TrainingResponse {
   id: string

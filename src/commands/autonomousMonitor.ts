@@ -35,6 +35,10 @@ function isAdmin(userId: number): boolean {
 
 /**
  * Setup autonomous monitor commands
+ *
+ * ⚠️ IMPORTANT: This module DOES NOT register /start command!
+ * The /start command is handled by the main navigation system in startScene.
+ * Use /monitor command instead to access the admin monitoring panel.
  */
 export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
   // Get bot info to check if this is the admin bot
@@ -46,11 +50,12 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
   })
 
   /**
-   * /start - Main menu for admin bot
+   * /monitor - Admin monitoring menu (replaces /start for admin functions)
+   * ⚠️ DO NOT use /start here - it conflicts with main navigation!
    */
-  bot.command('start', async (ctx) => {
+  bot.command('monitor', async (ctx) => {
     if (!isAdmin(ctx.from.id)) {
-      return ctx.reply('❌ Unauthorized. This bot is for admin use only.')
+      return ctx.reply('❌ Unauthorized. This command is for admin use only.')
     }
 
     const keyboard = Markup.inlineKeyboard([
@@ -69,8 +74,8 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
     ])
 
     await ctx.reply(
-      `🤖 *Autonomous Monitor Admin Bot*\n\n` +
-        `Добро пожаловать!\n\n` +
+      `🤖 *Autonomous Monitor Admin Panel*\n\n` +
+        `Добро пожаловать в панель мониторинга!\n\n` +
         `Сервер: \`${SERVER_HOST}\`\n` +
         `Контейнер: \`${CONTAINER_NAME}\`\n\n` +
         `Выбери действие:`,
@@ -290,28 +295,8 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
     )
   })
 
-  /**
-   * /help - Show help
-   */
-  bot.command('help', async (ctx) => {
-    if (!isAdmin(ctx.from.id)) return
-
-    const message =
-      `❓ *Помощь - Команды бота*\n\n` +
-      `*Мониторинг:*\n` +
-      `/status - Статус сервера и контейнера\n` +
-      `/logs - Просмотр логов\n` +
-      `/errors - Поиск ошибок в логах\n` +
-      `/metrics - CPU, Memory, Disk метрики\n\n` +
-      `*Управление:*\n` +
-      `/restart - Перезапуск контейнера\n\n` +
-      `*Общее:*\n` +
-      `/help - Показать эту справку\n` +
-      `/start - Главное меню\n\n` +
-      `🔒 Все команды доступны только админу (ID: ${ADMIN_TELEGRAM_ID})`
-
-    await ctx.reply(message, { parse_mode: 'Markdown' })
-  })
+  // Note: /help command is NOT registered here to avoid conflict with main navigation.
+  // Admin help is available via /monitor_help or monitor_help callback
 
   // ========================================
   // CALLBACK QUERY HANDLERS

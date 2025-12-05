@@ -15,7 +15,7 @@ import {
   getCreateVoiceAvatarMessage,
 } from '@/helpers/voiceValidation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { createHelpCancelKeyboard } from '@/menu'
+import { createHelpCancelKeyboard } from '@/navigation'
 import { handleHelpCancel } from '@/handlers'
 import fs from 'fs'
 import logger from '@/utils/logger'
@@ -112,6 +112,16 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           }
         }
 
+        // ✅ CHECK BALANCE BEFORE GENERATION
+        const costResult = calculateModeCost({ mode: ModeEnum.TextToSpeech })
+        const cost = costResult.stars
+        const { checkUserBalance } = await import('@/helpers/checkUserBalance')
+        const hasBalance = await checkUserBalance(ctx, cost)
+        if (!hasBalance) {
+           await ctx.scene.leave()
+           return
+        }
+
         logger.info('[textToSpeechWizard] Calling createAudioFileFromText', {
           text: textToConvert.substring(0, 20) + '...',
           voice_id,
@@ -143,8 +153,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         await sendCompletionNotification(ctx, isRu, 'text_to_speech')
 
         // --- Начало блока списания баланса ---
-        const costResult = calculateModeCost({ mode: ModeEnum.TextToSpeech })
-        const cost = costResult.stars
+        // costResult and cost are already calculated above
         const currentUserId = ctx.from?.id?.toString()
         const botName = ctx.botInfo?.username || 'unknown_bot'
 
@@ -217,7 +226,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         }
         await ctx.scene.leave()
         await ctx.scene.leave()
-        const { showMainMenu } = await import('@/services/NavigationService')
+        const { showMainMenu } = await import('@/navigation')
         await showMainMenu(ctx)
       }
       return

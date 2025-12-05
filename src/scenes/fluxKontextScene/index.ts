@@ -1260,7 +1260,7 @@ fluxKontextScene.action('flux_kontext_cancel', async ctx => {
     )
 
     await ctx.scene.leave()
-    const { showMainMenu } = await import('@/services/NavigationService')
+    const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error handling FLUX Kontext cancel', {

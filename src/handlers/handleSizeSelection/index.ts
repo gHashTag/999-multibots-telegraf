@@ -28,6 +28,6 @@ export async function handleSizeSelection(ctx: MyContext, size: string) {
     )
   }
   await ctx.scene.leave()
-  const { showMainMenu } = await import('@/services/NavigationService')
+  const { showMainMenu } = await import('@/navigation')
   await showMainMenu(ctx)
 }

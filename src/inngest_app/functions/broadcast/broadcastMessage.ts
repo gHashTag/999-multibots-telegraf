@@ -1,7 +1,7 @@
 import { inngest } from '@/inngest_app/client'
 import { broadcastService } from '@/services/plan_b/broadcast.service'
 import { logger } from '@/utils/logger'
-import { slugify } from 'inngest' // For v3 migration
+import { slugify } from '@/inngest_app/utils/slugify' // For v3 migration
 import { BotName } from '@/interfaces/telegram-bot.interface'
 
 // Интерфейс для данных события

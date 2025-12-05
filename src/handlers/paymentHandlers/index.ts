@@ -329,7 +329,7 @@ If not, continue on your own and click the "I myself" button`
     }
 
     await ctx.scene.leave()
-    const { showMainMenu } = await import('@/services/NavigationService')
+    const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
     logger.error('❌ [handleSuccessfulPayment] Error processing payment:', {

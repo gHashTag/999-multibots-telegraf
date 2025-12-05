@@ -4,7 +4,7 @@
  * Analyzes competitor reels with metrics and saves to database
  */
 
-import { slugify } from 'inngest'
+import { slugify } from '@/inngest_app/utils/slugify'
 import axios from 'axios'
 import { inngest } from '@/inngest_app/client'
 import {
@@ -458,15 +458,11 @@ export const analyzeCompetitorReels = inngest.createFunction(
 // Helper function to trigger analyzeCompetitorReels
 export async function triggerAnalyzeCompetitorReels(
   data: AnalyzeReelsEvent
-): Promise<{ eventId: string }> {
+): Promise<void> {
   const validatedData = AnalyzeReelsEventSchema.parse(data)
 
   const result = await inngest.send({
     name: 'instagram/analyze-reels',
     data: validatedData,
   })
-
-  return {
-    eventId: result.ids[0],
-  }
 }

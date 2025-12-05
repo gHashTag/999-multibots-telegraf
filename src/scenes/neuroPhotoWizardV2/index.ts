@@ -16,8 +16,8 @@ import { getLatestUserModelForHaim } from '@/core/supabase/getLatestUserModelFor
 import {
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
-} from '@/menu'
-import { getButtonTextsByMode, showMainMenu, createMainMenuKeyboard } from '@/services/NavigationService'
+} from '@/navigation'
+import { getButtonTextsByMode, showMainMenu, createMainMenuKeyboard } from '@/navigation'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { Scenes } from 'telegraf'
 

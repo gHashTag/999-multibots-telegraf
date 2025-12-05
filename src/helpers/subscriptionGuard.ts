@@ -119,8 +119,7 @@ export async function checkSubscriptionGuard(
  * Список команд, которые НЕ требуют проверки подписки
  */
 export const COMMANDS_WITHOUT_SUBSCRIPTION_CHECK = [
-  '/start',
-  '/menu', // menu сам проверяет подписку
+  '/start', // start показывает главное меню
   '/support', // техподдержка доступна всем
   'support',
   '💬 Техподдержка',

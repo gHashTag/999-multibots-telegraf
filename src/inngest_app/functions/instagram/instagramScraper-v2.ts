@@ -3,7 +3,7 @@
  * Real API integration with strict typing and validation
  */
 
-import { slugify } from 'inngest'
+import { slugify } from '@/inngest_app/utils/slugify'
 import axios from 'axios'
 import pkg from 'pg'
 const { Pool } = pkg

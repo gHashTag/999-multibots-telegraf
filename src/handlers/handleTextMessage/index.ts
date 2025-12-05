@@ -5,7 +5,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { handleFluxKontextPrompt } from '../../commands/fluxKontextCommand'
 import { handleHelpCancel } from '../handleHelpCancel'
 import { Scenes } from 'telegraf'
-import { sendGenericErrorMessage } from '../../menu'
+import { sendGenericErrorMessage } from '@/navigation'
 
 import { logger } from '@/utils/logger'
 import {

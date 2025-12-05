@@ -149,7 +149,7 @@ describe('generateImageWithFalAndLora', () => {
         ],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       const result = await generateImageWithFalAndLora(testPrompt)
@@ -187,7 +187,7 @@ describe('generateImageWithFalAndLora', () => {
         image_url: expectedImageUrl,
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       const result = await generateImageWithFalAndLora(testPrompt)
@@ -205,7 +205,7 @@ describe('generateImageWithFalAndLora', () => {
         url: expectedImageUrl,
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       const result = await generateImageWithFalAndLora(testPrompt)
@@ -223,7 +223,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -247,7 +247,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -272,7 +272,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -301,7 +301,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -329,7 +329,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -357,7 +357,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -386,7 +386,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -412,13 +412,13 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
 
       // Assert - Verify the math: 768/1365 ≈ 0.5626 which is 9/16
-      const callArgs = vi.mocked(fal.subscribe).mock.calls[0][1]
+      const callArgs = fal.subscribe.mock.calls[0][1]
       const imageSize = (callArgs as any).input.image_size
       const aspectRatio = imageSize.width / imageSize.height
       const expectedAspectRatio = 9 / 16
@@ -447,7 +447,7 @@ describe('generateImageWithFalAndLora', () => {
         // No images, image_url, or url fields
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act & Assert
       await expect(generateImageWithFalAndLora(testPrompt)).rejects.toThrow(
@@ -462,7 +462,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [], // Empty array
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act & Assert
       await expect(generateImageWithFalAndLora(testPrompt)).rejects.toThrow(
@@ -475,7 +475,7 @@ describe('generateImageWithFalAndLora', () => {
       const testPrompt = 'test prompt'
       const apiError = new Error('API rate limit exceeded')
 
-      vi.mocked(fal.subscribe).mockRejectedValue(apiError)
+      fal.subscribe.mockRejectedValue(apiError)
 
       // Act & Assert
       await expect(generateImageWithFalAndLora(testPrompt)).rejects.toThrow(
@@ -488,7 +488,7 @@ describe('generateImageWithFalAndLora', () => {
       const testPrompt = 'test prompt'
       const timeoutError = new Error('Request timeout')
 
-      vi.mocked(fal.subscribe).mockRejectedValue(timeoutError)
+      fal.subscribe.mockRejectedValue(timeoutError)
 
       // Act & Assert
       await expect(generateImageWithFalAndLora(testPrompt)).rejects.toThrow(
@@ -506,7 +506,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -525,7 +525,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -544,7 +544,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -567,7 +567,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -590,7 +590,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: expectedUrl }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -615,7 +615,7 @@ describe('generateImageWithFalAndLora', () => {
         url: 'https://test.com/from-url.jpg',
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       const result = await generateImageWithFalAndLora(testPrompt)
@@ -633,7 +633,7 @@ describe('generateImageWithFalAndLora', () => {
         url: 'https://test.com/from-url.jpg',
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       const result = await generateImageWithFalAndLora(testPrompt)
@@ -650,7 +650,7 @@ describe('generateImageWithFalAndLora', () => {
         url: expectedUrl,
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       const result = await generateImageWithFalAndLora(testPrompt)
@@ -668,7 +668,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -691,7 +691,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       const result = await generateImageWithFalAndLora(testPrompt)
@@ -715,7 +715,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       const result = await generateImageWithFalAndLora(testPrompt)
@@ -740,7 +740,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)
@@ -768,7 +768,7 @@ describe('generateImageWithFalAndLora', () => {
         images: [{ url: 'https://test.com/image.jpg' }],
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       // Act
       await generateImageWithFalAndLora(testPrompt)

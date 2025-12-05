@@ -1,7 +1,7 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
-import { createHelpCancelKeyboard } from '@/menu'
+import { createHelpCancelKeyboard } from '@/navigation'
 import { handleHelpCancel } from '@/handlers'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'

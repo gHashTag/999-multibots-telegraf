@@ -1074,7 +1074,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // Возвращаемся в главное меню
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -1150,7 +1150,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       })
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -1172,7 +1172,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -1185,7 +1185,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -1259,7 +1259,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       })
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -1281,7 +1281,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -1486,7 +1486,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       })
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -1568,7 +1568,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         )
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
       }
@@ -1795,7 +1795,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       })
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -2300,7 +2300,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -2358,7 +2358,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
       }
@@ -2399,7 +2399,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         )
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
       }
@@ -2660,7 +2660,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       // ПЕРЕХОДИМ К ГЛАВНОМУ МЕНЮ (не StartScene)
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
 
       logger.info(
@@ -2687,7 +2687,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -2873,7 +2873,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       })
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -2925,7 +2925,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }

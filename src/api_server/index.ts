@@ -141,12 +141,12 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
 
       // ✅ Применена рабочая сигнатура serve() - ВЕРСИЯ ОТ 7 НОЯБРЯ
       const signingKey = process.env.INNGEST_SIGNING_KEY
-      
+
       if (!signingKey) {
         logger.error('❌ [API SERVER] INNGEST_SIGNING_KEY не найден! Webhook verification будет недоступен.')
       }
 
-      const inngestHandler = serve({ client: inngest, functions: allInngestFunctions })
+      const inngestHandler = serve(inngest, allInngestFunctions)
 
       // Override health check to check process.env directly
       app.get('/api/inngest', (req, res) => {

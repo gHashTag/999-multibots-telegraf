@@ -4,9 +4,9 @@ import { MyContext } from '@/interfaces'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
-import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
-import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
-import { sendGenericErrorMessage } from '@/menu'
+import { sendPromptImprovementMessage } from '@/navigation'
+import { sendPromptImprovementFailureMessage } from '@/navigation'
+import { sendGenericErrorMessage } from '@/navigation'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger, logSessionSafely } from '@/utils/logger'
@@ -70,7 +70,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       )
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -83,7 +83,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       await sendPromptImprovementFailureMessage(ctx, isRu)
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -93,7 +93,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
       await sendPromptImprovementFailureMessage(ctx, isRu)
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -140,7 +140,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         )
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
       }
@@ -149,7 +149,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         await sendPromptImprovementFailureMessage(ctx, isRu)
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
       }
@@ -157,7 +157,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         await sendPromptImprovementFailureMessage(ctx, isRu)
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
       }
@@ -197,7 +197,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             )
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
           }
@@ -280,7 +280,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                   )
                   await ctx.scene.leave()
                   await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
                 }
@@ -353,13 +353,13 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             await sendGenericErrorMessage(ctx, isRu)
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
           }
           await ctx.scene.leave()
           await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
         }
@@ -375,7 +375,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             )
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
           }
@@ -389,7 +389,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             await sendPromptImprovementFailureMessage(ctx, isRu)
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
           }
@@ -398,7 +398,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             await sendPromptImprovementFailureMessage(ctx, isRu)
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
           }
@@ -433,7 +433,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled')
           await ctx.scene.leave()
           await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
         }
@@ -442,7 +442,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           await sendGenericErrorMessage(ctx, isRu)
           await ctx.scene.leave()
           await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
         }

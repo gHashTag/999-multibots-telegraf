@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces'
 
 import { generateImageToPrompt } from '@/services/generateImageToPrompt'
 
-import { createHelpCancelKeyboard } from '@/menu'
+import { createHelpCancelKeyboard } from '@/navigation'
 
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { getBotToken } from '@/handlers'

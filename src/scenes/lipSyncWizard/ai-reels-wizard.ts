@@ -513,7 +513,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           ctx.session.mode = ModeEnum.Voice
           ctx.session.returnToAIReelsAfterVoice = true
 
-          await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+          await ctx.scene.enter(ModeEnum.Voice)
           return
         }
 

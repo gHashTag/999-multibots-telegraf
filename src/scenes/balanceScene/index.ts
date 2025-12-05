@@ -410,7 +410,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           : '❌ Error occurred while getting balance information'
       )
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
     }
   },
@@ -432,7 +432,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       )
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -445,7 +445,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       )
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }
@@ -457,7 +457,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
     )
     await ctx.scene.leave()
     await ctx.scene.leave()
-    const { showMainMenu } = await import('@/services/NavigationService')
+    const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
     return
   }
@@ -561,7 +561,7 @@ balanceScene.action('download_excel_report', async (ctx: MyContext) => {
 balanceScene.action('back_to_menu', async (ctx: MyContext) => {
   await ctx.answerCbQuery()
   await ctx.scene.leave()
-  const { showMainMenu } = await import('@/services/NavigationService')
+  const { showMainMenu } = await import('@/navigation')
   await showMainMenu(ctx)
 })
 

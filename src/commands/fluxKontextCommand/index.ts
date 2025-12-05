@@ -5,11 +5,10 @@ import {
 } from '@/services/generateFluxKontext'
 import { Markup } from 'telegraf'
 import { logger } from '@/utils/logger'
-import { cancelMenu } from '@/menu/cancelMenu'
-import { cancelHelpArray } from '@/menu/cancelHelpArray'
+import { cancelMenu, cancelHelpArray } from '@/navigation'
 import { ModeEnum } from '@/interfaces'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { sendGenericErrorMessage } from '@/menu'
+import { sendGenericErrorMessage } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 // Создание клавиатуры выбора модели
@@ -19,7 +18,7 @@ const createModelSelectionKeyboard = (is_ru: boolean) => {
       { text: is_ru ? '💼 FLUX Kontext Pro' : '💼 FLUX Kontext Pro' },
       { text: is_ru ? '🚀 FLUX Kontext Max' : '🚀 FLUX Kontext Max' },
     ],
-    ...cancelHelpArray(is_ru),
+    ...cancelHelpArray,
   ])
     .resize()
     .oneTime(true)
@@ -108,8 +107,7 @@ export const handleFluxKontextCommand = async (ctx: MyContext) => {
   } catch (error) {
     logger.error('❌ [FLUX Kontext] Error in handleFluxKontextCommand:', error)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    const is_ru = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, is_ru, error)
+    await sendGenericErrorMessage(ctx)
   }
 }
 
@@ -172,7 +170,12 @@ export const handleFluxKontextImage = async (ctx: MyContext) => {
             ? `✅ Выбрана модель: ${modelName}\n\n📝 Теперь опишите, что вы хотите изменить в изображении:\n\n💡 Примеры:\n• "добавь золотое ожерелье"\n• "сделай фон в виде пляжа"\n• "измени цвет волос на рыжий"\n• "сделай в стиле винтажной фотографии"\n\n🌐 *Совет: Для лучших результатов пишите промпт на английском языке*`
             : `✅ Selected model: ${modelName}\n\n📝 Now describe what you want to change in the image:\n\n💡 Examples:\n• "add a gold necklace"\n• "change background to a beach"\n• "change hair color to red"\n• "make it vintage photography style"\n\n🌐 *Tip: For best results, write your prompt in English*`,
           {
-            reply_markup: cancelMenu(is_ru).reply_markup,
+            reply_markup: Markup.inlineKeyboard([
+              [Markup.button.callback(
+                is_ru ? '❌ Отмена' : '❌ Cancel',
+                'cancel'
+              )]
+            ]).reply_markup,
             parse_mode: 'Markdown',
           }
         )
@@ -193,8 +196,7 @@ export const handleFluxKontextImage = async (ctx: MyContext) => {
   } catch (error) {
     logger.error('❌ [FLUX Kontext] Error in handleFluxKontextImage:', error)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    const is_ru = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, is_ru, error)
+    await sendGenericErrorMessage(ctx)
   }
 }
 
@@ -233,7 +235,12 @@ export const handleFluxKontextModelSelection = async (
         ? `✅ Выбрана модель: ${modelName}\n\n📝 Теперь опишите, что вы хотите изменить в изображении:\n\n💡 Примеры:\n• "добавь золотое ожерелье"\n• "сделай фон в виде пляжа"\n• "измени цвет волос на рыжий"\n• "сделай в стиле винтажной фотографии"\n\n🌐 *Совет: Для лучших результатов пишите промпт на английском языке*`
         : `✅ Selected model: ${modelName}\n\n📝 Now describe what you want to change in the image:\n\n💡 Examples:\n• "add a gold necklace"\n• "change background to a beach"\n• "change hair color to red"\n• "make it vintage photography style"\n\n🌐 *Tip: For best results, write your prompt in English*`,
       {
-        reply_markup: cancelMenu(is_ru).reply_markup,
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback(
+            is_ru ? '❌ Отмена' : '❌ Cancel',
+            'cancel'
+          )]
+        ]).reply_markup,
         parse_mode: 'Markdown',
       }
     )
@@ -244,8 +251,7 @@ export const handleFluxKontextModelSelection = async (
       modelType,
     })
 
-    const is_ru = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, is_ru, error)
+    await sendGenericErrorMessage(ctx)
   }
 }
 
@@ -299,8 +305,7 @@ export const handleFluxKontextPrompt = async (
   } catch (error) {
     logger.error('❌ [FLUX Kontext] Error in handleFluxKontextPrompt:', error)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    const is_ru = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, is_ru, error)
+    await sendGenericErrorMessage(ctx)
   }
 }
 
@@ -313,8 +318,7 @@ export const handleFluxKontextCallback = async (ctx: MyContext) => {
   } catch (error) {
     logger.error('❌ [FLUX Kontext] Error in handleFluxKontextCallback:', error)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    const is_ru = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, is_ru, error)
+    await sendGenericErrorMessage(ctx)
   }
 }
 
@@ -330,8 +334,7 @@ export const processFluxKontextGeneration = async (ctx: MyContext) => {
       error
     )
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
-    const is_ru = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, is_ru, error)
+    await sendGenericErrorMessage(ctx)
   }
 }
 

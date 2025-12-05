@@ -99,3 +99,5 @@ if (!content.includes('getSpecialButtonTexts') && content.includes("'main_menu'"
 writeFileSync(filePath, content, 'utf-8')
 console.log(`✅ Замена завершена! Заменено ${variables.length} переменных.`)
 
+
+

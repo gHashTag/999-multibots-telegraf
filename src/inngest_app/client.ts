@@ -16,7 +16,9 @@ const config = {
       : 'https://three-head-dragon.shop/api/inngest', // Production
   isDev: process.env.NODE_ENV === 'development',
   // Event key загружается из Infisical (INNGEST_EVENT_KEY)
-  eventKey: process.env.INNGEST_EVENT_KEY || undefined,
+  eventKey: process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY || undefined,
+  // Signing key для webhook verification (Inngest v3+)
+  signingKey: process.env.INNGEST_SIGNING_KEY || process.env.RENDER_INNGEST_SIGNING_KEY || undefined,
 }
 
 // ✅ ЕДИНСТВЕННЫЙ Inngest клиент для всего приложения
@@ -29,6 +31,7 @@ logger.info('🔥 [INNGEST] Client initialized', {
   baseUrl: config.baseUrl,
   isDev: config.isDev,
   hasEventKey: !!config.eventKey,
+  hasSigningKey: !!config.signingKey,
   environment: process.env.NODE_ENV,
 })
 

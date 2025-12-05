@@ -15,8 +15,8 @@ import { getActiveUserModelsByTypeForHaim } from '@/core/supabase/getActiveUserM
 import {
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
-} from '@/menu'
-import { getButtonTextsByMode, createMainMenuKeyboard } from '@/services/NavigationService'
+} from '@/navigation'
+import { getButtonTextsByMode, createMainMenuKeyboard } from '@/navigation'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
@@ -376,7 +376,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         telegramId: ctx.from?.id,
       })
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     }

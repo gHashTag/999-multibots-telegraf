@@ -17,7 +17,7 @@ import {
 } from './handlers'
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
-import { showMainMenu } from '@/services/NavigationService'
+import { showMainMenu } from '@/navigation'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 
 // Создаем сцены для каждого шага
@@ -82,7 +82,7 @@ export const completeScene = new Scenes.BaseScene<MyContext>('complete')
 completeScene.enter(async ctx => {
   await handleQuestComplete(ctx)
   await ctx.scene.leave()
-  const { showMainMenu } = await import('@/services/NavigationService')
+  const { showMainMenu } = await import('@/navigation')
   await showMainMenu(ctx)
 })
 

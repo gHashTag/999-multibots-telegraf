@@ -21,7 +21,7 @@ import fs from 'fs'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { slugify } from 'inngest'
+import { slugify } from '@/inngest_app/utils/slugify'
 
 export const neuroImageGeneration = inngest.createFunction(
   {

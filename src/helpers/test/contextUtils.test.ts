@@ -3,11 +3,11 @@ import { extractPromoFromContext } from '../contextUtils'
 import { MyContext } from '../../interfaces'
 
 // Создаем мок-контекст для тестов
-function createMockContext(messageText: string): MyContext {
+function createMockContext(messageText) {
   return {
     from: { id: 123456789 },
     message: { text: messageText },
-  } as MyContext
+  }
 }
 
 describe('ContextUtils Tests', () => {

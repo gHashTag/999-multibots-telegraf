@@ -10,7 +10,7 @@ import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { slugify } from 'inngest' // For v3 migration
+import { slugify } from '@/inngest_app/utils/slugify' // For v3 migration
 
 // Константы для вариантов оплаты
 const PAYMENT_OPTIONS = [

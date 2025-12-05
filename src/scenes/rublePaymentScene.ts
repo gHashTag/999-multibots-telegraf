@@ -777,7 +777,7 @@ rublePaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], asyn
     }
   )
   await ctx.scene.leave()
-  const { showMainMenu } = await import('@/services/NavigationService')
+  const { showMainMenu } = await import('@/navigation')
   await showMainMenu(ctx)
 })
 

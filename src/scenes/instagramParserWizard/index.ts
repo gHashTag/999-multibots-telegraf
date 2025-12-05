@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { createHelpCancelKeyboard } from '@/menu'
+import { createHelpCancelKeyboard } from '@/navigation'
 import { generateInstagramScraping } from '@/services/generateInstagramScraping'
 import { updateUserBalance } from '@/core/supabase'
 import { PaymentType } from '@/interfaces'
@@ -463,7 +463,7 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
 // Добавляем обработчики
 instagramParserWizard.start(async ctx => {
   await ctx.scene.leave()
-  const { showMainMenu } = await import('@/services/NavigationService')
+  const { showMainMenu } = await import('@/navigation')
   await showMainMenu(ctx)
 })
 instagramParserWizard.help(ctx => handleHelpCancel(ctx))

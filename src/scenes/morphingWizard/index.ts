@@ -1275,7 +1275,7 @@ morphingWizard.action('morphing_cancel', async ctx => {
 
     // Принудительно возвращаемся в главное меню
     await ctx.scene.leave()
-    const { showMainMenu } = await import('@/services/NavigationService')
+    const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error cancelling morphing wizard', {

@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces'
 
 import { generateImageFromPrompt } from '@/services/generateImageFromPrompt'
 
-import { createGenerateImageKeyboard } from '@/menu'
+import { createGenerateImageKeyboard } from '@/navigation'
 
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'

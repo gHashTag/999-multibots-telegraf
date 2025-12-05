@@ -99,7 +99,7 @@
     "express": "^5.1.0",
     "express-rate-limit": "^8.0.1",
     "form-data": "^4.0.0",
-    "inngest": "^3.46.0",
+    "inngest": "2.7.2",
     "io-ts": "^2.2.22",
     "md5": "^2.3.0",
     "node-fetch": "^3.3.2",

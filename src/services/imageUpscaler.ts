@@ -17,6 +17,7 @@ import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
 import fs from 'fs'
 import { Markup } from 'telegraf'
+import { getMainMenuText } from '@/navigation'
 
 // Простая клавиатура только для upscaler'а
 const createUpscalerResultKeyboard = (is_ru: boolean) => {
@@ -29,7 +30,7 @@ const createUpscalerResultKeyboard = (is_ru: boolean) => {
     ],
     [
       Markup.button.callback(
-        is_ru ? '🏠 Главное меню' : '🏠 Main menu',
+        getMainMenuText(is_ru),
         'go_main_menu'
       ),
     ],

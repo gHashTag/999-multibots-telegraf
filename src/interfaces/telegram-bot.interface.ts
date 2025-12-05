@@ -180,6 +180,8 @@ export type BotName =
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cursor: number
   mode: ModeEnum | SceneId | null
+  /** История переходов между сценами для кнопки "Назад" */
+  navigationHistory?: string[]
   neuroPhotoInitialized?: boolean
   subscription?: SubscriptionType
   selectedSize?: string
@@ -435,6 +437,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   multiPhotoCount?: number // Number of photos in multi-photo session
   awaitingMultiPhotoConfirmation?: boolean // Waiting for user confirmation to process multi-photos
   multiPhotoProcessingIndex?: number // Current index being processed in multi-photo series
+
+  // Global navigation pending scene (for deferring navigation before stage.middleware)
+  pendingScene?: string | null
 }
 
 export interface MyContext extends Context {

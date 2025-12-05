@@ -4013,7 +4013,7 @@ aiPhotoshopScene.action('ai_photoshop_cancel', async ctx => {
     )
 
     await ctx.scene.leave()
-    const { showMainMenu } = await import('@/services/NavigationService')
+    const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error handling AI Photoshop cancel', {
@@ -4902,7 +4902,7 @@ aiPhotoshopScene.action('ai_photoshop_exit_to_menu', async ctx => {
     }
 
     await ctx.scene.leave()
-    const { showMainMenu } = await import('@/services/NavigationService')
+    const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error in exit to menu handler', { error })
@@ -4921,7 +4921,7 @@ aiPhotoshopScene.command('menu', async ctx => {
     )
 
     await ctx.scene.leave()
-    const { showMainMenu } = await import('@/services/NavigationService')
+    const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error in menu command handler', { error })

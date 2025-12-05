@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { getAvailableModels } from '../../commands/selectModelCommand/getAvailableModels'
-import { sendGenericErrorMessage } from '@/menu'
+import { sendGenericErrorMessage } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { updateUserModel } from '@/core/supabase'
 import { handleHelpCancel } from '@/handlers'

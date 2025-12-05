@@ -58,15 +58,12 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
     })
 
     // Устанавливаем команды только для приватных чатов
+    // ✅ УДАЛЕН /menu - теперь /start показывает главное меню напрямую
     await bot.telegram.setMyCommands(
       [
         {
           command: 'start',
-          description: '👤 Start / Начать',
-        },
-        {
-          command: 'menu',
-          description: '📟 Menu / Главное меню',
+          description: '📟 Главное меню / Main menu',
         },
         {
           command: 'support',
@@ -85,15 +82,12 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
     )
 
     // Устанавливаем команды для владельца бота
+    // ✅ УДАЛЕН /menu - теперь /start показывает главное меню напрямую
     await bot.telegram.setMyCommands(
       [
         {
           command: 'start',
-          description: '👤 Start / Начать',
-        },
-        {
-          command: 'menu',
-          description: '📟 Menu / Главное меню',
+          description: '📟 Главное меню / Main menu',
         },
         {
           command: 'support',

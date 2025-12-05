@@ -35,10 +35,10 @@ vi.mock('../../core/supabase', () => ({
 }))
 
 vi.mock('@/helpers/sanitizeModelName', () => ({
-  sanitizeModelName: vi.fn((name: string) =>
+  sanitizeModelName: vi.fn((name) =>
     name.toLowerCase().replace(/[^a-z0-9-]/g, '-')
   ),
-  isValidReplicateModelName: vi.fn((name: string) =>
+  isValidReplicateModelName: vi.fn((name) =>
     /^[a-z0-9-]+$/.test(name.toLowerCase())
   ),
 }))

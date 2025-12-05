@@ -9,7 +9,7 @@ import {
   stepOptions,
   calculateCost,
 } from '@/price/priceCalculator'
-import { getStepSelectionMenuV2 } from '@/menu'
+import { getStepSelectionMenuV2 } from '@/navigation'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { ModeEnum } from '@/interfaces/modes'
 

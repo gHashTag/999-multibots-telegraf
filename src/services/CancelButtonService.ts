@@ -3,8 +3,8 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
-// ✅ ИМПОРТИРУЕМ NavigationService для правильного показа меню
-import { showMainMenu } from '@/services/NavigationService'
+// ✅ ИМПОРТИРУЕМ Navigation для правильного показа меню
+import { showMainMenu, getMainMenuText } from '@/navigation'
 
 /**
  * ✅ ЕДИНАЯ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ И ГЛАВНОГО МЕНЮ
@@ -38,7 +38,7 @@ export class CancelButtonService {
    * Создает кнопку главного меню (ReplyKeyboard)
    */
   static createMainMenuButton(isRu: boolean) {
-    return [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main Menu')]
+    return [Markup.button.text(getMainMenuText(isRu))]
   }
 
   /**
@@ -53,7 +53,7 @@ export class CancelButtonService {
    */
   static createInlineMainMenuButton(isRu: boolean) {
     return Markup.button.callback(
-      isRu ? '🏠 Главное меню' : '🏠 Main Menu',
+      getMainMenuText(isRu),
       'main_menu'
     )
   }
@@ -325,8 +325,8 @@ export class CancelButtonService {
 
         await ctx.reply(
           isRu
-            ? '❌ Произошла ошибка при возврате в главное меню. Попробуйте команду /menu'
-            : '❌ An error occurred while returning to main menu. Try /menu command'
+            ? '❌ Произошла ошибка при возврате в главное меню. Попробуйте команду /start'
+            : '❌ An error occurred while returning to main menu. Try /start command'
         )
       }
     }

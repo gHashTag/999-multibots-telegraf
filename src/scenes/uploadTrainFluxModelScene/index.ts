@@ -5,7 +5,7 @@ import { ensureSupabaseAuth } from '@/core/supabase'
 import { inngest } from '@/inngest_app/client' // ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ
 import { isRussian } from '@/helpers/language'
 
-import { sendGenericErrorMessage } from '@/menu'
+import { sendGenericErrorMessage } from '@/navigation'
 import { getBotNameByToken } from '@/core/bot' // ✅ For correct bot_name detection
 
 const fs = require('fs')

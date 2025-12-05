@@ -76,7 +76,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
       result: 'admin_bypass',
     })
     await ctx.scene.leave()
-    const { showMainMenu } = await import('@/services/NavigationService')
+    const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
     return
   }

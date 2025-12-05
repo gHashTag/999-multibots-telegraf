@@ -3,7 +3,7 @@
  * Temporary version without strict typing to test reels functionality
  */
 
-import { slugify } from 'inngest'
+import { slugify } from '@/inngest_app/utils/slugify'
 import axios from 'axios'
 // ✅ Используем единый клиент из @/inngest_app/client
 import { inngest as instagramInngest } from '@/inngest_app/client'

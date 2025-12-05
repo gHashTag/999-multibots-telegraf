@@ -48,7 +48,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       ctx.from?.id.toString()
     )
     logger.info({
-      message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`,
+      message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.SubscriptionScene}`,
       userDetails,
     })
     const isRu = isRussian(ctx)
@@ -205,7 +205,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
 
       // Возвращаемся в главное меню
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     } else {
@@ -377,7 +377,7 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
       } else {

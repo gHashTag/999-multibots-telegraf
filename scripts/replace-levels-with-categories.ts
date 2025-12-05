@@ -85,3 +85,5 @@ for (const [level, mode] of Object.entries(levelToModeMap)) {
 writeFileSync(filePath, content, 'utf-8')
 console.log('✅ Замена завершена!')
 
+
+

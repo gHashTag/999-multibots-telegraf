@@ -7,7 +7,7 @@
 
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { showCategoryMenu } from '@/services/NavigationService'
+import { showCategoryMenu } from '@/navigation'
 import { ModeEnum } from '@/interfaces/modes'
 
 /**

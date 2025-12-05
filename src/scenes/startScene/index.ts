@@ -6,7 +6,7 @@ import { checkFullAccess } from '@/handlers/checkFullAccess'
 import { getUserData, getTranslation } from '@/core/supabase'
 import { getBotNameByToken } from '@/core/bot'
 // ✅ НОВЫЙ: Используем единый сервис навигации
-import { showMainMenu } from '@/services/NavigationService'
+import { showMainMenu } from '@/navigation'
 
 /**
  * ✅ ПРОСТАЯ START SCENE

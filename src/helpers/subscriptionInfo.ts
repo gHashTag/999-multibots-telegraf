@@ -1,5 +1,5 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { levels } from '@/menu/simpleMenu'
+import { levels } from '@/navigation'
 
 // Идентификаторы функций для проверки доступа
 const FEATURE_IDS = {

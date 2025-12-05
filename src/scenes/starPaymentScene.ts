@@ -58,7 +58,7 @@ starPaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async
     }
   )
   await ctx.scene.leave()
-  const { showMainMenu } = await import('@/services/NavigationService')
+  const { showMainMenu } = await import('@/navigation')
   await showMainMenu(ctx)
 })
 

@@ -1,5 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
@@ -361,14 +362,14 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
       if (action === 'main_menu') {
         await ctx.answerCbQuery()
         await ctx.scene.leave()
-        const { showMainMenu } = await import('@/services/NavigationService')
+        const { showMainMenu } = await import('@/navigation')
         await showMainMenu(ctx)
         return
       }
 
       if (action === 'top_up') {
         await ctx.answerCbQuery()
-        await ctx.scene.enter('payment_scene')
+        await ctx.scene.enter(ModeEnum.PaymentScene)
         return
       }
 

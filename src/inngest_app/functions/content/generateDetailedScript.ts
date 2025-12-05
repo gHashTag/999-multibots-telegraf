@@ -192,12 +192,12 @@ export const generateDetailedScript = inngest.createFunction(
   {
     id: 'generate-detailed-script',
     name: '📝 Generate Detailed Script',
-    concurrency: [{ limit: 3 }],
+    concurrency: { limit: 3 },
   },
   { event: 'content/generate-detailed-script' },
   async ({ event, step, logger: log }) => {
     const input = generateDetailedScriptSchema.parse(event.data)
-    const runId = event.id
+    const runId = Date.now()
 
     log.info('📝 Начинаем генерацию детального скрипта', { input, runId })
 

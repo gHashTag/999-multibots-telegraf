@@ -8,7 +8,7 @@ import {
   sendBalanceMessage,
   voiceConversationCost,
 } from '@/price/helpers'
-import { createHelpCancelKeyboard } from '@/menu'
+import { createHelpCancelKeyboard } from '@/navigation'
 import { handleHelpCancel } from '@/handlers'
 import { logger } from '@/utils/logger'
 
@@ -39,7 +39,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           { reply_markup: { remove_keyboard: true } }
         )
         await ctx.scene.leave()
-        const { showMainMenu } = await import('@/services/NavigationService')
+        const { showMainMenu } = await import('@/navigation')
         await showMainMenu(ctx)
         return
       }
@@ -60,7 +60,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
     const isCancel = await handleHelpCancel(ctx)
     if (isCancel) {
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     } else {
@@ -77,7 +77,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
             : 'Error: could not retrieve file ID'
         )
         await ctx.scene.leave()
-        const { showMainMenu } = await import('@/services/NavigationService')
+        const { showMainMenu } = await import('@/navigation')
         await showMainMenu(ctx)
         return
       }
@@ -128,7 +128,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
             : '✅ Voice avatar successfully created!\n\n🎙️ Now you can use the "🎙️ Text to speech" command or find it in the main menu.'
         )
         await ctx.scene.leave()
-        const { showMainMenu } = await import('@/services/NavigationService')
+        const { showMainMenu } = await import('@/navigation')
         await showMainMenu(ctx)
         return
       } catch (error) {
@@ -140,7 +140,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         )
         // ✅ ИСПРАВЛЕНИЕ: Переходим в главное меню при ошибке
         await ctx.scene.leave()
-        const { showMainMenu } = await import('@/services/NavigationService')
+        const { showMainMenu } = await import('@/navigation')
         await showMainMenu(ctx)
         return
       }

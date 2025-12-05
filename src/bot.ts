@@ -15,7 +15,7 @@ logger.debug(`--- End Bot Logic Check ---`)
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
-import { registerCommands } from './services/NavigationService'
+import { registerCommands, createStage } from './navigation'
 import { MyContext } from './interfaces'
 import { session } from 'telegraf'
 import {
@@ -83,7 +83,7 @@ export async function isPortInUse(port: number): Promise<boolean> {
 
 // Добавляю логи перед инициализацией ботов
 async function initializeBots() {
-  const { stage } = await import('./services/NavigationService')
+  const stage = createStage()
 
   if (isDev) {
     // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME

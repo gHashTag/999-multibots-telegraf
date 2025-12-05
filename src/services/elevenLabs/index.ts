@@ -44,3 +44,5 @@ export async function transcribeAudio(
   return result.text
 }
 
+
+

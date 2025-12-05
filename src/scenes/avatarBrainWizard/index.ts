@@ -3,7 +3,7 @@ import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '../../core/supabase'
 import { isRussianFromState } from '../../helpers/centralizedLanguage'
 import { handleHelpCancel } from '../../handlers/handleHelpCancel'
-import { createHelpCancelKeyboard } from '../../menu'
+import { createHelpCancelKeyboard } from '@/navigation'
 import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
@@ -223,7 +223,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
       // Завершаем сцену и переходим в главное меню
       await ctx.scene.leave()
       await ctx.scene.leave()
-      const { showMainMenu } = await import('@/services/NavigationService')
+      const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
       return
     } catch (error) {

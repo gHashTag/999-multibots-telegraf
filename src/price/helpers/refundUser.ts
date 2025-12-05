@@ -1,7 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { createMainMenuKeyboard } from '@/services/NavigationService'
+import { createMainMenuKeyboard } from '@/navigation'
 import { PaymentType } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 

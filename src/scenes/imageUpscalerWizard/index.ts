@@ -1,7 +1,7 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { upscaleImage } from '@/services/imageUpscaler'
-import { createHelpCancelKeyboard } from '@/menu'
+import { createHelpCancelKeyboard } from '@/navigation'
 import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'

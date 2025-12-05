@@ -9,7 +9,7 @@ setupSafeConsoleLogging()
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
-import { registerCommands } from './services/NavigationService'
+import { registerCommands, createStage } from './navigation'
 import { MyContext } from './interfaces'
 import { session } from 'telegraf'
 import {
@@ -21,6 +21,8 @@ import { setBotCommands } from './setCommands'
 import { languageMiddleware } from './middlewares/languageMiddleware'
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА ОШИБОК
 import { setupErrorHandler } from './helpers/error/errorHandler'
+// ✅ ДОБАВЛЯЕМ ГЛОБАЛЬНЫЙ НАВИГАЦИОННЫЙ MIDDLEWARE
+import { registerGlobalNavigationMiddleware } from './navigation'
 
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА УВЕДОМЛЕНИЙ
 import { setupNotificationProcessor } from './handlers/notificationHandler'
@@ -123,7 +125,7 @@ function discoverBotTokens(): string[] {
 async function initializeBots() {
   console.log('🤖 Инициализация ботов:', isDev ? 'development' : 'production')
 
-  const { stage } = await import('./services/NavigationService')
+  const stage = createStage()
 
   // 🚀 МАСШТАБИРУЕМАЯ АРХИТЕКТУРА: автоматически находим все BOT_TOKEN_*
   const infisicalEnv = process.env.INFISICAL_ENVIRONMENT || 'dev'
@@ -175,8 +177,8 @@ async function initializeBots() {
       })
       bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
 
-      // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
       bot.use(session()) // 1. Сессия (из bot.ts)
+
       bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
 
       // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
@@ -186,7 +188,8 @@ async function initializeBots() {
       setupNotificationProcessor(bot)
 
       // ✅ Сохраняем первый bot instance для webhooks (legacy)
-      const botUsername = bot.botInfo?.username || 'neuro_blogger_bot'
+      // 🎯 DEV: используем тестовый бот, PROD: продакшн бот
+      const botUsername = bot.botInfo?.username || (isDev ? 'clip_maker_neuro_bot' : 'neuro_blogger_bot')
       console.log(
         '🔍 [DEBUG] Checking mainBotInstance:',
         !!mainBotInstance,
@@ -217,10 +220,6 @@ async function initializeBots() {
       // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
       bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
       bot.on('successful_payment', handleSuccessfulPayment as any)
-      // Обработчик текстовых сообщений по умолчанию - должен быть последним
-      // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
-      // bot.on(message('text'), handleTextMessage)
-      // <<<---------------------------------------------------->>>
 
       botInstances.push(bot)
       const botInfo = await bot.telegram.getMe()

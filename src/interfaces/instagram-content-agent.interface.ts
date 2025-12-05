@@ -32,3 +32,5 @@ export interface FindCompetitorsEventPayload {
   metadata?: Record<string, any>
 }
 
+
+

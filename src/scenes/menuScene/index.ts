@@ -1,7 +1,7 @@
 import { Mode, MyContext, Subscription } from '../../interfaces'
-import { sendGenericErrorMessage } from '@/menu'
-import { levels } from '../../menu/simpleMenu'
-import { createMainMenuKeyboard } from '@/services/NavigationService'
+import { sendGenericErrorMessage } from '@/navigation'
+import { levels } from '@/navigation'
+import { createMainMenuKeyboard } from '@/navigation'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { isDev, isRussian } from '@/helpers'
 import { sendReplyWithKeyboard } from './sendReplyWithKeyboard'
@@ -20,10 +20,10 @@ import { handleRestartVideoGeneration } from '@/handlers/handleVideoRestart'
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
 import { isRussianWithUserChoice } from '@/helpers/language'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { getParsingAccess } from '@/menu/simpleMenu'
+import { getParsingAccess } from '@/navigation'
 import { getBotNameByToken } from '@/core/bot'
 // ⚠️ ВРЕМЕННО: Убрано использование showMainMenu, чтобы избежать бесконечного цикла
-// import { showMainMenu } from '@/services/NavigationService'
+// import { showMainMenu } from '@/navigation'
 
 const menuCommandStep = async (ctx: MyContext) => {
   console.log('CASE 📲: menuCommand')

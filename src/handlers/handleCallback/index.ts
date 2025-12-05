@@ -1,4 +1,4 @@
-import { sendGenericErrorMessage } from '@/menu'
+import { sendGenericErrorMessage } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '../../interfaces'
 

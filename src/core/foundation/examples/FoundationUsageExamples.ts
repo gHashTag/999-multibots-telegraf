@@ -4,6 +4,7 @@
  */
 
 import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { configManager } from '../ConfigManager'
 import { isRussianFromState, languageManager } from '../LanguageManager'
 import { errorHandler, ErrorType } from '../ErrorHandler'
@@ -74,7 +75,7 @@ export function registerNewMenuAction() {
   // ✅ Правильная регистрация нового действия меню
   // NOTE: MenuActionHandler был удален, используйте NavigationService для регистрации действий
   // Пример:
-  // import { initializeNavigation } from '@/services/NavigationService'
+  // import { initializeNavigation } from '@/navigation'
   // initializeNavigation(bot) // Регистрация происходит автоматически
   console.log('MenuActionHandler removed - use NavigationService instead')
 }
@@ -167,7 +168,7 @@ export class SubscriptionService {
         if (ctx.scene.current) {
           await ctx.scene.leave()
         }
-        await ctx.scene.enter('subscription_scene')
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
 
         return false
       }
@@ -233,7 +234,7 @@ export class NewFeatureScene extends Scenes.BaseScene<MyContext> {
         ) {
           await ctx.scene.leave()
           await ctx.scene.leave()
-          const { showMainMenu } = await import('@/services/NavigationService')
+          const { showMainMenu } = await import('@/navigation')
           await showMainMenu(ctx)
           return
         }

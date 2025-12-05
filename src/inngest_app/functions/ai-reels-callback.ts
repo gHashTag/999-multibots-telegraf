@@ -137,7 +137,6 @@ export const aiReelsCallbackFunction = inngest.createFunction(
     const payload: AIReelsCallbackPayload = event.data
 
     logger.info('AI Reels callback received', {
-      eventId: event.id,
       bodyKeys: Object.keys(payload),
     })
 
