@@ -6,6 +6,10 @@ import { Telegraf, Input } from 'telegraf'
 import { VIDEO_MODELS_CONFIG as VIDEO_MODELS } from '@/config/unified-video-models.config'
 import type { VideoModelId } from '@/services/generateTextToVideo'
 import { sendMediaToPulse } from '@/helpers/pulse'
+import {
+  createVideoCompletionKeyboard,
+  getVideoCompletionMessage,
+} from '@/helpers/videoCompletionKeyboard'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
@@ -202,10 +206,40 @@ async function sendVideoDirectly(
           link_preview_options: { is_disabled: false },
         }
       )
+
+      // ✅ Отправляем клавиатуру с кнопками продолжения (для больших файлов)
+      const isRuLargeFile = true
+      await botInstance.telegram.sendMessage(
+        chatId,
+        getVideoCompletionMessage(isRuLargeFile),
+        createVideoCompletionKeyboard(isRuLargeFile)
+      )
     } else {
       // Отправляем видео пользователю
       await botInstance.telegram.sendVideo(chatId, videoUrl, {
         caption: `✅ Видео готово!\n\n🎬 Job ID: ${metadata.jobId || 'N/A'}\n⏱ Длительность: ${metadata.duration || 'N/A'} сек`,
+      })
+    }
+
+    // ✅ Отправляем клавиатуру с кнопками продолжения
+    try {
+      const isRu = true // По умолчанию русский
+      await botInstance.telegram.sendMessage(
+        chatId,
+        getVideoCompletionMessage(isRu),
+        createVideoCompletionKeyboard(isRu)
+      )
+      logger.info('✅ [SEND VIDEO DIRECTLY] Completion keyboard sent', {
+        telegramId,
+        chatId,
+      })
+    } catch (keyboardError) {
+      logger.warn('⚠️ [SEND VIDEO DIRECTLY] Failed to send completion keyboard', {
+        telegramId,
+        error:
+          keyboardError instanceof Error
+            ? keyboardError.message
+            : String(keyboardError),
       })
     }
 
@@ -966,55 +1000,11 @@ async function handleSoraSuccess(
         }
       )
 
-      // ✅ Снимаем деньги после успешной отправки видео
-      try {
-        const { checkBalanceVideoOperationHelper, deductBalanceAfterSuccess } =
-          await import('@/modules/videoGenerator/helpers')
-        const balanceResult = await checkBalanceVideoOperationHelper(
-          telegramId,
-          taskContext.modelId,
-          true, // isRu - можно определить из user data
-          'image_to_video'
-        )
-
-        if (
-          balanceResult.success &&
-          balanceResult.paymentAmount !== undefined
-        ) {
-          const deductSuccess = await deductBalanceAfterSuccess(
-            telegramId,
-            taskContext.modelId,
-            taskContext.botName || 'default',
-            balanceResult.paymentAmount,
-            'image_to_video'
-          )
-
-          if (deductSuccess) {
-            logger.info(
-              '✅ [SORA WEBHOOK] Payment deducted after successful video generation',
-              {
-                telegramId,
-                modelId: taskContext.modelId,
-                paymentAmount: balanceResult.paymentAmount,
-              }
-            )
-          }
-        }
-      } catch (paymentError) {
-        logger.error('❌ [SORA WEBHOOK] Error deducting payment', {
-          telegramId,
-          taskId,
-          error:
-            paymentError instanceof Error
-              ? paymentError.message
-              : String(paymentError),
-        })
-      }
-
-      // Отправляем промпт отдельным сообщением (без Markdown)
+      // ✅ Отправляем клавиатуру для продолжения работы
       await botInstance.telegram.sendMessage(
         taskContext.chatId,
-        `📝 Ваш запрос:\n\n${taskContext.prompt}`
+        getVideoCompletionMessage(true),
+        createVideoCompletionKeyboard(true)
       )
 
       // Удаляем сообщение о процессе генерации
@@ -1796,6 +1786,13 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
           logger.info('✅ [KIE.AI WEBHOOK] Video sent to user successfully', {
             taskId,
           })
+
+          // ✅ Отправляем клавиатуру для продолжения работы
+          await botInstance.telegram.sendMessage(
+            taskContext.chatId,
+            getVideoCompletionMessage(true),
+            createVideoCompletionKeyboard(true)
+          )
 
           // Удаляем status message
           try {

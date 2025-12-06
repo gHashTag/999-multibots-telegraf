@@ -4,6 +4,10 @@ import { logger } from '@/utils/logger'
 import { defaultBot, getBotByName } from '@/core/bot'
 import axios from 'axios'
 import { Input } from 'telegraf'
+import {
+  createVideoCompletionKeyboard,
+  getVideoCompletionMessage,
+} from '@/helpers/videoCompletionKeyboard'
 
 const router: Router = express.Router()
 
@@ -277,6 +281,14 @@ async function handleCompletedRender(
           `🎬 Создано с помощью Template 2 (Inngest + Render Server)`
       )
 
+      // ✅ Отправляем клавиатуру с кнопками продолжения (для больших файлов)
+      const isRuLargeFile = true
+      await botToUse.telegram.sendMessage(
+        telegramId,
+        getVideoCompletionMessage(isRuLargeFile),
+        createVideoCompletionKeyboard(isRuLargeFile)
+      )
+
       logger.info('✅ [AI REELS CALLBACK] URL sent successfully', {
         telegramId,
         jobId: payload.job_id,
@@ -292,6 +304,14 @@ async function handleCompletedRender(
         caption:
           '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Render Server)',
       }
+    )
+
+    // ✅ Отправляем клавиатуру с кнопками продолжения
+    const isRu = true
+    await botToUse.telegram.sendMessage(
+      telegramId,
+      getVideoCompletionMessage(isRu),
+      createVideoCompletionKeyboard(isRu)
     )
 
     logger.info('✅ [AI REELS CALLBACK] Video sent successfully', {

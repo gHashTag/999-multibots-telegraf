@@ -1617,5 +1617,69 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
     }
   )
 
+  // ✅ Повторить генерацию - использует lastCompletedVideoScene
+  bot.hears(
+    ['🔄 Повторить генерацию', '🔄 Repeat generation'],
+    async ctx => {
+      logger.info('🔄 [Navigation] Repeat video generation', {
+        telegramId: ctx.from?.id,
+        lastCompletedVideoScene: ctx.session.lastCompletedVideoScene,
+      })
+      try {
+        const { handleRestartVideoGeneration } = await import(
+          '@/handlers/handleVideoRestart'
+        )
+        await handleRestartVideoGeneration(ctx)
+      } catch (error) {
+        logger.error('❌ [Navigation] Error repeating video generation:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        const isRu = isRussianFromState(ctx)
+        await ctx.reply(
+          isRu
+            ? 'Произошла ошибка. Попробуйте вернуться в главное меню.'
+            : 'An error occurred. Please try returning to the main menu.'
+        )
+      }
+    }
+  )
+
+  // ✅ Новое видео - показываем меню выбора типа видео
+  bot.hears(['🎬 Новое видео', '🎬 New video'], async ctx => {
+    logger.info('🎬 [Navigation] New video', {
+      telegramId: ctx.from?.id,
+    })
+    try {
+      const isRu = isRussianFromState(ctx)
+      const { Markup } = await import('telegraf')
+
+      // Показываем клавиатуру с выбором типа видео
+      const keyboard = Markup.keyboard([
+        [isRu ? '🎥 Видео из текста' : '🎥 Text to Video'],
+        [isRu ? '🎥 Фото в видео' : '🎥 Photo to Video'],
+        [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+      ]).resize()
+
+      await ctx.reply(
+        isRu
+          ? 'Выберите тип видео:'
+          : 'Choose video type:',
+        keyboard
+      )
+    } catch (error) {
+      logger.error('❌ [Navigation] Error showing video menu:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? 'Произошла ошибка. Попробуйте вернуться в главное меню.'
+          : 'An error occurred. Please try returning to the main menu.'
+      )
+    }
+  })
+
   logger.info('✅ [Navigation] Registered special handlers')
 }

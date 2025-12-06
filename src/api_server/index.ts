@@ -18,6 +18,8 @@ import { inngest } from '../inngest_app/client'
 // ✅ LAZY: Импортируем фабричную функцию, а не готовые функции
 import { createAllInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
+// ✅ Webhook health verification on startup
+import { verifyWebhooksOnStartup } from '@/utils/webhookHealthCheck'
 
 // Определяем порт. Берем из process.env.API_PORT, если есть, иначе 3000 (настроено в docker-compose.yml).
 // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
@@ -181,8 +183,23 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   }
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     console.log(`[API] Server started on port ${PORT} (listening on 0.0.0.0)`)
+
+    // 🚀 Verify webhook health on startup
+    try {
+      const webhookStatus = await verifyWebhooksOnStartup()
+      if (webhookStatus.success) {
+        logger.info('🚀 [STARTUP] Webhook verification PASSED', webhookStatus.details)
+      } else {
+        logger.error('❌ [STARTUP] Webhook verification FAILED!', webhookStatus)
+        console.error('❌ CRITICAL: Webhook endpoints are not accessible! Check nginx config.')
+      }
+    } catch (error) {
+      logger.error('❌ [STARTUP] Webhook verification error', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   })
 
   // Удаляем дополнительный сервер на 8080: используем только один порт для reverse proxy

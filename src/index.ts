@@ -573,7 +573,15 @@ async function startApplication() {
         console.log(`  ⚠️  Пустые: ${emptyKeys.length} - ${emptyKeys.join(', ')}`)
       }
 
-      // 🔗 ВРЕМЕННОЕ РЕШЕНИЕ: Устанавливаем BASE_WEBHOOK_URL напрямую для production
+      // 🔗 Приоритет: .env файл > Infisical (для BASE_WEBHOOK_URL)
+      // Если в .env есть HTTPS версия, используем её вместо HTTP из Infisical
+      if (process.env.BASE_WEBHOOK_URL?.startsWith('http://')) {
+        const httpsUrl = process.env.BASE_WEBHOOK_URL.replace('http://', 'https://')
+        console.log(`  ⚠️ BASE_WEBHOOK_URL: Исправлен HTTP→HTTPS: ${httpsUrl}`)
+        process.env.BASE_WEBHOOK_URL = httpsUrl
+      }
+
+      // Fallback если не установлен вообще
       if (!process.env.BASE_WEBHOOK_URL && env === 'prod') {
         process.env.BASE_WEBHOOK_URL = 'https://three-head-dragon.shop'
         console.log('  ✅ BASE_WEBHOOK_URL установлен (hardcoded fallback)')
