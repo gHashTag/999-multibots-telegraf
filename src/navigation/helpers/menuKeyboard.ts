@@ -56,24 +56,26 @@ export function createCategoryKeyboard(
     return createMainMenuKeyboard(ctx)
   }
 
-  // Собираем все кнопки функций (без админских)
+  // Собираем все кнопки функций (без админских и скрытых)
   const buttons: string[] = []
   for (const item of category.items) {
+    // Пропускаем админские кнопки
     if (item.adminOnly) {
+      continue
+    }
+    // ✅ Пропускаем скрытые кнопки (например, "Подписка" - не нужна пользователям)
+    if (item.hidden) {
       continue
     }
     buttons.push(getItemText(item, isRu))
   }
 
-  // Группируем по 3 в ряд
+  // Группируем по 2 в ряд (для красивой раскладки)
   const rows: string[][] = []
-  for (let i = 0; i < buttons.length; i += 3) {
+  for (let i = 0; i < buttons.length; i += 2) {
     const row = [buttons[i]]
     if (buttons[i + 1]) {
       row.push(buttons[i + 1])
-    }
-    if (buttons[i + 2]) {
-      row.push(buttons[i + 2])
     }
     rows.push(row)
   }

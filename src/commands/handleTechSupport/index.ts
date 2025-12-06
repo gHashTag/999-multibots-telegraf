@@ -25,9 +25,14 @@ export const handleTechSupport = async (ctx: MyContext) => {
 
   const message = isRu
     ? `🛠 Для обращения в техподдержку, напишите ${supportMention}\n\n` +
-      'Пожалуйста, опишите вашу проблему максимально подробно.\n\nДля возврата в главное меню, нажмите /start'
+      'Пожалуйста, опишите вашу проблему максимально подробно.'
     : `🛠 To contact tech support, write to ${supportMention}\n\n` +
-      'Please describe your problem in as much detail as possible.\n\nTo return to the main menu, click /start'
+      'Please describe your problem in as much detail as possible.'
 
-  await ctx.reply(message, Markup.removeKeyboard())
+  // ✅ ИСПРАВЛЕНО: Добавляем клавиатуру с кнопкой возврата в главное меню
+  const keyboard = Markup.keyboard([
+    [isRu ? '🏠 Главное меню' : '🏠 Main menu']
+  ]).resize()
+
+  await ctx.reply(message, keyboard)
 }

@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { handleHelpCancel, createHelpCancelKeyboard } from '@/navigation'
+import { handleHelpCancel, createHelpCancelKeyboard, getMainMenuText } from '@/navigation'
 import { generateInstagramScraping } from '@/services/generateInstagramScraping'
 import { updateUserBalance } from '@/core/supabase'
 import { PaymentType } from '@/interfaces'
@@ -47,7 +47,7 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
         Markup.button.text(isRu ? 'Справка по команде' : 'Help for the command'),
         Markup.button.text(isRu ? 'Отмена' : 'Cancel')
       ],
-      [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
+      [Markup.button.text(getMainMenuText(isRu))]
     ]).resize().oneTime()
 
     await ctx.reply(
@@ -190,7 +190,7 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
         Markup.button.text(isRu ? 'Справка по команде' : 'Help for the command'),
         Markup.button.text(isRu ? 'Отмена' : 'Cancel')
       ],
-      [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
+      [Markup.button.text(getMainMenuText(isRu))]
     ]).resize().oneTime()
 
     await ctx.reply(
@@ -270,7 +270,7 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
         Markup.button.text(isRu ? '✅ Подтвердить' : '✅ Confirm'),
         Markup.button.text(isRu ? 'Отмена' : 'Cancel')
       ],
-      [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
+      [Markup.button.text(getMainMenuText(isRu))]
     ]).resize().oneTime()
 
     await ctx.reply(

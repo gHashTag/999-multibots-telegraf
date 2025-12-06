@@ -1,6 +1,8 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { getMainMenuText } from '@/navigation'
 import { logger } from '../../utils/logger'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import fs from 'fs'
@@ -3100,7 +3102,7 @@ const processAiPhotoshopRequest = async (
               ? '⚠️ FLUX Multi-Kontext требует 2 изображения. Пожалуйста, загрузите второе изображение.'
               : '⚠️ FLUX Multi-Kontext requires 2 images. Please upload a second image.',
             Markup.keyboard([
-              [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+              [getMainMenuText(isRu)],
             ]).resize()
           )
           return
@@ -4940,7 +4942,7 @@ aiPhotoshopScene.command('start', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('startScene')
+    await ctx.scene.enter(ModeEnum.StartScene)
   } catch (error) {
     logger.error('Error in start command handler', { error })
     await ctx.scene.leave()

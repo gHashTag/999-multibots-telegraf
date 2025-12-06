@@ -463,6 +463,461 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     supportedLanguages: ['ru', 'en'],
     tags: ['invite', 'referral', 'friends'],
     version: '1.0.0'
+  },
+
+  // ========================================
+  // ДОПОЛНИТЕЛЬНЫЕ ГЕНЕРАЦИОННЫЕ СЦЕНЫ
+  // ========================================
+
+  faceSwapWizard: {
+    id: 'faceSwapWizard',
+    name: 'FaceSwap',
+    description: 'Замена лица на изображении',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.FaceSwap,
+    requiresSubscription: true,
+    cost: 15,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['face', 'swap', 'generation'],
+    version: '1.0.0'
+  },
+
+  morphingWizard: {
+    id: 'morphingWizard',
+    name: 'Морфинг',
+    description: 'Морфинг изображений',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.MorphingWizard,
+    requiresSubscription: true,
+    cost: 20,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['morphing', 'generation'],
+    version: '1.0.0'
+  },
+
+  imageUpscalerWizard: {
+    id: 'imageUpscalerWizard',
+    name: 'Увеличение изображения',
+    description: 'Улучшение качества и размера изображений',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.ImageUpscaler,
+    requiresSubscription: true,
+    cost: 5,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['upscale', 'image', 'quality'],
+    version: '1.0.0'
+  },
+
+  imageToPromptWizard: {
+    id: 'imageToPromptWizard',
+    name: 'Изображение в промпт',
+    description: 'Генерация промпта из изображения',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.ImageToPrompt,
+    requiresSubscription: true,
+    cost: 5,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['image', 'prompt', 'analysis'],
+    version: '1.0.0'
+  },
+
+  aiPhotoshopScene: {
+    id: 'aiPhotoshopScene',
+    name: 'AI Photoshop',
+    description: 'Редактирование изображений с помощью ИИ',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.AiPhotoshop,
+    requiresSubscription: true,
+    cost: 10,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['photoshop', 'ai', 'edit'],
+    version: '1.0.0'
+  },
+
+  fluxKontextScene: {
+    id: 'fluxKontextScene',
+    name: 'Flux Kontext',
+    description: 'Генерация с Flux Kontext моделью',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.FluxKontext,
+    requiresSubscription: true,
+    cost: 15,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['flux', 'kontext', 'generation'],
+    version: '1.0.0'
+  },
+
+  // ========================================
+  // АУДИО СЦЕНЫ
+  // ========================================
+
+  textToSpeechWizard: {
+    id: 'textToSpeechWizard',
+    name: 'Текст в речь',
+    description: 'Преобразование текста в голос',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.TextToSpeech,
+    requiresSubscription: true,
+    cost: 5,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['tts', 'voice', 'speech'],
+    version: '1.0.0'
+  },
+
+  videoTranscriptionWizard: {
+    id: 'videoTranscriptionWizard',
+    name: 'Транскрипция видео',
+    description: 'Извлечение текста из видео',
+    category: SceneCategory.TOOLS,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.VideoTranscription,
+    requiresSubscription: true,
+    cost: 10,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['transcription', 'video', 'text'],
+    version: '1.0.0'
+  },
+
+  // ========================================
+  // LIPSYNC СЦЕНЫ
+  // ========================================
+
+  aiReelsWizard: {
+    id: 'aiReelsWizard',
+    name: 'AI Reels',
+    description: 'Создание AI Reels видео',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.AiReelsWizard,
+    requiresSubscription: true,
+    cost: 50,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['reels', 'ai', 'video'],
+    version: '1.0.0'
+  },
+
+  aiReelsEntryWizard: {
+    id: 'aiReelsEntryWizard',
+    name: 'AI Reels Entry',
+    description: 'Точка входа для AI Reels',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.AiReelsEntryWizard,
+    requiresSubscription: true,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['reels', 'entry'],
+    version: '1.0.0'
+  },
+
+  hedraRenderWizard: {
+    id: 'hedraRenderWizard',
+    name: 'Hedra Render',
+    description: 'Рендеринг через Hedra',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.HedraRenderWizard,
+    requiresSubscription: true,
+    cost: 30,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['hedra', 'render', 'lipsync'],
+    version: '1.0.0'
+  },
+
+  heygenRenderWizard: {
+    id: 'heygenRenderWizard',
+    name: 'HeyGen Render',
+    description: 'Рендеринг через HeyGen',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.HeygenRenderWizard,
+    requiresSubscription: true,
+    cost: 50,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['heygen', 'render', 'lipsync'],
+    version: '1.0.0'
+  },
+
+  falRenderWizard: {
+    id: 'falRenderWizard',
+    name: 'Fal Render',
+    description: 'Рендеринг через Fal.ai',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.FalRenderWizard,
+    requiresSubscription: true,
+    cost: 30,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['fal', 'render', 'lipsync'],
+    version: '1.0.0'
+  },
+
+  veedFabricWizard: {
+    id: 'veedFabricWizard',
+    name: 'Veed Fabric',
+    description: 'LipSync через Veed Fabric',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.VeedFabricLipSync,
+    requiresSubscription: true,
+    cost: 40,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['veed', 'fabric', 'lipsync'],
+    version: '1.0.0'
+  },
+
+  // ========================================
+  // АВАТАРЫ (дополнительные)
+  // ========================================
+
+  digitalAvatarBodyWizardV2: {
+    id: 'digitalAvatarBodyWizardV2',
+    name: 'Цифровое тело V2',
+    description: 'Улучшенная версия создания цифрового тела',
+    category: SceneCategory.AVATAR,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.DigitalAvatarBodyV2,
+    requiresSubscription: true,
+    cost: 150,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['avatar', 'body', 'v2'],
+    version: '2.0.0'
+  },
+
+  avatarBrainWizard: {
+    id: 'avatarBrainWizard',
+    name: 'Мозг аватара',
+    description: 'Настройка интеллекта аватара',
+    category: SceneCategory.AVATAR,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.Avatar,
+    requiresSubscription: true,
+    cost: 20,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['avatar', 'brain', 'ai'],
+    version: '1.0.0'
+  },
+
+  voiceAvatarWizard: {
+    id: 'voiceAvatarWizard',
+    name: 'Голосовой аватар',
+    description: 'Создание голосового аватара',
+    category: SceneCategory.AVATAR,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.Voice,
+    requiresSubscription: true,
+    cost: 30,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['voice', 'avatar', 'audio'],
+    version: '1.0.0'
+  },
+
+  chatWithAvatarWizard: {
+    id: 'chatWithAvatarWizard',
+    name: 'Чат с аватаром',
+    description: 'Общение с цифровым аватаром',
+    category: SceneCategory.AVATAR,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.ChatWithAvatar,
+    requiresSubscription: true,
+    cost: 5,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['chat', 'avatar', 'ai'],
+    version: '1.0.0'
+  },
+
+  // ========================================
+  // ОБУЧЕНИЕ МОДЕЛЕЙ
+  // ========================================
+
+  trainFluxModelWizard: {
+    id: 'trainFluxModelWizard',
+    name: 'Обучение Flux модели',
+    description: 'Обучение своей модели Flux',
+    category: SceneCategory.WIZARD,
+    accessLevel: AccessLevel.PREMIUM,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.TrainFluxModelWizard,
+    requiresSubscription: true,
+    cost: 500,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['train', 'flux', 'model'],
+    version: '1.0.0'
+  },
+
+  uploadTrainFluxModelScene: {
+    id: 'uploadTrainFluxModelScene',
+    name: 'Загрузка данных для обучения',
+    description: 'Загрузка изображений для обучения модели',
+    category: SceneCategory.WIZARD,
+    accessLevel: AccessLevel.PREMIUM,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.UploadTrainFluxModelScene,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['upload', 'train', 'flux'],
+    version: '1.0.0'
+  },
+
+  // ========================================
+  // СИСТЕМНЫЕ (дополнительные)
+  // ========================================
+
+  startScene: {
+    id: 'startScene',
+    name: 'Стартовая сцена',
+    description: 'Приветствие и начальная регистрация',
+    category: SceneCategory.SYSTEM,
+    accessLevel: AccessLevel.PUBLIC,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.StartScene,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['start', 'welcome', 'registration'],
+    version: '1.0.0'
+  },
+
+  createUserScene: {
+    id: 'createUserScene',
+    name: 'Создание пользователя',
+    description: 'Регистрация нового пользователя',
+    category: SceneCategory.SYSTEM,
+    accessLevel: AccessLevel.PUBLIC,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.CreateUserScene,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['user', 'create', 'registration'],
+    version: '1.0.0'
+  },
+
+  changeLanguageScene: {
+    id: 'changeLanguageScene',
+    name: 'Смена языка',
+    description: 'Изменение языка интерфейса',
+    category: SceneCategory.SYSTEM,
+    accessLevel: AccessLevel.PUBLIC,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.ChangeLanguageScene,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['language', 'settings'],
+    version: '1.0.0'
+  },
+
+  subscriptionCheckScene: {
+    id: 'subscriptionCheckScene',
+    name: 'Проверка подписки',
+    description: 'Проверка статуса подписки пользователя',
+    category: SceneCategory.SYSTEM,
+    accessLevel: AccessLevel.PUBLIC,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.SubscriptionCheckScene,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['subscription', 'check'],
+    version: '1.0.0'
+  },
+
+  // ========================================
+  // УТИЛИТЫ (дополнительные)
+  // ========================================
+
+  emailWizard: {
+    id: 'emailWizard',
+    name: 'Email',
+    description: 'Привязка и управление email',
+    category: SceneCategory.UTILITY,
+    accessLevel: AccessLevel.PUBLIC,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.EmailWizard,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['email', 'settings'],
+    version: '1.0.0'
+  },
+
+  getRuBillWizard: {
+    id: 'getRuBillWizard',
+    name: 'Получение счёта',
+    description: 'Генерация счёта для юридических лиц',
+    category: SceneCategory.PAYMENT,
+    accessLevel: AccessLevel.PUBLIC,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.GetRuBillWizard,
+    cost: 0,
+    supportedLanguages: ['ru'],
+    tags: ['bill', 'invoice', 'payment'],
+    version: '1.0.0'
+  },
+
+  cancelPredictionsWizard: {
+    id: 'cancelPredictionsWizard',
+    name: 'Отмена генераций',
+    description: 'Отмена текущих задач генерации',
+    category: SceneCategory.UTILITY,
+    accessLevel: AccessLevel.PUBLIC,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.CancelPredictionsWizard,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['cancel', 'predictions'],
+    version: '1.0.0'
+  },
+
+  neuroCoderScene: {
+    id: 'neuroCoderScene',
+    name: 'Neuro Coder',
+    description: 'ИИ-помощник для написания кода',
+    category: SceneCategory.TOOLS,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.NeuroCoderScene,
+    requiresSubscription: true,
+    cost: 10,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['code', 'ai', 'developer'],
+    version: '1.0.0'
+  },
+
+  generateImageWizard: {
+    id: 'generateImageWizard',
+    name: 'Генерация изображения',
+    description: 'Базовый мастер генерации изображений',
+    category: SceneCategory.GENERATION,
+    accessLevel: AccessLevel.SUBSCRIBER,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.TextToImage,
+    requiresSubscription: true,
+    cost: 8,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['generate', 'image'],
+    version: '1.0.0'
   }
 }
 

@@ -264,9 +264,8 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     }
 
     const mainMenuTexts = getButtonTextsByMode('main_menu')
-    if (text === (mainMenuTexts?.ru || '🏠 Главное меню') || text === (mainMenuTexts?.en || '🏠 Main menu')) {
+    if (text === mainMenuTexts?.ru || text === mainMenuTexts?.en) {
       console.log('CASE: Главное меню')
-      return
       return
     }
 

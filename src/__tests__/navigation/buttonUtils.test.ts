@@ -9,9 +9,17 @@ import {
   getButtonTextsByMode,
   getCategoryButtonTexts,
   getAllButtonTexts,
-  getSpecialButtonTexts,
+  // ❌ getSpecialButtonTexts - УДАЛЕНО, используйте NAVIGATION_BUTTONS из buttons.config.ts
   getCategoryItems
 } from '@/navigation/buttonUtils'
+import {
+  NAVIGATION_BUTTONS,
+  getButtonText,
+  getMainMenuText,
+  getBackText,
+  getCancelText,
+  getHelpText
+} from '@/navigation/config/buttons.config'
 import { CATEGORIES } from '@/navigation/config/categories.config'
 import { ModeEnum } from '@/interfaces/modes'
 
@@ -270,41 +278,50 @@ describe('buttonUtils', () => {
     })
   })
 
-  describe('getSpecialButtonTexts()', () => {
-    it('возвращает тексты для main_menu', () => {
-      const result = getSpecialButtonTexts('main_menu')
-
-      expect(result.ru).toBe('🏠 Главное меню')
-      expect(result.en).toBe('🏠 Main menu')
+  // ✅ НОВЫЕ ТЕСТЫ для NAVIGATION_BUTTONS из buttons.config.ts
+  // Заменяют устаревший getSpecialButtonTexts()
+  describe('NAVIGATION_BUTTONS (замена getSpecialButtonTexts)', () => {
+    it('getMainMenuText возвращает правильный текст', () => {
+      expect(getMainMenuText(true)).toBe('🏠 Главное меню')
+      expect(getMainMenuText(false)).toBe('🏠 Main menu')
     })
 
-    it('возвращает тексты для help', () => {
-      const result = getSpecialButtonTexts('help')
-
-      expect(result.ru).toBe('💬 Техподдержка')
-      expect(result.en).toBe('💬 Tech Support')
+    it('getBackText возвращает правильный текст', () => {
+      expect(getBackText(true)).toBe('◀️ Назад')
+      expect(getBackText(false)).toBe('◀️ Back')
     })
 
-    it('возвращает тексты для cancel', () => {
-      const result = getSpecialButtonTexts('cancel')
-
-      expect(result.ru).toBe('Отмена')
-      expect(result.en).toBe('Cancel')
+    it('getCancelText возвращает правильный текст', () => {
+      expect(getCancelText(true)).toBe('Отмена')
+      expect(getCancelText(false)).toBe('Cancel')
     })
 
-    it('возвращает тексты для back', () => {
-      const result = getSpecialButtonTexts('back')
-
-      expect(result.ru).toBe('◀️ Назад')
-      expect(result.en).toBe('◀️ Back')
+    it('getHelpText возвращает правильный текст', () => {
+      expect(getHelpText(true)).toBe('❓ Справка')
+      expect(getHelpText(false)).toBe('❓ Help')
     })
 
-    it('возвращает пустые строки для несуществующего типа', () => {
-      // @ts-expect-error - проверяем edge case
-      const result = getSpecialButtonTexts('non_existent')
+    it('getButtonText работает с любой ButtonConfig', () => {
+      expect(getButtonText(NAVIGATION_BUTTONS.mainMenu, true)).toBe('🏠 Главное меню')
+      expect(getButtonText(NAVIGATION_BUTTONS.mainMenu, false)).toBe('🏠 Main menu')
+      expect(getButtonText(NAVIGATION_BUTTONS.cancel, true)).toBe('Отмена')
+      expect(getButtonText(NAVIGATION_BUTTONS.cancel, false)).toBe('Cancel')
+    })
 
-      expect(result.ru).toBe('')
-      expect(result.en).toBe('')
+    it('NAVIGATION_BUTTONS содержит все необходимые кнопки', () => {
+      expect(NAVIGATION_BUTTONS.mainMenu).toBeDefined()
+      expect(NAVIGATION_BUTTONS.back).toBeDefined()
+      expect(NAVIGATION_BUTTONS.cancel).toBeDefined()
+      expect(NAVIGATION_BUTTONS.help).toBeDefined()
+    })
+
+    it('каждая кнопка имеет id, ru, en и aliases', () => {
+      for (const [key, button] of Object.entries(NAVIGATION_BUTTONS)) {
+        expect(button.id).toBeDefined()
+        expect(button.ru).toBeDefined()
+        expect(button.en).toBeDefined()
+        expect(Array.isArray(button.aliases)).toBe(true)
+      }
     })
   })
 
@@ -380,15 +397,13 @@ describe('buttonUtils', () => {
       }
     })
 
-    it('getSpecialButtonTexts возвращает объект с ru и en для всех типов', () => {
-      const types = ['main_menu', 'help', 'cancel', 'back'] as const
-
-      for (const type of types) {
-        const result = getSpecialButtonTexts(type)
-        expect(typeof result.ru).toBe('string')
-        expect(typeof result.en).toBe('string')
-        expect(result.ru.length).toBeGreaterThan(0)
-        expect(result.en.length).toBeGreaterThan(0)
+    it('NAVIGATION_BUTTONS возвращает объект с ru и en для всех кнопок', () => {
+      // ✅ Заменяет устаревший тест для getSpecialButtonTexts
+      for (const [key, button] of Object.entries(NAVIGATION_BUTTONS)) {
+        expect(typeof button.ru).toBe('string')
+        expect(typeof button.en).toBe('string')
+        expect(button.ru.length).toBeGreaterThan(0)
+        expect(button.en.length).toBeGreaterThan(0)
       }
     })
   })

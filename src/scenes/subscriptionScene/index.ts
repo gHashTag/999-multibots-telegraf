@@ -190,6 +190,14 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       )
     }
 
+    // ✅ ДОБАВЛЯЕМ КНОПКУ ОТМЕНЫ В INLINE KEYBOARD
+    cleanedKeyboardRows.push([
+      Markup.button.callback(
+        isRu ? '❌ Отмена' : '❌ Cancel',
+        'cancel_subscription'
+      ),
+    ])
+
     if (cleanedKeyboardRows.length === 0) {
       logger.warn(
         `[${ModeEnum.SubscriptionScene}] No valid buttons generated.`,
@@ -433,3 +441,17 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
     }
   }
 )
+
+// ✅ ОБРАБОТЧИК КНОПКИ ОТМЕНЫ
+subscriptionScene.action('cancel_subscription', async (ctx) => {
+  await ctx.answerCbQuery()
+  const isRu = isRussian(ctx)
+
+  await ctx.editMessageText(
+    isRu ? '❌ Оформление подписки отменено.' : '❌ Subscription canceled.'
+  )
+
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/navigation')
+  await showMainMenu(ctx)
+})

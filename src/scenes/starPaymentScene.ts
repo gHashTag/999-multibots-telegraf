@@ -8,6 +8,7 @@ import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleTopUp } from '@/handlers/paymentHandlers/handleTopUp'
+import { getMainMenuText } from '@/navigation'
 
 export const starPaymentScene = new Scenes.BaseScene<MyContext>(
   ModeEnum.StarPaymentScene
@@ -49,17 +50,33 @@ starPaymentScene.enter(async ctx => {
   }
 })
 
-// Выход из сцены
-starPaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
+// ✅ Переключение на оплату рублями (если пользователь передумал)
+starPaymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
   logger.info(
-    `[${ModeEnum.StarPaymentScene}] Leaving scene via Main Menu button`,
+    `[${ModeEnum.StarPaymentScene}] User wants to switch to Rubles payment`,
     {
       telegram_id: ctx.from?.id,
     }
   )
-  await ctx.scene.leave()
-  const { showMainMenu } = await import('@/navigation')
-  await showMainMenu(ctx)
+  await ctx.scene.enter(ModeEnum.RublePaymentScene)
+})
+
+// Выход из сцены
+starPaymentScene.hears(/^🏠/, async ctx => {
+  const isRu = isRussianFromState(ctx)
+  const mainMenuText = getMainMenuText(isRu)
+
+  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+    logger.info(
+      `[${ModeEnum.StarPaymentScene}] Leaving scene via Main Menu button`,
+      {
+        telegram_id: ctx.from?.id,
+      }
+    )
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
+  }
 })
 
 // Action handler for star top-up buttons

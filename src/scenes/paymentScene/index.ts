@@ -9,6 +9,7 @@ import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { handleSelectStars } from '@/handlers/handleSelectStars'
 import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { starAmounts } from '@/price/helpers/starAmounts'
+import { getMainMenuText } from '@/navigation'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа
@@ -65,7 +66,7 @@ paymentScene.enter(async ctx => {
       ),
     ])
     buttons.push([
-      Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu'),
+      Markup.button.text(getMainMenuText(isRu)),
     ])
 
     const keyboard = Markup.keyboard(buttons).resize()
@@ -226,18 +227,25 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
 })
 
 // Выход в главное меню
-paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
-  logger.info(
-    `[${ModeEnum.PaymentScene}] User chose Main Menu. Leaving scene.`,
-    { telegram_id: ctx.from?.id }
-  )
-  // Очищаем информацию о выбранном платеже перед выходом
-  ctx.session.selectedPayment = undefined
-  logger.info(`[${ModeEnum.PaymentScene}] Cleared session.selectedPayment.`, {
-    telegram_id: ctx.from?.id,
-  })
-  await ctx.scene.leave()
-  return // Вызываем УДАЛЁН, чтобы показать главное меню
+paymentScene.hears(/^🏠/, async ctx => {
+  const isRu = isRussian(ctx)
+  const mainMenuText = getMainMenuText(isRu)
+
+  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+    logger.info(
+      `[${ModeEnum.PaymentScene}] User chose Main Menu. Leaving scene.`,
+      { telegram_id: ctx.from?.id }
+    )
+    // Очищаем информацию о выбранном платеже перед выходом
+    ctx.session.selectedPayment = undefined
+    logger.info(`[${ModeEnum.PaymentScene}] Cleared session.selectedPayment.`, {
+      telegram_id: ctx.from?.id,
+    })
+    await ctx.scene.leave()
+    // ✅ ИСПРАВЛЕНО: Показываем главное меню после выхода из сцены
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
+  }
 })
 
 // Обработка непредвиденных сообщений
@@ -249,14 +257,15 @@ paymentScene.on('message', async ctx => {
   })
 
   // Предлагаем только доступные опции
+  const mainMenuText = getMainMenuText(isRu)
   const replyText = isRu
-    ? 'Пожалуйста, выберите ⭐️ Звездами или вернитесь в 🏠 Главное меню.'
-    : 'Please select ⭐️ Stars or return to the 🏠 Main menu.'
+    ? `Пожалуйста, выберите ⭐️ Звездами или вернитесь в ${mainMenuText}.`
+    : `Please select ⭐️ Stars or return to the ${mainMenuText}.`
 
   // Клавиатура только со Звездами и Меню
   const buttons = [
     [Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars')],
-    [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+    [Markup.button.text(mainMenuText)],
   ]
   const keyboard = Markup.keyboard(buttons).resize()
 

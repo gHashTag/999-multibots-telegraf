@@ -9,9 +9,39 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 
 /**
  * Отправить общее сообщение об ошибке
+ * @param ctx - Контекст Telegraf
+ * @param isRuOrError - Может быть boolean (isRu) или string (errorText) или Error
+ * @param errorOrUndefined - Может быть Error или undefined
  */
-export async function sendGenericErrorMessage(ctx: MyContext, errorText?: string) {
-  const isRu = await isRussianFromState(ctx)
+export async function sendGenericErrorMessage(
+  ctx: MyContext,
+  isRuOrError?: boolean | string | Error,
+  errorOrUndefined?: Error | string
+) {
+  // Определяем параметры в зависимости от того, что передано
+  let isRu: boolean
+  let errorText: string | undefined
+
+  if (typeof isRuOrError === 'boolean') {
+    // Новая сигнатура: (ctx, isRu, error?)
+    isRu = isRuOrError
+    if (errorOrUndefined instanceof Error) {
+      errorText = errorOrUndefined.message
+    } else if (typeof errorOrUndefined === 'string') {
+      errorText = errorOrUndefined
+    }
+  } else if (typeof isRuOrError === 'string') {
+    // Старая сигнатура: (ctx, errorText)
+    isRu = await isRussianFromState(ctx)
+    errorText = isRuOrError
+  } else if (isRuOrError instanceof Error) {
+    // Вызов: (ctx, error)
+    isRu = await isRussianFromState(ctx)
+    errorText = isRuOrError.message
+  } else {
+    // Вызов: (ctx)
+    isRu = await isRussianFromState(ctx)
+  }
 
   const message = errorText || (
     isRu
@@ -77,18 +107,27 @@ export function createHelpCancelKeyboard(isRu: boolean) {
 }
 
 /**
- * Запрос описания фото
+ * Запрос описания фото (текстового промпта)
+ * @param ctx - Контекст Telegraf
+ * @param isRu - Язык пользователя (опционально, если не передан - определяется автоматически)
+ * @param _mode - Режим (не используется, для совместимости)
  */
-export async function sendPhotoDescriptionRequest(ctx: MyContext) {
-  const isRu = await isRussianFromState(ctx)
+export async function sendPhotoDescriptionRequest(
+  ctx: MyContext,
+  isRu?: boolean,
+  _mode?: string
+) {
+  // Если isRu не передан, определяем автоматически
+  const isRussian = isRu !== undefined ? isRu : await isRussianFromState(ctx)
 
-  const message = isRu
-    ? '📸 Отправьте описание для генерации изображения:'
-    : '📸 Send a description for image generation:'
+  // ✅ ИСПРАВЛЕНО: Более понятное сообщение - нужен ТЕКСТ, не фото
+  const message = isRussian
+    ? '✍️ Опишите текстом, какое изображение вы хотите сгенерировать:\n\n💡 Например: "красивый портрет на фоне моря" или "деловой стиль в офисе"'
+    : '✍️ Describe in text what image you want to generate:\n\n💡 For example: "beautiful portrait by the sea" or "business style in the office"'
 
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback(
-      isRu ? '❌ Отмена' : '❌ Cancel',
+      isRussian ? '❌ Отмена' : '❌ Cancel',
       'cancel'
     )]
   ])

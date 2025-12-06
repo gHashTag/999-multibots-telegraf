@@ -117,6 +117,13 @@ import {
   getParsingAccess,
 } from '@/navigation'
 
+// ✅ Константы навигации теперь используются ТОЛЬКО в централизованном middleware:
+// './middleware/registerGlobalNavigationMiddleware.ts'
+// Импорты здесь удалены для упрощения и предотвращения дублирования
+
+// Импорт глобального middleware навигации
+import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
+
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
  * Перенесена из registerCommands.ts для централизации всей логики
@@ -131,56 +138,49 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   console.log('🔴🔴🔴 DIAGNOSTIC: logger.info called')
 
   try {
-    // 1. Логгер для ВСЕХ входящих обновлений
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🎯 ЦЕНТРАЛИЗОВАННАЯ ОБРАБОТКА ВСЕХ СООБЩЕНИЙ
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // 1. Логгер для ВСЕХ входящих обновлений (самый первый middleware)
     bot.use((ctx, next) => {
       const messageText =
         ctx.message && 'text' in ctx.message ? ctx.message.text : undefined
+      const callbackData =
+        ctx.callbackQuery && 'data' in ctx.callbackQuery
+          ? ctx.callbackQuery.data
+          : undefined
 
-      // ✅ СПЕЦИАЛЬНЫЙ ЛОГ ДЛЯ ОТЛАДКИ ПЛАТЕЖЕЙ
-      if (messageText === '💳 Рублями' || messageText === '💳 Rubles') {
-        logger.info('🔍 [PAYMENT DEBUG] Rubles button detected in raw update', {
-          updateId: ctx.update.update_id,
-          currentScene: ctx.scene?.current?.id,
-          messageText,
-          hasScene: !!ctx.scene?.current,
-        })
-      }
-
-      logger.info('>>> RAW UPDATE RECEIVED', {
+      // 🔥 ЕДИНЫЙ ЛОГ ДЛЯ ВСЕХ СООБЩЕНИЙ
+      console.log('═══════════════════════════════════════════════════════')
+      console.log('📨 INCOMING UPDATE:', {
         updateId: ctx.update.update_id,
-        updateType: ctx.updateType,
-        messageText,
-        messageLength: messageText?.length,
-        callbackData:
-          ctx.callbackQuery && 'data' in ctx.callbackQuery
-            ? ctx.callbackQuery.data
-            : undefined,
-        sceneInfo: ctx.scene?.current?.id,
+        type: ctx.updateType,
+        text: messageText || 'N/A',
+        callback: callbackData || 'N/A',
+        from: ctx.from?.id,
+        scene: ctx.scene?.current?.id || 'none',
       })
-
-      // СПЕЦИАЛЬНЫЙ ЛОГ ДЛЯ /instagram
-      if (messageText === '/instagram') {
-        // Instagram command detected, proceeding to handler
-      }
-
-      // 🔍 СПЕЦИАЛЬНЫЙ ЛОГ ДЛЯ НАВИГАЦИИ
-      if (messageText === '👤 Профиль') {
-        logger.info('🔍 [NAVIGATION DEBUG] Profile button detected!', {
-          updateId: ctx.update.update_id,
-          messageText,
-          messageCharCodes: Array.from(messageText || '').map(c => c.charCodeAt(0)),
-          sceneInfo: ctx.scene?.current?.id,
-        })
-      }
+      console.log('═══════════════════════════════════════════════════════')
 
       return next()
     })
 
-    // 2. Middleware сцен (ДОЛЖЕН БЫТЬ ПОСЛЕ СЕССИИ - сессия теперь регистрируется в bot.ts)
+    // 2. Создаём Stage со всеми сценами ПЕРВЫМ - нужен для ctx.scene
+    console.log('🟡 Creating stage with all scenes...')
     const stage = createStage()
-    bot.use(stage.middleware())
 
-    // 3. ✅ ИНИЦИАЛИЗАЦИЯ НАВИГАЦИИ ПОСЛЕ stage.middleware()
+    // 3. Добавляем Stage middleware - теперь ctx.scene доступен!
+    bot.use(stage.middleware())
+    console.log('🟢 Stage middleware added - ctx.scene now available!')
+
+    // 4. ✅ ЕДИНСТВЕННЫЙ ЦЕНТРАЛИЗОВАННЫЙ НАВИГАЦИОННЫЙ MIDDLEWARE
+    // Обрабатывает ВСЕ навигационные кнопки в ОДНОМ месте
+    console.log('🟡 Registering CENTRALIZED navigation middleware...')
+    registerGlobalNavigationMiddleware(bot)
+    console.log('🟢 CENTRALIZED navigation middleware registered!')
+
+    // 6. ✅ ИНИЦИАЛИЗАЦИЯ НАВИГАЦИИ ПОСЛЕ stage.middleware()
     // Теперь ctx.scene доступен для всех навигационных операций
     console.log('🟡 About to initialize navigation...')
     initializeNavigation(bot)
@@ -664,7 +664,7 @@ If not, continue on your own and click the "I myself" button`
       'new_neurophoto_prompt',
       createSceneActionHandler(
         'new_neurophoto_prompt',
-        ModeEnum.CheckBalanceScene,
+        ModeEnum.NeuroPhoto, // ✅ ИСПРАВЛЕНО: Прямой переход вместо CheckBalanceScene
         {
           beforeEnter: async ctx => {
             ctx.session.mode = ModeEnum.NeuroPhoto
@@ -1303,13 +1303,19 @@ function initializeNavigation(
     // 1. Регистрируем команды бота (/start, /help и т.д.)
     registerNavigationCommands(bot)
 
-    // 2. Регистрируем все обработчики навигации
+    // 2. Регистрируем обработчики КАТЕГОРИЙ и ФУНКЦИЙ
+    // (📸 Фото, 🎥 Видео и их подменю - НЕ обрабатываются в centralized middleware)
     registerCategoryHandlers(bot)
     registerFunctionHandlers(bot)
-    registerProfileHandlers(bot) // Специальные обработчики для профиля (включая реферальную систему)
-    registerGlobalHandlers(bot)
-    registerNavigationActions(bot) // Action-обработчики навигации
-    registerSpecialHandlers(bot) // Специальные обработчики (Сгенерировать еще, Улучшить промт и т.д.)
+
+    // ⚠️ УДАЛЕНО: registerProfileHandlers и registerGlobalHandlers
+    // Причина: Их логика теперь в centralized middleware (registerGlobalNavigationMiddleware)
+    // - Главное меню, Назад, Отмена → обрабатываются middleware
+    // - Профиль, Баланс, Подписка → обрабатываются middleware
+    // - Пригласить друга, Техподдержка, Язык → обрабатываются middleware
+
+    registerNavigationActions(bot) // Action-обработчики (inline кнопки)
+    registerSpecialHandlers(bot) // Специальные обработчики (Сгенерировать еще, Улучшить промт)
 
     logger.info(
       '✅ [Navigation] Navigation service initialized successfully'
@@ -1330,6 +1336,9 @@ function initializeNavigation(
 
 /**
  * Handle navigation to a specific function/item
+ *
+ * ✅ ИСПРАВЛЕНО: Убрана зависимость от CheckBalanceScene (удалён)
+ * Теперь всегда переходим напрямую в целевую сцену
  */
 async function handleFunctionNavigation(
   ctx: MyContext,
@@ -1362,14 +1371,9 @@ async function handleFunctionNavigation(
   // Set mode
   ctx.session.mode = item.mode as ModeEnum
 
-  // Navigate to scene
-  if (item.directScene) {
-    // Direct transition (without CheckBalanceScene)
-    await ctx.scene.enter(item.mode as string)
-  } else {
-    // Standard transition through CheckBalanceScene
-    await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-  }
+  // ✅ ИСПРАВЛЕНО: Всегда переходим напрямую в целевую сцену
+  // CheckBalanceScene был удалён, поэтому используем прямой переход
+  await ctx.scene.enter(item.mode as string)
 
   logger.info(`✅ [Navigation] Navigated to ${item.mode}`, {
     telegramId: ctx.from?.id,
@@ -1416,6 +1420,18 @@ export function registerCategoryHandlers(bot: Telegraf<MyContext>): void {
           currentScene: ctx.scene?.current?.id,
         })
         await ctx.scene.leave()
+
+        // ✅ СПЕЦИАЛЬНАЯ ОБРАБОТКА: Если у категории нет items (это кнопка быстрого доступа)
+        // Переходим напрямую в sceneId вместо показа пустого подменю
+        if (category.items.length === 0 && category.sceneId) {
+          logger.info('💎 [Navigation] Quick access button - direct scene entry', {
+            telegramId: ctx.from?.id,
+            categoryId: category.id,
+            sceneId: category.sceneId,
+          })
+          await ctx.scene.enter(category.sceneId)
+          return
+        }
 
         logger.info('🗺 [Navigation] Showing category menu...', {
           telegramId: ctx.from?.id,
@@ -1481,118 +1497,18 @@ export function registerFunctionHandlers(bot: Telegraf<MyContext>): void {
   )
 }
 
-/**
- * Register handlers for special profile buttons
- */
-export function registerProfileHandlers(bot: Telegraf<MyContext>): void {
-  const profileCategory = CATEGORIES.find(cat => cat.id === 'profile')
-  if (!profileCategory) {
-    logger.warn('⚠️ [Navigation] Profile category not found')
-    return
-  }
-
-  profileCategory.items.forEach(item => {
-    // Специальный обработчик для баланса и топ-апа (есть логика проверки подписки)
-    if (item.mode === ModeEnum.Balance || item.mode === ModeEnum.TopUpBalance) {
-      bot.hears([item.ru, item.en], async ctx => {
-        try {
-          const telegramId = ctx.from?.id?.toString() || ''
-          const { subscriptionType } =
-            await getReferalsCountAndUserData(telegramId)
-          const isRu = isRussianFromState(ctx)
-
-          if (
-            !subscriptionType ||
-            subscriptionType === SubscriptionType.STARS
-          ) {
-            const message =
-              item.mode === ModeEnum.TopUpBalance
-                ? isRu
-                  ? '❌ <b>Пополнение баланса недоступно без подписки</b>\n\n' +
-                    '💳 Функция пополнения баланса доступна только для пользователей с активной подпиской.'
-                  : '❌ <b>Balance top-up is not available without subscription</b>\n\n' +
-                    '💳 The balance top-up feature is only available for users with an active subscription.'
-                : isRu
-                  ? '❌ <b>Просмотр баланса недоступен без подписки</b>\n\n' +
-                    '💳 Функции баланса доступны только для пользователей с активной подпиской.'
-                  : '❌ <b>Balance view is not available without subscription</b>\n\n' +
-                    '💳 Balance features are only available for users with an active subscription.'
-
-            await ctx.replyWithHTML(message)
-            await navShowMainMenu(ctx)
-            return
-          }
-
-          ctx.session.mode = item.mode as ModeEnum
-          ctx.session.subscription = subscriptionType
-
-          if (item.mode === ModeEnum.TopUpBalance) {
-            if (ctx.scene?.current) {
-              await ctx.scene.leave()
-            }
-            await ctx.scene.enter(ModeEnum.PaymentScene)
-          } else if (item.mode === ModeEnum.Balance) {
-            await ctx.scene.enter('balance_scene')
-          } else {
-            await ctx.scene.enter(ModeEnum.CheckBalanceScene)
-          }
-        } catch (error) {
-          logger.error(`❌ [Navigation] Error handling ${item.ru}:`, {
-            error,
-            telegramId: ctx.from?.id,
-          })
-        }
-      })
-      return
-    }
-
-    // Универсальная обработка для всех остальных кнопок (directScene: true)
-    bot.hears([item.ru, item.en], async ctx => {
-      logger.info(`🔗 [Navigation] Direct scene navigation for: ${item.ru}`, {
-        telegramId: ctx.from?.id,
-        mode: item.mode,
-        directScene: item.directScene,
-      })
-
-      try {
-        await ctx.scene.leave()
-        await handleFunctionNavigation(ctx, item)
-      } catch (error) {
-        logger.error(`❌ [Navigation] Error handling ${item.ru}:`, {
-          error,
-          telegramId: ctx.from?.id,
-        })
-      }
-    })
-  })
-
-  logger.info(
-    `✅ [Navigation] Registered ${profileCategory.items.length} profile handlers (2 special + ${profileCategory.items.length - 2} direct)`
-  )
-}
-
-/**
- * Register global handlers
- */
-function registerGlobalHandlers(bot: Telegraf<MyContext>): void {
-  bot.hears(['◀️ Назад', '◀️ Back'], async ctx => {
-    logger.info('◀️ [Navigation] Back button pressed', {
-      telegramId: ctx.from?.id,
-    })
-
-    try {
-      await ctx.scene.leave()
-      await navShowMainMenu(ctx)
-    } catch (error) {
-      logger.error('❌ [Navigation] Error going back:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-    }
-  })
-
-  logger.info('✅ [Navigation] Registered global handlers')
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// 🗑️ УДАЛЕНО МЁРТВЫЙ КОД:
+// - registerProfileHandlers (логика перемещена в registerGlobalNavigationMiddleware)
+// - registerGlobalHandlers (логика перемещена в registerGlobalNavigationMiddleware)
+// - registerGlobalNavigationBeforeStage
+// - registerGlobalNavigationAfterStage
+//
+// Причина: Вся навигация теперь обрабатывается ЕДИНЫМ централизованным middleware:
+// registerGlobalNavigationMiddleware() из './middleware/registerGlobalNavigationMiddleware.ts'
+//
+// Это упрощает отладку и позволяет легко видеть весь flow обработки сообщений.
+// ═══════════════════════════════════════════════════════════════════════════
 
 /**
  * Register navigation action handlers
@@ -1635,7 +1551,8 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
     })
     try {
       ctx.session.mode = ModeEnum.ImageToVideo
-      await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+      // ✅ ИСПРАВЛЕНО: Прямой переход вместо CheckBalanceScene (удалён)
+      await ctx.scene.enter(ModeEnum.ImageToVideo)
     } catch (error) {
       logger.error('❌ [Navigation] Error entering ImageToVideo:', {
         error,
@@ -1655,7 +1572,8 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
         if (ctx.scene.current) {
           await ctx.scene.leave()
         }
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        // ✅ ИСПРАВЛЕНО: Прямой переход вместо CheckBalanceScene (удалён)
+        await ctx.scene.enter(ModeEnum.TextToVideo)
       } catch (error) {
         logger.error('❌ [Navigation] Error entering TextToVideo:', {
           error,
@@ -1682,7 +1600,8 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
         if (ctx.scene.current) {
           await ctx.scene.leave()
         }
-        await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+        // ✅ ИСПРАВЛЕНО: Прямой переход вместо CheckBalanceScene (удалён)
+        await ctx.scene.enter(ModeEnum.TextToVideo)
       } catch (error) {
         logger.error('❌ [Navigation] Error selecting model:', {
           error,

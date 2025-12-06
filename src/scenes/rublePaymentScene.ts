@@ -10,6 +10,7 @@ import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
+import { getMainMenuText } from '@/navigation'
 
 import {
   PaymentStatus,
@@ -768,17 +769,33 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
   }
 })
 
-// Выход из сцены
-rublePaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
+// ✅ Переключение на оплату звездами (если пользователь передумал)
+rublePaymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   logger.info(
-    `[${ModeEnum.RublePaymentScene}] Leaving scene via Main Menu button`,
+    `[${ModeEnum.RublePaymentScene}] User wants to switch to Stars payment`,
     {
       telegram_id: ctx.from?.id,
     }
   )
-  await ctx.scene.leave()
-  const { showMainMenu } = await import('@/navigation')
-  await showMainMenu(ctx)
+  await ctx.scene.enter(ModeEnum.StarPaymentScene)
+})
+
+// Выход из сцены
+rublePaymentScene.hears(/^🏠/, async ctx => {
+  const isRu = isRussianFromState(ctx)
+  const mainMenuText = getMainMenuText(isRu)
+
+  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+    logger.info(
+      `[${ModeEnum.RublePaymentScene}] Leaving scene via Main Menu button`,
+      {
+        telegram_id: ctx.from?.id,
+      }
+    )
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
+  }
 })
 
 // Обработка любых других сообщений

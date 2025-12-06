@@ -183,7 +183,7 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
             : `✅ You selected ${steps} steps costing ${trainingCostInStars}⭐️ stars\n\nYour balance: ${currentBalance} ⭐️\n\n📸 Proceeding to image upload for model training...`
 
           await ctx.reply(message, Markup.removeKeyboard())
-          return ctx.scene.enter('trainFluxModelWizard')
+          return ctx.scene.enter(ModeEnum.TrainFluxModelWizard)
         }
       }
     }

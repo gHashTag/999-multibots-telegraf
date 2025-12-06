@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel, createHelpCancelKeyboard, sendGenericErrorMessage } from '@/navigation'
+import { handleHelpCancel, createHelpCancelKeyboard, sendGenericErrorMessage, getMainMenuText } from '@/navigation'
 import { logger } from '@/utils/logger'
 import {
   transcribeInstagramReel,
@@ -365,7 +365,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           [Markup.button.text(isRu ? '📺 Еще одно видео' : '📺 Another video')],
           [
             Markup.button.text(
-              isRu ? '🏠 Главное меню' : '🏠 Main menu'
+              getMainMenuText(isRu)
             ),
           ], // Главное меню
         ]).resize()

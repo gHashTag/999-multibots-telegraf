@@ -16,7 +16,7 @@ import {
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
 } from '@/navigation'
-import { getButtonTextsByMode, createMainMenuKeyboard, handleHelpCancel } from '@/navigation'
+import { getButtonTextsByMode, createMainMenuKeyboard, handleHelpCancel, getMainMenuText } from '@/navigation'
 import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -102,7 +102,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       )
       
       // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
-      const { CancelButtonService } = await import('@/services/CancelButtonService')
+      const { CancelButtonService } = await import('@/navigation')
       await CancelButtonService.executeMainMenu(ctx)
       return
     } else if (userModels.length === 1) {
@@ -216,7 +216,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           : '❌ Error: model not selected. Please start over.'
       )
       // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
-      const { CancelButtonService } = await import('@/services/CancelButtonService')
+      const { CancelButtonService } = await import('@/navigation')
       await CancelButtonService.executeMainMenu(ctx)
       return
     }
@@ -305,7 +305,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
             ],
             [
               { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
-              { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
+              { text: getMainMenuText(isRu) },
             ],
           ],
           resize_keyboard: true,
@@ -363,12 +363,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const isRu = isRussianFromState(ctx)
 
     // ✅ КРИТИЧНО: Проверка "Главное меню" ДО всех остальных проверок
-    if (
-      text === '🏠 Главное меню' ||
-      text === '🏠 Main menu' ||
-      text === (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') ||
-      text === (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
-    ) {
+    if (text === getMainMenuText(isRu)) {
       console.log('CASE: Главное меню - выход из сцены')
       logger.info({
         message: '🏠 [BUTTON STEP] Главное меню - выход из сцены',
@@ -405,7 +400,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
         `⚠️ [DEBUG] Неизвестный ввод в neuroPhotoButtonStep: "${text}"`
       )
       // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
-      const { CancelButtonService } = await import('@/services/CancelButtonService')
+      const { CancelButtonService } = await import('@/navigation')
       await CancelButtonService.executeMainMenu(ctx)
       return
     }
@@ -435,7 +430,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
           : '❌ Error: generation data not found. Please start over.'
       )
       // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
-      const { CancelButtonService } = await import('@/services/CancelButtonService')
+      const { CancelButtonService } = await import('@/navigation')
       await CancelButtonService.executeMainMenu(ctx)
       return
     }
@@ -551,7 +546,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
             ],
             [
               { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
-              { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
+              { text: getMainMenuText(isRu) },
             ],
           ],
           resize_keyboard: true,
@@ -575,7 +570,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       'CASE: Нетекстовый или отсутствующий ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
     )
     // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
-    const { CancelButtonService } = await import('@/services/CancelButtonService')
+    const { CancelButtonService } = await import('@/navigation')
     await CancelButtonService.executeMainMenu(ctx)
     return
   }
@@ -632,7 +627,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   if (callbackData === 'go_main_menu') {
     console.log('🔄 [CALLBACK] Главное меню')
     // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
-    const { CancelButtonService } = await import('@/services/CancelButtonService')
+    const { CancelButtonService } = await import('@/navigation')
     await CancelButtonService.executeMainMenu(ctx)
     return
   }
@@ -651,7 +646,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   if (callbackData === 'cancel_neuro_photo') {
     console.log('🔄 [CALLBACK] Отмена - используем CancelButtonService')
     // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
-    const { CancelButtonService } = await import('@/services/CancelButtonService')
+    const { CancelButtonService } = await import('@/navigation')
     await CancelButtonService.executeCancel(
       ctx,
       isRu ? 'Отменено. Возвращаю в главное меню.' : 'Cancelled. Returning to main menu.'
@@ -705,7 +700,7 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 // ✅ ОБРАБАТЫВАЕМ УНИВЕРСАЛЬНЫЕ КОМАНДЫ ВОКРУГ СЦЕНЫ (МЕНЮ, HELP И Т.Д.)
 neuroPhotoWizard.command('menu', async ctx => {
   // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
-  const { CancelButtonService } = await import('@/services/CancelButtonService')
+  const { CancelButtonService } = await import('@/navigation')
   await CancelButtonService.executeMainMenu(ctx)
   return
 })

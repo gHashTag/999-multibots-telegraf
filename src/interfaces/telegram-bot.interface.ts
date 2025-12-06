@@ -440,6 +440,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   // Global navigation pending scene (for deferring navigation before stage.middleware)
   pendingScene?: string | null
+
+  // 🎯 Two-phase navigation: marked before stage, processed after stage
+  __pendingNavigation?: string
 }
 
 export interface MyContext extends Context {

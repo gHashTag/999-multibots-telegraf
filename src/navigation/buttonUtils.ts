@@ -73,20 +73,9 @@ export function getAllButtonTexts(): Array<{
   return result
 }
 
-/**
- * Получить тексты специальных кнопок (не в категориях)
- */
-export function getSpecialButtonTexts(
-  buttonType: 'main_menu' | 'help' | 'cancel' | 'back'
-): { ru: string; en: string } {
-  const specialButtons: Record<string, { ru: string; en: string }> = {
-    main_menu: { ru: '🏠 Главное меню', en: '🏠 Main menu' },
-    help: { ru: '💬 Техподдержка', en: '💬 Tech Support' },
-    cancel: { ru: 'Отмена', en: 'Cancel' },
-    back: { ru: '◀️ Назад', en: '◀️ Back' },
-  }
-  return specialButtons[buttonType] || { ru: '', en: '' }
-}
+// ❌ УДАЛЕНО: getSpecialButtonTexts() дублировала buttons.config.ts
+// ✅ Используйте: import { NAVIGATION_BUTTONS, getButtonText } from '@/navigation/config/buttons.config'
+// Пример: getButtonText(NAVIGATION_BUTTONS.mainMenu, isRu)
 
 /**
  * Получить все функции категории

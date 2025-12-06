@@ -9,6 +9,7 @@ import {
   getServiceDisplayName,
 } from '@/utils/serviceMapping'
 import { generateUserExcelReport } from '@/utils/excelReportGenerator'
+import { getMainMenuText } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   getUserBalanceStatsOptimized,
@@ -389,7 +390,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
               keyboard: [
                 [
                   isRu ? 'Отмена' : 'Cancel',
-                  isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                  getMainMenuText(isRu),
                 ],
               ],
               resize_keyboard: true,
@@ -438,7 +439,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Главное меню
-    if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+    if (text === (getMainMenuText(isRu))) {
       await ctx.reply(
         isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
         { reply_markup: { remove_keyboard: true } }

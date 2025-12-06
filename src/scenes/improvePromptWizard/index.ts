@@ -4,9 +4,7 @@ import { MyContext } from '@/interfaces'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
-import { sendPromptImprovementMessage } from '@/navigation'
-import { sendPromptImprovementFailureMessage } from '@/navigation'
-import { sendGenericErrorMessage } from '@/navigation'
+import { sendPromptImprovementMessage, sendPromptImprovementFailureMessage, sendGenericErrorMessage, getMainMenuText } from '@/navigation'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger, logSessionSafely } from '@/utils/logger'
@@ -330,7 +328,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                               : '📐 Change size',
                           },
                         ],
-                        [{ text: isRu ? '🏠 Главное меню' : '🏠 Main menu' }],
+                        [{ text: getMainMenuText(isRu) }],
                       ],
                       resize_keyboard: true,
                     },

@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '../../core/supabase'
 import { isRussianFromState } from '../../helpers/centralizedLanguage'
-import { handleHelpCancel, createHelpCancelKeyboard } from '@/navigation'
+import { handleHelpCancel, createHelpCancelKeyboard, getMainMenuText } from '@/navigation'
 import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
@@ -181,7 +181,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
           : '❌ Missing required data. Please start over.',
         {
           reply_markup: Markup.keyboard([
-            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+            [Markup.button.text(getMainMenuText(isRu))],
           ]).resize(),
         }
       )
@@ -211,7 +211,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
         {
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
-            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+            [Markup.button.text(getMainMenuText(isRu))],
           ]).resize(),
         }
       )
@@ -234,7 +234,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
           : '❌ Error saving data. Please use /menu command',
         {
           reply_markup: Markup.keyboard([
-            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+            [Markup.button.text(getMainMenuText(isRu))],
           ]).resize(),
         }
       )

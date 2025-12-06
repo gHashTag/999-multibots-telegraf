@@ -8,7 +8,7 @@ import { generateModelButton, parseModelButton, generateModelKeyboard, getModelP
 import {
   TEXT_TO_VIDEO_CONSTANTS,
 } from '@/interfaces/zod/textToVideo.zod'
-import { handleHelpCancel } from '@/navigation'
+import { handleHelpCancel, getMainMenuText } from '@/navigation'
 
 // ========== INLINE WIZARD ФУНКЦИИ (КАК В РАБОЧИХ WIZARDS) ==========
 
@@ -264,7 +264,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             isRu ? '🎬 Veo 3 Fast' : '🎬 Veo 3 Fast',
             isRu ? '🎬 Sora 2' : '🎬 Sora 2',
           ],
-          [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+          [getMainMenuText(isRu)],
         ]).resize()
 
         await ctx.reply(

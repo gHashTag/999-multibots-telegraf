@@ -72,6 +72,29 @@ export const NAVIGATION_BUTTONS: Record<string, ButtonConfig> = {
 }
 
 /**
+ * Кнопки оплаты (Звездами, Рублями)
+ * Вынесено из hardcoded вариантов в registerGlobalNavigationMiddleware.ts
+ */
+export const PAYMENT_BUTTONS: Record<string, ButtonConfig> = {
+  stars: {
+    id: 'stars',
+    ru: '⭐️ Звездами',
+    en: '⭐️ Stars',
+    aliases: ['звездами', 'stars'],
+    action: 'pay_stars',
+    sceneId: ModeEnum.StarPaymentScene,
+  },
+  rubles: {
+    id: 'rubles',
+    ru: '💳 Рублями',
+    en: '💳 Rubles',
+    aliases: ['рублями', 'rubles'],
+    action: 'pay_rubles',
+    sceneId: ModeEnum.RublePaymentScene,
+  },
+}
+
+/**
  * Кнопки категорий (Фото, Видео, Аудио, Аватары, Инструменты, Профиль)
  */
 export const CATEGORY_BUTTONS: Record<string, ButtonConfig> = {
@@ -135,8 +158,9 @@ export const PROFILE_BUTTONS: Record<string, ButtonConfig> = {
     en: '💰 Balance',
     aliases: ['баланс', 'balance'],
     action: 'go_balance',
-    sceneId: ModeEnum.CheckBalanceScene,
+    sceneId: ModeEnum.BalanceScene, // ✅ ИСПРАВЛЕНО: Прямой переход (CheckBalanceScene удалён)
     mode: ModeEnum.Balance,
+    directScene: true,
   },
   topUp: {
     id: 'topUp',
@@ -144,8 +168,9 @@ export const PROFILE_BUTTONS: Record<string, ButtonConfig> = {
     en: '💎 Top up Balance',
     aliases: ['пополнить баланс', 'top up balance', 'пополнить'],
     action: 'go_top_up',
-    sceneId: ModeEnum.CheckBalanceScene,
+    sceneId: ModeEnum.PaymentScene, // ✅ ИСПРАВЛЕНО: Прямой переход (CheckBalanceScene удалён)
     mode: ModeEnum.TopUpBalance,
+    directScene: true,
   },
   subscription: {
     id: 'subscription',
@@ -163,8 +188,9 @@ export const PROFILE_BUTTONS: Record<string, ButtonConfig> = {
     en: '👥 Invite Friend',
     aliases: ['пригласить друга', 'invite a friend', 'invite friend'],
     action: 'go_invite',
-    sceneId: ModeEnum.CheckBalanceScene,
+    sceneId: ModeEnum.InviteScene, // ✅ ИСПРАВЛЕНО: Прямой переход (CheckBalanceScene удалён)
     mode: ModeEnum.Invite,
+    directScene: true,
   },
   support: {
     id: 'support',
@@ -189,6 +215,7 @@ export const PROFILE_BUTTONS: Record<string, ButtonConfig> = {
  */
 export const ALL_BUTTONS: Record<string, ButtonConfig> = {
   ...NAVIGATION_BUTTONS,
+  ...PAYMENT_BUTTONS,
   ...CATEGORY_BUTTONS,
   ...PROFILE_BUTTONS,
 }
@@ -240,3 +267,31 @@ export function getCancelText(isRussian: boolean): string {
 export function getHelpText(isRussian: boolean): string {
   return getButtonText(NAVIGATION_BUTTONS.help, isRussian)
 }
+
+/**
+ * ⭐️ Получить текст кнопки "Звездами"
+ */
+export function getStarsText(isRussian: boolean): string {
+  return getButtonText(PAYMENT_BUTTONS.stars, isRussian)
+}
+
+/**
+ * 💳 Получить текст кнопки "Рублями"
+ */
+export function getRublesText(isRussian: boolean): string {
+  return getButtonText(PAYMENT_BUTTONS.rubles, isRussian)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 📦 ПРЕДГЕНЕРИРОВАННЫЕ ВАРИАНТЫ ДЛЯ MIDDLEWARE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Варианты кнопки "Звездами" для матчинга в middleware
+ */
+export const STARS_PAYMENT_VARIANTS = getButtonVariants(PAYMENT_BUTTONS.stars)
+
+/**
+ * Варианты кнопки "Рублями" для матчинга в middleware
+ */
+export const RUBLES_PAYMENT_VARIANTS = getButtonVariants(PAYMENT_BUTTONS.rubles)

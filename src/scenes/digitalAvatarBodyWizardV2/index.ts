@@ -73,7 +73,7 @@ export const digitalAvatarBodyWizardV2 = new Scenes.WizardScene<MyContext>(
             )
             return ctx.scene.leave()
           }
-          return ctx.scene.enter('trainFluxModelWizard')
+          return ctx.scene.enter(ModeEnum.TrainFluxModelWizard)
         }
       }
     } else {

@@ -1,5 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { createVoiceAvatar } from '@/services/plan_b/createVoiceAvatar'
 import { isRussian } from '@/helpers/language'
 import { getUserBalance } from '@/core/supabase'
@@ -118,7 +119,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           )
 
           // Возвращаемся в Veed Fabric wizard на шаг генерации
-          return ctx.scene.enter('veed_fabric_lipsync')
+          return ctx.scene.enter(ModeEnum.VeedFabricLipSync)
         }
 
         // ✅ ИСПРАВЛЕНИЕ: Переходим в главное меню после создания голоса

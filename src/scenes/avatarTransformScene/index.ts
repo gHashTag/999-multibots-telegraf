@@ -1,6 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { getMainMenuText } from '@/navigation'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
@@ -1067,7 +1068,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         parse_mode: 'HTML',
         reply_markup: Markup.keyboard([
           [isRu ? '💫 Оформить подписку' : '💫 Subscribe'],
-          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+          [getMainMenuText(isRu)],
         ]).resize().reply_markup,
       })
 
@@ -1123,7 +1124,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           ],
           [
             isRu ? 'Отмена' : 'Cancel',
-            isRu ? '🏠 Главное меню' : '🏠 Main menu',
+            getMainMenuText(isRu),
           ],
         ]).resize().reply_markup,
       }
@@ -1165,7 +1166,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Возврат в главное меню
-    if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+    if (text === getMainMenuText(isRu)) {
       await ctx.reply(
         isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
         { reply_markup: { remove_keyboard: true } }
@@ -1303,7 +1304,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male style',
               isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style',
             ],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+            [getMainMenuText(isRu)],
           ]).resize().reply_markup,
         }
       )
@@ -2845,7 +2846,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
       await ctx.scene.leave()
-      await ctx.scene.enter('startScene')
+      await ctx.scene.enter(ModeEnum.StartScene)
       return
     }
   },
@@ -3013,7 +3014,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [isRu ? '🔄 Еще трансформация' : '🔄 Another transformation'],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+            [getMainMenuText(isRu)],
           ]).resize().reply_markup,
         })
 
@@ -3043,7 +3044,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [isRu ? '🎨 Выбрать готовый стиль' : '🎨 Choose ready style'],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+            [getMainMenuText(isRu)],
           ]).resize().reply_markup,
         }
       )

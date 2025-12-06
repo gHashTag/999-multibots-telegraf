@@ -156,7 +156,7 @@ export {
   getButtonTextsByMode,
   getCategoryButtonTexts,
   getAllButtonTexts,
-  getSpecialButtonTexts,
+  // ❌ getSpecialButtonTexts - УДАЛЕНО, используйте NAVIGATION_BUTTONS из buttons.config.ts
   getCategoryItems
 } from './buttonUtils'
 

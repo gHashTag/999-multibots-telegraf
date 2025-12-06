@@ -27,6 +27,8 @@ export interface NavigationItem {
   adminOnly?: boolean
   /** Прямой переход без CheckBalanceScene */
   directScene?: boolean
+  /** Скрыть кнопку из меню (deprecated функционал) */
+  hidden?: boolean
 }
 
 /**
@@ -113,6 +115,14 @@ export const CATEGORIES: CategoryConfig[] = [
         en: '🌀 Infinity Morphing',
         icon: '🌀',
         mode: ModeEnum.MorphingWizard,
+        requiresSubscription: true,
+      },
+      {
+        id: 'ai_heroes',
+        ru: '🦸‍♂️ ИИ Герои',
+        en: '🦸‍♂️ AI Heroes',
+        icon: '🦸‍♂️',
+        mode: ModeEnum.AvatarTransform,
         requiresSubscription: true,
       },
     ],
@@ -234,29 +244,12 @@ export const CATEGORIES: CategoryConfig[] = [
     ],
   },
   {
-    id: 'tools',
-    ru: '🛠️ Инструменты',
-    en: '🛠️ Tools',
-    icon: '🛠️',
-    sceneId: 'tools_category',
-    items: [
-      {
-        id: 'ai_heroes',
-        ru: '🦸‍♂️ ИИ Герои',
-        en: '🦸‍♂️ AI Heroes',
-        icon: '🦸‍♂️',
-        mode: ModeEnum.AIHeroes,
-        requiresSubscription: true,
-      },
-      {
-        id: 'instagram_parsing',
-        ru: '🔍 Парсинг Instagram',
-        en: '🔍 Instagram Parsing',
-        icon: '🔍',
-        mode: ModeEnum.InstagramScrapingWizard,
-        adminOnly: true,
-      },
-    ],
+    id: 'top_up',
+    ru: '💎 Пополнить',
+    en: '💎 Top up',
+    icon: '💎',
+    sceneId: ModeEnum.PaymentScene, // Прямой переход в PaymentScene
+    items: [], // Пустой - это кнопка быстрого доступа, не категория с подменю
   },
   {
     id: 'profile',
@@ -290,6 +283,7 @@ export const CATEGORIES: CategoryConfig[] = [
         icon: '💫',
         mode: ModeEnum.SubscriptionScene,
         directScene: true,
+        hidden: true, // ✅ СКРЫТО: Пользователям не нужна подписка, только пополнение баланса
       },
       {
         id: 'invite',
@@ -314,6 +308,14 @@ export const CATEGORIES: CategoryConfig[] = [
         icon: '🌐',
         mode: 'changeLanguageScene',
         directScene: true,
+      },
+      {
+        id: 'instagram_parsing',
+        ru: '🔍 Парсинг Instagram',
+        en: '🔍 Instagram Parsing',
+        icon: '🔍',
+        mode: ModeEnum.InstagramScrapingWizard,
+        adminOnly: true,
       },
     ],
   },
@@ -358,3 +360,146 @@ export function getCategoryText(category: CategoryConfig, isRussian: boolean): s
 export function getItemText(item: NavigationItem, isRussian: boolean): string {
   return isRussian ? item.ru : item.en
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎯 ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ ДЛЯ ВАРИАНТОВ КНОПОК
+// Все варианты текстов генерируются из CATEGORIES автоматически
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Удалить эмодзи из текста
+ */
+function removeEmoji(text: string): string {
+  return text.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu, '').trim()
+}
+
+/**
+ * Генерирует все варианты текста кнопки навигации для матчинга
+ * Включает: оригинал ru, оригинал en, без эмодзи ru, без эмодзи en
+ *
+ * NOTE: Отличается от getButtonVariants в buttons.config.ts, которая работает с ButtonConfig
+ */
+export function getNavigationItemVariants(item: NavigationItem): string[] {
+  const variants = new Set<string>()
+
+  // Оригинальные тексты с эмодзи
+  variants.add(item.ru)
+  variants.add(item.en)
+
+  // Без эмодзи
+  const ruNoEmoji = removeEmoji(item.ru)
+  const enNoEmoji = removeEmoji(item.en)
+  if (ruNoEmoji) variants.add(ruNoEmoji)
+  if (enNoEmoji) variants.add(enNoEmoji)
+
+  return Array.from(variants)
+}
+
+/**
+ * Получить варианты кнопки навигации по её ID
+ */
+export function getButtonVariantsById(itemId: string): string[] {
+  const item = getNavigationItemById(itemId)
+  return item ? getNavigationItemVariants(item) : []
+}
+
+/**
+ * Получить варианты для категории по её ID
+ */
+export function getCategoryButtonVariants(categoryId: string): string[] {
+  const category = getCategoryById(categoryId)
+  if (!category) return []
+
+  const variants = new Set<string>()
+
+  // Оригинальные тексты с эмодзи
+  variants.add(category.ru)
+  variants.add(category.en)
+
+  // Без эмодзи
+  const ruNoEmoji = removeEmoji(category.ru)
+  const enNoEmoji = removeEmoji(category.en)
+  if (ruNoEmoji) variants.add(ruNoEmoji)
+  if (enNoEmoji) variants.add(enNoEmoji)
+
+  return Array.from(variants)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 📦 ПРЕДГЕНЕРИРОВАННЫЕ ВАРИАНТЫ ДЛЯ БЫСТРОГО ДОСТУПА
+// Используются в middleware для матчинга кнопок
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Варианты для кнопки "Главное меню" - включает ВСЕ эмодзи, используемые в сценах */
+export const MAIN_MENU_VARIANTS = [
+  // Стандартный стиль (основной)
+  '🏠 Главное меню',
+  '🏠 Main menu',
+  // Альтернативные эмодзи (для совместимости со старыми сценами)
+  '🚪 Главное меню',
+  '🚪 Main menu',
+  // Без эмодзи
+  'Главное меню',
+  'Main menu',
+  'главное меню',
+  'main menu',
+  // Команды
+  '/menu',
+  'меню',
+  'menu'
+]
+
+/** Варианты для кнопки "Отмена" */
+export const CANCEL_VARIANTS = [
+  'Отмена',
+  'Cancel',
+  '/cancel',
+  'отмена',
+  'cancel'
+]
+
+/** Варианты для кнопки "Назад" - включает ВСЕ эмодзи, используемые в сценах */
+export const BACK_VARIANTS = [
+  // Стандартный стиль (основной)
+  '◀️ Назад',
+  '◀️ Back',
+  // Альтернативные эмодзи (для совместимости со старыми сценами)
+  '🔙 Назад',
+  '🔙 Back',
+  '⬅️ Назад',
+  '⬅️ Back',
+  // Без эмодзи
+  'Назад',
+  'Back',
+  // Дополнительные варианты
+  '⬅️ Назад в меню',
+  '⬅️ Back to Menu',
+  '🔙 Назад в меню',
+  '🔙 Back to menu',
+]
+
+// Динамически генерируемые варианты из CATEGORIES
+
+/** Варианты для "Пригласить друга" - из CATEGORIES */
+export const INVITE_VARIANTS = getButtonVariantsById('invite')
+
+/** Варианты для "Техподдержка" - из CATEGORIES */
+export const SUPPORT_VARIANTS = getButtonVariantsById('support')
+
+/** Варианты для "Баланс" - из CATEGORIES */
+export const BALANCE_VARIANTS = [
+  ...getButtonVariantsById('balance'),
+  ...getButtonVariantsById('top_up')
+]
+
+/** Варианты для "Подписка" - из CATEGORIES */
+export const SUBSCRIPTION_VARIANTS = getButtonVariantsById('subscription')
+
+/** Варианты для "Язык" - из CATEGORIES */
+export const LANGUAGE_VARIANTS = getButtonVariantsById('language')
+
+/** Варианты для "Язык аватара" - из CATEGORIES */
+export const AVATAR_LANGUAGE_VARIANTS = getButtonVariantsById('select_model')
+
+/** Варианты для категории "Профиль" - из CATEGORIES */
+export const PROFILE_CATEGORY_VARIANTS = getCategoryButtonVariants('profile')
