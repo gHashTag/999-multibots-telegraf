@@ -72,7 +72,7 @@ export const NAVIGATION_BUTTONS: Record<string, ButtonConfig> = {
 }
 
 /**
- * Кнопки оплаты (Звездами, Рублями)
+ * Кнопки оплаты (Звездами, Рублями, Криптой)
  * Вынесено из hardcoded вариантов в registerGlobalNavigationMiddleware.ts
  */
 export const PAYMENT_BUTTONS: Record<string, ButtonConfig> = {
@@ -91,6 +91,14 @@ export const PAYMENT_BUTTONS: Record<string, ButtonConfig> = {
     aliases: ['рублями', 'rubles'],
     action: 'pay_rubles',
     sceneId: ModeEnum.RublePaymentScene,
+  },
+  crypto: {
+    id: 'crypto',
+    ru: '💎 Криптой',
+    en: '💎 Crypto',
+    aliases: ['криптой', 'crypto', 'usdc'],
+    action: 'pay_crypto',
+    sceneId: ModeEnum.CryptoPaymentScene,
   },
 }
 
@@ -282,6 +290,13 @@ export function getRublesText(isRussian: boolean): string {
   return getButtonText(PAYMENT_BUTTONS.rubles, isRussian)
 }
 
+/**
+ * 💎 Получить текст кнопки "Криптой"
+ */
+export function getCryptoText(isRussian: boolean): string {
+  return getButtonText(PAYMENT_BUTTONS.crypto, isRussian)
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 📦 ПРЕДГЕНЕРИРОВАННЫЕ ВАРИАНТЫ ДЛЯ MIDDLEWARE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -295,3 +310,8 @@ export const STARS_PAYMENT_VARIANTS = getButtonVariants(PAYMENT_BUTTONS.stars)
  * Варианты кнопки "Рублями" для матчинга в middleware
  */
 export const RUBLES_PAYMENT_VARIANTS = getButtonVariants(PAYMENT_BUTTONS.rubles)
+
+/**
+ * Варианты кнопки "Криптой" для матчинга в middleware
+ */
+export const CRYPTO_PAYMENT_VARIANTS = getButtonVariants(PAYMENT_BUTTONS.crypto)

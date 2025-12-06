@@ -10,6 +10,7 @@ import { handleSelectStars } from '@/handlers/handleSelectStars'
 import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { starAmounts } from '@/price/helpers/starAmounts'
 import { getMainMenuText } from '@/navigation'
+import { isX402Configured } from '@/core/x402'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа
@@ -40,14 +41,24 @@ paymentScene.enter(async ctx => {
 
   try {
     const message = isRu ? 'Выберите способ оплаты:' : 'Select payment method:'
+    const showCryptoButton = isX402Configured()
 
-    const buttons = [
-      [Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars')], // Кнопка Звездами всегда есть
+    // Первая строка: все способы оплаты в одну линию
+    const paymentRow = [
+      Markup.button.text(isRu ? '⭐ Звездами' : '⭐ Stars'),
     ]
+
+    // Добавляем кнопку Криптой если x402 настроен
+    if (showCryptoButton) {
+      paymentRow.push(Markup.button.text(isRu ? '💎 Криптой' : '💎 Crypto'))
+      logger.info(`[${ModeEnum.PaymentScene}] Added Crypto button to keyboard`, {
+        telegram_id: ctx.from?.id,
+      })
+    }
 
     // Добавляем кнопку Рублями только если хелпер разрешает
     if (showRublesButton) {
-      buttons[0].push(Markup.button.text(isRu ? '💳 Рублями' : '💳 Rubles'))
+      paymentRow.push(Markup.button.text(isRu ? '💳 Рублями' : '💳 Rubles'))
       logger.info(`[${ModeEnum.PaymentScene}] Added Rubles button to keyboard`, {
         telegram_id: ctx.from?.id,
       })
@@ -58,16 +69,16 @@ paymentScene.enter(async ctx => {
       })
     }
 
-    // Добавляем остальные кнопки (Справка, Главное меню)
-    buttons.push([
-      Markup.button.webApp(
-        isRu ? 'Что такое звезды❓' : 'What are stars❓',
-        `https://telegram.org/blog/telegram-stars/${isRu ? 'ru' : 'en'}?ln=a`
-      ),
-    ])
-    buttons.push([
-      Markup.button.text(getMainMenuText(isRu)),
-    ])
+    const buttons = [
+      paymentRow, // [⭐ Звездами] [💎 Криптой] [💳 Рублями]
+      [
+        Markup.button.webApp(
+          isRu ? 'Что такое звезды❓' : 'What are stars❓',
+          `https://telegram.org/blog/telegram-stars/${isRu ? 'ru' : 'en'}?ln=a`
+        ),
+      ],
+      [Markup.button.text(getMainMenuText(isRu))],
+    ]
 
     const keyboard = Markup.keyboard(buttons).resize()
 
@@ -84,7 +95,7 @@ paymentScene.enter(async ctx => {
 })
 
 // Переход в сцену оплаты Звездами
-paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
+paymentScene.hears(['⭐️ Звездами', '⭐️ Stars', '⭐ Звездами', '⭐ Stars'], async ctx => {
   const isRu = isRussian(ctx)
   const selectedPaymentInfo = ctx.session.selectedPayment
 
@@ -222,6 +233,36 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
       isRu
         ? '❌ Произошла ошибка при переходе к оплате рублями. Попробуйте позже.'
         : '❌ An error occurred while switching to ruble payment. Please try again later.'
+    )
+  }
+})
+
+// Переход в сцену оплаты Криптой (USDC)
+paymentScene.hears(['💎 Криптой', '💎 Crypto'], async ctx => {
+  logger.info(
+    `[${ModeEnum.PaymentScene}] User chose Crypto (USDC). Entering CryptoPaymentScene.`,
+    {
+      telegram_id: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+    }
+  )
+
+  try {
+    await ctx.scene.enter(ModeEnum.CryptoPaymentScene)
+  } catch (error: any) {
+    logger.error(
+      `❌ [${ModeEnum.PaymentScene}] Error entering CryptoPaymentScene:`,
+      {
+        error: error.message,
+        stack: error.stack,
+        telegram_id: ctx.from?.id,
+      }
+    )
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при переходе к оплате криптой. Попробуйте позже.'
+        : '❌ An error occurred while switching to crypto payment. Please try again later.'
     )
   }
 })

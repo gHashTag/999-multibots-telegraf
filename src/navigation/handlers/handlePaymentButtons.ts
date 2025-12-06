@@ -9,7 +9,8 @@ import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import {
   STARS_PAYMENT_VARIANTS,
-  RUBLES_PAYMENT_VARIANTS
+  RUBLES_PAYMENT_VARIANTS,
+  CRYPTO_PAYMENT_VARIANTS
 } from '../config/buttons.config'
 import {
   BALANCE_VARIANTS,
@@ -60,6 +61,28 @@ export async function handlePaymentButtons(
       return true
     } catch (error) {
       logger.error('❌ [Payment] Error switching to Rubles payment:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply('❌ Произошла ошибка. Попробуйте /start')
+      return true
+    }
+  }
+
+  // 💎 ОПЛАТА КРИПТОЙ (USDC)
+  if (CRYPTO_PAYMENT_VARIANTS.includes(text)) {
+    logger.info('💎 [Payment] Crypto payment button pressed', {
+      telegramId: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+      text,
+    })
+
+    try {
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.CryptoPaymentScene)
+      return true
+    } catch (error) {
+      logger.error('❌ [Payment] Error switching to Crypto payment:', {
         error,
         telegramId: ctx.from?.id,
       })

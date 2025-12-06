@@ -29,6 +29,7 @@ export enum PaymentMethod {
   UNKNOWN = 'Unknown',
   MANUAL = 'Manual',
   CRYPTOBOT = 'CryptoBot',
+  X402 = 'X402',
 }
 
 /**
@@ -187,4 +188,5 @@ export interface SessionPayment {
 export enum Currency {
   XTR = 'XTR', // Telegram Stars
   RUB = 'RUB', // Russian Ruble
+  USDC = 'USDC', // USD Coin (x402 on Base)
 }
