@@ -15,6 +15,7 @@ const FEATURE_IDS = {
   TEXT_TO_IMAGE: 11,
   FLUX_KONTEXT: 12,
   MORPHING: 13,
+  AI_PHOTOSHOP: 14,
   TOP_UP_BALANCE: 100,
   BALANCE: 101,
   INVITE_FRIEND: 102,
@@ -41,6 +42,7 @@ const FEATURE_NAMES: Record<number, { ru: string; en: string }> = {
   [FEATURE_IDS.TEXT_TO_IMAGE]: { ru: '🖼️ Текст в фото', en: '🖼️ Text to Image' },
   [FEATURE_IDS.FLUX_KONTEXT]: { ru: '✨ Flux Kontext', en: '✨ Flux Kontext' },
   [FEATURE_IDS.MORPHING]: { ru: '🌀 Морфинг', en: '🌀 Morphing' },
+  [FEATURE_IDS.AI_PHOTOSHOP]: { ru: '🎨 ИИ Фотошоп', en: '🎨 AI Photoshop' },
   [FEATURE_IDS.TOP_UP_BALANCE]: { ru: '💳 Пополнить баланс', en: '💳 Top Up Balance' },
   [FEATURE_IDS.BALANCE]: { ru: '💰 Баланс', en: '💰 Balance' },
   [FEATURE_IDS.INVITE_FRIEND]: { ru: '👥 Пригласить друга', en: '👥 Invite Friend' },
@@ -81,6 +83,7 @@ export const SUBSCRIPTION_FEATURES = {
       FEATURE_IDS.TEXT_TO_IMAGE,
       FEATURE_IDS.FLUX_KONTEXT,
       FEATURE_IDS.MORPHING,
+      FEATURE_IDS.AI_PHOTOSHOP,
       FEATURE_IDS.UPSCALE_PHOTO,
       FEATURE_IDS.TRANSCRIBE_REELS,
       // Баланс доступен только с подпиской
@@ -95,6 +98,7 @@ export const SUBSCRIPTION_FEATURES = {
       FEATURE_IDS.IMAGE_TO_PROMPT,
       FEATURE_IDS.UPSCALE_PHOTO,
       FEATURE_IDS.TRANSCRIBE_REELS,
+      FEATURE_IDS.AI_PHOTOSHOP,
       FEATURE_IDS.BALANCE,
       FEATURE_IDS.TOP_UP_BALANCE,
       FEATURE_IDS.INVITE_FRIEND,
@@ -128,6 +132,7 @@ export const SUBSCRIPTION_FEATURES = {
       FEATURE_IDS.TEXT_TO_IMAGE,
       FEATURE_IDS.FLUX_KONTEXT,
       FEATURE_IDS.MORPHING,
+      FEATURE_IDS.AI_PHOTOSHOP,
       FEATURE_IDS.UPSCALE_PHOTO,
       FEATURE_IDS.TRANSCRIBE_REELS,
       FEATURE_IDS.BALANCE,
@@ -152,6 +157,7 @@ export const SUBSCRIPTION_FEATURES = {
       FEATURE_IDS.TEXT_TO_IMAGE,
       FEATURE_IDS.FLUX_KONTEXT,
       FEATURE_IDS.MORPHING,
+      FEATURE_IDS.AI_PHOTOSHOP,
       FEATURE_IDS.UPSCALE_PHOTO,
       FEATURE_IDS.TRANSCRIBE_REELS,
       FEATURE_IDS.BALANCE,
@@ -169,25 +175,109 @@ export const SUBSCRIPTION_FEATURES = {
 function findFeatureId(featureName: string): number | null {
   // Специальная карта для команд, которые не совпадают с menu levels
   const COMMAND_TO_FEATURE_MAP: Record<string, number> = {
-    'NeuroVideo': FEATURE_IDS.IMAGE_TO_VIDEO, // Ключевое исправление!
-    'TextToVideo': FEATURE_IDS.TEXT_TO_VIDEO,
-    'ImageToVideo': FEATURE_IDS.IMAGE_TO_VIDEO,
+    // === ФОТО ===
+    '📸 Нейрофото': FEATURE_IDS.NEURO_PHOTO,
+    '📸 NeuroPhoto': FEATURE_IDS.NEURO_PHOTO,
     'NeuroPhoto': FEATURE_IDS.NEURO_PHOTO,
+    'neuro_photo': FEATURE_IDS.NEURO_PHOTO,
+
+    '🖼️ Текст в фото': FEATURE_IDS.TEXT_TO_IMAGE,
+    '🖼️ Text to Photo': FEATURE_IDS.TEXT_TO_IMAGE,
     'TextToImage': FEATURE_IDS.TEXT_TO_IMAGE,
-    // ✅ ИСПРАВЛЕНИЕ: Добавляем маппинг для морфинга
+    'text_to_image': FEATURE_IDS.TEXT_TO_IMAGE,
+
+    '🔍 Промпт из фото': FEATURE_IDS.IMAGE_TO_PROMPT,
+    '🔍 Prompt from Photo': FEATURE_IDS.IMAGE_TO_PROMPT,
+    'ImageToPrompt': FEATURE_IDS.IMAGE_TO_PROMPT,
+    'image_to_prompt': FEATURE_IDS.IMAGE_TO_PROMPT,
+
+    '🎨 ИИ Фотошоп': FEATURE_IDS.AI_PHOTOSHOP,
+    '🎨 AI Photoshop': FEATURE_IDS.AI_PHOTOSHOP,
+    'AiPhotoshop': FEATURE_IDS.AI_PHOTOSHOP,
+    'ai_photoshop_scene': FEATURE_IDS.AI_PHOTOSHOP,
+
+    '⬆️ Увеличить качество': FEATURE_IDS.UPSCALE_PHOTO,
+    '⬆️ Upscale Quality': FEATURE_IDS.UPSCALE_PHOTO,
+    'ImageUpscaler': FEATURE_IDS.UPSCALE_PHOTO,
+    'image_upscaler': FEATURE_IDS.UPSCALE_PHOTO,
+
+    '🎭 Замена лица': FEATURE_IDS.MORPHING, // FaceSwap -> MORPHING (нет отдельного ID)
+    '🎭 Face Swap': FEATURE_IDS.MORPHING,
+    'FaceSwap': FEATURE_IDS.MORPHING,
+    'face_swap': FEATURE_IDS.MORPHING,
+
     '🌀 Infinity Морфинг': FEATURE_IDS.MORPHING,
     '🌀 Infinity Morphing': FEATURE_IDS.MORPHING,
-    'Infinity Морфинг': FEATURE_IDS.MORPHING,
-    'Infinity Morphing': FEATURE_IDS.MORPHING,
-    'Морфинг': FEATURE_IDS.MORPHING,
-    'Morphing': FEATURE_IDS.MORPHING,
-    '🧬 Морфинг': FEATURE_IDS.MORPHING,
-    '🧬 Morphing': FEATURE_IDS.MORPHING,
-    // ✅ ИСПРАВЛЕНИЕ: Добавляем маппинг для AI Reels
+    'MorphingWizard': FEATURE_IDS.MORPHING,
+    'morphing_wizard': FEATURE_IDS.MORPHING,
+
+    '🦸‍♂️ ИИ Герои': FEATURE_IDS.DIGITAL_BODY, // AvatarTransform -> DIGITAL_BODY
+    '🦸‍♂️ AI Heroes': FEATURE_IDS.DIGITAL_BODY,
+    'AvatarTransform': FEATURE_IDS.DIGITAL_BODY,
+    'avatar_transform': FEATURE_IDS.DIGITAL_BODY,
+
+    // === ВИДЕО ===
+    '🎥 Видео из текста': FEATURE_IDS.TEXT_TO_VIDEO,
+    '🎥 Text to Video': FEATURE_IDS.TEXT_TO_VIDEO,
+    'TextToVideo': FEATURE_IDS.TEXT_TO_VIDEO,
+    'text_to_video': FEATURE_IDS.TEXT_TO_VIDEO,
+
+    '🎥 Фото в видео': FEATURE_IDS.IMAGE_TO_VIDEO,
+    '🎥 Photo to Video': FEATURE_IDS.IMAGE_TO_VIDEO,
+    'ImageToVideo': FEATURE_IDS.IMAGE_TO_VIDEO,
+    'image_to_video': FEATURE_IDS.IMAGE_TO_VIDEO,
+    'NeuroVideo': FEATURE_IDS.IMAGE_TO_VIDEO,
+
     '🎬 ИИ Рилс': FEATURE_IDS.TRANSCRIBE_REELS,
     '🎬 AI Reels': FEATURE_IDS.TRANSCRIBE_REELS,
-    'ИИ Рилс': FEATURE_IDS.TRANSCRIBE_REELS,
-    'AI Reels': FEATURE_IDS.TRANSCRIBE_REELS,
+    'ai_reels': FEATURE_IDS.TRANSCRIBE_REELS,
+
+    '🎤 Синхронизация губ': FEATURE_IDS.VOICE, // LipSync -> VOICE (нет отдельного ID)
+    '🎤 Lip Sync': FEATURE_IDS.VOICE,
+    'LipSync': FEATURE_IDS.VOICE,
+    'lip_sync': FEATURE_IDS.VOICE,
+
+    // === АУДИО ===
+    '🎤 Голос аватара': FEATURE_IDS.VOICE,
+    '🎤 Avatar Voice': FEATURE_IDS.VOICE,
+    'Voice': FEATURE_IDS.VOICE,
+    'voice': FEATURE_IDS.VOICE,
+
+    '🎙️ Текст в голос': FEATURE_IDS.TEXT_TO_SPEECH,
+    '🎙️ Text to Speech': FEATURE_IDS.TEXT_TO_SPEECH,
+    'TextToSpeech': FEATURE_IDS.TEXT_TO_SPEECH,
+    'text_to_speech': FEATURE_IDS.TEXT_TO_SPEECH,
+
+    '📺 Транскрибация': FEATURE_IDS.TRANSCRIBE_REELS,
+    '📺 Transcription': FEATURE_IDS.TRANSCRIBE_REELS,
+    'VideoTranscription': FEATURE_IDS.TRANSCRIBE_REELS,
+    'video_transcription': FEATURE_IDS.TRANSCRIBE_REELS,
+
+    // === АВАТАРЫ ===
+    '🤖 Цифровое тело': FEATURE_IDS.DIGITAL_BODY,
+    '🤖 Digital Body': FEATURE_IDS.DIGITAL_BODY,
+    'DigitalAvatarBody': FEATURE_IDS.DIGITAL_BODY,
+    'digital_avatar_body': FEATURE_IDS.DIGITAL_BODY,
+
+    '🧠 Мозг аватара': FEATURE_IDS.AVATAR_BRAIN,
+    '🧠 Avatar Brain': FEATURE_IDS.AVATAR_BRAIN,
+    'Avatar': FEATURE_IDS.AVATAR_BRAIN,
+    'avatar': FEATURE_IDS.AVATAR_BRAIN,
+
+    '💭 Чат с аватаром': FEATURE_IDS.CHAT_WITH_AVATAR,
+    '💭 Chat with Avatar': FEATURE_IDS.CHAT_WITH_AVATAR,
+    'ChatWithAvatar': FEATURE_IDS.CHAT_WITH_AVATAR,
+    'chat_with_avatar': FEATURE_IDS.CHAT_WITH_AVATAR,
+
+    '🤖 Язык аватара': FEATURE_IDS.SELECT_MODEL,
+    '🤖 Avatar Language': FEATURE_IDS.SELECT_MODEL,
+    'SelectModel': FEATURE_IDS.SELECT_MODEL,
+    'select_model': FEATURE_IDS.SELECT_MODEL,
+
+    // === FLUX KONTEXT ===
+    '✨ Flux Kontext': FEATURE_IDS.FLUX_KONTEXT,
+    'FluxKontext': FEATURE_IDS.FLUX_KONTEXT,
+    'flux_kontext': FEATURE_IDS.FLUX_KONTEXT,
   }
 
   // Сначала проверяем специальную карту команд

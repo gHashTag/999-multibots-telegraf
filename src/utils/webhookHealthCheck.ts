@@ -1,12 +1,63 @@
 import { logger } from './logger'
 
+// 🛡️ SECURITY: Allowed webhook domains (whitelist)
+const ALLOWED_WEBHOOK_DOMAINS = [
+  'three-head-dragon.shop',
+  '188.137.250.69',
+  'localhost',
+] as const
+
+// 🚨 CRITICAL: Validate webhook URL before use
+function validateWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname
+
+    // Check against whitelist
+    const isAllowed = ALLOWED_WEBHOOK_DOMAINS.some(domain =>
+      hostname === domain || hostname.endsWith(`.${domain}`)
+    )
+
+    if (!isAllowed) {
+      logger.error('🚨 [WEBHOOK SECURITY] BLOCKED: URL not in whitelist!', {
+        url: url.substring(0, 80),
+        hostname,
+        allowedDomains: ALLOWED_WEBHOOK_DOMAINS,
+      })
+      return false
+    }
+
+    // Must use HTTPS in production (except localhost)
+    if (
+      process.env.NODE_ENV === 'production' &&
+      !hostname.includes('localhost') &&
+      parsed.protocol !== 'https:'
+    ) {
+      logger.warn('⚠️ [WEBHOOK SECURITY] Non-HTTPS URL in production', {
+        url: url.substring(0, 80),
+        protocol: parsed.protocol,
+      })
+    }
+
+    return true
+  } catch (error) {
+    logger.error('🚨 [WEBHOOK SECURITY] Invalid URL format', {
+      url: url?.substring(0, 80),
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return false
+  }
+}
+
 /**
  * 🛡️ BULLETPROOF WEBHOOK CALLBACK URL SELECTOR
  *
  * Проверяет доступность callback URL'ов перед отправкой в Kie.ai API
  * Implements Plan A/B fallback strategy:
  * - Plan A: HTTPS через nginx reverse proxy (three-head-dragon.shop)
- * - Plan B: Direct HTTP на IP:port (188.137.250.69:2999)
+ * - Plan B: Fallback HTTPS (same domain)
+ *
+ * SECURITY: All URLs are validated against whitelist before use
  *
  * @param telegramId - Telegram ID пользователя для персонализированного callback
  * @returns Первый доступный callback URL или null если оба недоступны
@@ -23,23 +74,34 @@ export async function getAvailableCallbackUrl(
     ? `${process.env.BASE_WEBHOOK_URL}${endpoint}`
     : null
 
-  // Plan B: Direct HTTP на production server (fallback)
-  // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
+  // Plan B: Direct HTTPS via nginx reverse proxy (fallback)
+  // LAST FIX: 2025-12-06 - изменен на HTTPS через nginx согласно конфигурации three-head-dragon.shop
   const planB = process.env.DIRECT_WEBHOOK_URL
     ? `${process.env.DIRECT_WEBHOOK_URL}${endpoint}`
-    : `http://188.137.250.69:3000${endpoint}` // Hard-coded fallback
+    : `https://three-head-dragon.shop${endpoint}` // HTTPS via nginx reverse proxy
 
+  // 🛡️ SECURITY: Validate all URLs against whitelist
   const urls = [planA, planB].filter(Boolean) as string[]
+  const validUrls = urls.filter(url => validateWebhookUrl(url))
+
+  if (validUrls.length === 0) {
+    logger.error('🚨 [WEBHOOK SECURITY] No valid URLs after security check!', {
+      originalUrls: urls.length,
+      planA: planA?.substring(0, 50),
+      planB: planB?.substring(0, 50),
+    })
+  }
 
   logger.info('🔍 [WEBHOOK HEALTH CHECK] Checking callback URL availability', {
-    planA,
-    planB,
+    planA: planA?.substring(0, 50),
+    planB: planB?.substring(0, 50),
     telegramId,
-    totalUrls: urls.length,
+    totalUrls: validUrls.length,
+    securityValidated: true,
   })
 
-  // Проверяем каждый URL с коротким timeout
-  for (const url of urls) {
+  // Проверяем каждый URL с коротким timeout (только валидированные!)
+  for (const url of validUrls) {
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
@@ -117,7 +179,7 @@ export async function testAllWebhookUrls(): Promise<{
 
   const planB = process.env.DIRECT_WEBHOOK_URL
     ? `${process.env.DIRECT_WEBHOOK_URL}${endpoint}`
-    : `http://188.137.250.69:3000${endpoint}`
+    : `https://three-head-dragon.shop${endpoint}`
 
   const testUrl = async (url: string | null) => {
     if (!url) {
@@ -126,20 +188,26 @@ export async function testAllWebhookUrls(): Promise<{
 
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 3000)
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
 
+      // Use POST with empty JSON body (many webhook endpoints don't support HEAD)
       const response = await fetch(url, {
-        method: 'HEAD',
+        method: 'POST',
         signal: controller.signal,
-        // @ts-ignore
-        ...(url.startsWith('https:') && { rejectUnauthorized: false }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ test: true, source: 'startup-health-check' }),
       })
 
       clearTimeout(timeoutId)
 
+      // 200, 202 (Accepted), 400 (bad request but endpoint exists) = endpoint works
+      const isAvailable = response.status >= 200 && response.status < 500
+
       return {
         url,
-        available: response.ok || response.status === 405,
+        available: isAvailable,
         status: response.status,
       }
     } catch (error) {
@@ -160,3 +228,76 @@ export async function testAllWebhookUrls(): Promise<{
 
   return { planA: resultA, planB: resultB }
 }
+
+/**
+ * 🚀 STARTUP WEBHOOK HEALTH CHECK
+ * Проверяет доступность webhook'ов при запуске приложения
+ * Логирует результат и возвращает статус
+ */
+export async function verifyWebhooksOnStartup(): Promise<{
+  success: boolean
+  message: string
+  details: {
+    baseUrl: string | null
+    httpsAvailable: boolean
+    directAvailable: boolean
+  }
+}> {
+  logger.info('🚀 [WEBHOOK STARTUP] Starting webhook health verification...')
+
+  const baseWebhookUrl = process.env.BASE_WEBHOOK_URL || null
+  const directWebhookUrl = process.env.DIRECT_WEBHOOK_URL || 'https://three-head-dragon.shop'
+
+  // Проверяем конфигурацию
+  if (!baseWebhookUrl) {
+    logger.warn('⚠️ [WEBHOOK STARTUP] BASE_WEBHOOK_URL not configured, using fallback', {
+      fallback: directWebhookUrl,
+    })
+  } else {
+    logger.info('✅ [WEBHOOK STARTUP] BASE_WEBHOOK_URL configured', {
+      url: baseWebhookUrl.substring(0, 50),
+    })
+  }
+
+  // Тестируем все URL'ы
+  const testResults = await testAllWebhookUrls()
+
+  const httpsAvailable = testResults.planA?.available || testResults.planB?.available
+  const directAvailable = testResults.planB?.available || false
+
+  if (httpsAvailable) {
+    logger.info('✅ [WEBHOOK STARTUP] Webhook endpoints are HEALTHY', {
+      planA: testResults.planA,
+      planB: testResults.planB,
+    })
+    return {
+      success: true,
+      message: 'Webhook endpoints are healthy and accessible',
+      details: {
+        baseUrl: baseWebhookUrl,
+        httpsAvailable,
+        directAvailable,
+      },
+    }
+  } else {
+    logger.error('❌ [WEBHOOK STARTUP] ALL webhook endpoints FAILED!', {
+      planA: testResults.planA,
+      planB: testResults.planB,
+      recommendation: 'Check nginx config and server connectivity',
+    })
+    return {
+      success: false,
+      message: 'All webhook endpoints are unreachable!',
+      details: {
+        baseUrl: baseWebhookUrl,
+        httpsAvailable: false,
+        directAvailable: false,
+      },
+    }
+  }
+}
+
+/**
+ * 🔒 EXPORT: Validate webhook URL (for use in other modules)
+ */
+export { validateWebhookUrl }
