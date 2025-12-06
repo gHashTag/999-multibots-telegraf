@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { generateNeuroPhotoHybrid } from '../../services/generateNeuroPhotoHybrid'
 import { isRussian } from '@/helpers'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { promptNeuroCoder } from './promts'
 
 export const neuroCoderScene = new Scenes.WizardScene<MyContext>(

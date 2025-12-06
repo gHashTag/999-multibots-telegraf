@@ -2,7 +2,7 @@ import { Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 
 import { getAvailableModels, SelectableModel } from './getAvailableModels'
-import { sendGenericErrorMessage } from '@/menu'
+import { sendGenericErrorMessage } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
 // Функция для получения доступных моделей
@@ -38,6 +38,6 @@ export async function selectModelCommand(ctx: MyContext) {
     return
   } catch (error) {
     console.error('Error creating model selection menu:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx)
   }
 }

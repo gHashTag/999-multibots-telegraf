@@ -65,7 +65,7 @@ describe('Nano Banana Pro Integration', () => {
         requestId: 'test-request-id',
       }
 
-      vi.mocked(fal.subscribe).mockResolvedValue(mockResponse)
+      fal.subscribe.mockResolvedValue(mockResponse)
 
       const result = await generateNanoBananaPro({
         prompt: 'A beautiful sunset',
@@ -95,7 +95,7 @@ describe('Nano Banana Pro Integration', () => {
       const aspectRatios = ['21:9', '16:9', '3:2', '4:3', '1:1', '9:16']
 
       for (const ratio of aspectRatios) {
-        vi.mocked(fal.subscribe).mockResolvedValue({
+        fal.subscribe.mockResolvedValue({
           data: {
             images: [
               {
@@ -130,7 +130,7 @@ describe('Nano Banana Pro Integration', () => {
       const resolutions: Array<'1K' | '2K' | '4K'> = ['1K', '2K', '4K']
 
       for (const resolution of resolutions) {
-        vi.mocked(fal.subscribe).mockResolvedValue({
+        fal.subscribe.mockResolvedValue({
           data: {
             images: [
               {
@@ -164,7 +164,7 @@ describe('Nano Banana Pro Integration', () => {
 
   describe('Конвертация размеров в соотношения сторон', () => {
     it('должна правильно определять соотношение 16:9 из размеров', async () => {
-      vi.mocked(fal.subscribe).mockResolvedValue({
+      fal.subscribe.mockResolvedValue({
         data: {
           images: [
             {
@@ -196,7 +196,7 @@ describe('Nano Banana Pro Integration', () => {
     })
 
     it('должна правильно определять соотношение 2:3 из размеров (вертикальное)', async () => {
-      vi.mocked(fal.subscribe).mockResolvedValue({
+      fal.subscribe.mockResolvedValue({
         data: {
           images: [
             {
@@ -229,7 +229,7 @@ describe('Nano Banana Pro Integration', () => {
     })
 
     it('должна автоматически выбирать 4K для больших размеров', async () => {
-      vi.mocked(fal.subscribe).mockResolvedValue({
+      fal.subscribe.mockResolvedValue({
         data: {
           images: [
             {
@@ -263,7 +263,7 @@ describe('Nano Banana Pro Integration', () => {
 
   describe('Обработка ошибок', () => {
     it('должна выбрасывать ошибку при сбое API', async () => {
-      vi.mocked(fal.subscribe).mockRejectedValue(new Error('API Error'))
+      fal.subscribe.mockRejectedValue(new Error('API Error'))
 
       await expect(
         generateNanoBananaPro({
@@ -276,7 +276,7 @@ describe('Nano Banana Pro Integration', () => {
     })
 
     it('должна выбрасывать ошибку при пустом ответе', async () => {
-      vi.mocked(fal.subscribe).mockResolvedValue({
+      fal.subscribe.mockResolvedValue({
         data: {
           images: [],
         },
@@ -292,7 +292,7 @@ describe('Nano Banana Pro Integration', () => {
     })
 
     it('должна логировать все операции', async () => {
-      vi.mocked(fal.subscribe).mockResolvedValue({
+      fal.subscribe.mockResolvedValue({
         data: {
           images: [
             {
@@ -324,7 +324,7 @@ describe('Nano Banana Pro Integration', () => {
 
   describe('Форматы вывода', () => {
     it('должна поддерживать PNG формат по умолчанию', async () => {
-      vi.mocked(fal.subscribe).mockResolvedValue({
+      fal.subscribe.mockResolvedValue({
         data: {
           images: [
             {
@@ -354,7 +354,7 @@ describe('Nano Banana Pro Integration', () => {
     })
 
     it('должна поддерживать JPEG формат', async () => {
-      vi.mocked(fal.subscribe).mockResolvedValue({
+      fal.subscribe.mockResolvedValue({
         data: {
           images: [
             {
@@ -387,7 +387,7 @@ describe('Nano Banana Pro Integration', () => {
 
   describe('Множественные изображения', () => {
     it('должна генерировать несколько изображений', async () => {
-      vi.mocked(fal.subscribe).mockResolvedValue({
+      fal.subscribe.mockResolvedValue({
         data: {
           images: [
             {

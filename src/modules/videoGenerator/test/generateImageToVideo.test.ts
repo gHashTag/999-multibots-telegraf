@@ -85,7 +85,7 @@ const createMockTelegramInstance = () => ({
   sendDocument: vi.fn().mockResolvedValue({}),
 })
 
-const createMockContext = (): MyContext => ({
+const createMockContext = () => ({
   from: {
     id: 123456789,
     username: 'test_user',

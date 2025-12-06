@@ -13,12 +13,10 @@ import { logger } from '@/utils/logger'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
 import { getActiveUserModelsByTypeForHaim } from '@/core/supabase/getActiveUserModelsByTypeForHaim'
 import {
-  levels,
-  mainMenu,
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
-} from '@/menu'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+} from '@/navigation'
+import { getButtonTextsByMode, createMainMenuKeyboard, handleHelpCancel, getMainMenuText } from '@/navigation'
 import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -100,20 +98,13 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       await ctx.reply(
         isRu
           ? '❌ У вас нет обученных моделей для нейрофото.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото с вашим лицом. '
-          : "❌ You don't have any trained models for neurophotos.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face.",
-        {
-          reply_markup: {
-            keyboard: (
-              await mainMenu({
-                isRu,
-                subscription: subscriptionType,
-                ctx,
-              })
-            ).reply_markup.keyboard,
-          },
-        }
+          : "❌ You don't have any trained models for neurophotos.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face."
       )
-      return ctx.scene.leave()
+      
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+      const { CancelButtonService } = await import('@/navigation')
+      await CancelButtonService.executeMainMenu(ctx)
+      return
     } else if (userModels.length === 1) {
       ctx.session.userModel = userModels[0] as UserModel
       await sendPhotoDescriptionRequest(ctx, isRu, 'neuro_photo')
@@ -224,8 +215,9 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           ? '❌ Произошла ошибка: модель не выбрана. Попробуйте начать заново.'
           : '❌ Error: model not selected. Please start over.'
       )
-      // handleMenu сам определит язык и подписку
-      await mainMenu(ctx)
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+      const { CancelButtonService } = await import('@/navigation')
+      await CancelButtonService.executeMainMenu(ctx)
       return
     }
 
@@ -313,7 +305,7 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
             ],
             [
               { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
-              { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
+              { text: getMainMenuText(isRu) },
             ],
           ],
           resize_keyboard: true,
@@ -371,19 +363,15 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     const isRu = isRussianFromState(ctx)
 
     // ✅ КРИТИЧНО: Проверка "Главное меню" ДО всех остальных проверок
-    if (
-      text === '🏠 Главное меню' ||
-      text === '🏠 Main menu' ||
-      text === levels[104].title_ru ||
-      text === levels[104].title_en
-    ) {
+    if (text === getMainMenuText(isRu)) {
       console.log('CASE: Главное меню - выход из сцены')
       logger.info({
         message: '🏠 [BUTTON STEP] Главное меню - выход из сцены',
         telegramId: ctx.from?.id,
       })
       await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
       return
     }
 
@@ -411,8 +399,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       console.log(
         `⚠️ [DEBUG] Неизвестный ввод в neuroPhotoButtonStep: "${text}"`
       )
-      // handleMenu сам определит язык и подписку
-      await mainMenu(ctx)
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+      const { CancelButtonService } = await import('@/navigation')
+      await CancelButtonService.executeMainMenu(ctx)
       return
     }
 
@@ -440,8 +429,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
           ? '❌ Произошла ошибка: данные для генерации не найдены. Попробуйте начать заново.'
           : '❌ Error: generation data not found. Please start over.'
       )
-      // handleMenu сам определит язык и подписку
-      await mainMenu(ctx)
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+      const { CancelButtonService } = await import('@/navigation')
+      await CancelButtonService.executeMainMenu(ctx)
       return
     }
 
@@ -556,7 +546,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
             ],
             [
               { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
-              { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
+              { text: getMainMenuText(isRu) },
             ],
           ],
           resize_keyboard: true,
@@ -579,8 +569,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     console.log(
       'CASE: Нетекстовый или отсутствующий ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
     )
-    // handleMenu сам определит язык и подписку
-    await mainMenu(ctx)
+    // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+    const { CancelButtonService } = await import('@/navigation')
+    await CancelButtonService.executeMainMenu(ctx)
     return
   }
 }
@@ -635,8 +626,10 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
   if (callbackData === 'go_main_menu') {
     console.log('🔄 [CALLBACK] Главное меню')
-    await mainMenu(ctx)
-    return ctx.scene.leave()
+    // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+    const { CancelButtonService } = await import('@/navigation')
+    await CancelButtonService.executeMainMenu(ctx)
+    return
   }
 
   if (callbackData === 'upscale_neurophoto_image') {
@@ -651,13 +644,14 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   }
 
   if (callbackData === 'cancel_neuro_photo') {
-    await ctx.reply(
-      isRu
-        ? 'Отменено. Возвращаю в главное меню.'
-        : 'Cancelled. Returning to main menu.'
+    console.log('🔄 [CALLBACK] Отмена - используем CancelButtonService')
+    // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+    const { CancelButtonService } = await import('@/navigation')
+    await CancelButtonService.executeCancel(
+      ctx,
+      isRu ? 'Отменено. Возвращаю в главное меню.' : 'Cancelled. Returning to main menu.'
     )
-    await mainMenu(ctx)
-    return ctx.scene.leave()
+    return
   } else if (callbackData.startsWith('select_neuro_model_')) {
     console.log(`🔄 [CALLBACK] Processing select_neuro_model: ${callbackData}`)
     let modelId = callbackData.replace('select_neuro_model_', '')
@@ -705,9 +699,10 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
 // ✅ ОБРАБАТЫВАЕМ УНИВЕРСАЛЬНЫЕ КОМАНДЫ ВОКРУГ СЦЕНЫ (МЕНЮ, HELP И Т.Д.)
 neuroPhotoWizard.command('menu', async ctx => {
-  // handleMenu сам определит язык и подписку
-  await mainMenu(ctx)
-  return ctx.scene.leave()
+  // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+  const { CancelButtonService } = await import('@/navigation')
+  await CancelButtonService.executeMainMenu(ctx)
+  return
 })
 
 neuroPhotoWizard.command('help', async ctx => {

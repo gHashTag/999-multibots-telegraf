@@ -2,15 +2,13 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { createHelpCancelKeyboard } from '@/menu'
+import { handleHelpCancel, createHelpCancelKeyboard } from '@/navigation'
 import { generateInstagramScraping } from '@/services/generateInstagramScraping'
 import { getBotNameByToken } from '@/core/bot'
 import { getBotToken } from '@/handlers/getBotToken'
 import { logger } from '@/utils/logger'
-import { levels } from '@/menu'
 import { getUserProjects, UserProject } from '@/core/supabase/getUserProjects'
-import { getParsingAccess } from '@/menu/simpleMenu'
+import { getParsingAccess } from '@/navigation'
 
 // Интерфейс для сессии Instagram Scraping
 interface InstagramScrapingSessionData {
@@ -911,6 +909,10 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Добавляем обработчики help и cancel
-instagramScrapingWizard.start(ctx => ctx.scene.enter(ModeEnum.MenuScene))
+instagramScrapingWizard.start(async ctx => {
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/navigation')
+  await showMainMenu(ctx)
+})
 instagramScrapingWizard.help(ctx => handleHelpCancel(ctx))
 instagramScrapingWizard.command('cancel', ctx => handleHelpCancel(ctx))

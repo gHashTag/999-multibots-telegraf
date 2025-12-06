@@ -13,15 +13,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import fs from 'fs'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
 // Mock fs module
-vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal()
+vi.mock('fs', async () => {
   return {
-    ...actual,
     existsSync: vi.fn(),
     statSync: vi.fn(),
     readFileSync: vi.fn(),
@@ -51,6 +48,9 @@ vi.mock('@/utils/logger', () => ({
     warn: vi.fn(),
   },
 }))
+
+// Import fs after mocking to get mocked version
+import * as fs from 'fs'
 
 // Import after mocks
 import { createModelTrainingLocal } from '@/services/createModelTrainingLocal'
@@ -89,24 +89,24 @@ describe('createModelTrainingLocal', () => {
       },
     }
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
-    ;(vi as any).mocked(mockReplicate.models.get).mockRejectedValue({
+    ;mockReplicate.models.get.mockRejectedValue({
       response: { status: 404 }
     })
-    ;(vi as any).mocked(mockReplicate.models.create).mockResolvedValue({
+    ;mockReplicate.models.create.mockResolvedValue({
       url: 'https://replicate.com/ghashtag/test-model',
       latest_version: { id: 'version_123' }
     })
-    ;(vi as any).mocked(mockReplicate.trainings.create).mockResolvedValue({
+    ;mockReplicate.trainings.create.mockResolvedValue({
       id: 'training_123',
       status: 'starting',
     } as any)
 
     // Mock the module import
-    vi.doMock('@/core/replicate', () => ({
+    vi.mock('@/core/replicate', () => ({
       replicate: mockReplicate,
     }))
 
@@ -136,7 +136,7 @@ describe('createModelTrainingLocal', () => {
     expect(mockReplicate.trainings.create).toHaveBeenCalled()
 
     // Get the call arguments
-    const callArgs = (vi as any).mocked(mockReplicate.trainings.create).mock.calls[0][0]
+    const callArgs = mockReplicate.trainings.create.mock.calls[0][0]
 
     // Verify destination is provided
     expect(callArgs.destination).toBeDefined()
@@ -173,9 +173,9 @@ describe('createModelTrainingLocal', () => {
     // Remove credentials
     delete process.env.REPLICATE_API_TOKEN
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
     const requestData = {
       filePath: '/tmp/test.zip',
@@ -197,9 +197,9 @@ describe('createModelTrainingLocal', () => {
     // Remove REPLICATE_USERNAME
     delete process.env.REPLICATE_USERNAME
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
     const requestData = {
       filePath: '/tmp/test.zip',
@@ -219,7 +219,7 @@ describe('createModelTrainingLocal', () => {
     const { createModelTrainingLocal } = await import('@/services/createModelTrainingLocal')
 
     // Mock file doesn't exist
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(false)
+    ;fs.existsSync.mockReturnValue(false)
 
     const requestData = {
       filePath: '/tmp/nonexistent.zip',
@@ -252,16 +252,16 @@ describe('createModelTrainingLocal', () => {
       },
     }
 
-    vi.doMock('@/core/replicate', () => ({
+    vi.mock('@/core/replicate', () => ({
       replicate: mockReplicate,
     }))
 
     // Re-import after mocking
     const { createModelTrainingLocal: createModelTrainingLocalMocked } = await import('@/services/createModelTrainingLocal')
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
     const requestData = {
       filePath: '/tmp/test.zip',
@@ -282,9 +282,9 @@ describe('createModelTrainingLocal', () => {
   it('should clean up ZIP file after successful training', async () => {
     const { createModelTrainingLocal } = await import('@/services/createModelTrainingLocal')
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
     const requestData = {
       filePath: '/tmp/test.zip',
@@ -300,7 +300,7 @@ describe('createModelTrainingLocal', () => {
     await createModelTrainingLocal(requestData, mockContext)
 
     // Verify file was deleted
-    expect((vi as any).mocked(fs.promises.unlink)).toHaveBeenCalledWith('/tmp/test.zip')
+    expect(fs.promises.unlink).toHaveBeenCalledWith('/tmp/test.zip')
   })
 
   it('should handle file cleanup on error', async () => {
@@ -315,16 +315,16 @@ describe('createModelTrainingLocal', () => {
       },
     }
 
-    vi.doMock('@/core/replicate', () => ({
+    vi.mock('@/core/replicate', () => ({
       replicate: mockReplicate,
     }))
 
     // Re-import after mocking
     const { createModelTrainingLocal: createModelTrainingLocalMocked } = await import('@/services/createModelTrainingLocal')
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
     const requestData = {
       filePath: '/tmp/test.zip',
@@ -340,15 +340,15 @@ describe('createModelTrainingLocal', () => {
     await expect(createModelTrainingLocalMocked(requestData, mockContext)).rejects.toThrow()
 
     // Verify file was deleted even on error
-    expect((vi as any).mocked(fs.promises.unlink)).toHaveBeenCalledWith('/tmp/test.zip')
+    expect(fs.promises.unlink).toHaveBeenCalledWith('/tmp/test.zip')
   })
 
   it('should return correct success message in Russian', async () => {
     const { createModelTrainingLocal } = await import('@/services/createModelTrainingLocal')
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
     const requestData = {
       filePath: '/tmp/test.zip',
@@ -373,9 +373,9 @@ describe('createModelTrainingLocal', () => {
   it('should return correct success message in English', async () => {
     const { createModelTrainingLocal } = await import('@/services/createModelTrainingLocal')
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
     const requestData = {
       filePath: '/tmp/test.zip',
@@ -401,11 +401,11 @@ describe('createModelTrainingLocal', () => {
     const { createModelTrainingLocal } = await import('@/services/createModelTrainingLocal')
 
     const insertMock = vi.fn().mockReturnValue({ data: null, error: null })
-    ;(vi as any).mocked(supabase.from).mockReturnValue({ insert: insertMock } as any)
+    ;supabase.from.mockReturnValue({ insert: insertMock } as any)
 
-    ;(vi as any).mocked(fs.existsSync).mockReturnValue(true)
-    ;(vi as any).mocked(fs.statSync).mockReturnValue({ size: 1000000 } as any)
-    ;(vi as any).mocked(fs.readFileSync).mockReturnValue(Buffer.from('test-zip-data'))
+    ;fs.existsSync.mockReturnValue(true)
+    ;fs.statSync.mockReturnValue({ size: 1000000 } as any)
+    ;fs.readFileSync.mockReturnValue(Buffer.from('test-zip-data'))
 
     const requestData = {
       filePath: '/tmp/test.zip',
@@ -422,7 +422,7 @@ describe('createModelTrainingLocal', () => {
 
     // Verify database record was inserted
     expect(insertMock).toHaveBeenCalled()
-    const insertedData = (vi as any).mocked(insertMock).mock.calls[0][0][0]
+    const insertedData = insertMock.mock.calls[0][0][0]
     expect(insertedData.telegram_id).toBe('123')
     expect(insertedData.model_name).toBe('digital_avatar_model')
     expect(insertedData.trigger_word).toBe('NEURO_SAGE')

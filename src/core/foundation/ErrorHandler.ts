@@ -5,6 +5,7 @@
  */
 
 import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from './LanguageManager'
 
@@ -138,7 +139,9 @@ export class ErrorHandler {
       if (ctx.scene.current) {
         await ctx.scene.leave()
       }
-      await ctx.scene.enter('main_menu')
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
     } catch (fallbackError) {
       logger.error('Failed to return to main menu after scene transition error', {
         fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
@@ -299,7 +302,7 @@ export class ErrorHandler {
             en: '💳 Subscription issues. Please check your subscription status.',
           },
           fallback: async (ctx) => {
-            await ctx.scene.enter('subscription_scene')
+            await ctx.scene.enter(ModeEnum.SubscriptionScene)
           },
         }
 
@@ -316,7 +319,9 @@ export class ErrorHandler {
             if (ctx.scene.current) {
               await ctx.scene.leave()
             }
-            await ctx.scene.enter('main_menu')
+            await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
           },
         }
 

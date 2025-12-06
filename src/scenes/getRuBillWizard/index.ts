@@ -1,6 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import {
   getInvoiceId,

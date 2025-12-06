@@ -9,6 +9,7 @@
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
+import { getMainMenuText } from '@/navigation'
 
 export enum AIReelsTemplate {
   WAN25 = 'veo31', // Оставляем внутренний идентификатор для совместимости
@@ -140,7 +141,7 @@ export async function showTemplateSelection(ctx: MyContext): Promise<void> {
         isRu ? '⚡ Быстрый (Veo 3.1)' : '⚡ Fast (Veo 3.1)',
         isRu ? '🔄 Надежный (Inngest)' : '🔄 Reliable (Inngest)',
       ],
-      [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+      [getMainMenuText(isRu)],
     ]).resize().reply_markup,
   })
 
@@ -189,6 +190,6 @@ export function getTemplateConfig(
  */
 export function isInngestTemplateAvailable(): boolean {
   return (
-    !!process.env.BOT_INNGEST_EVENT_KEY && process.env.NODE_ENV === 'production'
+    !!process.env.INNGEST_EVENT_KEY && process.env.NODE_ENV === 'production'
   )
 }

@@ -9,6 +9,7 @@ import {
   getServiceDisplayName,
 } from '@/utils/serviceMapping'
 import { generateUserExcelReport } from '@/utils/excelReportGenerator'
+import { getMainMenuText } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   getUserBalanceStatsOptimized,
@@ -389,7 +390,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
               keyboard: [
                 [
                   isRu ? 'Отмена' : 'Cancel',
-                  isRu ? '🏠 Главное меню' : '🏠 Main menu',
+                  getMainMenuText(isRu),
                 ],
               ],
               resize_keyboard: true,
@@ -409,7 +410,9 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           ? '❌ Произошла ошибка при получении информации о балансе'
           : '❌ Error occurred while getting balance information'
       )
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
     }
   },
   // Шаг 2: Обработка reply кнопок
@@ -429,17 +432,23 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Главное меню
-    if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+    if (text === (getMainMenuText(isRu))) {
       await ctx.reply(
         isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем кнопки меню
@@ -473,7 +482,10 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       { reply_markup: { remove_keyboard: true } }
     )
     await ctx.scene.leave()
-    return ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
+    return
   }
 )
 
@@ -574,7 +586,9 @@ balanceScene.action('download_excel_report', async (ctx: MyContext) => {
 // Обработчик для кнопки "Назад в меню"
 balanceScene.action('back_to_menu', async (ctx: MyContext) => {
   await ctx.answerCbQuery()
-  await ctx.scene.enter(ModeEnum.MainMenu)
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/navigation')
+  await showMainMenu(ctx)
 })
 
 // Функция getServiceEmoji теперь импортируется из @/utils/serviceMapping

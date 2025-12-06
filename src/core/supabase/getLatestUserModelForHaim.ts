@@ -1,6 +1,6 @@
 import { supabase } from '@/core/supabase'
 import { ModelTraining } from '@/interfaces'
-import { HAIM_GROUP_STAFF_IDS } from '@/menu/simpleMenu'
+import { HAIM_GROUP_STAFF_IDS } from '@/navigation'
 
 /**
  * Получает последнюю активную модель пользователя + общие модели для сотрудников HaimGroupMedia

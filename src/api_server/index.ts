@@ -103,7 +103,7 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
       '[API SERVER] Creating Inngest functions (after secrets loaded)...'
     )
 
-    const allInngestFunctions = createAllInngestFunctions(inngest)
+    const allInngestFunctions = createAllInngestFunctions()
 
     logger.info('[API SERVER] Debug: allInngestFunctions', {
       type: typeof allInngestFunctions,
@@ -140,19 +140,19 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
       })
 
       // ✅ Применена рабочая сигнатура serve() - ВЕРСИЯ ОТ 7 НОЯБРЯ
-      const signingKey =
-        process.env.BOT_INNGEST_TEST_SIGNING_KEY ||
-        'signkey-test-c4167464e900701832920c98bb2ec6e6e3c59fd2b27c62e1f4140dada01e4597'
+      const signingKey = process.env.INNGEST_SIGNING_KEY
 
-      const inngestHandler = serve(inngest as any, allInngestFunctions as any, {
-        signingKey,
-      }) as any
+      if (!signingKey) {
+        logger.error('❌ [API SERVER] INNGEST_SIGNING_KEY не найден! Webhook verification будет недоступен.')
+      }
+
+      const inngestHandler = serve(inngest, allInngestFunctions)
 
       // Override health check to check process.env directly
       app.get('/api/inngest', (req, res) => {
         res.json({
           'Inngest endpoint configured correctly.': true,
-          hasEventKey: !!process.env.BOT_INNGEST_EVENT_TEST_KEY,
+          hasEventKey: !!process.env.INNGEST_EVENT_KEY,
           hasSigningKey: !!signingKey,
           functionsFound: allInngestFunctions.length,
         })

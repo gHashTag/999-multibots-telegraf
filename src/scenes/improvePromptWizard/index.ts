@@ -4,9 +4,7 @@ import { MyContext } from '@/interfaces'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
-import { sendPromptImprovementMessage } from '@/menu/sendPromptImprovementMessage'
-import { sendPromptImprovementFailureMessage } from '@/menu/sendPromptImprovementFailureMessage'
-import { sendGenericErrorMessage } from '@/menu'
+import { sendPromptImprovementMessage, sendPromptImprovementFailureMessage, sendGenericErrorMessage, getMainMenuText } from '@/navigation'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger, logSessionSafely } from '@/utils/logger'
@@ -69,7 +67,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         isRu ? 'Ошибка идентификации пользователя' : 'User identification error'
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     ctx.session.attempts = 0 // Инициализируем счетчик попыток
@@ -79,14 +80,20 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
     if (!prompt) {
       await sendPromptImprovementFailureMessage(ctx, isRu)
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     const improvedPrompt = await upgradePrompt(prompt)
     if (!improvedPrompt) {
       await sendPromptImprovementFailureMessage(ctx, isRu)
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     ctx.session.prompt = improvedPrompt
@@ -130,18 +137,27 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             : 'User identification error'
         )
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
       }
 
       if (!ctx.session.prompt) {
         await sendPromptImprovementFailureMessage(ctx, isRu)
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
       }
       if (!ctx.session.mode) {
         await sendPromptImprovementFailureMessage(ctx, isRu)
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
       }
       switch (text) {
         case isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?': {
@@ -178,7 +194,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 : 'Error: Could not retrieve user data.'
             )
             await ctx.scene.leave()
-            return ctx.scene.enter(ModeEnum.MainMenu)
+            await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
           }
 
           console.log(mode, 'mode')
@@ -258,7 +277,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                       : 'Error: Could not determine the selected image model.'
                   )
                   await ctx.scene.leave()
-                  return ctx.scene.enter(ModeEnum.MainMenu)
+                  await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
                 }
                 await generateTextToImageDirect(
                   ctx.session.prompt,
@@ -306,7 +328,7 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                               : '📐 Change size',
                           },
                         ],
-                        [{ text: isRu ? '🏠 Главное меню' : '🏠 Main menu' }],
+                        [{ text: getMainMenuText(isRu) }],
                       ],
                       resize_keyboard: true,
                     },
@@ -328,10 +350,16 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             })
             await sendGenericErrorMessage(ctx, isRu)
             await ctx.scene.leave()
-            return ctx.scene.enter(ModeEnum.MainMenu)
+            await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
           }
           await ctx.scene.leave()
-          return ctx.scene.enter(ModeEnum.MainMenu)
+          await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
         }
 
         case isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again': {
@@ -344,7 +372,10 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                 : 'Maximum number of prompt improvement attempts reached.'
             )
             await ctx.scene.leave()
-            return ctx.scene.enter(ModeEnum.MainMenu)
+            await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
           }
 
           await ctx.reply(
@@ -355,13 +386,19 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           if (!ctx.session.prompt) {
             await sendPromptImprovementFailureMessage(ctx, isRu)
             await ctx.scene.leave()
-            return ctx.scene.enter(ModeEnum.MainMenu)
+            await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
           }
           const improvedPrompt = await upgradePrompt(ctx.session.prompt)
           if (!improvedPrompt) {
             await sendPromptImprovementFailureMessage(ctx, isRu)
             await ctx.scene.leave()
-            return ctx.scene.enter(ModeEnum.MainMenu)
+            await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
           }
 
           ctx.session.prompt = improvedPrompt
@@ -393,13 +430,19 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         case isRu ? 'Отмена' : 'Cancel': {
           await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled')
           await ctx.scene.leave()
-          return ctx.scene.enter(ModeEnum.MainMenu)
+          await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
         }
 
         default: {
           await sendGenericErrorMessage(ctx, isRu)
           await ctx.scene.leave()
-          return ctx.scene.enter(ModeEnum.MainMenu)
+          await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
         }
       }
     }

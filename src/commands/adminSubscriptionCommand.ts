@@ -144,7 +144,7 @@ async function handleRefreshUserSession(ctx: MyContext, targetUserId: string) {
 
 💡 <b>Рекомендации для пользователя:</b>
 1. Перезапустить бота командой /start
-2. Попробовать команду /menu
+2. Попробовать команду /start
 3. При необходимости - перезапустить Telegram
     `, { parse_mode: 'HTML' })
 

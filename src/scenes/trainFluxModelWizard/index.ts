@@ -3,7 +3,7 @@ import { MyContext } from '../../interfaces'
 
 import { isValidImage } from '../../helpers/images'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleHelpCancel } from '@/navigation'
 import { getBotToken } from '@/handlers'
 import { sanitizeModelName } from '@/helpers/sanitizeModelName'
 

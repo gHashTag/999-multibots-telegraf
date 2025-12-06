@@ -1,9 +1,8 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { getStepSelectionMenu } from '../../menu/getStepSelectionMenu'
+import { getStepSelectionMenu, handleHelpCancel } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleTrainingCost } from '@/price/helpers'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
 import { calculateCost } from '@/price/priceCalculator'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
@@ -184,7 +183,7 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
             : `✅ You selected ${steps} steps costing ${trainingCostInStars}⭐️ stars\n\nYour balance: ${currentBalance} ⭐️\n\n📸 Proceeding to image upload for model training...`
 
           await ctx.reply(message, Markup.removeKeyboard())
-          return ctx.scene.enter('trainFluxModelWizard')
+          return ctx.scene.enter(ModeEnum.TrainFluxModelWizard)
         }
       }
     }

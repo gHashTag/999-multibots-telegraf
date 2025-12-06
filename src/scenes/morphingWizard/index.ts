@@ -1,7 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleHelpCancel } from '@/navigation'
 import { getBotToken } from '@/handlers/getBotToken'
 import { generateMorphing } from '../../services/generateMorphing'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
@@ -1274,7 +1274,9 @@ morphingWizard.action('morphing_cancel', async ctx => {
     console.log('❌ [MORPHING_CANCEL] Scene left, entering MainMenu...')
 
     // Принудительно возвращаемся в главное меню
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error cancelling morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',

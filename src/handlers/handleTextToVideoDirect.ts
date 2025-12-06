@@ -56,6 +56,11 @@ export async function handleTextToVideoDirect(
   const modelName = is_ru ? modelConfig.nameRu : modelConfig.name
   const price = getUnifiedModelPrice(modelId, { duration: validDuration })
 
+  // ✅ CHECK BALANCE BEFORE GENERATION
+  const { checkUserBalance } = await import('@/helpers/checkUserBalance')
+  const hasBalance = await checkUserBalance(ctx, price)
+  if (!hasBalance) return
+
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(
     is_ru

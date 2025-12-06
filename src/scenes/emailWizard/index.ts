@@ -8,11 +8,11 @@ import {
 
 import md5 from 'md5'
 import {
-  MERCHANT_LOGIN,
+  getMerchantLogin,
   UNIFIED_RESULT_URL,
-  ROBOKASSA_PASSWORD_1,
+  getRobokassaPassword1,
 } from '@/config'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { getBotNameByToken } from '@/core'
 import {
   PaymentStatus,
@@ -20,7 +20,7 @@ import {
   PaymentType,
 } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-const merchantLogin = MERCHANT_LOGIN
+const merchantLogin = getMerchantLogin() || ''
 
 const description = 'Покупка звезд'
 
@@ -192,7 +192,8 @@ emailWizard.on('text', async ctx => {
           console.error('❌ Merchant login not found')
           return
         }
-        if (!ROBOKASSA_PASSWORD_1) {
+        const password1 = getRobokassaPassword1()
+        if (!password1) {
           console.error('❌ Password not found')
           return
         }
@@ -205,7 +206,7 @@ emailWizard.on('text', async ctx => {
           amount,
           invId,
           description,
-          ROBOKASSA_PASSWORD_1
+          password1
         )
 
         const { bot_name } = getBotNameByToken(ctx.telegram.token)

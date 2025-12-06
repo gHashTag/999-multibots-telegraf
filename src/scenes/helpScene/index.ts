@@ -18,7 +18,7 @@ import {
   handleVideoTranscriptionHelp,
   handleImageUpscalerHelp,
 } from '../../scenes/levelQuestWizard/handlers'
-import { mainMenu } from '@/menu'
+// mainMenu removed - using NavigationService instead
 
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'

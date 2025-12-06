@@ -1,6 +1,8 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { getMainMenuText } from '@/navigation'
 import { logger } from '../../utils/logger'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import fs from 'fs'
@@ -3100,7 +3102,7 @@ const processAiPhotoshopRequest = async (
               ? '⚠️ FLUX Multi-Kontext требует 2 изображения. Пожалуйста, загрузите второе изображение.'
               : '⚠️ FLUX Multi-Kontext requires 2 images. Please upload a second image.',
             Markup.keyboard([
-              [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+              [getMainMenuText(isRu)],
             ]).resize()
           )
           return
@@ -4013,7 +4015,8 @@ aiPhotoshopScene.action('ai_photoshop_cancel', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('main_menu')
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error handling AI Photoshop cancel', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -4901,7 +4904,8 @@ aiPhotoshopScene.action('ai_photoshop_exit_to_menu', async ctx => {
     }
 
     await ctx.scene.leave()
-    await ctx.scene.enter('main_menu')
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error in exit to menu handler', { error })
     // Fallback: force leave scene
@@ -4919,7 +4923,8 @@ aiPhotoshopScene.command('menu', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('main_menu')
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error in menu command handler', { error })
     await ctx.scene.leave()
@@ -4937,7 +4942,7 @@ aiPhotoshopScene.command('start', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('start_scene')
+    await ctx.scene.enter(ModeEnum.StartScene)
   } catch (error) {
     logger.error('Error in start command handler', { error })
     await ctx.scene.leave()

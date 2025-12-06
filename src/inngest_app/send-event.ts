@@ -38,7 +38,7 @@ export interface AIReelsEventPayload {
 export async function sendAIReelsEvent(
   payload: AIReelsEventPayload
 ): Promise<{ eventId: string }> {
-  const eventKey = process.env.BOT_INNGEST_EVENT_KEY
+  const eventKey = process.env.INNGEST_EVENT_KEY
 
   if (!eventKey) {
     throw new Error('INNGEST_EVENT_KEY not configured')

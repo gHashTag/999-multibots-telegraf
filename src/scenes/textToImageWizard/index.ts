@@ -1,8 +1,8 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { imageModelPrices } from '@/price/models'
-import { handleHelpCancel } from '@/handlers'
-import { sendGenericErrorMessage } from '@/menu'
+import { handleHelpCancel } from '@/navigation'
+import { sendGenericErrorMessage } from '@/navigation'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -13,7 +13,7 @@ import {
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
 
-import { createHelpCancelKeyboard } from '@/menu'
+import { createHelpCancelKeyboard, getMainMenuText } from '@/navigation'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { improvePromptWizard } from '../improvePromptWizard'
 import { sizeWizard } from '../sizeWizard'
@@ -54,7 +54,7 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         ),
         Markup.button.text(isRu ? 'Отмена' : 'Cancel'),
       ],
-      [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')]
+      [Markup.button.text(getMainMenuText(isRu))]
     )
 
     const keyboard = Markup.keyboard(keyboardButtons).resize().oneTime()
@@ -220,7 +220,6 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
 
     try {
       // Используем новую сигнатуру generateTextToImageDirect
-      // TODO: Определить, как получать num_images (пока захардкожено 1)
       const generationResult = await generateTextToImageDirect(
         prompt,
         ctx.session.selectedImageModel,
@@ -232,14 +231,36 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       )
 
       // ✅ БАЛАНС УЖЕ СПИСАН внутри generateTextToImageDirect через processBalanceOperation
-      // ❌ НЕ НУЖНО списывать повторно здесь!
-
       // Сохраняем промпт в сессию для возможного улучшения
       ctx.session.prompt = prompt
 
-      // После успешной генерации (сообщение теперь отправляет generateTextToImageDirect),
-      // мы просто покидаем сцену.
-      return ctx.scene.leave() // Покидаем сцену
+      // ✅ ИСПРАВЛЕНО: После успешной генерации показываем клавиатуру для дополнительной генерации
+      const additionalGenerationKeyboard = Markup.keyboard([
+        [
+          Markup.button.text('1️⃣'),
+          Markup.button.text('2️⃣'),
+          Markup.button.text('3️⃣'),
+          Markup.button.text('4️⃣'),
+        ],
+        [
+          Markup.button.text(isRu ? '🆕 Новый промпт' : '🆕 New prompt'),
+          Markup.button.text(isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt'),
+        ],
+        [
+          Markup.button.text(isRu ? '📐 Изменить размер' : '📐 Change size'),
+          Markup.button.text(getMainMenuText(isRu)),
+        ],
+      ]).resize()
+
+      await ctx.reply(
+        isRu
+          ? '✨ Изображение сгенерировано! Выберите количество дополнительных изображений или используйте другие опции:'
+          : '✨ Image generated! Choose the number of additional images or use other options:',
+        additionalGenerationKeyboard
+      )
+
+      // Переходим к следующему шагу для обработки кнопок
+      return ctx.wizard.next()
     } catch (error) {
       logger.error('Ошибка при генерации изображения в textToImageWizard:', {
         error,
@@ -249,43 +270,131 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
   },
-  // ЭТОТ ШАГ, СКОРЕЕ ВСЕГО, БОЛЬШЕ НЕ НУЖЕН ИЛИ ДОЛЖЕН БЫТЬ ПУСТЫМ,
-  // ТАК КАК ПРЕДЫДУЩИЙ ШАГ ЗАВЕРШАЕТСЯ ctx.scene.leave()
-  // ИЛИ ОБРАБОТКА ПЕРЕХОДИТ К HEARS HANDLERS
+  // ШАГ 4: Обработка кнопок дополнительной генерации
   async ctx => {
-    // УДАЛЯЕМ СТРОКУ С "TODO" ОТСЮДА ИЛИ ВЕСЬ ЭТОТ ШАГ, ЕСЛИ ОН НЕ НУЖЕН
-    // logger.info(
-    //   `textToImageWizard step 4: User ${ctx.from?.id} ` +
-    //     ` ${ctx.message && 'text' in ctx.message ? ctx.message.text : 'no text'}`
-    // )
-    // const message = ctx.message
-    // if (message && 'text' in message) {
-    //   const text = message.text
-    //   const numImages = parseInt(text[0])
-    //   if (!isNaN(numImages) && numImages >= 1 && numImages <= 4) {
-    //     // TODO: Реализовать повторную генерацию с numImages
-    //     // await ctx.reply(
-    //     //   `Запущена повторная генерация ${numImages} изображений... (TODO)`
-    //     // )
-    //     // Здесь нужно вызвать generateTextToImageDirect или аналогичную логику,
-    //     // а затем снова показать клавиатуру, как на предыдущем шаге.
-    //     // Однако, это уже делается через hearsHandlers, поэтому этот шаг избыточен.
-    //   } else if (text === (isRussian(ctx) ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt')) {
-    //     return ctx.scene.enter(improvePromptWizard.id)
-    //   } else if (text === (isRussian(ctx) ? '📐 Изменить размер' : '📐 Change size')) {
-    //     // TODO: Передать ID изображения или другую инфу в sizeWizard, если нужно
-    //     return ctx.scene.enter(sizeWizard.id)
-    //   } else if (text === (isRussian(ctx) ? '🏠 Главное меню' : '🏠 Main menu')) {
-    //     await УДАЛЁН(ctx, true) // Возвращаемся в главное меню
-    //     return ctx.scene.leave()
-    //   }
-    // }
-    // Этот шаг, скорее всего, не будет достигнут, если предыдущий завершается ctx.scene.leave()
-    // или если пользователь нажимает кнопки, обрабатываемые hearsHandlers.
-    // Оставляем его пустым или удаляем, чтобы избежать неожиданного поведения.
-    logger.warn(
-      `Reached an unexpected step in textToImageWizard for user ${ctx.from?.id}. Leaving scene.`
-    )
-    return ctx.scene.leave()
+    const isRu = isRussianFromState(ctx)
+    const message = ctx.message
+
+    if (!message || !('text' in message)) {
+      // Нетекстовое сообщение - возвращаем в меню
+      const { showMainMenu } = await import('@/navigation')
+      await ctx.scene.leave()
+      await showMainMenu(ctx)
+      return
+    }
+
+    const text = message.text
+
+    // 🏠 ГЛАВНОЕ МЕНЮ
+    if (text === getMainMenuText(isRu)) {
+      const { showMainMenu } = await import('@/navigation')
+      await ctx.scene.leave()
+      await showMainMenu(ctx)
+      return
+    }
+
+    // 🆕 НОВЫЙ ПРОМПТ
+    if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {
+      ctx.session.prompt = undefined
+      ctx.session.selectedImageModel = undefined
+      // Перезапускаем сцену с начала
+      return ctx.scene.reenter()
+    }
+
+    // ⬆️ УЛУЧШИТЬ ПРОМПТ
+    if (text === '⬆️ Улучшить промпт' || text === '⬆️ Improve prompt') {
+      return ctx.scene.enter(improvePromptWizard.id)
+    }
+
+    // 📐 ИЗМЕНИТЬ РАЗМЕР
+    if (text === '📐 Изменить размер' || text === '📐 Change size') {
+      return ctx.scene.enter(sizeWizard.id)
+    }
+
+    // 1️⃣ 2️⃣ 3️⃣ 4️⃣ - ДОПОЛНИТЕЛЬНАЯ ГЕНЕРАЦИЯ
+    const numImagesMap: Record<string, number> = {
+      '1️⃣': 1,
+      '2️⃣': 2,
+      '3️⃣': 3,
+      '4️⃣': 4,
+      '1': 1,
+      '2': 2,
+      '3': 3,
+      '4': 4,
+    }
+
+    const numImages = numImagesMap[text]
+    if (numImages !== undefined) {
+      const prompt = ctx.session.prompt
+      const selectedModel = ctx.session.selectedImageModel
+
+      if (!prompt || !selectedModel) {
+        await ctx.reply(
+          isRu
+            ? '❌ Данные для генерации не найдены. Начните заново.'
+            : '❌ Generation data not found. Please start over.'
+        )
+        const { showMainMenu } = await import('@/navigation')
+        await ctx.scene.leave()
+        await showMainMenu(ctx)
+        return
+      }
+
+      try {
+        await ctx.reply(
+          isRu
+            ? `⏳ Генерирую ${numImages} изображени${numImages === 1 ? 'е' : numImages < 5 ? 'я' : 'й'}...`
+            : `⏳ Generating ${numImages} image${numImages > 1 ? 's' : ''}...`
+        )
+
+        await generateTextToImageDirect(
+          prompt,
+          selectedModel,
+          numImages,
+          ctx.from!.id.toString(),
+          ctx.from!.username ?? 'unknown',
+          isRu,
+          ctx
+        )
+
+        // После генерации снова показываем клавиатуру
+        const additionalGenerationKeyboard = Markup.keyboard([
+          [
+            Markup.button.text('1️⃣'),
+            Markup.button.text('2️⃣'),
+            Markup.button.text('3️⃣'),
+            Markup.button.text('4️⃣'),
+          ],
+          [
+            Markup.button.text(isRu ? '🆕 Новый промпт' : '🆕 New prompt'),
+            Markup.button.text(getMainMenuText(isRu)),
+          ],
+        ]).resize()
+
+        await ctx.reply(
+          isRu
+            ? '✨ Изображения сгенерированы! Выберите количество дополнительных изображений:'
+            : '✨ Images generated! Choose the number of additional images:',
+          additionalGenerationKeyboard
+        )
+
+        // Остаемся на этом же шаге для возможности повторной генерации
+        return
+      } catch (error) {
+        logger.error('Ошибка при дополнительной генерации:', {
+          error,
+          telegramId: ctx.from?.id,
+        })
+        await sendGenericErrorMessage(ctx, isRu)
+        return
+      }
+    }
+
+    // Неизвестный ввод - показываем меню
+    logger.warn(`Unknown input in textToImageWizard step 4: "${text}"`)
+    const { showMainMenu } = await import('@/navigation')
+    await ctx.scene.leave()
+    await showMainMenu(ctx)
+    return
   }
 )

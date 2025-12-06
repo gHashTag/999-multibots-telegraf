@@ -404,6 +404,23 @@ secrets-scan.json
 .hive-mind/
 .swarm/
 memory/
+.roo/
+.jest-cache/
+.git-rewrite/
+
+# Temporary analysis files in scripts/
+scripts/financial/*.js.backup
+scripts/misc/
+scripts/analysis/*.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary test files
+test-*.js
+test_*.js
 
 # Expo & React Native
 mobile/.expo/

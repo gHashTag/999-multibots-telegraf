@@ -2,5 +2,20 @@
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
-  "editor.formatOnSave": false
+  "editor.formatOnSave": false,
+
+  // Jest Configuration - Point to our jest.config.js
+  "jest.jestCommandLine": "npx jest --config=jest.config.js",
+  "jest.autoRun": {
+    "watch": false,
+    "onStartup": ["all-tests"]
+  },
+
+  // Disable Jest test discovery for Vitest files
+  "jest.disabledTestFiles": [
+    "src/__tests__/**",
+    "tests/**",
+    "src/helpers/test/**",
+    "src/modules/**/test/**"
+  ]
 }

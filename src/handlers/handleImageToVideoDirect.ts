@@ -86,6 +86,11 @@ export async function handleImageToVideoDirect(
   const modelName = getModelDisplayName(modelId, is_ru, aspectRatio)
   const price = getImageToVideoPrice(modelId, aspectRatio)
 
+  // ✅ CHECK BALANCE BEFORE GENERATION
+  const { checkUserBalance } = await import('@/helpers/checkUserBalance')
+  const hasBalance = await checkUserBalance(ctx, price)
+  if (!hasBalance) return
+
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(
     is_ru

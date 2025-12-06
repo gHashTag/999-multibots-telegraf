@@ -21,7 +21,7 @@ export async function handleSubscriptionMessage(
 
 💳 Оформите подписку для полного доступа!
 
-👇 Нажмите /menu для выбора тарифа`
+👇 Нажмите /start для выбора тарифа`
       : `🚫 ACCESS LIMITED
 
 ❗️ To continue using the bot, you need to get a paid subscription
@@ -35,7 +35,7 @@ export async function handleSubscriptionMessage(
 
 💳 Get a subscription for full access!
 
-👇 Press /menu to choose a plan`
+👇 Press /start to choose a plan`
 
   await ctx.reply(message, {
     reply_markup: Markup.inlineKeyboard([

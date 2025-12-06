@@ -10,7 +10,6 @@ import createKieAiProvider from '../adapters/kie-ai.adapter'
 import createReplicateProvider from '../adapters/replicate.adapter'
 import createElevenLabsProvider from '../adapters/elevenlabs.adapter'
 import createFalProvider from '../adapters/fal.adapter'
-import { isRight } from '../../../core/functional/utils/result'
 
 // ===== REGISTRY IMPLEMENTATION =====
 
@@ -172,12 +171,12 @@ export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegis
 export const createDefaultRegistry = (): ProviderRegistry => {
   // Validate and decode the provider name using the codec
   const kieAiNameResult = ProviderName.decode('kie-ai')
-  if (!isRight(kieAiNameResult)) {
+  if (kieAiNameResult._tag !== 'Right') {
     throw new Error('Invalid provider name: kie-ai')
   }
 
   // Type assertion is safe because we validated with codec above
-  const providerName: t.TypeOf<typeof ProviderName> = (kieAiNameResult as any).right
+  const providerName: t.TypeOf<typeof ProviderName> = kieAiNameResult.right
 
   const defaultConfigs: ProviderConfig[] = [
     {

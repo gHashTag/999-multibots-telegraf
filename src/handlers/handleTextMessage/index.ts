@@ -3,9 +3,8 @@ import { getUserModel, getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleFluxKontextPrompt } from '../../commands/fluxKontextCommand'
-import { handleHelpCancel } from '../handleHelpCancel'
 import { Scenes } from 'telegraf'
-import { sendGenericErrorMessage } from '../../menu'
+import { sendGenericErrorMessage, handleHelpCancel } from '@/navigation'
 
 import { logger } from '@/utils/logger'
 import {
@@ -298,8 +297,7 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
     }
   } catch (error) {
     logger.error('[handleTextMessage] Error processing text message:', error)
-    const isRu = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx)
   }
 })
 

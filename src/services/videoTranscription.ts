@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs, { createReadStream } from 'fs'
 import path from 'path'
 import https from 'https'
 import { promisify } from 'util'
@@ -9,6 +9,7 @@ import {
   downloadInstagramVideoViaApify,
   downloadInstagramVideoViaApifyFallback,
 } from './apifyInstagramDownloader'
+import { openai } from '@/core/openai'
 
 const pipelineAsync = promisify(pipeline)
 
@@ -295,12 +296,7 @@ class VideoTranscriptionService {
   ): Promise<TranscriptionResult> {
     console.log(`🎙️ Transcribing video file: ${videoPath}`)
 
-    if (!process.env.OPENAI_API_KEY) {
-      return {
-        success: false,
-        error: 'OpenAI API key not configured',
-      }
-    }
+    // OpenAI client is initialized lazily via @/core/openai
 
     try {
       // Verify file exists and has content
@@ -446,19 +442,13 @@ class VideoTranscriptionService {
       }
 
 
-      // Fallback to OpenAI
-      const response = await axios.post(
-        'https://api.openai.com/v1/audio/transcriptions',
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            ...formData.getHeaders(),
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-          timeout: 300000, // 5 minutes timeout for transcription
-        }
-      )
+      // Use OpenAI client for transcription
+      const response = await openai.audio.transcriptions.create({
+        file: createReadStream(videoPath) as any,
+        model: 'whisper-1',
+        language: 'ru',
+        response_format: 'verbose_json'
+      }) as any
 
       if (response.data && response.data.text) {
         console.log(`✅ Transcription completed successfully`)

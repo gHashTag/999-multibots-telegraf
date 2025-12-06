@@ -3,9 +3,7 @@ import { MyContext } from '@/interfaces'
 
 import { generateImageToPrompt } from '@/services/generateImageToPrompt'
 
-import { createHelpCancelKeyboard } from '@/menu'
-
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { createHelpCancelKeyboard, handleHelpCancel } from '@/navigation'
 import { getBotToken } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import { getBotNameByToken } from '@/core/bot'

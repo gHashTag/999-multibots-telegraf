@@ -157,7 +157,7 @@ export class HeroValidationService {
       // Небольшая задержка для лучшего UX
       setTimeout(async () => {
         try {
-          await ctx.scene.enter('menu_scene')
+          await ctx.scene.enter(ModeEnum.MainMenu)
         } catch (error) {
           logger.error('Failed to redirect to main menu', { error })
           // Fallback - просто отправляем команду меню

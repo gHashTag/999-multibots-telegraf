@@ -1,94 +1,73 @@
-# 📚 Документация проекта 999-agents-telegraf
+# 📚 Документация проекта 999-multibots-telegraf
 
-Добро пожаловать в документацию многофункциональной платформы Telegram-ботов! Этот проект представляет собой комплексную систему для создания и управления множественными AI-ботами с различными возможностями.
+Платформа Telegram-ботов с AI-генерацией контента (видео, изображения, музыка, LipSync).
 
 ## 🏗️ Структура документации
 
-### 🚀 [DEPLOYMENT](./DEPLOYMENT/) - Развертывание
-Документы по развертыванию и конфигурации в продакшене:
-- [AUTOMATED_DEPLOYMENT.md](./DEPLOYMENT/AUTOMATED_DEPLOYMENT.md) - Автоматизированная система развертывания
-- [PRODUCTION_CONFIG.md](./DEPLOYMENT/PRODUCTION_CONFIG.md) - Конфигурация продакшена
-- [DEPLOYMENT_STATUS.md](./DEPLOYMENT/DEPLOYMENT_STATUS.md) - Статус развертывания
-- [DEPLOYMENT_AUTOMATION_SUMMARY.md](./DEPLOYMENT/DEPLOYMENT_AUTOMATION_SUMMARY.md) - Сводка по автоматизации
-
-### 🛠️ [DEVELOPMENT](./DEVELOPMENT/) - Разработка
-Документы для разработчиков:
-- [DEV_ENVIRONMENT_SETUP.md](./DEVELOPMENT/DEV_ENVIRONMENT_SETUP.md) - Настройка среды разработки
-- [DEV_ENVIRONMENT_READY.md](./DEVELOPMENT/DEV_ENVIRONMENT_READY.md) - Готовность среды разработки
-- [ARCHITECTURE.md](./DEVELOPMENT/ARCHITECTURE.md) - Архитектура системы
-- [CONTRIBUTING.md](./DEVELOPMENT/CONTRIBUTING.md) - Руководство по участию в разработке
-
-### ⚡ [FEATURES](./FEATURES/) - Функции
-Документация по основным функциям:
-- [AUTOFIXER_INTEGRATION.md](./FEATURES/AUTOFIXER_INTEGRATION.md) - Интеграция автофиксера
-- [LIPSYNC_ADMIN_ONLY_INSTRUCTIONS.md](./FEATURES/LIPSYNC_ADMIN_ONLY_INSTRUCTIONS.md) - Инструкции по LipSync для админов
-- [LIPSYNC_AI_SERVER_INTEGRATION_REPORT.md](./FEATURES/LIPSYNC_AI_SERVER_INTEGRATION_REPORT.md) - Отчет по интеграции LipSync с AI сервером
-- [LIPSYNC_DEBUG_REPORT.md](./FEATURES/LIPSYNC_DEBUG_REPORT.md) - Отчет по отладке LipSync
-
-### 🔒 [SECURITY](./SECURITY/) - Безопасность
-Документы по безопасности:
-- [SECURITY.md](./SECURITY/SECURITY.md) - Общие принципы безопасности
-- [API_INTEGRATION_TEST_REPORT.md](./SECURITY/API_INTEGRATION_TEST_REPORT.md) - Отчет по тестированию API интеграции
-
-### 🧪 [TESTING](./TESTING/) - Тестирование
-Документы по тестированию:
-- [CI_CD_FIXES_REPORT.md](./TESTING/CI_CD_FIXES_REPORT.md) - Отчет по исправлениям CI/CD
-- [BALANCE_OPTIMIZATION.md](./TESTING/BALANCE_OPTIMIZATION.md) - Оптимизация баланса
-
-### 🔄 [MIGRATION](./MIGRATION/) - Миграция
-Документы по миграции:
-- [MIGRATION_TO_FOUNDATION.md](./MIGRATION/MIGRATION_TO_FOUNDATION.md) - Миграция к Foundation
-- [START_HERE_FOUNDATION.md](./MIGRATION/START_HERE_FOUNDATION.md) - Начало работы с Foundation
-
-### 📋 Общие документы
-- [ROADMAP.md](./ROADMAP.md) - Дорожная карта проекта
-- [LOGGING.md](./LOGGING.md) - Система логирования
-- [DEPLOYMENT.md](./DEPLOYMENT.md) - Общее руководство по развертыванию
-- [README-RU.md](./README-RU.md) - README на русском языке
+```
+docs/
+├── README.md                 # Этот файл
+├── README-RU.md              # Описание проекта на русском
+├── ROADMAP.md                # Дорожная карта развития
+├── CRITICAL-RULE-NEVER-DELETE.md  # Критические правила
+│
+├── architecture/             # Архитектура системы
+│   ├── PROJECT_ARCHITECTURE.md       # Общая архитектура
+│   ├── AGENTS_FUNCTIONAL_ARCHITECTURE.md  # AI агенты
+│   └── FUNCTIONAL_MEDIA_GENERATION_ROADMAP.md  # AI генерация
+│
+├── features/                 # Документация по функциям
+│   ├── TELEGRAM_BOT_GUIDE.md         # Гайд по боту
+│   ├── TELEGRAM_BOT_SETUP.md         # Настройка бота
+│   ├── INNGEST_IMPORTANT_RULES.md    # Правила Inngest
+│   ├── INNGEST_PRODUCTION_SECRETS.md # Секреты Inngest
+│   ├── INFISICAL_ENV_MANAGEMENT.md   # Управление .env
+│   ├── INFISICAL_FAL_SETUP.md        # Настройка FAL
+│   └── LOGGING.md                    # Система логирования
+│
+└── guides/                   # Руководства
+    ├── DEPLOYMENT_GUIDE.md   # Развертывание
+    ├── INSTALL_SIMPLE.md     # Быстрая установка
+    ├── QUICK_REFERENCE.md    # Справочник команд
+    ├── CONTRIBUTING.md       # Участие в разработке
+    └── SECURITY.md           # Безопасность
+```
 
 ## 🚀 Быстрый старт
 
 ### Для разработчиков
-1. Изучите [DEV_ENVIRONMENT_SETUP.md](./DEVELOPMENT/DEV_ENVIRONMENT_SETUP.md)
-2. Ознакомьтесь с [ARCHITECTURE.md](./DEVELOPMENT/ARCHITECTURE.md)
-3. Прочитайте [CONTRIBUTING.md](./DEVELOPMENT/CONTRIBUTING.md)
+1. [INSTALL_SIMPLE.md](./guides/INSTALL_SIMPLE.md) - Быстрая установка
+2. [PROJECT_ARCHITECTURE.md](./architecture/PROJECT_ARCHITECTURE.md) - Архитектура
+3. [CONTRIBUTING.md](./guides/CONTRIBUTING.md) - Участие в разработке
 
-### Для развертывания
-1. Изучите [AUTOMATED_DEPLOYMENT.md](./DEPLOYMENT/AUTOMATED_DEPLOYMENT.md)
-2. Настройте [PRODUCTION_CONFIG.md](./DEPLOYMENT/PRODUCTION_CONFIG.md)
-3. Проверьте [DEPLOYMENT_STATUS.md](./DEPLOYMENT/DEPLOYMENT_STATUS.md)
+### Для деплоя
+1. [DEPLOYMENT_GUIDE.md](./guides/DEPLOYMENT_GUIDE.md) - Полное руководство
+2. [INFISICAL_ENV_MANAGEMENT.md](./features/INFISICAL_ENV_MANAGEMENT.md) - Секреты
+3. [QUICK_REFERENCE.md](./guides/QUICK_REFERENCE.md) - Справочник команд
 
-### Для новых функций
-1. Изучите [FEATURES/](./FEATURES/) для понимания существующих возможностей
-2. Ознакомьтесь с [ROADMAP.md](./ROADMAP.md) для планирования
-3. Проверьте [SECURITY.md](./SECURITY/SECURITY.md) для соблюдения безопасности
+### Telegram бот
+1. [TELEGRAM_BOT_SETUP.md](./features/TELEGRAM_BOT_SETUP.md) - Настройка
+2. [TELEGRAM_BOT_GUIDE.md](./features/TELEGRAM_BOT_GUIDE.md) - Использование
 
-## 🔍 Поиск по документации
+## 📖 Ключевые документы
 
-### По ключевым словам:
-- **Развертывание**: DEPLOYMENT/
-- **Разработка**: DEVELOPMENT/
-- **Безопасность**: SECURITY/
-- **Тестирование**: TESTING/
-- **Миграция**: MIGRATION/
-- **Функции**: FEATURES/
+| Документ | Описание |
+|----------|----------|
+| [DEPLOYMENT_GUIDE.md](./guides/DEPLOYMENT_GUIDE.md) | Развертывание на сервере |
+| [INNGEST_IMPORTANT_RULES.md](./features/INNGEST_IMPORTANT_RULES.md) | Фоновые задачи (1-2 часа) |
+| [SECURITY.md](./guides/SECURITY.md) | Безопасность и секреты |
+| [ROADMAP.md](./ROADMAP.md) | План развития проекта |
 
-### По технологиям:
-- **Docker**: DEPLOYMENT/
-- **CI/CD**: TESTING/CI_CD_FIXES_REPORT.md
-- **Telegram Bot API**: FEATURES/
-- **Supabase**: DEVELOPMENT/ARCHITECTURE.md
-- **LipSync**: FEATURES/LIPSYNC_*.md
+## 🔗 Связанные ресурсы
 
-## 📞 Поддержка
+- **Главный CLAUDE.md**: `/CLAUDE.md` - инструкции для Claude Code
+- **Правила проекта**: `/CLAUDECODE_RULES.md` - критические правила
+- **Skills**: `/.claude/skills/` - специализированные навыки
+- **Agents**: `/.claude/agents/` - vibe-* агенты
 
-При возникновении вопросов:
-1. Проверьте соответствующий раздел документации
-2. Изучите [ROADMAP.md](./ROADMAP.md) для понимания текущего состояния
-3. Обратитесь к [CONTRIBUTING.md](./DEVELOPMENT/CONTRIBUTING.md) для участия в разработке
+## 📊 Статистика
 
----
-
-**Последнее обновление**: $(date)  
-**Версия документации**: 1.0.0  
-**Статус**: Активная разработка
+- **Документов**: 20 файлов (было 368)
+- **Структура**: 3 категории (architecture, features, guides)
+- **Последнее обновление**: 2025-12-06
+- **Версия**: 2.0 (после реорганизации)

@@ -1,0 +1,482 @@
+{
+  "totalRecords": 16217,
+  "validRecords": -2370,
+  "problematicRecords": 18587,
+  "dataQualityScore": 0,
+  "anomalies": [
+    {
+      "type": "FULL_DUPLICATES",
+      "count": 1464,
+      "percentage": 9.02756366775606,
+      "severity": "CRITICAL",
+      "description": "Записи, полностью идентичные друг другу (встречаются 270 групп)",
+      "examples": [
+        {
+          "telegram_id": 144022504,
+          "bot_name": "ai_koshey_bot",
+          "payment_method": "balance",
+          "description": "Payment for generating 1 image with prompt: Fashionable NEURO_SAGE, shaman...",
+          "amount": 5,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 352374518,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "balance",
+          "description": "Payment for generating 1 image with prompt: Fashionable MUSE_NATALY, A stu...",
+          "amount": 5,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 352374518,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "balance",
+          "description": "Payment for image to prompt",
+          "amount": 1.88,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "ai_koshey_bot",
+          "payment_method": "balance",
+          "description": "Payment for image to prompt",
+          "amount": 1.88,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 1018174166,
+          "bot_name": "NeuroLenaAssistant_bot",
+          "payment_method": "balance",
+          "description": "Payment for image to prompt conversion",
+          "amount": 1.88,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        }
+      ]
+    },
+    {
+      "type": "PARTIAL_DUPLICATES",
+      "count": 2065,
+      "percentage": 12.733551211691434,
+      "severity": "CRITICAL",
+      "description": "Записи с одинаковыми telegram_id + bot_name + created_at (48 групп)",
+      "examples": [
+        {
+          "telegram_id": 144022504,
+          "bot_name": "ai_koshey_bot",
+          "payment_method": "balance",
+          "description": "Payment for generating 1 image with prompt: Fashionable NEURO_SAGE, shaman...",
+          "amount": 5,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 352374518,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "balance",
+          "description": "Payment for generating 1 image with prompt: Fashionable MUSE_NATALY, A stu...",
+          "amount": 5,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 2086031075,
+          "bot_name": "NeuroLenaAssistant_bot",
+          "payment_method": "",
+          "description": "⭐️ Пополнение баланса на 7.50 звезд",
+          "amount": 7.5,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 1018174166,
+          "bot_name": "NeuroLenaAssistant_bot",
+          "payment_method": "balance",
+          "description": "Payment for image to prompt conversion",
+          "amount": 1.88,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 1852726961,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Telegram",
+          "description": "⭐️ Пополнение баланса на 1.00 звезду",
+          "amount": 1,
+          "currency": "XTR",
+          "type": "MONEY_INCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        }
+      ]
+    },
+    {
+      "type": "TYPE_AMOUNT_MISMATCH",
+      "count": 14193,
+      "percentage": 87.51926990195474,
+      "severity": "CRITICAL",
+      "description": "Несоответствие типа операции и знака суммы",
+      "examples": [
+        {
+          "telegram_id": 484954118,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Internal",
+          "description": "NeuroPhoto generation (4 images)",
+          "amount": 30,
+          "currency": "STARS",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-05-26T19:09:00.788968+00:00"
+        },
+        {
+          "telegram_id": 830941956,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "Internal",
+          "description": "NeuroPhoto generation (1 images)",
+          "amount": 7.5,
+          "currency": "STARS",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-06-19T17:19:48.393087+00:00"
+        },
+        {
+          "telegram_id": 435572800,
+          "bot_name": "Gaia_Kamskaia_bot",
+          "payment_method": "image-to-video",
+          "description": "Video generation (Kling v1.6 Pro)",
+          "amount": 45,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-05-05T14:02:59.890989+00:00"
+        },
+        {
+          "telegram_id": 484954118,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Internal",
+          "description": "NeuroPhoto generation (2 images)",
+          "amount": 15,
+          "currency": "STARS",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-05-26T18:54:07.201438+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "ai_koshey_bot",
+          "payment_method": "balance",
+          "description": "Payment for generating 1 image with prompt: Fashionable NEURO_SAGE, shaman...",
+          "amount": 5,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        }
+      ]
+    },
+    {
+      "type": "ZERO_AMOUNTS",
+      "count": 512,
+      "percentage": 3.1571807362644138,
+      "severity": "MEDIUM",
+      "description": "Операции с нулевой суммой (системные операции)",
+      "examples": [
+        {
+          "telegram_id": 1374279961,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "",
+          "description": "Обучение модели bastet_soul (1500 шагов)",
+          "amount": 0,
+          "currency": "STARS",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-05-10T07:25:13.821972+00:00"
+        },
+        {
+          "telegram_id": 1374279961,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "",
+          "description": "Использование 19 промптов",
+          "amount": 0,
+          "currency": "STARS",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-05-10T07:26:15.315499+00:00"
+        },
+        {
+          "telegram_id": 1483886716,
+          "bot_name": "system_grant",
+          "payment_method": "Manual",
+          "description": "TEST_DATA: System/Bonus/Testing | TAG:TEST_DATA",
+          "amount": 0,
+          "currency": "SYSTEM",
+          "type": "MONEY_INCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Internal",
+          "description": "NeuroPhotoV2 generation start (1/1 started)",
+          "amount": 0,
+          "currency": "STARS",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-05-19T21:32:08.980731+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Internal",
+          "description": "NeuroPhotoV2 generation start (4/4 started)",
+          "amount": 0,
+          "currency": "STARS",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-05-19T21:34:20.473248+00:00"
+        }
+      ]
+    },
+    {
+      "type": "NEGATIVE_AMOUNTS",
+      "count": 118,
+      "percentage": 0.727631497810939,
+      "severity": "LOW",
+      "description": "Операции с отрицательной суммой (возвраты, списания)",
+      "examples": [
+        {
+          "telegram_id": 144022504,
+          "bot_name": "unknown_bot",
+          "payment_method": "System",
+          "description": "System operation",
+          "amount": -9,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-06-27T17:38:17.030936+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "unknown_bot",
+          "payment_method": "System",
+          "description": "System operation",
+          "amount": -9,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-06-28T04:27:47.905014+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "unknown_bot",
+          "payment_method": "System",
+          "description": "System operation",
+          "amount": -9,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-06-28T04:14:35.241195+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "unknown_bot",
+          "payment_method": "System",
+          "description": "System operation",
+          "amount": -9,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-06-28T10:03:31.884649+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "unknown_bot",
+          "payment_method": "System",
+          "description": "System operation",
+          "amount": -9,
+          "currency": "XTR",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-06-28T10:03:58.645768+00:00"
+        }
+      ]
+    },
+    {
+      "type": "UNKNOWN_TYPES",
+      "count": 185,
+      "percentage": 1.1407781957205403,
+      "severity": "MEDIUM",
+      "description": "Неизвестные типы операций: {\"REFUND\":157,\"SUBSCRIPTION_PURCHASE\":4,\"BONUS\":24}",
+      "examples": [
+        {
+          "telegram_id": 352374518,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "balance",
+          "description": "Возврат за неудачную генерацию изображения с промптом: Futuristic cyber goddess with ...",
+          "amount": 7.5,
+          "currency": "XTR",
+          "type": "REFUND",
+          "created_at": "2025-05-08T13:18:45.198546+00:00"
+        },
+        {
+          "telegram_id": 352374518,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "balance",
+          "description": "Возврат за неудачную генерацию изображения с промптом: This photograph captures a gla...",
+          "amount": 7.5,
+          "currency": "XTR",
+          "type": "REFUND",
+          "created_at": "2025-05-13T17:48:03.316797+00:00"
+        },
+        {
+          "telegram_id": 352374518,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "balance",
+          "description": "Возврат за неудачную генерацию изображения с промптом: This photograph captures a gla...",
+          "amount": 7.5,
+          "currency": "XTR",
+          "type": "REFUND",
+          "created_at": "2025-05-13T17:49:03.794374+00:00"
+        },
+        {
+          "telegram_id": 352374518,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "balance",
+          "description": "Возврат за неудачную генерацию изображения с промптом: This photograph captures a gla...",
+          "amount": 7.5,
+          "currency": "XTR",
+          "type": "REFUND",
+          "created_at": "2025-05-13T17:50:20.693685+00:00"
+        },
+        {
+          "telegram_id": 352374518,
+          "bot_name": "MetaMuse_Manifest_bot",
+          "payment_method": "balance",
+          "description": "Возврат за неудачную генерацию изображения с промптом: Fashionable MUSE_NATALY, A pho...",
+          "amount": 5,
+          "currency": "XTR",
+          "type": "REFUND",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        }
+      ]
+    },
+    {
+      "type": "INVALID_CURRENCIES",
+      "count": 1,
+      "percentage": 0.006166368625516433,
+      "severity": "MEDIUM",
+      "description": "Некорректные валюты: {\"SYSTEM\":1}",
+      "examples": [
+        {
+          "telegram_id": 1483886716,
+          "bot_name": "system_grant",
+          "payment_method": "Manual",
+          "description": "TEST_DATA: System/Bonus/Testing | TAG:TEST_DATA",
+          "amount": 0,
+          "currency": "SYSTEM",
+          "type": "MONEY_INCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        }
+      ]
+    },
+    {
+      "type": "LARGE_AMOUNTS",
+      "count": 49,
+      "percentage": 0.30215206265030525,
+      "severity": "LOW",
+      "description": "Суммы больше 10000 (максимум: 65305136.64)",
+      "examples": [
+        {
+          "telegram_id": 411128512,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Telegram",
+          "description": "⭐️ Пополнение баланса на 17375.00 звезд",
+          "amount": 17375,
+          "currency": "XTR",
+          "type": "MONEY_INCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 411128512,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Telegram",
+          "description": "⭐️ Пополнение баланса на 20000.00 звезд",
+          "amount": 20000,
+          "currency": "XTR",
+          "type": "MONEY_INCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 411128512,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Telegram",
+          "description": "⭐️ Пополнение баланса на 19030.00 звезд",
+          "amount": 19030,
+          "currency": "XTR",
+          "type": "MONEY_INCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 411128512,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Telegram",
+          "description": "⭐️ Пополнение баланса на 20000.00 звезд",
+          "amount": 20000,
+          "currency": "XTR",
+          "type": "MONEY_INCOME",
+          "created_at": "2025-04-27T17:55:38.582144+00:00"
+        },
+        {
+          "telegram_id": 144022504,
+          "bot_name": "neuro_blogger_bot",
+          "payment_method": "Training",
+          "description": "Оплата тренировки модели neuro_sage (шагов: 3500)",
+          "amount": 29944,
+          "currency": "STARS",
+          "type": "MONEY_OUTCOME",
+          "created_at": "2025-05-16T21:21:32.786271+00:00"
+        }
+      ]
+    }
+  ],
+  "currencyDistribution": {
+    "STARS": 4219,
+    "XTR": 11663,
+    "RUB": 334,
+    "SYSTEM": 1
+  },
+  "typeDistribution": {
+    "MONEY_OUTCOME": 14317,
+    "REFUND": 157,
+    "MONEY_INCOME": 1715,
+    "SUBSCRIPTION_PURCHASE": 4,
+    "BONUS": 24
+  },
+  "botActivity": {
+    "neuro_blogger_bot": 4553,
+    "MetaMuse_Manifest_bot": 4080,
+    "Gaia_Kamskaia_bot": 1589,
+    "AI_STARS_bot": 1451,
+    "ai_koshey_bot": 842
+  },
+  "topUsers": [
+    {
+      "id": 144022504,
+      "count": 3519
+    },
+    {
+      "id": 352374518,
+      "count": 1902
+    },
+    {
+      "id": 411128512,
+      "count": 1675
+    },
+    {
+      "id": 484954118,
+      "count": 1341
+    },
+    {
+      "id": 435572800,
+      "count": 1145
+    }
+  ]
+}

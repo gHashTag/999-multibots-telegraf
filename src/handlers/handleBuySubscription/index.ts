@@ -1,6 +1,5 @@
 import { MyContext, SubscriptionType } from '@/interfaces'
 import { logger } from '@/utils/logger'
-import { levels } from '@/menu/simpleMenu'
 
 interface BuyParams {
   ctx: MyContext

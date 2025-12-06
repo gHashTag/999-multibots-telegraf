@@ -10,7 +10,6 @@ import {
 // import { Telegraf } from 'telegraf' // Telegraf import removed
 import { MyContext } from '@/interfaces'
 import { modeCosts } from '@/price/helpers/modelsCost'
-import { levels } from '@/menu'
 import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { v4 as uuidv4 } from 'uuid'
@@ -148,7 +147,7 @@ export async function generateImageToPrompt(
                 ...Markup.keyboard([
                   [
                     Markup.button.text(
-                      is_ru ? levels[104].title_ru : levels[104].title_en
+                      is_ru ? '🏠 Главное меню' : '🏠 Main menu'
                     ),
                   ],
                 ]).resize(),

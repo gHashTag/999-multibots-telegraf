@@ -1,5 +1,25 @@
 # CLAUDE.md - Project Context for Claude Code
 
+## 🚨 CRITICAL NAVIGATION RULE - SINGLE SOURCE OF TRUTH
+
+**ЕДИНСТВЕННЫЙ источник правды для навигации: `/src/navigation/`**
+
+NEVER use or create navigation code outside of `/src/navigation/`:
+- `/src/services/NavigationService.ts` - DEPRECATED, TO BE DELETED
+- `/src/menu/` - DEPRECATED, TO BE DELETED
+
+ALL navigation imports MUST come from `@/navigation`:
+```typescript
+// ✅ CORRECT
+import { showMainMenu, createMainMenuKeyboard } from '@/navigation'
+import { buttonMatcher, safeEnterScene } from '@/navigation'
+
+// ❌ WRONG - DO NOT USE
+import { showMainMenu } from '@/services/NavigationService'
+```
+
+---
+
 **Project**: 999-agents-telegraf - Multi-bot Telegram Platform with AI Generation
 **Language**: TypeScript + Node.js 20
 **Framework**: Telegraf 4.16.3
@@ -171,6 +191,12 @@ npm test -- --coverage
 # RULE: Only 5 variables in .env (local)
 # All other secrets MUST be in Infisical
 
+# 🚨 IMPORTANT RULE FOR AGENTS:
+# DO NOT ASK USER FOR KEYS! All keys are already documented in .env file!
+# - INNGEST_EVENT_KEY: 4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q
+# - INNGEST_SIGNING_KEY: signkey-test-c4167464e900701832920c98bb2ec6e6e3c59fd2b27c62e1f4140dada01e4597
+# Use predefined values from .env documentation!
+
 # Local .env (5 variables only):
 INFISICAL_CLIENT_ID=xxx
 INFISICAL_CLIENT_SECRET=xxx
@@ -276,10 +302,20 @@ docker stats 999-multibots --no-stream
 
 ### ABSOLUTE PROHIBITIONS
 
+0. **🚫 NEVER use git force push** - `git push --force`, `git push -f` - ABSOLUTELY FORBIDDEN!
+   - Deletes commit history permanently
+   - Overwrites other developers' work
+   - Makes rollback impossible
+   - ONLY use Pull Request workflow: `git checkout -b feat/name && git push -u origin feat/name && gh pr create`
+
 1. **NEVER add secrets to .env** (only 5 Infisical variables)
+
 2. **NEVER skip type checking** before deployment
+
 3. **NEVER deploy without health check**
+
 4. **NEVER ignore TypeScript errors** (`|| true` forbidden)
+
 5. **NEVER create duplicate code** (use anti-duplication-guardian)
 
 ### Telegram Scene Rules (5 Absolute Rules)

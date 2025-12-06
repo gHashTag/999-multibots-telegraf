@@ -1,7 +1,7 @@
 // src/handlers/modelHandler.ts
 import { MyContext } from '@/interfaces'
 import { UserModel } from '@/interfaces/models.interface'
-import { sendPhotoDescriptionRequest } from '@/menu/sendPhotoDescriptionRequest'
+import { sendPhotoDescriptionRequest } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { updateUserModel } from '../../core/supabase'
 

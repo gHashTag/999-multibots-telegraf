@@ -2,15 +2,12 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { createHelpCancelKeyboard } from '@/menu'
-import { sendGenericErrorMessage } from '@/menu'
+import { handleHelpCancel, createHelpCancelKeyboard, sendGenericErrorMessage, getMainMenuText } from '@/navigation'
 import { logger } from '@/utils/logger'
 import {
   transcribeInstagramReel,
   transcribeVideoFromDirectUrl,
 } from '@/services/videoTranscription'
-import { levels } from '@/menu/simpleMenu'
 import path from 'path'
 import fs from 'fs'
 import { updateUserBalance, getUserBalance } from '@/core/supabase'
@@ -158,11 +155,14 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         if (charged) {
           const newBalance = await getUserBalance(ctx.from.id.toString())
 
-          logger.info('✅ [VideoTranscription] Payment processed successfully', {
-            telegramId: ctx.from.id,
-            cost: costInStars,
-            newBalance,
-          })
+          logger.info(
+            '✅ [VideoTranscription] Payment processed successfully',
+            {
+              telegramId: ctx.from.id,
+              cost: costInStars,
+              newBalance,
+            }
+          )
 
           // Отправляем сообщение о стоимости и балансе
           await ctx.reply(
@@ -171,10 +171,13 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
               : `💰 Cost: ${costInStars} ⭐\nYour balance: ${newBalance.toFixed(2)} ⭐`
           )
         } else {
-          logger.error('❌ [VideoTranscription] Payment processing failed - insufficient funds', {
-            telegramId: ctx.from.id,
-            cost: costInStars,
-          })
+          logger.error(
+            '❌ [VideoTranscription] Payment processing failed - insufficient funds',
+            {
+              telegramId: ctx.from.id,
+              cost: costInStars,
+            }
+          )
 
           await ctx.reply(
             isRu
@@ -185,7 +188,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
       } catch (paymentError) {
         logger.error('❌ [VideoTranscription] Error processing payment', {
           telegramId: ctx.from.id,
-          error: paymentError instanceof Error ? paymentError.message : String(paymentError),
+          error:
+            paymentError instanceof Error
+              ? paymentError.message
+              : String(paymentError),
         })
       }
 
@@ -295,9 +301,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
           // Обрезаем текст если он слишком длинный для Markdown
           const maxTextLength = 3500
-          const displayText = transcriptionResult.text.length > maxTextLength 
-            ? transcriptionResult.text.substring(0, maxTextLength) + '...'
-            : transcriptionResult.text
+          const displayText =
+            transcriptionResult.text.length > maxTextLength
+              ? transcriptionResult.text.substring(0, maxTextLength) + '...'
+              : transcriptionResult.text
 
           await ctx.reply(
             isRu
@@ -335,9 +342,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
         // Отправляем красиво отформатированный текст для копирования
         const maxTextLength = 3500
-        const displayText = transcriptionResult.text.length > maxTextLength 
-          ? transcriptionResult.text.substring(0, maxTextLength) + '...'
-          : transcriptionResult.text
+        const displayText =
+          transcriptionResult.text.length > maxTextLength
+            ? transcriptionResult.text.substring(0, maxTextLength) + '...'
+            : transcriptionResult.text
 
         await ctx.reply(
           isRu
@@ -357,7 +365,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           [Markup.button.text(isRu ? '📺 Еще одно видео' : '📺 Another video')],
           [
             Markup.button.text(
-              isRu ? levels[104].title_ru : levels[104].title_en
+              getMainMenuText(isRu)
             ),
           ], // Главное меню
         ]).resize()

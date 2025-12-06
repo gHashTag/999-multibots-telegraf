@@ -48,7 +48,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       ctx.from?.id.toString()
     )
     logger.info({
-      message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`,
+      message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.SubscriptionScene}`,
       userDetails,
     })
     const isRu = isRussian(ctx)
@@ -190,6 +190,14 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       )
     }
 
+    // ✅ ДОБАВЛЯЕМ КНОПКУ ОТМЕНЫ В INLINE KEYBOARD
+    cleanedKeyboardRows.push([
+      Markup.button.callback(
+        isRu ? '❌ Отмена' : '❌ Cancel',
+        'cancel_subscription'
+      ),
+    ])
+
     if (cleanedKeyboardRows.length === 0) {
       logger.warn(
         `[${ModeEnum.SubscriptionScene}] No valid buttons generated.`,
@@ -204,7 +212,10 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       await ctx.reply(fallbackMessage)
 
       // Возвращаемся в главное меню
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     } else {
       const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
 
@@ -373,7 +384,10 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         } */
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
       } else {
         // Этот блок теперь действительно означает неизвестный callback_data
         console.warn('[Callback Handler] Unknown callback_data received:', text)
@@ -450,3 +464,17 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
     }
   }
 )
+
+// ✅ ОБРАБОТЧИК КНОПКИ ОТМЕНЫ
+subscriptionScene.action('cancel_subscription', async (ctx) => {
+  await ctx.answerCbQuery()
+  const isRu = isRussian(ctx)
+
+  await ctx.editMessageText(
+    isRu ? '❌ Оформление подписки отменено.' : '❌ Subscription canceled.'
+  )
+
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/navigation')
+  await showMainMenu(ctx)
+})

@@ -38,10 +38,10 @@ export enum ModeEnum {
   Support = 'support',
   Stats = 'stats',
   Price = 'price',
-  StartScene = 'start_scene',
+  StartScene = 'startScene', // ✅ Синхронизировано с реальным ID сцены
   MenuScene = 'menuScene',
   BalanceScene = 'balance_scene',
-  InviteScene = 'invite_scene',
+  InviteScene = 'inviteScene', // ✅ Синхронизировано с реальным ID сцены
   PaymentScene = 'payment_scene',
   RublePaymentScene = 'rublePaymentScene',
   StarPaymentScene = 'starPaymentScene',
@@ -70,6 +70,22 @@ export enum ModeEnum {
   InstagramParserWizard = 'instagram_parser_wizard',
   MorphingWizard = 'morphing_wizard',
   AiPhotoshop = 'ai_photoshop',
+
+  // 🎤 LIPSYNC ВАРИАНТЫ (используются в lipSyncWizard/)
+  VeedFabricLipSync = 'veed_fabric_lipsync',
+  AiReelsWizard = 'ai_reels_wizard',
+  AiReelsEntryWizard = 'ai_reels_entry_wizard',
+  HedraRenderWizard = 'hedra_render_wizard',
+  HeygenRenderWizard = 'heygen_render_wizard',
+  FalRenderWizard = 'fal_render_wizard',
+
+  // 🎓 ОБУЧЕНИЕ МОДЕЛЕЙ
+  TrainFluxModelWizard = 'trainFluxModelWizard',
+  UploadTrainFluxModelScene = 'uploadTrainFluxModelScene',
+
+  // 🌐 ЯЗЫКОВЫЕ НАСТРОЙКИ
+  ChangeLanguageScene = 'changeLanguageScene',
+  TechSupportScene = 'techSupportScene',
 
   // ⚠️ УСТАРЕВШИЕ/НЕИСПОЛЬЗУЕМЫЕ (оставляем для совместимости)
   /** @deprecated Не используется */

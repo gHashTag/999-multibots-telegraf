@@ -1,42 +1,122 @@
+/**
+ * ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ: Inngest Client
+ * Все функции должны импортировать inngest отсюда
+ */
 import { Inngest } from 'inngest'
+import { logger } from '@/utils/logger'
 
-// ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ: Один Inngest клиент для всего приложения
-// Используем тестовые ключи для тестового окружения (testing-f3b09edd)
+// ✅ ЕДИНАЯ КОНФИГУРАЦИЯ для всех Inngest функций
 const config = {
   name: 'Vibee',
-  id: 'vibee-bot-client',
-  // Подключение к Inngest Cloud
+  id: 'telegram-bot-client',
+  // Подключение к нашему Inngest Dev Server
   baseUrl:
-    process.env.BOT_INNGEST_BASE_URL ||
-    (process.env.NODE_ENV === 'development'
+    process.env.NODE_ENV === 'development'
       ? 'http://localhost:3000' // Локальный dev server
-      : 'https://api.inngest.com'), // Inngest Cloud API
+      : 'https://three-head-dragon.shop/api/inngest', // Production
   isDev: process.env.NODE_ENV === 'development',
-  // Event key: приоритет тестовому ключу для тестового окружения
-  eventKey:
-    process.env.BOT_INNGEST_EVENT_TEST_KEY ||
-    process.env.BOT_INNGEST_EVENT_KEY ||
-    '4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q',
-  // Signing key: приоритет тестовому ключу
-  signingKey:
-    process.env.BOT_INNGEST_TEST_SIGNING_KEY ||
-    process.env.BOT_INNGEST_SIGNING_KEY ||
-    'signkey-test-c4167464e900701832920c98bb2ec6e6e3c59fd2b27c62e1f4140dada01e4597',
+  // Event key загружается из Infisical (INNGEST_EVENT_KEY)
+  eventKey: process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY || undefined,
+  // Signing key для webhook verification (Inngest v3+)
+  signingKey: process.env.INNGEST_SIGNING_KEY || process.env.RENDER_INNGEST_SIGNING_KEY || undefined,
 }
 
-console.log(
-  '🔥 [INNGEST CLIENT] Единственный источник правды инициализирован:',
-  {
-    name: config.name,
-    baseUrl: config.baseUrl,
-    isDev: config.isDev,
-    hasEventKey: !!config.eventKey,
-    hasSigningKey: !!config.signingKey,
-    usingTestKey: !!process.env.BOT_INNGEST_EVENT_TEST_KEY,
-    environment: process.env.NODE_ENV,
-  }
-)
-
-// ✅ ВАЖНО: Создаем клиент Inngest ПЕРЕД импортом функций (избегаем circular dependency)
-// @ts-ignore - Игнорируем несоответствие типов для совместимости между разными версиями Inngest
+// ✅ ЕДИНСТВЕННЫЙ Inngest клиент для всего приложения
 export const inngest = new Inngest(config)
+
+// Логирование конфигурации (без секретов)
+logger.info('🔥 [INNGEST] Client initialized', {
+  name: config.name,
+  id: config.id,
+  baseUrl: config.baseUrl,
+  isDev: config.isDev,
+  hasEventKey: !!config.eventKey,
+  hasSigningKey: !!config.signingKey,
+  environment: process.env.NODE_ENV,
+})
+
+// Helper to check if Inngest is configured
+export const isInngestConfigured = (): boolean => {
+  const hasEventKey = !!process.env.INNGEST_EVENT_KEY
+  const hasSigningKey = !!process.env.INNGEST_SIGNING_KEY
+
+  if (!hasEventKey) {
+    logger.warn('⚠️ [INNGEST] Missing INNGEST_EVENT_KEY - functions will run in dev mode')
+  }
+  if (!hasSigningKey) {
+    logger.warn('⚠️ [INNGEST] Missing INNGEST_SIGNING_KEY - webhook verification may fail')
+  }
+
+  return hasEventKey && hasSigningKey
+}
+
+// Export event names for type safety
+export const INNGEST_EVENTS = {
+  // Content events
+  ANALYZE_COMPETITOR_REELS: 'content/analyze-competitor-reels',
+  EXTRACT_TOP_CONTENT: 'content/extract-top-content',
+  FIND_COMPETITORS: 'content/find-competitors',
+  GENERATE_CONTENT_SCRIPTS: 'content/generate-content-scripts',
+  GENERATE_DETAILED_SCRIPT: 'content/generate-detailed-script',
+  GENERATE_SCENARIO_CLIPS: 'content/generate-scenario-clips',
+
+  // Instagram events
+  INSTAGRAM_SCRAPER_V2: 'instagram/scraper-v2',
+  INSTAGRAM_SCRAPER_V2_SIMPLE: 'instagram/scraper-v2-simple',
+
+  // Monitoring events
+  CRITICAL_ERROR_MONITOR: 'monitoring/critical-error',
+  LOG_MONITOR: 'monitoring/log-monitor',
+
+  // Training events
+  MODEL_TRAINING_V2: 'training/model-v2',
+  MORPH_IMAGES: 'training/morph-images',
+
+  // Generation events
+  NEURO_IMAGE_GENERATION: 'generation/neuro-image',
+
+  // Payment events
+  PAYMENT_PROCESSING: 'payments/process',
+
+  // Broadcast events
+  BROADCAST_MESSAGE: 'broadcast/message',
+
+  // Render events
+  RENDER: 'render/main',
+  RENDER_AVATAR_VIDEO: 'render/avatar-video',
+  RENDER_RIDDLE: 'render/riddle',
+
+  // Existing events
+  GENERATE_AI_REELS: 'video/generate-ai-reels',
+  GENERATE_ADVANCED_LOOPING: 'video/advanced-looping',
+  GENERATE_MODEL_TRAINING: 'training/generate-model',
+} as const
+
+export type InngestEventName = typeof INNGEST_EVENTS[keyof typeof INNGEST_EVENTS]
+
+// Helper function to send events
+export async function sendInngestEvent(
+  eventName: InngestEventName,
+  data: any
+): Promise<void> {
+  try {
+    logger.info(`📤 [INNGEST] Sending event: ${eventName}`, {
+      eventName,
+      dataKeys: Object.keys(data),
+    })
+
+    await inngest.send({
+      name: eventName,
+      data,
+    })
+
+    logger.info(`✅ [INNGEST] Event sent: ${eventName}`)
+  } catch (error) {
+    logger.error(`❌ [INNGEST] Failed to send event: ${eventName}`, {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    throw error
+  }
+}
+
+

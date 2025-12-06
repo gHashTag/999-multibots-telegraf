@@ -1,5 +1,4 @@
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { levels } from '@/menu/simpleMenu'
 
 // Идентификаторы функций для проверки доступа
 const FEATURE_IDS = {
@@ -25,6 +24,39 @@ const FEATURE_IDS = {
   LANGUAGE: 106,
   UPSCALE_PHOTO: 107,
   TRANSCRIBE_REELS: 108,
+}
+
+// Названия функций по ID (для отображения пользователю)
+const FEATURE_NAMES: Record<number, { ru: string; en: string }> = {
+  [FEATURE_IDS.DIGITAL_BODY]: { ru: '🧍 Цифровое тело', en: '🧍 Digital Body' },
+  [FEATURE_IDS.NEURO_PHOTO]: { ru: '📸 НейроФото', en: '📸 NeuroPhoto' },
+  [FEATURE_IDS.IMAGE_TO_PROMPT]: { ru: '🔍 Фото в промпт', en: '🔍 Image to Prompt' },
+  [FEATURE_IDS.AVATAR_BRAIN]: { ru: '🧠 Мозг аватара', en: '🧠 Avatar Brain' },
+  [FEATURE_IDS.CHAT_WITH_AVATAR]: { ru: '💬 Чат с аватаром', en: '💬 Chat with Avatar' },
+  [FEATURE_IDS.SELECT_MODEL]: { ru: '🤖 Выбор модели', en: '🤖 Select Model' },
+  [FEATURE_IDS.VOICE]: { ru: '🎙️ Голос', en: '🎙️ Voice' },
+  [FEATURE_IDS.TEXT_TO_SPEECH]: { ru: '🗣️ Текст в речь', en: '🗣️ Text to Speech' },
+  [FEATURE_IDS.IMAGE_TO_VIDEO]: { ru: '🎬 Фото в видео', en: '🎬 Image to Video' },
+  [FEATURE_IDS.TEXT_TO_VIDEO]: { ru: '📝 Текст в видео', en: '📝 Text to Video' },
+  [FEATURE_IDS.TEXT_TO_IMAGE]: { ru: '🖼️ Текст в фото', en: '🖼️ Text to Image' },
+  [FEATURE_IDS.FLUX_KONTEXT]: { ru: '✨ Flux Kontext', en: '✨ Flux Kontext' },
+  [FEATURE_IDS.MORPHING]: { ru: '🌀 Морфинг', en: '🌀 Morphing' },
+  [FEATURE_IDS.TOP_UP_BALANCE]: { ru: '💳 Пополнить баланс', en: '💳 Top Up Balance' },
+  [FEATURE_IDS.BALANCE]: { ru: '💰 Баланс', en: '💰 Balance' },
+  [FEATURE_IDS.INVITE_FRIEND]: { ru: '👥 Пригласить друга', en: '👥 Invite Friend' },
+  [FEATURE_IDS.SUPPORT]: { ru: '🆘 Поддержка', en: '🆘 Support' },
+  [FEATURE_IDS.MAIN_MENU]: { ru: '🏠 Главное меню', en: '🏠 Main Menu' },
+  [FEATURE_IDS.SUBSCRIBE]: { ru: '⭐ Подписка', en: '⭐ Subscribe' },
+  [FEATURE_IDS.LANGUAGE]: { ru: '🌍 Язык', en: '🌍 Language' },
+  [FEATURE_IDS.UPSCALE_PHOTO]: { ru: '🔍 Улучшить фото', en: '🔍 Upscale Photo' },
+  [FEATURE_IDS.TRANSCRIBE_REELS]: { ru: '🎬 ИИ Рилс', en: '🎬 AI Reels' },
+}
+
+// Хелпер для получения названия функции по ID
+function getFeatureName(id: number, isRu: boolean): string {
+  const names = FEATURE_NAMES[id]
+  if (!names) return ''
+  return isRu ? names.ru : names.en
 }
 
 // Карта доступных функций для каждого типа подписки (используем ID)
@@ -163,13 +195,13 @@ function findFeatureId(featureName: string): number | null {
     return COMMAND_TO_FEATURE_MAP[featureName]
   }
 
-  // Проверяем по всем levels
-  for (const [id, level] of Object.entries(levels)) {
+  // Проверяем по всем FEATURE_NAMES
+  for (const [id, names] of Object.entries(FEATURE_NAMES)) {
     if (
-      featureName === level.title_ru ||
-      featureName === level.title_en ||
-      featureName.startsWith(level.title_ru.split(' ')[0]) || // По эмодзи
-      featureName.startsWith(level.title_en.split(' ')[0]) // По эмоджи
+      featureName === names.ru ||
+      featureName === names.en ||
+      featureName.startsWith(names.ru.split(' ')[0]) || // По эмодзи
+      featureName.startsWith(names.en.split(' ')[0]) // По эмоджи
     ) {
       return parseInt(id)
     }
@@ -221,8 +253,9 @@ export function getSubscriptionMessage(
       }
       message += `📋 <b>С бесплатным аккаунтом доступно:</b>\n`
       message += features.available
-        .map(id => (levels[id] ? `✅ ${levels[id].title_ru}` : ''))
+        .map(id => getFeatureName(id, true))
         .filter(Boolean)
+        .map(name => `✅ ${name}`)
         .join('\n')
       message += `\n\n🔒 <b>Для полного доступа оформите подписку:</b>\n`
       message += `• NEUROPHOTO - работа с фото и изображениями\n`
@@ -235,8 +268,9 @@ export function getSubscriptionMessage(
       }
       message += `📋 <b>Available with free account:</b>\n`
       message += features.available
-        .map(id => (levels[id] ? `✅ ${levels[id].title_en}` : ''))
+        .map(id => getFeatureName(id, false))
         .filter(Boolean)
+        .map(name => `✅ ${name}`)
         .join('\n')
       message += `\n\n🔒 <b>For full access get a subscription:</b>\n`
       message += `• NEUROPHOTO - photo and image features\n`
@@ -253,14 +287,16 @@ export function getSubscriptionMessage(
       message += `📋 <b>В вашей подписке NEUROPHOTO доступно:</b>\n`
       message += features.available
         .slice(0, 5)
-        .map(id => (levels[id] ? `✅ ${levels[id].title_ru}` : ''))
+        .map(id => getFeatureName(id, true))
         .filter(Boolean)
+        .map(name => `✅ ${name}`)
         .join('\n')
       message += `\n\n🔒 <b>Для этой функции нужна подписка NEUROVIDEO:</b>\n`
       message += features.blocked
         .slice(0, 5)
-        .map(id => (levels[id] ? `🚫 ${levels[id].title_ru}` : ''))
+        .map(id => getFeatureName(id, true))
         .filter(Boolean)
+        .map(name => `🚫 ${name}`)
         .join('\n')
       message += `\n\n💫 Обновите подписку для доступа ко всем функциям`
     } else {
@@ -271,14 +307,16 @@ export function getSubscriptionMessage(
       message += `📋 <b>Available in your NEUROPHOTO subscription:</b>\n`
       message += features.available
         .slice(0, 5)
-        .map(id => (levels[id] ? `✅ ${levels[id].title_en}` : ''))
+        .map(id => getFeatureName(id, false))
         .filter(Boolean)
+        .map(name => `✅ ${name}`)
         .join('\n')
       message += `\n\n🔒 <b>NEUROVIDEO subscription required for:</b>\n`
       message += features.blocked
         .slice(0, 5)
-        .map(id => (levels[id] ? `🚫 ${levels[id].title_en}` : ''))
+        .map(id => getFeatureName(id, false))
         .filter(Boolean)
+        .map(name => `🚫 ${name}`)
         .join('\n')
       message += `\n\n💫 Upgrade your subscription for full access`
     }

@@ -19,7 +19,7 @@ export const MARKUP_MULTIPLIER = 1.5
  * Курс USD к RUB по умолчанию
  * Используется как fallback если динамический курс недоступен
  */
-export const DEFAULT_USD_TO_RUB_RATE = 85
+export const DEFAULT_USD_TO_RUB_RATE = 100 
 
 /**
  * @deprecated Используйте getUsdToRubRate() для динамического курса

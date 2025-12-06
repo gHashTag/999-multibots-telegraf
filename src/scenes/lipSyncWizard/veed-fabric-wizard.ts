@@ -461,7 +461,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             savedText: text.substring(0, 50),
           })
 
-          await ctx.scene.enter(ModeEnum.CheckBalanceScene)
+          await ctx.scene.enter(ModeEnum.Voice)
           return
         }
       }

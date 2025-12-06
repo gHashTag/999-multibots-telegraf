@@ -328,7 +328,9 @@ If not, continue on your own and click the "I myself" button`
       )
     }
 
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('❌ [handleSuccessfulPayment] Error processing payment:', {
       error: error instanceof Error ? error.message : String(error),
