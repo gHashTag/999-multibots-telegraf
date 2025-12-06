@@ -432,6 +432,29 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         return // Остаемся в сцене подписки
       }
 
+      // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка кнопок меню
+      // Проверяем, не нажал ли пользователь кнопку из главного меню
+      try {
+        const { NAVIGATION_BUTTONS } = await import('../../navigation/unified-navigation.config')
+        const button = NAVIGATION_BUTTONS.find(btn => btn.ru === messageText || btn.en === messageText)
+
+        if (button) {
+          // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
+          logger.info('🔄 [subscriptionScene] Menu button detected, exiting scene', {
+            telegramId: ctx.from?.id,
+            buttonText: messageText
+          })
+          return ctx.scene.leave()
+        }
+      } catch (error) {
+        // Если не удалось импортировать, просто выходим из сцены
+        logger.warn('⚠️ [subscriptionScene] Failed to import NAVIGATION_BUTTONS, exiting scene', {
+          error: error instanceof Error ? error.message : String(error),
+          telegramId: ctx.from?.id
+        })
+        return ctx.scene.leave()
+      }
+
       // ✅ ОБРАБОТКА ДРУГИХ ТЕКСТОВЫХ КОМАНД - УДАЛЁН УДАЛЁН
       // Все кнопки обрабатываются глобальными обработчиками
       return ctx.scene.leave()

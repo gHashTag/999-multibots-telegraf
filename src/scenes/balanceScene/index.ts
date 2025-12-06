@@ -451,6 +451,31 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       return
     }
 
+    // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем кнопки меню
+    try {
+      const { NAVIGATION_BUTTONS } = await import('@/navigation/unified-navigation.config')
+      const button = NAVIGATION_BUTTONS.find(btn => btn.ru === text || btn.en === text)
+
+      if (button) {
+        // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
+        console.log('🔄 [balanceScene] Menu button detected, exiting scene', {
+          telegramId: ctx.from?.id,
+          buttonText: text
+        })
+        await ctx.reply(
+          isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
+          { reply_markup: { remove_keyboard: true } }
+        )
+        return ctx.scene.leave()
+      }
+    } catch (error) {
+      // Если не удалось импортировать, продолжаем с обычной обработкой
+      console.warn('⚠️ [balanceScene] Failed to import NAVIGATION_BUTTONS', {
+        error: error instanceof Error ? error.message : String(error),
+        telegramId: ctx.from?.id
+      })
+    }
+
     // Игнорируем другие сообщения
     await ctx.reply(
       isRu ? '👆 Пожалуйста, используйте кнопки выше' : '👆 Please use the buttons above',
