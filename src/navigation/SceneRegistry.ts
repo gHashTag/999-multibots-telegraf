@@ -225,6 +225,20 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     version: '1.0.0'
   },
 
+  cryptoPaymentScene: {
+    id: 'cryptoPaymentScene',
+    name: 'Оплата криптовалютой',
+    description: 'Оплата через USDC на Base network (x402 protocol)',
+    category: SceneCategory.PAYMENT,
+    accessLevel: AccessLevel.PUBLIC,
+    status: SceneStatus.ACTIVE,
+    modeEnum: ModeEnum.CryptoPaymentScene,
+    cost: 0,
+    supportedLanguages: ['ru', 'en'],
+    tags: ['payment', 'crypto', 'usdc', 'x402', 'base'],
+    version: '1.0.0'
+  },
+
   // ========================================
   // ГЕНЕРАЦИЯ КОНТЕНТА
   // ========================================
