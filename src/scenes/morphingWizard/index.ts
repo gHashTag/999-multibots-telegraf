@@ -20,10 +20,10 @@ const getDefaultMorphingModel = () => {
   const models = getMorphingModels()
 
   // ✅ ПРИОРИТЕТ: Kie.ai модели (дешевле и быстрее чем Replicate)
-  // 1. sora-2-i2v (9⭐) - самая дешёвая
-  // 2. sora-2-pro-i2v (19⭐) - премиум качество
+  // 1. sora-2 (9⭐) - самая дешёвая
+  // 2. sora-2-pro (19⭐) - премиум качество
   // 3. veo3_fast (25⭐) - быстрая
-  const preferredModels = ['sora-2-i2v', 'sora-2-pro-i2v', 'veo3_fast']
+  const preferredModels = ['sora-2', 'sora-2-pro', 'veo3_fast']
 
   for (const modelId of preferredModels) {
     const model = models.find(m => m.id === modelId)
