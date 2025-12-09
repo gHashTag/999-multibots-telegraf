@@ -40,6 +40,12 @@ RUN esbuild src/index.ts \
 FROM node:20-slim
 WORKDIR /app
 
+# Install ffmpeg for video processing (morphing, concatenation)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Security: Non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
@@ -52,7 +58,10 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 
 # ✅ Создать папки uploads, logs, temp, tmp с правильными правами (ПЕРЕД USER nodejs!)
-RUN mkdir -p uploads logs temp tmp && chown -R nodejs:nodejs uploads logs temp tmp
+# ✅ Также создать .video-tasks.json для локального хранения задач
+RUN mkdir -p uploads logs temp tmp && \
+    touch .video-tasks.json && \
+    chown -R nodejs:nodejs uploads logs temp tmp .video-tasks.json
 
 # Environment
 ENV NODE_ENV=production
