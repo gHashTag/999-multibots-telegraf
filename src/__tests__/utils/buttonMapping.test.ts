@@ -4,7 +4,7 @@
  * Comprehensive tests for the button mapping and error handling system
  */
 
-import { describe, it, expect, jest } from '@jest/globals'
+import { describe, it, expect, vi } from 'vitest'
 import {
   normalizeButtonText,
   generateSafeCallbackData,
@@ -17,12 +17,12 @@ import {
 } from '@/utils/buttonMapping'
 
 // Mock logger
-jest.mock('@/utils/logger', () => ({
+vi.mock('@/utils/logger', () => ({
   logger: {
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn()
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
   }
 }))
 
@@ -233,7 +233,7 @@ describe('Button Mapping Utilities', () => {
 
   describe('handleButtonError', () => {
     it('should execute fallback action synchronously', async () => {
-      const fallbackMock = jest.fn()
+      const fallbackMock = vi.fn()
       const error = new Error('Test error')
 
       handleButtonError(error, 'test_context', fallbackMock)
@@ -242,7 +242,7 @@ describe('Button Mapping Utilities', () => {
     })
 
     it('should handle async fallback action', async () => {
-      const fallbackMock = jest.fn().mockResolvedValue(undefined)
+      const fallbackMock = vi.fn().mockResolvedValue(undefined)
       const error = new Error('Test error')
 
       handleButtonError(error, 'test_context', fallbackMock)
@@ -251,7 +251,7 @@ describe('Button Mapping Utilities', () => {
     })
 
     it('should handle fallback action that throws', async () => {
-      const fallbackMock = jest.fn().mockImplementation(() => {
+      const fallbackMock = vi.fn().mockImplementation(() => {
         throw new Error('Fallback failed')
       })
       const error = new Error('Test error')

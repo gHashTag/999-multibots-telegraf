@@ -69,20 +69,73 @@ export async function handlePaymentButtons(
     }
   }
 
-  // 💎 ОПЛАТА КРИПТОЙ (USDC)
+  // 💎 ОПЛАТА КРИПТОЙ - показываем inline-меню с выбором
   if (CRYPTO_PAYMENT_VARIANTS.includes(text)) {
-    logger.info('💎 [Payment] Crypto payment button pressed', {
+    logger.info('💎 [Payment] Crypto payment button pressed - showing selection menu', {
       telegramId: ctx.from?.id,
       currentScene: ctx.scene?.current?.id,
       text,
     })
 
     try {
-      await ctx.scene.leave()
-      await ctx.scene.enter(ModeEnum.CryptoPaymentScene)
+      const { Markup } = await import('telegraf')
+      const { isRussian } = await import('@/helpers')
+      const { isX402Configured } = await import('@/core/x402')
+      const { TON_PAYMENT_SCENE_ID } = await import('@/scenes/tonPaymentScene')
+      const { TON_NATIVE_PAYMENT_SCENE_ID } = await import('@/scenes/tonNativePaymentScene')
+
+      const isRu = isRussian(ctx)
+      const showX402 = isX402Configured()
+
+      const message = isRu
+        ? '💎 *Выберите криптовалюту для оплаты:*'
+        : '💎 *Select cryptocurrency for payment:*'
+
+      // Формируем кнопки
+      const cryptoButtons = []
+
+      // TON USDT (стейблкоин)
+      cryptoButtons.push([
+        Markup.button.callback(
+          isRu ? '💠 TON USDT (стейблкоин)' : '💠 TON USDT (stablecoin)',
+          'global_crypto_ton_usdt'
+        ),
+      ])
+
+      // Нативный TON
+      cryptoButtons.push([
+        Markup.button.callback(
+          isRu ? '💎 TON (нативный)' : '💎 TON (native)',
+          'global_crypto_ton_native'
+        ),
+      ])
+
+      // USDC Base если x402 настроен
+      if (showX402) {
+        cryptoButtons.push([
+          Markup.button.callback(
+            isRu ? '🔵 USDC (Base)' : '🔵 USDC (Base)',
+            'global_crypto_usdc_base'
+          ),
+        ])
+      }
+
+      // Кнопка отмены
+      cryptoButtons.push([
+        Markup.button.callback(
+          isRu ? '❌ Отмена' : '❌ Cancel',
+          'global_crypto_cancel'
+        ),
+      ])
+
+      await ctx.reply(message, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(cryptoButtons),
+      })
+
       return true
     } catch (error) {
-      logger.error('❌ [Payment] Error switching to Crypto payment:', {
+      logger.error('❌ [Payment] Error showing Crypto selection menu:', {
         error,
         telegramId: ctx.from?.id,
       })

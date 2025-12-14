@@ -30,6 +30,8 @@ export enum PaymentMethod {
   MANUAL = 'Manual',
   CRYPTOBOT = 'CryptoBot',
   X402 = 'X402',
+  TON_USDT = 'TON_USDT', // USDT on TON blockchain
+  TON_NATIVE = 'TON_NATIVE', // Native TON coin
 }
 
 /**
@@ -189,4 +191,6 @@ export enum Currency {
   XTR = 'XTR', // Telegram Stars
   RUB = 'RUB', // Russian Ruble
   USDC = 'USDC', // USD Coin (x402 on Base)
+  USDT_TON = 'USDT_TON', // USDT on TON blockchain
+  TON = 'TON', // Native TON coin
 }

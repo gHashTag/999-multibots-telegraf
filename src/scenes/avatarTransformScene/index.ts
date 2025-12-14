@@ -1501,10 +1501,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    // Возврат к выбору модели
+    // Возврат к выбору модели (поддержка текста с/без эмодзи)
     if (
-      text ===
-      (isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection')
+      text.includes('Назад к выбору модели') ||
+      text.includes('Back to model selection')
     ) {
       // Очищаем выбранную модель из сессии
       delete ctx.session.selectedModel
@@ -1544,11 +1544,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    // Пользователь хочет использовать свой аватар
+    // Пользователь хочет использовать свой аватар (поддержка текста с/без эмодзи)
     if (
-      text === (isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar') ||
-      text ===
-        (isRu ? '🎨 Создать магнетический образ' : '🎨 Create magnetic look') // Обратная совместимость
+      text.includes('Использовать мой аватар') ||
+      text.includes('Use my avatar') ||
+      text.includes('Создать магнетический образ') ||
+      text.includes('Create magnetic look')
     ) {
       if (!ctx.session.kontextImageUrl) {
         await ctx.reply(
@@ -1751,13 +1752,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.wizard.next() // Переходим к следующему шагу - выбору героя
     }
 
-    // Пользователь хочет загрузить новое фото
-    if (
-      text === (isRu ? '📸 Загрузить фото' : '📸 Upload photo') ||
-      text ===
-        (isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo') ||
-      text === (isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo')
-    ) {
+    // Пользователь хочет загрузить новое фото (поддержка текста с/без эмодзи)
+    const uploadPhotoVariants = isRu
+      ? ['Загрузить фото', 'Загрузить другое фото', 'Загрузить своё фото', 'Upload photo', 'Upload my photo']
+      : ['Upload photo', 'Upload different photo', 'Upload my photo', 'Загрузить фото', 'Загрузить своё фото']
+
+    if (uploadPhotoVariants.some(variant => text.includes(variant))) {
       await ctx.reply(
         isRu
           ? `📸 <b>Загрузка нового фото</b>\n\n💡 Отправьте мне фотографию, которую хотите преобразовать\n\n✨ <b>Рекомендации:</b>\n• Четкое фото лица\n• Хорошее освещение\n• Минимум 512x512 пикселей`

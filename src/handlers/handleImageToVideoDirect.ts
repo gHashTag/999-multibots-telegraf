@@ -1,7 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
@@ -37,13 +36,6 @@ export async function handleImageToVideoDirect(
       promptLength: prompt.length,
     }
   )
-
-  // Проверка подписки
-  const hasSubscription = await checkSubscriptionGuard(ctx, 'NeuroVideo')
-  if (!hasSubscription) {
-    // checkSubscriptionGuard уже отправил сообщение, просто возвращаемся
-    return
-  }
 
   // ✅ УНИФИКАЦИЯ: Используем единый источник правды для цен и названий
   const getModelDisplayName = (modelId: string, is_ru: boolean, aspectRatio?: string): string => {

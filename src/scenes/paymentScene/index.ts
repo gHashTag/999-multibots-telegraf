@@ -11,6 +11,8 @@ import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { starAmounts } from '@/price/helpers/starAmounts'
 import { getMainMenuText } from '@/navigation'
 import { isX402Configured } from '@/core/x402'
+import { TON_PAYMENT_SCENE_ID } from '@/scenes/tonPaymentScene'
+import { TON_NATIVE_PAYMENT_SCENE_ID } from '@/scenes/tonNativePaymentScene'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа
@@ -48,13 +50,12 @@ paymentScene.enter(async ctx => {
       Markup.button.text(isRu ? '⭐ Звездами' : '⭐ Stars'),
     ]
 
-    // Добавляем кнопку Криптой если x402 настроен
-    if (showCryptoButton) {
-      paymentRow.push(Markup.button.text(isRu ? '💎 Криптой' : '💎 Crypto'))
-      logger.info(`[${ModeEnum.PaymentScene}] Added Crypto button to keyboard`, {
-        telegram_id: ctx.from?.id,
-      })
-    }
+    // Добавляем единую кнопку Криптой (показывает inline-меню с выбором)
+    // Показываем всегда - есть TON USDT и TON даже без x402
+    paymentRow.push(Markup.button.text(isRu ? '💎 Криптой' : '💎 Crypto'))
+    logger.info(`[${ModeEnum.PaymentScene}] Added Crypto button to keyboard`, {
+      telegram_id: ctx.from?.id,
+    })
 
     // Добавляем кнопку Рублями только если хелпер разрешает
     if (showRublesButton) {
@@ -237,35 +238,139 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
   }
 })
 
-// Переход в сцену оплаты Криптой (USDC)
+// Переход к выбору криптовалюты (показываем inline-меню)
 paymentScene.hears(['💎 Криптой', '💎 Crypto'], async ctx => {
+  const isRu = isRussian(ctx)
+  const showX402 = isX402Configured()
+
   logger.info(
-    `[${ModeEnum.PaymentScene}] User chose Crypto (USDC). Entering CryptoPaymentScene.`,
+    `[${ModeEnum.PaymentScene}] User chose Crypto. Showing crypto selection menu.`,
     {
       telegram_id: ctx.from?.id,
       currentScene: ctx.scene?.current?.id,
+      showX402,
     }
   )
 
   try {
-    await ctx.scene.enter(ModeEnum.CryptoPaymentScene)
+    const message = isRu
+      ? '💎 *Выберите криптовалюту для оплаты:*'
+      : '💎 *Select cryptocurrency for payment:*'
+
+    // Формируем кнопки в зависимости от доступных методов
+    const cryptoButtons = []
+
+    // Всегда показываем TON USDT (стейблкоин на TON)
+    cryptoButtons.push([
+      Markup.button.callback(
+        isRu ? '💠 TON USDT (стейблкоин)' : '💠 TON USDT (stablecoin)',
+        'crypto_select_ton_usdt'
+      ),
+    ])
+
+    // Всегда показываем нативный TON
+    cryptoButtons.push([
+      Markup.button.callback(
+        isRu ? '💎 TON (нативный)' : '💎 TON (native)',
+        'crypto_select_ton_native'
+      ),
+    ])
+
+    // Добавляем USDC Base если x402 настроен
+    if (showX402) {
+      cryptoButtons.push([
+        Markup.button.callback(
+          isRu ? '🔵 USDC (Base)' : '🔵 USDC (Base)',
+          'crypto_select_usdc_base'
+        ),
+      ])
+    }
+
+    // Кнопка назад
+    cryptoButtons.push([
+      Markup.button.callback(
+        isRu ? '◀️ Назад' : '◀️ Back',
+        'crypto_back'
+      ),
+    ])
+
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard(cryptoButtons),
+    })
   } catch (error: any) {
     logger.error(
-      `❌ [${ModeEnum.PaymentScene}] Error entering CryptoPaymentScene:`,
+      `❌ [${ModeEnum.PaymentScene}] Error showing crypto menu:`,
       {
         error: error.message,
         stack: error.stack,
         telegram_id: ctx.from?.id,
       }
     )
-    const isRu = isRussian(ctx)
     await ctx.reply(
       isRu
-        ? '❌ Произошла ошибка при переходе к оплате криптой. Попробуйте позже.'
-        : '❌ An error occurred while switching to crypto payment. Please try again later.'
+        ? '❌ Произошла ошибка. Попробуйте позже.'
+        : '❌ An error occurred. Please try again later.'
     )
   }
 })
+
+// Action: Выбор TON USDT
+paymentScene.action('crypto_select_ton_usdt', async ctx => {
+  await ctx.answerCbQuery()
+  logger.info(`[${ModeEnum.PaymentScene}] User selected TON USDT`, {
+    telegram_id: ctx.from?.id,
+  })
+  try {
+    await ctx.deleteMessage()
+  } catch {
+    // ignore
+  }
+  await ctx.scene.enter(TON_PAYMENT_SCENE_ID)
+})
+
+// Action: Выбор нативного TON
+paymentScene.action('crypto_select_ton_native', async ctx => {
+  await ctx.answerCbQuery()
+  logger.info(`[${ModeEnum.PaymentScene}] User selected TON native`, {
+    telegram_id: ctx.from?.id,
+  })
+  try {
+    await ctx.deleteMessage()
+  } catch {
+    // ignore
+  }
+  await ctx.scene.enter(TON_NATIVE_PAYMENT_SCENE_ID)
+})
+
+// Action: Выбор USDC Base
+paymentScene.action('crypto_select_usdc_base', async ctx => {
+  await ctx.answerCbQuery()
+  logger.info(`[${ModeEnum.PaymentScene}] User selected USDC Base`, {
+    telegram_id: ctx.from?.id,
+  })
+  try {
+    await ctx.deleteMessage()
+  } catch {
+    // ignore
+  }
+  await ctx.scene.enter(ModeEnum.CryptoPaymentScene)
+})
+
+// Action: Назад из крипто-меню
+paymentScene.action('crypto_back', async ctx => {
+  await ctx.answerCbQuery()
+  try {
+    await ctx.deleteMessage()
+  } catch {
+    // ignore
+  }
+  // Re-enter payment scene to show main payment menu
+  await ctx.scene.reenter()
+})
+
+// УДАЛЕНО: Старые hears обработчики для TON USDT и TON
+// Теперь выбор происходит через inline-кнопки в меню "Криптой"
 
 // Выход в главное меню
 paymentScene.hears(/^🏠/, async ctx => {
@@ -296,8 +401,8 @@ paymentScene.on('message', async ctx => {
 
   // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем кнопки меню
   try {
-    const { NAVIGATION_BUTTONS } = await import('@/navigation/unified-navigation.config')
-    const button = NAVIGATION_BUTTONS.find(btn => btn.ru === messageText || btn.en === messageText)
+    const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
+    const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === messageText || btn.en === messageText)
 
     if (button) {
       // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
@@ -310,7 +415,7 @@ paymentScene.on('message', async ctx => {
     }
   } catch (error) {
     // Если не удалось импортировать, продолжаем с обычной обработкой
-    logger.warn('⚠️ [paymentScene] Failed to import NAVIGATION_BUTTONS', {
+    logger.warn('⚠️ [paymentScene] Failed to import buttons config', {
       error: error instanceof Error ? error.message : String(error),
       telegramId: ctx.from?.id
     })

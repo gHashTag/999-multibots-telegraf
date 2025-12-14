@@ -9,7 +9,7 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
+import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import { getBotNameByToken } from '@/core/bot'
@@ -31,6 +31,7 @@ import {
   paymentScene,
   rublePaymentScene,
   starPaymentScene,
+  cryptoPaymentScene,
   subscriptionScene,
   subscriptionCheckScene,
   balanceScene,
@@ -73,6 +74,8 @@ import {
   instagramParserScene,
   instagramParserWizard,
   faceSwapWizard,
+  tonPaymentScene,
+  tonNativePaymentScene,
 } from '@/scenes'
 
 // Импорт обработчиков и команд
@@ -191,29 +194,15 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     // 6. РЕГИСТРАЦИЯ ДРУГИХ КОМАНД (не навигация)
 
-    // Фабрика для команд с проверкой приватного чата и подписки
+    // Фабрика для команд с проверкой приватного чата
     const createCommandHandler =
       (
-        commandName: string,
-        handler: (ctx: MyContext) => Promise<void>,
-        options?: {
-          requireSubscription?: boolean
-          subscriptionFeature?: string
-        }
+        _commandName: string,
+        handler: (ctx: MyContext) => Promise<void>
       ) =>
       async (ctx: MyContext) => {
         if (!requirePrivateChat(ctx)) {
           return sendGroupCommandReply(ctx)
-        }
-
-        if (options?.requireSubscription) {
-          const hasSubscription = await checkSubscriptionGuard(
-            ctx,
-            options.subscriptionFeature || commandName
-          )
-          if (!hasSubscription) {
-            return
-          }
         }
 
         await handler(ctx)
@@ -221,62 +210,43 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     bot.command(
       'get100',
-      createCommandHandler(
-        'get100',
-        async ctx => {
-          if (!ctx.session.userModel) {
-            ctx.session.userModel = {
-              model_name: 'default',
-              trigger_word: '',
-              model_url: 'placeholder/placeholder:placeholder',
-              finetune_id: '',
-            }
+      createCommandHandler('get100', async ctx => {
+        if (!ctx.session.userModel) {
+          ctx.session.userModel = {
+            model_name: 'default',
+            trigger_word: '',
+            model_url: 'placeholder/placeholder:placeholder',
+            finetune_id: '',
           }
-          await get100Command(ctx)
-        },
-        { requireSubscription: true, subscriptionFeature: '/get100' }
-      )
+        }
+        await get100Command(ctx)
+      })
     )
 
     bot.command(
       'support',
-      createCommandHandler(
-        'support',
-        async ctx => {
-          await ctx.scene.leave()
-          await handleTechSupport(ctx as MyContext)
-        },
-        { requireSubscription: false }
-      )
+      createCommandHandler('support', async ctx => {
+        await ctx.scene.leave()
+        await handleTechSupport(ctx as MyContext)
+      })
     )
 
     bot.command(
       'price',
-      createCommandHandler(
-        'price',
-        async ctx => {
-          return priceCommand(ctx)
-        },
-        { requireSubscription: true, subscriptionFeature: '/price' }
-      )
+      createCommandHandler('price', async ctx => {
+        return priceCommand(ctx)
+      })
     )
 
     bot.command(
       'kontext',
-      createCommandHandler(
-        'kontext',
-        async ctx => {
-          logger.info(
-            'COMMAND /kontext: AI Photoshop (kontext alias) started',
-            {
-              telegramId: ctx.from?.id,
-            }
-          )
-          await ctx.scene.leave()
-          await ctx.scene.enter(ModeEnum.AiPhotoshop)
-        },
-        { requireSubscription: true, subscriptionFeature: '/kontext' }
-      )
+      createCommandHandler('kontext', async ctx => {
+        logger.info('COMMAND /kontext: AI Photoshop (kontext alias) started', {
+          telegramId: ctx.from?.id,
+        })
+        await ctx.scene.leave()
+        await ctx.scene.enter(ModeEnum.AiPhotoshop)
+      })
     )
 
     bot.command('instagram', async ctx => {
@@ -687,8 +657,7 @@ If not, continue on your own and click the "I myself" button`
         'create_more_text_to_video',
         ModeEnum.TextToVideo,
         {
-          requireSubscription: true,
-          subscriptionFeature: 'Text-to-Video',
+          requireFeatureAccess: true,
           beforeEnter: async ctx => {
             ctx.session.mode = ModeEnum.TextToVideo
           },
@@ -702,8 +671,7 @@ If not, continue on your own and click the "I myself" button`
         'create_more_image_to_video',
         ModeEnum.ImageToVideo,
         {
-          requireSubscription: true,
-          subscriptionFeature: 'Image-to-Video',
+          requireFeatureAccess: true,
           beforeEnter: async ctx => {
             ctx.session.mode = ModeEnum.ImageToVideo
           },
@@ -786,6 +754,19 @@ If not, continue on your own and click the "I myself" button`
         })
         await navShowMainMenu(ctx)
       }, 'main_menu')
+    )
+
+    // 🆕 Обработчик кнопки "Пополнить баланс" из featureGuard
+    bot.action(
+      'go_to_balance_topup',
+      withErrorHandling(async ctx => {
+        await ctx.answerCbQuery()
+        logger.info('💳 [Navigation] Go to balance top-up', {
+          telegramId: ctx.from?.id,
+        })
+        await ctx.scene.leave()
+        await ctx.scene.enter(ModeEnum.PaymentScene)
+      }, 'go_to_balance_topup')
     )
 
     bot.action(
@@ -922,6 +903,7 @@ export function createStage(): Scenes.Stage<MyContext> {
     paymentScene,
     rublePaymentScene,
     starPaymentScene,
+    cryptoPaymentScene,
     subscriptionScene,
     subscriptionCheckScene,
     balanceScene,
@@ -965,6 +947,8 @@ export function createStage(): Scenes.Stage<MyContext> {
     instagramParserScene,
     instagramParserWizard,
     faceSwapWizard,
+    tonPaymentScene,
+    tonNativePaymentScene,
     // ✅ ДОБАВЛЯЕМ СЦЕНЫ КАТЕГОРИЙ
     ...getCategoryScenes(),
   ]
@@ -978,6 +962,7 @@ export function createStage(): Scenes.Stage<MyContext> {
     'paymentScene',
     'rublePaymentScene',
     'starPaymentScene',
+    'cryptoPaymentScene',
     'subscriptionScene',
     'subscriptionCheckScene',
     'checkBalanceScene',
@@ -1022,6 +1007,8 @@ export function createStage(): Scenes.Stage<MyContext> {
     'instagramParserScene',
     'instagramParserWizard',
     'faceSwapWizard',
+    'tonPaymentScene',
+    'tonNativePaymentScene',
   ]
 
   // Validate scenes (critical errors only)
@@ -1113,8 +1100,7 @@ function createSceneActionHandler(
   options?: {
     beforeEnter?: (ctx: MyContext) => Promise<void>
     afterEnter?: (ctx: MyContext) => Promise<void>
-    requireSubscription?: boolean
-    subscriptionFeature?: string
+    requireFeatureAccess?: boolean // Проверка баланса с справкой
   }
 ) {
   return withErrorHandling(async (ctx: MyContext) => {
@@ -1124,13 +1110,10 @@ function createSceneActionHandler(
 
     await ctx.answerCbQuery()
 
-    // Проверка подписки, если требуется
-    if (options?.requireSubscription) {
-      const hasSubscription = await checkSubscriptionGuard(
-        ctx,
-        options.subscriptionFeature || actionName
-      )
-      if (!hasSubscription) {
+    // Проверка доступа к функции (справка + баланс)
+    if (options?.requireFeatureAccess && sceneId in ModeEnum) {
+      const hasAccess = await checkFeatureAccess(ctx, sceneId as ModeEnum)
+      if (!hasAccess) {
         return
       }
     }
@@ -1338,7 +1321,7 @@ function initializeNavigation(
  * Handle navigation to a specific function/item
  *
  * ✅ ИСПРАВЛЕНО: Убрана зависимость от CheckBalanceScene (удалён)
- * Теперь всегда переходим напрямую в целевую сцену
+ * 🆕 ДОБАВЛЕНО: Проверка доступа к платным функциям через checkFeatureAccess
  */
 async function handleFunctionNavigation(
   ctx: MyContext,
@@ -1357,22 +1340,20 @@ async function handleFunctionNavigation(
     return
   }
 
-  // Check subscription
-  if (item.requiresSubscription) {
-    const hasSubscription = await checkSubscriptionGuard(ctx, item.ru)
-    if (!hasSubscription) {
-      return // User redirected to subscriptionScene
-    }
+  // 🆕 Проверка доступа к платной функции (справка + баланс)
+  const mode = item.mode as ModeEnum
+  const hasAccess = await checkFeatureAccess(ctx, mode)
+  if (!hasAccess) {
+    return // Пользователю показано сообщение о недостатке средств
   }
 
   // Leave current scene
   await ctx.scene.leave()
 
   // Set mode
-  ctx.session.mode = item.mode as ModeEnum
+  ctx.session.mode = mode
 
-  // ✅ ИСПРАВЛЕНО: Всегда переходим напрямую в целевую сцену
-  // CheckBalanceScene был удалён, поэтому используем прямой переход
+  // Переходим напрямую в целевую сцену
   await ctx.scene.enter(item.mode as string)
 
   logger.info(`✅ [Navigation] Navigated to ${item.mode}`, {

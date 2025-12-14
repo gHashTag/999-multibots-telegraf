@@ -13,6 +13,16 @@ export const pulse = async (
   bot_name?: string
 ) => {
   try {
+    // ✅ Проверяем, что pulseBot инициализирован
+    if (!pulseBot) {
+      logger.warn({
+        message: '⚠️ Pulse bot не инициализирован, пропускаем отправку',
+        description: 'Pulse bot not initialized, skipping send',
+        telegram_id,
+      })
+      return
+    }
+
     // Проверяем новый формат (объект)
     if (typeof imageOrOptions === 'object') {
       const options = imageOrOptions as PulseOptions
@@ -39,7 +49,7 @@ export const pulse = async (
               username || 'User without username'
             } Telegram ID: ${telegramId} generated an image with a prompt: ${truncatedPrompt} \n\n Service: ${service}`
 
-        const chatId = '@neuro_blogger_pulse'
+        const chatId = '-1002737186844' // НейроМентор - Приватный канал
 
         // Отправляем по URL вместо локального файла
         await pulseBot.telegram.sendPhoto(
@@ -83,7 +93,7 @@ export const pulse = async (
           username || 'User without username'
         } Telegram ID: ${telegram_id} generated an image with a prompt: ${truncatedPrompt} \n\n Command: ${command} \n\n Bot: @${bot_name}`
 
-    const chatId = '@neuro_blogger_pulse'
+    const chatId = '-1002737186844' // НейроМентор - Приватный канал
 
     // send image as buffer
     await pulseBot.telegram.sendPhoto(
@@ -157,7 +167,7 @@ export const sendMediaToPulse = async (
       return
     }
 
-    const chatId = '@neuro_blogger_pulse'
+    const chatId = '-1002737186844' // НейроМентор - Приватный канал
 
     // Базовая информация о пользователе и контенте
     const {

@@ -385,8 +385,9 @@ export const generateImageToVideo = async (
       // Специальная обработка для Google Veo 3 моделей (используем План А/Б)
       if (modelConfig.id === 'veo3' || modelConfig.id === 'veo3_fast') {
         // Флаг для переключения планов: true = План А (сервер), false = План Б (локальный)
-        // По умолчанию пробуем сервер сначала (План А), при ошибке переключаемся на План Б
-        const USE_PLAN_A = true // Сначала пробуем через сервер
+        // ✅ FIX: PLAN A отключен - endpoint /api/v1/veo/generate не существует
+        // Webhook-first система работает корректно через Plan B
+        const USE_PLAN_A = false // PLAN A disabled - endpoint doesn't exist
 
         logger.info(`[I2V BG] Veo model detected, using Plan A/B system`, {
           telegramId,
@@ -915,7 +916,9 @@ export const generateImageToVideo = async (
               )
             }
 
-            const maxPollingAttempts = 5 // 5 попыток = ~10 секунд (2 сек * 5) - webhook-first система теперь основная
+            // ✅ FIX: Увеличено время polling - видео генерируется ~70 секунд
+            // Webhook все равно основной способ, но polling теперь резервный с адекватным таймаутом
+            const maxPollingAttempts = 45 // 45 попыток = ~90 секунд (2 сек * 45)
             const pollingInterval = 2000 // 2 секунды между проверками
 
             let attempts = 0

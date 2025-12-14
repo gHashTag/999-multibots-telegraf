@@ -61,6 +61,32 @@ export const generateImageWizard = new Scenes.WizardScene<MyContext>(
 
     const prompt = ctx.message.text.trim()
 
+    // Проверка на пустой промпт
+    if (!prompt || prompt.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пустой промпт. Пожалуйста, введите описание изображения.'
+          : '❌ Empty prompt. Please enter an image description.',
+        {
+          reply_markup: createGenerateImageKeyboard(),
+        }
+      )
+      return
+    }
+
+    // Проверка минимальной длины промпта
+    if (prompt.length < 3) {
+      await ctx.reply(
+        isRu
+          ? '❌ Промпт слишком короткий. Минимум 3 символа.'
+          : '❌ Prompt is too short. Minimum 3 characters.',
+        {
+          reply_markup: createGenerateImageKeyboard(),
+        }
+      )
+      return
+    }
+
     // Проверка длины промпта
     if (prompt.length > PROMPT_MAX_LENGTH) {
       await ctx.reply(

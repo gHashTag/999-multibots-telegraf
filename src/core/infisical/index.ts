@@ -121,16 +121,36 @@ async function loadAllSecrets(): Promise<void> {
       secretPath: '/'
     })
 
-    // Сохраняем в кэш
+    // Сохраняем в кэш И в process.env для совместимости с библиотеками
     secretCache = {}
     for (const secret of result.secrets) {
       secretCache[secret.secretKey] = secret.secretValue
+      // 🔥 CRITICAL: Также записываем в process.env для совместимости
+      // с библиотеками типа Inngest, которые читают напрямую из process.env
+      process.env[secret.secretKey] = secret.secretValue
     }
 
-    logger.info('[Infisical] ✅ All secrets loaded into memory', {
+    // 🔥 Логируем наличие критических ключей
+    const criticalKeys = ['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY', 'SUPABASE_SERVICE_KEY']
+    const missingCritical = criticalKeys.filter(k => !secretCache[k])
+
+    logger.info('[Infisical] ✅ All secrets loaded into memory and process.env', {
       count: result.secrets.length,
-      keys: Object.keys(secretCache).slice(0, 10).join(', ') + '...'
+      keys: Object.keys(secretCache).slice(0, 10).join(', ') + '...',
+      inngestKeys: {
+        INNGEST_EVENT_KEY: !!secretCache['INNGEST_EVENT_KEY'],
+        INNGEST_SIGNING_KEY: !!secretCache['INNGEST_SIGNING_KEY'],
+        RENDER_INNGEST_EVENT_KEY: !!secretCache['RENDER_INNGEST_EVENT_KEY'],
+      },
+      missingCriticalKeys: missingCritical.length > 0 ? missingCritical : 'none'
     })
+
+    if (missingCritical.length > 0) {
+      logger.warn('[Infisical] ⚠️ Missing critical secrets!', {
+        missing: missingCritical,
+        hint: 'Add these secrets to Infisical'
+      })
+    }
   } catch (error) {
     logger.error('[Infisical] ❌ Failed to load secrets', {
       error: error instanceof Error ? error.message : String(error)

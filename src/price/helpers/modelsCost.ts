@@ -156,6 +156,10 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   [ModeEnum.VideoGenerationOther]: calculateModeCost({
     mode: ModeEnum.VideoGenerationOther,
   }).stars,
+
+  // 🧬 МОРФИНГ СЕРВИСЫ
+  [ModeEnum.MorphingWizard]: calculateModeCost({ mode: ModeEnum.MorphingWizard })
+    .stars,
 }
 
 export const minCost = parseFloat(

@@ -48,6 +48,8 @@ const AI_PHOTOSHOP_PRICING = {
   modelsUSD: {
     seedream: 0.03,            // SeeDream-4 (ByteDance)
     nano_banana: 0.039,        // Nano Banana (Google Gemini 2.5)
+    nano_banana_pro: 0.05,     // Nano Banana Pro (Google Gemini 3 Pro) - text rendering, 14 images, 4K
+    seedream_45: 0.06,         // Seedream 4.5 (ByteDance) - superior aesthetics, spatial understanding, 4K
     flux_multi_kontext: 0.03,  // FLUX Multi-Kontext
     qwen_edit_plus: 0.03,      // Qwen Image Edit Plus
     // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
@@ -65,6 +67,8 @@ const AI_PHOTOSHOP_PRICING = {
     return {
       seedream: calculateFinalPriceInStars(this.modelsUSD.seedream, 0.016, this.markup),              // $0.03 → 5⭐
       nano_banana: calculateFinalPriceInStars(this.modelsUSD.nano_banana, 0.016, this.markup),        // $0.039 → 6⭐
+      nano_banana_pro: calculateFinalPriceInStars(this.modelsUSD.nano_banana_pro, 0.016, this.markup), // $0.05 → 8⭐
+      seedream_45: calculateFinalPriceInStars(this.modelsUSD.seedream_45, 0.016, this.markup),         // $0.06 → 10⭐
       flux_multi_kontext: calculateFinalPriceInStars(this.modelsUSD.flux_multi_kontext, 0.016, this.markup), // $0.03 → 5⭐
       qwen_edit_plus: calculateFinalPriceInStars(this.modelsUSD.qwen_edit_plus, 0.016, this.markup),  // $0.03 → 5⭐
       // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
@@ -126,6 +130,8 @@ const AI_PHOTOSHOP_PRICING = {
 logger.info('🚨 AI Photoshop: Scene module loading...')
 import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
+import { generateNanoBananaProReplicate } from '@/services/generateNanoBananaProReplicate'
+import { generateSeedream45Replicate } from '@/services/generateSeedream45Replicate'
 import { generateAdvancedFluxKontext } from '@/services/generateFluxKontext'
 import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
 // ✅ NEW AI PHOTOSHOP MODELS - January 2025
@@ -230,6 +236,30 @@ const AI_PHOTOSHOP_MODELS = {
     supports_text_only: false,
     supports_multi_image: true,
     max_images: 3,
+  },
+  nano_banana_pro: {
+    title_ru: '🍌 Nano Banana Pro',
+    title_en: '🍌 Nano Banana Pro',
+    description_ru: 'Google Nano Banana Pro - Gemini 3 Pro, рендеринг текста, до 14 изображений, 4K',
+    description_en: 'Google Nano Banana Pro - Gemini 3 Pro, text rendering, up to 14 images, 4K',
+    cost: AI_PHOTOSHOP_PRICING.models.nano_banana_pro,
+    key: 'nano_banana_pro',
+    supports_image_input: true,
+    supports_text_only: true,
+    supports_multi_image: true,
+    max_images: 14,
+  },
+  seedream_45: {
+    title_ru: '🌱 Seedream 4.5',
+    title_en: '🌱 Seedream 4.5',
+    description_ru: 'ByteDance Seedream 4.5 - Превосходная эстетика, пространственное понимание, до 4K',
+    description_en: 'ByteDance Seedream 4.5 - Superior aesthetics, spatial understanding, up to 4K',
+    cost: AI_PHOTOSHOP_PRICING.models.seedream_45,
+    key: 'seedream_45',
+    supports_image_input: true,
+    supports_text_only: true,
+    supports_multi_image: true,
+    max_images: 14,
   },
   flux_multi_kontext: {
     title_ru: '🎯 FLUX Multi-Kontext',
@@ -3093,6 +3123,38 @@ const processAiPhotoshopRequest = async (
           promptStyle: 'artistic',
         })
         break
+
+      case 'nano_banana_pro': {
+        // ✅ Nano Banana Pro - Gemini 3 Pro, text rendering, up to 14 images, 4K
+        const nanoBananaProSize = ctx.session?.aiPhotoshopSize || '1K'
+        result = await generateNanoBananaProReplicate({
+          telegram_id: ctx.from.id.toString(),
+          promptText: finalPrompt,
+          inputImageUrl: actualImageUrls,
+          ctx,
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          resolution: (nanoBananaProSize as '1K' | '2K' | '4K') || '1K',
+          aspectRatio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[nanoBananaProSize] || '9:16',
+        })
+        break
+      }
+
+      case 'seedream_45': {
+        // ✅ Seedream 4.5 - ByteDance, superior aesthetics, spatial understanding, up to 14 images, 4K
+        const seedream45Size = ctx.session?.aiPhotoshopSize || '2K'
+        result = await generateSeedream45Replicate({
+          telegram_id: ctx.from.id.toString(),
+          promptText: finalPrompt,
+          inputImageUrl: actualImageUrls,
+          ctx,
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          size: (seedream45Size as '2K' | '4K') || '2K',
+          aspectRatio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[seedream45Size] || '9:16',
+        })
+        break
+      }
 
       case 'flux_multi_kontext':
         // ✅ FLUX Multi-Kontext Pro - поддержка 2 изображений

@@ -1,3 +1,4 @@
+import { describe, it, expect, test, vi } from 'vitest'
 import { extractPromoFromContext, extractInviteCodeFromContext } from '@/helpers/contextUtils'
 import { processPromoLink } from '@/helpers/promoHelper'
 import { MyContext } from '@/interfaces'
@@ -41,12 +42,12 @@ const mockContext = (messageText: string): MyContext => ({
     has_main_web_app: false
   },
   session: {},
-  reply: jest.fn(),
+  reply: vi.fn(),
   telegram: {
-    getMe: jest.fn(),
-    sendMessage: jest.fn(),
-    deleteWebhook: jest.fn(),
-    getWebhookInfo: jest.fn()
+    getMe: vi.fn(),
+    sendMessage: vi.fn(),
+    deleteWebhook: vi.fn(),
+    getWebhookInfo: vi.fn()
   }
 } as any)
 

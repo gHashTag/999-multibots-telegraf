@@ -1,39 +1,66 @@
 /**
  * ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ: Inngest Client
  * Все функции должны импортировать inngest отсюда
+ *
+ * 🔥 ВАЖНО: Используем ленивую инициализацию, так как секреты
+ * загружаются из Infisical ПОСЛЕ импорта этого модуля
  */
 import { Inngest } from 'inngest'
 import { logger } from '@/utils/logger'
 
-// ✅ ЕДИНАЯ КОНФИГУРАЦИЯ для всех Inngest функций
-const config = {
-  name: 'Vibee',
-  id: 'telegram-bot-client',
-  // Подключение к нашему Inngest Dev Server
-  baseUrl:
-    process.env.NODE_ENV === 'development'
-      ? 'http://localhost:3000' // Локальный dev server
-      : 'https://three-head-dragon.shop/api/inngest', // Production
-  isDev: process.env.NODE_ENV === 'development',
-  // Event key загружается из Infisical (INNGEST_EVENT_KEY)
-  eventKey: process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY || undefined,
-  // Signing key для webhook verification (Inngest v3+)
-  signingKey: process.env.INNGEST_SIGNING_KEY || process.env.RENDER_INNGEST_SIGNING_KEY || undefined,
+// Кэшированный экземпляр клиента
+let _inngestClient: Inngest | null = null
+
+// ✅ Функция для получения конфигурации (читает process.env в момент вызова)
+function getInngestConfig() {
+  return {
+    name: 'Vibee',
+    id: 'telegram-bot-client',
+    // Подключение к нашему Inngest Dev Server
+    baseUrl:
+      process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000' // Локальный dev server
+        : 'https://three-head-dragon.shop/api/inngest', // Production
+    isDev: process.env.NODE_ENV === 'development',
+    // Event key загружается из Infisical (INNGEST_EVENT_KEY)
+    eventKey: process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY || undefined,
+    // Signing key для webhook verification (Inngest v3+)
+    signingKey: process.env.INNGEST_SIGNING_KEY || process.env.RENDER_INNGEST_SIGNING_KEY || undefined,
+  }
 }
 
-// ✅ ЕДИНСТВЕННЫЙ Inngest клиент для всего приложения
-export const inngest = new Inngest(config)
+// ✅ Ленивая инициализация Inngest клиента
+function getInngestClient(): Inngest {
+  if (!_inngestClient) {
+    const config = getInngestConfig()
+    _inngestClient = new Inngest(config)
 
-// Логирование конфигурации (без секретов)
-logger.info('🔥 [INNGEST] Client initialized', {
-  name: config.name,
-  id: config.id,
-  baseUrl: config.baseUrl,
-  isDev: config.isDev,
-  hasEventKey: !!config.eventKey,
-  hasSigningKey: !!config.signingKey,
-  environment: process.env.NODE_ENV,
+    // Логирование конфигурации (без секретов)
+    logger.info('🔥 [INNGEST] Client initialized (lazy)', {
+      name: config.name,
+      id: config.id,
+      baseUrl: config.baseUrl,
+      isDev: config.isDev,
+      hasEventKey: !!config.eventKey,
+      hasSigningKey: !!config.signingKey,
+      environment: process.env.NODE_ENV,
+    })
+  }
+  return _inngestClient
+}
+
+// ✅ Экспорт через getter для ленивой инициализации
+export const inngest = new Proxy({} as Inngest, {
+  get(_target, prop) {
+    return (getInngestClient() as any)[prop]
+  }
 })
+
+// ✅ Функция для принудительной реинициализации (после загрузки секретов)
+export function reinitializeInngestClient(): void {
+  _inngestClient = null
+  logger.info('🔄 [INNGEST] Client will be reinitialized on next use')
+}
 
 // Helper to check if Inngest is configured
 export const isInngestConfigured = (): boolean => {
@@ -94,15 +121,34 @@ export const INNGEST_EVENTS = {
 
 export type InngestEventName = typeof INNGEST_EVENTS[keyof typeof INNGEST_EVENTS]
 
-// Helper function to send events
+// Helper function to send events with safety checks
 export async function sendInngestEvent(
   eventName: InngestEventName,
   data: any
 ): Promise<void> {
+  // 🔥 SAFETY CHECK: Проверяем наличие ключа ПЕРЕД отправкой
+  const eventKey = process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY
+
+  if (!eventKey) {
+    logger.error(`❌ [INNGEST] CRITICAL: No event key available!`, {
+      eventName,
+      INNGEST_EVENT_KEY: !!process.env.INNGEST_EVENT_KEY,
+      RENDER_INNGEST_EVENT_KEY: !!process.env.RENDER_INNGEST_EVENT_KEY,
+      envKeys: Object.keys(process.env).filter(k => k.includes('INNGEST')).join(', '),
+      suggestion: 'Check that Infisical loaded secrets before this call'
+    })
+    throw new Error(
+      'INNGEST_EVENT_KEY not found in process.env. ' +
+      'Ensure initInfisical() was called before sending events.'
+    )
+  }
+
   try {
     logger.info(`📤 [INNGEST] Sending event: ${eventName}`, {
       eventName,
       dataKeys: Object.keys(data),
+      hasEventKey: true,
+      eventKeyPrefix: eventKey.substring(0, 10) + '...'
     })
 
     await inngest.send({
@@ -114,6 +160,7 @@ export async function sendInngestEvent(
   } catch (error) {
     logger.error(`❌ [INNGEST] Failed to send event: ${eventName}`, {
       error: error instanceof Error ? error.message : String(error),
+      eventKey: eventKey ? 'present' : 'MISSING',
     })
     throw error
   }

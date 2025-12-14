@@ -190,9 +190,8 @@ export async function generateNanoBanana(
 
         await ctx.reply(
           is_ru
-            ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
-            : `❌ Insufficient stars for generation\\n\\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\\nYour balance: ${balanceCheck.currentBalance || 0}⭐\\n\\nTop up via /start → 💎 Top up balance`,
-          { parse_mode: 'MarkdownV2' }
+            ? `❌ Недостаточно звезд для генерации\n\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\n\nПополните баланс через /start → 💎 Пополнить баланс`
+            : `❌ Insufficient stars for generation\n\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\nYour balance: ${balanceCheck.currentBalance || 0}⭐\n\nTop up via /start → 💎 Top up balance`
         )
         return null
       }

@@ -453,8 +453,8 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
     // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем кнопки меню
     try {
-      const { NAVIGATION_BUTTONS } = await import('@/navigation/unified-navigation.config')
-      const button = NAVIGATION_BUTTONS.find(btn => btn.ru === text || btn.en === text)
+      const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
+      const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === text || btn.en === text)
 
       if (button) {
         // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать

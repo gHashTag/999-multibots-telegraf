@@ -11,6 +11,7 @@ import voiceAvatarRouter from './routes/voice-avatar.routes'
 import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
 import diagnosticRouter from './routes/diagnostic.routes'
+import x402Router, { setX402BotInstance } from './routes/x402.routes'
 import { Telegraf } from 'telegraf'
 // ✅ Inngest включен для мониторинга webhook'ов
 import { serve } from 'inngest/express'
@@ -29,6 +30,7 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   // Если bot instance передан, инициализируем его в webhook router
   if (bot) {
     setBotInstance(bot)
+    setX402BotInstance(bot as any) // x402 payment notifications
     logger.info('✅ [API SERVER] Bot instance initialized for webhooks')
   } else {
     logger.warn(
@@ -97,6 +99,9 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
 
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
+
+  // Регистрируем x402 crypto payment routes
+  app.use('/api', x402Router)
 
   // ✅ Inngest включен для мониторинга webhook'ов - LAZY VERSION
   // Создаем функции ПОСЛЕ загрузки секретов из Infisical
@@ -177,8 +182,12 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
       })
     }
   } catch (error) {
+    // ✅ FIX: Правильная сериализация ошибки для логирования
+    const errorDetails = error instanceof Error
+      ? { message: error.message, stack: error.stack?.split('\n').slice(0, 5).join('\n') }
+      : { raw: String(error) }
     logger.error('❌ [API SERVER] Failed to create Inngest functions', {
-      error,
+      error: errorDetails,
     })
   }
 

@@ -35,8 +35,8 @@ helpScene.on('message', async ctx => {
 
   // Проверяем кнопки меню
   try {
-    const { NAVIGATION_BUTTONS } = await import('@/navigation/unified-navigation.config')
-    const button = NAVIGATION_BUTTONS.find(btn => btn.ru === messageText || btn.en === messageText)
+    const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
+    const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === messageText || btn.en === messageText)
 
     if (button) {
       // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать

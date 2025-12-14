@@ -1,6 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { getStepSelectionMenu, handleHelpCancel } from '@/navigation'
+import { getStepSelectionMenu, handleHelpCancel, showMainMenu } from '@/navigation'
+import { MAIN_MENU_VARIANTS } from '@/navigation/config/categories.config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleTrainingCost } from '@/price/helpers'
 import { generateCostMessage, stepOptions } from '@/price/priceCalculator'
@@ -56,6 +57,17 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
 
     if (ctx.message && 'text' in ctx.message) {
       const messageText = ctx.message.text
+
+      // ✅ FIX: Обработка команд /start, /price и главного меню - выход из сцены
+      if (messageText.startsWith('/start') || messageText.startsWith('/price') || MAIN_MENU_VARIANTS.includes(messageText)) {
+        console.log('🏠 [digitalAvatarBodyWizard] Command or main menu pressed, leaving scene:', messageText)
+        await ctx.scene.leave()
+        // Для /start и /price глобальные обработчики подхватят команду
+        if (MAIN_MENU_VARIANTS.includes(messageText)) {
+          await showMainMenu(ctx)
+        }
+        return
+      }
 
       // Обработка выбора пола
       let gender: 'male' | 'female' | null = null
@@ -115,6 +127,16 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
     if (ctx.message && 'text' in ctx.message) {
       const messageText = ctx.message.text.trim()
 
+      // ✅ FIX: Обработка команд /start, /price и главного меню - выход из сцены
+      if (messageText.startsWith('/start') || messageText.startsWith('/price') || MAIN_MENU_VARIANTS.includes(messageText)) {
+        console.log('🏠 [digitalAvatarBodyWizard] Command or main menu pressed in step 2, leaving scene:', messageText)
+        await ctx.scene.leave()
+        if (MAIN_MENU_VARIANTS.includes(messageText)) {
+          await showMainMenu(ctx)
+        }
+        return
+      }
+
       if (messageText.length > 0) {
         // Сохраняем название модели
         ctx.session.modelName = messageText
@@ -160,6 +182,17 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
     // ✅ ОБРАБОТКА ВЫБОРА ШАГОВ
     if (ctx.message && 'text' in ctx.message) {
       const messageText = ctx.message.text
+
+      // ✅ FIX: Обработка команд /start, /price и главного меню - выход из сцены
+      if (messageText.startsWith('/start') || messageText.startsWith('/price') || MAIN_MENU_VARIANTS.includes(messageText)) {
+        console.log('🏠 [digitalAvatarBodyWizard] Command or main menu pressed in step 3, leaving scene:', messageText)
+        await ctx.scene.leave()
+        if (MAIN_MENU_VARIANTS.includes(messageText)) {
+          await showMainMenu(ctx)
+        }
+        return
+      }
+
       const stepsMatch = messageText.match(/\d+/)
       console.log('stepsMatch', stepsMatch)
 

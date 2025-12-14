@@ -106,9 +106,14 @@ export async function getAvailableCallbackUrl(
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
 
+      // 🔧 FIX: Use POST instead of HEAD - webhook endpoint returns 404 for HEAD
       const response = await fetch(url, {
-        method: 'HEAD',
+        method: 'POST',
         signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ test: true, source: 'health-check' }),
         // Игнорируем SSL ошибки для production (self-signed cert)
         // @ts-ignore
         ...(url.startsWith('https:') && { rejectUnauthorized: false }),
@@ -116,8 +121,8 @@ export async function getAvailableCallbackUrl(
 
       clearTimeout(timeoutId)
 
-      // Успешный ответ (200-299) или 405 Method Not Allowed (endpoint exists but HEAD not supported)
-      if (response.ok || response.status === 405) {
+      // Успешный ответ (200-299) или 202 Accepted
+      if (response.ok || response.status === 202) {
         logger.info('✅ [WEBHOOK HEALTH CHECK] Callback URL is accessible', {
           url: url.substring(0, 50) + '...',
           status: response.status,

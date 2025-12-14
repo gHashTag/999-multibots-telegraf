@@ -67,14 +67,18 @@ import {
   periodicWebhookHealthCheck,
 } from './functions/webhookHealthGuard'
 
-// Import current media processing functions (non-restored versions)
-import { morphImages as currentMorphImages } from './functions/morphImages'
-import { neuroImageGeneration as currentNeuroImageGeneration } from './functions/neuroImageGeneration'
-import { generateModelTraining as currentGenerateModelTraining } from './functions/generateModelTraining'
+// ✅ FIX: Убраны дублирующиеся импорты - уже импортированы выше как restored versions
+// Дубликаты функций с одинаковыми ID вызывают ошибки в Inngest!
+// import { morphImages as currentMorphImages } from './functions/morphImages'
+// import { neuroImageGeneration as currentNeuroImageGeneration } from './functions/neuroImageGeneration'
+// import { generateModelTraining as currentGenerateModelTraining } from './functions/generateModelTraining'
 
 /**
- * Factory function to create ALL Inngest functions (22 restored + 8 current = 30 total)
+ * Factory function to create ALL Inngest functions (23 restored + 4 current = 27 unique)
  * This is called AFTER secrets are loaded from Infisical
+ *
+ * ⚠️ IMPORTANT: Функции с одинаковыми ID не должны дублироваться!
+ * Inngest выбрасывает ошибку при дублировании ID.
  */
 export function createAllInngestFunctions() {
   console.log('🔧 [INNGEST] Creating ALL Inngest functions (RESTORED + CURRENT)...')
@@ -144,20 +148,15 @@ export function createAllInngestFunctions() {
 
   console.log(`📋 Restored functions: ${restoredFunctions.length}`)
 
-  // CURRENT ACTIVE FUNCTIONS (8 functions)
+  // CURRENT ACTIVE FUNCTIONS (4 functions)
+  // ✅ FIX: Убраны дублирующиеся функции (morphImages, neuroImageGeneration, generateModelTraining)
+  // Они уже включены в restoredFunctions с теми же ID!
   const currentActiveFunctions = [
     // Kie.ai monitor (1+ functions)
     ...kieAiWebhookMonitorFunctions,
 
     // Webhook health (3)
     ...webhookHealthGuardFunctions,
-
-    // Media processing (2)
-    currentMorphImages,
-    currentNeuroImageGeneration,
-
-    // Model training (1)
-    currentGenerateModelTraining,
   ]
 
   console.log(`📋 Current active functions: ${currentActiveFunctions.length}`)

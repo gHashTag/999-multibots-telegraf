@@ -129,7 +129,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
     ctx.session.imageGenerationPrice = price
 
     try {
-      await ctx.reply(isRu ? 'Генерирую изображение...' : 'Generating image...')
+      // ✅ FIX: Убрано преждевременное сообщение "Генерирую изображение..."
+      // На этом шаге только выбирается модель, генерация будет на следующем шаге
 
       if (!ctx.botInfo?.username) {
         console.error('❌ Bot username не найден')
@@ -186,7 +187,17 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    const prompt = message.text
+    const prompt = message.text?.trim()
+
+    // Validate prompt is not empty
+    if (!prompt || prompt.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пустой промпт. Пожалуйста, введите описание изображения, которое хотите сгенерировать.'
+          : '❌ Empty prompt. Please enter a description of the image you want to generate.'
+      )
+      return
+    }
 
     // Используем обновленный хелпер
     const { profile, settings } = await getUserProfileAndSettings(ctx.from.id)

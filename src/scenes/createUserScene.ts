@@ -14,6 +14,7 @@ import {
   extractPromoFromContext,
 } from '@/helpers/contextUtils'
 import { processPromoLink } from '@/helpers/promoHelper'
+import { telegramLogService } from '@/services/telegram-log.service'
 
 const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 
@@ -290,6 +291,15 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           SUBSCRIBE_CHANNEL_ID,
           `🔗 Новый пользователь @${finalUsername} зарегистрировался. По реф. ссылке от: @${inviterUsername}`
         )
+
+        // 📨 Логируем в группу НейроМентор
+        await telegramLogService.logNewUser({
+          telegramId: telegram_id.toString(),
+          username: finalUsername,
+          referrer: inviterUsername,
+          botName: ctx.botInfo.username,
+        })
+
         logger.info({
           message:
             '📢 [CreateUserScene] Уведомление о новом пользователе (с рефералом) отправлено в канал',
@@ -311,6 +321,14 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           SUBSCRIBE_CHANNEL_ID,
           notificationMessage
         )
+
+        // 📨 Логируем в группу НейроМентор
+        await telegramLogService.logNewUser({
+          telegramId: telegram_id.toString(),
+          username: finalUsername,
+          botName: ctx.botInfo.username,
+        })
+
         logger.info({
           message:
             '📢 [CreateUserScene] Уведомление о новом пользователе (без реферала) отправлено в канал',

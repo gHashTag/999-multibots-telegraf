@@ -115,7 +115,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           isRu
             ? `✅ Модель выбрана: ${selectedText}\n\n📝 Теперь опишите, что должно происходить в видео:`
             : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`,
-          Markup.removeKeyboard()
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: isRu ? 'Отмена' : 'Cancel', callback_data: 'cancel_video_generation' }]
+              ]
+            }
+          }
         )
 
         // Переходим к следующему шагу для ожидания промпта
@@ -216,6 +222,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio)
       console.log('🎬 [WIZARD] Video generation success!')
 
+      // ✅ FIX: Сохраняем последнюю сцену для кнопки "Повторить генерацию"
+      ctx.session.lastCompletedVideoScene = 'text_to_video' as any
+
       return ctx.scene.leave()
       
     } catch (error) {
@@ -288,6 +297,29 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // ========== ОБРАБОТЧИКИ WIZARD'A ==========
+
+// ✅ Обработчик кнопки отмены
+textToVideoWizard.action('cancel_video_generation', async ctx => {
+  await ctx.answerCbQuery()
+
+  const isRu = isRussianFromState(ctx)
+
+  console.log('🎬 [T2V WIZARD] ❌ CANCEL button pressed! User:', ctx.from?.id)
+
+  // Удаляем inline кнопку
+  try {
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] })
+  } catch {
+    // Игнорируем ошибку если сообщение уже изменено
+  }
+
+  await ctx.reply(
+    isRu ? '❌ Генерация видео отменена' : '❌ Video generation cancelled',
+    Markup.removeKeyboard()
+  )
+
+  return ctx.scene.leave()
+})
 
 // Обработчик выхода из wizard
 textToVideoWizard.leave(async ctx => {

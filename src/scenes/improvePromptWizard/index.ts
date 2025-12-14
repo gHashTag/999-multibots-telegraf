@@ -127,8 +127,17 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
 
     if (message && 'text' in message) {
-      const text = message.text
-      console.log(text, 'text')
+      const text = message.text?.trim()
+
+      // Validate text is not empty
+      if (!text || text.length === 0) {
+        await ctx.reply(
+          isRu
+            ? '❌ Пожалуйста, выберите один из вариантов или введите текст.'
+            : '❌ Please select one of the options or enter text.'
+        )
+        return
+      }
 
       if (!ctx.from?.id) {
         await ctx.reply(

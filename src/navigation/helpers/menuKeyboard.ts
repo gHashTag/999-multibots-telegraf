@@ -13,6 +13,7 @@ import { CATEGORIES, getCategoryById, getCategoryText, getItemText } from '../co
 import { NAVIGATION_BUTTONS, getButtonText } from '../config/buttons.config'
 import { logSceneEnter, logMainMenuReturn } from './navigationLogger'
 import { logger } from '@/utils/logger'
+import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
 
 /**
  * Создаёт клавиатуру главного меню (категории)
@@ -42,6 +43,8 @@ export function createMainMenuKeyboard(ctx: MyContext): Markup.Markup<ReplyKeybo
 /**
  * Создаёт клавиатуру для категории
  * Кнопки по 3 в ряду для компактности
+ *
+ * NOTE: Для поддержки ownerOnly кнопок используйте createCategoryKeyboardAsync
  */
 export function createCategoryKeyboard(
   ctx: MyContext,
@@ -56,7 +59,7 @@ export function createCategoryKeyboard(
     return createMainMenuKeyboard(ctx)
   }
 
-  // Собираем все кнопки функций (без админских и скрытых)
+  // Собираем все кнопки функций (без админских, скрытых и ownerOnly)
   const buttons: string[] = []
   for (const item of category.items) {
     // Пропускаем админские кнопки
@@ -65,6 +68,68 @@ export function createCategoryKeyboard(
     }
     // ✅ Пропускаем скрытые кнопки (например, "Подписка" - не нужна пользователям)
     if (item.hidden) {
+      continue
+    }
+    // Пропускаем ownerOnly кнопки в синхронной версии
+    // Для их показа используйте createCategoryKeyboardAsync
+    if (item.ownerOnly) {
+      continue
+    }
+    buttons.push(getItemText(item, isRu))
+  }
+
+  // Группируем по 2 в ряд (для красивой раскладки)
+  const rows: string[][] = []
+  for (let i = 0; i < buttons.length; i += 2) {
+    const row = [buttons[i]]
+    if (buttons[i + 1]) {
+      row.push(buttons[i + 1])
+    }
+    rows.push(row)
+  }
+
+  // Кнопка "Главное меню" отдельной строкой
+  if (options.includeBack !== false) {
+    rows.push([getButtonText(NAVIGATION_BUTTONS.mainMenu, isRu)])
+  }
+
+  return Markup.keyboard(rows).resize()
+}
+
+/**
+ * Асинхронная версия createCategoryKeyboard с поддержкой ownerOnly кнопок
+ * Проверяет является ли пользователь владельцем бота для показа ownerOnly кнопок
+ */
+export async function createCategoryKeyboardAsync(
+  ctx: MyContext,
+  categoryId: string,
+  options: { includeBack?: boolean } = {}
+): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
+  const isRu = isRussianFromState(ctx)
+  const category = getCategoryById(categoryId)
+
+  if (!category) {
+    logger.warn(`[menuKeyboard] Category not found: ${categoryId}`)
+    return createMainMenuKeyboard(ctx)
+  }
+
+  // Проверяем является ли пользователь владельцем бота (или админом)
+  const telegramId = ctx.from?.id
+  const isBotOwner = await isUserBotOwner(telegramId)
+
+  // Собираем все кнопки функций
+  const buttons: string[] = []
+  for (const item of category.items) {
+    // Пропускаем админские кнопки
+    if (item.adminOnly) {
+      continue
+    }
+    // Пропускаем скрытые кнопки
+    if (item.hidden) {
+      continue
+    }
+    // Проверяем ownerOnly кнопки - показываем только владельцам
+    if (item.ownerOnly && !isBotOwner) {
       continue
     }
     buttons.push(getItemText(item, isRu))
@@ -178,7 +243,10 @@ export async function showCategoryMenu(
       categoryId,
     })
 
-    const keyboard = createCategoryKeyboard(ctx, categoryId)
+    // Для категории profile используем асинхронную версию для поддержки ownerOnly кнопок
+    const keyboard = categoryId === 'profile'
+      ? await createCategoryKeyboardAsync(ctx, categoryId)
+      : createCategoryKeyboard(ctx, categoryId)
 
     logger.info('🗺 [showCategoryMenu] Sending message...', {
       telegramId,

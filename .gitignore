@@ -433,3 +433,5 @@ mobile/node_modules/
 *.mobileprovision
 *.orig.*
 .metro-health-check*
+# Stars withdrawal session
+scripts/stars-withdrawal/session.json

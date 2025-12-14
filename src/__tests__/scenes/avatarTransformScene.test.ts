@@ -1,22 +1,34 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { WizardContext } from 'telegraf/typings/scenes'
 import { MyContext } from '@/interfaces'
-import { avatarTransformScene } from '@/scenes/avatarTransformScene'
 
-// Add mock for missing dependencies
-jest.mock('@/core/supabase/checkSuperheroGenerationUsage')
-jest.mock('@/core/supabase/incrementSuperheroGeneration')
+// Add mock for missing dependencies BEFORE importing the scene
+vi.mock('@/core/supabase/checkSuperheroGenerationUsage')
+vi.mock('@/core/supabase/incrementSuperheroGeneration')
 
 // Mock dependencies
-jest.mock('@/helpers/centralizedLanguage')
-jest.mock('@/middlewares/getUserPhotoUrl')
-jest.mock('@/utils/logger')
-jest.mock('@/core/supabase/checkAvatarTransformUsage')
-jest.mock('@/core/supabase/markAvatarTransformUsed')
-jest.mock('@/core/bot')
-jest.mock('@/services/generateFluxKontext')
-jest.mock('@/services/generateSeeDream4')
-jest.mock('@/helpers/sendPhotoWithFallback')
+vi.mock('@/helpers/centralizedLanguage')
+vi.mock('@/middlewares/getUserPhotoUrl')
+vi.mock('@/utils/logger')
+vi.mock('@/core/supabase/checkAvatarTransformUsage')
+vi.mock('@/core/supabase/markAvatarTransformUsed')
+vi.mock('@/core/bot')
+vi.mock('@/services/generateFluxKontext')
+vi.mock('@/services/generateSeeDream4')
+vi.mock('@/helpers/sendPhotoWithFallback')
+
+// Mock navigation module (contains handleHelpCancel that causes issues)
+vi.mock('@/navigation', () => ({
+  handleHelpCancel: vi.fn(),
+  createHelpCancelKeyboard: vi.fn().mockReturnValue({ keyboard: [] }),
+  showMainMenu: vi.fn(),
+  createMainMenuKeyboard: vi.fn().mockReturnValue({ keyboard: [] }),
+  buttonMatcher: vi.fn(),
+  safeEnterScene: vi.fn(),
+}))
+
+// Import AFTER mocks are set up
+import { avatarTransformScene } from '@/scenes/avatarTransformScene'
 
 describe('AvatarTransformScene', () => {
   let mockCtx: Partial<MyContext & WizardContext>
@@ -25,17 +37,17 @@ describe('AvatarTransformScene', () => {
     mockCtx = {
       wizard: {
         cursor: 0,
-        selectStep: jest.fn(),
-        back: jest.fn(),
-        next: jest.fn(),
+        selectStep: vi.fn(),
+        back: vi.fn(),
+        next: vi.fn(),
         state: {}
       },
       session: {
         selectedGender: undefined,
         selectedModel: undefined
       },
-      reply: jest.fn().mockResolvedValue({}),
-      replyWithPhoto: jest.fn().mockResolvedValue({}),
+      reply: vi.fn().mockResolvedValue({}),
+      replyWithPhoto: vi.fn().mockResolvedValue({}),
       message: {
         text: ''
       },
@@ -43,9 +55,9 @@ describe('AvatarTransformScene', () => {
         id: 123456789,
         username: 'testuser'
       },
-      answerCbQuery: jest.fn().mockResolvedValue({}),
+      answerCbQuery: vi.fn().mockResolvedValue({}),
       scene: {
-        leave: jest.fn().mockResolvedValue({})
+        leave: vi.fn().mockResolvedValue({})
       }
     } as any
   })

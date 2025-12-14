@@ -8,6 +8,7 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from './LanguageManager'
+import { telegramLogService } from '@/services/telegram-log.service'
 
 export enum ErrorType {
   VALIDATION = 'validation',
@@ -408,13 +409,20 @@ export class ErrorHandler {
     errorId: string
   ): Promise<void> {
     try {
-      // Здесь можно добавить отправку уведомлений администраторам
-      // Например, через отдельного бота или email
-      logger.warn('Admin notification needed', {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Отправляем в группу НейроМентор
+      await telegramLogService.logError({
+        telegramId: context.telegramId,
+        username: context.username,
+        error: errorMessage,
+        context: `[${errorType.toUpperCase()}] ${context.action || context.sceneId || 'unknown'}`,
+      })
+
+      logger.info('Admin notification sent to НейроМентор', {
         errorId,
         errorType,
         context,
-        errorMessage: error instanceof Error ? error.message : String(error),
       })
     } catch (notificationError) {
       logger.error('Failed to notify admin', {

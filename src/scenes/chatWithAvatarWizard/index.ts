@@ -1,7 +1,8 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
-import { createHelpCancelKeyboard, handleHelpCancel, CancelButtonService } from '@/navigation'
+import { createHelpCancelKeyboard, handleHelpCancel, CancelButtonService, showMainMenu } from '@/navigation'
+import { MAIN_MENU_VARIANTS, CANCEL_VARIANTS } from '@/navigation/config/categories.config'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 
@@ -25,6 +26,24 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
     // ✅ Обработка "Справка" через глобальный обработчик
     // ✅ "Отмена" обрабатывается глобально в registerCommands.ts
     if (ctx.message && 'text' in ctx.message) {
+      const text = ctx.message.text.trim()
+
+      // ✅ FIX: Обработка кнопки "Главное меню" - выход из сцены
+      if (MAIN_MENU_VARIANTS.includes(text)) {
+        console.log('🏠 [chatWithAvatarWizard] Main menu pressed, leaving scene')
+        await ctx.scene.leave()
+        await showMainMenu(ctx)
+        return
+      }
+
+      // ✅ FIX: Обработка кнопки "Отмена" - выход из сцены
+      if (CANCEL_VARIANTS.includes(text)) {
+        console.log('❌ [chatWithAvatarWizard] Cancel pressed, leaving scene')
+        await ctx.scene.leave()
+        await showMainMenu(ctx)
+        return
+      }
+
       const isHelpHandled = await handleHelpCancel(ctx)
       if (isHelpHandled) {
         return

@@ -884,10 +884,14 @@ fluxKontextScene.on('text', async ctx => {
       return
     }
 
-    const prompt = ctx.message.text
+    const prompt = ctx.message.text?.trim()
 
-    if (!prompt) {
-      await ctx.reply(isRu ? '❌ Пустой промпт.' : '❌ Empty prompt.')
+    if (!prompt || prompt.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пустой промпт. Пожалуйста, введите описание того, что нужно сделать с изображением.'
+          : '❌ Empty prompt. Please enter a description of what to do with the image.'
+      )
       return
     }
 

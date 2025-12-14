@@ -9,13 +9,15 @@ import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { showCategoryMenu } from '@/navigation'
 import { handleTechSupport } from '@/commands/handleTechSupport'
+import { interactiveStatsCommand } from '@/commands/interactiveStatsCommand'
 import {
   INVITE_VARIANTS,
   SUPPORT_VARIANTS,
   SUBSCRIPTION_VARIANTS,
   LANGUAGE_VARIANTS,
   AVATAR_LANGUAGE_VARIANTS,
-  PROFILE_CATEGORY_VARIANTS
+  PROFILE_CATEGORY_VARIANTS,
+  BOT_STATS_VARIANTS
 } from '../config/categories.config'
 
 /**
@@ -148,6 +150,28 @@ export async function handleProfileButtons(
       return true
     } catch (error) {
       logger.error('❌ [Profile] Error handling Profile category:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      await ctx.reply('❌ Произошла ошибка. Попробуйте /start')
+      return true
+    }
+  }
+
+  // 📊 СТАТИСТИКА БОТА (ownerOnly - только для владельцев ботов и админов)
+  if (BOT_STATS_VARIANTS.includes(text)) {
+    logger.info('📊 [Profile] Bot Statistics pressed', {
+      telegramId: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+      text,
+    })
+
+    try {
+      await ctx.scene.leave()
+      await interactiveStatsCommand(ctx)
+      return true
+    } catch (error) {
+      logger.error('❌ [Profile] Error handling Bot Statistics:', {
         error,
         telegramId: ctx.from?.id,
       })

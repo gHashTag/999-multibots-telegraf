@@ -25,6 +25,8 @@ export interface NavigationItem {
   requiresSubscription?: boolean
   /** Только для админов */
   adminOnly?: boolean
+  /** Только для владельцев ботов (и админов) */
+  ownerOnly?: boolean
   /** Прямой переход без CheckBalanceScene */
   directScene?: boolean
   /** Скрыть кнопку из меню (deprecated функционал) */
@@ -110,14 +112,6 @@ export const CATEGORIES: CategoryConfig[] = [
         requiresSubscription: true,
       },
       {
-        id: 'morphing',
-        ru: '🌀 Infinity Морфинг',
-        en: '🌀 Infinity Morphing',
-        icon: '🌀',
-        mode: ModeEnum.MorphingWizard,
-        requiresSubscription: true,
-      },
-      {
         id: 'ai_heroes',
         ru: '🦸‍♂️ ИИ Герои',
         en: '🦸‍♂️ AI Heroes',
@@ -151,12 +145,21 @@ export const CATEGORIES: CategoryConfig[] = [
         requiresSubscription: true,
       },
       {
+        id: 'morphing',
+        ru: '🌀 Infinity Морфинг',
+        en: '🌀 Infinity Morphing',
+        icon: '🌀',
+        mode: ModeEnum.MorphingWizard,
+        requiresSubscription: true,
+      },
+      {
         id: 'ai_reels',
         ru: '🎬 ИИ Рилс',
         en: '🎬 AI Reels',
         icon: '🎬',
         mode: 'ai_reels',
         requiresSubscription: true,
+        adminOnly: true,
       },
       {
         id: 'lip_sync',
@@ -316,6 +319,15 @@ export const CATEGORIES: CategoryConfig[] = [
         icon: '🔍',
         mode: ModeEnum.InstagramScrapingWizard,
         adminOnly: true,
+      },
+      {
+        id: 'bot_stats',
+        ru: '📊 Статистика бота',
+        en: '📊 Bot Statistics',
+        icon: '📊',
+        mode: 'stats_menu_scene',
+        ownerOnly: true,
+        directScene: true,
       },
     ],
   },
@@ -503,3 +515,6 @@ export const AVATAR_LANGUAGE_VARIANTS = getButtonVariantsById('select_model')
 
 /** Варианты для категории "Профиль" - из CATEGORIES */
 export const PROFILE_CATEGORY_VARIANTS = getCategoryButtonVariants('profile')
+
+/** Варианты для "Статистика бота" - из CATEGORIES (ownerOnly) */
+export const BOT_STATS_VARIANTS = getButtonVariantsById('bot_stats')

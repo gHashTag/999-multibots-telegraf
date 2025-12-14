@@ -353,15 +353,63 @@ export const generateFluxKontextMax = async (
     }
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMsgLower = errorMessage.toLowerCase()
+
+    // Классифицируем ошибку для понятного логирования
+    let errorType = 'UNKNOWN'
+    let isRetriable = false
+
+    if (errorMsgLower.includes('e005') || errorMsgLower.includes('flagged as sensitive') || errorMsgLower.includes('nsfw') || errorMsgLower.includes('safety')) {
+      errorType = 'NSFW_DETECTED'
+      isRetriable = true // Система автоматически повторит через fallback
+    } else if (errorMsgLower.includes('rate') || errorMsgLower.includes('limit') || errorMsgLower.includes('429') || errorMsgLower.includes('too many')) {
+      errorType = 'RATE_LIMIT'
+      isRetriable = true
+    } else if (errorMsgLower.includes('timeout') || errorMsgLower.includes('etimedout') || errorMsgLower.includes('econnreset') || errorMsgLower.includes('socket')) {
+      errorType = 'TIMEOUT'
+      isRetriable = true
+    } else if (errorMsgLower.includes('balance') || errorMsgLower.includes('insufficient') || errorMsgLower.includes('funds')) {
+      errorType = 'INSUFFICIENT_BALANCE'
+      isRetriable = false
+    } else if (errorMsgLower.includes('user') && errorMsgLower.includes('not') && errorMsgLower.includes('exist')) {
+      errorType = 'USER_NOT_FOUND'
+      isRetriable = false
+    } else if (errorMsgLower.includes('invalid') || errorMsgLower.includes('validation') || errorMsgLower.includes('parse')) {
+      errorType = 'VALIDATION_ERROR'
+      isRetriable = false
+    } else if (errorMsgLower.includes('download') || errorMsgLower.includes('fetch') || errorMsgLower.includes('enotfound')) {
+      errorType = 'DOWNLOAD_ERROR'
+      isRetriable = true
+    } else if (errorMsgLower.includes('api') || errorMsgLower.includes('500') || errorMsgLower.includes('502') || errorMsgLower.includes('503')) {
+      errorType = 'API_ERROR'
+      isRetriable = true
+    } else if (errorMsgLower.includes('cancel')) {
+      errorType = 'CANCELLED'
+      isRetriable = false
+    }
+
     console.error('🚨 [FluxKontextMax] Generation failed:', {
       telegram_id: params.telegram_id,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      errorType,
+      isRetriable,
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined
     })
 
-    logger.error('[FluxKontextMax] Generation failed', {
+    // ✅ Информативное логирование с типом ошибки И САМИМ СООБЩЕНИЕМ
+    const logMessage = isRetriable
+      ? `[FluxKontextMax] ${errorType} - автоматический retry через fallback`
+      : `[FluxKontextMax] ${errorType} - требует внимания`
+
+    // Добавляем краткое описание ошибки для UNKNOWN
+    const errorDetail = errorType === 'UNKNOWN' ? ` | ${errorMessage.substring(0, 100)}` : ''
+
+    logger.error(`${logMessage}${errorDetail}`, {
       telegram_id: params.telegram_id,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      errorType,
+      isRetriable,
+      error: errorMessage
     })
 
     // ✅ Only notify user if not in fallback mode

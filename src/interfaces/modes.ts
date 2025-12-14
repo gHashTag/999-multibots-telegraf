@@ -45,6 +45,7 @@ export enum ModeEnum {
   PaymentScene = 'payment_scene',
   RublePaymentScene = 'rublePaymentScene',
   StarPaymentScene = 'starPaymentScene',
+  CryptoPaymentScene = 'cryptoPaymentScene',
 
   // 🧙‍♂️ МАСТЕРА И ПОМОЩНИКИ
   SelectModel = 'select_model',
@@ -69,7 +70,7 @@ export enum ModeEnum {
   InstagramParserScene = 'instagram_parser_scene',
   InstagramParserWizard = 'instagram_parser_wizard',
   MorphingWizard = 'morphing_wizard',
-  AiPhotoshop = 'ai_photoshop',
+  AiPhotoshop = 'ai_photoshop_scene',
 
   // 🎤 LIPSYNC ВАРИАНТЫ (используются в lipSyncWizard/)
   VeedFabricLipSync = 'veed_fabric_lipsync',

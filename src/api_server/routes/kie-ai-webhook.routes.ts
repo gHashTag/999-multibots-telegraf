@@ -360,6 +360,13 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
     })
 
     const telegramIdFromUrl = req.params.telegramId
+    const payload = req.body
+
+    // ✅ FIX: Игнорируем тестовые запросы от startup health check
+    if (payload?.test === true && payload?.source === 'startup-health-check') {
+      logger.info('🏥 [UNIVERSAL VIDEO WEBHOOK] Health check ping received - OK')
+      return
+    }
 
     console.log('🔴 telegramIdFromUrl:', telegramIdFromUrl)
     console.log('🔴 req.body:', req.body)
@@ -374,8 +381,6 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
       },
       responseTime: Date.now() - startTime,
     })
-
-    const payload = req.body
 
     // ✅ FIX: Use detailed detectVideoProvider instead of simplified detectVideoWebhookProvider
     // This properly distinguishes between kie-sora, kie-wan (Veo 3), and kie-veed
@@ -455,6 +460,13 @@ router.post('/video-callback', async (req: any, res: any) => {
     const telegramIdFromUrl = req.params.telegramId
     const botNameFromQuery = req.query.bot_name
 
+    // ✅ FIX: Игнорируем тестовые запросы от startup health check (не логируем как ошибку)
+    const payload = req.body
+    if (payload?.test === true && payload?.source === 'startup-health-check') {
+      logger.info('🏥 [UNIVERSAL VIDEO WEBHOOK] Health check ping received - OK')
+      return // Не обрабатываем дальше, просто возвращаем 202
+    }
+
     logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Received callback', {
       body: req.body,
       telegramIdFromUrl,
@@ -468,10 +480,8 @@ router.post('/video-callback', async (req: any, res: any) => {
       responseTime: Date.now() - startTime,
     })
 
-    const payload: KieAiWebhookPayload = req.body
-
     // ✅ Автоопределение провайдера по структуре payload
-    const provider = detectVideoProvider(payload)
+    const provider = detectVideoProvider(payload as KieAiWebhookPayload)
 
     logger.info('🔍 [UNIVERSAL VIDEO WEBHOOK] Provider detected', { provider })
 
@@ -675,6 +685,14 @@ async function processGenericVideoWebhook(
   payload: any,
   telegramIdFromUrl?: string
 ): Promise<void> {
+  // ✅ FIX: Игнорируем тестовые health check запросы (не логируем как ошибку)
+  if (payload?.test === true) {
+    logger.info('🏥 [GENERIC VIDEO WEBHOOK] Health check ping received - OK', {
+      source: payload.source || 'startup-health-check',
+    })
+    return
+  }
+
   logger.info('🔄 [GENERIC VIDEO WEBHOOK] Processing render server webhook', {
     payload,
     telegramIdFromUrl,
@@ -897,10 +915,13 @@ async function processSoraWebhookAsync(
         break
 
       default:
-        logger.warn('⚠️ [SORA WEBHOOK] Unknown successFlag value', {
-          taskId,
-          successFlag,
-        })
+        // Skip warning for deployment test webhooks
+        if (!taskId.startsWith('test-deployment-')) {
+          logger.warn('⚠️ [SORA WEBHOOK] Unknown successFlag value', {
+            taskId,
+            successFlag,
+          })
+        }
         break
     }
   } catch (error) {
@@ -1460,10 +1481,13 @@ async function processKieAiWebhookAsync(
         break
 
       default:
-        logger.warn('⚠️ [KIE.AI WEBHOOK] Unknown successFlag value', {
-          taskId,
-          successFlag,
-        })
+        // Skip warning for deployment test webhooks
+        if (!taskId.startsWith('test-deployment-')) {
+          logger.warn('⚠️ [KIE.AI WEBHOOK] Unknown successFlag value', {
+            taskId,
+            successFlag,
+          })
+        }
         break
     }
   } catch (error) {
@@ -1575,16 +1599,20 @@ async function handleFailedGeneration(
 ): Promise<void> {
   const { taskId, errorMessage, errorCode } = payload
 
+  // ✅ FIX: Переводим ошибку на русский
+  const translatedError = translateErrorToRussian(errorMessage || 'Неизвестная ошибка')
+
   logger.error('❌ [KIE.AI WEBHOOK] Video generation failed', {
     taskId,
     errorMessage,
+    translatedError,
     errorCode,
     telegramId,
   })
 
   await notifyJobCompletion(taskId, {
     success: false,
-    message: errorMessage || 'Video generation failed',
+    message: translatedError,
     code: errorCode || 'GENERATION_FAILED',
     provider: 'kie',
     modelId: 'veed-fabric',
@@ -1608,12 +1636,13 @@ async function handleFailedGeneration(
 
         await botInstance.telegram.sendMessage(
           chatId,
-          `❌ Ошибка генерации видео.\n\nПричина: ${errorMessage || 'Неизвестная ошибка'}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
+          `❌ Ошибка генерации видео.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
         )
         logger.info('✅ [KIE.AI WEBHOOK] Direct failure notification sent', {
           telegramId,
           taskId,
           errorMessage,
+          translatedError,
         })
       } catch (error) {
         logger.error(
@@ -1638,18 +1667,20 @@ async function handleContentPolicyError(
 ): Promise<void> {
   const { taskId, errorMessage, errorCode } = payload
 
+  // ✅ FIX: Переводим ошибку на русский
+  const translatedError = translateErrorToRussian(errorMessage || 'Некорректный контент')
+
   logger.error('🚫 [KIE.AI WEBHOOK] Content policy violation', {
     taskId,
     errorMessage,
+    translatedError,
     errorCode,
     telegramId,
   })
 
   await notifyJobCompletion(taskId, {
     success: false,
-    message:
-      errorMessage ||
-      'Content rejected by policy. Please try different prompt or image.',
+    message: translatedError,
     code: 'CONTENT_POLICY_VIOLATION',
     provider: 'kie',
     modelId: 'veed-fabric',
@@ -1673,7 +1704,7 @@ async function handleContentPolicyError(
 
         await botInstance.telegram.sendMessage(
           chatId,
-          `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${errorMessage || 'Некорректный контент'}\n\nПопробуйте другой запрос.`,
+          `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос.`,
           {
             link_preview_options: { is_disabled: true },
           }
@@ -1684,6 +1715,7 @@ async function handleContentPolicyError(
             telegramId,
             taskId,
             errorMessage,
+            translatedError,
           }
         )
       } catch (error) {
@@ -1816,20 +1848,25 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
           // Удаляем задачу из store после успешной отправки
           videoTaskStore.deleteTask(taskId)
         } else {
+          // ✅ FIX: Переводим ошибку на русский
+          const translatedError = translateErrorToRussian(result.message || 'Неизвестная ошибка')
+
           logger.error('❌ [KIE.AI WEBHOOK] Generation failed', {
             taskId,
             message: result.message,
+            translatedError,
             code: result.code,
           })
 
           // Ошибка генерации - отправляем сообщение об ошибке
           await botInstance.telegram.sendMessage(
             taskContext.chatId,
-            `❌ Ошибка генерации видео: ${result.message || 'Неизвестная ошибка'}`
+            `❌ Ошибка генерации видео: ${translatedError}`
           )
 
           logger.info('📢 [KIE.AI WEBHOOK] Error message sent to user', {
             taskId,
+            translatedError,
           })
           videoTaskStore.deleteTask(taskId)
         }

@@ -128,7 +128,13 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         isRu
           ? `✅ Модель выбрана: ${selectedText}\n\n🖼️ Теперь отправьте изображение для создания видео:`
           : `✅ Model selected: ${selectedText}\n\n🖼️ Now send an image to create video:`,
-        Markup.removeKeyboard()
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: isRu ? 'Отмена' : 'Cancel', callback_data: 'cancel_video_generation' }]
+            ]
+          }
+        }
       )
 
       // Переходим к следующему шагу для ожидания изображения
@@ -185,7 +191,14 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? `✅ Изображение получено!\n\n📝 Теперь опишите, что должно происходить в видео:`
-          : `✅ Image received!\n\n📝 Now describe what should happen in the video:`
+          : `✅ Image received!\n\n📝 Now describe what should happen in the video:`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: isRu ? 'Отмена' : 'Cancel', callback_data: 'cancel_video_generation' }]
+            ]
+          }
+        }
       )
 
       console.log('🎬 [I2V WIZARD] Step 2: ✅ REPLY SENT! Moving to next step...')
@@ -274,6 +287,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       await handleImageToVideoDirect(ctx, imageUrl, prompt, videoModelId, duration, aspectRatio)
       console.log('🎬 [I2V WIZARD] Video generation success!')
 
+      // ✅ FIX: Сохраняем последнюю сцену для кнопки "Повторить генерацию"
+      ctx.session.lastCompletedVideoScene = ModeEnum.ImageToVideo as any
+
       return ctx.scene.leave()
 
     } catch (error) {
@@ -291,6 +307,29 @@ console.log('🔥 [DEBUG] imageToVideoWizard steps count:', (imageToVideoWizard 
 
 // Обработчик входа в wizard - НЕ ИСПОЛЬЗУЕТСЯ! Telegraf автоматически вызовет первый шаг
 // Оставляем пустым, чтобы не было двойного вызова
+
+// ✅ Обработчик кнопки отмены
+imageToVideoWizard.action('cancel_video_generation', async ctx => {
+  await ctx.answerCbQuery()
+
+  const isRu = isRussianFromState(ctx)
+
+  console.log('🎬 [I2V WIZARD] ❌ CANCEL button pressed! User:', ctx.from?.id)
+
+  // Удаляем inline кнопку
+  try {
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] })
+  } catch {
+    // Игнорируем ошибку если сообщение уже изменено
+  }
+
+  await ctx.reply(
+    isRu ? '❌ Генерация видео отменена' : '❌ Video generation cancelled',
+    Markup.removeKeyboard()
+  )
+
+  return ctx.scene.leave()
+})
 
 // Обработчик выхода из wizard
 imageToVideoWizard.leave(async ctx => {
