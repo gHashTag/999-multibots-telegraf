@@ -27,8 +27,14 @@ import { registerGlobalNavigationMiddleware } from './navigation'
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА УВЕДОМЛЕНИЙ
 import { setupNotificationProcessor } from './handlers/notificationHandler'
 
+// ✅ ДОБАВЛЯЕМ IMPORT СЕРВИСА ЛОГИРОВАНИЯ В TELEGRAM
+import { telegramLogService } from './services/telegram-log.service'
+
 // Импорт новой команды
 import { setupStatsCommand } from './commands/statsCommand'
+
+// ✅ Импорт обработчика событий вступления/выхода из групп
+import { setupGroupMemberHandler } from './handlers/groupMemberHandler'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
@@ -200,6 +206,10 @@ async function initializeBots() {
         mainBotInstance = bot
         console.log('✅ Main bot instance saved for webhooks')
 
+        // ✅ Инициализируем сервис логирования в Telegram группу НейроМентор
+        telegramLogService.initialize(bot)
+        console.log('✅ TelegramLogService инициализирован для группы НейроМентор')
+
         // ✅ Запускаем API сервер СРАЗУ после создания первого бота
         // (до bot.launch(), чтобы не ждать бесконечного polling loop)
         console.log('🚀 [DEBUG] About to call startApiServer(bot)...')
@@ -217,6 +227,8 @@ async function initializeBots() {
       registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
       // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
       setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
+      // ✅ РЕГИСТРИРУЕМ ОБРАБОТЧИК ВСТУПЛЕНИЯ/ВЫХОДА ИЗ ГРУПП
+      setupGroupMemberHandler(bot)
       // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
       bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
       bot.on('successful_payment', handleSuccessfulPayment as any)
@@ -316,6 +328,7 @@ async function initializeBots() {
             'callback_query',
             'pre_checkout_query' as any,
             'successful_payment' as any,
+            'chat_member' as any, // Для отслеживания вступления/выхода из групп
           ],
         })
         .then(() => {
@@ -587,11 +600,14 @@ async function startApplication() {
         console.log('  ✅ BASE_WEBHOOK_URL установлен (hardcoded fallback)')
       }
 
-      // ✅ КРИТИЧЕСКИ ВАЖНО: Inngest клиент уже инициализирован в client.ts
-      // Он автоматически использует process.env переменные, которые мы только что загрузили из Infisical
-      // Никакой переинициализации не требуется - клиент создается при импорте модуля
+      // ✅ КРИТИЧЕСКИ ВАЖНО: Reinitialize Inngest client AFTER secrets loaded
+      // The client may have been initialized before Infisical secrets were loaded,
+      // so we need to reset the cached client to pick up INNGEST_EVENT_KEY
+      const { reinitializeInngestClient, isInngestConfigured } = await import('./inngest_app/client')
+      reinitializeInngestClient()
+      const inngestReady = isInngestConfigured()
       console.log(
-        '  ✅ Inngest клиент использует свежие секреты из process.env'
+        `  ${inngestReady ? '✅' : '⚠️'} Inngest клиент реинициализирован (eventKey: ${inngestReady ? 'OK' : 'MISSING'})`
       )
     } catch (e) {
       console.warn('  ⚠️ Некоторые API ключи не загружены')
@@ -612,7 +628,8 @@ async function startApplication() {
         )
       }
 
-      const PORT = 8080
+      // API сервер запущен на порту 3000, туннель должен туда направлять
+      const TUNNEL_PORT = 3000
       let tunnelCreated = false
 
       // 🔷 ВАРИАНТ 1: Cloudflare Tunnel (бесплатно, без ограничений, без токенов)
@@ -620,12 +637,12 @@ async function startApplication() {
         const { spawn } = await import('child_process')
 
         console.log(
-          `📡 [CLOUDFLARE] Запускаем cloudflared tunnel на порт ${PORT}...`
+          `📡 [CLOUDFLARE] Запускаем cloudflared tunnel на порт ${TUNNEL_PORT}...`
         )
 
         const cloudflared = spawn(
           'cloudflared',
-          ['tunnel', '--url', `http://localhost:${PORT}`],
+          ['tunnel', '--url', `http://localhost:${TUNNEL_PORT}`],
           {
             stdio: ['ignore', 'pipe', 'pipe'],
           }
@@ -695,7 +712,7 @@ async function startApplication() {
         )
         console.log('   2. Проверь что cloudflared доступен в PATH')
         console.log(
-          '   3. Или используй localtunnel: npm i -g localtunnel && lt --port 8080\n'
+          '   3. Или используй localtunnel: npm i -g localtunnel && lt --port 3000\n'
         )
         console.log('⚠️  Продолжаем без туннеля - вебхуки работать не будут!\n')
       }
