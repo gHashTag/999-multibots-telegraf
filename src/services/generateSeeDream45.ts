@@ -201,7 +201,7 @@ export const generateSeeDream45 = async (
       currentBalance,
       requiredCost: totalCost,
       hasEnough: currentBalance >= totalCost,
-      isWelcomeGift: params.is_welcome_gift,
+      isWelcomeGift: params.is_welcome_gift
     })
 
     // Skip balance check for welcome gift
