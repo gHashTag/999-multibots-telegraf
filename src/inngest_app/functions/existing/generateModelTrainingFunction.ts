@@ -249,7 +249,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
       // ✅ STEP 5: Save training record to Supabase
       await step.run('save-training-record', async () => {
         const trainingRecord = {
-          user_id: eventData.telegram_id,
+          telegram_id: eventData.telegram_id,
           model_name: eventData.modelName,
           trigger_word: eventData.triggerWord,
           zip_url: eventData.zipUrl, // 🔥 FIX: Use zipUrl from Supabase
