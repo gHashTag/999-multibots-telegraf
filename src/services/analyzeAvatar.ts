@@ -37,9 +37,10 @@ export async function analyzeAvatar(imageUrl: string): Promise<AvatarAnalysisRes
     logger.info('[AnalyzeAvatar] Starting analysis', { imageUrl: imageUrl.substring(0, 50) + '...' })
 
     // Use Moondream2 - fast vision model for image analysis
+    // Model: lucataco/moondream2 (updated from vikhyatk/moondream2)
     // Prompt designed to get structured response about face and gender
     const output = await replicate.run(
-      'vikhyatk/moondream2:a9ed082c9e06dfe963ceac36eda4c0efd66af639be73dadef87eee7f303a0b2f' as any,
+      'lucataco/moondream2:72ccb656353c348c1385df54b237eeb7bfa874bf11486cf0b9473e691b662d31' as any,
       {
         input: {
           image: imageUrl,
@@ -110,7 +111,7 @@ export async function analyzeAvatar(imageUrl: string): Promise<AvatarAnalysisRes
 export async function quickFaceCheck(imageUrl: string): Promise<boolean> {
   try {
     const output = await replicate.run(
-      'vikhyatk/moondream2:a9ed082c9e06dfe963ceac36eda4c0efd66af639be73dadef87eee7f303a0b2f' as any,
+      'lucataco/moondream2:72ccb656353c348c1385df54b237eeb7bfa874bf11486cf0b9473e691b662d31' as any,
       {
         input: {
           image: imageUrl,
