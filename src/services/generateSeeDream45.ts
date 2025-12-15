@@ -200,10 +200,12 @@ export const generateSeeDream45 = async (
       telegram_id,
       currentBalance,
       requiredCost: totalCost,
-      hasEnough: currentBalance >= totalCost
+      hasEnough: currentBalance >= totalCost,
+      isWelcomeGift: params.is_welcome_gift,
     })
 
-    if (currentBalance < totalCost) {
+    // Skip balance check for welcome gift
+    if (!params.is_welcome_gift && currentBalance < totalCost) {
       if (!params.suppressUserErrors) {
         const message = is_ru
           ? `❌ Недостаточно звезд на балансе.\n\n💰 Требуется: ${totalCost}⭐\n💎 У вас: ${currentBalance}⭐\n\n📱 Пополните баланс в главном меню.`
@@ -341,13 +343,14 @@ export const generateSeeDream45 = async (
       throw new Error('Failed to process generated image')
     }
 
-    // Deduct stars AFTER successful generation
+    // Deduct stars AFTER successful generation (skip for welcome gift)
     const balanceDeduction = await processBalanceOperation({
       ctx,
       telegram_id: Number(telegram_id),
       paymentAmount: totalCost,
       is_ru,
       bot_name: ctx?.botInfo?.username,
+      is_welcome_gift: params.is_welcome_gift,
     })
 
     logger.info('SeeDream4.5 stars deducted after success', {
