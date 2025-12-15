@@ -5,6 +5,7 @@ import { createUser, getReferalsCountAndUserData } from '@/core/supabase'
 import { supabase } from '@/core/supabase'
 
 import { getPhotoUrl } from '@/handlers/getPhotoUrl'
+import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces'
@@ -113,8 +114,12 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     }
   }
 
-  const userPhotoUrl = await getPhotoUrl(ctx, ctx.from?.id || 0)
+  // Get Telegram avatar URL for welcome generation (actual user photo)
+  const telegramAvatarUrl = await getUserPhotoUrl(ctx, ctx.from?.id || 0)
+  // Get bot photo URL from Supabase for fallback
   const botPhotoUrl = await photo_url
+  // Use Telegram avatar if available, otherwise bot photo
+  const userPhotoUrl = telegramAvatarUrl || botPhotoUrl
   const userData = {
     username: finalUsername,
     telegram_id: telegram_id.toString(),
@@ -151,15 +156,17 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     )
 
     // 🎁 WELCOME AVATAR GENERATION: Analyze avatar and generate free portrait
+    // Only use actual Telegram avatar (not Supabase fallback) for face detection
     try {
-      if (userPhotoUrl) {
+      if (telegramAvatarUrl) {
         logger.info('🎁 [CreateUserScene] Analyzing avatar for welcome generation', {
           telegram_id: telegram_id.toString(),
           hasAvatar: true,
+          avatarSource: 'telegram',
         })
 
         // Analyze avatar to detect face and gender
-        const avatarAnalysis = await analyzeAvatar(userPhotoUrl)
+        const avatarAnalysis = await analyzeAvatar(telegramAvatarUrl)
 
         if (avatarAnalysis.hasFace) {
           // Save detected gender to database
@@ -177,7 +184,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
             name: INNGEST_EVENTS.WELCOME_AVATAR_GENERATE,
             data: {
               telegram_id: telegram_id.toString(),
-              avatarUrl: userPhotoUrl,
+              avatarUrl: telegramAvatarUrl,
               gender: avatarAnalysis.gender,
               bot_name: ctx.botInfo.username,
               username: finalUsername,
