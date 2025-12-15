@@ -12,7 +12,7 @@
  */
 
 import Replicate from 'replicate'
-import fs from 'fs'
+// fs import removed - ZIP is now downloaded from Supabase URL, not local filesystem
 import { supabase } from '@/core/supabase'
 // 🔥 FIX: Removed static import - read from process.env at runtime to avoid race condition with Infisical
 import { logger } from '@/utils/logger'
@@ -26,7 +26,7 @@ interface ModelTrainingEvent {
     bot_name: string
     modelName: string
     triggerWord: string
-    filePath: string // Local ZIP path on bot-farm
+    zipUrl: string // 🔥 FIX: HTTP URL from Supabase Storage (not local filePath)
     steps: number
     is_ru: boolean
     gender: string
@@ -96,20 +96,31 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         return { hasDuplicate: false }
       })
 
-      // ✅ STEP 3: Prepare ZIP file
+      // ✅ STEP 3: Download and prepare ZIP file from Supabase URL
       const zipData = await step.run('prepare-zip', async () => {
-        if (!fs.existsSync(eventData.filePath)) {
-          throw new Error(`ZIP file not found: ${eventData.filePath}`)
+        // 🔥 FIX: Download ZIP from Supabase URL instead of reading local file
+        if (!eventData.zipUrl) {
+          throw new Error('ZIP URL not provided in event data')
         }
 
-        const fileStats = fs.statSync(eventData.filePath)
-        logger.info('[INNGEST TRAINING] ZIP file validated', {
-          size: fileStats.size,
-          path: eventData.filePath,
+        logger.info('[INNGEST TRAINING] Downloading ZIP from Supabase', {
+          url: eventData.zipUrl.substring(0, 100) + '...',
+        })
+
+        // Download ZIP file from URL
+        const response = await fetch(eventData.zipUrl)
+        if (!response.ok) {
+          throw new Error(`Failed to download ZIP: ${response.status} ${response.statusText}`)
+        }
+
+        const arrayBuffer = await response.arrayBuffer()
+        const fileBuffer = Buffer.from(arrayBuffer)
+
+        logger.info('[INNGEST TRAINING] ZIP file downloaded', {
+          size: fileBuffer.length,
         })
 
         // Convert to base64 for Replicate
-        const fileBuffer = fs.readFileSync(eventData.filePath)
         const base64Data = fileBuffer.toString('base64')
         const dataUri = `data:application/zip;base64,${base64Data}`
 
@@ -184,7 +195,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           user_id: eventData.telegram_id,
           model_name: eventData.modelName,
           trigger_word: eventData.triggerWord,
-          zip_url: eventData.filePath,
+          zip_url: eventData.zipUrl, // 🔥 FIX: Use zipUrl from Supabase
           replicate_training_id: trainingResult.training_id,
           status: trainingResult.status,
           bot_name: eventData.bot_name,
@@ -208,23 +219,8 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         return { saved: !error }
       })
 
-      // ✅ STEP 6: Clean up local ZIP file
-      await step.run('cleanup-zip', async () => {
-        try {
-          if (fs.existsSync(eventData.filePath)) {
-            await fs.promises.unlink(eventData.filePath)
-            logger.info('[INNGEST TRAINING] ZIP file deleted')
-          }
-        } catch (unlinkError) {
-          logger.warn('[INNGEST TRAINING] Failed to delete ZIP (non-fatal)', {
-            error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError),
-          })
-        }
-
-        return { cleaned: true }
-      })
-
-      // ✅ STEP 7: Send initial success message to user
+      // ✅ STEP 6: Send initial success message to user
+      // NOTE: Cleanup step removed - ZIP is now stored in Supabase Storage, not locally
       await step.run('notify-user-started', async () => {
         try {
           const { getBotByName } = await import('@/core/bot')
