@@ -140,8 +140,9 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         const destination = `${credentials.username}/${eventData.modelName}`
 
         // ✅ ВАЖНО: Webhook URL для получения callback от Replicate
-        // Используем локальный сервер вместо внешнего ai-server
-        const webhookUrl = `http://localhost:3000/webhooks/replicate`
+        // Replicate REQUIRES HTTPS! Use BASE_WEBHOOK_URL from Infisical/env
+        const baseUrl = process.env.BASE_WEBHOOK_URL || 'https://three-head-dragon.shop'
+        const webhookUrl = `${baseUrl}/api/webhooks/replicate`
 
         logger.info('[INNGEST TRAINING] Creating Replicate training...', {
           destination,
