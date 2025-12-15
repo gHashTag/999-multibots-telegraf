@@ -369,7 +369,7 @@ export const generateFluxKontextMax = async (
     } else if (errorMsgLower.includes('timeout') || errorMsgLower.includes('etimedout') || errorMsgLower.includes('econnreset') || errorMsgLower.includes('socket')) {
       errorType = 'TIMEOUT'
       isRetriable = true
-    } else if (errorMsgLower.includes('balance') || errorMsgLower.includes('insufficient') || errorMsgLower.includes('funds')) {
+    } else if (errorMsgLower.includes('balance') || errorMsgLower.includes('insufficient') || errorMsgLower.includes('funds') || errorMsgLower.includes('not enough')) {
       errorType = 'INSUFFICIENT_BALANCE'
       isRetriable = false
     } else if (errorMsgLower.includes('user') && errorMsgLower.includes('not') && errorMsgLower.includes('exist')) {
