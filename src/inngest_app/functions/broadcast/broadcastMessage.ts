@@ -1,4 +1,4 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { broadcastService } from '@/services/plan_b/broadcast.service'
 import { logger } from '@/utils/logger'
 import { slugify } from '@/inngest_app/utils/slugify' // For v3 migration
@@ -25,6 +25,8 @@ export const broadcastMessage = inngest.createFunction(
     id: slugify('broadcast-message'), // v3 requires id, using slugify for existing name
     name: '📢 Broadcast Message', // Optional display name for v3
     retries: 3,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Broadcast Message'),
   },
   { event: 'broadcast/send-message' },
   async ({ event, step }) => {

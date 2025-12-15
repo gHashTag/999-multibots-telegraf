@@ -16,7 +16,7 @@
  * 10. Trigger render
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { NonRetriableError } from 'inngest'
 import type { RenderRiddleEventData } from './types'
 import {
@@ -50,6 +50,8 @@ export const renderRiddleFunction = inngest.createFunction(
     id: 'render-riddle',
     name: '🧩 Render Riddle Workflow',
     retries: 3,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Render Riddle Workflow'),
   },
   { event: 'render-riddle' },
   async ({ event, step, logger }) => {

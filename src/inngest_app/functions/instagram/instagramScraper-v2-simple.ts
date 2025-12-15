@@ -6,7 +6,7 @@
 import { slugify } from '@/inngest_app/utils/slugify'
 import axios from 'axios'
 // ✅ Используем единый клиент из @/inngest_app/client
-import { inngest as instagramInngest } from '@/inngest_app/client'
+import { inngest as instagramInngest, createInngestFailureHandler } from '@/inngest_app/client'
 
 // Simple logger
 const log = {
@@ -82,6 +82,8 @@ const instagramReelsTest = instagramInngest.createFunction(
     id: slugify('instagram-reels-test'),
     name: '🧪 Instagram Reels Test Function',
     concurrency: 1,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Instagram Reels Test'),
   },
   { event: 'instagram/test-reels' },
   async ({ event, step, runId, logger: log }) => {

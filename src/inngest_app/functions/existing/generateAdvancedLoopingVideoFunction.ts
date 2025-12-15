@@ -8,7 +8,7 @@ import { addMusic, combineVideos } from '@/helpers/video-helpers'
 import { downloadFile } from '@/helpers'
 
 // ✅ Используем единый клиент из @/inngest_app/client
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 
 const replicateApi = {
   createPrediction: async (version: string, input: object) => {
@@ -78,6 +78,8 @@ const generateAdvancedLoopingVideoFunction = inngest.createFunction(
     concurrency: {
       limit: 1, // Run one at a time to avoid overwhelming API
     },
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Generate Kling Morphing Loop v7'),
   },
   { event: 'reels/generate-advanced-loop' },
   async ({ event, step }) => {

@@ -1,4 +1,4 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { Telegraf as Bot } from 'telegraf'
 import { openai } from '@/core/openai'
@@ -151,6 +151,8 @@ export const criticalErrorMonitor = inngest.createFunction(
     id: 'critical-error-monitor',
     name: '🚨 Critical Error Monitor',
     retries: 1,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Critical Error Monitor'),
   },
   { event: 'app/error.critical' },
   async ({ event, step }) => {
@@ -206,6 +208,8 @@ export const healthCheck = inngest.createFunction(
     id: 'health-check',
     name: '💚 Health Check Monitor',
     retries: 2,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Health Check Monitor'),
   },
   {
     // Проверяем каждые 30 минут

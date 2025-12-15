@@ -1,4 +1,4 @@
-import { inngest } from '../client'
+import { inngest, createInngestFailureHandler } from '../client'
 import { logger } from '@/utils/logger'
 import { testAllWebhookUrls } from '@/utils/webhookHealthCheck'
 import { ADMIN_IDS_ARRAY } from '@/config'
@@ -68,6 +68,8 @@ const webhookHealthCheck = inngest.createFunction(
     id: 'webhook-health-check',
     name: '⚙️ System Webhook',
     retries: 2,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('System Webhook Health Check'),
   },
   {
     event: 'webhook/health-check-requested',
@@ -143,6 +145,8 @@ const validateWebhookBeforeGeneration = inngest.createFunction(
     name: '⚙️ System VideoCheck',
     // Критически важная функция - не ретраим слишком много раз
     retries: 1,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('System VideoCheck'),
   },
   {
     event: 'video/generation-validate-webhook',
@@ -194,6 +198,8 @@ const periodicWebhookHealthCheck = inngest.createFunction(
   {
     id: 'periodic-webhook-health-check',
     name: '⚙️ System Health',
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('System Health (Periodic)'),
   },
   {
     cron: '0 * * * *', // Каждый час в начале часа

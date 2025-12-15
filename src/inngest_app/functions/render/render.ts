@@ -23,7 +23,7 @@
  * - callback_url: Optional callback URL
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import type { RenderEventData } from './types'
 import {
   createJobFolder,
@@ -39,6 +39,8 @@ export const renderFunction = inngest.createFunction(
     id: 'render', // Same as Python: fn_id="render"
     name: '🎬 Render Workflow',
     retries: 3,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Render Workflow'),
   },
   { event: 'render' }, // Same as Python: event="render"
   async ({ event, step, logger }) => {

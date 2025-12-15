@@ -1,4 +1,4 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { savePrompt } from '@/core/supabase/savePrompt'
@@ -28,6 +28,8 @@ export const neuroImageGeneration = inngest.createFunction(
     id: slugify('neuro-image-generation'),
     name: '🎨 Neuro Image Generation',
     retries: 3,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Neuro Image Generation'),
   },
   { event: 'neuro/photo.generate' },
   async ({ event, step }) => {

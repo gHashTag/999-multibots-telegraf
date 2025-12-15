@@ -51,6 +51,8 @@ export function createGenerateAIReelsFunction(inngest: Inngest) {
       period: '1m',
       key: 'event.data.telegramId',
     },
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('AI Reels Generation'),
   },
   { event: 'ai-reels/generate' },
   async ({ event, step }) => {
@@ -274,5 +276,5 @@ export function createGenerateAIReelsFunction(inngest: Inngest) {
 }
 
 // ✅ Export the function directly using inngest from client
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 export const generateAIReels = createGenerateAIReelsFunction(inngest)

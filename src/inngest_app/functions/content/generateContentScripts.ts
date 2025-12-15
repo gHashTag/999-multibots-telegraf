@@ -1,4 +1,4 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { z } from 'zod'
 import { supabase } from '@/core/supabase'
 import { openai } from '@/core/openai'
@@ -45,6 +45,8 @@ export const generateContentScripts = inngest.createFunction(
   {
     id: 'generate-content-scripts',
     name: '🎬 Generate Content Scripts',
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Generate Content Scripts'),
   },
   { event: 'instagram/generate-scripts' },
   async ({ event, step }) => {

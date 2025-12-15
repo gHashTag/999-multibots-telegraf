@@ -7,7 +7,7 @@
  * НАЗНАЧЕНИЕ: Отправка готового видео пользователю в Telegram
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import { logger } from '@/utils/logger'
@@ -130,6 +130,8 @@ export const aiReelsCallbackFunction = inngest.createFunction(
     id: 'ai-reels-callback',
     name: '🔔 AI Reels Callback Handler',
     retries: 3,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('AI Reels Callback Handler'),
   },
   { event: 'ai-reels-callback' },
   async ({ event, step, logger }) => {

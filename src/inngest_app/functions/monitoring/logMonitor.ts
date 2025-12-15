@@ -1,4 +1,4 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
@@ -316,6 +316,8 @@ export const logMonitor = inngest.createFunction(
     id: 'log-monitor',
     name: '📊 Log Monitor & Reporter',
     retries: 2,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Log Monitor & Reporter'),
   },
   {
     // Запускаем каждые 24 часа
@@ -369,6 +371,8 @@ export const triggerLogMonitor = inngest.createFunction(
     id: 'trigger-log-monitor',
     name: '🔄 Trigger Log Monitor (Manual)',
     retries: 1,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Trigger Log Monitor (Manual)'),
   },
   { event: 'logs/monitor.trigger' },
   async ({ event, step }) => {

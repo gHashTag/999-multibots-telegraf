@@ -3,7 +3,7 @@
  * Adapted from ai-server for multibots-telegraf
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import {
@@ -42,6 +42,8 @@ export const neuroImageGeneration = inngest.createFunction(
     id: 'neuro-image-generation',
     name: '🎨 Neuro Image',
     retries: 3,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Neuro Image'),
   },
   { event: 'neuro/photo.generate' },
   async ({ event, step }) => {

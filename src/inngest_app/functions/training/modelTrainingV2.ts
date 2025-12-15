@@ -1,4 +1,4 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
@@ -37,6 +37,8 @@ export const modelTrainingV2 = inngest.createFunction(
   {
     id: slugify('model-training-v2'), // v3 requires id
     name: '🚀 Model Training V2', // Optional display name
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Model Training V2'),
   },
   { event: 'model/training.v2.requested' },
   async ({ event, step, runId }) => {

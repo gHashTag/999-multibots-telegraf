@@ -3,7 +3,7 @@
  * 🎬 Генерация текстовых сценариев для блогеров и цифровых творцов
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { openai } from '@/core/openai'
 import { supabase } from '@/core/supabase'
 import * as fs from 'fs'
@@ -222,6 +222,8 @@ export const generateScenarioClips = inngest.createFunction(
   {
     id: 'generate-scenario-clips',
     name: '🎬 Generate Blogger Text Scenarios',
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Generate Blogger Text Scenarios'),
   },
   { event: 'content/generate-scenario-clips' },
   async ({ event, step, runId, logger: log }) => {

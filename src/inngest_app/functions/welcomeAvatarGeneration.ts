@@ -3,7 +3,7 @@
  * Generates a free AI portrait for new users upon registration
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
 import { generateSeeDream45 } from '@/services/generateSeeDream45'
@@ -109,6 +109,8 @@ export const welcomeAvatarGeneration = inngest.createFunction(
     id: 'welcome-avatar-generation',
     name: '🎁 Welcome Avatar',
     retries: 2,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Welcome Avatar'),
     concurrency: {
       limit: 5,
       key: 'event.data.telegram_id',

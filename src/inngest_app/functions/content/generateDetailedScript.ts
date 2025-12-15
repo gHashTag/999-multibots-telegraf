@@ -3,7 +3,7 @@
  * Генерация детального скрипта раскадровки с положением камеры и детальными промптами
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { openai } from '@/core/openai'
 import { supabase } from '@/core/supabase'
 import { z } from 'zod'
@@ -193,6 +193,8 @@ export const generateDetailedScript = inngest.createFunction(
     id: 'generate-detailed-script',
     name: '📝 Generate Detailed Script',
     concurrency: { limit: 3 },
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Generate Detailed Script'),
   },
   { event: 'content/generate-detailed-script' },
   async ({ event, step, logger: log }) => {

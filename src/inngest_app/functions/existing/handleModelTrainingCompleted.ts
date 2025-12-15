@@ -11,6 +11,7 @@
  */
 
 import { logger } from '@/utils/logger'
+import { createInngestFailureHandler } from '@/inngest_app/client'
 import { supabase } from '@/core/supabase'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
 
@@ -37,6 +38,8 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
       id: 'handle-model-training-completed',
       name: '🤖 Training Complete',
       retries: 2, // Retry on transient errors
+      // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+      onFailure: createInngestFailureHandler('Training Complete'),
     },
     { event: 'model/training.completed' },
     async ({ event, step }) => {

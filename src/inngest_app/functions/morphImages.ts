@@ -4,7 +4,7 @@
  * Simplified version - uses localMorphingProcessor
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { getUserByTelegramId, updateUserBalance } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
@@ -46,6 +46,8 @@ export const morphImages = inngest.createFunction(
     id: 'morph-images',
     name: '🎨 Neuro Morph',
     retries: 3,
+    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+    onFailure: createInngestFailureHandler('Neuro Morph'),
   },
   { event: 'morph/images.requested' },
   async ({ event, step }) => {

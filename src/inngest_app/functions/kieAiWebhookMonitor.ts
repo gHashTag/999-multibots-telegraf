@@ -1,4 +1,4 @@
-import { inngest } from '../client'
+import { inngest, createInngestFailureHandler } from '../client'
 import { logger } from '@/utils/logger'
 import { videoTaskStore } from '@/services/video-task-store'
 import { ADMIN_IDS_ARRAY } from '@/config'
@@ -133,6 +133,8 @@ function createWebhookMonitorFunctions() {
     {
       id: 'kie-ai-webhook-manual-check',
       name: '🤖 Kie.ai Webhook',
+      // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+      onFailure: createInngestFailureHandler('Kie.ai Webhook Manual Check'),
     },
     {
       event: 'kie-ai/webhook-check-manual',
