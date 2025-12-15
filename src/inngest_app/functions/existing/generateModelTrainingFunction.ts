@@ -17,6 +17,7 @@ import { supabase } from '@/core/supabase'
 // 🔥 FIX: Removed static import - read from process.env at runtime to avoid race condition with Infisical
 import { logger } from '@/utils/logger'
 import { createInngestFailureHandler } from '../../client'
+import { sanitizeModelName } from '@/helpers/sanitizeModelName'
 import type { Inngest } from 'inngest'
 
 interface ModelTrainingEvent {
@@ -132,12 +133,67 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         return { dataUri, originalSize: fileBuffer.length }
       })
 
-      // ✅ STEP 4: Create training on Replicate
+      // ✅ STEP 4: Sanitize model name and create model on Replicate
+      const modelInfo = await step.run('create-replicate-model', async () => {
+        const replicate = new Replicate({ auth: credentials.token })
+
+        // Sanitize model name (remove spaces, special chars, make lowercase)
+        const sanitizedName = sanitizeModelName(eventData.modelName)
+        // Add unique timestamp to avoid conflicts
+        const uniqueModelName = `${sanitizedName}-${Date.now()}`
+        const destination = `${credentials.username}/${uniqueModelName}`
+
+        logger.info('[INNGEST TRAINING] Preparing model destination...', {
+          destination,
+          owner: credentials.username,
+          originalName: eventData.modelName,
+          sanitizedName: uniqueModelName,
+        })
+
+        // Check if model exists
+        let modelExists = false
+        try {
+          await replicate.models.get(credentials.username, uniqueModelName)
+          logger.info('[INNGEST TRAINING] Model already exists', { destination })
+          modelExists = true
+        } catch (error: any) {
+          if (error?.response?.status === 404) {
+            logger.info('[INNGEST TRAINING] Model does not exist, creating...', { destination })
+            modelExists = false
+          } else {
+            throw error
+          }
+        }
+
+        // Create model if it doesn't exist
+        if (!modelExists) {
+          try {
+            await replicate.models.create(credentials.username, uniqueModelName, {
+              description: `LoRA: ${eventData.triggerWord}`,
+              visibility: 'public',
+              hardware: 'gpu-l40s',
+            })
+            logger.info('[INNGEST TRAINING] ✅ Model created successfully', { destination })
+            // Wait for model to be fully initialized
+            await new Promise(resolve => setTimeout(resolve, 5000))
+          } catch (createError: any) {
+            logger.error('[INNGEST TRAINING] Failed to create model', {
+              error: createError?.message,
+              destination,
+            })
+            throw new Error(`Failed to create Replicate model: ${createError?.message}`)
+          }
+        }
+
+        return { destination, uniqueModelName }
+      })
+
+      // ✅ STEP 5: Create training on Replicate
       const trainingResult = await step.run('create-replicate-training', async () => {
         // 🔥 FIX: Use credentials from step 1 (loaded from process.env at runtime)
         const replicate = new Replicate({ auth: credentials.token })
 
-        const destination = `${credentials.username}/${eventData.modelName}`
+        const destination = modelInfo.destination
 
         // ✅ ВАЖНО: Webhook URL для получения callback от Replicate
         // Replicate REQUIRES HTTPS! Use BASE_WEBHOOK_URL from Infisical/env
