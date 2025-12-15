@@ -9,6 +9,7 @@ type BalanceOperationProps = {
   paymentAmount: number
   is_ru: boolean
   bot_name?: string
+  is_welcome_gift?: boolean // Flag to skip payment for welcome generation
 }
 
 export const processBalanceOperation = async ({
@@ -17,14 +18,35 @@ export const processBalanceOperation = async ({
   paymentAmount,
   is_ru,
   bot_name,
+  is_welcome_gift,
 }: BalanceOperationProps): Promise<BalanceOperationResult> => {
   console.log('Processing balance operation for:', {
     telegram_id,
     paymentAmount,
     is_ru,
     bot_name,
+    is_welcome_gift,
   })
   console.log('Context available:', !!ctx)
+
+  // 🎁 WELCOME GIFT: Пропускаем оплату для бесплатной генерации при регистрации
+  if (is_welcome_gift) {
+    console.log('🎁 [WELCOME GIFT] Skipping payment - free generation for new user!', {
+      telegram_id,
+      paymentAmount,
+    })
+
+    // Получаем текущий баланс для отображения (но не списываем)
+    const currentBalance = await getUserBalance(telegram_id.toString())
+
+    return {
+      newBalance: currentBalance, // Баланс НЕ изменился
+      success: true, // Операция успешна
+      modePrice: paymentAmount, // Обычная цена (для статистики)
+      paymentAmount: 0, // РЕАЛЬНО списано 0
+      currentBalance,
+    }
+  }
 
   // 🎁 ЛИДMАГНЕТ: Проверяем флаг обхода платежа (ТОЛЬКО для AvatarTransform!)
   // ✅ БЕЗОПАСНОСТЬ: Bypass работает ТОЛЬКО для mode = 'AvatarTransform'

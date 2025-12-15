@@ -35,6 +35,9 @@ import { morphImagesFunction } from './functions/training/morphImages'
 // Generation Functions (2 - including restored version)
 import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
 
+// Welcome Avatar Generation (new user gift)
+import { welcomeAvatarGeneration } from './functions/welcomeAvatarGeneration'
+
 // Payment Functions (1)
 import { processPayment } from './functions/payments/paymentProcessing'
 
@@ -124,6 +127,9 @@ export function createAllInngestFunctions() {
 
     // Generation (1)
     neuroImageGeneration,
+
+    // Welcome Avatar (1) - free generation for new users
+    welcomeAvatarGeneration,
 
     // Payment (1)
     processPayment,

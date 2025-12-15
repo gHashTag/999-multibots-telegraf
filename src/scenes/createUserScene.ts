@@ -15,6 +15,9 @@ import {
 } from '@/helpers/contextUtils'
 import { processPromoLink } from '@/helpers/promoHelper'
 import { telegramLogService } from '@/services/telegram-log.service'
+import { analyzeAvatar } from '@/services/analyzeAvatar'
+import { updateUserGender } from '@/core/supabase/updateUserGender'
+import { inngest, INNGEST_EVENTS } from '@/inngest_app/client'
 
 const SUBSCRIBE_CHANNEL_ID = '@neuro_blogger_pulse'
 
@@ -146,6 +149,71 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         ? '✅ Аватар успешно создан! Добро пожаловать!'
         : '✅ Avatar created successfully! Welcome!'
     )
+
+    // 🎁 WELCOME AVATAR GENERATION: Analyze avatar and generate free portrait
+    try {
+      if (userPhotoUrl) {
+        logger.info('🎁 [CreateUserScene] Analyzing avatar for welcome generation', {
+          telegram_id: telegram_id.toString(),
+          hasAvatar: true,
+        })
+
+        // Analyze avatar to detect face and gender
+        const avatarAnalysis = await analyzeAvatar(userPhotoUrl)
+
+        if (avatarAnalysis.hasFace) {
+          // Save detected gender to database
+          if (avatarAnalysis.gender !== 'unknown') {
+            await updateUserGender(telegram_id.toString(), avatarAnalysis.gender)
+            logger.info('🎁 [CreateUserScene] Gender saved from avatar analysis', {
+              telegram_id: telegram_id.toString(),
+              gender: avatarAnalysis.gender,
+              confidence: avatarAnalysis.confidence,
+            })
+          }
+
+          // Trigger welcome avatar generation via Inngest
+          await inngest.send({
+            name: INNGEST_EVENTS.WELCOME_AVATAR_GENERATE,
+            data: {
+              telegram_id: telegram_id.toString(),
+              avatarUrl: userPhotoUrl,
+              gender: avatarAnalysis.gender,
+              bot_name: ctx.botInfo.username,
+              username: finalUsername,
+              is_ru: isRussianFromState(ctx),
+            },
+          })
+
+          await ctx.reply(
+            isRussianFromState(ctx)
+              ? '🎁 Готовим ваш первый нейро-портрет в подарок... Это займёт несколько секунд!'
+              : '🎁 Preparing your first AI portrait as a gift... This will take a few seconds!'
+          )
+
+          logger.info('🎁 [CreateUserScene] Welcome avatar generation triggered', {
+            telegram_id: telegram_id.toString(),
+            gender: avatarAnalysis.gender,
+          })
+        } else {
+          // No face detected - skip welcome generation
+          logger.info('🎁 [CreateUserScene] No face detected on avatar, skipping welcome generation', {
+            telegram_id: telegram_id.toString(),
+          })
+        }
+      } else {
+        // No avatar - skip welcome generation
+        logger.info('🎁 [CreateUserScene] No avatar available, skipping welcome generation', {
+          telegram_id: telegram_id.toString(),
+        })
+      }
+    } catch (welcomeError) {
+      // Don't block user flow if welcome generation fails
+      logger.error('🎁 [CreateUserScene] Welcome avatar generation error (non-blocking)', {
+        telegram_id: telegram_id.toString(),
+        error: welcomeError instanceof Error ? welcomeError.message : String(welcomeError),
+      })
+    }
 
     // Handle promo logic (new users only)
     if (promoInfo?.isPromo) {

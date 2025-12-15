@@ -43,6 +43,7 @@ export interface SeeDream4ServiceParams {
   max_images?: number
   aspect_ratio?: string
   suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
+  is_welcome_gift?: boolean // ✅ Skip payment for welcome generation
 }
 
 // SeeDream-4 model configuration
@@ -177,17 +178,19 @@ export const generateSeeDream4 = async (
       totalCost
     })
 
-    // ✅ ТОЛЬКО ПРОВЕРКА БАЛАНСА БЕЗ СПИСАНИЯ
+    // ✅ ТОЛЬКО ПРОВЕРКА БАЛАНСА БЕЗ СПИСАНИЯ (пропускаем для welcome gift)
     const currentBalance = await getUserBalance(telegram_id)
 
     logger.info('SeeDream4 balance check', {
       telegram_id,
       currentBalance,
       requiredCost: totalCost,
-      hasEnough: currentBalance >= totalCost
+      hasEnough: currentBalance >= totalCost,
+      isWelcomeGift: params.is_welcome_gift
     })
 
-    if (currentBalance < totalCost) {
+    // 🎁 Welcome gift - пропускаем проверку баланса
+    if (!params.is_welcome_gift && currentBalance < totalCost) {
       // ✅ Only notify user if not in fallback mode
       if (!params.suppressUserErrors) {
         const message = is_ru
@@ -318,13 +321,14 @@ export const generateSeeDream4 = async (
       throw new Error('Failed to process generated image')
     }
 
-    // ✅ СПИСАНИЕ ЗВЕЗД ПОСЛЕ УСПЕШНОЙ ГЕНЕРАЦИИ
+    // ✅ СПИСАНИЕ ЗВЕЗД ПОСЛЕ УСПЕШНОЙ ГЕНЕРАЦИИ (или пропуск для welcome gift)
     const balanceDeduction = await processBalanceOperation({
       ctx,
       telegram_id: Number(telegram_id),
       paymentAmount: totalCost,
       is_ru,
       bot_name: ctx?.botInfo?.username,
+      is_welcome_gift: params.is_welcome_gift,
     })
 
     logger.info('SeeDream4 stars deducted after success', {

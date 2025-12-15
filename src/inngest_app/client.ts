@@ -117,6 +117,9 @@ export const INNGEST_EVENTS = {
   GENERATE_AI_REELS: 'video/generate-ai-reels',
   GENERATE_ADVANCED_LOOPING: 'video/advanced-looping',
   GENERATE_MODEL_TRAINING: 'training/generate-model',
+
+  // Welcome events
+  WELCOME_AVATAR_GENERATE: 'user/welcome.avatar.generate',
 } as const
 
 export type InngestEventName = typeof INNGEST_EVENTS[keyof typeof INNGEST_EVENTS]
