@@ -125,6 +125,49 @@ export const INNGEST_EVENTS = {
 export type InngestEventName = typeof INNGEST_EVENTS[keyof typeof INNGEST_EVENTS]
 
 // Helper function to send events with safety checks
+/**
+ * 🔥 CRITICAL: Reusable onFailure handler for ALL Inngest functions
+ * Logs errors to application logs (not just Inngest dashboard)
+ *
+ * Usage in function definition:
+ * ```typescript
+ * inngest.createFunction(
+ *   {
+ *     id: 'my-function',
+ *     onFailure: createInngestFailureHandler('my-function'),
+ *   },
+ *   ...
+ * )
+ * ```
+ */
+export interface InngestFailureContext {
+  error: Error
+  event: { data?: Record<string, any>; name?: string }
+  runId: string
+}
+
+export const createInngestFailureHandler = (functionName: string) => {
+  return async ({ error, event, runId }: InngestFailureContext) => {
+    // 🔥 CRITICAL: Log to application logs (visible in docker logs)
+    logger.error(`❌ [INNGEST FAILURE] ${functionName}`, {
+      functionName,
+      runId,
+      eventName: event?.name,
+      error: error?.message || String(error),
+      stack: error?.stack,
+      eventData: event?.data ? JSON.stringify(event.data).slice(0, 500) : undefined,
+      timestamp: new Date().toISOString(),
+    })
+
+    // Log to console as backup
+    console.error(`❌ [INNGEST FAILURE] ${functionName}:`, {
+      runId,
+      error: error?.message,
+      eventName: event?.name,
+    })
+  }
+}
+
 export async function sendInngestEvent(
   eventName: InngestEventName,
   data: any

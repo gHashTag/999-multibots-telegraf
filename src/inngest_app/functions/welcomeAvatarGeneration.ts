@@ -6,7 +6,7 @@
 import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
-import { generateSeeDream4 } from '@/services/generateSeeDream4'
+import { generateSeeDream45 } from '@/services/generateSeeDream45'
 
 // Top heroes for each gender (safe, recognizable prompts)
 const MALE_HEROES = [
@@ -190,14 +190,14 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       } as any
 
       try {
-        const result = await generateSeeDream4({
+        const result = await generateSeeDream45({
           prompt,
           inputImageUrl: avatarUrl,
           telegram_id,
           username,
           is_ru,
           ctx: mockCtx,
-          size: '2K',
+          size: '2K', // SeeDream 4.5 supports 2K/4K (no 1K!)
           is_welcome_gift: true, // Skip payment!
           suppressUserErrors: true,
         })

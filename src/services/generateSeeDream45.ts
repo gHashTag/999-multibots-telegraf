@@ -46,6 +46,7 @@ export interface SeeDream45ServiceParams {
   aspect_ratio?: string
   sequential_image_generation?: 'disabled' | 'auto'
   suppressUserErrors?: boolean
+  is_welcome_gift?: boolean // Skip payment for welcome generation
 }
 
 // SeeDream-4.5 model configuration

@@ -14,8 +14,9 @@
 import Replicate from 'replicate'
 import fs from 'fs'
 import { supabase } from '@/core/supabase'
-import { REPLICATE_API_TOKEN, REPLICATE_USERNAME } from '@/config'
+// 🔥 FIX: Removed static import - read from process.env at runtime to avoid race condition with Infisical
 import { logger } from '@/utils/logger'
+import { createInngestFailureHandler } from '../../client'
 import type { Inngest } from 'inngest'
 
 interface ModelTrainingEvent {
@@ -43,6 +44,8 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         },
       ],
       retries: 0, // No retries for training - user can restart manually
+      // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
+      onFailure: createInngestFailureHandler('Model Training - Flux LoRA'),
     },
     { event: 'model/training.start' },
     async ({ event, step }) => {
@@ -55,12 +58,21 @@ export function createGenerateModelTrainingFunction(inngest: any) {
       })
 
       // ✅ STEP 1: Validate credentials
-      await step.run('validate-credentials', async () => {
-        if (!REPLICATE_API_TOKEN || !REPLICATE_USERNAME) {
+      // 🔥 FIX: Read from process.env at runtime (after Infisical has loaded secrets)
+      const credentials = await step.run('validate-credentials', async () => {
+        const token = process.env.REPLICATE_API_TOKEN
+        const username = process.env.REPLICATE_USERNAME
+
+        if (!token || !username) {
+          logger.error('[INNGEST TRAINING] ❌ Missing credentials!', {
+            hasToken: !!token,
+            hasUsername: !!username,
+            envKeys: Object.keys(process.env).filter(k => k.includes('REPLICATE')).join(', '),
+          })
           throw new Error('Missing REPLICATE_API_TOKEN or REPLICATE_USERNAME')
         }
         logger.info('[INNGEST TRAINING] Credentials validated')
-        return { validated: true }
+        return { validated: true, token, username }
       })
 
       // ✅ STEP 2: Check for existing active training (prevent duplicates)
@@ -111,9 +123,10 @@ export function createGenerateModelTrainingFunction(inngest: any) {
 
       // ✅ STEP 4: Create training on Replicate
       const trainingResult = await step.run('create-replicate-training', async () => {
-        const replicate = new Replicate({ auth: REPLICATE_API_TOKEN })
+        // 🔥 FIX: Use credentials from step 1 (loaded from process.env at runtime)
+        const replicate = new Replicate({ auth: credentials.token })
 
-        const destination = `${REPLICATE_USERNAME}/${eventData.modelName}`
+        const destination = `${credentials.username}/${eventData.modelName}`
 
         // ✅ ВАЖНО: Webhook URL для получения callback от Replicate
         // Используем локальный сервер вместо внешнего ai-server
