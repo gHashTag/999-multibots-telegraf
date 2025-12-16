@@ -54,6 +54,7 @@ import {
   videoTranscriptionWizard,
   lipSyncWizard,
   veedFabricWizard,
+  lipSyncModelSelectionScene,
   aiReelsWizard,
   aiReelsEntryWizard,
   aiReelsRenderWizard,
@@ -76,6 +77,7 @@ import {
   faceSwapWizard,
   tonPaymentScene,
   tonNativePaymentScene,
+  musicGenerationWizard,
 } from '@/scenes'
 
 // Импорт обработчиков и команд
@@ -780,8 +782,27 @@ If not, continue on your own and click the "I myself" button`
 
         await ctx.answerCbQuery()
 
-        const targetScene =
-          modelId === 'veed_fabric' ? 'veed_fabric_lipsync' : 'lip_sync'
+        // 🎤 Маршрутизация на нужную сцену в зависимости от модели:
+        // - veed_fabric (kie.ai) → veed_fabric_lipsync (image + text/audio)
+        // - fal_veed_fabric (fal.ai) → veed_fabric_lipsync (image + audio)
+        // - latentsync (fal.ai) → lip_sync (video + audio)
+        // - hummingbird (fal.ai) → lip_sync (video + audio)
+        let targetScene: string
+        switch (modelId) {
+          case 'veed_fabric':
+          case 'fal_veed_fabric':
+            // Image-based models → veed_fabric_lipsync
+            targetScene = 'veed_fabric_lipsync'
+            break
+          case 'latentsync':
+          case 'hummingbird':
+            // Video-based models → lip_sync (video + audio wizard)
+            targetScene = 'lip_sync'
+            break
+          default:
+            // Fallback to old lip_sync wizard
+            targetScene = 'lip_sync'
+        }
 
         ctx.session.selectedLipSyncModel = modelId
 
@@ -926,6 +947,7 @@ export function createStage(): Scenes.Stage<MyContext> {
     videoTranscriptionWizard,
     lipSyncWizard,
     veedFabricWizard,
+    lipSyncModelSelectionScene,
     aiReelsWizard,
     aiReelsEntryWizard,
     aiReelsRenderWizard,
@@ -949,6 +971,7 @@ export function createStage(): Scenes.Stage<MyContext> {
     faceSwapWizard,
     tonPaymentScene,
     tonNativePaymentScene,
+    musicGenerationWizard,
     // ✅ ДОБАВЛЯЕМ СЦЕНЫ КАТЕГОРИЙ
     ...getCategoryScenes(),
   ]
@@ -986,6 +1009,7 @@ export function createStage(): Scenes.Stage<MyContext> {
     'videoTranscriptionWizard',
     'lipSyncWizard',
     'veedFabricWizard',
+    'lipSyncModelSelectionScene',
     'aiReelsWizard',
     'aiReelsEntryWizard',
     'aiReelsRenderWizard',

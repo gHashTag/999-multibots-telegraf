@@ -8,6 +8,8 @@ export enum LipSyncModelType {
   SYNC_V2 = 'sync_v2',
   VEED_FABRIC = 'veed_fabric',
   FAL_VEED_FABRIC = 'fal_veed_fabric',
+  LATENTSYNC = 'latentsync',
+  HUMMINGBIRD = 'hummingbird',
 }
 
 export interface LipSyncModelConfig {
@@ -110,6 +112,46 @@ export const LIPSYNC_MODELS: Record<LipSyncModelType, LipSyncModelConfig> = {
       'Обновленные реальные цены',
     ],
   },
+  [LipSyncModelType.LATENTSYNC]: {
+    id: 'latentsync',
+    name: '🧠 LatentSync (ByteDance)',
+    description:
+      'Открытая модель от ByteDance на базе Stable Diffusion. Высокая точность синхронизации без промежуточных представлений. Поддержка реальных и анимационных видео.',
+    provider: 'fal',
+    modelId: 'fal-ai/latentsync',
+    costPerSecond: 0.005, // $0.20 за первые 40 сек, потом $0.005/сек
+    maxDuration: 120,
+    quality: 'high',
+    isAvailable: true,
+    features: [
+      'Open-source от ByteDance',
+      'Высокая точность (94% HDTF)',
+      'Поддержка аниме и реальных видео',
+      'Экономичная цена - ~3⭐/сек',
+      'До 2 минут видео',
+      'Версия 1.5 (март 2025)',
+    ],
+  },
+  [LipSyncModelType.HUMMINGBIRD]: {
+    id: 'hummingbird',
+    name: '🐦 Hummingbird-0 (Tavus)',
+    description:
+      'Премиум модель от Tavus - лидер benchmark по точности lip sync. Zero-shot без дообучения. Лучший выбор для профессионального контента.',
+    provider: 'fal',
+    modelId: 'fal-ai/tavus/hummingbird-lipsync/v0',
+    costPerSecond: 0.035, // $2.10/мин = $0.035/сек
+    maxDuration: 300, // до 5 минут
+    quality: 'premium',
+    isAvailable: true,
+    features: [
+      'Лидер benchmark по точности',
+      'Zero-shot - без дообучения',
+      'Премиум качество - 22⭐/сек',
+      'До 5 минут видео',
+      'Лучший для talking-head',
+      'Новейшая модель (апрель 2025)',
+    ],
+  },
 }
 
 /**
@@ -192,6 +234,33 @@ export function calculateLipSyncCostStars(
     const starsBeforeMarkup = totalCostUSD / STAR_COST_USD
     const starsWithMarkup = starsBeforeMarkup * MARKUP_MULTIPLIER
     return Math.floor(starsWithMarkup) // Применяем централизованную наценку 50%
+  }
+
+  // ✅ LatentSync: $0.20 за первые 40 сек, потом $0.005/сек
+  if (modelId === 'latentsync') {
+    const {
+      MARKUP_MULTIPLIER,
+      STAR_COST_USD,
+    } = require('@/price/constants')
+    // Специальная pricing модель: $0.20 flat до 40 сек, потом $0.005/сек
+    const baseCost = 0.20 // минимум $0.20
+    const extraSeconds = Math.max(0, durationSeconds - 40)
+    const totalCostUSD = baseCost + extraSeconds * 0.005
+    const starsBeforeMarkup = totalCostUSD / STAR_COST_USD
+    const starsWithMarkup = starsBeforeMarkup * MARKUP_MULTIPLIER
+    return Math.ceil(starsWithMarkup)
+  }
+
+  // ✅ Hummingbird: $2.10/мин = $0.035/сек
+  if (modelId === 'hummingbird') {
+    const {
+      MARKUP_MULTIPLIER,
+      STAR_COST_USD,
+    } = require('@/price/constants')
+    const totalCostUSD = 0.035 * durationSeconds
+    const starsBeforeMarkup = totalCostUSD / STAR_COST_USD
+    const starsWithMarkup = starsBeforeMarkup * MARKUP_MULTIPLIER
+    return Math.ceil(starsWithMarkup)
   }
 
   // Для других моделей - конвертируем USD в звезды

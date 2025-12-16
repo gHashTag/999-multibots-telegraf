@@ -1,7 +1,7 @@
 import { calculateCost } from '@/price/priceCalculator'
 import { logger } from '@/utils/logger'
 
-import { starCost, SYSTEM_CONFIG, interestRate } from '@/price/constants'
+import { starCost, SYSTEM_CONFIG, interestRate, usdToStars } from '@/price/constants'
 import {
   ModeEnum,
   CostCalculationParams,
@@ -177,3 +177,47 @@ export const maxCost = parseFloat(
     )
   ).toFixed(2)
 )
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎵 SUNO MUSIC GENERATION PRICING
+// Используем KIE AI API для генерации музыки через Suno
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Конфигурация Suno Music через KIE AI
+ * Базовая цена: $0.40 за минуту (suno-v4.5-plus)
+ * Системная наценка 50% применяется через usdToStars()
+ */
+export const SUNO_MUSIC_CONFIG = {
+  baseUsdPerMin: 0.40,      // Базовая цена KIE AI за минуту
+  model: 'suno-v4.5-plus',  // Модель Suno
+  minDuration: 60,          // Минимум 1 минута
+  maxDuration: 180,         // Максимум 3 минуты
+} as const
+
+/**
+ * Рассчитывает стоимость генерации музыки в Stars
+ * Использует системную наценку 50% через usdToStars()
+ *
+ * @param durationSeconds - длительность в секундах (60, 120, 180)
+ * @returns стоимость в Stars
+ *
+ * @example
+ * calculateSunoMusicCost(60)  // 37 Stars (1 мин)
+ * calculateSunoMusicCost(120) // 75 Stars (2 мин)
+ * calculateSunoMusicCost(180) // 113 Stars (3 мин)
+ */
+export function calculateSunoMusicCost(durationSeconds: number): number {
+  const minutes = durationSeconds / 60
+  const baseCostUSD = SUNO_MUSIC_CONFIG.baseUsdPerMin * minutes
+  return usdToStars(baseCostUSD) // Системная наценка 50% уже включена
+}
+
+/**
+ * Предустановленные длительности для кнопок
+ */
+export const SUNO_DURATION_OPTIONS = [
+  { seconds: 60, label: '1 мин', labelEn: '1 min', stars: calculateSunoMusicCost(60) },
+  { seconds: 120, label: '2 мин', labelEn: '2 min', stars: calculateSunoMusicCost(120) },
+  { seconds: 180, label: '3 мин', labelEn: '3 min', stars: calculateSunoMusicCost(180) },
+] as const

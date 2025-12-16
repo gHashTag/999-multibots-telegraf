@@ -1,11 +1,8 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { generateLipSync } from '../../services/generateLipSync'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { BASE_COSTS } from '@/price/helpers/modelsCost'
-import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
 import {
@@ -13,47 +10,50 @@ import {
   validateAudioInput,
   validateSession,
   validateTelegramFile,
-  isValidAdmin,
   LIPSYNC_CONSTANTS,
-  LipsyncSessionSchema,
-  MediaInputSchema,
-  LipsyncErrorSchema
 } from '@/interfaces/zod/lipsync.zod'
 import { z } from 'zod'
-
-// НОВОЕ: Проверка админских прав для LipSync с Zod валидацией
-const adminIds = process.env.ADMIN_IDS?.split(',') || []
-
-function isUserAdmin(telegramId: string): boolean {
-  return isValidAdmin(telegramId, adminIds)
-}
+import { logger } from '@/utils/logger'
+import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-provider'
+import { getLipSyncModelById, calculateLipSyncCostStars } from '@/config/lipsync-models.config'
+import { convertAudioToMp3, needsAudioConversion } from '@/helpers/video-helpers'
 
 const MAX_FILE_SIZE = LIPSYNC_CONSTANTS.MAX_FILE_SIZE
 
-// Рассчитываем стоимость LipSync
-const LIPSYNC_COST_VALUE = BASE_COSTS[ModeEnum.LipSync] || 84.38 // 84.38⭐
-const LIPSYNC_COST =
-  typeof LIPSYNC_COST_VALUE === 'function'
-    ? LIPSYNC_COST_VALUE(1)
-    : LIPSYNC_COST_VALUE
+// Fal.ai провайдер для LatentSync и Hummingbird
+const falProvider = new FalVeedFabricProvider()
+
+/**
+ * Получает выбранную модель из сессии или использует default
+ */
+function getSelectedModel(ctx: MyContext): string {
+  return ctx.session?.selectedLipSyncModel || 'latentsync'
+}
+
+/**
+ * Рассчитывает стоимость для выбранной модели
+ */
+function calculateCostForModel(modelId: string, durationSeconds: number = 10): number {
+  return calculateLipSyncCostStars(modelId, durationSeconds)
+}
 
 export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
   'lip_sync',
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
-    
+
     try {
-      // Валидация и проверка админских прав
-      if (!telegramId || !isUserAdmin(telegramId)) {
+      // Проверка наличия telegramId
+      if (!telegramId) {
         await ctx.reply(
-          isRu 
-            ? '🔒 Извините, функция LipSync временно доступна только администраторам.'
-            : '🔒 Sorry, LipSync feature is temporarily available for administrators only.'
+          isRu
+            ? '❌ Ошибка идентификации пользователя.'
+            : '❌ User identification error.'
         )
         return ctx.scene.leave()
       }
-      
+
       // Инициализируем сессию с валидацией
       const validatedSession = validateSession({
         step: 'video',
@@ -278,8 +278,21 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         throw new Error('User ID не предоставлен')
       }
 
-    // НОВОЕ: ПРОВЕРКА БАЛАНСА
+    // Получаем выбранную модель из сессии
     const telegramId = ctx.from.id.toString()
+    const selectedModelId = getSelectedModel(ctx)
+    const modelConfig = getLipSyncModelById(selectedModelId)
+
+    logger.info('🎤 [LIP SYNC] Выбранная модель', {
+      telegramId,
+      selectedModelId,
+      modelName: modelConfig?.name,
+    })
+
+    // Рассчитываем стоимость для выбранной модели (примерно 10 секунд видео)
+    const estimatedDuration = 10 // секунд
+    const lipSyncCost = calculateCostForModel(selectedModelId, estimatedDuration)
+
     const currentBalance = await getUserBalance(telegramId)
 
     if (currentBalance === null) {
@@ -291,25 +304,25 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    if (currentBalance < LIPSYNC_COST) {
+    if (currentBalance < lipSyncCost) {
       await ctx.reply(
         isRu
-          ? `Недостаточно средств. Требуется: ${LIPSYNC_COST}⭐, у вас: ${currentBalance}⭐`
-          : `Insufficient funds. Required: ${LIPSYNC_COST}⭐, you have: ${currentBalance}⭐`
+          ? `Недостаточно средств. Требуется: ~${Math.ceil(lipSyncCost)}⭐ (за ~${estimatedDuration} сек), у вас: ${Math.floor(currentBalance)}⭐`
+          : `Insufficient funds. Required: ~${Math.ceil(lipSyncCost)}⭐ (for ~${estimatedDuration} sec), you have: ${Math.floor(currentBalance)}⭐`
       )
       return ctx.scene.leave()
     }
 
-    // НОВОЕ: СПИСАНИЕ СРЕДСТВ
+    // Списание средств
     const paymentSuccess = await updateUserBalance(
       telegramId,
-      LIPSYNC_COST,
+      lipSyncCost,
       PaymentType.MONEY_OUTCOME,
-      'LipSync video generation',
+      `LipSync: ${modelConfig?.name || selectedModelId}`,
       {
         bot_name: ctx.botInfo?.username || 'unknown_bot',
         service_type: 'lip_sync',
-        model_name: 'kwaivgi/kling-lip-sync',
+        model_name: selectedModelId,
         language: isRu ? 'ru' : 'en',
       }
     )
@@ -323,64 +336,127 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Показываем информацию о списании
-    const newBalance = currentBalance - LIPSYNC_COST
+    const newBalance = currentBalance - lipSyncCost
     await ctx.reply(
       isRu
-        ? `Списано ${LIPSYNC_COST}⭐. Новый баланс: ${newBalance}⭐`
-        : `Charged ${LIPSYNC_COST}⭐. New balance: ${newBalance}⭐`
+        ? `✅ Списано ~${Math.ceil(lipSyncCost)}⭐ (${modelConfig?.name || selectedModelId}). Баланс: ${Math.floor(newBalance)}⭐`
+        : `✅ Charged ~${Math.ceil(lipSyncCost)}⭐ (${modelConfig?.name || selectedModelId}). Balance: ${Math.floor(newBalance)}⭐`
     )
 
     if (!ctx.session.videoUrl || !ctx.session.audioUrl) {
-      console.error('❌ Video URL или Audio URL не найден')
-      // Возвращаем средства при ошибке
+      logger.error('❌ Video URL или Audio URL не найден', { telegramId })
       await updateUserBalance(
         telegramId,
-        LIPSYNC_COST,
+        lipSyncCost,
         PaymentType.MONEY_INCOME,
         'LipSync refund - missing URLs',
-        {
-          bot_name: ctx.botInfo?.username || 'unknown_bot',
-        }
+        { bot_name: ctx.botInfo?.username || 'unknown_bot' }
       )
       return ctx.scene.leave()
     }
 
     try {
-      await generateLipSync(
-        ctx.session.videoUrl,
-        ctx.session.audioUrl,
-        telegramId,
-        ctx.botInfo?.username || 'unknown_bot'
-      )
+      // Определяем Fal.ai modelId по выбранному ID
+      const falModelId = selectedModelId === 'latentsync'
+        ? 'fal-ai/latentsync'
+        : selectedModelId === 'hummingbird'
+          ? 'fal-ai/tavus/hummingbird-lipsync/v0'
+          : 'fal-ai/latentsync' // default
 
-      await ctx.reply(
-        isRu
-          ? 'Видео отправлено на обработку. Ждите результата.'
-          : 'Video sent for processing. Wait for the result.'
-      )
+      // Конвертируем аудио из .oga в .mp3 если нужно (Telegram voice messages)
+      let finalAudioUrl = ctx.session.audioUrl
+      if (needsAudioConversion(ctx.session.audioUrl)) {
+        await ctx.reply(
+          isRu
+            ? '🔄 Конвертирую аудио в MP3 формат...'
+            : '🔄 Converting audio to MP3 format...'
+        )
+
+        try {
+          finalAudioUrl = await convertAudioToMp3(ctx.session.audioUrl, telegramId)
+          logger.info('✅ [LIP SYNC] Audio converted to MP3', {
+            telegramId,
+            originalUrl: ctx.session.audioUrl.substring(0, 50) + '...',
+            convertedUrl: finalAudioUrl.substring(0, 50) + '...',
+          })
+        } catch (conversionError) {
+          logger.error('❌ [LIP SYNC] Audio conversion failed', {
+            error: conversionError instanceof Error ? conversionError.message : String(conversionError),
+            telegramId,
+          })
+          throw new Error(
+            isRu
+              ? 'Не удалось конвертировать аудио. Попробуйте отправить MP3 или WAV файл.'
+              : 'Failed to convert audio. Please try sending an MP3 or WAV file.'
+          )
+        }
+      }
+
+      logger.info('🚀 [LIP SYNC] Запуск генерации через Fal.ai', {
+        telegramId,
+        falModelId,
+        videoUrl: ctx.session.videoUrl.substring(0, 50) + '...',
+        audioUrl: finalAudioUrl.substring(0, 50) + '...',
+      })
+
+      // Используем Fal.ai провайдер для LatentSync/Hummingbird
+      const result = await falProvider.generate({
+        provider: 'fal',
+        modelId: falModelId,
+        telegramId,
+        videoUrl: ctx.session.videoUrl,
+        audioUrl: finalAudioUrl,
+        durationSeconds: estimatedDuration,
+      })
+
+      // Проверяем результат
+      if ('error' in result) {
+        throw new Error(result.message || 'Ошибка генерации')
+      }
+
+      logger.info('✅ [LIP SYNC] Генерация успешна', {
+        telegramId,
+        resultId: result.id,
+        outputUrl: result.output?.substring(0, 50) + '...',
+      })
+
+      // Отправляем видео пользователю
+      if (result.output) {
+        await ctx.replyWithVideo(result.output, {
+          caption: isRu
+            ? `✅ Lip Sync готов! (${modelConfig?.name || selectedModelId})`
+            : `✅ Lip Sync ready! (${modelConfig?.name || selectedModelId})`,
+        })
+      } else {
+        await ctx.reply(
+          isRu
+            ? '✅ Видео обрабатывается. Результат будет отправлен позже.'
+            : '✅ Video is processing. Result will be sent later.'
+        )
+      }
     } catch (error) {
-      console.error('❌ Error in generateLipSync:', error)
+      logger.error('❌ Error in Fal.ai LipSync generation:', {
+        error: error instanceof Error ? error.message : String(error),
+        telegramId,
+      })
 
       // Возвращаем средства при ошибке
       await updateUserBalance(
         telegramId,
-        LIPSYNC_COST,
+        lipSyncCost,
         PaymentType.MONEY_INCOME,
         'LipSync refund - generation error',
-        {
-          bot_name: ctx.botInfo?.username || 'unknown_bot',
-        }
+        { bot_name: ctx.botInfo?.username || 'unknown_bot' }
       )
 
-      const errorMessage = error instanceof z.ZodError 
+      const errorMessage = error instanceof z.ZodError
         ? error.errors.map(e => e.message).join(', ')
         : error instanceof Error ? error.message : 'Неизвестная ошибка'
 
       await ctx.reply(
         isRu
-          ? `❌ Произошла ошибка при обработке видео: ${errorMessage}. Средства возвращены.`
-          : `❌ An error occurred while processing the video: ${errorMessage}. Funds refunded.`
+          ? `❌ Ошибка при обработке: ${errorMessage}. Средства возвращены.`
+          : `❌ Processing error: ${errorMessage}. Funds refunded.`
       )
     }
     

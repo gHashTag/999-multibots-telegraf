@@ -73,6 +73,7 @@ export enum ModeEnum {
   AiPhotoshop = 'ai_photoshop_scene',
 
   // 🎤 LIPSYNC ВАРИАНТЫ (используются в lipSyncWizard/)
+  LipSyncModelSelection = 'lip_sync_model_selection',
   VeedFabricLipSync = 'veed_fabric_lipsync',
   AiReelsWizard = 'ai_reels_wizard',
   AiReelsEntryWizard = 'ai_reels_entry_wizard',
@@ -94,6 +95,9 @@ export enum ModeEnum {
   /** @deprecated Не используется, есть NeuroPhoto */
   TextToImage = 'text_to_image',
   FluxKontext = 'flux_kontext',
+
+  // 🎵 МУЗЫКА
+  MusicGeneration = 'music_generation_wizard',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей

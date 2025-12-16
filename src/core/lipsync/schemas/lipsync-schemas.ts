@@ -208,6 +208,62 @@ export const LipSyncInputBuilder = {
   },
 
   /**
+   * Создать входные данные для LatentSync (ByteDance) модели через Fal.ai
+   * Требует VIDEO + AUDIO (не image!)
+   * @param videoUrl - URL видео для lip-sync
+   * @param audioUrl - URL аудиофайла
+   * @param telegramId - ID пользователя Telegram
+   * @param options - Дополнительные опции
+   * @returns Объект входных данных для LatentSync
+   */
+  forLatentSync: (
+    videoUrl: string,
+    audioUrl: string,
+    telegramId: string,
+    options?: {
+      botName?: string
+      guidanceScale?: number
+    }
+  ): UniversalLipSyncInput => {
+    return {
+      videoUrl,
+      audioUrl,
+      telegramId,
+      provider: 'fal',
+      modelId: 'fal-ai/latentsync',
+      botName: options?.botName || 'unknown_bot',
+      guidanceScale: options?.guidanceScale || 1.5,
+    }
+  },
+
+  /**
+   * Создать входные данные для Hummingbird-0 (Tavus) модели через Fal.ai
+   * Требует VIDEO + AUDIO (не image!)
+   * @param videoUrl - URL видео для lip-sync
+   * @param audioUrl - URL аудиофайла
+   * @param telegramId - ID пользователя Telegram
+   * @param options - Дополнительные опции
+   * @returns Объект входных данных для Hummingbird
+   */
+  forHummingbird: (
+    videoUrl: string,
+    audioUrl: string,
+    telegramId: string,
+    options?: {
+      botName?: string
+    }
+  ): UniversalLipSyncInput => {
+    return {
+      videoUrl,
+      audioUrl,
+      telegramId,
+      provider: 'fal',
+      modelId: 'fal-ai/tavus/hummingbird-lipsync/v0',
+      botName: options?.botName || 'unknown_bot',
+    }
+  },
+
+  /**
    * Универсальный метод build для обратной совместимости
    */
   build() {
