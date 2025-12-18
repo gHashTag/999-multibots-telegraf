@@ -14,15 +14,14 @@ export async function getUserByTelegramId(
       telegramId = ctxOrTelegramId
     } else {
       if (!ctxOrTelegramId.from) {
-        logger.error({
-          message: '[getUserByTelegramId] User not found in context',
+        logger.error('[getUserByTelegramId] User not found in context', {
           telegramId: 'unknown',
         })
         throw new Error('User not found in context')
       }
       telegramId = ctxOrTelegramId.from.id.toString()
     }
-    logger.info({ message: '[getUserByTelegramId] Fetching user', telegramId })
+    logger.info('[getUserByTelegramId] Fetching user', { telegramId })
 
     // 🛡️ BEST PRACTICE: Robust query with duplicate handling
     const { data: users, error: dbError } = await supabase
@@ -77,8 +76,7 @@ export async function getUserByTelegramId(
 
     return user
   } catch (error) {
-    logger.error({
-      message: '[getUserByTelegramId] Caught error',
+    logger.error('[getUserByTelegramId] Caught error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId:
         typeof ctxOrTelegramId === 'string'

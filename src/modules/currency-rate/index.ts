@@ -56,8 +56,7 @@ export async function getCurrentRate(
   try {
     // Проверяем кеш если он включен
     if (cache && rateCache && Date.now() - rateCache.timestamp < CACHE_TTL) {
-      logger.info({
-        message: '💰 Курс USDT/RUB получен из кеша',
+      logger.info('💰 Курс USDT/RUB получен из кеша', {
         rate: rateCache.rate,
       })
       return rateCache.rate
@@ -107,8 +106,7 @@ export async function getCurrentRate(
 
     const rate = Math.round(minPrice)
 
-    logger.info({
-      message: '💰 Получен актуальный курс USDT/RUB через Bybit',
+    logger.info('💰 Получен актуальный курс USDT/RUB через Bybit', {
       rate,
       cached: cache,
       available_prices: prices.length,
@@ -116,8 +114,7 @@ export async function getCurrentRate(
 
     return rate
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка получения курса USDT/RUB',
+    logger.error('❌ Ошибка получения курса USDT/RUB', {
       error: error instanceof Error ? error.message : 'Unknown error',
       using_fallback: fallback,
     })

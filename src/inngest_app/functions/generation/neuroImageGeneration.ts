@@ -43,16 +43,14 @@ export const neuroImageGeneration = inngest.createFunction(
         gender, // ← ДОБАВЛЕНО: извлекаем gender из event.data
       } = event.data
 
-      logger.info({
-        message: '🎨 Starting neuro image generation',
+      logger.info('🎨 Starting neuro image generation', {
         telegram_id,
         prompt: prompt.substring(0, 50) + '...',
         model_url,
       })
 
       const botData = (await step.run('get-bot', async () => {
-        logger.info({
-          message: '🤖 Getting bot instance',
+        logger.info('🤖 Getting bot instance', {
           botName: bot_name,
           step: 'get-bot',
         })
@@ -63,22 +61,19 @@ export const neuroImageGeneration = inngest.createFunction(
       const bot = botData.bot
 
       if (!bot) {
-        logger.error({
-          message: '❌ Bot instance not found',
+        logger.error('❌ Bot instance not found', {
           bot_name,
           telegram_id,
         })
       } else {
-        logger.info({
-          message: '✅ Bot instance found',
+        logger.info('✅ Bot instance found', {
           bot_name,
           telegram_id,
         })
       }
 
       const userExists = await step.run('check-user', async () => {
-        logger.info({
-          message: '👤 Validating user existence',
+        logger.info('👤 Validating user existence', {
           telegram_id,
         })
         const user = await getUserByTelegramId(telegram_id)
@@ -108,8 +103,7 @@ export const neuroImageGeneration = inngest.createFunction(
           }
         }
 
-        logger.info({
-          message: '🎭 Gender для генерации (Inngest)',
+        logger.info('🎭 Gender для генерации (Inngest)', {
           gender: resolvedGender || 'НЕ ОПРЕДЕЛЕН',
           telegram_id,
         })
@@ -121,8 +115,7 @@ export const neuroImageGeneration = inngest.createFunction(
       if (userExists.level === 1) {
         await step.run('update-level', async () => {
           await updateUserLevelPlusOne(telegram_id, userExists.level)
-          logger.info({
-            message: '⬆️ User level upgraded',
+          logger.info('⬆️ User level upgraded', {
             telegram_id,
             newLevel: userExists.level + 1,
           })
@@ -135,8 +128,7 @@ export const neuroImageGeneration = inngest.createFunction(
           numImages: num_images,
         })
 
-        logger.info({
-          message: '💸 Calculated image cost',
+        logger.info('💸 Calculated image cost', {
           num_images,
           totalCost: costResult.stars,
         })
@@ -152,8 +144,7 @@ export const neuroImageGeneration = inngest.createFunction(
         })
 
         if (!result.success) {
-          logger.error({
-            message: '⚠️ Balance check failed or insufficient funds',
+          logger.error('⚠️ Balance check failed or insufficient funds', {
             telegramId: telegram_id,
             requiredAmount: totalCost,
             currentBalance: result.currentBalance,
@@ -184,8 +175,7 @@ export const neuroImageGeneration = inngest.createFunction(
           }
           throw new Error(result.error || 'Balance check failed')
         }
-        logger.info({
-          message: '✅ Balance check successful',
+        logger.info('✅ Balance check successful', {
           telegramId: telegram_id,
           currentBalance: result.currentBalance,
           requiredAmount: totalCost,
@@ -201,8 +191,7 @@ export const neuroImageGeneration = inngest.createFunction(
 
       const aspect_ratio = await step.run('get-aspect-ratio', async () => {
         const ratio = await getAspectRatio(telegram_id)
-        logger.info({
-          message: '📐 Using aspect ratio',
+        logger.info('📐 Using aspect ratio', {
           ratio,
         })
         return ratio
@@ -316,8 +305,7 @@ export const neuroImageGeneration = inngest.createFunction(
       }
 
       const finalBalance = await step.run('deduct-balance-final', async () => {
-        logger.info({
-          message: '💸 Deducting balance after successful image generation',
+        logger.info('💸 Deducting balance after successful image generation', {
           telegramId: telegram_id,
           paymentAmount: totalCost,
           currentBalance: initialBalance,
@@ -342,8 +330,7 @@ export const neuroImageGeneration = inngest.createFunction(
           }
         )
 
-        logger.info({
-          message: '✅ Balance updated successfully',
+        logger.info('✅ Balance updated successfully', {
           telegramId: telegram_id,
           newBalance: newBalance,
           step: 'deduct-balance-final',
@@ -395,16 +382,14 @@ export const neuroImageGeneration = inngest.createFunction(
         )
       })
 
-      logger.info({
-        message: '✅ Successfully completed neuro generation',
+      logger.info('✅ Successfully completed neuro generation', {
         telegram_id,
         numImages: generatedImages.length,
       })
 
       return { success: true, images: generatedImages }
     } catch (error) {
-      logger.error({
-        message: '🚨 Neuro image generation failed',
+      logger.error('🚨 Neuro image generation failed', {
         error: error.message,
         stack: error.stack,
         telegram_id: event.data.telegram_id,

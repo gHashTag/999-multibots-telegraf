@@ -90,8 +90,7 @@ export async function generateNeuroPhotoMulti(
   const isMultiImage = imageUrls && imageUrls.length > 1
   const actualImageCount = isMultiImage ? imageUrls!.length : numImages
 
-  logger.info({
-    message: '🔄 [MULTI] Starting multi-neurophoto generation',
+  logger.info('🔄 [MULTI] Starting multi-neurophoto generation', {
     telegram_id,
     numImages,
     actualImageCount,
@@ -126,8 +125,7 @@ export async function generateNeuroPhotoMulti(
   const exactCostPerImage = Number(costResult.stars) // 7.5⭐
   const exactTotalCost = exactCostPerImage * actualImageCount
 
-  logger.info({
-    message: '💰 [MULTI] Calculated cost for multiple images',
+  logger.info('💰 [MULTI] Calculated cost for multiple images', {
     exactCostPerImage,
     exactTotalCost,
     actualImageCount,
@@ -146,8 +144,7 @@ export async function generateNeuroPhotoMulti(
 
   try {
     // PLAN A: Try server processing
-    logger.info({
-      message: '🌐 [MULTI] Attempting server processing',
+    logger.info('🌐 [MULTI] Attempting server processing', {
       telegram_id,
     })
 
@@ -173,8 +170,7 @@ export async function generateNeuroPhotoMulti(
       actual_image_count: actualImageCount,
     }
 
-    logger.info({
-      message: '📤 [MULTI] Sending multi-image data to server',
+    logger.info('📤 [MULTI] Sending multi-image data to server', {
       url,
       isMultiImage,
       actualImageCount,
@@ -189,8 +185,7 @@ export async function generateNeuroPhotoMulti(
       timeout: 60000, // Extended timeout for multi-image processing
     })
 
-    logger.info({
-      message: '✅ [MULTI] Server responded successfully',
+    logger.info('✅ [MULTI] Server responded successfully', {
       telegram_id,
       response_status: response.status,
     })
@@ -206,8 +201,7 @@ export async function generateNeuroPhotoMulti(
 
     if (response.data.urls && Array.isArray(response.data.urls) && response.data.urls.length > 0) {
       // Server returned ready images
-      logger.info({
-        message: '📸 [MULTI] Sending multiple photos to user',
+      logger.info('📸 [MULTI] Sending multiple photos to user', {
         telegram_id,
         urls_count: response.data.urls.length,
       })
@@ -237,8 +231,7 @@ export async function generateNeuroPhotoMulti(
             await new Promise(resolve => setTimeout(resolve, 500))
           }
         } catch (sendError) {
-          logger.error({
-            message: '❌ [MULTI] Error sending photo',
+          logger.error('❌ [MULTI] Error sending photo', {
             telegram_id,
             url,
             index: i,
@@ -263,8 +256,7 @@ export async function generateNeuroPhotoMulti(
 
     } else if (response.data.jobId) {
       // Server accepted for async processing
-      logger.info({
-        message: '✅ [MULTI] Server accepted for async processing',
+      logger.info('✅ [MULTI] Server accepted for async processing', {
         telegram_id,
         jobId: response.data.jobId,
       })
@@ -276,8 +268,7 @@ export async function generateNeuroPhotoMulti(
   } catch (error) {
     // Log server error
     if (isAxiosError(error)) {
-      logger.warn({
-        message: '⚠️ [MULTI] Server processing failed',
+      logger.warn('⚠️ [MULTI] Server processing failed', {
         telegram_id,
         error_status: error.response?.status,
         error_message: error.response?.data?.error || error.message,
@@ -296,8 +287,7 @@ export async function generateNeuroPhotoMulti(
     }
 
     // PLAN B: Fall back to local processing
-    logger.info({
-      message: '🔄 [MULTI] Falling back to local processing',
+    logger.info('🔄 [MULTI] Falling back to local processing', {
       telegram_id,
     })
 
@@ -306,8 +296,7 @@ export async function generateNeuroPhotoMulti(
         // Process multiple input images sequentially
         const results = []
         for (let i = 0; i < imageUrls.length; i++) {
-          logger.info({
-            message: `🔄 [MULTI] Processing image ${i + 1}/${imageUrls.length}`,
+          logger.info(`🔄 [MULTI] Processing image ${i + 1}/${imageUrls.length}`, {
             telegram_id,
           })
 
@@ -361,8 +350,7 @@ export async function generateNeuroPhotoMulti(
         return localResult
       }
     } catch (localError) {
-      logger.error({
-        message: '❌ [MULTI] Both server and local processing failed',
+      logger.error('❌ [MULTI] Both server and local processing failed', {
         telegram_id,
         server_error: String(error),
         local_error: String(localError),

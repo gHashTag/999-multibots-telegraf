@@ -247,9 +247,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
               ? `🔗 Новый пользователь @${finalUsername} зарегистрировался по вашей ссылке!`
               : `🔗 New user @${finalUsername} registered using your link!`
           )
-          logger.info({
-            message:
-              '✉️ [CreateUserScene] Уведомление пригласившему отправлено',
+          logger.info('✉️ [CreateUserScene] Уведомление пригласившему отправлено', {
             telegramId: telegram_id.toString(),
             inviterId: ctx.session.inviteCode,
             step: 'inviter_notification_sent',
@@ -260,9 +258,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
             'code' in inviterNotifyError &&
             inviterNotifyError.code === 403
           ) {
-            logger.warn({
-              message:
-                '⚠️ [CreateUserScene] Не удалось отправить уведомление пригласившему (возможно, бот заблокирован им)',
+            logger.warn('⚠️ [CreateUserScene] Не удалось отправить уведомление пригласившему (возможно, бот заблокирован им)', {
               telegramId: telegram_id.toString(),
               inviterId: ctx.session.inviteCode,
               botName: ctx.botInfo.username,
@@ -270,9 +266,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
               step: 'inviter_notification_failed_403',
             })
           } else {
-            logger.error({
-              message:
-                '❌ [CreateUserScene] Ошибка при отправке уведомления пригласившему',
+            logger.error('❌ [CreateUserScene] Ошибка при отправке уведомления пригласившему', {
               telegramId: telegram_id.toString(),
               inviterId: ctx.session.inviteCode,
               error:
@@ -290,9 +284,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           SUBSCRIBE_CHANNEL_ID,
           `🔗 Новый пользователь @${finalUsername} зарегистрировался. По реф. ссылке от: @${inviterUsername}`
         )
-        logger.info({
-          message:
-            '📢 [CreateUserScene] Уведомление о новом пользователе (с рефералом) отправлено в канал',
+        logger.info('📢 [CreateUserScene] Уведомление о новом пользователе (с рефералом) отправлено в канал', {
           telegramId: telegram_id.toString(),
           channel: SUBSCRIBE_CHANNEL_ID,
           inviterUsername: inviterUserData?.username,
@@ -311,9 +303,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           SUBSCRIBE_CHANNEL_ID,
           notificationMessage
         )
-        logger.info({
-          message:
-            '📢 [CreateUserScene] Уведомление о новом пользователе (без реферала) отправлено в канал',
+        logger.info('📢 [CreateUserScene] Уведомление о новом пользователе (без реферала) отправлено в канал', {
           telegramId: telegram_id.toString(),
           channel: SUBSCRIBE_CHANNEL_ID,
           step: 'admin_notification_sent_no_referral',
@@ -325,9 +315,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           'code' in notifyError &&
           notifyError.code === 403
         ) {
-          logger.warn({
-            message:
-              '⚠️ [CreateUserScene] Не удалось отправить уведомление в канал админов (без реферала) (возможно, бот не участник или нет прав)',
+          logger.warn('⚠️ [CreateUserScene] Не удалось отправить уведомление в канал админов (без реферала) (возможно, бот не участник или нет прав)', {
             telegramId: telegram_id.toString(),
             channel: SUBSCRIBE_CHANNEL_ID,
             botName: ctx.botInfo.username,
@@ -335,9 +323,7 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
             step: 'admin_notification_no_referral_failed_403',
           })
         } else {
-          logger.error({
-            message:
-              '❌ [CreateUserScene] Ошибка при отправке уведомления в канал админов (без реферала)',
+          logger.error('❌ [CreateUserScene] Ошибка при отправке уведомления в канал админов (без реферала)', {
             telegramId: telegram_id.toString(),
             channel: SUBSCRIBE_CHANNEL_ID,
             error:

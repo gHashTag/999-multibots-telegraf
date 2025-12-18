@@ -17,8 +17,7 @@ export const pulse = async (
     if (typeof imageOrOptions === 'object') {
       const options = imageOrOptions as PulseOptions
 
-      logger.info({
-        message: '📡 Отправка данных в pulse (новый формат)',
+      logger.info('📡 Отправка данных в pulse (новый формат)', {
         description: 'Sending data to pulse (new format)',
         action: options.action,
       })
@@ -52,8 +51,7 @@ export const pulse = async (
       }
 
       // Для других типов можно добавить дополнительную логику
-      logger.warn({
-        message: '⚠️ Неизвестный тип действия в pulse',
+      logger.warn('⚠️ Неизвестный тип действия в pulse', {
         description: 'Unknown action type in pulse',
         action: options.action,
       })
@@ -62,8 +60,7 @@ export const pulse = async (
     }
 
     // Старый формат (параметры по отдельности)
-    logger.info({
-      message: '📡 Отправка данных в pulse (старый формат)',
+    logger.info('📡 Отправка данных в pulse (старый формат)', {
       description: 'Sending data to pulse (old format)',
       telegram_id,
       command,
@@ -92,8 +89,7 @@ export const pulse = async (
       { caption }
     )
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при отправке в pulse',
+    logger.error('❌ Ошибка при отправке в pulse', {
       description: 'Error sending to pulse',
       error: (error as Error).message,
       stack: (error as Error).stack,
@@ -228,8 +224,7 @@ export const sendMediaToPulse = async (
       : { source: fs.createReadStream(mediaSource as string) }
 
     // Отправляем в зависимости от типа медиа
-    logger.info({
-      message: `📡 Отправка ${mediaType} в pulse`,
+    logger.info(`📡 Отправка ${mediaType} в pulse`, {
       description: `Sending ${mediaType} to pulse channel`,
       telegramId: rawTelegramId,
       serviceType: rawServiceType,
@@ -239,8 +234,7 @@ export const sendMediaToPulse = async (
     // Отправляем соответствующий тип медиа
     switch (mediaType) {
       case 'photo':
-        logger.info({
-          message: '📬 [pulse] Получен запрос на отправку фото',
+        logger.info('📬 [pulse] Получен запрос на отправку фото', {
           description: 'Received photo sending request in pulse',
           telegramId: rawTelegramId,
           promptLength: prompt?.length ?? 0,
@@ -249,15 +243,13 @@ export const sendMediaToPulse = async (
         try {
           // 1. Отправляем фото без подписи
           await pulseBot.telegram.sendPhoto(chatId, mediaParams)
-          logger.info({
-            message: '📸 [pulse] Фото отправлено, готовим текст',
+          logger.info('📸 [pulse] Фото отправлено, готовим текст', {
             description: 'Photo sent, preparing text message',
             telegramId: rawTelegramId,
             promptAvailable: !!prompt,
           })
         } catch (photoError) {
-          logger.error({
-            message: '❌ [pulse] Ошибка при отправке ФОТО',
+          logger.error('❌ [pulse] Ошибка при отправке ФОТО', {
             description: 'Error sending PHOTO in pulse',
             error:
               photoError instanceof Error
@@ -298,8 +290,7 @@ export const sendMediaToPulse = async (
             textMessage += `\nℹ️ ${key}: ${value}`
           }
 
-          logger.info({
-            message: '📝 [pulse] Попытка отправки текста с промптом (HTML)',
+          logger.info('📝 [pulse] Попытка отправки текста с промптом (HTML)', {
             description: 'Attempting to send text message with prompt (HTML)',
             telegramId: rawTelegramId,
             textMessageLength: textMessage.length,
@@ -311,8 +302,7 @@ export const sendMediaToPulse = async (
           try {
             // Если сообщение слишком длинное - разбиваем на части
             if (textMessage.length > TELEGRAM_MESSAGE_LIMIT) {
-              logger.warn({
-                message: '⚠️ [pulse] Сообщение слишком длинное, разбиваем на части',
+              logger.warn('⚠️ [pulse] Сообщение слишком длинное, разбиваем на части', {
                 description: 'Message too long, splitting into chunks',
                 telegramId: rawTelegramId,
                 messageLength: textMessage.length,
@@ -332,8 +322,7 @@ export const sendMediaToPulse = async (
                 link_preview_options: { is_disabled: true },
               })
 
-              logger.info({
-                message: '✅ [pulse] Длинное сообщение отправлено частями',
+              logger.info('✅ [pulse] Длинное сообщение отправлено частями', {
                 description: 'Long message sent in chunks',
                 telegramId: rawTelegramId,
               })
@@ -343,17 +332,14 @@ export const sendMediaToPulse = async (
                 parse_mode: 'HTML',
                 link_preview_options: { is_disabled: true },
               })
-              logger.info({
-                message: '✅ [pulse] Текст с промптом успешно отправлен (HTML)',
+              logger.info('✅ [pulse] Текст с промптом успешно отправлен (HTML)', {
                 description: 'Text message with prompt sent successfully (HTML)',
                 telegramId: rawTelegramId,
                 parseMode: 'HTML',
               })
             }
           } catch (textError) {
-            logger.error({
-              message:
-                '❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML)',
+            logger.error('❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML)', {
               description:
                 'Error sending TEXT message with prompt in pulse (HTML)',
               error:
@@ -367,9 +353,8 @@ export const sendMediaToPulse = async (
             })
             // ---> УПРОЩЕННЫЙ FALLBACK: Обрезаем промпт и отправляем без форматирования
             try {
-              logger.warn({
-                message:
-                  '⚠️ [pulse] Повторная попытка с обрезанным промптом' /* ... */,
+              logger.warn('⚠️ [pulse] Повторная попытка с обрезанным промптом', {
+                telegramId: rawTelegramId,
               })
 
               // Обрезаем промпт до безопасного размера
@@ -381,14 +366,13 @@ export const sendMediaToPulse = async (
               await pulseBot.telegram.sendMessage(chatId, safeTextMessage, {
                 link_preview_options: { is_disabled: true },
               })
-              logger.info({
-                message:
-                  '✅ [pulse] Обрезанный текст успешно отправлен' /* ... */,
+              logger.info('✅ [pulse] Обрезанный текст успешно отправлен', {
+                telegramId: rawTelegramId,
               })
             } catch (retryError) {
-              logger.error({
-                message:
-                  '❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)' /* ... */,
+              logger.error('❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)', {
+                error: retryError instanceof Error ? retryError.message : String(retryError),
+                telegramId: rawTelegramId,
               })
             }
           }
@@ -410,8 +394,7 @@ export const sendMediaToPulse = async (
           for (const [key, value] of Object.entries(additionalInfo)) {
             textMessage += `\nℹ️ ${key}: ${value}`
           }
-          logger.info({
-            message: '📝 [pulse] Попытка отправки текста без промпта',
+          logger.info('📝 [pulse] Попытка отправки текста без промпта', {
             description: 'Attempting to send text message without prompt',
             telegramId: rawTelegramId,
             textMessageLength: textMessage.length,
@@ -421,14 +404,12 @@ export const sendMediaToPulse = async (
               parse_mode: 'HTML',
               link_preview_options: { is_disabled: true },
             })
-            logger.info({
-              message: '✅ [pulse] Текст без промпта успешно отправлен',
+            logger.info('✅ [pulse] Текст без промпта успешно отправлен', {
               description: 'Text message without prompt sent successfully',
               telegramId: rawTelegramId,
             })
           } catch (textError) {
-            logger.error({
-              message: '❌ [pulse] Ошибка при отправке ТЕКСТА без промпта',
+            logger.error('❌ [pulse] Ошибка при отправке ТЕКСТА без промпта', {
               description: 'Error sending TEXT message without prompt in pulse',
               error:
                 textError instanceof Error
@@ -454,15 +435,13 @@ export const sendMediaToPulse = async (
         throw new Error(`Неподдерживаемый тип медиа: ${mediaType}`)
     }
 
-    logger.info({
-      message: '✅ Медиа успешно отправлено в pulse',
+    logger.info('✅ Медиа успешно отправлено в pulse', {
       description: 'Media successfully sent to pulse channel',
       mediaType,
       telegramId: rawTelegramId,
     })
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при отправке медиа в pulse',
+    logger.error('❌ Ошибка при отправке медиа в pulse', {
       description: 'Error sending media to pulse channel',
       error: (error as Error).message,
       stack: (error as Error).stack,

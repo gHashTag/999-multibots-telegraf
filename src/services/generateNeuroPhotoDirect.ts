@@ -51,8 +51,7 @@ async function generateImageWithFalAndLora(prompt: string): Promise<string> {
   // Add trigger word to prompt
   const enhancedPrompt = `${FAL_LORA_TRIGGER} ${prompt}`
 
-  logger.info({
-    message: '🎭 [FAL] Генерация с LoRA',
+  logger.info('🎭 [FAL] Генерация с LoRA', {
     trigger: FAL_LORA_TRIGGER,
     lora_path: FAL_LORA_PATH.substring(0, 50) + '...',
     scale: FAL_LORA_SCALE,
@@ -105,8 +104,7 @@ async function generateImageWithFalAndLora(prompt: string): Promise<string> {
     )
   }
 
-  logger.info({
-    message: '✅ [FAL] Изображение с LoRA сгенерировано',
+  logger.info('✅ [FAL] Изображение с LoRA сгенерировано', {
     imageUrl: imageUrl.substring(0, 50) + '...',
   })
 
@@ -154,8 +152,7 @@ async function generateImageWithUserModelLora(
   // Add trigger word to prompt
   const enhancedPrompt = `${triggerWord} ${prompt}`
 
-  logger.info({
-    message: '🎭 [FAL] Генерация с LoRA из userModel',
+  logger.info('🎭 [FAL] Генерация с LoRA из userModel', {
     trigger: triggerWord,
     lora_path: loraPath.substring(0, 50) + '...',
     scale: loraScale,
@@ -209,8 +206,7 @@ async function generateImageWithUserModelLora(
     )
   }
 
-  logger.info({
-    message: '✅ [FAL] Изображение с userModel LoRA сгенерировано',
+  logger.info('✅ [FAL] Изображение с userModel LoRA сгенерировано', {
     imageUrl: imageUrl.substring(0, 50) + '...',
     model_name: userModel.model_name,
   })
@@ -254,8 +250,7 @@ export async function generateNeuroPhotoDirect(
   const now = Date.now()
   const cacheEntry = idemCache.get(idempotencyKey)
   if (cacheEntry && cacheEntry.expiresAt > now) {
-    logger.info({
-      message: '[IDEMPOTENCY] Найден локальный результат',
+    logger.info('[IDEMPOTENCY] Найден локальный результат', {
       idempotencyKey,
     })
     return cacheEntry.result
@@ -272,8 +267,7 @@ export async function generateNeuroPhotoDirect(
     )
     .limit(1)
   if (idemError) {
-    logger.error({
-      message: '[IDEMPOTENCY] Ошибка поиска ключа',
+    logger.error('[IDEMPOTENCY] Ошибка поиска ключа', {
       idempotencyKey,
       idemError,
     })
@@ -281,8 +275,7 @@ export async function generateNeuroPhotoDirect(
   if (idemRows && idemRows.length > 0) {
     const row = idemRows[0]
     if (row.result) {
-      logger.info({
-        message: '[IDEMPOTENCY] Найден результат, возвращаю сохранённый',
+      logger.info('[IDEMPOTENCY] Найден результат, возвращаю сохранённый', {
         idempotencyKey,
       })
       idemCache.set(idempotencyKey, {
@@ -291,8 +284,7 @@ export async function generateNeuroPhotoDirect(
       })
       return row.result
     }
-    logger.info({
-      message: '[IDEMPOTENCY] Операция уже выполняется, возвращаю статус',
+    logger.info('[IDEMPOTENCY] Операция уже выполняется, возвращаю статус', {
       idempotencyKey,
     })
     return { data: 'Processing', success: false }
@@ -321,8 +313,7 @@ export async function generateNeuroPhotoDirect(
   // );
   // --- END DEBUG LOG ---
 
-  logger.info({
-    message: '🚀 [DIRECT] Начало прямой генерации Neurophoto V1',
+  logger.info('🚀 [DIRECT] Начало прямой генерации Neurophoto V1', {
     description: 'Starting direct Neurophoto V1 generation',
     prompt: prompt.substring(0, 50) + '...',
     model_url,
@@ -335,8 +326,7 @@ export async function generateNeuroPhotoDirect(
   try {
     // Проверяем наличие промпта и модели
     if (!prompt) {
-      logger.error({
-        message: '❌ [DIRECT] Отсутствует промпт для генерации',
+      logger.error('❌ [DIRECT] Отсутствует промпт для генерации', {
         description: 'No prompt found for direct generation',
         telegram_id,
       })
@@ -346,8 +336,7 @@ export async function generateNeuroPhotoDirect(
     // ✅ ИСПРАВЛЕНИЕ: Для FAL моделей model_url не обязателен (используются LoRA weights)
     const isFalModel = userModel?.api === 'fal'
     if (!model_url && !isFalModel) {
-      logger.error({
-        message: '❌ [DIRECT] Отсутствует URL модели для генерации',
+      logger.error('❌ [DIRECT] Отсутствует URL модели для генерации', {
         description: 'No model URL found for direct generation',
         telegram_id,
         userModel: userModel
@@ -358,8 +347,7 @@ export async function generateNeuroPhotoDirect(
     }
 
     if (isFalModel) {
-      logger.info({
-        message: '🎭 [DIRECT] Обнаружена FAL модель, используем LoRA weights',
+      logger.info('🎭 [DIRECT] Обнаружена FAL модель, используем LoRA weights', {
         telegram_id,
         model_name: userModel.model_name,
         trigger_word: userModel.trigger_word,
@@ -384,22 +372,19 @@ export async function generateNeuroPhotoDirect(
 
     // ✅ ИСПРАВЛЕНИЕ: Используем ctx.telegram напрямую вместо getBotByName
     // Это более надежно и не зависит от регистрации ботов в глобальной коллекции
-    logger.info({
-      message: '🤖 [DIRECT] Используем ctx.telegram для отправки сообщений',
+    logger.info('🤖 [DIRECT] Используем ctx.telegram для отправки сообщений', {
       description: 'Using ctx.telegram directly',
       botName,
     })
 
     const bot = ctx.telegram
-    logger.info({
-      message: '✅ [DIRECT] Экземпляр бота получен',
+    logger.info('✅ [DIRECT] Экземпляр бота получен', {
       description: 'Bot instance retrieved',
       botName,
     })
 
     // Проверяем существование пользователя
-    logger.info({
-      message: '👤 [DIRECT] Проверка существования пользователя',
+    logger.info('👤 [DIRECT] Проверка существования пользователя', {
       description: 'Checking if user exists in database (direct)',
       telegram_id,
     })
@@ -407,8 +392,7 @@ export async function generateNeuroPhotoDirect(
     const user = await getUserByTelegramId(ctx)
 
     if (!user) {
-      logger.error({
-        message: '❌ [DIRECT] Пользователь не найден в базе данных',
+      logger.error('❌ [DIRECT] Пользователь не найден в базе данных', {
         description: 'User not found in database (direct)',
         telegram_id,
       })
@@ -424,9 +408,7 @@ export async function generateNeuroPhotoDirect(
             : '❌ Your account was not found in our database. Please restart the bot using the /start command'
         )
       } catch (sendError) {
-        logger.error({
-          message:
-            '❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю',
+        logger.error('❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю', {
           description: 'Failed to send error message to user (direct)',
           error:
             sendError instanceof Error ? sendError.message : 'Unknown error',
@@ -437,8 +419,7 @@ export async function generateNeuroPhotoDirect(
       throw new Error(`User with ID ${telegram_id} not found in database`)
     }
 
-    logger.info({
-      message: '✅ [DIRECT] Пользователь найден в базе данных',
+    logger.info('✅ [DIRECT] Пользователь найден в базе данных', {
       description: 'User found in database (direct)',
       telegram_id,
       user_id: user.id,
@@ -454,8 +435,7 @@ export async function generateNeuroPhotoDirect(
     }
 
     // Расчёт стоимости генерации
-    logger.info({
-      message: '💰 [DIRECT] Расчет стоимости генерации',
+    logger.info('💰 [DIRECT] Расчет стоимости генерации', {
       description: 'Calculating generation cost (direct)',
       num_images: validNumImages,
       mode: ModeEnum.NeuroPhoto,
@@ -471,8 +451,7 @@ export async function generateNeuroPhotoDirect(
     const costPerImage = Number(costResult.stars) // 7.5⭐ за 1 изображение
     const totalCost = costPerImage * validNumImages // 7.5⭐ × количество изображений
 
-    logger.info({
-      message: '💸 [DIRECT] Рассчитана стоимость генерации',
+    logger.info('💸 [DIRECT] Рассчитана стоимость генерации', {
       description: 'Generation cost calculated (direct)',
       costPerImage,
       totalCost,
@@ -480,8 +459,7 @@ export async function generateNeuroPhotoDirect(
     })
 
     // Обработка оплаты напрямую через directPaymentProcessor
-    logger.info({
-      message: '💳 [DIRECT] Обработка оплаты',
+    logger.info('💳 [DIRECT] Обработка оплаты', {
       description: 'Processing payment (direct)',
       telegram_id,
       totalCost,
@@ -509,8 +487,7 @@ export async function generateNeuroPhotoDirect(
     })
 
     if (!paymentResult.success) {
-      logger.error({
-        message: '❌ [DIRECT] Ошибка при обработке платежа',
+      logger.error('❌ [DIRECT] Ошибка при обработке платежа', {
         description: 'Payment processing error (direct)',
         error: paymentResult.error,
         telegram_id,
@@ -528,9 +505,7 @@ export async function generateNeuroPhotoDirect(
             : '❌ Failed to process payment. Please check your balance and try again.'
         )
       } else {
-        logger.info({
-          message:
-            '🔇 [DIRECT] Отправка сообщения об ошибке платежа пропущена (режим тестирования)',
+        logger.info('🔇 [DIRECT] Отправка сообщения об ошибке платежа пропущена (режим тестирования)', {
           description: 'Skipping payment error message (test mode)',
           telegram_id,
         })
@@ -543,8 +518,7 @@ export async function generateNeuroPhotoDirect(
     }
 
     // Получаем соотношение сторон для изображения
-    logger.info({
-      message: '📐 [DIRECT] Получение соотношения сторон',
+    logger.info('📐 [DIRECT] Получение соотношения сторон', {
       description: 'Getting aspect ratio',
       telegram_id,
       user_id: user.id,
@@ -553,8 +527,7 @@ export async function generateNeuroPhotoDirect(
     let finalAspectRatio: string | null = null
     if (explicitAspectRatio) {
       finalAspectRatio = explicitAspectRatio
-      logger.info({
-        message: `🧙‍♂️ [DIRECT] Используется явный aspectRatio: ${finalAspectRatio}`,
+      logger.info(`🧙‍♂️ [DIRECT] Используется явный aspectRatio: ${finalAspectRatio}`, {
         telegram_id,
       })
     } else {
@@ -566,13 +539,11 @@ export async function generateNeuroPhotoDirect(
         dbAspectRatio.includes(':')
       ) {
         finalAspectRatio = dbAspectRatio
-        logger.info({
-          message: `🧙‍♂️ [DIRECT] Используется aspectRatio из БД: ${finalAspectRatio}`,
+        logger.info(`🧙‍♂️ [DIRECT] Используется aspectRatio из БД: ${finalAspectRatio}`, {
           telegram_id,
         })
       } else {
-        logger.warn({
-          message: `⚠️ [DIRECT] Некорректное или отсутствующее значение aspectRatio из БД (${dbAspectRatio}), используется значение по умолчанию "1:1"`,
+        logger.warn(`⚠️ [DIRECT] Некорректное или отсутствующее значение aspectRatio из БД (${dbAspectRatio}), используется значение по умолчанию "1:1"`, {
           original_value: dbAspectRatio,
           default_value: '1:1',
           telegram_id,
@@ -581,8 +552,7 @@ export async function generateNeuroPhotoDirect(
       }
     }
 
-    logger.info({
-      message: '📐 [DIRECT] Итоговое соотношение сторон определено',
+    logger.info('📐 [DIRECT] Итоговое соотношение сторон определено', {
       aspect_ratio: finalAspectRatio,
       telegram_id,
     })
@@ -614,9 +584,7 @@ export async function generateNeuroPhotoDirect(
                   : `⏳ Generating image ${i + 1} of ${validNumImages}`
               )
             } catch (sendError) {
-              logger.error({
-                message:
-                  '❌ [DIRECT] Ошибка при отправке сообщения о генерации',
+              logger.error('❌ [DIRECT] Ошибка при отправке сообщения о генерации', {
                 description: 'Error sending generation message (direct)',
                 error:
                   sendError instanceof Error
@@ -636,9 +604,7 @@ export async function generateNeuroPhotoDirect(
                 }
               )
             } catch (sendError) {
-              logger.error({
-                message:
-                  '❌ [DIRECT] Ошибка при отправке сообщения о генерации',
+              logger.error('❌ [DIRECT] Ошибка при отправке сообщения о генерации', {
                 description: 'Error sending generation message (direct)',
                 error:
                   sendError instanceof Error
@@ -649,17 +615,14 @@ export async function generateNeuroPhotoDirect(
             }
           }
         } else {
-          logger.info({
-            message:
-              '🔇 [DIRECT] Отправка статусного сообщения пропущена (режим тестирования)',
+          logger.info('🔇 [DIRECT] Отправка статусного сообщения пропущена (режим тестирования)', {
             description: 'Skipping status message (test mode)',
             telegram_id,
             image_index: i,
           })
         }
 
-        logger.info({
-          message: '🎨 [DIRECT] Запускаем прямую генерацию изображения',
+        logger.info('🎨 [DIRECT] Запускаем прямую генерацию изображения', {
           description: 'Starting direct image generation',
           telegram_id,
           prompt: prompt.substring(0, 50) + '...',
@@ -673,8 +636,7 @@ export async function generateNeuroPhotoDirect(
 
         if (useFal) {
           // ✨ Используем Fal.ai с LoRA
-          logger.info({
-            message: '🎭 [DIRECT] Используем Fal.ai с LoRA',
+          logger.info('🎭 [DIRECT] Используем Fal.ai с LoRA', {
             telegram_id,
             iteration: i,
             source: isFalModel ? 'userModel' : 'env vars',
@@ -689,8 +651,7 @@ export async function generateNeuroPhotoDirect(
               imageUrl = await generateImageWithFalAndLora(prompt)
             }
           } catch (falError) {
-            logger.error({
-              message: '❌ [DIRECT] Ошибка Fal.ai, fallback на Replicate',
+            logger.error('❌ [DIRECT] Ошибка Fal.ai, fallback на Replicate', {
               error:
                 falError instanceof Error ? falError.message : 'Unknown error',
               telegram_id,
@@ -708,8 +669,7 @@ export async function generateNeuroPhotoDirect(
 
         if (!useFal || !imageUrl!) {
           // Используем Replicate (старый способ)
-          logger.info({
-            message: '🔄 [DIRECT] Используем Replicate',
+          logger.info('🔄 [DIRECT] Используем Replicate', {
             telegram_id,
             iteration: i,
           })
@@ -730,8 +690,7 @@ export async function generateNeuroPhotoDirect(
             replicateInput.aspect_ratio = finalAspectRatio
           }
 
-          logger.info({
-            message: '[DIAGNOSTIC] Перед вызовом replicate.run()',
+          logger.info('[DIAGNOSTIC] Перед вызовом replicate.run()', {
             iteration: i,
             telegram_id,
           })
@@ -743,53 +702,46 @@ export async function generateNeuroPhotoDirect(
             }
           )) as ApiResponse
 
-          logger.info({
-            message: '[DIAGNOSTIC] Сразу после вызова replicate.run()',
+          logger.info('[DIAGNOSTIC] Сразу после вызова replicate.run()', {
             output_is_null: output === null,
             output_is_undefined: output === undefined,
             iteration: i,
             telegram_id,
           })
 
-          logger.info({
-            message: '🔍 [DIRECT] Ответ от Replicate API получен',
+          logger.info('🔍 [DIRECT] Ответ от Replicate API получен', {
             telegram_id,
             iteration: i,
             api_output: JSON.stringify(output),
           })
 
-          logger.info({
-            message: '✅ [DIRECT] Получен ответ от API',
+          logger.info('✅ [DIRECT] Получен ответ от API', {
             description: 'API response received (direct)',
             output_type: typeof output,
             telegram_id,
           })
 
           // Обрабатываем API-ответ
-          logger.info({
-            message: '🔍 [DIRECT] Обработка ответа API Replicate',
+          logger.info('🔍 [DIRECT] Обработка ответа API Replicate', {
             description: 'Processing Replicate API response',
             output_sample: JSON.stringify(output).substring(0, 100) + '...',
           })
 
-          logger.info({
-            message: '[DIAGNOSTIC] Перед вызовом processApiResponse()',
+          logger.info('[DIAGNOSTIC] Перед вызовом processApiResponse()', {
             iteration: i,
             telegram_id,
           })
 
           imageUrl = await processApiResponse(output)
 
-          logger.info({
-            message: '[DIAGNOSTIC] Сразу после вызова processApiResponse()',
+          logger.info('[DIAGNOSTIC] Сразу после вызова processApiResponse()', {
             imageUrl_is_null: imageUrl === null,
             imageUrl_is_undefined: imageUrl === undefined,
             iteration: i,
             telegram_id,
           })
 
-          logger.info({
-            message: '🔍 [DIRECT] Результат processApiResponse',
+          logger.info('🔍 [DIRECT] Результат processApiResponse', {
             telegram_id,
             iteration: i,
             processed_image_url: imageUrl,
@@ -798,8 +750,7 @@ export async function generateNeuroPhotoDirect(
 
         // Проверка на валидность URL (для обоих провайдеров)
         if (!imageUrl || !imageUrl.startsWith('http')) {
-          logger.error({
-            message: '❌ [DIRECT] Некорректный URL изображения',
+          logger.error('❌ [DIRECT] Некорректный URL изображения', {
             description: 'Invalid image URL returned from API',
             url: imageUrl,
             provider: useFal ? 'Fal.ai' : 'Replicate',
@@ -823,8 +774,7 @@ export async function generateNeuroPhotoDirect(
             // Используем оригинальный URL + путь для доступа к изображению
             localImageUrl = imageUrl
 
-            logger.info({
-              message: '✅ [DIRECT] Изображение успешно сохранено локально',
+            logger.info('✅ [DIRECT] Изображение успешно сохранено локально', {
               description: 'Image successfully saved locally',
               localImageUrl,
               savedLocalPath,
@@ -850,8 +800,7 @@ export async function generateNeuroPhotoDirect(
           }
 
           // ---> ЛОГ ПЕРЕД ВЫЗОВОМ
-          logger.info({
-            message: '🚦 [DIRECT] Параметры перед отправкой в sendMediaToPulse',
+          logger.info('🚦 [DIRECT] Параметры перед отправкой в sendMediaToPulse', {
             description: 'Options before calling sendMediaToPulse',
             pulseOptions,
             telegram_id,
@@ -860,8 +809,7 @@ export async function generateNeuroPhotoDirect(
 
           await sendMediaToPulse(pulseOptions)
 
-          logger.info({
-            message: '📊 [DIRECT] Изображение отправлено в Pulse',
+          logger.info('📊 [DIRECT] Изображение отправлено в Pulse', {
             description: 'Image sent to Pulse analytics',
             telegram_id,
           })
@@ -872,9 +820,7 @@ export async function generateNeuroPhotoDirect(
             ctx.session.lastNeuroPhotoImageUrl = imageUrl
             ctx.session.lastNeuroPhotoPrompt = prompt
 
-            logger.info({
-              message:
-                '💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler',
+            logger.info('💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler', {
               description: 'Neurophoto URL saved in session for upscaler',
               telegram_id,
               savedUrl: imageUrl.substring(0, 50) + '...',
@@ -989,24 +935,19 @@ Generated: ${new Date().toLocaleString('en-US')}
                 }
               )
 
-              logger.info({
-                message: '📸 [DIRECT] Изображение отправлено пользователю',
+              logger.info('📸 [DIRECT] Изображение отправлено пользователю', {
                 description: 'Image sent to user in private messages',
                 telegram_id,
                 imageUrl: imageUrl.substring(0, 50) + '...',
               })
             } else {
-              logger.info({
-                message:
-                  '🔇 [DIRECT] Отправка изображения пользователю пропущена (режим тестирования)',
+              logger.info('🔇 [DIRECT] Отправка изображения пользователю пропущена (режим тестирования)', {
                 description: 'Skipping image sending to user (test mode)',
                 telegram_id,
               })
             }
           } catch (sendUserError) {
-            logger.error({
-              message:
-                '❌ [DIRECT] Ошибка при отправке изображения пользователю',
+            logger.error('❌ [DIRECT] Ошибка при отправке изображения пользователю', {
               description: 'Error sending image to user',
               error:
                 sendUserError instanceof Error
@@ -1028,15 +969,13 @@ Generated: ${new Date().toLocaleString('en-US')}
             'success'
           )
 
-          logger.info({
-            message: '📝 [DIRECT] Промпт сохранен в базе данных',
+          logger.info('📝 [DIRECT] Промпт сохранен в базе данных', {
             description: 'Prompt saved to database',
             telegram_id,
           })
         } catch (saveError) {
           // При ошибке сохранения локально продолжаем с оригинальным URL
-          logger.error({
-            message: '⚠️ [DIRECT] Ошибка при сохранении изображения локально',
+          logger.error('⚠️ [DIRECT] Ошибка при сохранении изображения локально', {
             description: 'Error saving image locally',
             error:
               saveError instanceof Error ? saveError.message : 'Unknown error',
@@ -1050,8 +989,7 @@ Generated: ${new Date().toLocaleString('en-US')}
         generatedUrls.push(localImageUrl)
 
         // --- ЛОГ: Состояние массива URL ---
-        logger.info({
-          message: '📝 [DIRECT] URL добавлен в массив',
+        logger.info('📝 [DIRECT] URL добавлен в массив', {
           telegram_id,
           iteration: i,
           current_url: localImageUrl.substring(0, 50) + '...',
@@ -1060,16 +998,14 @@ Generated: ${new Date().toLocaleString('en-US')}
         })
         // ---
 
-        logger.info({
-          message: '📸 [DIRECT] Изображение успешно получено',
+        logger.info('📸 [DIRECT] Изображение успешно получено', {
           description: 'Image URL obtained and added to results',
           imageUrl: localImageUrl.substring(0, 50) + '...',
           generatedUrls_count: generatedUrls.length,
           imageUrl_index: generatedUrls.indexOf(localImageUrl),
         })
       } catch (genError) {
-        logger.error({
-          message: '❌ [DIRECT] Ошибка при генерации изображения',
+        logger.error('❌ [DIRECT] Ошибка при генерации изображения', {
           description: 'Error generating image (direct)',
           error: genError instanceof Error ? genError.message : 'Unknown error',
           prompt: prompt.substring(0, 50) + '...',
@@ -1092,16 +1028,13 @@ Generated: ${new Date().toLocaleString('en-US')}
                 : '❌ An error occurred while generating the image. We will refund your stars soon.'
             )
           } else {
-            logger.info({
-              message:
-                '🔇 [DIRECT] Отправка сообщения об ошибке генерации пропущена (режим тестирования)',
+            logger.info('🔇 [DIRECT] Отправка сообщения об ошибке генерации пропущена (режим тестирования)', {
               description: 'Skipping generation error message (test mode)',
               telegram_id,
             })
           }
         } catch (sendError) {
-          logger.error({
-            message: '❌ [DIRECT] Ошибка при отправке сообщения об ошибке',
+          logger.error('❌ [DIRECT] Ошибка при отправке сообщения об ошибке', {
             description: 'Error sending error message (direct)',
             error:
               sendError instanceof Error ? sendError.message : 'Unknown error',
@@ -1130,9 +1063,7 @@ Generated: ${new Date().toLocaleString('en-US')}
           })
 
           if (refundResult.success) {
-            logger.info({
-              message:
-                '💰 [DIRECT] Выполнен возврат средств за неудачную генерацию',
+            logger.info('💰 [DIRECT] Выполнен возврат средств за неудачную генерацию', {
               description: 'Refund processed for failed generation (direct)',
               refundAmount,
               telegram_id,
@@ -1148,17 +1079,14 @@ Generated: ${new Date().toLocaleString('en-US')}
                     : `💰 We have refunded you ${refundAmount} stars for the failed image generation.`
                 )
               } else {
-                logger.info({
-                  message:
-                    '🔇 [DIRECT] Отправка сообщения о возврате средств пропущена (режим тестирования)',
+                logger.info('🔇 [DIRECT] Отправка сообщения о возврате средств пропущена (режим тестирования)', {
                   description: 'Skipping refund message (test mode)',
                   telegram_id,
                   refundAmount,
                 })
               }
             } catch (sendError) {
-              logger.error({
-                message: '❌ [DIRECT] Ошибка при отправке сообщения о возврате',
+              logger.error('❌ [DIRECT] Ошибка при отправке сообщения о возврате', {
                 description: 'Error sending refund message (direct)',
                 error:
                   sendError instanceof Error
@@ -1168,8 +1096,7 @@ Generated: ${new Date().toLocaleString('en-US')}
               })
             }
           } else {
-            logger.error({
-              message: '❌ [DIRECT] Ошибка при возврате средств',
+            logger.error('❌ [DIRECT] Ошибка при возврате средств', {
               description: 'Error processing refund (direct)',
               error: refundResult.error,
               telegram_id,
@@ -1177,8 +1104,7 @@ Generated: ${new Date().toLocaleString('en-US')}
             })
           }
         } catch (refundError) {
-          logger.error({
-            message: '❌ [DIRECT] Критическая ошибка при возврате средств',
+          logger.error('❌ [DIRECT] Критическая ошибка при возврате средств', {
             description: 'Critical error during refund processing (direct)',
             error:
               refundError instanceof Error
@@ -1202,23 +1128,20 @@ Generated: ${new Date().toLocaleString('en-US')}
         // 🚨 ИСПРАВЛЕНИЕ: Отправляем БЕЗ inline кнопок (wizard добавит reply keyboard)
         await ctx.telegram.sendMessage(telegram_id, finalMessage)
 
-        logger.info({
-          message: '✅ [DIRECT] Итоговое сообщение отправлено (без кнопок)',
+        logger.info('✅ [DIRECT] Итоговое сообщение отправлено (без кнопок)', {
           telegram_id,
           totalImages: generatedUrls.length,
           totalCost,
         })
       } catch (sendError) {
-        logger.error({
-          message: '❌ [DIRECT] Ошибка при отправке итогового сообщения',
+        logger.error('❌ [DIRECT] Ошибка при отправке итогового сообщения', {
           telegram_id,
           error: sendError,
         })
       }
     }
 
-    logger.info({
-      message: '🎉 [DIRECT] Все задачи на генерацию успешно выполнены',
+    logger.info('🎉 [DIRECT] Все задачи на генерацию успешно выполнены', {
       description: 'All generation tasks successfully completed (direct)',
       urlsCount: generatedUrls.length,
       urls: generatedUrls,
@@ -1230,8 +1153,7 @@ Generated: ${new Date().toLocaleString('en-US')}
       url => typeof url === 'string' && url.startsWith('http')
     )
 
-    logger.info({
-      message: '🔄 [DIRECT] Подготовка результатов генерации',
+    logger.info('🔄 [DIRECT] Подготовка результатов генерации', {
       description: 'Preparing generation results',
       all_urls_count: generatedUrls.length,
       valid_urls_count: validUrls.length,
@@ -1239,16 +1161,14 @@ Generated: ${new Date().toLocaleString('en-US')}
     })
 
     if (validUrls.length === 0) {
-      logger.warn({
-        message: '⚠️ [DIRECT] Нет валидных URL в результатах генерации',
+      logger.warn('⚠️ [DIRECT] Нет валидных URL в результатах генерации', {
         description: 'No valid URLs in generation results',
         generatedUrls: generatedUrls,
       })
     }
 
     // Возвращаем результат с правильным объектом
-    logger.info({
-      message: '🏁 [DIRECT] Завершение функции generateNeuroPhotoDirect',
+    logger.info('🏁 [DIRECT] Завершение функции generateNeuroPhotoDirect', {
       description: 'Completing generateNeuroPhotoDirect function',
       success: true,
       url_count: generatedUrls.length,
@@ -1257,8 +1177,7 @@ Generated: ${new Date().toLocaleString('en-US')}
 
     // Если API не вернул URL изображений, возвращаем ошибку
     if (generatedUrls.length === 0) {
-      logger.error({
-        message: '❌ [DIRECT] API не вернул URL изображений',
+      logger.error('❌ [DIRECT] API не вернул URL изображений', {
         description: 'API returned success but no image URLs',
         telegram_id,
       })
@@ -1301,8 +1220,7 @@ Generated: ${new Date().toLocaleString('en-US')}
       error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
 
-    logger.error({
-      message: '❌ [DIRECT] Критическая ошибка при прямой генерации нейрофото',
+    logger.error('❌ [DIRECT] Критическая ошибка при прямой генерации нейрофото', {
       description: 'Critical error during direct neurophoto generation',
       error: errorMessage,
       stack: errorStack,
@@ -1335,17 +1253,14 @@ Generated: ${new Date().toLocaleString('en-US')}
           isRussianFromState(ctx) ? errorMessageRu : errorMessageEn
         )
       } else if (options?.disable_telegram_sending) {
-        logger.info({
-          message:
-            '🔇 [DIRECT] Отправка сообщения о критической ошибке пропущена (режим тестирования)',
+        logger.info('🔇 [DIRECT] Отправка сообщения о критической ошибке пропущена (режим тестирования)', {
           description: 'Skipping critical error message (test mode)',
           telegram_id,
           errorMessage,
         })
       }
     } catch (replyError) {
-      logger.error({
-        message: '❌ [DIRECT] Не удалось отправить сообщение об ошибке',
+      logger.error('❌ [DIRECT] Не удалось отправить сообщение об ошибке', {
         description: 'Failed to send error message (direct)',
         error:
           replyError instanceof Error ? replyError.message : 'Unknown error',

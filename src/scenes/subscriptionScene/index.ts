@@ -47,8 +47,7 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     const userDetails = await getUserDetailsSubscription(
       ctx.from?.id.toString()
     )
-    logger.info({
-      message: `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`,
+    logger.info(`[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`, {
       userDetails,
     })
     const isRu = isRussian(ctx)

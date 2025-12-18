@@ -84,8 +84,7 @@ function checkAndSetTrainingCache(
     currentEntry.status === 'running' &&
     now - currentEntry.timestamp < CACHE_TTL_MS
   ) {
-    logger.warn({
-      message: 'Обнаружена активная тренировка в кэше',
+    logger.warn('Обнаружена активная тренировка в кэше', {
       telegram_id,
       modelName,
       currentStatus: currentEntry.status,
@@ -100,8 +99,7 @@ function checkAndSetTrainingCache(
     status,
   })
 
-  logger.info({
-    message: 'Установлен статус начала тренировки в кэше',
+  logger.info('Установлен статус начала тренировки в кэше', {
     telegram_id,
     modelName,
     status: 'starting',
@@ -135,8 +133,7 @@ function updateTrainingStatus(
       trainingId,
     })
 
-    logger.info({
-      message: 'Обновлен статус тренировки в кэше',
+    logger.info('Обновлен статус тренировки в кэше', {
       telegram_id,
       modelName,
       oldStatus: entry.status,
@@ -207,8 +204,7 @@ export const generateModelTraining = inngest.createFunction(
       timestamp: new Date(event.ts).toISOString(),
     })
 
-    logger.info({
-      message: 'Получено событие тренировки модели',
+    logger.info('Получено событие тренировки модели', {
       runId: runId, // Use runId from args
       timestamp: new Date(event.ts).toISOString(),
     })
@@ -218,8 +214,7 @@ export const generateModelTraining = inngest.createFunction(
     const cacheKey = `${eventData.telegram_id}:${eventData.modelName}`
 
     // 🔍 Логируем все данные события для диагностики
-    logger.info({
-      message: '🔍 Полные данные события для диагностики',
+    logger.info('🔍 Полные данные события для диагностики', {
       eventData: {
         telegram_id: eventData.telegram_id,
         modelName: eventData.modelName,
@@ -247,8 +242,7 @@ export const generateModelTraining = inngest.createFunction(
 
         if (existingTrainings?.length > 0) {
           const training = existingTrainings[0]
-          logger.info({
-            message: 'Найдена активная тренировка в базе данных',
+          logger.info('Найдена активная тренировка в базе данных', {
             trainingRecord: training,
           })
 
@@ -274,8 +268,7 @@ export const generateModelTraining = inngest.createFunction(
           cachedEntry?.status === 'running' &&
           Date.now() - cachedEntry.timestamp < CACHE_TTL_MS
         ) {
-          logger.info({
-            message: 'Найдена активная тренировка в кэше',
+          logger.info('Найдена активная тренировка в кэше', {
             cachedEntry,
           })
           return {
@@ -288,8 +281,7 @@ export const generateModelTraining = inngest.createFunction(
         // Если ни в БД, ни в кэше нет активной тренировки
         return { exists: false } as NoActiveCheck
       } catch (error) {
-        logger.error({
-          message: 'Ошибка при проверке активных тренировок',
+        logger.error('Ошибка при проверке активных тренировок', {
           error: error.message,
         })
         // При ошибке проверки разрешаем запуск для надежности
@@ -334,16 +326,13 @@ export const generateModelTraining = inngest.createFunction(
             )
           }
         } catch (error) {
-          logger.error({
-            message: 'Не удалось отправить уведомление о дублированном запросе',
+          logger.error('Не удалось отправить уведомление о дублированном запросе', {
             error: error.message,
           })
         }
       }
 
-      logger.info({
-        message:
-          'Запрос на тренировку отклонен - обнаружена активная тренировка',
+      logger.info('Запрос на тренировку отклонен - обнаружена активная тренировка', {
         telegram_id: eventData.telegram_id,
         modelName: eventData.modelName,
         activeCheck,
@@ -369,9 +358,7 @@ export const generateModelTraining = inngest.createFunction(
         'starting'
       )
     ) {
-      logger.warn({
-        message:
-          'Странная ошибка - кэш блокирует, но проверка активных тренировок прошла',
+      logger.warn('Странная ошибка - кэш блокирует, но проверка активных тренировок прошла', {
         telegram_id: eventData.telegram_id,
         modelName: eventData.modelName,
       })
@@ -381,14 +368,13 @@ export const generateModelTraining = inngest.createFunction(
     // 🔄 Вспомогательные функции
     logger.debug({ message: 'Данные события', data: eventData })
     const { bot } = getBotByName(eventData.bot_name)
-    logger.info({
-      message: 'Получен бот',
+    logger.info('Получен бот', {
       botUsername: bot?.botInfo?.username || 'не найден',
       botName: eventData.bot_name,
     })
 
     if (!bot) {
-      logger.error({ message: 'Бот не найден', botName: eventData.bot_name })
+      logger.error('Бот не найден', botName: eventData.bot_name }), {
       throw new Error(`❌ Бот ${eventData.bot_name} не найден`)
     }
     const helpers = {
@@ -396,14 +382,12 @@ export const generateModelTraining = inngest.createFunction(
         await step.run('send-message', async () => {
           try {
             await bot.telegram.sendMessage(eventData.telegram_id, message)
-            logger.info({
-              message: 'Сообщение отправлено',
+            logger.info('Сообщение отправлено', {
               telegram_id: eventData.telegram_id,
             })
             return true
           } catch (error) {
-            logger.error({
-              message: 'Ошибка отправки сообщения',
+            logger.error('Ошибка отправки сообщения', {
               error: error.message,
               telegram_id: eventData.telegram_id,
             })
@@ -423,16 +407,14 @@ export const generateModelTraining = inngest.createFunction(
           const errorMessage = is_ru
             ? 'Некорректное количество шагов'
             : 'Invalid steps count'
-          logger.error({
-            message: errorMessage,
+          logger.error(errorMessage, {
             steps: rawSteps,
             telegram_id: eventData.telegram_id,
           })
           throw new Error(errorMessage)
         }
 
-        logger.info({
-          message: 'Входные данные валидны',
+        logger.info('Входные данные валидны', {
           modelName,
           steps,
           telegram_id: eventData.telegram_id,
@@ -447,14 +429,12 @@ export const generateModelTraining = inngest.createFunction(
           step.run('get-user', async () => {
             const user = await getUserByTelegramId(telegram_id)
             if (!user) {
-              logger.error({
-                message: 'Пользователь не найден',
+              logger.error('Пользователь не найден', {
                 telegram_id,
               })
               return Promise.reject('User not found')
             }
-            logger.info({
-              message: 'Пользователь найден',
+            logger.info('Пользователь найден', {
               userId: user.user_id,
               telegram_id,
             })
@@ -558,8 +538,7 @@ export const generateModelTraining = inngest.createFunction(
 
         logger.info('🚀 Training ID:', training.id)
         // Логируем фактический URL вебхука, который будет использован Replicate
-        logger.info({
-          message: '⚙️ Replicate Webhook URL for this training',
+        logger.info('⚙️ Replicate Webhook URL for this training', {
           url: `${API_URL}/webhooks/replicate`,
           api_url_from_config: API_URL, // Логируем значение API_URL из конфига
           raw_webhook_url_env: process.env.WEBHOOK_URL, // Логируем значение из process.env напрямую
@@ -586,8 +565,7 @@ export const generateModelTraining = inngest.createFunction(
 
       // 2. Проверка пользователя и баланса
       const [user] = await trainingSteps.checkUserAndBalance()
-      logger.info({
-        message: 'Пользователь найден',
+      logger.info('Пользователь найден', {
         userId: user.user_id,
         telegram_id: eventData.telegram_id,
       })
@@ -597,8 +575,7 @@ export const generateModelTraining = inngest.createFunction(
         await step.run('update-level', () =>
           updateUserLevelPlusOne(eventData.telegram_id, 0)
         )
-        logger.info({
-          message: 'Уровень пользователя обновлен',
+        logger.info('Уровень пользователя обновлен', {
           telegram_id: eventData.telegram_id,
           newLevel: 1,
         })
@@ -612,8 +589,7 @@ export const generateModelTraining = inngest.createFunction(
       })
       paymentAmount = costResult.stars
 
-      logger.info({
-        message: 'Рассчитана стоимость тренировки',
+      logger.info('Рассчитана стоимость тренировки', {
         steps,
         paymentAmount,
         telegram_id: eventData.telegram_id,
@@ -630,8 +606,7 @@ export const generateModelTraining = inngest.createFunction(
             isRu: isRussian,
           }
         )
-        logger.info({
-          message: 'Результат проверки баланса',
+        logger.info('Результат проверки баланса', {
           result,
           telegram_id: eventData.telegram_id,
         })
@@ -643,8 +618,7 @@ export const generateModelTraining = inngest.createFunction(
       })
 
       if (!balanceCheck?.success) {
-        logger.warn({
-          message: 'Недостаточно средств',
+        logger.warn('Недостаточно средств', {
           currentBalance: balanceCheck?.currentBalance,
           requiredAmount: paymentAmount,
           telegram_id: eventData.telegram_id,
@@ -654,8 +628,7 @@ export const generateModelTraining = inngest.createFunction(
 
       // 6. Списание средств
       // Сначала логируем начало операции
-      logger.info({
-        message: '💰 Списание средств за тренировку модели',
+      logger.info('💰 Списание средств за тренировку модели', {
         telegram_id: eventData.telegram_id,
         currentBalance: balanceCheck.currentBalance,
         paymentAmount,
@@ -702,8 +675,7 @@ export const generateModelTraining = inngest.createFunction(
         }
       })
 
-      logger.info({
-        message: '✅ Средства успешно списаны',
+      logger.info('✅ Средства успешно списаны', {
         chargeResult,
         telegram_id: eventData.telegram_id,
       })
@@ -764,8 +736,7 @@ export const generateModelTraining = inngest.createFunction(
               bot_name: eventData.bot_name,
             })
 
-            logger.info({
-              message: 'Тренировка запущена и сохранена в БД',
+            logger.info('Тренировка запущена и сохранена в БД', {
               trainingId: training.id,
               dbRecordId: trainingRecord.id,
             })
@@ -811,8 +782,7 @@ export const generateModelTraining = inngest.createFunction(
       )
 
       // Возвращаем результат
-      logger.info({
-        message: 'Тренировка успешно запущена',
+      logger.info('Тренировка успешно запущена', {
         trainingId: trainingResult.training.id,
         telegram_id: eventData.telegram_id,
       })
@@ -823,8 +793,7 @@ export const generateModelTraining = inngest.createFunction(
         trainingId: trainingResult.training.id,
       }
     } catch (error) {
-      logger.error({
-        message: 'Критическая ошибка в процессе тренировки',
+      logger.error('Критическая ошибка в процессе тренировки', {
         error: error.message,
         stack: error.stack,
         telegram_id: eventData.telegram_id,
@@ -833,8 +802,7 @@ export const generateModelTraining = inngest.createFunction(
       // Возврат средств в случае ошибки
       if (balanceCheck?.success && paymentAmount) {
         // Сначала логируем операцию
-        logger.info({
-          message: '💸 Возврат средств за неудавшуюся тренировку',
+        logger.info('💸 Возврат средств за неудавшуюся тренировку', {
           telegram_id: eventData.telegram_id,
           currentBalance: balanceCheck.currentBalance,
           refundAmount: paymentAmount,
@@ -872,8 +840,7 @@ export const generateModelTraining = inngest.createFunction(
           }
         })
 
-        logger.info({
-          message: '✅ Средства успешно возвращены',
+        logger.info('✅ Средства успешно возвращены', {
           refundResult,
           telegram_id: eventData.telegram_id,
           error: error.message,
@@ -889,8 +856,7 @@ export const generateModelTraining = inngest.createFunction(
 
       if (activeTrainings.has(eventData.telegram_id)) {
         activeTrainings.get(eventData.telegram_id)?.cancel()
-        logger.info({
-          message: 'Автоматический отменен текущей тренировки',
+        logger.info('Автоматический отменен текущей тренировки', {
           telegram_id: eventData.telegram_id,
         })
       }

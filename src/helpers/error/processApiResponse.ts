@@ -4,29 +4,25 @@ import { logger } from '@/utils/logger' // Предполагаем, что ло
 export const processApiResponse = async (
   apiOutput: ApiResponse
 ): Promise<string | null> => {
-  logger.info({
-    message: '[DIAGNOSTIC_PROCESS_API] Начало processApiResponse',
+  logger.info('[DIAGNOSTIC_PROCESS_API] Начало processApiResponse', {
     apiOutput_type: typeof apiOutput,
     apiOutput_is_null: apiOutput === null,
     apiOutput_is_undefined: apiOutput === undefined,
   })
   // Расширенное логирование самого apiOutput
   if (apiOutput && typeof apiOutput === 'object') {
-    logger.info({
-      message: '[DIAGNOSTIC_PROCESS_API] Содержимое apiOutput (object)',
+    logger.info('[DIAGNOSTIC_PROCESS_API] Содержимое apiOutput (object)', {
       keys: Object.keys(apiOutput),
     })
   } else {
-    logger.info({
-      message: '[DIAGNOSTIC_PROCESS_API] apiOutput (primitive)',
+    logger.info('[DIAGNOSTIC_PROCESS_API] apiOutput (primitive)', {
       value: apiOutput,
     })
   }
 
   try {
     if (!apiOutput) {
-      logger.error({
-        message: '[DIAGNOSTIC_PROCESS_API] Пустой ответ от API Replicate',
+      logger.error('[DIAGNOSTIC_PROCESS_API] Пустой ответ от API Replicate', {
         apiOutput,
       })
       return null
@@ -36,8 +32,7 @@ export const processApiResponse = async (
     if (Array.isArray(apiOutput) && apiOutput.length > 0) {
       const firstUrl = apiOutput[0]
       if (typeof firstUrl === 'string' && firstUrl.startsWith('http')) {
-        logger.info({
-          message: '[DIAGNOSTIC_PROCESS_API] Возвращаем первый URL из массива',
+        logger.info('[DIAGNOSTIC_PROCESS_API] Возвращаем первый URL из массива', {
           firstUrl,
         })
         return firstUrl
@@ -46,8 +41,7 @@ export const processApiResponse = async (
 
     // Обработка, если apiOutput - это одиночный URL-строка
     if (typeof apiOutput === 'string' && apiOutput.startsWith('http')) {
-      logger.info({
-        message: '[DIAGNOSTIC_PROCESS_API] Возвращаем одиночный URL-строку',
+      logger.info('[DIAGNOSTIC_PROCESS_API] Возвращаем одиночный URL-строку', {
         apiOutput,
       })
       return apiOutput
@@ -60,9 +54,7 @@ export const processApiResponse = async (
       if (Array.isArray(potentialOutput) && potentialOutput.length > 0) {
         const firstUrl = potentialOutput[0]
         if (typeof firstUrl === 'string' && firstUrl.startsWith('http')) {
-          logger.info({
-            message:
-              '[DIAGNOSTIC_PROCESS_API] Возвращаем первый URL из object.output/data',
+          logger.info('[DIAGNOSTIC_PROCESS_API] Возвращаем первый URL из object.output/data', {
             firstUrl,
           })
           return firstUrl
@@ -72,26 +64,21 @@ export const processApiResponse = async (
         typeof potentialOutput === 'string' &&
         potentialOutput.startsWith('http')
       ) {
-        logger.info({
-          message:
-            '[DIAGNOSTIC_PROCESS_API] Возвращаем одиночный URL из object.output/data',
+        logger.info('[DIAGNOSTIC_PROCESS_API] Возвращаем одиночный URL из object.output/data', {
           potentialOutput,
         })
         return potentialOutput
       }
     }
 
-    logger.warn({
-      message:
-        '[DIAGNOSTIC_PROCESS_API] Не удалось извлечь URL из ответа API Replicate',
+    logger.warn('[DIAGNOSTIC_PROCESS_API] Не удалось извлечь URL из ответа API Replicate', {
       apiOutput: JSON.stringify(apiOutput), // Логируем полный ответ, если он не содержит URL
     })
     return null
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
-    logger.error({
-      message: '[DIAGNOSTIC_PROCESS_API] Ошибка внутри processApiResponse',
+    logger.error('[DIAGNOSTIC_PROCESS_API] Ошибка внутри processApiResponse', {
       error: errorMessage,
       apiOutput_str: JSON.stringify(apiOutput), // Логируем, что пытались обработать
     })

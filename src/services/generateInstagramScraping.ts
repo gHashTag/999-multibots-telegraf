@@ -32,8 +32,7 @@ export async function generateInstagramScraping(
 ): Promise<InstagramScrapingResponse | null> {
   const isRu = isRussianFromState(ctx)
 
-  logger.info({
-    message: '🔍 [Instagram Scraper] Запуск анализа конкурентов Instagram',
+  logger.info('🔍 [Instagram Scraper] Запуск анализа конкурентов Instagram', {
     description: 'Starting Instagram competitor analysis via Inngest',
     username_or_id,
     project_id,
@@ -142,8 +141,7 @@ export async function generateInstagramScraping(
     )
     console.log(`🔥 [DEBUG] Check ai-server logs for this session_id!`)
 
-    logger.info({
-      message: '✅ [Instagram Scraper] Событие успешно отправлено в Inngest',
+    logger.info('✅ [Instagram Scraper] Событие успешно отправлено в Inngest', {
       description: 'Event successfully sent to Inngest',
       telegram_id,
     })
@@ -158,8 +156,7 @@ export async function generateInstagramScraping(
   } catch (error) {
     console.error('🔥 [DEBUG] Full error object:', error)
     
-    logger.error({
-      message: '❌ [Instagram Scraper] Ошибка при отправке события в Inngest',
+    logger.error('❌ [Instagram Scraper] Ошибка при отправке события в Inngest', {
       description: 'Error sending event to Inngest',
       error: error instanceof Error ? error.message : 'Unknown error',
       errorStack: error instanceof Error ? error.stack : 'No stack trace',

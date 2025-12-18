@@ -70,8 +70,7 @@ export function calculateModeCost(
       let normalizedMode = mode
       if (mode === 'neuro_photo_2') {
         normalizedMode = ModeEnum.NeuroPhotoV2
-        logger.info({
-          message: '🔄 Использован алиас режима',
+        logger.info('🔄 Использован алиас режима', {
           description: 'Mode alias used',
           originalMode: mode,
           normalizedMode,
@@ -81,8 +80,7 @@ export function calculateModeCost(
       const baseCostInDollars = BASE_COSTS[normalizedMode as keyof BaseCosts]
 
       if (baseCostInDollars === undefined) {
-        logger.error({
-          message: '❌ Неизвестный режим',
+        logger.error('❌ Неизвестный режим', {
           description: 'Unknown mode in cost calculation',
           mode,
           normalizedMode,
@@ -99,8 +97,7 @@ export function calculateModeCost(
 
     return { stars, dollars, rubles }
   } catch (error) {
-    logger.error({
-      message: '❌ Ошибка при расчете стоимости',
+    logger.error('❌ Ошибка при расчете стоимости', {
       description: 'Error during cost calculation',
       error: error instanceof Error ? error.message : 'Unknown error',
       mode,

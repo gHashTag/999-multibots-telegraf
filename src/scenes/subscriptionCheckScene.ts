@@ -9,15 +9,13 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 // Проверка существования пользователя
 const checkUserExists = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  logger.info({
-    message: '🔍 [SubscriptionCheck] Проверка существования пользователя',
+  logger.info('🔍 [SubscriptionCheck] Проверка существования пользователя', {
     telegramId,
     function: 'checkUserExists',
   })
 
   if (!ctx.from?.id) {
-    logger.info({
-      message: '❌ [SubscriptionCheck] ID пользователя не найден в контексте',
+    logger.info('❌ [SubscriptionCheck] ID пользователя не найден в контексте', {
       telegramId: 'unknown',
       function: 'checkUserExists',
       result: 'failed',
@@ -27,8 +25,7 @@ const checkUserExists = async (ctx: MyContext) => {
 
   const user = await getUserByTelegramIdString(ctx.from.id.toString())
   if (!user) {
-    logger.info({
-      message: '❌ [SubscriptionCheck] Пользователь не найден в базе данных',
+    logger.info('❌ [SubscriptionCheck] Пользователь не найден в базе данных', {
       telegramId,
       function: 'checkUserExists',
       result: 'not_found',
@@ -36,8 +33,7 @@ const checkUserExists = async (ctx: MyContext) => {
     return null
   }
 
-  logger.info({
-    message: '✅ [SubscriptionCheck] Пользователь найден',
+  logger.info('✅ [SubscriptionCheck] Пользователь найден', {
     telegramId,
     function: 'checkUserExists',
     result: 'found',
@@ -57,8 +53,7 @@ const getNextScene = (currentMode: ModeEnum | undefined): ModeEnum => {
 
 const subscriptionCheckStep = async (ctx: MyContext) => {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
-  logger.info({
-    message: '🚀 [SubscriptionCheck] Начало процесса проверки подписки',
+  logger.info('🚀 [SubscriptionCheck] Начало процесса проверки подписки', {
     telegramId,
     function: 'subscriptionCheckStep',
     currentMode: ctx.session?.mode || 'undefined',
@@ -67,9 +62,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
 
   // Проверка на админа (пропуск всех проверок)
   if (ADMIN_IDS_ARRAY.includes(ctx.from?.id ?? 0)) {
-    logger.info({
-      message:
-        '[SubscriptionCheck] [Admin Bypass] Пользователь является администратором, пропуск проверок',
+    logger.info('[SubscriptionCheck] [Admin Bypass] Пользователь является администратором, пропуск проверок', {
       telegramId,
       function: 'subscriptionCheckStep',
       isAdmin: true,
@@ -81,9 +74,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   // Проверка существования пользователя
   const user = await checkUserExists(ctx)
   if (!user) {
-    logger.info({
-      message:
-        '➡️ [SubscriptionCheck] Перенаправление на сцену создания пользователя',
+    logger.info('➡️ [SubscriptionCheck] Перенаправление на сцену создания пользователя', {
       telegramId,
       function: 'subscriptionCheckStep',
       result: 'redirect_to_create_user',
@@ -98,18 +89,14 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     user.subscription === SubscriptionType.NEUROVIDEO ||
     user.subscription === SubscriptionType.STARS
   ) {
-    logger.info({
-      message:
-        '⭐ [SubscriptionCheck] У пользователя есть платная подписка, доступ разрешен',
+    logger.info('⭐ [SubscriptionCheck] У пользователя есть платная подписка, доступ разрешен', {
       telegramId,
       function: 'subscriptionCheckStep',
       userSubscription: user.subscription,
       result: 'paid_subscription_active',
     })
   } else {
-    logger.info({
-      message:
-        '❌ [SubscriptionCheck] У пользователя нет платной подписки, требуется оплата',
+    logger.info('❌ [SubscriptionCheck] У пользователя нет платной подписки, требуется оплата', {
       telegramId,
       function: 'subscriptionCheckStep',
       userSubscription: user.subscription,
@@ -130,8 +117,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   ) {
     const nextScene = getNextScene(currentMode as ModeEnum)
     if (nextScene) {
-      logger.info({
-        message: '🔄 Переход к следующей сцене после проверки подписки',
+      logger.info('🔄 Переход к следующей сцене после проверки подписки', {
         description: 'Proceeding to next scene after subscription check',
         telegramId: ctx.from?.id?.toString(),
         currentMode: currentMode,
@@ -139,8 +125,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
       })
       ctx.scene.enter(nextScene)
     } else {
-      logger.warn({
-        message: '🤔 Не удалось определить следующую сцену',
+      logger.warn('🤔 Не удалось определить следующую сцену', {
         description: 'Could not determine next scene after subscription check',
         telegramId: ctx.from?.id?.toString(),
         currentMode: currentMode,
@@ -150,9 +135,7 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     }
   } else {
     // Если режим не является допустимым ModeEnum, обрабатываем как ошибку или возвращаемся в меню
-    logger.warn({
-      message:
-        '🤔 Недопустимый или отсутствующий режим в сессии при проверке подписки',
+    logger.warn('🤔 Недопустимый или отсутствующий режим в сессии при проверке подписки', {
       description:
         'Invalid or missing mode in session during subscription check',
       telegramId: ctx.from?.id?.toString(),
