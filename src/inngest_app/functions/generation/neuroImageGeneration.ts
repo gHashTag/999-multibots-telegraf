@@ -16,8 +16,11 @@ import { processBalanceOperation } from '@/price/helpers'
 import { ModeEnum } from '@/interfaces/modes'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import path from 'path'
-import { API_URL } from '@/config'
+import { isDev } from '@/config'
 import fs from 'fs'
+
+// API_URL for file serving
+const API_URL = isDev ? 'http://localhost:2999' : 'https://api.999.md'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 import { PaymentType } from '@/interfaces/payments.interface'

@@ -71,7 +71,7 @@ import {
   hedraRenderWizard,
   heygenRenderWizard,
   falRenderWizard,
-  // startScene, // ❌ ОТКЛЮЧЕНО: файл не существует
+  startScene,
   chatWithAvatarWizard,
   helpScene,
   balanceScene,
@@ -107,7 +107,7 @@ import { setupHearsHandlers } from './hearsHandlers'
 
 // Проверка всех сцен перед созданием Stage
 const scenesToRegister = [
-  // startScene, // ❌ ОТКЛЮЧЕНО: файл не существует
+  startScene,
   menuScene,
   helpScene,
   inviteScene,
@@ -162,7 +162,7 @@ const scenesToRegister = [
 
 // 🔍 DEBUG: Print scene names from array definition
 const sceneNames = [
-  // 'startScene', // ❌ ОТКЛЮЧЕНО: файл не существует
+  'startScene',
   'menuScene', 'helpScene', 'inviteScene', 'paymentScene',
   'rublePaymentScene', 'starPaymentScene', 'subscriptionScene', 'subscriptionCheckScene',
   'checkBalanceScene', 'balanceScene', 'neuroPhotoWizard', 'neuroPhotoWizardV2',

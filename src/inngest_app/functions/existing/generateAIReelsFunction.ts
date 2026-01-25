@@ -194,7 +194,7 @@ export const generateAIReelsFunction = inngest.createFunction(
 
           // Загружаем в Supabase
           const { uploadVideoToSupabase } = await import(
-            './video-upload-helper'
+            '../video-upload-helper'
           )
           const finalVideoUrl = await uploadVideoToSupabase(
             finalVideoPath,

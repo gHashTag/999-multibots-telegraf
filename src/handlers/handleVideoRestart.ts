@@ -36,9 +36,7 @@ export async function handleRestartVideoGeneration(
     await ctx.scene.enter(imageToVideoSceneId)
   } else {
     // Если поле не установлено или имеет неожиданное значение
-    logger.warn(`[handleRestartVideoGeneration] Cannot determine scene to restart. lastCompletedVideoScene: ${, {
-        lastCompletedScene ?? 'undefined'
-      }`,
+    logger.warn(`[handleRestartVideoGeneration] Cannot determine scene to restart. lastCompletedVideoScene: ${lastCompletedScene ?? 'undefined'}`, {
       telegramId,
     })
     // В режиме разработки для удобства можем все равно перейти куда-то

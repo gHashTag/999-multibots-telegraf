@@ -288,6 +288,12 @@ levels[108] = { title_ru: '📺 Транскрибация Reels', title_en: '�
 
 /**
  * Создает главное меню бота
+ * Группировка как в старом mainMenu:
+ * 1. Основные функции (по 2 в ряд)
+ * 2. Баланс + Пополнить
+ * 3. Пригласить + Поддержка
+ * 4. Кнопка языка
+ * 5. Оформить подписку (последний ряд)
  */
 export const createMainMenuKeyboard = (ctx: MyContext) => {
   const isRu = isRussianFromState(ctx)
@@ -302,34 +308,54 @@ export const createMainMenuKeyboard = (ctx: MyContext) => {
     sessionLanguage: ctx.session?.language_code
   })
 
-  // Фильтруем кнопки по правам доступа
-  const visibleButtons = NAVIGATION_BUTTONS.filter(btn => {
+  // Разделяем кнопки по категориям
+  const mainButtons = NAVIGATION_BUTTONS.filter(btn => {
+    // Исключаем navigation и payment категории - они пойдут отдельно
+    if (btn.category === 'navigation' || btn.category === 'payment') return false
     // Проверяем админские права
-    if (btn.admin_only && (!userId || !ADMIN_IDS_ARRAY.includes(userId))) {
-      return false
-    }
+    if (btn.admin_only && (!userId || !ADMIN_IDS_ARRAY.includes(userId))) return false
     return true
   })
 
-  // Получаем тексты кнопок
-  const buttonTexts = visibleButtons.map(btn => isRu ? btn.ru : btn.en)
+  // Получаем тексты основных кнопок
+  const mainButtonTexts = mainButtons.map(btn => isRu ? btn.ru : btn.en)
 
   // 🐛 DEBUG: Логируем первые 3 кнопки
   console.log('🐛 [createMainMenuKeyboard] First 3 buttons:', {
     telegramId: ctx.from?.id,
     isRu,
-    buttons: buttonTexts.slice(0, 3)
+    buttons: mainButtonTexts.slice(0, 3)
   })
 
-  // Создаем клавиатуру (по 2 кнопки в ряд)
-  const keyboard = []
-  for (let i = 0; i < buttonTexts.length; i += 2) {
-    const row = [buttonTexts[i]]
-    if (buttonTexts[i + 1]) {
-      row.push(buttonTexts[i + 1])
+  // Создаем клавиатуру
+  const keyboard: string[][] = []
+
+  // 1. Основные функции (по 2 кнопки в ряд)
+  for (let i = 0; i < mainButtonTexts.length; i += 2) {
+    const row = [mainButtonTexts[i]]
+    if (mainButtonTexts[i + 1]) {
+      row.push(mainButtonTexts[i + 1])
     }
     keyboard.push(row)
   }
+
+  // 2. Баланс + Пополнить баланс
+  keyboard.push([
+    isRu ? '💰 Баланс' : '💰 Balance',
+    isRu ? '💎 Пополнить баланс' : '💎 Top up balance'
+  ])
+
+  // 3. Пригласить друга + Техподдержка
+  keyboard.push([
+    isRu ? '👥 Пригласить друга' : '👥 Invite a friend',
+    isRu ? '💬 Техподдержка' : '💬 Tech Support'
+  ])
+
+  // 4. Кнопка языка (отдельный ряд)
+  keyboard.push([isRu ? '🌐 EN' : '🌐 RU'])
+
+  // 5. Оформить подписку (последний ряд)
+  keyboard.push([isRu ? '💫 Оформить подписку' : '💫 Subscribe'])
 
   return Markup.keyboard(keyboard).resize()
 }

@@ -4,8 +4,17 @@
 # Stage 1: Dependencies только для production
 FROM node:20-slim AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm install --omit=dev --prefer-offline
+
+# Install build tools for native modules (ssh2, etc.)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json ./
+COPY package-lock.json* ./
+RUN npm install --omit=dev
 
 # Stage 2: Builder с esbuild
 FROM node:20-slim AS builder
@@ -14,8 +23,9 @@ WORKDIR /app
 # Установка esbuild глобально (ОЧЕНЬ быстро)
 RUN npm install -g esbuild
 
-COPY package.json package-lock.json ./
-RUN npm install --prefer-offline
+COPY package.json ./
+COPY package-lock.json* ./
+RUN npm install
 
 COPY . .
 

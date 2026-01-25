@@ -8,34 +8,34 @@ import { inngest } from './inngestClient'
 import { logger } from '@/utils/logger'
 
 // Import all functions - will need to fix imports after creating proper exports
-// Content Functions
-import { analyzeCompetitorReelsFunction } from './functions/content/analyzeCompetitorReels'
-import { extractTopContentFunction } from './functions/content/extractTopContent'
-import { findCompetitorsFunction } from './functions/content/findCompetitors'
-import { generateContentScriptsFunction } from './functions/content/generateContentScripts'
-import { generateDetailedScriptFunction } from './functions/content/generateDetailedScript'
-import { generateScenarioClipsFunction } from './functions/content/generateScenarioClips'
+// Content Functions - TEMPORARILY DISABLED due to broken imports
+// import { analyzeCompetitorReelsFunction } from './functions/content/analyzeCompetitorReels'
+// import { extractTopContentFunction } from './functions/content/extractTopContent'
+// import { findCompetitorsFunction } from './functions/content/findCompetitors'
+// import { generateContentScriptsFunction } from './functions/content/generateContentScripts'
+// import { generateDetailedScriptFunction } from './functions/content/generateDetailedScript'
+// import { generateScenarioClipsFunction } from './functions/content/generateScenarioClips'
 
-// Instagram Functions
-import { instagramScraperV2Function } from './functions/instagram/instagramScraper-v2'
-import { instagramScraperV2SimpleFunction } from './functions/instagram/instagramScraper-v2-simple'
+// Instagram Functions - TEMPORARILY DISABLED due to broken imports
+// import { instagramScraperV2Function } from './functions/instagram/instagramScraper-v2'
+// import { instagramScraperV2SimpleFunction } from './functions/instagram/instagramScraper-v2-simple'
 
 // Monitoring Functions
-import { criticalErrorMonitorFunction } from './functions/monitoring/criticalErrorMonitor'
-import { logMonitorFunction } from './functions/monitoring/logMonitor'
+import { criticalErrorMonitor, healthCheck } from './functions/monitoring/criticalErrorMonitor'
+import { logMonitor, triggerLogMonitor } from './functions/monitoring/logMonitor'
 
-// Training Functions
-import { modelTrainingV2Function } from './functions/training/modelTrainingV2'
-import { morphImagesFunction } from './functions/training/morphImages'
+// Training Functions - TEMPORARILY DISABLED due to broken imports
+// import { modelTrainingV2Function } from './functions/training/modelTrainingV2'
+// import { morphImagesFunction } from './functions/training/morphImages'
 
 // Generation Functions
-import { neuroImageGenerationFunction } from './functions/generation/neuroImageGeneration'
+import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
 
-// Payment Functions
-import { paymentProcessingFunction } from './functions/payments/paymentProcessing'
+// Payment Functions - TEMPORARILY DISABLED due to broken imports
+// import { paymentProcessingFunction } from './functions/payments/paymentProcessing'
 
 // Broadcast Functions
-import { broadcastMessageFunction } from './functions/broadcast/broadcastMessage'
+import { broadcastMessage } from './functions/broadcast/broadcastMessage'
 
 // Callback Functions
 import { aiReelsCallbackFunction } from './functions/ai-reels-callback'
@@ -52,34 +52,36 @@ import { generateModelTrainingFunction } from './functions/existing/generateMode
 
 // Collect all functions (raw array with potential undefined values)
 const allFunctionsRaw = [
-  // Content (6)
-  analyzeCompetitorReelsFunction,
-  extractTopContentFunction,
-  findCompetitorsFunction,
-  generateContentScriptsFunction,
-  generateDetailedScriptFunction,
-  generateScenarioClipsFunction,
+  // Content (6) - TEMPORARILY DISABLED
+  // analyzeCompetitorReelsFunction,
+  // extractTopContentFunction,
+  // findCompetitorsFunction,
+  // generateContentScriptsFunction,
+  // generateDetailedScriptFunction,
+  // generateScenarioClipsFunction,
 
-  // Instagram (2)
-  instagramScraperV2Function,
-  instagramScraperV2SimpleFunction,
+  // Instagram (2) - TEMPORARILY DISABLED
+  // instagramScraperV2Function,
+  // instagramScraperV2SimpleFunction,
 
   // Monitoring (2)
-  criticalErrorMonitorFunction,
-  logMonitorFunction,
+  criticalErrorMonitor,
+  healthCheck,
+  logMonitor,
+  triggerLogMonitor,
 
-  // Training (2)
-  modelTrainingV2Function,
-  morphImagesFunction,
+  // Training (2) - TEMPORARILY DISABLED
+  // modelTrainingV2Function,
+  // morphImagesFunction,
 
   // Generation (1)
-  neuroImageGenerationFunction,
+  neuroImageGeneration,
 
-  // Payment (1)
-  paymentProcessingFunction,
+  // Payment (1) - TEMPORARILY DISABLED
+  // paymentProcessingFunction,
 
   // Broadcast (1)
-  broadcastMessageFunction,
+  broadcastMessage,
 
   // Callback (1)
   aiReelsCallbackFunction,

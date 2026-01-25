@@ -1,6 +1,6 @@
 {
   "name": "vibee",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "VIBEE - AI-powered Telegram bot platform",
   "main": "src/bot.ts",
   "scripts": {
@@ -90,6 +90,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0",
+    "@aws-sdk/lib-storage": "^3.700.0",
+    "ssh2": "^1.16.0",
     "@fal-ai/client": "^1.7.0",
     "@infisical/sdk": "^4.0.6",
     "@octokit/rest": "^22.0.0",
@@ -105,7 +109,7 @@
     "express": "^5.1.0",
     "express-rate-limit": "^8.0.1",
     "form-data": "^4.0.0",
-    "inngest": "^2.7.2",
+    "inngest": "^3.44.5",
     "io-ts": "^2.2.22",
     "jest-mock": "^29.7.0",
     "md5": "^2.3.0",
@@ -139,7 +143,6 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.3",
     "husky": "^8.0.3",
-    "inngest": "^3.44.5",
     "jest": "^29.7.0",
     "lint-staged": "^15.5.1",
     "prettier": "^3.2.4",

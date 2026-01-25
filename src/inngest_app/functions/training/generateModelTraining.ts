@@ -374,7 +374,7 @@ export const generateModelTraining = inngest.createFunction(
     })
 
     if (!bot) {
-      logger.error('Бот не найден', botName: eventData.bot_name }), {
+      logger.error('Бот не найден', { botName: eventData.bot_name })
       throw new Error(`❌ Бот ${eventData.bot_name} не найден`)
     }
     const helpers = {
