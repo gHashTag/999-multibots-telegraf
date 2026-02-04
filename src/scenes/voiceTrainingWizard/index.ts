@@ -1,0 +1,491 @@
+/**
+ * 🎤 VOICE TRAINING WIZARD
+ *
+ * Сцена обучения голосовой модели пользователя для AI Cover
+ *
+ * Flow:
+ * 1. Показать инструкции и стоимость
+ * 2. Получить аудио файл с голосом
+ * 3. Валидация (30 сек - 3 мин, форматы)
+ * 4. Подтверждение и списание
+ * 5. Отправка в Inngest для обработки
+ */
+
+import { Scenes, Markup } from 'telegraf'
+import { message } from 'telegraf/filters'
+import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { showMainMenu } from '@/navigation'
+import { logger } from '@/utils/logger'
+import { getUserBalance } from '@/core/supabase/getUserBalance'
+import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { PaymentType } from '@/interfaces/payments.interface'
+import {
+  createVoiceModel,
+  hasTrainingVoiceModel,
+  hasReadyVoiceModel,
+} from '@/core/supabase/voiceModels'
+import { validateAudioFormat } from '@/services/rvc'
+import {
+  getVoiceTrainingCost,
+  VOICE_TRAINING_CONFIG,
+} from '@/price/helpers/modelsCost'
+import { sendInngestEvent, INNGEST_EVENTS } from '@/inngest_app/client'
+import { supabase } from '@/core/supabase/client'
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WIZARD SETUP
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface WizardState {
+  step: number
+  audioFileId?: string
+  audioUrl?: string
+  modelName?: string
+}
+
+export const voiceTrainingWizard = new Scenes.WizardScene<MyContext>(
+  ModeEnum.VoiceTraining,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 1: Инструкции и проверка
+  // ═══════════════════════════════════════════════════════════════════════════
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      await ctx.reply(isRu ? '❌ Ошибка авторизации' : '❌ Authorization error')
+      return ctx.scene.leave()
+    }
+
+    logger.info('[VOICE_TRAINING] Wizard started', { telegramId })
+
+    // Инициализация состояния
+    ctx.session.wizardData = {
+      step: 1,
+    } as WizardState
+
+    // Проверка: уже есть готовая модель?
+    const hasReady = await hasReadyVoiceModel(telegramId)
+    if (hasReady) {
+      await ctx.reply(
+        isRu
+          ? '✅ У вас уже есть обученная голосовая модель!\n\n' +
+              'Перейдите в "🎧 AI Cover" чтобы создать кавер.\n\n' +
+              'Хотите обучить новую модель? Это заменит текущую.'
+          : '✅ You already have a trained voice model!\n\n' +
+              'Go to "🎧 AI Cover" to create a cover.\n\n' +
+              'Want to train a new model? This will replace the current one.',
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '🔄 Обучить новую' : '🔄 Train new',
+              'continue_training'
+            ),
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '🎧 К AI Cover' : '🎧 Go to AI Cover',
+              'go_to_ai_cover'
+            ),
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '🏠 В меню' : '🏠 To menu',
+              'back_to_menu'
+            ),
+          ],
+        ])
+      )
+      return
+    }
+
+    // Проверка: модель уже обучается?
+    const hasTraining = await hasTrainingVoiceModel(telegramId)
+    if (hasTraining) {
+      await ctx.reply(
+        isRu
+          ? '⏳ У вас уже есть модель в процессе обучения.\n\n' +
+              'Подождите завершения (5-10 минут) и попробуйте снова.'
+          : '⏳ You already have a model being trained.\n\n' +
+              'Wait for completion (5-10 minutes) and try again.',
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '🏠 В меню' : '🏠 To menu',
+              'back_to_menu'
+            ),
+          ],
+        ])
+      )
+      return ctx.scene.leave()
+    }
+
+    // Показать инструкции
+    await showInstructions(ctx, isRu)
+    return ctx.wizard.next()
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 2: Получение аудио
+  // ═══════════════════════════════════════════════════════════════════════════
+  async ctx => {
+    const isRu = isRussianFromState(ctx)
+    const telegramId = ctx.from?.id?.toString()
+
+    if (!telegramId) {
+      return ctx.scene.leave()
+    }
+
+    // Проверка: это аудио?
+    if (!ctx.message || !('audio' in ctx.message || 'voice' in ctx.message)) {
+      await ctx.reply(
+        isRu
+          ? '📎 Пожалуйста, отправьте аудиофайл или голосовое сообщение'
+          : '📎 Please send an audio file or voice message'
+      )
+      return
+    }
+
+    // Получаем информацию об аудио
+    const audio = 'audio' in ctx.message ? ctx.message.audio : ctx.message.voice
+    const fileId = audio.file_id
+    const duration = audio.duration || 0
+    const mimeType = 'mime_type' in audio ? audio.mime_type : 'audio/ogg'
+
+    logger.info('[VOICE_TRAINING] Audio received', {
+      telegramId,
+      fileId,
+      duration,
+      mimeType,
+    })
+
+    // Валидация формата
+    if (mimeType && !validateAudioFormat(mimeType)) {
+      await ctx.reply(
+        isRu
+          ? `❌ Неподдерживаемый формат: ${mimeType}\n\n` +
+              `Поддерживаемые форматы: MP3, WAV, OGG, M4A, FLAC`
+          : `❌ Unsupported format: ${mimeType}\n\n` +
+              `Supported formats: MP3, WAV, OGG, M4A, FLAC`
+      )
+      return
+    }
+
+    // Валидация длительности
+    const { minAudioDuration, maxAudioDuration } = VOICE_TRAINING_CONFIG
+    if (duration < minAudioDuration) {
+      await ctx.reply(
+        isRu
+          ? `❌ Аудио слишком короткое (${duration} сек).\n` +
+              `Минимум: ${minAudioDuration} секунд.`
+          : `❌ Audio too short (${duration} sec).\n` +
+              `Minimum: ${minAudioDuration} seconds.`
+      )
+      return
+    }
+
+    if (duration > maxAudioDuration) {
+      await ctx.reply(
+        isRu
+          ? `❌ Аудио слишком длинное (${duration} сек).\n` +
+              `Максимум: ${maxAudioDuration / 60} минуты.`
+          : `❌ Audio too long (${duration} sec).\n` +
+              `Maximum: ${maxAudioDuration / 60} minutes.`
+      )
+      return
+    }
+
+    // Сохраняем в состояние
+    const state = ctx.session.wizardData as WizardState
+    state.audioFileId = fileId
+    state.step = 2
+
+    // Показать подтверждение
+    const cost = getVoiceTrainingCost()
+    await ctx.reply(
+      isRu
+        ? `✅ Аудио принято!\n\n` +
+            `📏 Длительность: ${duration} сек\n` +
+            `💰 Стоимость обучения: ${cost}⭐\n\n` +
+            `Обучение займёт 5-10 минут. Вы получите уведомление.`
+        : `✅ Audio accepted!\n\n` +
+            `📏 Duration: ${duration} sec\n` +
+            `💰 Training cost: ${cost}⭐\n\n` +
+            `Training will take 5-10 minutes. You will be notified.`,
+      Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? `✅ Начать обучение (${cost}⭐)` : `✅ Start training (${cost}⭐)`,
+            'confirm_training'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '❌ Отмена' : '❌ Cancel',
+            'back_to_menu'
+          ),
+        ],
+      ])
+    )
+    return ctx.wizard.next()
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 3: Подтверждение (обрабатывается через action)
+  // ═══════════════════════════════════════════════════════════════════════════
+  async ctx => {
+    // Ожидание нажатия кнопки
+    return
+  }
+)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function showInstructions(ctx: MyContext, isRu: boolean) {
+  const cost = getVoiceTrainingCost()
+  const { minAudioDuration, maxAudioDuration } = VOICE_TRAINING_CONFIG
+
+  const text = isRu
+    ? `🎤 *Обучение голоса для AI Cover*\n\n` +
+        `Загрузите аудио с вашим голосом для обучения модели.\n\n` +
+        `📋 *Требования:*\n` +
+        `• Длительность: ${minAudioDuration} сек - ${maxAudioDuration / 60} мин\n` +
+        `• Форматы: MP3, WAV, OGG, M4A, FLAC\n` +
+        `• Качество: чистый голос без музыки и шума\n\n` +
+        `💡 *Рекомендации:*\n` +
+        `• Говорите чётко и естественно\n` +
+        `• Используйте тихое место\n` +
+        `• Избегайте эха и фонового шума\n\n` +
+        `💰 *Стоимость:* ${cost}⭐ (один раз)\n` +
+        `⏱️ *Время обучения:* 5-10 минут`
+    : `🎤 *Voice Training for AI Cover*\n\n` +
+        `Upload audio with your voice to train the model.\n\n` +
+        `📋 *Requirements:*\n` +
+        `• Duration: ${minAudioDuration} sec - ${maxAudioDuration / 60} min\n` +
+        `• Formats: MP3, WAV, OGG, M4A, FLAC\n` +
+        `• Quality: clean voice without music and noise\n\n` +
+        `💡 *Recommendations:*\n` +
+        `• Speak clearly and naturally\n` +
+        `• Use a quiet place\n` +
+        `• Avoid echo and background noise\n\n` +
+        `💰 *Cost:* ${cost}⭐ (one time)\n` +
+        `⏱️ *Training time:* 5-10 minutes`
+
+  await ctx.reply(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([
+      [
+        Markup.button.callback(
+          isRu ? '🏠 В меню' : '🏠 To menu',
+          'back_to_menu'
+        ),
+      ],
+    ]),
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTION HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+voiceTrainingWizard.action('continue_training', async ctx => {
+  await ctx.answerCbQuery()
+  const isRu = isRussianFromState(ctx)
+  await showInstructions(ctx, isRu)
+  return ctx.wizard.selectStep(1)
+})
+
+voiceTrainingWizard.action('go_to_ai_cover', async ctx => {
+  await ctx.answerCbQuery()
+  await ctx.scene.leave()
+  return ctx.scene.enter(ModeEnum.AICover)
+})
+
+voiceTrainingWizard.action('back_to_menu', async ctx => {
+  await ctx.answerCbQuery()
+  await ctx.scene.leave()
+  return showMainMenu(ctx)
+})
+
+voiceTrainingWizard.action('confirm_training', async ctx => {
+  await ctx.answerCbQuery()
+  const isRu = isRussianFromState(ctx)
+  const telegramId = ctx.from?.id?.toString()
+
+  if (!telegramId) {
+    await ctx.reply(isRu ? '❌ Ошибка авторизации' : '❌ Authorization error')
+    return ctx.scene.leave()
+  }
+
+  const state = ctx.session.wizardData as WizardState
+  if (!state?.audioFileId) {
+    await ctx.reply(
+      isRu ? '❌ Аудио не найдено. Попробуйте снова.' : '❌ Audio not found. Try again.'
+    )
+    return ctx.scene.leave()
+  }
+
+  const cost = getVoiceTrainingCost()
+
+  try {
+    // 1. Проверка баланса
+    const balance = await getUserBalance(telegramId)
+    if (balance < cost) {
+      await ctx.reply(
+        isRu
+          ? `❌ Недостаточно средств.\n\nТребуется: ${cost}⭐\nВаш баланс: ${balance}⭐`
+          : `❌ Insufficient funds.\n\nRequired: ${cost}⭐\nYour balance: ${balance}⭐`
+      )
+      return ctx.scene.leave()
+    }
+
+    // 2. Списание баланса
+    await updateUserBalance(
+      telegramId,
+      cost,
+      PaymentType.MONEY_OUTCOME,
+      'Voice training'
+    )
+
+    logger.info('[VOICE_TRAINING] Balance deducted', {
+      telegramId,
+      cost,
+      newBalance: balance - cost,
+    })
+
+    // 3. Получение URL файла и загрузка в Storage
+    const fileLink = await ctx.telegram.getFileLink(state.audioFileId)
+    const audioUrl = fileLink.href
+
+    // Загрузка в Supabase Storage
+    const response = await fetch(audioUrl)
+    const audioBuffer = await response.arrayBuffer()
+    const fileName = `voice_training/${telegramId}/${Date.now()}.ogg`
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(fileName, audioBuffer, {
+        contentType: 'audio/ogg',
+        upsert: true,
+      })
+
+    if (uploadError) {
+      logger.error('[VOICE_TRAINING] Failed to upload audio', {
+        telegramId,
+        error: uploadError.message,
+      })
+      // Refund
+      await updateUserBalance(
+        telegramId,
+        cost,
+        PaymentType.REFUND,
+        'Voice training refund - upload error'
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка загрузки аудио. Средства возвращены.'
+          : '❌ Audio upload error. Funds refunded.'
+      )
+      return ctx.scene.leave()
+    }
+
+    // Получение публичной ссылки
+    const { data: publicUrlData } = supabase.storage
+      .from('images')
+      .getPublicUrl(fileName)
+
+    const storedAudioUrl = publicUrlData.publicUrl
+
+    // 4. Создание записи в БД
+    const modelName = `voice_${telegramId}_${Date.now()}`
+    const voiceModel = await createVoiceModel({
+      telegram_id: telegramId,
+      model_name: modelName,
+      audio_url: storedAudioUrl,
+      status: 'pending',
+    })
+
+    // 5. Отправка в Inngest
+    await sendInngestEvent('voice/training.start' as any, {
+      voiceModelId: voiceModel.id,
+      telegram_id: telegramId,
+      audioUrl: storedAudioUrl,
+      modelName,
+      bot_name: ctx.botInfo?.username || 'neuro_blogger_bot',
+    })
+
+    logger.info('[VOICE_TRAINING] Training started', {
+      telegramId,
+      voiceModelId: voiceModel.id,
+      modelName,
+    })
+
+    await ctx.reply(
+      isRu
+        ? `✅ Обучение голоса запущено!\n\n` +
+            `⏱️ Это займёт 5-10 минут.\n` +
+            `📬 Вы получите уведомление, когда модель будет готова.\n\n` +
+            `После этого вы сможете создавать AI Cover в разделе "🎧 AI Cover".`
+        : `✅ Voice training started!\n\n` +
+            `⏱️ This will take 5-10 minutes.\n` +
+            `📬 You will be notified when the model is ready.\n\n` +
+            `After that you can create AI Covers in "🎧 AI Cover" section.`,
+      Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            isRu ? '🏠 В меню' : '🏠 To menu',
+            'back_to_menu'
+          ),
+        ],
+      ])
+    )
+
+    return ctx.scene.leave()
+  } catch (error) {
+    logger.error('[VOICE_TRAINING] Error starting training', {
+      telegramId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+
+    // Попытка возврата средств
+    try {
+      await updateUserBalance(
+        telegramId,
+        cost,
+        PaymentType.REFUND,
+        'Voice training refund - error'
+      )
+    } catch (refundError) {
+      logger.error('[VOICE_TRAINING] Refund failed', {
+        telegramId,
+        error: refundError instanceof Error ? refundError.message : String(refundError),
+      })
+    }
+
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка. Средства возвращены. Попробуйте позже.'
+        : '❌ An error occurred. Funds refunded. Try again later.'
+    )
+    return ctx.scene.leave()
+  }
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HEARS HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+voiceTrainingWizard.hears(
+  ['🏠 Главное меню', '🏠 Main menu', '/menu'],
+  async ctx => {
+    await ctx.scene.leave()
+    return showMainMenu(ctx)
+  }
+)
+
+export default voiceTrainingWizard

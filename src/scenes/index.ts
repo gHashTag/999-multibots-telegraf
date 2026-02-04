@@ -57,5 +57,8 @@ export * from './instagramScrapingWizard'
 export * from './instagramParserScene'
 export * from './instagramParserWizard'
 export { default as morphingWizard } from './morphingWizard'
+// 🎤 VOICE TRAINING & AI COVER
+export { default as voiceTrainingWizard } from './voiceTrainingWizard'
+export { default as aiCoverWizard } from './aiCoverWizard'
 // ✅ ЭКСПОРТИРУЕМ СЦЕНЫ КАТЕГОРИЙ
 export * from './categoryScenes'
