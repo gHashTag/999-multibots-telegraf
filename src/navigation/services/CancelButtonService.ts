@@ -3,6 +3,7 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
+import { refundUser } from '@/price/helpers/refundUser'
 // Внутренние импорты из navigation (не через @/navigation чтобы избежать циклов)
 import { showMainMenu } from '../helpers/menuKeyboard'
 import { getMainMenuText } from '../config/buttons.config'
@@ -262,9 +263,21 @@ export class CancelButtonService {
       telegramId: ctx.from?.id,
       hasCustomMessage: !!customMessage,
       currentScene: (ctx as any).scene?.current?.id,
+      pendingPayment: ctx.session?.paymentAmount || 0,
     })
 
     try {
+      // ✅ REFUND: Проверяем наличие незавершённого платежа и возвращаем звёзды
+      const paymentAmount = ctx.session?.paymentAmount || 0
+      if (paymentAmount > 0) {
+        logger.info('[CancelButtonService] Refunding pending payment on cancel', {
+          telegramId: ctx.from?.id,
+          amount: paymentAmount,
+        })
+        await refundUser(ctx, paymentAmount, false) // НЕ silent - показываем пользователю
+        ctx.session.paymentAmount = 0 // Очищаем после возврата
+      }
+
       // Покидаем текущую сцену
       await ctx.scene.leave()
 

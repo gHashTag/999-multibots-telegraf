@@ -367,7 +367,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }
 
   // Avatar transformation fields
-  selectedModel?: 'flux-kontext' | 'seedream4' | 'nano-banana' // Выбранная AI модель для трансформации
+  selectedModel?: 'flux-kontext' | 'seedream45' | 'nano-banana' // Выбранная AI модель для трансформации
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
   selectedHero?: string // Выбранный герой Marvel для трансформации
 

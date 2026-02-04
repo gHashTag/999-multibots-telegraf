@@ -221,3 +221,47 @@ export const SUNO_DURATION_OPTIONS = [
   { seconds: 120, label: '2 мин', labelEn: '2 min', stars: calculateSunoMusicCost(120) },
   { seconds: 180, label: '3 мин', labelEn: '3 min', stars: calculateSunoMusicCost(180) },
 ] as const
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎤 RVC VOICE TRAINING & AI COVER PRICING
+// Используем Replicate для обучения голоса и создания AI Cover
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Конфигурация Voice Training (RVC)
+ * Обучение голоса: ~$1.07 базовая цена
+ * С наценкой 50%: 100⭐
+ */
+export const VOICE_TRAINING_CONFIG = {
+  baseUsd: 1.07,             // Базовая цена Replicate за обучение
+  fixedStars: 100,           // Фиксированная цена в Stars
+  model: 'replicate/train-rvc-model',
+  minAudioDuration: 30,      // Минимум 30 секунд
+  maxAudioDuration: 180,     // Максимум 3 минуты
+} as const
+
+/**
+ * Конфигурация AI Cover
+ * Конверсия голоса: ~$0.20 базовая цена за песню
+ * С наценкой 50%: 19⭐
+ */
+export const AI_COVER_CONFIG = {
+  baseUsd: 0.20,             // Базовая цена за конверсию
+  fixedStars: 19,            // Фиксированная цена в Stars
+  model: 'zsxkib/realistic-voice-cloning',
+  maxSongDuration: 600,      // Максимум 10 минут
+} as const
+
+/**
+ * Получить стоимость обучения голоса
+ */
+export function getVoiceTrainingCost(): number {
+  return VOICE_TRAINING_CONFIG.fixedStars
+}
+
+/**
+ * Получить стоимость AI Cover
+ */
+export function getAICoverCost(): number {
+  return AI_COVER_CONFIG.fixedStars
+}

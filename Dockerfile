@@ -22,10 +22,12 @@ COPY . .
 # ✅ Проверка TypeScript перед сборкой (прерывает сборку при ошибках)
 # Временно отключено для обхода конфликта типов в provider-registry.ts
 # RUN npx tsc --noEmit || (echo "❌ TypeScript errors found! Build aborted." && exit 1)
-RUN echo "⚠️ TypeScript check temporarily disabled"
+RUN echo "⚠️ TypeScript check temporarily disabled - forced rebuild to bypass esbuild cache issue"
 
 # esbuild бандлит все в один файл за секунды!
 # --packages=external: НЕ бандлить node_modules (будут в runtime)
+# Принудительная пересборка без кэша (WORKAROUND для ошибки esbuild)
+RUN rm -rf /root/.npm /root/.cache /root/.cache/esbuild && npm install -g esbuild
 RUN esbuild src/index.ts \
   --bundle \
   --platform=node \
@@ -33,8 +35,7 @@ RUN esbuild src/index.ts \
   --format=cjs \
   --outfile=dist/index.js \
   --packages=external \
-  --sourcemap \
-  --minify
+  --sourcemap
 
 # Stage 3: Production (минимальный runtime)
 FROM node:20-slim

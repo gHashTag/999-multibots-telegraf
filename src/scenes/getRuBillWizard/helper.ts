@@ -1,13 +1,14 @@
 import {
-  getMerchantLogin,
   UNIFIED_RESULT_URL,
-  getRobokassaPassword1,
 } from '@/config'
 import md5 from 'md5'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
-export const merchantLogin = getMerchantLogin() || ''
-export const password1 = getRobokassaPassword1() || ''
+// ⚠️ DEPRECATED: Не используйте эти экспорты!
+// Используйте getMerchantLogin() и getRobokassaPassword1() из @/config напрямую
+// Эти экспорты оставлены только для обратной совместимости
+// export const merchantLogin = getMerchantLogin() || ''
+// export const password1 = getRobokassaPassword1() || ''
 
 export const description = 'Покупка звезд'
 
@@ -30,6 +31,30 @@ export const subscriptionTitles = (isRu: boolean) => ({
 
 export const resultUrl2 = UNIFIED_RESULT_URL
 
+// 🔍 DEBUG: Логируем ResultURL при загрузке модуля
+console.log('🔍 [Robokassa Helper] Module loaded with:', {
+  resultUrl2,
+  hasTunnelUrl: !!process.env.CLOUDFLARE_TUNNEL_URL,
+  tunnelUrl: process.env.CLOUDFLARE_TUNNEL_URL || 'NOT SET',
+  isDev: process.env.NODE_ENV !== 'production',
+})
+
+// 🌐 Robokassa domain configuration
+// Используйте ROBOKASSA_DOMAIN=kz для Казахстана или ru (default) для России
+const ROBOKASSA_DOMAIN = process.env.ROBOKASSA_DOMAIN || 'ru'
+const ROBOKASSA_BASE_URL = `https://auth.robokassa.${ROBOKASSA_DOMAIN}/Merchant/Index.aspx`
+
+// 🧪 Test mode: IsTest=1 для тестовых платежей
+// В тестовом режиме Robokassa НЕ списывает реальные деньги
+const isTestMode = process.env.NODE_ENV !== 'production' || process.env.ROBOKASSA_TEST_MODE === 'true'
+
+console.log('🔧 [Robokassa Config]:', {
+  domain: ROBOKASSA_DOMAIN,
+  baseUrl: ROBOKASSA_BASE_URL,
+  isTestMode,
+  nodeEnv: process.env.NODE_ENV,
+})
+
 export function generateRobokassaUrl(
   merchantLogin: string,
   outSum: number,
@@ -37,23 +62,33 @@ export function generateRobokassaUrl(
   description: string,
   password1: string
 ): string {
+  console.log('═══════════════════════════════════════════════════════')
+  console.log('🏦 [ROBOKASSA] GENERATING PAYMENT URL')
+  console.log('═══════════════════════════════════════════════════════')
+
   // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Все параметры обязательны
   if (!merchantLogin) {
+    console.error('❌ [generateRobokassaUrl] MERCHANT_LOGIN is MISSING!')
     throw new Error('❌ MERCHANT_LOGIN is missing or empty!')
   }
   if (!password1) {
+    console.error('❌ [generateRobokassaUrl] ROBOKASSA_PASSWORD_1 is MISSING!')
     throw new Error('❌ ROBOKASSA_PASSWORD_1 is missing or empty!')
   }
   if (!resultUrl2) {
+    console.error('❌ [generateRobokassaUrl] UNIFIED_RESULT_URL is MISSING!')
     throw new Error('❌ UNIFIED_RESULT_URL is missing or empty!')
   }
   if (!outSum || outSum <= 0) {
+    console.error('❌ [generateRobokassaUrl] Invalid OutSum:', outSum)
     throw new Error(`❌ Invalid OutSum: ${outSum}. Must be > 0`)
   }
   if (!invId || invId <= 0) {
+    console.error('❌ [generateRobokassaUrl] Invalid InvId:', invId)
     throw new Error(`❌ Invalid InvId: ${invId}. Must be > 0`)
   }
   if (!description || description.trim() === '') {
+    console.error('❌ [generateRobokassaUrl] Description is MISSING!')
     throw new Error('❌ Description is missing or empty!')
   }
 
@@ -63,23 +98,54 @@ export function generateRobokassaUrl(
   const signatureString = `${merchantLogin}:${outSum}:${invId}:${password1}`
   const signatureValue = md5(signatureString).toUpperCase()
 
-  console.log('✅ [generateRobokassaUrl] Generating URL with params:', {
-    merchantLogin: merchantLogin ? `${merchantLogin.substring(0, 3)}...` : 'MISSING',
+  console.log('📝 [generateRobokassaUrl] Input params:', {
+    merchantLogin: merchantLogin ? `${merchantLogin.substring(0, 5)}...` : 'MISSING',
     outSum,
     invId,
     description,
-    resultUrl2: resultUrl2 || 'MISSING',
-    signatureString: `${merchantLogin.substring(0, 3)}...:${outSum}:${invId}:***`,
+    password1Preview: password1 ? `${password1.substring(0, 5)}...` : 'MISSING',
+    signatureString: `${merchantLogin.substring(0, 5)}...:${outSum}:${invId}:***`,
     signatureValue,
   })
 
-  const url = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=${merchantLogin}&OutSum=${outSum}&InvId=${invId}&Description=${encodeURIComponent(
-    description
-  )}&SignatureValue=${signatureValue}&ResultURL=${encodeURIComponent(
-    resultUrl2
-  )}`
+  // 🚨 ВАЖНО: Полный ResultURL для webhook
+  console.log('🌐 [generateRobokassaUrl] ResultURL (webhook endpoint):', resultUrl2)
+  console.log('🔧 [generateRobokassaUrl] Test mode:', isTestMode ? 'YES (IsTest=1)' : 'NO (Production)')
+  console.log('🌍 [generateRobokassaUrl] Domain:', ROBOKASSA_DOMAIN, '→', ROBOKASSA_BASE_URL)
 
-  console.log('✅ [generateRobokassaUrl] Generated URL:', url.substring(0, 100) + '...')
+  // 🏗️ Собираем URL с параметрами
+  const params = new URLSearchParams({
+    MerchantLogin: merchantLogin,
+    OutSum: outSum.toString(),
+    InvId: invId.toString(),
+    Description: description,
+    SignatureValue: signatureValue,
+    ResultURL: resultUrl2,
+  })
+
+  // 🧪 Добавляем IsTest=1 для тестового режима
+  if (isTestMode) {
+    params.append('IsTest', '1')
+    console.log('🧪 [generateRobokassaUrl] Added IsTest=1 for test mode')
+  }
+
+  const url = `${ROBOKASSA_BASE_URL}?${params.toString()}`
+
+  // 🔗 Полный URL для отладки
+  console.log('═══════════════════════════════════════════════════════')
+  console.log('🔗 [generateRobokassaUrl] FULL URL:')
+  console.log(url)
+  console.log('═══════════════════════════════════════════════════════')
+  console.log('📋 [generateRobokassaUrl] URL length:', url.length)
+  console.log('📌 [generateRobokassaUrl] Params breakdown:')
+  params.forEach((value, key) => {
+    if (key === 'SignatureValue' || key === 'ResultURL') {
+      console.log(`   ${key}: ${value}`)
+    } else {
+      console.log(`   ${key}: ${value}`)
+    }
+  })
+  console.log('═══════════════════════════════════════════════════════')
 
   return url
 }

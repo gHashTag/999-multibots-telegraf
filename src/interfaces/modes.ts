@@ -22,7 +22,7 @@ export enum ModeEnum {
 
   // 🔧 СИСТЕМНЫЕ ОПЕРАЦИИ
   AvatarTransform = 'avatar_transform',
-  FaceSwap = 'face_swap',
+  FaceSwap = 'faceSwapWizard',
   AIHeroes = 'ai_heroes',
   Subscribe = 'subscribe',
   TopUpBalance = 'top_up_balance',
@@ -98,6 +98,10 @@ export enum ModeEnum {
 
   // 🎵 МУЗЫКА
   MusicGeneration = 'music_generation_wizard',
+
+  // 🎤 VOICE CLONING & AI COVER
+  VoiceTraining = 'voice_training_wizard',
+  AICover = 'ai_cover_wizard',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей

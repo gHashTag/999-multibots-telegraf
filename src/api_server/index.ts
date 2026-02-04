@@ -195,6 +195,18 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   app.listen(PORT, '0.0.0.0', async () => {
     console.log(`[API] Server started on port ${PORT} (listening on 0.0.0.0)`)
 
+    // 🌐 Логируем webhook endpoints
+    const tunnelUrl = process.env.CLOUDFLARE_TUNNEL_URL
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('🌐 [API] WEBHOOK ENDPOINTS:')
+    console.log('═══════════════════════════════════════════════════════')
+    if (tunnelUrl) {
+      console.log(`✅ Cloudflare Tunnel: ${tunnelUrl}/payment-success`)
+    }
+    console.log(`📍 Local: http://localhost:${PORT}/api/payment-success`)
+    console.log(`📍 Direct: http://0.0.0.0:${PORT}/api/payment-success`)
+    console.log('═══════════════════════════════════════════════════════')
+
     // 🚀 Verify webhook health on startup
     try {
       const webhookStatus = await verifyWebhooksOnStartup()

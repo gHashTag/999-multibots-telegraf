@@ -332,10 +332,10 @@ describe('AI Models Integration Tests', () => {
 
     it('should handle fallback between models', async () => {
       // Test fallback logic when primary model fails
-      const fallbackOrder = ['seedream4', 'flux-kontext', 'nano-banana']
-      
+      const fallbackOrder = ['seedream45', 'flux-kontext', 'nano-banana']
+
       // First model fails
-      mockReplicate.run.mockRejectedValueOnce(new Error('SeeDream-4 failed'))
+      mockReplicate.run.mockRejectedValueOnce(new Error('SeeDream-4.5 failed'))
       // Second model succeeds
       mockReplicate.run.mockResolvedValueOnce(['https://example.com/fallback.jpg'])
 

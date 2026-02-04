@@ -2792,29 +2792,37 @@ const processAiPhotoshopRequest = async (
         // Small delay between models to prevent rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000))
       } catch (modelError) {
-        logger.error(
-          `❌ AI Photoshop: Error processing with model ${modelKey}`,
-          {
-            telegramId: ctx.from?.id,
-            model: modelKey,
-            error:
-              modelError instanceof Error
-                ? modelError.message
-                : 'Unknown error',
-            errorStack: modelError instanceof Error ? modelError.stack : undefined,
-            errorDetails: modelError,
-          }
-        )
+        const errorMsg = modelError instanceof Error ? modelError.message : 'Unknown error'
+        const isContentModeration =
+          errorMsg.toLowerCase().includes('e005') ||
+          errorMsg.toLowerCase().includes('flagged as sensitive') ||
+          errorMsg.toLowerCase().includes('nsfw') ||
+          errorMsg.toLowerCase().includes('safety')
 
-        // 🚨 CRITICAL: Show error to user for debugging
-        if (modelKey === 'flux_multi_kontext') {
-          await ctx.reply(
-            `🚨 DEBUG: FLUX Multi-Kontext failed!\n\nError: ${modelError instanceof Error ? modelError.message : 'Unknown error'}\n\nStack: ${modelError instanceof Error ? modelError.stack?.substring(0, 500) : 'N/A'}`,
-            { parse_mode: 'Markdown' }
-          ).catch(() => {})
+        // ✅ Content moderation errors are WARN (expected behavior), not ERROR
+        if (isContentModeration) {
+          logger.warn(
+            `⚠️ AI Photoshop: Content moderation blocked ${modelKey} - trying next model`,
+            {
+              telegramId: ctx.from?.id,
+              model: modelKey,
+              reason: 'CONTENT_MODERATION',
+            }
+          )
+        } else {
+          // Real errors logged as ERROR
+          logger.error(
+            `❌ AI Photoshop: Error processing with model ${modelKey}`,
+            {
+              telegramId: ctx.from?.id,
+              model: modelKey,
+              error: errorMsg,
+              errorStack: modelError instanceof Error ? modelError.stack : undefined,
+            }
+          )
         }
 
-        // Log error but don't spam user with individual error messages (except FLUX for debugging)
+        // Log error but don't spam user with individual error messages - failover will handle it
       }
     }
 
@@ -3976,11 +3984,28 @@ const processSingleAiPhotoshopModel = async (
       ctx.session.aiPhotoshopModel = originalModel
     }
   } catch (error) {
-    logger.error(`Error in processSingleAiPhotoshopModel for ${modelKey}`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id,
-      model: modelKey,
-    })
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+    const isContentModeration =
+      errorMsg.toLowerCase().includes('e005') ||
+      errorMsg.toLowerCase().includes('flagged as sensitive') ||
+      errorMsg.toLowerCase().includes('nsfw') ||
+      errorMsg.toLowerCase().includes('safety')
+
+    // ✅ Content moderation = WARN (expected behavior when user content is flagged)
+    if (isContentModeration) {
+      logger.warn(`⚠️ Content moderation in processSingleAiPhotoshopModel for ${modelKey}`, {
+        telegramId: ctx.from?.id,
+        model: modelKey,
+        reason: 'CONTENT_MODERATION',
+      })
+    } else {
+      // Real errors = ERROR
+      logger.error(`Error in processSingleAiPhotoshopModel for ${modelKey}`, {
+        error: errorMsg,
+        telegramId: ctx.from?.id,
+        model: modelKey,
+      })
+    }
 
     // Don't send error messages to user in multi-model processing - they're handled upstream
   }

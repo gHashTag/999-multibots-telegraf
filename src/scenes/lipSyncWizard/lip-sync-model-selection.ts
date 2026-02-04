@@ -173,7 +173,7 @@ lipSyncModelSelectionScene.action('go_back_to_menu', async ctx => {
   })
 
   await ctx.scene.leave()
-  await showMainMenu(ctx, ctx.from?.id?.toString() || '')
+  await showMainMenu(ctx)
 })
 
 /**
@@ -181,7 +181,7 @@ lipSyncModelSelectionScene.action('go_back_to_menu', async ctx => {
  */
 lipSyncModelSelectionScene.hears(['🏠 Главное меню', '🏠 Main menu', '/menu'], async ctx => {
   await ctx.scene.leave()
-  await showMainMenu(ctx, ctx.from?.id?.toString() || '')
+  await showMainMenu(ctx)
 })
 
 export default lipSyncModelSelectionScene

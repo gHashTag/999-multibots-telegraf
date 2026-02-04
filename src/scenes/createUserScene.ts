@@ -158,7 +158,11 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     // 🎁 WELCOME AVATAR GENERATION: Analyze avatar and generate free portrait
     // Only use actual Telegram avatar (not Supabase fallback) for face detection
     try {
-      if (telegramAvatarUrl) {
+      // 🚫 ВРЕМЕННО ОТКЛЮЧЕНО: Лид-магнит (Welcome Avatar) - нет бюджета
+      // TODO: Включить обратно когда пополним баланс AI провайдеров
+      const LEAD_MAGNET_ENABLED = false
+
+      if (LEAD_MAGNET_ENABLED && telegramAvatarUrl) {
         logger.info('🎁 [CreateUserScene] Analyzing avatar for welcome generation', {
           telegram_id: telegram_id.toString(),
           hasAvatar: true,
@@ -208,6 +212,11 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
             telegram_id: telegram_id.toString(),
           })
         }
+      } else if (!LEAD_MAGNET_ENABLED) {
+        // Lead magnet temporarily disabled
+        logger.info('🎁 [CreateUserScene] Lead magnet disabled, skipping welcome generation', {
+          telegram_id: telegram_id.toString(),
+        })
       } else {
         // No avatar - skip welcome generation
         logger.info('🎁 [CreateUserScene] No avatar available, skipping welcome generation', {

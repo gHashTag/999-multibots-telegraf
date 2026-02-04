@@ -5,12 +5,12 @@ import { logger } from '@/utils/logger'
 /**
  * TelegramLogService - централизованный сервис логирования в Telegram группу
  *
- * Отправляет все логи в группу НейроМентор: https://t.me/c/2737186844/1
- * Chat ID: -1002737186844 (supergroup с префиксом -100)
+ * Отправляет все логи в группу Neuro Blogger Pulse: https://t.me/neuro_blogger_pulse
+ * Chat ID: -1002298297094 (supergroup с префиксом -100)
  */
 
-// НейроМентор - Приватный канал
-const DEFAULT_LOG_GROUP_ID = '-1002737186844'
+// Neuro Blogger Pulse
+const DEFAULT_LOG_GROUP_ID = '-1002298297094'
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'system' | 'payment' | 'user'
 
@@ -181,9 +181,10 @@ class TelegramLogService {
     const stack = error instanceof Error ? error.stack : undefined
 
     // Обрезаем сообщение об ошибке до 500 символов
-    const truncatedError = errorMessage.length > 500
-      ? errorMessage.substring(0, 500) + '...'
-      : errorMessage
+    const truncatedError =
+      errorMessage.length > 500
+        ? errorMessage.substring(0, 500) + '...'
+        : errorMessage
 
     let message = `❌ Ошибка`
     if (context) {
@@ -248,7 +249,10 @@ class TelegramLogService {
       const userLink = options.username
         ? `@${options.username}`
         : `ID: ${options.telegramId}`
-      if (!message.includes(userLink) && !message.includes(`@${options.username}`)) {
+      if (
+        !message.includes(userLink) &&
+        !message.includes(`@${options.username}`)
+      ) {
         formatted += `\n👤 ${userLink}`
       }
     }
@@ -287,7 +291,10 @@ class TelegramLogService {
     message: string,
     options: LogOptions
   ): void {
-    const winstonLevel = level === 'system' || level === 'payment' || level === 'user' ? 'info' : level
+    const winstonLevel =
+      level === 'system' || level === 'payment' || level === 'user'
+        ? 'info'
+        : level
     const meta = {
       telegramId: options.telegramId,
       username: options.username,

@@ -28,9 +28,13 @@ import { instagramScraperV2Simple } from './functions/instagram/instagramScraper
 import { criticalErrorMonitor } from './functions/monitoring/criticalErrorMonitor'
 import { logMonitor } from './functions/monitoring/logMonitor'
 
-// Training Functions (2)
+// Training Functions (4)
 import { modelTrainingV2 } from './functions/training/modelTrainingV2'
 import { morphImagesFunction } from './functions/training/morphImages'
+import {
+  voiceTrainingStart,
+  voiceTrainingCompleted,
+} from './functions/training/voiceTrainingRVC'
 
 // Generation Functions (2 - including restored version)
 import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
@@ -121,9 +125,11 @@ export function createAllInngestFunctions() {
     criticalErrorMonitor,
     logMonitor,
 
-    // Training (2)
+    // Training (4)
     modelTrainingV2,
     morphImagesFunction,
+    voiceTrainingStart,
+    voiceTrainingCompleted,
 
     // Generation (1)
     neuroImageGeneration,

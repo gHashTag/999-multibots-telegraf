@@ -78,6 +78,8 @@ import {
   tonPaymentScene,
   tonNativePaymentScene,
   musicGenerationWizard,
+  voiceTrainingWizard,
+  aiCoverWizard,
 } from '@/scenes'
 
 // Импорт обработчиков и команд
@@ -851,7 +853,7 @@ If not, continue on your own and click the "I myself" button`
       const photoWizards = [
         'neuro_photo',
         'neuro_photo_v2',
-        'face_swap',
+        'faceSwapWizard',
         'image_to_video',
         'ai_photoshop_scene',
         'morphing_wizard',
@@ -972,6 +974,8 @@ export function createStage(): Scenes.Stage<MyContext> {
     tonPaymentScene,
     tonNativePaymentScene,
     musicGenerationWizard,
+    voiceTrainingWizard,
+    aiCoverWizard,
     // ✅ ДОБАВЛЯЕМ СЦЕНЫ КАТЕГОРИЙ
     ...getCategoryScenes(),
   ]

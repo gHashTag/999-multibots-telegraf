@@ -134,17 +134,20 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       hasAvatar: !!avatarUrl,
     })
 
-    // Step 1: Get bot instance
-    const botData = await step.run('get-bot', async () => {
-      return getBotByNameAdapter(bot_name)
+    // Step 1: Validate bot exists (just check, don't pass instance)
+    const botValidation = await step.run('validate-bot', async () => {
+      const botData = getBotByNameAdapter(bot_name)
+      if (!botData.bot) {
+        return { valid: false, error: botData.error || 'Bot not found' }
+      }
+      return { valid: true }
     })
 
-    if (!botData.bot) {
-      logger.error('🎁 [Welcome Avatar] Bot not found', { bot_name })
-      return { success: false, error: 'Bot not found' }
+    if (!botValidation.valid) {
+      const errorMsg = 'error' in botValidation ? botValidation.error : 'Bot validation failed'
+      logger.error('🎁 [Welcome Avatar] Bot not found', { bot_name, error: errorMsg })
+      return { success: false, error: errorMsg }
     }
-
-    const bot = botData.bot
 
     // Step 2: Select random hero based on gender
     const selectedHero = await step.run('select-hero', async () => {
@@ -162,7 +165,17 @@ export const welcomeAvatarGeneration = inngest.createFunction(
     })
 
     // Step 3: Generate image using SeeDream-4 (cheapest option)
+    // ⚠️ IMPORTANT: Get bot INSIDE step to avoid Inngest serialization issues
+    // Telegraf instances have methods that cannot be serialized between steps
     const generationResult = await step.run('generate-image', async () => {
+      // Get fresh bot instance inside step (avoids serialization issues)
+      const botData = getBotByNameAdapter(bot_name)
+      if (!botData.bot) {
+        logger.error('🎁 [Welcome Avatar] Bot not available in generate step', { bot_name })
+        return { success: false, error: 'Bot not available' }
+      }
+      const bot = botData.bot
+
       const heroGender = gender === 'unknown' ? 'male' : gender
       const prompt = getHeroPrompt(selectedHero, heroGender)
 
@@ -215,7 +228,16 @@ export const welcomeAvatarGeneration = inngest.createFunction(
     })
 
     // Step 4: Send welcome message
+    // ⚠️ IMPORTANT: Get bot INSIDE step to avoid Inngest serialization issues
     await step.run('send-welcome', async () => {
+      // Get fresh bot instance inside step
+      const botData = getBotByNameAdapter(bot_name)
+      if (!botData.bot) {
+        logger.error('🎁 [Welcome Avatar] Bot not available in welcome step', { bot_name })
+        return
+      }
+      const bot = botData.bot
+
       if (generationResult.success) {
         const message = is_ru
           ? `🎁 *Добро пожаловать!*\n\nВот ваш первый нейро-портрет в образе *${selectedHero}* в подарок!\n\n✨ Попробуйте создать ещё больше образов в главном меню.`

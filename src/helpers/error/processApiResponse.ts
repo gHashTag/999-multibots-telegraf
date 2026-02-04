@@ -9,6 +9,7 @@ export const processApiResponse = async (
     apiOutput_type: typeof apiOutput,
     apiOutput_is_null: apiOutput === null,
     apiOutput_is_undefined: apiOutput === undefined,
+    telegram_id: process.env.TELEGRAM_TEST_ID || 'unknown',
   })
   // Расширенное логирование самого apiOutput
   if (apiOutput && typeof apiOutput === 'object') {

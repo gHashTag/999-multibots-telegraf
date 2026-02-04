@@ -120,6 +120,10 @@ export const INNGEST_EVENTS = {
 
   // Welcome events
   WELCOME_AVATAR_GENERATE: 'user/welcome.avatar.generate',
+
+  // Voice Training events
+  VOICE_TRAINING_START: 'voice/training.start',
+  VOICE_TRAINING_COMPLETED: 'voice/training.completed',
 } as const
 
 export type InngestEventName = typeof INNGEST_EVENTS[keyof typeof INNGEST_EVENTS]

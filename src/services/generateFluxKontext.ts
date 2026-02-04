@@ -963,12 +963,28 @@ export const generateAdvancedFluxKontext = async (
       prompt_id,
     }
   } catch (error) {
-    logger.error('Advanced FLUX Kontext editing failed', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegram_id: params.telegram_id,
-      prompt: params.prompt,
-      mode: params.mode,
-    })
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+    const isContentModeration =
+      errorMsg.toLowerCase().includes('e005') ||
+      errorMsg.toLowerCase().includes('flagged as sensitive') ||
+      errorMsg.toLowerCase().includes('nsfw') ||
+      errorMsg.toLowerCase().includes('safety')
+
+    // ✅ Content moderation = WARN (expected behavior), not ERROR
+    if (isContentModeration) {
+      logger.warn('⚠️ Advanced FLUX Kontext blocked by content moderation', {
+        telegram_id: params.telegram_id,
+        mode: params.mode,
+        reason: 'CONTENT_MODERATION',
+      })
+    } else {
+      logger.error('Advanced FLUX Kontext editing failed', {
+        error: errorMsg,
+        telegram_id: params.telegram_id,
+        prompt: params.prompt,
+        mode: params.mode,
+      })
+    }
 
     let errorMessageToUser = '❌ Произошла ошибка при обработке изображения.'
     if (error instanceof Error) {

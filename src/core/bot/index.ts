@@ -126,20 +126,46 @@ logger.info('🌟 Инициализировано ботов:', {
 })
 
 // 🔐 В dev используем тестовый токен, в production - продакшн
-export const PULSE_BOT_TOKEN = isDev
-  ? process.env.BOT_TOKEN_TEST_1
-  : process.env.BOT_TOKEN_1
+// ⚠️ LAZY INIT: токен читаем при первом использовании, т.к. Infisical загружается асинхронно
+let _pulseBot: Telegraf<MyContext> | null = null
+let _pulseBotInitialized = false
 
-export const pulseBot = PULSE_BOT_TOKEN
-  ? new Telegraf<MyContext>(PULSE_BOT_TOKEN)
-  : (null as any)
+/**
+ * Получить pulseBot с ленивой инициализацией
+ * Создаётся при первом вызове, когда Infisical уже загрузил токены
+ */
+export const getPulseBot = (): Telegraf<MyContext> | null => {
+  if (_pulseBotInitialized) {
+    return _pulseBot
+  }
 
-if (PULSE_BOT_TOKEN) {
-  logger.info('🤖 Инициализация pulseBot:', {
-    description: 'PulseBot initialization',
-    tokenLength: PULSE_BOT_TOKEN.length,
-  })
+  const token = isDev ? process.env.BOT_TOKEN_TEST_1 : process.env.BOT_TOKEN_1
+
+  if (token) {
+    _pulseBot = new Telegraf<MyContext>(token)
+    logger.info('🤖 Инициализация pulseBot (lazy):', {
+      description: 'PulseBot lazy initialization',
+      tokenLength: token.length,
+    })
+  } else {
+    logger.warn('⚠️ PULSE_BOT_TOKEN не найден, pulseBot не инициализирован', {
+      description: 'PULSE_BOT_TOKEN not found',
+      isDev,
+    })
+  }
+
+  _pulseBotInitialized = true
+  return _pulseBot
 }
+
+// ✅ Для обратной совместимости - геттер вместо константы
+export const pulseBot = new Proxy({} as Telegraf<MyContext>, {
+  get(_, prop) {
+    const bot = getPulseBot()
+    if (!bot) return undefined
+    return (bot as any)[prop]
+  },
+})
 
 /**
  * Определяет имя бота по токену
@@ -317,7 +343,12 @@ export function getBotByName(bot_name: string): {
 
 export const supportRequest = async (title: string, data: any) => {
   try {
-    await pulseBot.telegram.sendMessage(
+    const bot = getPulseBot()
+    if (!bot) {
+      logger.warn('⚠️ supportRequest: pulseBot не инициализирован')
+      return
+    }
+    await bot.telegram.sendMessage(
       process.env.SUPPORT_CHAT_ID!,
       `🚀 ${title}\n\n${JSON.stringify(data)}`
     )

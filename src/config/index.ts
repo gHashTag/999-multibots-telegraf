@@ -207,8 +207,12 @@ export function ROBOKASSA_PASSWORD_2(): string {
 
 // 🔧 Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
+// 🌐 Cloudflare Tunnel: Используйте npm run tunnel и установите CLOUDFLARE_TUNNEL_URL в .env
+const CLOUDFLARE_TUNNEL_URL = process.env.CLOUDFLARE_TUNNEL_URL
+
 const BASE_PAYMENT_URL = isDev
-  ? API_SERVER_URL ||
+  ? CLOUDFLARE_TUNNEL_URL || // 🌐 Приоритет: Cloudflare Tunnel для dev
+    API_SERVER_URL ||
     process.env.SERVER_PUBLIC_URL ||
     'https://three-head-dragon.shop' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
   : API_SERVER_URL ||
@@ -217,6 +221,11 @@ const BASE_PAYMENT_URL = isDev
     'https://three-head-dragon.shop'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
+
+// Логируем tunnel URL если используется
+if (isDev && CLOUDFLARE_TUNNEL_URL) {
+  console.log(`🌐 [CONFIG] Cloudflare Tunnel URL: ${CLOUDFLARE_TUNNEL_URL}`)
+}
 
 // ✅ Проверка наличия критических параметров Robokassa при старте
 // ⚠️ ВАЖНО: Эта проверка выполняется при импорте, ДО загрузки секретов из Infisical

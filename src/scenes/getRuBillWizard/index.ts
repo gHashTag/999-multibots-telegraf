@@ -4,11 +4,10 @@ import { handleHelpCancel } from '@/navigation'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import {
   getInvoiceId,
-  merchantLogin,
-  password1,
   description,
   subscriptionTitles,
 } from './helper'
+import { getMerchantLogin, getRobokassaPassword1 } from '@/config'
 import { setPayments } from '@/core/supabase'
 import { Scenes } from 'telegraf'
 import { getBotNameByToken } from '@/core'
@@ -20,15 +19,41 @@ import {
 } from '@/interfaces/payments.interface'
 
 export const generateInvoiceStep = async (ctx: MyContext) => {
+  console.log('═══════════════════════════════════════════════════════')
+  console.log('💳 [getRuBillWizard] STARTING PAYMENT FLOW')
+  console.log('═══════════════════════════════════════════════════════')
+
   logger.info('### getRuBillWizard ENTERED (generateInvoiceStep) ###', {
     scene: 'getRuBillWizard',
     step: 'generateInvoiceStep',
     telegram_id: ctx.from?.id,
   })
-  console.log('CASE: generateInvoiceStep')
+
+  // ✅ LAZY: Получаем credentials в момент вызова (после загрузки Infisical)
+  const merchantLogin = getMerchantLogin() || ''
+  const password1 = getRobokassaPassword1() || ''
+
+  console.log('🔐 [getRuBillWizard] Credentials check:', {
+    hasMerchantLogin: !!merchantLogin,
+    merchantLoginPreview: merchantLogin ? `${merchantLogin.substring(0, 5)}...` : 'MISSING',
+    hasPassword1: !!password1,
+    password1Preview: password1 ? `${password1.substring(0, 5)}...` : 'MISSING',
+  })
+
+  if (!merchantLogin || !password1) {
+    console.error('❌ [getRuBillWizard] CRITICAL: Missing Robokassa credentials!')
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка конфигурации платежной системы. Обратитесь в поддержку @neuro_sage'
+        : '❌ Payment system configuration error. Contact support @neuro_sage'
+    )
+    return ctx.scene.leave()
+  }
+
   const isRu = isRussian(ctx)
   const selectedPayment = ctx.session.selectedPayment
-  console.log('selectedPayment', selectedPayment)
+  console.log('📦 [getRuBillWizard] Selected payment:', selectedPayment)
   if (selectedPayment) {
     const email = ctx.session.email
     console.log('Email from session:', email)

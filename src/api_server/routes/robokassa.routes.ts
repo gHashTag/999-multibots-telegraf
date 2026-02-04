@@ -65,7 +65,34 @@ router.post('/payment-success', async (req: any, res: any) => {
   return handlePaymentSuccess(req, res)
 })
 
+/**
+ * GET handler для тестирования доступности endpoint
+ * GET /api/payment-success
+ */
+router.get('/payment-success', (req: any, res: any) => {
+  console.log('🔍 [ROBOKASSA] GET /payment-success - Health check')
+  res.json({
+    status: 'ok',
+    message: 'Robokassa webhook endpoint is available',
+    timestamp: new Date().toISOString(),
+    method: 'GET',
+    note: 'Use POST for actual webhooks',
+  })
+})
+
 async function handlePaymentSuccess(req: any, res: any) {
+  // 🔍 DEBUG: Логируем ВСЁ что пришло
+  console.log('═══════════════════════════════════════════════════════')
+  console.log('💰 [ROBOKASSA WEBHOOK] INCOMING REQUEST')
+  console.log('═══════════════════════════════════════════════════════')
+  console.log('📍 URL:', req.originalUrl)
+  console.log('📍 Method:', req.method)
+  console.log('📍 IP:', req.ip || req.connection?.remoteAddress)
+  console.log('📍 Headers:', JSON.stringify(req.headers, null, 2))
+  console.log('📍 Body:', JSON.stringify(req.body, null, 2))
+  console.log('📍 Query:', JSON.stringify(req.query, null, 2))
+  console.log('═══════════════════════════════════════════════════════')
+
   try {
     logger.info('🔔 Received Robokassa webhook', {
       body: req.body,

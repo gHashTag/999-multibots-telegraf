@@ -1,4 +1,4 @@
-import { pulseBot } from '@/core/bot'
+import { getPulseBot } from '@/core/bot'
 import fs from 'fs'
 import { logger } from '@/utils/logger'
 
@@ -13,7 +13,8 @@ export const pulse = async (
   bot_name?: string
 ) => {
   try {
-    // ✅ Проверяем, что pulseBot инициализирован
+    // ✅ Получаем pulseBot с ленивой инициализацией
+    const pulseBot = getPulseBot()
     if (!pulseBot) {
       logger.warn({
         message: '⚠️ Pulse bot не инициализирован, пропускаем отправку',
@@ -49,7 +50,7 @@ export const pulse = async (
               username || 'User without username'
             } Telegram ID: ${telegramId} generated an image with a prompt: ${truncatedPrompt} \n\n Service: ${service}`
 
-        const chatId = '-1002737186844' // НейроМентор - Приватный канал
+        const chatId = '-1002298297094' // Neuro Blogger Pulse - новый канал
 
         // Отправляем по URL вместо локального файла
         await pulseBot.telegram.sendPhoto(
@@ -156,8 +157,11 @@ function escapeHTML(text: string): string {
 export const sendMediaToPulse = async (
   options: MediaPulseOptions
 ): Promise<void> => {
+  const chatId = '-1002737186844' // НейроМентор - Приватный канал
+
   try {
-    // Проверяем, что pulseBot инициализирован
+    // ✅ Получаем pulseBot с ленивой инициализацией
+    const pulseBot = getPulseBot()
     if (!pulseBot) {
       logger.warn({
         message: '⚠️ Pulse bot не инициализирован, пропускаем отправку',
@@ -166,8 +170,6 @@ export const sendMediaToPulse = async (
       })
       return
     }
-
-    const chatId = '-1002737186844' // НейроМентор - Приватный канал
 
     // Базовая информация о пользователе и контенте
     const {
@@ -283,8 +285,25 @@ export const sendMediaToPulse = async (
               photoError instanceof Error
                 ? photoError.message
                 : String(photoError),
-            stack: photoError instanceof Error ? photoError.stack : undefined,
+            errorDetails:
+              photoError instanceof Error
+                ? {
+                    name: photoError.name,
+                    stack: photoError.stack,
+                    cause: photoError.cause,
+                  }
+                : photoError,
             telegramId: rawTelegramId,
+            chatId,
+            mediaType,
+            isUrl:
+              typeof mediaSource === 'string' &&
+              (mediaSource.startsWith('http://') ||
+                mediaSource.startsWith('https://')),
+            mediaSourcePreview:
+              typeof mediaSource === 'string'
+                ? mediaSource.substring(0, 100)
+                : 'Buffer',
           })
           // Продолжаем попытку отправить текст, если фото не ушло
         }
@@ -332,7 +351,8 @@ export const sendMediaToPulse = async (
             // Если сообщение слишком длинное - разбиваем на части
             if (textMessage.length > TELEGRAM_MESSAGE_LIMIT) {
               logger.warn({
-                message: '⚠️ [pulse] Сообщение слишком длинное, разбиваем на части',
+                message:
+                  '⚠️ [pulse] Сообщение слишком длинное, разбиваем на части',
                 description: 'Message too long, splitting into chunks',
                 telegramId: rawTelegramId,
                 messageLength: textMessage.length,
@@ -340,14 +360,18 @@ export const sendMediaToPulse = async (
               })
 
               // Отправляем первую часть (заголовок + начало промпта)
-              const headerText = textMessage.substring(0, TELEGRAM_MESSAGE_LIMIT - 100) + '\n\n...(продолжение в следующем сообщении)'
+              const headerText =
+                textMessage.substring(0, TELEGRAM_MESSAGE_LIMIT - 100) +
+                '\n\n...(продолжение в следующем сообщении)'
               await pulseBot.telegram.sendMessage(chatId, headerText, {
                 parse_mode: 'HTML',
                 link_preview_options: { is_disabled: true },
               })
 
               // Отправляем продолжение промпта (без HTML форматирования)
-              const remainingText = '...(продолжение):\n\n' + escapedPromptForHTML.substring(TELEGRAM_MESSAGE_LIMIT - 500)
+              const remainingText =
+                '...(продолжение):\n\n' +
+                escapedPromptForHTML.substring(TELEGRAM_MESSAGE_LIMIT - 500)
               await pulseBot.telegram.sendMessage(chatId, remainingText, {
                 link_preview_options: { is_disabled: true },
               })
@@ -365,7 +389,8 @@ export const sendMediaToPulse = async (
               })
               logger.info({
                 message: '✅ [pulse] Текст с промптом успешно отправлен (HTML)',
-                description: 'Text message with prompt sent successfully (HTML)',
+                description:
+                  'Text message with prompt sent successfully (HTML)',
                 telegramId: rawTelegramId,
                 parseMode: 'HTML',
               })
@@ -380,10 +405,20 @@ export const sendMediaToPulse = async (
                 textError instanceof Error
                   ? textError.message
                   : String(textError),
-              stack: textError instanceof Error ? textError.stack : undefined,
+              errorDetails:
+                textError instanceof Error
+                  ? {
+                      name: textError.name,
+                      stack: textError.stack,
+                      cause: textError.cause,
+                    }
+                  : textError,
               telegramId: rawTelegramId,
-              textMessageAttempted: textMessage.substring(0, 500) + '...',
+              chatId,
+              textMessageLength: textMessage.length,
+              textMessagePreview: textMessage.substring(0, 300) + '...',
               parseMode: 'HTML',
+              promptLength: prompt?.length ?? 0,
             })
             // ---> УПРОЩЕННЫЙ FALLBACK: Обрезаем промпт и отправляем без форматирования
             try {
@@ -393,7 +428,8 @@ export const sendMediaToPulse = async (
               })
 
               // Обрезаем промпт до безопасного размера
-              const truncatedPrompt = prompt.substring(0, 2000) + '...(обрезано)'
+              const truncatedPrompt =
+                prompt.substring(0, 2000) + '...(обрезано)'
               const safeTextMessage = isRussian
                 ? `@${username} Telegram ID: ${telegramId} сгенерировал изображение.\n\n📝 Промпт (обрезан):\n${truncatedPrompt}`
                 : `@${username} Telegram ID: ${telegramId} generated an image.\n\n📝 Prompt (truncated):\n${truncatedPrompt}`
@@ -408,7 +444,17 @@ export const sendMediaToPulse = async (
             } catch (retryError) {
               logger.error({
                 message:
-                  '❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)' /* ... */,
+                  '❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)',
+                description:
+                  'Error retrying TEXT message without formatting in pulse',
+                error:
+                  retryError instanceof Error
+                    ? retryError.message
+                    : String(retryError),
+                stack:
+                  retryError instanceof Error ? retryError.stack : undefined,
+                telegramId: rawTelegramId,
+                truncatedPromptLength: truncatedPrompt.length,
               })
             }
           }
@@ -454,8 +500,19 @@ export const sendMediaToPulse = async (
                 textError instanceof Error
                   ? textError.message
                   : String(textError),
-              stack: textError instanceof Error ? textError.stack : undefined,
+              errorDetails:
+                textError instanceof Error
+                  ? {
+                      name: textError.name,
+                      stack: textError.stack,
+                      cause: textError.cause,
+                    }
+                  : textError,
               telegramId: rawTelegramId,
+              chatId,
+              textMessageLength: textMessage.length,
+              textMessagePreview: textMessage.substring(0, 300) + '...',
+              parseMode: 'HTML',
             })
           }
         }
@@ -485,8 +542,17 @@ export const sendMediaToPulse = async (
       message: '❌ Ошибка при отправке медиа в pulse',
       description: 'Error sending media to pulse channel',
       error: (error as Error).message,
-      stack: (error as Error).stack,
+      errorDetails:
+        error instanceof Error
+          ? {
+              name: error.name,
+              stack: error.stack,
+              cause: error.cause,
+            }
+          : error,
       options,
+      telegramId: options.telegramId,
+      chatId,
     })
   }
 }
