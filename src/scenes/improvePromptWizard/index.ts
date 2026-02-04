@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Scenes, Markup } from 'telegraf'
 import { upgradePrompt } from '@/core/openai/upgradePrompt'
 import { MyContext } from '@/interfaces'

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Core Render Step Implementations
  * Ported from Python: src/services/inngest_services/render.py

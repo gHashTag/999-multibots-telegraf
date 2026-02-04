@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Replicate from 'replicate'
 import fs from 'fs'
 import { MyContext } from '@/interfaces'

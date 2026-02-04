@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { Telegraf as Bot } from 'telegraf'

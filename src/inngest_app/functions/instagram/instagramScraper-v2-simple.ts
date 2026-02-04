@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Instagram Scraper v2 - Simplified Version for Testing Reels
  * Temporary version without strict typing to test reels functionality

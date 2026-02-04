@@ -152,6 +152,8 @@ describe('inngest client', () => {
     beforeEach(() => {
       vi.resetModules()
       mockSend.mockReset()
+      // Set required env var for tests
+      process.env.INNGEST_EVENT_KEY = 'test-event-key'
     })
 
     it('should send event successfully', async () => {

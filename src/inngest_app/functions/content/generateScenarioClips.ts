@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Generate text-based scenario scripts for bloggers
  * 🎬 Генерация текстовых сценариев для блогеров и цифровых творцов

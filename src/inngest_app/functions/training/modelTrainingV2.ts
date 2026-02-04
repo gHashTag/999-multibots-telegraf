@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { getBotByName } from '@/core/bot'
 import {

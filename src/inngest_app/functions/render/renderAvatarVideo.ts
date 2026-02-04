@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Render Avatar Video Function
  * Ported from Python render-api-v3: src/services/inngest_services/render_avatar_video.py

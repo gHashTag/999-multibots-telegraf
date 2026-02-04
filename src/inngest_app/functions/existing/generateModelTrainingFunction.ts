@@ -188,7 +188,47 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         return { destination, uniqueModelName }
       })
 
-      // ✅ STEP 5: Create training on Replicate
+      // ✅ STEP 5a: Save PENDING record BEFORE starting Replicate (prevents lost trainings!)
+      // 🔥 FIX: Create DB record FIRST, then start expensive Replicate training
+      // This prevents the bug where training succeeds but DB save fails silently
+      const pendingRecord = await step.run('save-pending-record', async () => {
+        const trainingRecord = {
+          telegram_id: eventData.telegram_id,
+          model_name: eventData.modelName,
+          trigger_word: eventData.triggerWord,
+          zip_url: eventData.zipUrl,
+          replicate_training_id: `pending-${Date.now()}`, // Temporary ID until training starts
+          status: 'PENDING', // Will be updated to 'starting' when Replicate accepts
+          bot_name: eventData.bot_name,
+          steps: eventData.steps,
+          created_at: new Date().toISOString(),
+        }
+
+        const { data, error } = await supabase
+          .from('model_trainings')
+          .insert(trainingRecord)
+          .select('id')
+          .single()
+
+        if (error) {
+          // 🔥 CRITICAL: THROW error - don't proceed if we can't track the training!
+          logger.error('[INNGEST TRAINING] ❌ Failed to save pending record', {
+            error: error.message,
+            telegram_id: eventData.telegram_id,
+            model_name: eventData.modelName,
+          })
+          throw new Error(`Database error: ${error.message}. Training not started to prevent lost records.`)
+        }
+
+        logger.info('[INNGEST TRAINING] ✅ Pending record saved (training will be tracked)', {
+          record_id: data.id,
+          model_name: eventData.modelName,
+        })
+
+        return { record_id: data.id }
+      })
+
+      // ✅ STEP 5b: Create training on Replicate (now safe - we have a DB record)
       const trainingResult = await step.run('create-replicate-training', async () => {
         // 🔥 FIX: Use credentials from step 1 (loaded from process.env at runtime)
         const replicate = new Replicate({ auth: credentials.token })
@@ -246,34 +286,33 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         }
       })
 
-      // ✅ STEP 5: Save training record to Supabase
-      await step.run('save-training-record', async () => {
-        const trainingRecord = {
-          telegram_id: eventData.telegram_id,
-          model_name: eventData.modelName,
-          trigger_word: eventData.triggerWord,
-          zip_url: eventData.zipUrl, // 🔥 FIX: Use zipUrl from Supabase
-          replicate_training_id: trainingResult.training_id,
-          status: trainingResult.status,
-          bot_name: eventData.bot_name,
-          steps: eventData.steps,
-          created_at: new Date().toISOString(),
-        }
-
+      // ✅ STEP 5c: Update record with real training_id (CRITICAL for webhook matching!)
+      await step.run('update-training-record', async () => {
         const { error } = await supabase
           .from('model_trainings')
-          .insert(trainingRecord)
+          .update({
+            replicate_training_id: trainingResult.training_id,
+            status: trainingResult.status,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pendingRecord.record_id)
 
         if (error) {
-          logger.error('[INNGEST TRAINING] Database error (non-fatal)', {
+          // 🔥 CRITICAL: THROW error - webhook won't work without correct training_id!
+          logger.error('[INNGEST TRAINING] ❌ Failed to update training record', {
             error: error.message,
+            record_id: pendingRecord.record_id,
+            training_id: trainingResult.training_id,
           })
-          // Don't throw - training already started
-        } else {
-          logger.info('[INNGEST TRAINING] Training record saved to database')
+          throw new Error(`Failed to update training record: ${error.message}. Webhook may not work!`)
         }
 
-        return { saved: !error }
+        logger.info('[INNGEST TRAINING] ✅ Training record updated with Replicate ID', {
+          record_id: pendingRecord.record_id,
+          training_id: trainingResult.training_id,
+        })
+
+        return { updated: true }
       })
 
       // ✅ STEP 6: Send initial success message to user

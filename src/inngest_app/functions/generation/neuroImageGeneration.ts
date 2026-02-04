@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'

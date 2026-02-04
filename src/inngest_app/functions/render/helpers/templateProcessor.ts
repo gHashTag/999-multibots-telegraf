@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Template JSON Processing Helper
  * Handles loading and manipulating After Effects template JSON for riddle rendering

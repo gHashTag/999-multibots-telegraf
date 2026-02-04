@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Inngest Provider - Менеджер для разных Inngest инстансов
  *

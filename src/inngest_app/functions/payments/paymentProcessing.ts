@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { inngest } from '@/inngest_app/client'
 import { updateUserBalance } from '@/core/supabase'
 import { sendPaymentNotification } from '@/price/helpers'

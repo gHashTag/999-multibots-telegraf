@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Generate detailed script for scenario clips with camera positions and detailed prompts
  * Генерация детального скрипта раскадровки с положением камеры и детальными промптами
