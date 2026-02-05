@@ -541,6 +541,7 @@ async function startApplication() {
         'HEYGEN_HAIM_API_KEY', // ✅ HeyGen API ключ для набора аватаров Haim (остальные шаблоны)
         'HEDRA_API_KEY', // ✅ Hedra API для lip-sync генерации с пользовательским фото
         'DEEPSEEK_API_KEY', // ✅ DeepSeek API key для чата аватаров и других AI функций
+        'GROK_API_KEY', // ✅ xAI Grok API key для чата с аватаром (grok-2, grok-3 и т.д.)
         // 💳 Robokassa Payment Gateway (КРИТИЧЕСКИ ВАЖНО!)
         'MERCHANT_LOGIN', // ✅ Логин мерчанта Robokassa для генерации платежных URL
         // 'ROBOKASSA_MERCHANT_LOGIN', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется как fallback для MERCHANT_LOGIN в config/index.ts

@@ -216,6 +216,81 @@ export const answerAi = async (
     }
   }
 
+  // ✅ Grok модели идут напрямую через xAI API (OpenAI-compatible)
+  const isGrokModel = model.toLowerCase().includes('grok')
+  const grokApiKey = process.env.GROK_API_KEY
+
+  if (isGrokModel && grokApiKey) {
+    try {
+      logger.info('[answerAi] Sending request to xAI Grok API', { model })
+
+      const response = await fetch(
+        'https://api.x.ai/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${grokApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              {
+                role: 'system',
+                content: systemPrompt
+                  ? systemPrompt + '\n' + initialPrompt
+                  : initialPrompt,
+              },
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('[answerAi] xAI Grok API error', {
+          status: response.status,
+          error: errorText,
+          model,
+        })
+        throw new Error(
+          `xAI Grok API error: ${response.status} - ${errorText}`
+        )
+      }
+
+      const data = await response.json()
+      const content = data.choices?.[0]?.message?.content
+
+      if (!content) {
+        logger.error('[answerAi] Empty response from xAI Grok', {
+          model,
+          data,
+        })
+        throw new Error('Empty response from xAI Grok')
+      }
+
+      logger.info('[answerAi] Successfully got response from xAI Grok', {
+        model,
+        contentLength: content.length,
+      })
+
+      return content
+    } catch (error) {
+      logger.error(
+        '[answerAi] xAI Grok request failed, falling back to OpenRouter',
+        {
+          model,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      )
+      // Fallback на OpenRouter если xAI недоступен
+    }
+  }
+
   const openRouterApiKey = process.env.OPENROUTER_API_KEY
 
   // ✅ ВСЕ модели идут через OpenRouter API (включая DeepSeek, Claude, GPT и т.д.)
