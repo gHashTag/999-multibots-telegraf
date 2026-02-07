@@ -155,16 +155,18 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
 
       const inngestHandler = serve(inngest, allInngestFunctions)
 
-      // Override health check to check process.env directly
-      app.get('/api/inngest', (req, res) => {
+      // ✅ Inngest health check на отдельном URL (не блокирует introspection)
+      app.get('/api/inngest-status', (req: any, res: any) => {
         res.json({
           'Inngest endpoint configured correctly.': true,
           hasEventKey: !!process.env.INNGEST_EVENT_KEY,
           hasSigningKey: !!signingKey,
           functionsFound: allInngestFunctions.length,
+          serveOrigin: process.env.INNGEST_SERVE_ORIGIN || 'not set',
         })
       })
 
+      // ✅ CRITICAL: inngestHandler MUST handle GET /api/inngest for introspection/sync
       app.use('/api/inngest', inngestHandler)
       logger.info(
         '✅ [API SERVER] Inngest webhook monitor initialized at /api/inngest',

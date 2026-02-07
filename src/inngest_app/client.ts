@@ -16,11 +16,6 @@ function getInngestConfig() {
   return {
     name: 'Vibee',
     id: 'telegram-bot-client',
-    // Подключение к нашему Inngest Dev Server
-    baseUrl:
-      process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000' // Локальный dev server
-        : 'https://three-head-dragon.shop/api/inngest', // Production
     isDev: process.env.NODE_ENV === 'development',
     // Event key загружается из Infisical (INNGEST_EVENT_KEY)
     eventKey: process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY || undefined,
@@ -39,7 +34,6 @@ function getInngestClient(): Inngest {
     logger.info('🔥 [INNGEST] Client initialized (lazy)', {
       name: config.name,
       id: config.id,
-      baseUrl: config.baseUrl,
       isDev: config.isDev,
       hasEventKey: !!config.eventKey,
       hasSigningKey: !!config.signingKey,

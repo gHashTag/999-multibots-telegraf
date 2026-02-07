@@ -14,6 +14,7 @@ import { logger } from '@/utils/logger'
 import { createInngestFailureHandler } from '@/inngest_app/client'
 import { supabase } from '@/core/supabase'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
+import { getUserLanguageFromDB } from '@/core/supabase/getUserLanguage'
 
 interface TrainingCompletedEvent {
   name: 'model/training.completed'
@@ -258,29 +259,53 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
               }
             }
 
+            logger.info('[TRAINING COMPLETED] Looking up bot instance', {
+              bot_name: botName,
+              telegram_id: telegramId,
+              training_id: eventData.training_id,
+            })
+
             const botData = getBotByNameAdapter(botName)
 
             if (!botData.bot || botData.error) {
-              logger.error('[TRAINING COMPLETED] Bot instance not found', {
+              logger.error('[TRAINING COMPLETED] Bot instance not found - NOTIFICATION NOT SENT!', {
                 bot_name: botName,
                 error: botData.error,
                 training_id: eventData.training_id,
+                telegram_id: telegramId,
+                availableBots: 'check getBotByNameAdapter logs',
               })
-              return
+              return {
+                sent: false,
+                reason: `Bot instance not found: ${botName}`,
+                error: botData.error,
+                telegram_id: telegramId,
+                training_id: eventData.training_id,
+              }
+            }
+
+            // Determine language: DB record → user profile → default ru
+            let isRu = trainingRecord.is_ru
+            if (isRu === undefined || isRu === null) {
+              const userLang = await getUserLanguageFromDB(telegramId)
+              isRu = userLang !== 'en' // Default to Russian if unknown
+              logger.info('[TRAINING COMPLETED] Language fallback used', {
+                telegram_id: telegramId,
+                userLang,
+                isRu,
+              })
             }
 
             let message: string
-            if (eventData.status === 'succeeded') {
-              const isRu = trainingRecord.is_ru
-              const triggerWord = trainingRecord.trigger_word || 'TRIGGER_WORD'
+            const triggerWord = trainingRecord.trigger_word || 'TRIGGER_WORD'
 
+            if (eventData.status === 'succeeded') {
               if (isRu) {
                 message = `✅ Тренировка модели завершена!\n\n📦 Модель: ${modelName}\n🎯 Trigger word: <b>${triggerWord}</b>\n🆔 Training ID: ${eventData.training_id}\n\n🎨 Теперь вы можете использовать эту модель в разделе "Модели" в Нейрофото.\n\n💡 <b>Как использовать:</b>\nЧтобы активировать модель, укажите trigger word <b>${triggerWord}</b> в промпте при генерации изображений.\n\nПример промпта: "<b>${triggerWord}</b> person, cinematic lighting, high quality"`
               } else {
                 message = `✅ Model training completed!\n\n📦 Model: ${modelName}\n🎯 Trigger word: <b>${triggerWord}</b>\n🆔 Training ID: ${eventData.training_id}\n\n🎨 You can now use this model in the "Models" section of Neurophoto.\n\n💡 <b>How to use:</b>\nTo activate the model, include the trigger word <b>${triggerWord}</b> in your prompt when generating images.\n\nExample prompt: "<b>${triggerWord}</b> person, cinematic lighting, high quality"`
               }
             } else {
-              const isRu = trainingRecord.is_ru
               if (isRu) {
                 message = `❌ Ошибка тренировки модели\n\n📦 Модель: ${modelName}\n🆔 Training ID: ${eventData.training_id}\n\n⚠️ Причина: ${eventData.error || 'Неизвестная ошибка'}\n\nПопробуйте запустить тренировку заново или обратитесь в поддержку.`
               } else {
@@ -288,10 +313,18 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
               }
             }
 
+            // Main menu button
+            const menuButtonText = isRu ? '🏠 Главное меню' : '🏠 Main Menu'
+
             try {
               await botData.bot.telegram.sendMessage(telegramId, message, {
-                disable_notification: false, // Enable sound notification
+                disable_notification: false,
                 parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: menuButtonText, callback_data: 'go_main_menu' }],
+                  ],
+                },
               })
 
               logger.info('[TRAINING COMPLETED] ✅ User notified', {

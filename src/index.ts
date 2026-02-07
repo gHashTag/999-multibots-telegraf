@@ -542,6 +542,11 @@ async function startApplication() {
         'HEDRA_API_KEY', // ✅ Hedra API для lip-sync генерации с пользовательским фото
         'DEEPSEEK_API_KEY', // ✅ DeepSeek API key для чата аватаров и других AI функций
         'GROK_API_KEY', // ✅ xAI Grok API key для чата с аватаром (grok-2, grok-3 и т.д.)
+        'GLM_API_KEY', // ✅ GLM-4.7 API key от Zhipu AI для чата (fallback провайдер)
+        // 🎓 BFL Model Training (Flux LoRA)
+        'BFL_API_KEY', // ✅ BFL API key для тренировки моделей (Digital Avatar Body)
+        'BFL_WEBHOOK_URL', // ✅ URL для BFL webhook (уведомление о завершении тренировки)
+        'BFL_WEBHOOK_SECRET', // ✅ Секрет для верификации BFL webhook
         // 💳 Robokassa Payment Gateway (КРИТИЧЕСКИ ВАЖНО!)
         'MERCHANT_LOGIN', // ✅ Логин мерчанта Robokassa для генерации платежных URL
         // 'ROBOKASSA_MERCHANT_LOGIN', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется как fallback для MERCHANT_LOGIN в config/index.ts

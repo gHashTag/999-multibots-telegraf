@@ -225,4 +225,22 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
+chatWithAvatarWizard.action('cancel', async (ctx) => {
+  await ctx.answerCbQuery()
+  logger.info('❌ [chatWithAvatarWizard] Cancel button pressed')
+  await ctx.scene.leave()
+  await showMainMenu(ctx)
+})
+
+chatWithAvatarWizard.action('help', async (ctx) => {
+  await ctx.answerCbQuery()
+  const isRu = isRussian(ctx)
+  await ctx.reply(
+    isRu
+      ? '💡 <b>Чат с аватаром</b>\n\n• Напишите текстовое сообщение\n• Или отправьте голосовое\n• Аватар ответит используя выбранную модель AI\n\n❌ Нажмите "Отмена" для выхода'
+      : '💡 <b>Avatar Chat</b>\n\n• Send a text message\n• Or send a voice message\n• Avatar will respond using the selected AI model\n\n❌ Press "Cancel" to exit',
+    { parse_mode: 'HTML' }
+  )
+})
+
 export default chatWithAvatarWizard

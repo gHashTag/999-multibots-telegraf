@@ -201,6 +201,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           status: 'PENDING', // Will be updated to 'starting' when Replicate accepts
           bot_name: eventData.bot_name,
           steps: eventData.steps,
+          is_ru: eventData.is_ru,
           created_at: new Date().toISOString(),
         }
 

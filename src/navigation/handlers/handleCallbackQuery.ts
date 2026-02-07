@@ -42,6 +42,14 @@ export async function handleCallbackQuery(ctx: MyContext): Promise<boolean> {
 
   // ❌ ОТМЕНА / НАЗАД
   if (data === 'cancel' || data === 'go_back') {
+    // ✅ Если в сцене chatWithAvatarWizard - передаём обработку сцене
+    if (ctx.scene?.current?.id === 'chat_with_avatar') {
+      logger.info('❌ [Callback] Cancel in chatWithAvatarWizard - delegating to scene', {
+        telegramId: ctx.from?.id,
+      })
+      return false // Не обрабатываем глобально, передаём в сцену
+    }
+
     logger.info('❌ [Callback] Cancel/Back pressed', {
       telegramId: ctx.from?.id,
       currentScene: ctx.scene?.current?.id,
@@ -54,6 +62,34 @@ export async function handleCallbackQuery(ctx: MyContext): Promise<boolean> {
       return true
     } catch (error) {
       logger.error('❌ [Callback] Error handling cancel:', {
+        error,
+        telegramId: ctx.from?.id,
+      })
+      return true
+    }
+  }
+
+  // ❓ ПОМОЩЬ
+  if (data === 'help') {
+    // ✅ Если в сцене chatWithAvatarWizard - передаём обработку сцене
+    if (ctx.scene?.current?.id === 'chat_with_avatar') {
+      logger.info('❓ [Callback] Help in chatWithAvatarWizard - delegating to scene', {
+        telegramId: ctx.from?.id,
+      })
+      return false // Не обрабатываем глобально, передаём в сцену
+    }
+
+    logger.info('❓ [Callback] Help pressed', {
+      telegramId: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+    })
+
+    try {
+      await ctx.answerCbQuery()
+      // Для глобальной помощи можно показать базовую справку
+      return true
+    } catch (error) {
+      logger.error('❌ [Callback] Error handling help:', {
         error,
         telegramId: ctx.from?.id,
       })

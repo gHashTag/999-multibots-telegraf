@@ -264,6 +264,8 @@ export const modelTrainingV2 = inngest.createFunction(
           triggerWord: triggerWord,
           modelName: modelName,
           steps: steps,
+          webhook_url: process.env.BFL_WEBHOOK_URL,
+          has_webhook_secret: !!process.env.BFL_WEBHOOK_SECRET,
           step: 'create-training',
         })
 

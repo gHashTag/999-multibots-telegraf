@@ -70,6 +70,8 @@
     "logs:follow": "node scripts/logs-monitor.js --follow",
     "logs:no-fix": "node scripts/logs-monitor.js --no-fix",
     "logs:tail": "node scripts/logs-monitor.js --tail=200",
+    "test:glm": "npx tsx scripts/test-glm-provider.ts",
+    "test:infisical": "npx tsx scripts/infisical/check-infisical-keys.ts",
     "test:model": "npx tsx tests/video-models-test.ts",
     "test:models:validate": "npx tsx tests/video-models-test.ts validate",
     "test:models:webhooks": "npx tsx tests/video-models-test.ts webhooks",

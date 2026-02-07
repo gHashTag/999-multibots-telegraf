@@ -41,6 +41,13 @@ router.post('/replicate', async (req: any, res: any) => {
       training_id: payload.id,
       status: payload.status,
       model: payload.model,
+      has_output: !!payload.output,
+      has_error: !!payload.error,
+      input_trigger_word: payload.input?.trigger_word,
+      input_steps: payload.input?.steps,
+      created_at: payload.created_at,
+      completed_at: payload.completed_at,
+      full_payload_keys: Object.keys(payload),
     })
 
     // ✅ КРИТИЧНО: Проверяем только терминальные статусы (succeeded, failed, canceled)

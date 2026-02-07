@@ -1,4 +1,5 @@
 import { openai } from '.'
+import { GLMProvider } from './glm-provider'
 import { logger } from '@/utils/logger'
 
 type UserData = {
@@ -12,7 +13,8 @@ type UserData = {
 
 /**
  * ✅ ОСНОВНАЯ МОДЕЛЬ: xAI Grok (grok-2-latest)
- * Все текстовые запросы идут через xAI API напрямую.
+ * Fallback цепочка: Grok → GLM-4.7 → DeepSeek → OpenAI
+ * Все текстовые запросы идут через AI API с fallback.
  * Gemini + изображения → Nano Banana Pro (как раньше)
  */
 
@@ -242,31 +244,141 @@ export const answerAi = async (
     logger.warn('[answerAi] GROK_API_KEY not found')
   }
 
-  // ✅ Fallback: DeepSeek API
-  logger.info('[answerAi] Using DeepSeek API as fallback', {
-    model: 'deepseek-chat',
-  })
+  // ✅ Fallback 1: GLM-4.7 (Zhipu AI)
+  const glmApiKey = process.env.GLM_API_KEY
+  if (glmApiKey) {
+    try {
+      logger.info('[answerAi] Using GLM-4.7 as fallback', {
+        model: 'glm-4',
+      })
 
-  const response = await openai.chat.completions.create({
-    model: 'deepseek-chat',
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt
-          ? systemPrompt + '\n' + initialPrompt
-          : initialPrompt,
-      },
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  })
+      const glmProvider = new GLMProvider(glmApiKey)
+      const content = await glmProvider.chatCompletion([
+        {
+          role: 'system',
+          content: systemPrompt
+            ? systemPrompt + '\n' + initialPrompt
+            : initialPrompt,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ])
 
-  const content = response.choices[0].message.content
-  if (!content) {
-    throw new Error('Empty response from DeepSeek fallback')
+      return content
+    } catch (glmError) {
+      logger.error('[answerAi] GLM-4.7 fallback failed', {
+        error:
+          glmError instanceof Error
+            ? glmError.message
+            : String(glmError),
+      })
+    }
+  } else {
+    logger.warn('[answerAi] GLM_API_KEY not found')
   }
 
-  return content
+  // ✅ Fallback 2: DeepSeek API
+  try {
+    logger.info('[answerAi] Using DeepSeek API as fallback', {
+      model: 'deepseek-chat',
+    })
+
+    const response = await openai.chat.completions.create({
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+            ? systemPrompt + '\n' + initialPrompt
+            : initialPrompt,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    })
+
+    const content = response.choices[0].message.content
+    if (!content) {
+      throw new Error('Empty response from DeepSeek fallback')
+    }
+
+    return content
+  } catch (deepseekError) {
+    logger.error('[answerAi] DeepSeek fallback failed', {
+      error:
+        deepseekError instanceof Error
+          ? deepseekError.message
+          : String(deepseekError),
+    })
+  }
+
+  // ✅ Fallback 2: OpenAI API (GPT-4o-mini)
+  const openaiApiKey = process.env.OPENAI_API_KEY
+  if (openaiApiKey) {
+    try {
+      logger.info('[answerAi] Using OpenAI API as final fallback', {
+        model: 'gpt-4o-mini',
+      })
+
+      const response = await fetch(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: systemPrompt
+                  ? systemPrompt + '\n' + initialPrompt
+                  : initialPrompt,
+              },
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      const content = data.choices?.[0]?.message?.content
+
+      if (!content) {
+        throw new Error('Empty response from OpenAI fallback')
+      }
+
+      logger.info('[answerAi] Successfully got response from OpenAI fallback', {
+        model: 'gpt-4o-mini',
+        contentLength: content.length,
+      })
+
+      return content
+    } catch (openaiError) {
+      logger.error('[answerAi] OpenAI fallback also failed', {
+        error:
+          openaiError instanceof Error
+            ? openaiError.message
+            : String(openaiError),
+      })
+    }
+  }
+
+  throw new Error(
+    'All AI providers failed (Grok, GLM-4.7, DeepSeek, OpenAI). Check API keys and balances.'
+  )
 }

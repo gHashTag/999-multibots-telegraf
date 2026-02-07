@@ -29,7 +29,11 @@ async function checkInfisicalKeys() {
       'HEYGEN_HAIM_API_KEY',
       'HEDRA_API_KEY',
       'KIE_AI_API_KEY',
-      'FAL_KEY'
+      'FAL_KEY',
+      'GROK_API_KEY',
+      'GLM_API_KEY',
+      'DEEPSEEK_API_KEY',
+      'OPENAI_API_KEY'
     ]
 
     console.log('🔍 Проверка ключей AI сервисов:\n')
