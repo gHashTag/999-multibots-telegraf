@@ -139,18 +139,27 @@ export const getPulseBot = (): Telegraf<MyContext> | null => {
     return _pulseBot
   }
 
-  const token = isDev ? process.env.BOT_TOKEN_TEST_1 : process.env.BOT_TOKEN_1
+  const tokenEnvKey = isDev ? 'BOT_TOKEN_TEST_1' : 'BOT_TOKEN_1'
+  const token = process.env[tokenEnvKey]
 
   if (token) {
     _pulseBot = new Telegraf<MyContext>(token)
     logger.info('🤖 Инициализация pulseBot (lazy):', {
       description: 'PulseBot lazy initialization',
+      tokenEnvKey,
       tokenLength: token.length,
+      tokenPrefix: token.substring(0, 10) + '...',
+      isDev,
     })
   } else {
     logger.warn('⚠️ PULSE_BOT_TOKEN не найден, pulseBot не инициализирован', {
       description: 'PULSE_BOT_TOKEN not found',
+      tokenEnvKey,
       isDev,
+      envKeysAvailable: {
+        BOT_TOKEN_1: !!process.env.BOT_TOKEN_1,
+        BOT_TOKEN_TEST_1: !!process.env.BOT_TOKEN_TEST_1,
+      },
     })
   }
 

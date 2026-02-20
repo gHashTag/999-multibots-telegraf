@@ -278,6 +278,7 @@ export const sendMediaToPulse = async (
             promptAvailable: !!prompt,
           })
         } catch (photoError) {
+          const telegramError = photoError as any
           logger.error({
             message: '❌ [pulse] Ошибка при отправке ФОТО',
             description: 'Error sending PHOTO in pulse',
@@ -304,6 +305,11 @@ export const sendMediaToPulse = async (
               typeof mediaSource === 'string'
                 ? mediaSource.substring(0, 100)
                 : 'Buffer',
+            // 🔍 Диагностика: Telegram API error response
+            telegramErrorCode: telegramError?.response?.error_code,
+            telegramErrorDescription: telegramError?.response?.description,
+            telegramErrorPayload: telegramError?.response?.parameters,
+            botInitialized: !!pulseBot,
           })
           // Продолжаем попытку отправить текст, если фото не ушло
         }
@@ -396,6 +402,7 @@ export const sendMediaToPulse = async (
               })
             }
           } catch (textError) {
+            const telegramError = textError as any
             logger.error({
               message:
                 '❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML)',
@@ -419,6 +426,10 @@ export const sendMediaToPulse = async (
               textMessagePreview: textMessage.substring(0, 300) + '...',
               parseMode: 'HTML',
               promptLength: prompt?.length ?? 0,
+              // 🔍 Диагностика: Telegram API error response
+              telegramErrorCode: telegramError?.response?.error_code,
+              telegramErrorDescription: telegramError?.response?.description,
+              telegramErrorPayload: telegramError?.response?.parameters,
             })
             // ---> УПРОЩЕННЫЙ FALLBACK: Обрезаем промпт и отправляем без форматирования
             try {
@@ -442,6 +453,7 @@ export const sendMediaToPulse = async (
                   '✅ [pulse] Обрезанный текст успешно отправлен' /* ... */,
               })
             } catch (retryError) {
+              const telegramError = retryError as any
               logger.error({
                 message:
                   '❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)',
@@ -455,6 +467,10 @@ export const sendMediaToPulse = async (
                   retryError instanceof Error ? retryError.stack : undefined,
                 telegramId: rawTelegramId,
                 truncatedPromptLength: truncatedPrompt.length,
+                // 🔍 Диагностика: Telegram API error response
+                telegramErrorCode: telegramError?.response?.error_code,
+                telegramErrorDescription: telegramError?.response?.description,
+                telegramErrorPayload: telegramError?.response?.parameters,
               })
             }
           }
@@ -493,6 +509,7 @@ export const sendMediaToPulse = async (
               telegramId: rawTelegramId,
             })
           } catch (textError) {
+            const telegramError = textError as any
             logger.error({
               message: '❌ [pulse] Ошибка при отправке ТЕКСТА без промпта',
               description: 'Error sending TEXT message without prompt in pulse',
@@ -513,6 +530,10 @@ export const sendMediaToPulse = async (
               textMessageLength: textMessage.length,
               textMessagePreview: textMessage.substring(0, 300) + '...',
               parseMode: 'HTML',
+              // 🔍 Диагностика: Telegram API error response
+              telegramErrorCode: telegramError?.response?.error_code,
+              telegramErrorDescription: telegramError?.response?.description,
+              telegramErrorPayload: telegramError?.response?.parameters,
             })
           }
         }
