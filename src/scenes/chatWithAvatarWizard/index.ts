@@ -7,6 +7,9 @@ import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { transcribeAudioFromUrl } from '@/services/audioTranscription'
+import { createAudioFileFromText } from '@/core/elevenlabs/createAudioFileFromText'
+import { getVoiceId } from '@/core/supabase'
+import fs from 'fs'
 
 /**
  * 🤖 Обработка сообщения пользователя (текст или транскрибированное аудио)
@@ -61,8 +64,33 @@ async function processUserMessage(ctx: MyContext, prompt: string): Promise<void>
 
     await ctx.replyWithPhoto(response.imageUrl, { caption })
   } else {
-    // Обычный текстовый ответ
-    await ctx.reply(response as string)
+    const textResponse = response as string
+    // Send text first so user sees the response immediately
+    await ctx.reply(textResponse)
+
+    // Generate and send voice response
+    let audioPath: string | null = null
+    try {
+      await ctx.sendChatAction('record_voice')
+      const voiceId = await getVoiceId(telegramId)
+      audioPath = await createAudioFileFromText({
+        text: textResponse,
+        voice_id: voiceId,
+        telegram_id: telegramId,
+      })
+      if (audioPath) {
+        await ctx.replyWithVoice({ source: audioPath })
+      }
+    } catch (voiceError) {
+      logger.warn('[chatWithAvatarWizard] Voice generation failed, text already sent', {
+        telegramId,
+        error: voiceError instanceof Error ? voiceError.message : String(voiceError),
+      })
+    } finally {
+      if (audioPath && fs.existsSync(audioPath)) {
+        try { fs.unlinkSync(audioPath) } catch {}
+      }
+    }
   }
 
   // Пост-обработка пользователя (достижимый код)

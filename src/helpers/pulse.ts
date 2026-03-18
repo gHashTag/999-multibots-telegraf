@@ -50,7 +50,7 @@ export const pulse = async (
               username || 'User without username'
             } Telegram ID: ${telegramId} generated an image with a prompt: ${truncatedPrompt} \n\n Service: ${service}`
 
-        const chatId = '-1002298297094' // Neuro Blogger Pulse - новый канал
+        const chatId = '-1002737186844' // НейроМентор - основной чат для всех логов
 
         // Отправляем по URL вместо локального файла
         await pulseBot.telegram.sendPhoto(
@@ -108,6 +108,10 @@ export const pulse = async (
       description: 'Error sending to pulse',
       error: (error as Error).message,
       stack: (error as Error).stack,
+      telegram_id,
+      username,
+      command,
+      bot_name,
     })
   }
 }
@@ -279,8 +283,11 @@ export const sendMediaToPulse = async (
           })
         } catch (photoError) {
           const telegramError = photoError as any
+          const errorCode = telegramError?.response?.error_code
+          const errorDesc = telegramError?.response?.description
+
           logger.error({
-            message: '❌ [pulse] Ошибка при отправке ФОТО',
+            message: `❌ [pulse] Ошибка при отправке ФОТО [${errorCode || 'NO_CODE'}]: ${errorDesc || 'Unknown error'}`,
             description: 'Error sending PHOTO in pulse',
             error:
               photoError instanceof Error
@@ -295,6 +302,7 @@ export const sendMediaToPulse = async (
                   }
                 : photoError,
             telegramId: rawTelegramId,
+            username: rawUsername,
             chatId,
             mediaType,
             isUrl:
@@ -306,8 +314,8 @@ export const sendMediaToPulse = async (
                 ? mediaSource.substring(0, 100)
                 : 'Buffer',
             // 🔍 Диагностика: Telegram API error response
-            telegramErrorCode: telegramError?.response?.error_code,
-            telegramErrorDescription: telegramError?.response?.description,
+            telegramErrorCode: errorCode,
+            telegramErrorDescription: errorDesc,
             telegramErrorPayload: telegramError?.response?.parameters,
             botInitialized: !!pulseBot,
           })
@@ -403,9 +411,11 @@ export const sendMediaToPulse = async (
             }
           } catch (textError) {
             const telegramError = textError as any
+            const errorCode = telegramError?.response?.error_code
+            const errorDesc = telegramError?.response?.description
+
             logger.error({
-              message:
-                '❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML)',
+              message: `❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML) [${errorCode || 'NO_CODE'}]: ${errorDesc || 'Unknown error'}`,
               description:
                 'Error sending TEXT message with prompt in pulse (HTML)',
               error:
@@ -421,14 +431,15 @@ export const sendMediaToPulse = async (
                     }
                   : textError,
               telegramId: rawTelegramId,
+              username: rawUsername,
               chatId,
               textMessageLength: textMessage.length,
               textMessagePreview: textMessage.substring(0, 300) + '...',
               parseMode: 'HTML',
               promptLength: prompt?.length ?? 0,
               // 🔍 Диагностика: Telegram API error response
-              telegramErrorCode: telegramError?.response?.error_code,
-              telegramErrorDescription: telegramError?.response?.description,
+              telegramErrorCode: errorCode,
+              telegramErrorDescription: errorDesc,
               telegramErrorPayload: telegramError?.response?.parameters,
             })
             // ---> УПРОЩЕННЫЙ FALLBACK: Обрезаем промпт и отправляем без форматирования
@@ -454,9 +465,11 @@ export const sendMediaToPulse = async (
               })
             } catch (retryError) {
               const telegramError = retryError as any
+              const errorCode = telegramError?.response?.error_code
+              const errorDesc = telegramError?.response?.description
+
               logger.error({
-                message:
-                  '❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)',
+                message: `❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования) [${errorCode || 'NO_CODE'}]: ${errorDesc || 'Unknown error'}`,
                 description:
                   'Error retrying TEXT message without formatting in pulse',
                 error:
@@ -466,10 +479,12 @@ export const sendMediaToPulse = async (
                 stack:
                   retryError instanceof Error ? retryError.stack : undefined,
                 telegramId: rawTelegramId,
+                username: rawUsername,
+                chatId,
                 truncatedPromptLength: truncatedPrompt.length,
                 // 🔍 Диагностика: Telegram API error response
-                telegramErrorCode: telegramError?.response?.error_code,
-                telegramErrorDescription: telegramError?.response?.description,
+                telegramErrorCode: errorCode,
+                telegramErrorDescription: errorDesc,
                 telegramErrorPayload: telegramError?.response?.parameters,
               })
             }
@@ -573,6 +588,9 @@ export const sendMediaToPulse = async (
           : error,
       options,
       telegramId: options.telegramId,
+      username: options.username,
+      serviceType: options.serviceType,
+      mediaType: options.mediaType,
       chatId,
     })
   }

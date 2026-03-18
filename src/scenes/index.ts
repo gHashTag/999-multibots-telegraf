@@ -42,7 +42,6 @@ export { default as techSupportScene } from './techSupportScene'
 export * from './getRuBillWizard'
 export * from './subscriptionCheckScene'
 export * from './createUserScene'
-// export * from './checkBalanceScene' // REMOVED
 export * from './uploadVideoScene'
 export * from './videoTranscriptionWizard'
 export * from './musicGenerationWizard'

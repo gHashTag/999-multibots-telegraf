@@ -176,12 +176,18 @@ async function handlePaymentSuccess(req: any, res: any) {
     })
 
     // Определяем количество звезд и тип подписки из суммы платежа
+    const numericOutSum = Number(OutSum)
+    if (isNaN(numericOutSum) || numericOutSum <= 0) {
+      logger.error('❌ Invalid OutSum value', { OutSum, InvId })
+      return res.status(400).send('Invalid OutSum')
+    }
+
     let stars = 0
     let subscription = payment.subscription || ''
 
     // Проверяем, соответствует ли сумма одному из тарифов подписки
-    if (SUBSCRIPTION_AMOUNTS[OutSum]) {
-      const plan = SUBSCRIPTION_PLANS.find(p => p.ru_price === OutSum)
+    if (SUBSCRIPTION_AMOUNTS[numericOutSum]) {
+      const plan = SUBSCRIPTION_PLANS.find(p => p.ru_price === numericOutSum)
       if (plan) {
         stars = plan.stars_price
         subscription = plan.callback_data
@@ -189,7 +195,7 @@ async function handlePaymentSuccess(req: any, res: any) {
     }
     // Если не подписка, проверяем стандартные варианты пополнения
     else {
-      const option = PAYMENT_OPTIONS.find(opt => opt.amount === OutSum)
+      const option = PAYMENT_OPTIONS.find(opt => opt.amount === numericOutSum)
       if (option) {
         stars = option.stars
       }
@@ -238,7 +244,7 @@ async function handlePaymentSuccess(req: any, res: any) {
     await sendPaymentSuccessNotification(payment, stars, subscription)
 
     // Отправляем уведомление в админ-группу
-    await sendAdminGroupNotification(payment, OutSum, stars, subscription)
+    await sendAdminGroupNotification(payment, numericOutSum, stars, subscription)
 
     // Отправляем уведомление владельцу бота
     if (payment.bot_name) {

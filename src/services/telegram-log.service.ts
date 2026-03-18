@@ -5,12 +5,12 @@ import { logger } from '@/utils/logger'
 /**
  * TelegramLogService - централизованный сервис логирования в Telegram группу
  *
- * Отправляет все логи в группу Neuro Blogger Pulse: https://t.me/neuro_blogger_pulse
- * Chat ID: -1002298297094 (supergroup с префиксом -100)
+ * Отправляет все логи в группу НейроМентор
+ * Chat ID: -1002737186844 (supergroup с префиксом -100)
  */
 
-// Neuro Blogger Pulse
-const DEFAULT_LOG_GROUP_ID = '-1002298297094'
+// НейроМентор - основной чат для всех логов
+const DEFAULT_LOG_GROUP_ID = '-1002737186844'
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'system' | 'payment' | 'user'
 

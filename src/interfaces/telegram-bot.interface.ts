@@ -402,10 +402,11 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   aiPhotoshopImage?: string
   aiPhotoshopPrompt?: string
   aiPhotoshopSize?: '1K' | '2K' | '4K' | 'custom'
+  aiPhotoshopAspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'
   aiPhotoshopVariationsCount?: number
   awaitingAiPhotoshopImage?: boolean
   awaitingAiPhotoshopPrompt?: boolean
-  aiPhotoshopStep?: 'model_select' | 'style_select' | 'image_upload' | 'custom_prompt' | 'processing' | 'quality_selection'
+  aiPhotoshopStep?: 'model_select' | 'style_select' | 'size_ratio_select' | 'image_upload' | 'custom_prompt' | 'processing' | 'quality_selection'
 
   // 🎬 AI Photoshop camera control fields (transferred from FLUX Kontext)
   aiPhotoshopCameraAngle?: 'medium_shot' | 'close_up' | 'extreme_close_up' | 'wide_shot' | 'high_angle' | 'low_angle' | 'dutch_angle' | 'over_shoulder' | 'profile_shot' | 'three_quarter' | 'bird_eye' | 'macro_beauty'

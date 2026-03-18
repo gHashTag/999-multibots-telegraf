@@ -214,7 +214,7 @@ router.get('/diagnostic/trainings/:telegramId', async (req: any, res: any) => {
     const { data: trainings, error: dbError } = await supabase
       .from('model_trainings')
       .select('*')
-      .or(`telegram_id.eq.${telegramId},user_id.eq.${telegramId}`)
+      .eq('telegram_id', telegramId)
       .order('created_at', { ascending: false })
       .limit(20)
 
@@ -308,8 +308,8 @@ router.get('/diagnostic/training-config', async (_req: any, res: any) => {
   try {
     logger.info('[DIAGNOSTIC] Checking training config (Replicate pipeline)')
 
-    const baseWebhookUrl = process.env.BASE_WEBHOOK_URL || 'https://three-head-dragon.shop'
-    const webhookUrl = `${baseWebhookUrl}/api/webhooks/replicate`
+    const baseWebhookUrl = process.env.BASE_WEBHOOK_URL || 'NOT SET'
+    const webhookUrl = baseWebhookUrl !== 'NOT SET' ? `${baseWebhookUrl}/api/webhooks/replicate` : 'NOT CONFIGURED'
 
     const config = {
       timestamp: new Date().toISOString(),
@@ -358,7 +358,7 @@ router.get('/diagnostic/training-config', async (_req: any, res: any) => {
       config.warnings.push('CRITICAL: REPLICATE_USERNAME not set - cannot create models on Replicate')
     }
     if (!process.env.BASE_WEBHOOK_URL) {
-      config.warnings.push(`WARNING: BASE_WEBHOOK_URL not set - defaulting to ${baseWebhookUrl} (VPS, not fly.io!)`)
+      config.warnings.push('CRITICAL: BASE_WEBHOOK_URL not set - Replicate webhooks will NOT be received! Set it in Infisical.')
     }
     if (baseWebhookUrl.includes('three-head-dragon')) {
       config.warnings.push('CRITICAL: Webhook URL points to VPS (three-head-dragon.shop), not fly.io! Replicate webhooks will go to wrong server!')

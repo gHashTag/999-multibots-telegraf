@@ -28,13 +28,14 @@ import { instagramScraperV2Simple } from './functions/instagram/instagramScraper
 import { criticalErrorMonitor } from './functions/monitoring/criticalErrorMonitor'
 import { logMonitor } from './functions/monitoring/logMonitor'
 
-// Training Functions (4)
+// Training Functions (5)
 import { modelTrainingV2 } from './functions/training/modelTrainingV2'
 import { morphImagesFunction } from './functions/training/morphImages'
 import {
   voiceTrainingStart,
   voiceTrainingCompleted,
 } from './functions/training/voiceTrainingRVC'
+import { checkStuckTrainings } from './functions/training/checkStuckTrainings'
 
 // Generation Functions (2 - including restored version)
 import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
@@ -125,11 +126,12 @@ export function createAllInngestFunctions() {
     criticalErrorMonitor,
     logMonitor,
 
-    // Training (4)
+    // Training (5)
     modelTrainingV2,
     morphImagesFunction,
     voiceTrainingStart,
     voiceTrainingCompleted,
+    checkStuckTrainings,
 
     // Generation (1)
     neuroImageGeneration,

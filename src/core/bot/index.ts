@@ -101,28 +101,69 @@ if (DEFAULT_BOT_TOKEN) {
   })
 }
 
-// Вместо массива:
-export const bots: Record<BotName, Telegraf<MyContext>> = {} as any
+// 🔥 LAZY INITIALIZATION: bots объект заполняется после загрузки Infisical
+// Используем Proxy для ленивой инициализации при обращении
+const _botsInternal: Record<BotName, Telegraf<MyContext>> = {} as any
+let _botsInitialized = false
 
-Object.entries(BOT_NAMES)
-  .filter(([, token]) => token)
-  .filter(([name, token]) => {
-    // В dev режиме инициализируем все боты (включая тестовых)
-    // В production - только продакшн ботов
-    if (isDev) {
-      return true // В dev режиме - все боты
-    }
-    return BOT_TOKENS_PROD.includes(token) // В production - только продакшн боты
-  })
-  .forEach(([name, token]) => {
-    bots[name as BotName] =
-      name === DEFAULT_BOT_NAME ? defaultBot : new Telegraf<MyContext>(token)
-  })
+function _initializeBots(): void {
+  if (_botsInitialized) return
 
-logger.info('🌟 Инициализировано ботов:', {
-  description: 'Bots initialized',
-  count: Object.keys(bots).length,
-  bot_names: Object.keys(bots),
+  // Проверяем, есть ли токены (Infisical уже загрузил их)
+  const hasTokens = Object.values(BOT_NAMES).some(token => token)
+
+  if (!hasTokens) {
+    logger.warn('⚠️ [BOT REGISTRY] No tokens available yet, skipping initialization')
+    return
+  }
+
+  Object.entries(BOT_NAMES)
+    .filter(([, token]) => token)
+    .filter(([name, token]) => {
+      // В dev режиме инициализируем все боты (включая тестовых)
+      // В production - только продакшн ботов
+      if (isDev) {
+        return true // В dev режиме - все боты
+      }
+      return BOT_TOKENS_PROD.includes(token) // В production - только продакшн боты
+    })
+    .forEach(([name, token]) => {
+      _botsInternal[name as BotName] =
+        name === DEFAULT_BOT_NAME ? defaultBot : new Telegraf<MyContext>(token)
+    })
+
+  _botsInitialized = true
+
+  logger.info('🌟 Инициализировано ботов:', {
+    description: 'Bots initialized',
+    count: Object.keys(_botsInternal).length,
+    bot_names: Object.keys(_botsInternal),
+  })
+}
+
+// Экспортируем Proxy который инициализирует ботов при первом обращении
+export const bots: Record<BotName, Telegraf<MyContext>> = new Proxy(_botsInternal, {
+  get(target, prop: string) {
+    _initializeBots()
+    return target[prop as BotName]
+  },
+  set(target, prop: string, value) {
+    _initializeBots()
+    target[prop as BotName] = value
+    return true
+  },
+  has(target, prop: string) {
+    _initializeBots()
+    return prop in target
+  },
+  ownKeys(target) {
+    _initializeBots()
+    return Object.keys(target)
+  },
+  getOwnPropertyDescriptor(target, prop: string) {
+    _initializeBots()
+    return Object.getOwnPropertyDescriptor(target, prop)
+  },
 })
 
 // 🔐 В dev используем тестовый токен, в production - продакшн
@@ -314,7 +355,8 @@ export function registerBotInstance(
 ): void {
   try {
     const validBotName = toBotName(botName) as BotName
-    bots[validBotName] = bot
+    // Прямая запись в _botsInternal для обхода Proxy
+    _botsInternal[validBotName] = bot
     logger.info('✅ [BOT REGISTRY] Bot instance registered', {
       description: 'Bot instance registered in bots object',
       botName: validBotName,
@@ -326,6 +368,13 @@ export function registerBotInstance(
       error: error instanceof Error ? error.message : String(error),
     })
   }
+}
+
+/**
+ * Принудительная инициализация ботов (вызывается после загрузки Infisical)
+ */
+export function forceInitializeBots(): void {
+  _initializeBots()
 }
 
 export function getBotByName(bot_name: string): {

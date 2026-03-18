@@ -45,6 +45,10 @@ import { setBotInstance } from './api_server/routes/kie-ai-webhook.routes'
 const botInstances: Telegraf<MyContext>[] = []
 let mainBotInstance: Telegraf<MyContext> | null = null
 
+// Deferred startup notifications (secrets load before telegramLogService is ready)
+let startupKeyIssues: { missingKeys: string[]; emptyKeys: string[] } | null = null
+let supabaseCredentialsFailed = false
+
 // Define the commands for private chats
 // const privateCommands: BotCommand[] = [
 //   { command: 'start', description: '🚀 Начать / Restart' },
@@ -162,6 +166,7 @@ async function initializeBots() {
 
   // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
   const botPromises: Promise<void>[] = []
+  let botCount = 0 // Счетчик успешно созданных ботов
 
   // Определяем имена токенов для информативных логов
   const getTokenName = (index: number): string => {
@@ -178,6 +183,8 @@ async function initializeBots() {
     const tokenName = getTokenName(i)
 
     if (await validateBotToken(token, tokenName)) {
+      botCount++
+
       const bot = new Telegraf<MyContext>(token, {
         handlerTimeout: Infinity,
       })
@@ -210,6 +217,33 @@ async function initializeBots() {
         telegramLogService.initialize(bot)
         console.log('✅ TelegramLogService инициализирован для группы НейроМентор')
 
+        // 🔔 Send deferred startup notifications about missing/empty API keys
+        if (supabaseCredentialsFailed) {
+          telegramLogService.error(
+            'Supabase credentials FAILED to load! Database operations will not work.',
+          ).catch(() => {})
+        }
+
+        if (startupKeyIssues) {
+          const { missingKeys, emptyKeys } = startupKeyIssues
+          const lines: string[] = []
+
+          if (missingKeys.length > 0) {
+            lines.push(`<b>Missing keys (${missingKeys.length}):</b>`)
+            lines.push(missingKeys.map(k => `  - <code>${k}</code>`).join('\n'))
+          }
+          if (emptyKeys.length > 0) {
+            lines.push(`<b>Empty keys (${emptyKeys.length}):</b>`)
+            lines.push(emptyKeys.map(k => `  - <code>${k}</code>`).join('\n'))
+          }
+
+          telegramLogService.warn(
+            `API Keys: ${missingKeys.length + emptyKeys.length} issues\n\n${lines.join('\n')}`,
+          ).catch(() => {}) // fire-and-forget, don't block startup
+
+          startupKeyIssues = null
+        }
+
         // ✅ Запускаем API сервер СРАЗУ после создания первого бота
         // (до bot.launch(), чтобы не ждать бесконечного polling loop)
         console.log('🚀 [DEBUG] About to call startApiServer(bot)...')
@@ -233,9 +267,8 @@ async function initializeBots() {
       bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
       bot.on('successful_payment', handleSuccessfulPayment as any)
 
-      botInstances.push(bot)
       const botInfo = await bot.telegram.getMe()
-      console.log(`🤖 Бот ${botInfo.username} инициализирован`)
+      console.log(`🤖 Бот ${botInfo.username} инициализирован (${botCount}/${botTokens.length})`)
 
       // Используем импортированную функцию setBotCommands
       await setBotCommands(bot)
@@ -345,7 +378,8 @@ async function initializeBots() {
   // Bot launches are non-blocking in polling mode - they start infinite loops
   // Don't wait for them to complete, otherwise API server will never start
   // await Promise.all(botPromises)
-  console.log(`✅ Все боты успешно запущены в polling режиме`)
+
+  console.log(`✅ Все боты успешно запущены в polling режиме (${botCount}/${botTokens.length})`)
   console.log(`✅ Все боты успешно инициализированы`)
 }
 
@@ -519,6 +553,7 @@ async function startApplication() {
       console.log('  ✅ Supabase credentials загружены')
     } catch (e) {
       console.error('  ❌ Критическая ошибка: Supabase credentials не найдены!')
+      supabaseCredentialsFailed = true
     }
 
     // API ключи для сервисов генерации
@@ -592,6 +627,11 @@ async function startApplication() {
         console.log(`  ⚠️  Пустые: ${emptyKeys.length} - ${emptyKeys.join(', ')}`)
       }
 
+      // Save issues for deferred Telegram notification (telegramLogService not yet ready)
+      if (missingKeys.length > 0 || emptyKeys.length > 0) {
+        startupKeyIssues = { missingKeys, emptyKeys }
+      }
+
       // 🔗 Приоритет: .env файл > Infisical (для BASE_WEBHOOK_URL)
       // Если в .env есть HTTPS версия, используем её вместо HTTP из Infisical
       if (process.env.BASE_WEBHOOK_URL?.startsWith('http://')) {
@@ -600,10 +640,10 @@ async function startApplication() {
         process.env.BASE_WEBHOOK_URL = httpsUrl
       }
 
-      // Fallback если не установлен вообще
+      // Warn if not set in production (no more hardcoded VPS fallback!)
       if (!process.env.BASE_WEBHOOK_URL && env === 'prod') {
-        process.env.BASE_WEBHOOK_URL = 'https://three-head-dragon.shop'
-        console.log('  ✅ BASE_WEBHOOK_URL установлен (hardcoded fallback)')
+        console.error('  ❌ BASE_WEBHOOK_URL NOT SET in production! Webhooks from Replicate/Kie.ai will fail!')
+        console.error('     Set BASE_WEBHOOK_URL=https://999-multibots-telegraf.fly.dev in Infisical')
       }
 
       // ✅ КРИТИЧЕСКИ ВАЖНО: Reinitialize Inngest client AFTER secrets loaded

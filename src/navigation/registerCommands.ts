@@ -980,65 +980,6 @@ export function createStage(): Scenes.Stage<MyContext> {
     ...getCategoryScenes(),
   ]
 
-  // 🔍 DEBUG: Print scene names from array definition
-  const sceneNames = [
-    'startScene',
-    'menuScene',
-    'helpScene',
-    'inviteScene',
-    'paymentScene',
-    'rublePaymentScene',
-    'starPaymentScene',
-    'cryptoPaymentScene',
-    'subscriptionScene',
-    'subscriptionCheckScene',
-    'checkBalanceScene',
-    'balanceScene',
-    'neuroPhotoWizard',
-    'neuroPhotoWizardV2',
-    'textToImageWizard',
-    'textToVideoWizard',
-    'imageToVideoWizard',
-    'imageToPromptWizard',
-    'imageUpscalerWizard',
-    'improvePromptWizard',
-    'trainFluxModelWizard',
-    'uploadTrainFluxModelScene',
-    'uploadVideoScene',
-    'sizeWizard',
-    'aiPhotoshopScene',
-    'morphingWizard',
-    'voiceAvatarWizard',
-    'textToSpeechWizard',
-    'videoTranscriptionWizard',
-    'lipSyncWizard',
-    'veedFabricWizard',
-    'lipSyncModelSelectionScene',
-    'aiReelsWizard',
-    'aiReelsEntryWizard',
-    'aiReelsRenderWizard',
-    'hedraRenderWizard',
-    'heygenRenderWizard',
-    'falRenderWizard',
-    'avatarTransformScene',
-    'avatarBrainWizard',
-    'chatWithAvatarWizard',
-    'selectModelWizard',
-    'digitalAvatarBodyWizard',
-    'digitalAvatarBodyWizardV2',
-    'getRuBillWizard',
-    'levelQuestWizard',
-    'createUserScene',
-    'neuroCoderScene',
-    'instagramScrapingWizard',
-    'autoFixerConfigScene',
-    'instagramParserScene',
-    'instagramParserWizard',
-    'faceSwapWizard',
-    'tonPaymentScene',
-    'tonNativePaymentScene',
-  ]
-
   // Validate scenes (critical errors only)
   scenesToRegister.forEach((scene, index) => {
     const hasId = scene?.id != null
@@ -1047,10 +988,10 @@ export function createStage(): Scenes.Stage<MyContext> {
 
     if (!isValid || scene === undefined || scene === null) {
       console.error(
-        `❌ CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`
+        `❌ CRITICAL: Invalid scene at index ${index}: id=${scene?.id ?? 'undefined'}`
       )
       throw new Error(
-        `CRITICAL: Invalid scene at index ${index}: ${sceneNames[index]}`
+        `CRITICAL: Invalid scene at index ${index}: id=${scene?.id ?? 'undefined'}`
       )
     }
   })

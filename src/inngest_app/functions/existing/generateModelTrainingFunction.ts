@@ -238,7 +238,13 @@ export function createGenerateModelTrainingFunction(inngest: any) {
 
         // ✅ ВАЖНО: Webhook URL для получения callback от Replicate
         // Replicate REQUIRES HTTPS! Use BASE_WEBHOOK_URL from Infisical/env
-        const baseUrl = process.env.BASE_WEBHOOK_URL || 'https://three-head-dragon.shop'
+        const baseUrl = process.env.BASE_WEBHOOK_URL
+        if (!baseUrl) {
+          throw new Error(
+            'BASE_WEBHOOK_URL is not configured! Cannot register webhook with Replicate. ' +
+            'Set it in Infisical (e.g. https://999-multibots-telegraf.fly.dev)'
+          )
+        }
         const webhookUrl = `${baseUrl}/api/webhooks/replicate`
 
         logger.info('[INNGEST TRAINING] Creating Replicate training...', {

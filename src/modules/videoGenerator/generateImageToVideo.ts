@@ -918,7 +918,7 @@ export const generateImageToVideo = async (
 
             // ✅ FIX: Увеличено время polling - видео генерируется ~70 секунд
             // Webhook все равно основной способ, но polling теперь резервный с адекватным таймаутом
-            const maxPollingAttempts = 45 // 45 попыток = ~90 секунд (2 сек * 45)
+            const maxPollingAttempts = 120 // 120 попыток = ~240 секунд (4 минуты)
             const pollingInterval = 2000 // 2 секунды между проверками
 
             let attempts = 0
