@@ -130,7 +130,12 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           base64Length: base64Data.length,
         })
 
-        return { dataUri, originalSize: fileBuffer.length }
+        // 🔥 FIX: Don't return dataUri in step output - exceeds Inngest 256KB limit
+        // Store in process.env for next step instead (temp storage)
+        ;(process.env as any).__TEMP_ZIP_DATA_URI = dataUri
+        ;(process.env as any).__TEMP_ZIP_SIZE = fileBuffer.length
+
+        return { prepared: true, originalSize: fileBuffer.length }
       })
 
       // ✅ STEP 4: Sanitize model name and create model on Replicate
@@ -261,7 +266,8 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           {
             destination: destination as `${string}/${string}`,
             input: {
-              input_images: zipData.dataUri,
+              // 🔥 FIX: Get dataUri from temp storage, not step output
+              input_images: (process.env as any).__TEMP_ZIP_DATA_URI,
               trigger_word: eventData.triggerWord,
               steps: eventData.steps,
               // Hardware optimization
@@ -285,6 +291,10 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           webhook: webhookUrl,
           elapsed: `${Date.now() - startTime}ms`,
         })
+
+        // 🔥 FIX: Clean up temp storage
+        delete (process.env as any).__TEMP_ZIP_DATA_URI
+        delete (process.env as any).__TEMP_ZIP_SIZE
 
         return {
           training_id: training.id,
