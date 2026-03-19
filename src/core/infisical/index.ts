@@ -59,17 +59,26 @@ export async function initInfisical(): Promise<void> {
   }
 
   try {
+    // 🔥 Проверяем наличие Service Token (приоритет над Universal Auth)
+    const serviceToken = process.env.INFISICAL_SERVICE_TOKEN
+
     // Создаем клиент Infisical SDK
     infisicalClient = new InfisicalSDK({
       siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
     })
 
-    // Авторизация через Universal Auth (Machine Identity)
-    logger.info('[Infisical] Authenticating with Universal Auth...')
-    await infisicalClient.auth().universalAuth.login({
-      clientId,
-      clientSecret
-    })
+    if (serviceToken) {
+      logger.info('[Infisical] Authenticating with Service Token...')
+      // Используем accessToken метод для установки service token
+      infisicalClient.auth().accessToken(serviceToken)
+    } else {
+      // Fallback: Авторизация через Universal Auth (Machine Identity)
+      logger.info('[Infisical] Authenticating with Universal Auth...')
+      await infisicalClient.auth().universalAuth.login({
+        clientId,
+        clientSecret
+      })
+    }
 
     isAuthenticated = true
     logger.info('[Infisical] ✅ Authentication successful')

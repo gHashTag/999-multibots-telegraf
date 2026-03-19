@@ -97,45 +97,30 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         return { hasDuplicate: false }
       })
 
-      // ✅ STEP 3: Download and prepare ZIP file from Supabase URL
-      const zipData = await step.run('prepare-zip', async () => {
-        // 🔥 FIX: Download ZIP from Supabase URL instead of reading local file
+      // ✅ STEP 3: Validate ZIP URL (no download - pass URL directly to Replicate)
+      // 🔥 FIX: Don't download ZIP in Inngest - causes step output size limit exceeded
+      // Replicate accepts public URLs directly!
+      const zipValidation = await step.run('validate-zip-url', async () => {
         if (!eventData.zipUrl) {
           throw new Error('ZIP URL not provided in event data')
         }
 
-        logger.info('[INNGEST TRAINING] Downloading ZIP from Supabase', {
-          url: eventData.zipUrl.substring(0, 100) + '...',
+        logger.info('[INNGEST TRAINING] Validating ZIP URL', {
+          url: eventData.zipUrl.substring(0, 80) + '...',
         })
 
-        // Download ZIP file from URL
-        const response = await fetch(eventData.zipUrl)
+        // Just verify URL is accessible, don't download the content
+        const response = await fetch(eventData.zipUrl, { method: 'HEAD' })
         if (!response.ok) {
-          throw new Error(`Failed to download ZIP: ${response.status} ${response.statusText}`)
+          throw new Error(`ZIP URL not accessible: ${response.status} ${response.statusText}`)
         }
 
-        const arrayBuffer = await response.arrayBuffer()
-        const fileBuffer = Buffer.from(arrayBuffer)
-
-        logger.info('[INNGEST TRAINING] ZIP file downloaded', {
-          size: fileBuffer.length,
+        const contentLength = response.headers.get('content-length')
+        logger.info('[INNGEST TRAINING] ZIP URL validated', {
+          size: contentLength ? `${Math.round(Number(contentLength) / 1024 / 1024)}MB` : 'unknown',
         })
 
-        // Convert to base64 for Replicate
-        const base64Data = fileBuffer.toString('base64')
-        const dataUri = `data:application/zip;base64,${base64Data}`
-
-        logger.info('[INNGEST TRAINING] Base64 conversion complete', {
-          originalSize: fileBuffer.length,
-          base64Length: base64Data.length,
-        })
-
-        // 🔥 FIX: Don't return dataUri in step output - exceeds Inngest 256KB limit
-        // Store in process.env for next step instead (temp storage)
-        ;(process.env as any).__TEMP_ZIP_DATA_URI = dataUri
-        ;(process.env as any).__TEMP_ZIP_SIZE = fileBuffer.length
-
-        return { prepared: true, originalSize: fileBuffer.length }
+        return { urlValid: true }
       })
 
       // ✅ STEP 4: Sanitize model name and create model on Replicate
@@ -266,8 +251,8 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           {
             destination: destination as `${string}/${string}`,
             input: {
-              // 🔥 FIX: Get dataUri from temp storage, not step output
-              input_images: (process.env as any).__TEMP_ZIP_DATA_URI,
+              // 🔥 FIX: Pass URL directly instead of base64 (avoids step output size limit)
+              input_images: eventData.zipUrl,
               trigger_word: eventData.triggerWord,
               steps: eventData.steps,
               // Hardware optimization
@@ -291,10 +276,6 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           webhook: webhookUrl,
           elapsed: `${Date.now() - startTime}ms`,
         })
-
-        // 🔥 FIX: Clean up temp storage
-        delete (process.env as any).__TEMP_ZIP_DATA_URI
-        delete (process.env as any).__TEMP_ZIP_SIZE
 
         return {
           training_id: training.id,
