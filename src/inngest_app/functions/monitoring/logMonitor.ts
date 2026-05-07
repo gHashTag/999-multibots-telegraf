@@ -1,9 +1,8 @@
-// @ts-nocheck
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
-import { openai } from '@/core/openai'
+import { OpenAI } from 'openai'
 import { Telegraf as Bot } from 'telegraf'
 
 // Константы для бота и группы
@@ -12,7 +11,21 @@ const BOT_TOKEN = '7667727700:AAEJIvtBWxgy_cj_Le_dGMpqA_dz7Pwhj0c' // @neuro_blo
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '144022504'
 const GROUP_CHAT_ID = ADMIN_TELEGRAM_ID // Используем ID админа вместо группы
 
-// OpenAI client is initialized lazily via @/core/openai
+// Ленивая инициализация OpenAI (загружается при первом использовании)
+let openai: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    const apiKey = process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY or DEEPSEEK_API_KEY is required')
+    }
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.DEEPSEEK_API_KEY ? 'https://api.deepseek.com' : undefined
+    })
+  }
+  return openai
+}
 
 // Интерфейс для результата анализа
 interface LogAnalysisResult {
@@ -135,7 +148,8 @@ async function analyzeLogs(logs: string): Promise<LogAnalysisResult> {
 }`
 
   try {
-    const response = await openai.chat.completions.create({
+    const client = getOpenAI()
+    const response = await client.chat.completions.create({
       model: process.env.DEEPSEEK_API_KEY ? 'deepseek-chat' : 'gpt-4-turbo-preview',
       messages: [
         { role: 'system', content: systemPrompt },
@@ -317,8 +331,6 @@ export const logMonitor = inngest.createFunction(
     id: 'log-monitor',
     name: '📊 Log Monitor & Reporter',
     retries: 2,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Log Monitor & Reporter'),
   },
   {
     // Запускаем каждые 24 часа
@@ -372,8 +384,6 @@ export const triggerLogMonitor = inngest.createFunction(
     id: 'trigger-log-monitor',
     name: '🔄 Trigger Log Monitor (Manual)',
     retries: 1,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Trigger Log Monitor (Manual)'),
   },
   { event: 'logs/monitor.trigger' },
   async ({ event, step }) => {

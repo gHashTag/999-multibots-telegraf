@@ -7,10 +7,11 @@
  * НАЗНАЧЕНИЕ: Отправка готового видео пользователю в Telegram
  */
 
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import { logger } from '@/utils/logger'
+import FormData from 'form-data'
 
 /**
  * Interface для callback payload от Railway render-server
@@ -68,11 +69,11 @@ async function sendTelegramVideo(
   const url = `${TELEGRAM_API_URL}/sendVideo`
   const formData = new FormData()
   formData.append('chat_id', telegramId)
-  formData.append('video', videoBuffer as any, filename)
+  formData.append('video', videoBuffer, { filename })
   formData.append('caption', caption)
 
   await axios.post(url, formData, {
-    headers: formData as any,
+    headers: formData.getHeaders(),
     maxContentLength: Infinity,
     maxBodyLength: Infinity,
   })
@@ -130,8 +131,6 @@ export const aiReelsCallbackFunction = inngest.createFunction(
     id: 'ai-reels-callback',
     name: '🔔 AI Reels Callback Handler',
     retries: 3,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('AI Reels Callback Handler'),
   },
   { event: 'ai-reels-callback' },
   async ({ event, step, logger }) => {
@@ -139,6 +138,7 @@ export const aiReelsCallbackFunction = inngest.createFunction(
     const payload: AIReelsCallbackPayload = event.data
 
     logger.info('AI Reels callback received', {
+      eventId: event.id,
       bodyKeys: Object.keys(payload),
     })
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * S3 Service for Render Functions
  * Ported from Python: src/services/s3_service.py

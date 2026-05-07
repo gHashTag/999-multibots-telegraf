@@ -1,10 +1,9 @@
-// @ts-nocheck
 /**
  * Instagram Scraper v2 - Fully Isolated with Zod Validation
  * Real API integration with strict typing and validation
  */
 
-import { slugify } from '@/inngest_app/utils/slugify'
+import { slugify } from 'inngest'
 import axios from 'axios'
 import pkg from 'pg'
 const { Pool } = pkg
@@ -14,7 +13,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 
 // Используем основной Inngest клиент
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 
 // Импортируем Zod-схемы
 import {
@@ -1193,8 +1192,6 @@ export const instagramScraperV2 = inngest.createFunction(
     id: slugify('instagram-scraper-v2'),
     name: '🤖 Instagram Scraper V2 (Real API + Zod)',
     concurrency: 2,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Instagram Scraper V2'),
   },
   { event: 'instagram/scraper-v2' },
   async ({ event, step, runId, logger: log }) => {
@@ -1855,8 +1852,6 @@ export const createInstagramUser = inngest.createFunction(
     id: slugify('create-instagram-user'),
     name: '👤 Create Single Instagram User',
     concurrency: 5,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Create Single Instagram User'),
   },
   { event: 'instagram/create-user' },
   async ({ event, step, runId, logger: log }) => {

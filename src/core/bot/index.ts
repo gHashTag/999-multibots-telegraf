@@ -416,3 +416,6 @@ export const supportRequest = async (title: string, data: any) => {
 }
 
 const groupId = process.env.GROUP_ID || ''
+
+// Все функции уже экспортированы выше
+// export { getBotByName, createBotByName, getBotNameByToken, getTokenByBotName }

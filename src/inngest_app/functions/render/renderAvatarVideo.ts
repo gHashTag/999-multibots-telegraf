@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Render Avatar Video Function
  * Ported from Python render-api-v3: src/services/inngest_services/render_avatar_video.py
@@ -16,7 +15,7 @@
  * 10. Trigger render workflow
  */
 
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import type { RenderAvatarVideoEventData } from './types'
 import { NonRetriableError } from 'inngest'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
@@ -169,8 +168,6 @@ export const renderAvatarVideoFunction = inngest.createFunction(
     id: 'render-avatar-video',
     name: '🎥 Render Avatar Video Workflow',
     retries: 3,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Render Avatar Video Workflow'),
   },
   { event: 'render/avatar-video' },
   async ({ event, step, logger }) => {

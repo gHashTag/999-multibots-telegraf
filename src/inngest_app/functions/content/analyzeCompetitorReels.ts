@@ -4,9 +4,9 @@
  * Analyzes competitor reels with metrics and saves to database
  */
 
-import { slugify } from '@/inngest_app/utils/slugify'
+import { slugify } from 'inngest'
 import axios from 'axios'
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import {
   InstagramContentAgentDB,
   type ReelsAnalysisData,
@@ -213,8 +213,6 @@ export const analyzeCompetitorReels = inngest.createFunction(
     id: 'analyze-competitor-reels',
     name: '📈 Analyze Competitor Reels',
     concurrency: 2,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Analyze Competitor Reels'),
   },
   { event: 'instagram/analyze-reels' },
   async ({ event, step, runId, logger }) => {
@@ -460,11 +458,15 @@ export const analyzeCompetitorReels = inngest.createFunction(
 // Helper function to trigger analyzeCompetitorReels
 export async function triggerAnalyzeCompetitorReels(
   data: AnalyzeReelsEvent
-): Promise<void> {
+): Promise<{ eventId: string }> {
   const validatedData = AnalyzeReelsEventSchema.parse(data)
 
   const result = await inngest.send({
     name: 'instagram/analyze-reels',
     data: validatedData,
   })
+
+  return {
+    eventId: result.ids[0],
+  }
 }

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * HeyGen Avatar Details API Service
  * Fetches avatar metadata including preview image URL

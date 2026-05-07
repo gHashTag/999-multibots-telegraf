@@ -207,9 +207,7 @@ export function ROBOKASSA_PASSWORD_2(): string {
 
 // 🔧 Синхронизация URL для Robokassa
 // Все URL должны использовать один домен для корректной работы с Robokassa
-// 🌐 Cloudflare Tunnel: Используйте npm run tunnel и установите CLOUDFLARE_TUNNEL_URL в .env
-const CLOUDFLARE_TUNNEL_URL = process.env.CLOUDFLARE_TUNNEL_URL
-
+// 🕉️ УНИФИЦИРОВАНО: Используем только API_SERVER_URL как единственный источник истины
 const BASE_PAYMENT_URL = isDev
   ? CLOUDFLARE_TUNNEL_URL || // 🌐 Приоритет: Cloudflare Tunnel для dev
     API_SERVER_URL ||

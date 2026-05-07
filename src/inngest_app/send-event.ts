@@ -1,10 +1,10 @@
 /**
  * Inngest Event Sender
- * Отправляет события в Inngest для асинхронной обработки
+ * Централизованная отправка событий в Inngest через inngestProvider
  */
 
 import { logger } from '@/utils/logger'
-import { inngest } from './client'
+import { inngestProvider } from './inngest-provider'
 
 export interface AIReelsEventPayload {
   telegramId: string
@@ -33,17 +33,11 @@ export interface AIReelsEventPayload {
 }
 
 /**
- * Отправляет событие AI Reels в Inngest
+ * Отправляет событие AI Reels в Inngest через inngestProvider
  */
 export async function sendAIReelsEvent(
   payload: AIReelsEventPayload
 ): Promise<{ eventId: string }> {
-  const eventKey = process.env.INNGEST_EVENT_KEY
-
-  if (!eventKey) {
-    throw new Error('INNGEST_EVENT_KEY not configured')
-  }
-
   logger.info('📤 [INNGEST] Sending AI Reels event', {
     telegramId: payload.telegramId,
     hasText: !!payload.text,
@@ -52,40 +46,24 @@ export async function sendAIReelsEvent(
   })
 
   try {
-    // Отправляем событие напрямую в Inngest Cloud
-    const response = await fetch(`https://inn.gs/e/${eventKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: 'ai-reels/generate',
-        data: payload,
-        ts: Date.now(),
-      }),
-    })
+    // Отправляем событие через inngestProvider на BOT инстанс
+    const result = await inngestProvider.sendEvent(
+      'BOT',
+      'ai-reels/generate',
+      payload
+    )
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('❌ [INNGEST] Failed to send event', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText,
-      })
-      throw new Error(
-        `Inngest event send failed: ${response.status} ${response.statusText}`
-      )
+    if (!result) {
+      throw new Error('Failed to send event via inngestProvider')
     }
-
-    const result = await response.json()
 
     logger.info('✅ [INNGEST] Event sent successfully', {
       telegramId: payload.telegramId,
-      eventIds: result.ids,
+      eventId: result.eventId,
     })
 
     return {
-      eventId: result.ids?.[0] || 'unknown',
+      eventId: result.eventId,
     }
   } catch (error) {
     logger.error('❌ [INNGEST] Error sending event', {
@@ -97,36 +75,21 @@ export async function sendAIReelsEvent(
 }
 
 /**
- * Проверяет доступность Inngest
+ * Проверяет доступность Inngest через inngestProvider
  */
 export async function checkInngestAvailability(): Promise<boolean> {
-  // ✅ ИСПРАВЛЕНО: Используем локальный endpoint для проверки
-  const baseUrl = 'http://localhost:3000'
-
   try {
-    const response = await fetch(`${baseUrl}/api/inngest`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
+    const isAvailable = await inngestProvider.checkAvailability('BOT')
 
-    if (response.ok) {
-      const data = await response.json()
-      logger.info('✅ [INNGEST] Endpoint available', {
-        functionsFound: data.functionsFound,
-        hasEventKey: data.hasEventKey,
-        hasSigningKey: data.hasSigningKey,
-      })
-      return true
+    if (isAvailable) {
+      logger.info('✅ [INNGEST] BOT instance available')
+    } else {
+      logger.warn('⚠️ [INNGEST] BOT instance not available')
     }
 
-    logger.warn('⚠️ [INNGEST] Endpoint responded but not OK', {
-      status: response.status,
-    })
-    return false
+    return isAvailable
   } catch (error) {
-    logger.error('❌ [INNGEST] Endpoint not available', {
+    logger.error('❌ [INNGEST] Availability check failed', {
       error: error instanceof Error ? error.message : String(error),
     })
     return false

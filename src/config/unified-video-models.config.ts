@@ -253,7 +253,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
         cfg_scale: 0.5,
       },
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   'ray-v2': {
@@ -272,7 +272,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       imageKey: 'start_image_url',
       aspectRatios: ['16:9', '9:16'],
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   'haiper-video-2': {
@@ -296,7 +296,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
         use_prompt_enhancer: true,
       },
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   'kling-v1.6-standard': {
@@ -317,7 +317,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       canMorph: true,
       aspectRatios: ['16:9', '9:16'],
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   'kling-v2.0': {
@@ -338,7 +338,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       canMorph: false,
       aspectRatios: ['16:9', '9:16'],
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   'kling-v2.1-standard': {
@@ -362,7 +362,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
         model_variant: 'standard',
       },
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   'kling-v2.1-pro': {
@@ -386,7 +386,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
         model_variant: 'pro',
       },
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   'seedance-1-pro': {
@@ -414,7 +414,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
         fps: 24,
       },
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   // ==================== WAN 2.5 (Alibaba via Kie.ai) ====================
@@ -502,7 +502,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
         prompt_optimizer: true,
       },
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   // Hailuo 2.3 - замена старого Minimax
@@ -529,7 +529,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       durations: [6, 10],
       resolutions: ['512p', '768p', '1080p'],
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   'hailuo-2.3-fast': {
@@ -554,7 +554,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       durations: [6, 10],
       resolutions: ['512p'],
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   // Google Veo 3.1 - ТОЛЬКО если дешевле чем Kie.ai
@@ -626,7 +626,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       resolutions: ['480p', '1080p'],
       aspectRatios: ['16:9', '9:16'],
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 
   // PixVerse V5
@@ -647,7 +647,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       aspectRatios: ['16:9', '9:16'],
       durations: [4, 8],
     },
-    status: 'deprecated' // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
   },
 }
 
@@ -1115,7 +1115,10 @@ export function generateModelKeyboard(
   const keyboardRows: string[][] = []
 
   models.forEach(config => {
-    const supportedAspectRatios = config.apiSettings.aspectRatios || ['16:9', '9:16']
+    const supportedAspectRatios = config.apiSettings.aspectRatios || [
+      '16:9',
+      '9:16',
+    ]
     const row: string[] = []
 
     // Добавляем кнопку 16:9 если модель её поддерживает

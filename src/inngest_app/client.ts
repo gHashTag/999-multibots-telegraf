@@ -1,10 +1,8 @@
 /**
- * ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ: Inngest Client
- * Все функции должны импортировать inngest отсюда
- *
- * 🔥 ВАЖНО: Используем ленивую инициализацию, так как секреты
- * загружаются из Infisical ПОСЛЕ импорта этого модуля
+ * Inngest Client Configuration
+ * 🕉️ Единый клиент для всех Inngest функций согласно ТЗ
  */
+
 import { Inngest } from 'inngest'
 import { logger } from '@/utils/logger'
 
@@ -210,4 +208,10 @@ export async function sendInngestEvent(
   }
 }
 
+// ✅ Импортируем функции (после создания inngest client)
+// Отключено: generateAdvancedLoopingVideoFunction - морфинг теперь работает через localMorphingProcessor
+// import { generateAdvancedLoopingVideoFunction } from './functions/generateAdvancedLoopingVideoFunction'
+// import { generateAIReelsFunction } from './functions/generateAIReelsFunction'
+// import { generateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 
+// ✅ Список активных Inngest функций

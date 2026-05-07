@@ -1,13 +1,17 @@
-// @ts-nocheck
 /**
  * Instagram Scraper v2 - Simplified Version for Testing Reels
  * Temporary version without strict typing to test reels functionality
  */
 
-import { slugify } from '@/inngest_app/utils/slugify'
+import { Inngest } from 'inngest'
+import { slugify } from 'inngest'
 import axios from 'axios'
-// ✅ Используем единый клиент из @/inngest_app/client
-import { inngest as instagramInngest, createInngestFailureHandler } from '@/inngest_app/client'
+
+// Isolated Inngest client
+const instagramInngest = new Inngest({
+  id: 'ai-server-instagram-v2-simple',
+  name: 'AI Server Instagram Scraper V2 Simple',
+})
 
 // Simple logger
 const log = {
@@ -77,14 +81,11 @@ class SimpleInstagramAPI {
 }
 
 // Main test function
-// Export with both names for compatibility
-const instagramReelsTest = instagramInngest.createFunction(
+export const instagramReelsTest = instagramInngest.createFunction(
   {
     id: slugify('instagram-reels-test'),
     name: '🧪 Instagram Reels Test Function',
     concurrency: 1,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Instagram Reels Test'),
   },
   { event: 'instagram/test-reels' },
   async ({ event, step, runId, logger: log }) => {
@@ -119,10 +120,6 @@ const instagramReelsTest = instagramInngest.createFunction(
     }
   }
 )
-
-// Export with the expected name
-export const instagramScraperV2Simple = instagramReelsTest
-export { instagramReelsTest }
 
 // Trigger function
 export async function triggerReelsTest(username = 'cristiano', count = 5) {

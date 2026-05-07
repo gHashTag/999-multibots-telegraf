@@ -17,9 +17,7 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
 
     // First check if it's a promo link - if so, don't extract as referral
     if (messageText.match(/^\/start\s+promo(?:\s+\S+)?/i)) {
-      logger.info({
-        message:
-          '[extractInviteCode] Promo link detected, skipping referral extraction',
+      logger.info('[extractInviteCode] Promo link detected, skipping referral extraction', {
         telegramId,
         function: 'extractInviteCodeFromContext',
         messageText,
@@ -42,8 +40,7 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
       inviteCode = codeMatch[1] || codeMatch[2] || '' // Take whichever group matched
 
       if (inviteCode) {
-        logger.info({
-          message: `[extractInviteCode] Referral code found: ${inviteCode}`,
+        logger.info(`[extractInviteCode] Referral code found: ${inviteCode}`, {
           telegramId,
           function: 'extractInviteCodeFromContext',
           inviteCode,
@@ -51,9 +48,7 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
         })
       } else {
         // This case should ideally not happen if codeMatch is not null, but added for safety
-        logger.warn({
-          message:
-            '[extractInviteCode] Regex matched but no invite code captured.',
+        logger.warn('[extractInviteCode] Regex matched but no invite code captured.', {
           telegramId,
           function: 'extractInviteCodeFromContext',
           matchedText: messageText,
@@ -61,9 +56,7 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
       }
     }
   } else {
-    logger.info({
-      message:
-        '[extractInviteCode] No message text found in context to extract invite code.',
+    logger.info('[extractInviteCode] No message text found in context to extract invite code.', {
       telegramId,
       function: 'extractInviteCodeFromContext',
     })
@@ -101,8 +94,7 @@ export function extractPromoFromContext(
     if (promoMatch) {
       const parameter = promoMatch[1] || '' // Optional parameter after promo
 
-      logger.info({
-        message: `[extractPromo] Promo link detected`,
+      logger.info(`[extractPromo] Promo link detected`, {
         telegramId,
         function: 'extractPromoFromContext',
         parameter,
@@ -125,8 +117,7 @@ export function extractPromoFromContext(
     if (directPromoMatch) {
       const parameter = directPromoMatch[1]
 
-      logger.info({
-        message: `[extractPromo] Direct promo type detected`,
+      logger.info(`[extractPromo] Direct promo type detected`, {
         telegramId,
         function: 'extractPromoFromContext',
         parameter,

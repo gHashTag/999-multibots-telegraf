@@ -4,8 +4,17 @@
 # Stage 1: Dependencies только для production
 FROM node:20-slim AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm install --omit=dev --prefer-offline
+
+# Install build tools for native modules (ssh2, etc.)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json ./
+COPY package-lock.json* ./
+RUN npm install --omit=dev
 
 # Stage 2: Builder с esbuild
 FROM node:20-slim AS builder
@@ -14,15 +23,19 @@ WORKDIR /app
 # Установка esbuild глобально (ОЧЕНЬ быстро)
 RUN npm install -g esbuild
 
-COPY package.json package-lock.json ./
-RUN npm install --prefer-offline
+COPY package.json ./
+COPY package-lock.json* ./
+RUN npm install
 
 COPY . .
 
-# ✅ Проверка TypeScript перед сборкой (прерывает сборку при ошибках)
-# Временно отключено для обхода конфликта типов в provider-registry.ts
-# RUN npx tsc --noEmit || (echo "❌ TypeScript errors found! Build aborted." && exit 1)
-RUN echo "⚠️ TypeScript check temporarily disabled - forced rebuild to bypass esbuild cache issue"
+# ✅ Проверка TypeScript перед сборкой (можно пропустить с --build-arg SKIP_TYPE_CHECK=true)
+ARG SKIP_TYPE_CHECK=false
+RUN if [ "$SKIP_TYPE_CHECK" != "true" ]; then \
+      npx tsc --noEmit || (echo "❌ TypeScript errors found! Build aborted." && exit 1); \
+    else \
+      echo "⚠️  TypeScript check SKIPPED (SKIP_TYPE_CHECK=true)"; \
+    fi
 
 # esbuild бандлит все в один файл за секунды!
 # --packages=external: НЕ бандлить node_modules (будут в runtime)

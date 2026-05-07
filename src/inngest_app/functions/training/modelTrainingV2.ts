@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { getBotByName } from '@/core/bot'
 import {
   getUserByTelegramId,
@@ -16,7 +15,7 @@ import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { slugify } from '@/inngest_app/utils/slugify' // For v3 migration
+import { slugify } from 'inngest' // For v3 migration
 
 interface TrainingResponse {
   id: string
@@ -38,13 +37,10 @@ export const modelTrainingV2 = inngest.createFunction(
   {
     id: slugify('model-training-v2'), // v3 requires id
     name: '🚀 Model Training V2', // Optional display name
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Model Training V2'),
   },
   { event: 'model/training.v2.requested' },
   async ({ event, step, runId }) => {
-    logger.info({
-      message: '🚀 Model training initiated',
+    logger.info('🚀 Model training initiated', {
       runId: runId, // Use runId from args
       data: event.data,
     })
@@ -62,24 +58,21 @@ export const modelTrainingV2 = inngest.createFunction(
 
     // Проверяем существование пользователя в базе
     const userExists = await step.run('check-user-exists', async () => {
-      logger.info({
-        message: '🔍 Checking user existence',
+      logger.info('🔍 Checking user existence', {
         telegramId: telegram_id,
         step: 'check-user-exists',
       })
 
       const user = await getUserByTelegramId(telegram_id)
       if (!user) {
-        logger.error({
-          message: '❌ User not found',
+        logger.error('❌ User not found', {
           telegramId: telegram_id,
           step: 'check-user-exists',
         })
         throw new Error(`User with ID ${telegram_id} does not exist.`)
       }
 
-      logger.info({
-        message: '✅ User found',
+      logger.info('✅ User found', {
         telegramId: telegram_id,
         userId: user.user_id,
         step: 'check-user-exists',
@@ -91,8 +84,7 @@ export const modelTrainingV2 = inngest.createFunction(
     // Увеличиваем уровень пользователя, если он на уровне 0
     if (userExists.level === 0) {
       await step.run('update-user-level', async () => {
-        logger.info({
-          message: '⬆️ Upgrading user level from 0 to 1',
+        logger.info('⬆️ Upgrading user level from 0 to 1', {
           telegramId: telegram_id,
           currentLevel: userExists.level,
           step: 'update-user-level',
@@ -100,8 +92,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
         await updateUserLevelPlusOne(telegram_id, userExists.level)
 
-        logger.info({
-          message: '✅ User level updated successfully',
+        logger.info('✅ User level updated successfully', {
           telegramId: telegram_id,
           newLevel: 1,
           step: 'update-user-level',
@@ -111,8 +102,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
     // Получаем бот по имени
     const botData = (await step.run('get-bot', async () => {
-      logger.info({
-        message: '🤖 Getting bot instance',
+      logger.info('🤖 Getting bot instance', {
         botName: bot_name,
         step: 'get-bot',
       })
@@ -127,8 +117,7 @@ export const modelTrainingV2 = inngest.createFunction(
     const { currentBalance, paymentAmount } = await step.run(
       'check-balance',
       async () => {
-        logger.info({
-          message: '💰 Checking user balance',
+        logger.info('💰 Checking user balance', {
           telegramId: telegram_id,
           botName: bot_name,
           step: 'check-balance',
@@ -136,8 +125,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
         const currentBalance = await getUserBalance(telegram_id)
 
-        logger.info({
-          message: '💲 Current user balance',
+        logger.info('💲 Current user balance', {
           telegramId: telegram_id,
           balance: currentBalance,
           step: 'check-balance',
@@ -149,8 +137,7 @@ export const modelTrainingV2 = inngest.createFunction(
           ) => number
         )(steps)
 
-        logger.info({
-          message: '🧮 Calculated payment amount',
+        logger.info('🧮 Calculated payment amount', {
           telegramId: telegram_id,
           paymentAmount: paymentAmount,
           trainingSteps: steps,
@@ -165,8 +152,7 @@ export const modelTrainingV2 = inngest.createFunction(
         })
 
         if (!balanceCheck.success) {
-          logger.error({
-            message: '⚠️ Balance check failed or insufficient funds',
+          logger.error('⚠️ Balance check failed or insufficient funds', {
             telegramId: telegram_id,
             requiredAmount: paymentAmount,
             currentBalance: balanceCheck.currentBalance,
@@ -191,8 +177,7 @@ export const modelTrainingV2 = inngest.createFunction(
           throw new Error(balanceCheck.error || 'Balance check failed')
         }
 
-        logger.info({
-          message: '✅ Balance check successful',
+        logger.info('✅ Balance check successful', {
           telegramId: telegram_id,
           currentBalance: balanceCheck.currentBalance,
           requiredAmount: paymentAmount,
@@ -206,16 +191,14 @@ export const modelTrainingV2 = inngest.createFunction(
     try {
       // Кодируем ZIP файл в base64
       const encodedZip = await step.run('encode-zip', async () => {
-        logger.info({
-          message: '📦 Encoding ZIP file to base64',
+        logger.info('📦 Encoding ZIP file to base64', {
           zipUrl: zipUrl,
           step: 'encode-zip',
         })
 
         const result = await encodeFileToBase64(zipUrl)
 
-        logger.info({
-          message: '✅ ZIP file encoded successfully',
+        logger.info('✅ ZIP file encoded successfully', {
           zipUrl: zipUrl,
           step: 'encode-zip',
         })
@@ -225,14 +208,12 @@ export const modelTrainingV2 = inngest.createFunction(
 
       // Отправляем запрос на API для создания модели
       const training = await step.run('create-training', async () => {
-        logger.info({
-          message: '🔍 Checking environment variables',
+        logger.info('🔍 Checking environment variables', {
           step: 'create-training',
         })
 
         if (!process.env.BFL_API_KEY) {
-          logger.error({
-            message: '🚫 Missing required environment variable',
+          logger.error('🚫 Missing required environment variable', {
             variable: 'BFL_API_KEY',
             step: 'create-training',
           })
@@ -240,8 +221,7 @@ export const modelTrainingV2 = inngest.createFunction(
           throw new Error('BFL_API_KEY is not set')
         }
         if (!process.env.BFL_WEBHOOK_URL) {
-          logger.error({
-            message: '🚫 Missing required environment variable',
+          logger.error('🚫 Missing required environment variable', {
             variable: 'BFL_WEBHOOK_URL',
             step: 'create-training',
           })
@@ -249,8 +229,7 @@ export const modelTrainingV2 = inngest.createFunction(
           throw new Error('BFL_WEBHOOK_URL is not set')
         }
         if (!process.env.REPLICATE_USERNAME) {
-          logger.error({
-            message: '🚫 Missing required environment variable',
+          logger.error('🚫 Missing required environment variable', {
             variable: 'REPLICATE_USERNAME',
             step: 'create-training',
           })
@@ -258,14 +237,11 @@ export const modelTrainingV2 = inngest.createFunction(
           throw new Error('REPLICATE_USERNAME is not set')
         }
 
-        logger.info({
-          message: '🌐 Sending request to BFL API for model creation',
+        logger.info('🌐 Sending request to BFL API for model creation', {
           telegramId: telegram_id,
           triggerWord: triggerWord,
           modelName: modelName,
           steps: steps,
-          webhook_url: process.env.BFL_WEBHOOK_URL,
-          has_webhook_secret: !!process.env.BFL_WEBHOOK_SECRET,
           step: 'create-training',
         })
 
@@ -291,15 +267,13 @@ export const modelTrainingV2 = inngest.createFunction(
           }),
         })
 
-        logger.info({
-          message: '📡 Received response from BFL API',
+        logger.info('📡 Received response from BFL API', {
           statusCode: response.status,
           step: 'create-training',
         })
 
         if (!response.ok) {
-          logger.error({
-            message: '❌ Failed to create model training',
+          logger.error('❌ Failed to create model training', {
             statusCode: response.status,
             step: 'create-training',
           })
@@ -311,8 +285,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
         const jsonResponse = (await response.json()) as TrainingResponse
 
-        logger.info({
-          message: '🎉 Model training initiated successfully',
+        logger.info('🎉 Model training initiated successfully', {
           finetune_id: jsonResponse.finetune_id,
           telegramId: telegram_id,
           modelName: modelName,
@@ -324,8 +297,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
       // Сохраняем информацию о тренировке в базу данных
       await step.run('save-training-to-db', async () => {
-        logger.info({
-          message: '💾 Saving training information to database',
+        logger.info('💾 Saving training information to database', {
           finetune_id: training.finetune_id,
           telegramId: telegram_id,
           modelName: modelName,
@@ -344,8 +316,7 @@ export const modelTrainingV2 = inngest.createFunction(
           bot_name,
         })
 
-        logger.info({
-          message: '✅ Training information saved successfully',
+        logger.info('✅ Training information saved successfully', {
           finetune_id: training.finetune_id,
           telegramId: telegram_id,
           modelName: modelName,
@@ -355,8 +326,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
       // Отправляем уведомление пользователю
       await step.run('notify-user', async () => {
-        logger.info({
-          message: '📩 Sending notification to user',
+        logger.info('📩 Sending notification to user', {
           telegramId: telegram_id,
           modelName: modelName,
           step: 'notify-user',
@@ -369,8 +339,7 @@ export const modelTrainingV2 = inngest.createFunction(
             : `✅ Your model "${modelName}" training has started! We'll notify you when it's ready.`
         )
 
-        logger.info({
-          message: '📨 Notification sent successfully',
+        logger.info('📨 Notification sent successfully', {
           telegramId: telegram_id,
           step: 'notify-user',
         })
@@ -378,8 +347,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
       // Отправляем уведомление пользователю об успехе и списании
       await step.run('deduct-balance', async () => {
-        logger.info({
-          message: '💸 Deducting balance after successful training start',
+        logger.info('💸 Deducting balance after successful training start', {
           telegramId: telegram_id,
           paymentAmount: paymentAmount,
           currentBalance: currentBalance,
@@ -405,8 +373,7 @@ export const modelTrainingV2 = inngest.createFunction(
           }
         )
 
-        logger.info({
-          message: '✅ Balance updated successfully',
+        logger.info('✅ Balance updated successfully', {
           telegramId: telegram_id,
           newBalance: newBalance,
           step: 'deduct-balance',
@@ -423,8 +390,7 @@ export const modelTrainingV2 = inngest.createFunction(
         await bot.telegram.sendMessage(telegram_id.toString(), successMessage)
       })
 
-      logger.info({
-        message: '🏁 Model training process completed successfully',
+      logger.info('🏁 Model training process completed successfully', {
         telegramId: telegram_id,
         modelName: modelName,
         finetune_id: training.finetune_id,
@@ -437,8 +403,7 @@ export const modelTrainingV2 = inngest.createFunction(
     } catch (error) {
       // В случае ошибки возвращаем списанные средства
       await step.run('refund-balance', async () => {
-        logger.info({
-          message: '♻️ Refunding payment due to error',
+        logger.info('♻️ Refunding payment due to error', {
           telegramId: telegram_id,
           amount: paymentAmount,
           currentBalance: currentBalance,
@@ -458,8 +423,7 @@ export const modelTrainingV2 = inngest.createFunction(
           }
         )
 
-        logger.info({
-          message: '✅ Payment refunded successfully',
+        logger.info('✅ Payment refunded successfully', {
           telegramId: telegram_id,
           newBalance: currentBalance + paymentAmount,
           step: 'refund-balance',
@@ -468,8 +432,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
       // Логируем ошибку и отправляем уведомления
       await step.run('handle-error', async () => {
-        logger.error({
-          message: '🚨 Error during model training',
+        logger.error('🚨 Error during model training', {
           error: error.message,
           stack: error.stack,
           telegramId: telegram_id,
@@ -479,8 +442,7 @@ export const modelTrainingV2 = inngest.createFunction(
         })
 
         // Отправляем уведомление пользователю
-        logger.info({
-          message: '📱 Sending error notification to user',
+        logger.info('📱 Sending error notification to user', {
           telegramId: telegram_id,
           step: 'handle-error',
         })
@@ -493,8 +455,7 @@ export const modelTrainingV2 = inngest.createFunction(
         )
 
         // Отправляем уведомление администратору
-        logger.info({
-          message: '👨‍💼 Sending error notification to admin',
+        logger.info('👨‍💼 Sending error notification to admin', {
           telegramId: telegram_id,
           error: error.message,
           step: 'handle-error',
@@ -503,8 +464,7 @@ export const modelTrainingV2 = inngest.createFunction(
         errorMessageAdmin(error as Error)
       })
 
-      logger.error({
-        message: '🛑 Model training process failed',
+      logger.error('🛑 Model training process failed', {
         telegramId: telegram_id,
         modelName: modelName,
         error: error.message,

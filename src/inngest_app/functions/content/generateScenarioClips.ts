@@ -1,11 +1,10 @@
-// @ts-nocheck
 /**
  * Generate text-based scenario scripts for bloggers
  * 🎬 Генерация текстовых сценариев для блогеров и цифровых творцов
  */
 
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
-import { openai } from '@/core/openai'
+import { inngest } from '@/inngest_app/client'
+import OpenAI from 'openai'
 import { supabase } from '@/core/supabase'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -223,8 +222,6 @@ export const generateScenarioClips = inngest.createFunction(
   {
     id: 'generate-scenario-clips',
     name: '🎬 Generate Blogger Text Scenarios',
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Generate Blogger Text Scenarios'),
   },
   { event: 'content/generate-scenario-clips' },
   async ({ event, step, runId, logger: log }) => {
@@ -286,7 +283,9 @@ export const generateScenarioClips = inngest.createFunction(
         const bloggerStyle = input.metadata?.blogger_style || 'YOUTUBE'
         const bibleTheme = input.metadata?.bible_theme
 
-        // OpenAI client is initialized lazily via @/core/openai
+        const openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        })
 
         const scenes: SceneData[] = []
         let selectedStyle = null

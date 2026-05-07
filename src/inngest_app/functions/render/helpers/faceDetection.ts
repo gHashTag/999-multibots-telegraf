@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Face Detection Helper (Simplified Version)
  *

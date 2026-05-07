@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Render Step Functions
  * Ported from Python render-api-v3: src/services/inngest_services/
@@ -19,7 +18,7 @@ import { KieAIService } from '@/services/kieAI'
 import { HeyGenService } from '@/services/heygenService'
 import { HedraService } from '@/services/hedra'
 import { v4 as uuidv4 } from 'uuid'
-import { openai } from '@/core/openai'
+import OpenAI from 'openai'
 
 // ========================
 // Core Render Steps
@@ -615,7 +614,14 @@ export async function generateBRollIdeas(
   logger.info(`Generating B-roll ideas for job ${job_id}`)
 
   try {
-    // OpenAI client is initialized lazily via @/core/openai
+    // Initialize OpenAI client
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    })
+
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is not set')
+    }
 
     // Generate AI-based B-roll ideas using OpenAI
     const systemPrompt = `You are a professional video production assistant specializing in B-roll footage selection.
@@ -1433,7 +1439,7 @@ export async function triggerRender(
 
 
     // Trigger render via Inngest event
-    const { inngest } = await import('../../../inngest_app/client')
+    const { inngest } = await import('../../client')
 
     await inngest.send({
       name: 'render/execute',

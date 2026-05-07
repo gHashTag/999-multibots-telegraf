@@ -1,7 +1,7 @@
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { z } from 'zod'
 import { supabase } from '@/core/supabase'
-import { openai } from '@/core/openai'
+import OpenAI from 'openai'
 
 // Validation schema for input data
 const generateContentScriptsSchema = z.object({
@@ -45,8 +45,6 @@ export const generateContentScripts = inngest.createFunction(
   {
     id: 'generate-content-scripts',
     name: '🎬 Generate Content Scripts',
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Generate Content Scripts'),
   },
   { event: 'instagram/generate-scripts' },
   async ({ event, step }) => {
@@ -147,7 +145,9 @@ async function transcribeAudio(
   apiKey: string
 ): Promise<string> {
   try {
-    // OpenAI client is initialized lazily via @/core/openai
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    })
 
     // Mock implementation for testing
     if (apiKey === 'test-openai-key') {
@@ -168,7 +168,9 @@ async function generateAlternativeScripts(
   apiKey: string
 ): Promise<string[]> {
   try {
-    // OpenAI client is initialized lazily via @/core/openai
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    })
 
     // Mock implementation for testing
     if (apiKey === 'test-openai-key') {

@@ -7,8 +7,11 @@ import fetch from 'node-fetch'
 import { addMusic, combineVideos } from '@/helpers/video-helpers'
 import { downloadFile } from '@/helpers'
 
-// ✅ Используем единый клиент из @/inngest_app/client
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+const inngest = new Inngest({
+  name: 'bot-farm',
+  id: 'bot-farm-kling-morph-v7',
+  eventKey: process.env.BOT_INNGEST_EVENT_KEY,
+})
 
 const replicateApi = {
   createPrediction: async (version: string, input: object) => {
@@ -70,16 +73,14 @@ const replicateApi = {
   },
 }
 
-const generateAdvancedLoopingVideoFunction = inngest.createFunction(
+export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
   {
     id: 'generate-advanced-looping-video',
-    name: 'Generate Kling Morphing Loop v7',
+    name: '🔄 Generate Kling Morphing Loop v7',
     retries: 2,
     concurrency: {
       limit: 1, // Run one at a time to avoid overwhelming API
     },
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Generate Kling Morphing Loop v7'),
   },
   { event: 'reels/generate-advanced-loop' },
   async ({ event, step }) => {
@@ -218,7 +219,7 @@ const generateAdvancedLoopingVideoFunction = inngest.createFunction(
 
     await step.run('send-to-pulse', async () => {
       // Импортируем функцию отправки в pulse группу
-      const { sendMediaToPulse } = await import('@/helpers/pulse')
+      const { sendMediaToPulse } = await import('../../../helpers/pulse')
 
       // Создаем публичный URL для видео (предполагаем что nginx настроен)
       const videoUrl = `http://localhost:2999/${finalVideoPath.replace(
@@ -265,7 +266,3 @@ const generateAdvancedLoopingVideoFunction = inngest.createFunction(
     }
   }
 )
-
-// Export with both names for compatibility
-export const generateAdvancedLoopingVideo = generateAdvancedLoopingVideoFunction
-export { generateAdvancedLoopingVideoFunction }

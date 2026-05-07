@@ -32,21 +32,22 @@ interface ModelTrainingEvent {
   }
 }
 
-export function createGenerateModelTrainingFunction(inngest: any) {
-  return inngest.createFunction(
-    {
-      id: 'generate-model-training-v3', // NEW ID to force fresh registration
-      name: 'Model Training - Flux LoRA v3',
-      concurrency: [
-        {
-          limit: 2, // Max 2 concurrent trainings
-        },
-      ],
-      retries: 0, // No retries for training - user can restart manually
-      // 🔥 REMOVED: onFailure handler to eliminate potential validation issue
-    },
-    { event: 'model/training.start' },
-    async ({ event, step }) => {
+// Import inngest client
+import { inngest } from '@/inngest_app/client'
+
+export const generateModelTrainingFunction = inngest.createFunction(
+  {
+    id: 'generate-model-training',
+    name: '🧠 Model Training - Flux LoRA',
+    concurrency: [
+      {
+        limit: 2, // Max 2 concurrent trainings
+      },
+    ],
+    retries: 0, // No retries for training - user can restart manually
+  },
+  { event: 'model/training.start' },
+  async ({ event, step }) => {
       const eventData = event.data as ModelTrainingEvent['data']
       const startTime = Date.now()
 
@@ -345,4 +346,3 @@ export function createGenerateModelTrainingFunction(inngest: any) {
       }
     }
   )
-}

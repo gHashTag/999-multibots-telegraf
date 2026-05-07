@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Inngest Provider - Менеджер для разных Inngest инстансов
+ * Inngest Provider - Централизованный менеджер Inngest
  *
  * Управляет несколькими Inngest endpoint'ами:
  * - BOT: основной бот (наш сервер)
@@ -11,7 +11,7 @@ import { logger } from '@/utils/logger'
 // ✅ Используем единый клиент из @/inngest_app/client
 import { inngest } from './client'
 
-export type InngestInstance = 'BOT' | 'RENDER'
+export type InngestInstance = 'BOT'
 
 interface InngestConfig {
   eventKey: string
@@ -51,13 +51,19 @@ class InngestProvider {
       'https://three-head-dragon.shop/api/inngest'
 
     if (botEventKey) {
-      // ✅ Используем единый клиент из client.ts
+      // Создаем Inngest client для отправки событий
+      const botClient = new Inngest({
+        name: 'telegram-bot-main',
+        eventKey: botEventKey,
+        // События отправляются в Inngest Cloud, который вызывает наши локальные функции
+      })
+
       this.configs.set('BOT', {
         eventKey: botEventKey,
         signingKey: botSigningKey,
         baseUrl: botBaseUrl,
         name: 'telegram-bot-main',
-        client: inngest, // ✅ Единый клиент
+        client: botClient,
       })
       logger.info('✅ [INNGEST PROVIDER] BOT instance configured (использует единый клиент)', {
         baseUrl: botBaseUrl,
@@ -225,58 +231,25 @@ class InngestProvider {
       return false
     }
 
-    // Для RENDER instance проверяем наличие client и eventKey
-    // (это функция в Inngest Cloud, нельзя проверить через HTTP GET)
-    if (instance === 'RENDER') {
-      const isAvailable = !!(config.client && config.eventKey)
-      if (isAvailable) {
-        logger.info(
-          `✅ [INNGEST PROVIDER] ${instance} available (Inngest Cloud client configured)`,
-          {
-            hasClient: !!config.client,
-            hasEventKey: !!config.eventKey,
-          }
-        )
-      } else {
-        logger.warn(`⚠️ [INNGEST PROVIDER] ${instance} not available`, {
+    // Проверяем наличие client и eventKey
+    const isAvailable = !!(config.client && config.eventKey)
+
+    if (isAvailable) {
+      logger.info(
+        `✅ [INNGEST PROVIDER] ${instance} available (Inngest Cloud client configured)`,
+        {
           hasClient: !!config.client,
           hasEventKey: !!config.eventKey,
-        })
-      }
-      return isAvailable
+        }
+      )
+    } else {
+      logger.warn(`⚠️ [INNGEST PROVIDER] ${instance} not available`, {
+        hasClient: !!config.client,
+        hasEventKey: !!config.eventKey,
+      })
     }
 
-    // Для BOT instance проверяем через HTTP запрос к нашему серверу
-    if (!config.baseUrl) {
-      return false
-    }
-
-    try {
-      const response = await fetch(config.baseUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        logger.info(`✅ [INNGEST PROVIDER] ${instance} available`, {
-          functions: data.functions?.length || 0,
-        })
-        return true
-      }
-
-      logger.warn(`⚠️ [INNGEST PROVIDER] ${instance} responded but not OK`, {
-        status: response.status,
-      })
-      return false
-    } catch (error) {
-      logger.error(`❌ [INNGEST PROVIDER] ${instance} not available`, {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return false
-    }
+    return isAvailable
   }
 
   /**

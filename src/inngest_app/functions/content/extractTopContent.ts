@@ -1,4 +1,4 @@
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { z } from 'zod'
 import { supabase } from '@/core/supabase'
 
@@ -34,8 +34,6 @@ export const extractTopContent = inngest.createFunction(
   {
     id: 'extract-top-content',
     name: '📊 Extract Top Content',
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Extract Top Content'),
   },
   { event: 'instagram/extract-top' },
   async ({ event, step }) => {

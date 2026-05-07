@@ -41,6 +41,9 @@ import { startApiServer } from './api_server'
 // ✅ Импортируем функцию регистрации bot instances для multi-bot поддержки
 import { setBotInstance } from './api_server/routes/kie-ai-webhook.routes'
 
+// ✅ Импортируем supabase для диагностики
+import { supabase } from './core/supabase'
+
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 let mainBotInstance: Telegraf<MyContext> | null = null
@@ -166,7 +169,6 @@ async function initializeBots() {
 
   // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
   const botPromises: Promise<void>[] = []
-  let botCount = 0 // Счетчик успешно созданных ботов
 
   // Определяем имена токенов для информативных логов
   const getTokenName = (index: number): string => {
@@ -183,15 +185,13 @@ async function initializeBots() {
     const tokenName = getTokenName(i)
 
     if (await validateBotToken(token, tokenName)) {
-      botCount++
-
       const bot = new Telegraf<MyContext>(token, {
         handlerTimeout: Infinity,
       })
       bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
 
+      // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
       bot.use(session()) // 1. Сессия (из bot.ts)
-
       bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
 
       // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
@@ -201,58 +201,148 @@ async function initializeBots() {
       setupNotificationProcessor(bot)
 
       // ✅ Сохраняем первый bot instance для webhooks (legacy)
-      // 🎯 DEV: используем тестовый бот, PROD: продакшн бот
-      const botUsername = bot.botInfo?.username || (isDev ? 'clip_maker_neuro_bot' : 'neuro_blogger_bot')
-      console.log(
-        '🔍 [DEBUG] Checking mainBotInstance:',
-        !!mainBotInstance,
-        'botName:',
-        botUsername
-      )
       if (!mainBotInstance) {
         mainBotInstance = bot
         console.log('✅ Main bot instance saved for webhooks')
 
-        // ✅ Инициализируем сервис логирования в Telegram группу НейроМентор
-        telegramLogService.initialize(bot)
-        console.log('✅ TelegramLogService инициализирован для группы НейроМентор')
+        // 🔍 ДИАГНОСТИКА: Проверяем статусы моделей ДО миграции
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🔍 ДИАГНОСТИКА МОДЕЛЕЙ (ДО МИГРАЦИИ)')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
-        // 🔔 Send deferred startup notifications about missing/empty API keys
-        if (supabaseCredentialsFailed) {
-          telegramLogService.error(
-            'Supabase credentials FAILED to load! Database operations will not work.',
-          ).catch(() => {})
+        const { data: diagModels } = await supabase
+          .from('model_trainings')
+          .select('id, model_name, status, result, api, provider, created_at')
+          .eq('telegram_id', '144022504')
+          .order('created_at', { ascending: false })
+
+        if (diagModels && diagModels.length > 0) {
+          console.log(`✅ Найдено моделей: ${diagModels.length}\n`)
+          diagModels.forEach((m, i) => {
+            console.log(`${i + 1}. ${m.model_name}`)
+            console.log(
+              `   status: ${m.status} | result: ${m.result || 'NULL'} | api: ${m.api || 'NULL'} | provider: ${m.provider || 'NULL'}`
+            )
+            console.log(`   created: ${m.created_at}\n`)
+          })
+          const statuses = [...new Set(diagModels.map(m => m.status))]
+          console.log('📋 Уникальные статусы в БД:', statuses)
+        } else {
+          console.log('❌ Модели НЕ НАЙДЕНЫ в БД')
         }
 
-        if (startupKeyIssues) {
-          const { missingKeys, emptyKeys } = startupKeyIssues
-          const lines: string[] = []
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
-          if (missingKeys.length > 0) {
-            lines.push(`<b>Missing keys (${missingKeys.length}):</b>`)
-            lines.push(missingKeys.map(k => `  - <code>${k}</code>`).join('\n'))
+        // 🧹 ONE-TIME CLEANUP: Remove fake "fal-test" models
+        console.log('🧹 Проверяем наличие фейковых моделей "fal-test"...')
+        const { data: fakeModels } = await supabase
+          .from('model_trainings')
+          .select('id, model_name, zip_url')
+          .eq('telegram_id', '144022504')
+          .eq('model_name', 'fal-test')
+          .eq('zip_url', 'https://fal.media/files/fal-test/model.zip')
+
+        if (fakeModels && fakeModels.length > 0) {
+          console.log(
+            `🗑️ Найдено ${fakeModels.length} фейковых моделей, удаляем...`
+          )
+          for (const fake of fakeModels) {
+            await supabase.from('model_trainings').delete().eq('id', fake.id)
+            console.log(`   ✅ Удалено: ${fake.id}`)
           }
-          if (emptyKeys.length > 0) {
-            lines.push(`<b>Empty keys (${emptyKeys.length}):</b>`)
-            lines.push(emptyKeys.map(k => `  - <code>${k}</code>`).join('\n'))
-          }
-
-          telegramLogService.warn(
-            `API Keys: ${missingKeys.length + emptyKeys.length} issues\n\n${lines.join('\n')}`,
-          ).catch(() => {}) // fire-and-forget, don't block startup
-
-          startupKeyIssues = null
+        } else {
+          console.log('✅ Фейковых моделей не найдено')
         }
+
+        // ✅ ДОБАВЛЯЕМ НАСТОЯЩУЮ FAL МОДЕЛЬ
+        console.log('\n🔍 Проверяем наличие настоящей FAL модели...')
+        const realTrainingId = '2896cb1f-b659-4057-b03d-a3daf5d9a983'
+        const { data: existingRealModel } = await supabase
+          .from('model_trainings')
+          .select('id, model_name')
+          .eq('telegram_id', '144022504')
+          .eq('replicate_training_id', realTrainingId)
+          .single()
+
+        if (!existingRealModel) {
+          console.log('📝 Настоящая FAL модель не найдена, добавляем...')
+          const realModelData = {
+            telegram_id: '144022504',
+            model_name: 'FAL Portrait (2500 steps)',
+            trigger_word: 'NEURO_SAGE',
+            replicate_training_id: realTrainingId,
+            status: 'SUCCESS',
+            bot_name: 'neuro_blogger_bot',
+            steps: 2500,
+            gender: 'male',
+            // ✅ ИСПРАВЛЕНИЕ: Используем .safetensors (LoRA weights), а НЕ config.json!
+            zip_url:
+              'https://v3b.fal.media/files/b/zebra/oxDuX84XjyEBU_5UT85l8_pytorch_lora_weights.safetensors',
+            api: 'fal', // ✅ FIXED: FAL provider, not Replicate!
+          }
+
+          const { data: newModel, error: insertError } = await supabase
+            .from('model_trainings')
+            .insert(realModelData)
+            .select()
+            .single()
+
+          if (insertError) {
+            console.error(
+              '❌ Ошибка добавления настоящей FAL модели:',
+              insertError
+            )
+          } else {
+            console.log('✅ Настоящая FAL модель добавлена!')
+            console.log(`   ID: ${newModel.id}`)
+            console.log(`   Name: ${newModel.model_name}`)
+          }
+        } else {
+          console.log(
+            `✅ Настоящая FAL модель уже существует: ${existingRealModel.model_name}`
+          )
+
+          // ✅ Проверяем и исправляем api и zip_url, если они неправильные
+          const { data: currentModel } = await supabase
+            .from('model_trainings')
+            .select('api, zip_url')
+            .eq('id', existingRealModel.id)
+            .single()
+
+          const updates: any = {}
+
+          if (currentModel && currentModel.api !== 'fal') {
+            console.log(`🔧 Исправляем api с '${currentModel.api}' на 'fal'...`)
+            updates.api = 'fal'
+          }
+
+          // ✅ КРИТИЧНО: Заменяем config.json на .safetensors (LoRA weights)!
+          if (currentModel && currentModel.zip_url?.includes('config.json')) {
+            console.log(
+              `🔧 Исправляем zip_url с config.json на .safetensors...`
+            )
+            console.log(`   Было: ${currentModel.zip_url}`)
+            updates.zip_url =
+              'https://v3b.fal.media/files/b/zebra/oxDuX84XjyEBU_5UT85l8_pytorch_lora_weights.safetensors'
+            console.log(`   Стало: ${updates.zip_url}`)
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await supabase
+              .from('model_trainings')
+              .update(updates)
+              .eq('id', existingRealModel.id)
+            console.log('✅ Модель обновлена:', Object.keys(updates).join(', '))
+          }
+        }
+
+        // ❌ REMOVED: Auto-run migrations - they create duplicates on every restart!
+        // Run migrations manually when needed via: npx tsx scripts/add-fal-model-manual.ts
 
         // ✅ Запускаем API сервер СРАЗУ после создания первого бота
         // (до bot.launch(), чтобы не ждать бесконечного polling loop)
-        console.log('🚀 [DEBUG] About to call startApiServer(bot)...')
         startApiServer(bot) // Передаём только первый бот (default)
         console.log('✅ API сервер запущен с bot instance для webhooks')
-      } else {
-        console.log(
-          '⚠️ [DEBUG] mainBotInstance already set, skipping API server start'
-        )
       }
 
       // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
@@ -261,14 +351,17 @@ async function initializeBots() {
       registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
       // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
       setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
-      // ✅ РЕГИСТРИРУЕМ ОБРАБОТЧИК ВСТУПЛЕНИЯ/ВЫХОДА ИЗ ГРУПП
-      setupGroupMemberHandler(bot)
       // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
       bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
       bot.on('successful_payment', handleSuccessfulPayment as any)
+      // Обработчик текстовых сообщений по умолчанию - должен быть последним
+      // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
+      // bot.on(message('text'), handleTextMessage)
+      // <<<---------------------------------------------------->>>
 
+      botInstances.push(bot)
       const botInfo = await bot.telegram.getMe()
-      console.log(`🤖 Бот ${botInfo.username} инициализирован (${botCount}/${botTokens.length})`)
+      console.log(`🤖 Бот ${botInfo.username} инициализирован`)
 
       // Используем импортированную функцию setBotCommands
       await setBotCommands(bot)
@@ -324,35 +417,6 @@ async function initializeBots() {
         console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${botInfo.username}`)
       }
 
-      // ✅ КРИТИЧНО: Регистрируем бот в объект bots для доступа через getBotByName
-      // ✅ ИСПРАВЛЕНО: Используем getBotNameByUsername для точного определения имени по username
-      const { registerBotInstance, getBotNameByUsername, getBotNameByToken } =
-        await import('@/core/bot')
-
-      // Сначала пытаемся определить по username (более точно)
-      let systemBotName: string | null = null
-      if (botInfo.username) {
-        const usernameResult = getBotNameByUsername(botInfo.username)
-        systemBotName = usernameResult.bot_name
-      }
-
-      // Если по username не нашли, используем fallback на токен
-      if (!systemBotName) {
-        const tokenResult = getBotNameByToken(token)
-        systemBotName = tokenResult.bot_name
-      }
-
-      if (systemBotName) {
-        registerBotInstance(bot, systemBotName)
-        console.log(
-          `✅ [BOT REGISTRY] Бот ${systemBotName} (username: ${botInfo.username}) зарегистрирован в объект bots`
-        )
-      } else {
-        console.warn(
-          `⚠️ [BOT REGISTRY] Не удалось определить системное имя бота для username ${botInfo.username} и токена ${tokenName}`
-        )
-      }
-
       // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
       const botPromise = bot
         .launch({
@@ -378,8 +442,7 @@ async function initializeBots() {
   // Bot launches are non-blocking in polling mode - they start infinite loops
   // Don't wait for them to complete, otherwise API server will never start
   // await Promise.all(botPromises)
-
-  console.log(`✅ Все боты успешно запущены в polling режиме (${botCount}/${botTokens.length})`)
+  console.log(`✅ Все боты успешно запущены в polling режиме`)
   console.log(`✅ Все боты успешно инициализированы`)
 }
 
@@ -523,9 +586,9 @@ async function startApplication() {
         }
       }
     } else if (env === 'staging' || env === 'prod') {
-      // ✅ STAGING/PRODUCTION: 11 ботов (BOT_TOKEN_1-11)
+      // ✅ STAGING/PRODUCTION: 10 ботов (BOT_TOKEN_1-10)
       console.log(
-        `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 11 ботов`
+        `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 10 ботов`
       )
 
       for (let i = 1; i <= 11; i++) {
@@ -562,50 +625,67 @@ async function startApplication() {
         'KIE_AI_API_KEY',
         'OPENROUTER_API_KEY',
         'REPLICATE_API_TOKEN',
-        'REPLICATE_USERNAME',
+        'REPLICATE_USERNAME', // ✅ Для создания моделей на Replicate (username/model-name)
         'APIFY_TOKEN',
         'GITHUB_TOKEN',
         'FAL_KEY', // ✅ Для Fal (kie.ai gateway) lip-sync генерации
         'BASE_WEBHOOK_URL', // ✅ Для callback уведомлений от Kie.ai
-        'INNGEST_EVENT_KEY', // ✅ Для Inngest endpoint (наш сервер)
-        'INNGEST_SIGNING_KEY', // ✅ Для локального Inngest signing
-        // 'INNGEST_BASE_URL', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется fallback в client.ts и inngest-provider.ts
+        'RENDER_INNGEST_EVENT_KEY', // ✅ Для отправки задач на render-server через Inngest Cloud
+        'RENDER_INNGEST_SIGNING_KEY', // ✅ Для прямых вызовов render-server (альтернатива)
+        // 'RENDER_INNGEST_BASE_URL' убран - не нужен, используем локальный Inngest
         // AI Avatar & Voice Generation Services
         'ELEVENLABS_API_KEY', // ✅ ElevenLabs для генерации голоса из текста
         'HEYGEN_COCOAGE_API_KEY', // ✅ HeyGen API ключ для набора аватаров Cocoage (шаблон 2)
         'HEYGEN_HAIM_API_KEY', // ✅ HeyGen API ключ для набора аватаров Haim (остальные шаблоны)
         'HEDRA_API_KEY', // ✅ Hedra API для lip-sync генерации с пользовательским фото
-        'DEEPSEEK_API_KEY', // ✅ DeepSeek API key для чата аватаров и других AI функций
-        'GROK_API_KEY', // ✅ xAI Grok API key для чата с аватаром (grok-2, grok-3 и т.д.)
-        'GLM_API_KEY', // ✅ GLM-4.7 API key от Zhipu AI для чата (fallback провайдер)
-        // 🎓 BFL Model Training (Flux LoRA)
-        'BFL_API_KEY', // ✅ BFL API key для тренировки моделей (Digital Avatar Body)
-        'BFL_WEBHOOK_URL', // ✅ URL для BFL webhook (уведомление о завершении тренировки)
-        'BFL_WEBHOOK_SECRET', // ✅ Секрет для верификации BFL webhook
-        // 💳 Robokassa Payment Gateway (КРИТИЧЕСКИ ВАЖНО!)
-        'MERCHANT_LOGIN', // ✅ Логин мерчанта Robokassa для генерации платежных URL
-        // 'ROBOKASSA_MERCHANT_LOGIN', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется как fallback для MERCHANT_LOGIN в config/index.ts
-        'ROBOKASSA_PASSWORD_1', // ✅ Пароль 1 для подписи платежей
-        'ROBOKASSA_PASSWORD_2', // ✅ Пароль 2 для проверки webhook'ов
-        // 'RESULT_URL2', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется как fallback для UNIFIED_RESULT_URL, но есть BASE_PAYMENT_URL
-        // 'ROBOKASSA_RESULT_URL2', // ⚠️ НЕОБЯЗАТЕЛЬНО: используется как fallback для RESULT_URL2
       ]
 
       console.log(
         `\n🔍 [INFISICAL] Загрузка API ключей из Infisical (${env})...`
       )
 
-      const loadedKeys: string[] = []
-      const missingKeys: string[] = []
-      const emptyKeys: string[] = []
-
       for (const key of apiKeys) {
         try {
           const value = getSecret(key)
           if (value && value.trim() !== '') {
             process.env[key] = value
-            loadedKeys.push(key)
-            console.log(`  ✅ ${key} загружен`)
+
+            // 🔴 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ RENDER_INNGEST КЛЮЧЕЙ
+            if (key.startsWith('RENDER_INNGEST')) {
+              console.log(`  ✅ ${key} загружен из Infisical`)
+              console.log(`     📊 Длина ключа: ${value.length} символов`)
+              console.log(
+                `     🔑 Первые 20 символов: ${value.substring(0, 20)}...`
+              )
+
+              // Дополнительная проверка для EVENT_KEY
+              if (key === 'RENDER_INNGEST_EVENT_KEY') {
+                const isValid = value.length > 50 && value.includes('_')
+                console.log(
+                  `     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ' : '⚠️ ПОДОЗРИТЕЛЬНЫЙ'}`
+                )
+                if (!isValid) {
+                  console.warn(
+                    `     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_EVENT_KEY может быть невалидным!`
+                  )
+                }
+              }
+
+              // Дополнительная проверка для SIGNING_KEY
+              if (key === 'RENDER_INNGEST_SIGNING_KEY') {
+                const isValid = value.startsWith('signkey-')
+                console.log(
+                  `     ✓ Формат ключа: ${isValid ? 'ВАЛИДНЫЙ (signkey-)' : '⚠️ НЕ НАЧИНАЕТСЯ С signkey-'}`
+                )
+                if (!isValid) {
+                  console.warn(
+                    `     ⚠️ ВНИМАНИЕ: RENDER_INNGEST_SIGNING_KEY должен начинаться с "signkey-"`
+                  )
+                }
+              }
+            } else {
+              console.log(`  ✅ ${key} загружен`)
+            }
           } else {
             emptyKeys.push(key)
             console.warn(`  ⚠️ ${key} не найден в Infisical (значение пустое)`)
@@ -617,14 +697,28 @@ async function startApplication() {
         }
       }
 
-      // 📊 Итоговая статистика загрузки ключей
-      console.log(`\n📊 [INFISICAL] Статистика загрузки ключей:`)
-      console.log(`  ✅ Загружено: ${loadedKeys.length}/${apiKeys.length}`)
-      if (missingKeys.length > 0) {
-        console.log(`  ❌ Отсутствуют: ${missingKeys.length} - ${missingKeys.join(', ')}`)
-      }
-      if (emptyKeys.length > 0) {
-        console.log(`  ⚠️  Пустые: ${emptyKeys.length} - ${emptyKeys.join(', ')}`)
+      // 🔴 КРИТИЧЕСКАЯ ПРОВЕРКА RENDER_INNGEST КЛЮЧЕЙ ПОСЛЕ ЗАГРУЗКИ
+      console.log(`\n🔍 [RENDER_INNGEST] Финальная проверка ключей...`)
+      const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
+      const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
+
+      console.log(
+        `  📊 RENDER_INNGEST_EVENT_KEY: ${renderEventKey ? `${renderEventKey.substring(0, 30)}... (${renderEventKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
+      )
+      console.log(
+        `  📊 RENDER_INNGEST_SIGNING_KEY: ${renderSigningKey ? `${renderSigningKey.substring(0, 30)}... (${renderSigningKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
+      )
+
+      if (!renderEventKey || !renderSigningKey) {
+        console.error(
+          `\n❌ [RENDER_INNGEST] КРИТИЧЕСКАЯ ОШИБКА: Отсутствуют обязательные ключи!`
+        )
+        console.error(`   Inngest запросы на render-server НЕ БУДУТ РАБОТАТЬ!`)
+        console.error(`   Проверьте ключи в Infisical (${env} environment):`)
+        console.error(`   - RENDER_INNGEST_EVENT_KEY`)
+        console.error(`   - RENDER_INNGEST_SIGNING_KEY\n`)
+      } else {
+        console.log(`\n✅ [RENDER_INNGEST] Все ключи загружены успешно!`)
       }
 
       // Save issues for deferred Telegram notification (telegramLogService not yet ready)
@@ -683,12 +777,12 @@ async function startApplication() {
         const { spawn } = await import('child_process')
 
         console.log(
-          `📡 [CLOUDFLARE] Запускаем cloudflared tunnel на порт ${TUNNEL_PORT}...`
+          `📡 [CLOUDFLARE] Запускаем cloudflared tunnel на порт ${PORT}...`
         )
 
         const cloudflared = spawn(
           'cloudflared',
-          ['tunnel', '--url', `http://localhost:${TUNNEL_PORT}`],
+          ['tunnel', '--url', `http://localhost:${PORT}`],
           {
             stdio: ['ignore', 'pipe', 'pipe'],
           }
@@ -758,7 +852,7 @@ async function startApplication() {
         )
         console.log('   2. Проверь что cloudflared доступен в PATH')
         console.log(
-          '   3. Или используй localtunnel: npm i -g localtunnel && lt --port 3000\n'
+          '   3. Или используй localtunnel: npm i -g localtunnel && lt --port 8080\n'
         )
         console.log('⚠️  Продолжаем без туннеля - вебхуки работать не будут!\n')
       }

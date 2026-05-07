@@ -40,8 +40,7 @@ const handleUserRegistration = async (req: any, res: any): Promise<void> => {
     // Конвертируем telegram_id в строку
     const telegramIdStr = telegram_id.toString()
 
-    logger.info({
-      message: 'API: Попытка регистрации пользователя',
+    logger.info('API: Попытка регистрации пользователя', {
       telegramId: telegram_id,
       username,
       function: 'handleUserRegistration'
@@ -101,8 +100,7 @@ const handleUserRegistration = async (req: any, res: any): Promise<void> => {
       }
     })
 
-    logger.info({
-      message: 'API: Регистрация пользователя завершена успешно',
+    logger.info('API: Регистрация пользователя завершена успешно', {
       telegramId: telegram_id,
       userId: user.id,
       wasCreated,
@@ -110,8 +108,7 @@ const handleUserRegistration = async (req: any, res: any): Promise<void> => {
     })
 
   } catch (error: any) {
-    logger.error({
-      message: 'API: Ошибка при регистрации пользователя',
+    logger.error('API: Ошибка при регистрации пользователя', {
       error: error.message,
       stack: error.stack,
       function: 'handleUserRegistration_error'
@@ -139,8 +136,7 @@ const handleGetUser = async (req: any, res: any): Promise<void> => {
       return
     }
 
-    logger.info({
-      message: 'API: Запрос информации о пользователе',
+    logger.info('API: Запрос информации о пользователе', {
       telegramId: telegram_id,
       function: 'handleGetUser'
     })
@@ -161,8 +157,7 @@ const handleGetUser = async (req: any, res: any): Promise<void> => {
     })
 
   } catch (error: any) {
-    logger.error({
-      message: 'API: Ошибка при получении информации о пользователе',
+    logger.error('API: Ошибка при получении информации о пользователе', {
       error: error.message,
       stack: error.stack,
       function: 'handleGetUser_error'
@@ -190,8 +185,7 @@ const handleCheckUser = async (req: any, res: any): Promise<void> => {
       return
     }
 
-    logger.info({
-      message: 'API: Проверка существования пользователя',
+    logger.info('API: Проверка существования пользователя', {
       telegramId: telegram_id,
       function: 'handleCheckUser'
     })
@@ -212,8 +206,7 @@ const handleCheckUser = async (req: any, res: any): Promise<void> => {
     })
 
   } catch (error: any) {
-    logger.error({
-      message: 'API: Ошибка при проверке пользователя',
+    logger.error('API: Ошибка при проверке пользователя', {
       error: error.message,
       stack: error.stack,
       function: 'handleCheckUser_error'

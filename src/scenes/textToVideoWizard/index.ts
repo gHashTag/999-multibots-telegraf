@@ -10,14 +10,10 @@ import {
 } from '@/interfaces/zod/textToVideo.zod'
 import { handleHelpCancel, getMainMenuText } from '@/navigation'
 
-// ========== INLINE WIZARD ФУНКЦИИ (КАК В РАБОЧИХ WIZARDS) ==========
-
-// ========== СОЗДАНИЕ WIZARD'A С INLINE ФУНКЦИЯМИ (КАК В textToImageWizard) ==========
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
 
-  // ========== ШАГ 1: ВЫБОР МОДЕЛИ ==========
   async (ctx) => {
     try {
       const isRu = isRussianFromState(ctx)
@@ -56,7 +52,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // ========== ШАГ 2: ВЫБОР МОДЕЛИ + ПРОМПТ + ГЕНЕРАЦИЯ (ОБЪЕДИНЕННЫЙ ШАГ) ==========
   async (ctx) => {
     console.log('🎬 [WIZARD] 🔥 STEP 2 STARTED! User:', ctx.from?.id)
     console.log('🎬 [WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'not initialized yet')
@@ -146,7 +141,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // ========== ШАГ 3: ОБРАБОТКА ПРОМПТА И ГЕНЕРАЦИЯ ==========
   async (ctx) => {
     console.log('🎬 [WIZARD] 🔥 STEP 3 STARTED! User:', ctx.from?.id)
     console.log('🎬 [WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'not initialized yet')
@@ -296,7 +290,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-// ========== ОБРАБОТЧИКИ WIZARD'A ==========
 
 // ✅ Обработчик кнопки отмены
 textToVideoWizard.action('cancel_video_generation', async ctx => {

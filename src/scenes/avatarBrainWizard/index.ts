@@ -17,6 +17,9 @@ const MAX_LENGTHS = {
   skills: 1000,
 }
 
+// ✅ CENTRALIZED CANCEL SYSTEM
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
+
 interface WizardSessionData extends Scenes.WizardSessionData {
   company?: string
   position?: string

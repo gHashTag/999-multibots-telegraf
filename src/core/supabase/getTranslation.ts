@@ -131,8 +131,7 @@ export async function getTranslation({
     let { data, error } = await fetchTranslation(botName)
 
     if (error) {
-      logger.warn({
-        message: `Translation not found for key "${key}" with current bot`,
+      logger.warn(`Translation not found for key "${key}" with current bot`, {
         bot_name: botName,
         language_code,
         key,
@@ -146,8 +145,7 @@ export async function getTranslation({
 
       // If still not found, try common translations
       if (error) {
-        logger.warn({
-          message: `Translation not found with DEFAULT_BOT_NAME for key "${key}"`,
+        logger.warn(`Translation not found with DEFAULT_BOT_NAME for key "${key}"`, {
           bot_name: defaultBot,
           language_code,
           key,
@@ -159,8 +157,7 @@ export async function getTranslation({
         ;({ data, error } = await fetchTranslation(COMMON_BOT_NAME))
 
         if (!error) {
-          logger.info({
-            message: `Using common translation for key "${key}"`,
+          logger.info(`Using common translation for key "${key}"`, {
             bot_name: COMMON_BOT_NAME,
             language_code,
             key,
@@ -180,8 +177,7 @@ export async function getTranslation({
           if (fallbackResult.data && fallbackResult.data.length > 0) {
             data = fallbackResult.data[0]
             error = null
-            logger.info({
-              message: `Using fallback language translation for key "${key}"`,
+            logger.info(`Using fallback language translation for key "${key}"`, {
               original_language: language_code,
               fallback_language: fallbackLanguage,
               key,
@@ -215,8 +211,7 @@ export async function getTranslation({
           buttons = []
         }
       } catch (parseError) {
-        logger.error({
-          message: `Ошибка парсинга JSON для buttons ключа "${key}"`,
+        logger.error(`Ошибка парсинга JSON для buttons ключа "${key}"`, {
           error:
             parseError instanceof Error
               ? parseError.message
@@ -384,8 +379,7 @@ export async function getTranslation({
     return result
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : String(e)
-    logger.error({
-      message: `Critical error getting translation for key "${key}"`,
+    logger.error(`Critical error getting translation for key "${key}"`, {
       error: errorMessage,
       bot_name: botName,
       language_code,

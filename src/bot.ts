@@ -31,6 +31,9 @@ import { setupErrorHandler } from './helpers/error/errorHandler'
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА УВЕДОМЛЕНИЙ
 import { setupNotificationProcessor } from './handlers/notificationHandler'
 
+// ✅ ЦЕНТРАЛИЗОВАННЫЙ ОБРАБОТЧИК ОТМЕНЫ
+import { createGlobalCancelHandler } from './utils/cancelHandler'
+
 // Импорт новой команды
 import { setupStatsCommand } from './commands/statsCommand'
 
@@ -235,6 +238,13 @@ async function initializeBots() {
         registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
         // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
         setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
+
+        // ✅ ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОТМЕНЫ - перехватывает ВСЕ команды отмены
+        bot.action(/^cancel.*/, createGlobalCancelHandler({
+          messageRu: '❌ Операция отменена. Возвращаю в главное меню.',
+          messageEn: '❌ Operation cancelled. Returning to main menu.'
+        }))
+
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
         bot.on('successful_payment', handleSuccessfulPayment as any)

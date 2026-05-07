@@ -8,6 +8,9 @@ import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleHelpCancel } from '@/navigation'
 import { generateModelButton, parseModelButton, generateModelKeyboard, getModelPriceStars } from '@/config/unified-video-models.config'
 
+// ✅ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
+
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 
 // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННЫЕ ФУНКЦИИ из unified-video-models.config.ts:
@@ -15,20 +18,15 @@ console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 // - parseModelButton(buttonText) - парсинг выбора
 // ❌ НЕ ДУБЛИРУЕМ ЛОГИКУ - все берем из единого источника правды!
 
-// ========== СОЗДАНИЕ WIZARD'A ПО АНАЛОГИИ С TEXT TO VIDEO ==========
-
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo,
   
-  // ========== ШАГ 1: ЗАГРУЗКА ИЗОБРАЖЕНИЯ ==========
   async (ctx) => {
-    console.log('🔥🔥🔥 [I2V WIZARD] ========================================')
     console.log('🔥🔥🔥 [I2V WIZARD] STEP 0 (FIRST STEP) ACTUALLY CALLED!')
     console.log('🔥🔥🔥 [I2V WIZARD] User:', ctx.from?.id)
     console.log('🔥🔥🔥 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
     console.log('🔥🔥🔥 [I2V WIZARD] Scene ID:', ctx.scene?.current?.id)
     console.log('🔥🔥🔥 [I2V WIZARD] Message type:', ctx.message ? Object.keys(ctx.message) : 'no message')
-    console.log('🔥🔥🔥 [I2V WIZARD] ========================================')
 
     try {
       const isRu = isRussianFromState(ctx)
@@ -71,7 +69,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // ========== ШАГ 1: ОБРАБОТКА ВЫБОРА МОДЕЛИ И ЗАПРОС ИЗОБРАЖЕНИЯ ==========
   async (ctx) => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 1 STARTED! User:', ctx.from?.id)
     console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
@@ -148,7 +145,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // ========== ШАГ 2: ОБРАБОТКА ИЗОБРАЖЕНИЯ И ЗАПРОС ПРОМПТА ==========
   async (ctx) => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 2 STARTED! User:', ctx.from?.id)
     console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
@@ -212,7 +208,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  // ========== ШАГ 3: ОБРАБОТКА ПРОМПТА И ГЕНЕРАЦИЯ ==========
   async (ctx) => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 3 STARTED! User:', ctx.from?.id)
     console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
@@ -303,7 +298,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 console.log('🔥 [DEBUG] imageToVideoWizard CREATED! ID:', imageToVideoWizard.id)
 console.log('🔥 [DEBUG] imageToVideoWizard steps count:', (imageToVideoWizard as any).steps?.length, '(Step 0: Models, Step 1: Model selection, Step 2: Image, Step 3: Prompt+Generation)')
 
-// ========== ОБРАБОТЧИКИ WIZARD'A ==========
 
 // Обработчик входа в wizard - НЕ ИСПОЛЬЗУЕТСЯ! Telegraf автоматически вызовет первый шаг
 // Оставляем пустым, чтобы не было двойного вызова

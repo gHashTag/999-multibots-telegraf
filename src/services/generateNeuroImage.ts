@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL } from '@/config'
+import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL, API_SERVER_URL } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -60,10 +60,15 @@ export async function generateNeuroImage(
     logger.info('Neuro image generation response received', {
       hasData: !!response?.data,
       dataType: typeof response?.data,
-      success: !!response?.success,
-      hasUrls: !!response?.urls,
     })
-    return response
+
+    if (!response || !response.data) {
+      return null
+    }
+
+    // Функция generateNeuroPhotoHybrid возвращает { data: string; success: boolean; urls?: string[] }
+    // Но generateNeuroImage должна вернуть { data: string }
+    return { data: response.data }
   } catch (error) {
     console.error('Ошибка при генерации нейроизображения:', error)
 

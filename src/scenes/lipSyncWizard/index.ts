@@ -5,6 +5,8 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
+import { handleCancel, createGlobalCancelHandler } from '@/utils/cancelHandler'
+import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
 import {
   validateVideoInput,
   validateAudioInput,
@@ -478,12 +480,12 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-// Обработчик кнопки отмены
-lipSyncWizard.action('lipsync_cancel', async (ctx) => {
-  const isRu = isRussianFromState(ctx)
-  await ctx.answerCbQuery()
-  await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
-  await ctx.scene.leave()
+// Глобальный обработчик отмены для всех команд отмены
+lipSyncWizard.action(/^cancel_/, async (ctx) => {
+  await handleCancel(ctx, {
+    messageRu: '❌ Процесс отменён.',
+    messageEn: '❌ Process cancelled.'
+  })
 })
 
 export default lipSyncWizard

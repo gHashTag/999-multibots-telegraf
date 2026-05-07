@@ -1,11 +1,10 @@
-// @ts-nocheck
 /**
  * Generate detailed script for scenario clips with camera positions and detailed prompts
  * Генерация детального скрипта раскадровки с положением камеры и детальными промптами
  */
 
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
-import { openai } from '@/core/openai'
+import { inngest } from '@/inngest_app/client'
+import OpenAI from 'openai'
 import { supabase } from '@/core/supabase'
 import { z } from 'zod'
 
@@ -193,14 +192,12 @@ export const generateDetailedScript = inngest.createFunction(
   {
     id: 'generate-detailed-script',
     name: '📝 Generate Detailed Script',
-    concurrency: { limit: 3 },
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Generate Detailed Script'),
+    concurrency: [{ limit: 3 }],
   },
   { event: 'content/generate-detailed-script' },
   async ({ event, step, logger: log }) => {
     const input = generateDetailedScriptSchema.parse(event.data)
-    const runId = Date.now()
+    const runId = event.id
 
     log.info('📝 Начинаем генерацию детального скрипта', { input, runId })
 
@@ -239,7 +236,9 @@ export const generateDetailedScript = inngest.createFunction(
       async () => {
         log.info('🎭 Генерируем детальные сцены')
 
-        // OpenAI client is initialized lazily via @/core/openai
+        const openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        })
 
         let scenes: DetailedScene[] = []
 

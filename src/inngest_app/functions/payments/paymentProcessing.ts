@@ -1,8 +1,7 @@
-// @ts-nocheck
 import { inngest } from '@/inngest_app/client'
 import { updateUserBalance } from '@/core/supabase'
 import { sendPaymentNotification } from '@/price/helpers'
-import { createBotByName } from '@/core/bot'
+import { createBotByName } from '@/config'
 import { getTelegramIdFromInvId } from '@/core/supabase'
 import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import { errorMessage } from '@/helpers'
@@ -11,7 +10,7 @@ import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { slugify } from '@/inngest_app/utils/slugify' // For v3 migration
+import { slugify } from 'inngest' // For v3 migration
 
 // Константы для вариантов оплаты
 const PAYMENT_OPTIONS = [

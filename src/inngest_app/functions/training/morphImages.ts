@@ -1,4 +1,4 @@
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { getUserByTelegramId } from '@/core/supabase'
@@ -26,13 +26,11 @@ interface MorphingJobData {
   extraction_path: string // Путь для очистки после обработки
 }
 
-export const morphImagesFunction = inngest.createFunction(
+export const morphImages = inngest.createFunction(
   {
     id: 'morph-images',
     name: '🧬 Morph Images', // Добавляем emoji и название как у других функций
     retries: 3,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Morph Images'),
   },
   { event: 'morph/images.requested' },
   async ({ event, step }) => {

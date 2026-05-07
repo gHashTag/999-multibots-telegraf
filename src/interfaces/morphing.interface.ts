@@ -1,17 +1,14 @@
 /**
- * Morphing Interface
- * Defines types and enums for morphing functionality
+ * Morphing Interface Stub
  */
 
-export enum MorphingType {
-  SEAMLESS = 'seamless',
-  LOOP = 'loop',
+export interface MorphingConfig {
+  sourceImage: string;
+  targetImage: string;
+  steps: number;
 }
 
-
-
-
-
-
-
-
+export interface MorphingResult {
+  videoUrl: string;
+  frames: string[];
+}

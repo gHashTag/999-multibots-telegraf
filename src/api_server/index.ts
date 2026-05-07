@@ -100,98 +100,12 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
 
-  // Регистрируем x402 crypto payment routes
-  app.use('/api', x402Router)
-
-  // ✅ Inngest включен для мониторинга webhook'ов - LAZY VERSION
-  // Создаем функции ПОСЛЕ загрузки секретов из Infisical
-  try {
-    logger.info(
-      '[API SERVER] Creating Inngest functions (after secrets loaded)...'
-    )
-
-    const allInngestFunctions = createAllInngestFunctions()
-
-    logger.info('[API SERVER] Debug: allInngestFunctions', {
-      type: typeof allInngestFunctions,
-      isArray: Array.isArray(allInngestFunctions),
-      length: allInngestFunctions?.length,
-      functions: allInngestFunctions?.map((f: any) => ({
-        id: f?.opts?.id,
-        name: f?.opts?.name,
-        hasId: !!f?.opts?.id,
-        hasName: !!f?.opts?.name,
-        type: typeof f,
-        isNull: f === null,
-        isUndefined: f === undefined,
-      })),
-    })
-
-    if (
-      allInngestFunctions &&
-      Array.isArray(allInngestFunctions) &&
-      allInngestFunctions.length > 0
-    ) {
-      logger.info('[API SERVER] Registering Inngest functions', {
-        count: allInngestFunctions.length,
-        functions: allInngestFunctions.map(
-          (f: any) => f?.opts?.id || f?.opts?.name || 'unnamed'
-        ),
-        detailed: allInngestFunctions.map((f: any) => ({
-          id: f?.opts?.id,
-          name: f?.opts?.name,
-          type: typeof f,
-          isNull: f === null,
-          isUndefined: f === undefined,
-        })),
-      })
-
-      // ✅ Применена рабочая сигнатура serve() - ВЕРСИЯ ОТ 7 НОЯБРЯ
-      const signingKey = process.env.INNGEST_SIGNING_KEY
-
-      if (!signingKey) {
-        logger.error('❌ [API SERVER] INNGEST_SIGNING_KEY не найден! Webhook verification будет недоступен.')
-      }
-
-      const inngestHandler = serve(inngest, allInngestFunctions)
-
-      // ✅ Inngest health check на отдельном URL (не блокирует introspection)
-      app.get('/api/inngest-status', (req: any, res: any) => {
-        res.json({
-          'Inngest endpoint configured correctly.': true,
-          hasEventKey: !!process.env.INNGEST_EVENT_KEY,
-          hasSigningKey: !!signingKey,
-          functionsFound: allInngestFunctions.length,
-          serveOrigin: process.env.INNGEST_SERVE_ORIGIN || 'not set',
-        })
-      })
-
-      // ✅ CRITICAL: inngestHandler MUST handle GET /api/inngest for introspection/sync
-      app.use('/api/inngest', inngestHandler)
-      logger.info(
-        '✅ [API SERVER] Inngest webhook monitor initialized at /api/inngest',
-        {
-          signingKey: signingKey || 'not set',
-          signingKeyPreview: signingKey
-            ? `${signingKey.substring(0, 30)}...`
-            : 'not set',
-        }
-      )
-    } else {
-      logger.warn('⚠️ [API SERVER] No Inngest functions created', {
-        allInngestFunctions: typeof allInngestFunctions,
-        isArray: Array.isArray(allInngestFunctions),
-      })
-    }
-  } catch (error) {
-    // ✅ FIX: Правильная сериализация ошибки для логирования
-    const errorDetails = error instanceof Error
-      ? { message: error.message, stack: error.stack?.split('\n').slice(0, 5).join('\n') }
-      : { raw: String(error) }
-    logger.error('❌ [API SERVER] Failed to create Inngest functions', {
-      error: errorDetails,
-    })
-  }
+  // ✅ Интеграция Inngest с API (актуальная сигнатура serve)
+  const inngestHandler = serve({
+    client: inngest,
+    functions: allInngestFunctions,
+  })
+  app.use('/api/inngest', inngestHandler)
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
   app.listen(PORT, '0.0.0.0', async () => {

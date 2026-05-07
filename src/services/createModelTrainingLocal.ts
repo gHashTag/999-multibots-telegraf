@@ -3,9 +3,10 @@ import Replicate from 'replicate'
 import fs from 'fs'
 import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
+import { REPLICATE_API_TOKEN, REPLICATE_USERNAME, FAL_KEY } from '@/config'
 import { logger } from '@/utils/logger'
 import { sanitizeModelName, isValidReplicateModelName } from '@/helpers/sanitizeModelName'
-import { replicate } from '@/core/replicate'
+import { trainFalFluxModel } from './trainFalFluxModel'
 
 interface ModelTrainingRequest {
   filePath: string
@@ -16,6 +17,8 @@ interface ModelTrainingRequest {
   steps: number
   botName: string
   gender: string
+  // Новый параметр для выбора провайдера
+  provider?: 'replicate' | 'fal-ai'
 }
 
 interface ModelTrainingResponse {
@@ -23,15 +26,17 @@ interface ModelTrainingResponse {
   model_id?: string
   bot_name?: string
   training_id?: string
+  provider?: 'replicate' | 'fal-ai'
 }
 
 /**
  * ✅ LOCAL MODEL TRAINING - Runs directly on bot-farm
  *
- * Adapted from ai-server/src/inngest-functions/generateModelTraining.ts
+ * Supports multiple providers:
+ * - Replicate (ostris/flux-dev-lora-trainer) - ~1-2 hours
+ * - Fal.ai (fal-ai/flux-lora-portrait-trainer) - ~15-30 minutes (recommended for portraits)
  *
- * This function creates model training directly on Replicate without
- * using external AI server, reducing latency and server costs.
+ * Adapted from ai-server/src/inngest-functions/generateModelTraining.ts
  */
 export async function createModelTrainingLocal(
   requestData: ModelTrainingRequest,
@@ -49,13 +54,28 @@ export async function createModelTrainingLocal(
   })
 
   try {
-    // ✅ STEP 1: Validate Replicate credentials (loaded from Infisical into process.env)
-    const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
-    // Hardcode to ghashtag account (corrected from user's feedback)
-    const REPLICATE_USERNAME = 'ghashtag'
+    // ✅ STEP 0: Auto-select provider if not specified
+    // Fal.ai preferred for portraits (faster), Replicate as fallback
+    const provider = requestData.provider || (FAL_KEY ? 'fal-ai' : 'replicate')
 
-    if (!REPLICATE_API_TOKEN) {
-      throw new Error('❌ Missing REPLICATE_API_TOKEN in .env')
+    logger.info('[LOCAL TRAINING] Provider selection', {
+      provider,
+      hasFalKey: !!FAL_KEY,
+      hasReplicateCreds: !!REPLICATE_API_TOKEN && !!REPLICATE_USERNAME,
+    })
+
+    // ✅ STEP 1: Route to appropriate provider
+    if (provider === 'fal-ai') {
+      if (!FAL_KEY) {
+        throw new Error('❌ FAL_KEY not configured, falling back to Replicate')
+      }
+      logger.info('[LOCAL TRAINING] Using Fal.ai provider')
+      return await trainFalFluxModel(requestData, ctx)
+    }
+
+    // Replicate provider
+    if (!REPLICATE_API_TOKEN || !REPLICATE_USERNAME) {
+      throw new Error('❌ Missing REPLICATE_API_TOKEN or REPLICATE_USERNAME in .env')
     }
 
     logger.info('[LOCAL TRAINING] Using Replicate credentials', {
@@ -192,14 +212,17 @@ export async function createModelTrainingLocal(
     })
 
     // ✅ Webhook URL для уведомлений о завершении тренировки
-    // НО: Replicate требует HTTPS, поэтому для локальной тренировки убираем webhook
-    // Пользователь может отслеживать статус через Replicate dashboard
-    const webhookUrl = null // Отключено для локальной тренировки
+    // ИСПРАВЛЕНО: Гарантируем HTTPS для Replicate
+    const baseUrl = process.env.BASE_WEBHOOK_URL || process.env.API_SERVER_URL || 'https://three-head-dragon.shop'
+    const webhookUrl = baseUrl.startsWith('http')
+      ? `${baseUrl}/api/webhooks/replicate`
+      : `https://${baseUrl}/api/webhooks/replicate`
 
     logger.info('[LOCAL TRAINING] Webhook configuration', {
       webhookUrl,
-      reason: 'Disabled for local training (HTTPS required)',
-      alternative: 'Check training status in Replicate dashboard'
+      baseUrl,
+      hasBaseWebhookUrl: !!process.env.BASE_WEBHOOK_URL,
+      hasServerApiUrl: !!process.env.API_SERVER_URL,
     })
 
     // ✅ Создаем тренировку с destination (модель создана)
@@ -278,14 +301,15 @@ export async function createModelTrainingLocal(
 
     // ✅ STEP 11: Return success response
     const successMessage = requestData.is_ru
-      ? `✅ Тренировка модели запущена!\n\n📦 Модель: ostris/flux-dev-lora-trainer\n🆔 ID: ${training.id}\n⏱️ Время: ~1-2 часа\n\n🔗 Прямая ссылка: https://replicate.com/models/${training.id}\n\n💡 Статус проверяйте по прямой ссылке выше`
-      : `✅ Model training started!\n\n📦 Model: ostris/flux-dev-lora-trainer\n🆔 ID: ${training.id}\n⏱️ Time: ~1-2 hours\n\n🔗 Direct link: https://replicate.com/models/${training.id}\n\n💡 Check status using the direct link above`
+      ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${requestData.modelName}\n🆔 ID: ${training.id}\n⚡ Провайдер: Replicate\n⏱️ Время: ~1-2 часа`
+      : `✅ Model training started!\n\n📦 Model: ${requestData.modelName}\n🆔 ID: ${training.id}\n⚡ Provider: Replicate\n⏱️ Time: ~1-2 hours`
 
     return {
       message: successMessage,
       model_id: `ostris/flux-dev-lora-trainer`,
       bot_name: requestData.botName,
       training_id: training.id,
+      provider: 'replicate',
     }
   } catch (error) {
     logger.error('[LOCAL TRAINING] ❌ Error occurred', {

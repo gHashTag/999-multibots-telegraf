@@ -4,9 +4,9 @@
  * Extends instagramScraperV2 with new database schema and filtering
  */
 
-import { slugify } from '@/inngest_app/utils/slugify'
+import { slugify } from 'inngest'
 import axios from 'axios'
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import {
   InstagramContentAgentDB,
   type CompetitorData,
@@ -139,8 +139,6 @@ export const findCompetitors = inngest.createFunction(
     id: 'find-competitors',
     name: '🔍 Find Instagram Competitors',
     concurrency: 2,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Find Instagram Competitors'),
   },
   { event: 'instagram/find-competitors' },
   async ({ event, step, runId, logger }) => {
@@ -324,11 +322,15 @@ export const findCompetitors = inngest.createFunction(
 // Helper function to trigger findCompetitors
 export async function triggerFindCompetitors(
   data: FindCompetitorsEvent
-): Promise<void> {
+): Promise<{ eventId: string }> {
   const validatedData = FindCompetitorsEventSchema.parse(data)
 
   const result = await inngest.send({
     name: 'instagram/find-competitors',
     data: validatedData,
   })
+
+  return {
+    eventId: result.ids[0],
+  }
 }

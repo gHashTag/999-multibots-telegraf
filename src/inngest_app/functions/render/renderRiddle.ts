@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Render Riddle Function
  * Ported from Python render-api-v3: src/services/inngest_services/render_riddle.py
@@ -17,7 +16,7 @@
  * 10. Trigger render
  */
 
-import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { inngest } from '@/inngest_app/client'
 import { NonRetriableError } from 'inngest'
 import type { RenderRiddleEventData } from './types'
 import {
@@ -51,8 +50,6 @@ export const renderRiddleFunction = inngest.createFunction(
     id: 'render-riddle',
     name: '🧩 Render Riddle Workflow',
     retries: 3,
-    // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Render Riddle Workflow'),
   },
   { event: 'render-riddle' },
   async ({ event, step, logger }) => {
@@ -387,7 +384,7 @@ export const renderRiddleFunction = inngest.createFunction(
  * Matches Python trigger_render_riddle function
  */
 export async function triggerRenderRiddle(eventData: RenderRiddleEventData) {
-  const { inngest } = await import('@/inngest_app/client')
+  const { inngest } = await import('../../client')
   const { v4: uuid } = await import('uuid')
 
   await inngest.send({

@@ -82,8 +82,7 @@ export const getUserDetailsSubscription = async (
         { telegramId: telegramIdStr }
       )
     } catch (balanceError) {
-      logger.error({
-        message: `[getUserDetailsSubscription v4.0 SIMPLE Step 1 FAIL] Ошибка getUserBalance для User: ${telegramIdStr}`,
+      logger.error(`[getUserDetailsSubscription v4.0 SIMPLE Step 1 FAIL] Ошибка getUserBalance для User: ${telegramIdStr}`, {
         error: balanceError,
         telegramId: telegramIdStr,
       })
@@ -103,14 +102,12 @@ export const getUserDetailsSubscription = async (
           userError.code !== 'PGRST116' &&
           !userError.message.includes('Range requires')
         ) {
-          logger.error({
-            message: `[getUserDetailsSubscription v4.0 SIMPLE Step 2 FAIL] Ошибка DB при проверке существования User: ${telegramIdStr}`,
+          logger.error(`[getUserDetailsSubscription v4.0 SIMPLE Step 2 FAIL] Ошибка DB при проверке существования User: ${telegramIdStr}`, {
             error: userError.message,
             telegramId: telegramIdStr,
           })
         } else {
-          logger.info({
-            message: `[getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь ${telegramIdStr} НЕ найден в таблице users или недоступен (RLS?).`,
+          logger.info(`[getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь ${telegramIdStr} НЕ найден в таблице users или недоступен (RLS?).`, {
             telegramId: telegramIdStr,
           })
         }
@@ -133,8 +130,7 @@ export const getUserDetailsSubscription = async (
             telegram_id: telegramIdStr,
           }
         )
-        logger.info({
-          message: `[getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь ${telegramIdStr} НЕ найден в таблице users или недоступен (RLS?).`,
+        logger.info(`[getUserDetailsSubscription v4.0 SIMPLE Step 2 INFO] Пользователь ${telegramIdStr} НЕ найден в таблице users или недоступен (RLS?).`, {
           telegramId: telegramIdStr,
         })
       }
@@ -143,8 +139,7 @@ export const getUserDetailsSubscription = async (
         { telegramId: telegramIdStr }
       )
     } catch (existCheckError) {
-      logger.error({
-        message: `[getUserDetailsSubscription v4.0 SIMPLE Step 2 FAIL] Непредвиденная ошибка при проверке существования User: ${telegramIdStr}`,
+      logger.error(`[getUserDetailsSubscription v4.0 SIMPLE Step 2 FAIL] Непредвиденная ошибка при проверке существования User: ${telegramIdStr}`, {
         error: existCheckError,
         telegramId: telegramIdStr,
       })
@@ -309,8 +304,7 @@ export const getUserDetailsSubscription = async (
     })
     return result
   } catch (error) {
-    logger.error({
-      message: `[getUserDetailsSubscription v4.0 SIMPLE CRITICAL FAIL] Непредвиденная ошибка для User: ${telegramIdStr}`,
+    logger.error(`[getUserDetailsSubscription v4.0 SIMPLE CRITICAL FAIL] Непредвиденная ошибка для User: ${telegramIdStr}`, {
       error: error instanceof Error ? error.message : String(error),
     })
     return defaultResult

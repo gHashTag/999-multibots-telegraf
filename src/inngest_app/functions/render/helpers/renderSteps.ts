@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Core Render Step Implementations
  * Ported from Python: src/services/inngest_services/render.py
@@ -6,9 +5,9 @@
 
 import { Logger } from 'inngest'
 import { NonRetriableError } from 'inngest'
-import { SSHService } from './ssh.service'
-import { S3Service } from './s3.service'
-import { RenderConfig } from './config'
+// import { SSHService } from './ssh.service'
+// import { S3Service } from './s3.service'
+// import { RenderConfig } from './config'
 import type { RenderEventData } from '@/inngest_app/functions/render/types'
 import axios from 'axios'
 
