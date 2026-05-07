@@ -1,16 +1,19 @@
 use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, VideoTranscriptionState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 pub async fn handle_video_transcription_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: VideoTranscriptionState,
     msg: Message,
@@ -34,15 +37,20 @@ pub async fn handle_video_transcription_msg(
     if state.step == 1 {
         if let Some(video) = msg.video() {
             state.video_url = Some(video.file.id.clone());
-            state.step = 2;
-
-            let processing = if lang.is_russian() {
-                "⏳ Транскрибируем видео..."
-            } else {
-                "⏳ Transcribing video..."
-            };
-            bot.send_message(msg.chat.id, processing).await?;
-            dialogue.update(Scene::VideoTranscription(state)).await?;
+            let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+            return dispatch_and_reply(
+                &bot, &dialogue, msg.chat.id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Video,
+                    job_type: "video_rendering",
+                    prompt: None,
+                    image_url: state.video_url.clone(),
+                    model: None,
+                },
+            ).await;
         } else {
             let text = if lang.is_russian() { "Отправьте видео" } else { "Send a video" };
             bot.send_message(msg.chat.id, text).await?;
@@ -55,6 +63,8 @@ pub async fn handle_video_transcription_msg(
 pub async fn handle_video_transcription_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     _state: VideoTranscriptionState,
     q: teloxide::types::CallbackQuery,

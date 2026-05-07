@@ -3761,16 +3761,20 @@ dependencies = [
 name = "trios-mb-scenes"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "serde",
  "serde_json",
  "teloxide",
  "tokio",
  "tracing",
+ "trios-mb-ai",
  "trios-mb-i18n",
+ "trios-mb-jobs",
  "trios-mb-proto",
  "trios-mb-tg",
  "trios-mb-traits",
  "trios-mb-types",
+ "uuid",
 ]
 
 [[package]]

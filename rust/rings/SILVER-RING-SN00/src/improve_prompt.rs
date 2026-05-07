@@ -1,16 +1,19 @@
 use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, ImprovePromptState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 pub async fn handle_improve_prompt_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: ImprovePromptState,
     msg: Message,
@@ -34,14 +37,20 @@ pub async fn handle_improve_prompt_msg(
     if state.step == 1 {
         if let Some(text) = msg.text() {
             state.original_prompt = Some(text.to_string());
-            state.step = 2;
-            let processing = if lang.is_russian() {
-                "⏳ Улучшаем промпт с помощью AI..."
-            } else {
-                "⏳ Improving prompt with AI..."
-            };
-            bot.send_message(msg.chat.id, processing).await?;
-            dialogue.update(Scene::ImprovePrompt(state)).await?;
+            let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+            return dispatch_and_reply(
+                &bot, &dialogue, msg.chat.id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Image,
+                    job_type: "image_rendering",
+                    prompt: state.original_prompt.clone(),
+                    image_url: None,
+                    model: None,
+                },
+            ).await;
         } else {
             let err = if lang.is_russian() { "Отправьте текст" } else { "Send text" };
             bot.send_message(msg.chat.id, err).await?;
@@ -54,6 +63,8 @@ pub async fn handle_improve_prompt_msg(
 pub async fn handle_improve_prompt_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     _state: ImprovePromptState,
     q: teloxide::types::CallbackQuery,

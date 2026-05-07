@@ -41,5 +41,11 @@ pub mod cancel_predictions;
 pub mod tech_support;
 pub mod neuro_coder;
 pub mod video_duration;
+pub mod ai_photoshop;
+pub mod hedra_render;
+pub mod heygen_render;
+pub mod fal_render;
+pub mod remove_bg;
+pub mod ai_reels;
 
 pub use handlers::build_scene_tree;

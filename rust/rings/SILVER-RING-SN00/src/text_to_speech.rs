@@ -1,10 +1,11 @@
 use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, TextToSpeechState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance};
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -13,6 +14,8 @@ const TTS_COST: f64 = 3.0;
 pub async fn handle_text_to_speech_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: TextToSpeechState,
     msg: Message,
@@ -49,18 +52,22 @@ pub async fn handle_text_to_speech_msg(
 
             state.text = Some(text.to_string());
             state.model = Some("elevenlabs".to_string());
-            state.step = 2;
-
-            let processing = if lang.is_russian() {
-                "⏳ Генерирую аудио..."
-            } else {
-                "⏳ Generating audio..."
-            };
-            bot.send_message(msg.chat.id, processing).await?;
 
             let _ = deduct_balance(&db, tid, TTS_COST).await;
 
-            dialogue.update(Scene::TextToSpeech(state)).await?;
+            return dispatch_and_reply(
+                &bot, &dialogue, msg.chat.id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::TextToSpeech,
+                    job_type: "voice_cloning",
+                    prompt: state.text.clone(),
+                    image_url: None,
+                    model: state.model.clone(),
+                },
+            ).await;
         } else {
             let err = if lang.is_russian() { "✍️ Пожалуйста, отправьте текст" } else { "✍️ Please send text" };
             bot.send_message(msg.chat.id, err).await?;
@@ -73,6 +80,8 @@ pub async fn handle_text_to_speech_msg(
 pub async fn handle_text_to_speech_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     _state: TextToSpeechState,
     q: teloxide::types::CallbackQuery,

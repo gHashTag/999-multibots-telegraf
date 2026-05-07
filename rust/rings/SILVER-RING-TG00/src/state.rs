@@ -44,6 +44,13 @@ pub enum Scene {
     Balance,
     Help,
     Invite,
+    Size(SizeState),
+    VideoDuration(VideoDurationState),
+    HedraRender(HedraRenderState),
+    HeygenRender(HeygenRenderState),
+    FalRender(FalRenderState),
+    RemoveBg(RemoveBgState),
+    AiReels(AiReelsState),
 }
 
 impl Scene {
@@ -85,6 +92,13 @@ impl Scene {
             Self::Balance => SceneId::Balance,
             Self::Help => SceneId::Help,
             Self::Invite => SceneId::Invite,
+            Self::Size(_) => SceneId::Size,
+            Self::VideoDuration(_) => SceneId::VideoDuration,
+            Self::HedraRender(_) => SceneId::HedraRender,
+            Self::HeygenRender(_) => SceneId::HeygenRender,
+            Self::FalRender(_) => SceneId::FalRender,
+            Self::RemoveBg(_) => SceneId::RemoveBg,
+            Self::AiReels(_) => SceneId::AiReels,
         }
     }
 }
@@ -267,4 +281,48 @@ scene_state!(TrainFluxModelState {
 
 scene_state!(EmailState {
     email: String,
+});
+
+scene_state!(SizeState {
+    width: u32,
+    height: u32,
+    aspect_ratio: String,
+});
+
+scene_state!(VideoDurationState {
+    duration: u8,
+    model: String,
+});
+
+scene_state!(HedraRenderState {
+    image_url: String,
+    audio_url: String,
+    text: String,
+    result_url: String,
+});
+
+scene_state!(HeygenRenderState {
+    avatar_id: String,
+    text: String,
+    audio_url: String,
+    result_url: String,
+});
+
+scene_state!(FalRenderState {
+    prompt: String,
+    model: String,
+    image_url: String,
+    result_url: String,
+});
+
+scene_state!(RemoveBgState {
+    image_url: String,
+    result_url: String,
+});
+
+scene_state!(AiReelsState {
+    prompt: String,
+    style: String,
+    num_scenes: u8,
+    result_url: String,
 });

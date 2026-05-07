@@ -2,10 +2,11 @@ use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, AvatarTransformState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance};
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -14,6 +15,8 @@ const AVATAR_TRANSFORM_COST: f64 = 5.0;
 pub async fn handle_avatar_transform_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: AvatarTransformState,
     msg: Message,
@@ -75,10 +78,20 @@ pub async fn handle_avatar_transform_msg(
                 }
 
                 state.image_url = Some(file_id);
-                state.step = 3;
                 let _ = deduct_balance(&db, tid, AVATAR_TRANSFORM_COST).await;
-                bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "processing")).await?;
-                dialogue.update(Scene::AvatarTransform(state)).await?;
+                return dispatch_and_reply(
+                    &bot, &dialogue, msg.chat.id,
+                    &job_queue, &db,
+                    DispatchParams {
+                        telegram_id: tid,
+                        lang,
+                        media_type: MediaType::Image,
+                        job_type: "image_rendering",
+                        prompt: state.style.clone(),
+                        image_url: state.image_url.clone(),
+                        model: None,
+                    },
+                ).await;
             } else {
                 let text = if lang.is_russian() { "Отправьте фото" } else { "Send a photo" };
                 bot.send_message(msg.chat.id, text).await?;
@@ -92,6 +105,8 @@ pub async fn handle_avatar_transform_msg(
 pub async fn handle_avatar_transform_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: AvatarTransformState,
     q: teloxide::types::CallbackQuery,

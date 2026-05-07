@@ -1,16 +1,19 @@
 use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, VoiceAvatarState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 pub async fn handle_voice_avatar_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: VoiceAvatarState,
     msg: Message,
@@ -38,15 +41,20 @@ pub async fn handle_voice_avatar_msg(
 
         if let Some(fid) = file_id {
             state.audio_url = Some(fid);
-            state.step = 2;
-
-            let processing = if lang.is_russian() {
-                "⏳ Создаём голосовой аватар..."
-            } else {
-                "⏳ Creating voice avatar..."
-            };
-            bot.send_message(msg.chat.id, processing).await?;
-            dialogue.update(Scene::VoiceAvatar(state)).await?;
+            let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+            return dispatch_and_reply(
+                &bot, &dialogue, msg.chat.id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Audio,
+                    job_type: "voice_cloning",
+                    prompt: None,
+                    image_url: state.audio_url.clone(),
+                    model: None,
+                },
+            ).await;
         } else {
             let text = if lang.is_russian() {
                 "🎙️ Пожалуйста, отправьте голосовое сообщение"
@@ -63,6 +71,8 @@ pub async fn handle_voice_avatar_msg(
 pub async fn handle_voice_avatar_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     _state: VoiceAvatarState,
     q: teloxide::types::CallbackQuery,

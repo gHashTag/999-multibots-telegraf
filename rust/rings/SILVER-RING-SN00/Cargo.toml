@@ -12,8 +12,12 @@ trios-mb-traits = { workspace = true }
 trios-mb-proto = { workspace = true }
 trios-mb-tg = { workspace = true }
 trios-mb-i18n = { workspace = true }
+trios-mb-ai = { workspace = true }
+trios-mb-jobs = { workspace = true }
 teloxide = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }

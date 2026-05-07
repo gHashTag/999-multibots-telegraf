@@ -43,6 +43,14 @@ use crate::improve_prompt::{handle_improve_prompt_msg, handle_improve_prompt_cal
 use crate::train_flux_model::{handle_train_flux_model_msg, handle_train_flux_model_callback};
 use crate::invite::handle_invite_msg;
 use crate::email::handle_email_msg;
+use crate::ai_photoshop::{handle_ai_photoshop_msg, handle_ai_photoshop_callback};
+use crate::hedra_render::{handle_hedra_render_msg, handle_hedra_render_callback};
+use crate::heygen_render::{handle_heygen_render_msg, handle_heygen_render_callback};
+use crate::fal_render::{handle_fal_render_msg, handle_fal_render_callback};
+use crate::remove_bg::{handle_remove_bg_msg, handle_remove_bg_callback};
+use crate::ai_reels::{handle_ai_reels_msg, handle_ai_reels_callback};
+use crate::size::{handle_size_msg, handle_size_callback};
+use crate::video_duration::{handle_video_duration_msg, handle_video_duration_callback};
 
 
 #[derive(BotCommands, Clone)]
@@ -106,7 +114,15 @@ pub fn build_scene_tree() -> UpdateHandler<HandlerError> {
         .branch(dptree::case![Scene::ImprovePrompt(state)].endpoint(handle_improve_prompt_msg))
         .branch(dptree::case![Scene::TrainFluxModel(state)].endpoint(handle_train_flux_model_msg))
         .branch(dptree::case![Scene::Email(state)].endpoint(handle_email_msg))
-        .branch(dptree::case![Scene::Invite].endpoint(handle_invite_msg));
+        .branch(dptree::case![Scene::Invite].endpoint(handle_invite_msg))
+        .branch(dptree::case![Scene::AiPhotoshop(state)].endpoint(handle_ai_photoshop_msg))
+        .branch(dptree::case![Scene::Size(state)].endpoint(handle_size_msg))
+        .branch(dptree::case![Scene::VideoDuration(state)].endpoint(handle_video_duration_msg))
+        .branch(dptree::case![Scene::HedraRender(state)].endpoint(handle_hedra_render_msg))
+        .branch(dptree::case![Scene::HeygenRender(state)].endpoint(handle_heygen_render_msg))
+        .branch(dptree::case![Scene::FalRender(state)].endpoint(handle_fal_render_msg))
+        .branch(dptree::case![Scene::RemoveBg(state)].endpoint(handle_remove_bg_msg))
+        .branch(dptree::case![Scene::AiReels(state)].endpoint(handle_ai_reels_msg));
 
     let callback_branch = Update::filter_callback_query()
         .enter_dialogue::<teloxide::types::CallbackQuery, InMemStorage<Scene>, Scene>()
@@ -138,7 +154,15 @@ pub fn build_scene_tree() -> UpdateHandler<HandlerError> {
         .branch(dptree::case![Scene::SelectModel(state)].endpoint(handle_select_model_callback))
         .branch(dptree::case![Scene::ImprovePrompt(state)].endpoint(handle_improve_prompt_callback))
         .branch(dptree::case![Scene::TrainFluxModel(state)].endpoint(handle_train_flux_model_callback))
-        .branch(dptree::case![Scene::VoiceAvatar(state)].endpoint(handle_voice_avatar_callback));
+        .branch(dptree::case![Scene::VoiceAvatar(state)].endpoint(handle_voice_avatar_callback))
+        .branch(dptree::case![Scene::AiPhotoshop(state)].endpoint(handle_ai_photoshop_callback))
+        .branch(dptree::case![Scene::Size(state)].endpoint(handle_size_callback))
+        .branch(dptree::case![Scene::VideoDuration(state)].endpoint(handle_video_duration_callback))
+        .branch(dptree::case![Scene::HedraRender(state)].endpoint(handle_hedra_render_callback))
+        .branch(dptree::case![Scene::HeygenRender(state)].endpoint(handle_heygen_render_callback))
+        .branch(dptree::case![Scene::FalRender(state)].endpoint(handle_fal_render_callback))
+        .branch(dptree::case![Scene::RemoveBg(state)].endpoint(handle_remove_bg_callback))
+        .branch(dptree::case![Scene::AiReels(state)].endpoint(handle_ai_reels_callback));
 
     dptree::entry()
         .branch(command_branch)
@@ -305,7 +329,7 @@ fn scene_from_id(id: &trios_mb_types::scene::SceneId) -> Scene {
         SceneId::ImageToVideo => Scene::ImageToVideo(trios_mb_tg::state::ImageToVideoState::default()),
         SceneId::ImageToPrompt => Scene::ImageToPrompt(trios_mb_tg::state::ImageToPromptState::default()),
         SceneId::ImageUpscaler => Scene::ImageUpscaler(trios_mb_tg::state::UpscalerState::default()),
-        SceneId::AiPhotoshop => Scene::MainMenu,
+        SceneId::AiPhotoshop => Scene::AiPhotoshop(trios_mb_tg::state::AiPhotoshopState::default()),
         SceneId::FluxKontext => Scene::FluxKontext(trios_mb_tg::state::FluxKontextState::default()),
         SceneId::LipSync => Scene::LipSync(trios_mb_tg::state::LipSyncState::default()),
         SceneId::FaceSwap => Scene::FaceSwap(trios_mb_tg::state::FaceSwapState::default()),
@@ -330,7 +354,7 @@ fn scene_from_id(id: &trios_mb_types::scene::SceneId) -> Scene {
         SceneId::GetRuBill => Scene::MainMenu,
         SceneId::SelectModel => Scene::SelectModel(trios_mb_tg::state::SelectModelState::default()),
         SceneId::ImprovePrompt => Scene::ImprovePrompt(trios_mb_tg::state::ImprovePromptState::default()),
-        SceneId::Size => Scene::MainMenu,
+        SceneId::Size => Scene::Size(trios_mb_tg::state::SizeState::default()),
         SceneId::TrainFluxModel => Scene::TrainFluxModel(trios_mb_tg::state::TrainFluxModelState::default()),
         SceneId::UploadTrainFluxModel => Scene::TrainFluxModel(trios_mb_tg::state::TrainFluxModelState::default()),
         SceneId::InstagramScraping => Scene::MainMenu,
@@ -340,10 +364,13 @@ fn scene_from_id(id: &trios_mb_types::scene::SceneId) -> Scene {
         SceneId::Email => Scene::Email(trios_mb_tg::state::EmailState::default()),
         SceneId::CancelPredictions => Scene::MainMenu,
         SceneId::NeuroCoder => Scene::MainMenu,
-        SceneId::VideoDuration => Scene::MainMenu,
-        SceneId::AiReelsEntry | SceneId::AiReels | SceneId::AiReelsRender => Scene::MainMenu,
-        SceneId::HedraRender | SceneId::HeygenRender | SceneId::FalRender => Scene::MainMenu,
-        SceneId::RemoveBg => Scene::MainMenu,
+        SceneId::VideoDuration => Scene::VideoDuration(trios_mb_tg::state::VideoDurationState::default()),
+        SceneId::AiReelsEntry | SceneId::AiReels => Scene::AiReels(trios_mb_tg::state::AiReelsState::default()),
+        SceneId::AiReelsRender => Scene::AiReels(trios_mb_tg::state::AiReelsState::default()),
+        SceneId::HedraRender => Scene::HedraRender(trios_mb_tg::state::HedraRenderState::default()),
+        SceneId::HeygenRender => Scene::HeygenRender(trios_mb_tg::state::HeygenRenderState::default()),
+        SceneId::FalRender => Scene::FalRender(trios_mb_tg::state::FalRenderState::default()),
+        SceneId::RemoveBg => Scene::RemoveBg(trios_mb_tg::state::RemoveBgState::default()),
     }
 }
 
@@ -467,6 +494,38 @@ async fn enter_scene_greeting(
             } else {
                 format!("👥 Referrals: {}", ref_count)
             };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::AiPhotoshop => {
+            let text = if lang.is_russian() { "🎨 AI Photoshop — отправьте изображение" } else { "🎨 AI Photoshop — send an image" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::HedraRender => {
+            let text = if lang.is_russian() { "🎬 Hedra — отправьте изображение" } else { "🎬 Hedra — send an image" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::HeygenRender => {
+            let text = if lang.is_russian() { "🎥 HeyGen — введите ID аватара" } else { "🎥 HeyGen — enter avatar ID" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::FalRender => {
+            let text = if lang.is_russian() { "⚡ Fal.ai — введите промпт" } else { "⚡ Fal.ai — enter prompt" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::RemoveBg => {
+            let text = if lang.is_russian() { "🖼️ Удалить фон — отправьте фото" } else { "🖼️ Remove BG — send a photo" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::AiReelsEntry | SceneId::AiReels | SceneId::AiReelsRender => {
+            let text = if lang.is_russian() { "🎬 AI Reels — опишите видео" } else { "🎬 AI Reels — describe the video" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::Size => {
+            let text = if lang.is_russian() { "📐 Выберите размер" } else { "📐 Select size" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::VideoDuration => {
+            let text = if lang.is_russian() { "⏱️ Выберите длительность" } else { "⏱️ Select duration" };
             bot.send_message(chat_id, text).await?;
         }
         _ => {

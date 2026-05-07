@@ -2,11 +2,13 @@ use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, JobQueue};
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use trios_mb_types::user::Language;
+use trios_mb_types::generation::*;
+use trios_mb_traits::job_queue::EnqueueRequest;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -81,6 +83,79 @@ pub async fn return_to_menu(
     bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
         .reply_markup(main_menu_keyboard(lang))
         .await?;
+    dialogue.update(Scene::MainMenu).await?;
+    Ok(())
+}
+
+pub struct DispatchParams {
+    pub telegram_id: i64,
+    pub lang: Language,
+    pub media_type: MediaType,
+    pub job_type: &'static str,
+    pub prompt: Option<String>,
+    pub image_url: Option<String>,
+    pub model: Option<String>,
+}
+
+pub async fn dispatch_and_reply(
+    bot: &teloxide::Bot,
+    dialogue: &MyDialogue,
+    chat_id: teloxide::types::ChatId,
+    job_queue: &Arc<dyn JobQueue>,
+    db: &Arc<dyn Database>,
+    params: DispatchParams,
+) -> HandlerResult {
+    let processing = if params.lang.is_russian() {
+        "⏳ Задача отправлена в обработку. Результат будет отправлен сообщением."
+    } else {
+        "⏳ Task submitted for processing. Result will be sent as a message."
+    };
+    bot.send_message(chat_id, processing).await?;
+
+    let request = GenerationRequest {
+        telegram_id: params.telegram_id,
+        media_type: params.media_type,
+        prompt: params.prompt,
+        image_url: params.image_url,
+        model: params.model,
+        params: serde_json::json!({}),
+    };
+
+    let gen = db.create_generation(&request).await;
+    match gen {
+        Ok(_g) => {
+            let enqueue_req = EnqueueRequest {
+                job_type: params.job_type.to_string(),
+                payload: serde_json::to_value(&request).unwrap_or_default(),
+                max_attempts: Some(3),
+                delay_secs: None,
+            };
+            match job_queue.enqueue(enqueue_req).await {
+                Ok(_job) => {
+                    tracing::info!(telegram_id = params.telegram_id, media_type = ?params.media_type, "Generation job enqueued");
+                }
+                Err(e) => {
+                    tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to enqueue generation");
+                    let err_msg = if params.lang.is_russian() {
+                        format!("❌ Ошибка: {}", e)
+                    } else {
+                        format!("❌ Error: {}", e)
+                    };
+                    bot.send_message(chat_id, err_msg).await?;
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to create generation");
+            let err_msg = if params.lang.is_russian() {
+                format!("❌ Ошибка: {}", e)
+            } else {
+                format!("❌ Error: {}", e)
+            };
+            bot.send_message(chat_id, err_msg).await?;
+        }
+    }
+
     dialogue.update(Scene::MainMenu).await?;
     Ok(())
 }

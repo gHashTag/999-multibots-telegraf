@@ -2,10 +2,12 @@ use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, TextToVideoState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -40,6 +42,8 @@ pub async fn handle_text_to_video_entry(
 pub async fn handle_text_to_video_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: TextToVideoState,
     msg: Message,
@@ -75,6 +79,8 @@ pub async fn handle_text_to_video_msg(
 pub async fn handle_text_to_video_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: TextToVideoState,
     q: teloxide::types::CallbackQuery,
@@ -82,6 +88,7 @@ pub async fn handle_text_to_video_callback(
     bot.answer_callback_query(&q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let chat_id = q.chat_id().unwrap();
+    let tid = q.from.id.0 as i64;
 
     let data = match &q.data {
         Some(d) => d.as_str(),
@@ -118,9 +125,19 @@ pub async fn handle_text_to_video_callback(
                 _ => 5,
             };
             state.duration = Some(dur);
-            state.step = 4;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "processing")).await?;
-            dialogue.update(Scene::TextToVideo(state)).await?;
+            return dispatch_and_reply(
+                &bot, &dialogue, chat_id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Video,
+                    job_type: "video_rendering",
+                    prompt: state.prompt.clone(),
+                    image_url: None,
+                    model: state.model.clone(),
+                },
+            ).await;
         }
         "tv:retry" => {
             let text = if lang.is_russian() { "Введите описание видео:" } else { "Enter video description:" };

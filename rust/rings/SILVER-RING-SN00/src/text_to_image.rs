@@ -2,10 +2,12 @@ use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, TextToImageState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -40,6 +42,8 @@ pub async fn handle_text_to_image_entry(
 pub async fn handle_text_to_image_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: TextToImageState,
     msg: Message,
@@ -71,9 +75,20 @@ pub async fn handle_text_to_image_msg(
             dialogue.update(Scene::TextToImage(state)).await?;
         }
         3 => {
-            state.step = 4;
-            bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "processing")).await?;
-            dialogue.update(Scene::TextToImage(state)).await?;
+            let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+            return dispatch_and_reply(
+                &bot, &dialogue, msg.chat.id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Image,
+                    job_type: "image_rendering",
+                    prompt: state.prompt.clone(),
+                    image_url: None,
+                    model: state.model.clone(),
+                },
+            ).await;
         }
         _ => {}
     }
@@ -83,6 +98,8 @@ pub async fn handle_text_to_image_msg(
 pub async fn handle_text_to_image_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: TextToImageState,
     q: teloxide::types::CallbackQuery,
@@ -90,6 +107,7 @@ pub async fn handle_text_to_image_callback(
     bot.answer_callback_query(&q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let chat_id = q.chat_id().unwrap();
+    let tid = q.from.id.0 as i64;
 
     let data = match &q.data {
         Some(d) => d.as_str(),
@@ -128,9 +146,19 @@ pub async fn handle_text_to_image_callback(
                 _ => "1:1",
             };
             state.aspect_ratio = Some(ratio.to_string());
-            state.step = 4;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "processing")).await?;
-            dialogue.update(Scene::TextToImage(state)).await?;
+            return dispatch_and_reply(
+                &bot, &dialogue, chat_id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Image,
+                    job_type: "image_rendering",
+                    prompt: state.prompt.clone(),
+                    image_url: None,
+                    model: state.model.clone(),
+                },
+            ).await;
         }
         "ti:retry" => {
             let text = if lang.is_russian() { "Введите описание изображения:" } else { "Enter image description:" };

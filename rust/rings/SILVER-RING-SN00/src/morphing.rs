@@ -2,16 +2,19 @@ use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, MorphingState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 pub async fn handle_morphing_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: MorphingState,
     msg: Message,
@@ -84,6 +87,8 @@ pub async fn handle_morphing_msg(
 pub async fn handle_morphing_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: MorphingState,
     q: teloxide::types::CallbackQuery,
@@ -91,6 +96,7 @@ pub async fn handle_morphing_callback(
     bot.answer_callback_query(&q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let chat_id = q.chat_id().unwrap();
+    let tid = q.from.id.0 as i64;
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     match data {
@@ -157,9 +163,20 @@ pub async fn handle_morphing_callback(
                 _ => "smooth cinematic transition",
             };
             state.prompt = Some(prompt.to_string());
-            state.step = 4;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "processing")).await?;
-            dialogue.update(Scene::Morphing(state)).await?;
+            let images_joined = state.images.clone().unwrap_or_default().join(",");
+            return dispatch_and_reply(
+                &bot, &dialogue, chat_id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Morphing,
+                    job_type: "morphing_rendering",
+                    prompt: state.prompt.clone(),
+                    image_url: Some(images_joined),
+                    model: None,
+                },
+            ).await;
         }
         _ => {}
     }

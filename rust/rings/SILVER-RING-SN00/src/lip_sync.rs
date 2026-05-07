@@ -2,10 +2,12 @@ use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, LipSyncState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -40,6 +42,8 @@ pub async fn handle_lip_sync_entry(
 pub async fn handle_lip_sync_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: LipSyncState,
     msg: Message,
@@ -109,6 +113,8 @@ pub async fn handle_lip_sync_msg(
 pub async fn handle_lip_sync_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: LipSyncState,
     q: teloxide::types::CallbackQuery,
@@ -116,6 +122,7 @@ pub async fn handle_lip_sync_callback(
     bot.answer_callback_query(&q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let chat_id = q.chat_id().unwrap();
+    let tid = q.from.id.0 as i64;
 
     let data = match &q.data {
         Some(d) => d.as_str(),
@@ -132,9 +139,19 @@ pub async fn handle_lip_sync_callback(
                 _ => "synclabs",
             };
             state.model = Some(model.to_string());
-            state.step = 4;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "processing")).await?;
-            dialogue.update(Scene::LipSync(state)).await?;
+            return dispatch_and_reply(
+                &bot, &dialogue, chat_id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::LipSync,
+                    job_type: "lipsync_rendering",
+                    prompt: state.video_url.clone(),
+                    image_url: state.audio_url.clone(),
+                    model: state.model.clone(),
+                },
+            ).await;
         }
         "ls:retry" => {
             let text = if lang.is_russian() { "Отправьте видео для LipSync" } else { "Send a video for LipSync" };

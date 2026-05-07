@@ -2,10 +2,11 @@ use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
-use trios_mb_traits::Database;
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, MusicGenerationState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance};
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -14,6 +15,8 @@ const MUSIC_COST: f64 = 5.0;
 pub async fn handle_music_generation_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    _job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: MusicGenerationState,
     msg: Message,
@@ -57,6 +60,8 @@ pub async fn handle_music_generation_msg(
 pub async fn handle_music_generation_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
     dialogue: MyDialogue,
     mut state: MusicGenerationState,
     q: teloxide::types::CallbackQuery,
@@ -77,10 +82,20 @@ pub async fn handle_music_generation_callback(
                 return return_to_menu(&bot, &dialogue, chat_id, lang).await;
             }
             state.model = Some(if data == "mus:suno" { "suno-v3.5" } else { "udio" }.to_string());
-            state.step = 3;
             let _ = deduct_balance(&db, tid, MUSIC_COST).await;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "processing")).await?;
-            dialogue.update(Scene::MusicGeneration(state)).await?;
+            return dispatch_and_reply(
+                &bot, &dialogue, chat_id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Audio,
+                    job_type: "image_rendering",
+                    prompt: state.prompt.clone(),
+                    image_url: None,
+                    model: state.model.clone(),
+                },
+            ).await;
         }
         _ => {}
     }

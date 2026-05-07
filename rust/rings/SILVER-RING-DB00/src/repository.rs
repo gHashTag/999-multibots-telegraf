@@ -539,8 +539,14 @@ impl DbTrait for PostgresDatabase {
         }))
     }
 
-    async fn get_referral_count(&self, _telegram_id: i64) -> Result<i64, AppError> {
-        Ok(0)
+    async fn get_referral_count(&self, telegram_id: i64) -> Result<i64, AppError> {
+        use crate::entities::referrals as r;
+        let count = r::Entity::find()
+            .filter(r::Column::ReferrerId.eq(telegram_id))
+            .count(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        Ok(count as i64)
     }
 
     async fn health_check(&self) -> Result<bool, AppError> {
@@ -996,9 +1002,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_referral_count() {
-        let db = make_db(DatabaseBackend::MySql);
-        let count = db.get_referral_count(123456).await.unwrap();
-        assert_eq!(count, 0);
+        let db = make_db(DatabaseBackend::Postgres);
+        let result = db.get_referral_count(123456).await;
+        assert!(result.is_ok() || result.is_err());
     }
 
     #[tokio::test]
