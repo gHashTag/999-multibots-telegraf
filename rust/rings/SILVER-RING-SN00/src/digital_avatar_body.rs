@@ -63,6 +63,7 @@ pub async fn handle_digital_avatar_body_msg(
                         lang,
                         media_type: MediaType::Image,
                         job_type: "image_rendering",
+                        cost: 10.0,
                         prompt: state.body_style.clone(),
                         image_url: state.face_url.clone(),
                         model: None,

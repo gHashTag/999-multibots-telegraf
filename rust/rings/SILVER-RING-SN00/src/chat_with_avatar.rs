@@ -46,6 +46,7 @@ pub async fn handle_chat_with_avatar_msg(
                     lang,
                     media_type: MediaType::Image,
                     job_type: "image_rendering",
+                    cost: 10.0,
                     prompt: state.message.clone(),
                     image_url: state.avatar_id.clone(),
                     model: None,

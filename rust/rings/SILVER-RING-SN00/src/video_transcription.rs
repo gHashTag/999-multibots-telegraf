@@ -46,6 +46,7 @@ pub async fn handle_video_transcription_msg(
                     lang,
                     media_type: MediaType::Video,
                     job_type: "video_rendering",
+                    cost: 10.0,
                     prompt: None,
                     image_url: state.video_url.clone(),
                     model: None,

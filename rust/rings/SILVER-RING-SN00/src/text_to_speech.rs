@@ -63,6 +63,7 @@ pub async fn handle_text_to_speech_msg(
                     lang,
                     media_type: MediaType::TextToSpeech,
                     job_type: "voice_cloning",
+                    cost: 10.0,
                     prompt: state.text.clone(),
                     image_url: None,
                     model: state.model.clone(),

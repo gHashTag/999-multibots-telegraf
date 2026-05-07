@@ -81,6 +81,7 @@ pub async fn handle_heygen_render_msg(
                         lang,
                         media_type: MediaType::Video,
                         job_type: "video_rendering",
+                        cost: 10.0,
                         prompt: state.text.clone(),
                         image_url: None,
                         model: None,

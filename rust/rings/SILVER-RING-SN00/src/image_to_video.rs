@@ -90,6 +90,7 @@ pub async fn handle_image_to_video_msg(
                         lang,
                         media_type: MediaType::ImageToVideo,
                         job_type: "video_rendering",
+                        cost: 10.0,
                         prompt: state.prompt.clone(),
                         image_url: state.image_url.clone(),
                         model: state.model.clone(),

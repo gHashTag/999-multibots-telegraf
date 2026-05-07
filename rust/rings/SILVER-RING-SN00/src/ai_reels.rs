@@ -111,6 +111,7 @@ pub async fn handle_ai_reels_callback(
             lang,
             media_type: MediaType::Video,
             job_type: "video_rendering",
+            cost: 10.0,
             prompt: state.prompt.clone(),
             image_url: None,
             model: state.style.clone(),

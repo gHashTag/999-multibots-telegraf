@@ -91,6 +91,7 @@ pub async fn handle_music_generation_callback(
                     lang,
                     media_type: MediaType::Audio,
                     job_type: "image_rendering",
+                    cost: 10.0,
                     prompt: state.prompt.clone(),
                     image_url: None,
                     model: state.model.clone(),

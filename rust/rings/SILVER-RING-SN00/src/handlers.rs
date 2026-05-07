@@ -51,6 +51,10 @@ use crate::remove_bg::{handle_remove_bg_msg, handle_remove_bg_callback};
 use crate::ai_reels::{handle_ai_reels_msg, handle_ai_reels_callback};
 use crate::size::{handle_size_msg, handle_size_callback};
 use crate::video_duration::{handle_video_duration_msg, handle_video_duration_callback};
+use crate::instagram_scraping::handle_instagram_scraping_msg;
+use crate::instagram_parser::handle_instagram_parser_msg;
+use crate::tech_support::handle_tech_support_msg;
+use crate::neuro_coder::handle_neuro_coder_msg;
 
 
 #[derive(BotCommands, Clone)]
@@ -122,7 +126,11 @@ pub fn build_scene_tree() -> UpdateHandler<HandlerError> {
         .branch(dptree::case![Scene::HeygenRender(state)].endpoint(handle_heygen_render_msg))
         .branch(dptree::case![Scene::FalRender(state)].endpoint(handle_fal_render_msg))
         .branch(dptree::case![Scene::RemoveBg(state)].endpoint(handle_remove_bg_msg))
-        .branch(dptree::case![Scene::AiReels(state)].endpoint(handle_ai_reels_msg));
+        .branch(dptree::case![Scene::AiReels(state)].endpoint(handle_ai_reels_msg))
+        .branch(dptree::case![Scene::InstagramScraping(state)].endpoint(handle_instagram_scraping_msg))
+        .branch(dptree::case![Scene::InstagramParser(state)].endpoint(handle_instagram_parser_msg))
+        .branch(dptree::case![Scene::TechSupport(state)].endpoint(handle_tech_support_msg))
+        .branch(dptree::case![Scene::NeuroCoder(state)].endpoint(handle_neuro_coder_msg));
 
     let callback_branch = Update::filter_callback_query()
         .enter_dialogue::<teloxide::types::CallbackQuery, InMemStorage<Scene>, Scene>()
@@ -357,13 +365,12 @@ fn scene_from_id(id: &trios_mb_types::scene::SceneId) -> Scene {
         SceneId::Size => Scene::Size(trios_mb_tg::state::SizeState::default()),
         SceneId::TrainFluxModel => Scene::TrainFluxModel(trios_mb_tg::state::TrainFluxModelState::default()),
         SceneId::UploadTrainFluxModel => Scene::TrainFluxModel(trios_mb_tg::state::TrainFluxModelState::default()),
-        SceneId::InstagramScraping => Scene::MainMenu,
-        SceneId::InstagramParser => Scene::MainMenu,
-        SceneId::InstagramParserWizard => Scene::MainMenu,
+        SceneId::InstagramScraping => Scene::InstagramScraping(trios_mb_tg::state::InstagramScrapingState::default()),
+        SceneId::InstagramParser | SceneId::InstagramParserWizard => Scene::InstagramParser(trios_mb_tg::state::InstagramParserState::default()),
         SceneId::Invite => Scene::Invite,
         SceneId::Email => Scene::Email(trios_mb_tg::state::EmailState::default()),
         SceneId::CancelPredictions => Scene::MainMenu,
-        SceneId::NeuroCoder => Scene::MainMenu,
+        SceneId::NeuroCoder => Scene::NeuroCoder(trios_mb_tg::state::NeuroCoderState::default()),
         SceneId::VideoDuration => Scene::VideoDuration(trios_mb_tg::state::VideoDurationState::default()),
         SceneId::AiReelsEntry | SceneId::AiReels => Scene::AiReels(trios_mb_tg::state::AiReelsState::default()),
         SceneId::AiReelsRender => Scene::AiReels(trios_mb_tg::state::AiReelsState::default()),
@@ -526,6 +533,22 @@ async fn enter_scene_greeting(
         }
         SceneId::VideoDuration => {
             let text = if lang.is_russian() { "⏱️ Выберите длительность" } else { "⏱️ Select duration" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::InstagramScraping => {
+            let text = if lang.is_russian() { "🔍 Парсинг Instagram\n\nОтправьте ссылку на Instagram профиль:" } else { "🔍 Instagram Scraping\n\nSend an Instagram profile link:" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::InstagramParser | SceneId::InstagramParserWizard => {
+            let text = if lang.is_russian() { "📊 Парсер Instagram\n\nОтправьте ссылку на профиль для анализа:" } else { "📊 Instagram Parser\n\nSend a profile link for analysis:" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::NeuroCoder => {
+            let text = if lang.is_russian() { "💻 Нейро Кодер\n\nОпишите задачу для генерации кода:" } else { "💻 Neuro Coder\n\nDescribe the code generation task:" };
+            bot.send_message(chat_id, text).await?;
+        }
+        SceneId::TechSupport => {
+            let text = if lang.is_russian() { "🛠️ Техподдержка\n\nОпишите вашу проблему:" } else { "🛠️ Tech Support\n\nDescribe your issue:" };
             bot.send_message(chat_id, text).await?;
         }
         _ => {

@@ -3685,6 +3685,7 @@ dependencies = [
 name = "trios-mb-e2e-tests"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "chrono",
  "http-body-util",
@@ -3693,8 +3694,13 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tower 0.4.13",
+ "tracing",
+ "trios-mb-ai",
+ "trios-mb-db",
  "trios-mb-i18n",
  "trios-mb-jobs",
+ "trios-mb-payment",
+ "trios-mb-scenes",
  "trios-mb-server",
  "trios-mb-test-utils",
  "trios-mb-tg",

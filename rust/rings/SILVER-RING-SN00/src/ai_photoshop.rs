@@ -77,6 +77,7 @@ pub async fn handle_ai_photoshop_msg(
                         lang,
                         media_type: MediaType::Image,
                         job_type: "image_rendering",
+                        cost: 10.0,
                         prompt: state.prompt.clone(),
                         image_url: state.image_url.clone(),
                         model: None,

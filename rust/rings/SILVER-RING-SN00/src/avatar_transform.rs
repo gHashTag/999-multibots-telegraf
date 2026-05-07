@@ -87,6 +87,7 @@ pub async fn handle_avatar_transform_msg(
                         lang,
                         media_type: MediaType::Image,
                         job_type: "image_rendering",
+                        cost: 10.0,
                         prompt: state.style.clone(),
                         image_url: state.image_url.clone(),
                         model: None,

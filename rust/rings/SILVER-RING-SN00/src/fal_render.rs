@@ -60,6 +60,7 @@ pub async fn handle_fal_render_msg(
                         lang,
                         media_type: MediaType::Image,
                         job_type: "image_rendering",
+                        cost: 10.0,
                         prompt: state.prompt.clone(),
                         image_url: None,
                         model: None,

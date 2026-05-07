@@ -96,6 +96,7 @@ pub async fn handle_flux_kontext_msg(
                         lang,
                         media_type: MediaType::Image,
                         job_type: "image_rendering",
+                        cost: 10.0,
                         prompt: state.prompt.clone(),
                         image_url: state.image_a.clone(),
                         model: None,

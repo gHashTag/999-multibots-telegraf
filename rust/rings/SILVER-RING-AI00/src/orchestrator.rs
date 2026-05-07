@@ -1,10 +1,14 @@
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use trios_mb_traits::{AiProvider, AiProviderOrchestrator};
 use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use crate::circuit_breaker::CircuitBreaker;
+
+const FAILURE_THRESHOLD: u32 = 3;
+const RESET_TIMEOUT_SECS: u64 = 60;
 
 pub struct AiOrchestrator {
     providers: Vec<Arc<dyn AiProvider>>,
@@ -13,9 +17,16 @@ pub struct AiOrchestrator {
 
 impl AiOrchestrator {
     pub fn new(providers: Vec<Arc<dyn AiProvider>>) -> Self {
+        let mut breakers = HashMap::new();
+        for p in &providers {
+            breakers.insert(
+                p.name().to_string(),
+                CircuitBreaker::new(FAILURE_THRESHOLD, Duration::from_secs(RESET_TIMEOUT_SECS)),
+            );
+        }
         Self {
             providers,
-            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breakers: Arc::new(RwLock::new(breakers)),
         }
     }
 

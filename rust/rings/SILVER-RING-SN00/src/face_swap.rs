@@ -73,6 +73,7 @@ pub async fn handle_face_swap_msg(
                         lang,
                         media_type: MediaType::FaceSwap,
                         job_type: "faceswap_rendering",
+                        cost: 10.0,
                         prompt: None,
                         image_url: state.target_url.clone(),
                         model: None,

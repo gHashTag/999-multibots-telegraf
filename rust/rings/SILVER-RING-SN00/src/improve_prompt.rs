@@ -46,6 +46,7 @@ pub async fn handle_improve_prompt_msg(
                     lang,
                     media_type: MediaType::Image,
                     job_type: "image_rendering",
+                    cost: 10.0,
                     prompt: state.original_prompt.clone(),
                     image_url: None,
                     model: None,

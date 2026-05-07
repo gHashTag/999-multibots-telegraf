@@ -50,6 +50,7 @@ pub async fn handle_voice_avatar_msg(
                     lang,
                     media_type: MediaType::Audio,
                     job_type: "voice_cloning",
+                    cost: 10.0,
                     prompt: None,
                     image_url: state.audio_url.clone(),
                     model: None,

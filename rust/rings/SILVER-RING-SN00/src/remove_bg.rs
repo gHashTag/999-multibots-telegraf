@@ -56,6 +56,7 @@ pub async fn handle_remove_bg_msg(
                         lang,
                         media_type: MediaType::Upscale,
                         job_type: "upscaling",
+                        cost: 10.0,
                         prompt: None,
                         image_url: state.image_url.clone(),
                         model: None,

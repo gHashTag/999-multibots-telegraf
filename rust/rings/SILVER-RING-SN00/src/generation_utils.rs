@@ -92,6 +92,7 @@ pub struct DispatchParams {
     pub lang: Language,
     pub media_type: MediaType,
     pub job_type: &'static str,
+    pub cost: f64,
     pub prompt: Option<String>,
     pub image_url: Option<String>,
     pub model: Option<String>,
@@ -105,6 +106,24 @@ pub async fn dispatch_and_reply(
     db: &Arc<dyn Database>,
     params: DispatchParams,
 ) -> HandlerResult {
+    if let Err(err_msg) = check_balance(db, params.telegram_id, params.cost, params.lang).await {
+        bot.send_message(chat_id, err_msg).await?;
+        dialogue.update(Scene::MainMenu).await?;
+        return Ok(());
+    }
+
+    let deducted = deduct_balance(db, params.telegram_id, params.cost).await;
+    if !deducted {
+        let err_msg = if params.lang.is_russian() {
+            "❌ Не удалось списать средства"
+        } else {
+            "❌ Failed to deduct balance"
+        };
+        bot.send_message(chat_id, err_msg).await?;
+        dialogue.update(Scene::MainMenu).await?;
+        return Ok(());
+    }
+
     let processing = if params.lang.is_russian() {
         "⏳ Задача отправлена в обработку. Результат будет отправлен сообщением."
     } else {
@@ -118,7 +137,7 @@ pub async fn dispatch_and_reply(
         prompt: params.prompt,
         image_url: params.image_url,
         model: params.model,
-        params: serde_json::json!({}),
+        params: serde_json::json!({ "cost": params.cost }),
     };
 
     let gen = db.create_generation(&request).await;
@@ -132,10 +151,11 @@ pub async fn dispatch_and_reply(
             };
             match job_queue.enqueue(enqueue_req).await {
                 Ok(_job) => {
-                    tracing::info!(telegram_id = params.telegram_id, media_type = ?params.media_type, "Generation job enqueued");
+                    tracing::info!(telegram_id = params.telegram_id, media_type = ?params.media_type, cost = params.cost, "Generation job enqueued (balance deducted)");
                 }
                 Err(e) => {
-                    tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to enqueue generation");
+                    tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to enqueue generation, refunding");
+                    let _ = db.add_balance(params.telegram_id, params.cost).await;
                     let err_msg = if params.lang.is_russian() {
                         format!("❌ Ошибка: {}", e)
                     } else {
@@ -146,7 +166,8 @@ pub async fn dispatch_and_reply(
             }
         }
         Err(e) => {
-            tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to create generation");
+            tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to create generation, refunding");
+            let _ = db.add_balance(params.telegram_id, params.cost).await;
             let err_msg = if params.lang.is_russian() {
                 format!("❌ Ошибка: {}", e)
             } else {

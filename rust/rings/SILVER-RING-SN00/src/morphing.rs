@@ -172,6 +172,7 @@ pub async fn handle_morphing_callback(
                     lang,
                     media_type: MediaType::Morphing,
                     job_type: "morphing_rendering",
+                    cost: 10.0,
                     prompt: state.prompt.clone(),
                     image_url: Some(images_joined),
                     model: None,

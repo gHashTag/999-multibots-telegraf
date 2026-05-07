@@ -48,6 +48,7 @@ pub async fn handle_image_upscaler_msg(
                     lang,
                     media_type: MediaType::Upscale,
                     job_type: "upscaling",
+                    cost: 10.0,
                     prompt: None,
                     image_url: state.image_url.clone(),
                     model: None,

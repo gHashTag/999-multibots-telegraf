@@ -5,6 +5,7 @@ use trios_mb_traits::{SecretStore, Database, PaymentGateway, AiProvider, AiProvi
 use trios_mb_ai::providers::*;
 use trios_mb_ai::AiOrchestrator;
 use trios_mb_jobs::worker::{WorkerPool, JobType};
+use teloxide::prelude::Requester;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -39,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     info!("database connected, migrations complete");
     let db: Arc<dyn Database> = Arc::new(pg);
 
-    // 3. AI Orchestrator (7 providers with failover)
+    // 3. AI Orchestrator (7 providers with failover + circuit breakers)
     let orchestrator = build_orchestrator(&secret_store).await;
     let orchestrator: Arc<dyn AiProviderOrchestrator> = Arc::new(orchestrator);
     info!("AI orchestrator initialized");
@@ -77,7 +78,11 @@ async fn main() -> anyhow::Result<()> {
         trios_mb_jobs::run_retry_maintenance(jq, std::time::Duration::from_secs(300), cancel_clone).await;
     });
 
-    let worker_pool = build_worker_pool(job_queue.clone(), orchestrator.clone(), db.clone());
+    // Primary bot for result delivery
+    let primary_bot_token = secret_store.get("BOT_TOKEN_1").await.unwrap_or_default();
+    let delivery_bot: Arc<teloxide::Bot> = Arc::new(teloxide::Bot::new(&primary_bot_token));
+
+    let worker_pool = build_worker_pool(job_queue.clone(), orchestrator.clone(), db.clone(), delivery_bot.clone());
     let worker_pool = Arc::new(worker_pool);
     worker_pool.spawn();
     info!("job queue workers started");
@@ -186,6 +191,7 @@ fn build_worker_pool(
     queue: Arc<dyn JobQueue>,
     orchestrator: Arc<dyn AiProviderOrchestrator>,
     db: Arc<dyn Database>,
+    delivery_bot: Arc<teloxide::Bot>,
 ) -> WorkerPool {
     use trios_mb_jobs::worker::JobHandler;
 
@@ -195,24 +201,26 @@ fn build_worker_pool(
         ($pool:expr, $job_type:expr, $handler_fn:expr) => {
             let orch = orchestrator.clone();
             let db_c = db.clone();
+            let bot = delivery_bot.clone();
             $pool.register($job_type, Box::new(move |job| {
                 let orch = orch.clone();
                 let db = db_c.clone();
+                let bot = bot.clone();
                 Box::pin(async move {
-                    $handler_fn(&orch, &db, &job).await
+                    $handler_fn(&orch, &db, &bot, &job).await
                 }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), trios_mb_types::AppError>> + Send>>
             }) as JobHandler);
         };
     }
 
-    register_handler!(pool, JobType::ImageRendering, handle_image_rendering);
-    register_handler!(pool, JobType::VideoRendering, handle_video_rendering);
-    register_handler!(pool, JobType::LipSyncRendering, handle_lipsync_rendering);
-    register_handler!(pool, JobType::FaceSwapRendering, handle_faceswap_rendering);
-    register_handler!(pool, JobType::ModelTraining, handle_model_training);
-    register_handler!(pool, JobType::Upscaling, handle_upscaling);
-    register_handler!(pool, JobType::VoiceCloning, handle_voice_cloning);
-    register_handler!(pool, JobType::MorphingRendering, handle_morphing_rendering);
+    register_handler!(pool, JobType::ImageRendering, handle_generation_job);
+    register_handler!(pool, JobType::VideoRendering, handle_generation_job);
+    register_handler!(pool, JobType::LipSyncRendering, handle_generation_job);
+    register_handler!(pool, JobType::FaceSwapRendering, handle_generation_job);
+    register_handler!(pool, JobType::ModelTraining, handle_generation_job);
+    register_handler!(pool, JobType::Upscaling, handle_generation_job);
+    register_handler!(pool, JobType::VoiceCloning, handle_generation_job);
+    register_handler!(pool, JobType::MorphingRendering, handle_generation_job);
 
     pool.register(JobType::Scraping, Box::new(move |job: trios_mb_traits::job_queue::Job| {
         let payload = job.payload;
@@ -225,12 +233,14 @@ fn build_worker_pool(
     pool
 }
 
-async fn handle_image_rendering(
+async fn handle_generation_job(
     orchestrator: &Arc<dyn AiProviderOrchestrator>,
     db: &Arc<dyn Database>,
+    bot: &Arc<teloxide::Bot>,
     job: &trios_mb_traits::job_queue::Job,
 ) -> Result<(), trios_mb_types::AppError> {
     use trios_mb_types::generation::*;
+
     let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
         .unwrap_or_else(|_| GenerationRequest {
             telegram_id: 0,
@@ -240,6 +250,11 @@ async fn handle_image_rendering(
             model: None,
             params: serde_json::json!({}),
         });
+
+    let cost: f64 = request.params.get("cost")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
     match orchestrator.dispatch(&request).await {
         Ok(result) => {
             if let Err(e) = db.update_generation_status(
@@ -248,236 +263,36 @@ async fn handle_image_rendering(
             ).await {
                 tracing::error!(error = %e, "Failed to update generation status");
             }
-            Ok(())
-        }
-        Err(e) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
-            Err(e)
-        }
-    }
-}
 
-async fn handle_video_rendering(
-    orchestrator: &Arc<dyn AiProviderOrchestrator>,
-    db: &Arc<dyn Database>,
-    job: &trios_mb_traits::job_queue::Job,
-) -> Result<(), trios_mb_types::AppError> {
-    use trios_mb_types::generation::*;
-    let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::Video,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
-    match orchestrator.dispatch(&request).await {
-        Ok(result) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await;
-            Ok(())
-        }
-        Err(e) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
-            Err(e)
-        }
-    }
-}
+            if let Some(ref url) = result.result_url {
+                let chat_id = teloxide::types::ChatId(request.telegram_id);
+                let msg = format!("✅ Результат готов!\n\n{}", url);
+                if let Err(e) = bot.send_message(chat_id, &msg).await {
+                    tracing::error!(telegram_id = request.telegram_id, error = %e, "Failed to deliver result to user");
+                }
+            }
 
-async fn handle_lipsync_rendering(
-    orchestrator: &Arc<dyn AiProviderOrchestrator>,
-    db: &Arc<dyn Database>,
-    job: &trios_mb_traits::job_queue::Job,
-) -> Result<(), trios_mb_types::AppError> {
-    use trios_mb_types::generation::*;
-    let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::LipSync,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
-    match orchestrator.dispatch(&request).await {
-        Ok(result) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await;
             Ok(())
         }
         Err(e) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
-            Err(e)
-        }
-    }
-}
+            if cost > 0.0 {
+                if let Err(refund_err) = db.add_balance(request.telegram_id, cost).await {
+                    tracing::error!(telegram_id = request.telegram_id, error = %refund_err, "Failed to refund balance after generation failure");
+                } else {
+                    tracing::info!(telegram_id = request.telegram_id, cost = cost, "Balance refunded after generation failure");
+                }
+            }
 
-async fn handle_faceswap_rendering(
-    orchestrator: &Arc<dyn AiProviderOrchestrator>,
-    db: &Arc<dyn Database>,
-    job: &trios_mb_traits::job_queue::Job,
-) -> Result<(), trios_mb_types::AppError> {
-    use trios_mb_types::generation::*;
-    let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::FaceSwap,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
-    match orchestrator.dispatch(&request).await {
-        Ok(result) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await;
-            Ok(())
-        }
-        Err(e) => {
             let _ = db.update_generation_status(
                 job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
             ).await;
-            Err(e)
-        }
-    }
-}
 
-async fn handle_model_training(
-    orchestrator: &Arc<dyn AiProviderOrchestrator>,
-    db: &Arc<dyn Database>,
-    job: &trios_mb_traits::job_queue::Job,
-) -> Result<(), trios_mb_types::AppError> {
-    use trios_mb_types::generation::*;
-    let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::Image,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
-    match orchestrator.dispatch(&request).await {
-        Ok(result) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await;
-            Ok(())
-        }
-        Err(e) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
-            Err(e)
-        }
-    }
-}
+            let chat_id = teloxide::types::ChatId(request.telegram_id);
+            let err_msg = format!("❌ Ошибка генерации. Средства возвращены ({} ⭐).", cost);
+            if let Err(send_err) = bot.send_message(chat_id, &err_msg).await {
+                tracing::error!(telegram_id = request.telegram_id, error = %send_err, "Failed to deliver error to user");
+            }
 
-async fn handle_upscaling(
-    orchestrator: &Arc<dyn AiProviderOrchestrator>,
-    db: &Arc<dyn Database>,
-    job: &trios_mb_traits::job_queue::Job,
-) -> Result<(), trios_mb_types::AppError> {
-    use trios_mb_types::generation::*;
-    let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::Image,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
-    match orchestrator.dispatch(&request).await {
-        Ok(result) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await;
-            Ok(())
-        }
-        Err(e) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
-            Err(e)
-        }
-    }
-}
-
-async fn handle_voice_cloning(
-    orchestrator: &Arc<dyn AiProviderOrchestrator>,
-    db: &Arc<dyn Database>,
-    job: &trios_mb_traits::job_queue::Job,
-) -> Result<(), trios_mb_types::AppError> {
-    use trios_mb_types::generation::*;
-    let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::Audio,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
-    match orchestrator.dispatch(&request).await {
-        Ok(result) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await;
-            Ok(())
-        }
-        Err(e) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
-            Err(e)
-        }
-    }
-}
-
-async fn handle_morphing_rendering(
-    orchestrator: &Arc<dyn AiProviderOrchestrator>,
-    db: &Arc<dyn Database>,
-    job: &trios_mb_traits::job_queue::Job,
-) -> Result<(), trios_mb_types::AppError> {
-    use trios_mb_types::generation::*;
-    let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::Video,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
-    match orchestrator.dispatch(&request).await {
-        Ok(result) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await;
-            Ok(())
-        }
-        Err(e) => {
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
             Err(e)
         }
     }

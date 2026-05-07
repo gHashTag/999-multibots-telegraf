@@ -147,6 +147,7 @@ pub async fn handle_lip_sync_callback(
                     lang,
                     media_type: MediaType::LipSync,
                     job_type: "lipsync_rendering",
+                    cost: 10.0,
                     prompt: state.video_url.clone(),
                     image_url: state.audio_url.clone(),
                     model: state.model.clone(),

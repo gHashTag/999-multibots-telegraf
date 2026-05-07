@@ -47,6 +47,7 @@ pub async fn handle_image_to_prompt_msg(
                     lang,
                     media_type: MediaType::Image,
                     job_type: "image_rendering",
+                    cost: 10.0,
                     prompt: None,
                     image_url: state.image_url.clone(),
                     model: None,

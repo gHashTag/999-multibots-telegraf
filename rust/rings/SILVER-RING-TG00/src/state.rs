@@ -51,6 +51,10 @@ pub enum Scene {
     FalRender(FalRenderState),
     RemoveBg(RemoveBgState),
     AiReels(AiReelsState),
+    InstagramScraping(InstagramScrapingState),
+    InstagramParser(InstagramParserState),
+    TechSupport(TechSupportState),
+    NeuroCoder(NeuroCoderState),
 }
 
 impl Scene {
@@ -99,6 +103,10 @@ impl Scene {
             Self::FalRender(_) => SceneId::FalRender,
             Self::RemoveBg(_) => SceneId::RemoveBg,
             Self::AiReels(_) => SceneId::AiReels,
+            Self::InstagramScraping(_) => SceneId::InstagramScraping,
+            Self::InstagramParser(_) => SceneId::InstagramParser,
+            Self::TechSupport(_) => SceneId::TechSupport,
+            Self::NeuroCoder(_) => SceneId::NeuroCoder,
         }
     }
 }
@@ -324,5 +332,27 @@ scene_state!(AiReelsState {
     prompt: String,
     style: String,
     num_scenes: u8,
+    result_url: String,
+});
+
+scene_state!(InstagramScrapingState {
+    profile_url: String,
+    result_url: String,
+});
+
+scene_state!(InstagramParserState {
+    profile_url: String,
+    target_url: String,
+    result_url: String,
+});
+
+scene_state!(TechSupportState {
+    subject: String,
+    message: String,
+});
+
+scene_state!(NeuroCoderState {
+    prompt: String,
+    language: String,
     result_url: String,
 });
