@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod circuit_breaker;
 pub mod orchestrator;
 pub mod providers;

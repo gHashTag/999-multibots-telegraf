@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod robokassa;
 pub mod telegram_stars;
 pub mod x402;

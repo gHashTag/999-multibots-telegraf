@@ -89,10 +89,10 @@ struct AvatarData {
 }
 
 #[derive(Debug, Deserialize)]
-struct Avatar {
-    avatar_id: String,
+pub struct Avatar {
+    pub avatar_id: String,
     #[serde(default)]
-    avatar_name: Option<String>,
+    pub avatar_name: Option<String>,
 }
 
 pub struct HeyGenProvider {

@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize)]
@@ -120,10 +121,8 @@ impl WebhookPayload {
             .and_then(|o| {
                 if let Some(arr) = o.as_array() {
                     Some(arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-                } else if let Some(s) = o.as_str() {
-                    Some(vec![s.to_string()])
                 } else {
-                    None
+                    o.as_str().map(|s| vec![s.to_string()])
                 }
             })
             .unwrap_or_default()

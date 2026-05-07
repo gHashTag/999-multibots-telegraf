@@ -186,7 +186,7 @@ impl Database for MockDatabase {
             .filter(|t| t.telegram_id == telegram_id)
             .cloned()
             .collect();
-        txs.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        txs.sort_by_key(|b| std::cmp::Reverse(b.created_at));
         txs.truncate(limit as usize);
         Ok(txs)
     }

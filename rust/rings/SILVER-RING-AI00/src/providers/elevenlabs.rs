@@ -26,9 +26,9 @@ struct VoiceListResponse {
 }
 
 #[derive(Debug, Deserialize)]
-struct Voice {
-    voice_id: String,
-    name: String,
+pub struct Voice {
+    pub voice_id: String,
+    pub name: String,
     #[serde(default)]
     labels: Option<serde_json::Value>,
 }

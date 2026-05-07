@@ -64,7 +64,7 @@ impl PaymentGateway for X402Gateway {
             .as_str()
             .unwrap_or_default();
 
-        let from = params["from"].as_str().unwrap_or_default();
+        let _from = params["from"].as_str().unwrap_or_default();
         let amount = params["amount"]
             .as_f64()
             .unwrap_or(0.0)

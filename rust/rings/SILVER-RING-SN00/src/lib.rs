@@ -1,3 +1,5 @@
+#![allow(dead_code, clippy::if_same_then_else, clippy::field_reassign_with_default)]
+
 pub mod handlers;
 pub mod start;
 pub mod menu;

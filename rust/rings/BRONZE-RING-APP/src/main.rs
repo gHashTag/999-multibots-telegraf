@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 use trios_mb_types::config::AppConfig;
 use trios_mb_traits::{SecretStore, Database, PaymentGateway};
 

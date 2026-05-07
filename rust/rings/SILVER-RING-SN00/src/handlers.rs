@@ -241,7 +241,7 @@ async fn handle_main_menu_msg(
 fn match_text_to_scene(lang: trios_mb_types::user::Language, text: &str) -> Option<trios_mb_types::scene::SceneId> {
     use trios_mb_types::scene::SceneId;
     use trios_mb_tg::navigation::match_item_text;
-    match_item_text(text).map(|scene_id| scene_id).or_else(|| {
+    match_item_text(text).or_else(|| {
         if text == trios_mb_i18n::t(lang, "generate_photo") {
             return Some(SceneId::NeuroPhoto);
         }
