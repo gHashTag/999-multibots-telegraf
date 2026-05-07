@@ -7,22 +7,9 @@ use trios_mb_tg::state::{Scene, TextToImageState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use trios_mb_types::generation::MediaType;
-use crate::generation_utils::{DispatchParams, dispatch_and_reply};
+use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
-
-async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> trios_mb_types::user::Language {
-    match msg.from {
-        Some(ref user) => db.get_user_by_telegram_id(user.id.0 as i64)
-            .await.ok().flatten().map(|u| u.language).unwrap_or_default(),
-        None => trios_mb_types::user::Language::default(),
-    }
-}
-
-async fn load_lang_cb(db: &Arc<dyn Database>, q: &teloxide::types::CallbackQuery) -> trios_mb_types::user::Language {
-    db.get_user_by_telegram_id(q.from.id.0 as i64)
-        .await.ok().flatten().map(|u| u.language).unwrap_or_default()
-}
 
 pub async fn handle_text_to_image_entry(
     bot: teloxide::Bot,

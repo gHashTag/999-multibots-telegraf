@@ -50,3 +50,58 @@ impl CircuitBreaker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn allows_requests_when_closed() {
+        let cb = CircuitBreaker::new(3, Duration::from_secs(60));
+        assert!(cb.allow_request());
+        assert!(cb.allow_request());
+    }
+
+    #[test]
+    fn opens_after_threshold_failures() {
+        let cb = CircuitBreaker::new(3, Duration::from_secs(60));
+        cb.record_failure();
+        assert!(cb.allow_request());
+        cb.record_failure();
+        assert!(cb.allow_request());
+        cb.record_failure();
+        assert!(!cb.allow_request());
+    }
+
+    #[test]
+    fn resets_on_success() {
+        let cb = CircuitBreaker::new(3, Duration::from_secs(60));
+        cb.record_failure();
+        cb.record_failure();
+        cb.record_failure();
+        assert!(!cb.allow_request());
+        cb.record_success();
+        assert!(cb.allow_request());
+        assert_eq!(cb.failure_count.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn allows_after_reset_timeout() {
+        let cb = CircuitBreaker::new(2, Duration::from_millis(1));
+        cb.record_failure();
+        cb.record_failure();
+        assert!(!cb.allow_request());
+        std::thread::sleep(Duration::from_millis(5));
+        assert!(cb.allow_request());
+    }
+
+    #[test]
+    fn success_resets_failure_count() {
+        let cb = CircuitBreaker::new(3, Duration::from_secs(60));
+        cb.record_failure();
+        cb.record_failure();
+        cb.record_success();
+        cb.record_failure();
+        assert!(cb.allow_request());
+    }
+}

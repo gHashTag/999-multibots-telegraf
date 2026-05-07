@@ -9,6 +9,7 @@ use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::{HandlerResult, HandlerError};
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use crate::generation_utils::{load_lang, load_lang_by_id};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -558,20 +559,4 @@ async fn enter_scene_greeting(
         }
     }
     Ok(())
-}
-
-async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> trios_mb_types::user::Language {
-    match msg.from {
-        Some(ref user) => load_lang_by_id(db, user.id.0 as i64).await,
-        None => trios_mb_types::user::Language::default(),
-    }
-}
-
-async fn load_lang_by_id(db: &Arc<dyn Database>, telegram_id: i64) -> trios_mb_types::user::Language {
-    db.get_user_by_telegram_id(telegram_id)
-        .await
-        .ok()
-        .flatten()
-        .map(|u| u.language)
-        .unwrap_or_default()
 }
