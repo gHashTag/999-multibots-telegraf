@@ -1,42 +1,45 @@
-import { Scenes } from 'telegraf'
-import { MyContext } from '@/interfaces'
-import { createImagesZip } from '../../helpers/images/createImagesZip'
+/**
+ * Scene: Upload and Train Flux Model
+ *
+ * Flow:
+ * 1. Create ZIP from session images
+ * 2. Upload ZIP to Supabase Storage (bypasses Inngest size limit)
+ * 3. Send Inngest event with ZIP URL (not base64)
+ * 4. Inngest processes training with Replicate
+ */
+
+import { Scenes, Markup } from 'telegraf'
+import type { MyContext } from '@/interfaces'
+import { createImagesZip } from '@/helpers/images/createImagesZip'
 import { ensureSupabaseAuth } from '@/core/supabase'
-import { inngest } from '@/inngest_app/client' // ✅ ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ
+import { inngest } from '@/inngest_app/client'
 import { isRussian } from '@/helpers/language'
-
 import { sendGenericErrorMessage } from '@/navigation'
-import { getBotNameByToken } from '@/core/bot' // ✅ For correct bot_name detection
+import { getBotNameByToken } from '@/core/bot'
+import { createClient } from '@supabase/supabase-js'
+import fs from 'fs'
+import path from 'path'
 
-const fs = require('fs')
-const path = require('path')
+const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>('uploadTrainFluxModelScene')
 
-export const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(
-  'uploadTrainFluxModelScene'
-)
-
-uploadTrainFluxModelScene.enter(async ctx => {
+uploadTrainFluxModelScene.enter(async (ctx) => {
   const isRu = isRussian(ctx)
   console.log('Scene: ZIP')
+
   try {
     await ctx.reply(isRu ? '⏳ Создаю архив...' : '⏳ Creating archive...')
+
     const zipPath = await createImagesZip(ctx.session.images)
     console.log('ZIP created at:', zipPath)
 
-    // ✅ Файл будет отправлен напрямую через FormData в ai-server
-    // AI-server multer сохранит его в правильную структуру /uploads/{telegram_id}/{type}/
-    console.log('ZIP file ready for upload to ai-server:', zipPath)
-
     await ensureSupabaseAuth()
 
-    // Получаем gender из состояния сцены или сессии
-    const sceneState = ctx.scene.state as { gender?: string }
-    const gender = sceneState?.gender || ctx.session.gender
+    // Get gender from scene state or session
+    const sceneState = ctx.scene.state as any
+    const gender = sceneState?.gender || (ctx.session as any).gender
 
     if (!gender) {
-      console.error(
-        'Error in uploadTrainFluxModelScene: Gender not found in session or scene state.'
-      )
+      console.error('Error in uploadTrainFluxModelScene: Gender not found in session or scene state.')
       await ctx.reply(
         isRu
           ? '❌ Ошибка: пол не определен. Попробуйте начать заново.'
@@ -44,44 +47,38 @@ uploadTrainFluxModelScene.enter(async ctx => {
       )
       return ctx.scene.leave()
     }
+
     console.log(`[uploadTrainFluxModelScene] Using gender: ${gender}`)
 
     await ctx.reply(isRu ? '⏳ Загружаю архив...' : '⏳ Uploading archive...')
 
-    // ✅ КРИТИЧНО: Используем triggerWord из сессии (установлен в digitalAvatarBodyWizard)
+    // Use triggerWord from session (set in digitalAvatarBodyWizard)
     const triggerWord =
       ctx.session.triggerWord ||
       ctx.session.modelName?.toUpperCase() ||
       ctx.session.username?.toUpperCase()
+
     if (!triggerWord) {
-      await ctx.reply(
-        isRu ? '❌ Некорректный trigger word' : '❌ Invalid trigger word'
-      )
+      await ctx.reply(isRu ? '❌ Некорректный trigger word' : '❌ Invalid trigger word')
       return ctx.scene.leave()
     }
-    console.log(
-      '[uploadTrainFluxModelScene] Using triggerWord from session:',
-      triggerWord
-    )
 
-    // ✅ Локальная тренировка на bot-farm (прямой вызов Replicate API)
+    console.log('[uploadTrainFluxModelScene] Using triggerWord from session:', triggerWord)
+
     console.log('[uploadTrainFluxModelScene] Using LOCAL training on bot-farm')
 
     await ctx.reply(
       isRu
         ? `⏳ Начинаю обучение модели...\n\nВаша модель будет натренирована через 1-2 часа. После завершения вы сможете проверить её работу, используя раздел "Модели" в Нейрофото.`
-        : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using the "Models" section in Neurophoto.`
+        : `⏳ Starting model training...\n\nYour model will be trained in 1-2 hours. Once completed, you can check its performance using "Models" section in Neurophoto.`
     )
 
-    // ✅ Get correct bot name from token
-    const botToken = (ctx.telegram as any).token || (ctx as any).botInfo?.token
+    // Get correct bot name from token
+    const botToken = ctx.telegram.token || ctx.botInfo?.token
     const { bot_name } = getBotNameByToken(botToken)
 
-    // ✅ Загружаем ZIP файл в Supabase Storage (Inngest имеет лимит 256KB на событие)
-    // Base64 ZIP файл может быть >1MB, поэтому используем URL вместо base64
-    // ✅ ИСПРАВЛЕНО: Используем bucket 'images' вместо 'uploads' (bucket 'uploads' не существует)
-    // ✅ ИСПРАВЛЕНО: Используем serviceClient с SUPABASE_SERVICE_ROLE_KEY для обхода RLS политик
-    const { createClient } = await import('@supabase/supabase-js')
+    // Upload ZIP file to Supabase Storage (bypasses Inngest 256KB size limit)
+    // Base64 ZIP file can be >1MB, so we use URL instead of base64
     const SUPABASE_URL = process.env.SUPABASE_URL
     const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -90,7 +87,6 @@ uploadTrainFluxModelScene.enter(async ctx => {
     }
 
     const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
     const zipFileName = `train/${ctx.session.targetUserId}/${Date.now()}_${path.basename(zipPath)}`
     const zipBuffer = await fs.promises.readFile(zipPath)
 
@@ -98,13 +94,11 @@ uploadTrainFluxModelScene.enter(async ctx => {
       .from('images')
       .upload(zipFileName, zipBuffer, {
         contentType: 'application/zip',
-        upsert: true,
+        upsert: true
       })
 
     if (uploadError) {
-      throw new Error(
-        `Failed to upload ZIP to Supabase: ${uploadError.message}`
-      )
+      throw new Error(`Failed to upload ZIP to Supabase: ${uploadError.message}`)
     }
 
     const { data: publicUrlData } = serviceClient.storage
@@ -114,30 +108,23 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const zipUrl = publicUrlData.publicUrl
     console.log('[uploadTrainFluxModelScene] ZIP uploaded to Supabase:', zipUrl)
 
-    // ✅ Удаляем локальный ZIP файл после загрузки
+    // Delete local ZIP file after upload
     try {
       await fs.promises.unlink(zipPath)
       console.log('[uploadTrainFluxModelScene] Local ZIP file cleaned up')
     } catch (unlinkError) {
-      console.warn(
-        '[uploadTrainFluxModelScene] Failed to cleanup local ZIP (non-fatal)',
-        unlinkError
-      )
+      console.warn('[uploadTrainFluxModelScene] Failed to cleanup local ZIP (non-fatal)', unlinkError)
     }
 
-    console.log(
-      '[uploadTrainFluxModelScene] Sending Inngest event (единственный источник правды):',
-      {
-        modelName: ctx.session.modelName,
-        triggerWord,
-        steps: ctx.session.steps,
-        zipUrl, // HTTP URL из Supabase
-        bot_name,
-      }
-    )
+    console.log('[uploadTrainFluxModelScene] Sending Inngest event:', {
+      modelName: ctx.session.modelName,
+      triggerWord,
+      steps: ctx.session.steps,
+      zipUrl,
+      bot_name
+    })
 
     try {
-      // ✅ Используем единственный источник правды - прямой inngest клиент
       await inngest.send({
         name: 'model/training.start',
         data: {
@@ -147,19 +134,13 @@ uploadTrainFluxModelScene.enter(async ctx => {
           steps: ctx.session.steps,
           telegram_id: ctx.session.targetUserId.toString(),
           triggerWord,
-          zipUrl, // ✅ HTTP URL из Supabase (Inngest лимит 256KB на событие)
-          gender,
-        },
+          zipUrl, // HTTP URL from Supabase (bypasses Inngest size limit)
+          gender
+        }
       })
-
-      console.log(
-        '[uploadTrainFluxModelScene] ✅ Inngest event sent successfully'
-      )
-    } catch (eventError) {
-      console.error(
-        '[uploadTrainFluxModelScene] ❌ Failed to send Inngest event:',
-        eventError.message
-      )
+      console.log('[uploadTrainFluxModelScene] ✅ Inngest event sent successfully')
+    } catch (eventError: any) {
+      console.error('[uploadTrainFluxModelScene] ❌ Failed to send Inngest event:', eventError.message)
       console.error('[uploadTrainFluxModelScene] ❌ Full error:', eventError)
       throw eventError
     }
@@ -178,3 +159,4 @@ uploadTrainFluxModelScene.enter(async ctx => {
 })
 
 export default uploadTrainFluxModelScene
+export { uploadTrainFluxModelScene }

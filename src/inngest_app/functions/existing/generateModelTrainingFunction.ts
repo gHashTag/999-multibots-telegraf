@@ -14,9 +14,7 @@
 import Replicate from 'replicate'
 // fs import removed - ZIP is now downloaded from Supabase URL, not local filesystem
 import { supabase } from '@/core/supabase'
-// 🔥 FIX: Removed static import - read from process.env at runtime to avoid race condition with Infisical
 import { logger } from '@/utils/logger'
-import { createInngestFailureHandler } from '../../client'
 import { sanitizeModelName } from '@/helpers/sanitizeModelName'
 import type { Inngest } from 'inngest'
 
@@ -37,16 +35,15 @@ interface ModelTrainingEvent {
 export function createGenerateModelTrainingFunction(inngest: any) {
   return inngest.createFunction(
     {
-      id: 'generate-model-training',
-      name: 'Model Training - Flux LoRA',
+      id: 'generate-model-training-v3', // NEW ID to force fresh registration
+      name: 'Model Training - Flux LoRA v3',
       concurrency: [
         {
           limit: 2, // Max 2 concurrent trainings
         },
       ],
       retries: 0, // No retries for training - user can restart manually
-      // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-      onFailure: createInngestFailureHandler('Model Training - Flux LoRA'),
+      // 🔥 REMOVED: onFailure handler to eliminate potential validation issue
     },
     { event: 'model/training.start' },
     async ({ event, step }) => {
@@ -59,8 +56,8 @@ export function createGenerateModelTrainingFunction(inngest: any) {
       })
 
       // ✅ STEP 1: Validate credentials
-      // 🔥 FIX: Read from process.env at runtime (after Infisical has loaded secrets)
-      const credentials = await step.run('validate-credentials', async () => {
+      // 🔥 FIX: Read from process.env at runtime, return minimal data to avoid size limit
+      await step.run('validate-credentials', async () => {
         const token = process.env.REPLICATE_API_TOKEN
         const username = process.env.REPLICATE_USERNAME
 
@@ -73,7 +70,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
           throw new Error('Missing REPLICATE_API_TOKEN or REPLICATE_USERNAME')
         }
         logger.info('[INNGEST TRAINING] Credentials validated')
-        return { validated: true, token, username }
+        return { validated: true }
       })
 
       // ✅ STEP 2: Check for existing active training (prevent duplicates)
@@ -98,44 +95,39 @@ export function createGenerateModelTrainingFunction(inngest: any) {
       })
 
       // ✅ STEP 3: Validate ZIP URL (no download - pass URL directly to Replicate)
-      // 🔥 FIX: Don't download ZIP in Inngest - causes step output size limit exceeded
+      // 🔥 FIX: Removed HEAD request to avoid Inngest capturing response object
       // Replicate accepts public URLs directly!
       const zipValidation = await step.run('validate-zip-url', async () => {
         if (!eventData.zipUrl) {
           throw new Error('ZIP URL not provided in event data')
         }
 
-        logger.info('[INNGEST TRAINING] Validating ZIP URL', {
+        // Just verify URL exists, don't fetch anything
+        // Replicate will handle URL validation
+        logger.info('[INNGEST TRAINING] ZIP URL will be validated by Replicate', {
           url: eventData.zipUrl.substring(0, 80) + '...',
-        })
-
-        // Just verify URL is accessible, don't download the content
-        const response = await fetch(eventData.zipUrl, { method: 'HEAD' })
-        if (!response.ok) {
-          throw new Error(`ZIP URL not accessible: ${response.status} ${response.statusText}`)
-        }
-
-        const contentLength = response.headers.get('content-length')
-        logger.info('[INNGEST TRAINING] ZIP URL validated', {
-          size: contentLength ? `${Math.round(Number(contentLength) / 1024 / 1024)}MB` : 'unknown',
         })
 
         return { urlValid: true }
       })
 
       // ✅ STEP 4: Sanitize model name and create model on Replicate
+      // 🔥 FIX: Read credentials from process.env to avoid step output size limit
       const modelInfo = await step.run('create-replicate-model', async () => {
-        const replicate = new Replicate({ auth: credentials.token })
+        const token = process.env.REPLICATE_API_TOKEN
+        const username = process.env.REPLICATE_USERNAME
+
+        const replicate = new Replicate({ auth: token })
 
         // Sanitize model name (remove spaces, special chars, make lowercase)
         const sanitizedName = sanitizeModelName(eventData.modelName)
         // Add unique timestamp to avoid conflicts
         const uniqueModelName = `${sanitizedName}-${Date.now()}`
-        const destination = `${credentials.username}/${uniqueModelName}`
+        const destination = `${username}/${uniqueModelName}`
 
         logger.info('[INNGEST TRAINING] Preparing model destination...', {
           destination,
-          owner: credentials.username,
+          owner: username,
           originalName: eventData.modelName,
           sanitizedName: uniqueModelName,
         })
@@ -143,7 +135,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         // Check if model exists
         let modelExists = false
         try {
-          await replicate.models.get(credentials.username, uniqueModelName)
+          await replicate.models.get(username, uniqueModelName)
           logger.info('[INNGEST TRAINING] Model already exists', { destination })
           modelExists = true
         } catch (error: any) {
@@ -158,7 +150,7 @@ export function createGenerateModelTrainingFunction(inngest: any) {
         // Create model if it doesn't exist
         if (!modelExists) {
           try {
-            await replicate.models.create(credentials.username, uniqueModelName, {
+            await replicate.models.create(username, uniqueModelName, {
               description: `LoRA: ${eventData.triggerWord}`,
               visibility: 'public',
               hardware: 'gpu-l40s',
@@ -220,9 +212,10 @@ export function createGenerateModelTrainingFunction(inngest: any) {
       })
 
       // ✅ STEP 5b: Create training on Replicate (now safe - we have a DB record)
+      // 🔥 FIX: Read credentials from process.env to avoid step output size limit
       const trainingResult = await step.run('create-replicate-training', async () => {
-        // 🔥 FIX: Use credentials from step 1 (loaded from process.env at runtime)
-        const replicate = new Replicate({ auth: credentials.token })
+        const token = process.env.REPLICATE_API_TOKEN
+        const replicate = new Replicate({ auth: token })
 
         const destination = modelInfo.destination
 

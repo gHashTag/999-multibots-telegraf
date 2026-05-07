@@ -47,7 +47,6 @@ export { generateAdvancedLoopingVideo as generateAdvancedLoopingVideoFunction } 
 export { generateModelTraining as generateModelTrainingFunction } from './generateModelTraining'
 
 // Test Functions
-export { testSimpleFunction } from './testSimpleFunction'
 export { testSimpleMessageFunction } from './testSimpleMessageFunction'
 export { testAdvancedLoopFunction } from './testAdvancedLoopFunction'
 
@@ -60,7 +59,6 @@ import { broadcastMessage } from './broadcast/broadcastMessage'
 import { aiReelsCallbackFunction } from './ai-reels-callback'
 import { generateAdvancedLoopingVideo } from './existing/generateAdvancedLoopingVideoFunction'
 import { generateModelTraining } from './generateModelTraining'
-import { testSimpleFunction } from './testSimpleFunction'
 import { testSimpleMessageFunction } from './testSimpleMessageFunction'
 import { testAdvancedLoopFunction } from './testAdvancedLoopFunction'
 
@@ -74,7 +72,6 @@ export const getAllFunctions = () => [
   aiReelsCallbackFunction,
   generateAdvancedLoopingVideo,
   generateModelTraining,
-  testSimpleFunction,
   testSimpleMessageFunction,
   testAdvancedLoopFunction,
 ]

@@ -132,9 +132,30 @@ async function loadAllSecrets(): Promise<void> {
 
     // Сохраняем в кэш И в process.env для совместимости с библиотеками
     secretCache = {}
+
+    // 🔥 Fly.io secrets that should NOT be overridden by Infisical
+    // These are set via `flyctl secrets set` and take precedence
+    const flySecrets = new Set([
+      'INNGEST_SERVE_ORIGIN',  // Must match Fly.io app URL
+      'BASE_WEBHOOK_URL',      // Webhook URL for Replicate callbacks
+    ])
+
+    // Save current Fly.io secret values before Infisical override
+    const flySecretValues: Record<string, string> = {}
+    for (const key of flySecrets) {
+      if (process.env[key]) {
+        flySecretValues[key] = process.env[key]!
+      }
+    }
+
     for (const secret of result.secrets) {
       secretCache[secret.secretKey] = secret.secretValue
-      // 🔥 CRITICAL: Также записываем в process.env для совместимости
+      // 🔥 CRITICAL: Не перезаписываем Fly.io секреты
+      if (flySecrets.has(secret.secretKey) && flySecretValues[secret.secretKey]) {
+        logger.info(`[Infisical] ⚠️ Preserving Fly.io secret: ${secret.secretKey}`)
+        continue
+      }
+      // Также записываем в process.env для совместимости
       // с библиотеками типа Inngest, которые читают напрямую из process.env
       process.env[secret.secretKey] = secret.secretValue
     }
